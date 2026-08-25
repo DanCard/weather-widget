@@ -99,15 +99,16 @@ object MetarCloudBlender {
         val stats: Stats,
         /** False for non-NWS sources: their cloud actuals come from the synthetic backfill row. */
         val isMetarBlend: Boolean,
+        val dominantContribution: BlendContribution? = null,
     )
 
-    fun empty(isMetarBlend: Boolean) = Result(emptyMap(), Stats(0, 0, emptyMap()), isMetarBlend)
+    fun empty(isMetarBlend: Boolean) = Result(emptyMap(), Stats(0, 0, emptyMap()), isMetarBlend, dominantContribution = null)
 
     /**
      * Wraps a synthetic-station series (the non-NWS sources, whose cloud arrives via
      * [HistoricalActualsBackfill]) with empty blend stats — there is no station blend behind it.
      */
-    fun synthetic(hours: Map<Long, Int>) = Result(hours, Stats(0, 0, emptyMap()), isMetarBlend = false)
+    fun synthetic(hours: Map<Long, Int>) = Result(hours, Stats(0, 0, emptyMap()), isMetarBlend = false, dominantContribution = null)
 
     /**
      * The shared source-aware half of the cloud-actuals read, so the Android and desktop DAOs
@@ -319,6 +320,7 @@ object MetarCloudBlender {
         val widthByPoint = mutableMapOf<Long, Int>()
         var shadowedAnchors = 0
         var metarPreferredAnchors = 0
+        var latestDominantContribution: BlendContribution? = null
         for (ts in candidateTimes) {
             val contributions = byStation.mapNotNull { (id, rows) ->
                 val carriers = carriersByStation.getValue(id)
@@ -352,6 +354,26 @@ object MetarCloudBlender {
             val blended = SpatialInterpolator.interpolateIDWValues(valueByDistance) ?: continue
             pointValues[ts] = blended.roundToInt().coerceIn(0, 100)
             widthByPoint[ts] = valueByDistance.size
+
+            val dominantEntry = contributions.minByOrNull { it.first.distanceKm }
+            if (dominantEntry != null && dominantEntry.second != null) {
+                val anchor = dominantEntry.first
+                val rawCloud = dominantEntry.second!!
+                latestDominantContribution = BlendContribution(
+                    stationId = anchor.stationId,
+                    stationName = anchor.stationName,
+                    stationType = anchor.stationType,
+                    distanceKm = anchor.distanceKm,
+                    lastReadingMs = anchor.timestamp,
+                    rawTemp = rawCloud.toFloat(),
+                    resolvedTemp = rawCloud.toFloat(),
+                    sourceKind = "observed",
+                    ageMs = 0L,
+                    weight = 1.0,
+                    weightShare = 1.0,
+                    isSynthetic = false,
+                )
+            }
         }
 
         if (pointValues.isEmpty() && stationsWithLayers > 0) {
@@ -374,6 +396,7 @@ object MetarCloudBlender {
                 metarPreferredAnchors,
             ),
             isMetarBlend = true,
+            dominantContribution = latestDominantContribution,
         )
     }
 

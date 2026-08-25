@@ -49,6 +49,7 @@ class SynopticApi(
             val weatherSummaryArray = obsObj["weather_summary_set_1d"]?.jsonArray
             val weatherCondArray = obsObj["weather_condition_set_1d"]?.jsonArray
             val metarArray = obsObj["metar_set_1"]?.jsonArray
+            val cloudLayer1Array = obsObj["cloud_layer_1_set_1d"]?.jsonArray
             // Parallel to air_temp_set_1: null = passed QC, array of check IDs = flagged
             // (e.g. [105] = SynopticLabs Spatial Value Check).
             val airTempQcArray = station["QC"]?.jsonObject?.get("air_temp_set_1")?.jsonArray
@@ -67,6 +68,23 @@ class SynopticApi(
                     ?: "Unknown"
                 val rawMetar = metarArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
 
+                var layers = MetarRawSkyParser.layersFrom(rawMetar)
+                if (layers.isEmpty() && cloudLayer1Array != null) {
+                    val layerObj = cloudLayer1Array.getOrNull(i) as? JsonObject
+                    val skyCond = layerObj?.get("sky_condition")?.jsonPrimitive?.contentOrNull
+                    val heightM = layerObj?.get("height_agl")?.jsonPrimitive?.doubleOrNull
+                    val mappedAmount = mapSkyConditionToAmount(skyCond)
+                    if (mappedAmount != null) {
+                        layers = listOf(NwsApi.CloudLayer(amount = mappedAmount, baseMeters = heightM))
+                    }
+                }
+                if (layers.isEmpty()) {
+                    val mappedAmount = mapSkyConditionToAmount(summary)
+                    if (mappedAmount != null) {
+                        layers = listOf(NwsApi.CloudLayer(amount = mappedAmount, baseMeters = null))
+                    }
+                }
+
                 out.add(
                     NwsApi.Observation(
                         timestamp = dateTimeStr,
@@ -77,7 +95,7 @@ class SynopticApi(
                         minTempLast24hCelsius = null,
                         precipLastHourMm = null,
                         qcFailed = !qcChecks.isNullOrEmpty(),
-                        cloudLayers = MetarRawSkyParser.layersFrom(rawMetar),
+                        cloudLayers = layers,
                         // A row backed by a raw report IS a METAR — the same thing `rawMessage`
                         // signals on the NWS path. Mesonet stations return no metar_set_1 and stay
                         // false, which is what MetarCloudBlender's METAR-over-ASOS preference needs
@@ -88,6 +106,16 @@ class SynopticApi(
                 )
             }
             return out
+        }
+
+        internal fun mapSkyConditionToAmount(cond: String?): String? = when (cond?.trim()?.lowercase()) {
+            "clear", "fair", "sunny", "mostly clear", "none", "skc", "clr" -> "CLR"
+            "few", "few clouds" -> "FEW"
+            "scattered", "scattered clouds", "partly cloudy", "sct" -> "SCT"
+            "broken", "broken clouds", "mostly cloudy", "bkn" -> "BKN"
+            "overcast", "cloudy", "ovc" -> "OVC"
+            "obscured", "vertical visibility", "fog", "vv" -> "VV"
+            else -> null
         }
 
         /** One station of a radius query: its identity plus the readings parsed from it. */
@@ -236,6 +264,40 @@ class SynopticApi(
             return FetchOutcome.failed(e)
         }
         return parseSynopticTimeseries(json, response, stationId, stationNameFallback)
+    }
+
+    /**
+     * Radius query for observations across multiple nearby stations.
+     */
+    suspend fun fetchRadiusTimeseries(
+        latitude: Double,
+        longitude: Double,
+        radiusMiles: Double = 25.0,
+        recentMinutes: Long = 120,
+    ): FetchOutcome<List<RadiusStation>> {
+        val token = tokenProvider()?.takeIf { it.isNotBlank() }
+            ?: return FetchOutcome.Failed("synoptic: no token configured")
+        val response: String = try {
+            val url = "https://api.synopticdata.com/v2/stations/timeseries"
+
+            httpClient.get(url) {
+                parameter("radius", "$latitude,$longitude,$radiusMiles")
+                parameter("recent", recentMinutes)
+                parameter("token", token)
+                parameter("obtimezone", "utc")
+                parameter("qc", "on")
+                parameter("qc_checks", "all")
+                parameter("qc_flags", "on")
+                header("Referer", "https://www.weather.gov/wrh/timeseries")
+                header("Origin", "https://www.weather.gov")
+            }.body()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Synoptic radius fetch for ($latitude, $longitude) failed: $e")
+            return FetchOutcome.failed(e)
+        }
+        return parseRadiusTimeseries(json, response)
     }
 
 }

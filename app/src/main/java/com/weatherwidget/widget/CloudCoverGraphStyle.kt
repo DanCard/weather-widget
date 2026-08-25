@@ -29,6 +29,9 @@ object CloudCoverGraphStyle {
         val nowLabelTextPaint: Paint,
         val dayLabelTextPaint: Paint,
         val todayDayLabelPaint: Paint,
+        val dominantValueTextPaint: Paint,
+        val dominantStationTextPaint: Paint,
+        val dominantTimeTextPaint: Paint,
     )
 
     private var cachedPaints: PaintSet? = null
@@ -73,6 +76,25 @@ object CloudCoverGraphStyle {
         val dayLabelTextPaint = HourlyGraphPaints.dayLabel(context, labelScale)
         val todayDayLabelPaint = HourlyGraphPaints.todayDayLabel(dayLabelTextPaint)
 
+        val dominantValueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_CLOUD_ACTUAL_ARGB
+            textSize = dpToPx(context, TemperatureGraphStyle.DOMINANT_TEMP_LABEL_SIZE_DP * labelScale)
+            textAlign = Paint.Align.LEFT
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_DARK)
+        }
+        val dominantStationTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_CLOUD_ACTUAL_ARGB
+            textSize = dpToPx(context, TemperatureGraphStyle.DOMINANT_STATION_LABEL_SIZE_DP * labelScale)
+            textAlign = Paint.Align.LEFT
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_DARK)
+        }
+        val dominantTimeTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_CLOUD_ACTUAL_ARGB
+            textSize = dpToPx(context, TemperatureGraphStyle.DOMINANT_TIME_LABEL_SIZE_DP * labelScale)
+            textAlign = Paint.Align.LEFT
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_DARK)
+        }
+
         val paints = PaintSet(
             density = density,
             labelScale = labelScale,
@@ -87,6 +109,9 @@ object CloudCoverGraphStyle {
             nowLabelTextPaint = nowLabelTextPaint,
             dayLabelTextPaint = dayLabelTextPaint,
             todayDayLabelPaint = todayDayLabelPaint,
+            dominantValueTextPaint = dominantValueTextPaint,
+            dominantStationTextPaint = dominantStationTextPaint,
+            dominantTimeTextPaint = dominantTimeTextPaint,
         )
         cachedPaints = paints
         return paints

@@ -221,6 +221,54 @@ class DominantStationLabelTest {
         )
     }
 
+    @Test
+    fun formatCloudSourceLabelTextBuildsExpectedText() {
+        val label = requireNotNull(
+            DominantStationLabel.formatCloudSourceLabelText("Synoptic"),
+        )
+        assertEquals("Actual cloud cover data from Synoptic", label.fullText)
+        assertEquals(
+            listOf(
+                DominantStationLabel.Segment("Actual cloud cover data from Synoptic", DominantStationLabel.Part.STATION),
+            ),
+            label.segments,
+        )
+    }
+
+    @Test
+    fun formatCloudSourceLabelTextReturnsNullForBlankOrNull() {
+        assertNull(DominantStationLabel.formatCloudSourceLabelText(null))
+        assertNull(DominantStationLabel.formatCloudSourceLabelText("   "))
+    }
+
+    @Test
+    fun formatCloudLabelTextBuildsExpectedSegments() {
+        val label = requireNotNull(
+            DominantStationLabel.formatCloudLabelText(contribution(stationId = "KNUQ", rawTemp = 44f), zoneId = zone),
+        )
+        assertEquals("knuq 44% @ 5:15 pm", label.fullText)
+        assertEquals(
+            listOf(
+                DominantStationLabel.Segment("knuq ", DominantStationLabel.Part.STATION),
+                DominantStationLabel.Segment("44%", DominantStationLabel.Part.TEMPERATURE),
+                DominantStationLabel.Segment(" @", DominantStationLabel.Part.AT),
+                DominantStationLabel.Segment(" 5:15", DominantStationLabel.Part.TIME),
+                DominantStationLabel.Segment(" pm", DominantStationLabel.Part.AMPM),
+            ),
+            label.segments,
+        )
+    }
+
+    @Test
+    fun formatCloudLabelTextReturnsNullForSynthetic() {
+        assertNull(
+            DominantStationLabel.formatCloudLabelText(
+                contribution(stationId = "OPEN_METEO_MAIN", rawTemp = 44f, isSynthetic = true),
+                zoneId = zone,
+            ),
+        )
+    }
+
     // ---- visibility ----
 
     @Test

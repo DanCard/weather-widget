@@ -143,6 +143,68 @@ object DominantStationLabel {
     }
 
     /**
+     * Formats the actuals source API label for borrowed cloud cover (e.g. `Actual cloud cover data from Synoptic`).
+     * Returns null if [sourceName] is null or blank.
+     */
+    fun formatCloudSourceLabelText(sourceName: String?): LabelText? {
+        val name = sourceName?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val text = "Actual cloud cover data from $name"
+        return LabelText(
+            fullText = text,
+            segments = listOf(Segment(text, Part.STATION)),
+        )
+    }
+
+    /**
+     * Formats the dominant station label for cloud cover (e.g. `knuq 44% @ 10:15 am`).
+     * Returns null if contribution is missing, synthetic, or lacks station/percentage.
+     */
+    fun formatCloudLabelText(
+        contribution: BlendContribution?,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): LabelText? {
+        if (contribution == null || contribution.isSynthetic) return null
+        return formatCloudLabelText(
+            stationId = contribution.stationId,
+            rawCloudPercent = contribution.rawTemp?.let { kotlin.math.round(it).toInt() },
+            lastReadingMs = contribution.lastReadingMs,
+            zoneId = zoneId,
+        )
+    }
+
+    fun formatCloudLabelText(
+        stationId: String?,
+        rawCloudPercent: Int?,
+        lastReadingMs: Long? = null,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): LabelText? {
+        val id = stationId?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val percent = rawCloudPercent?.let { "$it%" } ?: return null
+        val reading = lastReadingMs?.takeIf { it > 0L }?.let { ms ->
+            runCatching {
+                val zoned = Instant.ofEpochMilli(ms).atZone(zoneId)
+                ReadingTime(
+                    clock = zoned.format(CLOCK_TIME),
+                    amPm = zoned.format(AM_PM).lowercase(Locale.getDefault()),
+                )
+            }.getOrNull()
+        }
+        val segments = buildList {
+            add(Segment("${id.lowercase()} ", Part.STATION))
+            add(Segment(percent, Part.TEMPERATURE))
+            if (reading != null) {
+                add(Segment(" @", Part.AT))
+                add(Segment(" ${reading.clock}", Part.TIME))
+                add(Segment(" ${reading.amPm}", Part.AMPM))
+            }
+        }
+        return LabelText(
+            fullText = segments.joinToString(separator = "") { it.text },
+            segments = segments,
+        )
+    }
+
+    /**
      * `knuq 73.4° @ 5:15 pm`. Lowercase because at this font size an all-caps callsign shouts louder
      * than the temperatures it sits among.
      *

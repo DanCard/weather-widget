@@ -167,6 +167,23 @@ todayOverlayDominantAge = true))
     }
 
     @Test
+    fun `actualsProviders passes through only when the writer may change it`() {
+        val persisted = config().copy(settings = config().settings.copy(actualsProviders = emptyMap()))
+        val draft = config().copy(settings = config().settings.copy(actualsProviders = mapOf("SILURIAN" to "SYNOPTIC")))
+
+        assertEquals(
+            "the observations window may change actuals providers",
+            mapOf("SILURIAN" to "SYNOPTIC"),
+            mergeNonSettingsSave(persisted, draft, allowWeatherSourceChange = false, allowActualsProvidersChange = true).settings.actualsProviders,
+        )
+        assertEquals(
+            "other writers must not change actuals providers",
+            emptyMap<String, String>(),
+            mergeNonSettingsSave(persisted, draft, allowWeatherSourceChange = false, allowActualsProvidersChange = false).settings.actualsProviders,
+        )
+    }
+
+    @Test
     fun `every settings-owned field is preserved by the merge`() {
         // Guards the merge list: a settings field the merge forgets would revert the same way
         // narrowZoomSpanHours did.

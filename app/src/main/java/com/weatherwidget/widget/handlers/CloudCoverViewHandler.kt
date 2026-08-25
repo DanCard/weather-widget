@@ -570,6 +570,15 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
 
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
 
+            val dominantStationLabel = if (com.weatherwidget.shared.observations.ActualsProviderResolver.borrows(effectiveDisplaySource)) {
+                val provider = WeatherSource.fromId(com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(effectiveDisplaySource))
+                com.weatherwidget.shared.graph.DominantStationLabel.formatCloudSourceLabelText(
+                    sourceName = provider.displayName,
+                )
+            } else {
+                null
+            }
+
             val hourLabelSpacingDp = if (zoom.stage == com.weatherwidget.widget.ZoomStage.NARROW) 18f else 28f
             val renderStartMs = SystemClock.elapsedRealtime()
             val bitmap = CloudCoverGraphRenderer.renderGraph(
@@ -596,6 +605,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 errorSourceLabel = effectiveDisplaySource.displayName,
                 errorCode = stateManager.getSourceLastErrorCode(effectiveDisplaySource),
                 errorFailureTimeMs = stateManager.getSourceLastFailureTime(effectiveDisplaySource),
+                dominantStationLabel = dominantStationLabel,
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
 

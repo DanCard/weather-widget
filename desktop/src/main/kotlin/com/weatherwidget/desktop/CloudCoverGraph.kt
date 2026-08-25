@@ -16,14 +16,19 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.*
 import com.weatherwidget.shared.graph.CloudSeriesBuilder
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import kotlin.math.roundToInt
 
 // Shared palette (CloudCoverGraphPalette) — the Android renderer draws the identical ARGBs. The
@@ -31,6 +36,10 @@ import kotlin.math.roundToInt
 // documented there. Local vals keep the Compose Color typing.
 private val COLOR_CLOUD_CURVE = Color(CloudCoverGraphPalette.CURVE_FORECAST)
 private val COLOR_CLOUD_ACTUAL = Color(CloudCoverGraphPalette.CURVE_ACTUAL)
+
+private const val DOMINANT_VALUE_LABEL_SP = 13f
+private const val DOMINANT_STATION_LABEL_SP = 7f
+private const val DOMINANT_TIME_LABEL_SP = 11f
 
 private val COLOR_CLOUD_LABEL_FORECAST = Color(CloudCoverGraphPalette.LABEL_FORECAST)
 
@@ -281,6 +290,92 @@ fun CloudCoverGraph(
                 val r = Rect(p.box.left, p.box.top, p.box.right, p.box.bottom)
                 drawText(textMeasurer.measure(p.text, actualStyle), topLeft = r.topLeft)
                 drawnLabels.add(r)
+            }
+        }
+
+        // Actuals source API label for borrowed actuals (e.g. Silurian, Open-Meteo)
+        val displaySource = WeatherSource.fromDisplaySource(displaySourceId)
+        val borrowsActuals = ActualsProviderResolver.borrows(displaySource)
+        val dominantSpanHours = (windowEnd - windowStart) / 3_600_000L
+        val dominantLabel = if (borrowsActuals) {
+            val provider = WeatherSource.fromId(ActualsProviderResolver.providerIdFor(displaySource))
+            DominantStationLabel.formatCloudSourceLabelText(
+                sourceName = provider.displayName,
+            )
+        } else {
+            null
+        }
+        val dominantText = dominantLabel?.fullText
+        if (dominantLabel != null && dominantText != null && dominantSpanHours <= DominantStationLabel.MAX_HOURS_SPAN) {
+            val dominantStyle = TextStyle(
+                fontSize = (DOMINANT_STATION_LABEL_SP * scale).sp,
+                color = COLOR_CLOUD_ACTUAL,
+                shadow = androidx.compose.ui.graphics.Shadow(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    offset = Offset(0f, 1f * scale),
+                    blurRadius = 2f * scale,
+                ),
+            )
+            val annotated = buildAnnotatedString {
+                dominantLabel.segments.forEach { segment ->
+                    when (segment.part) {
+                        DominantStationLabel.Part.TEMPERATURE ->
+                            withStyle(SpanStyle(fontSize = (DOMINANT_VALUE_LABEL_SP * scale).sp)) {
+                                append(segment.text)
+                            }
+                        DominantStationLabel.Part.TIME ->
+                            withStyle(SpanStyle(fontSize = (DOMINANT_TIME_LABEL_SP * scale).sp)) {
+                                append(segment.text)
+                            }
+                        DominantStationLabel.Part.STATION,
+                        DominantStationLabel.Part.AT,
+                        DominantStationLabel.Part.AMPM -> append(segment.text)
+                    }
+                }
+            }
+            val measured = textMeasurer.measure(annotated, dominantStyle)
+            val dominantPlot = GraphRect(0f, graphTop, w, footer.graphBottom(h, scale))
+            val dominantPadPx = 2f * scale
+            val dominantMetrics = GraphEmptySpaceFinder.Metrics(
+                width = measured.size.width.toFloat(),
+                ascent = -measured.size.height.toFloat(),
+                descent = 0f,
+            )
+            val actualFlatCoords = actualCoordSegments.flatten()
+            val placement = DominantStationLabel.place(
+                text = dominantText,
+                spanHours = dominantSpanHours,
+                plot = dominantPlot,
+                drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                curveYsAt = { x ->
+                    buildList {
+                        if (coords.isNotEmpty() && x in coords.first().x..coords.last().x) {
+                            val idx = coords.indices.indexOfLast { coords[it].x <= x }
+                                .coerceIn(0, coords.lastIndex - 1)
+                            val span = (coords[idx + 1].x - coords[idx].x).coerceAtLeast(1f)
+                            val fraction = ((x - coords[idx].x) / span).coerceIn(0f, 1f)
+                            add(coords[idx].y + (coords[idx + 1].y - coords[idx].y) * fraction)
+                        }
+                        if (actualFlatCoords.isNotEmpty() && x <= actualFlatCoords.last().x) {
+                            val idx = actualFlatCoords.indices.indexOfLast { actualFlatCoords[it].x <= x }
+                            if (idx in 0 until actualFlatCoords.lastIndex) {
+                                val span = (actualFlatCoords[idx + 1].x - actualFlatCoords[idx].x).coerceAtLeast(1f)
+                                val fraction = ((x - actualFlatCoords[idx].x) / span).coerceIn(0f, 1f)
+                                add(actualFlatCoords[idx].y + (actualFlatCoords[idx + 1].y - actualFlatCoords[idx].y) * fraction)
+                            } else if (idx == actualFlatCoords.lastIndex) {
+                                add(actualFlatCoords.last().y)
+                            }
+                        }
+                    }
+                },
+                metrics = dominantMetrics,
+                padPx = dominantPadPx,
+                vetoBounds = if (markerX in 0f..w) listOf(GraphRect(markerX - 4f * scale, graphTop, markerX + 4f * scale, graphTop + graphHeight)) else emptyList(),
+            )
+            if (placement != null) {
+                val topLeft = Offset(placement.box.left, placement.box.top)
+                drawText(measured, topLeft = topLeft)
+                drawnLabels.add(Rect(topLeft, Size(measured.size.width.toFloat(), measured.size.height.toFloat())))
             }
         }
 

@@ -359,11 +359,13 @@ private fun runApp() = application {
                 // clobber settings-owned fields (the reported "Hourly Zoom reverted to 6h" bug).
                 // weatherSource is the one settings-owned field the popup header and location picker
                 // legitimately change, so it is allowed through for those two sources.
+                // actualsProviders is changed by the observations window.
                 var effective = if (prev != null && source != "settings" && source != "settings-close") {
                     mergeNonSettingsSave(
                         persisted = prev,
                         draft = newConfig,
                         allowWeatherSourceChange = source == "popup" || source == "location-picker",
+                        allowActualsProvidersChange = source == "observations-window" || source == "observations",
                     )
                 } else {
                     newConfig

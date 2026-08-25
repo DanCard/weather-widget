@@ -28,6 +28,7 @@ object NwsObservationMapper {
         siteLat: Double,
         siteLon: Double,
         isWebFallback: Boolean = false,
+        api: String = "NWS",
     ): ObservationReading {
         val decodedMetar = if (observation.isMetar) MetarDecoder.decode(observation.rawMessage) else null
         val remarks = decodedMetar?.remarks
@@ -75,7 +76,7 @@ object NwsObservationMapper {
             locationLon = siteLon,
             distanceKm = distanceKm(siteLat, siteLon, station.lat, station.lon).toFloat(),
             stationType = station.type.name,
-            api = "NWS",
+            api = api,
             precipAmountMm = precipMm,
             maxTempLast24h = max24hCelsius?.let { celsiusToFahrenheit(it) },
             minTempLast24h = min24hCelsius?.let { celsiusToFahrenheit(it) },

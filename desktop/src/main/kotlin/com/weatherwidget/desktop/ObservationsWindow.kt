@@ -436,18 +436,22 @@ internal fun ObservationsWindow(
                                         source = currentSource,
                                         active = ActualsProviderResolver.providerIdFor(currentSource),
                                         onChoose = { chosen ->
-                                            onConfigUpdate(
-                                                config.copy(
-                                                    settings = DesktopActualsPreference.withChoice(
-                                                        config.settings,
-                                                        currentSource,
-                                                        // Store nothing for the default so the
-                                                        // preference stays absent unless the user
-                                                        // actively diverges.
-                                                        chosen.takeIf { it != ActualsProviderResolver.DEFAULT_PROVIDER },
-                                                    ),
-                                                ),
+                                            val updatedSettings = DesktopActualsPreference.withChoice(
+                                                config.settings,
+                                                currentSource,
+                                                // Store nothing for the default so the
+                                                // preference stays absent unless the user
+                                                // actively diverges.
+                                                chosen.takeIf { it != ActualsProviderResolver.DEFAULT_PROVIDER },
                                             )
+                                            DesktopActualsPreference.update(updatedSettings)
+                                            onConfigUpdate(config.copy(settings = updatedSettings))
+                                            loadData()
+                                            val neededApi = ActualsProviderResolver.providerIdFor(currentSource)
+                                            val hasData = observations.any { it.api == neededApi }
+                                            if (!hasData) {
+                                                onRefreshData()
+                                            }
                                         },
                                     )
                                 }

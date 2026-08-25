@@ -204,7 +204,9 @@ class DesktopWeatherRepository(
         // curve it annotates; empty for every source but Open-Meteo, which is the only one with a
         // previous-runs product.
         val priorCloud = weatherDao.getPriorDayCloudForecast(latitude, longitude, stitchedStart, now)
-        val retroCloud = weatherDao.getCloudActuals(latitude, longitude, stitchedStart, now, weatherSource).hours
+        val retroCloudResult = weatherDao.getCloudActuals(latitude, longitude, stitchedStart, now, weatherSource)
+        val retroCloud = retroCloudResult.hours
+        val dominantCloudContribution = retroCloudResult.dominantContribution
         
         // Cover the widest zoom-out (6 days back) so the actual line spans the whole window,
         // matching the hourly read above. Observations exist ~7-14 days back (NWS HISTORY_DAYS=7,
@@ -267,6 +269,7 @@ class DesktopWeatherRepository(
             ),
             priorDayCloudForecast = priorCloud,
             retroCloudActual = retroCloud,
+            dominantCloudContribution = dominantCloudContribution,
         )
     }
 
@@ -365,16 +368,18 @@ class DesktopWeatherRepository(
      * window so a suspend/restart gap does not stay permanently visible after the upstream reports
      * are available again. Failures are best-effort and leave the cached gap intact.
      */
-    private suspend fun fetchBorrowedMetarRecovery(displaySource: WeatherSource): RawFetch {
-        val borrowsMetar = ActualsProviderResolver.borrows(displaySource) &&
-            ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.METAR.id
-        if (!borrowsMetar) return RawFetch()
+    private suspend fun fetchBorrowedRecovery(displaySource: WeatherSource): RawFetch {
+        val borrowsActuals = ActualsProviderResolver.borrows(displaySource) &&
+            (ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.METAR.id ||
+                ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.SYNOPTIC.id)
+        if (!borrowsActuals) return RawFetch()
         return try {
             weatherService.fetchObservationsOnly(recentOnly = false)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "BORROWED_METAR_RECOVERY failed source=${displaySource.id}: $e")
+            val provider = ActualsProviderResolver.providerIdFor(displaySource)
+            Log.w(TAG, "BORROWED_${provider}_RECOVERY failed source=${displaySource.id}: $e")
             RawFetch()
         }
     }
@@ -398,7 +403,7 @@ class DesktopWeatherRepository(
             // fills in as it runs), so we never seed Open-Meteo decimals into the past.
             val (forecastResult, borrowedRecovery) = coroutineScope {
                 val forecast = async { weatherService.fetchForecast() }
-                val recovery = async { fetchBorrowedMetarRecovery(displaySource) }
+                val recovery = async { fetchBorrowedRecovery(displaySource) }
                 forecast.await() to recovery.await()
             }
             val result = if (borrowedRecovery.rawObservations.isEmpty()) {
@@ -433,18 +438,19 @@ class DesktopWeatherRepository(
                 )
                 weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
             }
-            if (ActualsProviderResolver.borrows(displaySource) &&
-                ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.METAR.id
-            ) {
-                weatherDao.log(
-                    tag = "BORROWED_METAR_RECOVERY",
-                    message = "source=${displaySource.id} " +
-                        "hours=${DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS} " +
-                        "rows=${borrowedRecovery.rawObservations.size} " +
-                        "stored=${borrowedRecovery.rawObservations.size} " +
-                        "stations=${borrowedRecovery.rawObservations.map { it.stationId }.distinct().size}",
-                    level = "INFO",
-                )
+            if (ActualsProviderResolver.borrows(displaySource)) {
+                val provider = ActualsProviderResolver.providerIdFor(displaySource)
+                if (provider == WeatherSource.METAR.id || provider == WeatherSource.SYNOPTIC.id) {
+                    weatherDao.log(
+                        tag = "BORROWED_${provider}_RECOVERY",
+                        message = "source=${displaySource.id} " +
+                            "hours=${DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS} " +
+                            "rows=${borrowedRecovery.rawObservations.size} " +
+                            "stored=${borrowedRecovery.rawObservations.size} " +
+                            "stations=${borrowedRecovery.rawObservations.map { it.stationId }.distinct().size}",
+                        level = "INFO",
+                    )
+                }
             }
             val historyObsCount = backfillWeatherApiHistoryIfNeeded(now)
 

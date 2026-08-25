@@ -34,6 +34,7 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.*
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.MetarObservationFetcher
+import com.weatherwidget.shared.observations.SynopticObservationFetcher
 import com.weatherwidget.shared.observations.MetarRawSkyParser
 import com.weatherwidget.data.remote.AviationWeatherApi
 
@@ -115,6 +116,12 @@ class DesktopWeatherService(
     private val metarFetcher = MetarObservationFetcher(aviationWeatherApi, metarStationCache) { tag, message, level ->
         // Desktop has no app_logs DAO on this path; route to the same Log sink the rest of the
         // service uses so METAR_FETCH/METAR_STATIONS stay greppable exactly as on Android.
+        when (level) {
+            "WARN" -> Log.w(TAG, "$tag $message")
+            else -> Log.i(TAG, "$tag $message")
+        }
+    }
+    private val synopticFetcher = SynopticObservationFetcher(synopticApi) { tag, message, level ->
         when (level) {
             "WARN" -> Log.w(TAG, "$tag $message")
             else -> Log.i(TAG, "$tag $message")
@@ -725,22 +732,28 @@ class DesktopWeatherService(
     private suspend fun fetchBorrowedObservationsOnly(recentOnly: Boolean): RawFetch {
         val source = WeatherSource.fromId(weatherSource)
         val provider = ActualsProviderResolver.providerIdFor(source)
-        if (provider != WeatherSource.METAR.id) {
+        if (provider == WeatherSource.METAR.id) {
+            val hours = if (recentOnly) RECENT_BORROWED_METAR_HOURS else RECOVERY_BORROWED_METAR_HOURS
+            val readings = metarFetcher.fetchObservations(latitude, longitude, hours = hours)
+            Log.i(
+                TAG,
+                "BORROWED_METAR_FETCH source=$weatherSource hours=$hours rows=${readings.size} " +
+                    "stations=${readings.map { it.stationId }.distinct().size}",
+            )
+            return RawFetch(rawObservations = readings)
+        } else if (provider == WeatherSource.SYNOPTIC.id) {
+            val hours = if (recentOnly) RECENT_BORROWED_METAR_HOURS else RECOVERY_BORROWED_METAR_HOURS
+            val readings = synopticFetcher.fetchObservations(latitude, longitude, hours = hours)
+            Log.i(
+                TAG,
+                "BORROWED_SYNOPTIC_FETCH source=$weatherSource hours=$hours rows=${readings.size} " +
+                    "stations=${readings.map { it.stationId }.distinct().size}",
+            )
+            return RawFetch(rawObservations = readings)
+        } else {
             Log.i(TAG, "Observations-only refresh for $weatherSource borrows $provider; no desktop fetch path for it")
             return RawFetch()
         }
-        // The frequent current-observation loop stays narrow. A full repository refresh passes
-        // recentOnly=false to repair polling holes that have already fallen outside that window;
-        // 24 hours is enough for the graph's current incident and stays comfortably under the
-        // AviationWeather 400-row cap at the observed five-station site (164 rows on 2026-08-24).
-        val hours = if (recentOnly) RECENT_BORROWED_METAR_HOURS else RECOVERY_BORROWED_METAR_HOURS
-        val readings = metarFetcher.fetchObservations(latitude, longitude, hours = hours)
-        Log.i(
-            TAG,
-            "BORROWED_METAR_FETCH source=$weatherSource hours=$hours rows=${readings.size} " +
-                "stations=${readings.map { it.stationId }.distinct().size}",
-        )
-        return RawFetch(rawObservations = readings)
     }
 
     private suspend fun fetchTomorrowIoObservationsOnly(): RawFetch {

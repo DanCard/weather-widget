@@ -736,4 +736,26 @@ class MetarCloudBlenderTest {
         assertEquals(mapOf(hour to 56, hour + 3_600_000L to 72), result.hours)
         assertFalse(result.isMetarBlend)
     }
+
+    @Test
+    fun `blend captures nearest station as dominant contribution with raw cloud percent`() {
+        val readings = listOf(
+            reading("KNUQ", hour + 15 * min, cloudLow = 44, distanceKm = 3.5f),
+            reading("KSJC", hour + 15 * min, cloudLow = 80, distanceKm = 12.0f),
+        )
+
+        val result = MetarCloudBlender.blend(
+            readings = readings,
+            startMs = hour,
+            endMs = hour + 3_600_000L,
+            providerApi = WeatherSource.NWS.id,
+        )
+
+        val dominant = result.dominantContribution
+        org.junit.Assert.assertNotNull(dominant)
+        assertEquals("KNUQ", dominant!!.stationId)
+        assertEquals(44f, dominant.rawTemp)
+        assertEquals(hour + 15 * min, dominant.lastReadingMs)
+        assertFalse(dominant.isSynthetic)
+    }
 }

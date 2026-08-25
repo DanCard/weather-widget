@@ -29,6 +29,7 @@ class WeatherWidgetWorker
         private val appLogDao: AppLogDao,
         private val gpsResampler: GpsResampler,
         private val metarObservationSource: MetarObservationSource,
+        private val synopticObservationSource: com.weatherwidget.data.repository.SynopticObservationSource,
     ) : CoroutineWorker(context, workerParams) {
 
         private val hourlyForecastLoader by lazy { HourlyForecastLoader(context, widgetStateManager) }
@@ -37,11 +38,15 @@ class WeatherWidgetWorker
             WidgetPaintCoordinator(context, weatherRepository, widgetStateManager, appLogDao, hourlyForecastLoader, dataBundleLoader)
         }
         private val fullSyncPipeline by lazy {
-            FullSyncPipeline(context, weatherRepository, widgetStateManager, appLogDao, gpsResampler, hourlyForecastLoader, dataBundleLoader, painter, metarRefresher)
+            FullSyncPipeline(context, weatherRepository, widgetStateManager, appLogDao, gpsResampler, hourlyForecastLoader, dataBundleLoader, painter, metarRefresher, synopticRefresher)
         }
 
         private val metarRefresher by lazy {
             MetarObservationRefresher(context, metarObservationSource, widgetStateManager, appLogDao)
+        }
+
+        private val synopticRefresher by lazy {
+            SynopticObservationRefresher(context, synopticObservationSource, widgetStateManager, appLogDao)
         }
 
         // ---- orchestration ----
@@ -234,6 +239,10 @@ class WeatherWidgetWorker
                         setOf(MetarFetchPolicy.Tier.PRIMARY), location.first, location.second,
                         reason = input.currentTempReason,
                     )
+                    synopticRefresher.refreshIfDue(
+                        setOf(com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.PRIMARY), location.first, location.second,
+                        reason = input.currentTempReason,
+                    )
                     refreshResult.fold(
                         onSuccess = { attempted ->
                             attemptedSourceCount = attempted
@@ -376,6 +385,16 @@ class WeatherWidgetWorker
                     )?.let { (lat, lon) ->
                         metarRefresher.refreshIfDue(
                             setOf(MetarFetchPolicy.Tier.NON_PRIMARY), lat, lon,
+                            reason = "nonprimary_${input.currentTempReason}",
+                        )
+                    }
+                }
+                if (com.weatherwidget.shared.util.SynopticFetchPolicy.consumers(visibleSources, { widgetStateManager.getActualsProvider(it) }).isNotEmpty()) {
+                    ActiveLocationResolver.resolve(
+                        context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao(),
+                    )?.let { (lat, lon) ->
+                        synopticRefresher.refreshIfDue(
+                            setOf(com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.NON_PRIMARY), lat, lon,
                             reason = "nonprimary_${input.currentTempReason}",
                         )
                     }

@@ -167,18 +167,22 @@ data class DesktopConfig(
  * [allowWeatherSourceChange] re-admits the one settings field other writers legitimately change:
  * the popup header toggles the active source, and the location picker chooses a per-region default
  * (NWS for the US, Open-Meteo elsewhere).
+ * [allowActualsProvidersChange] allows the observations window to change per-source actuals choices.
  */
 internal fun mergeNonSettingsSave(
     persisted: DesktopConfig,
     draft: DesktopConfig,
     allowWeatherSourceChange: Boolean,
+    allowActualsProvidersChange: Boolean = false,
 ): DesktopConfig {
-    val merged = draft.copy(settings = persisted.settings)
-    return if (allowWeatherSourceChange) {
-        merged.copy(settings = merged.settings.copy(weatherSource = draft.settings.weatherSource))
-    } else {
-        merged
+    var settings = persisted.settings
+    if (allowWeatherSourceChange) {
+        settings = settings.copy(weatherSource = draft.settings.weatherSource)
     }
+    if (allowActualsProvidersChange) {
+        settings = settings.copy(actualsProviders = draft.settings.actualsProviders)
+    }
+    return draft.copy(settings = settings)
 }
 
 /**

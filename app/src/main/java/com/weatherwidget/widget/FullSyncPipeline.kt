@@ -36,6 +36,7 @@ internal class FullSyncPipeline(
     private val dataBundleLoader: WidgetDataBundleLoader,
     private val painter: WidgetPaintCoordinator,
     private val metarRefresher: MetarObservationRefresher,
+    private val synopticRefresher: SynopticObservationRefresher,
 ) {
     suspend fun run(input: WorkInput, device: DeviceContext, stopReason: Int): ListenableWorker.Result {
         try {
@@ -152,12 +153,19 @@ internal class FullSyncPipeline(
                     // the only place METAR reliably gets a turn.
                     if (!input.uiOnlyRefresh) {
                         metarRefresher.refreshIfDue(
-                            setOf(MetarFetchPolicy.Tier.PRIMARY, MetarFetchPolicy.Tier.NON_PRIMARY),
+                            setOf(com.weatherwidget.shared.util.MetarFetchPolicy.Tier.PRIMARY, com.weatherwidget.shared.util.MetarFetchPolicy.Tier.NON_PRIMARY),
                             location.first,
                             location.second,
                             reason = "full_sync",
                             // Deep pull: daily extremes need the whole day, not the last two hours.
                             hours = MetarObservationRefresher.DEEP_HOURS,
+                        )
+                        synopticRefresher.refreshIfDue(
+                            setOf(com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.PRIMARY, com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.NON_PRIMARY),
+                            location.first,
+                            location.second,
+                            reason = "full_sync",
+                            hours = SynopticObservationRefresher.DEEP_HOURS,
                         )
                     }
 

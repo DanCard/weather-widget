@@ -3,6 +3,8 @@ package com.weatherwidget.widget
 import com.weatherwidget.shared.graph.CloudCoverGraphPalette
 import com.weatherwidget.shared.graph.CloudActualSeries
 import com.weatherwidget.shared.graph.CloudWatermarkPlacement
+import com.weatherwidget.shared.graph.DominantStationLabel
+import com.weatherwidget.shared.graph.GraphEmptySpaceFinder
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.ValueLabelEngine
@@ -144,6 +146,8 @@ object CloudCoverGraphRenderer {
         errorSourceLabel: String? = null,
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
+        dominantStationLabel: DominantStationLabel.LabelText? = null,
+        onDominantStationPlaced: ((DominantStationLabel.Placement?) -> Unit)? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -516,6 +520,88 @@ object CloudCoverGraphRenderer {
             }.forEach { p ->
                 canvas.drawText(p.text, p.centerX, p.baselineY, paints.actualPercentLabelPaint)
                 drawnLabelBounds.add(RectF(p.box.left, p.box.top, p.box.right, p.box.bottom))
+            }
+        }
+
+        if (dominantStationLabel != null && hours.size >= 2) {
+            val spanHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
+            if (spanHours <= DominantStationLabel.MAX_HOURS_SPAN) {
+                val valuePaint = paints.dominantValueTextPaint
+                val stationPaint = paints.dominantStationTextPaint
+                val timePaint = paints.dominantTimeTextPaint
+                val segmentWidths = dominantStationLabel.segments.map { segment ->
+                    val paint = when (segment.part) {
+                        DominantStationLabel.Part.TEMPERATURE -> valuePaint
+                        DominantStationLabel.Part.TIME -> timePaint
+                        DominantStationLabel.Part.STATION,
+                        DominantStationLabel.Part.AT,
+                        DominantStationLabel.Part.AMPM -> stationPaint
+                    }
+                    paint.measureText(segment.text)
+                }
+                val totalWidth = segmentWidths.sum()
+                val fontAscent = TemperatureGraphStyle.fontAscent(valuePaint)
+                val fontDescent = TemperatureGraphStyle.fontDescent(valuePaint)
+                val padPx = dpToPx(context, 2f * labelScale)
+                val placement = DominantStationLabel.place(
+                    text = dominantStationLabel.fullText,
+                    spanHours = spanHours,
+                    plot = GraphRect(0f, topPadding, widthPx.toFloat(), graphBottom),
+                    drawnBounds = drawnLabelBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                    curveYsAt = { x ->
+                        buildList {
+                            if (smoothedValues.size >= 2 && hourWidth > 0f) {
+                                val fraction = (x / hourWidth).coerceIn(0f, smoothedValues.lastIndex.toFloat())
+                                val idx = fraction.toInt().coerceIn(0, smoothedValues.size - 2)
+                                val f = fraction - idx
+                                val forecastY = mapCloudCoverToY(
+                                    cloudCover = smoothedValues[idx] + (smoothedValues[idx + 1] - smoothedValues[idx]) * f,
+                                    graphBottom = graphBottom,
+                                    graphHeight = graphHeight,
+                                    topScale = verticalScale.topScale,
+                                )
+                                add(forecastY)
+                            }
+                            if (actualPoints.isNotEmpty() && x <= actualPoints.last().first + hourWidth * 0.5f) {
+                                val actualIdx = actualPoints.indexOfLast { it.first <= x }
+                                if (actualIdx >= 0 && actualIdx < actualPoints.lastIndex) {
+                                    val p1 = actualPoints[actualIdx]
+                                    val p2 = actualPoints[actualIdx + 1]
+                                    val span = p2.first - p1.first
+                                    if (span > 0f) {
+                                        val actualY = p1.second + (p2.second - p1.second) * ((x - p1.first) / span).coerceIn(0f, 1f)
+                                        add(actualY)
+                                    }
+                                } else if (actualIdx == actualPoints.lastIndex) {
+                                    add(actualPoints.last().second)
+                                }
+                            }
+                        }
+                    },
+                    metrics = GraphEmptySpaceFinder.Metrics(
+                        width = totalWidth,
+                        ascent = fontAscent,
+                        descent = fontDescent,
+                    ),
+                    padPx = padPx,
+                    vetoBounds = if (nowX != null) listOf(GraphRect(nowX - 4f, graphTop, nowX + 4f, graphBottom)) else emptyList(),
+                )
+                if (placement != null) {
+                    var x = placement.box.left
+                    dominantStationLabel.segments.forEachIndexed { index, segment ->
+                        val paint = when (segment.part) {
+                            DominantStationLabel.Part.TEMPERATURE -> valuePaint
+                            DominantStationLabel.Part.TIME -> timePaint
+                            DominantStationLabel.Part.STATION,
+                            DominantStationLabel.Part.AT,
+                            DominantStationLabel.Part.AMPM -> stationPaint
+                        }
+                        canvas.drawText(segment.text, x, placement.baselineY, paint)
+                        x += segmentWidths[index]
+                    }
+                    drawnLabelBounds.add(RectF(placement.box.left, placement.box.top, placement.box.right, placement.box.bottom))
+                }
+                onDominantStationPlaced?.invoke(placement)
             }
         }
 

@@ -121,6 +121,12 @@ class WeatherObservationsActivity : AppCompatActivity() {
     @Inject
     lateinit var gpsResampler: GpsResampler
 
+    @Inject
+    lateinit var metarObservationSource: com.weatherwidget.data.repository.MetarObservationSource
+
+    @Inject
+    lateinit var synopticObservationSource: com.weatherwidget.data.repository.SynopticObservationSource
+
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: ObservationAdapter
     private var currentSource: WeatherSource = WeatherSource.NWS
@@ -378,6 +384,18 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     reason = "user_observations_screen",
                     forceRefresh = true
                 )
+                if (com.weatherwidget.shared.observations.ActualsProviderResolver.borrows(currentSource)) {
+                    val providerId = com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(currentSource) {
+                        widgetStateManager.getActualsProvider(it)
+                    }
+                    if (providerId == WeatherSource.METAR.id) {
+                        val rows = metarObservationSource.fetchObservations(location.first, location.second, hours = 24)
+                        if (rows.isNotEmpty()) observationDao.insertAll(rows)
+                    } else if (providerId == WeatherSource.SYNOPTIC.id) {
+                        val rows = synopticObservationSource.fetchObservations(location.first, location.second, hours = 24)
+                        if (rows.isNotEmpty()) observationDao.insertAll(rows)
+                    }
+                }
             }
             widgetContentChanged = true
             
@@ -448,7 +466,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 )
                 dialog.dismiss()
                 updateActualsSourceRow()
-                loadObservations()
+                refreshData()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

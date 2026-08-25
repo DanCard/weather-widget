@@ -119,6 +119,37 @@ class CloudCoverGraphLabelPlacementRobolectricTest {
         assertEquals("Expected only edge labels for 4-column widget with monotone data", listOf(0, 11), indices)
     }
 
+    @Test
+    fun `actuals source label is placed when provided`() {
+        val start = LocalDateTime.of(2026, 5, 5, 9, 0)
+        val hours = listOf(40, 24, 3).mapIndexed { index, cloudCover ->
+            val dateTime = start.plusHours(index.toLong())
+            CloudCoverGraphRenderer.CloudHourData(
+                dateTime = dateTime,
+                cloudCover = cloudCover,
+                label = formatHour(dateTime.hour),
+                iconRes = R.drawable.ic_weather_mostly_cloudy,
+                showLabel = true,
+                isCurrentHour = index == 0,
+            )
+        }
+        var dominantPlacement: com.weatherwidget.shared.graph.DominantStationLabel.Placement? = null
+        val label = com.weatherwidget.shared.graph.DominantStationLabel.formatCloudSourceLabelText("Synoptic")
+
+        CloudCoverGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 700,
+            heightPx = 400,
+            currentTime = start.plusHours(1),
+            dominantStationLabel = label,
+            onDominantStationPlaced = { dominantPlacement = it },
+        )
+
+        org.junit.Assert.assertNotNull(dominantPlacement)
+        assertEquals("Actual cloud cover data from Synoptic", dominantPlacement!!.text)
+    }
+
     private fun formatHour(hour24: Int): String {
         val h = when {
             hour24 == 0 -> 12

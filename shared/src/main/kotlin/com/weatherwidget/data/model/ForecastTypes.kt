@@ -1,6 +1,7 @@
 package com.weatherwidget.data.model
 
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.shared.actuals.BlendContribution
 
 data class HourlyForecast(
     val dateTime: Long,
@@ -161,6 +162,8 @@ data class ForecastSnapshot(
     val priorDayCloudForecast: Map<Long, Int> = emptyMap(),
     /** Source-isolated low-cloud history by its native timestamps (hourly or sub-hourly). */
     val retroCloudActual: Map<Long, Int> = emptyMap(),
+    /** Dominant station contribution for borrowed cloud actuals. */
+    val dominantCloudContribution: BlendContribution? = null,
 )
 
 sealed class DataStatus {
