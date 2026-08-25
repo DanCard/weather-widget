@@ -155,7 +155,21 @@ object MetarCloudBlender {
         // the `<SOURCE>_MAIN` backfill row, whose cloud HistoricalActualsBackfill deliberately
         // nulls, because that row is model output rather than a measurement.
         if (provider.historicalDataKind == HistoricalDataKind.STATION_OBSERVATION) {
-            return blend(readings, startMs, endMs, providerApi = provider.id)
+            return blend(
+                readings = readings,
+                startMs = startMs,
+                endMs = endMs,
+                providerApi = provider.id,
+                // NWS and Aviation Weather expose the same measured airport METARs through
+                // independent transports. Keep their stored provenance separate, but let the
+                // first-class METAR rows fill an NWS transport hole at read time. No other
+                // provider gets this alias: METAR is supplemental to NWS, never generic filler.
+                supplementalProviderApis = if (provider == WeatherSource.NWS) {
+                    setOf(WeatherSource.METAR.id)
+                } else {
+                    emptySet()
+                },
+            )
         }
         if (provider == WeatherSource.TOMORROW_IO) {
             val hours = readings.asSequence()
@@ -217,9 +231,15 @@ object MetarCloudBlender {
          * now exists to prevent.
          */
         providerApi: String = WeatherSource.NWS.id,
+        /**
+         * Provenance-preserving transports that may fill holes in [providerApi]. Currently only
+         * `METAR` while NWS is primary; callers must opt in explicitly so a direct blend and every
+         * other provider remain strictly source-isolated.
+         */
+        supplementalProviderApis: Set<String> = emptySet(),
     ): Result {
         val real = readings.asSequence()
-            .filter { it.api == providerApi }
+            .filter { it.api == providerApi || it.api in supplementalProviderApis }
             .filter { it.stationId != "NWS_BLEND" }
             .filter { !ObservationSourceMatcher.isSyntheticBackfillStation(it.stationId, providerApi) }
             // TOTAL order, not `sortedBy { timestamp }` (a STABLE sort): same-timestamp rows must not
@@ -230,6 +250,8 @@ object MetarCloudBlender {
                     { it.stationId },
                     { it.locationLat },
                     { it.locationLon },
+                    { if (it.api == providerApi) 0 else 1 },
+                    { it.api },
                 ),
             )
             .toList()
@@ -244,7 +266,36 @@ object MetarCloudBlender {
 
         // QC-failed readings are stored for the stations UI but are never blend inputs, matching the
         // temperature blend's rule.
-        val usable = real.filter { !it.qcFailed }
+        val usable = real
+            .filter { !it.qcFailed }
+            // The two transports can store the same physical station/report independently because
+            // `api` is part of observation identity. Collapse that transport duplicate before the
+            // station blend. A carrying row beats a partial row; otherwise the primary provider
+            // wins, and the remaining fields make the choice total and query-order independent.
+            .groupBy { it.stationId to it.timestamp }
+            .values
+            .map { duplicates ->
+                duplicates.minWith(
+                    compareBy<ObservationReading>(
+                        { if ((it.cloudCoverLow ?: it.cloudCover) != null) 0 else 1 },
+                        { if (it.api == providerApi) 0 else 1 },
+                        { it.api },
+                        { it.locationLat },
+                        { it.locationLon },
+                        { it.distanceKm },
+                        { it.fetchedAt },
+                    ),
+                )
+            }
+            .sortedWith(
+                compareBy(
+                    { it.timestamp },
+                    { it.stationId },
+                    { it.locationLat },
+                    { it.locationLon },
+                    { it.api },
+                ),
+            )
         val byStation = usable.groupBy { it.stationId }
         // Carrier lists stay in the total order `usable` arrived in, so binary search and
         // deterministic ties hold.
@@ -295,7 +346,7 @@ object MetarCloudBlender {
                 anchor to (anchor.cloudCoverLow ?: anchor.cloudCover)
             }
             val valueByDistance = contributions.mapNotNull { (reading, cloud) ->
-                cloud?.let { reading.distanceKm.toFloat() to it.toFloat() }
+                cloud?.let { reading.distanceKm to it.toFloat() }
             }
             if (valueByDistance.isEmpty()) continue
             val blended = SpatialInterpolator.interpolateIDWValues(valueByDistance) ?: continue

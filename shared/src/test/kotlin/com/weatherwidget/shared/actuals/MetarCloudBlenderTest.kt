@@ -498,6 +498,106 @@ class MetarCloudBlenderTest {
     }
 
     @Test
+    fun `NWS series uses METAR transport rows to fill NWS transport holes`() = runBlocking {
+        val readings = listOf(
+            reading("KNUQ", hour, cloudLow = 100, distanceKm = 2f),
+            reading("KNUQ", hour + 15 * min, cloudLow = 100, distanceKm = 2f),
+            // The live Samsung shape had no NWS carrier for 80 minutes, even though the same
+            // airport's independently stored Aviation Weather reports covered the interval.
+            reading(
+                "KNUQ",
+                hour + 35 * min,
+                cloudLow = 75,
+                distanceKm = 2f,
+                api = WeatherSource.METAR.id,
+                isMetar = true,
+            ),
+            reading(
+                "KNUQ",
+                hour + 55 * min,
+                cloudLow = 75,
+                distanceKm = 2f,
+                api = WeatherSource.METAR.id,
+                isMetar = true,
+            ),
+            reading(
+                "KNUQ",
+                hour + 75 * min,
+                cloudLow = 75,
+                distanceKm = 2f,
+                api = WeatherSource.METAR.id,
+                isMetar = true,
+            ),
+            reading("KNUQ", hour + 95 * min, cloudLow = 75, distanceKm = 2f),
+            // Unrelated measured/model provenance remains excluded.
+            reading(
+                "OTHER",
+                hour + 45 * min,
+                cloudLow = 0,
+                distanceKm = 0f,
+                api = WeatherSource.TOMORROW_IO.id,
+            ),
+        )
+
+        val result = MetarCloudBlender.fromSiteRows(
+            hour,
+            hour + 2 * 3_600_000L,
+            WeatherSource.NWS.id,
+            FakeSiteReader(readings)::read,
+        )
+
+        assertEquals(
+            listOf(0L, 15L, 35L, 55L, 75L, 95L).map { hour + it * min },
+            result.hours.keys.toList(),
+        )
+        assertFalse(result.hours.containsKey(hour + 45 * min))
+    }
+
+    @Test
+    fun `NWS and METAR copies at one station timestamp deduplicate deterministically`() = runBlocking {
+        val sharedTimestamp = hour + 15 * min
+        val readings = listOf(
+            reading(
+                "KNUQ",
+                sharedTimestamp,
+                cloudLow = 10,
+                distanceKm = 2.1f,
+                api = WeatherSource.METAR.id,
+                isMetar = true,
+            ),
+            reading("KNUQ", sharedTimestamp, cloudLow = 75, distanceKm = 2f, isMetar = true),
+            // A primary partial row must not suppress the supplemental carrier at a later report.
+            reading("KNUQ", hour + 35 * min, cloudLow = null, distanceKm = 2f),
+            reading(
+                "KNUQ",
+                hour + 35 * min,
+                cloudLow = 44,
+                distanceKm = 2.1f,
+                api = WeatherSource.METAR.id,
+                isMetar = true,
+            ),
+        )
+
+        val forward = MetarCloudBlender.fromSiteRows(
+            hour,
+            hour + 3_600_000L,
+            WeatherSource.NWS.id,
+            FakeSiteReader(readings)::read,
+        )
+        val reversed = MetarCloudBlender.fromSiteRows(
+            hour,
+            hour + 3_600_000L,
+            WeatherSource.NWS.id,
+            FakeSiteReader(readings.reversed())::read,
+        )
+
+        assertEquals(mapOf(sharedTimestamp to 75, (hour + 35 * min) to 44), forward.hours)
+        assertEquals(forward, reversed)
+        assertEquals(1, forward.stats.blendWidthByHour[sharedTimestamp])
+        assertEquals(1, forward.stats.blendWidthByHour[hour + 35 * min])
+    }
+
+    @Test
     fun `fromSiteRows pins non-NWS sources to their synthetic backfill row and prefers the low layer`() = runBlocking {
         val readings = listOf(
             reading("WEATHER_API_MAIN", hour, cloudLow = 30, distanceKm = 0f,

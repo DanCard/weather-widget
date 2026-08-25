@@ -85,17 +85,20 @@ class BorrowedCloudActualsTest {
         )
     }
 
-    /**
-     * Provenance must not collapse. METAR rows carry their own `api`, and blending them under NWS's
-     * is the same confusion the observations primary key was widened to prevent.
-     */
     @Test
-    fun `a source that ships its own cloud does not absorb the borrowed feed`() = runBlocking {
-        val rows = listOf(nwsRow("KNUQ", 20), metarRow("KSJC", 90))
+    fun `NWS supplements its measured station feed without absorbing unrelated providers`() = runBlocking {
+        val rows = listOf(
+            nwsRow("KNUQ", 20),
+            metarRow("KSJC", 90),
+            metarRow("OTHER", 100).copy(
+                api = WeatherSource.TOMORROW_IO.id,
+                distanceKm = 0f,
+            ),
+        )
 
         assertEquals(
-            "NWS must blend only NWS-provenance rows",
-            20,
+            "equal-distance NWS and METAR station reports blend, but Tomorrow.io must not join",
+            55,
             cloudFor(WeatherSource.NWS, rows).hours[hour],
         )
     }

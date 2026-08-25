@@ -255,6 +255,45 @@ class NwsCloudActualsRoundTripTest {
     }
 
     @Test
+    fun `Room NWS cloud read supplements missing intervals from METAR provenance`() = runBlocking {
+        val dao = db.observationDao()
+        val start = 1_787_263_200_000L
+        fun row(offsetMinutes: Long, api: WeatherSource) = source.toEntity(
+            observation(
+                java.time.Instant.ofEpochMilli(start + offsetMinutes * 60_000L).toString(),
+                listOf(NwsApi.CloudLayer("BKN", 500.0)),
+                isMetar = true,
+            ),
+            station("KNUQ", 37.41, -122.05, official = true),
+            userLat,
+            userLon,
+        ).copy(api = api.id)
+
+        dao.insertAll(
+            listOf(
+                row(0, WeatherSource.NWS),
+                row(20, WeatherSource.METAR),
+                row(40, WeatherSource.METAR),
+                row(60, WeatherSource.METAR),
+                row(80, WeatherSource.NWS),
+            ),
+        )
+
+        val result = dao.getCloudActuals(
+            startTs = start,
+            endTs = start + 2 * 3_600_000L,
+            lat = userLat,
+            lon = userLon,
+            sourceId = WeatherSource.NWS.id,
+        )
+
+        assertEquals(
+            listOf(0L, 20L, 40L, 60L, 80L).map { start + it * 60_000L },
+            result.hours.keys.toList(),
+        )
+    }
+
+    @Test
     fun `the METAR wins the hour over a 5-minute sample sitting on the mark`() = runBlocking {
         val dao = db.observationDao()
         // The KSJC shape, written through the real mapper and Room rather than hand-built readings:

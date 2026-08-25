@@ -146,6 +146,46 @@ class DesktopBackfillIntegrationTest {
     }
 
     @Test
+    fun `desktop NWS cloud read supplements missing intervals from METAR provenance`() = runTest {
+        val start = (System.currentTimeMillis() / 3_600_000L) * 3_600_000L
+        fun row(offsetMinutes: Long, api: WeatherSource) = ObservationReading(
+            stationId = "KNUQ",
+            stationName = "Moffett Federal Airfield",
+            timestamp = start + offsetMinutes * 60_000L,
+            temperature = 61f,
+            condition = "Broken clouds",
+            locationLat = lat,
+            locationLon = lon,
+            distanceKm = 4f,
+            api = api.id,
+            cloudCoverLow = 75,
+            isMetar = true,
+        ).toEntity(start)
+        dao.upsertObservations(
+            listOf(
+                row(0, WeatherSource.NWS),
+                row(20, WeatherSource.METAR),
+                row(40, WeatherSource.METAR),
+                row(60, WeatherSource.METAR),
+                row(80, WeatherSource.NWS),
+            ),
+        )
+
+        val result = dao.getCloudActuals(
+            locationLat = lat,
+            locationLon = lon,
+            startMs = start,
+            endMs = start + 2 * 3_600_000L,
+            sourceId = WeatherSource.NWS.id,
+        )
+
+        assertEquals(
+            listOf(0L, 20L, 40L, 60L, 80L).map { start + it * 60_000L },
+            result.hours.keys.toList(),
+        )
+    }
+
+    @Test
     fun `failed borrowed METAR recovery preserves cached observations`() = runTest {
         val now = (System.currentTimeMillis() / 3_600_000L) * 3_600_000L
         val cachedTime = now - 6 * 3_600_000L
