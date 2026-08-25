@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.R
 import com.weatherwidget.shared.graph.*
 import android.content.Context
 import android.content.res.Resources
@@ -254,6 +255,7 @@ class TemperatureGraphRendererForecastDeltaTest {
         every { resources.displayMetrics } returns metrics
         val context = mockk<Context>(relaxed = true)
         every { context.resources } returns resources
+        every { context.getString(R.string.forecast_delta_suffix) } returns "from forecast"
         return context
     }
 }
