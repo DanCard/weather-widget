@@ -465,15 +465,19 @@ class WeatherObservationsActivity : AppCompatActivity() {
             .setTitle(R.string.obs_actuals_source_label)
             .setSingleChoiceItems(labels, candidates.indexOfFirst { it.id == activeId }) { dialog, which ->
                 val chosen = candidates[which]
-                // Store null for the default so the preference stays absent unless the user has
-                // actively diverged — a stored default would silently pin them if the default moves.
-                widgetStateManager.setActualsProvider(
-                    currentSource,
-                    chosen.takeIf { it != defaultProvider },
+                ActualsProviderChangeCoordinator.apply(
+                    context = this,
+                    widgetStateManager = widgetStateManager,
+                    displaySource = currentSource,
+                    chosenProvider = chosen,
                 )
+                widgetContentChanged = true
                 dialog.dismiss()
                 updateActualsSourceRow()
-                refreshData()
+                // The provider preference affects the local query immediately. Fresh network data
+                // is app-owned WorkManager work, so closing this activity cannot cancel it.
+                loadObservations()
+                loadFetchLogs()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
