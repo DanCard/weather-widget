@@ -116,15 +116,15 @@ class ObservationsWindowRowsTest {
     @Test
     fun `keeps approved provider history and hides forecast-only model rows`() {
         val rows = visibleStationRows(
-            listOf(obs("WEATHER_API_MAIN", timestamp = 3000, api = WeatherSource.WEATHER_API.id)),
-            WeatherSource.WEATHER_API,
+            listOf(obs("OPEN_METEO_MAIN", timestamp = 3000, api = WeatherSource.OPEN_METEO.id)),
+            WeatherSource.OPEN_METEO,
         )
 
-        assertEquals(listOf("WEATHER_API_MAIN"), rows.map { it.stationId })
+        assertEquals(listOf("OPEN_METEO_MAIN"), rows.map { it.stationId })
         assertTrue(
             visibleStationRows(
-                listOf(obs("OPEN_METEO_MAIN", timestamp = 3000, api = WeatherSource.OPEN_METEO.id)),
-                WeatherSource.OPEN_METEO,
+                listOf(obs("SILURIAN_MAIN", timestamp = 3000, api = WeatherSource.SILURIAN.id)),
+                WeatherSource.SILURIAN,
             ).isEmpty(),
         )
     }

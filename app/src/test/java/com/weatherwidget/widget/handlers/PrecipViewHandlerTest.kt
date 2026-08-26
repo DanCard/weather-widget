@@ -208,12 +208,12 @@ class PrecipViewHandlerTest {
     }
 
     @Test
-    fun `buildActualPrecipByHour rejects cached Open Meteo model rows`() {
+    fun `buildActualPrecipByHour rejects cached Silurian model rows`() {
         val result = PrecipViewHandler.buildActualPrecipByHour(
             observations = listOf(
-                observation("OPEN_METEO", "OPEN_METEO_MAIN", "2026-03-14T18:10", 1.25f),
+                observation("SILURIAN", "SILURIAN_MAIN", "2026-03-14T18:10", 1.25f),
             ),
-            displaySource = WeatherSource.OPEN_METEO,
+            displaySource = WeatherSource.SILURIAN,
         )
 
         assertTrue(result.isEmpty())

@@ -369,26 +369,25 @@ class RefreshDelayTest {
      */
     @Test
     fun `observations only refresh does not let a forecast-only source drive the header`() = runTest {
-        listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN).forEach { source ->
-            val service = DesktopWeatherService(
-                latitude = 37.4220,
-                longitude = -122.0841,
-                weatherSource = source.id,
+        val source = WeatherSource.SILURIAN
+        val service = DesktopWeatherService(
+            latitude = 37.4220,
+            longitude = -122.0841,
+            weatherSource = source.id,
+        )
+
+        try {
+            val result = service.fetchObservationsOnly(recentOnly = false)
+
+            assertNull("${source.id} must not update the header", result.providerCurrentTemp)
+            assertTrue(result.daily.isEmpty())
+            assertTrue(result.hourly.isEmpty())
+            assertTrue(
+                "${source.id} must never file borrowed rows under its own api",
+                result.rawObservations.none { it.api == source.id },
             )
-
-            try {
-                val result = service.fetchObservationsOnly(recentOnly = false)
-
-                assertNull("${source.id} must not update the header", result.providerCurrentTemp)
-                assertTrue(result.daily.isEmpty())
-                assertTrue(result.hourly.isEmpty())
-                assertTrue(
-                    "${source.id} must never file borrowed rows under its own api",
-                    result.rawObservations.none { it.api == source.id },
-                )
-            } finally {
-                service.close()
-            }
+        } finally {
+            service.close()
         }
     }
 }

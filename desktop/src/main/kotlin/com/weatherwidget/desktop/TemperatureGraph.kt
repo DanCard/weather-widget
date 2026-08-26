@@ -981,8 +981,9 @@ fun TemperatureGraph(
         // source label. Lowest priority — placed after every other free-floating label, so it is
         // dropped whenever nothing clear is left. English hardcoded, matching the cloud graph.
         val displaySource = WeatherSource.fromDisplaySource(displaySourceId)
-        if (ActualsProviderResolver.borrows(displaySource)) {
-            val provider = WeatherSource.fromId(ActualsProviderResolver.providerIdFor(displaySource))
+        val actualsProviderId = ActualsProviderResolver.providerIdFor(displaySource)
+        if (actualsProviderId != displaySource.id) {
+            val provider = WeatherSource.fromId(actualsProviderId)
             val actualsSourceLabel = DominantStationLabel.plainLabelText(
                 localizedText = "Actual temperature data from ${provider.displayName}",
             )

@@ -19,6 +19,7 @@ class WeatherSourceCloudActualsTest {
         val expected = setOf(
             WeatherSource.NWS,
             WeatherSource.WEATHER_API,
+            WeatherSource.OPEN_METEO,
             // aviationweather.gov serves the METAR sky-condition group itself — the same measured
             // product MetarSkyCover already reads on the NWS path, both as a decoded `clouds[]`
             // array and in the raw report. Verified, not inferred.
@@ -38,7 +39,6 @@ class WeatherSourceCloudActualsTest {
             WeatherSource.OPEN_WEATHER_MAP,
             WeatherSource.GENERIC_GAP,
             WeatherSource.SILURIAN,
-            WeatherSource.OPEN_METEO,
         )
         assertEquals(expected, WeatherSource.entries.filterNot { it.supportsCloudActuals }.toSet())
     }
@@ -59,8 +59,8 @@ class WeatherSourceCloudActualsTest {
     }
 
     @Test
-    fun `open meteo forecast api model history is not a cloud actual product`() {
-        assertEquals(HistoricalDataKind.NONE, WeatherSource.OPEN_METEO.historicalDataKind)
-        assertEquals(false, WeatherSource.OPEN_METEO.supportsCloudActuals)
+    fun `open meteo supports derived cloud actuals`() {
+        assertEquals(HistoricalDataKind.RECENT_ANALYSIS, WeatherSource.OPEN_METEO.historicalDataKind)
+        assertEquals(true, WeatherSource.OPEN_METEO.supportsCloudActuals)
     }
 }

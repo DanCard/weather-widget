@@ -82,8 +82,8 @@ class OpenMeteoApiTest {
             // Literal "16" (not just the constant) so an accidental MAX_DAYS change trips this too.
             assertEquals("16", request.url.parameters["forecast_days"])
             assertEquals(ForecastHorizon.MAX_DAYS.toString(), request.url.parameters["forecast_days"])
-            assertNull("Forecast-only Open-Meteo must not request model-current", request.url.parameters["current"])
-            assertNull("Unused 15-minute model rows must not be requested", request.url.parameters["minutely_15"])
+            assertNotNull(request.url.parameters["current"])
+            assertNotNull(request.url.parameters["minutely_15"])
         }
 
     @Test
@@ -111,7 +111,7 @@ class OpenMeteoApiTest {
             val forecast = api.getForecast(37.42, -122.08)
 
             assertEquals(3, forecast.daily.size)
-            assertNull(forecast.providerCurrentTemp)
+            assertEquals(65.5f, forecast.providerCurrentTemp!!, 0.001f)
 
             assertEquals("2026-01-27", forecast.daily[0].date)
             assertEquals(70f, forecast.daily[0].highTemp, 0.001f)

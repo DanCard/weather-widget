@@ -105,20 +105,20 @@ class RainAccuracyCalculatorTest {
     fun `actualPrecipByHour for approved non-NWS history keeps only MAIN rows`() {
         val hour = day.atTime(9, 0)
         val observations = listOf(
-            observation(hour, precipAmountMm = 5f, api = WeatherSource.WEATHER_API.id, stationId = "WEATHER_API_MAIN"),
-            observation(hour, precipAmountMm = 7f, api = WeatherSource.WEATHER_API.id, stationId = "WEATHER_API_ALT"),
+            observation(hour, precipAmountMm = 5f, api = WeatherSource.OPEN_METEO.id, stationId = "OPEN_METEO_MAIN"),
+            observation(hour, precipAmountMm = 7f, api = WeatherSource.OPEN_METEO.id, stationId = "OPEN_METEO_ALT"),
         )
-        val byHour = RainAccuracyCalculator.actualPrecipByHour(observations, WeatherSource.WEATHER_API, zone)
+        val byHour = RainAccuracyCalculator.actualPrecipByHour(observations, WeatherSource.OPEN_METEO, zone)
         assertEquals(mapOf(hour to 5f), byHour)
     }
 
     @Test
-    fun `actualPrecipByHour rejects cached Open Meteo model rows`() {
+    fun `actualPrecipByHour rejects cached Silurian model rows`() {
         val hour = day.atTime(9, 0)
         val observations = listOf(
-            observation(hour, precipAmountMm = 5f, api = WeatherSource.OPEN_METEO.id, stationId = "OPEN_METEO_MAIN"),
+            observation(hour, precipAmountMm = 5f, api = WeatherSource.SILURIAN.id, stationId = "SILURIAN_MAIN"),
         )
 
-        assertTrue(RainAccuracyCalculator.actualPrecipByHour(observations, WeatherSource.OPEN_METEO, zone).isEmpty())
+        assertTrue(RainAccuracyCalculator.actualPrecipByHour(observations, WeatherSource.SILURIAN, zone).isEmpty())
     }
 }

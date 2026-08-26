@@ -134,7 +134,7 @@ class ObservationResolverTest {
     }
 
     @Test
-    fun `resolveObservedCurrentTemp rejects cached Open-Meteo rows and ignores NWS blend`() {
+    fun `resolveObservedCurrentTemp accepts Open-Meteo rows and ignores NWS blend`() {
         val nowMs = 1_000_000L
         val observations = listOf(
             currentTempObservation(stationId = "OPEN_METEO_MAIN", temperature = 74.0f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.OPEN_METEO.id),
@@ -143,7 +143,9 @@ class ObservationResolverTest {
 
         val resolved = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.OPEN_METEO)
 
-        assertNull("Forecast-only Open-Meteo must not resolve an observation", resolved)
+        assertNotNull(resolved)
+        assertEquals(74.0f, resolved!!.temperature)
+        assertEquals(WeatherSource.OPEN_METEO.id, resolved.source)
     }
 
     @Test

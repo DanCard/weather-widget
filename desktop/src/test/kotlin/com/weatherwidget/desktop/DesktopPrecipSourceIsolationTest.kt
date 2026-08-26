@@ -23,26 +23,26 @@ class DesktopPrecipSourceIsolationTest {
     )
 
     @Test
-    fun `Open Meteo model rows and other APIs cannot drive actual precipitation`() {
+    fun `Silurian model rows and other APIs cannot drive actual precipitation`() {
         val rows = listOf(
-            row("OPEN_METEO_MAIN", WeatherSource.OPEN_METEO),
+            row("SILURIAN_MAIN", WeatherSource.SILURIAN),
             row("KNUQ", WeatherSource.NWS),
         )
 
-        assertTrue(actualPrecipRowsForSource(rows, WeatherSource.OPEN_METEO.id).isEmpty())
+        assertTrue(actualPrecipRowsForSource(rows, WeatherSource.SILURIAN.id).isEmpty())
     }
 
     @Test
     fun `approved provider history keeps only its own synthetic row`() {
         val rows = listOf(
-            row("WEATHER_API_MAIN", WeatherSource.WEATHER_API),
-            row("WEATHER_API_ALT", WeatherSource.WEATHER_API),
+            row("OPEN_METEO_MAIN", WeatherSource.OPEN_METEO),
+            row("OPEN_METEO_ALT", WeatherSource.OPEN_METEO),
             row("KNUQ", WeatherSource.NWS),
         )
 
         assertEquals(
-            listOf("WEATHER_API_MAIN"),
-            actualPrecipRowsForSource(rows, WeatherSource.WEATHER_API.id).map { it.stationId },
+            listOf("OPEN_METEO_MAIN"),
+            actualPrecipRowsForSource(rows, WeatherSource.OPEN_METEO.id).map { it.stationId },
         )
     }
 }

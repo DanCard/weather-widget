@@ -43,6 +43,54 @@ class OpenMeteoApi
              * read 4-13%.
              */
             const val PREVIOUS_RUNS_VARIABLE = "cloud_cover_low_previous_day1"
+            const val MINUTELY_15_VARIABLES = "temperature_2m,precipitation,weather_code,cloud_cover,cloud_cover_low"
+
+            internal fun parseSubHourlyHistory(response: String): List<HourlyForecast> {
+                val root = Json.parseToJsonElement(response).jsonObject
+                val timezone = root["timezone"]?.jsonPrimitive?.contentOrNull
+                val zone = timezone?.let { runCatching { java.time.ZoneId.of(it) }.getOrNull() }
+                    ?: java.time.ZoneId.systemDefault()
+                val currentTime = root["current"]?.jsonObject
+                    ?.get("time")?.jsonPrimitive?.contentOrNull
+                    ?.let { parseEpochMillis(it, zone) }
+                    ?: return emptyList()
+                val minutely = root["minutely_15"]?.jsonObject ?: return emptyList()
+                val times = minutely["time"]?.jsonArray ?: return emptyList()
+                val temperatures = minutely["temperature_2m"]?.jsonArray ?: return emptyList()
+                val codes = minutely["weather_code"]?.jsonArray
+                val precipitation = minutely["precipitation"]?.jsonArray
+                val totalCloud = minutely["cloud_cover"]?.jsonArray
+                val lowCloud = minutely["cloud_cover_low"]?.jsonArray
+
+                return times.mapIndexedNotNull { index, timeElement ->
+                    val timeMs = timeElement.jsonPrimitive.contentOrNull
+                        ?.let { parseEpochMillis(it, zone) }
+                        ?: return@mapIndexedNotNull null
+                    if (timeMs > currentTime) return@mapIndexedNotNull null
+                    val temperature = temperatures.getOrNull(index)?.jsonPrimitive?.floatOrNull
+                        ?.takeIf { it.isFinite() }
+                        ?: return@mapIndexedNotNull null
+                    val code = codes?.getOrNull(index)?.jsonPrimitive?.intOrNull
+                    HourlyForecast(
+                        dateTime = timeMs,
+                        temperature = temperature,
+                        condition = conditionForCode(code),
+                        precipAmountMm = precipitation?.getOrNull(index)?.jsonPrimitive?.floatOrNull,
+                        cloudCover = totalCloud?.getOrNull(index)?.jsonPrimitive?.intOrNull
+                            ?.coerceIn(0, 100),
+                        cloudCoverLow = lowCloud?.getOrNull(index)?.jsonPrimitive?.intOrNull
+                            ?.coerceIn(0, 100),
+                        source = WeatherSource.OPEN_METEO.id,
+                    )
+                }
+            }
+
+            private fun parseEpochMillis(value: String, zone: java.time.ZoneId): Long? =
+                runCatching { java.time.ZonedDateTime.parse(value).toInstant().toEpochMilli() }
+                    .getOrElse {
+                        runCatching { java.time.LocalDateTime.parse(value).atZone(zone).toInstant().toEpochMilli() }
+                            .getOrNull()
+                    }
 
             private fun conditionForCode(code: Int?): String = when (code) {
                 0 -> "Clear"
@@ -105,6 +153,8 @@ class OpenMeteoApi
                     parameter("longitude", lon)
                     parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum")
                     parameter("hourly", "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover,cloud_cover_low")
+                    parameter("minutely_15", MINUTELY_15_VARIABLES)
+                    parameter("current", "temperature_2m,weather_code")
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
                     parameter("past_days", historyDays) // Optional archived model-output window
@@ -114,6 +164,7 @@ class OpenMeteoApi
             Log.d(TAG, "getForecast: Raw response length=${response.length}")
             val jsonObj = json.parseToJsonElement(response).jsonObject
 
+            val current = jsonObj["current"]?.jsonObject
             val timezone = jsonObj["timezone"]?.jsonPrimitive?.content
             val daily = jsonObj["daily"]?.jsonObject
             Log.d(TAG, "getForecast: daily object keys=${daily?.keys}")
@@ -141,25 +192,25 @@ class OpenMeteoApi
                     it.jsonPrimitive.content.toFloatOrNull()
                 } ?: emptyList()
 
-val dailyForecasts =
-dates.mapIndexedNotNull { index, date ->
-val code = weatherCodes.getOrNull(index) ?: 0
-// Open-Meteo returns null entries at window edges; skip days without a usable
-// high/low instead of emitting Float.NaN, which poisons roundToInt() downstream
-// (snapshot saving in ForecastRepository) and aborts the whole fetch cycle.
-val high = maxTemps.getOrNull(index)?.takeIf { it.isFinite() }
-val low = minTemps.getOrNull(index)?.takeIf { it.isFinite() }
-if (high == null || low == null) return@mapIndexedNotNull null
-DailyForecast(
-date = date,
-highTemp = high,
-lowTemp = low,
-condition = weatherCodeToCondition(code),
-iconToken = code.toString(),
-precipProbability = precipProbs.getOrNull(index),
-precipAmountMm = dailyPrecipAmountsMm.getOrNull(index),
-)
-}
+            val dailyForecasts =
+                dates.mapIndexedNotNull { index, date ->
+                    val code = weatherCodes.getOrNull(index) ?: 0
+                    // Open-Meteo returns null entries at window edges; skip days without a usable
+                    // high/low instead of emitting Float.NaN, which poisons roundToInt() downstream
+                    // (snapshot saving in ForecastRepository) and aborts the whole fetch cycle.
+                    val high = maxTemps.getOrNull(index)?.takeIf { it.isFinite() }
+                    val low = minTemps.getOrNull(index)?.takeIf { it.isFinite() }
+                    if (high == null || low == null) return@mapIndexedNotNull null
+                    DailyForecast(
+                        date = date,
+                        highTemp = high,
+                        lowTemp = low,
+                        condition = weatherCodeToCondition(code),
+                        iconToken = code.toString(),
+                        precipProbability = precipProbs.getOrNull(index),
+                        precipAmountMm = dailyPrecipAmountsMm.getOrNull(index),
+                    )
+                }
 
             // Parse hourly data
             val hourly = jsonObj["hourly"]?.jsonObject
@@ -200,28 +251,84 @@ precipAmountMm = dailyPrecipAmountsMm.getOrNull(index),
                         null
                     } ?: return@mapIndexedNotNull null
 
-if (temp != null) {
-HourlyForecast(
-dateTime = ts,
-temperature = temp,
-condition = weatherCodeToCondition(code),
-precipProbability = hourlyPrecipProbs.getOrNull(index),
-precipAmountMm = hourlyPrecipAmountsMm.getOrNull(index),
-cloudCover = hourlyCloudCover.getOrNull(index),
-cloudCoverLow = hourlyCloudCoverLow.getOrNull(index),
-)
-} else {
+                    if (temp != null) {
+                        HourlyForecast(
+                            dateTime = ts,
+                            temperature = temp,
+                            condition = weatherCodeToCondition(code),
+                            precipProbability = hourlyPrecipProbs.getOrNull(index),
+                            precipAmountMm = hourlyPrecipAmountsMm.getOrNull(index),
+                            cloudCover = hourlyCloudCover.getOrNull(index),
+                            cloudCoverLow = hourlyCloudCoverLow.getOrNull(index),
+                        )
+                    } else {
                         null
                     }
                 }
 
             Log.d(TAG, "getForecast: parsed ${hourlyForecasts.size} hourly forecasts")
 
-return RawFetch(
-daily = dailyForecasts,
-hourly = hourlyForecasts,
-)
-}
+            val currentCondition = current?.get("weather_code")?.jsonPrimitive?.content?.toIntOrNull()?.let { weatherCodeToCondition(it) }
+            return RawFetch(
+                providerCurrentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toFloatOrNull(),
+                providerCurrentCondition = currentCondition,
+                providerCurrentObservedAt = parseCurrentObservedAt(
+                    timeRaw = current?.get("time")?.jsonPrimitive?.content,
+                    timezone = timezone,
+                ),
+                daily = dailyForecasts,
+                hourly = hourlyForecasts,
+                subHourly = parseSubHourlyHistory(response),
+            )
+        }
+
+        suspend fun getCurrent(
+            lat: Double,
+            lon: Double,
+        ): CurrentReading? {
+            val response: String =
+                httpClient.get("$BASE_URL/forecast") {
+                    parameter("latitude", lat)
+                    parameter("longitude", lon)
+                    parameter("current", "temperature_2m,weather_code,cloud_cover,cloud_cover_low")
+                    parameter("temperature_unit", "fahrenheit")
+                    parameter("timezone", "auto")
+                    parameter("forecast_days", 1)
+                }.body()
+
+            val jsonObj = json.parseToJsonElement(response).jsonObject
+            val current = jsonObj["current"]?.jsonObject ?: return null
+            val timezone = jsonObj["timezone"]?.jsonPrimitive?.content
+            val temp = current["temperature_2m"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return null
+            val weatherCode = current["weather_code"]?.jsonPrimitive?.content?.toIntOrNull()
+
+            return CurrentReading(
+                temperature = temp,
+                weatherCode = weatherCode,
+                observedAt = parseCurrentObservedAt(current["time"]?.jsonPrimitive?.content, timezone),
+                cloudCover = current["cloud_cover"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
+                cloudCoverLow = current["cloud_cover_low"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
+            )
+        }
+
+        private fun parseCurrentObservedAt(
+            timeRaw: String?,
+            timezone: String?,
+        ): Long? {
+            if (timeRaw.isNullOrBlank()) return null
+            return try {
+                java.time.ZonedDateTime.parse(timeRaw).toInstant().toEpochMilli()
+            } catch (_: Exception) {
+                try {
+                    val local = java.time.LocalDateTime.parse(timeRaw)
+                    val zone = timezone?.let { java.time.ZoneId.of(it) } ?: java.time.ZoneId.systemDefault()
+                    local.atZone(zone).toInstant().toEpochMilli()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not parse current observation time '$timeRaw': ${e.message}")
+                    null
+                }
+            }
+        }
 
         /**
          * What Open-Meteo predicted for each past hour roughly 24 hours beforehand, from the
@@ -311,4 +418,11 @@ condition = weatherCodeToCondition(0),
 
         fun weatherCodeToCondition(code: Int): String = conditionForCode(code)
 
+    data class CurrentReading(
+        val temperature: Float,
+        val weatherCode: Int?,
+        val observedAt: Long? = null,
+        val cloudCover: Int? = null,
+        val cloudCoverLow: Int? = null,
+    )
 }

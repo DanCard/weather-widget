@@ -382,19 +382,18 @@ internal object TemperatureStateResolver {
                 "DEBUG",
             )
 
-            // "Actual temperature data from X" — only for sources that borrow their actuals from
-            // another provider (Open-Meteo / Silurian -> METAR or Synoptic). The dominant-station
-            // label above is null for exactly those sources (synthetic backfill), so the two never
-            // compete for the same slot.
-            val actualsSourceLabel = if (ActualsProviderResolver.borrows(displaySource)) {
-                val provider = WeatherSource.fromId(ActualsProviderResolver.providerIdFor(displaySource))
+            // "Actual temperature data from X" — for sources using an alternative provider
+            // (e.g. Silurian borrowing METAR, or Open-Meteo configured to METAR/NWS/Synoptic).
+            val actualsProviderId = ActualsProviderResolver.providerIdFor(displaySource)
+            val actualsSourceLabel = if (actualsProviderId != displaySource.id) {
+                val provider = WeatherSource.fromId(actualsProviderId)
                 temperatureActualsSourceLabel(context, provider.displayName)
             } else {
                 null
             }
             Log.v(
                 TAG,
-                "ActualsSourceDiag: source=${displaySource.id} borrows=${ActualsProviderResolver.borrows(displaySource)} " +
+                "ActualsSourceDiag: source=${displaySource.id} provider=$actualsProviderId " +
                     "text=${actualsSourceLabel?.fullText ?: "null"}",
             )
 

@@ -62,8 +62,21 @@ class BorrowedCloudActualsTest {
         )
 
     @Test
-    fun `open-meteo draws cloud from its borrowed METAR feed`() = runBlocking {
+    fun `open-meteo draws cloud from its chosen METAR feed`() = runBlocking {
+        ActualsProviderResolver.installPreferenceSource { WeatherSource.METAR }
         val result = cloudFor(WeatherSource.OPEN_METEO, listOf(metarRow("KNUQ", 75)))
+
+        assertEquals(
+            "the chosen METAR reading must reach the cloud curve",
+            75,
+            result.hours[hour],
+        )
+        assertTrue("a real station blend, not a synthetic series", result.isMetarBlend)
+    }
+
+    @Test
+    fun `silurian draws cloud from its borrowed METAR feed`() = runBlocking {
+        val result = cloudFor(WeatherSource.SILURIAN, listOf(metarRow("KNUQ", 75)))
 
         assertEquals(
             "the borrowed METAR reading must reach the cloud curve",
@@ -81,7 +94,7 @@ class BorrowedCloudActualsTest {
         assertEquals(
             "with NWS chosen, the NWS row supplies cloud and METAR must not",
             20,
-            cloudFor(WeatherSource.OPEN_METEO, rows).hours[hour],
+            cloudFor(WeatherSource.SILURIAN, rows).hours[hour],
         )
     }
 
@@ -125,10 +138,8 @@ class BorrowedCloudActualsTest {
     /**
      * Borrowing is a READ-side change and must not start manufacturing rows.
      *
-     * Open-Meteo produces no [HistoricalActualsBackfill] row at all — `build` returns empty because
-     * `supportsTemperatureActuals` is false — so there is no synthetic row for a borrowed cloud
-     * value to be written into. Asserted explicitly because the first version of this test checked
-     * `cloudCover == null` over that empty list and passed vacuously.
+     * Silurian produces no [HistoricalActualsBackfill] row at all — `build` returns empty because
+     * `supportsTemperatureActuals` is false.
      */
     @Test
     fun `borrowing does not manufacture a synthetic row for a forecast-only source`() {
@@ -143,7 +154,7 @@ class BorrowedCloudActualsTest {
             ),
             latitude = lat,
             longitude = lon,
-            sourceId = WeatherSource.OPEN_METEO.id,
+            sourceId = WeatherSource.SILURIAN.id,
             nowMs = hour + 1_000L,
         )
         assertTrue(

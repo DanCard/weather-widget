@@ -12,6 +12,7 @@ import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
@@ -71,46 +72,46 @@ class DesktopBackfillIntegrationTest {
     }
 
     @Test
-    fun `Open-Meteo provider current does not update the header`() = runTest {
+    fun `Silurian provider current does not update the header`() = runTest {
         val baseHour = (System.currentTimeMillis() / 3_600_000L) * 3_600_000L
         val now = baseHour + 30 * 60_000L
-        val meteoRepository = DesktopWeatherRepository(
+        val silurianRepository = DesktopWeatherRepository(
             weatherService,
             dao,
             lat,
             lon,
-            WeatherSource.OPEN_METEO.id,
+            WeatherSource.SILURIAN.id,
             currentTimeMillis = { now },
         )
         coEvery { weatherService.fetchForecast() } returns RawFetch(
             providerCurrentTemp = 99f,
             hourly = listOf(
-                HourlyForecast(baseHour, 60f, "Clear", source = WeatherSource.OPEN_METEO.id),
-                HourlyForecast(baseHour + 3_600_000L, 70f, "Clear", source = WeatherSource.OPEN_METEO.id),
+                HourlyForecast(baseHour, 60f, "Clear", source = WeatherSource.SILURIAN.id),
+                HourlyForecast(baseHour + 3_600_000L, 70f, "Clear", source = WeatherSource.SILURIAN.id),
             ),
         )
         coEvery { weatherService.fetchObservationsOnly(recentOnly = false) } returns RawFetch()
 
-        val result = meteoRepository.refresh(now)
+        val result = silurianRepository.refresh(now)
 
         assertEquals(65f, result.resolved.currentTemp!!, 0.01f)
     }
 
     @Test
-    fun `Open-Meteo full refresh persists bounded borrowed METAR recovery`() = runTest {
+    fun `Silurian full refresh persists bounded borrowed METAR recovery`() = runTest {
         val now = (System.currentTimeMillis() / 3_600_000L) * 3_600_000L
         val recoveryTime = now - 6 * 3_600_000L
-        val meteoRepository = DesktopWeatherRepository(
+        val silurianRepository = DesktopWeatherRepository(
             weatherService,
             dao,
             lat,
             lon,
-            WeatherSource.OPEN_METEO.id,
+            WeatherSource.SILURIAN.id,
             currentTimeMillis = { now },
         )
         coEvery { weatherService.fetchForecast() } returns RawFetch(
             hourly = listOf(
-                HourlyForecast(now, 70f, "Clear", source = WeatherSource.OPEN_METEO.id),
+                HourlyForecast(now, 70f, "Clear", source = WeatherSource.SILURIAN.id),
             ),
         )
         coEvery { weatherService.fetchObservationsOnly(recentOnly = false) } returns RawFetch(
@@ -131,7 +132,7 @@ class DesktopBackfillIntegrationTest {
             ),
         )
 
-        meteoRepository.refresh(now)
+        silurianRepository.refresh(now)
 
         coVerify(exactly = 1) { weatherService.fetchObservationsOnly(recentOnly = false) }
         val stored = dao.getObservationsInRange(
@@ -312,5 +313,49 @@ class DesktopBackfillIntegrationTest {
         // Future Generic legitimately fills beyond the API horizon, so it IS admitted.
         assertEquals(1, rows.size)
         assertEquals(WeatherSource.GENERIC_GAP.id, rows[0].source)
+    }
+
+    @Test
+    fun `Open-Meteo needsDeeperHistory returns true beyond baseline history depth`() {
+        val now = (System.currentTimeMillis() / 3_600_000L) * 3_600_000L
+        val meteoRepository = DesktopWeatherRepository(
+            weatherService,
+            dao,
+            lat,
+            lon,
+            WeatherSource.OPEN_METEO.id,
+            currentTimeMillis = { now },
+        )
+
+        assertTrue(meteoRepository.needsDeeperHistory(24 * 8))
+        org.junit.Assert.assertFalse(meteoRepository.needsDeeperHistory(24 * 2))
+    }
+
+    @Test
+    fun `Open-Meteo ensureHistory fetches history and backfills observations`() = runTest {
+        val now = (System.currentTimeMillis() / 3_600_000L) * 3_600_000L
+        val pastHour = now - 24 * 3_600_000L
+        val meteoRepository = DesktopWeatherRepository(
+            weatherService,
+            dao,
+            lat,
+            lon,
+            WeatherSource.OPEN_METEO.id,
+            currentTimeMillis = { now },
+        )
+        coEvery { weatherService.fetchHistory(any()) } returns RawFetch(
+            hourly = listOf(
+                HourlyForecast(pastHour, 68.5f, "Partly Cloudy", source = WeatherSource.OPEN_METEO.id),
+            ),
+        )
+
+        val fetched = meteoRepository.ensureHistory(24 * 8)
+
+        assertTrue(fetched)
+        val obs = dao.getObservationsInRange(pastHour - 1000, pastHour + 1000, lat, lon)
+        assertEquals(1, obs.size)
+        assertEquals(WeatherSource.OPEN_METEO.id, obs.single().api)
+        assertEquals("OPEN_METEO_MAIN", obs.single().stationId)
+        assertEquals(68.5f, obs.single().temperature, 0.01f)
     }
 }

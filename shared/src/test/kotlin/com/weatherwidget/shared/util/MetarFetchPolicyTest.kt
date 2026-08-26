@@ -21,21 +21,21 @@ class MetarFetchPolicyTest {
         )
     }
 
-    /** The case in the brief: NWS displayed, Open-Meteo visible behind it. */
+    /** The case in the brief: NWS displayed, Silurian visible behind it. */
     @Test
     fun `consumer visible but not displayed is non-primary`() {
         assertEquals(
             MetarFetchPolicy.Tier.NON_PRIMARY,
-            tier(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO), setOf("NWS")),
+            tier(listOf(WeatherSource.NWS, WeatherSource.SILURIAN), setOf("NWS")),
         )
     }
 
-    /** The Paris case: the displayed source is the one with no actuals of its own. */
+    /** The case where a source configured to use METAR is displayed. */
     @Test
     fun `consumer displayed is primary`() {
         assertEquals(
             MetarFetchPolicy.Tier.PRIMARY,
-            tier(listOf(WeatherSource.OPEN_METEO, WeatherSource.NWS), setOf("OPEN_METEO")),
+            tier(listOf(WeatherSource.SILURIAN, WeatherSource.NWS), setOf("SILURIAN")),
         )
     }
 
@@ -45,17 +45,22 @@ class MetarFetchPolicyTest {
         assertEquals(
             MetarFetchPolicy.Tier.PRIMARY,
             tier(
-                listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+                listOf(WeatherSource.NWS, WeatherSource.SILURIAN),
                 setOf("NWS", "SILURIAN"),
             ),
         )
     }
 
     @Test
-    fun `silurian counts as a consumer too`() {
+    fun `open meteo with METAR preference counts as a consumer`() {
+        val preferMetar: (WeatherSource) -> WeatherSource? = { WeatherSource.METAR }
         assertEquals(
             MetarFetchPolicy.Tier.NON_PRIMARY,
-            tier(listOf(WeatherSource.NWS, WeatherSource.SILURIAN), setOf("NWS")),
+            MetarFetchPolicy.tierFor(
+                listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO),
+                setOf("NWS"),
+                preferMetar,
+            ),
         )
     }
 
@@ -64,14 +69,10 @@ class MetarFetchPolicyTest {
         assertEquals(MetarFetchPolicy.Tier.NONE, tier(emptyList(), emptySet()))
     }
 
-    /**
-     * The consumer set is derived from `supportsTemperatureActuals`, not a hardcoded provider list,
-     * so a future keyless forecast-only source is picked up without editing the policy.
-     */
     @Test
-    fun `consumers are exactly the configurable sources with no actuals product`() {
+    fun `consumers are the configurable sources that resolve to METAR`() {
         val consumers = MetarFetchPolicy.consumers(WeatherSourceOrdering.ALL_CONFIGURABLE)
-        assertEquals(setOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN), consumers.toSet())
+        assertEquals(setOf(WeatherSource.SILURIAN), consumers.toSet())
     }
 
     /**

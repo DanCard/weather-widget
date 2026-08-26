@@ -431,18 +431,19 @@ internal fun ObservationsWindow(
                                 // its own observations is not offered a choice, because borrowing
                                 // exists to fill an absence — regrading NWS against someone else's
                                 // thermometers would be a different and much larger decision.
-                                if (ActualsProviderResolver.borrows(currentSource)) {
+                                if (ActualsProviderResolver.allowsAlternativeProvider(currentSource)) {
                                     ActualsSourceRow(
                                         source = currentSource,
                                         active = ActualsProviderResolver.providerIdFor(currentSource),
                                         onChoose = { chosen ->
+                                            val defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource)
                                             val updatedSettings = DesktopActualsPreference.withChoice(
                                                 config.settings,
                                                 currentSource,
                                                 // Store nothing for the default so the
                                                 // preference stays absent unless the user
                                                 // actively diverges.
-                                                chosen.takeIf { it != ActualsProviderResolver.DEFAULT_PROVIDER },
+                                                chosen.takeIf { it != defaultProvider },
                                             )
                                             DesktopActualsPreference.update(updatedSettings)
                                             onConfigUpdate(config.copy(settings = updatedSettings))
@@ -495,7 +496,7 @@ internal fun ObservationRefreshButton(
 }
 
 /**
- * Names the feed supplying this forecast-only source's actuals, and lets the user change it.
+ * Names the feed supplying this source's actuals, and lets the user change it.
  *
  * Mirrors the Android row in `WeatherObservationsActivity`. Tier is shown inline rather than as a
  * section header: presenting Tomorrow.io's six-hour analysis window as equivalent to a thermometer
@@ -510,6 +511,7 @@ private fun ActualsSourceRow(
     var expanded by remember { mutableStateOf(false) }
     val candidates = remember { ActualsProviderResolver.candidates() }
     if (candidates.isEmpty()) return
+    val defaultProvider = ActualsProviderResolver.defaultProviderFor(source)
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
@@ -528,7 +530,7 @@ private fun ActualsSourceRow(
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 candidates.forEach { candidate ->
                     val marks = buildList {
-                        if (candidate == ActualsProviderResolver.DEFAULT_PROVIDER) add("default")
+                        if (candidate == defaultProvider) add("default")
                         when (ActualsProviderResolver.tierOf(candidate)) {
                             ActualsProviderResolver.Tier.MEASURED -> add("measured")
                             ActualsProviderResolver.Tier.DERIVED -> add("derived")

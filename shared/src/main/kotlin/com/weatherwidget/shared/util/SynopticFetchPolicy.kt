@@ -27,7 +27,7 @@ object SynopticFetchPolicy {
         actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
     ): List<WeatherSource> =
         visibleSources.filter { source ->
-            ActualsProviderResolver.borrows(source) &&
+            source != WeatherSource.SYNOPTIC &&
                 ActualsProviderResolver.providerIdFor(source, actualsPreference) == WeatherSource.SYNOPTIC.id
         }
 

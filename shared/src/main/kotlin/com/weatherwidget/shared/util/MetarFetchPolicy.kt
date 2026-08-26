@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 
 /**
  * Decides whether raw airport METARs are worth fetching this cycle, and at which cadence.
@@ -37,22 +38,23 @@ object MetarFetchPolicy {
     }
 
     /**
-     * Visible sources that ship no observation product of their own, and therefore have nothing to
-     * draw an actual curve from unless METAR supplies it.
-     *
-     * Reads [WeatherSource.supportsTemperatureActuals] rather than naming providers, so a future
-     * keyless forecast-only source is picked up without touching this file. GENERIC_GAP cannot slip
-     * in: it is not in `ALL_CONFIGURABLE`, so it is never among the visible sources — and it would
-     * not want actuals anyway, being a future-only climate-normal filler that is never persisted.
+     * Visible sources that borrow actuals from METAR (or have METAR configured as their provider).
      */
-    fun consumers(visibleSources: List<WeatherSource>): List<WeatherSource> =
-        visibleSources.filter { it != WeatherSource.METAR && !it.supportsTemperatureActuals }
+    fun consumers(
+        visibleSources: List<WeatherSource>,
+        actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
+    ): List<WeatherSource> =
+        visibleSources.filter { source ->
+            source != WeatherSource.METAR &&
+                ActualsProviderResolver.providerIdFor(source, actualsPreference) == WeatherSource.METAR.id
+        }
 
     fun tierFor(
         visibleSources: List<WeatherSource>,
         activeDisplaySourceIds: Set<String>,
+        actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
     ): Tier {
-        val consumers = consumers(visibleSources)
+        val consumers = consumers(visibleSources, actualsPreference)
         return when {
             consumers.isEmpty() -> Tier.NONE
             // Any widget currently showing a consumer promotes the whole fetch: the user is looking

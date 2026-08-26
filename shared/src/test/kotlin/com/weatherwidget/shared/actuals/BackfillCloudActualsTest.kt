@@ -136,7 +136,7 @@ class BackfillCloudActualsTest {
     }
 
     @Test
-    fun `open meteo model cloud never becomes an observation row`() {
+    fun `open meteo cloud becomes an observation row`() {
         val rows = HistoricalActualsBackfill.build(
             hourly = listOf(hourly(-1, low = 28, total = 56)),
             latitude = 37.417,
@@ -145,7 +145,9 @@ class BackfillCloudActualsTest {
             nowMs = now,
         )
 
-        assertTrue(rows.isEmpty())
+        assertEquals(1, rows.size)
+        assertEquals(28, rows.first().cloudCoverLow)
+        assertEquals(56, rows.first().cloudCover)
     }
 }
 

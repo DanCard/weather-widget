@@ -587,8 +587,9 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
 
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
 
-            val dominantStationLabel = if (com.weatherwidget.shared.observations.ActualsProviderResolver.borrows(effectiveDisplaySource)) {
-                val provider = WeatherSource.fromId(com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(effectiveDisplaySource))
+            val actualsProviderId = com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(effectiveDisplaySource)
+            val dominantStationLabel = if (actualsProviderId != effectiveDisplaySource.id) {
+                val provider = WeatherSource.fromId(actualsProviderId)
                 localizedActualsSourceLabel(context, provider.displayName)
             } else {
                 null

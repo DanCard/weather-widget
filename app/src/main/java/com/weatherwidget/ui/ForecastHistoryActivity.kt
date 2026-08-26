@@ -530,23 +530,28 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val endEpoch = endDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startDate, endDate, emptyList())
         val existingHistory = dailyHistoryDao.getExtremesInRange(startEpoch, endEpoch, lat, lon)
-        val existingDates = existingHistory.filter { it.source == WeatherSource.NWS.id }.map { it.date }.toSet()
-        val nwsForecastDates =
-            forecastDao.getForecastsInRangeBySource(startEpoch, endEpoch, lat, lon, WeatherSource.NWS.id)
-                .map { it.targetDate }
-                .toSet()
+        val actualsSources = widgetStateManager.getVisibleSourcesOrder().filter { it.supportsTemperatureActuals }
 
-        val missingDates = nwsForecastDates - existingDates
-        if (missingDates.isEmpty()) return
+        for (source in actualsSources) {
+            val existingDates = existingHistory.filter { it.source == source.id }.map { it.date }.toSet()
+            val forecastDates =
+                forecastDao.getForecastsInRangeBySource(startEpoch, endEpoch, lat, lon, source.id)
+                    .map { it.targetDate }
+                    .toSet()
 
-        Log.d(TAG, "Still missing NWS daily_history after local recompute for ${missingDates.size} date(s): $missingDates")
-        // Opening history surfaces gaps in stored actuals; trigger a widget refresh so the
-        // background fetch backfills them before the user looks at another day.
-        WidgetWorkScheduler.enqueueRedundantImmediateSync(
-            context = this,
-            forceRefresh = true,
-            reason = "history_missing_extremes_NWS",
-        )
+            val missingDates = forecastDates - existingDates
+            if (missingDates.isNotEmpty()) {
+                Log.d(TAG, "Still missing ${source.id} daily_history after local recompute for ${missingDates.size} date(s): $missingDates")
+                // Opening history surfaces gaps in stored actuals; trigger a widget refresh so the
+                // background fetch backfills them before the user looks at another day.
+                WidgetWorkScheduler.enqueueRedundantImmediateSync(
+                    context = this,
+                    forceRefresh = true,
+                    reason = "history_missing_extremes_${source.id}",
+                )
+                break
+            }
+        }
     }
 
     private fun loadAccuracySummary(lat: Double, lon: Double) {

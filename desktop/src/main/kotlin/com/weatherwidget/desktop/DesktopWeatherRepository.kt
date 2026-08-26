@@ -13,6 +13,7 @@ import com.weatherwidget.shared.actuals.BlendContribution
 import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.shared.actuals.DailyHistoryWriter
+import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.shared.actuals.TomorrowIoActuals
@@ -53,12 +54,6 @@ class DesktopWeatherRepository(
             Log.i(
                 "DesktopWeatherRepository",
                 "Tomorrow.io actuals cleanup: observations=${result.observationsDeleted} daily=${result.dailyRowsDeleted}",
-            )
-        }
-        weatherDao.cleanupLegacyOpenMeteoActuals()?.let { result ->
-            Log.i(
-                "DesktopWeatherRepository",
-                "Open-Meteo model-actual cleanup: observations=${result.observationsDeleted} daily=${result.dailyRowsDeleted}",
             )
         }
     }
@@ -290,7 +285,8 @@ class DesktopWeatherRepository(
      */
     fun needsDeeperHistory(neededBackHours: Int): Boolean =
         when (weatherSource) {
-            WeatherSource.NWS.id ->
+            WeatherSource.NWS.id,
+            WeatherSource.OPEN_METEO.id ->
                 neededHistoryDays(neededBackHours) > deepestHistoryDaysFetched
             WeatherSource.WEATHER_API.id ->
                 neededBackHours >= 24 && weatherApiHistoryDecision(currentTimeMillis()) is
@@ -315,6 +311,36 @@ class DesktopWeatherRepository(
                 val stored = backfillWeatherApiHistoryIfNeeded(currentTimeMillis())
                 if (stored > 0) recomputeDailyExtremes(currentTimeMillis())
                 stored > 0
+            }
+        }
+        if (weatherSource == WeatherSource.OPEN_METEO.id) {
+            val neededDays = neededHistoryDays(neededBackHours)
+            if (neededDays <= deepestHistoryDaysFetched) return@withContext false
+            return@withContext historyFetchMutex.withLock {
+                if (neededDays <= deepestHistoryDaysFetched) return@withLock false
+                var fetchedAny = false
+                try {
+                    val rawFetch = weatherService.fetchHistory(neededDays)
+                    val backfill = HistoricalActualsBackfill.build(
+                        hourly = rawFetch.subHourly.ifEmpty { rawFetch.hourly },
+                        latitude = latitude,
+                        longitude = longitude,
+                        sourceId = WeatherSource.OPEN_METEO.id,
+                        nowMs = currentTimeMillis(),
+                    )
+                    if (backfill.isNotEmpty()) {
+                        weatherDao.upsertObservations(backfill.map { it.toEntity(currentTimeMillis()) })
+                        recomputeDailyExtremes(currentTimeMillis())
+                        fetchedAny = true
+                    }
+                } catch (e: Exception) {
+                    Log.e("DesktopWeatherRepository", "On-demand Open-Meteo observation history fetch failed: $e")
+                }
+                if (fetchedAny) {
+                    deepestHistoryDaysFetched = neededDays
+                    Log.i("DesktopWeatherRepository", "ensureHistory deepened to ${neededDays}d back (source=$weatherSource)")
+                }
+                fetchedAny
             }
         }
         if (weatherSource != WeatherSource.NWS.id) return@withContext false
@@ -369,16 +395,15 @@ class DesktopWeatherRepository(
      * are available again. Failures are best-effort and leave the cached gap intact.
      */
     private suspend fun fetchBorrowedRecovery(displaySource: WeatherSource): RawFetch {
-        val borrowsActuals = ActualsProviderResolver.borrows(displaySource) &&
-            (ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.METAR.id ||
-                ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.SYNOPTIC.id)
+        val provider = ActualsProviderResolver.providerIdFor(displaySource)
+        val borrowsActuals = provider != displaySource.id &&
+            (provider == WeatherSource.METAR.id || provider == WeatherSource.SYNOPTIC.id)
         if (!borrowsActuals) return RawFetch()
         return try {
             weatherService.fetchObservationsOnly(recentOnly = false)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            val provider = ActualsProviderResolver.providerIdFor(displaySource)
             Log.w(TAG, "BORROWED_${provider}_RECOVERY failed source=${displaySource.id}: $e")
             RawFetch()
         }
@@ -438,19 +463,17 @@ class DesktopWeatherRepository(
                 )
                 weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
             }
-            if (ActualsProviderResolver.borrows(displaySource)) {
-                val provider = ActualsProviderResolver.providerIdFor(displaySource)
-                if (provider == WeatherSource.METAR.id || provider == WeatherSource.SYNOPTIC.id) {
-                    weatherDao.log(
-                        tag = "BORROWED_${provider}_RECOVERY",
-                        message = "source=${displaySource.id} " +
-                            "hours=${DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS} " +
-                            "rows=${borrowedRecovery.rawObservations.size} " +
-                            "stored=${borrowedRecovery.rawObservations.size} " +
-                            "stations=${borrowedRecovery.rawObservations.map { it.stationId }.distinct().size}",
-                        level = "INFO",
-                    )
-                }
+            val provider = ActualsProviderResolver.providerIdFor(displaySource)
+            if (provider != displaySource.id && (provider == WeatherSource.METAR.id || provider == WeatherSource.SYNOPTIC.id)) {
+                weatherDao.log(
+                    tag = "BORROWED_${provider}_RECOVERY",
+                    message = "source=${displaySource.id} " +
+                        "hours=${DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS} " +
+                        "rows=${borrowedRecovery.rawObservations.size} " +
+                        "stored=${borrowedRecovery.rawObservations.size} " +
+                        "stations=${borrowedRecovery.rawObservations.map { it.stationId }.distinct().size}",
+                    level = "INFO",
+                )
             }
             val historyObsCount = backfillWeatherApiHistoryIfNeeded(now)
 

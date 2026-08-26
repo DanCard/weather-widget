@@ -46,7 +46,7 @@ class DesktopBorrowedMetarObservationsTest {
     }
 
     @Test
-    fun `open-meteo observations-only refresh returns borrowed METAR readings`() = runTest {
+    fun `open-meteo observations-only refresh with METAR preference returns borrowed METAR readings`() = runTest {
         val requestedHours = mutableListOf<Int>()
         val service = DesktopWeatherService(
             latitude = 37.42,
@@ -54,11 +54,12 @@ class DesktopBorrowedMetarObservationsTest {
             weatherSource = WeatherSource.OPEN_METEO.id,
             injectedHttpClient = HttpClient(engine(requestedHours)),
         )
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { WeatherSource.METAR }
         try {
             val result = service.fetchObservationsOnly(recentOnly = true)
 
             assertTrue(
-                "Open-Meteo borrows METAR, so an observations-only refresh must return its rows",
+                "With METAR preference, Open-Meteo observations-only refresh returns METAR rows",
                 result.rawObservations.isNotEmpty(),
             )
             val knuq = result.rawObservations.first { it.stationId == "KNUQ" }
@@ -70,6 +71,7 @@ class DesktopBorrowedMetarObservationsTest {
             )
             assertEquals(listOf(DesktopWeatherService.RECENT_BORROWED_METAR_HOURS), requestedHours)
         } finally {
+            com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
             service.close()
         }
     }
@@ -80,7 +82,7 @@ class DesktopBorrowedMetarObservationsTest {
         val service = DesktopWeatherService(
             latitude = 37.42,
             longitude = -122.08,
-            weatherSource = WeatherSource.OPEN_METEO.id,
+            weatherSource = WeatherSource.SILURIAN.id,
             injectedHttpClient = HttpClient(engine(requestedHours)),
         )
         try {

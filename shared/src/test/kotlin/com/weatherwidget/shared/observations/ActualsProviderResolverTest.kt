@@ -24,7 +24,8 @@ class ActualsProviderResolverTest {
      */
     @Test
     fun `an installed preference is honoured by callers that pass no lookup`() {
-        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO))
+        assertEquals("OPEN_METEO", ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO))
+        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN))
         ActualsProviderResolver.installPreferenceSource { src ->
             WeatherSource.NWS.takeIf { src == WeatherSource.OPEN_METEO }
         }
@@ -50,19 +51,20 @@ class ActualsProviderResolverTest {
     fun `resetting restores the default`() {
         ActualsProviderResolver.installPreferenceSource { WeatherSource.NWS }
         ActualsProviderResolver.resetPreferenceSource()
-        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO))
+        assertEquals("OPEN_METEO", ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO))
+        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN))
     }
 
-    /** An installed preference still cannot override a source that has its own actuals. */
+    /** An installed preference still cannot override a source that does not allow alternatives. */
     @Test
-    fun `installed preference cannot redirect a non-borrowing source`() {
+    fun `installed preference cannot redirect a non-alternative source`() {
         ActualsProviderResolver.installPreferenceSource { WeatherSource.SYNOPTIC }
         assertEquals("NWS", ActualsProviderResolver.providerIdFor(WeatherSource.NWS))
     }
 
     @Test
     fun `forecast-only sources borrow, sources with their own actuals do not`() {
-        assertTrue(ActualsProviderResolver.borrows(WeatherSource.OPEN_METEO))
+        assertFalse(ActualsProviderResolver.borrows(WeatherSource.OPEN_METEO))
         assertTrue(ActualsProviderResolver.borrows(WeatherSource.SILURIAN))
         assertFalse(ActualsProviderResolver.borrows(WeatherSource.NWS))
         assertFalse(ActualsProviderResolver.borrows(WeatherSource.TOMORROW_IO))
@@ -78,28 +80,32 @@ class ActualsProviderResolverTest {
 
     @Test
     fun `a borrowing source defaults to METAR`() {
-        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO))
         assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN))
     }
 
     @Test
     fun `a source with its own actuals resolves to itself`() {
+        assertEquals("OPEN_METEO", ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO))
         assertEquals("NWS", ActualsProviderResolver.providerIdFor(WeatherSource.NWS))
         assertEquals("TOMORROW_IO", ActualsProviderResolver.providerIdFor(WeatherSource.TOMORROW_IO))
     }
 
-    /** The seam the future Settings picker plugs into. */
+    /** The seam the Settings picker plugs into. */
     @Test
-    fun `a preference overrides the default for a borrowing source`() {
+    fun `a preference overrides the default for an alternative-capable source`() {
         assertEquals(
             "NWS",
             ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO) { WeatherSource.NWS },
         )
+        assertEquals(
+            "NWS",
+            ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN) { WeatherSource.NWS },
+        )
     }
 
-    /** Borrowing is a remedy for absence, never a general substitution. */
+    /** Unconfigured sources without alternative support resolve to themselves. */
     @Test
-    fun `a preference cannot override a source that has its own actuals`() {
+    fun `a preference cannot override a source that does not allow alternative providers`() {
         assertEquals(
             "NWS",
             ActualsProviderResolver.providerIdFor(WeatherSource.NWS) { WeatherSource.METAR },
@@ -110,8 +116,12 @@ class ActualsProviderResolverTest {
     @Test
     fun `a preference naming a source with no actuals falls back to the default`() {
         assertEquals(
-            "METAR",
+            "OPEN_METEO",
             ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO) { WeatherSource.SILURIAN },
+        )
+        assertEquals(
+            "METAR",
+            ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN) { WeatherSource.SILURIAN },
         )
     }
 
@@ -119,7 +129,7 @@ class ActualsProviderResolverTest {
     fun `a source cannot borrow from itself`() {
         assertEquals(
             "METAR",
-            ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO) { WeatherSource.OPEN_METEO },
+            ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN) { WeatherSource.SILURIAN },
         )
     }
 
@@ -128,7 +138,8 @@ class ActualsProviderResolverTest {
         val candidates = ActualsProviderResolver.candidates()
         assertEquals(WeatherSource.METAR, candidates.first())
         assertFalse(WeatherSource.GENERIC_GAP in candidates)
-        assertFalse("a borrowing source cannot be a provider", WeatherSource.OPEN_METEO in candidates)
+        assertFalse("a borrowing source cannot be a provider", WeatherSource.SILURIAN in candidates)
+        assertTrue(WeatherSource.OPEN_METEO in candidates)
         assertTrue(WeatherSource.NWS in candidates)
     }
 
@@ -157,7 +168,7 @@ class ActualsProviderResolverTest {
             candidates.filter { ActualsProviderResolver.tierOf(it) == ActualsProviderResolver.Tier.MEASURED },
         )
         val derived = candidates.filter { ActualsProviderResolver.tierOf(it) == ActualsProviderResolver.Tier.DERIVED }
-        assertEquals(setOf(WeatherSource.WEATHER_API, WeatherSource.TOMORROW_IO), derived.toSet())
+        assertEquals(setOf(WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API, WeatherSource.TOMORROW_IO), derived.toSet())
         assertTrue(
             "every measured option precedes every derived one",
             candidates.indexOf(WeatherSource.SYNOPTIC) < candidates.indexOf(derived.first()),
@@ -167,8 +178,12 @@ class ActualsProviderResolverTest {
     @Test
     fun `a preference naming a forecast-derived-only source falls back to the default`() {
         assertEquals(
-            "METAR",
+            "OPEN_METEO",
             ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO) { WeatherSource.OPEN_WEATHER_MAP },
+        )
+        assertEquals(
+            "METAR",
+            ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN) { WeatherSource.OPEN_WEATHER_MAP },
         )
     }
 
@@ -186,12 +201,12 @@ class ActualsProviderResolverTest {
 
     // ---- the shared predicate ----
 
-    /** The regression this whole phase exists to fix. */
+    /** Silurian borrows METAR rows. */
     @Test
-    fun `a METAR row now drives Open-Meteo actuals`() {
+    fun `a METAR row now drives Silurian actuals`() {
         assertTrue(
             ObservationSourceMatcher.matchesActualSource(
-                stationId = "KNUQ", api = "METAR", source = WeatherSource.OPEN_METEO,
+                stationId = "KNUQ", api = "METAR", source = WeatherSource.SILURIAN,
             ),
         )
     }
@@ -214,10 +229,10 @@ class ActualsProviderResolverTest {
         )
     }
 
-    /** Open-Meteo's own synthetic rows must not come back through the borrowed path. */
+    /** Open-Meteo rows drive Open-Meteo actuals by default. */
     @Test
-    fun `an Open-Meteo row does not drive Open-Meteo actuals once it borrows`() {
-        assertFalse(
+    fun `an Open-Meteo row drives Open-Meteo actuals by default`() {
+        assertTrue(
             ObservationSourceMatcher.matchesActualSource(
                 stationId = "OPEN_METEO_MAIN", api = "OPEN_METEO", source = WeatherSource.OPEN_METEO,
             ),
@@ -234,7 +249,7 @@ class ActualsProviderResolverTest {
         )
         assertFalse(
             ObservationSourceMatcher.matchesActualSource(
-                "KNUQ", "METAR", WeatherSource.OPEN_METEO, actualsPreference = preferNws,
+                "OPEN_METEO_MAIN", "OPEN_METEO", WeatherSource.OPEN_METEO, actualsPreference = preferNws,
             ),
         )
     }

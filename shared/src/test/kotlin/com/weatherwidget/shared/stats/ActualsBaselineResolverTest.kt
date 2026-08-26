@@ -142,7 +142,7 @@ class ActualsBaselineResolverTest {
     @Test
     fun `hasNativeActuals matches the declared HistoricalDataKind`() {
         assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.NWS))
-        assertEquals(false, ActualsBaselineResolver.hasNativeActuals(WeatherSource.OPEN_METEO))
+        assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.OPEN_METEO))
         assertEquals(false, ActualsBaselineResolver.hasNativeActuals(WeatherSource.SILURIAN))
         assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.WEATHER_API))
         assertTrue(ActualsBaselineResolver.hasNativeActuals(WeatherSource.TOMORROW_IO))

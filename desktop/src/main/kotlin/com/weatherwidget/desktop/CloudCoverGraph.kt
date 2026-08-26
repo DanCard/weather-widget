@@ -293,12 +293,12 @@ fun CloudCoverGraph(
             }
         }
 
-        // Actuals source API label for borrowed actuals (e.g. Silurian, Open-Meteo)
+        // Actuals source API label for alternative actuals (e.g. Silurian, or Open-Meteo with alternative provider)
         val displaySource = WeatherSource.fromDisplaySource(displaySourceId)
-        val borrowsActuals = ActualsProviderResolver.borrows(displaySource)
+        val actualsProviderId = ActualsProviderResolver.providerIdFor(displaySource)
         val dominantSpanHours = (windowEnd - windowStart) / 3_600_000L
-        val dominantLabel = if (borrowsActuals) {
-            val provider = WeatherSource.fromId(ActualsProviderResolver.providerIdFor(displaySource))
+        val dominantLabel = if (actualsProviderId != displaySource.id) {
+            val provider = WeatherSource.fromId(actualsProviderId)
             DominantStationLabel.plainLabelText(
                 localizedText = "Actual cloud cover data from ${provider.displayName}",
             )

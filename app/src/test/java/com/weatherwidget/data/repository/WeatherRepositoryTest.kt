@@ -194,12 +194,12 @@ class WeatherRepositoryTest {
         }
 
     @Test
-    fun `refreshCurrentTemperature does not fetch Open-Meteo model current as an observation`() =
+    fun `refreshCurrentTemperature does not fetch Silurian model current as an observation`() =
         runTest {
             val editor = mockk<SharedPreferences.Editor>(relaxed = true)
             every { sharedPrefs.edit() } returns editor
             every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
-            val result = repository.refreshCurrentTemperature(testLat, testLon, testLocationName, source = WeatherSource.OPEN_METEO)
+            val result = repository.refreshCurrentTemperature(testLat, testLon, testLocationName, source = WeatherSource.SILURIAN)
             assertTrue(result.isSuccess)
             assertEquals(0, result.getOrNull())
             verify { openMeteoApi wasNot Called }
@@ -207,12 +207,12 @@ class WeatherRepositoryTest {
         }
 
     @Test
-    fun `refreshCurrentTemperature skips enabled Open-Meteo because it has no actuals`() =
+    fun `refreshCurrentTemperature skips enabled Silurian because it has no actuals`() =
         runTest {
             val editor = mockk<SharedPreferences.Editor>(relaxed = true)
             every { sharedPrefs.edit() } returns editor
             every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
-            every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.OPEN_METEO)
+            every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.SILURIAN)
             val result = repository.refreshCurrentTemperature(testLat, testLon, testLocationName)
 
             assertTrue(result.isSuccess)
@@ -233,7 +233,7 @@ class WeatherRepositoryTest {
                 testLat,
                 testLon,
                 testLocationName,
-                source = WeatherSource.OPEN_METEO,
+                source = WeatherSource.SILURIAN,
             )
 
             assertTrue(result.isSuccess)

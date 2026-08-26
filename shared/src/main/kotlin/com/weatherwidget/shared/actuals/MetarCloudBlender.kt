@@ -195,11 +195,11 @@ object MetarCloudBlender {
             return synthetic(hours)
         }
 
-        val station = HistoricalActualsBackfill.syntheticStationId(sourceId)
+        val station = HistoricalActualsBackfill.syntheticStationId(provider.id)
         val hours = readings.asSequence()
             // Both dimensions are required. A station id is not a provider namespace, and source
             // isolation must survive malformed/imported rows that reuse OPEN_METEO_MAIN.
-            .filter { it.api == sourceId && it.stationId == station }
+            .filter { it.api == provider.id && it.stationId == station }
             // Re-bound to the unpadded window: the read above is widened by the bucketing
             // tolerance for the NWS branch's sake, but synthetic rows sit ON hour marks and need no
             // such reach. Without this, a caller whose endMs is mid-hour silently gains an actual

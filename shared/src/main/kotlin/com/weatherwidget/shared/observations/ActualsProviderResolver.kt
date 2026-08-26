@@ -64,6 +64,14 @@ object ActualsProviderResolver {
     fun borrows(source: WeatherSource): Boolean =
         source != WeatherSource.METAR && !source.supportsTemperatureActuals
 
+    /** True when [source] allows configuring an alternative actuals provider. */
+    fun allowsAlternativeProvider(source: WeatherSource): Boolean =
+        borrows(source) || source == WeatherSource.OPEN_METEO
+
+    /** The default provider for [source]. */
+    fun defaultProviderFor(source: WeatherSource): WeatherSource =
+        if (borrows(source)) DEFAULT_PROVIDER else source
+
     /**
      * How trustworthy a candidate's "actuals" really are. The picker should show these as separate
      * groups: borrowing exists to escape circular actuals, so quietly offering a source whose
@@ -139,11 +147,10 @@ object ActualsProviderResolver {
         source: WeatherSource,
         preference: (WeatherSource) -> WeatherSource? = installedPreference,
     ): String {
-        if (!borrows(source)) return source.id
-        // Same rule as the picker: a preference naming a source that cannot legitimately provide
-        // actuals (OpenWeatherMap, Visual Crossing) degrades to the default rather than silently
-        // handing the borrower someone else's forecast.
+        if (!allowsAlternativeProvider(source)) return source.id
         val chosen = preference(source)?.takeIf { canProvide(it) && it != source }
-        return (chosen ?: DEFAULT_PROVIDER).id
+        if (chosen != null) return chosen.id
+        if (!borrows(source)) return source.id
+        return DEFAULT_PROVIDER.id
     }
 }

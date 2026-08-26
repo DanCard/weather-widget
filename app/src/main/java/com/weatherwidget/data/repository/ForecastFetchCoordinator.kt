@@ -200,6 +200,7 @@ internal class ForecastFetchCoordinator(
                         openMeteoApi.getForecast(
                             latitude,
                             longitude,
+                            historyDays = 7,
                         )
                     }.also {
                         // Only Open-Meteo has a previous-runs product, and this rides its fetch so
@@ -378,7 +379,7 @@ internal class ForecastFetchCoordinator(
                 latitude,
                 longitude,
                 source.id,
-                historicalData = result.hourly,
+                historicalData = result.subHourly.ifEmpty { result.hourly },
             )
         }
         return result.daily.map { day ->

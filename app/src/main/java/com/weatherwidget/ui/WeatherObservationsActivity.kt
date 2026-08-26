@@ -384,17 +384,15 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     reason = "user_observations_screen",
                     forceRefresh = true
                 )
-                if (com.weatherwidget.shared.observations.ActualsProviderResolver.borrows(currentSource)) {
-                    val providerId = com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(currentSource) {
-                        widgetStateManager.getActualsProvider(it)
-                    }
-                    if (providerId == WeatherSource.METAR.id) {
-                        val rows = metarObservationSource.fetchObservations(location.first, location.second, hours = 24)
-                        if (rows.isNotEmpty()) observationDao.insertAll(rows)
-                    } else if (providerId == WeatherSource.SYNOPTIC.id) {
-                        val rows = synopticObservationSource.fetchObservations(location.first, location.second, hours = 24)
-                        if (rows.isNotEmpty()) observationDao.insertAll(rows)
-                    }
+                val providerId = com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(currentSource) {
+                    widgetStateManager.getActualsProvider(it)
+                }
+                if (providerId == WeatherSource.METAR.id) {
+                    val rows = metarObservationSource.fetchObservations(location.first, location.second, hours = 24)
+                    if (rows.isNotEmpty()) observationDao.insertAll(rows)
+                } else if (providerId == WeatherSource.SYNOPTIC.id) {
+                    val rows = synopticObservationSource.fetchObservations(location.first, location.second, hours = 24)
+                    if (rows.isNotEmpty()) observationDao.insertAll(rows)
                 }
             }
             widgetContentChanged = true
@@ -417,19 +415,18 @@ class WeatherObservationsActivity : AppCompatActivity() {
     /**
      * Shows which feed supplies the displayed source's actuals, and lets the user change it.
      *
-     * Only forecast-only sources get the control. A source that ships its own observations is not
-     * offered a choice, because `ActualsProviderResolver` will not override one — borrowing exists
-     * to fill an absence, and quietly regrading NWS against someone else's thermometers would be a
-     * different and much larger decision.
+     * Sources that allow alternative providers (e.g. Silurian borrowing, or Open-Meteo) get the control.
      */
     private fun updateActualsSourceRow() {
         val row = findViewById<android.view.View>(R.id.actuals_source_row) ?: return
-        if (!ActualsProviderResolver.borrows(currentSource)) {
+        if (!ActualsProviderResolver.allowsAlternativeProvider(currentSource)) {
             row.visibility = android.view.View.GONE
             return
         }
         row.visibility = android.view.View.VISIBLE
-        val activeId = ActualsProviderResolver.providerIdFor(currentSource)
+        val activeId = ActualsProviderResolver.providerIdFor(currentSource) {
+            widgetStateManager.getActualsProvider(it)
+        }
         findViewById<TextView>(R.id.actuals_source_value).text =
             WeatherSource.fromId(activeId).displayName
         row.setOnClickListener { showActualsSourceChooser(activeId) }
@@ -438,6 +435,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private fun showActualsSourceChooser(activeId: String) {
         val candidates = ActualsProviderResolver.candidates()
         if (candidates.isEmpty()) return
+        val defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource)
         // Tier is shown inline rather than as section headers: an AlertDialog list has no grouping,
         // and presenting Tomorrow.io's six-hour analysis window as equivalent to a thermometer would
         // be the one thing this picker must not do.
@@ -448,7 +446,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 null -> ""
             }
             val marks = buildList {
-                if (candidate == ActualsProviderResolver.DEFAULT_PROVIDER) add("default")
+                if (candidate == defaultProvider) add("default")
                 if (tier.isNotEmpty()) add(tier)
             }
             "${candidate.displayName}  (${marks.joinToString(", ")})"
@@ -462,7 +460,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 // actively diverged — a stored default would silently pin them if the default moves.
                 widgetStateManager.setActualsProvider(
                     currentSource,
-                    chosen.takeIf { it != ActualsProviderResolver.DEFAULT_PROVIDER },
+                    chosen.takeIf { it != defaultProvider },
                 )
                 dialog.dismiss()
                 updateActualsSourceRow()

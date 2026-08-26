@@ -86,12 +86,14 @@ class HistoricalActualsBackfillTest {
     }
 
     @Test
-    fun `open meteo forecast api history produces no synthetic actual rows`() {
+    fun `open meteo history produces synthetic actual rows`() {
         val result = HistoricalActualsBackfill.build(
             listOf(hour(-1, 62f, precipMm = 1.5f)), lat, lon, WeatherSource.OPEN_METEO.id, now,
         )
 
-        assertTrue(result.isEmpty())
+        assertEquals(1, result.size)
+        assertEquals("OPEN_METEO_MAIN", result.single().stationId)
+        assertEquals(62f, result.single().temperature)
     }
 
     @Test

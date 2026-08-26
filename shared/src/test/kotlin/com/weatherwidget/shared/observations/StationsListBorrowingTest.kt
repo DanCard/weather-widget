@@ -20,7 +20,7 @@ class StationsListBorrowingTest {
     fun `borrowing source lists its default provider's stations`() {
         assertTrue(
             "METAR is the default borrowed provider, so its stations belong in the list",
-            ObservationSourceMatcher.matchesStationsList("KNUQ", "METAR", WeatherSource.OPEN_METEO),
+            ObservationSourceMatcher.matchesStationsList("KNUQ", "METAR", WeatherSource.SILURIAN),
         )
     }
 
@@ -28,11 +28,11 @@ class StationsListBorrowingTest {
     fun `borrowing source follows the per-source preference`() {
         val preferNws: (WeatherSource) -> WeatherSource? = { WeatherSource.NWS }
         assertTrue(
-            ObservationSourceMatcher.matchesStationsList("KNUQ", "NWS", WeatherSource.OPEN_METEO, preferNws),
+            ObservationSourceMatcher.matchesStationsList("KNUQ", "NWS", WeatherSource.SILURIAN, preferNws),
         )
         assertFalse(
             "with NWS chosen the METAR feed must drop out, or the list mixes two providers",
-            ObservationSourceMatcher.matchesStationsList("KNUQ", "METAR", WeatherSource.OPEN_METEO, preferNws),
+            ObservationSourceMatcher.matchesStationsList("KNUQ", "METAR", WeatherSource.SILURIAN, preferNws),
         )
     }
 

@@ -32,10 +32,15 @@ class ObservationSourceMatcherTest {
 
     @Test
     fun `forecast-only sources expose no observation rows`() {
-        assertFalse(ObservationSourceMatcher.matchesObservationSource("OPEN_METEO_MAIN", WeatherSource.OPEN_METEO))
+        assertFalse(ObservationSourceMatcher.matchesObservationSource("SILURIAN_MAIN", WeatherSource.SILURIAN))
         assertFalse(ObservationSourceMatcher.matchesObservationSource("SILURIAN_2", WeatherSource.SILURIAN))
         assertFalse(ObservationSourceMatcher.matchesObservationSource("WEATHER_API_MAIN", WeatherSource.SILURIAN))
-        assertFalse(
+    }
+
+    @Test
+    fun `Open-Meteo matches its own observation rows`() {
+        assertTrue(ObservationSourceMatcher.matchesObservationSource("OPEN_METEO_MAIN", WeatherSource.OPEN_METEO))
+        assertTrue(
             ObservationSourceMatcher.matchesActualSource(
                 stationId = "OPEN_METEO_MAIN",
                 api = WeatherSource.OPEN_METEO.id,
