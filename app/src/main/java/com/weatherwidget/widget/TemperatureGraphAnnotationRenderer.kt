@@ -82,6 +82,7 @@ internal object TemperatureGraphAnnotationRenderer {
          */
         val navArrowVisibility: NavArrowGeometry.Visibility = NavArrowGeometry.Visibility.NONE,
         val onDominantStationPlaced: ((DominantStationDebug) -> Unit)? = null,
+        val onActualsSourcePlaced: ((ActualsSourceDebug) -> Unit)? = null,
     ) {
         fun tempToY(temp: Float): Float =
             TemperatureGraphStyle.tempToY(
@@ -558,6 +559,93 @@ internal object TemperatureGraphAnnotationRenderer {
             input.obstacles.add(
                 TemperatureGraphObstacleType.GHOST_LABEL,
                 placement.box.toRectF(),
+            )
+        }
+    }
+
+    /**
+     * "Actual temperature data from X" — the borrowed-actuals context annotation. Mirrors the
+     * cloud-cover graph's source label, and is the LOWEST priority free-floating label: it is placed
+     * after the delta, dominant-station and ghost labels, so it simply disappears whenever nothing
+     * clear is left. Drawn in the small actual-pink station paint, matching how the cloud graph
+     * renders the same annotation.
+     */
+    fun placeActualsSourceLabel(
+        input: Input,
+        hours: List<HourData>,
+        actualsSourceLabel: DominantStationLabel.LabelText?,
+    ) {
+        val text = actualsSourceLabel?.fullText?.takeIf { it.isNotBlank() }
+        val spanHours =
+            if (hours.size >= 2) {
+                Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
+            } else {
+                0L
+            }
+        var placement: DominantStationLabel.Placement? = null
+        val reason: String
+        if (actualsSourceLabel == null) {
+            reason = "no_text"
+        } else if (hours.size < 2) {
+            reason = "too_few_hours"
+        } else if (spanHours > DominantStationLabel.MAX_HOURS_SPAN) {
+            reason = "span_too_wide"
+        } else {
+            val labelText = requireNotNull(text) { "non-null text required once the label is non-null" }
+            val ghostVisible = ghostLineVisible(input, hours)
+            val paint = input.paints.dominantStationTextPaint
+            val metrics =
+                GraphEmptySpaceFinder.Metrics(
+                    width = paint.measureText(labelText),
+                    ascent = TemperatureGraphStyle.fontAscent(paint),
+                    descent = TemperatureGraphStyle.fontDescent(paint),
+                )
+            placement =
+                DominantStationLabel.place(
+                    text = labelText,
+                    spanHours = spanHours,
+                    plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
+                    drawnBounds = input.graphObstacles(),
+                    curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
+                    metrics = metrics,
+                    padPx = TemperatureGraphStyle.dpToPx(input.context, DOMINANT_STATION_LABEL_PAD_DP),
+                    vetoBounds = input.labelVetoBounds(),
+                )
+            if (placement != null) {
+                input.canvas.drawText(
+                    labelText,
+                    placement.box.left,
+                    placement.baselineY,
+                    paint,
+                )
+                input.obstacles.add(
+                    TemperatureGraphObstacleType.ACTUALS_SOURCE,
+                    placement.box.toRectF(),
+                )
+                reason = "drawn"
+            } else {
+                reason = "no_empty_band"
+            }
+        }
+        input.onActualsSourcePlaced?.invoke(
+            ActualsSourceDebug(
+                reason = reason,
+                text = text,
+                box = placement?.box?.toRectF(),
+                centerX = placement?.centerX,
+                baselineY = placement?.baselineY,
+                navArrowBounds = input.navArrowVeto().map { it.toRectF() },
+            ),
+        )
+        if (Log.isLoggable(TAG, Log.VERBOSE)) {
+            Log.v(
+                TAG,
+                "ActualsSourceDiag: reason=$reason spanH=$spanHours maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} " +
+                    "text=${text ?: "null"} drawnBounds=${input.obstacles.bounds().size}" +
+                    (placement?.let {
+                        " boxLeft=${it.box.left.roundToInt()} boxRight=${it.box.right.roundToInt()} " +
+                            "centerX=${it.centerX.roundToInt()} baselineY=${it.baselineY.roundToInt()} boxW=${it.box.width.roundToInt()}"
+                    } ?: ""),
             )
         }
     }

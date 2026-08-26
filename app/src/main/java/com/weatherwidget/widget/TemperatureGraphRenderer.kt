@@ -115,6 +115,12 @@ object TemperatureGraphRenderer {
         /** Pre-formatted `knuq 73.4° @ 5:15 pm` (with segments for mixed sizing); null suppresses the annotation entirely. */
         dominantStationLabel: DominantStationLabel.LabelText? = null,
         /**
+         * Pre-formatted `Actual temperature data from X` (plain text); null suppresses the
+         * annotation entirely. Low priority: placed after every other free-floating label and
+         * dropped whenever no empty band fits.
+         */
+        actualsSourceLabel: DominantStationLabel.LabelText? = null,
+        /**
          * Which nav arrows the launcher composites over this bitmap, so free-floating labels are not
          * drawn underneath them. Defaults to BOTH: the hourly path shows both unconditionally
          * (`TemperatureTouchTargets.setupNavigationButtons`), and over-reserving a 36dp edge band is
@@ -122,6 +128,7 @@ object TemperatureGraphRenderer {
          */
         navArrowVisibility: NavArrowGeometry.Visibility = NavArrowGeometry.Visibility.BOTH,
         onDominantStationPlaced: ((DominantStationDebug) -> Unit)? = null,
+        onActualsSourcePlaced: ((ActualsSourceDebug) -> Unit)? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -264,6 +271,7 @@ object TemperatureGraphRenderer {
                 onDayLabelPlaced = onDayLabelPlaced,
                 navArrowVisibility = navArrowVisibility,
                 onDominantStationPlaced = onDominantStationPlaced,
+                onActualsSourcePlaced = onActualsSourcePlaced,
             )
         val fetchDotInput =
             TemperatureFetchDotRenderer.Input(
@@ -308,7 +316,9 @@ object TemperatureGraphRenderer {
         }
 
         // Order is a priority ladder over the same free space: the delta claims first (center-first
-        // anchors), the station label second (edge-first), and the ghost labels route around both.
+        // anchors), the station label second (edge-first), the ghost labels route around both, and
+        // the borrowed-actuals source annotation is last — it is context, never worth pushing another
+        // number off the graph for.
         TemperatureGraphAnnotationRenderer.placeForecastDeltaLabel(
             annotationInput,
             hours,
@@ -320,6 +330,11 @@ object TemperatureGraphRenderer {
             dominantStationLabel,
         )
         TemperatureGraphAnnotationRenderer.placeGhostLineLabel(annotationInput, hours)
+        TemperatureGraphAnnotationRenderer.placeActualsSourceLabel(
+            annotationInput,
+            hours,
+            actualsSourceLabel,
+        )
 
         HourlyIndicatorRenderer.drawNowIndicator(
             canvas = canvas,

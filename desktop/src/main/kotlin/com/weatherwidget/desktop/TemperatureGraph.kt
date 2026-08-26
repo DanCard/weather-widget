@@ -31,11 +31,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.input.pointer.pointerInput
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.graph.GraphEmptySpaceFinder
 import com.weatherwidget.shared.graph.HourDataAssembler
 import com.weatherwidget.shared.graph.*
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.util.Log
 import java.time.Instant
 import java.time.LocalDateTime
@@ -971,6 +973,56 @@ fun TemperatureGraph(
                     val topLeft = Offset(placement.box.left, placement.box.top)
                     drawShadowedText(textMeasurer, layout, topLeft, scale)
                     drawnLabels.add(Rect(topLeft, Size(layout.size.width.toFloat(), layout.size.height.toFloat())))
+                }
+            }
+        }
+
+        // "Actual temperature data from X": borrowed-actuals context, mirroring the cloud graph's
+        // source label. Lowest priority — placed after every other free-floating label, so it is
+        // dropped whenever nothing clear is left. English hardcoded, matching the cloud graph.
+        val displaySource = WeatherSource.fromDisplaySource(displaySourceId)
+        if (ActualsProviderResolver.borrows(displaySource)) {
+            val provider = WeatherSource.fromId(ActualsProviderResolver.providerIdFor(displaySource))
+            val actualsSourceLabel = DominantStationLabel.plainLabelText(
+                localizedText = "Actual temperature data from ${provider.displayName}",
+            )
+            val actualsSourceText = actualsSourceLabel?.fullText
+            if (actualsSourceText != null && (windowEnd - windowStart) / 3_600_000L <= DominantStationLabel.MAX_HOURS_SPAN) {
+                val actualsSourceStyle = TextStyle(
+                    fontSize = (DOMINANT_STATION_LABEL_SP * scale).sp,
+                    color = COLOR_ACTUAL,
+                    shadow = androidx.compose.ui.graphics.Shadow(
+                        color = Color.Black.copy(alpha = 0.7f),
+                        offset = Offset(0f, 1f * scale),
+                        blurRadius = 2f * scale,
+                    ),
+                )
+                val measured = textMeasurer.measure(actualsSourceText, actualsSourceStyle)
+                val actualsSourcePlot = GraphRect(0f, top, w, footer.graphBottom(h, scale))
+                val actualsSourceMetrics = GraphEmptySpaceFinder.Metrics(
+                    width = measured.size.width.toFloat(),
+                    ascent = -measured.size.height.toFloat(),
+                    descent = 0f,
+                )
+                val actualsSourcePlacement = DominantStationLabel.place(
+                    text = actualsSourceText,
+                    spanHours = (windowEnd - windowStart) / 3_600_000L,
+                    plot = actualsSourcePlot,
+                    drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                    curveYsAt = ::visibleCurveYsAt,
+                    metrics = actualsSourceMetrics,
+                    padPx = 2f * scale,
+                    vetoBounds = labelVeto,
+                )
+                if (actualsSourcePlacement != null) {
+                    val topLeft = Offset(actualsSourcePlacement.box.left, actualsSourcePlacement.box.top)
+                    drawText(measured, topLeft = topLeft)
+                    drawnLabels.add(
+                        Rect(
+                            topLeft,
+                            Size(measured.size.width.toFloat(), measured.size.height.toFloat()),
+                        ),
+                    )
                 }
             }
         }

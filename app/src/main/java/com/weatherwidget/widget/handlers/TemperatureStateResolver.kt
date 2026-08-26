@@ -3,6 +3,7 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import android.graphics.Color
 import android.util.Log
+import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.toHourlyForecast
@@ -13,6 +14,7 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.shared.actuals.DominantBlend
 import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.shared.graph.DominantStationLabel
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.HeaderFormatter
@@ -65,6 +67,22 @@ internal object TemperatureStateResolver {
 
     /** Observation lookback for the text-mode (graph-less) header yesterday-delta query. */
     private const val TEXT_MODE_DELTA_LOOKBACK_HOURS = 30L
+
+    /**
+     * Localized "Actual temperature data from X" annotation for borrowed actuals, mirroring
+     * [CloudCoverViewHandler.localizedActualsSourceLabel]. User-facing prose stays at this
+     * Android boundary; the shared label only carries the finished text.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun temperatureActualsSourceLabel(
+        context: Context,
+        sourceName: String?,
+    ): DominantStationLabel.LabelText? {
+        val name = sourceName?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return DominantStationLabel.plainLabelText(
+            context.getString(R.string.actual_temperature_data_from, name),
+        )
+    }
 
     data class ResolutionResult(
         val state: TemperatureWidgetState,
@@ -364,6 +382,22 @@ internal object TemperatureStateResolver {
                 "DEBUG",
             )
 
+            // "Actual temperature data from X" — only for sources that borrow their actuals from
+            // another provider (Open-Meteo / Silurian -> METAR or Synoptic). The dominant-station
+            // label above is null for exactly those sources (synthetic backfill), so the two never
+            // compete for the same slot.
+            val actualsSourceLabel = if (ActualsProviderResolver.borrows(displaySource)) {
+                val provider = WeatherSource.fromId(ActualsProviderResolver.providerIdFor(displaySource))
+                temperatureActualsSourceLabel(context, provider.displayName)
+            } else {
+                null
+            }
+            Log.v(
+                TAG,
+                "ActualsSourceDiag: source=${displaySource.id} borrows=${ActualsProviderResolver.borrows(displaySource)} " +
+                    "text=${actualsSourceLabel?.fullText ?: "null"}",
+            )
+
             val renderStartMs = System.currentTimeMillis()
             bitmap = try {
                 TemperatureGraphRenderer.renderGraph(
@@ -385,6 +419,7 @@ internal object TemperatureStateResolver {
                     errorFailureTimeMs = stateManager.getSourceLastFailureTime(displaySource),
                     useCelsius = useCelsius,
                     dominantStationLabel = dominantStationLabel,
+                    actualsSourceLabel = actualsSourceLabel,
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "renderGraph failed", e)

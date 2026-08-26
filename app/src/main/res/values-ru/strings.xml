@@ -336,6 +336,7 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, было %3$s %4$s</string>
     <string name="obs_actuals_source_label">Источник измерений</string>
     <string name="actual_cloud_cover_data_from">Фактические данные об облачности от %1$s</string>
+    <string name="actual_temperature_data_from">Фактические данные о температуре от %1$s</string>
     <string name="forecast_delta_suffix">относительно прогноза</string>
     <string name="updates_failing">ОШИБКА ОБНОВЛЕНИЯ</string>
     <string name="watermark_http_400">400 Некорректный запрос</string>

@@ -90,6 +90,17 @@ data class DominantStationDebug(
     val navArrowBounds: List<RectF> = emptyList(),
 )
 
+data class ActualsSourceDebug(
+    /** "drawn", "no_text", "too_few_hours", "span_too_wide", or "no_empty_band". */
+    val reason: String,
+    val text: String?,
+    val box: RectF?,
+    val centerX: Float?,
+    val baselineY: Float?,
+    /** The nav-arrow rectangles this render actually reserved. */
+    val navArrowBounds: List<RectF> = emptyList(),
+)
+
 data class DayLabelPlacementDebug(
     val side: String,       // "LEFT" or "RIGHT"
     val dayText: String,

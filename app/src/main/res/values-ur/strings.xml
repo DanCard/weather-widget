@@ -336,6 +336,7 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s، پہلے %3$s %4$s</string>
     <string name="obs_actuals_source_label">اصل ڈیٹا کا ذریعہ</string>
     <string name="actual_cloud_cover_data_from">%1$s سے بادلوں کی حقیقی مقدار کا ڈیٹا</string>
+    <string name="actual_temperature_data_from">%1$s سے درجہ حرارت کا حقیقی ڈیٹا</string>
     <string name="forecast_delta_suffix">پیشگوئی سے</string>
     <string name="updates_failing">اپ ڈیٹ ناکام</string>
     <string name="watermark_http_400">400 غلط درخواست</string>

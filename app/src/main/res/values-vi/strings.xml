@@ -336,6 +336,7 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, trước đó %3$s %4$s</string>
     <string name="obs_actuals_source_label">Nguồn dữ liệu thực tế</string>
     <string name="actual_cloud_cover_data_from">Dữ liệu độ che phủ mây thực tế từ %1$s</string>
+    <string name="actual_temperature_data_from">Dữ liệu nhiệt độ thực tế từ %1$s</string>
     <string name="forecast_delta_suffix">so với dự báo</string>
     <string name="updates_failing">CẬP NHẬT THẤT BẠI</string>
     <string name="watermark_http_400">400 Yêu cầu không hợp lệ</string>

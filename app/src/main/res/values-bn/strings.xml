@@ -336,6 +336,7 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, আগে ছিল %3$s %4$s</string>
     <string name="obs_actuals_source_label">প্রকৃত তথ্যের উৎস</string>
     <string name="actual_cloud_cover_data_from">%1$s থেকে প্রকৃত মেঘাচ্ছন্নতার তথ্য</string>
+    <string name="actual_temperature_data_from">%1$s থেকে প্রকৃত তাপমাত্রার তথ্য</string>
     <string name="forecast_delta_suffix">পূর্বাভাস থেকে</string>
     <string name="updates_failing">আপডেট ব্যর্থ</string>
     <string name="watermark_http_400">400 ভুল অনুরোধ</string>

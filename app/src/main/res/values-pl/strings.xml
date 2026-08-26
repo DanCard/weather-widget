@@ -336,6 +336,7 @@
     <string name="notify_dominant_temp_body_station_changed_format">%1$s %2$s, poprzednio %3$s %4$s</string>
     <string name="obs_actuals_source_label">Źródło pomiarów</string>
     <string name="actual_cloud_cover_data_from">Rzeczywiste dane o zachmurzeniu z %1$s</string>
+    <string name="actual_temperature_data_from">Rzeczywiste dane o temperaturze z %1$s</string>
     <string name="forecast_delta_suffix">względem prognozy</string>
     <string name="updates_failing">AKTUALIZACJE NIEUDANE</string>
     <string name="watermark_http_400">400 Nieprawidłowe żądanie</string>

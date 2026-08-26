@@ -13,6 +13,7 @@ enum class TemperatureGraphObstacleType {
     FORECAST_DELTA,
     DOMINANT_STATION,
     GHOST_LABEL,
+    ACTUALS_SOURCE,
 }
 
 data class TemperatureGraphObstacle(
