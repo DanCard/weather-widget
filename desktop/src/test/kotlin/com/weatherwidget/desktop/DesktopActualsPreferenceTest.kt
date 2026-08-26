@@ -52,6 +52,45 @@ class DesktopActualsPreferenceTest {
         )
     }
 
+    @Test
+    fun `settings published after startup replace the daemon provider snapshot`() {
+        DesktopActualsPreference.install()
+        DesktopActualsPreference.update(DesktopSettings())
+        assertEquals(
+            WeatherSource.OPEN_METEO.id,
+            ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO),
+        )
+
+        DesktopActualsPreference.update(
+            DesktopSettings(
+                actualsProviders = mapOf(WeatherSource.OPEN_METEO.id to WeatherSource.METAR.id),
+            ),
+        )
+
+        assertEquals(
+            WeatherSource.METAR.id,
+            ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO),
+        )
+    }
+
+    @Test
+    fun `provider change after daemon startup restarts fetch loops`() {
+        val before = DesktopConfig(
+            lat = 37.4,
+            lon = -122.1,
+            label = "Mountain View",
+            settings = DesktopSettings(weatherSource = WeatherSource.OPEN_METEO.id),
+        )
+        val after = before.copy(
+            settings = before.settings.copy(
+                actualsProviders = mapOf(WeatherSource.OPEN_METEO.id to WeatherSource.METAR.id),
+            ),
+        )
+
+        assertEquals("actuals_provider_change", daemonFetchRestartReason(before, after))
+        assertNull(daemonFetchRestartReason(after, after))
+    }
+
     /**
      * Storing the default is NOT the same as storing nothing: an absent entry follows the default if
      * it ever moves, a stored one pins the user to today's answer.

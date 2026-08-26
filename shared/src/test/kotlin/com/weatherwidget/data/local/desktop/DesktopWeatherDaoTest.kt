@@ -153,6 +153,41 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
+    fun `latest observation fetch is isolated by provider and location`() {
+        fun observation(
+            api: String,
+            lat: Double,
+            lon: Double,
+            stationId: String,
+            fetchedAt: Long,
+        ) = DesktopObservationEntity(
+            stationId = stationId,
+            stationName = stationId,
+            timestamp = fetchedAt - 1_000L,
+            temperature = 70f,
+            condition = "Fair",
+            locationLat = lat,
+            locationLon = lon,
+            fetchedAt = fetchedAt,
+            api = api,
+        )
+
+        dao.upsertObservations(
+            listOf(
+                observation("METAR", 37.4, -122.1, "KNUQ", fetchedAt = 1_000L),
+                observation("METAR", 37.4, -122.1, "KSJC", fetchedAt = 2_000L),
+                observation("OPEN_METEO", 37.4, -122.1, "OPEN_METEO_MAIN", fetchedAt = 9_000L),
+                observation("METAR", 40.0, -75.0, "KPHL", fetchedAt = 8_000L),
+            ),
+        )
+
+        assertEquals(2_000L, dao.getLatestObservationFetchedAt(37.4, -122.1, "METAR"))
+        assertEquals(9_000L, dao.getLatestObservationFetchedAt(37.4, -122.1, "OPEN_METEO"))
+        assertEquals(8_000L, dao.getLatestObservationFetchedAt(40.0, -75.0, "METAR"))
+        assertNull(dao.getLatestObservationFetchedAt(37.4, -122.1, "SYNOPTIC"))
+    }
+
+    @Test
     fun `test observation round-trip`() {
         val lat = 40.0
         val lon = -75.0

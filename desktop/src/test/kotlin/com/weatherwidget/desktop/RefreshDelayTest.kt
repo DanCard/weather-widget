@@ -91,6 +91,22 @@ class RefreshDelayTest {
     }
 
     @Test
+    fun `source toggle refreshes stale resolved provider even when forecast is fresh`() {
+        val now = 10_000_000L
+
+        assertEquals(
+            LaunchRefreshAction.OBSERVATIONS,
+            determineLaunchRefreshAction(
+                cachePresent = true,
+                lastForecastFetchMs = now - 60_000L,
+                // This is the resolved provider's persisted fetchedAt, not the display-source log.
+                lastObservationFetchMs = now - FRESHNESS_THRESHOLD_MS,
+                nowMs = now,
+            ),
+        )
+    }
+
+    @Test
     fun `launch refresh uses observations only when cached observation fetch is unknown`() {
         val action = determineLaunchRefreshAction(
             cachePresent = true,

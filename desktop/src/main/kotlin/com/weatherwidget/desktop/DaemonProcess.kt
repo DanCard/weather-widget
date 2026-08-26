@@ -12,6 +12,7 @@ import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
 import com.weatherwidget.data.local.desktop.WakeEventLog
 import com.weatherwidget.shared.notify.DominantTempWatch
 import com.weatherwidget.shared.notify.DominantTempWatchDecision
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.util.CloudViewingRefreshPolicy
 import com.weatherwidget.shared.util.Log
 import kotlinx.coroutines.*
@@ -25,6 +26,23 @@ import kotlin.system.exitProcess
 
 private const val TAG = "DaemonProcess"
 private const val DOMINANT_TEMP_WATCH_TAG = "DOMINANT_TEMP_WATCH"
+
+internal fun daemonFetchRestartReason(
+    previous: DesktopConfig?,
+    updated: DesktopConfig,
+): String? {
+    val locationSourceOrVisibilityChanged = previous == null ||
+        updated.lat != previous.lat ||
+        updated.lon != previous.lon ||
+        updated.settings.weatherSource != previous.settings.weatherSource ||
+        updated.settings.visibleSources != previous.settings.visibleSources
+    return when {
+        locationSourceOrVisibilityChanged -> "source_or_location_change"
+        previous.settings.actualsProviders != updated.settings.actualsProviders ->
+            "actuals_provider_change"
+        else -> null
+    }
+}
 
 fun runDaemon() {
     // As the very first statement: java.awt.headless = true
@@ -186,9 +204,10 @@ fun runDaemon() {
         }.onFailure { Log.w(TAG, "Dominant-temp watch check failed ($origin): ${it.message}") }
     }
 
-    // Shared by daemon startup and resume-from-suspend: load the cache, then fetch exactly what is
-    // stale per determineLaunchRefreshAction (full forecast > 1h old, observations > 10m old, else
-    // nothing). [reason] is for log provenance only.
+    // Shared by daemon startup, source/provider changes, and resume-from-suspend: load the cache,
+    // then fetch exactly what is stale. Forecast freshness belongs to the displayed source; actual
+    // temperature freshness belongs to that source's resolved provider at this location.
+    // [reason] is for log provenance only.
     suspend fun runLaunchRefresh(activeRepo: DesktopWeatherRepository, config: DesktopConfig, reason: String) {
         try {
             Log.i(TAG, "[$reason] Loading cached data...")
@@ -202,8 +221,14 @@ fun runDaemon() {
             }
 
             val now = System.currentTimeMillis()
-            val lastForecastFetch = weatherDao.getLastSuccessfulFetch(config.settings.weatherSource)
-            val lastObservationFetch = weatherDao.getLastSuccessfulObservationFetch(config.settings.weatherSource)
+            val displaySource = WeatherSource.fromDisplaySource(config.settings.weatherSource)
+            val actualsProvider = ActualsProviderResolver.providerIdFor(displaySource)
+            val lastForecastFetch = weatherDao.getLastSuccessfulFetch(displaySource.id)
+            val lastObservationFetch = weatherDao.getLatestObservationFetchedAt(
+                locationLat = config.lat,
+                locationLon = config.lon,
+                providerId = actualsProvider,
+            )
             val launchRefreshAction = determineLaunchRefreshAction(
                 cachePresent = cached != null,
                 lastObservationFetchMs = lastObservationFetch,
@@ -211,11 +236,17 @@ fun runDaemon() {
                 nowMs = now,
             )
 
-            Log.i(TAG, "[$reason] Launch refresh action: $launchRefreshAction. lastForecastFetch: $lastForecastFetch lastObservationFetch: $lastObservationFetch")
+            Log.i(
+                TAG,
+                "[$reason] Launch refresh action: $launchRefreshAction. source=${displaySource.id} " +
+                    "actualsProvider=$actualsProvider lastForecastFetch=$lastForecastFetch " +
+                    "lastObservationFetch=$lastObservationFetch",
+            )
 
             weatherDao.log(
                 tag = "LAUNCH_REFRESH_CHECK",
-                message = "reason=$reason source=${config.settings.weatherSource} cachePresent=${cached != null} action=$launchRefreshAction " +
+                message = "reason=$reason source=${displaySource.id} actualsProvider=$actualsProvider " +
+                    "cachePresent=${cached != null} action=$launchRefreshAction " +
                     "lastForecastFetch=$lastForecastFetch forecastAgeMs=${lastForecastFetch?.let { now - it }} " +
                     "lastObservationFetch=$lastObservationFetch observationAgeMs=${lastObservationFetch?.let { now - it }}",
                 level = "INFO"
@@ -412,7 +443,7 @@ fun runDaemon() {
         }
     }
 
-    fun startFetchLoops() {
+    fun startFetchLoops(reason: String = "startup") {
         fetchJob?.cancel()
         runCatching { weatherService?.close() }
 
@@ -431,7 +462,7 @@ fun runDaemon() {
         fetchJob = daemonScope.launch {
             // 1. Startup refresh
             launch {
-                runLaunchRefresh(newRepo, config, "startup")
+                runLaunchRefresh(newRepo, config, reason)
             }
 
             // 3a. Panel/status refresh loop: re-resolve the published current_status each
@@ -757,25 +788,26 @@ fun runDaemon() {
                                 if (newConfig == null) {
                                     Log.w(TAG, "Config loaded was null. Stopping loops.")
                                     fetchJob?.cancel()
+                                    DesktopActualsPreference.update(null)
                                     currentConfig = null
                                     configState.value = null
                                     forecastState.value = null
                                 } else {
                                     val localConfig = currentConfig
-                                    val locationOrSourceChanged = localConfig == null ||
-                                            newConfig.lat != localConfig.lat ||
-                                            newConfig.lon != localConfig.lon ||
-                                            newConfig.settings.weatherSource != localConfig.settings.weatherSource ||
-                                            newConfig.settings.visibleSources != localConfig.settings.visibleSources
-                                    
+                                    val restartReason = daemonFetchRestartReason(localConfig, newConfig)
+
+                                    // Publish every settings reload before any refresh decision. The
+                                    // resolver is process-local; updating only currentConfig left the
+                                    // daemon using the provider choice captured at startup.
+                                    DesktopActualsPreference.update(newConfig.settings)
                                     currentConfig = newConfig
                                     configState.value = newConfig
-                                    
-                                    if (locationOrSourceChanged) {
-                                        Log.i(TAG, "Location/source changed. Restarting fetch loops...")
-                                        startFetchLoops()
+
+                                    if (restartReason != null) {
+                                        Log.i(TAG, "Refresh-relevant config changed ($restartReason). Restarting fetch loops...")
+                                        startFetchLoops(restartReason)
                                     } else {
-                                        Log.i(TAG, "Config changed but location/source are identical. Ignoring loop restart.")
+                                        Log.i(TAG, "Config changed but fetch inputs are identical. Ignoring loop restart.")
                                     }
                                 }
                             }

@@ -683,6 +683,37 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     }
 
     /**
+     * The newest durable fetch time for the observation feed that actually supplies current
+     * temperature. This is intentionally provider- and location-specific: a recent native
+     * Open-Meteo row must not make borrowed METAR actuals look fresh, and another saved location
+     * must not suppress this location's refresh.
+     */
+    fun getLatestObservationFetchedAt(
+        locationLat: Double,
+        locationLon: Double,
+        providerId: String,
+    ): Long? {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                """
+                    SELECT MAX(fetchedAt) FROM observations
+                    WHERE locationLat = ? AND locationLon = ? AND api = ?
+                """.trimIndent(),
+            ).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, providerId)
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    val fetchedAt = rs.getLong(1)
+                    return if (fetchedAt > 0L) fetchedAt else null
+                }
+            }
+        }
+        return null
+    }
+
+    /**
      * Timestamp of the newest wake/network transition the daemon recorded. WAKE_EVENT rows are a
      * dedicated contract written only at the three real transitions (resume kick accepted,
      * network-restored kick accepted, daemon startup) — deliberately NOT the diagnostic
