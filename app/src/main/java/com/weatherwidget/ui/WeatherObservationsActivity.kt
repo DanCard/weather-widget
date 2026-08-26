@@ -393,6 +393,15 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 } else if (providerId == WeatherSource.SYNOPTIC.id) {
                     val rows = synopticObservationSource.fetchObservations(location.first, location.second, hours = 24)
                     if (rows.isNotEmpty()) observationDao.insertAll(rows)
+                } else if (providerId != currentSource.id) {
+                    weatherRepository.refreshCurrentTemperature(
+                        location.first,
+                        location.second,
+                        "Manual Refresh",
+                        source = WeatherSource.fromId(providerId),
+                        reason = "user_observations_screen_provider",
+                        forceRefresh = true,
+                    )
                 }
             }
             widgetContentChanged = true

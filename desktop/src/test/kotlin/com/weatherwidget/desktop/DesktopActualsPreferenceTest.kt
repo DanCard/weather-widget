@@ -29,12 +29,21 @@ class DesktopActualsPreferenceTest {
     fun `a stored choice resolves through the shared resolver`() {
         DesktopActualsPreference.install()
         DesktopActualsPreference.update(
-            DesktopSettings(actualsProviders = mapOf(WeatherSource.OPEN_METEO.id to WeatherSource.NWS.id)),
+            DesktopSettings(
+                actualsProviders = mapOf(
+                    WeatherSource.OPEN_METEO.id to WeatherSource.NWS.id,
+                    WeatherSource.NWS.id to WeatherSource.SYNOPTIC.id,
+                ),
+            ),
         )
 
         assertEquals(
             WeatherSource.NWS.id,
             ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO),
+        )
+        assertEquals(
+            WeatherSource.SYNOPTIC.id,
+            ActualsProviderResolver.providerIdFor(WeatherSource.NWS),
         )
         assertEquals(
             "a source with no stored choice still follows the default",

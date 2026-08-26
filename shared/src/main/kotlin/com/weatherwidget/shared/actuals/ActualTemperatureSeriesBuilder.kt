@@ -3,6 +3,7 @@ package com.weatherwidget.shared.actuals
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.util.Log
@@ -304,8 +305,14 @@ object ActualTemperatureSeriesBuilder {
         // reach this function with their own queries. See ActualsRowOrderDeterminismTest.
         val sourceFiltered = observations
             .filter { !it.qcFailed && matchesObservationSource(it, displaySourceId) }
+        val actualsProviderId = ActualsProviderResolver.providerIdFor(WeatherSource.fromId(displaySourceId))
         val filtered = (
-            if (displaySourceId == WeatherSource.TOMORROW_IO.id) {
+            // Tomorrow.io stores realtime and recent-history products as two provenance rows for one
+            // logical feed. Normalize them only when Tomorrow.io is the resolved ACTUALS provider.
+            // Keying this on the display source erased every borrowed Synoptic/METAR/NWS row from a
+            // Tomorrow.io forecast graph, while failing to normalize Tomorrow.io rows borrowed by a
+            // different forecast source.
+            if (actualsProviderId == WeatherSource.TOMORROW_IO.id) {
                 TomorrowIoActuals.forTemperatureSeries(sourceFiltered)
             } else {
                 sourceFiltered

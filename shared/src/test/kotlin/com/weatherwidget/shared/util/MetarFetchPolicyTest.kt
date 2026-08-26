@@ -53,7 +53,9 @@ class MetarFetchPolicyTest {
 
     @Test
     fun `open meteo with METAR preference counts as a consumer`() {
-        val preferMetar: (WeatherSource) -> WeatherSource? = { WeatherSource.METAR }
+        val preferMetar: (WeatherSource) -> WeatherSource? = { src ->
+            WeatherSource.METAR.takeIf { src == WeatherSource.OPEN_METEO }
+        }
         assertEquals(
             MetarFetchPolicy.Tier.NON_PRIMARY,
             MetarFetchPolicy.tierFor(

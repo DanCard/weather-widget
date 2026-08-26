@@ -6,26 +6,14 @@ import com.weatherwidget.data.model.WeatherSource
 /**
  * Answers "where do THIS source's actuals come from?".
  *
- * Most sources answer with themselves: NWS observations drive NWS actuals, WeatherAPI's archived
- * history drives WeatherAPI's. But a forecast-only provider — currently Open-Meteo and Silurian —
- * ships no observation product at all, so it has nothing to draw an actual curve from and nothing
- * to grade its forecast against. Measured 2026-08-23: `OPEN_METEO` had **zero** observation rows on
- * a live device.
+ * Most sources default to themselves when unconfigured: NWS observations drive NWS actuals,
+ * WeatherAPI's archived history drives WeatherAPI's, Open-Meteo's analysis drives Open-Meteo's.
+ * A forecast-only provider without observation products (e.g. Silurian) **borrows** actuals from a
+ * measured feed by default ([WeatherSource.METAR] — raw airport reports, independently measured and
+ * available worldwide).
  *
- * Such a source **borrows** actuals from a real observation feed. The default is
- * [WeatherSource.METAR] — raw airport reports, independently measured, and available worldwide,
- * which matters because a non-US user has no NWS coverage and therefore no other option.
- *
- * ### The preference seam
- *
- * [providerIdFor] takes a `preference` lookup so a future Settings screen can let the user pick the
- * feed per borrowing source ("Open-Meteo actuals from: METAR / NWS / Synoptic / …"). Nothing reads a
- * stored preference yet; the parameter exists so the call sites are already shaped for it and the
- * default is expressed in exactly one place.
- *
- * A source that HAS its own actuals is never overridden — borrowing is a remedy for absence, not a
- * general substitution, and silently regrading NWS against someone else's thermometers would be a
- * different and much larger decision.
+ * Any configurable forecast source allows the user to select an alternate actuals provider (e.g.
+ * METAR, Synoptic, NWS, Open-Meteo, Tomorrow.io, WeatherAPI) across both Android and Desktop.
  */
 object ActualsProviderResolver {
 
@@ -66,7 +54,7 @@ object ActualsProviderResolver {
 
     /** True when [source] allows configuring an alternative actuals provider. */
     fun allowsAlternativeProvider(source: WeatherSource): Boolean =
-        borrows(source) || source == WeatherSource.OPEN_METEO
+        source != WeatherSource.GENERIC_GAP && source != WeatherSource.METAR && source != WeatherSource.SYNOPTIC
 
     /** The default provider for [source]. */
     fun defaultProviderFor(source: WeatherSource): WeatherSource =

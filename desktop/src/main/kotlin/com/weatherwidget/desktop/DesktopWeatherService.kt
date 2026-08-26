@@ -726,19 +726,24 @@ class DesktopWeatherService(
         source = "NWS",
     )
 
-    override suspend fun fetchObservationsOnly(recentOnly: Boolean): RawFetch =
-        when (weatherSource) {
+    override suspend fun fetchObservationsOnly(recentOnly: Boolean): RawFetch {
+        val source = WeatherSource.fromId(weatherSource)
+        val provider = ActualsProviderResolver.providerIdFor(source)
+        if (provider != source.id) {
+            return when (provider) {
+                WeatherSource.METAR.id, WeatherSource.SYNOPTIC.id -> fetchBorrowedObservationsOnly(recentOnly)
+                WeatherSource.NWS.id -> fetchNwsObservationsOnly(recentOnly)
+                WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
+                WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
+                WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapObservationsOnly()
+                else -> fetchBorrowedObservationsOnly(recentOnly)
+            }
+        }
+        return when (weatherSource) {
             "NWS" -> fetchNwsObservationsOnly(recentOnly)
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
             WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapObservationsOnly()
-            WeatherSource.OPEN_METEO.id -> {
-                val provider = ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO)
-                if (provider == WeatherSource.OPEN_METEO.id) {
-                    fetchOpenMeteoObservationsOnly()
-                } else {
-                    fetchBorrowedObservationsOnly(recentOnly)
-                }
-            }
+            WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
             WeatherSource.SILURIAN.id -> fetchBorrowedObservationsOnly(recentOnly)
             WeatherSource.WEATHER_API.id,
             WeatherSource.VISUAL_CROSSING.id -> {
@@ -747,6 +752,7 @@ class DesktopWeatherService(
             }
             else -> RawFetch()
         }
+    }
 
     private suspend fun fetchOpenMeteoObservationsOnly(): RawFetch {
         val reading = openMeteo.getCurrent(latitude, longitude) ?: return RawFetch()

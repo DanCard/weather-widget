@@ -106,12 +106,14 @@ object ObservationSourceMatcher {
         api: String,
         source: WeatherSource,
         actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
-    ): Boolean =
-        if (ActualsProviderResolver.borrows(source)) {
+    ): Boolean {
+        val providerId = ActualsProviderResolver.providerIdFor(source, actualsPreference)
+        return if (providerId != source.id) {
             matchesActualSource(stationId, api, source, allowGenericGap = false, actualsPreference)
         } else {
             api == source.id && matchesObservationSource(stationId, source)
         }
+    }
 
     /**
      * True when a row may drive the selected source's temperature/cloud actuals.
@@ -120,13 +122,7 @@ object ObservationSourceMatcher {
      * the cloud series all reach it through
      * `ActualTemperatureSeriesBuilder.matchesObservationSource`.
      *
-     * It used to reject every source with `supportsTemperatureActuals == false` outright, which is
-     * why Open-Meteo and Silurian had no actual curve and an accuracy score computed against
-     * nothing. They now **borrow** a real feed — see [ActualsProviderResolver] — so the question is
-     * no longer "does this source have actuals?" but "which api supplies them?".
-     *
-     * @param actualsPreference per-source override for the borrowed feed, for the future Settings
-     *   picker. Defaults to none, which resolves to [ActualsProviderResolver.DEFAULT_PROVIDER].
+     * @param actualsPreference per-source override for the actuals provider, defaults to none.
      */
     fun matchesActualSource(
         stationId: String,
@@ -141,9 +137,6 @@ object ObservationSourceMatcher {
         val providerId = ActualsProviderResolver.providerIdFor(source, actualsPreference)
         if (api != providerId) return false
 
-        // A borrowed feed contributes every real station it has. The per-source station rules below
-        // exist to filter a source's OWN synthetic rows, and a borrowed provider has none of those
-        // to filter — its rows are measurements by definition.
         if (providerId != source.id) return true
 
         return source != WeatherSource.TOMORROW_IO || TomorrowIoActuals.isAllowedStation(stationId)

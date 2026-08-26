@@ -55,11 +55,13 @@ class ActualsProviderResolverTest {
         assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN))
     }
 
-    /** An installed preference still cannot override a source that does not allow alternatives. */
+    /** All forecast sources allow alternative providers when preferred. */
     @Test
-    fun `installed preference cannot redirect a non-alternative source`() {
+    fun `installed preference can redirect any forecast source`() {
         ActualsProviderResolver.installPreferenceSource { WeatherSource.SYNOPTIC }
-        assertEquals("NWS", ActualsProviderResolver.providerIdFor(WeatherSource.NWS))
+        assertEquals("SYNOPTIC", ActualsProviderResolver.providerIdFor(WeatherSource.NWS))
+        assertEquals("SYNOPTIC", ActualsProviderResolver.providerIdFor(WeatherSource.TOMORROW_IO))
+        assertEquals("SYNOPTIC", ActualsProviderResolver.providerIdFor(WeatherSource.WEATHER_API))
     }
 
     @Test
@@ -84,10 +86,11 @@ class ActualsProviderResolverTest {
     }
 
     @Test
-    fun `a source with its own actuals resolves to itself`() {
+    fun `a source with its own actuals resolves to itself by default`() {
         assertEquals("OPEN_METEO", ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO))
         assertEquals("NWS", ActualsProviderResolver.providerIdFor(WeatherSource.NWS))
         assertEquals("TOMORROW_IO", ActualsProviderResolver.providerIdFor(WeatherSource.TOMORROW_IO))
+        assertEquals("WEATHER_API", ActualsProviderResolver.providerIdFor(WeatherSource.WEATHER_API))
     }
 
     /** The seam the Settings picker plugs into. */
@@ -101,14 +104,26 @@ class ActualsProviderResolverTest {
             "NWS",
             ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN) { WeatherSource.NWS },
         )
+        assertEquals(
+            "SYNOPTIC",
+            ActualsProviderResolver.providerIdFor(WeatherSource.NWS) { WeatherSource.SYNOPTIC },
+        )
+        assertEquals(
+            "METAR",
+            ActualsProviderResolver.providerIdFor(WeatherSource.TOMORROW_IO) { WeatherSource.METAR },
+        )
     }
 
-    /** Unconfigured sources without alternative support resolve to themselves. */
+    /** Synthetic filler (GENERIC_GAP) and actuals feeds (METAR) do not allow alternative providers. */
     @Test
-    fun `a preference cannot override a source that does not allow alternative providers`() {
+    fun `a preference cannot override feeds and synthetic filler`() {
         assertEquals(
-            "NWS",
-            ActualsProviderResolver.providerIdFor(WeatherSource.NWS) { WeatherSource.METAR },
+            "METAR",
+            ActualsProviderResolver.providerIdFor(WeatherSource.METAR) { WeatherSource.SYNOPTIC },
+        )
+        assertEquals(
+            "Generic",
+            ActualsProviderResolver.providerIdFor(WeatherSource.GENERIC_GAP) { WeatherSource.METAR },
         )
     }
 

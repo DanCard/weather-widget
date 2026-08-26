@@ -139,6 +139,71 @@ class ActualTemperatureSeriesBuilderTest {
     }
 
     @Test
+    fun `tomorrow forecast keeps synoptic rows when synoptic supplies actuals`() {
+        ActualsProviderResolver.installPreferenceSource { source ->
+            WeatherSource.SYNOPTIC.takeIf { source == WeatherSource.TOMORROW_IO }
+        }
+        try {
+            val result = ActualTemperatureSeriesBuilder.blendObservationSeries(
+                observations = listOf(
+                    observation("KNUQ", "2026-06-03T10:00:00", 72f, api = WeatherSource.SYNOPTIC.id, distanceKm = 3.8f),
+                    observation("AW020", "2026-06-03T10:00:00", 76f, api = WeatherSource.SYNOPTIC.id, distanceKm = 2.0f),
+                ),
+                hourlyForecasts = forecasts("2026-06-03T08:00:00", 8, source = WeatherSource.TOMORROW_IO.id),
+                displaySourceId = WeatherSource.TOMORROW_IO.id,
+                userLat = LAT,
+                userLon = LON,
+                startMs = epoch("2026-06-03T08:00:00"),
+                endMs = epoch("2026-06-03T16:00:00"),
+            )
+
+            assertEquals(2, result.stats.filteredObservationCount)
+            assertEquals(1, result.stats.emittedPointCount)
+            assertTrue(result.observations.single().temperature in 72f..76f)
+        } finally {
+            ActualsProviderResolver.resetPreferenceSource()
+        }
+    }
+
+    @Test
+    fun `borrowed tomorrow actuals normalize realtime over recent history`() {
+        ActualsProviderResolver.installPreferenceSource { source ->
+            WeatherSource.TOMORROW_IO.takeIf { source == WeatherSource.SILURIAN }
+        }
+        try {
+            val result = ActualTemperatureSeriesBuilder.blendObservationSeries(
+                observations = listOf(
+                    observation(
+                        TomorrowIoActuals.RECENT_HISTORY_STATION_ID,
+                        "2026-06-03T10:00:00",
+                        60f,
+                        api = WeatherSource.TOMORROW_IO.id,
+                        distanceKm = 0f,
+                    ),
+                    observation(
+                        TomorrowIoActuals.REALTIME_STATION_ID,
+                        "2026-06-03T10:05:00",
+                        72f,
+                        api = WeatherSource.TOMORROW_IO.id,
+                        distanceKm = 0f,
+                    ),
+                ),
+                hourlyForecasts = forecasts("2026-06-03T08:00:00", 8, source = WeatherSource.SILURIAN.id),
+                displaySourceId = WeatherSource.SILURIAN.id,
+                userLat = LAT,
+                userLon = LON,
+                startMs = epoch("2026-06-03T08:00:00"),
+                endMs = epoch("2026-06-03T16:00:00"),
+            )
+
+            assertEquals(1, result.stats.filteredObservationCount)
+            assertEquals(72f, result.observations.single().temperature, 0.01f)
+        } finally {
+            ActualsProviderResolver.resetPreferenceSource()
+        }
+    }
+
+    @Test
     fun `single-day build reproduces daily aggregate high and low exactly`() {
         // A full day of NWS observations across two stations, sub-hourly, with a sharp afternoon peak
         // and an overnight trough at off-hour minutes (the kind the 5-min dedup-thinning can clip). The
