@@ -1,0 +1,1 @@
+Release 26082501: UI string localization improvements, observation blending refinements, graph rendering enhancements, and stability updates.
