@@ -1,0 +1,1 @@
+Release 26082601: Added Open-Meteo actuals reporting, provider selection, and history backfill, hourly actuals source label display, and performance refinements.
