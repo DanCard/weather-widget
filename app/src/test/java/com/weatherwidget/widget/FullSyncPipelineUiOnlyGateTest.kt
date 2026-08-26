@@ -99,7 +99,13 @@ class FullSyncPipelineUiOnlyGateTest {
 
     @After
     fun tearDown() {
-        WeatherDatabase.getDatabase(context).close()
+        // Must clear the singleton, not just close the handle. `getDatabase()` caches INSTANCE, so a
+        // bare `.close()` leaves the next test class in this JVM holding a closed database — and
+        // Room's close() cancels the DB's SupervisorJob, so that class dies with a
+        // JobCancellationException pointing back at this tearDown. Robolectric shares the JVM across
+        // classes and Gradle's maxParallelForks shuffles which classes share it, which made the
+        // fallout intermittent (it stranded WidgetRendererDailyUiOnlyRepaintTest).
+        WeatherDatabase.resetInstanceForTesting()
     }
 
     private fun pipeline() = FullSyncPipeline(
