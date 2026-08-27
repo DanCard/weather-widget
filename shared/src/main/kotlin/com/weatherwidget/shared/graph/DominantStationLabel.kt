@@ -23,7 +23,9 @@ import java.util.Locale
  *   Then `@` and the clock time that reading was taken — the same `lastReadingMs` the Blend tab shows
  *   in its "last read" column. Without it the number is undated, and a station that stopped reporting
  *   an hour ago looks exactly like one reporting now.
- * - **Visibility**: gated by [MAX_HOURS_SPAN] and by there being room. Zoomed-out views are excluded
+ * - **Visibility**: gated by [MAX_HOURS_SPAN], by [nowIndicatorVisible][place] (the label describes
+ *   the current observation, so it is hidden when the user has scrolled away from \"now\"), and by
+ *   there being room. Zoomed-out views are excluded
  *   (see the constant), and a plot with no clear band simply gets no label — this is context, never
  *   worth pushing another number off the graph for. Also gated on there being a real thermometer to
  *   name: see [format]'s [BlendContribution] overload.
@@ -283,7 +285,9 @@ object DominantStationLabel {
         padPx: Float,
         maxSpanHours: Long = MAX_HOURS_SPAN,
         vetoBounds: List<GraphRect> = emptyList(),
+        nowIndicatorVisible: Boolean = true,
     ): Placement? {
+        if (!nowIndicatorVisible) return null
         if (spanHours > maxSpanHours) return null
         if (text.isNullOrBlank()) return null
 

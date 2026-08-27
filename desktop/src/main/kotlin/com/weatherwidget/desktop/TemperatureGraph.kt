@@ -856,6 +856,7 @@ fun TemperatureGraph(
                 metrics = dominantMetrics,
                 padPx = dominantPadPx,
                 vetoBounds = labelVeto,
+                nowIndicatorVisible = nowInWindow,
             )
             if (placement != null) {
                 dominantPlacedBox = placement.box

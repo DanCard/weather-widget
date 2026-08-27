@@ -328,6 +328,7 @@ object TemperatureGraphRenderer {
             annotationInput,
             hours,
             dominantStationLabel,
+            nowIndicatorVisible = series.nowIndicatorVisible,
         )
         TemperatureGraphAnnotationRenderer.placeGhostLineLabel(annotationInput, hours)
         TemperatureGraphAnnotationRenderer.placeActualsSourceLabel(

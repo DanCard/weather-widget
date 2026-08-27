@@ -374,6 +374,7 @@ internal object TemperatureGraphAnnotationRenderer {
         input: Input,
         hours: List<HourData>,
         dominantStationLabel: DominantStationLabel.LabelText?,
+        nowIndicatorVisible: Boolean = true,
     ) {
         val text = dominantStationLabel?.fullText?.takeIf { it.isNotBlank() }
         val spanHours =
@@ -423,6 +424,7 @@ internal object TemperatureGraphAnnotationRenderer {
                         ),
                     padPx = TemperatureGraphStyle.dpToPx(input.context, DOMINANT_STATION_LABEL_PAD_DP),
                     vetoBounds = input.labelVetoBounds(),
+                    nowIndicatorVisible = nowIndicatorVisible,
                 )
             if (placement != null) {
                 dominantPlacement = placement

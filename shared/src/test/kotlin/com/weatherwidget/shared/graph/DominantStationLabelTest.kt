@@ -33,6 +33,7 @@ class DominantStationLabelTest {
         curveYsAt: (Float) -> List<Float> = lowCurve,
         metrics: GraphEmptySpaceFinder.Metrics = this.metrics,
         padPx: Float = 4f,
+        nowIndicatorVisible: Boolean = true,
     ) = DominantStationLabel.place(
         text = text,
         spanHours = spanHours,
@@ -41,6 +42,7 @@ class DominantStationLabelTest {
         curveYsAt = curveYsAt,
         metrics = metrics,
         padPx = padPx,
+        nowIndicatorVisible = nowIndicatorVisible,
     )
 
     // ---- format ----
@@ -302,6 +304,17 @@ class DominantStationLabelTest {
     fun spanGateIsInclusiveAtTheBoundary() {
         assertNotNull(place(spanHours = DominantStationLabel.MAX_HOURS_SPAN))
         assertNull(place(spanHours = DominantStationLabel.MAX_HOURS_SPAN + 1))
+    }
+
+    @Test
+    fun `now indicator not visible suppresses the label`() {
+        // The label describes the current observation — meaningless when scrolled away from "now".
+        assertNull(place(nowIndicatorVisible = false))
+    }
+
+    @Test
+    fun `now indicator visible still allows placement`() {
+        assertNotNull(place(nowIndicatorVisible = true))
     }
 
     // ---- "if no space found don't state it" ----
