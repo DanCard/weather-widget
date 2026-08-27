@@ -729,6 +729,7 @@ object DailyViewLogic {
                 temperature = it.temperature,
                 condition = it.condition,
                 cloudCover = it.cloudCover,
+                cloudCoverLow = it.cloudCoverLow,
                 source = it.source,
             )
         }

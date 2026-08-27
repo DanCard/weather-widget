@@ -51,6 +51,16 @@ class DailyNoonCloudCoverTest {
     }
 
     @Test
+    fun prefersLowCloudWhenOpenMeteoTotalAndLowDiverge() {
+        val hourly = listOf(
+            hour(12, 100, WeatherSource.OPEN_METEO.id).copy(cloudCoverLow = 0),
+        )
+
+        assertEquals(0, resolve(hourly, WeatherSource.OPEN_METEO.id))
+        assertEquals(0, resolveMeasured(hourly, WeatherSource.OPEN_METEO.id))
+    }
+
+    @Test
     fun assumesZeroWhenDisplayedSourceHasNoNoonData() {
         val hourly = listOf(hour(12, 80, "OPEN_METEO"))
         assertEquals(0, resolve(hourly, "NWS"))

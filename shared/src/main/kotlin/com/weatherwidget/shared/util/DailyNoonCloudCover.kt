@@ -10,7 +10,8 @@ import java.time.ZoneId
 
 /**
  * Single source of truth (Android + desktop) for a day's representative cloud cover: the hourly
- * `cloudCover` reading at **noon** (12:00 local) on [date], for the **displayed source only**.
+ * low-cloud reading at **noon** (12:00 local) on [date], for the **displayed source only**. The
+ * total column is used only when a source or legacy row has no separate low-cloud value.
  *
  * When noon data is missing, assumes **0%** (clear) rather than borrowing a non-noon hour or
  * another API source.
@@ -77,7 +78,7 @@ object DailyNoonCloudCover {
             .mapNotNull { forecast ->
                 val local = LocalDateTime.ofInstant(Instant.ofEpochMilli(forecast.dateTime), zone)
                 if (local != noon) return@mapNotNull null
-                forecast.cloudCover
+                forecast.cloudCoverLow ?: forecast.cloudCover
             }
             .firstOrNull()
             ?.coerceIn(0, 100)
