@@ -5,6 +5,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.RainAnalyzer
@@ -720,21 +721,18 @@ object DailyViewLogic {
         return days
     }
 
+    /**
+     * Map rows for the shared noon-cloud resolver via the canonical
+     * [com.weatherwidget.data.local.toHourlyForecast] rather than a private field list. A local
+     * copy of this conversion dropped `fetchedAt` and the coordinates, which silently disabled the
+     * resolver's freshest-wins rule: every row arrived with `fetchedAt = 0`, so a five-day-old
+     * same-site coordinate fragment could win noon and flap the daily bar's cloud split against
+     * the hourly graph. `toHourlyForecast`'s own doc warns about exactly this drift.
+     */
     private fun mapHourlyForecastsForNoonCloud(
         hourlyForecasts: List<HourlyForecastEntity>,
     ): List<com.weatherwidget.data.model.HourlyForecast> =
-        hourlyForecasts.map {
-            com.weatherwidget.data.model.HourlyForecast(
-                dateTime = it.dateTime,
-                temperature = it.temperature,
-                condition = it.condition,
-                cloudCover = it.cloudCover,
-                cloudCoverLow = it.cloudCoverLow,
-                cloudCoverMid = it.cloudCoverMid,
-                cloudCoverHigh = it.cloudCoverHigh,
-                source = it.source,
-            )
-        }
+        hourlyForecasts.map { it.toHourlyForecast() }
 
     private fun resolveNoonCloudCoverRatio(
         date: LocalDate,

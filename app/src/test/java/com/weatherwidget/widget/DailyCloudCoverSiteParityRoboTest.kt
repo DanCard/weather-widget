@@ -73,7 +73,14 @@ class DailyCloudCoverSiteParityRoboTest {
     private lateinit var provider: WeatherWidgetProvider
     private lateinit var mockAppWidgetManager: AppWidgetManager
     private val viewsSlot = slot<android.widget.RemoteViews>()
-    private val widgetId = 9217
+
+    // A fresh id per test method. Two of the statics this harness drives are keyed by widget id and
+    // outlive a test: WidgetRenderer's fullyPaintedDailyWidgetIds (a repeat id makes the refresh
+    // leg return `state=skipped_ui_only` without pushing RemoteViews) and WeatherWidgetProvider's
+    // lastUpdateByWidgetId startup debounce (Robolectric restarts elapsedRealtime each test, so a
+    // carried-over timestamp reads as "500ms ago" and swallows onUpdate). Distinct ids sidestep
+    // both without depending on reset hooks.
+    private val widgetId = nextWidgetId()
 
     // Diagnosed device shape: current site + a stale fragment ~0.03° away, both inside the
     // proximity-box query.
@@ -83,6 +90,14 @@ class DailyCloudCoverSiteParityRoboTest {
     private val staleLon = -122.081
     private val freshNoonCloud = 65
     private val staleNoonCloud = 25
+
+    // The 2026-08-27 Fold shape: a stale fragment of the SAME physical site. dlat 0.001 and
+    // dlon 0.002 against LocationMatch.SAME_SITE_TOLERANCE_DEG = 0.002 (inclusive), so this row
+    // is sameSite with the fresh one and survives unifyToNearestSite by design — only fetchedAt
+    // separates them. The far fragment above cannot express that case.
+    private val sameSiteFragmentLat = 37.416
+    private val sameSiteFragmentLon = -122.087
+    private val sameSiteFragmentNoonCloud = 26
 
     private val source = WeatherSource.NWS
     private val zone = ZoneId.systemDefault()
@@ -94,6 +109,7 @@ class DailyCloudCoverSiteParityRoboTest {
         db = TestDatabase.create()
         WeatherDatabase.setDatabaseForTesting(db)
 
+        WidgetRenderer.resetPaintTrackingForTest()
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(widgetId)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
@@ -141,6 +157,33 @@ class DailyCloudCoverSiteParityRoboTest {
 
     @Test
     fun `refresh path and onUpdate path resolve identical noon cloud from a fragmented cache`() = runTest {
+        assertBothLegsResolve(freshNoonCloud / 100f, testScheduler)
+    }
+
+    /**
+     * The 2026-08-27 recurrence (plans/260827-daily-noon-cloud-freshest-wins.md). Same flap, but
+     * the stale fragment is the SAME physical site as the fresh one, so `unifyToNearestSite` — the
+     * 2026-07-10 fix — legitimately keeps both rows and cannot help. Only freshest-wins inside
+     * DailyNoonCloudCover resolves it, and only if DailyViewLogic's mapping carries `fetchedAt`:
+     * dropping it again puts every candidate at 0, ties, and hands noon back to the first row.
+     */
+    @Test
+    fun `both paths resolve the fresh noon cloud when the stale fragment is the same site`() = runTest {
+        // Wipe the far-fragment fixture and reseed with the near one. Stale rows go in FIRST so
+        // they precede the fresh rows under `ORDER BY dateTime ASC` — the ordering that made
+        // firstOrNull pick them.
+        db.hourlyForecastDao().deleteOldForecasts(Long.MAX_VALUE)
+        seedTwoSiteDatabase(
+            staleLat = sameSiteFragmentLat,
+            staleLon = sameSiteFragmentLon,
+            staleNoonCloud = sameSiteFragmentNoonCloud,
+            staleAgeDays = 5,
+        )
+
+        assertBothLegsResolve(freshNoonCloud / 100f, testScheduler)
+    }
+
+    private suspend fun assertBothLegsResolve(expected: Float, testScheduler: TestCoroutineScheduler) {
         // Leg A — the previously buggy path: manual-refresh cache-first repaint
         // (WidgetIntentRouter.renderAllWidgetsFromCache → refreshWidget → refreshDailyView).
         ShadowLog.clear()
@@ -171,7 +214,6 @@ class DailyCloudCoverSiteParityRoboTest {
 
         // The exact-value asserts are the regression teeth: with the pre-fix code the refresh
         // leg resolved the stale fragment's 0.25 while onUpdate resolved 0.65.
-        val expected = freshNoonCloud / 100f
         assertEquals("refresh path must use the fresh site's noon cloud", expected, refreshRatio, 0.001f)
         assertEquals("onUpdate path must use the fresh site's noon cloud", expected, onUpdateRatio, 0.001f)
         assertEquals(
@@ -238,9 +280,14 @@ class DailyCloudCoverSiteParityRoboTest {
      * precedes the fresh site's in the raw query result — the ordering that made
      * DailyNoonCloudCover's firstOrNull pick 25 before the fix.
      */
-    private fun seedTwoSiteDatabase() = runBlocking {
+    private fun seedTwoSiteDatabase(
+        staleLat: Double = this.staleLat,
+        staleLon: Double = this.staleLon,
+        staleNoonCloud: Int = this.staleNoonCloud,
+        staleAgeDays: Long = 2,
+    ) = runBlocking {
         val nowFetched = System.currentTimeMillis()
-        val staleFetched = nowFetched - 2 * 24 * 3600 * 1000L
+        val staleFetched = nowFetched - staleAgeDays * 24 * 3600 * 1000L
 
         db.hourlyForecastDao().insertAll(
             (0..23).map { h -> hourly(targetDate.atTime(h, 0), staleLat, staleLon, staleNoonCloud, staleFetched) },
@@ -279,6 +326,12 @@ class DailyCloudCoverSiteParityRoboTest {
         cloudCover = cloud,
         fetchedAt = fetchedAt,
     )
+
+    private companion object {
+        private var nextWidgetIdValue = 9217
+
+        fun nextWidgetId(): Int = nextWidgetIdValue++
+    }
 
     private fun forecast(date: LocalDate, fetchedAt: Long) = ForecastEntity(
         targetDate = date.toEpochDay() * 24 * 60 * 60 * 1000L,

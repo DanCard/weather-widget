@@ -13,6 +13,10 @@ import java.time.ZoneId
  * low-cloud reading at **noon** (12:00 local) on [date], for the **displayed source only**. The
  * total column is used only when a source or legacy row has no separate low-cloud value.
  *
+ * When several rows exist for noon — the normal case, since one site accumulates a row per fetch
+ * at sub-precision coordinate fragments — the **freshest** (`fetchedAt`) wins. Callers must pass
+ * rows that carry `fetchedAt`; mapping it away silently reinstates first-row-wins.
+ *
  * When noon data is missing, assumes **0%** (clear) rather than borrowing a non-noon hour or
  * another API source.
  *
@@ -23,8 +27,11 @@ object DailyNoonCloudCover {
 
     /**
      * Site-aware variant for callers holding raw proximity-box rows. Selects the freshest row per
-     * hour at the display site before resolving noon, preventing a stale neighboring coordinate
-     * fragment from winning [resolveMeasuredNoonCloudCoverPercent]'s first-noon selection.
+     * hour **at the display site** before resolving noon, which additionally excludes a
+     * genuinely-different neighbouring marker — one far enough away to fail
+     * [com.weatherwidget.data.local.LocationMatch.sameSite], which
+     * [resolveMeasuredNoonCloudCoverPercent] cannot tell apart from the display site since it has
+     * no query centre. Prefer this wherever coordinates are available.
      */
     fun resolveMeasuredNoonCloudCoverPercentAtSite(
         hourly: List<HourlyForecast>,
@@ -73,14 +80,21 @@ object DailyNoonCloudCover {
             displaySourceId
         }
         val noon = date.atTime(12, 0)
+        // Freshest wins among duplicate noon rows, matching HourlyForecastSelector's rule for the
+        // same table. One site accumulates several rows per hour at sub-precision coordinate
+        // fragments, and unifying to the nearest site does NOT reduce them to one: a fragment
+        // 0.001 degrees away is legitimately `LocationMatch.sameSite`, so it survives unification
+        // by design. Only fetchedAt separates a current forecast from a five-day-old one at the
+        // same site, and taking the first match instead made the daily bar flap between the two
+        // as the row order changed with the query window (2026-08-27: 50% vs a 08-22 26%).
+        // maxByOrNull keeps the first of equal fetchedAt values, so rows without one (synthesized
+        // gap fills, fetchedAt = 0) behave exactly as before.
         return hourly.asSequence()
             .filter { it.source == targetSourceId }
-            .mapNotNull { forecast ->
-                val local = LocalDateTime.ofInstant(Instant.ofEpochMilli(forecast.dateTime), zone)
-                if (local != noon) return@mapNotNull null
-                forecast.cloudCoverLow ?: forecast.cloudCover
-            }
-            .firstOrNull()
+            .filter { LocalDateTime.ofInstant(Instant.ofEpochMilli(it.dateTime), zone) == noon }
+            .filter { (it.cloudCoverLow ?: it.cloudCover) != null }
+            .maxByOrNull { it.fetchedAt }
+            ?.let { it.cloudCoverLow ?: it.cloudCover }
             ?.coerceIn(0, 100)
     }
 

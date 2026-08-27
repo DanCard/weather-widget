@@ -108,16 +108,62 @@ class DailyNoonCloudCoverTest {
     }
 
     @Test
-    fun firstNoonRowWinsWhenDuplicatesExist_callersMustUnifySitesFirst() {
-        // The base resolver intentionally has no query centre, so it cannot select among
-        // coordinate fragments — it takes the FIRST noon match. Callers holding raw persistence
-        // rows must use resolveMeasuredNoonCloudCoverPercentAtSite (or pre-unify them); skipping
-        // that made the daily bar's cloud split flap between 65% and a 2-day-old 25%.
+    fun freshestNoonRowWinsAmongSameSiteDuplicates() {
+        // One site accumulates a noon row per fetch, and unifying to the nearest site does NOT
+        // reduce them to one: on the Fold, 37.416,-122.087 sits inside the same-site box of
+        // 37.417,-122.089 (dlat 0.001, dlon 0.002 against a 0.002 tolerance), so both survive.
+        // Taking the first match made the daily bar show a five-day-old 26% beside an hourly
+        // graph drawing the current 50%.
         val hourly = listOf(
-            hour(12, 25, "NWS"), // stale fragment's noon row, sorted first
-            hour(12, 65, "NWS"), // fresh site's noon row
+            hour(12, 26, "NWS").copy(fetchedAt = 1_000L), // five days old, sorted first
+            hour(12, 50, "NWS").copy(fetchedAt = 9_000L), // current forecast
         )
-        assertEquals(25, resolve(hourly, "NWS"))
+        assertEquals(50, resolve(hourly, "NWS"))
+    }
+
+    @Test
+    fun noonSelectionIsIndependentOfRowOrder() {
+        // The flap itself: the winner used to follow row order, which follows the query window
+        // (ORDER BY dateTime ASC breaks ties arbitrarily), so two render paths reading the same
+        // database disagreed. Freshest-wins is order-free.
+        val stale = hour(12, 26, "NWS").copy(fetchedAt = 1_000L)
+        val fresh = hour(12, 50, "NWS").copy(fetchedAt = 9_000L)
+
+        assertEquals(50, resolve(listOf(stale, fresh), "NWS"))
+        assertEquals(50, resolve(listOf(fresh, stale), "NWS"))
+    }
+
+    @Test
+    fun tieOnFetchedAtKeepsTheFirstRow() {
+        // Synthesized rows (climate-normal gap fills) carry no fetchedAt, so every candidate ties
+        // at 0. Those must behave exactly as they did before freshest-wins: first row.
+        val hourly = listOf(
+            hour(12, 26, "NWS"),
+            hour(12, 50, "NWS"),
+        )
+        assertEquals(26, resolve(hourly, "NWS"))
+    }
+
+    @Test
+    fun olderRowWithCloudBeatsFresherRowWithoutOne() {
+        // Freshest row THAT CARRIES A VALUE — a fresher row with no cloud reading must not blank
+        // the day, which is what selecting purely by fetchedAt would do.
+        val hourly = listOf(
+            hour(12, 40, "NWS").copy(fetchedAt = 1_000L),
+            hour(12, null, "NWS").copy(fetchedAt = 9_000L),
+        )
+        assertEquals(40, resolve(hourly, "NWS"))
+    }
+
+    @Test
+    fun prefersLowCloudOnTheFreshestRow() {
+        // The two rules compose: pick the freshest row first, then read low cloud from it. Reading
+        // low cloud off the stale row would report 90 under a sky the fresh row calls clear.
+        val hourly = listOf(
+            hour(12, 100, WeatherSource.OPEN_METEO.id).copy(cloudCoverLow = 90, fetchedAt = 1_000L),
+            hour(12, 100, WeatherSource.OPEN_METEO.id).copy(cloudCoverLow = 0, fetchedAt = 9_000L),
+        )
+        assertEquals(0, resolve(hourly, WeatherSource.OPEN_METEO.id))
     }
 
     @Test
