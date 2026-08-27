@@ -5,52 +5,15 @@ import com.weatherwidget.R
 import com.weatherwidget.shared.util.WeatherConditionResolver
 import com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags
 
+/**
+ * Maps shared icon **names** to Android drawable resource IDs.
+ *
+ * All condition classification (sunny / rainy / mixed / rain-indicator / cloud-forecast-eligible)
+ * and cloud-ratio decisions are delegated to [WeatherConditionResolver], which owns the canonical
+ * icon-name sets. Android only contributes the name → `R.drawable.*` dictionary (plus the text-mode
+ * tint decision, which references Android color resources).
+ */
 object WeatherIconMapper {
-    private const val FULLY_CLOUDY_THRESHOLD = 97
-    private const val MOSTLY_CLOUDY_UPPER_THRESHOLD = 90
-
-    private val PRECIPITATION_ICONS = setOf(
-        R.drawable.ic_weather_rain,
-        R.drawable.ic_weather_storm,
-        R.drawable.ic_weather_snow
-    )
-
-    private val RAIN_INDICATOR_ICONS = PRECIPITATION_ICONS + setOf(
-        R.drawable.ic_weather_partly_cloudy_chance_rain,
-        R.drawable.ic_weather_partly_cloudy_chance_rain_night,
-        R.drawable.ic_weather_partly_cloudy_slight_chance_rain,
-        R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night,
-        R.drawable.ic_weather_cloudy_chance_rain,
-        R.drawable.ic_weather_cloudy_slight_chance_rain
-    )
-
-    @VisibleForTesting
-    internal val MIXED_ICONS = setOf(
-        R.drawable.ic_weather_mostly_cloudy,
-        R.drawable.ic_weather_mostly_cloudy_night,
-        R.drawable.ic_weather_mostly_clear,
-        R.drawable.ic_weather_partly_cloudy,
-        R.drawable.ic_weather_partly_cloudy_night,
-        R.drawable.ic_weather_horizon_sun,
-        R.drawable.ic_weather_partly_cloudy_chance_rain,
-        R.drawable.ic_weather_partly_cloudy_chance_rain_night,
-        R.drawable.ic_weather_partly_cloudy_slight_chance_rain,
-        R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night,
-        R.drawable.ic_weather_cloudy_chance_rain,
-        R.drawable.ic_weather_cloudy_slight_chance_rain,
-        R.drawable.ic_weather_fog_cloudy,
-        R.drawable.ic_weather_fog_sunny,
-        R.drawable.ic_weather_fog_night,
-        R.drawable.ic_weather_fog_light,
-        R.drawable.ic_weather_fog_light_night
-    )
-
-    private val CLOUD_FORECAST_ELIGIBLE_ICONS = MIXED_ICONS + setOf(
-        R.drawable.ic_weather_fog,
-        R.drawable.ic_weather_fog_dense,
-        R.drawable.ic_weather_cloudy,
-        R.drawable.ic_weather_mostly_clear
-    )
 
     /** Map from shared icon name to Android drawable resource ID. */
     private val NAME_TO_RES: Map<String, Int> = mapOf(
@@ -84,6 +47,15 @@ object WeatherIconMapper {
     )
 
     private val RES_TO_NAME: Map<Int, String> = NAME_TO_RES.entries.associate { (name, res) -> res to name }
+
+    /**
+     * The set of mixed-condition drawable IDs, derived from the shared [WeatherConditionResolver]
+     * mixed set rather than hard-coded. Kept for the test suite, which iterates it to assert every
+     * mixed icon has a cloud ratio.
+     */
+    @VisibleForTesting
+    internal val MIXED_ICONS: Set<Int> =
+        RES_TO_NAME.keys.filter { WeatherConditionResolver.isMixed(RES_TO_NAME.getValue(it)) }.toSet()
 
     private fun iconNameToRes(iconName: String): Int =
         NAME_TO_RES[iconName] ?: R.drawable.ic_weather_unknown
@@ -120,15 +92,20 @@ object WeatherIconMapper {
         return WeatherConditionResolver.getConditionFlags(iconName, isNight)
     }
 
-    fun isSunny(iconRes: Int): Boolean = iconRes in setOf(R.drawable.ic_weather_clear, R.drawable.ic_weather_night, R.drawable.ic_weather_mostly_clear, R.drawable.ic_weather_horizon_sun)
+    fun isSunny(iconRes: Int): Boolean =
+        RES_TO_NAME[iconRes]?.let(WeatherConditionResolver::isSunny) ?: false
 
-    fun isPrecipitation(iconRes: Int): Boolean = iconRes in PRECIPITATION_ICONS
+    fun isPrecipitation(iconRes: Int): Boolean =
+        RES_TO_NAME[iconRes]?.let(WeatherConditionResolver::isPrecipitation) ?: false
 
-    fun isRainIndicator(iconRes: Int): Boolean = iconRes in RAIN_INDICATOR_ICONS
+    fun isRainIndicator(iconRes: Int): Boolean =
+        RES_TO_NAME[iconRes]?.let(WeatherConditionResolver::isRainIndicator) ?: false
 
-    fun isMixed(iconRes: Int): Boolean = iconRes in MIXED_ICONS
+    fun isMixed(iconRes: Int): Boolean =
+        RES_TO_NAME[iconRes]?.let(WeatherConditionResolver::isMixed) ?: false
 
-    fun isCloudForecastEligible(iconRes: Int): Boolean = iconRes in CLOUD_FORECAST_ELIGIBLE_ICONS
+    fun isCloudForecastEligible(iconRes: Int): Boolean =
+        RES_TO_NAME[iconRes]?.let(WeatherConditionResolver::isCloudForecastEligible) ?: false
 
     /**
      * Tint decision for a daily text-mode icon cell. Returns the color resource id to apply

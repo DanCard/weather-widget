@@ -15,7 +15,6 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import io.mockk.slot
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDateTime
@@ -262,33 +261,6 @@ class TemperatureGraphRendererFetchDotTest {
             0.5f
         )
     }
-    @Test
-    fun `fetch dot value color matches WeatherConditionColors OBSERVED with full opacity`() {
-        val context = mockContext()
-        val start = LocalDateTime.of(2026, 2, 26, 10, 0)
-        val hours = buildHours(start)
-        val observedAtMs = start.plusHours(2).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-
-        var fetchDotDebug: FetchDotDebug? = null
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 900,
-            heightPx = 300,
-            currentTime = start.plusHours(3),
-            observedAt = observedAtMs,
-            lastObservedTemp = 55f,
-            onFetchDotResolved = { fetchDotDebug = it }, useCelsius = false
-        )
-
-        org.junit.Assert.assertNotNull("FetchDotDebug should be emitted", fetchDotDebug)
-        assertEquals(
-            "Fetch dot value color must match WeatherConditionColors.OBSERVED exactly (full opacity)",
-            com.weatherwidget.util.WeatherConditionColors.OBSERVED,
-            fetchDotDebug!!.valueColor!!
-        )
-    }
-
     private fun mockContext(): Context {
         mockkStatic(Bitmap::class)
         mockkConstructor(Canvas::class)

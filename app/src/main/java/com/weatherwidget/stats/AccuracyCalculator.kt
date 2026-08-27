@@ -2,13 +2,10 @@ package com.weatherwidget.stats
 
 import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.ForecastDao
+import com.weatherwidget.data.local.toDailyHistory
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.stats.AccuracyBaselineField
+import com.weatherwidget.shared.stats.AccuracyBreakdown
 import com.weatherwidget.shared.stats.AccuracyPure
-import com.weatherwidget.shared.stats.ActualsBaselineResolver
-import com.weatherwidget.shared.stats.resolveBaselineTemps
-import com.weatherwidget.util.TempUtils
-import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -88,85 +85,41 @@ class AccuracyCalculator
             val endDate = LocalDate.now().minusDays(1)
             val startDate = endDate.minusDays(days.toLong() - 1)
 
-            val startEpoch = startDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-            val endEpoch = endDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+            val startEpoch = startDate.toEpochDay() * AccuracyBreakdown.MS_IN_A_DAY
+            val endEpoch = endDate.toEpochDay() * AccuracyBreakdown.MS_IN_A_DAY
 
             // Every source's rows, not just the graded one: a source with no past-weather product
             // of its own borrows another's actual rather than being scored against its own
             // forecast re-filed as an observation. See ActualsBaselineResolver.
             val allExtremes = dailyHistoryDao.getExtremesInRange(startEpoch, endEpoch, lat, lon)
-            val orderedSources = widgetStateManager.getVisibleSourcesOrder()
-            val baselineField = accuracyPreferences.baselineField()
-
+                .map { it.toDailyHistory() }
             val forecasts = forecastDao.getForecastsInRangeBySource(startEpoch, endEpoch, lat, lon, source.id)
+                .map { AccuracyBreakdown.ForecastRow(it.targetDate, it.dateOfPrediction, it.highTemp, it.lowTemp, it.fetchedAt) }
 
-            val dailyAccuracies = mutableListOf<DailyAccuracy>()
-            var current = startDate
-            while (!current.isAfter(endDate)) {
-                val targetDate = current
-                current = current.plusDays(1)
-
-                val targetEpochVal = targetDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                val forecastEpoch = targetDate.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-
-                val forecast = forecasts
-                    .filter { it.targetDate == targetEpochVal && it.dateOfPrediction == forecastEpoch }
-                    .maxByOrNull { it.fetchedAt }
-                    ?: continue
-
-                val rowsForDate = allExtremes.filter { it.date == targetEpochVal }
-                val baselineSource = ActualsBaselineResolver.resolveBaselineSource(
-                    gradedSource = source,
-                    orderedVisibleSources = orderedSources,
-                    // Forecast-only rows (null computed*) carry no observations — they must never
-                    // serve as an accuracy baseline.
-                    hasRowForDate = { candidate ->
-                        rowsForDate.any { it.source == candidate.id && it.computedHighTemp != null && it.computedLowTemp != null }
-                    },
-                ) ?: continue // no trustworthy actual for this day — exclude it rather than guess
-
-                val baselineRow = rowsForDate
-                    .filter { it.source == baselineSource.id }
-                    .minByOrNull { TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon) }
-                    ?: continue
-                val baselineHigh = baselineRow.computedHighTemp ?: continue
-                val baselineLow = baselineRow.computedLowTemp ?: continue
-
-                val temps = resolveBaselineTemps(
-                    field = baselineField,
-                    computedHigh = baselineHigh,
-                    computedLow = baselineLow,
-                    apiHigh = baselineRow.apiHighTemp,
-                    apiLow = baselineRow.apiLowTemp,
-                )
-
-                val entry = AccuracyPure.buildDailyAccuracy(
-                    date = targetDate.toString(),
-                    computedHighTemp = temps.high,
-                    computedLowTemp = temps.low,
-                    forecastHigh = forecast.highTemp,
-                    forecastLow = forecast.lowTemp,
-                    source = source.displayName,
-                ) ?: continue
-
-                dailyAccuracies.add(
-                    DailyAccuracy(
-                        date = entry.date,
-                        computedHighTemp = entry.computedHighTemp,
-                        computedLowTemp = entry.computedLowTemp,
-                        forecastHigh = entry.forecastHigh,
-                        forecastLow = entry.forecastLow,
-                        source = entry.source,
-                        highError = entry.highError,
-                        lowError = entry.lowError,
-                        baselineSourceId = baselineSource.id.takeIf { it != source.id },
-                        baselineStationId = baselineRow.apiStationId
-                            ?.takeIf { baselineField == AccuracyBaselineField.NATIVE_ACTUAL && !temps.fellBackToBlend },
-                        baselineFellBackToBlend = temps.fellBackToBlend,
-                    ),
+            return AccuracyBreakdown.compute(
+                startDate = startDate,
+                endDate = endDate,
+                allExtremes = allExtremes,
+                forecasts = forecasts,
+                gradedSource = source,
+                orderedVisibleSources = widgetStateManager.getVisibleSourcesOrder(),
+                baselineField = accuracyPreferences.baselineField(),
+                lat = lat,
+                lon = lon,
+            ).map { entry ->
+                DailyAccuracy(
+                    date = entry.date,
+                    computedHighTemp = entry.computedHighTemp,
+                    computedLowTemp = entry.computedLowTemp,
+                    forecastHigh = entry.forecastHigh,
+                    forecastLow = entry.forecastLow,
+                    source = entry.source,
+                    highError = entry.highError,
+                    lowError = entry.lowError,
+                    baselineSourceId = entry.baselineSourceId,
+                    baselineStationId = entry.baselineStationId,
+                    baselineFellBackToBlend = entry.baselineFellBackToBlend,
                 )
             }
-
-            return dailyAccuracies.sortedBy { it.date }
         }
     }
