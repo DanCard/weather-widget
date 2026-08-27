@@ -141,8 +141,28 @@ object CloudLayerGlyphPlacer {
     }
 
     /**
+     * The glyph's ink box as multiples of [GLYPH_SIZE_DP]: wide enough for `m` (the wider of the
+     * two letters) and tall enough for the font box, both biased slightly generous.
+     *
+     * Ratios rather than a measured advance width on purpose, and the reason is two-sided. Parity:
+     * Android measures with `Paint.measureText` and desktop with a Compose `TextMeasurer`, and two
+     * font stacks asked for the width of a 6.5dp bold `m` do not have to agree — [glyphBounds]
+     * would then fence off a different footprint on each platform, which is the drift class the
+     * renderers work hardest to avoid. Testability: Robolectric has no font engine, so
+     * `measureText` returns a 1px-per-character stub and `ascent`/`descent` are both 0 — a box
+     * measured that way collapses to nothing and every assertion built on it passes vacuously.
+     *
+     * Being a pixel out on a 6.5dp glyph costs nothing, and erring large errs toward keeping text
+     * off the trail.
+     */
+    const val GLYPH_BOX_WIDTH_RATIO = 0.9f
+    const val GLYPH_BOX_HEIGHT_RATIO = 1.2f
+
+    /**
      * The ink boxes of already-placed [glyphs], centred on each glyph the way both renderers draw
-     * them (Android `Paint.Align.CENTER`, desktop a half-size top-left shift).
+     * them (Android `Paint.Align.CENTER`, desktop a half-size top-left shift). [glyphSizePx] is the
+     * glyph's type size in pixels — the same number each renderer already derives from
+     * [GLYPH_SIZE_DP] for its nudge — scaled by [GLYPH_BOX_WIDTH_RATIO] / [GLYPH_BOX_HEIGHT_RATIO].
      *
      * Exists so a free-floating annotation can *see* the layer trails. [GraphEmptySpaceFinder]
      * knows only the curves its caller hands to `curveYsAt` and the rects in `drawnBounds`, and the
@@ -157,12 +177,11 @@ object CloudLayerGlyphPlacer {
      */
     fun glyphBounds(
         glyphs: List<LayerGlyph>,
-        glyphWidthPx: Float,
-        glyphHeightPx: Float,
+        glyphSizePx: Float,
     ): List<GraphRect> {
-        if (glyphWidthPx <= 0f || glyphHeightPx <= 0f) return emptyList()
-        val halfW = glyphWidthPx / 2f
-        val halfH = glyphHeightPx / 2f
+        if (glyphSizePx <= 0f || !glyphSizePx.isFinite()) return emptyList()
+        val halfW = glyphSizePx * GLYPH_BOX_WIDTH_RATIO / 2f
+        val halfH = glyphSizePx * GLYPH_BOX_HEIGHT_RATIO / 2f
         return glyphs.map { g ->
             GraphRect(g.x - halfW, g.y - halfH, g.x + halfW, g.y + halfH)
         }

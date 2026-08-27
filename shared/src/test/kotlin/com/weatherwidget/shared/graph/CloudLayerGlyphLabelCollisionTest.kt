@@ -64,7 +64,7 @@ class CloudLayerGlyphLabelCollisionTest {
                     stepPx = 18f,
                     phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
                 )
-        return CloudLayerGlyphPlacer.glyphBounds(glyphs, glyphSizePx, glyphSizePx)
+        return CloudLayerGlyphPlacer.glyphBounds(glyphs, glyphSizePx)
     }
 
     /**
@@ -150,10 +150,20 @@ class CloudLayerGlyphLabelCollisionTest {
     }
 
     @Test
-    fun `glyph boxes are centred on the glyph`() {
-        val bounds = CloudLayerGlyphPlacer.glyphBounds(listOf(LayerGlyph(100f, 50f, 'h')), 10f, 8f)
+    fun `glyph boxes are centred on the glyph and sized from its type size`() {
+        val bounds = CloudLayerGlyphPlacer.glyphBounds(listOf(LayerGlyph(100f, 50f, 'h')), 10f)
         assertTrue(bounds.size == 1)
         val r = bounds.single()
-        assertTrue("$r", r.left == 95f && r.right == 105f && r.top == 46f && r.bottom == 54f)
+        val halfW = 10f * CloudLayerGlyphPlacer.GLYPH_BOX_WIDTH_RATIO / 2f
+        val halfH = 10f * CloudLayerGlyphPlacer.GLYPH_BOX_HEIGHT_RATIO / 2f
+        assertTrue("$r", r.left == 100f - halfW && r.right == 100f + halfW)
+        assertTrue("$r", r.top == 50f - halfH && r.bottom == 50f + halfH)
+    }
+
+    @Test
+    fun `a glyph with no type size contributes no obstacle`() {
+        // Robolectric's font engine returns zeroes; a renderer that passed one through must fence
+        // off nothing rather than a degenerate rect at the origin.
+        assertTrue(CloudLayerGlyphPlacer.glyphBounds(listOf(LayerGlyph(100f, 50f, 'h')), 0f).isEmpty())
     }
 }

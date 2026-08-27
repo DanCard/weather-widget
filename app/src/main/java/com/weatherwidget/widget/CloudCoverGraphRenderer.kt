@@ -158,6 +158,12 @@ object CloudCoverGraphRenderer {
         errorFailureTimeMs: Long? = null,
         dominantStationLabel: DominantStationLabel.LabelText? = null,
         onDominantStationPlaced: ((DominantStationLabel.Placement?) -> Unit)? = null,
+        /**
+         * The mid/high layer glyph ink boxes, as handed to the free-label search. Exposed so a test
+         * can assert the annotation clears them; without it a placement test cannot tell a wired
+         * obstacle list from an empty one.
+         */
+        onLayerGlyphsPlaced: ((List<GraphRect>) -> Unit)? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -344,17 +350,14 @@ object CloudCoverGraphRenderer {
                     glyph.glyph.toString(), glyph.x, glyph.y + baselineOffset, paints.layerGlyphPaint,
                 )
             }
-            // One box size for both letters, taking the wider of `m` and `h` and the full font box
-            // for height — the same advance-width/line-height pair Compose measures on desktop, so
-            // the two platforms fence off the same footprint.
+            // Sized from the paint's type size — the same number that drives `nudgePx` — not from
+            // `measureText`/`ascent`, which disagree with Compose's measurements on desktop and
+            // return stubs under Robolectric. See CloudLayerGlyphPlacer.GLYPH_BOX_*_RATIO.
             layerGlyphBounds += CloudLayerGlyphPlacer.glyphBounds(
                 glyphs = layerGlyphs,
-                glyphWidthPx = maxOf(
-                    paints.layerGlyphPaint.measureText(CloudLayerGlyphPlacer.MID_GLYPH.toString()),
-                    paints.layerGlyphPaint.measureText(CloudLayerGlyphPlacer.HIGH_GLYPH.toString()),
-                ),
-                glyphHeightPx = paints.layerGlyphPaint.descent() - paints.layerGlyphPaint.ascent(),
+                glyphSizePx = paints.layerGlyphPaint.textSize,
             )
+            onLayerGlyphsPlaced?.invoke(layerGlyphBounds.toList())
             Log.d(
                 TAG,
                 "layerGlyphs: midMax=${midCovers.filterNotNull().maxOrNull()} " +

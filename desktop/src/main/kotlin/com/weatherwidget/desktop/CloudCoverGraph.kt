@@ -249,15 +249,12 @@ fun CloudCoverGraph(
                     ),
                 )
             }
-            // One box size for both letters, taking the wider/taller of `m` and `h`: the two differ
-            // by a pixel or two at 6.5dp, and overstating a glyph's footprint costs nothing while
-            // understating it puts text back on the trail.
-            val mBox = textMeasurer.measure(CloudLayerGlyphPlacer.MID_GLYPH.toString(), glyphStyle).size
-            val hBox = textMeasurer.measure(CloudLayerGlyphPlacer.HIGH_GLYPH.toString(), glyphStyle).size
+            // Sized from the same dp figure that drives `nudgePx`, not from a Compose measurement:
+            // the Android renderer cannot reach a `TextMeasurer`, and the two font stacks need not
+            // agree on the width of a 6.5dp bold `m`. See CloudLayerGlyphPlacer.GLYPH_BOX_*_RATIO.
             layerGlyphBounds += CloudLayerGlyphPlacer.glyphBounds(
                 glyphs = layerGlyphs,
-                glyphWidthPx = maxOf(mBox.width, hBox.width).toFloat(),
-                glyphHeightPx = maxOf(mBox.height, hBox.height).toFloat(),
+                glyphSizePx = CloudLayerGlyphPlacer.GLYPH_SIZE_DP.dp.toPx() * scale,
             )
         }
 
