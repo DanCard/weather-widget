@@ -49,3 +49,32 @@ combinations and choose a graph design from evidence.
    Open-Meteo fetch, and query its live forecast rows to confirm realistic layer combinations are
    stored. Use those rows as the evidence for the subsequent graph-design discussion.
 
+
+## Verification results (2026-08-26)
+
+All five implementation steps landed in 68ef68af. Verification run:
+
+- Shared suite: 1221 tests / 157 classes, 0 failures — includes the desktop v21-to-v22 upgrade and
+  four-field JDBC round-trip (`DesktopCloudLayerSchemaIntegrationTest`).
+- App unit suite: 2086 tests / 292 classes, 0 failures — includes `OpenMeteoApiTest` four-layer
+  parse/clamp and `OpenMeteoCloudLayerStorageIntegrationTest` live/history/nullable-merge round-trip.
+- Instrumented `WeatherDatabaseMigrationTest`: 15 tests pass on Generic_Foldable_API36, including
+  67-to-68.
+- Android build + emulator install clean; the live `weather_database` upgraded in place to
+  `user_version=68` with all four columns present on `hourly_forecasts` and
+  `hourly_forecast_history`.
+
+Live Open-Meteo rows at Mountain View (364 four-layer rows):
+
+- Only `OPEN_METEO` populates low/mid/high; NWS, Silurian, Tomorrow.io, WeatherAPI and OWM leave all
+  three null, as intended. 507 low vs 364 mid/high is the expected pre-migration legacy-null gap.
+- **Total is a union, not a sum.** On the 152 rows with any cloud, total is at-or-above
+  `max(low,mid,high)` in 149 (98%) and at-or-below the clamped sum in 127 (84%); it strictly exceeds
+  the max in 38. A stacked-area rendering would therefore be wrong at both ends.
+- **The low-only curve has a real blind spot.** 58 of 364 hours (16%) pair `low < 20` with
+  `max(mid,high) >= 70`. The stored forecast contains a continuous ~24h stretch from 2026-08-27
+  midday where low reads 0-4 while mid and high sit at 100 — the current
+  `CloudSeriesBuilder.visibleCloudCover()` would draw that entire day as clear sky.
+- **Density suits a sparse encoding.** 267 of 364 hours (73%) have both mid and high below 20, so a
+  layer ribbon drawing nothing at low coverage stays mostly empty; mid is notable in 58 hours and
+  high in 87.
