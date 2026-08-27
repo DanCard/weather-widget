@@ -18,6 +18,9 @@ class HourlyForecastStitcherTest {
         temperature: Float,
         condition: String,
         cloudCover: Int? = null,
+        cloudCoverLow: Int? = null,
+        cloudCoverMid: Int? = null,
+        cloudCoverHigh: Int? = null,
         precipProbability: Int? = null,
         precipAmountMm: Float? = null,
         source: String = "NWS",
@@ -29,6 +32,9 @@ class HourlyForecastStitcherTest {
         temperature = temperature,
         condition = condition,
         cloudCover = cloudCover,
+        cloudCoverLow = cloudCoverLow,
+        cloudCoverMid = cloudCoverMid,
+        cloudCoverHigh = cloudCoverHigh,
         precipProbability = precipProbability,
         precipAmountMm = precipAmountMm,
         source = source,
@@ -129,5 +135,36 @@ class HourlyForecastStitcherTest {
         )
         assertEquals(1, result.size)
         assertNull(result.first().cloudCover)
+    }
+
+    @Test
+    fun `missing cloud layers are independently backfilled from history`() {
+        val future = now + 5_000L
+        val row = stitch(
+            current = listOf(
+                fc(
+                    future,
+                    70f,
+                    "Clear",
+                    cloudCover = 90,
+                    cloudCoverLow = 5,
+                    fetchedAt = 200L,
+                ),
+            ),
+            history = listOf(
+                fc(
+                    future,
+                    69f,
+                    "Cloudy",
+                    cloudCover = 100,
+                    cloudCoverLow = 10,
+                    cloudCoverMid = 60,
+                    cloudCoverHigh = 95,
+                    fetchedAt = 100L,
+                ),
+            ),
+        ).single()
+
+        assertEquals(listOf(90, 5, 60, 95), listOf(row.cloudCover, row.cloudCoverLow, row.cloudCoverMid, row.cloudCoverHigh))
     }
 }

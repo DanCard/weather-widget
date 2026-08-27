@@ -43,7 +43,8 @@ class OpenMeteoApi
              * read 4-13%.
              */
             const val PREVIOUS_RUNS_VARIABLE = "cloud_cover_low_previous_day1"
-            const val MINUTELY_15_VARIABLES = "temperature_2m,precipitation,weather_code,cloud_cover,cloud_cover_low"
+            const val MINUTELY_15_VARIABLES =
+                "temperature_2m,precipitation,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
 
             internal fun parseSubHourlyHistory(response: String): List<HourlyForecast> {
                 val root = Json.parseToJsonElement(response).jsonObject
@@ -61,6 +62,8 @@ class OpenMeteoApi
                 val precipitation = minutely["precipitation"]?.jsonArray
                 val totalCloud = minutely["cloud_cover"]?.jsonArray
                 val lowCloud = minutely["cloud_cover_low"]?.jsonArray
+                val midCloud = minutely["cloud_cover_mid"]?.jsonArray
+                val highCloud = minutely["cloud_cover_high"]?.jsonArray
 
                 return times.mapIndexedNotNull { index, timeElement ->
                     val timeMs = timeElement.jsonPrimitive.contentOrNull
@@ -79,6 +82,10 @@ class OpenMeteoApi
                         cloudCover = totalCloud?.getOrNull(index)?.jsonPrimitive?.intOrNull
                             ?.coerceIn(0, 100),
                         cloudCoverLow = lowCloud?.getOrNull(index)?.jsonPrimitive?.intOrNull
+                            ?.coerceIn(0, 100),
+                        cloudCoverMid = midCloud?.getOrNull(index)?.jsonPrimitive?.intOrNull
+                            ?.coerceIn(0, 100),
+                        cloudCoverHigh = highCloud?.getOrNull(index)?.jsonPrimitive?.intOrNull
                             ?.coerceIn(0, 100),
                         source = WeatherSource.OPEN_METEO.id,
                     )
@@ -152,7 +159,10 @@ class OpenMeteoApi
                     parameter("latitude", lat)
                     parameter("longitude", lon)
                     parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum")
-                    parameter("hourly", "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover,cloud_cover_low")
+                    parameter(
+                        "hourly",
+                        "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high",
+                    )
                     parameter("minutely_15", MINUTELY_15_VARIABLES)
                     parameter("current", "temperature_2m,weather_code")
                     parameter("temperature_unit", "fahrenheit")
@@ -239,6 +249,14 @@ class OpenMeteoApi
                 hourly?.get("cloud_cover_low")?.jsonArray?.map {
                     it.jsonPrimitive.content.toIntOrNull()
                 } ?: emptyList()
+            val hourlyCloudCoverMid =
+                hourly?.get("cloud_cover_mid")?.jsonArray?.map {
+                    it.jsonPrimitive.content.toIntOrNull()
+                } ?: emptyList()
+            val hourlyCloudCoverHigh =
+                hourly?.get("cloud_cover_high")?.jsonArray?.map {
+                    it.jsonPrimitive.content.toIntOrNull()
+                } ?: emptyList()
 
             val zone = timezone?.let { java.time.ZoneId.of(it) } ?: java.time.ZoneId.systemDefault()
             val hourlyForecasts =
@@ -258,8 +276,10 @@ class OpenMeteoApi
                             condition = weatherCodeToCondition(code),
                             precipProbability = hourlyPrecipProbs.getOrNull(index),
                             precipAmountMm = hourlyPrecipAmountsMm.getOrNull(index),
-                            cloudCover = hourlyCloudCover.getOrNull(index),
-                            cloudCoverLow = hourlyCloudCoverLow.getOrNull(index),
+                            cloudCover = hourlyCloudCover.getOrNull(index)?.coerceIn(0, 100),
+                            cloudCoverLow = hourlyCloudCoverLow.getOrNull(index)?.coerceIn(0, 100),
+                            cloudCoverMid = hourlyCloudCoverMid.getOrNull(index)?.coerceIn(0, 100),
+                            cloudCoverHigh = hourlyCloudCoverHigh.getOrNull(index)?.coerceIn(0, 100),
                         )
                     } else {
                         null

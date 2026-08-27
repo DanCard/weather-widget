@@ -26,6 +26,10 @@ data class HourlyForecast(
      * outside would call the cloudiness, and what the cloud graph draws on every curve.
      */
     val cloudCoverLow: Int? = null,
+    /** Cloud cover in the middle layer (roughly 3-8 km), where the provider reports it. */
+    val cloudCoverMid: Int? = null,
+    /** Cloud cover in the high layer (roughly above 8 km), where the provider reports it. */
+    val cloudCoverHigh: Int? = null,
 )
 
 data class DailyForecast(

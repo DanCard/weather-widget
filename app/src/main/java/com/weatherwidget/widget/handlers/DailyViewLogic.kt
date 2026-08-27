@@ -730,6 +730,8 @@ object DailyViewLogic {
                 condition = it.condition,
                 cloudCover = it.cloudCover,
                 cloudCoverLow = it.cloudCoverLow,
+                cloudCoverMid = it.cloudCoverMid,
+                cloudCoverHigh = it.cloudCoverHigh,
                 source = it.source,
             )
         }

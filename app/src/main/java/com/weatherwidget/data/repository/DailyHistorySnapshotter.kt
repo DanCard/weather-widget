@@ -534,6 +534,9 @@ internal class DailyHistorySnapshotter(
             source = it.source,
             precipProbability = it.precipProbability,
             cloudCover = it.cloudCover,
+            cloudCoverLow = it.cloudCoverLow,
+            cloudCoverMid = it.cloudCoverMid,
+            cloudCoverHigh = it.cloudCoverHigh,
             precipAmountMm = it.precipAmountMm,
             fetchedAt = it.fetchedAt,
         ).toHourlyForecast()

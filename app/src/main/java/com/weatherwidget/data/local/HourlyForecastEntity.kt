@@ -21,6 +21,8 @@ data class HourlyForecastEntity(
     val fetchedAt: Long, // When this data was fetched
     // Appended, not slotted next to cloudCover: this entity is built positionally in ~50 test files.
     val cloudCoverLow: Int? = null, // Low-layer only (0-100); what the cloud graph draws
+    val cloudCoverMid: Int? = null, // Mid-layer only (0-100)
+    val cloudCoverHigh: Int? = null, // High-layer only (0-100)
 )
 
 fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.HourlyForecast(
@@ -30,6 +32,8 @@ fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.Hourl
     precipProbability = precipProbability,
     cloudCover = cloudCover,
     cloudCoverLow = cloudCoverLow,
+    cloudCoverMid = cloudCoverMid,
+    cloudCoverHigh = cloudCoverHigh,
     precipAmountMm = precipAmountMm,
     source = source,
     fetchedAt = fetchedAt,
@@ -61,6 +65,8 @@ fun com.weatherwidget.data.model.HourlyForecast.toEntity(
         precipProbability = precipProbability,
         cloudCover = cloudCover,
         cloudCoverLow = cloudCoverLow,
+        cloudCoverMid = cloudCoverMid,
+        cloudCoverHigh = cloudCoverHigh,
         precipAmountMm = precipAmountMm,
         fetchedAt = fetchedAt,
     )

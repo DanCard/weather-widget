@@ -83,7 +83,62 @@ class OpenMeteoApiTest {
             assertEquals("16", request.url.parameters["forecast_days"])
             assertEquals(ForecastHorizon.MAX_DAYS.toString(), request.url.parameters["forecast_days"])
             assertNotNull(request.url.parameters["current"])
-            assertNotNull(request.url.parameters["minutely_15"])
+            assertTrue(request.url.parameters["hourly"]!!.contains("cloud_cover_mid"))
+            assertTrue(request.url.parameters["hourly"]!!.contains("cloud_cover_high"))
+            assertTrue(request.url.parameters["minutely_15"]!!.contains("cloud_cover_mid"))
+            assertTrue(request.url.parameters["minutely_15"]!!.contains("cloud_cover_high"))
+        }
+
+    @Test
+    fun `getForecast parses and clamps every cloud layer`() =
+        runTest {
+            val responseJson =
+                """
+                {
+                    "timezone": "America/Los_Angeles",
+                    "current": {"time":"2026-08-26T12:00", "temperature_2m":65.0, "weather_code":1},
+                    "hourly": {
+                        "time":["2026-08-26T12:00"],
+                        "temperature_2m":[70.0],
+                        "weather_code":[1],
+                        "cloud_cover":[-5],
+                        "cloud_cover_low":[10],
+                        "cloud_cover_mid":[120],
+                        "cloud_cover_high":[80]
+                    },
+                    "minutely_15": {
+                        "time":["2026-08-26T11:45", "2026-08-26T12:00"],
+                        "temperature_2m":[64.0, 65.0],
+                        "weather_code":[1, 1],
+                        "precipitation":[0.0, 0.0],
+                        "cloud_cover":[101, 90],
+                        "cloud_cover_low":[-1, 20],
+                        "cloud_cover_mid":[45, 55],
+                        "cloud_cover_high":[120, 75]
+                    },
+                    "daily": {
+                        "time":["2026-08-26"],
+                        "temperature_2m_max":[75.0],
+                        "temperature_2m_min":[55.0],
+                        "weather_code":[1]
+                    }
+                }
+                """.trimIndent()
+
+            val forecast = OpenMeteoApi(createMockClient(responseJson), json).getForecast(37.42, -122.08)
+
+            with(forecast.hourly.single()) {
+                assertEquals(0, cloudCover)
+                assertEquals(10, cloudCoverLow)
+                assertEquals(100, cloudCoverMid)
+                assertEquals(80, cloudCoverHigh)
+            }
+            assertEquals(
+                listOf(100 to 0, 90 to 20),
+                forecast.subHourly.map { it.cloudCover to it.cloudCoverLow },
+            )
+            assertEquals(listOf(45, 55), forecast.subHourly.map { it.cloudCoverMid })
+            assertEquals(listOf(100, 75), forecast.subHourly.map { it.cloudCoverHigh })
         }
 
     @Test

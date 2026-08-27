@@ -65,6 +65,8 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         precipProbability INTEGER,
                         cloudCover INTEGER,
                         cloudCoverLow INTEGER,
+                        cloudCoverMid INTEGER,
+                        cloudCoverHigh INTEGER,
                         precipAmountMm REAL,
                         fetchedAt INTEGER NOT NULL,
                         PRIMARY KEY (dateTime, source, locationLat, locationLon)
@@ -85,6 +87,8 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         precipProbability INTEGER,
                         cloudCover INTEGER,
                         cloudCoverLow INTEGER,
+                        cloudCoverMid INTEGER,
+                        cloudCoverHigh INTEGER,
                         precipAmountMm REAL,
                         fetchedAt INTEGER NOT NULL,
                         PRIMARY KEY (dateTime, source, locationLat, locationLon, timestampToGroupPredictions)
@@ -478,6 +482,12 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_time_loc ON observations(timestamp, locationLat, locationLon)")
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_api ON observations(api)")
             }
+            if (from < 22) {
+                addColumnIfMissing(stmt, "hourly_forecasts", "cloudCoverMid", "INTEGER")
+                addColumnIfMissing(stmt, "hourly_forecasts", "cloudCoverHigh", "INTEGER")
+                addColumnIfMissing(stmt, "hourly_forecast_history", "cloudCoverMid", "INTEGER")
+                addColumnIfMissing(stmt, "hourly_forecast_history", "cloudCoverHigh", "INTEGER")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -523,7 +533,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 21
+        private const val SCHEMA_VERSION = 22
 
         /**
          * Column list shared by the desktop `daily_history` CREATE TABLE and the v19 rebuild (and by

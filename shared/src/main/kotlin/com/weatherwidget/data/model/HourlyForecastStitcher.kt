@@ -65,6 +65,8 @@ object HourlyForecastStitcher {
             live?.copy(
                 cloudCover = live.cloudCover ?: fallback?.cloudCover,
                 cloudCoverLow = live.cloudCoverLow ?: fallback?.cloudCoverLow,
+                cloudCoverMid = live.cloudCoverMid ?: fallback?.cloudCoverMid,
+                cloudCoverHigh = live.cloudCoverHigh ?: fallback?.cloudCoverHigh,
                 precipProbability = live.precipProbability ?: fallback?.precipProbability,
                 precipAmountMm = live.precipAmountMm ?: fallback?.precipAmountMm,
             ) ?: fallback
@@ -128,6 +130,8 @@ object HourlyForecastStitcher {
                 time to base.copy(
                     cloudCover = base.cloudCover ?: sameSite.firstNotNullOfOrNull { it.cloudCover },
                     cloudCoverLow = base.cloudCoverLow ?: sameSite.firstNotNullOfOrNull { it.cloudCoverLow },
+                    cloudCoverMid = base.cloudCoverMid ?: sameSite.firstNotNullOfOrNull { it.cloudCoverMid },
+                    cloudCoverHigh = base.cloudCoverHigh ?: sameSite.firstNotNullOfOrNull { it.cloudCoverHigh },
                     precipProbability = base.precipProbability ?: sameSite.firstNotNullOfOrNull { it.precipProbability },
                     precipAmountMm = base.precipAmountMm ?: sameSite.firstNotNullOfOrNull { it.precipAmountMm },
                 )

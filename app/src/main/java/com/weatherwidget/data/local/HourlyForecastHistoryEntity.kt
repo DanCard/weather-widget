@@ -32,6 +32,8 @@ data class HourlyForecastHistoryEntity(
     val precipAmountMm: Float? = null,
     val fetchedAt: Long, // Real fetch time
     val cloudCoverLow: Int? = null, // Low-layer only (0-100)
+    val cloudCoverMid: Int? = null, // Mid-layer only (0-100)
+    val cloudCoverHigh: Int? = null, // High-layer only (0-100)
 )
 
 /** Carries fetchedAt and the storage-key coordinates so the shared site selectors can collapse fragments. */
@@ -43,6 +45,8 @@ fun HourlyForecastHistoryEntity.toHourlyForecast() = com.weatherwidget.data.mode
     precipAmountMm = precipAmountMm,
     cloudCover = cloudCover,
     cloudCoverLow = cloudCoverLow,
+    cloudCoverMid = cloudCoverMid,
+    cloudCoverHigh = cloudCoverHigh,
     source = source,
     fetchedAt = fetchedAt,
     locationLat = locationLat,

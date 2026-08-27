@@ -510,4 +510,35 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate67To68_addsMidAndHighCloudWithoutChangingExistingRows() {
+        helper.createDatabase(testDb, 67).apply {
+            execSQL(
+                "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, " +
+                    "condition, source, precipProbability, cloudCover, precipAmountMm, fetchedAt, cloudCoverLow) " +
+                    "VALUES (1000, 37.417, -122.089, 70.0, 'Cloudy', 'OPEN_METEO', 0, 100, 0.0, 2000, 4)",
+            )
+            execSQL(
+                "INSERT INTO hourly_forecast_history (dateTime, locationLat, locationLon, temperature, " +
+                    "condition, source, timestampToGroupPredictions, precipProbability, cloudCover, " +
+                    "precipAmountMm, fetchedAt, cloudCoverLow) VALUES " +
+                    "(1000, 37.417, -122.089, 70.0, 'Cloudy', 'OPEN_METEO', 1500, 0, 100, 0.0, 2000, 4)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 68, true, WeatherDatabase.MIGRATION_67_68)
+
+        for (table in listOf("hourly_forecasts", "hourly_forecast_history")) {
+            db.query("SELECT cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh FROM $table").use { c ->
+                assertTrue(c.moveToFirst())
+                assertEquals(100, c.getInt(0))
+                assertEquals(4, c.getInt(1))
+                assertTrue("legacy $table mid cloud must remain unknown", c.isNull(2))
+                assertTrue("legacy $table high cloud must remain unknown", c.isNull(3))
+            }
+        }
+        db.close()
+    }
 }

@@ -75,6 +75,8 @@ internal class HourlyForecastStore(
                 precipProbability = entity.precipProbability,
                 cloudCover = entity.cloudCover,
                 cloudCoverLow = entity.cloudCoverLow,
+                cloudCoverMid = entity.cloudCoverMid,
+                cloudCoverHigh = entity.cloudCoverHigh,
                 precipAmountMm = entity.precipAmountMm,
                 fetchedAt = entity.fetchedAt,
             )
@@ -109,6 +111,8 @@ internal class HourlyForecastStore(
                     precipProbability = it.precipProbability,
                     cloudCover = it.cloudCover,
                     cloudCoverLow = it.cloudCoverLow,
+                    cloudCoverMid = it.cloudCoverMid,
+                    cloudCoverHigh = it.cloudCoverHigh,
                     precipAmountMm = it.precipAmountMm,
                     fetchedAt = now,
                 )
@@ -164,7 +168,9 @@ internal class HourlyForecastStore(
                 existing.precipProbability != newlyFetched.precipProbability ||
                 existing.precipAmountMm != newlyFetched.precipAmountMm ||
                 existing.cloudCover != newlyFetched.cloudCover ||
-                existing.cloudCoverLow != newlyFetched.cloudCoverLow
+                existing.cloudCoverLow != newlyFetched.cloudCoverLow ||
+                existing.cloudCoverMid != newlyFetched.cloudCoverMid ||
+                existing.cloudCoverHigh != newlyFetched.cloudCoverHigh
         }
 
         @VisibleForTesting
@@ -185,6 +191,8 @@ internal class HourlyForecastStore(
             return newlyFetched.copy(
                 cloudCover = newlyFetched.cloudCover ?: existing.cloudCover,
                 cloudCoverLow = newlyFetched.cloudCoverLow ?: existing.cloudCoverLow,
+                cloudCoverMid = newlyFetched.cloudCoverMid ?: existing.cloudCoverMid,
+                cloudCoverHigh = newlyFetched.cloudCoverHigh ?: existing.cloudCoverHigh,
                 precipProbability = newlyFetched.precipProbability
                     ?: existing.precipProbability,
                 precipAmountMm = newlyFetched.precipAmountMm ?: existing.precipAmountMm,
