@@ -244,9 +244,16 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
     }
 
     @Test
-    fun `freezes noon cloud from display site instead of stale neighboring fragment`() = runTest {
-        val staleLat = lat - 0.05
-        val staleLon = lon + 0.02
+    fun `freezes noon cloud from display site instead of a fresher neighboring fragment`() = runTest {
+        // The neighbour is 0.05 degrees away — a genuinely DIFFERENT site, not a same-site
+        // coordinate fragment — and is deliberately the FRESHER of the two rows. That is what
+        // isolates the site axis: DailyNoonCloudCover's freshest-wins rule alone would take the
+        // neighbour's reading, so only the repository's site filtering can produce the display
+        // site's 65. (Before freshest-wins landed the neighbour merely had to sort first, which
+        // this test's pre-condition asserted; with both axes agreeing, the test would have passed
+        // even with site filtering removed.)
+        val neighborLat = lat - 0.05
+        val neighborLon = lon + 0.02
         val noon = today.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
 
         db.forecastDao().insertAll(
@@ -262,16 +269,16 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
                 ),
             ),
         )
-        // Insert the stale site first. With ORDER BY dateTime only, this recreates the observed raw
-        // proximity ordering where DailyNoonCloudCover.firstOrNull chose the stale fragment.
+        // The neighbouring site's row, fetched AFTER the display site's, so a site-blind read
+        // picks it.
         db.hourlyForecastDao().insertAll(
             listOf(
                 TestData.hourly(
                     dateTime = today.atTime(12, 0).toString(),
                     source = WeatherSource.NWS.id,
-                    lat = staleLat,
-                    lon = staleLon,
-                    fetchedAt = 1_000L,
+                    lat = neighborLat,
+                    lon = neighborLon,
+                    fetchedAt = 3_000L,
                 ).copy(cloudCover = 25),
                 TestData.hourly(
                     dateTime = today.atTime(12, 0).toString(),
@@ -299,7 +306,8 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
 
         val rawRows = db.hourlyForecastDao().getHourlyForecasts(noon, noon, lat, lon)
         assertEquals(
-            "test setup must reproduce stale first-row selection before repository site filtering",
+            "test setup must make a site-blind read pick the neighbour, so the assert below can " +
+                "only pass through the repository's site filtering",
             25,
             DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(
                 hourly = rawRows.map { it.toHourlyForecast() },
