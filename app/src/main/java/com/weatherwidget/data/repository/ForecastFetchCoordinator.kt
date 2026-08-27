@@ -62,7 +62,21 @@ internal class ForecastFetchCoordinator(
             val byHour = openMeteoApi.getPriorDayCloudForecast(
                 latitude, longitude, PRIOR_CLOUD_PAST_DAYS, now,
             )
-            if (byHour.isEmpty()) return
+            if (byHour.isEmpty()) {
+                // Loud on purpose. An empty result is indistinguishable at the render from a
+                // healthy graph: nulls are omitted rather than zeroed (correctly), so
+                // CloudSeriesBuilder falls back to the live row with isFrozen = false and still
+                // draws a continuous, plausible curve — a hindcast wearing the forecast's clothes.
+                // Measured 2026-08-27: the Previous Runs API had been serving all-nulls for
+                // cloud_cover_low_previous_day1 at every location probed, and the newest stored
+                // OPEN_METEO_PRIOR24 row was 7 days old. Nothing anywhere said so.
+                appLogDao.log(
+                    "PRIOR_CLOUD_EMPTY",
+                    "no usable hours from ${OpenMeteoApi.PREVIOUS_RUNS_VARIABLE}; " +
+                        "frozen forecast curve falls back to live values",
+                )
+                return
+            }
             dao.insertAll(
                 byHour.map { (hourMs, cover) ->
                     com.weatherwidget.data.local.HourlyForecastHistoryEntity(
