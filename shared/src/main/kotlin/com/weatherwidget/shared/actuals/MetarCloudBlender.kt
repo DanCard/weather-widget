@@ -74,6 +74,14 @@ object MetarCloudBlender {
          * instantaneous ceilometer samples.
          */
         val metarPreferredBuckets: Int = 0,
+        /**
+         * Points where an automated station's clear report was excluded because another station
+         * reported a layer above the ceilometer's 12,000 ft ceiling
+         * ([CeilometerBlindSpot]). This changes a drawn value, so it must be visible in `app_logs`
+         * without a rebuild: a curve that reads far above the nearest station's own report is
+         * correct exactly when this is non-zero, and suspicious when it is not.
+         */
+        val ceilometerBlindBuckets: Int = 0,
     ) {
         /**
          * Compact single-line form for CLOUD_SERIES / BACKFILL_CLOUD. The width histogram separates
@@ -87,6 +95,7 @@ object MetarCloudBlender {
             return "stationsWithLayers=$stationsWithLayers stationsSkipped=$stationsSkipped" +
                 (if (shadowedBuckets == 0) "" else " shadowed=$shadowedBuckets") +
                 (if (metarPreferredBuckets == 0) "" else " metarPreferred=$metarPreferredBuckets") +
+                (if (ceilometerBlindBuckets == 0) "" else " ceilometerBlind=$ceilometerBlindBuckets") +
                 (if (widthHistogram.isEmpty()) "" else " blendWidth=[$widthHistogram]")
         }
     }
@@ -350,6 +359,7 @@ object MetarCloudBlender {
         val widthByPoint = mutableMapOf<Long, Int>()
         var shadowedAnchors = 0
         var metarPreferredAnchors = 0
+        var ceilometerBlindAnchors = 0
         var latestDominantContribution: BlendContribution? = null
         for (ts in candidateTimes) {
             val contributions = byStation.mapNotNull { (id, rows) ->
@@ -380,7 +390,16 @@ object MetarCloudBlender {
                 // total. See VisibleCloudCover.
                 anchor to anchor.visibleCloud()
             }
-            val valueByDistance = contributions.mapNotNull { (reading, cloud) ->
+            // An automated station's CLR cannot see above 12,000 ft; drop it when a sibling
+            // reports a layer up there rather than letting the nearest station's silence outvote
+            // the stations that can actually see the deck. See CeilometerBlindSpot.
+            val visible = CeilometerBlindSpot.filterBlindClears(
+                contributions = contributions,
+                readingOf = { it.first },
+                coverOf = { it.second },
+            )
+            if (visible.size != contributions.size) ceilometerBlindAnchors++
+            val valueByDistance = visible.mapNotNull { (reading, cloud) ->
                 cloud?.let { reading.distanceKm to it.toFloat() }
             }
             if (valueByDistance.isEmpty()) continue
@@ -388,7 +407,10 @@ object MetarCloudBlender {
             pointValues[ts] = blended.roundToInt().coerceIn(0, 100)
             widthByPoint[ts] = valueByDistance.size
 
-            val dominantEntry = contributions.minByOrNull { it.first.distanceKm }
+            // From the CONTRIBUTING readings, not all of them: a station whose clear report was
+            // excluded as ceilometer-blind did not feed this value, and labelling the curve with it
+            // would name a station whose own number contradicts what is drawn.
+            val dominantEntry = visible.minByOrNull { it.first.distanceKm }
             if (dominantEntry != null && dominantEntry.second != null) {
                 val anchor = dominantEntry.first
                 val rawCloud = dominantEntry.second!!
@@ -427,6 +449,7 @@ object MetarCloudBlender {
                 widthByPoint,
                 shadowedAnchors,
                 metarPreferredAnchors,
+                ceilometerBlindAnchors,
             ),
             isMetarBlend = true,
             dominantContribution = latestDominantContribution,
