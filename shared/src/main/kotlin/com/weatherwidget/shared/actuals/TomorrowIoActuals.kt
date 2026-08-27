@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.TomorrowIoRealtimeReading
@@ -68,5 +69,14 @@ object TomorrowIoActuals {
             api = WeatherSource.TOMORROW_IO.id,
             fetchedAt = fetchedAt,
             cloudCover = reading.cloudCover,
+            cloudEnvelopeBaseMeters = reading.cloudEnvelopeBaseMeters,
+            cloudEnvelopeTopMeters = reading.cloudEnvelopeTopMeters,
+            cloudVerticalKind = if (
+                reading.cloudEnvelopeBaseMeters != null || reading.cloudEnvelopeTopMeters != null
+            ) {
+                CloudVerticalKind.TOTAL_ENVELOPE
+            } else {
+                CloudVerticalKind.NONE
+            },
         )
 }

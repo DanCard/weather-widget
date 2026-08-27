@@ -4,6 +4,7 @@ import com.weatherwidget.data.remote.AviationWeatherApi
 import com.weatherwidget.data.remote.AviationWeatherStationFilter
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.test.category.ShortDuration
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -123,6 +124,28 @@ class MetarObservationMapperTest {
         assertNull(reading.cloudCover)
     }
 
+    @Test
+    fun `cumulative METAR layers populate graph-friendly bands and integer bases`() {
+        val reading = MetarObservationMapper.toReading(
+            row(
+                clouds = listOf(
+                    NwsApi.CloudLayer("FEW", 914.6),
+                    NwsApi.CloudLayer("BKN", 3_048.0),
+                    NwsApi.CloudLayer("OVC", 8_534.4),
+                ),
+            ),
+            station("KSJC"), 37.4, -122.1,
+        )!!
+
+        assertEquals(19, reading.cloudCoverLow)
+        assertEquals(75, reading.cloudCoverMid)
+        assertEquals(100, reading.cloudCoverHigh)
+        assertEquals(915, reading.cloudBaseLowMeters)
+        assertEquals(3_048, reading.cloudBaseMidMeters)
+        assertEquals(8_534, reading.cloudBaseHighMeters)
+        assertEquals(CloudVerticalKind.CUMULATIVE_LAYERS, reading.cloudVerticalKind)
+    }
+
     /**
      * The endpoint serves METARs and SPECIs only — there is no ASOS 5-minute interleave here, which
      * is the one thing `isMetar` exists to separate. MetarCloudBlender prefers METAR rows for cloud,
@@ -185,7 +208,7 @@ class MetarObservationMapperTest {
         val sjc = readings.getValue("KSJC")
         assertEquals(68.0f, sjc.temperature, 0.01f)
         assertEquals("METAR", sjc.api)
-        // BKN at 1,000 ft is below the 2,000 m low-layer ceiling; SCT at 8,000 ft is above it.
+        // BKN at 1,000 ft is low; SCT at 8,000 ft remains low because it is below 3,000 m.
         assertEquals(75, sjc.cloudCoverLow)
         assertTrue(sjc.rawMetar!!.contains("T02000144"))
 

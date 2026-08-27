@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.actuals
 
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
@@ -97,6 +98,26 @@ class HistoricalActualsBackfillTest {
     }
 
     @Test
+    fun `open meteo history preserves provider cloud bands`() {
+        val source = hour(-1, 62f).copy(
+            cloudCover = 80,
+            cloudCoverLow = 20,
+            cloudCoverMid = 45,
+            cloudCoverHigh = 70,
+        )
+
+        val obs = HistoricalActualsBackfill.build(
+            listOf(source), lat, lon, WeatherSource.OPEN_METEO.id, now,
+        ).single()
+
+        assertEquals(80, obs.cloudCover)
+        assertEquals(20, obs.cloudCoverLow)
+        assertEquals(45, obs.cloudCoverMid)
+        assertEquals(70, obs.cloudCoverHigh)
+        assertEquals(CloudVerticalKind.PROVIDER_BANDS, obs.cloudVerticalKind)
+    }
+
+    @Test
     fun `tomorrow timeline history uses deletable recent-history provenance`() {
         val result = HistoricalActualsBackfill.build(
             listOf(hour(-1, 62f, precipMm = 1.5f)), lat, lon, WeatherSource.TOMORROW_IO.id, now,
@@ -107,6 +128,24 @@ class HistoricalActualsBackfillTest {
         assertEquals(TomorrowIoActuals.RECENT_HISTORY_STATION_NAME, result.single().stationName)
         assertEquals(WeatherSource.TOMORROW_IO.id, result.single().api)
         assertEquals(1.5f, result.single().precipAmountMm)
+    }
+
+    @Test
+    fun `tomorrow history preserves total cover and integer cloud envelope`() {
+        val source = hour(-1, 62f).copy(
+            cloudCover = 56,
+            cloudEnvelopeBaseMeters = 1_609,
+            cloudEnvelopeTopMeters = 4_828,
+        )
+
+        val obs = HistoricalActualsBackfill.build(
+            listOf(source), lat, lon, WeatherSource.TOMORROW_IO.id, now,
+        ).single()
+
+        assertEquals(56, obs.cloudCover)
+        assertEquals(1_609, obs.cloudEnvelopeBaseMeters)
+        assertEquals(4_828, obs.cloudEnvelopeTopMeters)
+        assertEquals(CloudVerticalKind.TOTAL_ENVELOPE, obs.cloudVerticalKind)
     }
 
     @Test

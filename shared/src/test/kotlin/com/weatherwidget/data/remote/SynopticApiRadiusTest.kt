@@ -21,7 +21,7 @@ class SynopticApiRadiusTest {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     @Test
-    fun `parseRadiusTimeseries parses multi station response and cloud layers from cloud_layer_1_set_1d`() {
+    fun `parseRadiusTimeseries parses multi station response and all reported cloud layers`() {
         val payload = """
         {
           "SUMMARY": {
@@ -57,7 +57,9 @@ class SynopticApiRadiusTest {
                 "date_time": ["2026-08-25T15:20:00Z"],
                 "air_temp_set_1": [18.0],
                 "weather_summary_set_1d": ["broken clouds"],
-                "cloud_layer_1_set_1d": [{"sky_condition": "broken", "height_agl": 600.0}]
+                "cloud_layer_1_set_1d": [{"sky_condition": "thin scattered", "height_agl": 600.0}],
+                "cloud_layer_2_set_1d": [{"sky_condition": "thin broken", "height_agl": 4200.0}],
+                "cloud_layer_3_set_1d": [{"sky_condition": "overcast", "height_agl": 9100.0}]
               }
             }
           ]
@@ -80,9 +82,11 @@ class SynopticApiRadiusTest {
         assertEquals("PWS01", pws.info.id)
         assertEquals(NwsApi.StationType.PERSONAL, pws.info.type)
         assertEquals(1, pws.observations.size)
-        assertEquals(1, pws.observations[0].cloudLayers.size)
-        assertEquals("BKN", pws.observations[0].cloudLayers[0].amount)
+        assertEquals(3, pws.observations[0].cloudLayers.size)
+        assertEquals(listOf("SCT", "BKN", "OVC"), pws.observations[0].cloudLayers.map { it.amount })
         assertEquals(600.0, pws.observations[0].cloudLayers[0].baseMeters ?: 0.0, 0.01)
+        assertEquals(4200.0, pws.observations[0].cloudLayers[1].baseMeters ?: 0.0, 0.01)
+        assertEquals(9100.0, pws.observations[0].cloudLayers[2].baseMeters ?: 0.0, 0.01)
     }
 
     @Test

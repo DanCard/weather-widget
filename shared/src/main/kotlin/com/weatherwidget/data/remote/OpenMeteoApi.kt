@@ -164,7 +164,10 @@ class OpenMeteoApi
                         "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high",
                     )
                     parameter("minutely_15", MINUTELY_15_VARIABLES)
-                    parameter("current", "temperature_2m,weather_code")
+                    parameter(
+                        "current",
+                        "temperature_2m,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high",
+                    )
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
                     parameter("past_days", historyDays) // Optional archived model-output window
@@ -296,6 +299,10 @@ class OpenMeteoApi
                     timeRaw = current?.get("time")?.jsonPrimitive?.content,
                     timezone = timezone,
                 ),
+                providerCurrentCloudCover = current?.get("cloud_cover")?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
+                providerCurrentCloudCoverLow = current?.get("cloud_cover_low")?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
+                providerCurrentCloudCoverMid = current?.get("cloud_cover_mid")?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
+                providerCurrentCloudCoverHigh = current?.get("cloud_cover_high")?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
                 daily = dailyForecasts,
                 hourly = hourlyForecasts,
                 subHourly = parseSubHourlyHistory(response),
@@ -310,7 +317,7 @@ class OpenMeteoApi
                 httpClient.get("$BASE_URL/forecast") {
                     parameter("latitude", lat)
                     parameter("longitude", lon)
-                    parameter("current", "temperature_2m,weather_code,cloud_cover,cloud_cover_low")
+                    parameter("current", "temperature_2m,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high")
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
                     parameter("forecast_days", 1)
@@ -328,6 +335,8 @@ class OpenMeteoApi
                 observedAt = parseCurrentObservedAt(current["time"]?.jsonPrimitive?.content, timezone),
                 cloudCover = current["cloud_cover"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
                 cloudCoverLow = current["cloud_cover_low"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
+                cloudCoverMid = current["cloud_cover_mid"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
+                cloudCoverHigh = current["cloud_cover_high"]?.jsonPrimitive?.intOrNull?.coerceIn(0, 100),
             )
         }
 
@@ -444,5 +453,7 @@ condition = weatherCodeToCondition(0),
         val observedAt: Long? = null,
         val cloudCover: Int? = null,
         val cloudCoverLow: Int? = null,
+        val cloudCoverMid: Int? = null,
+        val cloudCoverHigh: Int? = null,
     )
 }

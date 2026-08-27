@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -85,6 +86,18 @@ object HistoricalActualsBackfill {
                     // are ordinary forecasts still carry null via supportsCloudActuals.
                     cloudCover = if (keepCloud) hour.cloudCover else null,
                     cloudCoverLow = if (keepCloud) hour.cloudCoverLow else null,
+                    cloudCoverMid = if (keepCloud) hour.cloudCoverMid else null,
+                    cloudCoverHigh = if (keepCloud) hour.cloudCoverHigh else null,
+                    cloudEnvelopeBaseMeters = if (keepCloud) hour.cloudEnvelopeBaseMeters else null,
+                    cloudEnvelopeTopMeters = if (keepCloud) hour.cloudEnvelopeTopMeters else null,
+                    cloudVerticalKind = when {
+                        !keepCloud -> CloudVerticalKind.NONE
+                        hour.cloudCoverLow != null || hour.cloudCoverMid != null || hour.cloudCoverHigh != null ->
+                            CloudVerticalKind.PROVIDER_BANDS
+                        hour.cloudEnvelopeBaseMeters != null || hour.cloudEnvelopeTopMeters != null ->
+                            CloudVerticalKind.TOTAL_ENVELOPE
+                        else -> CloudVerticalKind.NONE
+                    },
                 )
             }
     }

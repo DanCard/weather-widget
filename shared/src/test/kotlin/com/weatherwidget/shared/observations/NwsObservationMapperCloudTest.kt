@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
@@ -72,11 +73,14 @@ class NwsObservationMapperCloudTest {
         assertEquals("BKN below the low ceiling", 75, reading.cloudCoverLow)
     }
 
-    /** High-only cloud is above the low-layer ceiling: not low cloud, and not "clear" either. */
+    /** A 25,000 ft layer is middle-band under the graph's 3 km / 8 km boundaries. */
     @Test
-    fun `raw report of high-only cloud leaves the low read null`() {
+    fun `raw report of middle-only cloud leaves the low read null`() {
         val reading = read("METAR KSJC 231653Z 00000KT 10SM BKN250 20/14 A2996 RMK AO2")
         assertNull(reading.cloudCoverLow)
+        assertEquals(75, reading.cloudCoverMid)
+        assertEquals(7_620, reading.cloudBaseMidMeters)
+        assertEquals(CloudVerticalKind.CUMULATIVE_LAYERS, reading.cloudVerticalKind)
     }
 
     /** `ifEmpty` must not let the raw parse override a populated JSON array. */
@@ -96,7 +100,7 @@ class NwsObservationMapperCloudTest {
         assertNull(reading.cloudCoverLow)
     }
 
-    /** The total column stays null on every path — METAR sky is a low-layer measurement. */
+    /** The total column stays null on every path — METAR reports cumulative layers, not total. */
     @Test
     fun `total cloud column is never populated from a metar`() {
         assertNull(read("METAR KSJC 231653Z 00000KT 10SM OVC004 20/14 A2996 RMK AO2").cloudCover)

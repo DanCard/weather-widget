@@ -23,6 +23,12 @@ class TomorrowIoApi(
     companion object {
         private const val TIMELINES_URL = "https://api.tomorrow.io/v4/timelines"
         private const val REALTIME_URL = "https://api.tomorrow.io/v4/weather/realtime"
+        private const val METERS_PER_MILE = 1_609.344
+
+        internal fun imperialDistanceToMeters(value: Double?): Int? = value
+            ?.takeIf { it.isFinite() && it >= 0.0 }
+            ?.times(METERS_PER_MILE)
+            ?.roundToInt()
     }
 
     suspend fun getForecast(
@@ -36,7 +42,7 @@ class TomorrowIoApi(
 
         val hourlyHttpResponse = httpClient.get(TIMELINES_URL) {
             parameter("location", "$lat,$lon")
-            parameter("fields", "temperature,weatherCode,precipitationProbability,precipitationAccumulation,cloudCover")
+            parameter("fields", "temperature,weatherCode,precipitationProbability,precipitationAccumulation,cloudCover,cloudBase,cloudCeiling")
             parameter("timesteps", "1h")
             parameter("units", "imperial")
             parameter("apikey", apiKey)
@@ -112,7 +118,9 @@ class TomorrowIoApi(
                 condition = weatherCodeToCondition(code),
                 precipProbability = precipProb,
                 precipAmountMm = precipAccumIn?.let { it * 25.4f },
-                cloudCover = values["cloudCover"]?.jsonPrimitive?.floatOrNull?.roundToInt()
+                cloudCover = values["cloudCover"]?.jsonPrimitive?.floatOrNull?.roundToInt()?.coerceIn(0, 100),
+                cloudEnvelopeBaseMeters = imperialDistanceToMeters(values["cloudBase"]?.jsonPrimitive?.doubleOrNull),
+                cloudEnvelopeTopMeters = imperialDistanceToMeters(values["cloudCeiling"]?.jsonPrimitive?.doubleOrNull),
             )
         }
 
@@ -185,6 +193,8 @@ class TomorrowIoApi(
             cloudCover = values["cloudCover"]?.jsonPrimitive?.floatOrNull
                 ?.roundToInt()
                 ?.coerceIn(0, 100),
+            cloudEnvelopeBaseMeters = imperialDistanceToMeters(values["cloudBase"]?.jsonPrimitive?.doubleOrNull),
+            cloudEnvelopeTopMeters = imperialDistanceToMeters(values["cloudCeiling"]?.jsonPrimitive?.doubleOrNull),
         )
     }
 
@@ -212,4 +222,6 @@ data class TomorrowIoRealtimeReading(
     val condition: String,
     val observedAt: Long,
     val cloudCover: Int?,
+    val cloudEnvelopeBaseMeters: Int? = null,
+    val cloudEnvelopeTopMeters: Int? = null,
 )

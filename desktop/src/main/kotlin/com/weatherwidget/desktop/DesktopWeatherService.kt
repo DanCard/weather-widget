@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -281,6 +282,19 @@ class DesktopWeatherService(
                 distanceKm = 0f,
                 stationType = "OFFICIAL",
                 api = WeatherSource.OPEN_METEO.id,
+                cloudCover = forecast.providerCurrentCloudCover,
+                cloudCoverLow = forecast.providerCurrentCloudCoverLow,
+                cloudCoverMid = forecast.providerCurrentCloudCoverMid,
+                cloudCoverHigh = forecast.providerCurrentCloudCoverHigh,
+                cloudVerticalKind = if (
+                    forecast.providerCurrentCloudCoverLow != null ||
+                    forecast.providerCurrentCloudCoverMid != null ||
+                    forecast.providerCurrentCloudCoverHigh != null
+                ) {
+                    CloudVerticalKind.PROVIDER_BANDS
+                } else {
+                    CloudVerticalKind.NONE
+                },
             )
         }
         val withHistory = withHistoricalActuals(forecast, WeatherSource.OPEN_METEO.id)
@@ -771,6 +785,17 @@ class DesktopWeatherService(
             api = WeatherSource.OPEN_METEO.id,
             cloudCover = reading.cloudCover,
             cloudCoverLow = reading.cloudCoverLow,
+            cloudCoverMid = reading.cloudCoverMid,
+            cloudCoverHigh = reading.cloudCoverHigh,
+            cloudVerticalKind = if (
+                reading.cloudCoverLow != null ||
+                reading.cloudCoverMid != null ||
+                reading.cloudCoverHigh != null
+            ) {
+                CloudVerticalKind.PROVIDER_BANDS
+            } else {
+                CloudVerticalKind.NONE
+            },
         )
         return RawFetch(rawObservations = listOf(observation))
     }

@@ -1,7 +1,9 @@
 package com.weatherwidget.shared.actuals
 
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.TomorrowIoRealtimeReading
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -71,5 +73,26 @@ class TomorrowIoActualsTest {
         org.junit.Assert.assertTrue(matcher.isSyntheticBackfillStation(TomorrowIoActuals.MERGED_SERIES_STATION_ID, sourceId))
         org.junit.Assert.assertTrue(matcher.isSyntheticBackfillStation("TOMORROW_IO_MAIN", sourceId))
         org.junit.Assert.assertFalse(matcher.isSyntheticBackfillStation("KNUQ", sourceId))
+    }
+
+    @Test
+    fun `realtime mapping preserves total cover and cloud envelope`() {
+        val result = TomorrowIoActuals.toObservation(
+            TomorrowIoRealtimeReading(
+                temperature = 68f,
+                condition = "Partly Cloudy",
+                observedAt = hour,
+                cloudCover = 56,
+                cloudEnvelopeBaseMeters = 1_609,
+                cloudEnvelopeTopMeters = 4_828,
+            ),
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(56, result.cloudCover)
+        assertEquals(1_609, result.cloudEnvelopeBaseMeters)
+        assertEquals(4_828, result.cloudEnvelopeTopMeters)
+        assertEquals(CloudVerticalKind.TOTAL_ENVELOPE, result.cloudVerticalKind)
     }
 }

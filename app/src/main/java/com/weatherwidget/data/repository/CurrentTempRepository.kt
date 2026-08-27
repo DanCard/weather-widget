@@ -13,6 +13,7 @@ import com.weatherwidget.data.local.withQuantizedLocation
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
@@ -352,6 +353,17 @@ class CurrentTempRepository
                             api = WeatherSource.OPEN_METEO.id,
                             cloudCover = reading.cloudCover,
                             cloudCoverLow = reading.cloudCoverLow,
+                            cloudCoverMid = reading.cloudCoverMid,
+                            cloudCoverHigh = reading.cloudCoverHigh,
+                            cloudVerticalKind = if (
+                                reading.cloudCoverLow != null ||
+                                reading.cloudCoverMid != null ||
+                                reading.cloudCoverHigh != null
+                            ) {
+                                CloudVerticalKind.PROVIDER_BANDS
+                            } else {
+                                CloudVerticalKind.NONE
+                            },
                         )
                         insertCurrentObservation(obsEntity)
                     }
@@ -416,6 +428,15 @@ class CurrentTempRepository
                     stationType = "OFFICIAL",
                     api = WeatherSource.TOMORROW_IO.id,
                     cloudCover = reading.cloudCover,
+                    cloudEnvelopeBaseMeters = reading.cloudEnvelopeBaseMeters,
+                    cloudEnvelopeTopMeters = reading.cloudEnvelopeTopMeters,
+                    cloudVerticalKind = if (
+                        reading.cloudEnvelopeBaseMeters != null || reading.cloudEnvelopeTopMeters != null
+                    ) {
+                        CloudVerticalKind.TOTAL_ENVELOPE
+                    } else {
+                        CloudVerticalKind.NONE
+                    },
                 ),
             )
             return CurrentReadingPayload(

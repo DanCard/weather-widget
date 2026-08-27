@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.util.Log
@@ -65,6 +66,7 @@ object NwsObservationMapper {
         // MetarSkyCover.lowPercent maps empty to null. Pinned by NwsObservationMapperCloudTest —
         // see nws_latest_endpoint_drops_cloud / daily_grey_cloud_means_no_row for why it matters.
         val layers = observation.cloudLayers.ifEmpty { decodedMetar?.skyLayers ?: emptyList() }
+        val cloudProfile = MetarSkyCover.verticalProfile(layers)
 
         return ObservationReading(
             stationId = station.id,
@@ -86,11 +88,22 @@ object NwsObservationMapper {
             // `metar_set_1`. Web-fallback readings ARE often METARs — the earlier claim that they never
             // are was wrong, and it cost the cloud curve its nearest station (2026-08-21).
             isMetar = observation.isMetar,
-            // METAR sky condition is a below-~12,000 ft measurement, so it is filed as the LOW layer
-            // and the total column stays null — same rule on both platforms (§3 of the METAR plan).
+            // METAR amounts are cumulative sky-cover layers. File them by rounded base altitude
+            // (low <3 km, middle <8 km, high otherwise); total remains null because the report does
+            // not independently measure the whole atmospheric column.
             cloudCover = null,
-            cloudCoverLow = MetarSkyCover.lowPercent(layers),
+            cloudCoverLow = cloudProfile?.low?.coverPercent,
             rawMetar = observation.rawMessage,
+            cloudCoverMid = cloudProfile?.mid?.coverPercent,
+            cloudCoverHigh = cloudProfile?.high?.coverPercent,
+            cloudBaseLowMeters = cloudProfile?.low?.baseMeters,
+            cloudBaseMidMeters = cloudProfile?.mid?.baseMeters,
+            cloudBaseHighMeters = cloudProfile?.high?.baseMeters,
+            cloudVerticalKind = if (cloudProfile?.let { it.low != null || it.mid != null || it.high != null } == true) {
+                CloudVerticalKind.CUMULATIVE_LAYERS
+            } else {
+                CloudVerticalKind.NONE
+            },
         )
     }
 

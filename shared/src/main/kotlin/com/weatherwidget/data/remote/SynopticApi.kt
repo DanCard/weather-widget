@@ -49,7 +49,9 @@ class SynopticApi(
             val weatherSummaryArray = obsObj["weather_summary_set_1d"]?.jsonArray
             val weatherCondArray = obsObj["weather_condition_set_1d"]?.jsonArray
             val metarArray = obsObj["metar_set_1"]?.jsonArray
-            val cloudLayer1Array = obsObj["cloud_layer_1_set_1d"]?.jsonArray
+            val cloudLayerArrays = (1..3).mapNotNull { layerIndex ->
+                obsObj["cloud_layer_${layerIndex}_set_1d"]?.jsonArray
+            }
             // Parallel to air_temp_set_1: null = passed QC, array of check IDs = flagged
             // (e.g. [105] = SynopticLabs Spatial Value Check).
             val airTempQcArray = station["QC"]?.jsonObject?.get("air_temp_set_1")?.jsonArray
@@ -69,13 +71,15 @@ class SynopticApi(
                 val rawMetar = metarArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
 
                 var layers = MetarRawSkyParser.layersFrom(rawMetar)
-                if (layers.isEmpty() && cloudLayer1Array != null) {
-                    val layerObj = cloudLayer1Array.getOrNull(i) as? JsonObject
-                    val skyCond = layerObj?.get("sky_condition")?.jsonPrimitive?.contentOrNull
-                    val heightM = layerObj?.get("height_agl")?.jsonPrimitive?.doubleOrNull
-                    val mappedAmount = mapSkyConditionToAmount(skyCond)
-                    if (mappedAmount != null) {
-                        layers = listOf(NwsApi.CloudLayer(amount = mappedAmount, baseMeters = heightM))
+                if (layers.isEmpty()) {
+                    layers = cloudLayerArrays.mapNotNull { layerArray ->
+                        val layerObj = layerArray.getOrNull(i) as? JsonObject
+                            ?: return@mapNotNull null
+                        val skyCond = layerObj["sky_condition"]?.jsonPrimitive?.contentOrNull
+                        val mappedAmount = mapSkyConditionToAmount(skyCond)
+                            ?: return@mapNotNull null
+                        val heightM = layerObj["height_agl"]?.jsonPrimitive?.doubleOrNull
+                        NwsApi.CloudLayer(amount = mappedAmount, baseMeters = heightM)
                     }
                 }
                 if (layers.isEmpty()) {
@@ -111,10 +115,10 @@ class SynopticApi(
         internal fun mapSkyConditionToAmount(cond: String?): String? = when (cond?.trim()?.lowercase()) {
             "clear", "fair", "sunny", "mostly clear", "none", "skc", "clr" -> "CLR"
             "few", "few clouds" -> "FEW"
-            "scattered", "scattered clouds", "partly cloudy", "sct" -> "SCT"
-            "broken", "broken clouds", "mostly cloudy", "bkn" -> "BKN"
-            "overcast", "cloudy", "ovc" -> "OVC"
-            "obscured", "vertical visibility", "fog", "vv" -> "VV"
+            "scattered", "scattered clouds", "partly cloudy", "thin scattered", "sct" -> "SCT"
+            "broken", "broken clouds", "mostly cloudy", "thin broken", "bkn" -> "BKN"
+            "overcast", "cloudy", "thin overcast", "ovc" -> "OVC"
+            "obscured", "vertical visibility", "thin obscured", "fog", "vv" -> "VV"
             else -> null
         }
 

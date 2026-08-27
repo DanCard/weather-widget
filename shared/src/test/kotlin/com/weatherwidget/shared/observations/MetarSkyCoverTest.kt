@@ -51,7 +51,7 @@ class MetarSkyCoverTest {
 
     @Test
     fun `amounts are cumulative so the report is the maximum, not a sum`() {
-        // FEW010 SCT020 BKN040 — all below 2000 m, so both reads are BKN.
+        // FEW010 SCT020 BKN040 — all below 3000 m, so both reads are BKN.
         val layers = listOf(
             layer("FEW", baseMeters = 304.8),
             layer("SCT", baseMeters = 609.6),
@@ -66,6 +66,49 @@ class MetarSkyCoverTest {
         val layers = listOf(layer("SCT", baseMeters = 3_000.0))
         assertEquals(44, MetarSkyCover.totalPercent(layers))
         assertNull(MetarSkyCover.lowPercent(layers))
+    }
+
+    @Test
+    fun `rounded integer base decides the vertical band`() {
+        val profile = MetarSkyCover.verticalProfile(
+            listOf(
+                layer("FEW", baseMeters = 2_999.4),
+                layer("SCT", baseMeters = 2_999.6),
+                layer("BKN", baseMeters = 7_999.6),
+            ),
+        )!!
+
+        assertEquals(MetarSkyCover.Band(19, 2_999), profile.low)
+        assertEquals(MetarSkyCover.Band(44, 3_000), profile.mid)
+        assertEquals(MetarSkyCover.Band(75, 8_000), profile.high)
+    }
+
+    @Test
+    fun `each band keeps maximum cumulative cover and lowest base on ties`() {
+        val profile = MetarSkyCover.verticalProfile(
+            listOf(
+                layer("SCT", baseMeters = 1_200.0),
+                layer("BKN", baseMeters = 2_000.0),
+                layer("BKN", baseMeters = 1_800.0),
+                layer("OVC", baseMeters = 4_000.0),
+            ),
+        )!!
+
+        assertEquals(MetarSkyCover.Band(75, 1_800), profile.low)
+        assertEquals(MetarSkyCover.Band(100, 4_000), profile.mid)
+        assertNull(profile.high)
+    }
+
+    @Test
+    fun `clear and unknown-base cloud remain compatible low-band readings`() {
+        assertEquals(
+            MetarSkyCover.Band(0, null),
+            MetarSkyCover.verticalProfile(listOf(layer("CLR", 3_810.0)))!!.low,
+        )
+        assertEquals(
+            MetarSkyCover.Band(75, null),
+            MetarSkyCover.verticalProfile(listOf(layer("BKN", null)))!!.low,
+        )
     }
 
     @Test

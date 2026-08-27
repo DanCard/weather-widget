@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.AviationWeatherApi
@@ -42,6 +43,7 @@ object MetarObservationMapper {
         // array means "not reported" and must stay empty so MetarSkyCover maps it to null — the
         // invariant NwsObservationMapperCloudTest pins on the NWS side.
         val layers = row.cloudLayers.ifEmpty { decoded?.skyLayers ?: emptyList() }
+        val cloudProfile = MetarSkyCover.verticalProfile(layers)
 
         return ObservationReading(
             stationId = row.stationId,
@@ -76,11 +78,22 @@ object MetarObservationMapper {
             // The feed carries a `qcField` but its scale is undocumented; marking rows on a guess
             // would silently drop them from the blend. Left false until the encoding is confirmed.
             qcFailed = false,
-            // METAR sky condition is a below-~12,000 ft measurement, so it is filed as the LOW layer
-            // and the total column stays null — the same rule both platforms apply to NWS METARs.
+            // METAR amounts are cumulative sky-cover layers. File them by rounded base altitude
+            // (low <3 km, middle <8 km, high otherwise); total remains null because the report does
+            // not independently measure the whole atmospheric column.
             cloudCover = null,
-            cloudCoverLow = MetarSkyCover.lowPercent(layers),
+            cloudCoverLow = cloudProfile?.low?.coverPercent,
             rawMetar = row.rawOb,
+            cloudCoverMid = cloudProfile?.mid?.coverPercent,
+            cloudCoverHigh = cloudProfile?.high?.coverPercent,
+            cloudBaseLowMeters = cloudProfile?.low?.baseMeters,
+            cloudBaseMidMeters = cloudProfile?.mid?.baseMeters,
+            cloudBaseHighMeters = cloudProfile?.high?.baseMeters,
+            cloudVerticalKind = if (cloudProfile?.let { it.low != null || it.mid != null || it.high != null } == true) {
+                CloudVerticalKind.CUMULATIVE_LAYERS
+            } else {
+                CloudVerticalKind.NONE
+            },
         )
     }
 

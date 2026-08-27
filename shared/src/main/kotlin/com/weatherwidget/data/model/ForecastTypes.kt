@@ -30,6 +30,13 @@ data class HourlyForecast(
     val cloudCoverMid: Int? = null,
     /** Cloud cover in the high layer (roughly above 8 km), where the provider reports it. */
     val cloudCoverHigh: Int? = null,
+    /**
+     * Transport-only provider envelope values used when elapsed hours are re-filed as observations.
+     * They are deliberately not added to the large hourly forecast tables; the resulting observation
+     * row is the durable record.
+     */
+    val cloudEnvelopeBaseMeters: Int? = null,
+    val cloudEnvelopeTopMeters: Int? = null,
 )
 
 data class DailyForecast(
@@ -171,6 +178,10 @@ data class RawFetch(
     val providerCurrentTemp: Float? = null,
     val providerCurrentCondition: String? = null,
     val providerCurrentObservedAt: Long? = null,
+    val providerCurrentCloudCover: Int? = null,
+    val providerCurrentCloudCoverLow: Int? = null,
+    val providerCurrentCloudCoverMid: Int? = null,
+    val providerCurrentCloudCoverHigh: Int? = null,
 )
 
 /**

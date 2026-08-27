@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.test.category.ShortDuration
 import io.ktor.client.HttpClient
@@ -27,11 +28,13 @@ class TomorrowIoDesktopServiceTest {
         val future = hour.plus(1, ChronoUnit.HOURS)
         val realtime = hour.plus(20, ChronoUnit.MINUTES)
         val capturedStarts = mutableListOf<String?>()
+        val capturedHourlyFields = mutableListOf<String?>()
         val engine = MockEngine { request ->
             val body = when {
                 request.url.encodedPath == "/v4/weather/realtime" -> realtimeJson(realtime)
                 request.url.parameters["timesteps"] == "1h" -> {
                     capturedStarts += request.url.parameters["startTime"]
+                    capturedHourlyFields += request.url.parameters["fields"]
                     hourlyJson(past, future)
                 }
                 else -> dailyJson(hour)
@@ -56,6 +59,8 @@ class TomorrowIoDesktopServiceTest {
             // Covers the whole elapsed local day so a first-time fetch at a new site still gets
             // today's overnight minimum — see TomorrowIoApi's startTime comment.
             assertEquals(listOf("nowMinus23h"), capturedStarts)
+            assertTrue(capturedHourlyFields.single().orEmpty().contains("cloudBase"))
+            assertTrue(capturedHourlyFields.single().orEmpty().contains("cloudCeiling"))
             assertEquals(
                 setOf(
                     TomorrowIoActuals.RECENT_HISTORY_STATION_ID,
@@ -65,6 +70,14 @@ class TomorrowIoDesktopServiceTest {
             )
             assertEquals(68f, result.providerCurrentTemp!!, 0.01f)
             assertEquals(realtime.toEpochMilli(), result.providerCurrentObservedAt)
+            val history = result.rawObservations.single { it.stationId == TomorrowIoActuals.RECENT_HISTORY_STATION_ID }
+            assertEquals(1_609, history.cloudEnvelopeBaseMeters)
+            assertEquals(4_828, history.cloudEnvelopeTopMeters)
+            assertEquals(CloudVerticalKind.TOTAL_ENVELOPE, history.cloudVerticalKind)
+            val current = result.rawObservations.single { it.stationId == TomorrowIoActuals.REALTIME_STATION_ID }
+            assertEquals(3_219, current.cloudEnvelopeBaseMeters)
+            assertEquals(6_437, current.cloudEnvelopeTopMeters)
+            assertEquals(CloudVerticalKind.TOTAL_ENVELOPE, current.cloudVerticalKind)
         } finally {
             service.close()
         }
@@ -103,7 +116,7 @@ class TomorrowIoDesktopServiceTest {
 
     private fun hourlyJson(past: Instant, future: Instant) =
         """{"data":{"timelines":[{"intervals":[
-            {"startTime":"$past","values":{"temperature":64.0,"weatherCode":1101,"cloudCover":72}},
+            {"startTime":"$past","values":{"temperature":64.0,"weatherCode":1101,"cloudCover":72,"cloudBase":1.0,"cloudCeiling":3.0}},
             {"startTime":"$future","values":{"temperature":70.0,"weatherCode":1000,"cloudCover":10}}
         ]}]}}""".trimIndent()
 
@@ -113,5 +126,5 @@ class TomorrowIoDesktopServiceTest {
         ]}]}}""".trimIndent()
 
     private fun realtimeJson(time: Instant) =
-        """{"data":{"time":"$time","values":{"temperature":68.0,"weatherCode":1101,"cloudCover":56}}}"""
+        """{"data":{"time":"$time","values":{"temperature":68.0,"weatherCode":1101,"cloudCover":56,"cloudBase":2.0,"cloudCeiling":4.0}}}"""
 }
