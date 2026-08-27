@@ -588,7 +588,10 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
 
             val actualsProviderId = com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(effectiveDisplaySource)
-            val dominantStationLabel = if (actualsProviderId != effectiveDisplaySource.id) {
+            // Only show the borrowed-actuals label when the visible window actually contains
+            // observed cloud data; future-only views (no actuals in hours) suppress it.
+            val hasActualsInWindow = hours.any { it.actualCloudCover != null }
+            val dominantStationLabel = if (actualsProviderId != effectiveDisplaySource.id && hasActualsInWindow) {
                 val provider = WeatherSource.fromId(actualsProviderId)
                 localizedActualsSourceLabel(context, provider.displayName)
             } else {

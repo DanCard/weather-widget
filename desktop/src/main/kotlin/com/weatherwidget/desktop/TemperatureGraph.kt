@@ -980,9 +980,12 @@ fun TemperatureGraph(
         // "Actual temperature data from X": borrowed-actuals context, mirroring the cloud graph's
         // source label. Lowest priority — placed after every other free-floating label, so it is
         // dropped whenever nothing clear is left. English hardcoded, matching the cloud graph.
+        // Only shown when the visible window actually contains observed data; future-only views
+        // (no actual line points) suppress the annotation.
         val displaySource = WeatherSource.fromDisplaySource(displaySourceId)
         val actualsProviderId = ActualsProviderResolver.providerIdFor(displaySource)
-        if (actualsProviderId != displaySource.id) {
+        val hasActualsInWindow = actualLinePoints.isNotEmpty()
+        if (actualsProviderId != displaySource.id && hasActualsInWindow) {
             val provider = WeatherSource.fromId(actualsProviderId)
             val actualsSourceLabel = DominantStationLabel.plainLabelText(
                 localizedText = "Actual temperature data from ${provider.displayName}",

@@ -294,10 +294,13 @@ fun CloudCoverGraph(
         }
 
         // Actuals source API label for alternative actuals (e.g. Silurian, or Open-Meteo with alternative provider)
+        // Only shown when the visible window actually contains observed cloud data; future-only
+        // views (no actual points) suppress the annotation.
         val displaySource = WeatherSource.fromDisplaySource(displaySourceId)
         val actualsProviderId = ActualsProviderResolver.providerIdFor(displaySource)
         val dominantSpanHours = (windowEnd - windowStart) / 3_600_000L
-        val dominantLabel = if (actualsProviderId != displaySource.id) {
+        val hasActualsInWindow = actualPoints.isNotEmpty()
+        val dominantLabel = if (actualsProviderId != displaySource.id && hasActualsInWindow) {
             val provider = WeatherSource.fromId(actualsProviderId)
             DominantStationLabel.plainLabelText(
                 localizedText = "Actual cloud cover data from ${provider.displayName}",

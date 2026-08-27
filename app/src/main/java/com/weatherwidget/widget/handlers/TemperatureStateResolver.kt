@@ -384,8 +384,11 @@ internal object TemperatureStateResolver {
 
             // "Actual temperature data from X" — for sources using an alternative provider
             // (e.g. Silurian borrowing METAR, or Open-Meteo configured to METAR/NWS/Synoptic).
+            // Only shown when the visible window actually contains observed data; future-only
+            // views (no actuals in graphHours) suppress the annotation.
             val actualsProviderId = ActualsProviderResolver.providerIdFor(displaySource)
-            val actualsSourceLabel = if (actualsProviderId != displaySource.id) {
+            val hasActualsInWindow = graphHours.any { it.isActual }
+            val actualsSourceLabel = if (actualsProviderId != displaySource.id && hasActualsInWindow) {
                 val provider = WeatherSource.fromId(actualsProviderId)
                 temperatureActualsSourceLabel(context, provider.displayName)
             } else {
