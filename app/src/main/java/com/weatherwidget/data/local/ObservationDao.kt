@@ -83,7 +83,7 @@ interface ObservationDao {
 
     /**
      * Cloud actuals for the window, as native observation epoch ms -> visible-layer percent
-     * (`cloudCoverLow ?: cloudCover`, the same expression the forecast curve draws).
+     * ([com.weatherwidget.shared.util.VisibleCloudCover], the same resolver the forecast curve uses).
      *
      * Delegates the source-aware branch selection to the shared
      * [MetarCloudBlender.fromSiteRows]; this DAO contributes only the site-collapsed read (the

@@ -51,13 +51,17 @@ class DailyNoonCloudCoverTest {
     }
 
     @Test
-    fun prefersLowCloudWhenOpenMeteoTotalAndLowDiverge() {
+    fun reportsTotalCloudWhenOpenMeteoTotalAndLowDiverge() {
+        // Reversed 2026-08-27: the day icon reports the TOTAL, like every other cloud read. A noon
+        // sample of "column overcast, ground clear" is an overcast noon — the icon saying otherwise
+        // was the daily-view face of the 12.9% of hours where the graph painted a clear sky over a
+        // covered one. See VisibleCloudCover.
         val hourly = listOf(
             hour(12, 100, WeatherSource.OPEN_METEO.id).copy(cloudCoverLow = 0),
         )
 
-        assertEquals(0, resolve(hourly, WeatherSource.OPEN_METEO.id))
-        assertEquals(0, resolveMeasured(hourly, WeatherSource.OPEN_METEO.id))
+        assertEquals(100, resolve(hourly, WeatherSource.OPEN_METEO.id))
+        assertEquals(100, resolveMeasured(hourly, WeatherSource.OPEN_METEO.id))
     }
 
     @Test
@@ -156,12 +160,13 @@ class DailyNoonCloudCoverTest {
     }
 
     @Test
-    fun prefersLowCloudOnTheFreshestRow() {
-        // The two rules compose: pick the freshest row first, then read low cloud from it. Reading
-        // low cloud off the stale row would report 90 under a sky the fresh row calls clear.
+    fun readsTotalCloudFromTheFreshestRow() {
+        // The freshest-row rule is what this pins, and it survived the 2026-08-27 switch from the
+        // low layer to the total: reading the stale row would report 90 under a sky the fresh row
+        // calls clear. The discriminator moved from cloudCoverLow to cloudCover, the rule did not.
         val hourly = listOf(
-            hour(12, 100, WeatherSource.OPEN_METEO.id).copy(cloudCoverLow = 90, fetchedAt = 1_000L),
-            hour(12, 100, WeatherSource.OPEN_METEO.id).copy(cloudCoverLow = 0, fetchedAt = 9_000L),
+            hour(12, 90, WeatherSource.OPEN_METEO.id).copy(cloudCoverLow = 90, fetchedAt = 1_000L),
+            hour(12, 0, WeatherSource.OPEN_METEO.id).copy(cloudCoverLow = 0, fetchedAt = 9_000L),
         )
         assertEquals(0, resolve(hourly, WeatherSource.OPEN_METEO.id))
     }

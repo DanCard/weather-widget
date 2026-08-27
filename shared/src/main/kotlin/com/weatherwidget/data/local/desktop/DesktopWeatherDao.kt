@@ -7,6 +7,7 @@ import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.shared.graph.CloudBands
+import com.weatherwidget.shared.util.VisibleCloudCover
 import com.weatherwidget.shared.graph.PriorDayBandForecast
 import com.weatherwidget.shared.graph.PriorDayCloudForecast
 import com.weatherwidget.data.model.CurrentStatus
@@ -209,12 +210,13 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setString(6, source)
                         stmt.setLong(7, bucketFor(hourMs))
                         stmt.setNull(8, java.sql.Types.INTEGER)
-                        // The previous-runs variable is cloud_cover_LOW_previous_day1, so the value
-                        // is filed on the low-layer column where it belongs — everywhere else in the
-                        // schema `cloudCover` means the total column. Readers prefer low, so rows
-                        // written before this switch keep reading until the REPLACE-upsert rewrites.
-                        stmt.setNull(9, java.sql.Types.INTEGER)
-                        stmt.setInt(10, cover)
+                        // The previous-runs variable is cloud_cover_previous_day1 — the total
+                        // column — so it is filed where `cloudCover` means what it means everywhere
+                        // else in the schema. Rows written while it was the LOW variable still carry
+                        // their value on cloudCoverLow and are still read through
+                        // VisibleCloudCover's band fallback; nothing needs migrating.
+                        stmt.setInt(9, cover)
+                        stmt.setNull(10, java.sql.Types.INTEGER)
                         stmt.setNull(11, java.sql.Types.INTEGER)
                         stmt.setNull(12, java.sql.Types.INTEGER)
                         stmt.setNull(13, java.sql.Types.REAL)
@@ -233,7 +235,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     /**
      * Cloud actuals for the window, as timestamp -> visible-layer percent
-     * (`cloudCoverLow ?: cloudCover`, the same expression the forecast curve draws).
+     * ([com.weatherwidget.shared.util.VisibleCloudCover], the same resolver the forecast curve uses).
      *
      * Delegates the source-aware branch selection to the shared
      * [MetarCloudBlender.fromSiteRows]; this DAO contributes only the site-collapsed read. Mirrors
@@ -298,9 +300,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     private fun getSyntheticCloudSeries(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Map<Long, Int> =
         getHourlyHistory(locationLat, locationLon, source, startMs, endMs)
-            // Low-preferred: the previous-runs variable is the LOW layer, and rows written before
-            // the column switch still carry it on cloudCover.
-            .mapNotNull { row -> (row.cloudCoverLow ?: row.cloudCover)?.let { row.dateTime to it } }
+            // Total-preferred, like every other cloud read. The fallback still finds the rows
+            // written while the previous-runs variable was the LOW layer, which carry their value
+            // on cloudCoverLow; nothing needs migrating.
+            .mapNotNull { row -> with(VisibleCloudCover) { row.visibleCloudCover() }?.let { row.dateTime to it } }
             .toMap()
 
     fun upsertHourlyForecastHistory(locationLat: Double, locationLon: Double, source: String, timestampToGroupPredictions: Long, hourly: List<HourlyForecast>) {

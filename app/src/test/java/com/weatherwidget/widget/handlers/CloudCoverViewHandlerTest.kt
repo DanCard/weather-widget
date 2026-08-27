@@ -75,7 +75,7 @@ class CloudCoverViewHandlerTest {
 
     @Test
     fun `buildCloudHourDataList draws a row with only a low-layer value`() {
-        // The graph draws the visible layer (low ?: total): a low-only row is data, not a gap.
+        // The graph draws the visible layer (total, else the bands' max): a low-only row is data, not a gap.
         val now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val hours = listOf(
             hourly(now.plusHours(1).toString(), WeatherSource.OPEN_METEO, null).copy(cloudCoverLow = 12),
@@ -95,8 +95,10 @@ class CloudCoverViewHandlerTest {
     }
 
     @Test
-    fun `buildCloudHourDataList prefers the low layer on the live curve`() {
-        // Drawing the total here instead put a cliff exactly at "now" under thin cirrus.
+    fun `buildCloudHourDataList draws the total column on the live curve`() {
+        // Reversed 2026-08-27; see VisibleCloudCover. The low band is still carried through on
+        // lowCover, unfetched from the curve but needed to tell a redundant band glyph from an
+        // explanatory one.
         val now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val hours = listOf(
             hourly(now.plusHours(1).toString(), WeatherSource.OPEN_METEO, 95).copy(cloudCoverLow = 8),
@@ -111,7 +113,8 @@ class CloudCoverViewHandlerTest {
         )
 
         assertEquals(1, result.size)
-        assertEquals(8, result[0].cloudCover)
+        assertEquals(95, result[0].cloudCover)
+        assertEquals(8, result[0].lowCover)
     }
 
     @Test

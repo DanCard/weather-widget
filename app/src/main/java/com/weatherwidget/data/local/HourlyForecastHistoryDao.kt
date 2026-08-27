@@ -168,9 +168,15 @@ interface HourlyForecastHistoryDao {
     ): Map<Long, Int> =
         getPriorDayCloudCandidates(startDateTime, endDateTime, lat, lon, source)
             .filter { LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon) }
-            // Low-preferred: the previous-runs variable is the LOW layer, and rows written before
-            // the column switch still carry it on cloudCover.
-            .mapNotNull { row -> (row.cloudCoverLow ?: row.cloudCover)?.let { row.dateTime to it } }
+            // Total-preferred, like every other cloud read. The fallback still finds the rows
+            // written while the previous-runs variable was the LOW layer, which carry their value
+            // on cloudCoverLow; nothing needs migrating.
+            .mapNotNull { row ->
+                com.weatherwidget.shared.util.VisibleCloudCover.of(
+                    total = row.cloudCover, low = row.cloudCoverLow,
+                    mid = row.cloudCoverMid, high = row.cloudCoverHigh,
+                )?.let { row.dateTime to it }
+            }
             .toMap()
 
     /**

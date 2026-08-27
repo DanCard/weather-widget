@@ -92,9 +92,9 @@ object DailyNoonCloudCover {
         return hourly.asSequence()
             .filter { it.source == targetSourceId }
             .filter { LocalDateTime.ofInstant(Instant.ofEpochMilli(it.dateTime), zone) == noon }
-            .filter { (it.cloudCoverLow ?: it.cloudCover) != null }
+            .filter { with(VisibleCloudCover) { it.visibleCloudCover() } != null }
             .maxByOrNull { it.fetchedAt }
-            ?.let { it.cloudCoverLow ?: it.cloudCover }
+            ?.let { with(VisibleCloudCover) { it.visibleCloudCover() } }
             ?.coerceIn(0, 100)
     }
 

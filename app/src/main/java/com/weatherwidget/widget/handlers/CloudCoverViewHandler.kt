@@ -870,6 +870,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     actualMidCover = point.actualBands.mid,
                     actualHighCover = point.actualBands.high,
                     isFrozenBands = point.isFrozenBands,
+                    // Not drawn; used only to tell a redundant band glyph from an explanatory one.
+                    lowCover = entity.cloudCoverLow,
                     label = p.label,
                     iconRes = p.iconRes,
                     isNight = p.isNight,
@@ -898,6 +900,13 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
     ) {
         HourlyGraphViewCommon.bindHourlyTextMode(
             views, hourlyForecasts, centerTime, numColumns, displaySource,
-        ) { forecast -> (forecast?.cloudCoverLow ?: forecast?.cloudCover)?.let { "$it%" } ?: "--%" }
+        ) { forecast ->
+            forecast?.let {
+                com.weatherwidget.shared.util.VisibleCloudCover.of(
+                    total = it.cloudCover, low = it.cloudCoverLow,
+                    mid = it.cloudCoverMid, high = it.cloudCoverHigh,
+                )
+            }?.let { "$it%" } ?: "--%"
+        }
     }
 }

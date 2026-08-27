@@ -18,15 +18,23 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * Integration coverage for the emulator finding from Thursday 2026-08-27. This crosses the
- * Android persistence model, Android view handler, shared cloud-series builder, and real Android
- * bitmap renderer so a future total-first change fails at the visible graph boundary.
+ * Parity between the hourly graph and the daily bar: for one sky, one number.
+ *
+ * Crosses the Android persistence model, Android view handler, shared cloud-series builder and the
+ * real Android bitmap renderer, so a divergence fails at the visible graph boundary.
+ *
+ * Originally written on 2026-08-27 to pin the LOW layer against a future total-first change. That
+ * change arrived the same day, deliberately: preferring low painted a clear sky over a covered one
+ * on 12.9% of stored Open-Meteo hours, and the `m`/`h` glyph trails — which did not exist when low
+ * was chosen — now carry the "which layer" information low-preference was standing in for. The
+ * parity claim is what was always load-bearing here and is unchanged; only the value both sides
+ * agree on has moved. See [com.weatherwidget.shared.util.VisibleCloudCover].
  */
 @Category(LongDuration::class)
-class OpenMeteoLowCloudViewParityIntegrationTest : RobolectricTest() {
+class OpenMeteoTotalCloudViewParityIntegrationTest : RobolectricTest() {
 
     @Test
-    fun `hourly graph and daily bar use clear low layer over reported total overcast`() {
+    fun `hourly graph and daily bar both report the total column`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val center = LocalDateTime.now().plusDays(1).withHour(12).withMinute(0).withSecond(0).withNano(0)
         val rows = (8..16).map { hour ->
@@ -54,13 +62,13 @@ class OpenMeteoLowCloudViewParityIntegrationTest : RobolectricTest() {
 
         assertTrue("fixture hours must reach the graph boundary", graphHours.isNotEmpty())
         assertEquals(
-            "hourly graph must use Open-Meteo low cloud when total cloud is high aloft",
-            List(graphHours.size) { 0 },
+            "hourly graph must report the total column even when the cloud is all aloft",
+            List(graphHours.size) { 100 },
             graphHours.map { it.cloudCover },
         )
         assertEquals(
-            "daily bar must use the same Open-Meteo low-cloud value at noon",
-            0,
+            "daily bar must report the same value at noon — one sky, one number",
+            100,
             DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(
                 hourly = rows.map { it.toHourlyForecast() },
                 date = center.toLocalDate(),

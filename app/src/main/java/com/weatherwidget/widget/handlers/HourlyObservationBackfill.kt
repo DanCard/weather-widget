@@ -253,7 +253,11 @@ internal fun metarCloudGapReason(sourceObservations: List<ObservationEntity>): S
     fun bucketOf(ts: Long) = com.weatherwidget.shared.observations.CloudHourBucket.indexOf(ts)
     val officialBuckets = officialRows.map { bucketOf(it.timestamp) }.distinct().size
     val cloudBuckets = officialRows
-        .filter { (it.cloudCoverLow ?: it.cloudCover) != null }
+        .filter {
+            com.weatherwidget.shared.util.VisibleCloudCover.of(
+                total = it.cloudCover, low = it.cloudCoverLow, mid = it.cloudCoverMid, high = it.cloudCoverHigh,
+            ) != null
+        }
         .map { bucketOf(it.timestamp) }
         .distinct()
         .size

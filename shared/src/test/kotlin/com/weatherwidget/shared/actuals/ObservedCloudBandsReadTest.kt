@@ -70,7 +70,10 @@ class ObservedCloudBandsReadTest {
         val result = read(listOf(openMeteoRow(mid = 44, high = 100)))
 
         assertEquals(CloudBands(mid = 44, high = 100), result.bands[hour])
-        assertEquals("the low curve is unaffected", 30, result.hours[hour])
+        // The main curve reads the row's total. This row carries none — Open-Meteo backfill rows
+        // that predate the total column, and every station row — so it falls back to the bands'
+        // maximum, which for cumulative layers IS the total. See VisibleCloudCover.
+        assertEquals(100, result.hours[hour])
     }
 
     @Test
@@ -97,7 +100,7 @@ class ObservedCloudBandsReadTest {
         val result = read(listOf(openMeteoRow(mid = null, high = null)))
 
         assertTrue(result.bands.isEmpty())
-        assertEquals("its low value still reaches the curve", 30, result.hours[hour])
+        assertEquals("its low value is all the row has, so it is the curve", 30, result.hours[hour])
     }
 
     @Test

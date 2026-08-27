@@ -36,13 +36,23 @@ class OpenMeteoApi
             const val MAX_PREVIOUS_RUNS_PAST_DAYS = 31
 
             /**
-             * The **low**-layer variable, matching what the actual curve stores. Using the total
-             * column here would compare a forecast of "any cloud anywhere in the column" against an
-             * actual of "cloud you can see", and the two diverge hard: on 2026-08-20 total ran
-             * 83-99% all afternoon on thin cirrus while the low layer — and every surface station —
-             * read 4-13%.
+             * The **total**-column variable, matching what every cloud read now reports
+             * ([com.weatherwidget.shared.util.VisibleCloudCover]). The frozen forecast has to
+             * answer the same question as the curve it is drawn against.
+             *
+             * It is also the only previous-runs cloud variable Open-Meteo actually populates.
+             * Probed 2026-08-27 at Mountain View, Berlin and New York, `past_days` 2 and 7:
+             * `cloud_cover_previous_day1` returned 192/192 non-null while
+             * `cloud_cover_low_previous_day1`, `_low_previous_day2`,
+             * `cloud_cover_mid_previous_day1` and `cloud_cover_high_previous_day1` all returned 0.
+             * The low variable was never populated at all — this was a self-inflicted regression,
+             * not an upstream withdrawal. `f9a05d26` switched the request to it at 2026-08-20
+             * 21:56, and the newest `OPEN_METEO_PRIOR24` row ever written is from 20:26 that same
+             * day, 90 minutes BEFORE that commit. The frozen curve has produced nothing since the
+             * moment it started asking for the low layer (see PRIOR_CLOUD_EMPTY in
+             * ForecastFetchCoordinator).
              */
-            const val PREVIOUS_RUNS_VARIABLE = "cloud_cover_low_previous_day1"
+            const val PREVIOUS_RUNS_VARIABLE = "cloud_cover_previous_day1"
             const val MINUTELY_15_VARIABLES =
                 "temperature_2m,precipitation,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
 

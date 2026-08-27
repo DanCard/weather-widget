@@ -598,14 +598,15 @@ class MetarCloudBlenderTest {
     }
 
     @Test
-    fun `fromSiteRows pins non-NWS sources to their synthetic backfill row and prefers the low layer`() = runBlocking {
+    fun `fromSiteRows pins non-NWS sources to their synthetic backfill row and reports the total`() = runBlocking {
         val readings = listOf(
+            // Total wins over the low layer (reversed 2026-08-27; see VisibleCloudCover).
             reading("WEATHER_API_MAIN", hour, cloudLow = 30, distanceKm = 0f,
-                api = WeatherSource.WEATHER_API.id),
-            // A row whose low is missing falls back to the total column.
-            reading("WEATHER_API_MAIN", hour + 3_600_000L, cloudLow = null, distanceKm = 0f,
                 api = WeatherSource.WEATHER_API.id)
-                .copy(cloudCover = 55),
+                .copy(cloudCover = 70),
+            // A row with no total falls back to what its bands report.
+            reading("WEATHER_API_MAIN", hour + 3_600_000L, cloudLow = 55, distanceKm = 0f,
+                api = WeatherSource.WEATHER_API.id),
             // A real station's row (or another source's synthetic row) must never join the series.
             reading("KNUQ", hour, cloudLow = 90, distanceKm = 2f),
             reading("NWS_MAIN", hour, cloudLow = 90, distanceKm = 0f),
@@ -616,7 +617,7 @@ class MetarCloudBlenderTest {
         )
 
         assertEquals(
-            mapOf(hour to 30, (hour + 3_600_000L) to 55),
+            mapOf(hour to 70, (hour + 3_600_000L) to 55),
             result.hours,
         )
         assertFalse(result.isMetarBlend)

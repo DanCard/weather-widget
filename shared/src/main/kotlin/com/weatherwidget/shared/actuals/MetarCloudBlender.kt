@@ -10,6 +10,7 @@ import com.weatherwidget.shared.observations.CloudHourBucket
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.SpatialInterpolator
+import com.weatherwidget.shared.util.VisibleCloudCover
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -238,8 +239,9 @@ object MetarCloudBlender {
         )
     }
 
-    /** What the actual curve draws for a row: the low layer where present, else the total. */
-    private fun ObservationReading.visibleCloud(): Int? = cloudCoverLow ?: cloudCover
+    /** Delegated so every cloud read in the app answers the same question. */
+    private fun ObservationReading.visibleCloud(): Int? =
+        with(VisibleCloudCover) { visibleCloudCover() }
 
     /**
      * @param readings already site- and source-scoped real NWS station rows (the DAO collapses the
@@ -289,7 +291,7 @@ object MetarCloudBlender {
 
         val stationIds = real.map { it.stationId }.distinct()
         val stationsWithLayers = stationIds.count { id ->
-            real.any { it.stationId == id && it.cloudCoverLow != null }
+            real.any { it.stationId == id && it.visibleCloud() != null }
         }
         val stationsSkipped = stationIds.size - stationsWithLayers
 
@@ -306,7 +308,7 @@ object MetarCloudBlender {
             .map { duplicates ->
                 duplicates.minWith(
                     compareBy<ObservationReading>(
-                        { if ((it.cloudCoverLow ?: it.cloudCover) != null) 0 else 1 },
+                        { if (it.visibleCloud() != null) 0 else 1 },
                         { if (it.api == providerApi) 0 else 1 },
                         { it.api },
                         { it.locationLat },
@@ -329,7 +331,7 @@ object MetarCloudBlender {
         // Carrier lists stay in the total order `usable` arrived in, so binary search and
         // deterministic ties hold.
         val carriersByStation = byStation.mapValues { (_, rows) ->
-            rows.filter { (it.cloudCoverLow ?: it.cloudCover) != null }
+            rows.filter { it.visibleCloud() != null }
         }
 
         // One candidate point per distinct cloud-carrying report timestamp: every emitted point
@@ -370,10 +372,13 @@ object MetarCloudBlender {
                 // naive nearest-to-time pick on: when that one omitted sky condition and an older
                 // carrier rescued the point, count it.
                 val nearestOverall = rows.minByOrNull { abs(it.timestamp - ts) }
-                if (nearestOverall != null && (nearestOverall.cloudCoverLow ?: nearestOverall.cloudCover) == null) {
+                if (nearestOverall != null && nearestOverall.visibleCloud() == null) {
                     shadowedAnchors++
                 }
-                anchor to (anchor.cloudCoverLow ?: anchor.cloudCover)
+                // The blended value itself. A station row carries no total — a METAR reports
+                // cumulative layers — so this is max(low, mid, high), which for those layers IS the
+                // total. See VisibleCloudCover.
+                anchor to anchor.visibleCloud()
             }
             val valueByDistance = contributions.mapNotNull { (reading, cloud) ->
                 cloud?.let { reading.distanceKm to it.toFloat() }
@@ -462,10 +467,10 @@ object MetarCloudBlender {
     ) {
         val perStation = real.groupBy { it.stationId }
             .entries.joinToString(" ") { (id, rows) ->
-                val withCloud = rows.count { (it.cloudCoverLow ?: it.cloudCover) != null }
+                val withCloud = rows.count { it.visibleCloud() != null }
                 "$id[rows=${rows.size} cloud=$withCloud qc=${rows.count { it.qcFailed }}]"
             }
-        val cloudRows = real.filter { (it.cloudCoverLow ?: it.cloudCover) != null }
+        val cloudRows = real.filter { it.visibleCloud() != null }
             .take(6)
             .joinToString(" ") {
                 "${it.stationId}@${it.timestamp}" +

@@ -92,6 +92,12 @@ object CloudCoverGraphRenderer {
         val actualHighCover: Int? = null,
         /** True when [midCover]/[highCover] are a stored day-ago prediction, not the live row. */
         val isFrozenBands: Boolean = false,
+        /**
+         * The low band, no longer drawn as a curve but still needed: it is what tells a band glyph
+         * that duplicates the total curve from one that is the only explanation for it. See
+         * [CloudLayerGlyphPlacer.coincidenceWithTotal].
+         */
+        val lowCover: Int? = null,
         val label: String,
         val iconRes: Int? = null,
         val isNight: Boolean = false,
@@ -344,30 +350,51 @@ object CloudCoverGraphRenderer {
         ) {
             val glyphStepPx = dpToPx(context, CloudLayerGlyphPlacer.GLYPH_STEP_DP * labelScale)
             val nudgePx = paints.layerGlyphPaint.textSize * 0.55f
-            fun layerVertices(cover: List<Int?>, other: List<Int?>) =
-                cover.mapIndexed { index, value ->
-                    LayerVertex(
-                        x = hourWidth * index,
-                        y = mapCloudCoverToY(
-                            cloudCover = (value ?: 0).toFloat(),
-                            graphBottom = graphBottom,
-                            graphHeight = graphHeight,
-                            topScale = verticalScale.topScale,
-                        ),
-                        cover = value,
-                        otherCover = other.getOrNull(index),
-                    )
-                }
+            // The curve each trail is drawn against, and the highest band BELOW the one being
+            // placed, so the placer can tell a glyph that duplicates its curve from one that
+            // explains it. The forecast trails answer to the forecast curve, the observed trails to
+            // the actual curve — measuring either against the other would suppress on a
+            // coincidence that never appears on screen.
+            val forecastTotals = hours.map { it.cloudCover }
+            val actualTotals = hours.map { it.actualCloudCover }
+            val lows = hours.map { it.lowCover }
+            fun layerVertices(
+                cover: List<Int?>,
+                other: List<Int?>,
+                totals: List<Int?>,
+                lowerBands: List<Int?>,
+            ) = cover.mapIndexed { index, value ->
+                LayerVertex(
+                    x = hourWidth * index,
+                    y = mapCloudCoverToY(
+                        cloudCover = (value ?: 0).toFloat(),
+                        graphBottom = graphBottom,
+                        graphHeight = graphHeight,
+                        topScale = verticalScale.topScale,
+                    ),
+                    cover = value,
+                    otherCover = other.getOrNull(index),
+                    totalCover = totals.getOrNull(index),
+                    lowerBandCover = lowerBands.getOrNull(index),
+                )
+            }
+            // For `h` the low deck and the mid band both sit below it; either explaining the total
+            // makes the `h` redundant. The observed trails pass no lower band: they exist only where
+            // the forecast already missed by 8+ points, so there is nothing redundant to remove.
+            val highLowerBands = lows.indices.map { index ->
+                listOfNotNull(lows.getOrNull(index), midCovers.getOrNull(index)).maxOrNull()
+            }
+            val noLowerBand = List<Int?>(hours.size) { null }
             val layerGlyphs =
                 CloudLayerGlyphPlacer.place(
-                    vertices = layerVertices(midCovers, highCovers),
+                    vertices = layerVertices(midCovers, highCovers, forecastTotals, lows),
                     glyph = CloudLayerGlyphPlacer.MID_GLYPH,
                     stepPx = glyphStepPx,
                     phaseFraction = CloudLayerGlyphPlacer.MID_PHASE,
                     nudgePx = nudgePx,
                 ) +
                     CloudLayerGlyphPlacer.place(
-                        vertices = layerVertices(highCovers, midCovers),
+                        vertices = layerVertices(highCovers, midCovers, forecastTotals, highLowerBands),
                         glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
                         stepPx = glyphStepPx,
                         phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
@@ -376,14 +403,14 @@ object CloudCoverGraphRenderer {
             // Quarter-step phases keep the observed trails off the forecast ones' x positions.
             val actualLayerGlyphs =
                 CloudLayerGlyphPlacer.place(
-                    vertices = layerVertices(actualMidCovers, actualHighCovers),
+                    vertices = layerVertices(actualMidCovers, actualHighCovers, actualTotals, noLowerBand),
                     glyph = CloudLayerGlyphPlacer.MID_GLYPH,
                     stepPx = glyphStepPx,
                     phaseFraction = CloudLayerGlyphPlacer.MID_ACTUAL_PHASE,
                     nudgePx = nudgePx,
                 ) +
                     CloudLayerGlyphPlacer.place(
-                        vertices = layerVertices(actualHighCovers, actualMidCovers),
+                        vertices = layerVertices(actualHighCovers, actualMidCovers, actualTotals, noLowerBand),
                         glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
                         stepPx = glyphStepPx,
                         phaseFraction = CloudLayerGlyphPlacer.HIGH_ACTUAL_PHASE,

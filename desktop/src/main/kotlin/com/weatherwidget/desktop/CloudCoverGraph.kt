@@ -135,11 +135,12 @@ fun CloudCoverGraph(
         val windowStart = start
         val windowEnd = cutoff
 
-        // The LIVE/FUTURE curve draws the visible layer — low where the row has it, else the total —
-        // matching what the frozen forecast and actual curves carry. Drawing the total here instead
-        // put a cliff exactly at "now" under thin cirrus (measured 2026-08-20: total 83-99% all
-        // afternoon while the low layer and every surface station read 4-13%).
-        val rawCloudValues = points.map { (it.cloudCoverLow ?: it.cloudCover)?.toFloat() ?: 0f }
+        // The LIVE/FUTURE curve draws the TOTAL, matching what the frozen forecast and actual
+        // curves carry. All three go through VisibleCloudCover so none of them can drift into
+        // answering a different question from the others.
+        val rawCloudValues = points.map {
+            with(com.weatherwidget.shared.util.VisibleCloudCover) { it.visibleCloudCover() }?.toFloat() ?: 0f
+        }
         val smoothedClouds = com.weatherwidget.shared.graph.SeriesSmoothing.smoothValuesPreservingAllExtrema(rawCloudValues, smoothIterations)
         
         // The forecast stays hourly because Open-Meteo Previous Runs is hourly-only. The actual is
@@ -258,25 +259,41 @@ fun CloudCoverGraph(
             )
             val glyphStepPx = CloudLayerGlyphPlacer.GLYPH_STEP_DP.dp.toPx() * scale
             val nudgePx = CloudLayerGlyphPlacer.GLYPH_SIZE_DP.dp.toPx() * scale * 0.55f
-            fun layerVertices(cover: List<Int?>, other: List<Int?>) =
-                cover.mapIndexed { index, value ->
-                    LayerVertex(
-                        x = xAt(index),
-                        y = yAt((value ?: 0).toFloat()),
-                        cover = value,
-                        otherCover = other.getOrNull(index),
-                    )
-                }
+            // The curve each trail is drawn against, and the highest band BELOW the one being
+            // placed. Forecast trails answer to the forecast curve, observed trails to the actual
+            // curve; see CloudLayerGlyphPlacer.coincidenceWithTotal.
+            val forecastTotals = points.map { seriesByTime[it.dateTime]?.forecastCover }
+            val actualTotals = points.map { seriesByTime[it.dateTime]?.actualCover }
+            val lows = points.map { it.cloudCoverLow }
+            val highLowerBands = points.indices.map { index ->
+                listOfNotNull(lows.getOrNull(index), midCovers.getOrNull(index)).maxOrNull()
+            }
+            val noLowerBand = List<Int?>(points.size) { null }
+            fun layerVertices(
+                cover: List<Int?>,
+                other: List<Int?>,
+                totals: List<Int?>,
+                lowerBands: List<Int?>,
+            ) = cover.mapIndexed { index, value ->
+                LayerVertex(
+                    x = xAt(index),
+                    y = yAt((value ?: 0).toFloat()),
+                    cover = value,
+                    otherCover = other.getOrNull(index),
+                    totalCover = totals.getOrNull(index),
+                    lowerBandCover = lowerBands.getOrNull(index),
+                )
+            }
             val layerGlyphs =
                 CloudLayerGlyphPlacer.place(
-                    vertices = layerVertices(midCovers, highCovers),
+                    vertices = layerVertices(midCovers, highCovers, forecastTotals, lows),
                     glyph = CloudLayerGlyphPlacer.MID_GLYPH,
                     stepPx = glyphStepPx,
                     phaseFraction = CloudLayerGlyphPlacer.MID_PHASE,
                     nudgePx = nudgePx,
                 ) +
                     CloudLayerGlyphPlacer.place(
-                        vertices = layerVertices(highCovers, midCovers),
+                        vertices = layerVertices(highCovers, midCovers, forecastTotals, highLowerBands),
                         glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
                         stepPx = glyphStepPx,
                         phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
@@ -286,14 +303,14 @@ fun CloudCoverGraph(
             val actualGlyphStyle = glyphStyle.copy(color = COLOR_CLOUD_ACTUAL)
             val actualLayerGlyphs =
                 CloudLayerGlyphPlacer.place(
-                    vertices = layerVertices(actualMidCovers, actualHighCovers),
+                    vertices = layerVertices(actualMidCovers, actualHighCovers, actualTotals, noLowerBand),
                     glyph = CloudLayerGlyphPlacer.MID_GLYPH,
                     stepPx = glyphStepPx,
                     phaseFraction = CloudLayerGlyphPlacer.MID_ACTUAL_PHASE,
                     nudgePx = nudgePx,
                 ) +
                     CloudLayerGlyphPlacer.place(
-                        vertices = layerVertices(actualHighCovers, actualMidCovers),
+                        vertices = layerVertices(actualHighCovers, actualMidCovers, actualTotals, noLowerBand),
                         glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
                         stepPx = glyphStepPx,
                         phaseFraction = CloudLayerGlyphPlacer.HIGH_ACTUAL_PHASE,

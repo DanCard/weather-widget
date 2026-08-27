@@ -67,9 +67,10 @@ internal class ForecastFetchCoordinator(
                 // healthy graph: nulls are omitted rather than zeroed (correctly), so
                 // CloudSeriesBuilder falls back to the live row with isFrozen = false and still
                 // draws a continuous, plausible curve — a hindcast wearing the forecast's clothes.
-                // Measured 2026-08-27: the Previous Runs API had been serving all-nulls for
-                // cloud_cover_low_previous_day1 at every location probed, and the newest stored
-                // OPEN_METEO_PRIOR24 row was 7 days old. Nothing anywhere said so.
+                // Measured 2026-08-27: the Previous Runs API serves all-nulls for
+                // cloud_cover_low_previous_day1 at every location probed, and has never served it —
+                // the newest stored OPEN_METEO_PRIOR24 row is from 90 minutes BEFORE the commit
+                // that started requesting it. Seven days of nothing, and nothing anywhere said so.
                 appLogDao.log(
                     "PRIOR_CLOUD_EMPTY",
                     "no usable hours from ${OpenMeteoApi.PREVIOUS_RUNS_VARIABLE}; " +
@@ -90,12 +91,13 @@ internal class ForecastFetchCoordinator(
                         source = com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID,
                         timestampToGroupPredictions =
                             com.weatherwidget.shared.graph.PriorDayCloudForecast.predictionBucketFor(hourMs),
-                        // The previous-runs variable is cloud_cover_LOW_previous_day1, so the value
-                        // is filed on the low-layer column where it belongs — everywhere else in the
-                        // schema `cloudCover` means the total column. Readers prefer low, so rows
-                        // written before this switch keep reading until the REPLACE-upsert rewrites.
-                        cloudCover = null,
-                        cloudCoverLow = cover,
+                        // The previous-runs variable is cloud_cover_previous_day1 — the total
+                        // column — so it is filed where `cloudCover` means what it means everywhere
+                        // else in the schema. Rows written while it was the LOW variable still carry
+                        // their value on cloudCoverLow and are still read through
+                        // VisibleCloudCover's band fallback; nothing needs migrating.
+                        cloudCover = cover,
+                        cloudCoverLow = null,
                         fetchedAt = now,
                     )
                 },

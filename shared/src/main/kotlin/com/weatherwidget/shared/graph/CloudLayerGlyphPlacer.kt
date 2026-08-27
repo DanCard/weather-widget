@@ -11,12 +11,20 @@ data class LayerGlyph(val x: Float, val y: Float, val glyph: Char)
  *
  * [cover] is this layer's percentage at the vertex and [otherCover] is the *sibling* layer's, which
  * the placer needs only to detect the two curves landing on the same value.
+ *
+ * [totalCover] and [lowerBandCover] drive the total-curve coincidence rules
+ * ([CloudLayerGlyphPlacer.coincidenceWithTotal]). Both are optional: pass neither and the placer
+ * behaves exactly as it did before the main curve began drawing the total.
  */
 data class LayerVertex(
     val x: Float,
     val y: Float,
     val cover: Int?,
     val otherCover: Int? = null,
+    /** The value of the main (total) curve at this x. */
+    val totalCover: Int? = null,
+    /** The highest band BELOW this one at this x: low for `m`, max(low, mid) for `h`. */
+    val lowerBandCover: Int? = null,
 )
 
 /**
@@ -82,6 +90,45 @@ object CloudLayerGlyphPlacer {
      */
     const val GLYPH_STEP_DP = 13f
     const val GLYPH_SIZE_DP = 6.5f
+
+    /** What to do with a band glyph that lands on the main total curve. */
+    enum class TotalCoincidence {
+        /** Clear of the curve; draw it where it belongs. */
+        DRAW,
+
+        /** On the curve, but the only thing explaining it; draw it, nudged clear. */
+        NUDGE,
+
+        /** On the curve AND a lower band already explains the total; draw nothing. */
+        SUPPRESS,
+    }
+
+    /**
+     * Whether a band glyph coincides with the main curve, and what that costs.
+     *
+     * Once the main curve draws the TOTAL, a band sitting within [COINCIDENT_DELTA] of it overprints
+     * it and reads as a label on the curve rather than a layer of its own. The obvious remedy —
+     * don't draw it — is wrong in the case that matters most. Measured 2026-08-27 over 387 stored
+     * Open-Meteo hours: `high` coincides with the total on 90 of them, and on **89 of those 90** the
+     * low band is under 20. That is the thin-cirrus day — clear overhead, overcast aloft — and since
+     * the low band is no longer drawn at all, the `h` trail is the only mark on the plot explaining
+     * why the curve reads 100 on a day that looks blue. Deleting it there removes the explanation,
+     * not redundant ink.
+     *
+     * So the glyph is only suppressed when something else already accounts for the total: a band
+     * BELOW this one that also coincides with it (22 of those 90 hours for `h`). Then the reader
+     * seeing a bare curve is reading it correctly — the cloud is low. Otherwise the glyph is nudged
+     * off the curve and kept.
+     *
+     * The mirror case needs no rule here: a band at 0% under a total of 0% is already silent,
+     * because [MIN_COVER] suppresses anything below 5% before this is consulted. Measured on the
+     * same 387 hours, all 203 with mid and total both 0 fall under that floor already.
+     */
+    fun coincidenceWithTotal(cover: Float, totalCover: Float?, lowerBandCover: Float?): TotalCoincidence {
+        if (totalCover == null || abs(cover - totalCover) >= COINCIDENT_DELTA) return TotalCoincidence.DRAW
+        val lowerExplainsIt = lowerBandCover != null && abs(lowerBandCover - totalCover) < COINCIDENT_DELTA
+        return if (lowerExplainsIt) TotalCoincidence.SUPPRESS else TotalCoincidence.NUDGE
+    }
 
     /**
      * The observed band values worth drawing, index-aligned with the hour list: an entry survives
@@ -161,13 +208,24 @@ object CloudLayerGlyphPlacer {
                 if (cover >= minCover) {
                     val other = interpolateOther(a, b, t)
                     val coincident = other != null && abs(cover - other) < COINCIDENT_DELTA
-                    out.add(
-                        LayerGlyph(
-                            x = a.x + dx * t,
-                            y = a.y + dy * t + if (coincident) nudgePx else 0f,
-                            glyph = glyph,
-                        ),
+                    val withTotal = coincidenceWithTotal(
+                        cover = cover,
+                        totalCover = interpolate(a.totalCover, b.totalCover, t),
+                        lowerBandCover = interpolate(a.lowerBandCover, b.lowerBandCover, t),
                     )
+                    if (withTotal != TotalCoincidence.SUPPRESS) {
+                        // Both nudges push the same way and deliberately compound: a glyph on its
+                        // sibling AND on the total curve needs to clear both.
+                        val siblingNudge = if (coincident) nudgePx else 0f
+                        val curveNudge = if (withTotal == TotalCoincidence.NUDGE) nudgePx else 0f
+                        out.add(
+                            LayerGlyph(
+                                x = a.x + dx * t,
+                                y = a.y + dy * t + siblingNudge + curveNudge,
+                                glyph = glyph,
+                            ),
+                        )
+                    }
                 }
                 untilNext = stepPx
             }
@@ -176,10 +234,14 @@ object CloudLayerGlyphPlacer {
         return out
     }
 
-    private fun interpolateOther(a: LayerVertex, b: LayerVertex, t: Float): Float? {
-        val oa = a.otherCover ?: return null
-        val ob = b.otherCover ?: return null
-        return oa + (ob - oa) * t
+    private fun interpolateOther(a: LayerVertex, b: LayerVertex, t: Float): Float? =
+        interpolate(a.otherCover, b.otherCover, t)
+
+    /** Linear between two endpoints; null when either end has no value, like the cover series. */
+    private fun interpolate(a: Int?, b: Int?, t: Float): Float? {
+        val start = a ?: return null
+        val end = b ?: return null
+        return start + (end - start) * t
     }
 
     /**

@@ -38,6 +38,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
+import com.weatherwidget.data.remote.OpenMeteoApi
 
 
 class DesktopWeatherRepository(
@@ -383,6 +384,16 @@ class DesktopWeatherRepository(
             if (byHour.isNotEmpty()) {
                 weatherDao.upsertPriorDayCloudForecast(latitude, longitude, byHour)
                 Log.i(TAG, "PRIOR_CLOUD stored hours=${byHour.size} pastDays=$pastDays")
+            } else {
+                // Loud on purpose, matching ForecastFetchCoordinator on Android. An empty result is
+                // indistinguishable at the render from a healthy graph: the curve falls back to the
+                // live row with isFrozen = false and still looks continuous. That is how
+                // cloud_cover_low_previous_day1 going empty stayed invisible for a week.
+                Log.w(
+                    TAG,
+                    "PRIOR_CLOUD_EMPTY no usable hours from " +
+                        "${OpenMeteoApi.PREVIOUS_RUNS_VARIABLE}; frozen forecast falls back to live",
+                )
             }
             // Mark the attempt, not just the success: a source with no previous-runs product
             // returns empty every time, and retrying it each refresh is pure noise.

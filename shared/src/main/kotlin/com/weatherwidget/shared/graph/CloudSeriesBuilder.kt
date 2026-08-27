@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.graph
 
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.shared.util.VisibleCloudCover
 
 /**
  * One hour of the cloud graph, carrying both curves.
@@ -162,20 +163,9 @@ object CloudSeriesBuilder {
     /** Same ±30-minute reach the blend's anchor tolerance grants (see MetarCloudBlender). */
     private const val TOLERANCE_MS = 30 * 60_000L
 
-    /**
-     * What the graph draws for an hour: the **low** layer where the row has it, else the total.
-     *
-     * The low layer is the one that answers "is it cloudy out", and it is what both the actual
-     * series and the frozen day-ago forecast now carry — so the live curve must use it too, or the
-     * curve steps at "now" whenever there is cirrus overhead. Measured 2026-08-20: the total column
-     * ran 83-99% all afternoon on high cloud while the low layer read 6-13% and every surface
-     * station reported clear.
-     *
-     * The fallback is for rows written before the column existed, and for sources that report only
-     * a total. It keeps a pre-migration cache drawing something honest rather than a gap.
-     */
+    /** Delegated so every cloud read in the app answers the same question. */
     private fun HourlyForecast.visibleCloudCover(): Int? =
-        (cloudCoverLow ?: cloudCover)?.coerceIn(0, 100)
+        with(VisibleCloudCover) { visibleCloudCover() }
 
     /**
      * Fraction of past points whose forecast is genuinely frozen, for the render-time diagnostic.

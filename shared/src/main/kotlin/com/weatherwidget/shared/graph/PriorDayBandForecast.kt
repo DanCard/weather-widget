@@ -7,7 +7,8 @@ package com.weatherwidget.shared.graph
  * two lookbacks, Open-Meteo's Previous Runs API serves `cloud_cover_previous_day1` (192/192
  * non-null) but returns **all nulls** for `cloud_cover_low_previous_day1`,
  * `cloud_cover_mid_previous_day1` and `cloud_cover_high_previous_day1`. It accepts the names and
- * returns their keys; it simply has no band data to give.
+ * returns their keys; it simply has no band data to give, and never did — the app's own frozen
+ * low-cloud curve produced nothing from the moment `f9a05d26` switched it to the low variable.
  *
  * So the bands' frozen forecast comes from our own snapshots instead: `hourly_forecast_history`
  * under the real `OPEN_METEO` source id, which captures roughly 76 prediction buckets a day at
