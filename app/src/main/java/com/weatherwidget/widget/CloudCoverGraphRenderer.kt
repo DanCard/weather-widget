@@ -297,6 +297,11 @@ object CloudCoverGraphRenderer {
         // Each layer is a curve whose line is made of repeated tiny letters. Drawn under the low
         // forecast curve: the low layer is what "is it cloudy out" means, and the layers are
         // context for it. Skipped entirely on the common day where neither band has anything.
+        //
+        // The ink boxes escape this block because the free-floating dominant-station label below
+        // has to treat the trails as obstacles; without them it reads a plot full of `h`s as open
+        // air. Empty on the common day, which is also when that label has the whole plot.
+        val layerGlyphBounds = mutableListOf<GraphRect>()
         if (CloudLayerGlyphPlacer.hasVisibleCover(midCovers) ||
             CloudLayerGlyphPlacer.hasVisibleCover(highCovers)
         ) {
@@ -339,6 +344,17 @@ object CloudCoverGraphRenderer {
                     glyph.glyph.toString(), glyph.x, glyph.y + baselineOffset, paints.layerGlyphPaint,
                 )
             }
+            // One box size for both letters, taking the wider of `m` and `h` and the full font box
+            // for height — the same advance-width/line-height pair Compose measures on desktop, so
+            // the two platforms fence off the same footprint.
+            layerGlyphBounds += CloudLayerGlyphPlacer.glyphBounds(
+                glyphs = layerGlyphs,
+                glyphWidthPx = maxOf(
+                    paints.layerGlyphPaint.measureText(CloudLayerGlyphPlacer.MID_GLYPH.toString()),
+                    paints.layerGlyphPaint.measureText(CloudLayerGlyphPlacer.HIGH_GLYPH.toString()),
+                ),
+                glyphHeightPx = paints.layerGlyphPaint.descent() - paints.layerGlyphPaint.ascent(),
+            )
             Log.d(
                 TAG,
                 "layerGlyphs: midMax=${midCovers.filterNotNull().maxOrNull()} " +
@@ -624,7 +640,8 @@ object CloudCoverGraphRenderer {
                     text = dominantStationLabel.fullText,
                     spanHours = spanHours,
                     plot = GraphRect(0f, topPadding, widthPx.toFloat(), graphBottom),
-                    drawnBounds = drawnLabelBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                    drawnBounds = drawnLabelBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) } +
+                        layerGlyphBounds,
                     curveYsAt = { x ->
                         buildList {
                             if (smoothedValues.size >= 2 && hourWidth > 0f) {

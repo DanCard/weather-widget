@@ -199,6 +199,11 @@ fun CloudCoverGraph(
         // Each layer is a curve whose line is made of repeated tiny letters -- `m` and `h`. Shared
         // placement math with the Android widget so the two cannot drift; only the text drawing is
         // platform code. Skipped entirely when neither band has anything, which is most days.
+        //
+        // The ink boxes escape this block because the free-floating actuals-source annotation below
+        // has to treat the trails as obstacles; without them it reads a plot full of `h`s as open
+        // air. Empty on the common day, which is also when the annotation has the whole plot.
+        val layerGlyphBounds = mutableListOf<GraphRect>()
         if (CloudLayerGlyphPlacer.hasVisibleCover(midCovers) ||
             CloudLayerGlyphPlacer.hasVisibleCover(highCovers)
         ) {
@@ -244,6 +249,16 @@ fun CloudCoverGraph(
                     ),
                 )
             }
+            // One box size for both letters, taking the wider/taller of `m` and `h`: the two differ
+            // by a pixel or two at 6.5dp, and overstating a glyph's footprint costs nothing while
+            // understating it puts text back on the trail.
+            val mBox = textMeasurer.measure(CloudLayerGlyphPlacer.MID_GLYPH.toString(), glyphStyle).size
+            val hBox = textMeasurer.measure(CloudLayerGlyphPlacer.HIGH_GLYPH.toString(), glyphStyle).size
+            layerGlyphBounds += CloudLayerGlyphPlacer.glyphBounds(
+                glyphs = layerGlyphs,
+                glyphWidthPx = maxOf(mBox.width, hBox.width).toFloat(),
+                glyphHeightPx = maxOf(mBox.height, hBox.height).toFloat(),
+            )
         }
 
         val markerX = xAtTime(now)
@@ -407,7 +422,8 @@ fun CloudCoverGraph(
                 text = dominantText,
                 spanHours = dominantSpanHours,
                 plot = dominantPlot,
-                drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) } +
+                    layerGlyphBounds,
                 curveYsAt = { x ->
                     buildList {
                         if (coords.isNotEmpty() && x in coords.first().x..coords.last().x) {

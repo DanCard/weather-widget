@@ -141,6 +141,34 @@ object CloudLayerGlyphPlacer {
     }
 
     /**
+     * The ink boxes of already-placed [glyphs], centred on each glyph the way both renderers draw
+     * them (Android `Paint.Align.CENTER`, desktop a half-size top-left shift).
+     *
+     * Exists so a free-floating annotation can *see* the layer trails. [GraphEmptySpaceFinder]
+     * knows only the curves its caller hands to `curveYsAt` and the rects in `drawnBounds`, and the
+     * glyph trails were in neither: the finder read the whole upper half of the cloud plot as open
+     * air and dropped `Actual cloud cover data from Synoptic` straight across a bank of `h`s
+     * (2026-08-27). Boxes rather than a curve because the trail's ink is what collides — the
+     * coincident-layer nudge moves a glyph off its own polyline, and the [MIN_COVER] floor and null
+     * gaps mean stretches of that polyline carry no ink at all and should not block anything.
+     *
+     * Kept per-glyph on purpose: the bounding box of a steep trail is mostly empty triangle, and
+     * merging runs would fence off room the label can legitimately use.
+     */
+    fun glyphBounds(
+        glyphs: List<LayerGlyph>,
+        glyphWidthPx: Float,
+        glyphHeightPx: Float,
+    ): List<GraphRect> {
+        if (glyphWidthPx <= 0f || glyphHeightPx <= 0f) return emptyList()
+        val halfW = glyphWidthPx / 2f
+        val halfH = glyphHeightPx / 2f
+        return glyphs.map { g ->
+            GraphRect(g.x - halfW, g.y - halfH, g.x + halfW, g.y + halfH)
+        }
+    }
+
+    /**
      * True when a layer has anything worth drawing in the window. Renderers use this to skip the
      * glyph pass entirely — the common case, since most days have no mid or high cloud at all.
      */
