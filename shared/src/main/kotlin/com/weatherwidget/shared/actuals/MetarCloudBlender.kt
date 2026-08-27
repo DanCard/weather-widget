@@ -113,14 +113,10 @@ object MetarCloudBlender {
         val isMetarBlend: Boolean,
         val dominantContribution: BlendContribution? = null,
         /**
-         * Observed mid/high bands keyed like [hours], for the sources that measure them as band
-         * percentages ([CloudVerticalKind.PROVIDER_BANDS] — Open-Meteo today).
-         *
-         * Empty for every other source, and that is the whole gate: `CUMULATIVE_LAYERS` reports a
-         * cumulative sky condition and `TOTAL_ENVELOPE` a height range, neither of which is a band
-         * percentage that belongs on the graph's 0-100 axis beside a band forecast. Keying on the
-         * stored kind rather than a source id keeps that true if another provider later reports
-         * bands.
+         * Observed low/mid/high layers keyed like [hours]. Provider bands are copied from their
+         * synthetic observation row; cumulative NWS/METAR layers are spatially blended from the
+         * same accepted station anchors as the total. `TOTAL_ENVELOPE` remains excluded because it
+         * carries heights, not layer-cover percentages.
          */
         val bands: Map<Long, CloudBands> = emptyMap(),
     )
@@ -239,6 +235,7 @@ object MetarCloudBlender {
                 .filter { it.cloudVerticalKind == CloudVerticalKind.PROVIDER_BANDS }
                 .mapNotNull { row ->
                     val bands = CloudBands(
+                        low = row.cloudCoverLow?.coerceIn(0, 100),
                         mid = row.cloudCoverMid?.coerceIn(0, 100),
                         high = row.cloudCoverHigh?.coerceIn(0, 100),
                     )
@@ -356,6 +353,7 @@ object MetarCloudBlender {
             .toList()
 
         val pointValues = LinkedHashMap<Long, Int>()
+        val pointBands = LinkedHashMap<Long, CloudBands>()
         val widthByPoint = mutableMapOf<Long, Int>()
         var shadowedAnchors = 0
         var metarPreferredAnchors = 0
@@ -407,6 +405,24 @@ object MetarCloudBlender {
             pointValues[ts] = blended.roundToInt().coerceIn(0, 100)
             widthByPoint[ts] = valueByDistance.size
 
+            // Blend each reported vertical layer through the SAME station anchors accepted for
+            // the total. Comparing a nearest station's layer with a multi-station total would make
+            // equality suppression and the glyph's vertical position describe different skies.
+            fun blendedLayer(valueOf: (ObservationReading) -> Int?): Int? {
+                val values = visible.mapNotNull { (reading, _) ->
+                    val carriesLayers = reading.cloudVerticalKind == CloudVerticalKind.CUMULATIVE_LAYERS ||
+                        reading.cloudVerticalKind == CloudVerticalKind.PROVIDER_BANDS
+                    if (!carriesLayers) null else valueOf(reading)?.let { reading.distanceKm to it.toFloat() }
+                }
+                return SpatialInterpolator.interpolateIDWValues(values)?.roundToInt()?.coerceIn(0, 100)
+            }
+            val layers = CloudBands(
+                low = blendedLayer { it.cloudCoverLow },
+                mid = blendedLayer { it.cloudCoverMid },
+                high = blendedLayer { it.cloudCoverHigh },
+            )
+            if (!layers.isEmpty) pointBands[ts] = layers
+
             // From the CONTRIBUTING readings, not all of them: a station whose clear report was
             // excluded as ceilometer-blind did not feed this value, and labelling the curve with it
             // would name a station whose own number contradicts what is drawn.
@@ -453,6 +469,7 @@ object MetarCloudBlender {
             ),
             isMetarBlend = true,
             dominantContribution = latestDominantContribution,
+            bands = pointBands,
         )
     }
 

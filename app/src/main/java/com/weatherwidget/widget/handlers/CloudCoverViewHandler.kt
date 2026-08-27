@@ -867,6 +867,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     // forecast's grey.
                     midCover = point.forecastBands.mid,
                     highCover = point.forecastBands.high,
+                    actualLowCover = point.actualBands.low,
                     actualMidCover = point.actualBands.mid,
                     actualHighCover = point.actualBands.high,
                     isFrozenBands = point.isFrozenBands,

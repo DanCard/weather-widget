@@ -2,7 +2,6 @@ package com.weatherwidget.shared.graph
 
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -15,8 +14,10 @@ import org.junit.experimental.categories.Category
 class CloudLayerGlyphPlacerTest {
 
     /** A flat horizontal run at constant coverage, one vertex every 100px. */
-    private fun flat(cover: Int?, other: Int? = null, n: Int = 5) =
-        (0 until n).map { LayerVertex(x = it * 100f, y = 50f, cover = cover, otherCover = other) }
+    private fun flat(cover: Int?, other: Int? = null, total: Int? = null, n: Int = 5) =
+        (0 until n).map {
+            LayerVertex(x = it * 100f, y = 50f, cover = cover, otherCover = other, totalCover = total)
+        }
 
     @Test
     fun `glyphs land one step apart along a flat curve`() {
@@ -37,6 +38,85 @@ class CloudLayerGlyphPlacerTest {
     @Test
     fun `coverage at the floor still draws`() {
         val glyphs = CloudLayerGlyphPlacer.place(flat(CloudLayerGlyphPlacer.MIN_COVER), 'm', 50f)
+        assertTrue(glyphs.isNotEmpty())
+    }
+
+    @Test
+    fun `actual trail suppresses exact one hundred when total is also one hundred`() {
+        val glyphs = CloudLayerGlyphPlacer.place(
+            flat(cover = 100, total = 100),
+            'h',
+            stepPx = 50f,
+            suppressMatchingTotal = true,
+        )
+
+        assertEquals(emptyList<LayerGlyph>(), glyphs)
+    }
+
+    @Test
+    fun `actual trail keeps one hundred when total differs`() {
+        val glyphs = CloudLayerGlyphPlacer.place(
+            flat(cover = 100, total = 99),
+            'h',
+            stepPx = 50f,
+            suppressMatchingTotal = true,
+        )
+
+        assertTrue(glyphs.isNotEmpty())
+    }
+
+    @Test
+    fun `actual trail suppresses matching non-extreme values`() {
+        val glyphs = CloudLayerGlyphPlacer.place(
+            flat(cover = 99, total = 99),
+            'h',
+            stepPx = 50f,
+            suppressMatchingTotal = true,
+        )
+
+        assertTrue(glyphs.isEmpty())
+    }
+
+    @Test
+    fun `actual trail suppresses exact zero when zero is admitted by the caller`() {
+        val glyphs = CloudLayerGlyphPlacer.place(
+            flat(cover = 0, total = 0),
+            'm',
+            stepPx = 50f,
+            minCover = 0,
+            suppressMatchingTotal = true,
+        )
+
+        assertEquals(emptyList<LayerGlyph>(), glyphs)
+    }
+
+    @Test
+    fun `total-match suppression preserves the adjacent distinct climb`() {
+        val vertices = listOf(
+            LayerVertex(x = 0f, y = 0f, cover = 100, totalCover = 100),
+            LayerVertex(x = 100f, y = 100f, cover = 80, totalCover = 100),
+        )
+        val glyphs = CloudLayerGlyphPlacer.place(
+            vertices,
+            'm',
+            stepPx = 25f,
+            suppressMatchingTotal = true,
+        )
+
+        assertTrue("the non-extreme interior of the segment must remain visible", glyphs.isNotEmpty())
+        assertTrue(glyphs.all { it.x > 0f })
+    }
+
+    @Test
+    fun `actual trail keeps below-five cover when it differs from total`() {
+        val glyphs = CloudLayerGlyphPlacer.place(
+            flat(cover = 3, total = 80),
+            CloudLayerGlyphPlacer.LOW_GLYPH,
+            stepPx = 50f,
+            minCover = 0,
+            suppressMatchingTotal = true,
+        )
+
         assertTrue(glyphs.isNotEmpty())
     }
 
@@ -150,12 +230,20 @@ class CloudLayerGlyphPlacerTest {
     }
 
     @Test
-    fun `the glyph size stays biased small`() {
-        // Guards a stated preference: these are texture on a curve, not labels read one at a time.
-        assertTrue(
-            "glyph size drifted up to ${CloudLayerGlyphPlacer.GLYPH_SIZE_DP}dp",
-            CloudLayerGlyphPlacer.GLYPH_SIZE_DP <= 7f,
+    fun `forecast and actual glyph styles stay small and sparse`() {
+        // Guards the visually reviewed treatment: equal small type, with both former step sizes
+        // increased by 30%. Actuals still use the sparser of the two trails.
+        assertEquals(4.5f, CloudLayerGlyphPlacer.GLYPH_SIZE_DP, 0.001f)
+        assertEquals(
+            CloudLayerGlyphPlacer.GLYPH_SIZE_DP,
+            CloudLayerGlyphPlacer.ACTUAL_GLYPH_SIZE_DP,
+            0.001f,
         )
-        assertNotEquals(0f, CloudLayerGlyphPlacer.GLYPH_SIZE_DP)
+        assertEquals(13f * 1.3f, CloudLayerGlyphPlacer.GLYPH_STEP_DP, 0.001f)
+        assertEquals(20f * 1.3f, CloudLayerGlyphPlacer.ACTUAL_GLYPH_STEP_DP, 0.001f)
+        assertTrue(
+            "actual glyphs must be spaced more sparsely than forecast glyphs",
+            CloudLayerGlyphPlacer.ACTUAL_GLYPH_STEP_DP > CloudLayerGlyphPlacer.GLYPH_STEP_DP,
+        )
     }
 }

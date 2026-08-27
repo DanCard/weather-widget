@@ -17,8 +17,8 @@ import org.junit.experimental.categories.Category
 
 /**
  * Desktop's half of the observed band trails, mirroring
- * `CloudCoverGraphObservedBandRobolectricTest` on Android: a divergent frozen actual adds glyph
- * ink, an agreeing or unfrozen one adds none, and whatever is drawn reaches the obstacle list.
+ * `CloudCoverGraphObservedBandRobolectricTest` on Android: actuals draw independently of forecast
+ * accuracy/frozen state, any layer matching total stays silent, and drawn ink reaches obstacles.
  *
  * Counts rather than pixels, so the two platforms can assert the same invariants despite Skia
  * measuring text here and Robolectric stubbing it there.
@@ -46,8 +46,8 @@ class CloudCoverGraphObservedBandTest {
             )
         }
 
-    private fun retroActual(): Map<Long, Int> =
-        (-8..0).associate { (topOfHour + it * hourMs) to 5 }
+    private fun retroActual(total: Int = 5): Map<Long, Int> =
+        (-8..0).associate { (topOfHour + it * hourMs) to total }
 
     private fun pastHours() = (-8..0).map { topOfHour + it * hourMs }
 
@@ -55,23 +55,27 @@ class CloudCoverGraphObservedBandTest {
         forecastMid: Int = 80,
         actualMid: Int? = null,
         frozen: Boolean = false,
+        actualTotal: Int = 5,
+        actualLow: Int? = null,
     ): CloudGraphPlacementDebug {
         var debug: CloudGraphPlacementDebug? = null
         composeTestRule.setContent {
             Box(Modifier.requiredSize(1200.dp, 700.dp)) {
                 CloudCoverGraph(
                     hourly = midDeck(forecastMid),
-                    retroCloudActual = retroActual(),
-                    // Only a stored snapshot makes an hour frozen; without one the graph must
-                    // decline the comparison however far the actual diverges.
+                    retroCloudActual = retroActual(actualTotal),
+                    // Only a stored snapshot makes the gray forecast frozen. Pink actual bands
+                    // remain independently visible with or without one.
                     priorDayBandForecast = if (frozen) {
                         pastHours().associateWith { CloudBands(mid = forecastMid) }
                     } else {
                         emptyMap()
                     },
-                    retroCloudBands = actualMid?.let { mid ->
-                        pastHours().associateWith { CloudBands(mid = mid) }
-                    }.orEmpty(),
+                    retroCloudBands = if (actualLow != null || actualMid != null) {
+                        pastHours().associateWith { CloudBands(low = actualLow, mid = actualMid) }
+                    } else {
+                        emptyMap()
+                    },
                     displaySourceId = "OPEN_METEO",
                     modifier = Modifier.requiredSize(1200.dp, 700.dp),
                     onPlacementDebug = { debug = it },
@@ -84,7 +88,7 @@ class CloudCoverGraphObservedBandTest {
     }
 
     @Test
-    fun `a divergent frozen actual adds a second trail of glyph ink`() {
+    fun `an actual adds a second trail of glyph ink`() {
         val forecastOnly = render().layerGlyphBounds.size
         val withActual = render(actualMid = 20, frozen = true).layerGlyphBounds.size
 
@@ -96,19 +100,51 @@ class CloudCoverGraphObservedBandTest {
     }
 
     @Test
-    fun `an actual within the divergence floor adds nothing`() {
+    fun `an agreeing actual still adds its pink trail`() {
         val forecastOnly = render().layerGlyphBounds.size
         val agreeing = render(actualMid = 81, frozen = true).layerGlyphBounds.size
 
-        assertEquals("an agreeing actual must leave the graph exactly as it was", forecastOnly, agreeing)
+        assertTrue("actual shape must remain visible even when forecast agrees", agreeing > forecastOnly)
     }
 
     @Test
-    fun `an unfrozen hour draws no observed glyph however far it diverges`() {
+    fun `an unfrozen hour still draws its observed glyph trail`() {
         val forecastOnly = render().layerGlyphBounds.size
-        val unfrozen = render(actualMid = 5, frozen = false).layerGlyphBounds.size
+        val unfrozen = render(actualMid = 6, frozen = false, actualTotal = 5).layerGlyphBounds.size
 
-        assertEquals(forecastOnly, unfrozen)
+        assertTrue(unfrozen > forecastOnly)
+    }
+
+    @Test
+    fun `an actual at one hundred draws nothing when total is also one hundred`() {
+        val forecastOnly = render().layerGlyphBounds.size
+        val matchingTop = render(actualMid = 100, actualTotal = 100).layerGlyphBounds.size
+
+        assertEquals(forecastOnly, matchingTop)
+    }
+
+    @Test
+    fun `an actual at one hundred still draws when total differs`() {
+        val forecastOnly = render().layerGlyphBounds.size
+        val distinctTop = render(actualMid = 100, actualTotal = 99).layerGlyphBounds.size
+
+        assertTrue(distinctTop > forecastOnly)
+    }
+
+    @Test
+    fun `an actual low below five draws when total differs`() {
+        val forecastOnly = render().layerGlyphBounds.size
+        val distinctLow = render(actualLow = 3, actualTotal = 80).layerGlyphBounds.size
+
+        assertTrue(distinctLow > forecastOnly)
+    }
+
+    @Test
+    fun `an actual low draws nothing when it matches non-extreme total`() {
+        val forecastOnly = render().layerGlyphBounds.size
+        val matchingLow = render(actualLow = 44, actualTotal = 44).layerGlyphBounds.size
+
+        assertEquals(forecastOnly, matchingLow)
     }
 
     @Test

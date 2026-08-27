@@ -58,7 +58,7 @@ private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionR
  *
  * The cloud graph draws to a Canvas and publishes nothing to the semantics tree, so a placement
  * defect here is invisible to a Compose UI test — which is how the actuals-source annotation came to
- * be drawn straight through the mid/high glyph trails (2026-08-27). The geometry is covered by pure
+ * be drawn straight through the layer-glyph trails (2026-08-27). The geometry is covered by pure
  * shared tests; what needs a rendered frame is whether this composable actually *hands* the trails
  * to the search. [layerGlyphBounds] is that obstacle list and [actualsSourcePlacement] is what came
  * back, so a test can assert the second clears the first.
@@ -171,7 +171,7 @@ fun CloudCoverGraph(
         val smoothedForecast = com.weatherwidget.shared.graph.SeriesSmoothing
             .smoothValuesPreservingAllExtrema(forecastValues, smoothIterations)
 
-        // Scale must clear EVERY plotted series or the tallest draws off the top. The mid/high
+        // Scale must clear EVERY plotted series or the tallest draws off the top. The vertical
         // layers routinely reach 100% on days the low layer never leaves the axis, so they belong
         // in this max alongside the forecast and actual curves.
         // Keyed by time, not zipped by index: the series drops hours with no visible cloud, so
@@ -181,20 +181,11 @@ fun CloudCoverGraph(
         // has already been retro-corrected, so it carries the actual wearing the forecast's grey.
         val midCovers = points.map { seriesByTime[it.dateTime]?.forecastBands?.mid }
         val highCovers = points.map { seriesByTime[it.dateTime]?.forecastBands?.high }
-        val frozenBands = points.map { seriesByTime[it.dateTime]?.isFrozenBands == true }
-        // Only the observed values that will actually be DRAWN feed the scale.
-        val actualMidCovers = CloudLayerGlyphPlacer.divergentActuals(
-            forecast = midCovers,
-            actual = points.map { seriesByTime[it.dateTime]?.actualBands?.mid },
-            frozen = frozenBands,
-        )
-        val actualHighCovers = CloudLayerGlyphPlacer.divergentActuals(
-            forecast = highCovers,
-            actual = points.map { seriesByTime[it.dateTime]?.actualBands?.high },
-            frozen = frozenBands,
-        )
+        val actualLowCovers = points.map { seriesByTime[it.dateTime]?.actualBands?.low }
+        val actualMidCovers = points.map { seriesByTime[it.dateTime]?.actualBands?.mid }
+        val actualHighCovers = points.map { seriesByTime[it.dateTime]?.actualBands?.high }
         val layerValues =
-            (midCovers + highCovers + actualMidCovers + actualHighCovers)
+            (midCovers + highCovers + actualLowCovers + actualMidCovers + actualHighCovers)
                 .filterNotNull().map { it.toFloat() }
         val visibleMax = (smoothedForecast + actualPoints.map { it.cover.toFloat() } + layerValues)
             .maxOrNull()?.coerceIn(0f, 100f) ?: 0f
@@ -238,7 +229,7 @@ fun CloudCoverGraph(
         )
         drawPath(fillPath, brush = fillBrush)
 
-        // --- Mid/high layer glyph curves ---
+        // --- Vertical-layer glyph curves ---
         // Each layer is a curve whose line is made of repeated tiny letters -- `m` and `h`. Shared
         // placement math with the Android widget so the two cannot drift; only the text drawing is
         // platform code. Skipped entirely when neither band has anything, which is most days.
@@ -249,8 +240,9 @@ fun CloudCoverGraph(
         val layerGlyphBounds = mutableListOf<GraphRect>()
         if (CloudLayerGlyphPlacer.hasVisibleCover(midCovers) ||
             CloudLayerGlyphPlacer.hasVisibleCover(highCovers) ||
-            CloudLayerGlyphPlacer.hasVisibleCover(actualMidCovers) ||
-            CloudLayerGlyphPlacer.hasVisibleCover(actualHighCovers)
+            actualLowCovers.any { it != null } ||
+            actualMidCovers.any { it != null } ||
+            actualHighCovers.any { it != null }
         ) {
             val glyphStyle = TextStyle(
                 fontSize = (CloudLayerGlyphPlacer.GLYPH_SIZE_DP * scale).sp,
@@ -258,7 +250,9 @@ fun CloudCoverGraph(
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
             )
             val glyphStepPx = CloudLayerGlyphPlacer.GLYPH_STEP_DP.dp.toPx() * scale
+            val actualGlyphStepPx = CloudLayerGlyphPlacer.ACTUAL_GLYPH_STEP_DP.dp.toPx() * scale
             val nudgePx = CloudLayerGlyphPlacer.GLYPH_SIZE_DP.dp.toPx() * scale * 0.55f
+            val actualNudgePx = CloudLayerGlyphPlacer.ACTUAL_GLYPH_SIZE_DP.dp.toPx() * scale * 0.55f
             // The curve each trail is drawn against, and the highest band BELOW the one being
             // placed. Forecast trails answer to the forecast curve, observed trails to the actual
             // curve; see CloudLayerGlyphPlacer.coincidenceWithTotal.
@@ -299,22 +293,40 @@ fun CloudCoverGraph(
                         phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
                         nudgePx = -nudgePx,
                     )
-            // Quarter-step phases keep the observed trails off the forecast ones' x positions.
-            val actualGlyphStyle = glyphStyle.copy(color = COLOR_CLOUD_ACTUAL)
+            // Actual layers have no 5% floor: a reported 0-4% value still explains the vertical
+            // profile when it differs from total.
+            val actualGlyphStyle = glyphStyle.copy(
+                fontSize = (CloudLayerGlyphPlacer.ACTUAL_GLYPH_SIZE_DP * scale).sp,
+                color = COLOR_CLOUD_ACTUAL,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Normal,
+            )
             val actualLayerGlyphs =
                 CloudLayerGlyphPlacer.place(
+                    vertices = layerVertices(actualLowCovers, actualMidCovers, actualTotals, noLowerBand),
+                    glyph = CloudLayerGlyphPlacer.LOW_GLYPH,
+                    stepPx = actualGlyphStepPx,
+                    phaseFraction = CloudLayerGlyphPlacer.LOW_ACTUAL_PHASE,
+                    nudgePx = actualNudgePx,
+                    minCover = 0,
+                    suppressMatchingTotal = true,
+                ) +
+                    CloudLayerGlyphPlacer.place(
                     vertices = layerVertices(actualMidCovers, actualHighCovers, actualTotals, noLowerBand),
                     glyph = CloudLayerGlyphPlacer.MID_GLYPH,
-                    stepPx = glyphStepPx,
+                    stepPx = actualGlyphStepPx,
                     phaseFraction = CloudLayerGlyphPlacer.MID_ACTUAL_PHASE,
-                    nudgePx = nudgePx,
+                    nudgePx = actualNudgePx,
+                    minCover = 0,
+                    suppressMatchingTotal = true,
                 ) +
                     CloudLayerGlyphPlacer.place(
                         vertices = layerVertices(actualHighCovers, actualMidCovers, actualTotals, noLowerBand),
                         glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
-                        stepPx = glyphStepPx,
+                        stepPx = actualGlyphStepPx,
                         phaseFraction = CloudLayerGlyphPlacer.HIGH_ACTUAL_PHASE,
-                        nudgePx = -nudgePx,
+                        nudgePx = -actualNudgePx,
+                        minCover = 0,
+                        suppressMatchingTotal = true,
                     )
             fun drawGlyphs(glyphs: List<com.weatherwidget.shared.graph.LayerGlyph>, style: TextStyle) {
                 glyphs.forEach { glyph ->
@@ -333,11 +345,14 @@ fun CloudCoverGraph(
             drawGlyphs(actualLayerGlyphs, actualGlyphStyle)
             // Sized from the same dp figure that drives `nudgePx`, not from a Compose measurement:
             // the Android renderer cannot reach a `TextMeasurer`, and the two font stacks need not
-            // agree on the width of a 6.5dp bold `m`. See CloudLayerGlyphPlacer.GLYPH_BOX_*_RATIO.
+            // agree on the width of a tiny bold `m`. See CloudLayerGlyphPlacer.GLYPH_BOX_*_RATIO.
             layerGlyphBounds += CloudLayerGlyphPlacer.glyphBounds(
-                // Both trails, or the free-floating annotation reads the pink one as open air.
-                glyphs = layerGlyphs + actualLayerGlyphs,
-                glyphSizePx = CloudLayerGlyphPlacer.GLYPH_SIZE_DP.dp.toPx() * scale,
+                layerGlyphs,
+                CloudLayerGlyphPlacer.GLYPH_SIZE_DP.dp.toPx() * scale,
+            )
+            layerGlyphBounds += CloudLayerGlyphPlacer.glyphBounds(
+                actualLayerGlyphs,
+                CloudLayerGlyphPlacer.ACTUAL_GLYPH_SIZE_DP.dp.toPx() * scale,
             )
         }
 

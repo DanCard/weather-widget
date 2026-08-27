@@ -36,7 +36,10 @@ class SynopticObservationFetcher(
         val recentMinutes = (hours * 60L).coerceAtLeast(120L)
         return when (val outcome = api.fetchRadiusTimeseries(latitude, longitude, radiusMiles, recentMinutes)) {
             is FetchOutcome.Success -> {
-                val stations = outcome.value.sortedBy { it.distanceKm }.take(limit)
+                // Nearest-first for the temperature blend, plus reserved slots so stations that
+                // actually report sky condition are not crowded out by nearer personal weather
+                // stations that never do. See SkyReportingStationSlots.
+                val stations = SkyReportingStationSlots.select(outcome.value, limit)
                 val readings = mutableListOf<ObservationReading>()
                 for (station in stations) {
                     for (obs in station.observations) {
@@ -55,7 +58,10 @@ class SynopticObservationFetcher(
                     "SYNOPTIC_FETCH",
                     "lat=$latitude lon=$longitude stations=${stations.size} hours=$hours " +
                         "rows=${outcome.value.sumOf { it.observations.size }} stored=${readings.size} " +
-                        "ids=${stations.joinToString(",") { it.info.id }}",
+                        "ids=${stations.joinToString(",") { it.info.id }} " +
+                        // Which stations can answer the cloud question at all. A curve that breaks
+                        // into segments with a low count here is short of reporters, not broken.
+                        "sky=${stations.filter { SkyReportingStationSlots.reportsSky(it) }.joinToString(",") { it.info.id }.ifEmpty { "none" }}",
                     "INFO",
                 )
                 if (readings.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(readings)

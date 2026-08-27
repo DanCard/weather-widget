@@ -77,10 +77,15 @@ object CloudCoverGraphStyle {
             )
         }
 
-        // The OBSERVED band trails: same geometry, the actual's pink. Nothing else differs — the
-        // pair reads as forecast-vs-actual because the palette already means that on this graph.
+        // The OBSERVED band trails use the same small type size, but the actual's pink and normal
+        // weight keep the pair visually distinct from the neutral bold forecast glyphs.
         val layerGlyphActualPaint = Paint(layerGlyphPaint).apply {
             color = COLOR_CLOUD_ACTUAL_ARGB
+            textSize = dpToPx(
+                context,
+                com.weatherwidget.shared.graph.CloudLayerGlyphPlacer.ACTUAL_GLYPH_SIZE_DP * labelScale,
+            )
+            isFakeBoldText = false
         }
 
         val gradientPaint = HourlyGraphPaints.gradientFill()

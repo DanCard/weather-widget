@@ -18,11 +18,10 @@ import org.junit.experimental.categories.Category
 /**
  * The whole observed-band path end to end, across the three classes that own a piece of it:
  * stored rows -> [MetarCloudBlender] (observed) + [PriorDayBandForecast] (frozen) ->
- * [CloudSeriesBuilder] -> the [CloudPoint] list the renderers draw, and finally
- * [CloudLayerGlyphPlacer.divergentActuals], which decides whether the pink trail appears at all.
+ * [CloudSeriesBuilder] -> the [CloudPoint] list the renderers draw.
  *
- * Each class is unit-tested on its own; what this pins is that they agree about keys, gates and
- * the meaning of "frozen" when wired together.
+ * Each class is unit-tested on its own; what this pins is that observed bands reach the render
+ * model independently of whether the forecast side has a frozen snapshot.
  */
 @Category(ShortDuration::class)
 class ObservedCloudBandPipelineIntegrationTest {
@@ -44,7 +43,7 @@ class ObservedCloudBandPipelineIntegrationTest {
         fetchedAt = now,
     )
 
-    private fun observedRow(atMs: Long, mid: Int?, high: Int? = null) = ObservationReading(
+    private fun observedRow(atMs: Long, mid: Int?, high: Int? = null, low: Int? = 30) = ObservationReading(
         stationId = HistoricalActualsBackfill.syntheticStationId(WeatherSource.OPEN_METEO.id),
         stationName = "OPEN_METEO: History Backfill",
         timestamp = atMs,
@@ -55,7 +54,7 @@ class ObservedCloudBandPipelineIntegrationTest {
         distanceKm = 0f,
         stationType = "OFFICIAL",
         api = WeatherSource.OPEN_METEO.id,
-        cloudCoverLow = 30,
+        cloudCoverLow = low,
         cloudCoverMid = mid,
         cloudCoverHigh = high,
         cloudVerticalKind = CloudVerticalKind.PROVIDER_BANDS,
@@ -90,7 +89,7 @@ class ObservedCloudBandPipelineIntegrationTest {
     }
 
     @Test
-    fun `a missed band forecast survives the whole path and draws a pink glyph`() {
+    fun `a missed band forecast and its actual survive the whole path`() {
         val target = now - 4 * hour
         val points = runPipeline(
             liveHours = listOf(liveHour(-4, mid = 20)),
@@ -103,18 +102,10 @@ class ObservedCloudBandPipelineIntegrationTest {
         assertEquals("the retro-corrected value reaches the actual trail", 20, point.actualBands.mid)
         assertTrue(point.isFrozenBands)
 
-        assertEquals(
-            listOf(20),
-            CloudLayerGlyphPlacer.divergentActuals(
-                forecast = points.map { it.forecastBands.mid },
-                actual = points.map { it.actualBands.mid },
-                frozen = points.map { it.isFrozenBands },
-            ),
-        )
     }
 
     @Test
-    fun `an accurate band forecast reaches the builder but draws no pink glyph`() {
+    fun `an accurate band actual remains available to the pink trail`() {
         val target = now - 4 * hour
         val points = runPipeline(
             liveHours = listOf(liveHour(-4, mid = 62)),
@@ -125,25 +116,15 @@ class ObservedCloudBandPipelineIntegrationTest {
         val point = points.single()
         assertEquals(60, point.forecastBands.mid)
         assertEquals(62, point.actualBands.mid)
-        assertEquals(
-            "within the divergence floor, so the graph stays as it was",
-            listOf(null),
-            CloudLayerGlyphPlacer.divergentActuals(
-                forecast = points.map { it.forecastBands.mid },
-                actual = points.map { it.actualBands.mid },
-                frozen = points.map { it.isFrozenBands },
-            ),
-        )
+        assertEquals(62, point.actualBands.mid)
     }
 
     /**
-     * The state the app is actually in today: band snapshots only began accumulating on
-     * 2026-08-26, so most past hours have observations but no prediction to grade them against.
-     * The forecast trail must fall back to the live row, and no pink glyph may appear — otherwise
-     * the graph would be comparing the actual against a copy of itself.
+     * A missing snapshot changes only the provenance of the gray forecast trail. The observed band
+     * remains independently useful and must still reach the pink actual trail.
      */
     @Test
-    fun `an hour with observations but no stored snapshot draws no pink glyph`() {
+    fun `an hour with observations but no stored snapshot retains its actual band`() {
         val target = now - 4 * hour
         val points = runPipeline(
             liveHours = listOf(liveHour(-4, mid = 90)),
@@ -154,14 +135,7 @@ class ObservedCloudBandPipelineIntegrationTest {
         val point = points.single()
         assertEquals("falls back to the live row", 90, point.forecastBands.mid)
         assertFalse(point.isFrozenBands)
-        assertEquals(
-            listOf(null),
-            CloudLayerGlyphPlacer.divergentActuals(
-                forecast = points.map { it.forecastBands.mid },
-                actual = points.map { it.actualBands.mid },
-                frozen = points.map { it.isFrozenBands },
-            ),
-        )
+        assertEquals(90, point.actualBands.mid)
     }
 
     /**
@@ -213,23 +187,41 @@ class ObservedCloudBandPipelineIntegrationTest {
         )
 
         val point = points.single()
-        assertEquals(
-            "mid agreed, high missed badly",
-            listOf(null),
-            CloudLayerGlyphPlacer.divergentActuals(
-                forecast = points.map { it.forecastBands.mid },
-                actual = points.map { it.actualBands.mid },
-                frozen = points.map { it.isFrozenBands },
-            ),
-        )
-        assertEquals(
-            listOf(95),
-            CloudLayerGlyphPlacer.divergentActuals(
-                forecast = points.map { it.forecastBands.high },
-                actual = points.map { it.actualBands.high },
-                frozen = points.map { it.isFrozenBands },
-            ),
-        )
+        assertEquals(15, point.actualBands.mid)
+        assertEquals(95, point.actualBands.high)
         assertEquals(30, point.forecastBands.high)
+    }
+
+    @Test
+    fun `NWS cumulative low and mid reach the graph model with derived total`() = runBlocking {
+        val target = now - 4 * hour
+        val row = observedRow(target, low = 44, mid = 75)
+            .copy(
+                api = WeatherSource.NWS.id,
+                stationId = "KSJC",
+                stationName = "KSJC",
+                distanceKm = 4f,
+                isMetar = true,
+                cloudVerticalKind = CloudVerticalKind.CUMULATIVE_LAYERS,
+            )
+        val actuals = MetarCloudBlender.fromSiteRows(
+            startMs = now - 12 * hour,
+            endMs = now + hour,
+            sourceId = WeatherSource.NWS.id,
+            readSiteRows = { _, _ -> listOf(row) },
+        )
+        val points = CloudSeriesBuilder.build(
+            liveHours = listOf(liveHour(-4, mid = null).copy(source = WeatherSource.NWS.id)),
+            priorForecast = emptyMap(),
+            retroActual = actuals.hours,
+            nowMs = now,
+            retroBands = actuals.bands,
+        )
+
+        val point = points.single()
+        assertEquals(75, point.actualCover)
+        assertEquals(44, point.actualBands.low)
+        assertEquals(75, point.actualBands.mid)
+        assertNull(point.actualBands.high)
     }
 }

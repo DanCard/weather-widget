@@ -11,17 +11,18 @@ import com.weatherwidget.shared.util.VisibleCloudCover
  * happened after later runs assimilated observations.
  */
 /**
- * The mid- and high-layer cloud percentages for one hour.
+ * The low-, mid-, and high-layer cloud percentages for one hour.
  *
  * Null means **not reported**, never clear — the same rule the observation columns carry. A band
  * a provider does not supply must stay absent so the render can decline to draw it, rather than
  * claiming an observation of an empty sky nobody made.
  */
 data class CloudBands(
+    val low: Int? = null,
     val mid: Int? = null,
     val high: Int? = null,
 ) {
-    val isEmpty: Boolean get() = mid == null && high == null
+    val isEmpty: Boolean get() = low == null && mid == null && high == null
 
     companion object {
         val NONE = CloudBands()
@@ -47,9 +48,9 @@ data class CloudPoint(
      */
     val isFrozen: Boolean,
     /**
-     * The mid/high bands' own forecast-vs-actual pair, resolved exactly as [forecastCover] and
-     * [actualCover] are. Open-Meteo is the only source that forecasts the bands, so on every other
-     * source both stay [CloudBands.NONE] and the render draws no band glyphs at all.
+     * The vertical bands' own forecast-vs-actual pair, resolved exactly as [forecastCover] and
+     * [actualCover] are. Forecast glyphs currently use middle/high; actual glyphs may use all three
+     * for provider percentages or cumulative station layers.
      */
     val forecastBands: CloudBands = CloudBands.NONE,
     val actualBands: CloudBands = CloudBands.NONE,
@@ -122,7 +123,11 @@ object CloudSeriesBuilder {
                 // Same shape as the low band above, and the same reason: for an elapsed hour the
                 // live row has already been retro-corrected by later runs, so drawing it as the
                 // forecast destroys the only record of what was predicted.
-                val liveBands = CloudBands(mid = hour.cloudCoverMid?.coerceIn(0, 100), high = hour.cloudCoverHigh?.coerceIn(0, 100))
+                val liveBands = CloudBands(
+                    low = hour.cloudCoverLow?.coerceIn(0, 100),
+                    mid = hour.cloudCoverMid?.coerceIn(0, 100),
+                    high = hour.cloudCoverHigh?.coerceIn(0, 100),
+                )
                 val frozenBands = if (hour.dateTime < currentHourStart) priorBands[hour.dateTime] else null
                 CloudPoint(
                     timeMs = hour.dateTime,
@@ -151,7 +156,7 @@ object CloudSeriesBuilder {
         return if (kotlin.math.abs(nearest.key - hourMs) <= TOLERANCE_MS) nearest.value else null
     }
 
-    /** [nearestWithin] for the band pair; same tolerance, same "nothing that close" contract. */
+    /** [nearestWithin] for the layer set; same tolerance, same "nothing that close" contract. */
     private fun nearestBandsWithin(
         sortedEntries: List<Map.Entry<Long, CloudBands>>,
         hourMs: Long,

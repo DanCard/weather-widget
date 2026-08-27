@@ -15,9 +15,9 @@ import org.robolectric.annotation.Config
 import java.time.LocalDateTime
 
 /**
- * The renderer's half of the observed band trails: that a divergent actual actually produces extra
- * glyph ink, that an agreeing or unfrozen one produces none, and that whatever is drawn is handed
- * to the label-placement search as an obstacle.
+ * The renderer's half of the observed band trails: actuals draw independently of frozen-forecast
+ * accuracy, any layer matching actual total stays silent, and whatever is drawn is handed to the
+ * label-placement search as an obstacle.
  *
  * Robolectric has no font engine, so nothing here asserts pixels. The assertions are counts and
  * containment over boxes sized from dp
@@ -40,11 +40,15 @@ class CloudCoverGraphObservedBandRobolectricTest {
         actualMid: Int?,
         frozen: Boolean,
         forecastMid: Int = 80,
+        actualTotal: Int? = null,
+        actualLow: Int? = null,
     ): List<CloudCoverGraphRenderer.CloudHourData> = (0 until 18).map { index ->
         CloudCoverGraphRenderer.CloudHourData(
             dateTime = start.plusHours(index.toLong()),
             cloudCover = 3,
+            actualCloudCover = actualTotal,
             midCover = forecastMid,
+            actualLowCover = actualLow,
             actualMidCover = actualMid,
             isFrozenBands = frozen,
             label = "${index}h",
@@ -70,7 +74,7 @@ class CloudCoverGraphObservedBandRobolectricTest {
     private val forecastOnly by lazy { glyphBoxesFor(hours(actualMid = null, frozen = false)) }
 
     @Test
-    fun `a divergent frozen actual adds a second trail of glyph ink`() {
+    fun `an actual adds a second trail of glyph ink`() {
         val withActual = glyphBoxesFor(hours(actualMid = 20, frozen = true))
 
         assertTrue("expected a forecast trail to compare against", forecastOnly.size > 20)
@@ -81,25 +85,59 @@ class CloudCoverGraphObservedBandRobolectricTest {
     }
 
     @Test
-    fun `an actual within the divergence floor adds nothing`() {
+    fun `an agreeing actual still adds its pink trail`() {
         val agreeing = glyphBoxesFor(hours(actualMid = 80 + 1, frozen = true))
 
-        assertEquals(
-            "an agreeing actual must leave the graph exactly as it was",
-            forecastOnly.size,
-            agreeing.size,
+        assertTrue(
+            "actual shape must remain visible even when forecast agrees",
+            agreeing.size > forecastOnly.size,
         )
     }
 
     /**
-     * Without a stored snapshot the forecast trail is carrying the retro-corrected live row, so a
-     * pink glyph would be comparing the actual against a copy of itself.
+     * Frozen state describes the gray forecast's provenance; it does not suppress observed shape.
      */
     @Test
-    fun `an unfrozen hour draws no observed glyph however far it diverges`() {
-        val unfrozen = glyphBoxesFor(hours(actualMid = 5, frozen = false))
+    fun `an unfrozen hour still draws its observed glyph trail`() {
+        val unfrozen = glyphBoxesFor(hours(actualMid = 6, frozen = false, actualTotal = 5))
 
-        assertEquals(forecastOnly.size, unfrozen.size)
+        assertTrue(unfrozen.size > forecastOnly.size)
+    }
+
+    @Test
+    fun `an actual at one hundred draws nothing when total is also one hundred`() {
+        val matchingTop = glyphBoxesFor(
+            hours(actualMid = 100, frozen = false, actualTotal = 100),
+        )
+
+        assertEquals(forecastOnly.size, matchingTop.size)
+    }
+
+    @Test
+    fun `an actual at one hundred still draws when total differs`() {
+        val distinctTop = glyphBoxesFor(
+            hours(actualMid = 100, frozen = false, actualTotal = 99),
+        )
+
+        assertTrue(distinctTop.size > forecastOnly.size)
+    }
+
+    @Test
+    fun `an actual low below five draws when total differs`() {
+        val distinctLow = glyphBoxesFor(
+            hours(actualMid = null, frozen = false, actualTotal = 80, actualLow = 3),
+        )
+
+        assertTrue(distinctLow.size > forecastOnly.size)
+    }
+
+    @Test
+    fun `an actual low draws nothing when it matches non-extreme total`() {
+        val matchingLow = glyphBoxesFor(
+            hours(actualMid = null, frozen = false, actualTotal = 44, actualLow = 44),
+        )
+
+        assertEquals(forecastOnly.size, matchingLow.size)
     }
 
     /**

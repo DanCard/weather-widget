@@ -15,12 +15,11 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * The read side of the observed mid/high bands: which stored rows are allowed to become a band
- * percentage on the cloud graph's 0-100 axis.
+ * The read side of observed vertical layers: which stored rows may become low/mid/high coverage on
+ * the cloud graph's 0-100 axis.
  *
- * The gate is [CloudVerticalKind], not a source id. `CUMULATIVE_LAYERS` reports a cumulative sky
- * condition and `TOTAL_ENVELOPE` a height range; neither is a band percentage, and neither has a
- * band forecast to be drawn against.
+ * Provider bands are copied from their synthetic row. Station `CUMULATIVE_LAYERS` are blended
+ * alongside their derived total. `TOTAL_ENVELOPE` remains height-only and contributes no layers.
  */
 @Category(ShortDuration::class)
 class ObservedCloudBandsReadTest {
@@ -66,10 +65,10 @@ class ObservedCloudBandsReadTest {
         )
 
     @Test
-    fun `a PROVIDER_BANDS row supplies both bands`() = runBlocking {
+    fun `a PROVIDER_BANDS row supplies all reported layers`() = runBlocking {
         val result = read(listOf(openMeteoRow(mid = 44, high = 100)))
 
-        assertEquals(CloudBands(mid = 44, high = 100), result.bands[hour])
+        assertEquals(CloudBands(low = 30, mid = 44, high = 100), result.bands[hour])
         // The main curve reads the row's total. This row carries none — Open-Meteo backfill rows
         // that predate the total column, and every station row — so it falls back to the bands'
         // maximum, which for cumulative layers IS the total. See VisibleCloudCover.
@@ -96,16 +95,16 @@ class ObservedCloudBandsReadTest {
 
     /** A row reporting no band at all is not an observation of a cloudless middle atmosphere. */
     @Test
-    fun `a row with neither band contributes no entry`() = runBlocking {
-        val result = read(listOf(openMeteoRow(mid = null, high = null)))
+    fun `a row with no vertical layer contributes no entry`() = runBlocking {
+        val result = read(listOf(openMeteoRow(mid = null, high = null, low = null)))
 
         assertTrue(result.bands.isEmpty())
-        assertEquals("its low value is all the row has, so it is the curve", 30, result.hours[hour])
+        assertTrue(result.hours.isEmpty())
     }
 
     @Test
     fun `one band present is enough`() = runBlocking {
-        val result = read(listOf(openMeteoRow(mid = null, high = 65)))
+        val result = read(listOf(openMeteoRow(mid = null, high = 65, low = null)))
 
         assertEquals(CloudBands(mid = null, high = 65), result.bands[hour])
     }
@@ -113,17 +112,17 @@ class ObservedCloudBandsReadTest {
     @Test
     fun `bands are keyed by their native report timestamp`() = runBlocking {
         val quarterPast = hour + 15 * 60_000L
-        val result = read(listOf(openMeteoRow(mid = 51, atMs = quarterPast)))
+        val result = read(listOf(openMeteoRow(mid = 51, low = null, atMs = quarterPast)))
 
         assertEquals(CloudBands(mid = 51), result.bands[quarterPast])
     }
 
     /**
-     * The METAR blend branch never reaches the band code at all — its rows are cumulative sky
-     * conditions blended across stations, which is a different question from a band percentage.
+     * The METAR branch exposes cumulative layers after blending them through the same station
+     * anchors as total.
      */
     @Test
-    fun `a station-observation source yields no bands`() = runBlocking {
+    fun `a station-observation source yields its cumulative layers`() = runBlocking {
         val result = MetarCloudBlender.fromSiteRows(
             startMs = hour,
             endMs = hour + 3_600_000L,
@@ -142,6 +141,36 @@ class ObservedCloudBandsReadTest {
             },
         )
 
-        assertTrue(result.bands.isEmpty())
+        assertEquals(CloudBands(low = 30, mid = 44, high = 70), result.bands[hour])
+        assertEquals(70, result.hours[hour])
+    }
+
+    @Test
+    fun `station layers are blended independently through the total anchors`() = runBlocking {
+        val first = openMeteoRow(low = 20, mid = 80, high = null)
+            .copy(
+                api = WeatherSource.NWS.id,
+                stationId = "KNUQ",
+                stationName = "KNUQ",
+                distanceKm = 1f,
+                isMetar = true,
+                cloudVerticalKind = CloudVerticalKind.CUMULATIVE_LAYERS,
+            )
+        val second = first.copy(
+            stationId = "KSJC",
+            stationName = "KSJC",
+            cloudCoverLow = 60,
+            cloudCoverMid = 40,
+        )
+
+        val result = MetarCloudBlender.fromSiteRows(
+            startMs = hour,
+            endMs = hour + 3_600_000L,
+            sourceId = WeatherSource.NWS.id,
+            readSiteRows = { _, _ -> listOf(first, second) },
+        )
+
+        assertEquals("station totals 80 and 60 blend to 70", 70, result.hours[hour])
+        assertEquals(CloudBands(low = 40, mid = 60), result.bands[hour])
     }
 }

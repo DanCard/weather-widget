@@ -81,13 +81,11 @@ object CloudCoverGraphRenderer {
         val midCover: Int? = null,
         val highCover: Int? = null,
         /**
-         * What the bands actually did, for past hours only. Drawn as a second pair of glyph trails
-         * in the actual's pink, and only where the hour has a genuine frozen band prediction that
-         * the actual diverges from — see [CloudLayerGlyphPlacer.divergentActuals].
-         *
-         * Open-Meteo only: it is the sole source that forecasts the bands, so it is the sole source
-         * where an observed band has anything to be compared against.
+         * What the vertical layers actually did. Drawn as small pink `l`/`m`/`h` trails only where
+         * a reported layer differs from the solid actual-total line. Provider bands and cumulative
+         * NWS/METAR layers both live on this 0-100 coverage axis.
          */
+        val actualLowCover: Int? = null,
         val actualMidCover: Int? = null,
         val actualHighCover: Int? = null,
         /** True when [midCover]/[highCover] are a stored day-ago prediction, not the live row. */
@@ -180,7 +178,7 @@ object CloudCoverGraphRenderer {
         dominantStationLabel: DominantStationLabel.LabelText? = null,
         onDominantStationPlaced: ((DominantStationLabel.Placement?) -> Unit)? = null,
         /**
-         * The mid/high layer glyph ink boxes, as handed to the free-label search. Exposed so a test
+         * The layer-glyph ink boxes, as handed to the free-label search. Exposed so a test
          * can assert the annotation clears them; without it a placement test cannot tell a wired
          * obstacle list from an empty one.
          */
@@ -264,25 +262,16 @@ object CloudCoverGraphRenderer {
         }
         val actualSegments = CloudActualSeries.segments(timedActual)
         val hasActual = actualSegments.any { it.size >= 2 }
-        // Scale over EVERY plotted series, or the tallest draws off the top. The mid/high layers
+        // Scale over EVERY plotted series, or the tallest draws off the top. The vertical layers
         // routinely reach 100% on days the low layer never leaves the axis (measured 2026-08-27),
         // so leaving them out here put their glyphs above graphTop, in the padding.
         val midCovers = hours.map { it.midCover }
         val highCovers = hours.map { it.highCover }
-        // Only the observed values that will actually be DRAWN feed the scale. A suppressed glyph
-        // occupies no pixels, so scaling for it would shrink the plot for nothing.
-        val actualMidCovers = CloudLayerGlyphPlacer.divergentActuals(
-            forecast = midCovers,
-            actual = hours.map { it.actualMidCover },
-            frozen = hours.map { it.isFrozenBands },
-        )
-        val actualHighCovers = CloudLayerGlyphPlacer.divergentActuals(
-            forecast = highCovers,
-            actual = hours.map { it.actualHighCover },
-            frozen = hours.map { it.isFrozenBands },
-        )
+        val actualLowCovers = hours.map { it.actualLowCover }
+        val actualMidCovers = hours.map { it.actualMidCover }
+        val actualHighCovers = hours.map { it.actualHighCover }
         val layerValues =
-            (midCovers + highCovers + actualMidCovers + actualHighCovers)
+            (midCovers + highCovers + actualLowCovers + actualMidCovers + actualHighCovers)
                 .filterNotNull().map { it.toFloat() }
         val verticalScale = computeVerticalScale(
             smoothedValues + timedActual.map { it.cover.toFloat() } + layerValues,
@@ -334,7 +323,7 @@ object CloudCoverGraphRenderer {
 
         canvas.drawPath(fillPath, paints.gradientPaint)
 
-        // --- Mid/high layer glyph curves ---
+        // --- Vertical-layer glyph curves ---
         // Each layer is a curve whose line is made of repeated tiny letters. Drawn under the low
         // forecast curve: the low layer is what "is it cloudy out" means, and the layers are
         // context for it. Skipped entirely on the common day where neither band has anything.
@@ -345,11 +334,15 @@ object CloudCoverGraphRenderer {
         val layerGlyphBounds = mutableListOf<GraphRect>()
         if (CloudLayerGlyphPlacer.hasVisibleCover(midCovers) ||
             CloudLayerGlyphPlacer.hasVisibleCover(highCovers) ||
-            CloudLayerGlyphPlacer.hasVisibleCover(actualMidCovers) ||
-            CloudLayerGlyphPlacer.hasVisibleCover(actualHighCovers)
+            actualLowCovers.any { it != null } ||
+            actualMidCovers.any { it != null } ||
+            actualHighCovers.any { it != null }
         ) {
             val glyphStepPx = dpToPx(context, CloudLayerGlyphPlacer.GLYPH_STEP_DP * labelScale)
+            val actualGlyphStepPx =
+                dpToPx(context, CloudLayerGlyphPlacer.ACTUAL_GLYPH_STEP_DP * labelScale)
             val nudgePx = paints.layerGlyphPaint.textSize * 0.55f
+            val actualNudgePx = paints.layerGlyphActualPaint.textSize * 0.55f
             // The curve each trail is drawn against, and the highest band BELOW the one being
             // placed, so the placer can tell a glyph that duplicates its curve from one that
             // explains it. The forecast trails answer to the forecast curve, the observed trails to
@@ -379,8 +372,7 @@ object CloudCoverGraphRenderer {
                 )
             }
             // For `h` the low deck and the mid band both sit below it; either explaining the total
-            // makes the `h` redundant. The observed trails pass no lower band: they exist only where
-            // the forecast already missed by 8+ points, so there is nothing redundant to remove.
+            // makes the forecast `h` redundant. Actual layers use exact total-match suppression.
             val highLowerBands = lows.indices.map { index ->
                 listOfNotNull(lows.getOrNull(index), midCovers.getOrNull(index)).maxOrNull()
             }
@@ -400,25 +392,41 @@ object CloudCoverGraphRenderer {
                         phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
                         nudgePx = -nudgePx,
                     )
-            // Quarter-step phases keep the observed trails off the forecast ones' x positions.
+            // Actual layers have no 5% floor: a reported 0-4% value still explains the vertical
+            // profile when it differs from total.
             val actualLayerGlyphs =
                 CloudLayerGlyphPlacer.place(
+                    vertices = layerVertices(actualLowCovers, actualMidCovers, actualTotals, noLowerBand),
+                    glyph = CloudLayerGlyphPlacer.LOW_GLYPH,
+                    stepPx = actualGlyphStepPx,
+                    phaseFraction = CloudLayerGlyphPlacer.LOW_ACTUAL_PHASE,
+                    nudgePx = actualNudgePx,
+                    minCover = 0,
+                    suppressMatchingTotal = true,
+                ) +
+                    CloudLayerGlyphPlacer.place(
                     vertices = layerVertices(actualMidCovers, actualHighCovers, actualTotals, noLowerBand),
                     glyph = CloudLayerGlyphPlacer.MID_GLYPH,
-                    stepPx = glyphStepPx,
+                    stepPx = actualGlyphStepPx,
                     phaseFraction = CloudLayerGlyphPlacer.MID_ACTUAL_PHASE,
-                    nudgePx = nudgePx,
+                    nudgePx = actualNudgePx,
+                    minCover = 0,
+                    suppressMatchingTotal = true,
                 ) +
                     CloudLayerGlyphPlacer.place(
                         vertices = layerVertices(actualHighCovers, actualMidCovers, actualTotals, noLowerBand),
                         glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
-                        stepPx = glyphStepPx,
+                        stepPx = actualGlyphStepPx,
                         phaseFraction = CloudLayerGlyphPlacer.HIGH_ACTUAL_PHASE,
-                        nudgePx = -nudgePx,
+                        nudgePx = -actualNudgePx,
+                        minCover = 0,
+                        suppressMatchingTotal = true,
                     )
             // drawText takes a baseline; the placer returns the glyph's visual centre.
             val baselineOffset =
                 -(paints.layerGlyphPaint.ascent() + paints.layerGlyphPaint.descent()) / 2f
+            val actualBaselineOffset =
+                -(paints.layerGlyphActualPaint.ascent() + paints.layerGlyphActualPaint.descent()) / 2f
             layerGlyphs.forEach { glyph ->
                 canvas.drawText(
                     glyph.glyph.toString(), glyph.x, glyph.y + baselineOffset, paints.layerGlyphPaint,
@@ -426,27 +434,27 @@ object CloudCoverGraphRenderer {
             }
             actualLayerGlyphs.forEach { glyph ->
                 canvas.drawText(
-                    glyph.glyph.toString(), glyph.x, glyph.y + baselineOffset,
+                    glyph.glyph.toString(), glyph.x, glyph.y + actualBaselineOffset,
                     paints.layerGlyphActualPaint,
                 )
             }
             // Sized from the paint's type size — the same number that drives `nudgePx` — not from
             // `measureText`/`ascent`, which disagree with Compose's measurements on desktop and
             // return stubs under Robolectric. See CloudLayerGlyphPlacer.GLYPH_BOX_*_RATIO.
+            layerGlyphBounds += CloudLayerGlyphPlacer.glyphBounds(layerGlyphs, paints.layerGlyphPaint.textSize)
+            // Keep separate bounds calls because the two paints can still differ in weight/style.
             layerGlyphBounds += CloudLayerGlyphPlacer.glyphBounds(
-                // Both trails, or the free-floating dominant-station label reads the pink one as
-                // open air and lands on top of it.
-                glyphs = layerGlyphs + actualLayerGlyphs,
-                glyphSizePx = paints.layerGlyphPaint.textSize,
+                actualLayerGlyphs,
+                paints.layerGlyphActualPaint.textSize,
             )
             onLayerGlyphsPlaced?.invoke(layerGlyphBounds.toList())
             Log.d(
                 TAG,
                 "layerGlyphs: midMax=${midCovers.filterNotNull().maxOrNull()} " +
                     "highMax=${highCovers.filterNotNull().maxOrNull()} drawn=${layerGlyphs.size} " +
-                    "actualDrawn=${actualLayerGlyphs.size} " +
+                    "actualDrawn=${actualLayerGlyphs.size} actualLowMax=${actualLowCovers.filterNotNull().maxOrNull()} " +
                     "frozenBands=${hours.count { it.isFrozenBands }}/${hours.size} " +
-                    "stepPx=$glyphStepPx topScale=${verticalScale.topScale}",
+                    "stepPx=$glyphStepPx actualStepPx=$actualGlyphStepPx topScale=${verticalScale.topScale}",
             )
         }
 

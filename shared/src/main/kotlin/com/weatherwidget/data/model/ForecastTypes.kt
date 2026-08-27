@@ -215,7 +215,7 @@ data class ForecastSnapshot(
      * Open-Meteo, and for hours the app was not running a day beforehand.
      */
     val priorDayBandForecast: Map<Long, com.weatherwidget.shared.graph.CloudBands> = emptyMap(),
-    /** Observed mid/high bands by native timestamp; PROVIDER_BANDS rows only. */
+    /** Observed low/mid/high layers by native timestamp; provider bands or blended station layers. */
     val retroCloudBands: Map<Long, com.weatherwidget.shared.graph.CloudBands> = emptyMap(),
     /** Dominant station contribution for borrowed cloud actuals. */
     val dominantCloudContribution: BlendContribution? = null,
