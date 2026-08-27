@@ -138,15 +138,34 @@ derive from `GLYPH_SIZE_DP` for `nudgePx`. Being a pixel out on a 6.5dp glyph co
 erring large errs toward keeping text off the trail. Recorded in
 [[robolectric-no-font-engine]].
 
-### Coverage gap
+### Wiring — `desktop/.../CloudCoverGraphGlyphObstacleTest.kt`
 
-**The desktop wiring is not covered.** `CloudCoverGraph` is a Canvas-only composable with no debug
-hooks — no desktop graph composable has any — so asserting its placement would mean introducing
-that pattern to the desktop module. The shared geometry and `DominantStationLabel.place` are common
-to both, so what is untested is the single `+ layerGlyphBounds` line in `CloudCoverGraph.kt`.
+The same two-part test against the real composable, through a new `onPlacementDebug` hook carrying
+`CloudGraphPlacementDebug(layerGlyphBounds, actualsSourcePlacement)`. The hook is emitted *outside*
+the annotation's own gate, so a test can tell "searched and found nowhere" from "never got as far as
+searching", and it is null in production so the work is never done.
 
-Also run green: full `:shared:test`, `:app:compileDebugKotlin`, `:desktop:compileKotlin`, and the
-existing `CloudCoverGraphLabelPlacementRobolectricTest`.
+This is the first debug hook on a desktop graph composable — the cloud graph draws to a Canvas and
+publishes nothing to the semantics tree, so a placement defect here is otherwise invisible to a
+Compose UI test.
+
+Two differences from the Android twin, both in this test's favour:
+
+- **A real font engine.** Desktop Compose measures through Skia, so the annotation is its true
+  width and the scene is to scale — where the Robolectric version runs a 1px-per-character stub.
+- **Real production geometry.** It renders through `rememberHourlyGraphSetup` and the actual
+  window/zoom maths rather than a hand-built hour list.
+
+**Verified it can fail.** Dropping `+ layerGlyphBounds` from the composable reports
+`annotation overlaps 9 glyph box(es)` while the publication half stays green.
+
+The scene uses `displaySourceId = "SILURIAN"` — a forecast-only source, so its actuals are borrowed
+and the annotation naming the borrowed provider is drawn. No preference is installed, so
+`ActualsProviderResolver` falls back to its default and the test leaks no global state into its
+neighbours.
+
+Also run green: full `:shared:test`, full `:desktop:test`, and the existing
+`CloudCoverGraphLabelPlacementRobolectricTest`.
 
 ## Verification
 
@@ -157,8 +176,9 @@ visual evidence on my side is the "before" capture only.
 
 - `3e7e8934` *Let the cloud actuals-source label see the layer glyph trails* (on `main`, not
   pushed) — the fix and the geometry test.
-- The dp-derived glyph box, the `onLayerGlyphsPlaced` hook and the Robolectric wiring test are
-  uncommitted in the working tree.
+- `78676996` *Size layer glyph obstacle boxes from dp, and test the wiring* — the dp-derived box,
+  the Android `onLayerGlyphsPlaced` hook and the Robolectric wiring test.
+- The desktop `onPlacementDebug` hook and its wiring test are uncommitted in the working tree.
 
 Opus 5
 claude --resume 92f07940-d85c-42ed-afba-3f7d743446de

@@ -53,6 +53,21 @@ private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionR
     return Color(argb)
 }
 
+/**
+ * What the free-label search saw, for tests.
+ *
+ * The cloud graph draws to a Canvas and publishes nothing to the semantics tree, so a placement
+ * defect here is invisible to a Compose UI test — which is how the actuals-source annotation came to
+ * be drawn straight through the mid/high glyph trails (2026-08-27). The geometry is covered by pure
+ * shared tests; what needs a rendered frame is whether this composable actually *hands* the trails
+ * to the search. [layerGlyphBounds] is that obstacle list and [actualsSourcePlacement] is what came
+ * back, so a test can assert the second clears the first.
+ */
+data class CloudGraphPlacementDebug(
+    val layerGlyphBounds: List<GraphRect>,
+    val actualsSourcePlacement: DominantStationLabel.Placement?,
+)
+
 /** The exact x-axis domain the cloud Canvas draws, bounded at NOW for actual history. */
 internal fun cloudActualPlotRange(points: List<HourlyForecast>, nowMs: Long): LongRange? {
     if (points.isEmpty()) return null
@@ -83,6 +98,8 @@ fun CloudCoverGraph(
     onToggleZoom: (clickedOffset: Int) -> Unit = {},
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit = { _, _ -> },
     onPan: (deltaHours: Int) -> Unit = {},
+    /** Test seam; see [CloudGraphPlacementDebug]. Null in production, so the work is never done. */
+    onPlacementDebug: ((CloudGraphPlacementDebug) -> Unit)? = null,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val setup = rememberHourlyGraphSetup(hourly, centerOffsetHours, zoomFactor) ?: return
@@ -379,6 +396,7 @@ fun CloudCoverGraph(
             null
         }
         val dominantText = dominantLabel?.fullText
+        var actualsSourcePlacement: DominantStationLabel.Placement? = null
         if (dominantLabel != null && dominantText != null && dominantSpanHours <= DominantStationLabel.MAX_HOURS_SPAN) {
             val dominantStyle = TextStyle(
                 fontSize = (DOMINANT_STATION_LABEL_SP * scale).sp,
@@ -451,7 +469,11 @@ fun CloudCoverGraph(
                 drawText(measured, topLeft = topLeft)
                 drawnLabels.add(Rect(topLeft, Size(measured.size.width.toFloat(), measured.size.height.toFloat())))
             }
+            actualsSourcePlacement = placement
         }
+        // Emitted outside the gate above, so a test can tell "searched and found nowhere" from
+        // "never got as far as searching".
+        onPlacementDebug?.invoke(CloudGraphPlacementDebug(layerGlyphBounds.toList(), actualsSourcePlacement))
 
         // Draw Cloud Watermark in emptiest region — shared candidate search, local placement.
         val candidateCenters = CloudWatermarkPlacement.candidateCenters(smoothedClouds)
