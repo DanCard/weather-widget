@@ -13,6 +13,7 @@ import com.weatherwidget.shared.graph.PriorDayCloudForecast
 import com.weatherwidget.data.model.CurrentStatus
 import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.data.local.ObservationSiteMerge
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.orNullIfImplausibleTempF
 import com.weatherwidget.shared.actuals.MetarCloudBlender
@@ -1335,7 +1336,22 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 }
             }
         }
-        return result
+        // The box read admits every device-site fragment within ~11 km with mixed `distanceKm`
+        // frames and no dedup — the opposite failure from Android's single-site collapse, and it
+        // bites a laptop that moves between home, office and cafe exactly as the phone's collapse
+        // bit a walk to the park. Both platforms converge on one rule here. A machine that never
+        // moves has one site and sees a no-op.
+        return ObservationSiteMerge.merge(
+            rows = result,
+            lat = locationLat,
+            lon = locationLon,
+            latOf = DesktopObservationEntity::locationLat,
+            lonOf = DesktopObservationEntity::locationLon,
+            stationOf = DesktopObservationEntity::stationId,
+            timestampOf = DesktopObservationEntity::timestamp,
+            apiOf = DesktopObservationEntity::api,
+            fetchedAtOf = DesktopObservationEntity::fetchedAt,
+        )
     }
 
     fun getExtremesInRange(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double): List<DailyHistory> {

@@ -65,9 +65,14 @@ interface ObservationDao {
     ): List<ObservationEntity>
 
     /**
-     * Returns one physical site's observations from the coarse [LocationMatch.ROOM_WHERE] box.
-     * Centralizing this boundary keeps direct DAO consumers from accidentally mixing two nearby
-     * widget locations now that the site is part of observation identity.
+     * Returns the observations from the coarse [LocationMatch.ROOM_WHERE] box that describe the
+     * user's current sky, merged across nearby device-site fragments and deduplicated.
+     *
+     * Was a single-site collapse ([selectNearestObservationSite]). That deleted the rows of any
+     * fragment more than [LocationMatch.SAME_SITE_TOLERANCE_DEG] away, which on 2026-08-27 meant an
+     * ~800 m walk cost both the cloud and temperature actual lines a 75-minute hole over data that
+     * was in the database. A device site records where the phone was standing, not where the
+     * weather is. See [ObservationSiteMerge].
      */
     suspend fun getObservationsInRange(
         startTs: Long,
@@ -75,10 +80,16 @@ interface ObservationDao {
         lat: Double,
         lon: Double,
     ): List<ObservationEntity> =
-        selectNearestObservationSite(
-            getObservationCandidatesInRange(startTs, endTs, lat, lon),
-            lat,
-            lon,
+        ObservationSiteMerge.merge(
+            rows = getObservationCandidatesInRange(startTs, endTs, lat, lon),
+            lat = lat,
+            lon = lon,
+            latOf = ObservationEntity::locationLat,
+            lonOf = ObservationEntity::locationLon,
+            stationOf = ObservationEntity::stationId,
+            timestampOf = ObservationEntity::timestamp,
+            apiOf = ObservationEntity::api,
+            fetchedAtOf = ObservationEntity::fetchedAt,
         )
 
     /**
