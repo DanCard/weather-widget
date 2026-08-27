@@ -199,6 +199,9 @@ class DesktopWeatherRepository(
         // curve it annotates; empty for every source but Open-Meteo, which is the only one with a
         // previous-runs product.
         val priorCloud = weatherDao.getPriorDayCloudForecast(latitude, longitude, stitchedStart, now)
+        // The bands' frozen forecast, from our own snapshots under the REAL source id — the
+        // Previous Runs API serves no band data (see PriorDayBandForecast).
+        val priorCloudBands = weatherDao.getPriorDayBandForecast(latitude, longitude, weatherSource, stitchedStart, now)
         val retroCloudResult = weatherDao.getCloudActuals(latitude, longitude, stitchedStart, now, weatherSource)
         val retroCloud = retroCloudResult.hours
         val dominantCloudContribution = retroCloudResult.dominantContribution
@@ -264,6 +267,8 @@ class DesktopWeatherRepository(
             ),
             priorDayCloudForecast = priorCloud,
             retroCloudActual = retroCloud,
+            priorDayBandForecast = priorCloudBands,
+            retroCloudBands = retroCloudResult.bands,
             dominantCloudContribution = dominantCloudContribution,
         )
     }

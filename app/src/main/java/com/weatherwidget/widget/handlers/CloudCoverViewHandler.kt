@@ -455,6 +455,26 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             } else {
                 emptyMap()
             }
+            // The bands' frozen forecast, from our own snapshots under the REAL source id. Same
+            // availability gate as priorCloud (Open-Meteo is the only source that forecasts bands),
+            // but a different table scope — see PriorDayBandForecast for why the Previous Runs API
+            // cannot serve this.
+            val priorBands = if (cloudHistoryDao != null) {
+                runCatching {
+                    cloudHistoryDao.getPriorDayBandForecast(
+                        startDateTime = windowStart,
+                        endDateTime = windowEnd,
+                        lat = siteLat!!,
+                        lon = siteLon!!,
+                        source = effectiveDisplaySource.id,
+                    )
+                }.getOrElse {
+                    Log.w(TAG, "prior-day band read failed; band glyphs stay forecast-only", it)
+                    emptyMap()
+                }
+            } else {
+                emptyMap()
+            }
             val retroActual = if (cloudSeriesAvailable) {
                 runCatching {
                     WeatherDatabase.getDatabase(context).observationDao().getCloudActuals(
@@ -538,6 +558,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom,
                 priorDayCloudForecast = priorCloud,
                 retroCloudActual = retroActual.hours,
+                priorDayBandForecast = priorBands,
+                retroCloudBands = retroActual.bands,
             )
             buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
 
@@ -758,6 +780,11 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         // Low-cloud actuals by native provider timestamp. Authoritative — a timestamp draws an
         // actual if and only if it appears here.
         retroCloudActual: Map<Long, Int> = emptyMap(),
+        // Day-ago band predictions from our own hourly snapshots — the Previous Runs API has no
+        // band data (see PriorDayBandForecast). Empty for every source but Open-Meteo.
+        priorDayBandForecast: Map<Long, com.weatherwidget.shared.graph.CloudBands> = emptyMap(),
+        // Observed bands by native provider timestamp, PROVIDER_BANDS rows only.
+        retroCloudBands: Map<Long, com.weatherwidget.shared.graph.CloudBands> = emptyMap(),
     ): List<CloudCoverGraphRenderer.CloudHourData> {
         val now = LocalDateTime.now()
         // NaN, never a hardcoded coordinate: derived from the rows about to be drawn, so it only
@@ -795,6 +822,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             priorForecast = priorDayCloudForecast,
             retroActual = retroCloudActual,
             nowMs = now.atZone(zoneId).toInstant().toEpochMilli(),
+            priorBands = priorDayBandForecast,
+            retroBands = retroCloudBands,
         )
 
         // Narrow widgets widen the marker cadence to fit the inline footer groups: WIDE 6h vs 4h,
@@ -832,10 +861,15 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     cloudCover = cover,
                     actualCloudCover = point.actualCover,
                     isFrozenForecast = point.isFrozen,
-                    // Straight off the live row: the layers are forecast-only, with no frozen
-                    // day-ago series to swap in the way the low curve does.
-                    midCover = entity.cloudCoverMid,
-                    highCover = entity.cloudCoverHigh,
+                    // Resolved by CloudSeriesBuilder exactly as the low curve is, NOT read off the
+                    // live row. For an elapsed hour that row has already been retro-corrected by
+                    // later Open-Meteo runs, so reading it here drew observed values in the
+                    // forecast's grey.
+                    midCover = point.forecastBands.mid,
+                    highCover = point.forecastBands.high,
+                    actualMidCover = point.actualBands.mid,
+                    actualHighCover = point.actualBands.high,
+                    isFrozenBands = point.isFrozenBands,
                     label = p.label,
                     iconRes = p.iconRes,
                     isNight = p.isNight,

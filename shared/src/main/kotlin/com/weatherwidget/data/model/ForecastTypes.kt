@@ -209,6 +209,14 @@ data class ForecastSnapshot(
     val priorDayCloudForecast: Map<Long, Int> = emptyMap(),
     /** Source-isolated low-cloud history by its native timestamps (hourly or sub-hourly). */
     val retroCloudActual: Map<Long, Int> = emptyMap(),
+    /**
+     * Day-ago mid/high band predictions, from our own hourly snapshots rather than the Previous
+     * Runs API, which serves no band data (see `PriorDayBandForecast`). Empty for every source but
+     * Open-Meteo, and for hours the app was not running a day beforehand.
+     */
+    val priorDayBandForecast: Map<Long, com.weatherwidget.shared.graph.CloudBands> = emptyMap(),
+    /** Observed mid/high bands by native timestamp; PROVIDER_BANDS rows only. */
+    val retroCloudBands: Map<Long, com.weatherwidget.shared.graph.CloudBands> = emptyMap(),
     /** Dominant station contribution for borrowed cloud actuals. */
     val dominantCloudContribution: BlendContribution? = null,
 )

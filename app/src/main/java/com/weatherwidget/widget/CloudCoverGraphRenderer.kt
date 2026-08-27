@@ -70,13 +70,28 @@ object CloudCoverGraphRenderer {
         /** False when no day-ago prediction existed and [cloudCover] fell back to the live value. */
         val isFrozenForecast: Boolean = false,
         /**
-         * Mid- and high-layer cloud cover, drawn as `m`/`h` glyph curves (see
-         * [com.weatherwidget.shared.graph.CloudLayerGlyphPlacer]). Forecast-only and Open-Meteo-only:
-         * no other source reports the bands, and there is no frozen day-ago or observed counterpart
-         * for either, so they make no accuracy claim. Null where the source does not report them.
+         * Mid- and high-layer cloud FORECAST cover, drawn as `m`/`h` glyph curves (see
+         * [com.weatherwidget.shared.graph.CloudLayerGlyphPlacer]). Open-Meteo-only: no other source
+         * reports the bands. Null where the source does not report them.
+         *
+         * Resolved the way [cloudCover] is — the frozen day-ago snapshot for elapsed hours, the
+         * live row otherwise. Reading the live row directly for a past hour drew the
+         * already-retro-corrected value, i.e. the actual, in the forecast's grey.
          */
         val midCover: Int? = null,
         val highCover: Int? = null,
+        /**
+         * What the bands actually did, for past hours only. Drawn as a second pair of glyph trails
+         * in the actual's pink, and only where the hour has a genuine frozen band prediction that
+         * the actual diverges from — see [CloudLayerGlyphPlacer.divergentActuals].
+         *
+         * Open-Meteo only: it is the sole source that forecasts the bands, so it is the sole source
+         * where an observed band has anything to be compared against.
+         */
+        val actualMidCover: Int? = null,
+        val actualHighCover: Int? = null,
+        /** True when [midCover]/[highCover] are a stored day-ago prediction, not the live row. */
+        val isFrozenBands: Boolean = false,
         val label: String,
         val iconRes: Int? = null,
         val isNight: Boolean = false,
@@ -248,7 +263,21 @@ object CloudCoverGraphRenderer {
         // so leaving them out here put their glyphs above graphTop, in the padding.
         val midCovers = hours.map { it.midCover }
         val highCovers = hours.map { it.highCover }
-        val layerValues = (midCovers + highCovers).filterNotNull().map { it.toFloat() }
+        // Only the observed values that will actually be DRAWN feed the scale. A suppressed glyph
+        // occupies no pixels, so scaling for it would shrink the plot for nothing.
+        val actualMidCovers = CloudLayerGlyphPlacer.divergentActuals(
+            forecast = midCovers,
+            actual = hours.map { it.actualMidCover },
+            frozen = hours.map { it.isFrozenBands },
+        )
+        val actualHighCovers = CloudLayerGlyphPlacer.divergentActuals(
+            forecast = highCovers,
+            actual = hours.map { it.actualHighCover },
+            frozen = hours.map { it.isFrozenBands },
+        )
+        val layerValues =
+            (midCovers + highCovers + actualMidCovers + actualHighCovers)
+                .filterNotNull().map { it.toFloat() }
         val verticalScale = computeVerticalScale(
             smoothedValues + timedActual.map { it.cover.toFloat() } + layerValues,
         )
@@ -309,7 +338,9 @@ object CloudCoverGraphRenderer {
         // air. Empty on the common day, which is also when that label has the whole plot.
         val layerGlyphBounds = mutableListOf<GraphRect>()
         if (CloudLayerGlyphPlacer.hasVisibleCover(midCovers) ||
-            CloudLayerGlyphPlacer.hasVisibleCover(highCovers)
+            CloudLayerGlyphPlacer.hasVisibleCover(highCovers) ||
+            CloudLayerGlyphPlacer.hasVisibleCover(actualMidCovers) ||
+            CloudLayerGlyphPlacer.hasVisibleCover(actualHighCovers)
         ) {
             val glyphStepPx = dpToPx(context, CloudLayerGlyphPlacer.GLYPH_STEP_DP * labelScale)
             val nudgePx = paints.layerGlyphPaint.textSize * 0.55f
@@ -342,6 +373,22 @@ object CloudCoverGraphRenderer {
                         phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
                         nudgePx = -nudgePx,
                     )
+            // Quarter-step phases keep the observed trails off the forecast ones' x positions.
+            val actualLayerGlyphs =
+                CloudLayerGlyphPlacer.place(
+                    vertices = layerVertices(actualMidCovers, actualHighCovers),
+                    glyph = CloudLayerGlyphPlacer.MID_GLYPH,
+                    stepPx = glyphStepPx,
+                    phaseFraction = CloudLayerGlyphPlacer.MID_ACTUAL_PHASE,
+                    nudgePx = nudgePx,
+                ) +
+                    CloudLayerGlyphPlacer.place(
+                        vertices = layerVertices(actualHighCovers, actualMidCovers),
+                        glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
+                        stepPx = glyphStepPx,
+                        phaseFraction = CloudLayerGlyphPlacer.HIGH_ACTUAL_PHASE,
+                        nudgePx = -nudgePx,
+                    )
             // drawText takes a baseline; the placer returns the glyph's visual centre.
             val baselineOffset =
                 -(paints.layerGlyphPaint.ascent() + paints.layerGlyphPaint.descent()) / 2f
@@ -350,11 +397,19 @@ object CloudCoverGraphRenderer {
                     glyph.glyph.toString(), glyph.x, glyph.y + baselineOffset, paints.layerGlyphPaint,
                 )
             }
+            actualLayerGlyphs.forEach { glyph ->
+                canvas.drawText(
+                    glyph.glyph.toString(), glyph.x, glyph.y + baselineOffset,
+                    paints.layerGlyphActualPaint,
+                )
+            }
             // Sized from the paint's type size — the same number that drives `nudgePx` — not from
             // `measureText`/`ascent`, which disagree with Compose's measurements on desktop and
             // return stubs under Robolectric. See CloudLayerGlyphPlacer.GLYPH_BOX_*_RATIO.
             layerGlyphBounds += CloudLayerGlyphPlacer.glyphBounds(
-                glyphs = layerGlyphs,
+                // Both trails, or the free-floating dominant-station label reads the pink one as
+                // open air and lands on top of it.
+                glyphs = layerGlyphs + actualLayerGlyphs,
                 glyphSizePx = paints.layerGlyphPaint.textSize,
             )
             onLayerGlyphsPlaced?.invoke(layerGlyphBounds.toList())
@@ -362,6 +417,8 @@ object CloudCoverGraphRenderer {
                 TAG,
                 "layerGlyphs: midMax=${midCovers.filterNotNull().maxOrNull()} " +
                     "highMax=${highCovers.filterNotNull().maxOrNull()} drawn=${layerGlyphs.size} " +
+                    "actualDrawn=${actualLayerGlyphs.size} " +
+                    "frozenBands=${hours.count { it.isFrozenBands }}/${hours.size} " +
                     "stepPx=$glyphStepPx topScale=${verticalScale.topScale}",
             )
         }

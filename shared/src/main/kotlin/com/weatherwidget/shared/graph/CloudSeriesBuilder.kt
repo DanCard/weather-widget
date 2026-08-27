@@ -9,6 +9,24 @@ import com.weatherwidget.data.model.HourlyForecast
  * whole point: the forecast is what was predicted ~24h out, the actual is what Open-Meteo now says
  * happened after later runs assimilated observations.
  */
+/**
+ * The mid- and high-layer cloud percentages for one hour.
+ *
+ * Null means **not reported**, never clear — the same rule the observation columns carry. A band
+ * a provider does not supply must stay absent so the render can decline to draw it, rather than
+ * claiming an observation of an empty sky nobody made.
+ */
+data class CloudBands(
+    val mid: Int? = null,
+    val high: Int? = null,
+) {
+    val isEmpty: Boolean get() = mid == null && high == null
+
+    companion object {
+        val NONE = CloudBands()
+    }
+}
+
 data class CloudPoint(
     val timeMs: Long,
     /** Frozen day-ago prediction for past hours; the live row for the current and future hours. */
@@ -27,6 +45,20 @@ data class CloudPoint(
      * cannot actually make.
      */
     val isFrozen: Boolean,
+    /**
+     * The mid/high bands' own forecast-vs-actual pair, resolved exactly as [forecastCover] and
+     * [actualCover] are. Open-Meteo is the only source that forecasts the bands, so on every other
+     * source both stay [CloudBands.NONE] and the render draws no band glyphs at all.
+     */
+    val forecastBands: CloudBands = CloudBands.NONE,
+    val actualBands: CloudBands = CloudBands.NONE,
+    /**
+     * The bands' counterpart to [isFrozen], and deliberately **separate** from it: the low band has
+     * a stored history of day-ago predictions that the bands do not, so an hour can carry a genuine
+     * frozen low forecast while its bands are only a hindcast. Collapsing the two would let the
+     * render imply a band accuracy comparison it cannot make.
+     */
+    val isFrozenBands: Boolean = false,
 )
 
 /**
@@ -59,6 +91,8 @@ object CloudSeriesBuilder {
         priorForecast: Map<Long, Int>,
         retroActual: Map<Long, Int>,
         nowMs: Long,
+        priorBands: Map<Long, CloudBands> = emptyMap(),
+        retroBands: Map<Long, CloudBands> = emptyMap(),
     ): List<CloudPoint> {
         // Only the FORECAST curve cares where "now" falls. A day-ago prediction is a comparison for
         // an hour that has already happened; the current and future hours want the live row instead.
@@ -75,6 +109,7 @@ object CloudSeriesBuilder {
         // exists only for the hourly-aligned fallback render and the frozenCoverage diagnostic —
         // O(hours × keys) is paid nowhere hot.
         val actualByHour = retroActual.entries.sortedBy { it.key }
+        val actualBandsByHour = retroBands.entries.sortedBy { it.key }
 
         return liveHours
             .asSequence()
@@ -83,6 +118,11 @@ object CloudSeriesBuilder {
             .map { hour ->
                 val live = hour.visibleCloudCover()
                 val frozen = if (hour.dateTime < currentHourStart) priorForecast[hour.dateTime] else null
+                // Same shape as the low band above, and the same reason: for an elapsed hour the
+                // live row has already been retro-corrected by later runs, so drawing it as the
+                // forecast destroys the only record of what was predicted.
+                val liveBands = CloudBands(mid = hour.cloudCoverMid?.coerceIn(0, 100), high = hour.cloudCoverHigh?.coerceIn(0, 100))
+                val frozenBands = if (hour.dateTime < currentHourStart) priorBands[hour.dateTime] else null
                 CloudPoint(
                     timeMs = hour.dateTime,
                     // No day-ago prediction for this hour: fall back to the live value so the curve
@@ -90,6 +130,9 @@ object CloudSeriesBuilder {
                     forecastCover = frozen ?: live,
                     actualCover = nearestWithin(actualByHour, hour.dateTime)?.coerceIn(0, 100),
                     isFrozen = frozen != null,
+                    forecastBands = frozenBands ?: liveBands,
+                    actualBands = nearestBandsWithin(actualBandsByHour, hour.dateTime) ?: CloudBands.NONE,
+                    isFrozenBands = frozenBands != null,
                 )
             }
             .toList()
@@ -103,6 +146,15 @@ object CloudSeriesBuilder {
         sortedEntries: List<Map.Entry<Long, Int>>,
         hourMs: Long,
     ): Int? {
+        val nearest = sortedEntries.minByOrNull { kotlin.math.abs(it.key - hourMs) } ?: return null
+        return if (kotlin.math.abs(nearest.key - hourMs) <= TOLERANCE_MS) nearest.value else null
+    }
+
+    /** [nearestWithin] for the band pair; same tolerance, same "nothing that close" contract. */
+    private fun nearestBandsWithin(
+        sortedEntries: List<Map.Entry<Long, CloudBands>>,
+        hourMs: Long,
+    ): CloudBands? {
         val nearest = sortedEntries.minByOrNull { kotlin.math.abs(it.key - hourMs) } ?: return null
         return if (kotlin.math.abs(nearest.key - hourMs) <= TOLERANCE_MS) nearest.value else null
     }

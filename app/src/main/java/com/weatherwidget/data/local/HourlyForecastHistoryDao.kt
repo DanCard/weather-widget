@@ -173,6 +173,75 @@ interface HourlyForecastHistoryDao {
             .mapNotNull { row -> (row.cloudCoverLow ?: row.cloudCover)?.let { row.dateTime to it } }
             .toMap()
 
+    /**
+     * Candidate band snapshots for [getPriorDayBandForecast].
+     *
+     * Scoped to the REAL source id, not
+     * [com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID]: Open-Meteo's Previous Runs
+     * API serves no band data at all (see
+     * [com.weatherwidget.shared.graph.PriorDayBandForecast]), so the bands' frozen forecast comes
+     * from our own hourly snapshots instead.
+     *
+     * The prediction-bucket range is bounded here rather than in Kotlin so a 30-hour window does
+     * not drag every stored version of every hour across the Binder.
+     */
+    @Query(
+        """
+        SELECT * FROM hourly_forecast_history
+        WHERE source = :source
+          AND dateTime >= :startDateTime
+          AND dateTime < :endDateTime
+          AND timestampToGroupPredictions >= :minBucket
+          AND timestampToGroupPredictions <= :maxBucket
+          AND (cloudCoverMid IS NOT NULL OR cloudCoverHigh IS NOT NULL)
+          AND ${LocationMatch.ROOM_WHERE}
+        ORDER BY dateTime ASC, timestampToGroupPredictions ASC, locationLat ASC, locationLon ASC
+    """,
+    )
+    suspend fun getPriorDayBandCandidates(
+        startDateTime: Long,
+        endDateTime: Long,
+        minBucket: Long,
+        maxBucket: Long,
+        lat: Double,
+        lon: Double,
+        source: String,
+    ): List<HourlyForecastHistoryEntity>
+
+    /**
+     * Same-site collapse before the reduction, for the same reason [getPriorDayCloudForecast] does
+     * it: the coarse box can gather a jitter fragment or a neighbouring town.
+     */
+    suspend fun getPriorDayBandForecast(
+        startDateTime: Long,
+        endDateTime: Long,
+        lat: Double,
+        lon: Double,
+        source: String,
+    ): Map<Long, com.weatherwidget.shared.graph.CloudBands> =
+        com.weatherwidget.shared.graph.PriorDayBandForecast.select(
+            getPriorDayBandCandidates(
+                startDateTime = startDateTime,
+                endDateTime = endDateTime,
+                minBucket = startDateTime - com.weatherwidget.shared.graph.PriorDayBandForecast.MAX_LEAD_MS,
+                maxBucket = endDateTime - com.weatherwidget.shared.graph.PriorDayBandForecast.LEAD_MS,
+                lat = lat,
+                lon = lon,
+                source = source,
+            )
+                .filter { LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon) }
+                .map { row ->
+                    com.weatherwidget.shared.graph.PriorDayBandForecast.BandSnapshot(
+                        hourMs = row.dateTime,
+                        bucketMs = row.timestampToGroupPredictions,
+                        bands = com.weatherwidget.shared.graph.CloudBands(
+                            mid = row.cloudCoverMid,
+                            high = row.cloudCoverHigh,
+                        ),
+                    )
+                },
+        )
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(history: List<HourlyForecastHistoryEntity>)
 

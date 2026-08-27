@@ -22,6 +22,7 @@ object CloudCoverGraphStyle {
         val curvePaint: Paint,
         val actualCurvePaint: Paint,
         val layerGlyphPaint: Paint,
+        val layerGlyphActualPaint: Paint,
         val gradientPaint: Paint,
         val currentTimePaint: Paint,
         val hourLabelTextPaint: Paint,
@@ -76,6 +77,12 @@ object CloudCoverGraphStyle {
             )
         }
 
+        // The OBSERVED band trails: same geometry, the actual's pink. Nothing else differs — the
+        // pair reads as forecast-vs-actual because the palette already means that on this graph.
+        val layerGlyphActualPaint = Paint(layerGlyphPaint).apply {
+            color = COLOR_CLOUD_ACTUAL_ARGB
+        }
+
         val gradientPaint = HourlyGraphPaints.gradientFill()
         val currentTimePaint = HourlyGraphPaints.currentTime(context, labelScale)
         val hourLabelTextPaint = HourlyGraphPaints.hourLabel(context, labelScale)
@@ -117,6 +124,7 @@ object CloudCoverGraphStyle {
             curvePaint = curvePaint,
             actualCurvePaint = actualCurvePaint,
             layerGlyphPaint = layerGlyphPaint,
+            layerGlyphActualPaint = layerGlyphActualPaint,
             gradientPaint = gradientPaint,
             currentTimePaint = currentTimePaint,
             hourLabelTextPaint = hourLabelTextPaint,

@@ -1204,6 +1204,8 @@ internal fun WidgetPopup(
                                     hourly = snapshot.raw.hourly,
                                     priorDayCloudForecast = snapshot.priorDayCloudForecast,
                                     retroCloudActual = snapshot.retroCloudActual,
+                                    priorDayBandForecast = snapshot.priorDayBandForecast,
+                                    retroCloudBands = snapshot.retroCloudBands,
                                     displaySourceId = config.settings.weatherSource,
                                     latitude = config.lat,
                                     longitude = config.lon,

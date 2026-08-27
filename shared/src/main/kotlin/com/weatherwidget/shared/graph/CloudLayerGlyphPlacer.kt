@@ -55,6 +55,24 @@ object CloudLayerGlyphPlacer {
     const val HIGH_PHASE = 0.5f
 
     /**
+     * Quarter-step phases for the OBSERVED band trails, so all four series interleave instead of
+     * overprinting. Only Open-Meteo forecasts the bands, so only Open-Meteo ever draws four.
+     */
+    const val MID_ACTUAL_PHASE = 0.25f
+    const val HIGH_ACTUAL_PHASE = 0.75f
+
+    /**
+     * Percentage points a band's actual must differ from its frozen forecast before an observed
+     * glyph is drawn at all.
+     *
+     * Reuses [CloudCoverGraphPalette.ACTUAL_LABEL_MIN_DIVERGENCE] and its reasoning: below this the
+     * two trails overlap on screen and the second one is pure clutter. Suppressing agreement is
+     * also what gives the observed glyph a meaning worth the ink — it marks where the forecast was
+     * wrong. On a day the forecast got right, the graph looks exactly as it did before.
+     */
+    const val ACTUAL_MIN_DIVERGENCE = CloudCoverGraphPalette.ACTUAL_LABEL_MIN_DIVERGENCE
+
+    /**
      * Arc-length spacing and glyph size, in dp; each platform converts with its own density.
      *
      * The glyph is deliberately biased SMALL. These are texture on a curve, not labels to be read
@@ -64,6 +82,30 @@ object CloudLayerGlyphPlacer {
      */
     const val GLYPH_STEP_DP = 13f
     const val GLYPH_SIZE_DP = 6.5f
+
+    /**
+     * The observed band values worth drawing, index-aligned with the hour list: an entry survives
+     * only where a genuine frozen prediction existed for that hour AND the actual diverges from it
+     * by at least [ACTUAL_MIN_DIVERGENCE].
+     *
+     * The [frozen] gate is not an optimisation. Where no day-ago snapshot was stored the forecast
+     * curve is carrying the retro-corrected live row — the actual itself — so "divergence" would be
+     * measured against a copy of the thing being measured and would always read zero, or worse,
+     * read as agreement the graph never actually verified.
+     */
+    fun divergentActuals(
+        forecast: List<Int?>,
+        actual: List<Int?>,
+        frozen: List<Boolean>,
+    ): List<Int?> = actual.mapIndexed { index, actualValue ->
+        val forecastValue = forecast.getOrNull(index)
+        when {
+            frozen.getOrNull(index) != true -> null
+            actualValue == null || forecastValue == null -> null
+            kotlin.math.abs(actualValue - forecastValue) < ACTUAL_MIN_DIVERGENCE -> null
+            else -> actualValue
+        }
+    }
 
     /**
      * Walks [vertices] and emits one [glyph] every [stepPx] of arc length.

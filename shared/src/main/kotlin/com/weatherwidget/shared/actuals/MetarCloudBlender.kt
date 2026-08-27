@@ -1,8 +1,10 @@
 package com.weatherwidget.shared.actuals
 
-import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.HistoricalDataKind
+import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.graph.CloudBands
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.CloudHourBucket
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
@@ -100,6 +102,17 @@ object MetarCloudBlender {
         /** False for non-NWS sources: their cloud actuals come from the synthetic backfill row. */
         val isMetarBlend: Boolean,
         val dominantContribution: BlendContribution? = null,
+        /**
+         * Observed mid/high bands keyed like [hours], for the sources that measure them as band
+         * percentages ([CloudVerticalKind.PROVIDER_BANDS] — Open-Meteo today).
+         *
+         * Empty for every other source, and that is the whole gate: `CUMULATIVE_LAYERS` reports a
+         * cumulative sky condition and `TOTAL_ENVELOPE` a height range, neither of which is a band
+         * percentage that belongs on the graph's 0-100 axis beside a band forecast. Keying on the
+         * stored kind rather than a source id keeps that true if another provider later reports
+         * bands.
+         */
+        val bands: Map<Long, CloudBands> = emptyMap(),
     )
 
     fun empty(isMetarBlend: Boolean) = Result(emptyMap(), Stats(0, 0, emptyMap()), isMetarBlend, dominantContribution = null)
@@ -108,7 +121,8 @@ object MetarCloudBlender {
      * Wraps a synthetic-station series (the non-NWS sources, whose cloud arrives via
      * [HistoricalActualsBackfill]) with empty blend stats — there is no station blend behind it.
      */
-    fun synthetic(hours: Map<Long, Int>) = Result(hours, Stats(0, 0, emptyMap()), isMetarBlend = false, dominantContribution = null)
+    fun synthetic(hours: Map<Long, Int>, bands: Map<Long, CloudBands> = emptyMap()) =
+        Result(hours, Stats(0, 0, emptyMap()), isMetarBlend = false, dominantContribution = null, bands = bands)
 
     /**
      * The shared source-aware half of the cloud-actuals read, so the Android and desktop DAOs
@@ -205,9 +219,23 @@ object MetarCloudBlender {
             // such reach. Without this, a caller whose endMs is mid-hour silently gains an actual
             // for the hour after it.
             .filter { it.timestamp in startMs until endMs }
-            .mapNotNull { row -> row.visibleCloud()?.let { row.timestamp to it } }
-            .toMap()
-        return synthetic(hours)
+            .toList()
+        return synthetic(
+            hours = hours.mapNotNull { row -> row.visibleCloud()?.let { row.timestamp to it } }.toMap(),
+            bands = hours.asSequence()
+                // Only a provider that reports the bands AS band percentages. A row that carries
+                // no band at all contributes nothing rather than an empty pair, so a gap stays a
+                // gap the way it does for the low curve.
+                .filter { it.cloudVerticalKind == CloudVerticalKind.PROVIDER_BANDS }
+                .mapNotNull { row ->
+                    val bands = CloudBands(
+                        mid = row.cloudCoverMid?.coerceIn(0, 100),
+                        high = row.cloudCoverHigh?.coerceIn(0, 100),
+                    )
+                    if (bands.isEmpty) null else row.timestamp to bands
+                }
+                .toMap(),
+        )
     }
 
     /** What the actual curve draws for a row: the low layer where present, else the total. */

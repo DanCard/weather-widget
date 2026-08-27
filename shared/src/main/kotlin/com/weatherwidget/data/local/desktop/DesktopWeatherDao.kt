@@ -6,6 +6,8 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
+import com.weatherwidget.shared.graph.CloudBands
+import com.weatherwidget.shared.graph.PriorDayBandForecast
 import com.weatherwidget.shared.graph.PriorDayCloudForecast
 import com.weatherwidget.data.model.CurrentStatus
 import com.weatherwidget.data.model.CloudVerticalKind
@@ -249,6 +251,50 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     /** Day-ago cloud predictions for the window, as hour -> percent. */
     fun getPriorDayCloudForecast(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long): Map<Long, Int> =
         getSyntheticCloudSeries(locationLat, locationLon, PriorDayCloudForecast.SOURCE_ID, startMs, endMs)
+
+    /**
+     * Day-ago mid/high band predictions for the window, as hour -> bands.
+     *
+     * Its own query rather than [getHourlyHistory], which collapses to one freshest row per hour —
+     * the opposite of what is needed here, where the point is to recover an OLD snapshot. Scoped to
+     * the real source id because Open-Meteo's Previous Runs API has no band data at all; see
+     * [PriorDayBandForecast].
+     */
+    fun getPriorDayBandForecast(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Map<Long, CloudBands> {
+        val snapshots = mutableListOf<PriorDayBandForecast.BandSnapshot>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT dateTime, timestampToGroupPredictions, cloudCoverMid, cloudCoverHigh
+                FROM hourly_forecast_history
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
+                  AND dateTime >= ? AND dateTime <= ?
+                  AND timestampToGroupPredictions >= ? AND timestampToGroupPredictions <= ?
+                  AND (cloudCoverMid IS NOT NULL OR cloudCoverHigh IS NOT NULL)
+                ORDER BY dateTime ASC, timestampToGroupPredictions ASC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                stmt.setLong(4, startMs)
+                stmt.setLong(5, endMs)
+                stmt.setLong(6, startMs - PriorDayBandForecast.MAX_LEAD_MS)
+                stmt.setLong(7, endMs - PriorDayBandForecast.LEAD_MS)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    snapshots += PriorDayBandForecast.BandSnapshot(
+                        hourMs = rs.getLong("dateTime"),
+                        bucketMs = rs.getLong("timestampToGroupPredictions"),
+                        bands = CloudBands(
+                            mid = rs.getNullableInt("cloudCoverMid"),
+                            high = rs.getNullableInt("cloudCoverHigh"),
+                        ),
+                    )
+                }
+            }
+        }
+        return PriorDayBandForecast.select(snapshots)
+    }
 
     private fun getSyntheticCloudSeries(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Map<Long, Int> =
         getHourlyHistory(locationLat, locationLon, source, startMs, endMs)

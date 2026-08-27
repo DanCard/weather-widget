@@ -87,6 +87,8 @@ fun CloudCoverGraph(
      */
     priorDayCloudForecast: Map<Long, Int> = emptyMap(),
     retroCloudActual: Map<Long, Int> = emptyMap(),
+    priorDayBandForecast: Map<Long, com.weatherwidget.shared.graph.CloudBands> = emptyMap(),
+    retroCloudBands: Map<Long, com.weatherwidget.shared.graph.CloudBands> = emptyMap(),
     displaySourceId: String = "NWS",
     latitude: Double = 0.0,
     longitude: Double = 0.0,
@@ -143,7 +145,11 @@ fun CloudCoverGraph(
         // The forecast stays hourly because Open-Meteo Previous Runs is hourly-only. The actual is
         // independent and may be 15-minute: never zip it to these forecast vertices or the newest
         // three quarters disappear and the graph looks an hour stale.
-        val series = CloudSeriesBuilder.build(points, priorDayCloudForecast, retroCloudActual, now)
+        val series = CloudSeriesBuilder.build(
+            points, priorDayCloudForecast, retroCloudActual, now,
+            priorBands = priorDayBandForecast,
+            retroBands = retroCloudBands,
+        )
         val frozenByTime = series.filter { it.isFrozen }.associate { it.timeMs to it.forecastCover!! }
         // `rememberHourlyGraphSetup` includes one pre-roll hour and the x geometry maps that first
         // point to the left edge. Clip to that plotted domain, not the minute-bearing nominal start
@@ -167,9 +173,28 @@ fun CloudCoverGraph(
         // Scale must clear EVERY plotted series or the tallest draws off the top. The mid/high
         // layers routinely reach 100% on days the low layer never leaves the axis, so they belong
         // in this max alongside the forecast and actual curves.
-        val midCovers = points.map { it.cloudCoverMid }
-        val highCovers = points.map { it.cloudCoverHigh }
-        val layerValues = (midCovers + highCovers).filterNotNull().map { it.toFloat() }
+        // Keyed by time, not zipped by index: the series drops hours with no visible cloud, so
+        // index alignment with `points` (which drives xAt) is not guaranteed.
+        val seriesByTime = series.associateBy { it.timeMs }
+        // Resolved by CloudSeriesBuilder, NOT read off the live row: for an elapsed hour that row
+        // has already been retro-corrected, so it carries the actual wearing the forecast's grey.
+        val midCovers = points.map { seriesByTime[it.dateTime]?.forecastBands?.mid }
+        val highCovers = points.map { seriesByTime[it.dateTime]?.forecastBands?.high }
+        val frozenBands = points.map { seriesByTime[it.dateTime]?.isFrozenBands == true }
+        // Only the observed values that will actually be DRAWN feed the scale.
+        val actualMidCovers = CloudLayerGlyphPlacer.divergentActuals(
+            forecast = midCovers,
+            actual = points.map { seriesByTime[it.dateTime]?.actualBands?.mid },
+            frozen = frozenBands,
+        )
+        val actualHighCovers = CloudLayerGlyphPlacer.divergentActuals(
+            forecast = highCovers,
+            actual = points.map { seriesByTime[it.dateTime]?.actualBands?.high },
+            frozen = frozenBands,
+        )
+        val layerValues =
+            (midCovers + highCovers + actualMidCovers + actualHighCovers)
+                .filterNotNull().map { it.toFloat() }
         val visibleMax = (smoothedForecast + actualPoints.map { it.cover.toFloat() } + layerValues)
             .maxOrNull()?.coerceIn(0f, 100f) ?: 0f
         val topScale = (visibleMax + 12f).coerceIn(85f, 100f)
@@ -222,7 +247,9 @@ fun CloudCoverGraph(
         // air. Empty on the common day, which is also when the annotation has the whole plot.
         val layerGlyphBounds = mutableListOf<GraphRect>()
         if (CloudLayerGlyphPlacer.hasVisibleCover(midCovers) ||
-            CloudLayerGlyphPlacer.hasVisibleCover(highCovers)
+            CloudLayerGlyphPlacer.hasVisibleCover(highCovers) ||
+            CloudLayerGlyphPlacer.hasVisibleCover(actualMidCovers) ||
+            CloudLayerGlyphPlacer.hasVisibleCover(actualHighCovers)
         ) {
             val glyphStyle = TextStyle(
                 fontSize = (CloudLayerGlyphPlacer.GLYPH_SIZE_DP * scale).sp,
@@ -255,22 +282,44 @@ fun CloudCoverGraph(
                         phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
                         nudgePx = -nudgePx,
                     )
-            layerGlyphs.forEach { glyph ->
-                // The placer returns the glyph's visual centre; drawText takes its top-left.
-                val measured = textMeasurer.measure(glyph.glyph.toString(), glyphStyle)
-                drawText(
-                    measured,
-                    topLeft = Offset(
-                        glyph.x - measured.size.width / 2f,
-                        glyph.y - measured.size.height / 2f,
-                    ),
-                )
+            // Quarter-step phases keep the observed trails off the forecast ones' x positions.
+            val actualGlyphStyle = glyphStyle.copy(color = COLOR_CLOUD_ACTUAL)
+            val actualLayerGlyphs =
+                CloudLayerGlyphPlacer.place(
+                    vertices = layerVertices(actualMidCovers, actualHighCovers),
+                    glyph = CloudLayerGlyphPlacer.MID_GLYPH,
+                    stepPx = glyphStepPx,
+                    phaseFraction = CloudLayerGlyphPlacer.MID_ACTUAL_PHASE,
+                    nudgePx = nudgePx,
+                ) +
+                    CloudLayerGlyphPlacer.place(
+                        vertices = layerVertices(actualHighCovers, actualMidCovers),
+                        glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
+                        stepPx = glyphStepPx,
+                        phaseFraction = CloudLayerGlyphPlacer.HIGH_ACTUAL_PHASE,
+                        nudgePx = -nudgePx,
+                    )
+            fun drawGlyphs(glyphs: List<com.weatherwidget.shared.graph.LayerGlyph>, style: TextStyle) {
+                glyphs.forEach { glyph ->
+                    // The placer returns the glyph's visual centre; drawText takes its top-left.
+                    val measured = textMeasurer.measure(glyph.glyph.toString(), style)
+                    drawText(
+                        measured,
+                        topLeft = Offset(
+                            glyph.x - measured.size.width / 2f,
+                            glyph.y - measured.size.height / 2f,
+                        ),
+                    )
+                }
             }
+            drawGlyphs(layerGlyphs, glyphStyle)
+            drawGlyphs(actualLayerGlyphs, actualGlyphStyle)
             // Sized from the same dp figure that drives `nudgePx`, not from a Compose measurement:
             // the Android renderer cannot reach a `TextMeasurer`, and the two font stacks need not
             // agree on the width of a 6.5dp bold `m`. See CloudLayerGlyphPlacer.GLYPH_BOX_*_RATIO.
             layerGlyphBounds += CloudLayerGlyphPlacer.glyphBounds(
-                glyphs = layerGlyphs,
+                // Both trails, or the free-floating annotation reads the pink one as open air.
+                glyphs = layerGlyphs + actualLayerGlyphs,
                 glyphSizePx = CloudLayerGlyphPlacer.GLYPH_SIZE_DP.dp.toPx() * scale,
             )
         }
