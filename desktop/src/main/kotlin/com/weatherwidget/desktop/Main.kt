@@ -1627,9 +1627,15 @@ private fun WidgetHeader(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left cluster: current temp/icon clickable to toggle view
+            // Left cluster: current temp/icon clickable to toggle view.
+            //
+            // Deliberately NOT weighted. The three clusters used to take exactly a third each, so a
+            // tall narrow window — where the height-derived `scale` grows the fonts but the third
+            // does not grow with them — starved this cluster: the rain chance, its last child, was
+            // squeezed to a one-glyph column and stacked as "1/5/%". Sizing to content instead lets
+            // temp + delta + "from yest" + rain chance always render in full, and pushes the
+            // shortage onto the centre cluster's slack (see below) rather than onto the text.
             Row(
-                modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1663,11 +1669,15 @@ private fun WidgetHeader(
                     )
                     Spacer(Modifier.width(3.dp))
                     // Caption clarifying the delta's meaning; smaller/dimmer than the delta itself.
+                    // Single-line and non-wrapping: two stacked half-words explain nothing, and the
+                    // cluster is content-sized now, so it always has the room to render in full.
                     Text(
                         text = "from yest",
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = (9 * scale).sp,
                         color = Color(0xFFFF6B35).copy(alpha = 0.7f),
+                        maxLines = 1,
+                        softWrap = false,
                         modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
                     )
                 }
@@ -1678,6 +1688,8 @@ private fun WidgetHeader(
                         style = MaterialTheme.typography.labelMedium,
                         fontSize = (HeaderPrecipSizing.HEADER_TEMP_BASE_SP * precipFontScale * scale).sp,
                         color = Color(0xFF4FC3F7),
+                        maxLines = 1,
+                        softWrap = false,
                         modifier = Modifier
                             .align(Alignment.CenterVertically)
                             .offset(y = 2.dp)
@@ -1688,7 +1700,12 @@ private fun WidgetHeader(
                 }
             }
 
-            // Center cluster: view-switch icons when hourly, else date text
+            // Center cluster: view-switch icons when hourly, else date text.
+            //
+            // The only weighted cluster, so it takes whatever the two content-sized clusters leave
+            // and centres itself in THAT span — i.e. it sits at the true window centre when the
+            // header is uncrowded, and slides right as the left cluster grows. Giving the icons'
+            // slack away is what buys the left cluster its full width.
             Row(
                 modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.Center,
@@ -1792,9 +1809,9 @@ private fun WidgetHeader(
                 }
             }
 
-            // Right cluster: API source + Settings gear
+            // Right cluster: API source + Settings gear. Content-sized, like the left cluster —
+            // it is pinned to the right edge by the centre cluster's weight, not by a width share.
             Row(
-                modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
