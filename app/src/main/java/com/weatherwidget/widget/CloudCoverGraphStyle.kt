@@ -21,6 +21,7 @@ object CloudCoverGraphStyle {
         val tallGraph: Boolean,
         val curvePaint: Paint,
         val actualCurvePaint: Paint,
+        val layerGlyphPaint: Paint,
         val gradientPaint: Paint,
         val currentTimePaint: Paint,
         val hourLabelTextPaint: Paint,
@@ -61,6 +62,20 @@ object CloudCoverGraphStyle {
         }
 
         // Shared footer/axis/now furniture (identical to PrecipitationGraphStyle).
+        // Mid/high layer glyphs: the forecast grey, deliberately tiny (the trail's shape carries
+        // the information, not any single letter), with a solid shadow so an `h` stays legible
+        // where it crosses the low curve or the fill.
+        val layerGlyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_CLOUD_CURVE_ARGB
+            textSize = dpToPx(context, com.weatherwidget.shared.graph.CloudLayerGlyphPlacer.GLYPH_SIZE_DP * labelScale)
+            textAlign = Paint.Align.CENTER
+            isFakeBoldText = true
+            setShadowLayer(
+                dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f,
+                dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_SOLID,
+            )
+        }
+
         val gradientPaint = HourlyGraphPaints.gradientFill()
         val currentTimePaint = HourlyGraphPaints.currentTime(context, labelScale)
         val hourLabelTextPaint = HourlyGraphPaints.hourLabel(context, labelScale)
@@ -101,6 +116,7 @@ object CloudCoverGraphStyle {
             tallGraph = tallGraph,
             curvePaint = curvePaint,
             actualCurvePaint = actualCurvePaint,
+            layerGlyphPaint = layerGlyphPaint,
             gradientPaint = gradientPaint,
             currentTimePaint = currentTimePaint,
             hourLabelTextPaint = hourLabelTextPaint,

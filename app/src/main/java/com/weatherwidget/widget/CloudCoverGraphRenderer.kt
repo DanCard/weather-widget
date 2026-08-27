@@ -1,6 +1,8 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.shared.graph.CloudCoverGraphPalette
+import com.weatherwidget.shared.graph.CloudLayerGlyphPlacer
+import com.weatherwidget.shared.graph.LayerVertex
 import com.weatherwidget.shared.graph.CloudActualSeries
 import com.weatherwidget.shared.graph.CloudWatermarkPlacement
 import com.weatherwidget.shared.graph.DominantStationLabel
@@ -67,6 +69,14 @@ object CloudCoverGraphRenderer {
         val actualCloudCover: Int? = null,
         /** False when no day-ago prediction existed and [cloudCover] fell back to the live value. */
         val isFrozenForecast: Boolean = false,
+        /**
+         * Mid- and high-layer cloud cover, drawn as `m`/`h` glyph curves (see
+         * [com.weatherwidget.shared.graph.CloudLayerGlyphPlacer]). Forecast-only and Open-Meteo-only:
+         * no other source reports the bands, and there is no frozen day-ago or observed counterpart
+         * for either, so they make no accuracy claim. Null where the source does not report them.
+         */
+        val midCover: Int? = null,
+        val highCover: Int? = null,
         val label: String,
         val iconRes: Int? = null,
         val isNight: Boolean = false,
@@ -227,8 +237,15 @@ object CloudCoverGraphRenderer {
         }
         val actualSegments = CloudActualSeries.segments(timedActual)
         val hasActual = actualSegments.any { it.size >= 2 }
-        // Scale over BOTH curves, or the taller one draws off the top of the plot.
-        val verticalScale = computeVerticalScale(smoothedValues + timedActual.map { it.cover.toFloat() })
+        // Scale over EVERY plotted series, or the tallest draws off the top. The mid/high layers
+        // routinely reach 100% on days the low layer never leaves the axis (measured 2026-08-27),
+        // so leaving them out here put their glyphs above graphTop, in the padding.
+        val midCovers = hours.map { it.midCover }
+        val highCovers = hours.map { it.highCover }
+        val layerValues = (midCovers + highCovers).filterNotNull().map { it.toFloat() }
+        val verticalScale = computeVerticalScale(
+            smoothedValues + timedActual.map { it.cover.toFloat() } + layerValues,
+        )
         Log.d(
             TAG,
             "verticalScale: visibleMax=${verticalScale.visibleMax} topScale=${verticalScale.topScale} " +
@@ -275,6 +292,60 @@ object CloudCoverGraphRenderer {
         )
 
         canvas.drawPath(fillPath, paints.gradientPaint)
+
+        // --- Mid/high layer glyph curves ---
+        // Each layer is a curve whose line is made of repeated tiny letters. Drawn under the low
+        // forecast curve: the low layer is what "is it cloudy out" means, and the layers are
+        // context for it. Skipped entirely on the common day where neither band has anything.
+        if (CloudLayerGlyphPlacer.hasVisibleCover(midCovers) ||
+            CloudLayerGlyphPlacer.hasVisibleCover(highCovers)
+        ) {
+            val glyphStepPx = dpToPx(context, CloudLayerGlyphPlacer.GLYPH_STEP_DP * labelScale)
+            val nudgePx = paints.layerGlyphPaint.textSize * 0.55f
+            fun layerVertices(cover: List<Int?>, other: List<Int?>) =
+                cover.mapIndexed { index, value ->
+                    LayerVertex(
+                        x = hourWidth * index,
+                        y = mapCloudCoverToY(
+                            cloudCover = (value ?: 0).toFloat(),
+                            graphBottom = graphBottom,
+                            graphHeight = graphHeight,
+                            topScale = verticalScale.topScale,
+                        ),
+                        cover = value,
+                        otherCover = other.getOrNull(index),
+                    )
+                }
+            val layerGlyphs =
+                CloudLayerGlyphPlacer.place(
+                    vertices = layerVertices(midCovers, highCovers),
+                    glyph = CloudLayerGlyphPlacer.MID_GLYPH,
+                    stepPx = glyphStepPx,
+                    phaseFraction = CloudLayerGlyphPlacer.MID_PHASE,
+                    nudgePx = nudgePx,
+                ) +
+                    CloudLayerGlyphPlacer.place(
+                        vertices = layerVertices(highCovers, midCovers),
+                        glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
+                        stepPx = glyphStepPx,
+                        phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
+                        nudgePx = -nudgePx,
+                    )
+            // drawText takes a baseline; the placer returns the glyph's visual centre.
+            val baselineOffset =
+                -(paints.layerGlyphPaint.ascent() + paints.layerGlyphPaint.descent()) / 2f
+            layerGlyphs.forEach { glyph ->
+                canvas.drawText(
+                    glyph.glyph.toString(), glyph.x, glyph.y + baselineOffset, paints.layerGlyphPaint,
+                )
+            }
+            Log.d(
+                TAG,
+                "layerGlyphs: midMax=${midCovers.filterNotNull().maxOrNull()} " +
+                    "highMax=${highCovers.filterNotNull().maxOrNull()} drawn=${layerGlyphs.size} " +
+                    "stepPx=$glyphStepPx topScale=${verticalScale.topScale}",
+            )
+        }
 
         // The forecast curve is ALWAYS dashed — dashes mean "this is a forecast", not "there is an
         // actual to compare it against". They used to be gated on `hasFrozen && hasActual`, which

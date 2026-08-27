@@ -832,6 +832,10 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     cloudCover = cover,
                     actualCloudCover = point.actualCover,
                     isFrozenForecast = point.isFrozen,
+                    // Straight off the live row: the layers are forecast-only, with no frozen
+                    // day-ago series to swap in the way the low curve does.
+                    midCover = entity.cloudCoverMid,
+                    highCover = entity.cloudCoverHigh,
                     label = p.label,
                     iconRes = p.iconRes,
                     isNight = p.isNight,

@@ -27,7 +27,9 @@ import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.*
+import com.weatherwidget.shared.graph.CloudLayerGlyphPlacer
 import com.weatherwidget.shared.graph.CloudSeriesBuilder
+import com.weatherwidget.shared.graph.LayerVertex
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import kotlin.math.roundToInt
 
@@ -145,8 +147,13 @@ fun CloudCoverGraph(
         val smoothedForecast = com.weatherwidget.shared.graph.SeriesSmoothing
             .smoothValuesPreservingAllExtrema(forecastValues, smoothIterations)
 
-        // Scale must clear BOTH curves or the taller one draws off the top of the plot.
-        val visibleMax = (smoothedForecast + actualPoints.map { it.cover.toFloat() })
+        // Scale must clear EVERY plotted series or the tallest draws off the top. The mid/high
+        // layers routinely reach 100% on days the low layer never leaves the axis, so they belong
+        // in this max alongside the forecast and actual curves.
+        val midCovers = points.map { it.cloudCoverMid }
+        val highCovers = points.map { it.cloudCoverHigh }
+        val layerValues = (midCovers + highCovers).filterNotNull().map { it.toFloat() }
+        val visibleMax = (smoothedForecast + actualPoints.map { it.cover.toFloat() } + layerValues)
             .maxOrNull()?.coerceIn(0f, 100f) ?: 0f
         val topScale = (visibleMax + 12f).coerceIn(85f, 100f)
 
@@ -187,6 +194,57 @@ fun CloudCoverGraph(
             endY = graphBottom
         )
         drawPath(fillPath, brush = fillBrush)
+
+        // --- Mid/high layer glyph curves ---
+        // Each layer is a curve whose line is made of repeated tiny letters -- `m` and `h`. Shared
+        // placement math with the Android widget so the two cannot drift; only the text drawing is
+        // platform code. Skipped entirely when neither band has anything, which is most days.
+        if (CloudLayerGlyphPlacer.hasVisibleCover(midCovers) ||
+            CloudLayerGlyphPlacer.hasVisibleCover(highCovers)
+        ) {
+            val glyphStyle = TextStyle(
+                fontSize = (CloudLayerGlyphPlacer.GLYPH_SIZE_DP * scale).sp,
+                color = COLOR_CLOUD_CURVE,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            )
+            val glyphStepPx = CloudLayerGlyphPlacer.GLYPH_STEP_DP.dp.toPx() * scale
+            val nudgePx = CloudLayerGlyphPlacer.GLYPH_SIZE_DP.dp.toPx() * scale * 0.55f
+            fun layerVertices(cover: List<Int?>, other: List<Int?>) =
+                cover.mapIndexed { index, value ->
+                    LayerVertex(
+                        x = xAt(index),
+                        y = yAt((value ?: 0).toFloat()),
+                        cover = value,
+                        otherCover = other.getOrNull(index),
+                    )
+                }
+            val layerGlyphs =
+                CloudLayerGlyphPlacer.place(
+                    vertices = layerVertices(midCovers, highCovers),
+                    glyph = CloudLayerGlyphPlacer.MID_GLYPH,
+                    stepPx = glyphStepPx,
+                    phaseFraction = CloudLayerGlyphPlacer.MID_PHASE,
+                    nudgePx = nudgePx,
+                ) +
+                    CloudLayerGlyphPlacer.place(
+                        vertices = layerVertices(highCovers, midCovers),
+                        glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
+                        stepPx = glyphStepPx,
+                        phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
+                        nudgePx = -nudgePx,
+                    )
+            layerGlyphs.forEach { glyph ->
+                // The placer returns the glyph's visual centre; drawText takes its top-left.
+                val measured = textMeasurer.measure(glyph.glyph.toString(), glyphStyle)
+                drawText(
+                    measured,
+                    topLeft = Offset(
+                        glyph.x - measured.size.width / 2f,
+                        glyph.y - measured.size.height / 2f,
+                    ),
+                )
+            }
+        }
 
         val markerX = xAtTime(now)
 
