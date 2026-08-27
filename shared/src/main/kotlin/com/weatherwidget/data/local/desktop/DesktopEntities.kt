@@ -1,6 +1,7 @@
 package com.weatherwidget.data.local.desktop
 
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.CloudVerticalKind
 
 data class DesktopObservationEntity(
     val stationId: String,
@@ -24,6 +25,14 @@ data class DesktopObservationEntity(
     // Actual METAR vs the interleaved ASOS 5-minute row; the cloud blend prefers METARs.
     val isMetar: Boolean = false,
     val rawMetar: String? = null,
+    val cloudCoverMid: Int? = null,
+    val cloudCoverHigh: Int? = null,
+    val cloudBaseLowMeters: Int? = null,
+    val cloudBaseMidMeters: Int? = null,
+    val cloudBaseHighMeters: Int? = null,
+    val cloudEnvelopeBaseMeters: Int? = null,
+    val cloudEnvelopeTopMeters: Int? = null,
+    val cloudVerticalKind: CloudVerticalKind = CloudVerticalKind.NONE,
 ) {
     companion object {
         /**
@@ -56,6 +65,14 @@ fun DesktopObservationEntity.toReading() = ObservationReading(
     cloudCoverLow = cloudCoverLow,
     isMetar = isMetar,
     rawMetar = rawMetar,
+    cloudCoverMid = cloudCoverMid,
+    cloudCoverHigh = cloudCoverHigh,
+    cloudBaseLowMeters = cloudBaseLowMeters,
+    cloudBaseMidMeters = cloudBaseMidMeters,
+    cloudBaseHighMeters = cloudBaseHighMeters,
+    cloudEnvelopeBaseMeters = cloudEnvelopeBaseMeters,
+    cloudEnvelopeTopMeters = cloudEnvelopeTopMeters,
+    cloudVerticalKind = cloudVerticalKind,
 )
 
 fun ObservationReading.toEntity(fetchedAt: Long) = DesktopObservationEntity(
@@ -79,6 +96,14 @@ fun ObservationReading.toEntity(fetchedAt: Long) = DesktopObservationEntity(
     cloudCoverLow = cloudCoverLow,
     isMetar = isMetar,
     rawMetar = rawMetar,
+    cloudCoverMid = cloudCoverMid,
+    cloudCoverHigh = cloudCoverHigh,
+    cloudBaseLowMeters = cloudBaseLowMeters,
+    cloudBaseMidMeters = cloudBaseMidMeters,
+    cloudBaseHighMeters = cloudBaseHighMeters,
+    cloudEnvelopeBaseMeters = cloudEnvelopeBaseMeters,
+    cloudEnvelopeTopMeters = cloudEnvelopeTopMeters,
+    cloudVerticalKind = cloudVerticalKind,
 )
 
 /** A persistent app-log row (desktop analogue of the Android app_logs table). */

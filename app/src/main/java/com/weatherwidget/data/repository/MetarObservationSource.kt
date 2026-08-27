@@ -93,6 +93,14 @@ class MetarObservationSource(
         cloudCoverLow = cloudCoverLow,
         isMetar = isMetar,
         rawMetar = rawMetar,
+        cloudCoverMid = cloudCoverMid,
+        cloudCoverHigh = cloudCoverHigh,
+        cloudBaseLowMeters = cloudBaseLowMeters,
+        cloudBaseMidMeters = cloudBaseMidMeters,
+        cloudBaseHighMeters = cloudBaseHighMeters,
+        cloudEnvelopeBaseMeters = cloudEnvelopeBaseMeters,
+        cloudEnvelopeTopMeters = cloudEnvelopeTopMeters,
+        cloudVerticalKind = cloudVerticalKind,
     )
 
     companion object {

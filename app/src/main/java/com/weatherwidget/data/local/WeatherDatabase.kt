@@ -6,14 +6,16 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabase.JournalMode
+import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 68,
+    version = 69,
     exportSchema = true,
 )
+@TypeConverters(CloudVerticalKindConverters::class)
 abstract class WeatherDatabase : RoomDatabase() {
     abstract fun forecastDao(): ForecastDao
 
@@ -626,6 +628,23 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Adds graph-friendly vertical cloud fields to actual observations. Heights are whole metres
+         * and the representation kind uses the stable shared enum code, never its ordinal.
+         */
+        val MIGRATION_68_69 = object : Migration(68, 69) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "observations", "cloudCoverMid", "INTEGER")
+                addColumnIfMissing(db, "observations", "cloudCoverHigh", "INTEGER")
+                addColumnIfMissing(db, "observations", "cloudBaseLowMeters", "INTEGER")
+                addColumnIfMissing(db, "observations", "cloudBaseMidMeters", "INTEGER")
+                addColumnIfMissing(db, "observations", "cloudBaseHighMeters", "INTEGER")
+                addColumnIfMissing(db, "observations", "cloudEnvelopeBaseMeters", "INTEGER")
+                addColumnIfMissing(db, "observations", "cloudEnvelopeTopMeters", "INTEGER")
+                addColumnIfMissing(db, "observations", "cloudVerticalKind", "INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -688,7 +707,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

@@ -2,6 +2,7 @@ package com.weatherwidget.data.local
 
 import androidx.room.Entity
 import androidx.room.Index
+import com.weatherwidget.data.model.CloudVerticalKind
 
 /**
  * Stores individual observations from specific weather stations.
@@ -50,6 +51,14 @@ data class ObservationEntity(
     // resolving by nearest-to-the-hour, exactly as they did before the column existed.
     val isMetar: Boolean = false,
     val rawMetar: String? = null,
+    val cloudCoverMid: Int? = null,
+    val cloudCoverHigh: Int? = null,
+    val cloudBaseLowMeters: Int? = null,
+    val cloudBaseMidMeters: Int? = null,
+    val cloudBaseHighMeters: Int? = null,
+    val cloudEnvelopeBaseMeters: Int? = null,
+    val cloudEnvelopeTopMeters: Int? = null,
+    val cloudVerticalKind: CloudVerticalKind = CloudVerticalKind.NONE,
 )
 
 /**
@@ -107,4 +116,12 @@ fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationRead
     cloudCoverLow = cloudCoverLow,
     isMetar = isMetar,
     rawMetar = rawMetar,
+    cloudCoverMid = cloudCoverMid,
+    cloudCoverHigh = cloudCoverHigh,
+    cloudBaseLowMeters = cloudBaseLowMeters,
+    cloudBaseMidMeters = cloudBaseMidMeters,
+    cloudBaseHighMeters = cloudBaseHighMeters,
+    cloudEnvelopeBaseMeters = cloudEnvelopeBaseMeters,
+    cloudEnvelopeTopMeters = cloudEnvelopeTopMeters,
+    cloudVerticalKind = cloudVerticalKind,
 )

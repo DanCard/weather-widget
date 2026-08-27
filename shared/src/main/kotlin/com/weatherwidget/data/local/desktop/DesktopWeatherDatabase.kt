@@ -119,6 +119,14 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         cloudCoverLow INTEGER,
                         isMetar INTEGER NOT NULL DEFAULT 0,
                         rawMetar TEXT,
+                        cloudCoverMid INTEGER,
+                        cloudCoverHigh INTEGER,
+                        cloudBaseLowMeters INTEGER,
+                        cloudBaseMidMeters INTEGER,
+                        cloudBaseHighMeters INTEGER,
+                        cloudEnvelopeBaseMeters INTEGER,
+                        cloudEnvelopeTopMeters INTEGER,
+                        cloudVerticalKind INTEGER NOT NULL DEFAULT 0,
                         -- Location AND api are part of the identity. Two sources can observe the
                         -- same station at the same instant (aviationweather and api.weather.gov both
                         -- serve KNUQ), and one physical site can be observed from two fetch
@@ -488,6 +496,16 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 addColumnIfMissing(stmt, "hourly_forecast_history", "cloudCoverMid", "INTEGER")
                 addColumnIfMissing(stmt, "hourly_forecast_history", "cloudCoverHigh", "INTEGER")
             }
+            if (from < 23) {
+                addColumnIfMissing(stmt, "observations", "cloudCoverMid", "INTEGER")
+                addColumnIfMissing(stmt, "observations", "cloudCoverHigh", "INTEGER")
+                addColumnIfMissing(stmt, "observations", "cloudBaseLowMeters", "INTEGER")
+                addColumnIfMissing(stmt, "observations", "cloudBaseMidMeters", "INTEGER")
+                addColumnIfMissing(stmt, "observations", "cloudBaseHighMeters", "INTEGER")
+                addColumnIfMissing(stmt, "observations", "cloudEnvelopeBaseMeters", "INTEGER")
+                addColumnIfMissing(stmt, "observations", "cloudEnvelopeTopMeters", "INTEGER")
+                addColumnIfMissing(stmt, "observations", "cloudVerticalKind", "INTEGER NOT NULL DEFAULT 0")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -533,7 +551,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 22
+        private const val SCHEMA_VERSION = 23
 
         /**
          * Column list shared by the desktop `daily_history` CREATE TABLE and the v19 rebuild (and by

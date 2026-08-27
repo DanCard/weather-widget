@@ -430,6 +430,14 @@ class NwsObservationSource(
             cloudCoverLow = reading.cloudCoverLow,
             isMetar = reading.isMetar,
             rawMetar = reading.rawMetar,
+            cloudCoverMid = reading.cloudCoverMid,
+            cloudCoverHigh = reading.cloudCoverHigh,
+            cloudBaseLowMeters = reading.cloudBaseLowMeters,
+            cloudBaseMidMeters = reading.cloudBaseMidMeters,
+            cloudBaseHighMeters = reading.cloudBaseHighMeters,
+            cloudEnvelopeBaseMeters = reading.cloudEnvelopeBaseMeters,
+            cloudEnvelopeTopMeters = reading.cloudEnvelopeTopMeters,
+            cloudVerticalKind = reading.cloudVerticalKind,
         )
     }
 

@@ -76,6 +76,27 @@ data class DailyActual(
 )
 
 /**
+ * Describes how the flat vertical-cloud fields on an observation should be interpreted.
+ *
+ * [dbCode] is an explicit persistence contract shared by Android Room and desktop SQLite. Never
+ * persist [ordinal]: enum ordering is an implementation detail and may change independently of the
+ * database representation.
+ */
+enum class CloudVerticalKind(val dbCode: Int) {
+    NONE(0),
+    PROVIDER_BANDS(10),
+    CUMULATIVE_LAYERS(20),
+    TOTAL_ENVELOPE(30),
+    OTHER(127),
+    ;
+
+    companion object {
+        fun fromDbCode(dbCode: Int): CloudVerticalKind =
+            entries.firstOrNull { it.dbCode == dbCode } ?: OTHER
+    }
+}
+
+/**
  * A single weather observation, in the pure model layer so [ForecastSnapshot] doesn't depend on the
  * desktop persistence package. The persistence layer maps this to its own entity for storage.
  */
@@ -125,6 +146,17 @@ data class ObservationReading(
      * diagnostics, inspection, and re-parsing. Null when observation did not originate from a METAR.
      */
     val rawMetar: String? = null,
+    /** Middle/high graph values when this observation supplies them; null is unknown, never clear. */
+    val cloudCoverMid: Int? = null,
+    val cloudCoverHigh: Int? = null,
+    /** Representative reported base in each graph band, rounded to whole metres. */
+    val cloudBaseLowMeters: Int? = null,
+    val cloudBaseMidMeters: Int? = null,
+    val cloudBaseHighMeters: Int? = null,
+    /** Provider-wide vertical envelope, distinct from an independently measured cloud band. */
+    val cloudEnvelopeBaseMeters: Int? = null,
+    val cloudEnvelopeTopMeters: Int? = null,
+    val cloudVerticalKind: CloudVerticalKind = CloudVerticalKind.NONE,
 )
 
 data class RawFetch(

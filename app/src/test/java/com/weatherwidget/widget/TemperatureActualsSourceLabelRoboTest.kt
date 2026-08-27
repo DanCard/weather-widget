@@ -51,6 +51,7 @@ class TemperatureActualsSourceLabelRoboTest {
             HourData(
                 dateTime = dateTime,
                 temperature = if (index < 10) 60f else 60f + (index - 9) * 2f,
+                isCurrentHour = index == 10,
                 label = "${dateTime.hour}",
                 showLabel = true,
             )

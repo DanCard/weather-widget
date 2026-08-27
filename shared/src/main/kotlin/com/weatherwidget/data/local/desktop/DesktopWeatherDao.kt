@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.shared.graph.PriorDayCloudForecast
 import com.weatherwidget.data.model.CurrentStatus
+import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.orNullIfImplausibleTempF
@@ -359,8 +360,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO observations 
-                    (stationId, stationName, timestamp, temperature, condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, maxTempLast24h, minTempLast24h, api, precipAmountMm, isWebFallback, qcFailed, cloudCover, cloudCoverLow, isMetar, rawMetar)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (stationId, stationName, timestamp, temperature, condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, maxTempLast24h, minTempLast24h, api, precipAmountMm, isWebFallback, qcFailed, cloudCover, cloudCoverLow, isMetar, rawMetar, cloudCoverMid, cloudCoverHigh, cloudBaseLowMeters, cloudBaseMidMeters, cloudBaseHighMeters, cloudEnvelopeBaseMeters, cloudEnvelopeTopMeters, cloudVerticalKind)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     for (obs in observations) {
@@ -384,6 +385,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableInt(18, obs.cloudCoverLow)
                         stmt.setInt(19, if (obs.isMetar) 1 else 0)
                         stmt.setString(20, obs.rawMetar)
+                        stmt.setNullableInt(21, obs.cloudCoverMid)
+                        stmt.setNullableInt(22, obs.cloudCoverHigh)
+                        stmt.setNullableInt(23, obs.cloudBaseLowMeters)
+                        stmt.setNullableInt(24, obs.cloudBaseMidMeters)
+                        stmt.setNullableInt(25, obs.cloudBaseHighMeters)
+                        stmt.setNullableInt(26, obs.cloudEnvelopeBaseMeters)
+                        stmt.setNullableInt(27, obs.cloudEnvelopeTopMeters)
+                        stmt.setInt(28, obs.cloudVerticalKind.dbCode)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -431,6 +440,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
                         isMetar = rs.getInt("isMetar") == 1,
                         rawMetar = rs.getString("rawMetar"),
+                        cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
+                        cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
+                        cloudBaseLowMeters = rs.getNullableInt("cloudBaseLowMeters"),
+                        cloudBaseMidMeters = rs.getNullableInt("cloudBaseMidMeters"),
+                        cloudBaseHighMeters = rs.getNullableInt("cloudBaseHighMeters"),
+                        cloudEnvelopeBaseMeters = rs.getNullableInt("cloudEnvelopeBaseMeters"),
+                        cloudEnvelopeTopMeters = rs.getNullableInt("cloudEnvelopeTopMeters"),
+                        cloudVerticalKind = CloudVerticalKind.fromDbCode(rs.getInt("cloudVerticalKind")),
                     )
                 }
             }
@@ -1205,6 +1222,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
                             isMetar = rs.getInt("isMetar") == 1,
                             rawMetar = rs.getString("rawMetar"),
+                            cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
+                            cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
+                            cloudBaseLowMeters = rs.getNullableInt("cloudBaseLowMeters"),
+                            cloudBaseMidMeters = rs.getNullableInt("cloudBaseMidMeters"),
+                            cloudBaseHighMeters = rs.getNullableInt("cloudBaseHighMeters"),
+                            cloudEnvelopeBaseMeters = rs.getNullableInt("cloudEnvelopeBaseMeters"),
+                            cloudEnvelopeTopMeters = rs.getNullableInt("cloudEnvelopeTopMeters"),
+                            cloudVerticalKind = CloudVerticalKind.fromDbCode(rs.getInt("cloudVerticalKind")),
                         )
                     )
                 }
@@ -1249,6 +1274,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
                         isMetar = rs.getInt("isMetar") == 1,
                         rawMetar = rs.getString("rawMetar"),
+                        cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
+                        cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
+                        cloudBaseLowMeters = rs.getNullableInt("cloudBaseLowMeters"),
+                        cloudBaseMidMeters = rs.getNullableInt("cloudBaseMidMeters"),
+                        cloudBaseHighMeters = rs.getNullableInt("cloudBaseHighMeters"),
+                        cloudEnvelopeBaseMeters = rs.getNullableInt("cloudEnvelopeBaseMeters"),
+                        cloudEnvelopeTopMeters = rs.getNullableInt("cloudEnvelopeTopMeters"),
+                        cloudVerticalKind = CloudVerticalKind.fromDbCode(rs.getInt("cloudVerticalKind")),
                     ))
                 }
             }

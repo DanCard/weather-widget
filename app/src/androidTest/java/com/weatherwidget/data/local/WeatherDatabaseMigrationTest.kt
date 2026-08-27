@@ -541,4 +541,56 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate68To69_addsFlatObservedCloudFieldsAndPreservesLegacyRows() {
+        helper.createDatabase(testDb, 68).apply {
+            execSQL(
+                "INSERT INTO observations (stationId, stationName, timestamp, temperature, " +
+                    "condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, api, " +
+                    "isWebFallback, qcFailed, isMetar) VALUES " +
+                    "('KNUQ', 'Moffett', 1000, 61.0, 'Cloudy', 37.417, -122.089, 2.0, " +
+                    "'OFFICIAL', 2000, 'NWS', 0, 0, 1)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 69, true, WeatherDatabase.MIGRATION_68_69)
+
+        db.query(
+            "SELECT cloudCoverMid, cloudCoverHigh, cloudBaseLowMeters, cloudBaseMidMeters, " +
+                "cloudBaseHighMeters, cloudEnvelopeBaseMeters, cloudEnvelopeTopMeters, " +
+                "cloudVerticalKind FROM observations WHERE stationId = 'KNUQ'",
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            for (index in 0..6) {
+                assertTrue("legacy vertical cloud column $index remains unknown", c.isNull(index))
+            }
+            assertEquals(0, c.getInt(7))
+        }
+
+        db.execSQL(
+            "UPDATE observations SET cloudCoverMid = 75, cloudCoverHigh = 19, " +
+                "cloudBaseLowMeters = 305, cloudBaseMidMeters = 3048, " +
+                "cloudBaseHighMeters = 9144, cloudEnvelopeBaseMeters = 305, " +
+                "cloudEnvelopeTopMeters = 10000, cloudVerticalKind = 20 " +
+                "WHERE stationId = 'KNUQ'",
+        )
+        db.query(
+            "SELECT cloudCoverMid, cloudCoverHigh, cloudBaseLowMeters, cloudBaseMidMeters, " +
+                "cloudBaseHighMeters, cloudEnvelopeBaseMeters, cloudEnvelopeTopMeters, " +
+                "cloudVerticalKind FROM observations WHERE stationId = 'KNUQ'",
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(75, c.getInt(0))
+            assertEquals(19, c.getInt(1))
+            assertEquals(305, c.getInt(2))
+            assertEquals(3_048, c.getInt(3))
+            assertEquals(9_144, c.getInt(4))
+            assertEquals(305, c.getInt(5))
+            assertEquals(10_000, c.getInt(6))
+            assertEquals(20, c.getInt(7))
+        }
+        db.close()
+    }
 }

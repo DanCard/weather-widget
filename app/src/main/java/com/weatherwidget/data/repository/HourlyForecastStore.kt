@@ -149,6 +149,14 @@ internal class HourlyForecastStore(
                 precipAmountMm = reading.precipAmountMm,
                 cloudCover = reading.cloudCover,
                 cloudCoverLow = reading.cloudCoverLow,
+                cloudCoverMid = reading.cloudCoverMid,
+                cloudCoverHigh = reading.cloudCoverHigh,
+                cloudBaseLowMeters = reading.cloudBaseLowMeters,
+                cloudBaseMidMeters = reading.cloudBaseMidMeters,
+                cloudBaseHighMeters = reading.cloudBaseHighMeters,
+                cloudEnvelopeBaseMeters = reading.cloudEnvelopeBaseMeters,
+                cloudEnvelopeTopMeters = reading.cloudEnvelopeTopMeters,
+                cloudVerticalKind = reading.cloudVerticalKind,
             ).withQuantizedLocation()
         }
         if (historicalObs.isNotEmpty()) {
