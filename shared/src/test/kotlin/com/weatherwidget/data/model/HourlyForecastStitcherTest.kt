@@ -2,6 +2,7 @@ package com.weatherwidget.data.model
 
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -124,6 +125,60 @@ class HourlyForecastStitcherTest {
 
         val row = stitch(current, emptyList()).first()
         assertEquals(71f, row.temperature, 0f)
+    }
+
+    /**
+     * The three cases around the no-same-site fallback, which the test above cannot reach: it always
+     * supplies a same-site row, so the off-site marker loses on merit and `ifEmpty` never fires.
+     *
+     * That gap is why an unbounded fallback survived from 72e5a033 to 2026-08-28. Each case here
+     * removes the same-site row so the fallback is actually exercised.
+     */
+    @Test
+    fun `hour with no same-site row borrows from a fragment just outside the same-site box`() {
+        val future = now + 5_000L
+        // 0.0021 deg: outside SAME_SITE_TOLERANCE_DEG (0.002) by a hair, and a real observed value --
+        // HourlyForecastLoader records a fragment at 0.0021832886. Blanking this hour is the
+        // regression 72e5a033 fixed, so the bound must still admit it.
+        val nearlySameSite = fc(future, 71f, "Mild", fetchedAt = 9_000L, rowLat = lat + 0.0021, rowLon = lon)
+
+        val rows = stitch(listOf(nearlySameSite), emptyList())
+
+        assertEquals("the hour must not go blank", 1, rows.size)
+        assertEquals(71f, rows.first().temperature, 0f)
+    }
+
+    @Test
+    fun `hour with no same-site row is left empty rather than borrowing from another place`() {
+        val future = now + 5_000L
+        // 0.068 deg of longitude: the real gap between the two device sites on 2026-08-28, ~6 km.
+        // Inside the caller's +/-0.1 read box, so an unbounded fallback took it.
+        val anotherTown = fc(future, 90f, "Hot", fetchedAt = 9_999L, rowLat = lat, rowLon = lon - 0.068)
+
+        val rows = stitch(listOf(anotherTown), emptyList())
+
+        assertTrue(
+            "an hour only another site covers must be dropped, not borrowed: $rows",
+            rows.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `a borrowed row does not carry another site's coordinates into the result`() {
+        val future = now + 5_000L
+        val nearby = fc(future, 71f, "Mild", fetchedAt = 9_000L, rowLat = lat + 0.0021, rowLon = lon)
+
+        val row = stitch(listOf(nearby), emptyList()).first()
+
+        // The row keeps its own coordinates by design (toEntity coalesces `locationLat ?: fallback`),
+        // so what matters is that they stay close enough that a downstream firstOrNull() adopting them
+        // as the render location cannot move the observation blend to another site. That adoption is
+        // exactly what happened on 2026-08-28.
+        assertTrue(
+            "borrowed coordinates must stay within the fallback bound of the centre",
+            kotlin.math.abs(row.locationLat!! - lat) <= HourlyForecastStitcher.NEARBY_FALLBACK_TOLERANCE_DEG &&
+                kotlin.math.abs(row.locationLon!! - lon) <= HourlyForecastStitcher.NEARBY_FALLBACK_TOLERANCE_DEG,
+        )
     }
 
     @Test

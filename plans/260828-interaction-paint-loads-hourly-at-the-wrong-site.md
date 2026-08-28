@@ -1,6 +1,6 @@
 # §5 follow-up: which paint path loads hourly rows at the abandoned site
 
-**Status:** 📋 Planned 2026-08-28
+**Status:** ✅ Root cause found and fixed 2026-08-28 (§3 instrumentation + the defect below; §5 policy still open)
 **Follows:** [`260828-blend-reads-stale-fragment-not-configured-location.md`](260828-blend-reads-stale-fragment-not-configured-location.md) §5
 **Goal:** identify the loader that hands the renderer a list stamped entirely at a device site the
 configured location has left, then decide the one location policy that is currently undecided rather
@@ -207,3 +207,75 @@ once §4 names it. Two things to write regardless:
   `LegacyDefaultLocationMigration`'s `widget_lat_*` prefix scan, and that migration is already slated
   for deletion in `plans/260827-delete-legacy-default-location-migration.md`. Fold the keys into that
   plan's acceptance greps rather than touching prefs-writing code now.
+
+---
+
+## 9. Outcome (2026-08-28)
+
+Found by the §7 differential test, before the §4 device repro was ever run.
+
+**`HourlyForecastStitcher.collapse` had an unbounded same-site fallback:**
+
+```kotlin
+val sameSite = hourRows.filter { … LocationMatch.sameSite(centerLat, centerLon, lat, lon) }
+    .ifEmpty { hourRows }        // ← any site in the caller's ±0.1° box
+```
+
+For any hour the configured site did not cover, the stitcher took a row from **any** site the query
+box returned — including one 0.068° (~6 km) away. The borrowed row carries its own coordinates, so a
+downstream `firstOrNull()` adopted that site as the render location, which is how the observation
+blend ended up centred three hours in the past.
+
+**Both loaders leaked**, not just the interaction path:
+
+```
+sync path        leaked 7 row(s); sites=[37.40600,-122.02100, 37.41700,-122.08900]
+interaction path leaked 7 row(s); sites=[37.40600,-122.02100, 37.41700,-122.08900]
+```
+
+So §2a's narrowing to `origin=USER_INTERACTION` was a correct reading of which *paints* were wrong,
+but the wrong conclusion about blame — which loader you see depends only on which one painted last.
+§2b's "the same-site filtering looks correct everywhere" was wrong for the same reason I misread it
+twice: `collapse` ends with `pick(sameSite) ?: return@mapNotNull null`, which reads as "drop the
+hour", and the `.ifEmpty` two lines above silently makes `sameSite` not same-site at all.
+
+The unfiltered `historyRows` (§3) is real but secondary: it widens the input, while the `ifEmpty` is
+what admits it.
+
+### Why bounded rather than deleted
+
+`git log -S` dates the fallback to `72e5a033` (2026-06-21), *"…and blank lines from GPS jitter"*. It
+exists to stop an hour going blank when a jitter fragment sits just outside
+`SAME_SITE_TOLERANCE_DEG` — a reachable case, at 0.0021832886° per `HourlyForecastLoader`'s own
+comment. Deleting it would reintroduce that. So the fallback keeps its job and gains a bound:
+`NEARBY_FALLBACK_TOLERANCE_DEG = 0.01` (~1 km), past the jitter boundary and short of a different
+place, finer than every forecast grid the app reads.
+
+Numerically equal to `ObservationSiteMerge.MERGE_TOLERANCE_DEG`, deliberately its own constant —
+that one is sized by `distanceKm`'s IDW error budget for observations, this one by forecast-grid
+resolution.
+
+**This is the third same-site guard in this codebase with no distance bound**, after
+`selectNearestSite` (§6, still open) and the one `ObservationSiteMerge` was written to replace. The
+recurring shape is a tolerance chosen for GPS jitter being asked to answer a question about a
+genuine move.
+
+### The documentation was wrong, not just the code
+
+The class KDoc claimed markers "farther than the same-site tolerance **are dropped**". They were not;
+they won whenever they were the only rows for an hour. Corrected as part of the fix — a contract that
+states the invariant the code violates is worse than none, because it stops the next reader looking.
+
+### Why the existing test suite missed it
+
+`HourlyForecastStitcherTest.same-site fragments collapse to the freshest, off-site marker is dropped`
+asserts exactly the right contract — but always supplies a same-site row, so the off-site marker
+loses on merit and `ifEmpty` never executes. The guard was tested only where it works. The three new
+cases remove the same-site row so the fallback is actually exercised, and pin **both** sides of the
+bound: 0.0021° is borrowed (72e5a033's behaviour survives), 0.068° is dropped.
+
+### §4 was not needed
+
+The device repro is unnecessary for this defect — the differential test reproduces it deterministically
+from an in-memory database. Keep §4 in reserve for confirming the end-to-end paint if a related report
+recurs, and §5's pending-handoff policy still wants the emulator's `geo fix`.

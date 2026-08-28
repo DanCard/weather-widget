@@ -21,10 +21,54 @@ import com.weatherwidget.shared.graph.PriorDayCloudForecast
  *
  * Both sides first collapse same-site fragments via [LocationMatch.sameSite]: float-keyed rows that
  * GPS jitter splits into ~10 cm-apart silos are merged, and genuinely-different neighbouring markers
- * (farther than the same-site tolerance) are dropped, so the result is deterministic and identical
- * across devices.
+ * (farther than the same-site tolerance) lose to any same-site row, so the result is deterministic and
+ * identical across devices.
+ *
+ * An hour with *no* same-site row is the exception, and the only one: it may borrow from a fragment
+ * within [NEARBY_FALLBACK_TOLERANCE_DEG] rather than render blank. Anything farther is dropped and the
+ * hour is left empty. This paragraph previously said such markers were "dropped" outright, which the
+ * code did not do -- the fallback was unbounded, and that gap is what put another town's forecast into
+ * the render list on 2026-08-28.
  */
 object HourlyForecastStitcher {
+
+    /**
+     * How far an hour may reach for a row when **no** same-site fragment covers it.
+     *
+     * [LocationMatch.SAME_SITE_TOLERANCE_DEG] (0.002 deg, ~200 m) answers "is this literally the same
+     * spot?" and is the right question for merging jitter silos. It is the wrong question for an hour
+     * with nothing at the centre at all: a fragment sitting just outside it is still the same weather,
+     * and blanking the hour rather than using it is the regression commit 72e5a033 fixed ("blank lines
+     * from GPS jitter"). That boundary is reachable in practice -- `HourlyForecastLoader`'s own comment
+     * records a fragment at 0.0021832886 deg, i.e. excluded by a hair.
+     *
+     * But the fallback it added was unbounded (`ifEmpty { hourRows }`), so an hour the configured site
+     * did not cover took a row from **any** site inside the caller's [LocationMatch.ROOM_WHERE] box --
+     * +/-0.1 deg, about 7 miles. On 2026-08-28 that put a fragment 6 km away (0.068 deg of longitude)
+     * into the render list, and because the borrowed row carries its own coordinates, a downstream
+     * `firstOrNull()` adopted that site as the render location and centred the observation blend three
+     * hours in the past. A guard sized for metres was firing for kilometres.
+     *
+     * 0.01 deg is ~1.1 km of latitude and ~0.9 km of longitude at 37N: comfortably past the jitter
+     * boundary, comfortably short of a different place, and finer than every forecast grid the app
+     * reads (NWS ~2.5 km, Open-Meteo 1-11 km), so a borrowed row is drawn from the same grid cell the
+     * centre would have resolved to anyway.
+     *
+     * Numerically equal to `ObservationSiteMerge.MERGE_TOLERANCE_DEG` and deliberately its own
+     * constant: that one is sized by `distanceKm`'s IDW error budget for **observations**, this one by
+     * forecast-grid resolution. Two different questions that happen to share an answer today.
+     */
+    const val NEARBY_FALLBACK_TOLERANCE_DEG = 0.01
+
+    private fun withinNearbyFallback(
+        centerLat: Double,
+        centerLon: Double,
+        rowLat: Double,
+        rowLon: Double,
+    ): Boolean =
+        kotlin.math.abs(centerLat - rowLat) <= NEARBY_FALLBACK_TOLERANCE_DEG &&
+            kotlin.math.abs(centerLon - rowLon) <= NEARBY_FALLBACK_TOLERANCE_DEG
+
     /**
      * Rows the merge must never consider, whatever the caller passed.
      *
@@ -125,7 +169,17 @@ object HourlyForecastStitcher {
                     val lat = row.locationLat
                     val lon = row.locationLon
                     lat == null || lon == null || LocationMatch.sameSite(centerLat, centerLon, lat, lon)
-                }.ifEmpty { hourRows }
+                }.ifEmpty {
+                    // An hour no same-site row covers may borrow from a NEARBY fragment, never from
+                    // any fragment the query box happened to return. This fallback used to be a bare
+                    // `hourRows`, which handed such an hour to a site ~7 miles away -- see
+                    // [NEARBY_FALLBACK_TOLERANCE_DEG].
+                    hourRows.filter { row ->
+                        val lat = row.locationLat
+                        val lon = row.locationLon
+                        lat == null || lon == null || withinNearbyFallback(centerLat, centerLon, lat, lon)
+                    }
+                }
                 val base = pick(sameSite) ?: return@mapNotNull null
                 time to base.copy(
                     cloudCover = base.cloudCover ?: sameSite.firstNotNullOfOrNull { it.cloudCover },
