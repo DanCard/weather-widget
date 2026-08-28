@@ -61,6 +61,10 @@ class CurrentTempUnificationIntegrationTest {
         every { stateManager.getZoomStage(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE
         every { stateManager.getZoomWindow(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE.window()
         every { stateManager.getHourlyOffset(appWidgetId) } returns 0
+        // The resolver centres its observation read here, so the test must say where the
+        // widget is. A relaxed mock fabricates a Pair<Object, Object> for this and the
+        // Double cast blows up; both paths below are at 0,0, so state it.
+        every { stateManager.getWidgetLocation(appWidgetId) } returns (0.0 to 0.0)
 
         val appLogDao = mockk<AppLogDao>(relaxed = true)
         
@@ -158,7 +162,11 @@ class CurrentTempUnificationIntegrationTest {
         every { stateManager.getCurrentTempDeltaState(appWidgetId, any()) } returns null
         every { stateManager.getZoomStage(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE
         every { stateManager.getZoomWindow(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE.window()
-        
+        // The resolver centres its observation read here, so the test must say where the widget is.
+        // A relaxed mock fabricates a Pair<Object, Object> for this and the Double cast blows up;
+        // both paths below are at 0,0, so state it.
+        every { stateManager.getWidgetLocation(appWidgetId) } returns (0.0 to 0.0)
+
         val appLogDao = mockk<AppLogDao>(relaxed = true)
 
         // 1. Resolve GraphStyle Observation (simulating WidgetIntentRouter)
@@ -210,5 +218,127 @@ class CurrentTempUnificationIntegrationTest {
             tempViewResult.currentTempResolution.displayTemp,
             dailyViewResolution.displayTemp
         )
+    }
+
+    /**
+     * The blend centre must be the location the user is configured at, not a coordinate carried by
+     * whatever row happens to sit first in the hourly list.
+     *
+     * That centre is not merely drawn with: it is the middle of `ObservationSiteMerge`'s merge box,
+     * so when the two disagree by more than that box the read returns none of the fresh rows. On
+     * 2026-08-28 a 6 km move left the graph naming an 11:10 reading at 14:17 with the 13:35 one
+     * sitting in the database. The rows below carry the site the device had LEFT, exactly as they
+     * did then.
+     */
+    @Test
+    fun `blend centre follows the configured location, not the coordinate on the rows`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val appWidgetId = 345
+        val now = LocalDateTime.of(2026, 8, 28, 14, 17)
+        val zoneId = ZoneId.systemDefault()
+
+        val configuredLat = 37.4064254
+        val configuredLon = -122.0206146
+        val abandonedLat = 37.417
+        val abandonedLon = -122.089
+
+        val rowsFromTheAbandonedSite = (-8..8).map { i ->
+            val dt = now.plusHours(i.toLong()).withMinute(0).withSecond(0).withNano(0)
+            HourlyForecastEntity(
+                dateTime = dt.atZone(zoneId).toInstant().toEpochMilli(),
+                source = WeatherSource.OPEN_METEO.id,
+                locationLat = abandonedLat,
+                locationLon = abandonedLon,
+                temperature = 70f,
+                condition = "Sunny",
+                fetchedAt = System.currentTimeMillis(),
+            )
+        }
+
+        val stateManager = mockk<WidgetStateManager>(relaxed = true)
+        every { stateManager.getCurrentTempDeltaState(appWidgetId, any()) } returns null
+        every { stateManager.getZoomStage(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE
+        every { stateManager.getZoomWindow(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE.window()
+        every { stateManager.getHourlyOffset(appWidgetId) } returns 0
+        every { stateManager.getWidgetLocation(appWidgetId) } returns (configuredLat to configuredLon)
+
+        val result = TemperatureStateResolver.resolve(
+            context = context,
+            appWidgetId = appWidgetId,
+            hourlyForecasts = rowsFromTheAbandonedSite,
+            currentTempHourlyForecasts = rowsFromTheAbandonedSite,
+            centerTime = now,
+            displaySource = WeatherSource.OPEN_METEO,
+            precipProbability = null,
+            lastObservedTemp = null,
+            observedAt = null,
+            dimensions = WidgetDimensions(cols = 4, rows = 2, widthDp = 300, heightDp = 200, isIconWidth = false),
+            stateManager = stateManager,
+            repository = null,
+            deferCurrentTempResolution = false,
+            appLogDao = mockk<AppLogDao>(relaxed = true),
+            now = now,
+        )
+
+        assertEquals(
+            "the blend must read where the user is, not where these rows were fetched",
+            configuredLat,
+            result.lat,
+            0.0,
+        )
+        assertEquals(configuredLon, result.lon, 0.0)
+    }
+
+    /**
+     * The fallback rung still works: an install with no configured location keeps deriving the
+     * centre from its rows rather than degrading to no location at all.
+     */
+    @Test
+    fun `blend centre falls back to the rows when no location is configured`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val appWidgetId = 346
+        val now = LocalDateTime.of(2026, 8, 28, 14, 17)
+        val zoneId = ZoneId.systemDefault()
+
+        val rows = (-8..8).map { i ->
+            val dt = now.plusHours(i.toLong()).withMinute(0).withSecond(0).withNano(0)
+            HourlyForecastEntity(
+                dateTime = dt.atZone(zoneId).toInstant().toEpochMilli(),
+                source = WeatherSource.OPEN_METEO.id,
+                locationLat = 37.417,
+                locationLon = -122.089,
+                temperature = 70f,
+                condition = "Sunny",
+                fetchedAt = System.currentTimeMillis(),
+            )
+        }
+
+        val stateManager = mockk<WidgetStateManager>(relaxed = true)
+        every { stateManager.getCurrentTempDeltaState(appWidgetId, any()) } returns null
+        every { stateManager.getZoomStage(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE
+        every { stateManager.getZoomWindow(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE.window()
+        every { stateManager.getHourlyOffset(appWidgetId) } returns 0
+        every { stateManager.getWidgetLocation(appWidgetId) } returns null
+
+        val result = TemperatureStateResolver.resolve(
+            context = context,
+            appWidgetId = appWidgetId,
+            hourlyForecasts = rows,
+            currentTempHourlyForecasts = rows,
+            centerTime = now,
+            displaySource = WeatherSource.OPEN_METEO,
+            precipProbability = null,
+            lastObservedTemp = null,
+            observedAt = null,
+            dimensions = WidgetDimensions(cols = 4, rows = 2, widthDp = 300, heightDp = 200, isIconWidth = false),
+            stateManager = stateManager,
+            repository = null,
+            deferCurrentTempResolution = false,
+            appLogDao = mockk<AppLogDao>(relaxed = true),
+            now = now,
+        )
+
+        assertEquals(37.417, result.lat, 0.0)
+        assertEquals(-122.089, result.lon, 0.0)
     }
 }

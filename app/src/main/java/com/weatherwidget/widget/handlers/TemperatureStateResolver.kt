@@ -121,11 +121,25 @@ internal object TemperatureStateResolver {
         sourceMissingFromLoad: Boolean = false,
     ): ResolutionResult {
         val effectiveAppLogDao = appLogDao ?: WeatherDatabase.getDatabase(context).appLogDao()
-        // NaN, never a hardcoded coordinate: this is derived from the rows about to be drawn, so it
-        // only fires when there are none. NaN degrades honestly downstream (sun shading falls back to
-        // UNKNOWN_LOCATION, IDW distance weights drop out) instead of silently rendering Google HQ.
-        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: Double.NaN
-        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
+        // The location the user is AT, not the location the first cached row happened to be fetched
+        // at. See BlendCentre: this is the CENTRE of ObservationSiteMerge's merge box, so a stale
+        // value does not down-weight fresh observations, it excludes every one of them. Mirrors the
+        // current-temp resolution in TemperatureViewHandler — the two must not disagree within one
+        // paint, which is exactly what shipped before 2026-08-28.
+        val dataDerivedLocation = hourlyForecasts.firstOrNull()?.let { it.locationLat to it.locationLon }
+        val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
+        val blendCentre = BlendCentre.resolve(configuredLocation, dataDerivedLocation)
+        val lat = blendCentre.lat
+        val lon = blendCentre.lon
+        if (BlendCentre.divergesBeyondMergeTolerance(configuredLocation, dataDerivedLocation)) {
+            effectiveAppLogDao.log(
+                "BLEND_CENTRE_DIVERGENCE",
+                "widget=$appWidgetId source=${displaySource.id} " +
+                    "configured=${formatCoords(configuredLocation)} data=${formatCoords(dataDerivedLocation)} " +
+                    "hourlyRows=${hourlyForecasts.size}",
+                "WARN",
+            )
+        }
         val sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon)
 
         val zoom = stateManager.getZoomWindow(appWidgetId)
@@ -367,6 +381,10 @@ internal object TemperatureStateResolver {
             // old the freshest row the render actually loaded is): both large means the fetch
             // pipeline stalled, readingAge large while newestObsAge is small means the blend named
             // a lagging station while fresher data was on hand.
+            //
+            // Those two fields could not tell either case apart from a THIRD: the read was centred on
+            // a coordinate the device had left, so both ages were large while fresh rows sat in the
+            // database, unreachable behind the merge box (2026-08-28). locSource/obsCentre name it.
             val nowEpochMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             fun ageMin(ms: Long?): String =
                 ms?.let { ((nowEpochMs - it).coerceAtLeast(0L) / 60_000L).toString() } ?: "na"
@@ -378,6 +396,8 @@ internal object TemperatureStateResolver {
                     "weightShare=${dominantContribution?.weightShare} " +
                     "readingAgeMin=${ageMin(dominantContribution?.lastReadingMs)} " +
                     "newestObsAgeMin=${ageMin(newestObservationMs)} obsRows=$observationRowCount " +
+                    "locSource=${blendCentre.source.name.lowercase(Locale.US)} " +
+                    "obsCentre=${formatCoords(lat to lon)} " +
                     "text=${dominantStationLabel?.fullText ?: "null"}",
                 "DEBUG",
             )
@@ -731,6 +751,15 @@ internal object TemperatureStateResolver {
             observationRowCount = observations.size,
         )
     }
+
+    /**
+     * 5 dp, matching the `configuredLoc`/`dataLoc` pair already logged by `TemperatureViewHandler`:
+     * stored coordinates are quantized to 3 dp, so 5 dp shows whether a value is a raw configured
+     * coordinate or a row's quantized one — which is what separated the two sites in the
+     * 2026-08-28 report.
+     */
+    private fun formatCoords(location: Pair<Double, Double>?): String =
+        location?.let { String.format(Locale.US, "%.5f,%.5f", it.first, it.second) } ?: "none"
 
     private fun computeDeltaFromYesterday(
         observations: List<ObservationEntity>,
