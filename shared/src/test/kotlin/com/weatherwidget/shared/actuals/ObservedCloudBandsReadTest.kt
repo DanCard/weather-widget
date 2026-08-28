@@ -170,7 +170,7 @@ class ObservedCloudBandsReadTest {
             readSiteRows = { _, _ -> listOf(first, second) },
         )
 
-        assertEquals("station totals 80 and 60 blend to 70", 70, result.hours[hour])
+        assertEquals("the line is the max of the blended bands (mid 60 > low 40)", 60, result.hours[hour])
         assertEquals(CloudBands(low = 40, mid = 60), result.bands[hour])
     }
 }

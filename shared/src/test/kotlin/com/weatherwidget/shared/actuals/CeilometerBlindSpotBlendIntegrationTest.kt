@@ -101,9 +101,14 @@ class CeilometerBlindSpotBlendIntegrationTest {
         assertEquals(0, result.stats.ceilometerBlindBuckets)
     }
 
-    /** A human observer's SKC is a whole-sky assessment and is never displaced. */
+    /**
+     * A human observer's SKC is a whole-sky assessment: it is never displaced by the blind-spot
+     * rule (ceilometerBlind=0) and it still votes — on the bands it reported. An explicit clear
+     * yields low=0 and null mid/high, so the low band reads 0. The LINE, however, is the max of
+     * the blended bands, so it follows KSJC's mid deck regardless of the SKC low vote.
+     */
     @Test
-    fun `an SKC station keeps its weight against a high deck`() {
+    fun `an SKC station casts its clear vote on the low band while the line follows the max band`() {
         val result = blend(
             listOf(
                 station("KPAO", 3.0f, 0, "KPAO 271947Z 33007KT 10SM SKC 23/16 A2998", isMetar = true),
@@ -111,8 +116,8 @@ class CeilometerBlindSpotBlendIntegrationTest {
             ),
         )
 
-        val value = result.hours[hour]
-        assertTrue("a human clear observation must still count, got $value", value != null && value < 30)
         assertEquals(0, result.stats.ceilometerBlindBuckets)
+        assertEquals("the SKC low vote is kept", 0, result.bands[hour]?.low)
+        assertEquals("the line is the max of the blended bands", 75, result.hours[hour])
     }
 }
