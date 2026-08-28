@@ -6,6 +6,7 @@ import android.content.Context
 import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
@@ -39,7 +40,13 @@ internal class HourlyForecastLoader(
      *   consumer downstream filters to the display source anyway. This was the `hourly=1888ms`
      *   stage in SYNC_PERF.
      */
-    suspend fun load(lat: Double, lon: Double, sources: List<String>): List<HourlyForecastEntity> {
+    suspend fun load(
+        lat: Double,
+        lon: Double,
+        sources: List<String>,
+        /** Which pipeline asked, so a HOURLY_LOAD line can be attributed to a paint path. */
+        caller: String = "unspecified",
+    ): List<HourlyForecastEntity> {
         return try {
             val database = WeatherDatabase.getDatabase(context)
             val hourlyDao = database.hourlyForecastDao()
@@ -84,22 +91,34 @@ internal class HourlyForecastLoader(
                 centerLat = lat,
                 centerLon = lon,
             ).map { it.toEntity(lat, lon) }
-            Log.i(
-                TAG,
-                // `sources` is the SQL scope, snapshotted from the widgets' CURRENT display sources
-                // before the caller's fetch. Log it: a later repaint that filters to a source absent
-                // from this list renders an empty graph, and without this field the two counts alone
-                // ("stitched=466" then "hourlyCount=0") look like the rows vanished.
-                "load: stitched=${stitched.size} from current=${current.size} history=${history.size} " +
-                    "center=$lat,$lon sites=${current.map { it.locationLat to it.locationLon }.distinct().size} " +
-                    "sources=${sources.joinToString("|")}",
-            )
+            // `sources` is the SQL scope, snapshotted from the widgets' CURRENT display sources
+            // before the caller's fetch. Log it: a later repaint that filters to a source absent
+            // from this list renders an empty graph, and without this field the two counts alone
+            // ("stitched=466" then "hourlyCount=0") look like the rows vanished.
+            //
+            // PERSISTED, not Log.i. `center=` is the field that answers "which site did this load
+            // scope itself to", and it was logcat-only when the 2026-08-28 stale-blend report came
+            // in — so the one question the incident turned on had no evidence left. This is the
+            // third coordinate-fragmentation bug in this area and the third time that field was
+            // missing. Keep it; see plans/260828-interaction-paint-loads-hourly-at-the-wrong-site.md.
+            val summary =
+                "caller=$caller stitched=${stitched.size} from current=${current.size} history=${history.size} " +
+                    "center=$lat,$lon outSites=${sitesOf(stitched)} " +
+                    "inSites=${current.map { it.locationLat to it.locationLon }.distinct().size} " +
+                    "sources=${sources.joinToString("|")}"
+            Log.i(TAG, "load: $summary")
+            WeatherDatabase.getDatabase(context).appLogDao().log("HOURLY_LOAD", summary)
             stitched
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch hourly forecasts", e)
             emptyList()
         }
     }
+
+    private fun sitesOf(rows: List<HourlyForecastEntity>): String =
+        rows.map { it.locationLat to it.locationLon }.distinct()
+            .joinToString("|") { String.format(java.util.Locale.US, "%.5f,%.5f", it.first, it.second) }
+            .ifEmpty { "none" }
 
     companion object {
         private const val TAG = "HourlyForecastLoader"

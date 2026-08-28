@@ -230,6 +230,7 @@ object TemperatureViewHandler {
             configuredLocation = stateManager.getWidgetLocation(appWidgetId),
             dataLat = resolutionResult.lat,
             dataLon = resolutionResult.lon,
+            rowsLoc = formatRowSites(hourlyForecasts),
             dimensions = dimensions,
             currentTemp = resolutionResult.currentTempResolution.displayTemp,
             estimatedTemp = resolutionResult.currentTempResolution.estimatedTemp,

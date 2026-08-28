@@ -47,6 +47,7 @@ internal class WidgetDataBundleLoader(
             lat = latitude,
             lon = longitude,
             sources = hourlyForecastLoader.hourlySourceIds(),
+            caller = "bundle",
         )
         val activeSourceIds = hourlyForecastLoader.currentDisplaySourceIds()
 

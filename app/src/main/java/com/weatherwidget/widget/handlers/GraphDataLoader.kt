@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
@@ -84,6 +85,8 @@ object GraphDataLoader {
         zoom: ZoomWindow,
         now: LocalDateTime,
         source: WeatherSource? = null,
+        /** Optional so the probe paths stay silent; the render paths pass it. */
+        appLogDao: com.weatherwidget.data.local.AppLogDao? = null,
     ): List<HourlyForecastEntity> {
         val window = buildGraphQueryWindow(centerTime, zoom, now)
         val zoneId = ZoneId.systemDefault()
@@ -162,8 +165,29 @@ object GraphDataLoader {
             centerLat = lat,
             centerLon = lon,
         )
-        return stitched.map { it.toEntity(lat, lon) }
+        val out = stitched.map { it.toEntity(lat, lon) }
+        // Counterpart of HourlyForecastLoader's HOURLY_LOAD line, for the interaction path.
+        // This loader had no equivalent, which is why a tap-driven paint could hand the renderer
+        // rows from a site the configured location had left with nothing recording that it had.
+        // `historyRows` is deliberately included in the counts: unlike centerRows/nowRows it is not
+        // sameSite-filtered before the stitcher sees it, so it is the input most able to introduce a
+        // foreign site. See plans/260828-interaction-paint-loads-hourly-at-the-wrong-site.md.
+        appLogDao?.log(
+            "HOURLY_LOAD",
+            "caller=graph_window stitched=${out.size} from current=${currentRows.size} " +
+                "history=${historyRows.size} center=$lat,$lon " +
+                "outSites=${siteSummary(out.map { it.locationLat to it.locationLon })} " +
+                "currentSites=${siteSummary(currentRows.map { it.locationLat to it.locationLon })} " +
+                "historySites=${siteSummary(historyRows.map { it.locationLat to it.locationLon })} " +
+                "source=${source.id}",
+        )
+        return out
     }
+
+    private fun siteSummary(sites: List<Pair<Double, Double>>): String =
+        sites.distinct()
+            .joinToString("|") { String.format(java.util.Locale.US, "%.5f,%.5f", it.first, it.second) }
+            .ifEmpty { "none" }
 
     suspend fun loadCurrentTempResolutionHourlyForecasts(
         hourlyDao: HourlyForecastDao,

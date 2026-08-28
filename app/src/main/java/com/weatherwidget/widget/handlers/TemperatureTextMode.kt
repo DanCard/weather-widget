@@ -108,9 +108,11 @@ internal fun buildHeaderStateLog(
     offset: Int,
     zoom: ZoomWindow?,
     resolveMs: Long,
+    rowsLoc: String = "n/a",
 ): String =
     "headerState widget=$widgetId mode=${viewMode.name} source=${displaySource.id} " +
         "configuredLoc=${formatLocation(configuredLocation)} dataLoc=${formatLocation(dataLat to dataLon)} " +
+        "rowsLoc=$rowsLoc " +
         "cols=${dimensions.cols} rows=${dimensions.rows} sizeDp=${dimensions.widthDp}x${dimensions.heightDp} " +
         "deviceOrientation=${WidgetSizeCalculator.orientationName(dimensions.deviceOrientation)} " +
         "hostOrientation=${WidgetSizeCalculator.orientationName(dimensions.hostOrientation)} " +
@@ -124,6 +126,28 @@ internal fun buildHeaderStateLog(
         "precipVisible=$precipVisible precipProbability=${precipProbability ?: "none"} " +
         "isNowLineVisible=${isNowLineVisible ?: "n/a"} " +
         "offset=$offset zoom=${zoom?.stage?.name ?: "n/a"} resolveMs=$resolveMs"
+
+/**
+ * The device sites carried by the rows handed to the renderer, with a count each.
+ *
+ * `dataLoc` used to answer this incidentally, and it is the field that exposed the 2026-08-28 stale
+ * blend. Since that fix it reports the *blend centre* (the configured location), which is the more
+ * useful thing for it to mean and leaves nothing recording what the rows themselves say. These are
+ * different questions and both matter: `configuredLoc` is where the user is, `dataLoc` is where the
+ * blend read, and this is where the rows were fetched.
+ *
+ * The count is load-bearing. "One far site" (a wrongly-scoped load) and "two sites, the near one
+ * outvoted" (a selection bug) look identical without it, and they are different defects — see
+ * plans/260828-interaction-paint-loads-hourly-at-the-wrong-site.md.
+ */
+internal fun formatRowSites(rows: List<com.weatherwidget.data.local.HourlyForecastEntity>): String {
+    if (rows.isEmpty()) return "empty"
+    val bySite = rows.groupingBy {
+        String.format(java.util.Locale.US, "%.5f,%.5f", it.locationLat, it.locationLon)
+    }.eachCount()
+    val rendered = bySite.entries.sortedByDescending { it.value }.joinToString(",") { "${it.key}(${it.value})" }
+    return if (bySite.size == 1) rendered else "multi[$rendered]"
+}
 
 private fun formatLocation(location: Pair<Double, Double>?): String {
     if (location == null) return "none"

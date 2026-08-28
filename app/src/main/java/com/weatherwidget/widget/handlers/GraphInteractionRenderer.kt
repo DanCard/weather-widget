@@ -130,6 +130,7 @@ internal object GraphInteractionRenderer {
                 zoom = zoom,
                 now = request.now,
                 source = displaySource,
+                appLogDao = database.appLogDao(),
             )
         updateView(
             request,

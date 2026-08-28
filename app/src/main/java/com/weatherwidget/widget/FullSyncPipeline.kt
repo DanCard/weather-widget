@@ -112,6 +112,7 @@ internal class FullSyncPipeline(
                         lat = location.first,
                         lon = location.second,
                         sources = hourlySourceIdsAtLoad,
+                        caller = "full_sync",
                     )
                     val afterHourlyMs = SystemClock.elapsedRealtime()
                     logStage("hourly_fetched count=${hourlyForecasts.size}")
@@ -204,6 +205,7 @@ internal class FullSyncPipeline(
                             lat = location.first,
                             lon = location.second,
                             sources = hourlyForecastLoader.hourlySourceIds(),
+                            caller = "full_sync_source_reload",
                         )
                         appLogDao.log(
                             "HOURLY_SOURCE_SNAPSHOT_STALE",

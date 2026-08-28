@@ -195,7 +195,9 @@ internal class WidgetPaintCoordinator(
         )
         if (missing.isEmpty() || lat == null || lon == null) return hourlyForecasts
 
-        val reloaded = hourlyForecastLoader.load(lat, lon, hourlyForecastLoader.hourlySourceIds())
+        val reloaded = hourlyForecastLoader.load(
+            lat, lon, hourlyForecastLoader.hourlySourceIds(), caller = "source_race_reload",
+        )
         appLogDao.log(
             "HOURLY_SOURCE_RACE",
             "loaded=${loadedHourlySourceIds.joinToString("|")} " +
