@@ -149,7 +149,9 @@ class FullSyncPipelineUiOnlyGateTest {
         coVerify(exactly = 0) { weatherRepository.repairFrozenRainChanceIfNeeded(any(), any()) }
 
         // GPS resampling piggybacks on full syncs only — it is a location write, not a repaint.
-        coVerify(exactly = 0) { gpsResampler.resample(any(), any()) }
+        // maybeResample, not resample: the pipeline goes through the cooldown wrapper since
+        // 2026-08-28 (plans/260828-detect-the-move-when-the-user-is-looking.md).
+        coVerify(exactly = 0) { gpsResampler.maybeResample(any(), any()) }
 
         // The actuals recompute is the expensive one; a repaint reads what is already there.
         val recompute = slot<Boolean>()
@@ -208,7 +210,7 @@ class FullSyncPipelineUiOnlyGateTest {
         coVerify(exactly = 1) { weatherRepository.backfillFrozenDisplayColumnsIfNeeded(any(), any()) }
         coVerify(exactly = 1) { weatherRepository.repairFrozenRainChanceIfNeeded(any(), any()) }
 
-        coVerify(exactly = 1) { gpsResampler.resample(any(), any()) }
+        coVerify(exactly = 1) { gpsResampler.maybeResample(any(), any()) }
 
         val recompute = slot<Boolean>()
         coVerify(exactly = 1) {
