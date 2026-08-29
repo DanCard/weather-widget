@@ -18,6 +18,7 @@ import com.google.android.gms.location.LocationServices
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
+import com.weatherwidget.widget.DebugLocationOverride
 import com.weatherwidget.widget.GpsResampler
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
@@ -211,12 +212,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Proposes a follow-device candidate from the cached Fused last-known location — never an
-     * active GPS fix, which would trigger Samsung's "app got your precise location" notice. The
-     * current body remains active until candidate weather is useful. If the cache is empty this
-     * no-ops, and [GpsResampler.followDeviceIfMoved] skips when the user pinned a location
+     * Follows the device from the cached Fused last-known location — never an active GPS fix, which
+     * would trigger Samsung's "app got your precise location" notice. A different site is applied
+     * immediately (there is no candidate; see
+     * `plans/260828-remove-the-location-handoff-policy.md`). If the cache is empty this no-ops, and
+     * [GpsResampler.followDeviceIfMoved] skips when the user pinned a location
      * ([LocationMode.FIXED][com.weatherwidget.util.LocationMode]) so deliberate choices are
      * never overwritten.
+     *
+     * Reads through [GpsResampler.awaitLastLocation] rather than calling the Fused client here.
+     * This used to be its own `getFusedLocationProviderClient(this).lastLocation` call — a second
+     * implementation of "read the passive fix" that silently diverged from the one every other path
+     * uses, and in particular did not honour [DebugLocationOverride], so the foreground path could
+     * not be driven on an emulator while the background path could.
      */
     private fun maybeFollowDeviceLocation() {
         val fineLocationGranted = ContextCompat.checkSelfPermission(
@@ -224,14 +232,14 @@ class MainActivity : AppCompatActivity() {
         ) == PackageManager.PERMISSION_GRANTED
         if (!fineLocationGranted) return
 
-        val client = LocationServices.getFusedLocationProviderClient(this)
-        client.lastLocation.addOnSuccessListener { location ->
-            if (location == null) return@addOnSuccessListener
-            val lat = location.latitude
-            val lon = location.longitude
-            lifecycleScope.launch {
-                gpsResampler.followDeviceIfMoved(this@MainActivity, lat, lon, trigger = "foreground")
-            }
+        lifecycleScope.launch {
+            val location = GpsResampler.awaitLastLocation(this@MainActivity) ?: return@launch
+            gpsResampler.followDeviceIfMoved(
+                this@MainActivity,
+                location.latitude,
+                location.longitude,
+                trigger = "foreground",
+            )
         }
     }
 }
