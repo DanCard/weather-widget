@@ -35,7 +35,7 @@ class WeatherWidgetWorker
         private val hourlyForecastLoader by lazy { HourlyForecastLoader(context, widgetStateManager) }
         private val dataBundleLoader by lazy { WidgetDataBundleLoader(weatherRepository, hourlyForecastLoader, context) }
         private val painter by lazy {
-            WidgetPaintCoordinator(context, weatherRepository, widgetStateManager, appLogDao, hourlyForecastLoader, dataBundleLoader)
+            WidgetPaintCoordinator(context, weatherRepository, widgetStateManager, appLogDao, hourlyForecastLoader, dataBundleLoader, gpsResampler)
         }
         private val fullSyncPipeline by lazy {
             FullSyncPipeline(context, weatherRepository, widgetStateManager, appLogDao, gpsResampler, hourlyForecastLoader, dataBundleLoader, painter, metarRefresher, synopticRefresher)

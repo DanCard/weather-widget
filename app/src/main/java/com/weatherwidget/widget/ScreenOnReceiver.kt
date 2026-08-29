@@ -3,6 +3,8 @@ package com.weatherwidget.widget
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.content.IntentFilter
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import dagger.hilt.android.EntryPointAccessors
@@ -25,18 +27,52 @@ import com.weatherwidget.di.RepositoryEntryPoint
  * calls below, plugging in and unlocking never notice that the device has moved, and a stale saved
  * location persists until the next full sync (60 min plugged, up to 480 min on low battery).
  *
- * **This receiver does not fire.** All three actions it is registered for in the manifest are
- * *implicit* broadcasts, and an app targeting API 26+ is not delivered those through a
- * manifest-declared receiver unless the action is on the framework exemption list — none of these
- * are. Verified 2026-08-18: three days of `app_logs` across a Pixel 7 Pro and a Samsung fold hold
- * zero `POWER_CONNECTED_EVENT` and zero `UNLOCK_REFRESH_POLICY` rows, and a genuine system-
- * dispatched `ACTION_POWER_CONNECTED` reached neither device's receiver with the process alive.
- * `exported="true"` (tried in 260413) was never the gate. The class is kept because it costs
- * nothing and still works wherever the broadcast *is* delivered.
+ * **The manifest half of this receiver does not fire.** All three actions declared in the manifest
+ * (`ACTION_POWER_CONNECTED`, `ACTION_POWER_DISCONNECTED`, `USER_PRESENT`) are *implicit* broadcasts,
+ * and an app targeting API 26+ is not delivered those through a manifest-declared receiver unless
+ * the action is on the framework exemption list. **Measured**, 2026-08-18: three days of `app_logs`
+ * across a Pixel 7 Pro and a Samsung fold hold zero `POWER_CONNECTED_EVENT` and zero
+ * `UNLOCK_REFRESH_POLICY` rows, and a genuine system-dispatched `ACTION_POWER_CONNECTED` reached
+ * neither device's receiver with the process alive. `exported="true"` (tried in 260413) was never
+ * the gate. The manifest entry is kept because it costs nothing and still works wherever the
+ * broadcast *is* delivered. The plug-in path is carried by [PowerConnectedJobService], a
+ * JobScheduler charging constraint. See `plans/260818-power-connected-broadcast-never-delivered.md`.
  *
- * The plug-in path is now carried by [PowerConnectedJobService], a JobScheduler charging
- * constraint. **`ACTION_USER_PRESENT` has no replacement yet** — the screen-unlock refresh below
- * is dead code in practice. See `plans/260818-power-connected-broadcast-never-delivered.md`.
+ * **The runtime half does fire, and is why the class is named for the screen.**
+ * [registerScreenReceiver] registers an instance for [Intent.ACTION_SCREEN_ON] when the process
+ * starts, which is the only way to receive it — **verified in platform source**, not measured:
+ *
+ * > You *cannot* receive this through components declared in manifests, only by explicitly
+ * > registering for it with `Context.registerReceiver()`.
+ * > — `android/content/Intent.java`, `ACTION_SCREEN_ON`
+ *
+ * The system sends `SCREEN_ON`/`SCREEN_OFF` with `FLAG_RECEIVER_REGISTERED_ONLY`, so the dispatcher
+ * skips manifest components: no install warning, no runtime error, it simply never fires. **Do not
+ * "fix" the dead unlock path by adding `SCREEN_ON` to the manifest** — that is a different
+ * mechanism from the implicit-broadcast restriction above, and the entry would do nothing.
+ * `ScreenOnReceiverManifestTest` guards this.
+ *
+ * Note the two grades of evidence deliberately kept apart above: the `SCREEN_ON` rule is documented
+ * platform behaviour; the `USER_PRESENT` silence is an observation on two devices, not traced to a
+ * documented allowlist. Both are good enough to act on; they are not the same kind of claim.
+ *
+ * Coverage is partial by construction — a runtime receiver lives and dies with the process, and this
+ * app's process is not persistently alive. It is one layer among several
+ * (`plans/260828-detect-the-move-when-the-user-is-looking.md`), not the mechanism.
+ *
+ * [ACTION_SCREEN_OFF][Intent.ACTION_SCREEN_OFF] is registered by the same call, and for a saving
+ * that measurement showed was real rather than theoretical: 114 `CURR_FETCH_WORK_STATE` rows on a
+ * Samsung fold read `decision=enqueue_delayed … interactive=false`, i.e. the current-temp loop kept
+ * scheduling itself for a screen nobody was looking at. [handleScreenOff] has always intended to
+ * stop that and, being manifest-only, never once fired.
+ *
+ * Cancelling is safe because several paths re-arm the loop — `UIUpdateReceiver`,
+ * `OpportunisticUpdateJobService`, `WidgetRefreshCoordinator`, `PowerConnectedRefresh` — so a
+ * cancelled loop cannot be stranded off.
+ *
+ * Worth knowing while reading that code: despite the name, `scheduleNextChargingUpdate` is **not**
+ * gated on charging. It reads `isCharging` and uses it only in its log line; the decision function
+ * never sees it. That is why the loop runs on battery at all.
  */
 class ScreenOnReceiver : BroadcastReceiver() {
     /**
@@ -54,7 +90,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
         EntryPointAccessors
             .fromApplication(ctx.applicationContext, RepositoryEntryPoint::class.java)
             .gpsResampler()
-            .resample(ctx, trigger)
+            .maybeResample(ctx, trigger)
     }
 
     override fun onReceive(
@@ -66,6 +102,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
             Intent.ACTION_POWER_DISCONNECTED -> handlePowerDisconnected(context)
             Intent.ACTION_USER_PRESENT -> handleUserPresent(context)
             Intent.ACTION_SCREEN_OFF -> handleScreenOff(context)
+            Intent.ACTION_SCREEN_ON -> handleScreenOn(context)
             else -> return
         }
     }
@@ -142,6 +179,23 @@ class ScreenOnReceiver : BroadcastReceiver() {
         }
     }
 
+    /**
+     * The display lit up. Cheapest possible response: a passive location read, nothing else.
+     *
+     * This is the earliest signal the app can get that the user is present — earlier than
+     * [Intent.ACTION_USER_PRESENT], which needs an unlock, and earlier than a widget paint. It is
+     * reachable ONLY because [registerScreenReceiver] registers this class at runtime; see the class
+     * KDoc for why a manifest entry cannot work.
+     *
+     * Deliberately does not repaint or fetch. Screen-on fires dozens of times a day and most of them
+     * change nothing; the resample is rate-limited and will enqueue its own refresh if the device
+     * actually moved.
+     */
+    private fun handleScreenOn(context: Context) {
+        Log.d(TAG, "Screen on - resampling location")
+        resampleLocationAsync(context, trigger = "screen_on")
+    }
+
     private fun handleScreenOff(context: Context) {
         val battery = getBatteryState(context)
         if (battery.isCharging) {
@@ -156,21 +210,17 @@ class ScreenOnReceiver : BroadcastReceiver() {
 
     /**
      * Passive `lastLocation` read + same-site comparison — no GPS power-up, no network, and no
-     * Samsung "app got your precise location" notice (see [GpsResampler]). Debounced anyway because
-     * unlock fires dozens of times a day and a detected candidate costs a reverse-geocode.
+     * Samsung "app got your precise location" notice (see [GpsResampler]).
+     *
+     * The rate limit is [GpsResampler.maybeResample]'s, not a local one. This used to keep its own
+     * debounce against its own prefs key, which meant two throttles with different windows guarding
+     * the same operation — the coupling that
+     * `plans/260828-detect-the-move-when-the-user-is-looking.md` removed. Screen-on fires dozens of
+     * times a day, so a limit is still essential; it just lives in one place.
      *
      * Best-effort: a resample failure must never take down the refresh the event came for.
      */
     private fun resampleLocationAsync(context: Context, trigger: String) {
-        val now = System.currentTimeMillis()
-        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, PREFS_NAME)
-        val lastResampleMs = prefs.getLong(KEY_LAST_RESAMPLE_MS, 0L)
-        if (!PowerConnectedRefreshPolicy.shouldEnqueueRefresh(now, lastResampleMs)) {
-            Log.d(TAG, "Skipping GPS resample (debounced, trigger=$trigger)")
-            return
-        }
-        prefs.edit().putLong(KEY_LAST_RESAMPLE_MS, now).apply()
-
         val pendingResult = goAsync()
         CoroutineScope(ioDispatcher).launch {
             try {
@@ -203,6 +253,27 @@ class ScreenOnReceiver : BroadcastReceiver() {
         BatterySnapshotProvider.snapshot(context)
 
     companion object {
+
+        /**
+         * Registers an instance for [Intent.ACTION_SCREEN_ON]. Call once per process, from
+         * `Application.onCreate`; the registration dies with the process, which is the coverage limit
+         * described in the class KDoc.
+         *
+         * `RECEIVER_NOT_EXPORTED` because this listens only to a protected system broadcast — the
+         * flag is required at API 34+ and is the correct answer here regardless.
+         */
+        fun registerScreenReceiver(context: Context) {
+            val filter = IntentFilter(Intent.ACTION_SCREEN_ON).apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(ScreenOnReceiver(), filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                context.registerReceiver(ScreenOnReceiver(), filter)
+            }
+        }
+
         private const val TAG = "ScreenOnReceiver"
         private const val PREFS_NAME = PowerConnectedRefresh.PREFS_NAME
 

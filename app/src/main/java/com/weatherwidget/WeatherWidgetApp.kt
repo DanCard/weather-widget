@@ -59,6 +59,9 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
             // Arms the charging-constraint trigger that stands in for the undelivered
             // ACTION_POWER_CONNECTED broadcast. No-ops when already armed.
             PowerConnectedJobService.ensureScheduled(this)
+            // ACTION_SCREEN_ON is runtime-only (see ScreenOnReceiver): a manifest entry silently
+            // never fires. Registered here so it lives exactly as long as the process does.
+            com.weatherwidget.widget.ScreenOnReceiver.registerScreenReceiver(this)
         }
     }
 

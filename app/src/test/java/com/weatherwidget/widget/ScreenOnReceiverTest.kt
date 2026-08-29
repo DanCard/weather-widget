@@ -293,13 +293,18 @@ class ScreenOnReceiverTest {
     }
 
     @Test
-    fun `location resample is debounced across repeated events`() {
+    fun `every event delegates to the resampler, which owns the rate limit`() {
         receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
         receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
 
+        // This asserted "the second event must not resample" until 2026-08-28, when the receiver
+        // kept its own debounce against its own prefs key. Two throttles with different windows
+        // guarded one operation; the limit now lives once, in GpsResampler.maybeResample, and is
+        // tested there (GpsResampleCooldownTest). The receiver's job is to delegate, every time --
+        // if it filtered here too, the central cooldown could never widen or narrow the real
+        // behaviour.
         assertEquals(
-            "Second plug-in inside the debounce window must not resample again",
-            listOf("power_connected"),
+            listOf("power_connected", "power_connected"),
             resampleTriggers,
         )
     }

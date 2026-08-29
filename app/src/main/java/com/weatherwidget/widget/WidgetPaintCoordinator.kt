@@ -29,6 +29,8 @@ internal class WidgetPaintCoordinator(
     private val appLogDao: AppLogDao,
     private val hourlyForecastLoader: HourlyForecastLoader,
     private val dataBundleLoader: WidgetDataBundleLoader,
+    /** Paint-time location resampling; see the call in [updateAllWidgets]. */
+    private val gpsResampler: GpsResampler,
 ) {
     private val lastRenderMs = mutableMapOf<Int, Long>()
 
@@ -85,6 +87,19 @@ internal class WidgetPaintCoordinator(
             widgetStateManager.setPaintOwed(true)
             appLogDao.log("WIDGET_PAINT_SKIP", "reason=screen_off", "INFO")
             return@coroutineScope
+        }
+
+        // A paint for an interactive screen is the app's only reliable evidence that the user is
+        // looking. Unlock is undeliverable (see ScreenOnReceiver) and screen-on only reaches a live
+        // process, so this is the signal that survives when those do not — and it is exactly the
+        // moment stale-by-location data would be seen. Rate-limited in maybeResample: paints are far
+        // more frequent than syncs (every tap, zoom and day-click).
+        //
+        // Fire-and-forget on purpose. A move applies and enqueues its own refresh, which repaints;
+        // blocking this paint on a Play services read would trade a visible delay for nothing.
+        launch {
+            runCatching { gpsResampler.maybeResample(context, trigger = "paint") }
+                .onFailure { Log.w(TAG, "Paint-time resample failed", it) }
         }
 
         val paintOwed = widgetStateManager.isPaintOwed()
