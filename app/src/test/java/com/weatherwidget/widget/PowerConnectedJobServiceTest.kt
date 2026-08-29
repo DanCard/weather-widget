@@ -18,13 +18,15 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
  * The plug-in trigger replaces an `ACTION_POWER_CONNECTED` broadcast that this app never receives
  * (manifest-declared receivers get no non-exempt implicit broadcasts at targetSdk 26+). These
- * tests pin the two properties that make the JobScheduler stand-in behave like the broadcast:
- * it waits on the charging constraint, and arming it repeatedly does not disturb a pending wait.
+ * tests pin the properties that make the JobScheduler stand-in behave like the broadcast: it waits
+ * on the charging constraint, arming it repeatedly does not disturb a pending wait, and running it
+ * actually resamples the location.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -68,6 +70,41 @@ class PowerConnectedJobServiceTest {
     @After
     fun tearDown() {
         jobScheduler.cancel(PowerConnectedJobService.JOB_ID)
+    }
+
+    /**
+     * The reason the job exists: it resamples. Everything else here pins *when* it runs; without
+     * this, the job could fire on every plug-in and do nothing about the location and no test would
+     * notice.
+     *
+     * The trigger string is asserted, not just the call. `GpsResampler` branches on
+     * `trigger != "worker"` to decide whether to enqueue its own refresh — an event-driven caller
+     * is not mid-sync, so naming this "worker" would leave a detected move with nothing to fetch it
+     * (see notes/260807-gps_resample_seam_breadcrumb.md).
+     */
+    @Test
+    fun `running the job resamples the location as an event-driven caller`() {
+        val triggers = mutableListOf<String>()
+        // buildService, not `PowerConnectedJobService()`: a bare instance has no base context and
+        // onStartJob's first act is applicationContext.
+        val service = org.robolectric.Robolectric
+            .buildService(PowerConnectedJobService::class.java)
+            .create()
+            .get()
+        service.resampleLocation = { _, trigger -> triggers.add(trigger) }
+
+        // A relaxed mock is enough: the service only passes params back to jobFinished, which is
+        // in the `finally` after the resample has already been recorded.
+        val async = service.onStartJob(io.mockk.mockk(relaxed = true))
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        // The tail runs on Dispatchers.IO; give it a bounded moment rather than a bare sleep.
+        val deadline = System.currentTimeMillis() + 5_000
+        while (triggers.isEmpty() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20)
+        }
+
+        assertTrue("onStartJob must report asynchronous work", async)
+        assertEquals(listOf("power_connected"), triggers)
     }
 
     @Test

@@ -169,18 +169,27 @@ DIFFERENCE, NONE — were removed; there is no display-mode setting.)
 | Update Type | Frequency | Wakeup | Purpose |
 |-------------|-----------|--------|---------|
 | Current Temp UI | 15-60 min (temp-based) | No (opportunistic) | Update interpolated temp from cache |
-| Data Fetch | 60-480 min (battery-aware) | Yes (controlled) | Fetch from APIs |
+| Data Fetch | 60-1440 min (battery-aware) | Yes (controlled) | Fetch from APIs |
 | User Interaction | Immediate | N/A | Instant UI + conditional fetch |
-| Screen Unlock | Immediate | N/A | UI update + fetch if charging & stale |
+| Charger plug-in | Immediate | JobScheduler charging constraint | `PowerConnectedJobService`: refresh + location resample |
+| Screen Unlock | **Never fires** | N/A | `ScreenOnReceiver` declares `USER_PRESENT` in the manifest and measured zero deliveries over three days on two devices. `ACTION_SCREEN_ON` is not registered at all, and cannot be from a manifest (`FLAG_RECEIVER_REGISTERED_ONLY`; see `android/content/Intent.java`). Do not "fix" this by adding `SCREEN_ON` to the manifest — it will silently do nothing. |
 
-**Data Fetch Intervals** (battery-aware via WorkManager):
+**Data Fetch Intervals** (battery-aware via WorkManager). Authoritative values are
+`BatteryTier`/`ForecastFetchPolicy`; the thresholds are on **battery level**, not a 20/50 split:
 
-| Condition | Interval |
-|-----------|----------|
-| Plugged in | 60 min |
-| Battery > 50% | 120 min |
-| Battery 20-50% | 240 min |
-| Battery < 20% | 480 min |
+| Condition | Interval | Constant |
+|-----------|----------|----------|
+| Charging | 60 min | `ForecastFetchPolicy.CHARGING_SCREEN_ON_ACTIVE_MINUTES` |
+| Battery > 70% | 240 min | `BatteryTier.INTERVAL_HIGH_MINUTES` |
+| Battery 50-70% | 480 min | `BatteryTier.INTERVAL_MEDIUM_MINUTES` |
+| Battery ≤ 50% | 1440 min | `computeFetchInterval` returns null → `OFF_CHARGER_LOW_BATTERY_TICK_MINUTES` |
+
+This table read 60/120/240/480 until 2026-08-28 — wrong in the flattering direction, and off by up
+to 3× at the bottom. That mattered: it hid how long the app can go without noticing a location
+change off-charger, which is the gap
+`plans/260828-detect-the-move-when-the-user-is-looking.md` exists to close. **The periodic tick is
+also the only thing that resamples location** on a device that is never plugged in and never has the
+app opened, so these numbers are detection latency as well as data latency.
 
 **Key Points:**
 - Zero independent wakeups for UI updates (opportunistic only)
