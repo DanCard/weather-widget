@@ -6,9 +6,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.test.RobolectricTest
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.SharedPreferencesUtil
+import com.weatherwidget.widget.ActiveLocationResolver
 import com.weatherwidget.widget.WeatherWidgetProvider
-import com.weatherwidget.widget.CandidateProposal
-import com.weatherwidget.widget.LocationHandoffStore
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -126,8 +125,14 @@ class LocationUpdaterTest : RobolectricTest() {
     }
 
 
+    /**
+     * A detected move takes effect at once. This replaces two tests that asserted the opposite —
+     * that a candidate was held pending, and that a separate promotion step applied it — because the
+     * handoff policy those described was removed 2026-08-28
+     * (plans/260828-remove-the-location-handoff-policy.md).
+     */
     @Test
-    fun `follow-device candidate does not replace active widget coordinates before promotion`() {
+    fun `a follow-device move replaces the active widget coordinates immediately`() {
         val widgetId = 204
         val info = android.appwidget.AppWidgetProviderInfo().apply {
             provider = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
@@ -139,47 +144,19 @@ class LocationUpdaterTest : RobolectricTest() {
             .putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", -122.0890f)
             .commit()
 
-        val proposal = LocationUpdater.proposeFollowDeviceLocation(
+        val applied = LocationUpdater.applyFollowDeviceLocation(
             context = context,
             lat = 37.3774,
             lon = -122.0749,
             label = "Away",
             enqueueRefresh = false,
-            nowMs = 100L,
             ids = intArrayOf(widgetId),
         )
 
-        assertEquals(CandidateProposal.UPDATED, proposal)
-        assertEquals(37.4168f, prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN), 0.0001f)
-        assertEquals(-122.0890f, prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", Float.NaN), 0.0001f)
-        assertNotNull(LocationHandoffStore.getCandidate(context))
-    }
-
-    @Test
-    fun `promoting evaluated candidate atomically updates active widget coordinates`() {
-        val widgetId = 205
-        val info = android.appwidget.AppWidgetProviderInfo().apply {
-            provider = android.content.ComponentName(context, WeatherWidgetProvider::class.java)
-        }
-        shadowAppWidgetManager.addBoundWidget(widgetId, info)
-        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
-        prefs.edit()
-            .putFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", 37.4168f)
-            .putFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", -122.0890f)
-            .commit()
-        LocationUpdater.proposeFollowDeviceLocation(
-            context = context,
-            lat = 37.3774,
-            lon = -122.0749,
-            label = "Away",
-            enqueueRefresh = false,
-            nowMs = 100L,
-            ids = intArrayOf(widgetId),
-        )
-        val candidate = LocationHandoffStore.getCandidate(context)!!
-
-        assertTrue(LocationUpdater.promoteCandidateIfMatches(context, candidate, intArrayOf(widgetId)))
+        assertTrue(applied)
         assertEquals(37.3774f, prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN), 0.0001f)
         assertEquals(-122.0749f, prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", Float.NaN), 0.0001f)
+        // The canonical record moves too, not just the per-widget compatibility copies.
+        assertEquals(37.3774, ActiveLocationResolver.current(context)!!.first, 1e-5)
     }
 }

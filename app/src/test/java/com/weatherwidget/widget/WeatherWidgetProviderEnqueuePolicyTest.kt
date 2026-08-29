@@ -228,14 +228,13 @@ class WeatherWidgetProviderEnqueuePolicyTest {
     }
 
     @Test
-    fun `location candidate refresh keeps running handoff work instead of cancelling it`() {
-        LocationUpdater.proposeFollowDeviceLocation(
+    fun `location-change refresh keeps running work instead of cancelling it`() {
+        LocationUpdater.applyFollowDeviceLocation(
             context = context,
             lat = 40.7128,
             lon = -74.0060,
-            label = "Candidate",
+            label = "Moved",
             enqueueRefresh = true,
-            nowMs = 100L,
             ids = intArrayOf(901),
         )
 

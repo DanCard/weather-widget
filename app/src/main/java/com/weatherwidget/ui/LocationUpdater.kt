@@ -13,10 +13,6 @@ import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.ActiveLocationResolver
-import com.weatherwidget.widget.CandidateLocation
-import com.weatherwidget.widget.CandidateProposal
-import com.weatherwidget.widget.HandoffLocation
-import com.weatherwidget.widget.LocationHandoffStore
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.tagTestModeEnqueue
@@ -133,7 +129,6 @@ object LocationUpdater {
         label: String?,
         ids: IntArray = getWidgetIds(context),
     ) {
-        LocationHandoffStore.clear(context)
         writeActiveLocation(context, lat, lon, ids)
         if (label != null) {
             recordHistoricalPoi(context, lat, lon, label)
@@ -151,46 +146,43 @@ object LocationUpdater {
         context: Context,
         ids: IntArray = getWidgetIds(context),
     ) {
-        LocationHandoffStore.clear(context)
         ActiveLocationResolver.clear(context)
         WidgetStateManager(context).clearWidgetLocations(ids)
         enqueueForceRefresh(context)
     }
 
-    internal fun proposeFollowDeviceLocation(
+    /**
+     * Applies a fresh device fix as the active location, immediately.
+     *
+     * There is no pending state and no readiness gate. The handoff policy that used to hold a
+     * detected move until the new site had "enough" data was removed 2026-08-28: it withheld a
+     * fully-drawable San Francisco for 30 minutes while showing Mountain View to a device in San
+     * Francisco, and separately promoted zero-observation stubs half a mile away without waiting at
+     * all, because its readiness test looked only at forecast rows and returned before the movement
+     * grace. It delayed the case it should have allowed and waved through the case it existed to
+     * catch. See plans/260828-remove-the-location-handoff-policy.md.
+     *
+     * Fetch *cost* is still bounded, by the battery-aware cadence that bounds every other fetch —
+     * `ForecastFetchCoordinator.isStale` reads its last-fetch time from location-scoped rows, so a
+     * new site is due at once while a jittering fix inside one site coalesces. That is the whole
+     * budget; nothing else gets to decide what the user is shown.
+     *
+     * @return true when this changed the active location.
+     */
+    internal fun applyFollowDeviceLocation(
         context: Context,
         lat: Double,
         lon: Double,
         label: String,
         enqueueRefresh: Boolean,
-        nowMs: Long = System.currentTimeMillis(),
         ids: IntArray = getWidgetIds(context),
-    ): CandidateProposal {
-        val stateManager = WidgetStateManager(context)
-        // Stored only, matching GpsResampler.followDeviceIfMoved — an inferred coordinate here would make
-        // propose() judge a fresh fix against a location the user never chose. Null when nothing is
-        // configured yet, which propose() reads as "any fresh fix is an improvement."
-        val active = ActiveLocationResolver.current(context)
-            ?: ids.toList().firstNotNullOfOrNull(stateManager::getStoredWidgetLocation)
-        val proposal = LocationHandoffStore.propose(
-            context = context,
-            activeLocation = active,
-            freshLocation = HandoffLocation(lat, lon, label),
-            nowMs = nowMs,
-        )
-        if (proposal == CandidateProposal.UPDATED && enqueueRefresh) {
+    ): Boolean {
+        writeActiveLocation(context, lat, lon, ids)
+        recordHistoricalPoi(context, lat, lon, label)
+        if (enqueueRefresh) {
             enqueueCandidateRefresh(context)
         }
-        return proposal
-    }
-
-    internal fun promoteCandidateIfMatches(
-        context: Context,
-        candidate: CandidateLocation,
-        ids: IntArray = getWidgetIds(context),
-    ): Boolean = LocationHandoffStore.promoteIfMatches(context, candidate) { location ->
-        writeActiveLocation(context, location.lat, location.lon, ids)
-        recordHistoricalPoi(context, location.lat, location.lon, location.label)
+        return true
     }
 
     private fun writeActiveLocation(

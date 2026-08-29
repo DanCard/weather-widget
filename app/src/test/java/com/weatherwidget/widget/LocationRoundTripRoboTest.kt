@@ -97,7 +97,6 @@ class LocationRoundTripRoboTest : RobolectricTest() {
             ResolvedLocation(firstArg(), secondArg(), label = "Testville", source = "test")
         }
 
-        LocationHandoffStore.clear(context)
         ActiveLocationResolver.clear(context)
         bindWidgetAt(widgetId, homeLat, homeLon)
         ActiveLocationResolver.persist(context, homeLat, homeLon)
@@ -106,7 +105,6 @@ class LocationRoundTripRoboTest : RobolectricTest() {
 
     @After
     fun tearDown() {
-        LocationHandoffStore.clear(context)
         ActiveLocationResolver.clear(context)
         db.close()
         WeatherDatabase.setIsTesting(false)
@@ -215,53 +213,42 @@ class LocationRoundTripRoboTest : RobolectricTest() {
         resampler(fix(sfLat, sfLon)).resample(context)
 
         assertTrue(
-            "the move must be detected as a candidate: ${outcomes()}",
-            outcomes().any { it.contains("candidate_detected") },
+            "the move must be applied, not queued: ${outcomes()}",
+            outcomes().any { it.contains("location_moved") },
         )
-        val candidate = LocationHandoffStore.getCandidate(context)
-        assertNotNull("a candidate must be recorded", candidate)
-        assertEquals(sfLat, candidate!!.location.lat, 1e-6)
-
-        // The whole point of the pending window: what the widget DISPLAYS has not moved, because SF
-        // has no data yet. Promotion happens later, in a full sync, once it does.
+        // The assertion that inverted on 2026-08-28. This used to require the active location to
+        // STAY at home until the new site had "enough" data. It now moves at once: if the user is
+        // looking at the phone they should see where they are, and fetch cost is bounded by the
+        // battery-aware cadence rather than by withholding the location.
         assertEquals(
-            "the active location must not move on detection alone",
-            homeLat,
+            "the active location must follow the device",
+            sfLat,
             ActiveLocationResolver.current(context)!!.first,
             1e-5,
         )
+        assertEquals(sfLon, ActiveLocationResolver.current(context)!!.second, 1e-5)
 
         // --- step 3: hold there -------------------------------------------------------------
-        // Nothing has been fetched for SF, so the candidate is not yet usable. Asserting the reason
-        // rather than just `useful == false` keeps this honest: "not ready" for the right cause.
-        val usability = evaluateCandidateUsability(
-            forecasts = emptyList(),
-            hourlyForecasts = emptyList(),
-            requiredSourceIds = setOf(source),
-            requiresHourlyData = true,
-            nowMs = System.currentTimeMillis(),
-            candidateFirstSeenMs = candidate.firstSeenMs,
-            isAcquisition = false,
+        // Nothing has been fetched for SF yet, so the widget is briefly sparse there. That is the
+        // accepted trade: honestly thin data for where you are, rather than a complete graph for a
+        // city you have left. What must NOT happen is home's rows being served under SF's name.
+        val awayHourly = hourlyAtActiveLocation()
+        assertTrue(
+            "home's rows must not be served for the new location: " +
+                awayHourly.map { it.locationLat to it.locationLon }.distinct(),
+            awayHourly.none { LocationMatch.sameSite(homeLat, homeLon, it.locationLat, it.locationLon) },
         )
-        assertFalse("an unfetched candidate must not be promoted", usability.useful)
-        assertEquals("insufficient_daily_coverage", usability.reason)
-
-        // And while pending, the widget still draws home's real data -- not a blank, not SF's.
-        assertDrawableAndLocal("during pending window", hourlyAtActiveLocation(), observationsAtActiveLocation())
 
         // --- step 4: return home ------------------------------------------------------------
         logged.clear()
         resampler(fix(homeLat, homeLon)).resample(context)
 
         assertTrue(
-            "returning must be recognised as a return, not a new move: ${outcomes()}",
-            outcomes().any { it.contains("returned_to_active") },
-        )
-        assertNull(
-            "the candidate must be cleared on return, or it keeps steering later loads",
-            LocationHandoffStore.getCandidate(context),
+            "the return must be applied like any other move: ${outcomes()}",
+            outcomes().any { it.contains("location_moved") },
         )
         assertEquals(
+            "the active location must be home again",
             homeLat,
             ActiveLocationResolver.current(context)!!.first,
             1e-5,
@@ -293,9 +280,9 @@ class LocationRoundTripRoboTest : RobolectricTest() {
         resampler(fix(sfLat, sfLon)).resample(context)
 
         assertTrue(
-            "the second move must be detected, not swallowed as a stale candidate: ${outcomes()}",
-            outcomes().any { it.contains("candidate_detected") },
+            "the second move must be applied, not swallowed as already-seen: ${outcomes()}",
+            outcomes().any { it.contains("location_moved") },
         )
-        assertNotNull(LocationHandoffStore.getCandidate(context))
+        assertEquals(sfLat, ActiveLocationResolver.current(context)!!.first, 1e-5)
     }
 }

@@ -93,7 +93,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        LocationHandoffStore.clear(context)
         WorkManager.getInstance(context)
             .cancelUniqueWork(WidgetWorkScheduler.WORK_NAME_PERIODIC)
         WorkManager.getInstance(context)

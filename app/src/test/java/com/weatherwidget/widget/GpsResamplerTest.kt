@@ -34,8 +34,8 @@ class GpsResamplerTest : RobolectricTest() {
     private lateinit var appLogDao: AppLogDao
     private lateinit var resolver: SharedLocationResolver
     private val logged = mutableListOf<AppLogEntity>()
-    private val proposed = mutableListOf<Triple<Double, Double, String>>()
-    /** enqueueRefresh flag passed to proposeCandidate, per detected candidate. */
+    private val applied = mutableListOf<Triple<Double, Double, String>>()
+    /** enqueueRefresh flag passed to applyLocation, per detected move. */
     private val enqueueRefreshFlags = mutableListOf<Boolean>()
     private var providerCalls = 0
 
@@ -51,7 +51,6 @@ class GpsResamplerTest : RobolectricTest() {
         coEvery { resolver.fromCoordinates(any(), any()) } answers {
             ResolvedLocation(firstArg(), secondArg(), label = "Testville", source = "test")
         }
-        LocationHandoffStore.clear(context)
     }
 
     private fun resampler(
@@ -67,8 +66,8 @@ class GpsResamplerTest : RobolectricTest() {
         permissionChecker = { _, permission ->
             if (permission == Manifest.permission.ACCESS_FINE_LOCATION) fineGranted else true
         },
-        proposeCandidate = { _, lat, lon, label, enqueueRefresh ->
-            proposed.add(Triple(lat, lon, label))
+        applyLocation = { _, lat, lon, label, enqueueRefresh ->
+            applied.add(Triple(lat, lon, label))
             enqueueRefreshFlags.add(enqueueRefresh)
             true
         },
@@ -124,7 +123,7 @@ class GpsResamplerTest : RobolectricTest() {
         resampler(fix = fix(40.7128, -74.0060), fineGranted = false).resample(context)
 
         assertEquals(0, providerCalls)
-        assertTrue(proposed.isEmpty())
+        assertTrue(applied.isEmpty())
         assertEquals(listOf("outcome=skipped_no_permission trigger=worker"), outcomes())
     }
 
@@ -135,30 +134,30 @@ class GpsResamplerTest : RobolectricTest() {
         resampler(fix = null).resample(context)
 
         assertEquals(1, providerCalls)
-        assertTrue(proposed.isEmpty())
+        assertTrue(applied.isEmpty())
         assertEquals(listOf("outcome=no_fix mode=last_location trigger=worker"), outcomes())
     }
 
     @Test
-    fun `event trigger labels the breadcrumb and asks for a candidate refresh`() = runTest {
+    fun `event trigger labels the breadcrumb and asks for a refresh`() = runTest {
         bindWidgetAt(101, 34.0522, -118.2437)
 
         val changed = resampler(fix = fix(40.7128, -74.0060))
             .resample(context, trigger = "power_connected")
 
         assertTrue(changed)
-        val proposalLog = logged.single { it.tag == GpsResampler.LOG_TAG }
+        val moveLog = logged.single { it.tag == GpsResampler.LOG_TAG }
         assertTrue(
-            "Breadcrumb must name the caller, not the worker: ${proposalLog.message}",
-            proposalLog.message.startsWith("outcome=candidate_detected trigger=power_connected"),
+            "Breadcrumb must name the caller, not the worker: ${moveLog.message}",
+            moveLog.message.startsWith("outcome=location_moved trigger=power_connected"),
         )
-        // The worker fetches the candidate itself mid-sync; an event-driven caller is not
-        // mid-sync, so it must enqueue one or the candidate never gains the data to be promoted.
+        // The worker fetches the new location itself mid-sync; an event-driven caller is not
+        // mid-sync, so it must enqueue one or the new site never gains data at all.
         assertEquals(listOf(true), enqueueRefreshFlags)
     }
 
     @Test
-    fun `worker trigger leaves the candidate refresh to the sync in progress`() = runTest {
+    fun `worker trigger leaves the refresh to the sync in progress`() = runTest {
         bindWidgetAt(101, 34.0522, -118.2437)
 
         resampler(fix = fix(40.7128, -74.0060)).resample(context)
@@ -174,23 +173,23 @@ class GpsResamplerTest : RobolectricTest() {
         val changed = resampler(fix = fix(34.0525, -118.2438)).resample(context)
 
         assertFalse(changed)
-        assertTrue(proposed.isEmpty())
+        assertTrue(applied.isEmpty())
         assertEquals(1, outcomes().size)
         assertTrue(outcomes()[0].startsWith("outcome=same_site trigger=worker"))
     }
 
     @Test
-    fun `differing cached fix becomes a candidate with a resolved label`() = runTest {
+    fun `differing cached fix is applied with a resolved label`() = runTest {
         bindWidgetAt(101, 34.0522, -118.2437)
 
         val changed = resampler(fix = fix(40.7128, -74.0060)).resample(context)
 
         assertTrue(changed)
-        assertEquals(listOf(Triple(40.7128, -74.0060, "Testville")), proposed)
-        val proposalLog = logged.single { it.tag == GpsResampler.LOG_TAG }
-        assertTrue(proposalLog.message.startsWith("outcome=candidate_detected trigger=worker"))
-        assertTrue(proposalLog.message.contains("label=Testville"))
-        assertEquals("INFO", proposalLog.level)
+        assertEquals(listOf(Triple(40.7128, -74.0060, "Testville")), applied)
+        val moveLog = logged.single { it.tag == GpsResampler.LOG_TAG }
+        assertTrue(moveLog.message.startsWith("outcome=location_moved trigger=worker"))
+        assertTrue(moveLog.message.contains("label=Testville"))
+        assertEquals("INFO", moveLog.level)
     }
 
     @Test
@@ -200,7 +199,7 @@ class GpsResamplerTest : RobolectricTest() {
 
         resampler(fix = fix(40.7128, -74.0060)).resample(context)
 
-        assertEquals(listOf(Triple(40.7128, -74.0060, "40.7128, -74.0060")), proposed)
+        assertEquals(listOf(Triple(40.7128, -74.0060, "40.7128, -74.0060")), applied)
     }
 
     @Test
@@ -211,7 +210,7 @@ class GpsResamplerTest : RobolectricTest() {
         resampler(fix = fix(40.7128, -74.0060)).resample(context)
 
         assertEquals(0, providerCalls)
-        assertTrue(proposed.isEmpty())
+        assertTrue(applied.isEmpty())
         assertEquals(listOf("outcome=skipped_pinned trigger=worker"), outcomes())
     }
 
@@ -222,7 +221,7 @@ class GpsResamplerTest : RobolectricTest() {
 
         assertFalse(resampler(fix = null).followDeviceIfMoved(context, 40.7128, -74.0060, trigger = "foreground"))
 
-        assertTrue(proposed.isEmpty())
+        assertTrue(applied.isEmpty())
         assertEquals(listOf("outcome=skipped_pinned trigger=foreground"), outcomes())
     }
 
@@ -233,19 +232,19 @@ class GpsResamplerTest : RobolectricTest() {
 
         resampler(fix = fix(40.7128, -74.0060)).resample(context)
 
-        assertEquals(listOf(Triple(40.7128, -74.0060, "Testville")), proposed)
+        assertEquals(listOf(Triple(40.7128, -74.0060, "Testville")), applied)
     }
 
     @Test
-    fun `followDeviceIfMoved returns whether a candidate was proposed`() = runTest {
+    fun `followDeviceIfMoved returns whether the location moved`() = runTest {
         bindWidgetAt(101, 34.0522, -118.2437)
         val resampler = resampler(fix = null)
 
         assertFalse(resampler.followDeviceIfMoved(context, 34.0522, -118.2437, trigger = "foreground"))
         assertTrue(resampler.followDeviceIfMoved(context, 40.7128, -74.0060, trigger = "foreground"))
-        assertEquals(1, proposed.size)
+        assertEquals(1, applied.size)
         assertTrue(outcomes().any { it.startsWith("outcome=same_site trigger=foreground") })
-        assertTrue(outcomes().any { it.startsWith("outcome=candidate_detected trigger=foreground") })
+        assertTrue(outcomes().any { it.startsWith("outcome=location_moved trigger=foreground") })
     }
 
     // ---- "no location" must not be inferred away ----
@@ -263,8 +262,8 @@ class GpsResamplerTest : RobolectricTest() {
         val changed = resampler(fix = fix(34.0522, -118.2437)).resample(context)
 
         assertTrue("a fix must be proposed even when it matches a saved place name", changed)
-        assertEquals(listOf(Triple(34.0522, -118.2437, "Testville")), proposed)
-        assertTrue(outcomes().single().startsWith("outcome=candidate_detected"))
+        assertEquals(listOf(Triple(34.0522, -118.2437, "Testville")), applied)
+        assertTrue(outcomes().single().startsWith("outcome=location_moved"))
     }
 
     @Test
@@ -275,7 +274,7 @@ class GpsResamplerTest : RobolectricTest() {
         val changed = resampler(fix = fix(34.0522, -118.2437)).resample(context)
 
         assertTrue(changed)
-        assertEquals(listOf(Triple(34.0522, -118.2437, "Testville")), proposed)
+        assertEquals(listOf(Triple(34.0522, -118.2437, "Testville")), applied)
     }
 
     /** A configured location still suppresses: this narrows what counts, it does not disable the check. */
@@ -287,7 +286,7 @@ class GpsResamplerTest : RobolectricTest() {
         val changed = resampler(fix = fix(34.0522, -118.2437)).resample(context)
 
         assertFalse(changed)
-        assertTrue(proposed.isEmpty())
+        assertTrue(applied.isEmpty())
         assertTrue(outcomes().single().startsWith("outcome=same_site"))
     }
 
@@ -296,6 +295,6 @@ class GpsResamplerTest : RobolectricTest() {
         resampler(fix = fix(40.7128, -74.0060)).resample(context)
 
         assertEquals(listOf("outcome=skipped_no_widgets trigger=worker"), outcomes())
-        assertTrue(proposed.isEmpty())
+        assertTrue(applied.isEmpty())
     }
 }

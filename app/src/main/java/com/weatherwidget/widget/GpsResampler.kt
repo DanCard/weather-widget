@@ -17,9 +17,15 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
 /**
- * Samples the cached Fused last-known location and proposes a display-location candidate when it
+ * Samples the cached Fused last-known location and moves the display location to it as soon as it
  * is no longer same-site with the active widget location
  * ([LocationMatch.sameSite][com.weatherwidget.data.local.LocationMatch]).
+ *
+ * **Immediately, with no readiness gate.** The handoff policy that used to hold a detected move
+ * pending until the new site had "enough" data was removed 2026-08-28
+ * (plans/260828-remove-the-location-handoff-policy.md): if the user is looking at the phone they
+ * should see where they are. Fetch cost stays bounded by the battery-aware cadence, which is
+ * location-scoped and therefore already treats a new site as due and a jittering fix as not.
  *
  * No handoff path here requests an active GPS fix: passive [lastLocation][com.google.android.gms.location.FusedLocationProviderClient.lastLocation]
  * reads don't power up GPS and don't trigger Samsung's "app got your precise location" notice.
@@ -31,7 +37,7 @@ import kotlin.coroutines.resume
  * When the user pins a location (zip/address/coordinates → [LocationMode.FIXED]), both sampling paths
  * skip with an `outcome=skipped_pinned` breadcrumb so a deliberate choice is never clobbered.
  *
- * The location acquisition, permission check, and candidate proposal are injected so the decision
+ * The location acquisition, permission check, and location application are injected so the decision
  * pipeline is unit-testable without Play services or WorkManager; production wiring in
  * [com.weatherwidget.di.AppModule] uses the defaults. Every run leaves a [LOG_TAG] breadcrumb in
  * app_logs recording the outcome, queryable from a pulled DB.
@@ -43,19 +49,18 @@ class GpsResampler(
     private val permissionChecker: (Context, String) -> Boolean = { context, permission ->
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     },
-    private val proposeCandidate: (Context, Double, Double, String, Boolean) -> Boolean =
+    private val applyLocation: (Context, Double, Double, String, Boolean) -> Boolean =
         { context, lat, lon, label, enqueueRefresh ->
-            LocationUpdater.proposeFollowDeviceLocation(context, lat, lon, label, enqueueRefresh) ==
-                CandidateProposal.UPDATED
+            LocationUpdater.applyFollowDeviceLocation(context, lat, lon, label, enqueueRefresh)
     },
 ) {
     /**
      * Background entry point: permission check → cached location → [followDeviceIfMoved].
      *
-     * [trigger] names the caller in the breadcrumb and, via [followDeviceIfMoved], decides whether a newly
-     * detected candidate also enqueues a refresh: the periodic worker is already mid-sync so it
-     * fetches the candidate itself, while event-driven callers (charger plug-in, unlock) must ask
-     * for one. Keep the worker's value as `"worker"` for that reason.
+     * [trigger] names the caller in the breadcrumb and, via [followDeviceIfMoved], decides whether a
+     * move also enqueues a refresh: the periodic worker is already mid-sync so it fetches the new
+     * location itself, while event-driven callers (charger plug-in, unlock) must ask for one. Keep
+     * the worker's value as `"worker"` for that reason.
      */
     suspend fun resample(context: Context, trigger: String = "worker"): Boolean {
         if (!permissionChecker(context, Manifest.permission.ACCESS_FINE_LOCATION)) {
@@ -78,11 +83,10 @@ class GpsResampler(
     }
 
     /**
-     * Shared tail of the background and foreground sampling paths. A different fix becomes a
-     * candidate; the configured/active coordinates remain unchanged until candidate weather is
-     * useful enough for the current widget views.
+     * Shared tail of the background and foreground sampling paths. A different fix becomes the
+     * active location there and then.
      *
-     * @return true when candidate state changed, allowing the current worker to force one fetch.
+     * @return true when the active location changed.
      */
     suspend fun followDeviceIfMoved(context: Context, lat: Double, lon: Double, trigger: String): Boolean {
         if (LocationMode.get(context) == LocationMode.FIXED) {
@@ -101,29 +105,13 @@ class GpsResampler(
         // `getStoredWidgetLocation`, never `getWidgetLocation`: the latter falls back through the
         // legacy delta store, and used to fall through to the historical-POI list as well. Comparing a
         // fresh fix against an *inferred* coordinate is how a widget with no location reads as
-        // "already located" — same site, no candidate, no escape from the no-location state for a user
+        // "already located" — same site, no move, no escape from the no-location state for a user
         // standing exactly where the app could have fixed it. Null here is the real answer: a fresh fix
-        // can never be the same site as nothing, so it falls through and becomes a candidate.
+        // can never be the same site as nothing, so it falls through and is applied.
         val active = ActiveLocationResolver.current(context)
             ?: ids.toList().firstNotNullOfOrNull(stateManager::getStoredWidgetLocation)
-        val existingCandidate = LocationHandoffStore.getCandidate(context)
         if (active != null && LocationMatch.sameSite(active.first, active.second, lat, lon)) {
-            if (existingCandidate != null) {
-                LocationHandoffStore.clear(context)
-                appLogDao.log(LOG_TAG, "outcome=returned_to_active trigger=$trigger lat=$lat lon=$lon", "INFO")
-                return true
-            }
             appLogDao.log(LOG_TAG, "outcome=same_site trigger=$trigger lat=$lat lon=$lon")
-            return false
-        }
-        if (existingCandidate != null && LocationMatch.sameSite(
-                existingCandidate.location.lat,
-                existingCandidate.location.lon,
-                lat,
-                lon,
-            )
-        ) {
-            appLogDao.log(LOG_TAG, "outcome=candidate_pending trigger=$trigger lat=$lat lon=$lon")
             return false
         }
         val label = try {
@@ -134,13 +122,13 @@ class GpsResampler(
             Log.w(TAG, "Location label lookup failed for ($lat, $lon); using raw coordinates", e)
             String.format("%.4f, %.4f", lat, lon)
         }
-        val candidateUpdated = proposeCandidate(context, lat, lon, label, trigger != "worker")
+        val applied = applyLocation(context, lat, lon, label, trigger != "worker")
         appLogDao.log(
             LOG_TAG,
-            "outcome=candidate_detected trigger=$trigger lat=$lat lon=$lon label=$label updated=$candidateUpdated",
+            "outcome=location_moved trigger=$trigger lat=$lat lon=$lon label=$label applied=$applied",
             "INFO",
         )
-        return candidateUpdated
+        return applied
     }
 
     companion object {

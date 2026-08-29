@@ -45,12 +45,11 @@ internal class FullSyncPipeline(
             maybeScheduleDebugFastRefresh()
 
             // GPS resample piggybacks on full syncs
-            var candidateChangedThisRun = false
             if (!input.uiOnlyRefresh && !input.currentTempOnly && !input.nonPrimaryCurrentTempOnly &&
                 !input.observationBackfillMode && !input.candidateLocationRefresh
             ) {
                 try {
-                    candidateChangedThisRun = gpsResampler.resample(context)
+                    gpsResampler.resample(context)
                 } catch (e: Exception) {
                     Log.w(TAG, "GPS resample failed", e)
                 }
@@ -65,16 +64,14 @@ internal class FullSyncPipeline(
                 widgetStateManager,
                 WeatherDatabase.getDatabase(context).forecastDao(),
             )
-            val candidateAtLoad = if (!input.uiOnlyRefresh) LocationHandoffStore.getCandidate(context) else null
-            // Candidate first, as before. A candidate can exist with no active location yet (a GPS
-            // handoff on a never-configured install), so the no-location gate is on the resolved
-            // pair, not on activeLocation alone.
-            val location = candidateAtLoad?.location?.let { it.lat to it.lon }
-                ?: activeLocation
+            // One location source. `GpsResampler.resample` above has already applied any move, so
+            // `activeLocation` is current as of this run -- there is no pending candidate to prefer
+            // over it (plans/260828-remove-the-location-handoff-policy.md).
+            val location = activeLocation
                 ?: return painter.renderNoLocationAndFinish("full_sync")
             Log.d(
                 TAG,
-                "doWork: Location = $location active=$activeLocation candidate=${candidateAtLoad != null} " +
+                "doWork: Location = $location " +
                     "(configured=${appWidgetIds.toList().firstNotNullOfOrNull { widgetStateManager.getWidgetLocation(it) } != null})",
             )
 
@@ -91,7 +88,14 @@ internal class FullSyncPipeline(
             val result = weatherRepository.getWeatherData(
                 latitude = location.first,
                 longitude = location.second,
-                forceRefresh = (input.forceRefresh || candidateChangedThisRun) && !input.uiOnlyRefresh,
+                // A location change no longer forces a fetch past the battery budget. It does not
+                // need to: `isStale` derives its last-fetch time from the *location-scoped* forecast
+                // rows, so a site with no rows is due immediately and gets fetched on this very run.
+                // What the bypass actually did was let a jittering fix force a fetch every sync, and
+                // it was tolerable only while the handoff policy made location changes rare. With
+                // promotion immediate (plans/260828-remove-the-location-handoff-policy.md), one
+                // budget governs fetch cost and nothing governs what the user is shown.
+                forceRefresh = input.forceRefresh && !input.uiOnlyRefresh,
                 networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(input.uiOnlyRefresh),
                 targetSourceId = input.targetSourceId,
                 fetchContext = fetchContext,
@@ -116,25 +120,6 @@ internal class FullSyncPipeline(
                     )
                     val afterHourlyMs = SystemClock.elapsedRealtime()
                     logStage("hourly_fetched count=${hourlyForecasts.size}")
-
-                    if (candidateAtLoad != null) {
-                        when (val outcome = tryPromoteLocationCandidate(
-                            context = context,
-                            appLogDao = appLogDao,
-                            widgetStateManager = widgetStateManager,
-                            candidateAtLoad = candidateAtLoad,
-                            weatherList = weatherList,
-                            hourlyForecasts = hourlyForecasts,
-                            activeSourceIds = activeSourceList,
-                            appWidgetIds = appWidgetIds,
-                        )) {
-                            is LocationCandidateOutcome.Superseded,
-                            is LocationCandidateOutcome.WaitingForData,
-                            is LocationCandidateOutcome.PromotionFailed,
-                            -> return@fold ListenableWorker.Result.success()
-                            is LocationCandidateOutcome.Promoted -> { /* continue */ }
-                        }
-                    }
 
                     if (!input.uiOnlyRefresh && (input.targetSourceId == WeatherSource.NWS.id ||
                             (input.targetSourceId == null && weatherList.any { it.source == WeatherSource.NWS.id }))
