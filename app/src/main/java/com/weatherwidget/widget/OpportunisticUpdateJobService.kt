@@ -32,6 +32,16 @@ import java.util.concurrent.TimeUnit
  */
 @RequiresApi(Build.VERSION_CODES.O)
 class OpportunisticUpdateJobService : JobService() {
+
+    /** Test seam, mirroring [PowerConnectedJobService.resampleLocation]. */
+    @androidx.annotation.VisibleForTesting
+    internal var resampleLocation: suspend (android.content.Context, String) -> Unit = { ctx, trigger ->
+        dagger.hilt.android.EntryPointAccessors
+            .fromApplication(ctx.applicationContext, com.weatherwidget.di.RepositoryEntryPoint::class.java)
+            .gpsResampler()
+            .maybeResample(ctx, trigger)
+    }
+
     private var job: Job? = null
 
     override fun onStartJob(params: JobParameters): Boolean {
@@ -76,6 +86,18 @@ class OpportunisticUpdateJobService : JobService() {
         job =
             CoroutineScope(Dispatchers.IO).launch {
                 try {
+                    // The background floor for noticing a move. Nothing else does it off-charger:
+                    // the periodic tick is 240 min above 70% battery and 1440 below 50%, unlock is
+                    // undeliverable, and the plug-in trigger only fires on the charging edge — so
+                    // without this, arriving somewhere new and never plugging in leaves the widget
+                    // drawing the old city for hours. This job is the most reliable recurring
+                    // execution the app gets on battery, which is exactly why the plug-in re-arm
+                    // above lives here too.
+                    //
+                    // maybeResample, not resample: this runs far more often than a full sync, and
+                    // the cooldown is what makes that affordable. A passive lastLocation read only —
+                    // no GPS power-up, so the Samsung precise-location rule is untouched.
+                    resampleLocation(applicationContext, "opportunistic")
                     val hasHourly = DataFreshness.hasRecentHourlyData(applicationContext)
                     // Check if we have recent hourly data for interpolation
                     if (hasHourly && !withinStartupGrace) {

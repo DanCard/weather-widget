@@ -13,6 +13,8 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.ui.LocationUpdater
 import com.weatherwidget.util.LocationMode
+import com.weatherwidget.util.SharedPreferencesUtil
+import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -62,6 +64,38 @@ class GpsResampler(
      * location itself, while event-driven callers (charger plug-in, unlock) must ask for one. Keep
      * the worker's value as `"worker"` for that reason.
      */
+    /**
+     * [resample], rate-limited to at most once per [RESAMPLE_COOLDOWN_MS].
+     *
+     * Resampling used to be coupled to *sync kind*: it ran on full syncs and nowhere else, because
+     * `FullSyncPipeline` listed the kinds it must not run in. That coupling was accidental. The
+     * reason not to resample on every opportunistic tick, every paint and every screen-on is
+     * **cost**, and cost is a rate question — so the limit belongs here, once, rather than being
+     * re-expressed as a different exclusion list at each call site.
+     *
+     * The cooldown gates the *read*, never the result: a move already read is always applied.
+     *
+     * Sized against what it protects. [awaitLastLocation] is a cached read, and the expensive part
+     * (reverse geocoding in [followDeviceIfMoved]) only runs when the site actually changed, which
+     * is rare. A minute is enough to stop a burst of widget taps issuing a Play services call each,
+     * and short enough that "the user picked up the phone" is still answered promptly.
+     *
+     * See plans/260828-detect-the-move-when-the-user-is-looking.md.
+     */
+    suspend fun maybeResample(context: Context, trigger: String): Boolean {
+        val prefs = SharedPreferencesUtil.getPrefs(context, COOLDOWN_PREFS)
+        val lastMs = prefs.getLong(KEY_LAST_RESAMPLE_MS, 0L)
+        val nowMs = System.currentTimeMillis()
+        // `nowMs < lastMs` catches a backwards clock, which would otherwise latch the cooldown on
+        // until wall-clock time caught up again.
+        if (lastMs != 0L && nowMs - lastMs in 0 until RESAMPLE_COOLDOWN_MS) {
+            appLogDao.log(LOG_TAG, "outcome=skipped_cooldown trigger=$trigger ageMs=${nowMs - lastMs}")
+            return false
+        }
+        prefs.edit().putLong(KEY_LAST_RESAMPLE_MS, nowMs).apply()
+        return resample(context, trigger)
+    }
+
     suspend fun resample(context: Context, trigger: String = "worker"): Boolean {
         if (!permissionChecker(context, Manifest.permission.ACCESS_FINE_LOCATION)) {
             appLogDao.log(LOG_TAG, "outcome=skipped_no_permission trigger=$trigger")
@@ -136,6 +170,13 @@ class GpsResampler(
 
         /** app_logs tag; one row per resample attempt with an outcome= token. */
         const val LOG_TAG = "GPS_RESAMPLE"
+
+        /** See [maybeResample]. */
+        @VisibleForTesting
+        internal const val RESAMPLE_COOLDOWN_MS = 60_000L
+
+        private const val COOLDOWN_PREFS = "weather_prefs"
+        private const val KEY_LAST_RESAMPLE_MS = "gps_resample_last_ms"
 
         /**
          * Production location source: the passive cached fix only. Suspends until the Play

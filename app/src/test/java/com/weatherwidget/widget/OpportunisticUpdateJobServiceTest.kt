@@ -102,4 +102,51 @@ class OpportunisticUpdateJobServiceTest {
         val context: Context,
         val jobScheduler: JobScheduler,
     )
+
+    /**
+     * The assertion that closes the off-charger detection gap.
+     *
+     * Before 2026-08-28 nothing resampled the location off-charger except the periodic tick — 240
+     * minutes above 70% battery, 1440 below 50%. Unlock is undeliverable and the plug-in trigger
+     * only fires on the charging edge, so arriving somewhere new and not plugging in left the widget
+     * drawing the old city for hours. This job is the app's most reliable recurring execution on
+     * battery, so it is the floor.
+     *
+     * See plans/260828-detect-the-move-when-the-user-is-looking.md.
+     */
+    @Test
+    fun `an opportunistic run resamples the location so a move is noticed off-charger`() {
+        // onStartJob returns early below the battery cutoff, so the run has to look healthy or the
+        // coroutine that resamples is never reached.
+        val appContext = androidx.test.core.app.ApplicationProvider
+            .getApplicationContext<android.content.Context>()
+        @Suppress("DEPRECATION")
+        appContext.sendStickyBroadcast(
+            android.content.Intent(android.content.Intent.ACTION_BATTERY_CHANGED).apply {
+                putExtra(android.os.BatteryManager.EXTRA_STATUS, android.os.BatteryManager.BATTERY_STATUS_DISCHARGING)
+                putExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0)
+                putExtra(android.os.BatteryManager.EXTRA_LEVEL, 90)
+                putExtra(android.os.BatteryManager.EXTRA_SCALE, 100)
+            },
+        )
+
+        val triggers = mutableListOf<String>()
+        val service = org.robolectric.Robolectric
+            .buildService(OpportunisticUpdateJobService::class.java)
+            .create()
+            .get()
+        service.resampleLocation = { _, trigger -> triggers.add(trigger) }
+
+        service.onStartJob(io.mockk.mockk(relaxed = true))
+        val deadline = System.currentTimeMillis() + 5_000
+        while (triggers.isEmpty() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20)
+        }
+
+        assertEquals(
+            "the opportunistic run is the only thing that notices a move off-charger",
+            listOf("opportunistic"),
+            triggers,
+        )
+    }
 }

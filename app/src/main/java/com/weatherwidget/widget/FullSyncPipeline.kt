@@ -49,7 +49,7 @@ internal class FullSyncPipeline(
                 !input.observationBackfillMode && !input.candidateLocationRefresh
             ) {
                 try {
-                    gpsResampler.resample(context)
+                    gpsResampler.maybeResample(context, trigger = "worker")
                 } catch (e: Exception) {
                     Log.w(TAG, "GPS resample failed", e)
                 }
