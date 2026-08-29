@@ -36,10 +36,15 @@ real widgets).
   refreshes those events enqueue are *exactly* the excluded kinds, so plug-in and unlock never
   resampled and a stale location survived until the next full sync — 60 min plugged, up to 480 min
   on low battery (observed: 41 min of wrong data, see [[location_move_collapses_today_actuals]]).
-- **`trigger` also decides `enqueueRefresh`** (`trigger != "worker"` in `healIfNeeded`): the worker is
-  mid-sync and fetches the candidate itself; an event-driven caller must enqueue one or the candidate
-  never gains the data `evaluateCandidateUsability` requires for promotion. Any new trigger must NOT
-  be named `"worker"`.
+- **`trigger` also decides `enqueueRefresh`** (`trigger != "worker"`): the worker is mid-sync and
+  fetches the new location itself; an event-driven caller is not, so it must enqueue one or the new
+  site gains no data at all. Any new trigger must NOT be named `"worker"`.
+  *(Updated 2026-08-28: this used to read "or the candidate never gains the data
+  `evaluateCandidateUsability` requires for promotion". There is no candidate and no promotion any
+  more — a detected move is applied immediately; see
+  `plans/260828-remove-the-location-handoff-policy.md`. The rule about the trigger name is
+  unchanged, and now matters more: nothing else will fetch for the new site until the next full
+  sync.)*
 - **`ScreenOnReceiver` is deliberately NOT `@AndroidEntryPoint`** — `ScreenOnReceiverTest` constructs
   it directly under a plain Robolectric application, and Hilt's generated `onReceive` would throw.
   It resolves `GpsResampler` through `RepositoryEntryPoint` (`EntryPointAccessors`) at call time,

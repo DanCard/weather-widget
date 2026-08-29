@@ -61,15 +61,30 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   See `plans/260812-remove-default-location-and-show-error-when-unavailable.md` and
   `plans/260812-fix-gps-heal-findings-acquisition-vs-following.md`.
 - **Never request an active GPS fix from background/automatic paths** (`getCurrentLocation`/`PRIORITY_HIGH_ACCURACY`) — it triggers Samsung's "app got your precise location" warning; background paths use only passive `lastLocation` reads. The ONE exception: the user-initiated "Use precise device location" button in `ConfigActivity` (foreground, explicit tap).
-- **Location mode** (`location_mode` in `weather_prefs`, via `LocationMode`): `follow_device` (default; `GpsResampler` keeps widgets tracking the device) or `fixed` (search/coordinate choices pin the location; both sampling paths skip with `GPS_RESAMPLE outcome=skipped_pinned`).
-- **"Heal" is not the word.** Two distinct operations share `GpsResampler`: **acquisition** (no
-  location → any location; promote as soon as anything is drawable) and **following** (site A → site
-  B; be conservative, `MOVING_GRACE_MS`, don't flap between towns). Neither is repair — nothing is
-  broken when a phone moves or has never been located — and merging them under a repair metaphor is
-  why acquisition once inherited the driving case's 30-minute grace. `evaluateCandidateUsability`
-  takes `isAcquisition` to keep them apart. Genuine self-heal (`healCorruptDatabaseVersion`, the
-  blank-widget render recovery, `syncCompatibilityCopies`) keeps the name: violated invariant,
-  one-shot, defined correct state to return to.
+- **Location mode** (`location_mode` in `weather_prefs`, via `LocationMode`): `follow_device` (default; `GpsResampler` keeps widgets tracking the device) or `fixed` (search/coordinate choices pin the location; both sampling paths skip with `GPS_RESAMPLE outcome=skipped_pinned`). `fixed` is the one thing that stops a move being applied, because it is the user's own choice — not a policy overriding them.
+- **A detected move is applied immediately. There is no candidate and no readiness gate.**
+  `GpsResampler` compares the passive fix against the active location and, when it is a different
+  site, writes it through `LocationUpdater.applyFollowDeviceLocation` there and then
+  (`GPS_RESAMPLE outcome=location_moved`). If the user is looking at the phone they should see where
+  they are; a briefly sparse graph for the right place beats a complete graph for a city they left.
+  The handoff policy that used to hold a move pending (`LocationHandoffPolicy`,
+  `LocationHandoffStore`, `MOVING_GRACE_MS`, `evaluateCandidateUsability`, `isAcquisition`) was
+  **deleted 2026-08-28** — it was wrong in both directions: it held a fully-drawable San Francisco
+  for 30 minutes while displaying Mountain View, and separately promoted zero-observation stubs half
+  a mile away instantly, because its readiness test read forecast rows only and returned before the
+  grace check. Acquisition and following are now one operation.
+  See `plans/260828-remove-the-location-handoff-policy.md`.
+- **Fetch cost is bounded by the battery cadence, not by withholding the location.** A location
+  change no longer forces a fetch past the budget: `ForecastFetchCoordinator.isStale` takes its
+  last-fetch time from the *location-scoped* forecast rows, so a new site is due at once while a
+  jittering fix inside one site coalesces. One budget bounds cost; nothing bounds what is displayed.
+- **"Heal" is not the word.** Nothing is broken when a phone moves or has never been located, so
+  neither acquisition (no location → any location) nor following (site A → site B) is repair. The
+  repair metaphor is what once let acquisition inherit the driving case's 30-minute grace; both are
+  now the same immediate operation and the distinction has no code left to live in. Genuine
+  self-heal (`healCorruptDatabaseVersion`, the blank-widget render recovery,
+  `syncCompatibilityCopies`) keeps the name: violated invariant, one-shot, defined correct state to
+  return to.
 - Visual style: Apple glass aesthetic
 
 ## Widget UI Layout
