@@ -153,7 +153,16 @@ class GpsResampler(
          * Production location source: the passive cached fix only. Suspends until the Play
          * services task completes; resolves null on any failure (best-effort, never throws).
          */
-        suspend fun awaitLastLocation(context: Context): Location? =
+        suspend fun awaitLastLocation(context: Context): Location? {
+            // Debug-only, and null in release — see DebugLocationOverride for why the seam has to be
+            // inside the process. Checked before the Play services call rather than after: the point
+            // is to stand in for a fix that never arrives on an emulator, so falling back to the real
+            // read when the override is armed would defeat it.
+            DebugLocationOverride.get(context)?.let { return it }
+            return realLastLocation(context)
+        }
+
+        private suspend fun realLastLocation(context: Context): Location? =
             try {
                 val task = LocationServices.getFusedLocationProviderClient(context).lastLocation
                 suspendCancellableCoroutine { cont ->

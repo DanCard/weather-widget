@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug-only additions. This file is merged into debug builds only, so nothing declared here can
+    reach a release APK — which is the primary lock on DebugLocationReceiver, a receiver that can
+    move the app's idea of where the user is.
+
+    android:exported="true" is required rather than incidental: `adb shell am broadcast` runs as the
+    shell uid, and a non-exported receiver is unreachable from it even with an explicit component.
+    That export is precisely why this must not exist outside a debug build.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <receiver
+            android:name="com.weatherwidget.debug.DebugLocationReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.weatherwidget.debug.SET_LOCATION" />
+                <action android:name="com.weatherwidget.debug.CLEAR_LOCATION" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>
