@@ -560,24 +560,19 @@ internal fun setupGraphSelectorShortcut(
  * PendingIntent, so every real touch zone still wins — only unclaimed taps reach the root.
  * Must be set on every render (RemoteViews are rebuilt each update).
  *
- * A dead-zone tap means a touch-routing gap and should never happen. The "Dead zone tapped" toast
- * is a deliberate debug signal (debug builds only); in release the message is left blank so the tap
- * is absorbed silently and the home screen still never shows.
+ * Dead-zone taps on the widget root toggle the API source.
  */
 internal fun setupDeadZoneCatchAll(
     context: Context,
     views: RemoteViews,
     appWidgetId: Int,
 ) {
-    val toastIntent = Intent(context, WidgetActionReceiver::class.java).apply {
-        action = WidgetActions.ACTION_SHOW_TOAST
-        if (BuildConfig.DEBUG) {
-            putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "Dead zone tapped")
-        }
+    val toggleIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+        action = WidgetActions.ACTION_TOGGLE_API
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
     }
     val pendingIntent = PendingIntent.getBroadcast(
-        context, WidgetRequestCodes.deadZone(appWidgetId), toastIntent,
+        context, WidgetRequestCodes.deadZone(appWidgetId), toggleIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
     views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)

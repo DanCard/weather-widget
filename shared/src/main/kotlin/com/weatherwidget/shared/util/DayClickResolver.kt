@@ -46,12 +46,22 @@ object DayClickResolver {
 
     /**
      * Hours from [now] (hour-aligned) to the hourly-graph center for [targetDay].
-     * Today returns 0; other days anchor on noon of the target day.
+     * Today returns 0; other days anchor around noon of the target day.
+     *
+     * For asymmetric windows like [ZoomStage.WIDE] (12h back / 6h forward), the visual center of
+     * [centerTime - backHours, centerTime + forwardHours] is centered on noon when centerTime is
+     * shifted by (backHours - forwardHours) / 2 (+3h -> 15:00), framing 3am..9pm with noon at 50%.
      */
-    fun calculateHourlyOffset(now: LocalDateTime, targetDay: LocalDate): Int {
+    fun calculateHourlyOffset(
+        now: LocalDateTime,
+        targetDay: LocalDate,
+        zoomStage: com.weatherwidget.shared.graph.ZoomStage = com.weatherwidget.shared.graph.ZoomStage.WIDE,
+    ): Int {
         if (targetDay == now.toLocalDate()) return 0
         val alignedNow = WeatherTimeUtils.alignToNearestHourHalfUp(now)
-        val targetCenter = targetDay.atTime(12, 0)
+        val window = zoomStage.window()
+        val shiftHours = (window.backHours - window.forwardHours) / 2
+        val targetCenter = targetDay.atTime(12, 0).plusHours(shiftHours)
         return Duration.between(alignedNow, targetCenter).toHours().toInt()
     }
 }

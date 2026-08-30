@@ -780,7 +780,7 @@ class DailyViewHandlerTest {
         assertEquals(dateStr, intent.getStringExtra("date"))
         assertFalse(intent.getBooleanExtra("showHistory", true))
         assertEquals("PRECIPITATION", intent.getStringExtra("com.weatherwidget.EXTRA_TARGET_VIEW"))
-        assertEquals(24, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
+        assertEquals(27, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
     }
 
     @Test
@@ -803,7 +803,7 @@ class DailyViewHandlerTest {
         assertEquals("com.weatherwidget.ACTION_DAY_CLICK", intent.action)
         assertFalse(intent.getBooleanExtra("showHistory", true))
         assertEquals("TEMPERATURE", intent.getStringExtra("com.weatherwidget.EXTRA_TARGET_VIEW"))
-        assertEquals(24, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
+        assertEquals(27, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
     }
 
     @Test

@@ -149,39 +149,47 @@ class DayClickResolverTest {
     @Test
     fun offset_isPositiveForTomorrow() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
-        assertEquals(22, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 16)))
+        assertEquals(25, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 16)))
     }
 
     @Test
     fun offset_truncatesCurrentTimeToHourBeforeNoonAnchor() {
         val now = LocalDateTime.of(2024, 6, 15, 10, 45)
-        assertEquals(25, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 16)))
+        assertEquals(28, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 16)))
     }
 
     @Test
-    fun offset_keepsFutureDayWideViewAlignedToMidnightBoundaries() {
+    fun offset_centersWideViewAroundNoonForFutureDay() {
         val now = LocalDateTime.of(2024, 6, 15, 10, 45)
         val targetDay = LocalDate.of(2024, 6, 16)
         val offset = DayClickResolver.calculateHourlyOffset(now, targetDay)
         val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(now.plusHours(offset.toLong()))
-        assertEquals(targetDay.atStartOfDay(), alignedCenter.minusHours(12))
-        assertEquals(targetDay.plusDays(1).atStartOfDay(), alignedCenter.plusHours(12))
+        val window = com.weatherwidget.shared.graph.ZoomStage.WIDE.window()
+        val start = alignedCenter.minusHours(window.backHours)
+        val end = alignedCenter.plusHours(window.forwardHours)
+        assertEquals(targetDay.atTime(3, 0), start)
+        assertEquals(targetDay.atTime(21, 0), end)
+        assertEquals(targetDay.atTime(12, 0), start.plusHours((window.backHours + window.forwardHours) / 2))
     }
 
     @Test
     fun offset_isNegativeForPastDays() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
-        assertEquals(-26, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 14)))
-        assertEquals(-74, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 12)))
+        assertEquals(-23, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 14)))
+        assertEquals(-71, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 12)))
     }
 
     @Test
-    fun offset_keepsPastDayWideViewAlignedToMidnightBoundaries() {
+    fun offset_centersWideViewAroundNoonForPastDay() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
         val targetDay = LocalDate.of(2024, 6, 12)
         val offset = DayClickResolver.calculateHourlyOffset(now, targetDay)
         val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(now.plusHours(offset.toLong()))
-        assertEquals(targetDay.atStartOfDay(), alignedCenter.minusHours(12))
-        assertEquals(targetDay.plusDays(1).atStartOfDay(), alignedCenter.plusHours(12))
+        val window = com.weatherwidget.shared.graph.ZoomStage.WIDE.window()
+        val start = alignedCenter.minusHours(window.backHours)
+        val end = alignedCenter.plusHours(window.forwardHours)
+        assertEquals(targetDay.atTime(3, 0), start)
+        assertEquals(targetDay.atTime(21, 0), end)
+        assertEquals(targetDay.atTime(12, 0), start.plusHours((window.backHours + window.forwardHours) / 2))
     }
 }

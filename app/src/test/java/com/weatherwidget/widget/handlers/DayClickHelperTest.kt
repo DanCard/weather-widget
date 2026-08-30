@@ -169,57 +169,65 @@ class DayClickHelperTest {
     @Test
     fun `offset remains calculated for future days using noon anchor`() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
-        // Tomorrow noon is 22 hours from today 2pm.
-        assertEquals(22, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
+        // Tomorrow noon centered is 25 hours from today 2pm (targetCenter 3pm).
+        assertEquals(25, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
     }
 
     @Test
     fun `offset is positive for tomorrow`() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
-        assertEquals(22, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
+        assertEquals(25, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
     }
 
     @Test
     fun `offset truncates current time to the hour before computing noon anchor`() {
         val now = LocalDateTime.of(2024, 6, 15, 10, 45)
-        assertEquals(25, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
+        assertEquals(28, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
     }
 
     @Test
-    fun `offset keeps future day wide view aligned to midnight boundaries after half hour`() {
+    fun `offset keeps future day wide view centered around noon after half hour`() {
         val now = LocalDateTime.of(2024, 6, 15, 10, 45)
         val targetDay = LocalDate.of(2024, 6, 16)
 
         val offset = DayClickHelper.calculatePrecipitationOffset(now, targetDay)
         val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(now.plusHours(offset.toLong()))
+        val window = com.weatherwidget.widget.ZoomStage.WIDE.window()
+        val start = alignedCenter.minusHours(window.backHours)
+        val end = alignedCenter.plusHours(window.forwardHours)
 
-        assertEquals(targetDay.atStartOfDay(), alignedCenter.minusHours(12))
-        assertEquals(targetDay.plusDays(1).atStartOfDay(), alignedCenter.plusHours(12))
+        assertEquals(targetDay.atTime(3, 0), start)
+        assertEquals(targetDay.atTime(21, 0), end)
+        assertEquals(targetDay.atTime(12, 0), start.plusHours((window.backHours + window.forwardHours) / 2))
     }
 
     @Test
     fun `offset is negative for past days`() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
         val yesterday = LocalDate.of(2024, 6, 14)
-        // Yesterday noon is -26 hours from today 2pm.
-        assertEquals(-26, DayClickHelper.calculatePrecipitationOffset(now, yesterday))
+        // Yesterday noon centered is -23 hours from today 2pm (targetCenter 3pm).
+        assertEquals(-23, DayClickHelper.calculatePrecipitationOffset(now, yesterday))
         
         val threeDaysAgo = LocalDate.of(2024, 6, 12)
-        // 12th noon is -74 hours from 15th 2pm.
-        assertEquals(-74, DayClickHelper.calculatePrecipitationOffset(now, threeDaysAgo))
+        // 12th noon centered is -71 hours from 15th 2pm.
+        assertEquals(-71, DayClickHelper.calculatePrecipitationOffset(now, threeDaysAgo))
     }
 
     @Test
-    fun `offset keeps past day wide view aligned to midnight boundaries`() {
+    fun `offset keeps past day wide view centered around noon`() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
         val targetDay = LocalDate.of(2024, 6, 12)
 
         val offset = DayClickHelper.calculatePrecipitationOffset(now, targetDay)
         val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(now.plusHours(offset.toLong()))
+        val window = com.weatherwidget.widget.ZoomStage.WIDE.window()
+        val start = alignedCenter.minusHours(window.backHours)
+        val end = alignedCenter.plusHours(window.forwardHours)
 
-        // A wide-view hourly graph (±12h) centered on noon should cover the full calendar day.
-        assertEquals(targetDay.atStartOfDay(), alignedCenter.minusHours(12))
-        assertEquals(targetDay.plusDays(1).atStartOfDay(), alignedCenter.plusHours(12))
+        // A wide-view hourly graph (-12h / +6h) centered on 3pm should frame 3am..9pm with noon centered.
+        assertEquals(targetDay.atTime(3, 0), start)
+        assertEquals(targetDay.atTime(21, 0), end)
+        assertEquals(targetDay.atTime(12, 0), start.plusHours((window.backHours + window.forwardHours) / 2))
     }
 
     // ── End-to-end: daily precip + hourly data drive click decision ──

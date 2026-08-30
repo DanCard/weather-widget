@@ -148,6 +148,7 @@ object CloudCoverViewHandler {
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
+        setupDeadZoneCatchAll(context, views, appWidgetId)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
         val numRows = dimensions.rows
