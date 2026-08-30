@@ -12,6 +12,10 @@ It also includes a **Linux desktop companion** (Compose for Desktop) that shares
 
 ## Key Features
 
+* **History comparison:**
+  * Header row shows delta from prior day
+  * Delta from from forecast for current temp
+  * Able to view prior day forecast for comparison to today
 * **Multi-Source Weather Forecast Integration:**
   * Seamless toggling between primary weather providers: NWS (US-only, official government data), Open-Meteo (global, no API key), and Silurian.
   * Hidden/configurable support for Tomorrow.io, WeatherAPI, Visual Crossing, and OpenWeatherMap (key-based).

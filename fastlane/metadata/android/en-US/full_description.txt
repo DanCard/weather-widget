@@ -1,8 +1,6 @@
 A resizable home-screen widget with many features and modes.
 
-Has not been thoroughly tested across all devices. You may encounter sizing issues or bugs. Feedback and bug reports are very welcome!
-
-Features
+FEATURES
 • Tap days for hourly temperature curves, rain chances, and cloud cover
 • Dense information format
 • Customizable location modes (follow device location, search, or pin coordinates manually)
@@ -28,3 +26,6 @@ OPEN SOURCE
 
 PRIVACY & PERMISSIONS
 • No ads. No accounts. Location data is only used to fetch weather forecasts for your coordinates.
+
+NOTE / FEEDBACK
+• Has not been thoroughly tested across all devices. You may encounter sizing issues or bugs. Feedback and bug reports are very welcome!
