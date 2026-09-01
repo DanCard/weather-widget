@@ -502,12 +502,18 @@ The `leaveApksInstalledAfterRun` flag in `gradle.properties` prevents post-test 
 - **No Mid-Task Commits**: Do NOT commit code, tests, or documentation changes mid-task. Only perform commits when explicitly requested by the user.
 
 ### Commit Message Strategy
-- **Foundation**: Use the technical "Summary of Changes" provided at the end of a task as the verbatim foundation for the commit message body.
 - **Format**:
     - **First Line**: A concise, high-level summary (under 72 characters) in the imperative mood (e.g., "Improve graph label placement...").
-    - **Body**: The detailed summary, adjusted for plain-text (e.g., converting Markdown headers to bullet points or capitalized sections).
-- **Content**: Always explain the "why" and "how" (technical rationale) in addition to the "what."
-- **Scope**: Include all related changes (code, tests, documentation, and `plans/`).
+    - **Body**: A **succinct numbered or bulleted list** — one line or two per point. **Not prose
+      paragraphs.**
+- **Length**: Keep it short. The full narrative belongs in `plans/` and `summaries/`; the commit
+  message points at those rather than restating them.
+- **Content**: Cover the "why" as well as the "what", but in list form and only where it is not
+  obvious from the diff.
+- **Scope**: Include all related changes (code, tests, documentation, and `plans/`), and reference
+  the plan/summary file paths (Documentation Preferences -> Plans).
+- **Do not derive the style from `git log`.** Commits before 2026-09-01 are long prose and are not
+  the standard to match.
 
 ## Architecture Reference
 
