@@ -11,7 +11,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Density
@@ -36,6 +38,7 @@ import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
 import com.weatherwidget.data.model.isOfflineExceptionName
 import com.weatherwidget.shared.util.PrecipProbabilityCalculator
+import com.weatherwidget.shared.util.PreferredSourceHome
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.NoHourlyChecker
@@ -1581,6 +1584,9 @@ private fun WidgetHeader(
 ) {
     val showWeatherSummary = config.viewMode.isHourly
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()) }
+    // Measures the daily header's date so the centre cluster can decide whether it still fits
+    // beside the buttons — see DailyHeaderCentreFit.
+    val headerTextMeasurer = rememberTextMeasurer()
     val targetHour = remember(headerTime) { headerTime.truncatedTo(ChronoUnit.HOURS) }
 
     val nowEpoch = System.currentTimeMillis()
@@ -1792,43 +1798,96 @@ private fun WidgetHeader(
                         )
                     }
                 } else {
-                    // Daily view: date, then the same two buttons the hourly header carries.
-                    // Sizes/tints copied from the hourly branch so the two headers match.
-                    // Buttons then date, matching Android's daily header. Android cannot reliably
-                    // fit the date to the LEFT of its centred buttons (the left cluster reaches
-                    // past it on real widgets), so both platforms settle on this order rather than
-                    // disagreeing.
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy((10 * scale).dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    // Daily view: buttons, then date. Sizes/tints copied from the hourly branch so
+                    // the two headers match. Buttons then date, matching Android's daily header.
+                    // Android cannot reliably fit the date to the LEFT of its centred buttons (the
+                    // left cluster reaches past it on real widgets), so both platforms settle on
+                    // this order rather than disagreeing.
+                    val iconSizeDp = 15 * scale
+                    val spacingDp = 10 * scale
+                    // The home button here resets the SOURCE, not the view: the daily view is
+                    // already home in the view sense, and the one axis it can still be off home on
+                    // is the API indicator having been tapped away from the preferred source.
+                    val showHomeButton = PreferredSourceHome.shouldShowHomeButton(
+                        currentSourceId = config.settings.weatherSource,
+                        visibleSourceIds = config.settings.visibleSources,
+                    )
+                    val dateText = targetHour.format(dateFormatter)
+                    val dateStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (12 * scale).sp)
+                    val density = LocalDensity.current
+                    val dateWidthDp = remember(dateText, dateStyle, headerTextMeasurer, density) {
+                        with(density) { headerTextMeasurer.measure(dateText, dateStyle).size.width.toDp().value }
+                    }
+                    val iconCount = (if (observationsInView) 1 else 0) + (if (showHomeButton) 1 else 0) + 1
+                    BoxWithConstraints(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        // Current observations are inherently now-ish, so this drops when today AND
-                        // yesterday are panned off screen — matching Android's daily header.
-                        if (observationsInView) {
+                        // Buttons never yield; the date does. Same priority Android's header lands
+                        // on, where the painted date reserves space around the icon count and drops
+                        // itself when the row has none left.
+                        val showDate = DailyHeaderCentreFit.showDate(
+                            availableDp = maxWidth.value,
+                            iconCount = iconCount,
+                            iconSizeDp = iconSizeDp,
+                            spacingDp = spacingDp,
+                            dateWidthDp = dateWidthDp,
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(spacingDp.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Current observations are inherently now-ish, so this drops when today
+                            // AND yesterday are panned off screen — matching Android's daily header.
+                            if (observationsInView) {
+                                Icon(
+                                    painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
+                                    contentDescription = "Weather station observations",
+                                    tint = Color.White.copy(alpha = 0.67f),
+                                    modifier = Modifier.size(iconSizeDp.dp).clickable {
+                                        onOpenObservations()
+                                    }.testTag("open_observations_header_daily")
+                                )
+                            }
+                            if (showHomeButton) {
+                                Icon(
+                                    painter = androidx.compose.ui.res.painterResource("drawable/ic_home.xml"),
+                                    contentDescription = "Back to the preferred weather source",
+                                    tint = Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(iconSizeDp.dp).clickable {
+                                        val preferred =
+                                            PreferredSourceHome.preferredSourceId(config.settings.visibleSources)
+                                        if (preferred != null) {
+                                            onUpdateConfig(
+                                                config.copy(
+                                                    settings = config.settings.copy(weatherSource = preferred),
+                                                ),
+                                            )
+                                        }
+                                    }.testTag("daily_home_button")
+                                )
+                            }
+                            // Opens today while today is on screen, otherwise the viewed date.
                             Icon(
-                                painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
-                                contentDescription = "Weather station observations",
-                                tint = Color.White.copy(alpha = 0.67f),
-                                modifier = Modifier.size((15 * scale).dp).clickable {
-                                    onOpenObservations()
-                                }.testTag("open_observations_header_daily")
+                                painter = androidx.compose.ui.res.painterResource("drawable/ic_forecast_history_line.xml"),
+                                contentDescription = "Forecast history",
+                                tint = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size(iconSizeDp.dp).clickable {
+                                    onOpenHistory(if (todayInView) LocalDate.now() else targetHour.toLocalDate())
+                                }.testTag("open_forecast_history_daily")
                             )
+                            if (showDate) {
+                                Text(
+                                    text = dateText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = (12 * scale).sp,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.testTag("daily_header_date"),
+                                )
+                            }
                         }
-                        // Opens today while today is on screen, otherwise the viewed date.
-                        Icon(
-                            painter = androidx.compose.ui.res.painterResource("drawable/ic_forecast_history_line.xml"),
-                            contentDescription = "Forecast history",
-                            tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size((15 * scale).dp).clickable {
-                                onOpenHistory(if (todayInView) LocalDate.now() else targetHour.toLocalDate())
-                            }.testTag("open_forecast_history_daily")
-                        )
-                        Text(
-                            text = targetHour.format(dateFormatter),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = (12 * scale).sp,
-                            color = Color.White.copy(alpha = 0.7f)
-                        )
                     }
                 }
             }

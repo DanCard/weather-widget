@@ -8,6 +8,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.PreferredSourceHome
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.HeaderPrecipCalculator
@@ -254,8 +255,14 @@ internal object DailyHeaderResolver {
         val (visibleFrom, visibleTo) =
             NavigationUtils.getVisibleDateRange(today, dateOffset, numColumns, skipYesterday)
         val observationsInView = NavigationUtils.isTodayOrYesterdayInRange(today, visibleFrom, visibleTo)
-        val iconCount = if (observationsInView) 2 else 1
-        val iconPlacement = HeaderWidthChecker.resolveDailyIconPlacement(
+        // The home button is the daily view's way back to the preferred source. It is offered only
+        // when the widget is showing some OTHER source — the daily view is always home in the view
+        // sense, so nothing else here could make it mean anything.
+        val wantHomeButton = PreferredSourceHome.shouldShowHomeButton(
+            currentSourceId = displaySource.id,
+            visibleSourceIds = stateManager.getVisibleSourcesOrder().map { it.id },
+        )
+        val iconLayout = HeaderWidthChecker.resolveDailyIconLayout(
             context = context,
             widthDp = dimensions.widthDp,
             apiSourceText = apiSourceText,
@@ -266,10 +273,13 @@ internal object DailyHeaderResolver {
             precipTextSizeDp = precipTextSizeDp,
             includeIcon = disclosure.showsIcon(),
             currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
-            iconCount = iconCount,
+            baseIconCount = if (observationsInView) 2 else 1,
+            wantHome = wantHomeButton,
             isIconWidth = dimensions.isIconWidth,
             disclosure = disclosure,
         )
+        val iconCount = iconLayout.iconCount
+        val iconPlacement = iconLayout.placement
         val centerIconsWidthDp =
             if (iconPlacement == DailyIconPlacement.CENTER) {
                 HeaderWidthChecker.dailyCenterIconsWidthDp(iconCount, dimensions.widthDp)
@@ -346,6 +356,7 @@ internal object DailyHeaderResolver {
             observationsInView = observationsInView,
             iconCount = iconCount,
             iconPlacement = iconPlacement,
+            showHomeButton = iconLayout.homeShown,
             preferDateOverLabel = preferDateOverLabel,
         )
         return HeaderResolution(headerState, headerPrecipPlacement)

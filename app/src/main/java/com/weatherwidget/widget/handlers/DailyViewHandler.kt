@@ -865,6 +865,12 @@ object DailyViewHandler : WidgetViewHandler {
         val iconCount: Int = 0,
         val iconPlacement: DailyIconPlacement = DailyIconPlacement.HIDDEN,
         /**
+         * Whether the header shows the source-reset home button: the widget is displaying a source
+         * that is not the preferred one AND the row had room for a third button. Already counted in
+         * [iconCount], so the painted date reserves space for it without knowing what it is.
+         */
+        val showHomeButton: Boolean = false,
+        /**
          * Which of the header date / "from yest" caption survives when both cannot fit. Resolved
          * once here so the bitmap renderer and the RemoteViews bind cannot disagree.
          */

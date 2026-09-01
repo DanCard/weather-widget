@@ -219,4 +219,29 @@ class DailyViewHeaderDatePlacementTest {
             metrics.scaledDensity = originalScaledDensity
         }
     }
+
+    @Test
+    fun `the home button takes its space from the date, not from the buttons`() {
+        // Pure bounds (no font engine): a span that seats the date beside a two-icon slot must give
+        // it up once the home button widens that slot to three. This is the whole of the "higher
+        // priority than the day-of-week" rule — the date reads the reserved slot and yields; it is
+        // never asked whether the button may appear.
+        fun placement(centerIconsWidth: Float) =
+            DailyHeaderBinder.resolveHeaderDatePlacementFromBounds(
+                numColumns = 7,
+                widthPx = 440f,
+                leftClusterRight = 150f,
+                apiLeft = 330f,
+                dateWidth = 50f,
+                gapPx = 6f,
+                rightMarginPx = 40f,
+                centerIconsWidth = centerIconsWidth,
+            )
+
+        // Two 40px zones: the slot ends at 260, leaving the free span 266..324 — 58px, enough for
+        // the 50px date. Three zones push the slot's right edge to 280 and the span down to 38px,
+        // so the date has nowhere left to go.
+        assertEquals(DailyHeaderBinder.HeaderDatePlacement.RIGHT, placement(80f))
+        assertNull(placement(120f))
+    }
 }

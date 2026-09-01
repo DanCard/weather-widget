@@ -114,6 +114,64 @@ currentCondition = "Sunny"),
     }
 
     @Test
+    fun testDailyHomeButtonReturnsToPreferredSource() {
+        // The daily view is home in the VIEW sense, so the header offers a home button only when
+        // the SOURCE is off home — the API label having been cycled away from the first visible
+        // source. Tapping it must land on that source, not merely advance to the next one, which
+        // is what the header's own click already does.
+        val order = listOf(WeatherSource.NWS.id, WeatherSource.OPEN_METEO.id, WeatherSource.TOMORROW_IO.id)
+        val updates = mutableListOf<DesktopConfig>()
+        val offHome = stubConfig.copy(
+            settings = stubConfig.settings.copy(
+                visibleSources = order,
+                weatherSource = WeatherSource.TOMORROW_IO.id,
+            ),
+        )
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = offHome,
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { updates += it },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithTag("daily_home_button").performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals(1, updates.size)
+        assertEquals(WeatherSource.NWS.id, updates.single().settings.weatherSource)
+        assertEquals(ViewMode.DAILY, updates.single().viewMode)
+    }
+
+    @Test
+    fun testDailyHomeButtonAbsentOnThePreferredSource() {
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(
+                    settings = stubConfig.settings.copy(
+                        visibleSources = listOf(WeatherSource.NWS.id, WeatherSource.OPEN_METEO.id),
+                        weatherSource = WeatherSource.NWS.id,
+                    ),
+                ),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithTag("daily_home_button").assertDoesNotExist()
+        // The buttons it sits between are unaffected by its absence.
+        composeTestRule.onNodeWithTag("open_forecast_history_daily").assertExists()
+    }
+
+    @Test
     fun testSettingsExposesLocationAndObservations() {
         var locationClicked = false
         var observationsClicked = false

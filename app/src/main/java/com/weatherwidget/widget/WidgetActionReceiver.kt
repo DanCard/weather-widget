@@ -94,6 +94,11 @@ class WidgetActionReceiver : BroadcastReceiver() {
                     WidgetIntentRouter.handleToggleApi(context, appWidgetId, repository)
                     WidgetRefreshCoordinator.restartHeartbeats(context)
                 }
+            WidgetActions.ACTION_RESET_SOURCE ->
+                launchForValidWidget(context, intent) { appWidgetId ->
+                    WidgetIntentRouter.handleResetSource(context, appWidgetId, repository)
+                    WidgetRefreshCoordinator.restartHeartbeats(context)
+                }
             WidgetActions.ACTION_TOGGLE_VIEW ->
                 launchForValidWidget(context, intent) { appWidgetId ->
                     val startMs = SystemClock.elapsedRealtime()

@@ -126,6 +126,24 @@ object WidgetIntentRouter {
         WidgetIntentActionHandler.toggleApi(context, appWidgetId, repository)
     }
 
+    /** Daily-view home button — see [WidgetIntentActionHandler.resetSource]. */
+    suspend fun handleResetSource(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository? = null,
+    ) = runInteraction(
+        context,
+        appWidgetId,
+        "RESET_SOURCE",
+        metadata = {
+            fixedMetadata(
+                "from=${WidgetStateManager(context).getCurrentDisplaySource(appWidgetId).id}",
+            )
+        },
+    ) {
+        WidgetIntentActionHandler.resetSource(context, appWidgetId, repository)
+    }
+
     suspend fun handleToggleView(
         context: Context,
         appWidgetId: Int,

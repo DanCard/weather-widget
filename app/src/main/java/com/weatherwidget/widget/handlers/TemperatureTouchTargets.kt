@@ -310,6 +310,53 @@ internal fun setupHomeShortcut(
     }
 }
 
+/**
+ * The DAILY view's home button: same `ic_home` glyph and the same two zones, but the tap resets the
+ * display SOURCE instead of the view mode.
+ *
+ * The daily view is already home in the view sense, so [setupHomeShortcut]'s ACTION_SET_VIEW would
+ * be a no-op here. What the button exits is the other axis a widget can be off home on — the API
+ * indicator having been tapped away from the preferred source. It is bound only while that is true
+ * (see [com.weatherwidget.shared.util.PreferredSourceHome]), so the icon appearing is itself the
+ * message that the shown source is not the one the user put first.
+ */
+internal fun setupSourceHomeShortcut(
+    context: Context,
+    views: RemoteViews,
+    appWidgetId: Int,
+    scale: Float = 1.0f,
+) {
+    val resetIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+        action = WidgetActions.ACTION_RESET_SOURCE
+        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+    }
+    val pendingIntent = PendingIntent.getBroadcast(
+        context,
+        WidgetRequestCodes.sourceHome(appWidgetId),
+        resetIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    for (viewId in listOf(R.id.home_icon, R.id.home_icon_inline)) {
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = viewId,
+            iconRes = R.drawable.ic_home,
+            sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
+            scale = scale,
+            tintColor = 0xAAFFFFFF.toInt(),
+        )
+    }
+    views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
+    views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
+    views.setOnClickPendingIntent(R.id.home_touch_zone_inline, pendingIntent)
+    Log.d(
+        "HomeShortcut",
+        "setupSourceHomeShortcut: widget=$appWidgetId " +
+            "requestCode=${WidgetRequestCodes.sourceHome(appWidgetId)} -> ACTION_RESET_SOURCE",
+    )
+}
+
 internal fun setupWeatherStationsShortcut(
     context: Context,
     views: RemoteViews,
@@ -435,15 +482,20 @@ internal fun positionCenterIcons(
 }
 
 /**
- * Places the daily view's two header buttons (current observations / forecast history).
+ * Places the daily view's header buttons (current observations / home / forecast history).
  *
- * Deliberately narrower than [positionCenterIcons]: it touches only the stations and history
- * zones, leaving the graph-selector and home zones GONE — the daily view *is* home, and the
- * selector only cycles hourly graphs.
+ * Deliberately narrower than [positionCenterIcons]: it never touches the graph-selector zones,
+ * which only cycle hourly graphs.
  *
  * [showObservations] is false when neither today nor yesterday is on screen, so a navigated header
  * shows the history button alone; the reserved width in [HeaderWidthChecker.resolveDailyIconPlacement]
  * follows the same count.
+ *
+ * [showHome] is the source-reset button, not a view switch: the daily view is always home in the
+ * view sense, but it can still be showing a source the user did not put first. See
+ * [setupSourceHomeShortcut] and [com.weatherwidget.shared.util.PreferredSourceHome]. It is the one
+ * daily button that gets dropped when the header cannot hold three
+ * ([HeaderWidthChecker.resolveDailyIconLayout]) — the pair is never sacrificed for it.
  *
  * Inline zone widths are set from the same fixed [HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP]
  * the fit math used, rather than the hourly ladder, so layout and measurement cannot drift.
@@ -455,6 +507,7 @@ internal fun positionDailyIcons(
     widthDp: Int,
     density: Float,
     scale: Float = 1.0f,
+    showHome: Boolean = false,
 ) {
     val floating = placement == DailyIconPlacement.CENTER
     val inline = placement == DailyIconPlacement.INLINE
@@ -469,6 +522,11 @@ internal fun positionDailyIcons(
     views.setViewVisibility(R.id.weather_stations_icon, vis(floating && obs))
     views.setViewVisibility(R.id.weather_stations_touch_zone, vis(floating && obs))
     views.setViewVisibility(R.id.weather_stations_touch_zone_inline, vis(inline && obs))
+
+    views.setViewVisibility(R.id.home_icon, vis(floating && showHome))
+    views.setViewVisibility(R.id.home_touch_zone, vis(floating && showHome))
+    views.setViewVisibility(R.id.home_icon_inline, vis(inline && showHome))
+    views.setViewVisibility(R.id.home_touch_zone_inline, vis(inline && showHome))
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         // Drop the shared container onto the daily view's PAINTED text line. See
@@ -490,9 +548,11 @@ internal fun positionDailyIcons(
         val ids =
             if (inline) listOf(
                 R.id.weather_stations_touch_zone_inline,
+                R.id.home_touch_zone_inline,
                 R.id.forecast_history_activity_touch_zone_inline,
             ) else listOf(
                 R.id.weather_stations_touch_zone,
+                R.id.home_touch_zone,
                 R.id.forecast_history_activity_touch_zone,
             )
         for (id in ids) {
@@ -503,7 +563,8 @@ internal fun positionDailyIcons(
     Log.d(
         "DailyHeaderIcons",
         "positionDailyIcons: placement=$placement showObservations=$showObservations " +
-            "widthDp=$widthDp zoneDp=${HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp)} scale=$scale",
+            "showHome=$showHome widthDp=$widthDp " +
+            "zoneDp=${HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp)} scale=$scale",
     )
 }
 

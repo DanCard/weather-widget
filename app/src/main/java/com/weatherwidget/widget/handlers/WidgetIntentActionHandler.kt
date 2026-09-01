@@ -181,6 +181,65 @@ internal object WidgetIntentActionHandler {
         )
     }
 
+    /**
+     * Daily-view home button: put the display source back to the preferred (first visible) source.
+     *
+     * Deliberately a sibling of [toggleApi] rather than a flag on [setView]: the graph views' home
+     * button means "go back to the daily view" and must keep meaning only that. Here the view is
+     * already home and the SOURCE is what is off it.
+     *
+     * A no-op when the widget already shows the preferred source — the button that sends this is
+     * only bound when it does not, so arriving here in that state means a stale PendingIntent, and
+     * a full re-render for it would be work with no visible effect.
+     */
+    suspend fun resetSource(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository?,
+    ) {
+        val startMs = SystemClock.elapsedRealtime()
+        val stateManager = WidgetStateManager(context)
+        val preferred = stateManager.getPrimarySource()
+        if (stateManager.getCurrentDisplaySource(appWidgetId) == preferred) {
+            Log.d(TAG, "Ignoring stale reset-source PendingIntent for widget $appWidgetId")
+            return
+        }
+        stateManager.setCurrentDisplaySource(appWidgetId, preferred)
+        val viewMode = stateManager.getViewMode(appWidgetId)
+        val refreshContext = prepareContext(context, appWidgetId, "reset_source") ?: return
+        val now = LocalDateTime.now()
+        if (
+            GraphInteractionRenderer.selectedSourceNeedsRefresh(
+                context,
+                appWidgetId,
+                refreshContext,
+                preferred,
+                now,
+                System.currentTimeMillis(),
+            )
+        ) {
+            refreshRequester.requestForced(
+                context,
+                refreshContext.database.appLogDao(),
+                reason = "reset_source_stale",
+                targetSourceId = preferred.id,
+            )
+        }
+        InteractionRenderDispatcher.render(
+            viewMode,
+            request(
+                context,
+                appWidgetId,
+                refreshContext,
+                now,
+                repository,
+                startMs,
+                "RESET_SOURCE",
+                "source=${preferred.id}",
+            ),
+        )
+    }
+
     suspend fun toggleView(
         context: Context,
         appWidgetId: Int,

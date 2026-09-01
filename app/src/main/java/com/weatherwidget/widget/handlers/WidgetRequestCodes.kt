@@ -34,6 +34,7 @@ object WidgetRequestCodes {
     private const val BASE_DEAD_ZONE = 5000
     private const val BASE_SET_LOCATION = 5100
     private const val BASE_ERROR_REFRESH = 5200
+    private const val BASE_SOURCE_HOME = 5300
 
     fun navLeft(id: Int) = id * 10000 + BASE_NAV_LEFT
     fun navRight(id: Int) = id * 10000 + BASE_NAV_RIGHT
@@ -67,4 +68,11 @@ object WidgetRequestCodes {
 
     /** The "Tap to refresh" root target on the error placeholder. */
     fun errorRefresh(id: Int) = id * 10000 + BASE_ERROR_REFRESH
+
+    /**
+     * The daily view's home button, which resets the display source rather than the view mode.
+     * Its own base, not [home]: the two intents ride the same `home_icon` view, and reusing one
+     * code would leave whichever was bound first able to satisfy the other's FLAG_UPDATE_CURRENT.
+     */
+    fun sourceHome(id: Int) = id * 10000 + BASE_SOURCE_HOME
 }

@@ -33,6 +33,20 @@ enum class DailyIconPlacement {
     HIDDEN,
 }
 
+/**
+ * The daily header's button row after the home button has been offered the last seat.
+ *
+ * [homeShown] is not simply "the caller wanted it": the home button is the only daily button that
+ * may be dropped, and it is dropped exactly when three icons would leave nowhere to put ANY of
+ * them. The date is not consulted — it yields to whatever this returns, by construction, because
+ * [iconCount] is what feeds the painted date's reserved slot.
+ */
+data class DailyIconLayout(
+    val placement: DailyIconPlacement,
+    val iconCount: Int,
+    val homeShown: Boolean,
+)
+
 object HeaderWidthChecker {
     internal val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -87,17 +101,22 @@ object HeaderWidthChecker {
     /**
      * Zone width [positionDailyIcons] will actually apply, so measurement and layout cannot drift.
      *
-     * The airy zone is set via `setViewLayoutWidth` (API 31+); below that the 24dp XML width
-     * stands, which happens to equal the narrow zone.
+     * Three rungs — airy / middle / tight — because a 20dp icon in a 24dp zone leaves 4dp of air
+     * and the buttons read as one control. The wider zones are set via `setViewLayoutWidth`
+     * (API 31+); below that the 24dp XML width stands, which happens to equal the tight zone.
      */
-    fun dailyCenterIconZoneWidthDp(widthDp: Int): Float =
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
-            widthDp >= HeaderConstants.DAILY_WIDE_HEADER_MIN_WIDTH_DP
-        ) {
-            HeaderConstants.DAILY_CENTER_ICON_ZONE_WIDE_DP
-        } else {
-            HeaderConstants.DAILY_CENTER_ICON_ZONE_NARROW_DP
+    fun dailyCenterIconZoneWidthDp(widthDp: Int): Float {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) {
+            return HeaderConstants.DAILY_CENTER_ICON_ZONE_NARROW_DP
         }
+        return when {
+            widthDp >= HeaderConstants.DAILY_WIDE_HEADER_MIN_WIDTH_DP ->
+                HeaderConstants.DAILY_CENTER_ICON_ZONE_WIDE_DP
+            widthDp >= HeaderConstants.DAILY_MEDIUM_HEADER_MIN_WIDTH_DP ->
+                HeaderConstants.DAILY_CENTER_ICON_ZONE_MEDIUM_DP
+            else -> HeaderConstants.DAILY_CENTER_ICON_ZONE_NARROW_DP
+        }
+    }
 
     /** Width of the daily header button pair when inline in the left cluster, in dp. */
     fun dailyInlineIconsWidthDp(iconCount: Int): Float =
@@ -179,6 +198,98 @@ object HeaderWidthChecker {
             return DailyIconPlacement.INLINE
         }
         return DailyIconPlacement.HIDDEN
+    }
+
+    /**
+     * [resolveDailyIconPlacement] plus the home button's seat.
+     *
+     * The home button appears when the widget is displaying a source that is not the preferred one
+     * ([com.weatherwidget.shared.util.PreferredSourceHome]) — [wantHome] — and there is room. "Room"
+     * is measured the only way that matters to the user: the three-icon row still lands somewhere,
+     * centred or inline. Falling from CENTER to INLINE is not a reason to drop it; every button
+     * stays visible on that rung, which is what INLINE exists for.
+     *
+     * The date is deliberately absent from this decision. It reads [DailyIconLayout.iconCount] as a
+     * reserved slot and steps aside or drops itself, which is what makes the home button
+     * higher-priority than the day-of-week without either side testing the other.
+     */
+    fun resolveDailyIconLayout(
+        context: Context,
+        widthDp: Int,
+        apiSourceText: String,
+        apiTextSizeDp: Float,
+        currentTempText: String?,
+        deltaText: String?,
+        precipText: String?,
+        precipTextSizeDp: Float?,
+        includeIcon: Boolean,
+        currentTempSizeDp: Float,
+        baseIconCount: Int,
+        wantHome: Boolean,
+        isIconWidth: Boolean,
+        disclosure: HeaderDisclosureLevel,
+    ): DailyIconLayout {
+        if (baseIconCount <= 0 || isIconWidth || disclosure == HeaderDisclosureLevel.NONE) {
+            return DailyIconLayout(DailyIconPlacement.HIDDEN, baseIconCount, homeShown = false)
+        }
+        val widthPx = dpToPx(context, widthDp.toFloat())
+        if (widthPx <= 0f) {
+            return DailyIconLayout(DailyIconPlacement.HIDDEN, baseIconCount, homeShown = false)
+        }
+
+        val leftClusterRight = resolveLeftClusterRightPx(
+            context = context,
+            currentTempText = currentTempText,
+            deltaText = deltaText,
+            precipText = precipText,
+            precipTextSizeDp = precipTextSizeDp,
+            includeIcon = includeIcon,
+            currentTempSizeDp = currentTempSizeDp,
+        )
+        return resolveDailyIconLayoutFromBounds(
+            widthPx = widthPx,
+            leftClusterRight = leftClusterRight,
+            apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp),
+            gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP),
+            centerZoneWidthPx = dpToPx(context, dailyCenterIconZoneWidthDp(widthDp)),
+            inlineZoneWidthPx = dpToPx(context, HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP),
+            inlineFirstMarginPx = dpToPx(context, HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP),
+            baseIconCount = baseIconCount,
+            wantHome = wantHome,
+        )
+    }
+
+    /** Pure ladder for [resolveDailyIconLayout] — same font-engine-free contract as
+     * [resolveDailyIconPlacementFromBounds]. */
+    fun resolveDailyIconLayoutFromBounds(
+        widthPx: Float,
+        leftClusterRight: Float,
+        apiLeft: Float,
+        gapPx: Float,
+        centerZoneWidthPx: Float,
+        inlineZoneWidthPx: Float,
+        inlineFirstMarginPx: Float,
+        baseIconCount: Int,
+        wantHome: Boolean,
+    ): DailyIconLayout {
+        fun placementFor(iconCount: Int) =
+            resolveDailyIconPlacementFromBounds(
+                widthPx = widthPx,
+                leftClusterRight = leftClusterRight,
+                apiLeft = apiLeft,
+                centerIconsWidth = centerZoneWidthPx * iconCount,
+                inlineIconsWidth =
+                    if (iconCount <= 0) 0f else inlineZoneWidthPx * iconCount + inlineFirstMarginPx,
+                gapPx = gapPx,
+            )
+
+        if (wantHome) {
+            val withHome = placementFor(baseIconCount + 1)
+            if (withHome != DailyIconPlacement.HIDDEN) {
+                return DailyIconLayout(withHome, baseIconCount + 1, homeShown = true)
+            }
+        }
+        return DailyIconLayout(placementFor(baseIconCount), baseIconCount, homeShown = false)
     }
 
     fun computeHeaderScale(

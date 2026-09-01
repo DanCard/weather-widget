@@ -42,6 +42,7 @@ class PositionDailyIconsRoboTest {
         placement: DailyIconPlacement,
         showObservations: Boolean,
         widthDp: Int = 440,
+        showHome: Boolean = false,
     ): View {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         // The daily graph path hides everything first, then re-enables what it wants.
@@ -52,6 +53,7 @@ class PositionDailyIconsRoboTest {
             showObservations = showObservations,
             widthDp = widthDp,
             density = context.resources.displayMetrics.density,
+            showHome = showHome,
         )
         return views.apply(context, FrameLayout(context))
     }
@@ -108,19 +110,96 @@ class PositionDailyIconsRoboTest {
     }
 
     @Test
-    fun `the daily view never turns on the home or graph-selector buttons`() {
-        // The daily view IS home, and the selector only cycles hourly graphs. positionDailyIcons
-        // must not resurrect them from the hourly container it shares.
+    fun `the preferred source leaves the home button off, and the selector always`() {
+        // The daily view is home in the VIEW sense, and the selector only cycles hourly graphs.
+        // positionDailyIcons must not resurrect either from the hourly container it shares.
         for (placement in DailyIconPlacement.entries) {
-            val v = apply(placement, showObservations = true)
+            val v = apply(placement, showObservations = true, showHome = false)
             for (id in listOf(
                 R.id.home_icon,
                 R.id.home_touch_zone,
+                R.id.home_icon_inline,
                 R.id.home_touch_zone_inline,
                 R.id.graph_selector_touch_zone,
                 R.id.graph_selector_touch_zone_inline,
             )) {
                 assertEquals("$placement view $id", View.GONE, v.vis(id))
+            }
+        }
+    }
+
+    @Test
+    fun `a non-preferred source turns the home button on in whichever row is drawn`() {
+        val centred = apply(DailyIconPlacement.CENTER, showObservations = true, showHome = true)
+        assertEquals(View.VISIBLE, centred.vis(R.id.home_icon))
+        assertEquals(View.VISIBLE, centred.vis(R.id.home_touch_zone))
+        assertEquals(View.GONE, centred.vis(R.id.home_touch_zone_inline))
+
+        val inline = apply(DailyIconPlacement.INLINE, showObservations = true, showHome = true)
+        assertEquals(View.VISIBLE, inline.vis(R.id.home_icon_inline))
+        assertEquals(View.VISIBLE, inline.vis(R.id.home_touch_zone_inline))
+        assertEquals(View.GONE, inline.vis(R.id.home_touch_zone))
+
+        // The ladder never asks for a home button on a hidden row, but a stale header state must
+        // not be able to leave one floating alone either.
+        val hidden = apply(DailyIconPlacement.HIDDEN, showObservations = true, showHome = true)
+        assertEquals(View.GONE, hidden.vis(R.id.home_icon))
+        assertEquals(View.GONE, hidden.vis(R.id.home_touch_zone))
+        assertEquals(View.GONE, hidden.vis(R.id.home_touch_zone_inline))
+    }
+
+    @Test
+    fun `the zone ladder gives a mid-width header air between the buttons`() {
+        // A 20dp icon in a 24dp zone leaves 4dp of air and the row reads as one control — what a
+        // Pixel 7 Pro (~412dp) showed once the home button made it three icons. Assert the rung
+        // itself, not just that layout matches measurement, so the pitch cannot quietly regress.
+        assertEquals(
+            HeaderConstants.DAILY_CENTER_ICON_ZONE_NARROW_DP,
+            HeaderWidthChecker.dailyCenterIconZoneWidthDp(340),
+            0.01f,
+        )
+        assertEquals(
+            HeaderConstants.DAILY_CENTER_ICON_ZONE_MEDIUM_DP,
+            HeaderWidthChecker.dailyCenterIconZoneWidthDp(412),
+            0.01f,
+        )
+        assertEquals(
+            HeaderConstants.DAILY_CENTER_ICON_ZONE_WIDE_DP,
+            HeaderWidthChecker.dailyCenterIconZoneWidthDp(440),
+            0.01f,
+        )
+        assertTrue(
+            "every rung must clear the 20dp glyph with room to spare",
+            HeaderConstants.DAILY_CENTER_ICON_ZONE_MEDIUM_DP >=
+                HeaderConstants.CENTER_ICON_SIZE_DP + 8f,
+        )
+    }
+
+    @Test
+    fun `the home zone gets the same width as the buttons beside it`() {
+        // Its tap target must match what the fit math reserved: the widget ROOT is bound to
+        // ACTION_TOGGLE_API as a Samsung dead-zone backstop, so a tap that misses this zone by a
+        // few dp advances the source — the exact opposite of what the button promises.
+        val density = context.resources.displayMetrics.density
+        for (widthDp in listOf(320, 350, 440, 560)) {
+            val v = apply(
+                DailyIconPlacement.CENTER,
+                showObservations = true,
+                widthDp = widthDp,
+                showHome = true,
+            )
+            val expectedPx =
+                (HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp) * density).toInt()
+            for (id in listOf(
+                R.id.weather_stations_touch_zone,
+                R.id.home_touch_zone,
+                R.id.forecast_history_activity_touch_zone,
+            )) {
+                assertEquals(
+                    "widthDp=$widthDp view $id",
+                    expectedPx,
+                    v.findViewById<View>(id).layoutParams.width,
+                )
             }
         }
     }
