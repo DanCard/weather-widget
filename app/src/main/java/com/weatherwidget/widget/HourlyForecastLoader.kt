@@ -23,7 +23,7 @@ internal class HourlyForecastLoader(
      * `GENERIC_GAP` (the climate-normal filler consumers accept alongside the display source).
      */
     fun hourlySourceIds(): List<String> =
-        (currentDisplaySourceIds() + WeatherSource.GENERIC_GAP.id).distinct()
+        scopeForDisplaySources(currentDisplaySourceIds())
 
     fun currentDisplaySourceIds(): List<String> {
         val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
@@ -137,5 +137,17 @@ internal class HourlyForecastLoader(
             loadedSourceIds: List<String>,
             displaySourceIdsAtPaint: List<String>,
         ): List<String> = displaySourceIdsAtPaint.filterNot { loadedSourceIds.contains(it) }
+
+        /**
+         * The SQL scope that covers [displaySourceIds]: the display sources themselves plus
+         * `GENERIC_GAP` (the climate-normal filler consumers accept alongside the display source).
+         *
+         * Pure, and shared with the race repair in `WidgetPaintCoordinator`, so the scope a reload
+         * *requests* and the scope [sourcesMissingFromLoad] later checks it *against* cannot drift.
+         * The repair tracks what it asked for rather than what came back: a source may legitimately
+         * hold zero rows at this site, and treating that as "still missing" would reload forever.
+         */
+        fun scopeForDisplaySources(displaySourceIds: List<String>): List<String> =
+            (displaySourceIds + WeatherSource.GENERIC_GAP.id).distinct()
     }
 }

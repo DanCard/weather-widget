@@ -196,34 +196,58 @@ internal class WidgetPaintCoordinator(
      * burn a redundant forced sync on data the API already delivered. Reload once, here, against the
      * sources actually on screen; the common path (no toggle in flight) does no extra query.
      */
-    private suspend fun resolveEffectiveHourly(
+    @androidx.annotation.VisibleForTesting
+    internal suspend fun resolveEffectiveHourly(
         appWidgetIds: IntArray,
         loadedHourlySourceIds: Collection<String>,
         lat: Double?,
         lon: Double?,
         hourlyForecasts: List<HourlyForecastEntity>,
     ): List<HourlyForecastEntity> {
-        val paintSourceIds = appWidgetIds.map { widgetStateManager.getCurrentDisplaySource(it).id }.distinct()
-        val missing = HourlyForecastLoader.sourcesMissingFromLoad(
-            loadedSourceIds = loadedHourlySourceIds.toList(),
-            displaySourceIdsAtPaint = paintSourceIds,
-        )
-        if (missing.isEmpty() || lat == null || lon == null) return hourlyForecasts
+        var effective = hourlyForecasts
+        var loadedIds = loadedHourlySourceIds.toList()
 
-        val reloaded = hourlyForecastLoader.load(
-            lat, lon, hourlyForecastLoader.hourlySourceIds(), caller = "source_race_reload",
-        )
-        appLogDao.log(
-            "HOURLY_SOURCE_RACE",
-            "loaded=${loadedHourlySourceIds.joinToString("|")} " +
-                "atPaint=${paintSourceIds.joinToString("|")} " +
-                "missing=${missing.joinToString("|")} " +
-                "staleRows=${hourlyForecasts.size} reloadedRows=${reloaded.size}",
-            "WARN",
-        )
-        // Keep the original when the repair reload comes back empty — a transient DB miss must not
-        // blank every widget's hourly graph.
-        return reloaded.takeIf { it.isNotEmpty() } ?: hourlyForecasts
+        // Re-check AFTER each reload, not just once. The reload is itself a query taking ~1s on the
+        // Fold, and a toggle landing inside that window walks straight back into the stale state the
+        // reload just repaired. Observed 2026-09-01 (widget 345): the repair caught up to SILURIAN at
+        // 06:49:18.76, the user selected TOMORROW_IO at 06:49:19.57, and the paint 0.24s later drew
+        // "Cloud data unavailable" over a correct frame. See
+        // plans/260901-stale-source-paint-clobbers-hourly-graph.md.
+        repeat(MAX_HOURLY_SOURCE_RACE_RELOADS) { attempt ->
+            val paintSourceIds = appWidgetIds.map { widgetStateManager.getCurrentDisplaySource(it).id }.distinct()
+            val missing = HourlyForecastLoader.sourcesMissingFromLoad(
+                loadedSourceIds = loadedIds,
+                displaySourceIdsAtPaint = paintSourceIds,
+            )
+            if (missing.isEmpty() || lat == null || lon == null) return effective
+
+            // Scope the reload to the very source list the check above ran on, so an iteration
+            // cannot request something other than what it just found missing.
+            val requestedIds = HourlyForecastLoader.scopeForDisplaySources(paintSourceIds)
+            val reloaded = hourlyForecastLoader.load(lat, lon, requestedIds, caller = "source_race_reload")
+            appLogDao.log(
+                "HOURLY_SOURCE_RACE",
+                "attempt=${attempt + 1}/$MAX_HOURLY_SOURCE_RACE_RELOADS " +
+                    "loaded=${loadedIds.joinToString("|")} " +
+                    "atPaint=${paintSourceIds.joinToString("|")} " +
+                    "missing=${missing.joinToString("|")} " +
+                    "staleRows=${effective.size} reloadedRows=${reloaded.size}",
+                "WARN",
+            )
+            // Keep what we have when the repair reload comes back empty — a transient DB miss must
+            // not blank every widget's hourly graph. Stop retrying too: a second identical query
+            // would only spend the same second to learn the same thing.
+            if (reloaded.isEmpty()) return effective
+
+            effective = reloaded
+            // Track what was REQUESTED, not what came back: a source can legitimately hold zero rows
+            // at this site, and reading coverage off the returned rows would loop until the bound.
+            loadedIds = requestedIds
+        }
+        // Still uncovered after the bound — a source toggling faster than the query can follow.
+        // WidgetRenderer.shouldSkipStaleSourcePaint keeps that harmless: the background repaint is
+        // dropped rather than painted empty over whatever is correctly on screen.
+        return effective
     }
 
     private fun shouldSkipWidgetRender(appWidgetId: Int): Boolean {
@@ -278,5 +302,19 @@ internal class WidgetPaintCoordinator(
     companion object {
         private const val TAG = "WidgetPaintCoordinator"
         private const val MIN_RENDER_INTERVAL_MS = 30_000L
+
+        /**
+         * How many times [resolveEffectiveHourly] may reload chasing a source that keeps moving.
+         *
+         * Two, because each reload is a real query (~1s on the Fold: 467 rows stitched out of
+         * 3636 current + 21474 history) and the paint is waiting on it. One reload covers the
+         * ordinary case — a single toggle during the fetch. The second covers a toggle landing
+         * inside that reload, which is the 2026-09-01 failure. A third toggle inside the second
+         * reload means the user is cycling the indicator faster than the DB can answer; chasing
+         * that is not worth another second of paint latency, and the paint-skip in
+         * [WidgetRenderer.shouldSkipStaleSourcePaint] already makes it invisible.
+         */
+        @androidx.annotation.VisibleForTesting
+        internal const val MAX_HOURLY_SOURCE_RACE_RELOADS = 2
     }
 }

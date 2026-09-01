@@ -58,6 +58,56 @@ object WidgetRenderer {
     internal fun shouldSkipDailyUiOnlyRepaint(uiOnly: Boolean, alreadyPaintedThisProcess: Boolean): Boolean =
         uiOnly && alreadyPaintedThisProcess
 
+    /** Views that render from `sourceFilteredHourly`, so a missing display source empties them. */
+    private val HOURLY_SOURCED_VIEW_MODES =
+        setOf(ViewMode.TEMPERATURE, ViewMode.PRECIPITATION, ViewMode.CLOUD_COVER)
+
+    /**
+     * Repaints nobody asked for. These may be dropped silently: whatever is on screen stays, and a
+     * later paint carries the data forward. The interactive origins are deliberately absent — see
+     * [shouldSkipStaleSourcePaint].
+     */
+    private val BACKGROUND_PAINT_ORIGINS = setOf(
+        WidgetPushDispatcher.Origin.WORKER_FETCH,
+        WidgetPushDispatcher.Origin.WORKER_CACHE,
+        WidgetPushDispatcher.Origin.UI_ONLY,
+    )
+
+    /**
+     * Whether a repaint carrying zero rows for the display source should be dropped instead of
+     * painted.
+     *
+     * [sourceMissingFromLoad] means the loaded set held rows for OTHER sources but none for this
+     * one, which is *proof* the loader never asked for this source — not evidence the API lacks it.
+     * Painting it anyway draws "Cloud data unavailable" / a blank curve. On 2026-09-01 that empty
+     * frame landed 265ms after the user's own correct one and sat on screen for 40 minutes, because
+     * nothing repaints an idle widget.
+     *
+     * Four conditions, each load-bearing:
+     * - [sourceMissingFromLoad]: without it there is nothing wrong with the rows.
+     * - [viewMode] in [HOURLY_SOURCED_VIEW_MODES]: DAILY renders from `unifiedHourlyForecasts` and
+     *   the forecast list, so the flag says nothing about what it would draw.
+     * - [origin] in [BACKGROUND_PAINT_ORIGINS]: a USER_INTERACTION or ACTION_REFRESH paint re-reads
+     *   the rows for the source the user just selected, so a miss there is a GENUINE upstream gap
+     *   and the message is the correct, honest output. Skipping those would replace a true "no data"
+     *   with a silently stale graph.
+     * - [hasPaintedBody]: a widget with no real body this process may be sitting on the "Loading…"
+     *   placeholder; skipping would strand it there. Same trap [shouldSkipDailyUiOnlyRepaint] guards.
+     *
+     * Pure so it is unit-testable without a Context/AppWidgetManager.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun shouldSkipStaleSourcePaint(
+        sourceMissingFromLoad: Boolean,
+        viewMode: ViewMode,
+        origin: WidgetPushDispatcher.Origin,
+        hasPaintedBody: Boolean,
+    ): Boolean =
+        sourceMissingFromLoad &&
+            HOURLY_SOURCED_VIEW_MODES.contains(viewMode) &&
+            BACKGROUND_PAINT_ORIGINS.contains(origin) &&
+            hasPaintedBody
+
     /** Test hook: reset the process-scoped paint tracker between cases. */
     @androidx.annotation.VisibleForTesting
     internal fun resetPaintTrackingForTest() = fullyPaintedDailyWidgetIds.clear()
@@ -382,6 +432,24 @@ object WidgetRenderer {
                     "present=$present site=$locationLat,$locationLon",
                 "WARN",
             )
+        }
+
+        // A background repaint that provably cannot draw this source must not overwrite what is on
+        // screen with an empty graph. See shouldSkipStaleSourcePaint.
+        if (shouldSkipStaleSourcePaint(
+                sourceMissingFromLoad = sourceMissingFromLoad,
+                viewMode = effectiveViewMode,
+                origin = origin,
+                hasPaintedBody = WidgetPushDispatcher.hasFullPushedThisProcess(appWidgetId),
+            )
+        ) {
+            WeatherDatabase.getDatabase(context).appLogDao().log(
+                com.weatherwidget.widget.WidgetPerfLogger.TAG_WIDGET_PAINT,
+                "widget=$appWidgetId caller=${effectiveViewMode.name} origin=${origin.name} " +
+                    "state=skipped_stale_source displaySource=${displaySource.id} " +
+                    "unified=${unifiedHourlyForecasts.size} thread=${Thread.currentThread().name}",
+            )
+            return
         }
 
         when (effectiveViewMode) {
