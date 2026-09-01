@@ -7,6 +7,7 @@ import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -501,6 +502,65 @@ class ActualTemperatureSeriesBuilderTest {
         val obsPoint = result.points.firstOrNull { it.timeMs == epoch("2026-06-03T13:05:00") }
         assertFalse("Observation point forecastTemp should not be NaN", obsPoint?.forecastTemp?.isNaN() == true)
         assertEquals(80f, obsPoint?.forecastTemp ?: Float.NaN, 0.01f)
+    }
+
+
+    /**
+     * Feeds the desktop graph's now-dot hover overlay. The overlay must be able to name every
+     * thermometer behind the displayed dot, not just the dominant one, because the blend can
+     * legitimately land outside the range of every reading in the list.
+     */
+    @Test
+    fun `build surfaces every contribution behind the newest point when asked`() {
+        val obs = listOf(
+            observation("NEAR", "2026-06-03T12:00:00", 68f, distanceKm = 2f),
+            observation("FAR", "2026-06-03T12:00:00", 74f, distanceKm = 8f),
+        )
+
+        val result = ActualTemperatureSeriesBuilder.build(
+            hourlyForecasts = forecasts("2026-06-03T00:00:00", 24),
+            observations = obs,
+            centerTime = center,
+            displaySourceId = WeatherSource.NWS.id,
+            userLat = LAT,
+            userLon = LON,
+            backHours = 4,
+            forwardHours = 4,
+            contextLookbackHours = 72,
+            contextLookaheadHours = 60,
+            now = LocalDateTime.parse("2026-06-03T12:30:00"),
+            zoneId = zone,
+            captureBreakdowns = 1,
+        )
+
+        val breakdown = result.blendBreakdowns.firstOrNull()
+        assertNotNull("a breakdown must be captured", breakdown)
+        val stations = breakdown!!.contributions.map { it.stationId }.toSet()
+        assertEquals(setOf("NEAR", "FAR"), stations)
+        // The overlay shows weight shares; they must describe the whole blend, not a fragment.
+        val shareSum = breakdown.contributions.sumOf { it.weightShare }
+        assertEquals(1.0, shareSum, 0.001)
+    }
+
+    /** No other render path should start paying for capture it never asked for. */
+    @Test
+    fun `build captures no breakdowns by default`() {
+        val result = ActualTemperatureSeriesBuilder.build(
+            hourlyForecasts = forecasts("2026-06-03T00:00:00", 24),
+            observations = listOf(observation("NEAR", "2026-06-03T12:00:00", 68f, distanceKm = 2f)),
+            centerTime = center,
+            displaySourceId = WeatherSource.NWS.id,
+            userLat = LAT,
+            userLon = LON,
+            backHours = 4,
+            forwardHours = 4,
+            contextLookbackHours = 72,
+            contextLookaheadHours = 60,
+            now = LocalDateTime.parse("2026-06-03T12:30:00"),
+            zoneId = zone,
+        )
+
+        assertTrue(result.blendBreakdowns.isEmpty())
     }
 
     private fun forecasts(start: String, count: Int, source: String = WeatherSource.NWS.id): List<HourlyForecast> {

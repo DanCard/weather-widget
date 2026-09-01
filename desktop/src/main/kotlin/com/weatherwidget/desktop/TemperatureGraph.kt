@@ -1,6 +1,8 @@
 package com.weatherwidget.desktop
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -196,8 +198,47 @@ fun TemperatureGraph(
 
     if (points.size < 2) return
 
+    // Hover plumbing for the now-dot stations overlay. `nowDotTarget` is a plain holder written
+    // during draw (see NowDotTarget); `nowDotHovered` is passed to the popup as the MutableState
+    // itself so only the popup reads it — reading `.value` here would invalidate this composable on
+    // every mouse move and re-run the blend below.
+    val nowDotTarget = remember { NowDotTarget() }
+    val nowDotHovered = remember { mutableStateOf(false) }
+    // Hoisted out of the Canvas draw lambda so the hover overlay can read the blend's station
+    // breakdown; the draw block closes over it unchanged. Deliberately not `remember`ed — `now` is
+    // recomputed each composition, so a key on it would churn and only look like caching.
+    val actualSeries = ActualTemperatureSeriesBuilder.build(
+        hourlyForecasts = hourly,
+        observations = observations,
+        centerTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(center), zoneId),
+        displaySourceId = displaySourceId,
+        userLat = latitude,
+        userLon = longitude,
+        backHours = backHours.toLong(),
+        forwardHours = forwardHours.toLong(),
+        // Scale the blend context with the visible span (zoom now reaches 30 days back) so the
+        // actual line spans the whole window, not just the legacy 6-day context. Floors keep
+        // near-zoom behavior identical.
+        contextLookbackHours = maxOf(ACTUALS_CONTEXT_LOOKBACK_HOURS, backHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
+        contextLookaheadHours = maxOf(ACTUALS_CONTEXT_LOOKAHEAD_HOURS, forwardHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
+        now = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId),
+        zoneId = zoneId,
+        smoothedForecasts = null, // raw: builder uses forecast.temperature, matching the line + Android
+        personalStationWeight = personalStationWeight,
+        // Names the thermometer behind the observed line for the dominant-station label below. The
+        // blend runs either way; this only asks it to keep the top-weight row for the newest point.
+        captureLatestDominantAtOrBeforeMs = now,
+        // Every contributor behind the newest point, for the now-dot hover overlay. captureMeta is
+        // already on for the dominant label above, so this only retains rows already computed.
+        captureBreakdowns = 1,
+    )
+
+
+    Box(modifier) {
     Canvas(
-        modifier = modifier.hourlyGraphTapInput(
+        modifier = Modifier.fillMaxSize()
+            .nowDotHoverInput(nowDotTarget, nowDotHovered)
+            .hourlyGraphTapInput(
             start = start,
             cutoff = cutoff,
             nowMs = now,
@@ -223,28 +264,6 @@ fun TemperatureGraph(
         // the current-temp dot on the wrong side of the line vs Android. See plan 260721-forecast-line-
         // smoothing-parity. `smoothedForecasts = null` below lets the builder fall back to raw too.
         val forecastTemps = points.map { it.temperature }
-        val actualSeries = ActualTemperatureSeriesBuilder.build(
-            hourlyForecasts = hourly,
-            observations = observations,
-            centerTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(center), zoneId),
-            displaySourceId = displaySourceId,
-            userLat = latitude,
-            userLon = longitude,
-            backHours = backHours.toLong(),
-            forwardHours = forwardHours.toLong(),
-            // Scale the blend context with the visible span (zoom now reaches 30 days back) so the
-            // actual line spans the whole window, not just the legacy 6-day context. Floors keep
-            // near-zoom behavior identical.
-            contextLookbackHours = maxOf(ACTUALS_CONTEXT_LOOKBACK_HOURS, backHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
-            contextLookaheadHours = maxOf(ACTUALS_CONTEXT_LOOKAHEAD_HOURS, forwardHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
-            now = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId),
-            zoneId = zoneId,
-            smoothedForecasts = null, // raw: builder uses forecast.temperature, matching the line + Android
-            personalStationWeight = personalStationWeight,
-            // Names the thermometer behind the observed line for the dominant-station label below. The
-            // blend runs either way; this only asks it to keep the top-weight row for the newest point.
-            captureLatestDominantAtOrBeforeMs = now,
-        )
         // TEMP DIAGNOSTIC: where does the pink actual line start/end vs the visible window? Compares
         // the first/last actual point to windowStart and the raw observation range, to chase the
         // "actual line doesn't reach the left edge" report. Logs to the autostart log file.
@@ -736,10 +755,15 @@ fun TemperatureGraph(
         // Draw fetch dot (circle rings) if it exists
         if (fetchDotXVal != null && fetchDotYVal != null && fetchDotPoint != null) {
             val dotRadius = 4.5f * scale
+            // Publish the hover hit target. A plain holder, not state — see NowDotTarget.
+            nowDotTarget.set(fetchDotXVal, fetchDotYVal, dotRadius, size.width)
             val outerRadius = dotRadius + 0.75f * scale
             drawCircle(color = Color.Black.copy(alpha = 0.26f), radius = outerRadius, center = Offset(fetchDotXVal, fetchDotYVal))
             drawCircle(color = Color.White, radius = dotRadius, center = Offset(fetchDotXVal, fetchDotYVal))
             drawCircle(color = tempToColor(fetchDotPoint.actualTemp!!), radius = dotRadius - 1.5f * scale, center = Offset(fetchDotXVal, fetchDotYVal))
+        } else {
+            // Dot is off-window (panned away): nothing to hover.
+            nowDotTarget.clear()
         }
 
         // "+0.4 from forecast" label: the graph's ghost-line delta (last actual minus forecast), in
@@ -1036,6 +1060,15 @@ fun TemperatureGraph(
         if (now in windowStart..windowEnd) {
             drawNowLabel(markerX, top, graphHeight, scale, textMeasurer, drawnLabels)
         }
+    }
+
+    // Sibling of the Canvas, never inside it: the popup reads the hover state, the Canvas must not.
+    NowDotStationsPopup(
+        hovered = nowDotHovered,
+        table = nowDotStationsTable(actualSeries.blendBreakdowns, useCelsius, zoneId),
+        target = nowDotTarget,
+        scale = scale,
+    )
     }
 }
 

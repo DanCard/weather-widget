@@ -115,6 +115,14 @@ data class ActualTemperatureSeriesResult(
      * `captureLatestDominantAtOrBeforeMs`.
      */
     val latestDominantContribution: DominantBlend? = null,
+    /**
+     * Every contribution behind the newest emitted points, most-recent-first. Empty unless the caller
+     * asked for it via [ActualTemperatureSeriesBuilder.build]'s `captureBreakdowns`.
+     *
+     * Where [latestDominantContribution] names the one station explaining the displayed temperature,
+     * this is the whole blend — what the hourly graph's now-dot hover overlay lists.
+     */
+    val blendBreakdowns: List<BlendBreakdown> = emptyList(),
 )
 
 object ActualTemperatureSeriesBuilder {
@@ -153,6 +161,13 @@ object ActualTemperatureSeriesBuilder {
          * pays for it; the extra work is one `maxByOrNull` over the weights already computed per point.
          */
         captureLatestDominantAtOrBeforeMs: Long? = null,
+        /**
+         * Opt in to [ActualTemperatureSeriesResult.blendBreakdowns], keeping every contribution behind
+         * this many of the newest emitted points. Off by default so no existing render path pays for
+         * it. When `captureLatestDominantAtOrBeforeMs` is already set the per-point metadata is being
+         * computed anyway, so the marginal cost here is retaining the rows rather than deriving them.
+         */
+        captureBreakdowns: Int = 0,
     ): ActualTemperatureSeriesResult {
         val forecastsByTime = HourlyForecastSelector.selectForecastsByTime(hourlyForecasts, displaySourceId, userLat, userLon)
         val truncated = centerTime.truncatedTo(ChronoUnit.HOURS)
@@ -176,6 +191,7 @@ object ActualTemperatureSeriesBuilder {
             zoneId = zoneId,
             onBlendDebug = onBlendDebug,
             captureLatestDominantAtOrBeforeMs = captureLatestDominantAtOrBeforeMs,
+            captureBreakdowns = captureBreakdowns,
         )
         val blendedActuals = blendedActualsResult.observations
 
@@ -263,6 +279,7 @@ object ActualTemperatureSeriesBuilder {
             sourceObservationCount = sourceActuals.size,
             blendInputCount = sourceActuals.size,
             latestDominantContribution = blendedActualsResult.latestDominantContribution,
+            blendBreakdowns = blendedActualsResult.breakdowns,
         )
     }
 
