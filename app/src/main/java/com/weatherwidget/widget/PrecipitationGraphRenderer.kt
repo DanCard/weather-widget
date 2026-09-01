@@ -11,13 +11,22 @@ import android.content.Context
 import android.graphics.*
 import android.util.Log
 import com.weatherwidget.R
-import com.weatherwidget.util.DayNightHours
+import com.weatherwidget.shared.graph.DayNightHours
+import com.weatherwidget.shared.graph.RainPeriodSelection
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalDate
 import com.weatherwidget.widget.handlers.formatPrecipAmount
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+// Rain-period selection lives in :shared so Android and desktop cannot drift. These aliases keep the
+// Android call sites reading as before; the types and the logic are the shared ones.
+// See RainPeriodSelection and plans/260901-share-rain-period-selection.md.
+internal typealias RainPeriod = RainPeriodSelection.RainPeriod
+internal typealias DayNightSegment = RainPeriodSelection.DayNightSegment
+/** How rain-amount labels are aggregated across the visible window. Shared with desktop. */
+internal typealias RainLabelMode = RainPeriodSelection.Mode
 
 object PrecipitationGraphRenderer {
 
@@ -126,27 +135,6 @@ object PrecipitationGraphRenderer {
         val overlapArea: Float
     )
 
-    data class RainPeriod(
-        val startIndex: Int,
-        val endIndex: Int,
-        val totalAmountMm: Float,
-        val startLabel: String,
-        val endLabel: String,
-        /** When set, label placement is biased to sit near this x (px) instead of floating freely. */
-        val anchorX: Float? = null,
-    )
-
-    /** How rain-amount labels are aggregated across the visible window. */
-    enum class RainLabelMode {
-        /** Legacy: a single Pred/Act total spanning [rainAmountWindowHours]. */
-        WINDOW_TOTAL,
-
-        /** WIDE zoom: wettest day (8a-8p) + wettest night (8p-8a) segment, each anchored to its region. */
-        DAY_NIGHT,
-
-        /** NARROW zoom: per-hour Pred/Act for the first few hours, only where rain exists. */
-        PER_HOUR,
-    }
 
     data class TextMeasurer(
         val measureProbabilityText: (String) -> Float,
@@ -305,35 +293,21 @@ object PrecipitationGraphRenderer {
             )
         }
 
-        val (rainPeriods, actualRainPeriods, dayNightBoundaryXs) = when (rainLabelMode) {
-            RainLabelMode.DAY_NIGHT -> {
-                val segments = selectDayNightSegments(hours)
-                Triple(
-                    segments.mapNotNull { it.toRainPeriod(hours, hourWidth) { h -> h.precipAmountMm } },
-                    segments.mapNotNull { it.toRainPeriod(hours, hourWidth) { h -> h.actualPrecipAmountMm } },
-                    computeDayNightBoundaryXs(hours, hourWidth),
-                )
-            }
-            RainLabelMode.PER_HOUR -> {
-                Triple(
-                    perHourRainPeriods(hours, hourWidth) { it.precipAmountMm },
-                    perHourRainPeriods(hours, hourWidth) { it.actualPrecipAmountMm },
-                    emptyList<Float>(),
-                )
-            }
-            RainLabelMode.WINDOW_TOTAL -> {
-                val pred = if (rainAmountWindowHours > 0) {
-                    findFixedWindowRainPeriods(hours, rainAmountWindowHours)
-                } else {
-                    findVisibleWindowRainPeriods(hours)
-                }
-                val actual = if (rainAmountWindowHours > 0) {
-                    findFixedWindowActualRainPeriods(hours, rainAmountWindowHours)
-                } else {
-                    findVisibleWindowActualRainPeriods(hours)
-                }
-                Triple(pred, actual, emptyList<Float>())
-            }
+        // One shared call yields both series, so the forecast and actual totals cannot be sourced
+        // from the same field by accident — the desktop defect fixed on 2026-09-01.
+        val rainHours = hours.toRainHours()
+        val selected = RainPeriodSelection.selectPeriods(
+            hours = rainHours,
+            mode = rainLabelMode,
+            hourWidth = hourWidth,
+            windowHours = rainAmountWindowHours,
+        )
+        val rainPeriods = selected.forecast
+        val actualRainPeriods = selected.actual
+        val dayNightBoundaryXs = if (rainLabelMode == RainLabelMode.DAY_NIGHT) {
+            RainPeriodSelection.computeDayNightBoundaryXs(rainHours, hourWidth)
+        } else {
+            emptyList()
         }
         val rainCollisionBounds = probabilityPlacements.map { it.bounds }.toMutableList()
 
@@ -793,170 +767,50 @@ object PrecipitationGraphRenderer {
         return bitmap
     }
 
-    internal fun findVisibleWindowRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> {
-        return findVisibleWindowRainPeriods(hours) { it.precipAmountMm }
-    }
-
-    internal fun findVisibleWindowActualRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> {
-        return findVisibleWindowRainPeriods(hours) { it.actualPrecipAmountMm }
-    }
-
-    private fun findVisibleWindowRainPeriods(
-        hours: List<PrecipHourData>,
-        amountFor: (PrecipHourData) -> Float?,
-    ): List<RainPeriod> {
-        if (hours.isEmpty()) return emptyList()
-        val totalMm = hours.sumOf { (amountFor(it) ?: 0f).toDouble() }.toFloat()
-        if (totalMm <= 0f) return emptyList()
-        return listOf(
-            RainPeriod(
-                startIndex = 0,
-                endIndex = hours.lastIndex,
-                totalAmountMm = totalMm,
-                startLabel = hours.first().label,
-                endLabel = hours.last().label,
-            ),
+    /**
+     * Maps the renderer's row type onto the shared one. The actual field is passed through as-is:
+     * [PrecipViewHandler] has already nulled it for hours that have not elapsed, and that gate is
+     * what keeps an "Act" label out of the future.
+     */
+    private fun List<PrecipHourData>.toRainHours(): List<RainPeriodSelection.RainHour> = map {
+        RainPeriodSelection.RainHour(
+            dateTime = it.dateTime,
+            precipAmountMm = it.precipAmountMm,
+            actualPrecipAmountMm = it.actualPrecipAmountMm,
+            label = it.label,
         )
     }
 
-    internal fun findFixedWindowRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> {
-        return findFixedWindowRainPeriods(hours, windowHours) { it.precipAmountMm }
-    }
+    // Thin delegates over RainPeriodSelection. They exist so the renderer's own tests keep asserting
+    // Android behaviour against the shared implementation; the logic has one home.
 
-    internal fun findFixedWindowActualRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> {
-        return findFixedWindowRainPeriods(hours, windowHours) { it.actualPrecipAmountMm }
-    }
+    internal fun findVisibleWindowRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> =
+        RainPeriodSelection.findVisibleWindowRainPeriods(hours.toRainHours()) { it.precipAmountMm }
 
-    private fun findFixedWindowRainPeriods(
-        hours: List<PrecipHourData>,
-        windowHours: Int,
-        amountFor: (PrecipHourData) -> Float?,
-    ): List<RainPeriod> {
-        if (windowHours <= 0 || hours.size < windowHours) return emptyList()
-        var bestPeriod: RainPeriod? = null
-        var bestTotal = 0f
-        var i = 0
-        while (i <= hours.size - windowHours) {
-            val window = hours.subList(i, i + windowHours)
-            val totalMm = window.sumOf { (amountFor(it) ?: 0f).toDouble() }.toFloat()
-            if (totalMm > bestTotal) {
-                bestTotal = totalMm
-                bestPeriod = RainPeriod(
-                    startIndex = i,
-                    endIndex = i + windowHours - 1,
-                    totalAmountMm = totalMm,
-                    startLabel = hours[i].label,
-                    endLabel = hours[i + windowHours - 1].label,
-                )
-            }
-            i++
-        }
-        return if (bestPeriod != null) listOf(bestPeriod) else emptyList()
-    }
+    internal fun findVisibleWindowActualRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> =
+        RainPeriodSelection.findVisibleWindowRainPeriods(hours.toRainHours()) { it.actualPrecipAmountMm }
 
-    /** A contiguous run of hours sharing the same clock-based day/night phase. */
-    internal data class DayNightSegment(
-        val startIndex: Int,
-        val endIndex: Int,
-        val isDay: Boolean,
-    ) {
-        fun centerX(hourWidth: Float): Float = hourWidth * (startIndex + endIndex) / 2f
+    internal fun findFixedWindowRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> =
+        RainPeriodSelection.findFixedWindowRainPeriods(hours.toRainHours(), windowHours) { it.precipAmountMm }
 
-        /** Sums [amountFor] over the segment; null when the segment has no rain of that kind. */
-        fun toRainPeriod(
-            hours: List<PrecipHourData>,
-            hourWidth: Float,
-            amountFor: (PrecipHourData) -> Float?,
-        ): RainPeriod? {
-            val total = (startIndex..endIndex)
-                .sumOf { (amountFor(hours[it]) ?: 0f).toDouble() }
-                .toFloat()
-            if (total <= 0f) return null
-            return RainPeriod(
-                startIndex = startIndex,
-                endIndex = endIndex,
-                totalAmountMm = total,
-                startLabel = hours[startIndex].label,
-                endLabel = hours[endIndex].label,
-                anchorX = centerX(hourWidth),
-            )
-        }
-    }
+    internal fun findFixedWindowActualRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> =
+        RainPeriodSelection.findFixedWindowRainPeriods(hours.toRainHours(), windowHours) { it.actualPrecipAmountMm }
 
-    /** Splits [hours] into contiguous runs grouped by clock-based day (8a-8p) vs night (8p-8a). */
-    internal fun dayNightRuns(hours: List<PrecipHourData>): List<DayNightSegment> {
-        if (hours.isEmpty()) return emptyList()
-        val runs = mutableListOf<DayNightSegment>()
-        var start = 0
-        var currentIsDay = DayNightHours.isDayHour(hours[0].dateTime)
-        for (i in 1..hours.lastIndex) {
-            val isDay = DayNightHours.isDayHour(hours[i].dateTime)
-            if (isDay != currentIsDay) {
-                runs.add(DayNightSegment(start, i - 1, currentIsDay))
-                start = i
-                currentIsDay = isDay
-            }
-        }
-        runs.add(DayNightSegment(start, hours.lastIndex, currentIsDay))
-        return runs
-    }
+    internal fun dayNightRuns(hours: List<PrecipHourData>): List<DayNightSegment> =
+        RainPeriodSelection.dayNightRuns(hours.toRainHours())
 
-    /**
-     * Picks at most the wettest day run and the wettest night run (by combined predicted + actual
-     * rainfall), so a busy 24h window reads as two anchored regions instead of one merged total.
-     */
-    internal fun selectDayNightSegments(hours: List<PrecipHourData>): List<DayNightSegment> {
-        fun combinedTotal(seg: DayNightSegment): Float =
-            (seg.startIndex..seg.endIndex).sumOf { idx ->
-                ((hours[idx].precipAmountMm ?: 0f) + (hours[idx].actualPrecipAmountMm ?: 0f)).toDouble()
-            }.toFloat()
+    internal fun selectDayNightSegments(hours: List<PrecipHourData>): List<DayNightSegment> =
+        RainPeriodSelection.selectDayNightSegments(hours.toRainHours())
 
-        val runs = dayNightRuns(hours)
-        val wettestDay = runs.filter { it.isDay }
-            .maxByOrNull { combinedTotal(it) }
-            ?.takeIf { combinedTotal(it) > 0f }
-        val wettestNight = runs.filterNot { it.isDay }
-            .maxByOrNull { combinedTotal(it) }
-            ?.takeIf { combinedTotal(it) > 0f }
-        return listOfNotNull(wettestDay, wettestNight).sortedBy { it.startIndex }
-    }
-
-    /** One RainPeriod per hour for the first [PER_HOUR_MAX_COLUMNS] columns where [amountFor] > 0. */
     internal fun perHourRainPeriods(
         hours: List<PrecipHourData>,
         hourWidth: Float,
-        amountFor: (PrecipHourData) -> Float?,
-    ): List<RainPeriod> {
-        val limit = minOf(PER_HOUR_MAX_COLUMNS, hours.size)
-        val periods = mutableListOf<RainPeriod>()
-        for (i in 0 until limit) {
-            val amount = amountFor(hours[i]) ?: continue
-            if (amount <= 0f) continue
-            periods.add(
-                RainPeriod(
-                    startIndex = i,
-                    endIndex = i,
-                    totalAmountMm = amount,
-                    startLabel = hours[i].label,
-                    endLabel = hours[i].label,
-                    anchorX = hourWidth * i,
-                ),
-            )
-        }
-        return periods
-    }
+        amountFor: (RainPeriodSelection.RainHour) -> Float?,
+    ): List<RainPeriod> =
+        RainPeriodSelection.perHourRainPeriods(hours.toRainHours(), hourWidth, amountFor)
 
-    /** X (px) of each 8a/8p day-night transition inside the window, at the first hour of the new phase. */
-    internal fun computeDayNightBoundaryXs(hours: List<PrecipHourData>, hourWidth: Float): List<Float> {
-        if (hours.size < 2) return emptyList()
-        val xs = mutableListOf<Float>()
-        for (i in 1..hours.lastIndex) {
-            if (DayNightHours.isDayHour(hours[i].dateTime) != DayNightHours.isDayHour(hours[i - 1].dateTime)) {
-                xs.add(hourWidth * i)
-            }
-        }
-        return xs
-    }
+    internal fun computeDayNightBoundaryXs(hours: List<PrecipHourData>, hourWidth: Float): List<Float> =
+        RainPeriodSelection.computeDayNightBoundaryXs(hours.toRainHours(), hourWidth)
 
     private fun dpToPx(context: Context, dp: Float): Float =
         PrecipitationGraphStyle.dpToPx(context, dp)

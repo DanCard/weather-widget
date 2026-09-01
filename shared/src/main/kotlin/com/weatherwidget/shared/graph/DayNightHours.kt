@@ -1,4 +1,4 @@
-package com.weatherwidget.util
+package com.weatherwidget.shared.graph
 
 import java.time.LocalDateTime
 
@@ -11,6 +11,10 @@ import java.time.LocalDateTime
  *
  * DAY   = 08:00 (inclusive) .. 20:00 (exclusive)
  * NIGHT = 20:00 (inclusive) .. 08:00 (exclusive)
+ *
+ * Lives in `:shared` because desktop hand-rolled `hour in 8 until 20` inline rather than importing
+ * it, which is the same duplication that let the actual-rain selection drift (see
+ * [RainPeriodSelection] and plans/260901-share-rain-period-selection.md).
  */
 object DayNightHours {
     const val DAY_START_HOUR = 8

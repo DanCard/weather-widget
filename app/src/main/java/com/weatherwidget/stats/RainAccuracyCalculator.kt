@@ -6,7 +6,7 @@ import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.ActualPrecipSource
-import com.weatherwidget.util.DayNightHours
+import com.weatherwidget.shared.graph.DayNightHours
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime

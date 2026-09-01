@@ -419,9 +419,9 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             // WIDE: split rain into wettest day (8a-8p) + wettest night (8p-8a) regions with a divider.
             // NARROW: per-hour Pred/Act for the first few hours where rain exists.
             val rainLabelMode = if (isNarrow) {
-                PrecipitationGraphRenderer.RainLabelMode.PER_HOUR
+                com.weatherwidget.shared.graph.RainPeriodSelection.Mode.PER_HOUR
             } else {
-                PrecipitationGraphRenderer.RainLabelMode.DAY_NIGHT
+                com.weatherwidget.shared.graph.RainPeriodSelection.Mode.DAY_NIGHT
             }
             val renderStartMs = SystemClock.elapsedRealtime()
             val renderLogs = mutableListOf<String>()

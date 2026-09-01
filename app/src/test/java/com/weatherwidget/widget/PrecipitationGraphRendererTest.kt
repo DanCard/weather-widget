@@ -622,7 +622,7 @@ class PrecipitationGraphRendererTest {
             widthPx = 1000,
             heightPx = 420,
             currentTime = LocalDateTime.of(2026, 5, 21, 0, 0),
-            rainLabelMode = PrecipitationGraphRenderer.RainLabelMode.DAY_NIGHT,
+            rainLabelMode = com.weatherwidget.shared.graph.RainPeriodSelection.Mode.DAY_NIGHT,
             showHourlyIcons = false,
             textMeasurer = mockTextMeasurer,
         )

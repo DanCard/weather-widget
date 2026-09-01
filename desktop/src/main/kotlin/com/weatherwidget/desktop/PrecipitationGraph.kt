@@ -28,7 +28,11 @@ import com.weatherwidget.shared.graph.*
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
+
+/** Rain-period types now live in :shared alongside the selection logic. */
+private typealias RainPeriod = RainPeriodSelection.RainPeriod
 
 private val COLOR_PRECP_CURVE = Color(0xFF5AC8FA)
 private val COLOR_PRECP_FILL_START = Color(0xFF5AC8FA).copy(alpha = 0.27f)
@@ -194,14 +198,23 @@ fun PrecipitationGraph(
             drawnLabels.add(r)
         }
 
-        // Resolving rain periods & drawing rain amount labels
-        val forecastRainPeriods = selectDayNightSegments(points, emptyList())
-            .mapNotNull { it.toRainPeriod(points, stepWidth) { f -> f.precipAmountMm } }
-        val actualRainPeriods = selectDayNightSegments(
-            points,
-            actualPrecipRowsForSource(observations, displaySourceId),
+        // Resolving rain periods & drawing rain amount labels. Both series come from ONE shared call
+        // (the same RainPeriodSelection Android uses), because the desktop copy this replaced summed
+        // the forecast field for the actual series and had no now-gate — so "Actual: " printed the
+        // forecast number, at anchors that could sit entirely in the future. Observed 2026-09-01 on
+        // Silurian; see plans/260901-share-rain-period-selection.md.
+        val rainHours = buildRainHours(
+            points = points,
+            observations = actualPrecipRowsForSource(observations, displaySourceId),
+            now = now,
         )
-            .mapNotNull { it.toRainPeriod(points, stepWidth) { f -> f.precipAmountMm } }
+        val selectedRain = RainPeriodSelection.selectPeriods(
+            hours = rainHours,
+            mode = RainPeriodSelection.Mode.DAY_NIGHT,
+            hourWidth = stepWidth,
+        )
+        val forecastRainPeriods = selectedRain.forecast
+        val actualRainPeriods = selectedRain.actual
 
         val rainPlacements = calculateRainAmountPlacements(
             rainPeriods = forecastRainPeriods,
@@ -210,7 +223,7 @@ fun PrecipitationGraph(
             graphBottom = graphBottom,
             graphHeight = graphHeight,
             initialCollisionBounds = drawnLabels,
-            labelPrefix = "",
+            labelPrefix = "Pred ",
             textMeasurer = textMeasurer,
             textStyle = TextStyle(fontSize = (10 * scale).sp, color = COLOR_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
             dpToPx = 1.dp.toPx() * scale
@@ -222,7 +235,7 @@ fun PrecipitationGraph(
             graphBottom = graphBottom,
             graphHeight = graphHeight,
             initialCollisionBounds = drawnLabels + rainPlacements.map { it.bounds },
-            labelPrefix = "Actual: ",
+            labelPrefix = "Act ",
             textMeasurer = textMeasurer,
             textStyle = TextStyle(fontSize = (10 * scale).sp, color = COLOR_ACTUAL_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
             dpToPx = 1.dp.toPx() * scale
@@ -299,19 +312,12 @@ private fun buildCurve(coords: List<Offset>): Path = DesktopGraphUtils.buildCurv
 
 private fun computeTangents(coords: List<Offset>): List<Offset> = DesktopGraphUtils.computeTangents(coords)
 
-private data class RainPeriod(
-    val startIndex: Int,
-    val endIndex: Int,
-    val totalAmountMm: Float,
-    val anchorX: Float? = null,
-)
-
-private data class DayNightSegment(
-    val startIndex: Int,
-    val endIndex: Int,
-    val isDay: Boolean,
-)
-
+/**
+ * The observation rows that may legitimately be shown as this source's own measured precipitation.
+ *
+ * A source with no historical precipitation product contributes nothing: Silurian documents
+ * `include_past` as forecast output, so relabelling it "Actual" would be a lie about provenance.
+ */
 internal fun actualPrecipRowsForSource(
     observations: List<ObservationReading>,
     displaySourceId: String,
@@ -333,92 +339,41 @@ internal fun actualPrecipRowsForSource(
     }
 }
 
-private fun dayNightRuns(hours: List<HourlyForecast>): List<DayNightSegment> {
-    if (hours.isEmpty()) return emptyList()
-    val runs = mutableListOf<DayNightSegment>()
-    var start = 0
+/**
+ * Maps the forecast curve plus this source's observation rows onto the shared row type.
+ *
+ * The now-gate lives here, and it is the whole point: an hour at or after [now] has not happened, so
+ * its actual amount is null no matter what the observation list holds. Without it the "Actual: "
+ * label anchors on a future day/night run. Android applies the same gate in `PrecipViewHandler`.
+ */
+internal fun buildRainHours(
+    points: List<HourlyForecast>,
+    observations: List<ObservationReading>,
+    /** Epoch millis; matches `HourlyGraphSetup.now`. */
+    now: Long,
+): List<RainPeriodSelection.RainHour> {
     val zoneId = ZoneId.systemDefault()
-    val firstLdt = LocalDateTime.ofInstant(Instant.ofEpochMilli(hours[0].dateTime), zoneId)
-    var currentIsDay = firstLdt.hour in 8 until 20
-    for (i in 1..hours.lastIndex) {
-        val ldt = LocalDateTime.ofInstant(Instant.ofEpochMilli(hours[i].dateTime), zoneId)
-        val isDay = ldt.hour in 8 until 20
-        if (isDay != currentIsDay) {
-            runs.add(DayNightSegment(start, i - 1, currentIsDay))
-            start = i
-            currentIsDay = isDay
-        }
+    val nowLdt = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId)
+    val actualByHour = mutableMapOf<LocalDateTime, Float>()
+    for (obs in observations) {
+        val amount = obs.precipAmountMm ?: continue
+        val hour = LocalDateTime.ofInstant(Instant.ofEpochMilli(obs.timestamp), zoneId)
+            .truncatedTo(ChronoUnit.HOURS)
+        // Several readings can land in one hour; the hourly total is their sum.
+        actualByHour[hour] = (actualByHour[hour] ?: 0f) + amount
     }
-    runs.add(DayNightSegment(start, hours.lastIndex, currentIsDay))
-    return runs
-}
-
-private fun selectDayNightSegments(hours: List<HourlyForecast>, observations: List<ObservationReading>): List<DayNightSegment> {
-    val runs = dayNightRuns(hours)
-    val zoneId = ZoneId.systemDefault()
-    val actualPrecipByHour = observations.associate { obs ->
-        val ldt = LocalDateTime.ofInstant(Instant.ofEpochMilli(obs.timestamp), zoneId)
-            .truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        ldt to (obs.precipAmountMm ?: 0f)
-    }
-
-    fun combinedTotal(seg: DayNightSegment): Float {
-        return (seg.startIndex..seg.endIndex).sumOf { idx ->
-            val forecast = hours[idx]
-            val forecastAmount = forecast.precipAmountMm ?: 0f
-            val ldt = LocalDateTime.ofInstant(Instant.ofEpochMilli(forecast.dateTime), zoneId)
-            val actualAmount = actualPrecipByHour[ldt] ?: 0f
-            (forecastAmount + actualAmount).toDouble()
-        }.toFloat()
-    }
-
-    val wettestDay = runs.filter { it.isDay }
-        .maxByOrNull { combinedTotal(it) }
-        ?.takeIf { combinedTotal(it) > 0f }
-    val wettestNight = runs.filterNot { it.isDay }
-        .maxByOrNull { combinedTotal(it) }
-        ?.takeIf { combinedTotal(it) > 0f }
-    return listOfNotNull(wettestDay, wettestNight).sortedBy { it.startIndex }
-}
-
-private fun DayNightSegment.toRainPeriod(
-    hours: List<HourlyForecast>,
-    hourWidth: Float,
-    amountFor: (HourlyForecast) -> Float?,
-): RainPeriod? {
-    val total = (startIndex..endIndex).sumOf { idx ->
-        (amountFor(hours[idx]) ?: 0f).toDouble()
-    }.toFloat()
-    if (total <= 0f) return null
-    val centerX = hourWidth * (startIndex + endIndex) / 2f
-    return RainPeriod(
-        startIndex = startIndex,
-        endIndex = endIndex,
-        totalAmountMm = total,
-        anchorX = centerX,
-    )
-}
-
-private fun perHourRainPeriods(
-    hours: List<HourlyForecast>,
-    hourWidth: Float,
-    amountFor: (HourlyForecast) -> Float?,
-): List<RainPeriod> {
-    val limit = minOf(4, hours.size)
-    val periods = mutableListOf<RainPeriod>()
-    for (i in 0 until limit) {
-        val amount = amountFor(hours[i]) ?: continue
-        if (amount <= 0f) continue
-        periods.add(
-            RainPeriod(
-                startIndex = i,
-                endIndex = i,
-                totalAmountMm = amount,
-                anchorX = hourWidth * i,
-            ),
+    return points.map { forecast ->
+        val hour = LocalDateTime.ofInstant(Instant.ofEpochMilli(forecast.dateTime), zoneId)
+        RainPeriodSelection.RainHour(
+            dateTime = hour,
+            precipAmountMm = forecast.precipAmountMm,
+            actualPrecipAmountMm = if (hour.isBefore(nowLdt)) {
+                actualByHour[hour.truncatedTo(ChronoUnit.HOURS)]
+            } else {
+                null
+            },
         )
     }
-    return periods
 }
 
 private fun formatPrecipAmount(amountMm: Float): String =
