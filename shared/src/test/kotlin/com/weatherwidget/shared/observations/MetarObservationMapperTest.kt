@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.test.category.ShortDuration
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -216,5 +217,49 @@ class MetarObservationMapperTest {
         assertEquals("international rows survive the same path", 73.4f, cdg.temperature, 0.01f)
         // CAVOK in the raw report is a positive "no significant cloud" — 0, not null.
         assertEquals(0, cdg.cloudCoverLow)
+    }
+
+    /**
+     * The defect this mapper's `qcFailed` exists to catch. Verbatim from the device DB
+     * (2026-08-31): the corrupt report was stored unflagged and blended at full weight, dragging
+     * the actual line ~5 F below every real neighbour. Its own valid neighbour an hour earlier must
+     * still pass, or the check is deleting real weather.
+     */
+    @Test
+    fun `a physically impossible report is marked qcFailed`() {
+        val corrupt = MetarObservationMapper.toReading(
+            row(id = "KPAO", temp = 10.0f, raw = "METAR KPAO 312347Z 32014G22KT 10SM SCT040 10/12 A2993"),
+            station("KPAO"),
+            37.4059,
+            -122.0491,
+        )!!
+        assertEquals(50.0f, corrupt.temperature, 0.01f)
+        assertTrue("dewpoint above temperature must fail QC", corrupt.qcFailed)
+
+        val valid = MetarObservationMapper.toReading(
+            row(id = "KPAO", temp = 21.0f, raw = "KPAO 312247Z 33018G20KT 10SM SCT040 21/12 A2993"),
+            station("KPAO"),
+            37.4059,
+            -122.0491,
+        )!!
+        assertEquals(69.8f, valid.temperature, 0.01f)
+        assertFalse("the valid neighbour must pass", valid.qcFailed)
+    }
+
+    /**
+     * KRHV 2026-08-27: `209/14` is a three-digit temperature field. Upstream salvaged the trailing
+     * `09` -> 9 C -> 48.2 F and we stored it, between neighbours of 66.2 F and 73.4 F. This is the
+     * shape a dewpoint rule alone cannot see.
+     */
+    @Test
+    fun `a malformed temperature group is marked qcFailed`() {
+        val corrupt = MetarObservationMapper.toReading(
+            row(id = "KRHV", temp = 9.0f, raw = "METAR KRHV 271547Z 00000KT 10SM FEW080 209/14 A2996"),
+            station("KRHV"),
+            37.4059,
+            -122.0491,
+        )!!
+        assertEquals(48.2f, corrupt.temperature, 0.01f)
+        assertTrue(corrupt.qcFailed)
     }
 }

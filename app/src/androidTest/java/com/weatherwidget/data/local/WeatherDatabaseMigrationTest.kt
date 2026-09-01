@@ -593,4 +593,52 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    /**
+     * The 2026-08-31 defect, replayed through the migration. The corrupt KPAO report and the KRHV
+     * malformed-group report were both stored unflagged before MetarPlausibility existed; the
+     * migration must re-judge them without touching their valid neighbours or any row that carries
+     * no raw report.
+     */
+    @Test
+    fun migrate69To70_flagsStoredImpossibleReadingsAndLeavesValidOnesAlone() {
+        fun insert(id: String, ts: Long, temp: Double, raw: String?) =
+            "INSERT INTO observations (stationId, stationName, timestamp, temperature, " +
+                "condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, api, " +
+                "isWebFallback, qcFailed, isMetar, rawMetar, cloudVerticalKind) VALUES " +
+                "('$id', '$id site', $ts, $temp, 'Fair', 37.417, -122.089, 5.0, " +
+                "'OFFICIAL', 2000, 'NWS', 0, 0, 1, ${raw?.let { "'$it'" } ?: "NULL"}, 0)"
+
+        helper.createDatabase(testDb, 69).apply {
+            // Dewpoint 12 C above a temperature of 10 C — impossible.
+            execSQL(insert("KPAO", 2000, 50.0, "METAR KPAO 312347Z 32014G22KT 10SM SCT040 10/12 A2993"))
+            // Its own valid neighbour an hour earlier.
+            execSQL(insert("KPAO", 1000, 69.8, "KPAO 312247Z 33018G20KT 10SM SCT040 21/12 A2993"))
+            // Three-digit temperature field — structurally invalid.
+            execSQL(insert("KRHV", 3000, 48.2, "METAR KRHV 271547Z 00000KT 10SM FEW080 209/14 A2996"))
+            // No raw report: nothing to cross-check, must be left alone.
+            execSQL(insert("KNUQ", 4000, 68.0, null))
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 70, true, WeatherDatabase.MIGRATION_69_70)
+
+        fun qcFailedFor(id: String, ts: Long): Int =
+            db.query("SELECT qcFailed FROM observations WHERE stationId = '$id' AND timestamp = $ts")
+                .use { c ->
+                    assertTrue("row $id@$ts survived the migration", c.moveToFirst())
+                    c.getInt(0)
+                }
+
+        assertEquals("impossible dewpoint must be flagged", 1, qcFailedFor("KPAO", 2000))
+        assertEquals("malformed temp group must be flagged", 1, qcFailedFor("KRHV", 3000))
+        assertEquals("the valid neighbour must be untouched", 0, qcFailedFor("KPAO", 1000))
+        assertEquals("a row with no raw report must be untouched", 0, qcFailedFor("KNUQ", 4000))
+
+        // The flagged rows are kept, not deleted — the stations UI still shows them.
+        db.query("SELECT COUNT(*) FROM observations").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(4, c.getInt(0))
+        }
+    }
 }

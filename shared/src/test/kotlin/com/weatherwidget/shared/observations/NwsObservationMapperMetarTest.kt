@@ -3,6 +3,7 @@ package com.weatherwidget.shared.observations
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -182,5 +183,48 @@ class NwsObservationMapperMetarTest {
         assertNull(reading.maxTempLast24h)
         assertNull(reading.precipAmountMm)
         assertEquals(raw, reading.rawMetar)
+    }
+
+    /**
+     * Our plausibility verdict is ORed with NWS's own code, so a garbled report is caught even when
+     * upstream calls it validated. `V` is the strongest clean code NWS issues — if the OR were the
+     * wrong way round, or missing, this row would enter the blend at full weight.
+     */
+    @Test
+    fun `an impossible report fails QC even when NWS calls it validated`() {
+        val raw = "METAR KPAO 312347Z 32014G22KT 10SM SCT040 10/12 A2993"
+        val reading = read(
+            NwsApi.Observation(
+                timestamp = "2026-08-31T23:47:00+00:00",
+                temperatureCelsius = 10.0f,
+                textDescription = "Fair",
+                stationName = "Palo Alto",
+                isMetar = true,
+                rawMessage = raw,
+                qcFailed = NwsQualityControl.isFailed("V"),
+            ),
+        )
+
+        assertEquals(50.0f, reading.temperature, 0.01f)
+        assertTrue("dewpoint above temperature must fail QC despite a clean upstream code", reading.qcFailed)
+    }
+
+    /** The same station an hour earlier, with the same clean code: unchanged, still usable. */
+    @Test
+    fun `a valid report with a clean NWS code still passes`() {
+        val reading = read(
+            NwsApi.Observation(
+                timestamp = "2026-08-31T22:47:00+00:00",
+                temperatureCelsius = 21.0f,
+                textDescription = "Fair",
+                stationName = "Palo Alto",
+                isMetar = true,
+                rawMessage = "KPAO 312247Z 33018G20KT 10SM SCT040 21/12 A2993",
+                qcFailed = NwsQualityControl.isFailed("V"),
+            ),
+        )
+
+        assertEquals(69.8f, reading.temperature, 0.01f)
+        assertFalse(reading.qcFailed)
     }
 }

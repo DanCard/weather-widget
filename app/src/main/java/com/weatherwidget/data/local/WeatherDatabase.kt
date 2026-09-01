@@ -9,10 +9,11 @@ import androidx.room.RoomDatabase.JournalMode
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.weatherwidget.shared.observations.MetarPlausibility
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 69,
+    version = 70,
     exportSchema = true,
 )
 @TypeConverters(CloudVerticalKindConverters::class)
@@ -645,6 +646,59 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Data-only repair; the schema is unchanged. Re-runs [MetarPlausibility] over every stored
+         * reading that still carries its raw report, so readings written before the check existed
+         * are judged by it too.
+         *
+         * Without this the fix is future-only, and the reading that motivated it keeps poisoning
+         * the display for days: the hourly blend reads a 72-hour window, and the daily low uses a
+         * sticky ratchet, so a corrupt 50 F would latch permanently into a day's low the first time
+         * that day is recomputed. Flagging costs nothing and is reversible; deleting the rows is
+         * not, and the stations UI deliberately still shows QC-failed readings for transparency.
+         */
+        val MIGRATION_69_70 = object : Migration(69, 70) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                data class Key(
+                    val stationId: String,
+                    val timestamp: Long,
+                    val lat: Double,
+                    val lon: Double,
+                    val api: String,
+                )
+
+                val failed = mutableListOf<Key>()
+                val cursor = db.query(
+                    "SELECT `stationId`, `timestamp`, `locationLat`, `locationLon`, `api`, " +
+                        "`temperature`, `rawMetar` FROM `observations` " +
+                        "WHERE `qcFailed` = 0 AND `rawMetar` IS NOT NULL AND `rawMetar` != ''",
+                )
+                cursor.use {
+                    while (it.moveToNext()) {
+                        val temperature = it.getFloat(5)
+                        val rawMetar = it.getString(6)
+                        if (!MetarPlausibility.check(temperature, rawMetar).failed) continue
+                        failed += Key(
+                            stationId = it.getString(0),
+                            timestamp = it.getLong(1),
+                            lat = it.getDouble(2),
+                            lon = it.getDouble(3),
+                            api = it.getString(4),
+                        )
+                    }
+                }
+
+                failed.forEach { key ->
+                    db.execSQL(
+                        "UPDATE `observations` SET `qcFailed` = 1 " +
+                            "WHERE `stationId` = ? AND `timestamp` = ? AND `locationLat` = ? " +
+                            "AND `locationLon` = ? AND `api` = ?",
+                        arrayOf<Any>(key.stationId, key.timestamp, key.lat, key.lon, key.api),
+                    )
+                }
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -707,7 +761,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

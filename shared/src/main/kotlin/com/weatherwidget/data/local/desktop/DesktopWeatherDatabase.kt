@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.shared.observations.MetarPlausibility
 import java.nio.file.Path
 import java.sql.Connection
 import java.sql.DriverManager
@@ -215,6 +216,54 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     migrate(conn, currentVersion, SCHEMA_VERSION)
                 }
             }
+        }
+    }
+
+    /** Shared with Android by way of [MetarPlausibility]; see the v24 block in [migrate]. */
+    private fun requalifyStoredMetars(conn: Connection) {
+        data class Key(
+            val stationId: String,
+            val timestamp: Long,
+            val lat: Double,
+            val lon: Double,
+            val api: String,
+        )
+
+        val failed = mutableListOf<Key>()
+        conn.prepareStatement(
+            "SELECT stationId, timestamp, locationLat, locationLon, api, temperature, rawMetar " +
+                "FROM observations WHERE qcFailed = 0 AND rawMetar IS NOT NULL AND rawMetar != ''",
+        ).use { select ->
+            select.executeQuery().use { rs ->
+                while (rs.next()) {
+                    val temperature = rs.getFloat("temperature")
+                    val rawMetar = rs.getString("rawMetar")
+                    if (!MetarPlausibility.check(temperature, rawMetar).failed) continue
+                    failed += Key(
+                        stationId = rs.getString("stationId"),
+                        timestamp = rs.getLong("timestamp"),
+                        lat = rs.getDouble("locationLat"),
+                        lon = rs.getDouble("locationLon"),
+                        api = rs.getString("api"),
+                    )
+                }
+            }
+        }
+        if (failed.isEmpty()) return
+
+        conn.prepareStatement(
+            "UPDATE observations SET qcFailed = 1 WHERE stationId = ? AND timestamp = ? " +
+                "AND locationLat = ? AND locationLon = ? AND api = ?",
+        ).use { update ->
+            failed.forEach { key ->
+                update.setString(1, key.stationId)
+                update.setLong(2, key.timestamp)
+                update.setDouble(3, key.lat)
+                update.setDouble(4, key.lon)
+                update.setString(5, key.api)
+                update.addBatch()
+            }
+            update.executeBatch()
         }
     }
 
@@ -506,6 +555,14 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 addColumnIfMissing(stmt, "observations", "cloudEnvelopeTopMeters", "INTEGER")
                 addColumnIfMissing(stmt, "observations", "cloudVerticalKind", "INTEGER NOT NULL DEFAULT 0")
             }
+            // v24: data-only repair, mirroring Android's MIGRATION_69_70. Re-runs MetarPlausibility
+            // over stored readings that still carry a raw report, so ones written before the check
+            // existed are judged by it too. Future-only would leave a corrupt reading poisoning the
+            // 72-hour hourly blend window for days, and the sticky daily-low ratchet could latch it
+            // permanently. Flagging is reversible and keeps the row visible in the stations UI.
+            if (from < 24) {
+                requalifyStoredMetars(conn)
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -551,7 +608,13 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
     }
 
     companion object {
-        private const val SCHEMA_VERSION = 23
+        /**
+         * Public so tests can assert "initialize() migrates all the way to current" rather than
+         * hardcoding a literal — a hardcoded 23 in DesktopObservedCloudSchemaTest is what broke on
+         * the v24 bump, even though that test is about the v22 cloud columns and not about the
+         * version number at all.
+         */
+        const val SCHEMA_VERSION = 24
 
         /**
          * Column list shared by the desktop `daily_history` CREATE TABLE and the v19 rebuild (and by

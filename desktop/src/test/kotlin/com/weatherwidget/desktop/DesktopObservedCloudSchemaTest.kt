@@ -81,7 +81,9 @@ class DesktopObservedCloudSchemaTest {
             conn.createStatement().use { stmt ->
                 stmt.executeQuery("PRAGMA user_version").use { rs ->
                     assertTrue(rs.next())
-                    assertEquals(23, rs.getInt(1))
+                    // Not a literal: initialize() must migrate all the way to current, whatever
+                    // current is. This test is about the v22 cloud columns, not the version number.
+                    assertEquals(DesktopWeatherDatabase.SCHEMA_VERSION, rs.getInt(1))
                 }
                 val columns = mutableMapOf<String, Triple<String, Int, String?>>()
                 stmt.executeQuery("PRAGMA table_info(observations)").use { rs ->

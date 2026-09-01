@@ -36,6 +36,7 @@ object MetarObservationMapper {
         siteLon: Double,
     ): ObservationReading? {
         val tempC = row.temperatureCelsius ?: return null
+        val temperatureF = celsiusToFahrenheit(tempC)
 
         val decoded = row.rawOb?.let(MetarDecoder::decode)
 
@@ -49,7 +50,7 @@ object MetarObservationMapper {
             stationId = row.stationId,
             stationName = row.stationName.ifBlank { station.info.name },
             timestamp = row.observedAtMillis,
-            temperature = celsiusToFahrenheit(tempC),
+            temperature = temperatureF,
             // This feed ships no textDescription. The present-weather codes in the raw report could
             // supply one (brainstorm A4), but that is a separate change with its own UI surface;
             // an empty condition is honest until then.
@@ -76,8 +77,13 @@ object MetarObservationMapper {
             // rows for cloud, so leaving the default `false` would quietly deny them that.
             isMetar = true,
             // The feed carries a `qcField` but its scale is undocumented; marking rows on a guess
-            // would silently drop them from the blend. Left false until the encoding is confirmed.
-            qcFailed = false,
+            // would silently drop them from the blend, so it stays unread until the encoding is
+            // confirmed. What we CAN judge is the report against itself: MetarPlausibility rejects
+            // only physically or structurally impossible readings (dewpoint above temperature, a
+            // malformed T/Td group). Without it a garbled report arrives here unflagged and enters
+            // the blend at full weight — which is exactly how KPAO's 50 F at 16:47 on 2026-08-31
+            // pulled the actual line ~5 F below every real neighbour.
+            qcFailed = MetarPlausibility.check(temperatureF, row.rawOb).failed,
             // METAR amounts are cumulative sky-cover layers. File them by rounded base altitude
             // (low <3 km, middle <8 km, high otherwise); total remains null because the report does
             // not independently measure the whole atmospheric column.

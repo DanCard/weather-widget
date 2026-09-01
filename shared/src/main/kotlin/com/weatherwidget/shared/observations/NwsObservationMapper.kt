@@ -83,7 +83,12 @@ object NwsObservationMapper {
             maxTempLast24h = max24hCelsius?.let { celsiusToFahrenheit(it) },
             minTempLast24h = min24hCelsius?.let { celsiusToFahrenheit(it) },
             isWebFallback = isWebFallback,
-            qcFailed = observation.qcFailed,
+            // Upstream's verdict OR ours. NwsQualityControl reads NWS's own per-field code;
+            // MetarPlausibility judges the raw report against itself, catching a garbled reading
+            // that arrives with a clean code — the case that let KPAO's impossible `10/12` (dewpoint
+            // above temperature) into the blend on 2026-08-31.
+            qcFailed = observation.qcFailed ||
+                MetarPlausibility.check(celsiusToFahrenheit(tempCelsius), observation.rawMessage).failed,
             // Set by whoever built the Observation: NwsApi from `rawMessage`, SynopticApi from
             // `metar_set_1`. Web-fallback readings ARE often METARs — the earlier claim that they never
             // are was wrong, and it cost the cloud curve its nearest station (2026-08-21).
