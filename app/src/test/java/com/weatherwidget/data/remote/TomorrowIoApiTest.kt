@@ -102,6 +102,7 @@ class TomorrowIoApiTest {
         assertEquals(1, result.hourly.size)
         assertEquals(65.5f, result.hourly[0].temperature, 0.1f)
         assertEquals(88, result.hourly[0].cloudCover!!) // Int conversion
+        assertEquals(10, result.hourly[0].precipProbability)
         // precipAmountMm comes from precipitationAccumulation (inches) × 25.4, NOT intensity.
         assertEquals(0.01f * 25.4f, result.hourly[0].precipAmountMm!!, 0.001f)
 
@@ -109,7 +110,83 @@ class TomorrowIoApiTest {
         assertEquals(70.0f, result.daily[0].highTemp, 0.1f)
         assertEquals(55.0f, result.daily[0].lowTemp, 0.1f)
         assertEquals("2026-04-14", result.daily[0].date)
+        assertEquals(5, result.daily[0].precipProbability)
         assertEquals(0.2f * 25.4f, result.daily[0].precipAmountMm!!, 0.001f)
+    }
+
+    /**
+     * Every `precipitationProbability` Tomorrow.io has ever sent is an integer multiple of 5, so
+     * this guards a provider change rather than a live defect. It matters because the old
+     * `jsonPrimitive.intOrNull` read returned null for a fractional value, and a null rain chance
+     * renders exactly like a confident 0% — the failure would look like a dry forecast, not a bug.
+     */
+    @Test
+    fun `fractional percentages are rounded rather than dropped`() = runBlocking {
+        val hourlyResponse = """
+            {
+              "data": {
+                "timelines": [
+                  {
+                    "timestep": "1h",
+                    "intervals": [
+                      {
+                        "startTime": "2026-04-14T18:00:00Z",
+                        "values": {
+                          "cloudCover": 88.34,
+                          "temperature": 65.5,
+                          "weatherCode": 1001,
+                          "precipitationProbability": 4.9,
+                          "precipitationAccumulation": 0.01
+                        }
+                      },
+                      {
+                        "startTime": "2026-04-14T19:00:00Z",
+                        "values": {
+                          "temperature": 66.0,
+                          "weatherCode": 1001,
+                          "precipitationProbability": 0.4,
+                          "precipitationAccumulation": 0.0
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val dailyResponse = """
+            {
+              "data": {
+                "timelines": [
+                  {
+                    "timestep": "1d",
+                    "intervals": [
+                      {
+                        "startTime": "2026-04-14T00:00:00Z",
+                        "values": {
+                          "temperatureMax": 70.0,
+                          "temperatureMin": 55.0,
+                          "weatherCode": 1101,
+                          "precipitationProbability": 32.5,
+                          "precipitationAccumulation": 0.2
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val api = TomorrowIoApi(createMockClient(hourlyResponse, dailyResponse), json) { "test-key" }
+
+        val result = api.getForecast(37.4220, -122.0841)
+
+        // Rounded, not null. Under the old parse all three of these were null.
+        assertEquals(5, result.hourly[0].precipProbability)
+        assertEquals(0, result.hourly[1].precipProbability)
+        assertEquals(33, result.daily[0].precipProbability)
     }
 
     @Test

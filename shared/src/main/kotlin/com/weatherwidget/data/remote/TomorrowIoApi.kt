@@ -29,6 +29,19 @@ class TomorrowIoApi(
             ?.takeIf { it.isFinite() && it >= 0.0 }
             ?.times(METERS_PER_MILE)
             ?.roundToInt()
+
+        /**
+         * Reads a 0-100 percentage that the API documents as an integer but is not obliged to send
+         * as one. Parsed as a float and rounded, because `jsonPrimitive.intOrNull` returns **null**
+         * for `4.9` — a provider switch to fractional percentages would silently blank the field
+         * rather than round it, and a blanked rain chance is indistinguishable from a dry forecast.
+         * Every value observed from Tomorrow.io is an integer multiple of 5 (probed 2026-09-02
+         * across three continents), so this is insurance, not a live fix.
+         */
+        internal fun percentOrNull(value: Float?): Int? = value
+            ?.takeIf { it.isFinite() }
+            ?.roundToInt()
+            ?.coerceIn(0, 100)
     }
 
     suspend fun getForecast(
@@ -109,7 +122,7 @@ class TomorrowIoApi(
             val epochMs = OffsetDateTime.parse(startTime).toInstant().toEpochMilli()
             val temp = values["temperature"]?.jsonPrimitive?.floatOrNull ?: Float.NaN
             val code = values["weatherCode"]?.jsonPrimitive?.intOrNull ?: 1000
-            val precipProb = values["precipitationProbability"]?.jsonPrimitive?.intOrNull
+            val precipProb = percentOrNull(values["precipitationProbability"]?.jsonPrimitive?.floatOrNull)
             val precipAccumIn = values["precipitationAccumulation"]?.jsonPrimitive?.floatOrNull
 
             HourlyForecast(
@@ -118,7 +131,7 @@ class TomorrowIoApi(
                 condition = weatherCodeToCondition(code),
                 precipProbability = precipProb,
                 precipAmountMm = precipAccumIn?.let { it * 25.4f },
-                cloudCover = values["cloudCover"]?.jsonPrimitive?.floatOrNull?.roundToInt()?.coerceIn(0, 100),
+                cloudCover = percentOrNull(values["cloudCover"]?.jsonPrimitive?.floatOrNull),
                 cloudEnvelopeBaseMeters = imperialDistanceToMeters(values["cloudBase"]?.jsonPrimitive?.doubleOrNull),
                 cloudEnvelopeTopMeters = imperialDistanceToMeters(values["cloudCeiling"]?.jsonPrimitive?.doubleOrNull),
             )
@@ -133,7 +146,7 @@ class TomorrowIoApi(
             val high = values["temperatureMax"]?.jsonPrimitive?.floatOrNull ?: Float.NaN
             val low = values["temperatureMin"]?.jsonPrimitive?.floatOrNull ?: Float.NaN
             val code = values["weatherCode"]?.jsonPrimitive?.intOrNull ?: 1000
-            val precipProb = values["precipitationProbability"]?.jsonPrimitive?.intOrNull
+            val precipProb = percentOrNull(values["precipitationProbability"]?.jsonPrimitive?.floatOrNull)
             val precipAccumIn = values["precipitationAccumulation"]?.jsonPrimitive?.floatOrNull
 
             DailyForecast(
@@ -190,9 +203,7 @@ class TomorrowIoApi(
             temperature = temperature,
             condition = weatherCode?.let(::weatherCodeToCondition) ?: "Unknown",
             observedAt = observedAt,
-            cloudCover = values["cloudCover"]?.jsonPrimitive?.floatOrNull
-                ?.roundToInt()
-                ?.coerceIn(0, 100),
+            cloudCover = percentOrNull(values["cloudCover"]?.jsonPrimitive?.floatOrNull),
             cloudEnvelopeBaseMeters = imperialDistanceToMeters(values["cloudBase"]?.jsonPrimitive?.doubleOrNull),
             cloudEnvelopeTopMeters = imperialDistanceToMeters(values["cloudCeiling"]?.jsonPrimitive?.doubleOrNull),
         )
