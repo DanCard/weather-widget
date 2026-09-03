@@ -18,6 +18,7 @@ import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.HourlyFooterRenderer
+import com.weatherwidget.shared.util.HourLabelFormatter
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.widget.ObservationResolver
@@ -318,7 +319,7 @@ internal fun buildHourDataResult(
         } else {
             val subSunInfo = SunPositionUtils.getSunInfoOrUnknown(time, lat, lon)
             base.copy(
-                label = formatHourLabel(time),
+                label = HourLabelFormatter.hourLabel(time),
                 iconRes = null,
                 isNight = subSunInfo.isNight,
                 isTwilight = subSunInfo.phase == SunPhase.TWILIGHT,

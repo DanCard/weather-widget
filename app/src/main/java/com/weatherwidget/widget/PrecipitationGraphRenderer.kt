@@ -16,7 +16,7 @@ import com.weatherwidget.shared.graph.RainPeriodSelection
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalDate
-import com.weatherwidget.widget.handlers.formatPrecipAmount
+import com.weatherwidget.shared.util.DailyRainLabels
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -469,7 +469,7 @@ object PrecipitationGraphRenderer {
         val rainPadPx = dpToPx(RAIN_AMOUNT_PADDING_DP)
 
         for (period in rainPeriods) {
-            val amountText = labelPrefix + formatPrecipAmount(period.totalAmountMm)
+            val amountText = labelPrefix + DailyRainLabels.formatPrecipAmount(period.totalAmountMm)
             val textWidth = measureText(amountText)
             val (textAscent, textDescent) = getTextBounds(amountText)
 

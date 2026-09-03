@@ -17,7 +17,7 @@ import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.util.HeaderFormatter
+import com.weatherwidget.shared.util.HeaderFormatter
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils

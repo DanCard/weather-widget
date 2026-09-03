@@ -12,7 +12,8 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.util.HeaderFormatter
+import com.weatherwidget.shared.util.HeaderFormatter
+import com.weatherwidget.shared.util.HourLabelFormatter
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils
@@ -575,7 +576,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 .map { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDateTime() }
                 .sorted()
                 .toList()
-            val missingDescription = formatMissingHourRanges(missingHourTimes).takeIf { it.isNotEmpty() }
+            val missingDescription = HourLabelFormatter.missingHourRanges(missingHourTimes).takeIf { it.isNotEmpty() }
             val missingReason = if (missingHours > 0) resolveMissingDataReason(context, appLogDao) else null
 
             if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {

@@ -190,15 +190,9 @@ object RainAnalyzer {
         return recentRainBeforeWindow.isBefore(cutoff)
     }
 
-    fun formatHour(dateTime: LocalDateTime): String {
-        val hour = dateTime.hour
-        return when {
-            hour == 0 -> "12am"
-            hour < 12 -> "${hour}am"
-            hour == 12 -> "12pm"
-            else -> "${hour - 12}pm"
-        }
-    }
+    /** 12-hour clock label with a full meridiem suffix ("3pm"); delegates to [HourLabelFormatter]. */
+    fun formatHour(dateTime: LocalDateTime): String =
+        HourLabelFormatter.hourLabel(dateTime) + "m"
 
     private fun parseHour(timestamp: Long, zoneId: ZoneId): LocalDateTime {
         return Instant.ofEpochMilli(timestamp).atZone(zoneId).toLocalDateTime()

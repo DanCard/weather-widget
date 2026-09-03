@@ -29,6 +29,7 @@ import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.graph.NavArrowGeometry
 import com.weatherwidget.shared.graph.NowIndicatorGeometry
 import com.weatherwidget.shared.graph.ZoomStage
+import com.weatherwidget.shared.util.HourLabelFormatter
 import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils
 import java.time.Instant
@@ -324,19 +325,11 @@ internal object DesktopGraphUtils {
         }
     }
 
-    /** Formats an hour (0-23) to short label: "12a", "1p", etc. */
-    fun formatHourLabel(hour: Int): String {
-        val hour12 = when (val h = hour % 12) {
-            0 -> 12
-            else -> h
-        }
-        val suffix = if (hour < 12) "a" else "p"
-        return "$hour12$suffix"
-    }
+    /** Formats an hour (0-23) to short label: "12a", "1p", etc. Delegates to shared [HourLabelFormatter]. */
+    fun formatHourLabel(hour: Int): String = HourLabelFormatter.hourLabel(hour)
 
     /** Compact multi-day footer label: weekday + day-of-month, e.g. 2026-06-11 -> "Wed 11". */
-    fun formatDateLabel(date: LocalDate): String =
-        date.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault()) + " " + date.dayOfMonth
+    fun formatDateLabel(date: LocalDate): String = HourLabelFormatter.dateLabel(date)
 
     /**
      * In date mode, one footer label is drawn per visible day, centered under that day. For each

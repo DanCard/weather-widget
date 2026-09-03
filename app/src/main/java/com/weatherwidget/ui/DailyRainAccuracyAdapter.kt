@@ -7,7 +7,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
 import com.weatherwidget.shared.stats.DailyRainAccuracy
-import com.weatherwidget.widget.handlers.formatPrecipAmount
+import com.weatherwidget.shared.util.DailyRainLabels
 
 class DailyRainAccuracyAdapter : RecyclerView.Adapter<DailyRainAccuracyAdapter.ViewHolder>() {
     private var items = listOf<DailyRainAccuracy>()
@@ -47,6 +47,6 @@ class DailyRainAccuracyAdapter : RecyclerView.Adapter<DailyRainAccuracyAdapter.V
             itemView.context.getString(R.string.rain_pred_act_format, formatAmount(predMm), formatAmount(actualMm))
 
         private fun formatAmount(amountMm: Float?): String =
-            if (amountMm == null) "—" else formatPrecipAmount(amountMm)
+            if (amountMm == null) "—" else DailyRainLabels.formatPrecipAmount(amountMm)
     }
 }

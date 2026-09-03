@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
+import com.weatherwidget.shared.util.HourLabelFormatter
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -114,9 +115,9 @@ internal object HourlyGraphViewCommon {
         nonDateShowLabel: Boolean,
     ): HourLabelInfo =
         if (dateMode) {
-            HourLabelInfo(formatDateLabel(time.toLocalDate()), hourMs in dateLabelMillis, true)
+            HourLabelInfo(HourLabelFormatter.dateLabel(time.toLocalDate()), hourMs in dateLabelMillis, true)
         } else {
-            HourLabelInfo(formatHourLabel(time), nonDateShowLabel, false)
+            HourLabelInfo(HourLabelFormatter.hourLabel(time), nonDateShowLabel, false)
         }
 
     /**
