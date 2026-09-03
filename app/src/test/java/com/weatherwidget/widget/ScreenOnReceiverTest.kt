@@ -70,6 +70,15 @@ class ScreenOnReceiverTest {
             .clear()
             .commit()
 
+        // The paint debt lives in WidgetStateManager's own prefs file, not the one above. Without
+        // this, a test that sets the debt leaks it into every later test in this class - including
+        // the "no paint owed" default case, which would then pass for the wrong reason.
+        com.weatherwidget.util.SharedPreferencesUtil
+            .getPrefs(context, WidgetStateManager.getPrefsNameForTesting())
+            .edit()
+            .clear()
+            .commit()
+
         runBlocking {
             WeatherDatabase.getDatabase(context).appLogDao().clearAllLogs()
         }
@@ -120,21 +129,98 @@ class ScreenOnReceiverTest {
         )
     }
 
-    @Test
-    fun `onReceive ignores other actions`() {
-        val intent = Intent(Intent.ACTION_SCREEN_ON)
-        
-        receiver.onReceive(context, intent)
-        
-        val shadowApplication = shadowOf(context as android.app.Application)
-        val broadcastIntents = shadowApplication.broadcastIntents
-        
-        // Ensure no relevant broadcasts were sent
-        val actionIntent = broadcastIntents.find {
-            it.component?.className == WidgetActionReceiver::class.java.name
+    /** The refresh broadcast [ScreenOnReceiver] sends, or null if it sent none. */
+    private fun refreshBroadcast(): Intent? =
+        shadowOf(context as android.app.Application).broadcastIntents.find {
+            it.component?.className == WidgetActionReceiver::class.java.name &&
+                it.action == WidgetActions.ACTION_REFRESH
         }
-        
-        assertTrue("Did not expect broadcast to WidgetActionReceiver", actionIntent == null)
+
+    /**
+     * The default, and the reason the debt check exists at all: screen-on fires dozens of times a
+     * day, and repainting on every one of them would undo the point of [GraphRepaintGate].
+     *
+     * Named for the invariant rather than "ignores other actions", which this test was called when
+     * SCREEN_ON did nothing but resample. It never did *nothing* — it resamples — and it now also
+     * pays a pending paint debt, so the old name described neither behaviour.
+     */
+    @Test
+    fun `onReceive with SCREEN_ON and no paint owed sends no refresh broadcast`() {
+        assertFalse(
+            "Precondition: no paint debt",
+            WidgetStateManager(context).isPaintOwed(),
+        )
+
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+
+        assertTrue(
+            "Screen-on without a pending paint must stay cheap - no refresh broadcast",
+            refreshBroadcast() == null,
+        )
+    }
+
+    /**
+     * The fix from `plans/260902-repaint-on-screen-on-when-a-paint-is-owed.md`. A fetch landing
+     * while the screen is off sets the debt and paints nothing; without this branch the stale
+     * bitmap survived until the next `ui_update_alarm` — 68 s measured on a Samsung fold, with the
+     * Observations screen showing the newer reading the whole time.
+     */
+    @Test
+    fun `onReceive with SCREEN_ON and a paint owed sends a cache-only refresh broadcast`() {
+        WidgetStateManager(context).setPaintOwed(true)
+
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+
+        val actionIntent = refreshBroadcast()
+        assertNotNull("Expected a refresh broadcast to pay the paint debt", actionIntent)
+        assertTrue(
+            "Screen-on must repaint from cache - the data is already stored, and letting this " +
+                "path reach the network would make screen-on a fetch trigger",
+            actionIntent?.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false) == true,
+        )
+    }
+
+    /**
+     * Only a launched render may clear the debt ([WidgetPaintCoordinator]), so that the per-widget
+     * throttle cannot swallow it. Clearing it here would strand the stale bitmap exactly as before.
+     */
+    @Test
+    fun `onReceive with SCREEN_ON does not clear the paint debt itself`() {
+        WidgetStateManager(context).setPaintOwed(true)
+
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+
+        assertTrue(
+            "Requesting the refresh must not clear the debt - only a real render may",
+            WidgetStateManager(context).isPaintOwed(),
+        )
+    }
+
+    /** The debt branch must not displace the resample the event already existed for. */
+    @Test
+    fun `onReceive with SCREEN_ON resamples location whether or not a paint is owed`() {
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+        assertEquals(listOf("screen_on"), resampleTriggers)
+
+        WidgetStateManager(context).setPaintOwed(true)
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+        assertEquals(listOf("screen_on", "screen_on"), resampleTriggers)
+    }
+
+    @Test
+    fun `onReceive with SCREEN_ON and a paint owed writes SCREEN_ON_PAINT_DEBT log`() = runTest {
+        WidgetStateManager(context).setPaintOwed(true)
+
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+
+        val entry = WeatherDatabase.getDatabase(context).appLogDao()
+            .getLogsByTag("SCREEN_ON_PAINT_DEBT", 10)
+            .firstOrNull()
+        assertNotNull(
+            "Expected a SCREEN_ON_PAINT_DEBT row so the device trace can tell a promptly paid " +
+                "debt from one the ui_update_alarm backstop caught late",
+            entry,
+        )
     }
 
     @Test

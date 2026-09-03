@@ -180,20 +180,78 @@ class ScreenOnReceiver : BroadcastReceiver() {
     }
 
     /**
-     * The display lit up. Cheapest possible response: a passive location read, nothing else.
+     * The display lit up. Cheapest possible response: a passive location read, and a repaint only
+     * when one is already owed.
      *
      * This is the earliest signal the app can get that the user is present — earlier than
      * [Intent.ACTION_USER_PRESENT], which needs an unlock, and earlier than a widget paint. It is
      * reachable ONLY because [registerScreenReceiver] registers this class at runtime; see the class
      * KDoc for why a manifest entry cannot work.
      *
-     * Deliberately does not repaint or fetch. Screen-on fires dozens of times a day and most of them
-     * change nothing; the resample is rate-limited and will enqueue its own refresh if the device
-     * actually moved.
+     * Still does not repaint or fetch *unconditionally*. Screen-on fires dozens of times a day and
+     * most of them change nothing, so the default remains "resample and stop".
+     *
+     * The exception is [WidgetStateManager.isPaintOwed], which is not a guess about whether anything
+     * changed — it is the record that something did. [WidgetPaintCoordinator] sets it when a fetch
+     * lands while the screen is off and the paint is skipped, so the flag means precisely "new data
+     * is in the DB and the pixels on screen predate it". A screen-on carrying that debt is the one
+     * screen-on that is not like the dozens; it is the moment the stale bitmap becomes visible.
+     *
+     * Measured before this branch existed (Samsung fold, 2026-09-02): fetch stored KNUQ's 16:35
+     * reading at 16:43:49, `WIDGET_PAINT_SKIP reason=screen_off` six seconds later, screen on at
+     * 16:48:33, and the widget kept drawing the 16:15 reading until the `ui_update_alarm` paint at
+     * 16:49:41 — **68 seconds of divergence against the Observations screen, which queries the DB on
+     * open and was correct throughout.** The signal and the flag were both present the whole time
+     * and never met. See `plans/260902-repaint-on-screen-on-when-a-paint-is-owed.md`.
+     *
+     * `uiOnly = true` deliberately: the data is already stored — that a fetch succeeded is the whole
+     * premise of the debt — so this must repaint from cache. Letting screen-on reach the network
+     * would make it a fetch trigger and stop the battery cadence bounding fetch cost.
+     *
+     * No debounce here on purpose. The flag is self-limiting: only a screen-off paint skip sets it
+     * and only a launched render clears it, so this cannot fire twice without an intervening fetch.
+     * A second throttle guarding one operation is the coupling
+     * `plans/260828-detect-the-move-when-the-user-is-looking.md` removed.
+     *
+     * Clearing the flag is likewise not this method's job — [WidgetPaintCoordinator] clears it only
+     * once a render has actually launched, so that the per-widget throttle cannot swallow the debt.
      */
     private fun handleScreenOn(context: Context) {
         Log.d(TAG, "Screen on - resampling location")
         resampleLocationAsync(context, trigger = "screen_on")
+
+        if (!WidgetStateManager(context.applicationContext).isPaintOwed()) return
+
+        Log.d(TAG, "Screen on with a paint owed - requesting UI-only refresh")
+        context.sendBroadcast(
+            Intent(context, WidgetActionReceiver::class.java).apply {
+                action = WidgetActions.ACTION_REFRESH
+                putExtra(WidgetActions.EXTRA_UI_ONLY, true)
+            },
+        )
+        logPaintDebtRefresh(context)
+    }
+
+    /**
+     * Records that screen-on delivered a pending paint, so the device trace can distinguish "the
+     * debt was paid promptly" from "the `ui_update_alarm` backstop caught it late". Absence of this
+     * row on a screen-on is the expected case, not a failure.
+     */
+    private fun logPaintDebtRefresh(context: Context) {
+        val pendingResult = goAsync()
+        CoroutineScope(ioDispatcher).launch {
+            try {
+                WeatherDatabase.getDatabase(context).appLogDao().log(
+                    "SCREEN_ON_PAINT_DEBT",
+                    "outcome=refresh_requested uiOnly=true",
+                    "INFO",
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to persist SCREEN_ON_PAINT_DEBT log", e)
+            } finally {
+                pendingResult?.finish()
+            }
+        }
     }
 
     private fun handleScreenOff(context: Context) {
