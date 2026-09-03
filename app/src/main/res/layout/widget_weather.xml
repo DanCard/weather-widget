@@ -503,98 +503,208 @@
         android:scaleType="fitCenter"
         android:visibility="gone" />
 
-    <!-- Graph day touch zones (for per-day click handling in graph mode) -->
+    <!-- Graph day touch zones (for per-day click handling in graph mode).
+
+         Two equally weighted rows split the column body at the widget's vertical midpoint, which is
+         where nav_left/nav_right centre their chevron glyphs, so the boundary is one the user can
+         see. The upper row always opens the temperature graph; the lower row keeps the
+         icon-and-precip-dependent routing. RemoteViews cannot hit-test, so the split has to be
+         layout the launcher resolves itself.
+
+         The 44dp/140dp exclusions ride on the rows as padding rather than on the container as
+         margins: the container must span the full height for the weights to land the boundary on
+         H/2, and the tappable extent stays exactly what it was outside the new split. -->
     <LinearLayout
         android:id="@+id/graph_day_zones"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginStart="4dp"
         android:layout_marginEnd="4dp"
-        android:layout_marginTop="44dp"
-        android:layout_marginBottom="140dp"
         android:layoutDirection="ltr"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:visibility="gone">
 
-        <FrameLayout
-            android:id="@+id/graph_day1_zone"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
+        <!-- Upper half: spans 0..H/2, children start below the header band. -->
+        <LinearLayout
+            android:id="@+id/graph_day_top_zones"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
             android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:visibility="gone" />
+            android:paddingTop="44dp"
+            android:layoutDirection="ltr"
+            android:orientation="horizontal">
 
-        <FrameLayout
-            android:id="@+id/graph_day2_zone"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:visibility="gone" />
+            <FrameLayout
+                android:id="@+id/graph_day1_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
 
-        <FrameLayout
-            android:id="@+id/graph_day3_zone"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:visibility="gone" />
+            <FrameLayout
+                android:id="@+id/graph_day2_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
 
-        <FrameLayout
-            android:id="@+id/graph_day4_zone"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:visibility="gone" />
+            <FrameLayout
+                android:id="@+id/graph_day3_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
 
-        <FrameLayout
-            android:id="@+id/graph_day5_zone"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:visibility="gone" />
+            <FrameLayout
+                android:id="@+id/graph_day4_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
 
-        <FrameLayout
-            android:id="@+id/graph_day6_zone"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:visibility="gone" />
+            <FrameLayout
+                android:id="@+id/graph_day5_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
 
-        <FrameLayout
-            android:id="@+id/graph_day7_zone"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:visibility="gone" />
+            <FrameLayout
+                android:id="@+id/graph_day6_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
 
-        <FrameLayout
-            android:id="@+id/graph_day8_zone"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:visibility="gone" />
+            <FrameLayout
+                android:id="@+id/graph_day7_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
 
-        <FrameLayout
-            android:id="@+id/graph_day9_zone"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:visibility="gone" />
+            <FrameLayout
+                android:id="@+id/graph_day8_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
 
-        <FrameLayout
-            android:id="@+id/graph_day10_zone"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
+            <FrameLayout
+                android:id="@+id/graph_day9_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day10_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Lower half: spans H/2..H, children stop above the icon band. -->
+        <LinearLayout
+            android:id="@+id/graph_day_bottom_zones"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
             android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:visibility="gone" />
+            android:paddingBottom="140dp"
+            android:layoutDirection="ltr"
+            android:orientation="horizontal">
+
+            <FrameLayout
+                android:id="@+id/graph_day1_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day2_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day3_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day4_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day5_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day6_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day7_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day8_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day9_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day10_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Graph interaction container splits the graph body from the bottom reserved row used by hourly views -->

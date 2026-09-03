@@ -86,6 +86,75 @@ class DailyForecastGraphTapZoneTest {
     }
 
     @Test
+    fun tapAboveCanvasMidpoint_isMainColumnUpper() {
+        // The chevrons centre on canvasHeight/2, so that line is the one the user can see.
+        assertEquals(
+            DayClickResolver.DayTapZone.MAIN_COLUMN_UPPER,
+            classifyDailyGraphTapZone(
+                tapX = 10f,
+                tapY = 299f,
+                columnIndex = 0,
+                layout = layout(iconTops = listOf(480f), bottomStrip = 80f, canvasHeight = 600f),
+            ),
+        )
+        assertEquals(
+            DayClickResolver.DayTapZone.MAIN_COLUMN,
+            classifyDailyGraphTapZone(
+                tapX = 10f,
+                tapY = 301f,
+                columnIndex = 0,
+                layout = layout(iconTops = listOf(480f), bottomStrip = 80f, canvasHeight = 600f),
+            ),
+        )
+    }
+
+    @Test
+    fun tapOnIconFloatedAboveMidpoint_staysBottomIcon() {
+        // A cold low can push the icon into the upper half. A direct hit on the glyph is an aimed
+        // tap, not a body tap, so it keeps its icon-home routing.
+        assertEquals(
+            DayClickResolver.DayTapZone.BOTTOM_ICON,
+            classifyDailyGraphTapZone(
+                tapX = 50f,
+                tapY = 210f,
+                columnIndex = 0,
+                layout = layout(iconTops = listOf(200f), bottomStrip = 80f, canvasHeight = 600f),
+            ),
+        )
+    }
+
+    @Test
+    fun upperHalfOfRainyColumn_routesToTemperature() {
+        val targetDate = LocalDate.of(2026, 7, 7)
+        val days = listOf(
+            futureGraphDay(targetDate, high = 79f, low = 48f, iconName = WeatherConditionResolver.IC_RAIN)
+                .copy(
+                    forecast = DailyForecast(
+                        targetDate.toString(), 79f, 48f, "Rain", precipProbability = 100,
+                    ),
+                ),
+        )
+        val config = DesktopConfig(
+            lat = 37.42,
+            lon = -122.08,
+            label = "test",
+            settings = DesktopSettings(visibleSources = listOf("NWS")),
+        )
+        assertEquals(
+            ViewMode.PRECIPITATION,
+            dayClickConfig(
+                config, targetDate, days, DayClickResolver.DayTapZone.MAIN_COLUMN,
+            ).viewMode,
+        )
+        assertEquals(
+            ViewMode.TEMPERATURE,
+            dayClickConfig(
+                config, targetDate, days, DayClickResolver.DayTapZone.MAIN_COLUMN_UPPER,
+            ).viewMode,
+        )
+    }
+
+    @Test
     fun tapInBottomStrip_isBottomIcon() {
         val strip = dailyGraphBottomStripHeightPx(
             canvasWidth = 900f,

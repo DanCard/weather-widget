@@ -20,6 +20,43 @@ class DayClickResolverTest {
     }
 
     @Test
+    fun mainColumnUpper_rainyIconAtFullCertainty_navigatesToTemperature() {
+        // The exact input MAIN_COLUMN sends to precipitation. Above the chevrons it must not.
+        assertEquals(
+            DayClickResolver.DayClickView.TEMPERATURE,
+            DayClickResolver.resolveView(
+                DayClickResolver.DayTapZone.MAIN_COLUMN_UPPER,
+                WeatherConditionResolver.IC_RAIN,
+                100,
+            ),
+        )
+    }
+
+    @Test
+    fun mainColumnUpper_cloudIcon_navigatesToTemperatureNotCloudCover() {
+        assertEquals(
+            DayClickResolver.DayClickView.TEMPERATURE,
+            DayClickResolver.resolveView(
+                DayClickResolver.DayTapZone.MAIN_COLUMN_UPPER,
+                WeatherConditionResolver.IC_CLOUDY,
+                0,
+            ),
+        )
+    }
+
+    @Test
+    fun mainColumnUpper_noIcon_navigatesToTemperature() {
+        assertEquals(
+            DayClickResolver.DayClickView.TEMPERATURE,
+            DayClickResolver.resolveView(
+                DayClickResolver.DayTapZone.MAIN_COLUMN_UPPER,
+                iconName = null,
+                precipProbability = null,
+            ),
+        )
+    }
+
+    @Test
     fun mainColumn_rainyIconWith16Percent_navigatesToPrecipitation() {
         assertEquals(
             DayClickResolver.DayClickView.PRECIPITATION,

@@ -11,6 +11,12 @@ import java.time.LocalDateTime
 object DayClickResolver {
 
     enum class DayTapZone {
+        /**
+         * Main column body above the navigation chevrons. Always the temperature graph: the point
+         * of the upper half is that one part of the column has a destination the user can predict
+         * without knowing the day's icon or its rain chance.
+         */
+        MAIN_COLUMN_UPPER,
         /** Main column body (temp bars / high-low area). */
         MAIN_COLUMN,
         /** Bottom icon band (weather icon + low label row). */
@@ -93,8 +99,13 @@ object DayClickResolver {
     }
 
     fun resolveView(zone: DayTapZone, iconName: String?, precipProbability: Int?): DayClickView {
+        // Before the null-icon shortcut: the upper half is unconditional, so it must not read the
+        // icon at all. Routing it through the same early return would be right today and wrong the
+        // moment that return grows a condition.
+        if (zone == DayTapZone.MAIN_COLUMN_UPPER) return DayClickView.TEMPERATURE
         if (iconName == null) return DayClickView.TEMPERATURE
         return when (zone) {
+            DayTapZone.MAIN_COLUMN_UPPER -> DayClickView.TEMPERATURE
             DayTapZone.MAIN_COLUMN -> {
                 if (WeatherConditionResolver.shouldDailyClickShowPrecip(
                         WeatherConditionResolver.isRainIndicator(iconName),

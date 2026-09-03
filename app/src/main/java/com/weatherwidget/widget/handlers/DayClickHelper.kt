@@ -29,6 +29,19 @@ object DayClickHelper {
             ),
         )
 
+    /**
+     * The upper half of a day column, above the nav chevrons. Unconditional by design — it takes no
+     * icon and no probability, so there is nothing here to drift with the forecast.
+     */
+    fun resolveUpperColumnTargetViewMode(): ViewMode =
+        mapDayClickView(
+            DayClickResolver.resolveView(
+                DayClickResolver.DayTapZone.MAIN_COLUMN_UPPER,
+                iconName = null,
+                precipProbability = null,
+            ),
+        )
+
     fun resolveBottomRowTargetViewMode(iconRes: Int?): ViewMode =
         mapDayClickView(
             DayClickResolver.resolveView(

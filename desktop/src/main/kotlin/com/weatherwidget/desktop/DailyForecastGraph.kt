@@ -1058,10 +1058,14 @@ internal fun classifyDailyGraphTapZone(
             return DayClickResolver.DayTapZone.BOTTOM_ICON
         }
     }
-    return if (tapY >= layout.canvasHeight - layout.bottomStripHeightPx) {
-        DayClickResolver.DayTapZone.BOTTOM_ICON
-    } else {
-        DayClickResolver.DayTapZone.MAIN_COLUMN
+    return when {
+        tapY >= layout.canvasHeight - layout.bottomStripHeightPx ->
+            DayClickResolver.DayTapZone.BOTTOM_ICON
+        // The nav chevrons centre on the canvas midpoint, so this is the line the user sees.
+        // Checked after the icon rect above: an icon floated up here is still an aimed tap on a
+        // glyph, not a body tap.
+        tapY < layout.canvasHeight / 2f -> DayClickResolver.DayTapZone.MAIN_COLUMN_UPPER
+        else -> DayClickResolver.DayTapZone.MAIN_COLUMN
     }
 }
 

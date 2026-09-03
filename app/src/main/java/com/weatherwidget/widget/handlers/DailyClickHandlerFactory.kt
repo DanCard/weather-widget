@@ -120,6 +120,63 @@ internal object DailyClickHandlerFactory {
             useLargeTodayOverlay = useLargeTodayOverlay,
             hourlyForecasts = hourlyForecasts,
         )
+        setupGraphUpperDayClickHandlers(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            now = now,
+            days = days,
+            lat = lat,
+            lon = lon,
+            displaySource = displaySource,
+            numColumns = numColumns,
+            useLargeTodayOverlay = useLargeTodayOverlay,
+            hourlyForecasts = hourlyForecasts,
+        )
+    }
+
+    /**
+     * The half of each day column above the nav chevrons: always the temperature graph, whatever the
+     * day's icon or rain chance says. Shares [setupGraphZoneClickHandlers] with the two conditional
+     * rows so column spans, Today's double-width slot and visibility stay in lockstep with them —
+     * only the resolved destination differs.
+     */
+    @VisibleForTesting
+    internal fun setupGraphUpperDayClickHandlers(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        now: LocalDateTime,
+        days: List<DailyForecastGraphRenderer.DayData>,
+        lat: Double,
+        lon: Double,
+        displaySource: WeatherSource,
+        numColumns: Int,
+        useLargeTodayOverlay: Boolean = false,
+        hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
+    ) {
+        val zoneIds = listOf(
+            R.id.graph_day1_top_zone, R.id.graph_day2_top_zone, R.id.graph_day3_top_zone,
+            R.id.graph_day4_top_zone, R.id.graph_day5_top_zone, R.id.graph_day6_top_zone,
+            R.id.graph_day7_top_zone, R.id.graph_day8_top_zone, R.id.graph_day9_top_zone,
+            R.id.graph_day10_top_zone,
+        )
+        setupGraphZoneClickHandlers(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            now = now,
+            days = days,
+            lat = lat,
+            lon = lon,
+            displaySource = displaySource,
+            numColumns = numColumns,
+            zoneIds = zoneIds,
+            requestCodeOffset = 200,
+            useLargeTodayOverlay = useLargeTodayOverlay,
+            hourlyForecasts = hourlyForecasts,
+            resolveTargetMode = { DayClickHelper.resolveUpperColumnTargetViewMode() },
+        )
     }
 
     @VisibleForTesting
@@ -216,10 +273,10 @@ internal object DailyClickHandlerFactory {
                 displaySource = displaySource,
                 now = now,
                 targetModeOverride = targetModeOverride,
-                clickSource = if (requestCodeOffset == 0) {
-                    "graph_day:col=$colIndex:date=${dayData.date}"
-                } else {
-                    "graph_bottom_day:col=$colIndex:date=${dayData.date}"
+                clickSource = when (requestCodeOffset) {
+                    0 -> "graph_day:col=$colIndex:date=${dayData.date}"
+                    200 -> "graph_day_upper:col=$colIndex:date=${dayData.date}"
+                    else -> "graph_bottom_day:col=$colIndex:date=${dayData.date}"
                 },
                 routingPrecip = DayClickResolver.routingPrecipProbability(
                     targetDay = dayData.date,

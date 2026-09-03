@@ -412,6 +412,7 @@ internal fun WidgetPopup(
                                 val targetView = DayClickResolver.resolveView(zone, clickedDay?.iconName, precipProb)
                                 val newOffset = DayClickResolver.calculateHourlyOffset(clickNow, clickedDate)
                                 val clickSource = when (zone) {
+                                    DayClickResolver.DayTapZone.MAIN_COLUMN_UPPER -> "graph_day_upper"
                                     DayClickResolver.DayTapZone.MAIN_COLUMN -> "graph_day"
                                     DayClickResolver.DayTapZone.BOTTOM_ICON -> "graph_bottom_day"
                                 }
