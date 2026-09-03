@@ -2,10 +2,11 @@ package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.HeaderPrecipCalculator
-import com.weatherwidget.util.RainAnalyzer
-import com.weatherwidget.util.WeatherTimeUtils
+import com.weatherwidget.shared.util.RainAnalyzer
+import com.weatherwidget.shared.util.WeatherTimeUtils
 import com.weatherwidget.widget.ViewMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -261,7 +262,7 @@ class DayClickHelperTest {
         )
         val dailyPrecipProbability = 16
 
-        val rainSummary = RainAnalyzer.getRainSummary(forecasts, today, "NWS", now)
+        val rainSummary = RainAnalyzer.getRainSummary(forecasts.map { it.toHourlyForecast() }, today, "NWS", now)
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability)
 
         assertTrue("Daily precipitation 16% should count as rain", hasRain)
@@ -277,7 +278,7 @@ class DayClickHelperTest {
         )
         val dailyPrecipProbability = 8
 
-        val rainSummary = RainAnalyzer.getRainSummary(forecasts, today, "NWS", now)
+        val rainSummary = RainAnalyzer.getRainSummary(forecasts.map { it.toHourlyForecast() }, today, "NWS", now)
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability)
 
         assertFalse("8% daily precip should NOT count as rain for navigation", hasRain)
@@ -292,7 +293,7 @@ class DayClickHelperTest {
             createForecast("2024-06-15T14:00", precipProb = 60),
         )
 
-        val rainSummary = RainAnalyzer.getRainSummary(forecasts, today, "NWS", now)
+        val rainSummary = RainAnalyzer.getRainSummary(forecasts.map { it.toHourlyForecast() }, today, "NWS", now)
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability = 60)
 
         assertTrue(hasRain)
@@ -307,7 +308,7 @@ class DayClickHelperTest {
             createForecast("2024-06-15T14:00", precipProb = 0),
         )
 
-        val rainSummary = RainAnalyzer.getRainSummary(forecasts, today, "NWS", now)
+        val rainSummary = RainAnalyzer.getRainSummary(forecasts.map { it.toHourlyForecast() }, today, "NWS", now)
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability = 0)
 
         assertFalse(hasRain)

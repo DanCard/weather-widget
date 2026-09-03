@@ -1,11 +1,11 @@
-package com.weatherwidget.util
+package com.weatherwidget.shared.util
 
-import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.testutil.TestData
+import com.weatherwidget.data.model.HourlyForecast
 import org.junit.Assert.*
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
@@ -20,9 +20,9 @@ class RainAnalyzerTest {
         condition: String = "Clear",
         precipProb: Int? = 0,
         source: String = "NWS",
-    ): HourlyForecastEntity {
-        return HourlyForecastEntity(
-            dateTime = TestData.toEpoch(dateTime),
+    ): HourlyForecast {
+        return HourlyForecast(
+            dateTime = LocalDateTime.parse(dateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             locationLat = 37.7749,
             locationLon = -122.4194,
             temperature = 70f,

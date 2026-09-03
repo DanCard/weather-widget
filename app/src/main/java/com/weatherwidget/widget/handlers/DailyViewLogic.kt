@@ -8,7 +8,7 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.NavigationUtils
-import com.weatherwidget.util.RainAnalyzer
+import com.weatherwidget.shared.util.RainAnalyzer
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
@@ -31,6 +31,14 @@ import kotlin.math.roundToInt
  */
 object DailyViewLogic {
     private const val TAG = "DailyViewLogic"
+
+    private fun entityRainSummary(
+        hourly: List<HourlyForecastEntity>,
+        date: LocalDate,
+        source: String?,
+        now: LocalDateTime,
+    ): String? =
+        RainAnalyzer.getRainSummary(hourly.map { it.toHourlyForecast() }, date, source, now)
 
     /**
      * Today's freshest batch is often high-only (the NWS evening drop: once the daytime period has
@@ -127,7 +135,7 @@ object DailyViewLogic {
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         currentTemp: Float? = null,
         observedAt: Long? = null,
-        rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
+        rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = ::entityRainSummary,
         // Localized "Today" label. Required (no default) so no call site can silently fall back
         // to English — same rule as useCelsius. Callers with a Context pass
         // context.getString(R.string.today); this object stays Context-free for plain-JUnit tests.
@@ -213,7 +221,7 @@ object DailyViewLogic {
             // Show the tenth for any non-integer value (whole degrees stay clean via the
             // ".0" suppression in TempUtils.formatTemp), for today/past and future alike.
             val useCelsius = stateManager?.useCelsius() ?: false
-            val formatTemp = { v: Float? -> com.weatherwidget.util.TempUtils.formatTemp(v, useCelsius) }
+            val formatTemp = { v: Float? -> com.weatherwidget.shared.util.TempUtils.formatTemp(v, useCelsius) }
             
             var highLabel: String? = formatTemp(weather?.highTemp)
             var lowLabel: String? = formatTemp(weather?.lowTemp)
@@ -356,7 +364,7 @@ object DailyViewLogic {
         currentTemp: Float? = null,
         observedAt: Long? = null,
         allowTodayRainChanceLabel: Boolean = false,
-        rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
+        rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = ::entityRainSummary,
         todayLabel: String,
     ): List<DailyForecastGraphRenderer.DayData> =
         prepareGraphDayInputs(
@@ -403,7 +411,7 @@ object DailyViewLogic {
         currentTemp: Float? = null,
         observedAt: Long? = null,
         allowTodayRainChanceLabel: Boolean = false,
-        rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
+        rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = ::entityRainSummary,
         // See prepareTextDays: required localized "Today" label, no English fallback.
         todayLabel: String,
     ): List<PreparedGraphDay> {

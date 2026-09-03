@@ -3,7 +3,7 @@ package com.weatherwidget.widget.handlers
 import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
-import com.weatherwidget.util.WeatherTimeUtils
+import com.weatherwidget.shared.util.WeatherTimeUtils
 import com.weatherwidget.widget.ViewMode
 import java.time.Duration
 import java.time.LocalDate

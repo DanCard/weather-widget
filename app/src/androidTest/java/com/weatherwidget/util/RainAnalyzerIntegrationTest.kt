@@ -6,6 +6,8 @@ import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.shared.util.RainAnalyzer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -64,7 +66,7 @@ class RainAnalyzerIntegrationTest {
         )
 
         // Run RainAnalyzer — this is the same call DailyViewHandler makes
-        val summary = RainAnalyzer.getRainSummary(forecasts, targetDate, "NWS", now)
+        val summary = RainAnalyzer.getRainSummary(forecasts.map { it.toHourlyForecast() }, targetDate, "NWS", now)
 
         assertTrue(
             "RainAnalyzer should detect rain on $targetDateStr but returned null summary",

@@ -15,7 +15,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.testutil.TestData.dateEpoch
-import com.weatherwidget.util.RainAnalyzer
+import com.weatherwidget.shared.util.RainAnalyzer
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.WidgetConstants

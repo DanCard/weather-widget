@@ -2,6 +2,8 @@ package com.weatherwidget.util
 
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.shared.util.RainAnalyzer
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestData.LAT
 import com.weatherwidget.testutil.TestData.LON
@@ -65,7 +67,7 @@ class RainAnalyzerQueryWindowTest {
 
         // Analyze rain for that day
         val rainDate = twoDaysOut.toLocalDate()
-        val analysis = RainAnalyzer.analyzeDay(wideResult, rainDate, now = now)
+        val analysis = RainAnalyzer.analyzeDay(wideResult.map { it.toHourlyForecast() }, rainDate, now = now)
         assertNotNull("Should detect rain 2 days out", analysis)
         assertTrue("Should report rain", analysis!!.hasRain)
     }

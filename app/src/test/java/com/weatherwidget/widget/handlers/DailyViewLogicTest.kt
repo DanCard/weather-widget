@@ -1940,8 +1940,8 @@ class DailyViewLogicTest {
         )
 
         val day = result.find { it.date == past }!!
-        assertEquals(com.weatherwidget.util.TempUtils.formatTemp(73.6f, false), day.highLabel)
-        assertEquals(com.weatherwidget.util.TempUtils.formatTemp(58.3f, false), day.lowLabel)
+        assertEquals(com.weatherwidget.shared.util.TempUtils.formatTemp(73.6f, false), day.highLabel)
+        assertEquals(com.weatherwidget.shared.util.TempUtils.formatTemp(58.3f, false), day.lowLabel)
     }
 
     @Test
@@ -1972,8 +1972,8 @@ class DailyViewLogicTest {
         )
 
         val day = result.find { it.date == past }!!
-        assertEquals(com.weatherwidget.util.TempUtils.formatTemp(71f, false), day.highLabel)
-        assertEquals(com.weatherwidget.util.TempUtils.formatTemp(54f, false), day.lowLabel)
+        assertEquals(com.weatherwidget.shared.util.TempUtils.formatTemp(71f, false), day.highLabel)
+        assertEquals(com.weatherwidget.shared.util.TempUtils.formatTemp(54f, false), day.lowLabel)
     }
 
     private fun createWeather(

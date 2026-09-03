@@ -286,7 +286,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
                 val appActuals = dailyHistoryDao.getExtremesInRange(targetDateEpoch, targetDateEpoch, lat, lon)
                 val sortedAppActuals = appActuals.sortedBy {
-                    com.weatherwidget.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
+                    com.weatherwidget.shared.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
                 }
                 val appActual = sortedAppActuals.find { it.source == requestedSource?.id }
 
@@ -516,7 +516,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     }
 
     private fun formatTemp(value: Float): String {
-        return com.weatherwidget.util.TempUtils.formatTemp(value, widgetStateManager.useCelsius()) ?: ""
+        return com.weatherwidget.shared.util.TempUtils.formatTemp(value, widgetStateManager.useCelsius()) ?: ""
     }
 
     /**

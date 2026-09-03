@@ -41,6 +41,7 @@ object RainAnalyzer {
         source: String? = null,
         now: LocalDateTime = LocalDateTime.now(),
     ): RainForecast {
+        Log.d("RainAnalyzer", "Analyzing $date, source=$source, total forecasts=${hourlyForecasts.size}")
         val zoneId = ZoneId.systemDefault()
         val dayForecasts = hourlyForecasts.filter { forecast ->
             val dt = Instant.ofEpochMilli(forecast.dateTime).atZone(zoneId).toLocalDateTime()
@@ -104,7 +105,9 @@ object RainAnalyzer {
         source: String? = null,
         now: LocalDateTime = LocalDateTime.now(),
     ): String? {
-        return analyzeDay(hourlyForecasts, date, source, now).summary
+        val summary = analyzeDay(hourlyForecasts, date, source, now).summary
+        Log.d("RainAnalyzer", "rain hours for $date: summary=$summary")
+        return summary
     }
 
     private fun isRainHour(forecast: HourlyForecast): Boolean {

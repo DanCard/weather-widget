@@ -5,14 +5,15 @@ import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDateTime
 import java.time.ZoneId
 
+/**
+ * Android-specific time helpers over [HourlyForecastEntity]. Pure date/time math lives in
+ * [com.weatherwidget.shared.util.WeatherTimeUtils].
+ */
 object WeatherTimeUtils {
     const val MILLIS_PER_DAY = 24 * 60 * 60 * 1000L
 
-    fun alignToNearestHourHalfUp(dateTime: LocalDateTime): LocalDateTime =
-        com.weatherwidget.shared.util.WeatherTimeUtils.alignToNearestHourHalfUp(dateTime)
-
     fun toHourlyForecastKeyMs(dateTime: LocalDateTime): Long {
-        return alignToNearestHourHalfUp(dateTime)
+        return com.weatherwidget.shared.util.WeatherTimeUtils.alignToNearestHourHalfUp(dateTime)
             .atZone(ZoneId.systemDefault())
             .toInstant()
             .toEpochMilli()
