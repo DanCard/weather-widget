@@ -300,7 +300,7 @@ object WeatherConditionResolver {
             }
             normalizedCondition.contains("overcast") -> {
                 if (isSunBoundary) IC_HORIZON_SUN
-                else if (isNight) IC_NIGHT else IC_MOSTLY_CLEAR
+                else IC_CLOUDY
             }
             isSubOvercastCloudy -> {
                 if (isNight) IC_MOSTLY_CLOUDY_NIGHT else IC_MOSTLY_CLOUDY

@@ -209,23 +209,7 @@ class TomorrowIoApi(
         )
     }
 
-    fun weatherCodeToCondition(code: Int): String =
-        when (code) {
-            1000 -> "Clear"
-            1100 -> "Mostly Clear"
-            1101 -> "Partly Cloudy"
-            1102 -> "Mostly Cloudy"
-            1001 -> "Cloudy"
-            2000, 2100 -> "Fog"
-            4000 -> "Drizzle"
-            4001, 4200 -> "Rain"
-            4201 -> "Heavy Rain"
-            5000, 5001, 5100, 5101 -> "Snow"
-            6000, 6001, 6200, 6201 -> "Freezing Rain"
-            7000, 7101, 7102 -> "Ice Pellets"
-            8000 -> "Thunderstorm"
-            else -> "Unknown"
-        }
+    fun weatherCodeToCondition(code: Int): String = WeatherCodeMapper.tomorrowIoCodeToCondition(code)
 }
 
 data class TomorrowIoRealtimeReading(

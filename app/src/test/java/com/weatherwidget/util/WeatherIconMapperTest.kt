@@ -454,4 +454,16 @@ class WeatherIconMapperTest {
         val res = WeatherIconMapper.getIconResource("Overcast", isNight = false, isSunBoundary = true)
         assertEquals(R.drawable.ic_weather_horizon_sun, res)
     }
+
+    @Test
+    fun testOvercast_dayResolvesToCloudy() {
+        val res = WeatherIconMapper.getIconResource("Overcast", isNight = false)
+        assertEquals(R.drawable.ic_weather_cloudy, res)
+    }
+
+    @Test
+    fun testOvercast_nightResolvesToCloudy() {
+        val res = WeatherIconMapper.getIconResource("Overcast", isNight = true)
+        assertEquals(R.drawable.ic_weather_cloudy, res)
+    }
 }

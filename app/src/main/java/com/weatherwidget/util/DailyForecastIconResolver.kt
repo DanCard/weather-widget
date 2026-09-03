@@ -4,6 +4,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.WeatherCodeMapper
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
@@ -173,7 +174,7 @@ object DailyForecastIconResolver {
             WeatherSource.OPEN_METEO -> nativeToken.toIntOrNull()?.let { code ->
                 val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
                 WeatherIconMapper.getIconResource(
-                    condition = OpenMeteoConditionMapper.toCondition(code),
+                    condition = WeatherCodeMapper.openMeteoCodeToCondition(code),
                     isNight = isNight,
                     cloudCover = cloudCover,
                     precipProbability = weather.precipProbability,
@@ -186,7 +187,7 @@ object DailyForecastIconResolver {
             WeatherSource.TOMORROW_IO -> nativeToken.toIntOrNull()?.let { code ->
                 val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
                 WeatherIconMapper.getIconResource(
-                    condition = TomorrowIoConditionMapper.toCondition(code),
+                    condition = WeatherCodeMapper.tomorrowIoCodeToCondition(code),
                     isNight = isNight,
                     cloudCover = cloudCover,
                     precipProbability = weather.precipProbability,
@@ -284,40 +285,4 @@ object DailyForecastIconResolver {
         )
     }
 
-    private object OpenMeteoConditionMapper {
-        fun toCondition(code: Int): String =
-            when (code) {
-                0 -> "Clear"
-                1 -> "Mostly Clear"
-                2 -> "Partly Cloudy"
-                3 -> "Cloudy"
-                45 -> "Light Fog"
-                48 -> "Dense Fog"
-                51, 53, 55, 56, 57 -> "Drizzle"
-                61, 63, 65, 66, 67, 80, 81, 82 -> "Rain"
-                71, 73, 75, 77, 85, 86 -> "Snow"
-                95, 96, 99 -> "Thunderstorms"
-                else -> "Unknown"
-            }
-    }
-
-    private object TomorrowIoConditionMapper {
-        fun toCondition(code: Int): String =
-            when (code) {
-                1000 -> "Clear"
-                1100 -> "Mostly Clear"
-                1101 -> "Partly Cloudy"
-                1102 -> "Mostly Cloudy"
-                1001 -> "Cloudy"
-                2000, 2100 -> "Fog"
-                4000 -> "Drizzle"
-                4001, 4200 -> "Rain"
-                4201 -> "Heavy Rain"
-                5000, 5001, 5100, 5101 -> "Snow"
-                6000, 6001, 6200, 6201 -> "Freezing Rain"
-                7000, 7101, 7102 -> "Ice Pellets"
-                8000 -> "Thunderstorm"
-                else -> "Unknown"
-            }
-    }
 }

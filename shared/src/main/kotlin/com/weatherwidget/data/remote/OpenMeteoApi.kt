@@ -109,23 +109,7 @@ class OpenMeteoApi
                             .getOrNull()
                     }
 
-            private fun conditionForCode(code: Int?): String = when (code) {
-                0 -> "Clear"
-                1 -> "Mostly Clear"
-                2 -> "Partly Cloudy"
-                3 -> "Overcast"
-                45 -> "Light Fog"
-                48 -> "Dense Fog"
-                51, 53, 55 -> "Drizzle"
-                61, 63, 65 -> "Rain"
-                66, 67 -> "Freezing Rain"
-                71, 73, 75 -> "Snow"
-                77 -> "Snow Grains"
-                80, 81, 82 -> "Rain Showers"
-                85, 86 -> "Snow Showers"
-                95, 96, 99 -> "Thunderstorm"
-                else -> "Unknown"
-            }
+            private fun conditionForCode(code: Int?): String = WeatherCodeMapper.openMeteoCodeToCondition(code)
 
                 /**
                  * Pure seam: the whole of this endpoint's parsing, reachable without an HTTP engine.
