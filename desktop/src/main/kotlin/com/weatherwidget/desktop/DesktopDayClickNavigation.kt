@@ -44,7 +44,7 @@ internal fun dayClickConfig(
     val targetView = when (DayClickResolver.resolveView(zone, clickedDay?.iconName, precipProb)) {
         DayClickResolver.DayClickView.PRECIPITATION -> ViewMode.PRECIPITATION
         DayClickResolver.DayClickView.CLOUD_COVER -> ViewMode.CLOUD_COVER
-        DayClickResolver.DayClickView.TEMPERATURE -> ViewMode.HOURLY
+        DayClickResolver.DayClickView.TEMPERATURE -> ViewMode.TEMPERATURE
     }
     return config.copy(
         viewMode = targetView,

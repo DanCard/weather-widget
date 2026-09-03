@@ -148,7 +148,7 @@ useCelsius = false),
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("Save").assertIsDisplayed()
 
-        baseline.value = sampleConfig.copy(windowX = 900f, viewMode = ViewMode.HOURLY, hourlyOffset = 6)
+        baseline.value = sampleConfig.copy(windowX = 900f, viewMode = ViewMode.TEMPERATURE, hourlyOffset = 6)
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText("Save").assertIsDisplayed()

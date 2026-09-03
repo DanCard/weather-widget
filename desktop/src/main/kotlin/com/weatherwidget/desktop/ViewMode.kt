@@ -1,20 +1,9 @@
 package com.weatherwidget.desktop
 
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-
-@Serializable
-enum class ViewMode {
-    @SerialName("DAILY") DAILY,
-    @SerialName("HOURLY") HOURLY,
-    @SerialName("TEMPERATURE") TEMPERATURE,
-    @SerialName("CLOUD_COVER") CLOUD_COVER,
-    @SerialName("PRECIPITATION") PRECIPITATION;
-
-    val isHourly get() = this != DAILY
-
-    companion object {
-        fun fromConfig(value: String): ViewMode =
-            entries.find { it.name == value } ?: DAILY
-    }
-}
+/**
+ * Re-export of the shared [com.weatherwidget.widget.ViewMode] enum. Desktop previously declared its
+ * own ViewMode with a legacy `HOURLY` member; that member is now the shared `TEMPERATURE`, and
+ * legacy `"HOURLY"` config.json values are migrated on load (see
+ * [DesktopConfigStore.migrateLegacyHourlyViewMode]).
+ */
+typealias ViewMode = com.weatherwidget.widget.ViewMode

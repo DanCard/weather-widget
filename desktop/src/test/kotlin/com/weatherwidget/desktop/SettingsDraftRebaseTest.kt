@@ -62,13 +62,13 @@ personalStationDiscount = personalStationDiscount),
         val baseline = config(narrowZoomSpanHours = 5, zoomFactor = 0.3f, windowX = 10f)
         val draft = baseline.copy(settings = baseline.settings.copy(narrowZoomSpanHours = 8))
 
-        val newBaseline = baseline.copy(zoomFactor = 0.75f, windowX = 900f, viewMode = ViewMode.HOURLY)
+        val newBaseline = baseline.copy(zoomFactor = 0.75f, windowX = 900f, viewMode = ViewMode.TEMPERATURE)
         val saved = newBaseline.withSettingsFrom(draft)
 
         assertEquals(8, saved.settings.narrowZoomSpanHours)
         assertEquals("zoom must stay where the popup put it", 0.75f, saved.zoomFactor)
         assertEquals("window position must stay where the popup put it", 900f, saved.windowX)
-        assertEquals("view mode must stay where the popup put it", ViewMode.HOURLY, saved.viewMode)
+        assertEquals("view mode must stay where the popup put it", ViewMode.TEMPERATURE, saved.viewMode)
     }
 
     @Test

@@ -125,7 +125,7 @@ internal fun WidgetHeader(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.clickable {
-                        val targetMode = if (isHourly) ViewMode.DAILY else ViewMode.HOURLY
+                        val targetMode = if (isHourly) ViewMode.DAILY else ViewMode.TEMPERATURE
                         onUpdateConfig(config.copy(viewMode = targetMode))
                     }.testTag("current_temp_toggle")
                 ) {
@@ -203,7 +203,7 @@ internal fun WidgetHeader(
                         val currentView = config.viewMode
                         val (nextEmoji, nextView) = when (currentView) {
                             ViewMode.CLOUD_COVER -> "🌧️" to ViewMode.PRECIPITATION
-                            ViewMode.PRECIPITATION -> "🌡️" to ViewMode.HOURLY
+                            ViewMode.PRECIPITATION -> "🌡️" to ViewMode.TEMPERATURE
                             else -> "☁️" to ViewMode.CLOUD_COVER
                         }
                         Text(

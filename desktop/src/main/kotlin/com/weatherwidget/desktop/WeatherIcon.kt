@@ -45,7 +45,7 @@ object WeatherIcon {
         return when (WeatherConditionResolver.resolveIconHome(iconName)) {
             WeatherConditionResolver.IconHome.PRECIPITATION -> ViewMode.PRECIPITATION
             WeatherConditionResolver.IconHome.CLOUD_COVER -> ViewMode.CLOUD_COVER
-            WeatherConditionResolver.IconHome.HOURLY -> ViewMode.HOURLY
+            WeatherConditionResolver.IconHome.HOURLY -> ViewMode.TEMPERATURE
         }
     }
 }

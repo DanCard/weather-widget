@@ -94,7 +94,7 @@ currentCondition = "Sunny"),
         // Initially in DAILY mode (default). Tap the current temp to switch to HOURLY.
         composeTestRule.onNodeWithTag("current_temp_toggle").performClick()
 
-        assert(updatedConfig?.viewMode == ViewMode.HOURLY)
+        assert(updatedConfig?.viewMode == ViewMode.TEMPERATURE)
     }
 
     @Test
@@ -201,7 +201,7 @@ currentCondition = "Sunny"),
         var updatedConfig: DesktopConfig? = null
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
+                config = stubConfig.copy(viewMode = ViewMode.TEMPERATURE),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -279,7 +279,7 @@ currentCondition = "Sunny"),
         val now = System.currentTimeMillis()
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
+                config = stubConfig.copy(viewMode = ViewMode.TEMPERATURE),
                 forecast = stubForecast.copy(
                     raw = stubForecast.raw.copy(
                         hourly = listOf(
@@ -386,7 +386,7 @@ currentCondition = "Sunny"),
         var updatedConfig: DesktopConfig? = null
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
+                config = stubConfig.copy(viewMode = ViewMode.TEMPERATURE),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -411,7 +411,7 @@ currentCondition = "Sunny"),
     fun testHourlyNavigationDisablesAtBounds() {
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = ViewMode.HOURLY, hourlyOffset = -720),
+                config = stubConfig.copy(viewMode = ViewMode.TEMPERATURE, hourlyOffset = -720),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -577,7 +577,7 @@ currentCondition = "Sunny"),
         var opened = false
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
+                config = stubConfig.copy(viewMode = ViewMode.TEMPERATURE),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -636,7 +636,7 @@ currentCondition = "Sunny"),
         // clicking one would silently exercise the other.
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
+                config = stubConfig.copy(viewMode = ViewMode.TEMPERATURE),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -656,7 +656,7 @@ currentCondition = "Sunny"),
         var viewMode: ViewMode? = null
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = ViewMode.HOURLY),
+                config = stubConfig.copy(viewMode = ViewMode.TEMPERATURE),
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -700,7 +700,7 @@ currentCondition = "Sunny"),
             )
         }
         composeTestRule.onNodeWithTag("graph_selector").performClick()
-        assertEquals(ViewMode.HOURLY, viewMode)
+        assertEquals(ViewMode.TEMPERATURE, viewMode)
     }
 
     @Test
@@ -883,7 +883,7 @@ currentCondition = "Sunny"),
 
         assertEquals(wideZoom, fromTightZoom.zoomFactor)
         assertEquals(wideZoom, fromWideZoom.zoomFactor)
-        assertEquals(ViewMode.HOURLY, fromTightZoom.viewMode)
+        assertEquals(ViewMode.TEMPERATURE, fromTightZoom.viewMode)
 
         val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(
             now.plusHours(fromTightZoom.hourlyOffset.toLong()),
@@ -948,11 +948,11 @@ currentCondition = "Sunny"),
             dayClickConfig(stubConfig, date, listOf(routingDay(date, rain, forecastPrecip = 16)), main).viewMode,
         )
         assertEquals(
-            ViewMode.HOURLY,
+            ViewMode.TEMPERATURE,
             dayClickConfig(stubConfig, date, listOf(routingDay(date, rain, forecastPrecip = 15)), main).viewMode,
         )
         assertEquals(
-            ViewMode.HOURLY,
+            ViewMode.TEMPERATURE,
             dayClickConfig(stubConfig, date, listOf(routingDay(date, cloudy, forecastPrecip = 90)), main).viewMode,
         )
         assertEquals(
@@ -973,7 +973,7 @@ currentCondition = "Sunny"),
     @Test
     fun testDayClickPreservesZoomWhenNotEnteringFromDaily() {
         val date = java.time.LocalDate.now()
-        val hourlyConfig = stubConfig.copy(viewMode = ViewMode.HOURLY, zoomFactor = 0.55f)
+        val hourlyConfig = stubConfig.copy(viewMode = ViewMode.TEMPERATURE, zoomFactor = 0.55f)
         val result = dayClickConfig(
             hourlyConfig,
             date,

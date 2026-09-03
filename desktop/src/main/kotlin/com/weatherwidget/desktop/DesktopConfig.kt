@@ -294,7 +294,7 @@ class DesktopConfigStore(
         if (!configPath.exists()) return null
         return runCatching {
             val text = configPath.readText()
-            val migrated = migrateFlatSettingsToNested(text)
+            val migrated = migrateLegacyHourlyViewMode(migrateFlatSettingsToNested(text))
             val migratedRoot = json.parseToJsonElement(migrated).jsonObject
             val unitWasExplicit = migratedRoot["settings"]?.jsonObject
                 ?.containsKey("useCelsius") == true
@@ -379,6 +379,14 @@ class DesktopConfigStore(
         }
         return json.encodeToString(JsonElement.serializer(), migrated)
     }
+
+    /**
+     * Legacy desktop configs serialized the hourly-temperature graph as `viewMode: "HOURLY"`. The
+     * shared [ViewMode] enum renamed that member to `TEMPERATURE`; rewrite the value before decode
+     * so old configs neither fail deserialization (unknown enum value) nor load a stale member.
+     */
+    private fun migrateLegacyHourlyViewMode(text: String): String =
+        text.replace(Regex("\"viewMode\"\\s*:\\s*\"HOURLY\""), "\"viewMode\": \"TEMPERATURE\"")
 
     companion object {
         fun defaultConfigPath(): Path {

@@ -8,26 +8,6 @@ import com.weatherwidget.util.SharedPreferencesUtil
 import java.time.LocalDateTime
 import javax.inject.Singleton
 
-enum class ViewMode {
-    DAILY,
-    TEMPERATURE,
-    PRECIPITATION,
-    CLOUD_COVER,
-    ;
-
-    val isGraphMode: Boolean
-        get() = this != DAILY
-
-    companion object {
-        fun parseOrDefault(name: String?, default: ViewMode): ViewMode =
-            if (name.isNullOrBlank()) {
-                default
-            } else {
-                entries.find { it.name == name } ?: default
-            }
-    }
-}
-
 // Zoom is two types on purpose: ZoomStage is the persisted/cycled selection, ZoomWindow is the
 // geometry it resolves to against the user's narrow-span setting. See ZoomStage's kdoc.
 typealias ZoomStage = com.weatherwidget.shared.graph.ZoomStage

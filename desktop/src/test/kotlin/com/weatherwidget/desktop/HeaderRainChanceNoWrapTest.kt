@@ -86,7 +86,7 @@ class HeaderRainChanceNoWrapTest {
         label = "Mountain View",
         // Keep the temperature text width locale-independent (an "en" JVM default would pick °C).
         settings = DesktopSettings(useCelsius = false),
-        viewMode = ViewMode.HOURLY,
+        viewMode = ViewMode.TEMPERATURE,
     )
 
     @Test

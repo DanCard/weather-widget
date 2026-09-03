@@ -178,7 +178,7 @@ settings = DesktopSettings(visibleSources = listOf("NWS")),
         val mainZone = classifyDailyGraphTapZone(centerX, iconTop - 20f, targetCol, tapLayout)
         assertEquals(DayClickResolver.DayTapZone.MAIN_COLUMN, mainZone)
         assertEquals(
-            ViewMode.HOURLY,
+            ViewMode.TEMPERATURE,
             dayClickConfig(
                 DesktopConfig(
 lat = 37.42,
@@ -309,6 +309,6 @@ settings = DesktopSettings(visibleSources = listOf("NWS")),
             hourly = hourly,
         )
 
-        assertEquals(ViewMode.HOURLY, routed.viewMode)
+        assertEquals(ViewMode.TEMPERATURE, routed.viewMode)
     }
 }

@@ -115,7 +115,7 @@ settings = DesktopSettings(visibleSources = listOf("NWS")),
         // Phase 1: pending banner shown, refresh registered, view stayed on daily (no HOURLY switch).
         composeTestRule.onNodeWithText("Hourly data missing", substring = true).assertIsDisplayed()
         assert(capturedComplete != null) { "expected a refresh to be triggered" }
-        assert(pushedConfig?.viewMode != ViewMode.HOURLY) { "should not switch to hourly view" }
+        assert(pushedConfig?.viewMode != ViewMode.TEMPERATURE) { "should not switch to hourly view" }
         composeTestRule.onNodeWithTag("day_tab_$targetDate").assertIsDisplayed()
     }
 
