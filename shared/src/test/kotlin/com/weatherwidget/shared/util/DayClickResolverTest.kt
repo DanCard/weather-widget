@@ -192,4 +192,262 @@ class DayClickResolverTest {
         assertEquals(targetDay.atTime(21, 0), end)
         assertEquals(targetDay.atTime(12, 0), start.plusHours((window.backHours + window.forwardHours) / 2))
     }
+
+    @Test
+    fun `routingPrecipProbability today with rain at now plus 3h routes to precipitation`() {
+        val now = LocalDateTime.of(2026, 7, 10, 6, 0)
+        val today = now.toLocalDate()
+        val zone = java.time.ZoneId.systemDefault()
+        fun toEpoch(dt: LocalDateTime) = dt.atZone(zone).toInstant().toEpochMilli()
+
+        val hourly = listOf(
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(3)),
+                temperature = 65f,
+                condition = "Rain",
+                precipProbability = 50,
+                source = "NWS",
+            ),
+        )
+
+        val result = DayClickResolver.routingPrecipProbability(
+            targetDay = today,
+            now = now,
+            hourly = hourly,
+            displaySourceId = "NWS",
+            fallbackSourceId = com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+            dailyProbability = 50,
+        )
+
+        assertEquals(DayClickResolver.PrecipGateSource.ROLLING_6H, result.gateSource)
+        assertEquals(50, result.probability)
+        assertEquals(
+            DayClickResolver.DayClickView.PRECIPITATION,
+            DayClickResolver.resolveView(
+                DayClickResolver.DayTapZone.MAIN_COLUMN,
+                WeatherConditionResolver.IC_RAIN,
+                result.probability,
+            ),
+        )
+    }
+
+    @Test
+    fun `routingPrecipProbability today with rain at now plus 8h routes to temperature`() {
+        // Rain is outside the 6-hour window [now, now+6h). Even though the daily probability is 50%,
+        // the 6h lookahead is 0%, which routes the tap to TEMPERATURE (avoiding opening a blank precip graph).
+        val now = LocalDateTime.of(2026, 7, 10, 6, 0)
+        val today = now.toLocalDate()
+        val zone = java.time.ZoneId.systemDefault()
+        fun toEpoch(dt: LocalDateTime) = dt.atZone(zone).toInstant().toEpochMilli()
+
+        val hourly = listOf(
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now),
+                temperature = 65f,
+                condition = "Clear",
+                precipProbability = 0,
+                source = "NWS",
+            ),
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(6)),
+                temperature = 65f,
+                condition = "Clear",
+                precipProbability = 0,
+                source = "NWS",
+            ),
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(8)),
+                temperature = 65f,
+                condition = "Rain",
+                precipProbability = 50,
+                source = "NWS",
+            ),
+        )
+
+        val result = DayClickResolver.routingPrecipProbability(
+            targetDay = today,
+            now = now,
+            hourly = hourly,
+            displaySourceId = "NWS",
+            fallbackSourceId = com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+            dailyProbability = 50,
+        )
+
+        assertEquals(DayClickResolver.PrecipGateSource.ROLLING_6H, result.gateSource)
+        assertEquals(0, result.probability)
+        assertEquals(
+            DayClickResolver.DayClickView.TEMPERATURE,
+            DayClickResolver.resolveView(
+                DayClickResolver.DayTapZone.MAIN_COLUMN,
+                WeatherConditionResolver.IC_RAIN,
+                result.probability,
+            ),
+        )
+    }
+
+    @Test
+    fun `routingPrecipProbability today threshold boundary 15 vs 16`() {
+        val now = LocalDateTime.of(2026, 7, 10, 6, 0)
+        val today = now.toLocalDate()
+        val zone = java.time.ZoneId.systemDefault()
+        fun toEpoch(dt: LocalDateTime) = dt.atZone(zone).toInstant().toEpochMilli()
+
+        val hourly15 = listOf(
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(2)),
+                temperature = 65f,
+                condition = "Rain",
+                precipProbability = 15,
+                source = "NWS",
+            ),
+        )
+        val result15 = DayClickResolver.routingPrecipProbability(
+            targetDay = today,
+            now = now,
+            hourly = hourly15,
+            displaySourceId = "NWS",
+            fallbackSourceId = com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+            dailyProbability = 15,
+        )
+        assertEquals(15, result15.probability)
+        assertEquals(
+            DayClickResolver.DayClickView.TEMPERATURE,
+            DayClickResolver.resolveView(
+                DayClickResolver.DayTapZone.MAIN_COLUMN,
+                WeatherConditionResolver.IC_RAIN,
+                result15.probability,
+            ),
+        )
+
+        val hourly16 = listOf(
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(2)),
+                temperature = 65f,
+                condition = "Rain",
+                precipProbability = 16,
+                source = "NWS",
+            ),
+        )
+        val result16 = DayClickResolver.routingPrecipProbability(
+            targetDay = today,
+            now = now,
+            hourly = hourly16,
+            displaySourceId = "NWS",
+            fallbackSourceId = com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+            dailyProbability = 16,
+        )
+        assertEquals(16, result16.probability)
+        assertEquals(
+            DayClickResolver.DayClickView.PRECIPITATION,
+            DayClickResolver.resolveView(
+                DayClickResolver.DayTapZone.MAIN_COLUMN,
+                WeatherConditionResolver.IC_RAIN,
+                result16.probability,
+            ),
+        )
+    }
+
+    @Test
+    fun `routingPrecipProbability targetDay not today ignores hourly and uses dailyProbability`() {
+        val now = LocalDateTime.of(2026, 7, 10, 6, 0)
+        val tomorrow = now.toLocalDate().plusDays(1)
+        val zone = java.time.ZoneId.systemDefault()
+        fun toEpoch(dt: LocalDateTime) = dt.atZone(zone).toInstant().toEpochMilli()
+
+        // Hourly has 0% in next 6 hours, but tomorrow has 40% daily
+        val hourly = listOf(
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(2)),
+                temperature = 65f,
+                condition = "Clear",
+                precipProbability = 0,
+                source = "NWS",
+            ),
+        )
+
+        val result = DayClickResolver.routingPrecipProbability(
+            targetDay = tomorrow,
+            now = now,
+            hourly = hourly,
+            displaySourceId = "NWS",
+            fallbackSourceId = com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+            dailyProbability = 40,
+        )
+
+        assertEquals(DayClickResolver.PrecipGateSource.DAILY, result.gateSource)
+        assertEquals(40, result.probability)
+        assertEquals("40(daily)", result.auditText())
+    }
+
+    @Test
+    fun `routingPrecipProbability empty hourly falls back to dailyProbability`() {
+        val now = LocalDateTime.of(2026, 7, 10, 6, 0)
+        val today = now.toLocalDate()
+
+        val result = DayClickResolver.routingPrecipProbability(
+            targetDay = today,
+            now = now,
+            hourly = emptyList(),
+            displaySourceId = "NWS",
+            fallbackSourceId = com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+            dailyProbability = 45,
+        )
+
+        assertEquals(DayClickResolver.PrecipGateSource.DAILY, result.gateSource)
+        assertEquals(45, result.probability)
+        assertEquals("45(daily)", result.auditText())
+    }
+
+    @Test
+    fun `routingPrecipProbability falls back via fallbackSourceId then daily`() {
+        val now = LocalDateTime.of(2026, 7, 10, 6, 0)
+        val today = now.toLocalDate()
+        val zone = java.time.ZoneId.systemDefault()
+        fun toEpoch(dt: LocalDateTime) = dt.atZone(zone).toInstant().toEpochMilli()
+
+        // Only fallback source has hourly data
+        val hourly = listOf(
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(2)),
+                temperature = 65f,
+                condition = "Rain",
+                precipProbability = 30,
+                source = com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+            ),
+        )
+
+        val result = DayClickResolver.routingPrecipProbability(
+            targetDay = today,
+            now = now,
+            hourly = hourly,
+            displaySourceId = "NWS",
+            fallbackSourceId = com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+            dailyProbability = 10,
+        )
+
+        assertEquals(DayClickResolver.PrecipGateSource.ROLLING_6H, result.gateSource)
+        assertEquals(30, result.probability)
+        assertEquals("30(rolling6h)", result.auditText())
+
+        // If only an unrelated source is present, falls back to daily
+        val unrelatedHourly = listOf(
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(2)),
+                temperature = 65f,
+                condition = "Rain",
+                precipProbability = 30,
+                source = "OTHER_SOURCE",
+            ),
+        )
+        val fallbackDailyResult = DayClickResolver.routingPrecipProbability(
+            targetDay = today,
+            now = now,
+            hourly = unrelatedHourly,
+            displaySourceId = "NWS",
+            fallbackSourceId = com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+            dailyProbability = 10,
+        )
+        assertEquals(DayClickResolver.PrecipGateSource.DAILY, fallbackDailyResult.gateSource)
+        assertEquals(10, fallbackDailyResult.probability)
+    }
 }

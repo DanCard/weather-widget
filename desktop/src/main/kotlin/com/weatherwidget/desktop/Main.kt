@@ -89,6 +89,32 @@ private const val MIN_HOURLY_OFFSET = -720
 private const val MAX_HOURLY_OFFSET = 720
 
 /**
+ * The precip figure a day tap is gated on, matching Android's `DailyClickHandlerFactory`.
+ *
+ * Today reads the rolling [DayClickResolver.TODAY_LOOKAHEAD_HOURS] window off [hourly]; every other
+ * day (and a today with no usable hourly rows) keeps the whole-day figure. Both desktop call sites
+ * go through here so the audit line and the routing decision can never be derived differently.
+ */
+internal fun dayClickRoutingPrecip(
+    config: DesktopConfig,
+    clickedDate: LocalDate,
+    days: List<DesktopDailyDay>,
+    now: LocalDateTime,
+    hourly: List<HourlyForecast>,
+): DayClickResolver.RoutingPrecip {
+    val clickedDay = days.find { it.date == clickedDate }
+    return DayClickResolver.routingPrecipProbability(
+        targetDay = clickedDate,
+        now = now,
+        hourly = hourly,
+        displaySourceId = config.settings.weatherSource,
+        fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+        dailyProbability = clickedDay?.forecast?.precipProbability
+            ?: clickedDay?.snapshot?.precipProbability,
+    )
+}
+
+/**
  * Config for opening the hourly view focused on [clickedDate], matching Android day-click behavior:
  * shared [DayClickResolver] routing/offset and [ZoomStage.WIDE] when entering from daily view.
  */
@@ -98,9 +124,10 @@ internal fun dayClickConfig(
     days: List<DesktopDailyDay>,
     zone: DayClickResolver.DayTapZone = DayClickResolver.DayTapZone.MAIN_COLUMN,
     now: LocalDateTime = LocalDateTime.now(),
+    hourly: List<HourlyForecast> = emptyList(),
 ): DesktopConfig {
     val clickedDay = days.find { it.date == clickedDate }
-    val precipProb = clickedDay?.forecast?.precipProbability ?: clickedDay?.snapshot?.precipProbability
+    val precipProb = dayClickRoutingPrecip(config, clickedDate, days, now, hourly).probability
     val targetView = when (
         DayClickResolver.resolveView(zone, clickedDay?.iconName, precipProb)
     ) {
@@ -1443,22 +1470,31 @@ internal fun WidgetPopup(
 
                             val handleDayClick: (LocalDate, DayClickResolver.DayTapZone) -> Unit = { clickedDate, zone ->
                                 val visibleSourceIds = config.settings.visibleSources.toSet()
+                                val clickNow = LocalDateTime.now()
                                 val clickedDay = dailyState.days.find { it.date == clickedDate }
-                                val precipProb = clickedDay?.forecast?.precipProbability
-                                    ?: clickedDay?.snapshot?.precipProbability
+                                val routingPrecip = dayClickRoutingPrecip(
+                                    config, clickedDate, dailyState.days, clickNow, snapshot.raw.hourly,
+                                )
+                                val precipProb = routingPrecip.probability
                                 val targetView = DayClickResolver.resolveView(zone, clickedDay?.iconName, precipProb)
-                                val newOffset = DayClickResolver.calculateHourlyOffset(LocalDateTime.now(), clickedDate)
+                                val newOffset = DayClickResolver.calculateHourlyOffset(clickNow, clickedDate)
                                 val clickSource = when (zone) {
                                     DayClickResolver.DayTapZone.MAIN_COLUMN -> "graph_day"
                                     DayClickResolver.DayTapZone.BOTTOM_ICON -> "graph_bottom_day"
                                 }
                                 onDayClickAudit(
                                     "date=$clickedDate zone=$zone targetView=$targetView offset=$newOffset " +
-                                        "icon=${clickedDay?.iconName} precip=$precipProb clickSource=$clickSource",
+                                        "icon=${clickedDay?.iconName} precipGate=${routingPrecip.auditText()} " +
+                                        "clickSource=$clickSource",
                                 )
                                 if (NoHourlyChecker.hasHourlyForDay(snapshot.raw.hourly, clickedDate, visibleSourceIds)) {
                                     noHourlyMessage = null
-                                    onUpdateConfig(dayClickConfig(config, clickedDate, dailyState.days, zone))
+                                    onUpdateConfig(
+                                        dayClickConfig(
+                                            config, clickedDate, dailyState.days, zone, clickNow,
+                                            snapshot.raw.hourly,
+                                        ),
+                                    )
                                 } else {
                                     // Two-phase flow mirroring Android: show a pending banner, resolve
                                     // against the freshest in-memory hourly data, then replace it with a

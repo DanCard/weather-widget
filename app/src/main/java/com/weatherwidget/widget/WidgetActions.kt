@@ -17,6 +17,13 @@ object WidgetActions {
     const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
     const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
     const val EXTRA_CLICK_SOURCE = "com.weatherwidget.EXTRA_CLICK_SOURCE"
+
+    /**
+     * Audit-only: the precip probability that gated a day tap plus where it came from, e.g.
+     * `34(rolling6h)` or `40(daily)`. Routing is already decided when the intent is built, so this
+     * exists purely so CLICK_DAILY in app_logs shows *why* a tap went where it did.
+     */
+    const val EXTRA_PRECIP_GATE = "com.weatherwidget.EXTRA_PRECIP_GATE"
     const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"
     const val EXTRA_ZOOM_CENTER_OFFSET = "com.weatherwidget.EXTRA_ZOOM_CENTER_OFFSET"
     const val EXTRA_TOAST_MESSAGE = "com.weatherwidget.EXTRA_TOAST_MESSAGE"

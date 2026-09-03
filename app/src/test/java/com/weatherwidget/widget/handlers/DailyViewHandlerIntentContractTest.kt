@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.widget.WidgetActions
 import org.junit.Assert.assertEquals
@@ -169,6 +170,108 @@ class DailyViewHandlerIntentContractTest {
 
         assertFalse(intent.getBooleanExtra("showHistory", true))
         assertEquals("TEMPERATURE", intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+    }
+
+    @Test
+    fun todayTap_withRainInside6HourWindow_routesToPrecipitation() {
+        val now = LocalDateTime.of(2030, 6, 15, 6, 0)
+        val today = LocalDate.of(2030, 6, 15)
+        val zone = java.time.ZoneId.systemDefault()
+        fun toEpoch(dt: LocalDateTime) = dt.atZone(zone).toInstant().toEpochMilli()
+
+        val hourly = listOf(
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(3)),
+                temperature = 68f,
+                condition = "Rain",
+                source = "NWS",
+                precipProbability = 40,
+            ),
+        )
+
+        val routingPrecip = DayClickResolver.routingPrecipProbability(
+            targetDay = today,
+            now = now,
+            hourly = hourly,
+            displaySourceId = WeatherSource.NWS.id,
+            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+            dailyProbability = 40,
+        )
+
+        val intent = DailyClickHandlerFactory.buildDayClickIntent(
+            context = context,
+            appWidgetId = TEST_WIDGET_ID,
+            dayIndex = 2,
+            date = today,
+            iconRes = R.drawable.ic_weather_rain,
+            lat = LAT,
+            lon = LON,
+            displaySource = WeatherSource.NWS,
+            now = now,
+            routingPrecip = routingPrecip,
+        )
+
+        assertEquals("PRECIPITATION", intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals("40(rolling6h)", intent.getStringExtra(WidgetActions.EXTRA_PRECIP_GATE))
+    }
+
+    @Test
+    fun todayTap_withRainOutside6HourWindow_routesToTemperature() {
+        // Daily probability is 40% (and icon is rain), but the rain is at now+8h (outside the 6h lookahead).
+        // Tap must route to TEMPERATURE instead of opening a dry precipitation graph.
+        val now = LocalDateTime.of(2030, 6, 15, 6, 0)
+        val today = LocalDate.of(2030, 6, 15)
+        val zone = java.time.ZoneId.systemDefault()
+        fun toEpoch(dt: LocalDateTime) = dt.atZone(zone).toInstant().toEpochMilli()
+
+        val hourly = listOf(
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now),
+                temperature = 58f,
+                condition = "Clear",
+                source = "NWS",
+                precipProbability = 0,
+            ),
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(6)),
+                temperature = 72f,
+                condition = "Clear",
+                source = "NWS",
+                precipProbability = 0,
+            ),
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(8)),
+                temperature = 68f,
+                condition = "Rain",
+                source = "NWS",
+                precipProbability = 40,
+            ),
+        )
+
+        val routingPrecip = DayClickResolver.routingPrecipProbability(
+            targetDay = today,
+            now = now,
+            hourly = hourly,
+            displaySourceId = WeatherSource.NWS.id,
+            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+            dailyProbability = 40,
+        )
+
+        val intent = DailyClickHandlerFactory.buildDayClickIntent(
+            context = context,
+            appWidgetId = TEST_WIDGET_ID,
+            dayIndex = 2,
+            date = today,
+            iconRes = R.drawable.ic_weather_rain,
+            lat = LAT,
+            lon = LON,
+            displaySource = WeatherSource.NWS,
+            now = now,
+            routingPrecip = routingPrecip,
+        )
+
+        assertEquals("TEMPERATURE", intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals("0(rolling6h)", intent.getStringExtra(WidgetActions.EXTRA_PRECIP_GATE))
     }
 
     companion object {

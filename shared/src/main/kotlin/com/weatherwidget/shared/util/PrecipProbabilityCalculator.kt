@@ -12,7 +12,8 @@ import kotlin.math.roundToInt
  * Pure-Kotlin, parameterized on shared [HourlyForecast] model.
  */
 object PrecipProbabilityCalculator {
-    private const val LOOKAHEAD_HOURS = 8L
+    /** The header's window. Kept as the default so existing call sites read unchanged. */
+    const val DEFAULT_LOOKAHEAD_HOURS = 8L
     private const val MINUTES_PER_HOUR = 60L
 
     /**
@@ -26,6 +27,33 @@ object PrecipProbabilityCalculator {
      * @return Maximum probability (0-100), or fallbackDailyProbability if no data
      */
     fun getNext8HourPrecipProbability(
+        hourlyForecasts: List<HourlyForecast>,
+        displaySourceId: String,
+        fallbackSourceId: String,
+        fallbackDailyProbability: Int?,
+        referenceTime: LocalDateTime,
+    ): Int? = maxPrecipProbabilityWithin(
+        lookaheadHours = DEFAULT_LOOKAHEAD_HOURS,
+        hourlyForecasts = hourlyForecasts,
+        displaySourceId = displaySourceId,
+        fallbackSourceId = fallbackSourceId,
+        fallbackDailyProbability = fallbackDailyProbability,
+        referenceTime = referenceTime,
+    )
+
+    /**
+     * Maximum interpolated precipitation probability within [lookaheadHours] of [referenceTime].
+     *
+     * The window length is a parameter because two callers want different horizons over identical
+     * machinery: the daily header asks for [DEFAULT_LOOKAHEAD_HOURS], while the today-column tap
+     * gate ([DayClickResolver.routingPrecipProbability]) asks only about the span the graph it is
+     * opening will actually show. Sharing the body keeps the number the header prints and the
+     * number the tap obeys differing by window length alone, never by method.
+     *
+     * @return Maximum probability (0-100), or [fallbackDailyProbability] if no hourly data applies
+     */
+    fun maxPrecipProbabilityWithin(
+        lookaheadHours: Long,
         hourlyForecasts: List<HourlyForecast>,
         displaySourceId: String,
         fallbackSourceId: String,
@@ -52,7 +80,7 @@ object PrecipProbabilityCalculator {
             .mapValues { (_, items) -> items.maxOf { checkNotNull(it.precipProbability) } }
 
         var maxInterpolatedProbability: Float? = null
-        for (minuteOffset in 0 until LOOKAHEAD_HOURS * MINUTES_PER_HOUR) {
+        for (minuteOffset in 0 until lookaheadHours * MINUTES_PER_HOUR) {
             val sampleTime = referenceTime.plusMinutes(minuteOffset)
             val sampleProbability = interpolatePrecipProbabilityAt(selectedForecasts, sampleTime)
             if (sampleProbability != null) {
@@ -69,7 +97,7 @@ object PrecipProbabilityCalculator {
         }
 
         val windowStartHourMs = referenceTime.truncatedTo(ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
-        val windowEndMs = referenceTime.plusHours(LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+        val windowEndMs = referenceTime.plusHours(lookaheadHours).atZone(zoneId).toInstant().toEpochMilli()
         val exactPointFallback = selectedForecasts
             .filterKeys { it in windowStartHourMs until windowEndMs }
             .values
@@ -113,7 +141,7 @@ object PrecipProbabilityCalculator {
 
         var nightSum = 0f
         var daySum = 0f
-        for (minuteOffset in 0 until LOOKAHEAD_HOURS * MINUTES_PER_HOUR) {
+        for (minuteOffset in 0 until DEFAULT_LOOKAHEAD_HOURS * MINUTES_PER_HOUR) {
             val sampleTime = referenceTime.plusMinutes(minuteOffset)
             val prob = interpolatePrecipProbabilityAt(selectedForecasts, sampleTime) ?: continue
             val hourOfDay = sampleTime.hour + sampleTime.minute / 60.0

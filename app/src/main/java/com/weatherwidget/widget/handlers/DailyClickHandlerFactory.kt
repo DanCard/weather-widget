@@ -8,7 +8,10 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.R
+import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ViewMode
@@ -30,7 +33,37 @@ internal object DailyClickHandlerFactory {
         targetModeOverride: ViewMode? = null,
         offsetOverride: Int? = null,
         clickSource: String? = null,
-        precipProbability: Int? = null,
+        precipProbability: Int?,
+    ): Intent = buildDayClickIntent(
+        context = context,
+        appWidgetId = appWidgetId,
+        dayIndex = dayIndex,
+        date = date,
+        iconRes = iconRes,
+        lat = lat,
+        lon = lon,
+        displaySource = displaySource,
+        now = now,
+        targetModeOverride = targetModeOverride,
+        offsetOverride = offsetOverride,
+        clickSource = clickSource,
+        routingPrecip = DayClickResolver.RoutingPrecip(
+            probability = precipProbability,
+            gateSource = DayClickResolver.PrecipGateSource.DAILY,
+        ),
+    )
+
+    @VisibleForTesting
+    internal fun buildDayClickIntent(
+        context: Context, appWidgetId: Int, dayIndex: Int, date: LocalDate,
+        iconRes: Int?, lat: Double, lon: Double,
+        displaySource: WeatherSource,
+        now: LocalDateTime = LocalDateTime.now(),
+        targetModeOverride: ViewMode? = null,
+        offsetOverride: Int? = null,
+        clickSource: String? = null,
+        routingPrecip: DayClickResolver.RoutingPrecip =
+            DayClickResolver.RoutingPrecip(null, DayClickResolver.PrecipGateSource.DAILY),
     ): Intent {
         val isHistory = date.isBefore(now.toLocalDate())
 
@@ -48,10 +81,11 @@ internal object DailyClickHandlerFactory {
             putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
             putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
             clickSource?.let { putExtra(WidgetActions.EXTRA_CLICK_SOURCE, it) }
+            putExtra(WidgetActions.EXTRA_PRECIP_GATE, routingPrecip.auditText())
 
             val targetMode = targetModeOverride
                 ?: if (isHistory) ViewMode.TEMPERATURE
-                else DayClickHelper.resolveDailyTargetViewMode(iconRes, precipProbability)
+                else DayClickHelper.resolveDailyTargetViewMode(iconRes, routingPrecip.probability)
             val offset = offsetOverride ?: DayClickHelper.calculatePrecipitationOffset(now, date)
             putExtra(WidgetActions.EXTRA_TARGET_VIEW, targetMode.name)
             putExtra(WidgetActions.EXTRA_HOURLY_OFFSET, offset)
@@ -64,6 +98,7 @@ internal object DailyClickHandlerFactory {
         days: List<DailyForecastGraphRenderer.DayData>, lat: Double, lon: Double, displaySource: WeatherSource,
         numColumns: Int,
         useLargeTodayOverlay: Boolean = false,
+        hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
     ) {
         val zoneIds = listOf(
             R.id.graph_day1_zone, R.id.graph_day2_zone, R.id.graph_day3_zone, R.id.graph_day4_zone,
@@ -83,6 +118,7 @@ internal object DailyClickHandlerFactory {
             zoneIds = zoneIds,
             requestCodeOffset = 0,
             useLargeTodayOverlay = useLargeTodayOverlay,
+            hourlyForecasts = hourlyForecasts,
         )
     }
 
@@ -98,6 +134,7 @@ internal object DailyClickHandlerFactory {
         displaySource: WeatherSource,
         numColumns: Int,
         useLargeTodayOverlay: Boolean = false,
+        hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
     ) {
         val zoneIds = listOf(
             R.id.graph_bottom_day1_zone, R.id.graph_bottom_day2_zone, R.id.graph_bottom_day3_zone, R.id.graph_bottom_day4_zone,
@@ -117,6 +154,7 @@ internal object DailyClickHandlerFactory {
             zoneIds = zoneIds,
             requestCodeOffset = 100,
             useLargeTodayOverlay = useLargeTodayOverlay,
+            hourlyForecasts = hourlyForecasts,
             resolveTargetMode = { iconRes -> DayClickHelper.resolveBottomRowTargetViewMode(iconRes) },
         )
     }
@@ -135,7 +173,11 @@ internal object DailyClickHandlerFactory {
         requestCodeOffset: Int = 0,
         resolveTargetMode: ((Int?) -> ViewMode)? = null,
         useLargeTodayOverlay: Boolean = false,
+        hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
     ) {
+        // Mapped once per render, not once per column: the shared model conversion is pure and the
+        // routing gate below asks the same question of the same rows for every day.
+        val sharedHourly = hourlyForecasts.map { it.toHourlyForecast() }
         val slots =
             DailyLargeTodayOverlayPolicy.slots(
                 columnIndices = days.mapIndexed { index, day -> day.columnIndex ?: index },
@@ -179,7 +221,14 @@ internal object DailyClickHandlerFactory {
                 } else {
                     "graph_bottom_day:col=$colIndex:date=${dayData.date}"
                 },
-                precipProbability = dayData.rainData.dailyPrecipProbability,
+                routingPrecip = DayClickResolver.routingPrecipProbability(
+                    targetDay = dayData.date,
+                    now = now,
+                    hourly = sharedHourly,
+                    displaySourceId = displaySource.id,
+                    fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+                    dailyProbability = dayData.rainData.dailyPrecipProbability,
+                ),
             )
             val pendingIntent = PendingIntent.getBroadcast(
                 context,

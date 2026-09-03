@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.util
 
+import com.weatherwidget.data.model.HourlyForecast
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -20,6 +21,75 @@ object DayClickResolver {
         TEMPERATURE,
         PRECIPITATION,
         CLOUD_COVER,
+    }
+
+    /**
+     * Lookahead for [routingPrecipProbability]. Deliberately equal to
+     * [com.weatherwidget.shared.graph.ZoomStage.WIDE]'s `forwardHours`: a day tap opens WIDE
+     * centred on now, so this is exactly the forecast span the graph is about to show. Asking about
+     * a longer horizon routes taps to a precipitation graph whose visible window holds no rain.
+     */
+    const val TODAY_LOOKAHEAD_HOURS = 6L
+
+    /** Which figure [routingPrecipProbability] returned, for the click-audit log line. */
+    enum class PrecipGateSource { ROLLING_6H, DAILY }
+
+    data class RoutingPrecip(
+        val probability: Int?,
+        val gateSource: PrecipGateSource,
+    ) {
+        /** e.g. `34(rolling6h)` / `40(daily)` — appended to CLICK_DAILY and the desktop audit. */
+        fun auditText(): String {
+            val label = when (gateSource) {
+                PrecipGateSource.ROLLING_6H -> "rolling${TODAY_LOOKAHEAD_HOURS}h"
+                PrecipGateSource.DAILY -> "daily"
+            }
+            return "$probability($label)"
+        }
+    }
+
+    /**
+     * The precip probability that [resolveView] should gate a day tap on.
+     *
+     * For **today** this is the maximum interpolated chance over the next [TODAY_LOOKAHEAD_HOURS] —
+     * the span the opened graph actually shows — rather than the whole-day figure, which ignores how
+     * much of the day is already past and so sends a 06:00 tap to a precipitation graph whose window
+     * ends before the evening rain it was routed for.
+     *
+     * Every other day keeps [dailyProbability]: "the next 6 hours" is undefined for Friday. So is a
+     * today with no usable hourly rows — falling back preserves precipitation routing for a source
+     * that has no hourly coverage rather than silently losing it.
+     *
+     * Note this can only ever route *fewer* taps to precipitation, never more: [resolveView] still
+     * requires a rain-indicator icon, and that icon is still derived from the whole day.
+     */
+    fun routingPrecipProbability(
+        targetDay: LocalDate,
+        now: LocalDateTime,
+        hourly: List<HourlyForecast>,
+        displaySourceId: String,
+        fallbackSourceId: String,
+        dailyProbability: Int?,
+    ): RoutingPrecip {
+        if (targetDay != now.toLocalDate()) {
+            return RoutingPrecip(dailyProbability, PrecipGateSource.DAILY)
+        }
+        val rolling = PrecipProbabilityCalculator.maxPrecipProbabilityWithin(
+            lookaheadHours = TODAY_LOOKAHEAD_HOURS,
+            hourlyForecasts = hourly,
+            displaySourceId = displaySourceId,
+            fallbackSourceId = fallbackSourceId,
+            // Null, not dailyProbability: the calculator's own fallback would hand back the
+            // whole-day figure while claiming to be a rolling reading. Distinguishing "no hourly
+            // data" here keeps the audit line honest about which number gated the tap.
+            fallbackDailyProbability = null,
+            referenceTime = now,
+        )
+        return if (rolling == null) {
+            RoutingPrecip(dailyProbability, PrecipGateSource.DAILY)
+        } else {
+            RoutingPrecip(rolling, PrecipGateSource.ROLLING_6H)
+        }
     }
 
     fun resolveView(zone: DayTapZone, iconName: String?, precipProbability: Int?): DayClickView {

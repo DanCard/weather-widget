@@ -33,12 +33,15 @@ internal object WidgetDayClickCoordinator {
         val targetOffset = intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, 0)
         val clickSource =
             intent.getStringExtra(WidgetActions.EXTRA_CLICK_SOURCE) ?: "unknown"
+        val precipGate =
+            intent.getStringExtra(WidgetActions.EXTRA_PRECIP_GATE) ?: "unknown"
         val receiveTimeMs = SystemClock.elapsedRealtime()
         val database = WeatherDatabase.getDatabase(context)
         database.appLogDao().log(
             "CLICK_DAILY",
             "index=$index, date=$date, isHistory=$isHistory, showHistory=$showHistory, " +
-                "targetView=$targetViewName, offset=$targetOffset, clickSource=$clickSource",
+                "targetView=$targetViewName, offset=$targetOffset, precipGate=$precipGate, " +
+                "clickSource=$clickSource",
         )
 
         if (showHistory) {

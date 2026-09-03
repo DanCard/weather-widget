@@ -213,4 +213,102 @@ settings = DesktopSettings(visibleSources = listOf("NWS")),
         assertEquals(1, layout.columns.indexAt(224.9f))
         assertEquals(2, layout.columns.indexAt(225f))
     }
+
+    @Test
+    fun todayTapRoutesToPrecipitationWhenRainInside6HourWindow() {
+        val now = java.time.LocalDateTime.of(2026, 8, 4, 6, 0)
+        val today = now.toLocalDate()
+        val zone = java.time.ZoneId.systemDefault()
+        fun toEpoch(dt: java.time.LocalDateTime) = dt.atZone(zone).toInstant().toEpochMilli()
+
+        val todayDay = futureGraphDay(today, high = 75f, low = 55f, iconName = WeatherConditionResolver.IC_RAIN).copy(
+            isToday = true,
+            daysFromToday = 0,
+            forecast = DailyForecast(today.toString(), 75f, 55f, "Rain", precipProbability = 40),
+        )
+
+        val hourly = listOf(
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(3)),
+                temperature = 65f,
+                condition = "Rain",
+                precipProbability = 40,
+                source = "NWS",
+            ),
+        )
+
+        val config = DesktopConfig(
+            lat = 37.42,
+            lon = -122.08,
+            label = "test",
+            settings = DesktopSettings(visibleSources = listOf("NWS")),
+        )
+
+        val routed = dayClickConfig(
+            config = config,
+            clickedDate = today,
+            days = listOf(todayDay),
+            zone = DayClickResolver.DayTapZone.MAIN_COLUMN,
+            now = now,
+            hourly = hourly,
+        )
+
+        assertEquals(ViewMode.PRECIPITATION, routed.viewMode)
+    }
+
+    @Test
+    fun todayTapRoutesToTemperatureWhenRainOutside6HourWindow() {
+        val now = java.time.LocalDateTime.of(2026, 8, 4, 6, 0)
+        val today = now.toLocalDate()
+        val zone = java.time.ZoneId.systemDefault()
+        fun toEpoch(dt: java.time.LocalDateTime) = dt.atZone(zone).toInstant().toEpochMilli()
+
+        val todayDay = futureGraphDay(today, high = 75f, low = 55f, iconName = WeatherConditionResolver.IC_RAIN).copy(
+            isToday = true,
+            daysFromToday = 0,
+            forecast = DailyForecast(today.toString(), 75f, 55f, "Rain", precipProbability = 40),
+        )
+
+        val hourly = listOf(
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now),
+                temperature = 58f,
+                condition = "Clear",
+                precipProbability = 0,
+                source = "NWS",
+            ),
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(6)),
+                temperature = 72f,
+                condition = "Clear",
+                precipProbability = 0,
+                source = "NWS",
+            ),
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = toEpoch(now.plusHours(8)),
+                temperature = 68f,
+                condition = "Rain",
+                precipProbability = 40,
+                source = "NWS",
+            ),
+        )
+
+        val config = DesktopConfig(
+            lat = 37.42,
+            lon = -122.08,
+            label = "test",
+            settings = DesktopSettings(visibleSources = listOf("NWS")),
+        )
+
+        val routed = dayClickConfig(
+            config = config,
+            clickedDate = today,
+            days = listOf(todayDay),
+            zone = DayClickResolver.DayTapZone.MAIN_COLUMN,
+            now = now,
+            hourly = hourly,
+        )
+
+        assertEquals(ViewMode.HOURLY, routed.viewMode)
+    }
 }

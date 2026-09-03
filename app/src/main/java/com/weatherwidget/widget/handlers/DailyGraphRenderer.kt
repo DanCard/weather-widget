@@ -368,6 +368,7 @@ internal object DailyGraphRenderer {
             ctx.displaySource,
             displayDays.size,
             useLargeTodayOverlay = ctx.largeTodayOverlayEnabled,
+            hourlyForecasts = ctx.hourlyForecasts,
         )
         DailyClickHandlerFactory.setupGraphBottomDayClickHandlers(
             ctx.context,
@@ -380,6 +381,7 @@ internal object DailyGraphRenderer {
             ctx.displaySource,
             displayDays.size,
             useLargeTodayOverlay = ctx.largeTodayOverlayEnabled,
+            hourlyForecasts = ctx.hourlyForecasts,
         )
         NightRainGridMapper.setupNightRainClickHandlers(
             context = ctx.context,
