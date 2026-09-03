@@ -315,7 +315,7 @@ class DayClickHelperTest {
     }
 
     @Test
-    fun `integration next 8 hour precip suppresses precipitation navigation when only past rain exists`() {
+    fun `integration next 6 hour precip suppresses precipitation navigation when only past rain exists`() {
         val now = LocalDateTime.of(2026, 2, 22, 10, 0)
         val forecasts = listOf(
             createForecast("2026-02-22T09:00", precipProb = 26),
@@ -323,19 +323,19 @@ class DayClickHelperTest {
             createForecast("2026-02-22T11:00", precipProb = 0),
         )
 
-        val todayNext8HourPrecip =
-            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+        val todayPrecipProbability =
+            HeaderPrecipCalculator.getNext6HourPrecipProbability(
                 hourlyForecasts = forecasts,
                 displaySource = WeatherSource.NWS,
                 fallbackDailyProbability = 4,
                 referenceTime = now,
             )
 
-        val hasRain = DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = todayNext8HourPrecip)
+        val hasRain = DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = todayPrecipProbability)
 
-        assertEquals(0, todayNext8HourPrecip)
+        assertEquals(0, todayPrecipProbability)
         assertFalse(hasRain)
-        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear, todayNext8HourPrecip))
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear, todayPrecipProbability))
     }
 
     // ── resolveHourlyBottomRowAction: icon-dependent routing for hourly graphs ──

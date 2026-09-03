@@ -1,7 +1,7 @@
 # Header rain chance %: switch rolling window from next-8-hours to next-6-hours
 
 **Date:** 2026-09-03
-**Status:** proposed
+**Status:** complete; superseded in detail by `plans/260903-header-rain-chance-commit-review.md`
 
 ## Problem
 
@@ -19,22 +19,22 @@ Using an 8-hour window for the header causes a mismatch:
 Update the default rolling header precipitation window from **8 hours** to **6 hours** across `:shared`, Android (`:app`), and Linux Desktop (`:desktop`).
 
 ### 1. `:shared` (`PrecipProbabilityCalculator.kt`)
-- Update `DEFAULT_LOOKAHEAD_HOURS` from `8L` to `6L`.
+- Replace the ambiguous default with one explicitly named six-hour visible-window constant.
 - Add `getNext6HourPrecipProbability(...)` and `isNext6HourPrecipPredominantlyNight(...)` as the primary functions.
-- Keep `getNext8HourPrecipProbability(...)` and `isNext8HourPrecipPredominantlyNight(...)` either as deprecated aliases or update all call sites to `getNext6HourPrecipProbability` / `isNext6HourPrecipPredominantlyNight`.
+- Remove the misleading eight-hour aliases after updating all internal call sites.
 - Ensure `isNext6HourPrecipPredominantlyNight` iterates over `lookaheadHours * MINUTES_PER_HOUR` (6 hours = 360 minutes) instead of 8 hours.
 
 ### 2. Android (`:app`)
 - In `HeaderPrecipCalculator.kt`:
-  - Provide `getNext6HourPrecipProbability` and `isNext6HourPrecipPredominantlyNight` delegating to `:shared`'s 6-hour functions (and keep 8-hour aliases if needed for test compatibility).
+  - Keep a thin entity-to-shared-model adapter and delegate paired header resolution to `:shared`.
 - In `DailyHeaderResolver.kt`, `DailyGraphRenderer.kt`, `TemperatureStateResolver.kt`, `PrecipViewHandler.kt`, and `CloudCoverViewHandler.kt`:
   - Use `HeaderPrecipCalculator.getNext6HourPrecipProbability` and `HeaderPrecipCalculator.isNext6HourPrecipPredominantlyNight`.
 - In `DailyViewLogic.kt`:
-  - Rename/update parameter `todayNext8HourPrecipProbability` to `todayNext6HourPrecipProbability` (with backward compatibility overload/default if appropriate).
+  - Use a horizon-neutral precipitation parameter and remove the test-only compatibility overload.
 
 ### 3. Linux Desktop (`:desktop`)
-- In `Main.kt`:
-  - Call `PrecipProbabilityCalculator.getNext6HourPrecipProbability` and `PrecipProbabilityCalculator.isNext6HourPrecipPredominantlyNight` in `WidgetHeader`.
+- Extract the header precipitation assembly from `Main.kt` and delegate its weather policy and font
+  scaling to `:shared`.
 
 ### 4. Tests
 - Update and extend unit tests in:

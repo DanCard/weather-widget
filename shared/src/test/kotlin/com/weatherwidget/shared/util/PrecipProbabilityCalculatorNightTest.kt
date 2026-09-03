@@ -10,7 +10,7 @@ import java.time.ZoneId
 import org.junit.experimental.categories.Category
 
 /**
- * Tests for [PrecipProbabilityCalculator.isNext8HourPrecipPredominantlyNight], the shared
+ * Tests for [PrecipProbabilityCalculator.isNext6HourPrecipPredominantlyNight], the shared
  * port of what used to live in Android's HeaderPrecipCalculator. The header rain-chance font
  * shrink (NIGHT_SCALE) on both platforms depends on this verdict.
  */
@@ -55,7 +55,7 @@ class PrecipProbabilityCalculatorNightTest {
 
     @Test
     fun `returns true when night probability mass exceeds day`() {
-        // referenceTime = 17:00, sunset = 19:00: 2h daytime at 40%, 6h nighttime at 60%
+        // referenceTime = 17:00, sunset = 19:00: daytime at 40%, nighttime at 60%
         val forecasts = listOf(
             hourly("2026-02-22T17:00", "NWS", 40),
             hourly("2026-02-22T19:00", "NWS", 60),
@@ -72,7 +72,7 @@ class PrecipProbabilityCalculatorNightTest {
 
     @Test
     fun `null source counts as the display source`() {
-        // Shared convention (same as getNext8HourPrecipProbability): a null-source row matches
+        // Shared convention (same as getNext6HourPrecipProbability): a null-source row matches
         // the display source. Night rain on a null-source row must therefore shrink the header.
         val forecasts = listOf(
             hourly("2026-02-22T22:00", null, 90),
@@ -135,6 +135,59 @@ class PrecipProbabilityCalculatorNightTest {
             sunsetHour = 18.0,
         )
         assertEquals(true, result)
+    }
+
+    @Test
+    fun `rain after six hours cannot flip visible-window rain to nighttime`() {
+        val referenceTime = LocalDateTime.of(2026, 2, 22, 14, 0)
+        val forecasts = listOf(
+            hourly("2026-02-22T14:00", "NWS", 70),
+            hourly("2026-02-22T15:00", "NWS", 70),
+            hourly("2026-02-22T20:00", "NWS", 100),
+            hourly("2026-02-22T21:00", "NWS", 100),
+        )
+
+        val sixHourResult = PrecipProbabilityCalculator.isNext6HourPrecipPredominantlyNight(
+            hourlyForecasts = forecasts,
+            displaySourceId = WeatherSource.NWS.id,
+            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+            referenceTime = referenceTime,
+            sunriseHour = 6.0,
+            sunsetHour = 20.0,
+        )
+        val eightHourResult = PrecipProbabilityCalculator.isNextPrecipPredominantlyNightWithin(
+            lookaheadHours = 8L,
+            hourlyForecasts = forecasts,
+            displaySourceId = WeatherSource.NWS.id,
+            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+            referenceTime = referenceTime,
+            sunriseHour = 6.0,
+            sunsetHour = 20.0,
+        )
+
+        assertEquals(false, sixHourResult)
+        assertEquals(true, eightHourResult)
+    }
+
+    @Test
+    fun `combined header resolver excludes exact six hour endpoint`() {
+        val referenceTime = LocalDateTime.of(2026, 2, 22, 14, 0)
+        val result = PrecipProbabilityCalculator.resolveHeaderPrecipitation(
+            hourlyForecasts = listOf(
+                hourly("2026-02-22T14:00", "NWS", 30),
+                hourly("2026-02-22T15:00", "NWS", 30),
+                hourly("2026-02-22T20:00", "NWS", 100),
+            ),
+            displaySourceId = WeatherSource.NWS.id,
+            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+            fallbackDailyProbability = null,
+            referenceTime = referenceTime,
+            sunriseHour = 6.0,
+            sunsetHour = 20.0,
+        )
+
+        assertEquals(30, result.probability)
+        assertEquals(false, result.isPredominantlyNight)
     }
 
     private fun night(

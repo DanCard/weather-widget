@@ -1005,7 +1005,7 @@ class DailyViewLogicTest {
             skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
-            todayNext8HourPrecipProbability = 80,
+            todayPrecipProbability = 80,
             allowTodayRainChanceLabel = true,
         )
 
@@ -1038,7 +1038,7 @@ class DailyViewLogicTest {
             skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
-            todayNext8HourPrecipProbability = 100,
+            todayPrecipProbability = 100,
             allowTodayRainChanceLabel = true,
         )
 

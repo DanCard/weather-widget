@@ -387,7 +387,6 @@ object DailyViewHandler : WidgetViewHandler {
         val iconRes = headerResolution.state.iconRes
         val precipProb = headerResolution.state.precipProb
         val isPrecipVisible = headerResolution.state.isPrecipVisible
-        val precipTextSizeDp = headerResolution.state.precipTextSizeDp
         val delta = headerResolution.state.appliedDelta
         val yesterdayDelta = headerResolution.state.yesterdayDelta
         val deltaVisible = headerResolution.state.deltaVisible

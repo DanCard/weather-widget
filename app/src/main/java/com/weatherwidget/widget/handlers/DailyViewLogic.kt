@@ -383,37 +383,6 @@ object DailyViewLogic {
             todayLabel = todayLabel,
         ).map(PreparedGraphDay::renderDay)
 
-    /** Backward-compatible overload for tests calling prepareGraphDays with todayNext8HourPrecipProbability. */
-    fun prepareGraphDays(
-        now: LocalDateTime,
-        centerDate: LocalDate,
-        today: LocalDate,
-        weatherByDate: Map<LocalDate, ForecastEntity>,
-        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
-        numColumns: Int,
-        displaySource: WeatherSource,
-        skipYesterday: Boolean,
-        skipHistory: Boolean,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        todayNext8HourPrecipProbability: Int?,
-        allowTodayRainChanceLabel: Boolean = false,
-        todayLabel: String,
-    ): List<DailyForecastGraphRenderer.DayData> = prepareGraphDays(
-        now = now,
-        centerDate = centerDate,
-        today = today,
-        weatherByDate = weatherByDate,
-        forecastSnapshots = forecastSnapshots,
-        numColumns = numColumns,
-        displaySource = displaySource,
-        skipYesterday = skipYesterday,
-        skipHistory = skipHistory,
-        hourlyForecasts = hourlyForecasts,
-        todayPrecipProbability = todayNext8HourPrecipProbability,
-        allowTodayRainChanceLabel = allowTodayRainChanceLabel,
-        todayLabel = todayLabel,
-    )
-
     fun prepareGraphDayInputs(
         now: LocalDateTime,
         centerDate: LocalDate,

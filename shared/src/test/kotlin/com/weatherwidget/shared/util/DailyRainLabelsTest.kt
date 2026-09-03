@@ -15,6 +15,22 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class DailyRainLabelsTest {
 
+    @Test
+    fun `header scale applies night shrink only in daily view`() {
+        val probabilityScale = DailyRainLabels.precipProbabilityScaleFactor(90)
+
+        assertEquals(
+            probabilityScale * DailyRainLabels.NIGHT_SCALE,
+            DailyRainLabels.headerPrecipFontScale(90, isDailyView = true, isNightPrecip = true),
+            1e-6f,
+        )
+        assertEquals(
+            probabilityScale,
+            DailyRainLabels.headerPrecipFontScale(90, isDailyView = false, isNightPrecip = true),
+            1e-6f,
+        )
+    }
+
     private val originalLocale = Locale.getDefault()
     private val zone = ZoneId.systemDefault()
     private val today = LocalDate.of(2026, 6, 8)

@@ -12,9 +12,14 @@ import kotlin.math.roundToInt
  * Pure-Kotlin, parameterized on shared [HourlyForecast] model.
  */
 object PrecipProbabilityCalculator {
-    /** The header's lookahead window (6 hours), matching ZoomStage.WIDE's forward span. */
-    const val DEFAULT_LOOKAHEAD_HOURS = 6L
+    /** Shared visible precipitation horizon, matching ZoomStage.WIDE's forward span. */
+    const val VISIBLE_LOOKAHEAD_HOURS = 6L
     private const val MINUTES_PER_HOUR = 60L
+
+    data class HeaderPrecipitation(
+        val probability: Int?,
+        val isPredominantlyNight: Boolean,
+    )
 
     /**
      * Computes the maximum interpolated precipitation probability within the next 6 hours.
@@ -33,22 +38,7 @@ object PrecipProbabilityCalculator {
         fallbackDailyProbability: Int?,
         referenceTime: LocalDateTime,
     ): Int? = maxPrecipProbabilityWithin(
-        lookaheadHours = DEFAULT_LOOKAHEAD_HOURS,
-        hourlyForecasts = hourlyForecasts,
-        displaySourceId = displaySourceId,
-        fallbackSourceId = fallbackSourceId,
-        fallbackDailyProbability = fallbackDailyProbability,
-        referenceTime = referenceTime,
-    )
-
-    /** Backward-compatible alias for [getNext6HourPrecipProbability]. */
-    fun getNext8HourPrecipProbability(
-        hourlyForecasts: List<HourlyForecast>,
-        displaySourceId: String,
-        fallbackSourceId: String,
-        fallbackDailyProbability: Int?,
-        referenceTime: LocalDateTime,
-    ): Int? = getNext6HourPrecipProbability(
+        lookaheadHours = VISIBLE_LOOKAHEAD_HOURS,
         hourlyForecasts = hourlyForecasts,
         displaySourceId = displaySourceId,
         fallbackSourceId = fallbackSourceId,
@@ -59,11 +49,9 @@ object PrecipProbabilityCalculator {
     /**
      * Maximum interpolated precipitation probability within [lookaheadHours] of [referenceTime].
      *
-     * The window length is a parameter because two callers want different horizons over identical
-     * machinery: the daily header asks for [DEFAULT_LOOKAHEAD_HOURS], while the today-column tap
-     * gate ([DayClickResolver.routingPrecipProbability]) asks only about the span the graph it is
-     * opening will actually show. Sharing the body keeps the number the header prints and the
-     * number the tap obeys differing by window length alone, never by method.
+     * The window length remains a parameter for callers that need a different horizon. The daily
+     * header and today's tap gate both use [VISIBLE_LOOKAHEAD_HOURS], matching the forward span of
+     * the graph the tap opens.
      *
      * @return Maximum probability (0-100), or [fallbackDailyProbability] if no hourly data applies
      */
@@ -75,50 +63,10 @@ object PrecipProbabilityCalculator {
         fallbackDailyProbability: Int?,
         referenceTime: LocalDateTime,
     ): Int? {
-        val sourceForecasts = hourlyForecasts.filter { (it.source == null || it.source == displaySourceId) && it.precipProbability != null }
-        val candidateForecasts = sourceForecasts.ifEmpty {
-            hourlyForecasts.filter { it.source == fallbackSourceId && it.precipProbability != null }
-        }
-        if (candidateForecasts.isEmpty()) return fallbackDailyProbability
-
         val zoneId = ZoneId.systemDefault()
-        val selectedForecasts = candidateForecasts
-            .groupBy {
-                Instant.ofEpochMilli(it.dateTime)
-                    .atZone(zoneId)
-                    .toLocalDateTime()
-                    .truncatedTo(ChronoUnit.HOURS)
-                    .atZone(zoneId)
-                    .toInstant()
-                    .toEpochMilli()
-            }
-            .mapValues { (_, items) -> items.maxOf { checkNotNull(it.precipProbability) } }
-
-        var maxInterpolatedProbability: Float? = null
-        for (minuteOffset in 0 until lookaheadHours * MINUTES_PER_HOUR) {
-            val sampleTime = referenceTime.plusMinutes(minuteOffset)
-            val sampleProbability = interpolatePrecipProbabilityAt(selectedForecasts, sampleTime)
-            if (sampleProbability != null) {
-                maxInterpolatedProbability = if (maxInterpolatedProbability == null) {
-                    sampleProbability
-                } else {
-                    maxOf(maxInterpolatedProbability, sampleProbability)
-                }
-            }
-        }
-
-        if (maxInterpolatedProbability != null) {
-            return maxInterpolatedProbability.roundToInt()
-        }
-
-        val windowStartHourMs = referenceTime.truncatedTo(ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
-        val windowEndMs = referenceTime.plusHours(lookaheadHours).atZone(zoneId).toInstant().toEpochMilli()
-        val exactPointFallback = selectedForecasts
-            .filterKeys { it in windowStartHourMs until windowEndMs }
-            .values
-            .maxOrNull()
-
-        return exactPointFallback ?: fallbackDailyProbability
+        val selectedForecasts = selectPrecipitationSeries(hourlyForecasts, displaySourceId, fallbackSourceId, zoneId)
+        return maxPrecipProbabilityWithin(selectedForecasts, lookaheadHours, referenceTime, zoneId)
+            ?: fallbackDailyProbability
     }
 
     /**
@@ -138,7 +86,7 @@ object PrecipProbabilityCalculator {
         sunriseHour: Double,
         sunsetHour: Double,
     ): Boolean = isNextPrecipPredominantlyNightWithin(
-        lookaheadHours = DEFAULT_LOOKAHEAD_HOURS,
+        lookaheadHours = VISIBLE_LOOKAHEAD_HOURS,
         hourlyForecasts = hourlyForecasts,
         displaySourceId = displaySourceId,
         fallbackSourceId = fallbackSourceId,
@@ -147,22 +95,33 @@ object PrecipProbabilityCalculator {
         sunsetHour = sunsetHour,
     )
 
-    /** Backward-compatible alias for [isNext6HourPrecipPredominantlyNight]. */
-    fun isNext8HourPrecipPredominantlyNight(
+    /** Resolves the daily header's probability and night weighting from one selected series. */
+    fun resolveHeaderPrecipitation(
         hourlyForecasts: List<HourlyForecast>,
         displaySourceId: String,
         fallbackSourceId: String,
+        fallbackDailyProbability: Int?,
         referenceTime: LocalDateTime,
         sunriseHour: Double,
         sunsetHour: Double,
-    ): Boolean = isNext6HourPrecipPredominantlyNight(
-        hourlyForecasts = hourlyForecasts,
-        displaySourceId = displaySourceId,
-        fallbackSourceId = fallbackSourceId,
-        referenceTime = referenceTime,
-        sunriseHour = sunriseHour,
-        sunsetHour = sunsetHour,
-    )
+    ): HeaderPrecipitation {
+        val zoneId = ZoneId.systemDefault()
+        val selectedForecasts = selectPrecipitationSeries(hourlyForecasts, displaySourceId, fallbackSourceId, zoneId)
+        val probability = maxPrecipProbabilityWithin(
+            selectedForecasts = selectedForecasts,
+            lookaheadHours = VISIBLE_LOOKAHEAD_HOURS,
+            referenceTime = referenceTime,
+            zoneId = zoneId,
+        ) ?: fallbackDailyProbability
+        val isPredominantlyNight = probability != null && precipPredominantlyNightWithin(
+            selectedForecasts = selectedForecasts,
+            lookaheadHours = VISIBLE_LOOKAHEAD_HOURS,
+            referenceTime = referenceTime,
+            sunriseHour = sunriseHour,
+            sunsetHour = sunsetHour,
+        )
+        return HeaderPrecipitation(probability, isPredominantlyNight)
+    }
 
     fun isNextPrecipPredominantlyNightWithin(
         lookaheadHours: Long,
@@ -173,21 +132,82 @@ object PrecipProbabilityCalculator {
         sunriseHour: Double,
         sunsetHour: Double,
     ): Boolean {
-        if (sunsetHour >= 24.0) return false   // midnight sun — no nighttime
-        if (sunriseHour <= 0.0) return true    // polar night — always night
+        val selectedForecasts = selectPrecipitationSeries(
+            hourlyForecasts,
+            displaySourceId,
+            fallbackSourceId,
+            ZoneId.systemDefault(),
+        )
+        return precipPredominantlyNightWithin(
+            selectedForecasts,
+            lookaheadHours,
+            referenceTime,
+            sunriseHour,
+            sunsetHour,
+        )
+    }
 
-        // Same source-selection convention as getNext6HourPrecipProbability.
+    private fun selectPrecipitationSeries(
+        hourlyForecasts: List<HourlyForecast>,
+        displaySourceId: String,
+        fallbackSourceId: String,
+        zoneId: ZoneId,
+    ): Map<Long, Int> {
         val sourceForecasts = hourlyForecasts.filter {
             (it.source == null || it.source == displaySourceId) && it.precipProbability != null
         }
         val candidateForecasts = sourceForecasts.ifEmpty {
             hourlyForecasts.filter { it.source == fallbackSourceId && it.precipProbability != null }
         }
-        if (candidateForecasts.isEmpty()) return false
-
-        val selectedForecasts = candidateForecasts
-            .groupBy { it.dateTime }
+        return candidateForecasts
+            .groupBy {
+                Instant.ofEpochMilli(it.dateTime)
+                    .atZone(zoneId)
+                    .toLocalDateTime()
+                    .truncatedTo(ChronoUnit.HOURS)
+                    .atZone(zoneId)
+                    .toInstant()
+                    .toEpochMilli()
+            }
             .mapValues { (_, items) -> items.maxOf { checkNotNull(it.precipProbability) } }
+    }
+
+    private fun maxPrecipProbabilityWithin(
+        selectedForecasts: Map<Long, Int>,
+        lookaheadHours: Long,
+        referenceTime: LocalDateTime,
+        zoneId: ZoneId,
+    ): Int? {
+        var maxInterpolatedProbability: Float? = null
+        for (minuteOffset in 0 until lookaheadHours * MINUTES_PER_HOUR) {
+            val sampleTime = referenceTime.plusMinutes(minuteOffset)
+            val sampleProbability = interpolatePrecipProbabilityAt(selectedForecasts, sampleTime)
+            if (sampleProbability != null) {
+                maxInterpolatedProbability = maxInterpolatedProbability?.let {
+                    maxOf(it, sampleProbability)
+                } ?: sampleProbability
+            }
+        }
+        if (maxInterpolatedProbability != null) return maxInterpolatedProbability.roundToInt()
+
+        val windowStartHourMs = referenceTime.truncatedTo(ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+        val windowEndMs = referenceTime.plusHours(lookaheadHours).atZone(zoneId).toInstant().toEpochMilli()
+        return selectedForecasts
+            .filterKeys { it in windowStartHourMs until windowEndMs }
+            .values
+            .maxOrNull()
+    }
+
+    private fun precipPredominantlyNightWithin(
+        selectedForecasts: Map<Long, Int>,
+        lookaheadHours: Long,
+        referenceTime: LocalDateTime,
+        sunriseHour: Double,
+        sunsetHour: Double,
+    ): Boolean {
+        if (sunsetHour >= 24.0) return false // Midnight sun: no nighttime.
+        if (sunriseHour <= 0.0) return true // Polar night: always night.
+        if (selectedForecasts.isEmpty()) return false
 
         var nightSum = 0f
         var daySum = 0f

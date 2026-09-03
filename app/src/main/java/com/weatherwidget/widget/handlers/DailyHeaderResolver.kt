@@ -180,24 +180,22 @@ internal object DailyHeaderResolver {
             }
 
         val todayWeather = weatherByDate[today]
-        val precipProb =
-            HeaderPrecipCalculator.getNext6HourPrecipProbability(
-                hourlyForecasts = hourlyForecasts,
-                displaySource = displaySource,
-                fallbackDailyProbability = todayWeather?.precipProbability,
-                referenceTime = now,
-            )
-        val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(precipProb)
-        val isNightPrecip = precipProb != null && HeaderPrecipCalculator.isNext6HourPrecipPredominantlyNight(
+        val headerPrecip = HeaderPrecipCalculator.resolve(
             hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
+            fallbackDailyProbability = todayWeather?.precipProbability,
             referenceTime = now,
             sunriseHour = sunInfo.sunTimes.sunriseHour,
             sunsetHour = sunInfo.sunTimes.sunsetHour,
         )
+        val precipProb = headerPrecip.probability
+        val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(precipProb)
         val precipTextSizeDp = if (precipProb != null) {
-            HeaderPrecipCalculator.getPrecipTextSize(precipProb) *
-                if (isNightPrecip) HeaderPrecipCalculator.NIGHT_SCALE else 1f
+            HeaderPrecipCalculator.getPrecipTextSize(
+                precipProb = precipProb,
+                isDailyView = true,
+                isNightPrecip = headerPrecip.isPredominantlyNight,
+            )
         } else null
 
         // Forecast delta (observed − forecast): kept on the state for the ghost line and the

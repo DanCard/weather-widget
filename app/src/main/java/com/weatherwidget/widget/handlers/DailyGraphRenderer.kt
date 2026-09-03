@@ -18,7 +18,6 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContentResolver
 import com.weatherwidget.shared.graph.ForecastDeltaLabel
 import com.weatherwidget.shared.graph.TodayColumnOverlayPlanner
-import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.DailyForecastGraphRenderer
@@ -219,13 +218,6 @@ internal object DailyGraphRenderer {
             metadataByDate = displayedMetadata,
         )
 
-        val isNightPrecip = ctx.precipProb != null && HeaderPrecipCalculator.isNext6HourPrecipPredominantlyNight(
-            hourlyForecasts = ctx.hourlyForecasts,
-            displaySource = ctx.displaySource,
-            referenceTime = ctx.now,
-            sunriseHour = ctx.sunInfo.sunTimes.sunriseHour,
-            sunsetHour = ctx.sunInfo.sunTimes.sunsetHour,
-        )
         val headerRenderData = if (disclosure != HeaderDisclosureLevel.NONE) {
             DailyForecastGraphRenderer.HeaderRenderData(
                 iconRes = iconRes,
@@ -243,10 +235,8 @@ internal object DailyGraphRenderer {
                     ctx.context.getString(R.string.header_delta_from_yesterday)
                 } else null,
                 precipText = if (isPrecipVisible) "${ctx.precipProb}%" else null,
-                precipTextSizeDp = if (isPrecipVisible) {
-                    HeaderPrecipCalculator.getPrecipTextSize(ctx.precipProb ?: 0) *
-                        if (isNightPrecip) HeaderPrecipCalculator.NIGHT_SCALE else 1f
-                } else HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
+                precipTextSizeDp = headerState.precipTextSizeDp
+                    ?: HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
                 dateText = dateText,
                 apiSourceText = if (isIconWidth) null else apiSourceText,
                 apiTextSizeDp = apiTextSizeDp,

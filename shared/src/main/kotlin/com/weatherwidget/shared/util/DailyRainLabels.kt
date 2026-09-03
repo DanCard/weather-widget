@@ -79,6 +79,16 @@ object DailyRainLabels {
         else                    -> 1.0f
     }
 
+    /** Platform-neutral header scale; renderers apply their own base text size and UI scale. */
+    fun headerPrecipFontScale(
+        precipProbability: Int,
+        isDailyView: Boolean,
+        isNightPrecip: Boolean,
+    ): Float {
+        val nightScale = if (isDailyView && isNightPrecip) NIGHT_SCALE else 1f
+        return precipProbabilityScaleFactor(precipProbability) * nightScale
+    }
+
     /**
      * Font *scale* (a multiplier on the renderer's base rain-label text size) for a daily rain label.
      * - **Future / today:** probability-weighted AND distance-weighted — a far-out low-confidence

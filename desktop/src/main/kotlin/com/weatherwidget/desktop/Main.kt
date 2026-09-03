@@ -37,7 +37,6 @@ import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
 import com.weatherwidget.data.model.isOfflineExceptionName
-import com.weatherwidget.shared.util.PrecipProbabilityCalculator
 import com.weatherwidget.shared.util.PreferredSourceHome
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.DayClickResolver
@@ -1643,35 +1642,28 @@ private fun WidgetHeader(
     val todayForecast = remember(forecast.raw.daily, nowLocal) {
         forecast.raw.daily.firstOrNull { it.date == nowLocal.toLocalDate().toString() }
     }
-    val precipProb = remember(forecast.raw.hourly, displaySource, todayForecast, nowLocal) {
-        PrecipProbabilityCalculator.getNext6HourPrecipProbability(
-            hourlyForecasts = forecast.raw.hourly,
-            displaySourceId = displaySource.id,
-            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
-            fallbackDailyProbability = todayForecast?.precipProbability,
-            referenceTime = nowLocal
-        )?.takeIf { it > 0 }
-    }
     val isHourly = config.viewMode.isHourly
-    // Header rain-chance sizing, matching Android: probability-scaled (shared step table), plus
-    // the NIGHT_SCALE shrink only in the daily view when the next-6h rain is predominantly
-    // overnight. Base size is the desktop header temp size (Android's precip base == its temp base).
-    val precipFontScale = remember(precipProb, forecast.raw.hourly, displaySource, nowLocal, isHourly, config.lat, config.lon) {
-        precipProb?.let { prob ->
-            val isNightPrecip = !isHourly && run {
-                val sunTimes = com.weatherwidget.util.SunPositionUtils.getSunTimes(nowLocal, config.lat, config.lon)
-                PrecipProbabilityCalculator.isNext6HourPrecipPredominantlyNight(
-                    hourlyForecasts = forecast.raw.hourly,
-                    displaySourceId = displaySource.id,
-                    fallbackSourceId = WeatherSource.GENERIC_GAP.id,
-                    referenceTime = nowLocal,
-                    sunriseHour = sunTimes.sunriseHour,
-                    sunsetHour = sunTimes.sunsetHour,
-                )
-            }
-            HeaderPrecipSizing.headerPrecipFontScale(prob, isDailyView = !isHourly, isNightPrecip = isNightPrecip)
-        }
+    val headerPrecipitation = remember(
+        forecast.raw.hourly,
+        displaySource,
+        todayForecast,
+        nowLocal,
+        isHourly,
+        config.lat,
+        config.lon,
+    ) {
+        DesktopHeaderPrecipitationResolver.resolve(
+            hourlyForecasts = forecast.raw.hourly,
+            displaySource = displaySource,
+            fallbackDailyProbability = todayForecast?.precipProbability,
+            referenceTime = nowLocal,
+            latitude = config.lat,
+            longitude = config.lon,
+            isDailyView = !isHourly,
+        )
     }
+    val precipProb = headerPrecipitation.probability
+    val precipFontScale = headerPrecipitation.fontScale
 
     val toggleWeatherSource = {
         val visibleSources = config.settings.visibleSources
@@ -1752,7 +1744,7 @@ private fun WidgetHeader(
                     Text(
                         text = "$precipProb%",
                         style = MaterialTheme.typography.labelMedium,
-                        fontSize = (HeaderPrecipSizing.HEADER_TEMP_BASE_SP * precipFontScale * scale).sp,
+                        fontSize = (DesktopHeaderPrecipitationResolver.HEADER_TEMP_BASE_SP * precipFontScale * scale).sp,
                         color = Color(0xFF4FC3F7),
                         maxLines = 1,
                         softWrap = false,

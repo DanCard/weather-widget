@@ -29,7 +29,7 @@ object DayClickResolver {
      * centred on now, so this is exactly the forecast span the graph is about to show. Asking about
      * a longer horizon routes taps to a precipitation graph whose visible window holds no rain.
      */
-    const val TODAY_LOOKAHEAD_HOURS = 6L
+    const val TODAY_LOOKAHEAD_HOURS = PrecipProbabilityCalculator.VISIBLE_LOOKAHEAD_HOURS
 
     /** Which figure [routingPrecipProbability] returned, for the click-audit log line. */
     enum class PrecipGateSource { ROLLING_6H, DAILY }

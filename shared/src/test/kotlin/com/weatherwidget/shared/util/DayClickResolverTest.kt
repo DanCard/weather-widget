@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.util
 
+import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -9,6 +10,14 @@ import org.junit.experimental.categories.Category
 
 @Category(ShortDuration::class)
 class DayClickResolverTest {
+
+    @Test
+    fun `today precipitation lookahead matches wide graph forward window`() {
+        assertEquals(
+            ZoomStage.WIDE.window().forwardHours,
+            DayClickResolver.TODAY_LOOKAHEAD_HOURS,
+        )
+    }
 
     @Test
     fun mainColumn_rainyIconWith16Percent_navigatesToPrecipitation() {

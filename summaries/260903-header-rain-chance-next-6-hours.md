@@ -17,37 +17,51 @@ Using an 8-hour window for the header caused a mismatch:
 
 ### 1. Shared Logic (`:shared`)
 - **`PrecipProbabilityCalculator.kt`**:
-  - Updated `DEFAULT_LOOKAHEAD_HOURS` from `8L` to `6L`.
+  - Added the single `VISIBLE_LOOKAHEAD_HOURS = 6L` policy constant.
   - Added `getNext6HourPrecipProbability(...)` and `isNext6HourPrecipPredominantlyNight(...)` as the primary functions.
-  - Retained `getNext8HourPrecipProbability(...)` and `isNext8HourPrecipPredominantlyNight(...)` as backward-compatible delegates.
-  - Parameterized `isNextPrecipPredominantlyNightWithin(...)` with `lookaheadHours` so nighttime probability weighting evaluates the same 6-hour span (360 minutes).
+  - Removed semantically misleading eight-hour compatibility aliases.
+  - Added paired `HeaderPrecipitation` resolution so probability and nighttime weighting use one
+    normalized, source-selected series.
+- **`DailyRainLabels.kt`**:
+  - Centralized cross-platform probability/night header font scaling.
+- **`DayClickResolver.kt`**:
+  - References the shared visible-window constant; a parity test ties it to the wide graph window.
 
 ### 2. Android Widget (`:app`)
 - **`HeaderPrecipCalculator.kt`**:
-  - Added `getNext6HourPrecipProbability(...)` and `isNext6HourPrecipPredominantlyNight(...)` delegating to `:shared`.
-  - Preserved existing 8-hour function signatures as backward-compatible delegates.
+  - Reduced the Android adapter to Room-model conversion, shared paired resolution, and dp sizing.
 - **Resolvers & Handlers**:
-  - `DailyHeaderResolver.kt`: Uses `getNext6HourPrecipProbability` and `isNext6HourPrecipPredominantlyNight`.
-  - `DailyGraphRenderer.kt`: Uses `isNext6HourPrecipPredominantlyNight`.
+  - `DailyHeaderResolver.kt`: Resolves probability, night weighting, and text size once.
+  - `DailyGraphRenderer.kt`: Consumes the resolved `HeaderState.precipTextSizeDp` rather than
+    recalculating policy.
   - `TemperatureStateResolver.kt`: Uses `getNext6HourPrecipProbability`.
   - `PrecipViewHandler.kt`: Uses `getNext6HourPrecipProbability`.
   - `CloudCoverViewHandler.kt`: Uses `getNext6HourPrecipProbability`.
 - **`DailyViewLogic.kt`**:
-  - Renamed parameter `todayNext8HourPrecipProbability` to `todayPrecipProbability`, providing an overload for existing callers and test cases.
+  - Uses the horizon-neutral `todayPrecipProbability` parameter with no compatibility overload.
 
 ### 3. Linux Desktop Companion (`:desktop`)
-- **`Main.kt` (`WidgetHeader`)**:
-  - Updated `precipProb` calculation to call `PrecipProbabilityCalculator.getNext6HourPrecipProbability(...)`.
-  - Updated `precipFontScale` night check to call `PrecipProbabilityCalculator.isNext6HourPrecipPredominantlyNight(...)`.
+- **`DesktopHeaderPrecipitation.kt`**:
+  - Extracted header precipitation orchestration from `Main.kt`.
+  - Delegates paired weather resolution and font scaling to `:shared`; Compose receives a resolved
+    desktop model.
 
 ### 4. Tests & Parity
 - **`PrecipProbabilityCalculatorTest.kt`**: Verified `getNext6HourPrecipProbability` delegates to a 6-hour horizon and excludes rain spikes at +7 hours.
-- **`PrecipProbabilityCalculatorNightTest.kt`**: Verified `isNext6HourPrecipPredominantlyNight` functions over the 6-hour span.
-- **`HeaderPrecipCalculatorTest.kt`**: Updated Android test fixtures to verify 6-hour rolling window inclusion/exclusion boundaries.
-- **`DesktopUiTest.kt`**: Updated desktop UI tests to verify rain within 6 hours is displayed in the header and rain beyond 6 hours (+7h) is excluded.
+- **`PrecipProbabilityCalculatorNightTest.kt`**: Added a fixture that is daytime over six hours but
+  nighttime over eight hours, plus exact-end exclusion coverage.
+- **`HeaderPrecipCalculatorTest.kt`**: Keeps only thin Android adapter and sizing checks.
+- **`HeaderPrecipitationArchitectureTest.kt`**: Guards resolved-state consumption and removal of
+  false eight-hour Android APIs.
+- **`DesktopHeaderPrecipitationResolverTest.kt`**: Verifies daily/night scaling, hourly scaling,
+  and zero-probability hiding through the extracted desktop adapter.
 
 ## Verification
-- **Unit & Robolectric Tests**: `./gradlew test` passed 100% across all modules (`:shared`, `:desktop`, `:app`).
-- **Live Device Verification**:
-  - Installed debug build to connected emulator via `./gradlew installDebug`.
-  - Triggered widget update and verified header resolution and day-column tap behavior in `app_logs` and logcat.
+- **Unit & Robolectric Tests**: `./gradlew test` passed across `:shared`, `:desktop`, and `:app`.
+- **Build & style**: `./gradlew ktlintCheck assembleDebug :desktop:createDistributable` passed.
+- **Emulator**: Installed the APK only on `emulator-5554`, rendered widget 59 in daily mode, and
+  observed `precipProbability=6` plus a successful `WIDGET_PAINT` in logcat. The screenshot showed
+  the matching 6% header. Restored the widget's recorded source, view, offset, and zoom afterward.
+- **Boundary evidence**: Current live weather did not provide the six-versus-eight discriminator;
+  the deterministic shared boundary tests cover that distinction. Desktop was verified by resolver
+  tests and distributable build, not a launched GUI session.

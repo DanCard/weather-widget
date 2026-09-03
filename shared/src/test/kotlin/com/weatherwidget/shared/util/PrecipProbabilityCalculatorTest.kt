@@ -90,31 +90,4 @@ class PrecipProbabilityCalculatorTest {
         assertEquals(20, result6h)
     }
 
-    @Test
-    fun `getNext8HourPrecipProbability backward-compatible alias matches getNext6HourPrecipProbability`() {
-        val ref = LocalDateTime.of(2026, 5, 1, 6, 0)
-        val forecasts = listOf(
-            hourly("2026-05-01T06:00", "NWS", 10),
-            hourly("2026-05-01T11:00", "NWS", 70),
-        )
-
-        val aliasResult = PrecipProbabilityCalculator.getNext8HourPrecipProbability(
-            hourlyForecasts = forecasts,
-            displaySourceId = "NWS",
-            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
-            fallbackDailyProbability = 20,
-            referenceTime = ref,
-        )
-
-        val directResult = PrecipProbabilityCalculator.getNext6HourPrecipProbability(
-            hourlyForecasts = forecasts,
-            displaySourceId = "NWS",
-            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
-            fallbackDailyProbability = 20,
-            referenceTime = ref,
-        )
-
-        assertEquals(directResult, aliasResult)
-        assertEquals(70, aliasResult)
-    }
 }
