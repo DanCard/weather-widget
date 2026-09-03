@@ -37,12 +37,7 @@ object CloudActualSeries {
         if (points.size == 1) return listOf(points)
 
         val sorted = points.sortedBy { it.timeMs }
-        val steps = sorted.zipWithNext { a, b -> b.timeMs - a.timeMs }
-            .filter { it > 0L }
-            .sorted()
-        if (steps.isEmpty()) return listOf(sorted)
-        val cadenceMs = steps[steps.size / 2]
-        val maxBridgeMs = maxOf(cadenceMs * 2, MIN_STATION_SERIES_BRIDGE_MS)
+        val maxBridgeMs = maxBridgeMs(sorted.map { it.timeMs }) ?: return listOf(sorted)
 
         val out = mutableListOf<MutableList<TimedCloudCover>>()
         var segment = mutableListOf(sorted.first())
@@ -55,6 +50,57 @@ object CloudActualSeries {
             segment += point
         }
         return out
+    }
+
+    /**
+     * The bridge [segments] splits on, or null when the series has no positive step to measure.
+     *
+     * Exposed so that whatever *reacts* to a broken curve asks the identical question the curve was
+     * drawn with. The two disagreed on 2026-09-03: the renderer split the Samsung's line over a
+     * 40-minute hole while the observation backfill's own gap check — measured over every
+     * observation row, temperature included — read a healthy `max_gap_min=23` and skipped the
+     * re-fetch that would have filled it. See
+     * plans/260903-refetch-when-the-cloud-actual-series-breaks.md.
+     */
+    fun maxBridgeMs(timesMs: List<Long>): Long? {
+        val steps = timesMs.sorted()
+            .zipWithNext { a, b -> b - a }
+            .filter { it > 0L }
+            .sorted()
+        if (steps.isEmpty()) return null
+        return maxOf(steps[steps.size / 2] * 2, MIN_STATION_SERIES_BRIDGE_MS)
+    }
+
+    /**
+     * How far the series' widest hole sits from the bridge that would tolerate it.
+     *
+     * [largestGapMs] is reported even when it does not break, because "the curve is fine" and "the
+     * curve is fine and the widest hole was 28 of an allowed 30 minutes" are different diagnostics,
+     * and only the second one is any use in a log line after the fact.
+     */
+    data class Coverage(
+        val largestGapMs: Long,
+        val bridgeMs: Long,
+    ) {
+        /** True when [segments] would draw this series as more than one line. */
+        val breaks: Boolean get() = largestGapMs > bridgeMs
+    }
+
+    /**
+     * Coverage of a candidate-point series, or null below two distinct timestamps — one point (or
+     * none) is not a broken line, it is a series with nothing to say about gaps.
+     *
+     * Takes raw timestamps rather than [TimedCloudCover] so a caller holding observation rows need
+     * not build the values it is not going to use. Duplicates are collapsed first: several stations
+     * report on one timestamp, and the blend emits one candidate point per DISTINCT time, so
+     * counting them twice would drag the median cadence to zero and make every series look dense.
+     */
+    fun coverage(timesMs: List<Long>): Coverage? {
+        val distinct = timesMs.distinct().sorted()
+        if (distinct.size < 2) return null
+        val bridge = maxBridgeMs(distinct) ?: return null
+        val largest = distinct.zipWithNext { a, b -> b - a }.max()
+        return Coverage(largestGapMs = largest, bridgeMs = bridge)
     }
 
     /**

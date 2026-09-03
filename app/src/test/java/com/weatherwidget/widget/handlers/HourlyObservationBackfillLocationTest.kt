@@ -181,7 +181,9 @@ class HourlyObservationBackfillLocationTest {
             )
 
         assertEquals(false, decision.shouldRequest)
-        assertEquals("coverage_ok latest_gap_min=0 max_gap_min=15", decision.reason)
+        // `cloud=none` because these rows carry no sky condition at all — that is the sparsity
+        // check's business, not the break check's, and the line says so rather than staying silent.
+        assertEquals("coverage_ok latest_gap_min=0 max_gap_min=15 cloud=none", decision.reason)
     }
 
     // ---- METAR cloud coverage (plan 260820) ----
@@ -424,7 +426,15 @@ class HourlyObservationBackfillLocationTest {
             api = com.weatherwidget.data.model.WeatherSource.NWS.id,
         )
 
-    /** Evenly spaced NWS rows, two stations so the singleton check stays quiet. */
+    /**
+     * Evenly spaced NWS rows, two stations so the singleton check stays quiet.
+     *
+     * Both stations report on the SAME hour marks. They used to be offset by five minutes, which
+     * made the merged series step 5, 55, 5, 55… — half the steps being the inter-station offset
+     * rather than the reporting cadence. That is not "evenly spaced": `CloudActualSeries` reads
+     * such a series as 5-minute-cadence with 55-minute holes and shatters the drawn line, so these
+     * fixtures were quietly describing a broken curve while asserting a healthy one.
+     */
     private fun evenlySpacedFrom(now: LocalDateTime, firstHour: Int): List<ObservationEntity> {
         val zone = ZoneId.systemDefault()
         val dayStart = now.toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
@@ -433,7 +443,7 @@ class HourlyObservationBackfillLocationTest {
         while (hour <= now.hour) {
             val ts = dayStart + hour * 3_600_000L
             rows += nwsObsAt(ts, 60f + hour, "KNUQ")
-            rows += nwsObsAt(ts + 300_000L, 60f + hour, "KPAO")
+            rows += nwsObsAt(ts, 60f + hour, "KPAO")
             hour++
         }
         return rows

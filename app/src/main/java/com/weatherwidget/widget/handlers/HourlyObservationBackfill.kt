@@ -9,6 +9,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.TodayActualsCoverage
+import com.weatherwidget.shared.graph.CloudActualSeries
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.WidgetWorkScheduler
@@ -199,6 +200,13 @@ internal fun evaluateHourlyBackfillNeed(
         it >= startOfToday.atZone(zone).toInstant().toEpochMilli()
     }
 
+    // Computed once: the gate below needs it, and so does the coverage_ok line, which reported a
+    // healthy temperature figure while the cloud curve was visibly broken (2026-09-03).
+    val cloudCoverage = cloudSeriesCoverage(sourceObservations)
+    val cloudDiagnostic = cloudCoverage
+        ?.let { " cloud_gap_min=${it.largestGapMs / 60_000L} cloud_bridge_min=${it.bridgeMs / 60_000L}" }
+        ?: " cloud=none"
+
     return when {
         singletonStations.isNotEmpty() ->
             HourlyBackfillDecision(true, "singleton_stations=${singletonStations.sorted().joinToString(",")}")
@@ -213,10 +221,62 @@ internal fun evaluateHourlyBackfillNeed(
                     (firstTodayMs?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalTime().toString() } ?: "none"),
             )
         else ->
-            metarCloudGapReason(sourceObservations)?.let { HourlyBackfillDecision(true, it) }
-                ?: HourlyBackfillDecision(false, "coverage_ok latest_gap_min=$latestGapMin max_gap_min=$maxGapMin")
+            (
+                metarCloudGapReason(sourceObservations)
+                    ?: cloudBreakReason(cloudCoverage)
+                )?.let { HourlyBackfillDecision(true, it) }
+                ?: HourlyBackfillDecision(
+                    false,
+                    "coverage_ok latest_gap_min=$latestGapMin max_gap_min=$maxGapMin$cloudDiagnostic",
+                )
     }
 }
+
+/**
+ * Coverage of the cloud curve this window would actually draw, or null when there is nothing to
+ * measure.
+ *
+ * The basis is [MetarCloudBlender]'s candidate set, not [metarCloudGapReason]'s: `!qcFailed` and
+ * carrying a sky condition, with no `stationType` filter, because the blend applies none either. A
+ * personal station is excluded here for the reason it should be — it never reports sky — rather
+ * than by a rule that would also drop an official station's rows if one ever arrived mislabelled.
+ *
+ * Why this is separate from [metarCloudGapReason]: that check is a RATIO over the whole window and
+ * answers "is this series broken as a whole?". This one answers "is there a hole in it?". On
+ * 2026-09-03 the second was true and the first was false — one 40-minute hole in an otherwise
+ * healthy day never moves a half-the-buckets ratio — and the re-fetch that would have repaired it
+ * was never requested.
+ */
+private fun cloudSeriesCoverage(
+    sourceObservations: List<ObservationEntity>,
+): CloudActualSeries.Coverage? =
+    CloudActualSeries.coverage(
+        sourceObservations.asSequence()
+            .filter { !it.qcFailed }
+            .filter {
+                com.weatherwidget.shared.util.VisibleCloudCover.of(
+                    total = it.cloudCover,
+                    low = it.cloudCoverLow,
+                    mid = it.cloudCoverMid,
+                    high = it.cloudCoverHigh,
+                ) != null
+            }
+            .map { it.timestamp }
+            .toList(),
+    )
+
+/** Null when the curve would draw as one unbroken line. */
+private fun cloudBreakReason(coverage: CloudActualSeries.Coverage?): String? =
+    coverage?.takeIf { it.breaks }?.let {
+        "cloud_series_break_min=${it.largestGapMs / 60_000L} bridge_min=${it.bridgeMs / 60_000L}"
+    }
+
+/**
+ * Test seam for the cloud-break gate, in the reason-string form the decision uses.
+ */
+@androidx.annotation.VisibleForTesting
+internal fun metarCloudBreakReason(sourceObservations: List<ObservationEntity>): String? =
+    cloudBreakReason(cloudSeriesCoverage(sourceObservations))
 
 /**
  * Detects a broken METAR actual-cloud series under otherwise-healthy temperature coverage.

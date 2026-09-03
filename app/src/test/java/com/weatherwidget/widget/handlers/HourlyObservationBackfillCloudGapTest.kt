@@ -124,4 +124,87 @@ class HourlyObservationBackfillCloudGapTest {
         }
         assertNull(metarCloudGapReason(rows))
     }
+
+    // ── metarCloudBreakReason: a HOLE in the curve, not a sparse series ───────────────────
+
+    private fun carrier(minutesFromStart: Int, stationId: String = "KNUQ", qcFailed: Boolean = false) =
+        ObservationEntity(
+            stationId = stationId,
+            stationName = stationId,
+            timestamp = 1_800_000_000_000L + minutesFromStart * 60_000L,
+            temperature = 60f,
+            condition = "Clear",
+            locationLat = 37.417,
+            locationLon = -122.089,
+            stationType = "OFFICIAL",
+            api = "NWS",
+            isWebFallback = false,
+            qcFailed = qcFailed,
+            cloudCoverLow = 75,
+        )
+
+    /** A temperature-only row: present in the window, invisible to the cloud curve. */
+    private fun tempOnly(minutesFromStart: Int, stationId: String = "AW020") =
+        carrier(minutesFromStart, stationId).copy(cloudCoverLow = null, stationType = "PERSONAL")
+
+    /**
+     * The Samsung's cloud-carrying observation times on 2026-09-03, minutes from 02:53. The curve
+     * broke at 11:35 -> 12:15 (the 522 -> 562 step) while the phone was in a pocket at basketball.
+     */
+    private val samsungCarrierMinutes = listOf(
+        0, 2, 22, 27, 37, 42, 52, 62, 72, 82, 92, 102, 117, 122, 127, 142, 147, 157, 162, 167,
+        182, 192, 202, 207, 212, 222, 232, 240, 242, 252, 262, 267, 272, 282, 287, 294, 297, 302,
+        317, 322, 332, 342, 357, 362, 372, 382, 387, 392, 402, 412, 414, 422, 432, 442, 462, 474,
+        477, 482, 492, 502, 512, 517, 522, 562, 572, 582, 594, 602, 612, 617, 622, 632, 642, 647,
+        654, 657, 662, 672, 677, 682, 692, 702,
+    )
+
+    @Test
+    fun `the samsung 2026-09-03 curve break requests a backfill`() {
+        val reason = metarCloudBreakReason(samsungCarrierMinutes.map { carrier(it) })
+
+        assertNotNull("a 40-minute hole past a 30-minute bridge must re-fetch", reason)
+        assertTrue(reason!!, reason.startsWith("cloud_series_break_min=40"))
+        assertTrue(reason, reason.contains("bridge_min=30"))
+    }
+
+    @Test
+    fun `a dense five-minute feed over the same window stays silent`() {
+        // The emulator's shape: KSJC's ASOS samples covered every 5 minutes, so nothing broke.
+        val rows = (0..140).map { carrier(it * 5, stationId = "KSJC") }
+
+        assertNull(metarCloudBreakReason(rows))
+    }
+
+    @Test
+    fun `dense temperature rows cannot mask a hole in the cloud curve`() {
+        // This is the blindness the gate exists to close. Temperature rows every 5 minutes across
+        // the hole made the old max-gap check read 23 minutes while the cloud curve was split.
+        val carriers = listOf(0, 10, 20, 30, 40, 50, 60, 100, 110, 120).map { carrier(it) }
+        val fillers = (0..120 step 5).map { tempOnly(it) }
+
+        assertNotNull(metarCloudBreakReason(carriers + fillers))
+    }
+
+    @Test
+    fun `qc-failed rows are not part of the basis`() {
+        // A qc-failed row never enters the blend, so it must not be allowed to close a hole here.
+        val carriers = listOf(0, 10, 20, 30, 40, 50, 60, 100, 110, 120).map { carrier(it) }
+        val bogus = carrier(80, qcFailed = true)
+
+        assertNotNull(metarCloudBreakReason(carriers + bogus))
+    }
+
+    @Test
+    fun `a sparse but unbroken hourly series is not a break`() {
+        // Sparse is not broken: every report this station makes is present.
+        val rows = (0..8).map { carrier(it * 60) }
+
+        assertNull(metarCloudBreakReason(rows))
+    }
+
+    @Test
+    fun `no cloud-carrying rows at all is left to the sparsity check`() {
+        assertNull(metarCloudBreakReason((0..10).map { tempOnly(it * 10) }))
+    }
 }
