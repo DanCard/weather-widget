@@ -60,7 +60,17 @@ object HourlyForecastStitcher {
      */
     const val NEARBY_FALLBACK_TOLERANCE_DEG = 0.01
 
-    private fun withinNearbyFallback(
+    /**
+     * Whether a row may serve an hour the centre's own site does not cover.
+     *
+     * PUBLIC because `GraphDataLoader.unifyToNearestSite` must ask the *same* question. That
+     * collapse used to keep only rows `sameSite` (0.002 deg) with the nearest site, which deleted
+     * every row this fallback had just admitted -- silently, and only for hours the nearest site
+     * could not cover itself, so the graph simply ended. Two layers disagreeing about one rule is
+     * the defect; sharing the predicate rather than the constant is the fix.
+     * See plans/260903-unify-must-keep-hours-the-nearest-site-cannot-cover.md.
+     */
+    fun withinNearbyFallback(
         centerLat: Double,
         centerLon: Double,
         rowLat: Double,

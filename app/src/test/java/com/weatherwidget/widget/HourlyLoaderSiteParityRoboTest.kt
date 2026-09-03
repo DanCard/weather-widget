@@ -184,10 +184,21 @@ class HourlyLoaderSiteParityRoboTest : RobolectricTest() {
      * The case a fallback would betray: hours the configured site does not cover, which only the
      * abandoned site can serve.
      *
-     * Dropping the hour is correct. Filling it from a site 6 km away silently mixes two places into
-     * one curve — and because that row then carries the foreign coordinate, a downstream
-     * `firstOrNull()` on the list can adopt it as the render's location, which is how the observation
-     * blend ended up centred three hours in the past.
+     * Dropping the hour is correct **at this distance**. `staleLat/staleLon` is 0.068 deg of
+     * longitude from the live site — ~6 km, a different place — so filling from it would silently mix
+     * two places into one curve.
+     *
+     * The bound is what matters, not the drop: since
+     * plans/260903-unify-must-keep-hours-the-nearest-site-cannot-cover.md an hour the configured site
+     * cannot cover MAY be served by a fragment within
+     * [com.weatherwidget.data.model.HourlyForecastStitcher.NEARBY_FALLBACK_TOLERANCE_DEG] (0.01 deg),
+     * because blanking the curve for a GPS-jitter silo 700 m away was its own bug
+     * (`CLOUD_COVER_GAPS missing=7 ranges=4a-10a`, 2026-09-03). This site is far outside that bound,
+     * so it must still be dropped — that is precisely the line this test holds.
+     *
+     * The second hazard named here is now closed independently: borrowed rows are re-stamped onto the
+     * winning site, so a downstream `firstOrNull()` cannot adopt a donor's coordinate as the render
+     * location the way it did when the observation blend ended up centred three hours in the past.
      */
     @Test
     fun `an hour only the abandoned site covers is dropped, not borrowed`() = runTest {

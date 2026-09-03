@@ -12,6 +12,7 @@ import com.weatherwidget.R
 import com.weatherwidget.WeatherWidgetApp
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.toHourlyForecast
@@ -332,51 +333,64 @@ object WidgetRenderer {
         val unifiedHourlyForecasts =
             GraphDataLoader.unifyToNearestSite(hourlyForecasts, locationLat, locationLon)
 
-        // Permanent diagnostic: this collapse and the stitcher upstream disagree about borrowed rows,
-        // and the disagreement is invisible on screen — it looks exactly like the provider never
-        // published those hours.
+        // Permanent diagnostic for the coordinate-fragmentation family, kept after the fix rather
+        // than retired with it: `borrowed=` shows unifyToNearestSite re-admitting hours the winning
+        // site cannot cover, and `lostHours=` still names rows dropped as genuinely too far.
         //
-        // HourlyForecastStitcher.collapse lets an hour with NO same-site row borrow from a fragment
-        // within NEARBY_FALLBACK_TOLERANCE_DEG (0.01 deg). selectNearestSite above then keeps only rows
-        // sameSite (0.002 deg) with the single nearest site, so every borrowed hour is dropped again.
-        // That is harmless while the winning site covers those hours itself and total data loss when it
-        // does not: on 2026-09-03 the configured site 37.424,-122.088 held no NWS row for 00:00-10:00
-        // (the 08-27 fetch's ~156h horizon ended 09-02 23:00; the next fetch there was 11:59), so the
-        // 01:26 fetch's jitter fragment at 37.417,-122.089 was the ONLY coverage — and this line
-        // deleted it. CLOUD_COVER_GAPS reported "missing=7 ranges=4a-10a" with nothing to say why.
+        // Before the fix these two layers disagreed — HourlyForecastStitcher.collapse borrowed a
+        // nearby fragment for an uncovered hour and this collapse deleted it again — and the result
+        // was invisible: the curve just ended, exactly as if the provider had never published those
+        // hours. On 2026-09-03 that read `CLOUD_COVER_GAPS missing=7 ranges=4a-10a` while the data
+        // sat 0.007 deg away, and reconstructing it took a device DB pull comparing HOURLY_LOAD's
+        // `outSites` against the handler's `rowsLoc`. Log it where it happens instead.
         //
-        // Reconstructing that took a device DB pull and comparing HOURLY_LOAD's `outSites` against the
-        // handler's `rowsLoc`. Log the drop where it happens instead. Silent unless hours are actually
-        // lost, so a paint whose nearest site covers everything stays quiet.
-        if (unifiedHourlyForecasts.size != hourlyForecasts.size) {
-            val keptHours = unifiedHourlyForecasts.asSequence()
-                .filter { it.source == displaySource.id }
-                .map { it.dateTime }
-                .toSet()
-            val lostHourMs = hourlyForecasts.asSequence()
-                .filter { it.source == displaySource.id }
-                .map { it.dateTime }
-                .filter { it !in keptHours }
-                .toSortedSet()
-            if (lostHourMs.isNotEmpty()) {
-                val zone = ZoneId.systemDefault()
-                val lostHours = lostHourMs.map {
-                    java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDateTime()
+        // Silent when nothing is borrowed or lost, so an ordinary paint stays quiet.
+        run {
+            val siteLat = unifiedHourlyForecasts.firstOrNull()?.locationLat
+            val siteLon = unifiedHourlyForecasts.firstOrNull()?.locationLon
+            if (siteLat != null && siteLon != null) {
+                val outHours = unifiedHourlyForecasts.asSequence()
+                    .filter { it.source == displaySource.id }
+                    .map { it.dateTime }
+                    .toSet()
+                // Hours the winning site covered on its own, before any borrowing.
+                val nativeHours = hourlyForecasts.asSequence()
+                    .filter {
+                        it.source == displaySource.id &&
+                            LocationMatch.sameSite(siteLat, siteLon, it.locationLat, it.locationLon)
+                    }
+                    .map { it.dateTime }
+                    .toSet()
+                val inHours = hourlyForecasts.asSequence()
+                    .filter { it.source == displaySource.id }
+                    .map { it.dateTime }
+                    .toSet()
+                val borrowedMs = (outHours - nativeHours).toSortedSet()
+                val lostMs = (inHours - outHours).toSortedSet()
+                if (borrowedMs.isNotEmpty() || lostMs.isNotEmpty()) {
+                    val zone = ZoneId.systemDefault()
+                    fun ranges(ms: Set<Long>): String =
+                        HourLabelFormatter.missingHourRanges(
+                            ms.map { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDateTime() },
+                        ).ifEmpty { "-" }
+                    val donorSites = hourlyForecasts.asSequence()
+                        .filter { it.dateTime in borrowedMs && it.source == displaySource.id }
+                        .filter { !LocationMatch.sameSite(siteLat, siteLon, it.locationLat, it.locationLon) }
+                        .map { String.format(java.util.Locale.US, "%.5f,%.5f", it.locationLat, it.locationLon) }
+                        .distinct()
+                        .joinToString("|")
+                        .ifEmpty { "-" }
+                    WeatherDatabase.getDatabase(context).appLogDao().log(
+                        "HOURLY_UNIFY_DROP",
+                        "widget=$appWidgetId view=$effectiveViewMode origin=${origin.name} " +
+                            "displaySource=${displaySource.id} in=${hourlyForecasts.size} " +
+                            "out=${unifiedHourlyForecasts.size} " +
+                            "borrowed=${borrowedMs.size} borrowedRanges=${ranges(borrowedMs)} " +
+                            "lostHours=${lostMs.size} lostRanges=${ranges(lostMs)} " +
+                            "site=$siteLat,$siteLon center=$locationLat,$locationLon donorSites=$donorSites",
+                        if (lostMs.isNotEmpty()) "WARN" else "INFO",
+                    )
                 }
-                val droppedSites = hourlyForecasts.asSequence()
-                    .filter { it.dateTime in lostHourMs && it.source == displaySource.id }
-                    .map { String.format(java.util.Locale.US, "%.5f,%.5f", it.locationLat, it.locationLon) }
-                    .distinct()
-                    .joinToString("|")
-                WeatherDatabase.getDatabase(context).appLogDao().log(
-                    "HOURLY_UNIFY_DROP",
-                    "widget=$appWidgetId view=$effectiveViewMode origin=${origin.name} " +
-                        "displaySource=${displaySource.id} in=${hourlyForecasts.size} " +
-                        "out=${unifiedHourlyForecasts.size} lostHours=${lostHourMs.size} " +
-                        "ranges=${HourLabelFormatter.missingHourRanges(lostHours).ifEmpty { "-" }} " +
-                        "center=$locationLat,$locationLon droppedSites=$droppedSites",
-                    "WARN",
-                )
             }
         }
 

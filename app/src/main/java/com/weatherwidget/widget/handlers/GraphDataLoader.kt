@@ -73,8 +73,53 @@ object GraphDataLoader {
         rows: List<HourlyForecastEntity>,
         lat: Double,
         lon: Double,
-    ): List<HourlyForecastEntity> =
-        LocationMatch.selectNearestSite(rows, lat, lon, { it.locationLat }, { it.locationLon })
+    ): List<HourlyForecastEntity> {
+        val primary = LocationMatch.selectNearestSite(rows, lat, lon, { it.locationLat }, { it.locationLon })
+        // Nothing was excluded, so there is nothing to re-admit.
+        if (primary.isEmpty() || primary.size == rows.size) return primary
+
+        // An hour the winning site does not cover must not be blanked just because its only row sits
+        // on a neighbouring GPS-jitter fragment. HourlyForecastStitcher.collapse already grants
+        // exactly this reprieve upstream; the collapse above used to revoke it, and the two layers
+        // disagreeing is what rendered "missing=7 ranges=4a-10a" on 2026-09-03 while the data sat in
+        // the DB 0.007 deg away. Same predicate as the stitcher, deliberately — not an equal constant.
+        //
+        // Keyed on dateTime AND source: these lists carry the display source alongside GENERIC_GAP,
+        // and keying on the hour alone would let a Generic row mark an hour covered and suppress the
+        // real borrow.
+        val covered = primary.mapTo(HashSet()) { it.dateTime to it.source }
+        val borrowed = rows.asSequence()
+            .filter { (it.dateTime to it.source) !in covered }
+            .filter { HourlyForecastStitcher.withinNearbyFallback(lat, lon, it.locationLat, it.locationLon) }
+            .groupBy { it.dateTime to it.source }
+            .values
+            // Nearest fragment, then freshest fetchedAt, then coordinates. Every term is needed: row
+            // order must never decide this. A collapse that let DB order pick the winner is what put
+            // a 13-day-old forecast in the today column (-13.7 deg).
+            .mapNotNull { candidates ->
+                candidates.minWithOrNull(
+                    compareBy<HourlyForecastEntity> {
+                        kotlin.math.abs(it.locationLat - lat) + kotlin.math.abs(it.locationLon - lon)
+                    }
+                        .thenByDescending { it.fetchedAt }
+                        .thenBy { it.locationLat }
+                        .thenBy { it.locationLon },
+                )
+            }
+        if (borrowed.isEmpty()) return primary
+
+        // Re-stamped onto the winning site so the result stays coordinate-homogeneous, which is the
+        // invariant every caller already relies on. Carrying the fragment's true coordinates would
+        // re-open the 2026-08-28 failure where a downstream firstOrNull() adopted a borrowed row's
+        // site as the render location and centred the observation blend three hours in the past. A
+        // borrowed row is within forecast-grid resolution of the centre (NWS ~2.5 km) — the
+        // stitcher's own justification for admitting it at all — so the coordinate it carries is
+        // noise, while the hour it carries is the data.
+        val siteLat = primary.first().locationLat
+        val siteLon = primary.first().locationLon
+        return (primary + borrowed.map { it.copy(locationLat = siteLat, locationLon = siteLon) })
+            .sortedBy { it.dateTime }
+    }
 
     suspend fun loadGraphWindowHourlyForecasts(
         hourlyDao: HourlyForecastDao,

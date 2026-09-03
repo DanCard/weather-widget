@@ -1,7 +1,8 @@
 # Session summary — "cloud data missing from NWS 7:00 am" was a discarded GPS-jitter fragment
 
 **Date:** 2026-09-03 · **Plan:** none (investigation from an emailed bug report) ·
-**Status:** root cause identified, **not fixed**; instrumentation added and installed
+**Status:** root cause identified; instrumented, then **fixed** later the same session — see
+`plans/260903-unify-must-keep-hours-the-nearest-site-cannot-cover.md`
 
 ## What was reported
 
@@ -175,3 +176,28 @@ changing shared selection semantics.
 ## Memory written
 
 `unify-discards-stitcher-borrowed-fragment` — indexed under *Coordinate fragmentation*.
+
+---
+
+## Update — fixed later the same session
+
+`unifyToNearestSite` now re-admits one row per `(dateTime, source)` the winning site does not cover,
+drawn from the nearest fragment within `HourlyForecastStitcher.withinNearbyFallback` — the stitcher's
+own predicate, made public so the two layers cannot drift apart again. Borrowed rows are re-stamped
+onto the winning site, so the render list stays coordinate-homogeneous and no downstream
+`firstOrNull()` can adopt a donor's coordinates.
+
+Only hours that would otherwise be **blank** are affected, so the `DailyNoonCloudCover` flap this
+collapse exists to prevent (a stale fragment beating a fresh row *for an hour both cover*) cannot
+return.
+
+Tests: 6 new cases in `GraphDataLoaderUnifyToNearestSiteTest` and a new
+`HourlyBorrowedFragmentSurvivesUnifyTest` (stitcher + loader, seeded from the measured device shape).
+Verified failing without the fix — 4 and 2 cases respectively. Full `:app` and `:shared` unit suites
+green; `HourlyLoaderSiteParityRoboTest`'s "dropped, not borrowed" case still passes because its
+abandoned site is 0.068° (~6 km) away, far outside the 0.01° bound.
+
+**Open question (1) above is unchanged and still open.** The fix restores every uncovered hour
+regardless of which ones were lost, so it does not depend on that answer — but `borrowed=` in the
+next report is what will confirm the full story. Not yet observed firing on-device: the GPS has
+settled and the loader now emits a single site, so there is currently nothing to borrow.
