@@ -275,10 +275,12 @@ The daemon does substantial Linux integration:
   surfaced as hard errors.
 - `java.awt.headless=true` in the daemon; negative-DNS-cache TTL = 0.
 
-`Main.kt` (1,825 lines) is the single biggest file in the project and is the desktop UI composition
-root (tray, popup, windows, drag-scroll, pan/zoom input). Desktop rendering (`DailyForecastGraph`
-1,082 lines, `TemperatureGraph` 967, `DesktopGraphUtils` 753) mirrors the Android renderers but
-reuses the shared graph engines for geometry.
+`Main.kt` is a thin process entry point (<60 lines) that dispatches to `runDaemon` or the
+extracted desktop UI composition root in `DesktopUiApplication.kt` (with dedicated collaborators:
+`DesktopWidgetPopup.kt`, `DesktopWidgetHeader.kt`, `DesktopWindowHosts.kt`, and
+`DesktopDayClickNavigation.kt`). Desktop rendering (`DailyForecastGraph` 1,082 lines,
+`TemperatureGraph` 967, `DesktopGraphUtils` 753) mirrors the Android renderers but reuses the shared
+graph engines for geometry.
 
 ## 10. Observability
 
@@ -324,8 +326,9 @@ enforced by build validation. The test suite is enormous relative to the main co
 - **Concentration of complexity** in graph label placement, actuals blending, and widget
   touch-routing — the three areas that dominate the bug history.
 - **God files persist** — `PrecipitationGraphRenderer` (951), `DailyViewHandler` (858),
-  `DesktopWeatherDao` (1,127), `Main.kt` (1,825), `TemperatureLabelEngine` (1,202). Decomposition
-  has been attempted repeatedly (there are plans for it) but large files keep re-accumulating.
+  `DesktopWeatherDao` (1,127), `TemperatureLabelEngine` (1,202). Decomposition has been attempted
+  repeatedly (there are plans for it) but large files keep re-accumulating (`Main.kt` was successfully
+  decomposed into modular desktop UI components in Sept 2026).
 - **Two parallel persistence layers** (Android Room vs. desktop SQLite) and some duplicated utility
   code across `app/util` and `shared/util` (e.g. `RainAnalyzer`, `TempUtils`, `NavigationUtils`,
   `SunPositionUtils` exist in both). A "shared code deduplication" effort is ongoing.

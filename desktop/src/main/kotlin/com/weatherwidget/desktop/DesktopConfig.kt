@@ -185,6 +185,73 @@ internal fun mergeNonSettingsSave(
     return draft.copy(settings = settings)
 }
 
+/** Pure result of applying one source-tagged whole-config save to the latest state. */
+internal data class DesktopConfigSaveResolution(
+    val config: DesktopConfig,
+    val settingsChanges: List<String>,
+    val mergedAwaySettings: List<String>,
+    val zoomFactorBeforeResnap: Float?,
+)
+
+/**
+ * Resolves the source-specific save policy without performing disk, daemon, or logging effects.
+ * Keeping this here makes [DesktopConfig] the single owner of whole-object writer reconciliation.
+ */
+internal fun resolveDesktopConfigSave(
+    persisted: DesktopConfig?,
+    draft: DesktopConfig,
+    source: String,
+): DesktopConfigSaveResolution {
+    var effective = if (persisted != null && source !in SETTINGS_SAVE_SOURCES) {
+        mergeNonSettingsSave(
+            persisted = persisted,
+            draft = draft,
+            allowWeatherSourceChange = source == "popup" || source == "location-picker",
+            allowActualsProvidersChange = source == "observations-window" || source == "observations",
+        )
+    } else {
+        draft
+    }
+    val beforeResnap = effective
+    if (persisted != null) effective = resnapNarrowZoomAfterSpanChange(persisted, effective)
+
+    return DesktopConfigSaveResolution(
+        config = effective,
+        settingsChanges = persisted?.let(effective::settingsDiffFrom).orEmpty(),
+        mergedAwaySettings = draft.settingsDiffFrom(effective),
+        zoomFactorBeforeResnap = beforeResnap.zoomFactor.takeIf { it != effective.zoomFactor },
+    )
+}
+
+/** Persists a pending Settings draft without rewinding newer popup-owned fields. */
+internal fun flushSettingsDraft(
+    persistedConfig: DesktopConfig?,
+    draft: DesktopConfig?,
+    onSave: (DesktopConfig) -> Unit,
+) {
+    if (draft == null) return
+    if (persistedConfig == null) {
+        onSave(draft)
+        return
+    }
+    val merged = persistedConfig.withSettingsFrom(draft)
+    if (merged != persistedConfig) onSave(merged)
+}
+
+/** Re-snaps an active NARROW zoom when its configured span changes. */
+internal fun resnapNarrowZoomAfterSpanChange(prev: DesktopConfig, next: DesktopConfig): DesktopConfig {
+    if (prev.settings.narrowZoomSpanHours == next.settings.narrowZoomSpanHours) return next
+    val currentStage = ZoomStage.nearestByTotalSpan(
+        DesktopGraphUtils.totalSpanHoursFor(prev.zoomFactor),
+        prev.settings.narrowZoomSpanHours,
+    )
+    if (currentStage != ZoomStage.NARROW) return next
+    val newFactor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, next.settings.narrowZoomSpanHours)
+    return if (newFactor == next.zoomFactor) next else next.copy(zoomFactor = newFactor)
+}
+
+private val SETTINGS_SAVE_SOURCES = setOf("settings", "settings-close")
+
 /**
  * Heals a persisted config whose `zoomFactor` was left at an old NARROW-stage factor when
  * `narrowZoomSpanHours` changed (the pre-resnap bug). The graph renders its window purely from
