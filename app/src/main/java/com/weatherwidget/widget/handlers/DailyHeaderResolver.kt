@@ -181,14 +181,14 @@ internal object DailyHeaderResolver {
 
         val todayWeather = weatherByDate[today]
         val precipProb =
-            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+            HeaderPrecipCalculator.getNext6HourPrecipProbability(
                 hourlyForecasts = hourlyForecasts,
                 displaySource = displaySource,
                 fallbackDailyProbability = todayWeather?.precipProbability,
                 referenceTime = now,
             )
         val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(precipProb)
-        val isNightPrecip = precipProb != null && HeaderPrecipCalculator.isNext8HourPrecipPredominantlyNight(
+        val isNightPrecip = precipProb != null && HeaderPrecipCalculator.isNext6HourPrecipPredominantlyNight(
             hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
             referenceTime = now,

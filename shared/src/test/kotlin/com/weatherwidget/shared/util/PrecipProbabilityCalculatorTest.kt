@@ -59,14 +59,46 @@ class PrecipProbabilityCalculatorTest {
     }
 
     @Test
-    fun `getNext8HourPrecipProbability delegates to 8-hour window`() {
+    fun `getNext6HourPrecipProbability delegates to 6-hour window`() {
+        val ref = LocalDateTime.of(2026, 5, 1, 6, 0)
+        // Rain spike at +7 hours (13:00)
+        val forecasts = listOf(
+            hourly("2026-05-01T06:00", "NWS", 10),
+            hourly("2026-05-01T11:00", "NWS", 20),
+            hourly("2026-05-01T13:00", "NWS", 90),
+        )
+
+        val result6h = PrecipProbabilityCalculator.getNext6HourPrecipProbability(
+            hourlyForecasts = forecasts,
+            displaySourceId = "NWS",
+            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+            fallbackDailyProbability = 5,
+            referenceTime = ref,
+        )
+
+        val direct6hResult = PrecipProbabilityCalculator.maxPrecipProbabilityWithin(
+            lookaheadHours = 6L,
+            hourlyForecasts = forecasts,
+            displaySourceId = "NWS",
+            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+            fallbackDailyProbability = 5,
+            referenceTime = ref,
+        )
+
+        assertEquals(direct6hResult, result6h)
+        // 13:00 is past 6h lookahead (12:00), so 90% is excluded
+        assertEquals(20, result6h)
+    }
+
+    @Test
+    fun `getNext8HourPrecipProbability backward-compatible alias matches getNext6HourPrecipProbability`() {
         val ref = LocalDateTime.of(2026, 5, 1, 6, 0)
         val forecasts = listOf(
             hourly("2026-05-01T06:00", "NWS", 10),
-            hourly("2026-05-01T12:00", "NWS", 70),
+            hourly("2026-05-01T11:00", "NWS", 70),
         )
 
-        val delegateResult = PrecipProbabilityCalculator.getNext8HourPrecipProbability(
+        val aliasResult = PrecipProbabilityCalculator.getNext8HourPrecipProbability(
             hourlyForecasts = forecasts,
             displaySourceId = "NWS",
             fallbackSourceId = WeatherSource.GENERIC_GAP.id,
@@ -74,8 +106,7 @@ class PrecipProbabilityCalculatorTest {
             referenceTime = ref,
         )
 
-        val direct8hResult = PrecipProbabilityCalculator.maxPrecipProbabilityWithin(
-            lookaheadHours = 8L,
+        val directResult = PrecipProbabilityCalculator.getNext6HourPrecipProbability(
             hourlyForecasts = forecasts,
             displaySourceId = "NWS",
             fallbackSourceId = WeatherSource.GENERIC_GAP.id,
@@ -83,7 +114,7 @@ class PrecipProbabilityCalculatorTest {
             referenceTime = ref,
         )
 
-        assertEquals(direct8hResult, delegateResult)
-        assertEquals(70, delegateResult)
+        assertEquals(directResult, aliasResult)
+        assertEquals(70, aliasResult)
     }
 }

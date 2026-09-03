@@ -1644,7 +1644,7 @@ private fun WidgetHeader(
         forecast.raw.daily.firstOrNull { it.date == nowLocal.toLocalDate().toString() }
     }
     val precipProb = remember(forecast.raw.hourly, displaySource, todayForecast, nowLocal) {
-        PrecipProbabilityCalculator.getNext8HourPrecipProbability(
+        PrecipProbabilityCalculator.getNext6HourPrecipProbability(
             hourlyForecasts = forecast.raw.hourly,
             displaySourceId = displaySource.id,
             fallbackSourceId = WeatherSource.GENERIC_GAP.id,
@@ -1654,13 +1654,13 @@ private fun WidgetHeader(
     }
     val isHourly = config.viewMode.isHourly
     // Header rain-chance sizing, matching Android: probability-scaled (shared step table), plus
-    // the NIGHT_SCALE shrink only in the daily view when the next-8h rain is predominantly
+    // the NIGHT_SCALE shrink only in the daily view when the next-6h rain is predominantly
     // overnight. Base size is the desktop header temp size (Android's precip base == its temp base).
     val precipFontScale = remember(precipProb, forecast.raw.hourly, displaySource, nowLocal, isHourly, config.lat, config.lon) {
         precipProb?.let { prob ->
             val isNightPrecip = !isHourly && run {
                 val sunTimes = com.weatherwidget.util.SunPositionUtils.getSunTimes(nowLocal, config.lat, config.lon)
-                PrecipProbabilityCalculator.isNext8HourPrecipPredominantlyNight(
+                PrecipProbabilityCalculator.isNext6HourPrecipPredominantlyNight(
                     hourlyForecasts = forecast.raw.hourly,
                     displaySourceId = displaySource.id,
                     fallbackSourceId = WeatherSource.GENERIC_GAP.id,

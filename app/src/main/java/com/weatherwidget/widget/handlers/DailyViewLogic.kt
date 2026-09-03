@@ -121,7 +121,7 @@ object DailyViewLogic {
         skipHistory: Boolean = false,
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
-        todayNext8HourPrecipProbability: Int? = null,
+        todayPrecipProbability: Int? = null,
         dailyActuals: DailyActualMap = emptyMap(),
         climateNormals: Map<java.time.MonthDay, Pair<Float, Float>> = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
@@ -206,7 +206,7 @@ object DailyViewLogic {
             }
             val isPast = date.isBefore(today)
             val isTerminalLowOnlyNwsFuture = isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
-            val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
+            val precip = if (isToday) todayPrecipProbability else weather?.precipProbability
             
             // Round future days to integers to maintain UI consistency.
             // Today and historical days are permitted to show decimals for precision.
@@ -349,7 +349,7 @@ object DailyViewLogic {
         hourlyForecasts: List<HourlyForecastEntity>,
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
-        todayNext8HourPrecipProbability: Int? = null,
+        todayPrecipProbability: Int? = null,
         dailyActuals: DailyActualMap = emptyMap(),
         climateNormals: Map<java.time.MonthDay, Pair<Float, Float>> = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
@@ -372,7 +372,7 @@ object DailyViewLogic {
             hourlyForecasts = hourlyForecasts,
             stateManager = stateManager,
             appWidgetId = appWidgetId,
-            todayNext8HourPrecipProbability = todayNext8HourPrecipProbability,
+            todayPrecipProbability = todayPrecipProbability,
             dailyActuals = dailyActuals,
             climateNormals = climateNormals,
             currentTemps = currentTemps,
@@ -382,6 +382,37 @@ object DailyViewLogic {
             rainSummaryProvider = rainSummaryProvider,
             todayLabel = todayLabel,
         ).map(PreparedGraphDay::renderDay)
+
+    /** Backward-compatible overload for tests calling prepareGraphDays with todayNext8HourPrecipProbability. */
+    fun prepareGraphDays(
+        now: LocalDateTime,
+        centerDate: LocalDate,
+        today: LocalDate,
+        weatherByDate: Map<LocalDate, ForecastEntity>,
+        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
+        numColumns: Int,
+        displaySource: WeatherSource,
+        skipYesterday: Boolean,
+        skipHistory: Boolean,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        todayNext8HourPrecipProbability: Int?,
+        allowTodayRainChanceLabel: Boolean = false,
+        todayLabel: String,
+    ): List<DailyForecastGraphRenderer.DayData> = prepareGraphDays(
+        now = now,
+        centerDate = centerDate,
+        today = today,
+        weatherByDate = weatherByDate,
+        forecastSnapshots = forecastSnapshots,
+        numColumns = numColumns,
+        displaySource = displaySource,
+        skipYesterday = skipYesterday,
+        skipHistory = skipHistory,
+        hourlyForecasts = hourlyForecasts,
+        todayPrecipProbability = todayNext8HourPrecipProbability,
+        allowTodayRainChanceLabel = allowTodayRainChanceLabel,
+        todayLabel = todayLabel,
+    )
 
     fun prepareGraphDayInputs(
         now: LocalDateTime,
@@ -396,7 +427,7 @@ object DailyViewLogic {
         hourlyForecasts: List<HourlyForecastEntity>,
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
-        todayNext8HourPrecipProbability: Int? = null,
+        todayPrecipProbability: Int? = null,
         dailyActuals: DailyActualMap = emptyMap(),
         climateNormals: Map<java.time.MonthDay, Pair<Float, Float>> = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
@@ -636,7 +667,7 @@ object DailyViewLogic {
                 rainSummaryProvider(hourlyForecasts, date, displaySource.id, now)
             } else null
             
-            val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
+            val precip = if (isToday) todayPrecipProbability else weather?.precipProbability
             val hasRainForecast = DayClickHelper.hasRainForecast(rawRainSummary, precip)
 
             val nearTermLimit = today.plusDays(2)

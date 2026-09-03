@@ -312,7 +312,7 @@ internal object TemperatureStateResolver {
             isSunBoundary = sunInfo.isSunBoundary,
         )
 
-        val headerPrecipProbability = HeaderPrecipCalculator.getNext8HourPrecipProbability(
+        val headerPrecipProbability = HeaderPrecipCalculator.getNext6HourPrecipProbability(
             hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
             fallbackDailyProbability = precipProbability,

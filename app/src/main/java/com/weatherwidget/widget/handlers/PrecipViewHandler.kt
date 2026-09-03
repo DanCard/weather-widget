@@ -228,7 +228,7 @@ object PrecipViewHandler {
         } else null
 
         val headerPrecipProbability =
-            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+            HeaderPrecipCalculator.getNext6HourPrecipProbability(
                 hourlyForecasts = hourlyForecasts,
                 displaySource = displaySource,
                 fallbackDailyProbability = precipProbability,

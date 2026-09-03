@@ -275,7 +275,7 @@ currentCondition = "Sunny"),
     }
 
     @Test
-    fun testHeaderSelectsPeakRainChanceWithinNext8Hours() {
+    fun testHeaderSelectsPeakRainChanceWithinNext6Hours() {
         val now = System.currentTimeMillis()
         composeTestRule.setContent {
             WidgetPopup(
@@ -301,7 +301,7 @@ currentCondition = "Sunny"),
     }
 
     @Test
-    fun testHeaderHidesRainTextWhenNoRainInNext8Hours() {
+    fun testHeaderHidesRainTextWhenNoRainInNext6Hours() {
         val now = System.currentTimeMillis()
         composeTestRule.setContent {
             WidgetPopup(
@@ -355,7 +355,7 @@ currentCondition = "Sunny"),
     }
 
     @Test
-    fun testHeaderExcludesRainOutsideNext8HourWindow() {
+    fun testHeaderExcludesRainOutsideNext6HourWindow() {
         val now = System.currentTimeMillis()
         composeTestRule.setContent {
             WidgetPopup(
@@ -363,8 +363,8 @@ currentCondition = "Sunny"),
                 forecast = stubForecast.copy(
                     raw = stubForecast.raw.copy(
                         hourly = listOf(
-                            HourlyForecast(now + 7 * 3_600_000L, 68f, "Rain", precipProbability = 60),
-                            HourlyForecast(now + 10 * 3_600_000L, 65f, "Rain", precipProbability = 95)
+                            HourlyForecast(now + 5 * 3_600_000L, 68f, "Rain", precipProbability = 60),
+                            HourlyForecast(now + 7 * 3_600_000L, 65f, "Rain", precipProbability = 95)
                         )
                     )
                 ),
@@ -376,7 +376,7 @@ currentCondition = "Sunny"),
             )
         }
 
-        // Peak in next 8h window is 60%, 95% at +10h is excluded
+        // Peak in next 6h window is 60%, 95% at +7h is excluded
         composeTestRule.onNodeWithText("60%").assertExists()
         composeTestRule.onNodeWithText("95%").assertDoesNotExist()
     }

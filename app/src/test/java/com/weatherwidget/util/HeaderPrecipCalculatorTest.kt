@@ -149,13 +149,13 @@ class HeaderPrecipCalculatorTest {
         val forecasts =
             listOf(
                 hourly("2026-02-22T10:00", "NWS", 10),
-                hourly("2026-02-22T17:00", "NWS", 20), // within 8h window
-                hourly("2026-02-22T18:00", "NWS", 99), // enters via interpolation before the edge
-                hourly("2026-02-22T21:00", "NWS", 80),
+                hourly("2026-02-22T15:00", "NWS", 20), // within 6h window
+                hourly("2026-02-22T16:00", "NWS", 99), // enters via interpolation before the edge
+                hourly("2026-02-22T19:00", "NWS", 80),
             )
 
         val result =
-            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+            HeaderPrecipCalculator.getNext6HourPrecipProbability(
                 hourlyForecasts = forecasts,
                 displaySource = WeatherSource.NWS,
                 fallbackDailyProbability = 5,
@@ -166,17 +166,17 @@ class HeaderPrecipCalculatorTest {
     }
 
     @Test
-    fun `includes next-day hours when they are within next 8 hours`() {
-        val eveningNow = LocalDateTime.of(2026, 2, 22, 18, 0)
+    fun `includes next-day hours when they are within next 6 hours`() {
+        val eveningNow = LocalDateTime.of(2026, 2, 22, 20, 0)
         val forecasts =
             listOf(
                 hourly("2026-02-22T21:00", "NWS", 25),
-                hourly("2026-02-23T00:00", "NWS", 40), // +6h (included)
-                hourly("2026-02-23T02:00", "NWS", 80), // +8h (excluded)
+                hourly("2026-02-23T01:00", "NWS", 40), // +5h (included)
+                hourly("2026-02-23T03:00", "NWS", 80), // +7h (excluded)
             )
 
         val result =
-            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+            HeaderPrecipCalculator.getNext6HourPrecipProbability(
                 hourlyForecasts = forecasts,
                 displaySource = WeatherSource.NWS,
                 fallbackDailyProbability = 5,

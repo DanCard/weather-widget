@@ -297,7 +297,7 @@ object CloudCoverViewHandler {
             )
         } else null
 
-        val headerPrecipProbability = HeaderPrecipCalculator.getNext8HourPrecipProbability(
+        val headerPrecipProbability = HeaderPrecipCalculator.getNext6HourPrecipProbability(
             hourlyForecasts = hourlyForecasts,
             displaySource = effectiveDisplaySource,
             fallbackDailyProbability = precipProbability,

@@ -142,7 +142,7 @@ class PrecipProbabilityCalculatorNightTest {
         referenceTime: LocalDateTime,
         sunriseHour: Double,
         sunsetHour: Double,
-    ): Boolean = PrecipProbabilityCalculator.isNext8HourPrecipPredominantlyNight(
+    ): Boolean = PrecipProbabilityCalculator.isNext6HourPrecipPredominantlyNight(
         hourlyForecasts = forecasts,
         displaySourceId = WeatherSource.NWS.id,
         fallbackSourceId = WeatherSource.GENERIC_GAP.id,

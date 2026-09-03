@@ -10,17 +10,30 @@ import java.time.LocalDateTime
 
 object HeaderPrecipCalculator {
 
-    fun getNext8HourPrecipProbability(
+    fun getNext6HourPrecipProbability(
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
         fallbackDailyProbability: Int?,
         referenceTime: LocalDateTime,
     ): Int? {
         val sharedForecasts = hourlyForecasts.map { it.toHourlyForecast() }
-        return PrecipProbabilityCalculator.getNext8HourPrecipProbability(
+        return PrecipProbabilityCalculator.getNext6HourPrecipProbability(
             sharedForecasts, displaySource.id, WeatherSource.GENERIC_GAP.id, fallbackDailyProbability, referenceTime,
         )
     }
+
+    /** Backward-compatible alias for [getNext6HourPrecipProbability]. */
+    fun getNext8HourPrecipProbability(
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+        fallbackDailyProbability: Int?,
+        referenceTime: LocalDateTime,
+    ): Int? = getNext6HourPrecipProbability(
+        hourlyForecasts = hourlyForecasts,
+        displaySource = displaySource,
+        fallbackDailyProbability = fallbackDailyProbability,
+        referenceTime = referenceTime,
+    )
 
     /** Delegates to the shared constant so the header and the daily rain labels never drift. */
     val NIGHT_SCALE = DailyRainLabels.NIGHT_SCALE
@@ -34,14 +47,14 @@ object HeaderPrecipCalculator {
     }
 
     /**
-     * Returns true if more than half of the probability-weighted minutes in the next 8-hour window
+     * Returns true if more than half of the probability-weighted minutes in the next 6-hour window
      * fall after sunset / before sunrise, i.e. the rain is predominantly nighttime. Delegates to
      * the shared implementation so desktop sizes the header rain chance identically.
      *
      * @param sunriseHour Sunrise in fractional 24h (from SunPositionUtils.SunTimes)
      * @param sunsetHour  Sunset  in fractional 24h (from SunPositionUtils.SunTimes)
      */
-    fun isNext8HourPrecipPredominantlyNight(
+    fun isNext6HourPrecipPredominantlyNight(
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
         referenceTime: LocalDateTime,
@@ -49,8 +62,23 @@ object HeaderPrecipCalculator {
         sunsetHour: Double,
     ): Boolean {
         val sharedForecasts = hourlyForecasts.map { it.toHourlyForecast() }
-        return PrecipProbabilityCalculator.isNext8HourPrecipPredominantlyNight(
+        return PrecipProbabilityCalculator.isNext6HourPrecipPredominantlyNight(
             sharedForecasts, displaySource.id, WeatherSource.GENERIC_GAP.id, referenceTime, sunriseHour, sunsetHour,
         )
     }
+
+    /** Backward-compatible alias for [isNext6HourPrecipPredominantlyNight]. */
+    fun isNext8HourPrecipPredominantlyNight(
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+        referenceTime: LocalDateTime,
+        sunriseHour: Double,
+        sunsetHour: Double,
+    ): Boolean = isNext6HourPrecipPredominantlyNight(
+        hourlyForecasts = hourlyForecasts,
+        displaySource = displaySource,
+        referenceTime = referenceTime,
+        sunriseHour = sunriseHour,
+        sunsetHour = sunsetHour,
+    )
 }

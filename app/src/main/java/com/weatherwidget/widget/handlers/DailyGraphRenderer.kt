@@ -219,7 +219,7 @@ internal object DailyGraphRenderer {
             metadataByDate = displayedMetadata,
         )
 
-        val isNightPrecip = ctx.precipProb != null && HeaderPrecipCalculator.isNext8HourPrecipPredominantlyNight(
+        val isNightPrecip = ctx.precipProb != null && HeaderPrecipCalculator.isNext6HourPrecipPredominantlyNight(
             hourlyForecasts = ctx.hourlyForecasts,
             displaySource = ctx.displaySource,
             referenceTime = ctx.now,
