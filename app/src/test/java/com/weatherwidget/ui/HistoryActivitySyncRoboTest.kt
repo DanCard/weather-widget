@@ -7,7 +7,7 @@ import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.stats.AccuracyCalculator
-import com.weatherwidget.stats.ComparisonStatistics
+import com.weatherwidget.shared.stats.ComparisonStatistics
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WidgetActions

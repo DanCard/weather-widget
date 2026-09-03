@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.toDailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.stats.AccuracyBreakdown
 import com.weatherwidget.shared.stats.AccuracyPure
+import com.weatherwidget.shared.stats.ComparisonStatistics
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -26,24 +27,11 @@ class AccuracyCalculator
             lat: Double,
             lon: Double,
             days: Int = 30,
-        ): AccuracyStatistics? {
-            val dailyAccuracies = getDailyAccuracyBreakdown(source, lat, lon, days)
-            val pureDailies = dailyAccuracies.map {
-                AccuracyPure.DailyAccuracy(it.date, it.computedHighTemp, it.computedLowTemp, it.forecastHigh, it.forecastLow, it.source, it.highError, it.lowError)
-            }
-            val stats = AccuracyPure.computeStatistics(pureDailies, source.displayName, days) ?: return null
-            return AccuracyStatistics(
-                source = stats.source,
-                avgHighError = stats.avgHighError,
-                avgLowError = stats.avgLowError,
-                highBias = stats.highBias,
-                lowBias = stats.lowBias,
-                avgError = stats.avgError,
-                maxError = stats.maxError,
-                percentWithin3Degrees = stats.percentWithin3Degrees,
-                accuracyScore = stats.accuracyScore,
-                totalForecasts = stats.totalForecasts,
-                periodDays = stats.periodDays,
+        ): AccuracyPure.AccuracyStatistics? {
+            return AccuracyPure.computeStatistics(
+                getDailyAccuracyBreakdown(source, lat, lon, days).map { it.toPureDailyAccuracy() },
+                source.displayName,
+                days,
             )
         }
 
@@ -81,7 +69,7 @@ class AccuracyCalculator
             lat: Double,
             lon: Double,
             days: Int = 30,
-        ): List<DailyAccuracy> {
+        ): List<AccuracyBreakdown.DailyResult> {
             val endDate = LocalDate.now().minusDays(1)
             val startDate = endDate.minusDays(days.toLong() - 1)
 
@@ -106,20 +94,6 @@ class AccuracyCalculator
                 baselineField = accuracyPreferences.baselineField(),
                 lat = lat,
                 lon = lon,
-            ).map { entry ->
-                DailyAccuracy(
-                    date = entry.date,
-                    computedHighTemp = entry.computedHighTemp,
-                    computedLowTemp = entry.computedLowTemp,
-                    forecastHigh = entry.forecastHigh,
-                    forecastLow = entry.forecastLow,
-                    source = entry.source,
-                    highError = entry.highError,
-                    lowError = entry.lowError,
-                    baselineSourceId = entry.baselineSourceId,
-                    baselineStationId = entry.baselineStationId,
-                    baselineFellBackToBlend = entry.baselineFellBackToBlend,
-                )
-            }
+            )
         }
     }

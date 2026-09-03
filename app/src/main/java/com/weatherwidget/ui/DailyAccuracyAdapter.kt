@@ -7,14 +7,14 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
-import com.weatherwidget.stats.DailyAccuracy
+import com.weatherwidget.shared.stats.AccuracyBreakdown.DailyResult
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class DailyAccuracyAdapter(private val useCelsius: Boolean) : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolder>() {
-    private var items = listOf<DailyAccuracy>()
+    private var items = listOf<DailyResult>()
 
-    fun setItems(newItems: List<DailyAccuracy>) {
+    fun setItems(newItems: List<DailyResult>) {
         items = newItems
         notifyDataSetChanged()
     }
@@ -45,7 +45,7 @@ class DailyAccuracyAdapter(private val useCelsius: Boolean) : RecyclerView.Adapt
         private val forecastTempsText: TextView = itemView.findViewById(R.id.item_forecast_temps)
         private val errorText: TextView = itemView.findViewById(R.id.item_error)
 
-        fun bind(item: DailyAccuracy) {
+        fun bind(item: DailyResult) {
             dateText.text = item.date
             // Provenance: an error figure that doesn't say what it was measured against is
             // misleading, especially when the graded source has no actuals of its own and

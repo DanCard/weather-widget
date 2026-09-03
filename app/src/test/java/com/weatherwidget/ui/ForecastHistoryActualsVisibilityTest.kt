@@ -10,7 +10,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.stats.AccuracyCalculator
-import com.weatherwidget.stats.ComparisonStatistics
+import com.weatherwidget.shared.stats.ComparisonStatistics
 import io.mockk.mockk
 import io.mockk.coEvery
 import org.junit.Assert.assertEquals

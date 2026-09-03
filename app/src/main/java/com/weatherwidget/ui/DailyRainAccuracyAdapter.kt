@@ -6,7 +6,7 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
-import com.weatherwidget.stats.DailyRainAccuracy
+import com.weatherwidget.shared.stats.DailyRainAccuracy
 import com.weatherwidget.widget.handlers.formatPrecipAmount
 
 class DailyRainAccuracyAdapter : RecyclerView.Adapter<DailyRainAccuracyAdapter.ViewHolder>() {

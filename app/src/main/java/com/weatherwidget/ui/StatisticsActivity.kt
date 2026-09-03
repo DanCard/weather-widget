@@ -13,8 +13,8 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.stats.AccuracyBaselineField
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.stats.AccuracyPreferences
-import com.weatherwidget.stats.DailyAccuracy
-import com.weatherwidget.stats.DailyRainAccuracy
+import com.weatherwidget.shared.stats.AccuracyBreakdown.DailyResult
+import com.weatherwidget.shared.stats.DailyRainAccuracy
 import com.weatherwidget.stats.RainAccuracyCalculator
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
@@ -126,7 +126,7 @@ class StatisticsActivity : AppCompatActivity() {
                 val comparison = accuracyCalculator.calculateComparison(lat, lon, 30)
 
                 // Get daily breakdown for enabled sources and combine
-                val allDaily = mutableListOf<DailyAccuracy>()
+                val allDaily = mutableListOf<DailyResult>()
                 val sourcesToQuery = listOf(
                     WeatherSource.NWS,
                     WeatherSource.VISUAL_CROSSING,

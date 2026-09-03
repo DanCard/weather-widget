@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.ActualPrecipSource
 import com.weatherwidget.shared.graph.DayNightHours
+import com.weatherwidget.shared.stats.DailyRainAccuracy
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
