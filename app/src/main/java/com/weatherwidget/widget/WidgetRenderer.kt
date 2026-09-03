@@ -31,6 +31,7 @@ import com.weatherwidget.widget.handlers.PrecipViewHandler
 import com.weatherwidget.widget.handlers.TemperatureViewHandler
 import com.weatherwidget.widget.handlers.WeatherData
 import com.weatherwidget.widget.handlers.WidgetSizeCalculator
+import com.weatherwidget.shared.util.HourLabelFormatter
 import java.time.ZoneId
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -330,6 +331,54 @@ object WidgetRenderer {
         // genuinely different marker (e.g. 37.422 vs 37.4168) that would jitter the smoothing.
         val unifiedHourlyForecasts =
             GraphDataLoader.unifyToNearestSite(hourlyForecasts, locationLat, locationLon)
+
+        // Permanent diagnostic: this collapse and the stitcher upstream disagree about borrowed rows,
+        // and the disagreement is invisible on screen — it looks exactly like the provider never
+        // published those hours.
+        //
+        // HourlyForecastStitcher.collapse lets an hour with NO same-site row borrow from a fragment
+        // within NEARBY_FALLBACK_TOLERANCE_DEG (0.01 deg). selectNearestSite above then keeps only rows
+        // sameSite (0.002 deg) with the single nearest site, so every borrowed hour is dropped again.
+        // That is harmless while the winning site covers those hours itself and total data loss when it
+        // does not: on 2026-09-03 the configured site 37.424,-122.088 held no NWS row for 00:00-10:00
+        // (the 08-27 fetch's ~156h horizon ended 09-02 23:00; the next fetch there was 11:59), so the
+        // 01:26 fetch's jitter fragment at 37.417,-122.089 was the ONLY coverage — and this line
+        // deleted it. CLOUD_COVER_GAPS reported "missing=7 ranges=4a-10a" with nothing to say why.
+        //
+        // Reconstructing that took a device DB pull and comparing HOURLY_LOAD's `outSites` against the
+        // handler's `rowsLoc`. Log the drop where it happens instead. Silent unless hours are actually
+        // lost, so a paint whose nearest site covers everything stays quiet.
+        if (unifiedHourlyForecasts.size != hourlyForecasts.size) {
+            val keptHours = unifiedHourlyForecasts.asSequence()
+                .filter { it.source == displaySource.id }
+                .map { it.dateTime }
+                .toSet()
+            val lostHourMs = hourlyForecasts.asSequence()
+                .filter { it.source == displaySource.id }
+                .map { it.dateTime }
+                .filter { it !in keptHours }
+                .toSortedSet()
+            if (lostHourMs.isNotEmpty()) {
+                val zone = ZoneId.systemDefault()
+                val lostHours = lostHourMs.map {
+                    java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDateTime()
+                }
+                val droppedSites = hourlyForecasts.asSequence()
+                    .filter { it.dateTime in lostHourMs && it.source == displaySource.id }
+                    .map { String.format(java.util.Locale.US, "%.5f,%.5f", it.locationLat, it.locationLon) }
+                    .distinct()
+                    .joinToString("|")
+                WeatherDatabase.getDatabase(context).appLogDao().log(
+                    "HOURLY_UNIFY_DROP",
+                    "widget=$appWidgetId view=$effectiveViewMode origin=${origin.name} " +
+                        "displaySource=${displaySource.id} in=${hourlyForecasts.size} " +
+                        "out=${unifiedHourlyForecasts.size} lostHours=${lostHourMs.size} " +
+                        "ranges=${HourLabelFormatter.missingHourRanges(lostHours).ifEmpty { "-" }} " +
+                        "center=$locationLat,$locationLon droppedSites=$droppedSites",
+                    "WARN",
+                )
+            }
+        }
 
         // Filter hourly forecasts to the NOW-centered window for current temp resolution.
         // This ensures the current temp display is always based on forecasts around NOW,
