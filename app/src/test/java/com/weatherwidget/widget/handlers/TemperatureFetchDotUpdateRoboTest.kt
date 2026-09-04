@@ -6,6 +6,8 @@ import android.os.Bundle
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.ObservationPoolDiagnostics
+import com.weatherwidget.data.local.ObservationRangeRead
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.FetchDotDebug
@@ -32,6 +34,19 @@ import org.junit.experimental.categories.Category
 class TemperatureFetchDotUpdateRoboTest {
     private lateinit var context: Context
     private val appWidgetId = 78
+
+    private fun observationReadOf(rows: List<ObservationEntity>): ObservationRangeRead {
+        val newest = rows.maxOfOrNull { it.timestamp }
+        val diag = ObservationPoolDiagnostics.Summary(
+            candidateCount = rows.size,
+            mergedCount = rows.size,
+            candidateNewestMs = newest,
+            mergedNewestMs = newest,
+            siteCount = if (rows.isEmpty()) 0 else 1,
+            droppedFresherSites = emptyList(),
+        )
+        return ObservationRangeRead(rows, diag)
+    }
 
     @Before
     fun setup() {
@@ -102,6 +117,7 @@ class TemperatureFetchDotUpdateRoboTest {
         )
         val resolved = mutableListOf<FetchDotDebug>()
         io.mockk.coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns firstActuals andThen secondActuals
+        io.mockk.coEvery { repository.readObservationsInRange(any(), any(), any(), any()) } returns observationReadOf(firstActuals) andThen observationReadOf(secondActuals)
 
         TemperatureViewHandler.updateWidget(
             context = context,
@@ -177,6 +193,7 @@ class TemperatureFetchDotUpdateRoboTest {
         )
         val resolved = mutableListOf<FetchDotDebug>()
         io.mockk.coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns actuals
+        io.mockk.coEvery { repository.readObservationsInRange(any(), any(), any(), any()) } returns observationReadOf(actuals)
 
         TemperatureViewHandler.updateWidget(
             context = context,

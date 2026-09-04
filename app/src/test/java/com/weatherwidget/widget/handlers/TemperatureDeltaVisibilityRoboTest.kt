@@ -5,6 +5,8 @@ import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.ObservationPoolDiagnostics
+import com.weatherwidget.data.local.ObservationRangeRead
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.WidgetStateManager
@@ -93,6 +95,19 @@ class TemperatureDeltaVisibilityRoboTest {
         }
     }
 
+    private fun observationReadOf(rows: List<ObservationEntity>): ObservationRangeRead {
+        val newest = rows.maxOfOrNull { it.timestamp }
+        val diag = ObservationPoolDiagnostics.Summary(
+            candidateCount = rows.size,
+            mergedCount = rows.size,
+            candidateNewestMs = newest,
+            mergedNewestMs = newest,
+            siteCount = if (rows.isEmpty()) 0 else 1,
+            droppedFresherSites = emptyList(),
+        )
+        return ObservationRangeRead(rows, diag)
+    }
+
     /** Repository whose only observation is [yesterdayTemp] exactly 24h before [observedAtMs]. */
     private fun repositoryWithYesterdayObservation(yesterdayTemp: Float, observedAtMs: Long): WeatherRepository {
         val repository = mockk<WeatherRepository>()
@@ -108,7 +123,9 @@ class TemperatureDeltaVisibilityRoboTest {
             stationType = "OFFICIAL",
             api = WeatherSource.NWS.id,
         )
+        val read = observationReadOf(listOf(observation))
         coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns listOf(observation)
+        coEvery { repository.readObservationsInRange(any(), any(), any(), any()) } returns read
         return repository
     }
 
@@ -163,6 +180,7 @@ class TemperatureDeltaVisibilityRoboTest {
         val now = LocalDateTime.now()
         val repository = mockk<WeatherRepository>()
         coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns emptyList()
+        coEvery { repository.readObservationsInRange(any(), any(), any(), any()) } returns observationReadOf(emptyList())
 
         val state = resolveState(hourlyCovering(now), now, 71.2f, repository)
 
