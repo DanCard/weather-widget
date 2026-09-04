@@ -134,8 +134,9 @@ class DailyForecastGraphRendererTest {
 
     @Test
     fun `fitScaleForWidth composes with an existing wide-label scale`() {
-        // Starting from the 0.95 wide-label step, an 80px@0.95 label in a 60px column shrinks
-        // further to 0.95 * 0.75 (still above the 0.95 * 0.7 floor).
+        // Starting from a wide-label scale step (here 0.95 as a stand-alone example), an
+        // 80px@0.95 label in a 60px column shrinks further to 0.95 * 0.75 (still above the
+        // 0.95 * 0.7 floor).
         val current = 0.95f
         val result = DailyTemperatureLabelRenderer.fitScaleForWidth(80f, maxWidthPx = 60f, currentScale = current)
         assertEquals(current * (60f / 80f), result, 0.0001f)

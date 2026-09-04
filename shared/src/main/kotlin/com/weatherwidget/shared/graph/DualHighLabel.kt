@@ -47,8 +47,8 @@ object DualHighLabel {
     /** When two high labels are shown for a past day, shrink their font to this fraction (2%). */
     const val TWO_LABEL_FONT_SCALE = 0.98f
 
-    /** Extra shrink (5%) for "wide" labels — temps with 3+ digits, e.g. 100° or 97.7°. */
-    const val WIDE_LABEL_FONT_SCALE = 0.95f
+    /** Extra shrink (10%) for "wide" labels — temps with 3+ digits, e.g. 100° or 97.7°. */
+    const val WIDE_LABEL_FONT_SCALE = 0.9f
 
     /**
      * Extra shrink for the FORECAST high label (stacks with [TWO_LABEL_FONT_SCALE]) — applied ONLY
