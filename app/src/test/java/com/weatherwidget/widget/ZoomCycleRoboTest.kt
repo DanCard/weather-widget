@@ -80,8 +80,8 @@ class ZoomCycleRoboTest {
 
     @Test
     fun twoDayZoom_hasHistoryLeaningSpan() {
-        assertEquals(42L, ZoomStage.TWO_DAY.window().backHours)
-        assertEquals(6L, ZoomStage.TWO_DAY.window().forwardHours)
+        assertEquals(36L, ZoomStage.TWO_DAY.window().backHours)
+        assertEquals(12L, ZoomStage.TWO_DAY.window().forwardHours)
         assertEquals(48L, ZoomStage.TWO_DAY.window().totalSpanHours)
     }
 
@@ -256,8 +256,8 @@ class ZoomCycleRoboTest {
         val baseOffset = 0
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        // WIDE covers -12..+6 around the center across 13 zones, so the zones step 1.5h and round.
-        val expectedOffsets = listOf(-12, -10, -9, -7, -6, -4, -3, -1, 0, 2, 3, 5, 6)
+        // WIDE covers -9..+9 around the center across 13 zones, so the zones step 1.5h and round.
+        val expectedOffsets = listOf(-9, -7, -6, -4, -3, -1, 0, 2, 3, 5, 6, 8, 9)
 
         for (zoneIndex in 0 until HourlyTouchZoneMapper.HOUR_ZONE_COUNT) {
             stateManager.clearWidgetState(testWidgetId)
@@ -310,7 +310,7 @@ class ZoomCycleRoboTest {
         }
 
         assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
-        assertEquals(-6, stateManager.getHourlyOffset(testWidgetId))
+        assertEquals(-3, stateManager.getHourlyOffset(testWidgetId))
     }
 
     @Test

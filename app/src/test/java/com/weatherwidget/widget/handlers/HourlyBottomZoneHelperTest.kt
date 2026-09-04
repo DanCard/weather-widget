@@ -127,8 +127,8 @@ class HourlyBottomZoneHelperTest {
         )
 
         assertEquals(ViewMode.CLOUD_COVER, action.targetView)
-        // WIDE spans -12..+6 around the center, so zone 4 of 12 sits 6h before it: 21 - 6.
-        assertEquals(15, action.zoneCenterOffset)
+        // WIDE spans -9..+9 around the center, so zone 4 of 12 sits 3h before it: 21 - 3 = 18.
+        assertEquals(18, action.zoneCenterOffset)
     }
 
     @Test
@@ -136,13 +136,13 @@ class HourlyBottomZoneHelperTest {
         val action = HourlyBottomZoneHelper.resolveZoneAction(
             iconRes = R.drawable.ic_weather_clear,
             currentViewMode = ViewMode.TEMPERATURE,
-            zoneIndex = 8,
+            zoneIndex = 6,
             hourlyOffset = 21,
             zoom = ZoomStage.WIDE.window(),
         )
 
         assertNull(action.targetView)
-        // Zone 8 is where WIDE's back-heavy window puts the center hour itself.
+        // Zone 6 is where WIDE's symmetric window puts the center hour itself (offset 0).
         assertEquals(21, action.zoneCenterOffset)
     }
 }

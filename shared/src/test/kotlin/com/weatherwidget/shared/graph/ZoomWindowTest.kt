@@ -69,17 +69,17 @@ class ZoomWindowTest {
     fun `wide and two day are unaffected by the narrow span setting`() {
         for (span in HourlyZoomRules.MIN_NARROW_SPAN_HOURS..HourlyZoomRules.MAX_NARROW_SPAN_HOURS) {
             val wide = ZoomStage.WIDE.window(span)
-            // 18h, back-heavy: 12h of history against 6h of forecast (was a symmetric 12/12).
-            assertEquals(12L, wide.backHours)
-            assertEquals(6L, wide.forwardHours)
+            // 18h, symmetric: 9h of history against 9h of forecast.
+            assertEquals(9L, wide.backHours)
+            assertEquals(9L, wide.forwardHours)
             assertEquals(18L, wide.totalSpanHours)
             assertEquals(3, wide.navJump)
             assertEquals(4, wide.labelInterval)
             assertEquals(3, wide.smoothIterations)
 
             val twoDay = ZoomStage.TWO_DAY.window(span)
-            assertEquals(42L, twoDay.backHours)
-            assertEquals(6L, twoDay.forwardHours)
+            assertEquals(36L, twoDay.backHours)
+            assertEquals(12L, twoDay.forwardHours)
             assertEquals(8, twoDay.navJump)
             assertEquals(6, twoDay.labelInterval)
             assertEquals(3, twoDay.smoothIterations)
@@ -123,7 +123,7 @@ class ZoomWindowTest {
     @Test
     fun `compact toString keeps zoom logs one token`() {
         assertEquals("NARROW(-3/+2 jump=1)", ZoomStage.NARROW.window(5).toString())
-        assertEquals("WIDE(-12/+6 jump=3)", ZoomStage.WIDE.window().toString())
+        assertEquals("WIDE(-9/+9 jump=3)", ZoomStage.WIDE.window().toString())
     }
 
     @Test

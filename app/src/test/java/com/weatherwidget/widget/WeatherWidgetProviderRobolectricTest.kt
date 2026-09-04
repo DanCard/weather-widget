@@ -87,23 +87,23 @@ class WeatherWidgetProviderRobolectricTest {
 
     @Test
     fun `zoneIndexToOffset maps edge zones correctly`() {
-        // WIDE spans -12..+6 around the center hour, so the zones straddle it asymmetrically:
+        // WIDE spans -9..+9 around the center hour:
         // the left edge is the window's oldest hour, the right edge its newest.
-        assertEquals(-12, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0))
-        assertEquals(6, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0))
-        assertEquals(-3, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0))
-        assertEquals(-4, HourlyTouchZoneMapper.zoneIndexToOffset(5, 0))
+        assertEquals(-9, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0))
+        assertEquals(9, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0))
+        assertEquals(0, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0))
+        assertEquals(-1, HourlyTouchZoneMapper.zoneIndexToOffset(5, 0))
     }
 
     @Test
     fun `zoneIndexToOffset maps TWO_DAY asymmetric window`() {
-        // TWO_DAY spans 42h back / 6h forward (48h). The visual-center zone (6) sits at
-        // (6-42)/2 = -18h, and the edges land exactly on the window bounds.
-        assertEquals(-42, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0, ZoomStage.TWO_DAY.window()))
-        assertEquals(-18, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0, ZoomStage.TWO_DAY.window()))
-        assertEquals(6, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0, ZoomStage.TWO_DAY.window()))
+        // TWO_DAY spans 36h back / 12h forward (48h). The visual-center zone (6) sits at
+        // (12-36)/2 = -12h, and the edges land exactly on the window bounds.
+        assertEquals(-36, HourlyTouchZoneMapper.zoneIndexToOffset(0, 0, ZoomStage.TWO_DAY.window()))
+        assertEquals(-12, HourlyTouchZoneMapper.zoneIndexToOffset(6, 0, ZoomStage.TWO_DAY.window()))
+        assertEquals(12, HourlyTouchZoneMapper.zoneIndexToOffset(12, 0, ZoomStage.TWO_DAY.window()))
         // Base offset is added through.
-        assertEquals(-32, HourlyTouchZoneMapper.zoneIndexToOffset(0, 10, ZoomStage.TWO_DAY.window()))
+        assertEquals(-26, HourlyTouchZoneMapper.zoneIndexToOffset(0, 10, ZoomStage.TWO_DAY.window()))
     }
 
     @Test

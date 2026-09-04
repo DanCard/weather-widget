@@ -144,9 +144,8 @@ class CloudCoverViewHandlerTest {
             zoom = ZoomStage.WIDE.window(),
         )
 
-        // The middle zone is no longer the center hour: WIDE is back-heavy (12 back / 6 forward),
-        // so the center sits two thirds across and the middle zone is 3h behind it.
-        assertEquals(-3, offset)
+        // The middle zone (6) is the center hour for symmetric WIDE (9 back / 9 forward).
+        assertEquals(0, offset)
     }
 
     @Test
@@ -157,7 +156,7 @@ class CloudCoverViewHandlerTest {
             zoom = ZoomStage.WIDE.window(),
         )
 
-        assertEquals(-12, offset)
+        assertEquals(-9, offset)
     }
 
     @Test
@@ -185,20 +184,18 @@ class CloudCoverViewHandlerTest {
             numColumns = 5,
             displaySource = WeatherSource.NWS,
             zoom = ZoomStage.WIDE.window(),
+            now = now,
         )
 
         val labeledHours = result.filter { it.showLabel }
-        // For WIDE zoom (25 points total: -12 to +12), with 6-hour interval:
-        // Indices: 0, 6, 12, 18, 24 should be labeled (if we start from index 0)
-        // Note: buildCloudHourDataList also labels the "closest to now" hour.
-        
-        // Let's check the distance between labeled hours (excluding the 'Now' one if it's an outlier)
+        // For WIDE zoom (-9 to +9, 19 points total) with 6-hour interval:
+        // Indices at steps of 6 (0, 6, 12, 18) plus now (index 9) are labeled.
         val intervals = labeledHours.map { it.dateTime }
             .zipWithNext { a, b -> java.time.Duration.between(a, b).toHours() }
             .filter { it > 0 }
             .distinct()
         
-        // We expect 6-hour intervals (and potentially a smaller one if 'Now' is forced)
+        // We expect 6-hour intervals (and 3-hour intervals around now)
         assert(intervals.contains(6L)) { "Expected 6-hour intervals in narrow widget WIDE zoom, but got $intervals" }
         assert(!intervals.contains(4L)) { "Did not expect 4-hour intervals in narrow widget WIDE zoom" }
     }

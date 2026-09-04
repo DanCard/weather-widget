@@ -68,9 +68,9 @@ class DailyHistoryClickIntentRoboTest {
             now = now
         )
 
-        // June 12th noon-centered target (3pm) is -71 hours from June 15th 2pm.
-        val expectedOffset = -71
-        assertEquals("Offset for June 12 (3 days ago) relative to June 15 2pm should be -71", 
+        // June 12th noon-centered target (12pm) is -74 hours from June 15th 2pm.
+        val expectedOffset = -74
+        assertEquals("Offset for June 12 (3 days ago) relative to June 15 2pm should be -74", 
             expectedOffset, intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, 0))
     }
 

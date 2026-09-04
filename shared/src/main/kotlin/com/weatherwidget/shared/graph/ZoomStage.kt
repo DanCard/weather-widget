@@ -67,14 +67,12 @@ enum class ZoomStage {
     ): ZoomWindow = when (this) {
         WIDE -> ZoomWindow(
             stage = WIDE,
-            // 18h, deliberately back-heavy: 12h of history against 6h of forecast (2026-08-16; it
-            // was a symmetric 12/12 = 24h). The now-line therefore sits two thirds across the graph
-            // rather than in its middle — see HourlyTouchZoneMapper, whose zones follow the split.
-            // Same bias as TWO_DAY's 42/6 and desktop's "wider views lean into history" curve.
-            backHours = 12,
-            forwardHours = 6,
+            // 18h, symmetric: 9h of history and 9h of forecast. The now-line therefore sits
+            // at the exact physical center (50%) of the graph.
+            backHours = 9,
+            forwardHours = 9,
             // A sixth of the span, like TWO_DAY's 8h of 48h — see HourlyZoomRules.navJumpHours,
-            // which desktop's continuous zoom reads. 6h (a third of the narrower window) overshot.
+            // which desktop's continuous zoom reads.
             navJump = 3,
             labelInterval = 4,
             smoothIterations = 3,
@@ -94,12 +92,9 @@ enum class ZoomStage {
 
         TWO_DAY -> ZoomWindow(
             stage = TWO_DAY,
-            // 48h, split 42 back / 6 forward (2026-08-16; it was THREE_DAY's 48/24 = 72h). The
-            // forward horizon is deliberately identical to WIDE's, so zooming out from the default
-            // buys history only and never moves the right edge. The now-line therefore sits ~87%
-            // across the graph — further right than WIDE's two thirds, not a bug.
-            backHours = 42,
-            forwardHours = 6,
+            // 48h, split 36 back / 12 forward (48h total).
+            backHours = 36,
+            forwardHours = 12,
             // A sixth of the span, matching HourlyZoomRules.navJumpHours(48).
             navJump = 8,
             // Only consulted below the date-footer threshold; at 48h the footer is in date mode

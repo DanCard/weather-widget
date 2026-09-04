@@ -787,8 +787,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         priorDayBandForecast: Map<Long, com.weatherwidget.shared.graph.CloudBands> = emptyMap(),
         // Observed bands by native provider timestamp, PROVIDER_BANDS rows only.
         retroCloudBands: Map<Long, com.weatherwidget.shared.graph.CloudBands> = emptyMap(),
+        now: LocalDateTime = LocalDateTime.now(),
     ): List<CloudCoverGraphRenderer.CloudHourData> {
-        val now = LocalDateTime.now()
         // NaN, never a hardcoded coordinate: derived from the rows about to be drawn, so it only
         // fires when there are none. Sun shading degrades to UNKNOWN_LOCATION downstream.
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: Double.NaN

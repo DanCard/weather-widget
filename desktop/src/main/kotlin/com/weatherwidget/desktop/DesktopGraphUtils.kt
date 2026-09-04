@@ -61,11 +61,11 @@ internal object DesktopGraphUtils {
     const val MAX_BACK_HOURS = 720   // 30 days of history at full zoom-out
     const val MIN_FORWARD_HOURS = 2
     const val MAX_FORWARD_HOURS = 168 // 7 days forward at full zoom-out
-    // The default is the [ZoomStage.WIDE] window: 12h back / 6h forward, the same 18h the Android
+    // The default is the [ZoomStage.WIDE] window: 9h back / 9h forward, the same 18h the Android
     // widget opens on. Derived from the back-hours curve, which is the one the stage factors invert
-    // against: z = ln(12 / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS / MIN_BACK_HOURS). Must be recomputed
+    // against: z = ln(9 / MIN_BACK_HOURS) / ln(MAX_BACK_HOURS / MIN_BACK_HOURS). Must be recomputed
     // whenever MAX_BACK_HOURS changes, since that rescales the whole zoom curve.
-    const val DEFAULT_ZOOM_FACTOR = 0.304f
+    const val DEFAULT_ZOOM_FACTOR = 0.256f
 
     fun backHoursFor(zoomFactor: Float): Int = geomInterp(MIN_BACK_HOURS, MAX_BACK_HOURS, zoomFactor)
 
@@ -158,7 +158,7 @@ internal object DesktopGraphUtils {
      * back-hours [geomInterp]. Lets the desktop click snap onto a shared stage while the wheel keeps
      * driving the factor continuously. We invert against *back* hours only, and [forwardHoursFor]
      * then anchors its own curve to these same factors so the forward half lands on the stage's span
-     * too. WIDE→~0.30 (≈[DEFAULT_ZOOM_FACTOR]), TWO_DAY→~0.52; NARROW moves with
+     * too. WIDE→~0.26 (≈[DEFAULT_ZOOM_FACTOR]), TWO_DAY→~0.52; NARROW moves with
      * [narrowSpanHours] (4h→0.0, the default 5h→~0.07, 8h→~0.12).
      *
      * [narrowSpanHours] must be the configured span, or a click can snap to a factor that renders a

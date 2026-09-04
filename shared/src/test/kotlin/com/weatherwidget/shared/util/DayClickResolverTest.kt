@@ -12,9 +12,9 @@ import org.junit.experimental.categories.Category
 class DayClickResolverTest {
 
     @Test
-    fun `today precipitation lookahead matches wide graph forward window`() {
+    fun `today precipitation lookahead matches shared visible lookahead constant`() {
         assertEquals(
-            ZoomStage.WIDE.window().forwardHours,
+            PrecipProbabilityCalculator.VISIBLE_LOOKAHEAD_HOURS,
             DayClickResolver.TODAY_LOOKAHEAD_HOURS,
         )
     }
@@ -195,13 +195,13 @@ class DayClickResolverTest {
     @Test
     fun offset_isPositiveForTomorrow() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
-        assertEquals(25, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 16)))
+        assertEquals(22, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 16)))
     }
 
     @Test
     fun offset_truncatesCurrentTimeToHourBeforeNoonAnchor() {
         val now = LocalDateTime.of(2024, 6, 15, 10, 45)
-        assertEquals(28, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 16)))
+        assertEquals(25, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 16)))
     }
 
     @Test
@@ -221,8 +221,8 @@ class DayClickResolverTest {
     @Test
     fun offset_isNegativeForPastDays() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
-        assertEquals(-23, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 14)))
-        assertEquals(-71, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 12)))
+        assertEquals(-26, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 14)))
+        assertEquals(-74, DayClickResolver.calculateHourlyOffset(now, LocalDate.of(2024, 6, 12)))
     }
 
     @Test

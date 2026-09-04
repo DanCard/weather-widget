@@ -406,8 +406,8 @@ class WidgetStateManagerTest {
 
     @Test
     fun `ZoomWindow enum has correct parameters`() {
-        assertEquals(12L, ZoomStage.WIDE.window().backHours)
-        assertEquals(6L, ZoomStage.WIDE.window().forwardHours)
+        assertEquals(9L, ZoomStage.WIDE.window().backHours)
+        assertEquals(9L, ZoomStage.WIDE.window().forwardHours)
         assertEquals(3, ZoomStage.WIDE.window().navJump)
         assertEquals(4, ZoomStage.WIDE.window().labelInterval)
         assertEquals(3, ZoomStage.WIDE.window().smoothIterations)

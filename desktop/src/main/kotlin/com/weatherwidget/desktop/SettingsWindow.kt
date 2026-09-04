@@ -542,7 +542,7 @@ private fun HourlyZoomSpan(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "Adds a 48-hour level — 42 hours back, 6 hours forward.",
+                    "Adds a 48-hour level — 36 hours back, 12 hours forward.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

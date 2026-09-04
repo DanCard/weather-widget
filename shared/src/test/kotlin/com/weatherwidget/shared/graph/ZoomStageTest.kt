@@ -91,10 +91,10 @@ class ZoomStageTest {
     }
 
     @Test
-    fun `two day window is 42 back 6 forward`() {
+    fun `two day window is 36 back 12 forward`() {
         val twoDay = ZoomStage.TWO_DAY.window()
-        assertEquals(42L, twoDay.backHours)
-        assertEquals(6L, twoDay.forwardHours)
+        assertEquals(36L, twoDay.backHours)
+        assertEquals(12L, twoDay.forwardHours)
         assertEquals(48L, twoDay.totalSpanHours)
         assertEquals(8, twoDay.navJump)
         assertEquals(6, twoDay.labelInterval)

@@ -290,7 +290,7 @@ class DesktopGraphZoomTest {
         // MAX_BACK_HOURS grew to 720 (the curve rescaled): WIDE's 12h back now sits at ~0.304 and
         // TWO_DAY's 42h back at ~0.517. Neither moves with the narrow-span setting.
         assertEquals(DesktopGraphUtils.DEFAULT_ZOOM_FACTOR, DesktopGraphUtils.zoomFactorForStage(ZoomStage.WIDE), 0.02f)
-        assertEquals(0.52f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.TWO_DAY), 0.02f)
+        assertEquals(0.49f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.TWO_DAY), 0.02f)
         // NARROW is only the curve's floor (factor 0) at its minimum 4h span, which is 2h back.
         // Widening the setting walks it up the curve.
         assertEquals(0f, DesktopGraphUtils.zoomFactorForStage(ZoomStage.NARROW, 4), 0.001f)
@@ -343,9 +343,9 @@ class DesktopGraphZoomTest {
     }
 
     @Test
-    fun `two day factor renders 6 hours forward`() {
+    fun `two day factor renders 12 hours forward`() {
         val factor = DesktopGraphUtils.zoomFactorForStage(ZoomStage.TWO_DAY)
-        assertEquals(6, DesktopGraphUtils.forwardHoursFor(factor))
+        assertEquals(12, DesktopGraphUtils.forwardHoursFor(factor))
     }
 
     @Test
