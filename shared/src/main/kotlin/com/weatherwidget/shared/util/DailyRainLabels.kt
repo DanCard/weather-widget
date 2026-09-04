@@ -343,6 +343,27 @@ object DailyRainLabels {
     }
 
     /**
+     * Picks the observed amount the *daytime* label should show, given a `daily_history` row's
+     * three precip fields.
+     *
+     * The subtlety is what a null [dayMm] means, and it is not always the same thing:
+     * - When [nightMm] is also null, no day/night split was ever computed for the row (pre-split
+     *   rows, and sources that only ever report a daily total). The day label is then the only
+     *   place the amount can appear, so it shows [totalMm].
+     * - When [nightMm] is non-null, the split *was* computed and [dayMm] null means the daytime
+     *   window measured no rain. Falling back to [totalMm] there prints the night's rain a second
+     *   time, on the day label — observed 2026-09-04 on the emulator, where Sept 3 rendered
+     *   `.043in` for both day and night off `total=1.1, day=null, night=1.1` (every NWS reading
+     *   with a non-null amount was between 22:31 and 23:55). Callers used to write
+     *   `precipDayMm ?: precipAmountMm` inline on both platforms, which is exactly that bug.
+     *
+     * Returning null here lets [buildDailyRainLabel]'s past-day branch fall through to the
+     * forecast chance%, which is the honest thing to show for a dry daytime.
+     */
+    fun resolveObservedDayPrecip(dayMm: Float?, nightMm: Float?, totalMm: Float?): Float? =
+        dayMm ?: totalMm?.takeIf { nightMm == null }
+
+    /**
      * Daytime rain label drawn on top of a day's bar.
      * - Past days: observed amount when measurable rain fell, else the forecast chance% (so a real
      *   forecast doesn't silently vanish the moment the day turns into history), else null.

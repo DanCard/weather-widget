@@ -369,7 +369,12 @@ object DesktopDailyForecastModel {
             precipAmountMm = forecastAmountMm,
             dayPrecipProbability = resolvedPrecip.dayPrecip,
             allowTodayRainChanceLabel = true,
-            observedPrecipAmountMm = actual?.precipDayMm ?: actual?.precipAmountMm,
+            observedPrecipAmountMm = com.weatherwidget.shared.util.DailyRainLabels
+                .resolveObservedDayPrecip(
+                    dayMm = actual?.precipDayMm,
+                    nightMm = actual?.precipNightMm,
+                    totalMm = actual?.precipAmountMm,
+                ),
         )
         val nightRainLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildNightRainLabel(
             date = date,

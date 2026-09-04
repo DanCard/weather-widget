@@ -669,7 +669,11 @@ object DailyViewLogic {
                 },
                 dayPrecipProbability = dayPrecipForIcon,
                 allowTodayRainChanceLabel = allowTodayRainChanceLabel,
-                observedPrecipAmountMm = actual?.precipDayMm ?: actual?.precipAmountMm,
+                observedPrecipAmountMm = com.weatherwidget.shared.util.DailyRainLabels.resolveObservedDayPrecip(
+                    dayMm = actual?.precipDayMm,
+                    nightMm = actual?.precipNightMm,
+                    totalMm = actual?.precipAmountMm,
+                ),
             )
 
             days.add(

@@ -519,4 +519,76 @@ class DailyRainLabelsTest {
         assertEquals(2, live.dayPrecip)
         assertEquals(14, live.nightPrecip)
     }
+
+    @Test
+    fun `night-only rain does not repeat the total on the day label`() {
+        // Emulator, 2026-09-03 NWS: every observation with a non-null amount fell between 22:31
+        // and 23:55, so the row stored total=1.1, day=null, night=1.1. The old
+        // `precipDayMm ?: precipAmountMm` printed .043in on BOTH labels.
+        assertNull(
+            DailyRainLabels.resolveObservedDayPrecip(dayMm = null, nightMm = 1.1f, totalMm = 1.1f),
+        )
+    }
+
+    @Test
+    fun `day-only rain still shows on the day label`() {
+        assertEquals(
+            0.8f,
+            DailyRainLabels.resolveObservedDayPrecip(dayMm = 0.8f, nightMm = null, totalMm = 0.8f),
+        )
+    }
+
+    @Test
+    fun `a real split is passed through untouched`() {
+        assertEquals(
+            0.052f,
+            DailyRainLabels.resolveObservedDayPrecip(dayMm = 0.052f, nightMm = 0.021f, totalMm = 0.073f),
+        )
+    }
+
+    @Test
+    fun `an unsplit row falls back to the daily total`() {
+        // Pre-split rows and total-only sources: the day label is the only place the amount can go.
+        assertEquals(
+            1.1f,
+            DailyRainLabels.resolveObservedDayPrecip(dayMm = null, nightMm = null, totalMm = 1.1f),
+        )
+    }
+
+    @Test
+    fun `a measured-dry daytime keeps a zero rather than borrowing the night`() {
+        assertEquals(
+            0f,
+            DailyRainLabels.resolveObservedDayPrecip(dayMm = 0f, nightMm = 0.508f, totalMm = 0.508f),
+        )
+    }
+
+    @Test
+    fun `night-only rain leaves the day label showing the forecast chance`() {
+        Locale.setDefault(Locale.US)
+        val today = LocalDate.of(2026, 9, 4)
+        val yesterday = today.minusDays(1)
+        val label = DailyRainLabels.buildDailyRainLabel(
+            date = yesterday,
+            today = today,
+            isPastDate = true,
+            precipAmountMm = null,
+            dayPrecipProbability = 31,
+            allowTodayRainChanceLabel = true,
+            observedPrecipAmountMm = DailyRainLabels.resolveObservedDayPrecip(
+                dayMm = null,
+                nightMm = 1.1f,
+                totalMm = 1.1f,
+            ),
+        )
+        val nightLabel = DailyRainLabels.buildNightRainLabel(
+            date = yesterday,
+            today = today,
+            isPastDate = true,
+            nightPrecipProbability = 25,
+            observedNightPrecipMm = 1.1f,
+        )
+        assertEquals("31%", label)
+        assertEquals(".043in", nightLabel)
+    }
 }
