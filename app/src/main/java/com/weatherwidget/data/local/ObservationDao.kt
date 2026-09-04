@@ -79,18 +79,49 @@ interface ObservationDao {
         endTs: Long,
         lat: Double,
         lon: Double,
-    ): List<ObservationEntity> =
-        ObservationSiteMerge.merge(
-            rows = getObservationCandidatesInRange(startTs, endTs, lat, lon),
-            lat = lat,
-            lon = lon,
-            latOf = ObservationEntity::locationLat,
-            lonOf = ObservationEntity::locationLon,
-            stationOf = ObservationEntity::stationId,
-            timestampOf = ObservationEntity::timestamp,
-            apiOf = ObservationEntity::api,
-            fetchedAtOf = ObservationEntity::fetchedAt,
+    ): List<ObservationEntity> = readObservationsInRange(startTs, endTs, lat, lon).rows
+
+    /**
+     * [getObservationsInRange] plus the [ObservationPoolDiagnostics] that say why the returned pool
+     * is as old as it is.
+     *
+     * Derived from the SAME single query — the candidate list is already in hand here, and it is the
+     * only place it ever is. A caller wanting these numbers after the fact would have to re-run the
+     * box query, which on the reporting device took 1.4 s; that cost is why the 2026-09-03 stale
+     * dominant-station report had to be reconstructed from `fetchedAt` archaeology on a pulled
+     * database instead of being read off a log line.
+     */
+    suspend fun readObservationsInRange(
+        startTs: Long,
+        endTs: Long,
+        lat: Double,
+        lon: Double,
+    ): ObservationRangeRead {
+        val candidates = getObservationCandidatesInRange(startTs, endTs, lat, lon)
+        val merged =
+            ObservationSiteMerge.merge(
+                rows = candidates,
+                lat = lat,
+                lon = lon,
+                latOf = ObservationEntity::locationLat,
+                lonOf = ObservationEntity::locationLon,
+                stationOf = ObservationEntity::stationId,
+                timestampOf = ObservationEntity::timestamp,
+                apiOf = ObservationEntity::api,
+                fetchedAtOf = ObservationEntity::fetchedAt,
+            )
+        return ObservationRangeRead(
+            rows = merged,
+            diagnostics =
+                ObservationPoolDiagnostics.summarize(
+                    candidates = candidates,
+                    merged = merged,
+                    latOf = ObservationEntity::locationLat,
+                    lonOf = ObservationEntity::locationLon,
+                    timestampOf = ObservationEntity::timestamp,
+                ),
         )
+    }
 
     /**
      * Cloud actuals for the window, as native observation epoch ms -> visible-layer percent
@@ -241,3 +272,12 @@ interface ObservationDao {
             lon,
         )
 }
+
+/**
+ * An observation range read together with the numbers explaining its freshness.
+ * See [ObservationDao.readObservationsInRange].
+ */
+data class ObservationRangeRead(
+    val rows: List<ObservationEntity>,
+    val diagnostics: ObservationPoolDiagnostics.Summary,
+)

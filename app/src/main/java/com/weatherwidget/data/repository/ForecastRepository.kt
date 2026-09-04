@@ -12,6 +12,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.ObservationRangeRead
 import com.weatherwidget.data.local.getForecastsInRange
 import com.weatherwidget.data.local.getLatestForecastsInRange
 import com.weatherwidget.data.local.getLatestForecastsInRangeForSources
@@ -355,6 +356,21 @@ class ForecastRepository
             longitude: Double,
         ): List<ObservationEntity> {
             return observationDao.getObservationsInRange(
+                startTimestamp,
+                endTimestamp,
+                latitude,
+                longitude,
+            )
+        }
+
+        /** [getObservationsInRange] plus freshness diagnostics; see [ObservationDao.readObservationsInRange]. */
+        suspend fun readObservationsInRange(
+            startTimestamp: Long,
+            endTimestamp: Long,
+            latitude: Double,
+            longitude: Double,
+        ): ObservationRangeRead {
+            return observationDao.readObservationsInRange(
                 startTimestamp,
                 endTimestamp,
                 latitude,

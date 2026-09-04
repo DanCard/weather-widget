@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.ObservationPoolDiagnostics
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toReading
@@ -200,6 +201,9 @@ internal object TemperatureStateResolver {
         var dominantStation: DominantBlend? = null
         var newestObservationMs: Long? = null
         var observationRowCount = 0
+        var obsPoolDiagnostics: ObservationPoolDiagnostics.Summary? = null
+        var obsWindowStartMs = 0L
+        var obsWindowEndMs = 0L
         when (graphLoadResult) {
             is GraphLoadOutcome.Empty -> {
                 // HOURLY_PAINT_TRACE: an empty hour list yields a blank graph state. The widget still
@@ -222,6 +226,9 @@ internal object TemperatureStateResolver {
                 dominantStation = graphLoadResult.dominantStation
                 newestObservationMs = graphLoadResult.newestObservationMs
                 observationRowCount = graphLoadResult.observationRowCount
+                obsPoolDiagnostics = graphLoadResult.obsPoolDiagnostics
+                obsWindowStartMs = graphLoadResult.obsWindowStartMs
+                obsWindowEndMs = graphLoadResult.obsWindowEndMs
             }
         }
 
@@ -402,6 +409,39 @@ internal object TemperatureStateResolver {
                 "DEBUG",
             )
 
+            // OBS_POOL_DIAG: the companion line that makes DOMINANT_STATION's readingAgeMin
+            // actionable. `readingAgeMin` large says the label is old; it does not say WHY, and the
+            // three candidate causes need different fixes:
+            //
+            //   verdict=merge_dropped_fresher  the coarse box held newer rows than the merge kept —
+            //                                  a device-site fragment outside MERGE_TOLERANCE_DEG.
+            //                                  fresherSites names it, with coordinates ready to
+            //                                  paste into a `locationLat=` query.
+            //   verdict=box_had_nothing_newer  the read returned everything in the box. The location
+            //                                  plumbing is exonerated; the fetch (or `win`, the query
+            //                                  window) is the subject.
+            //
+            // Deliberately conditional (see ObservationPoolDiagnostics.shouldLog): this runs on every
+            // temperature render, so an unconditional line would add thousands of app_logs rows a day
+            // to say "the pool is fresh", which is the normal state and the one nobody queries back.
+            obsPoolDiagnostics?.let { diag ->
+                if (ObservationPoolDiagnostics.shouldLog(diag, nowEpochMs)) {
+                    effectiveAppLogDao.log(
+                        "OBS_POOL_DIAG",
+                        "widget=$appWidgetId source=${displaySource.id} " +
+                            ObservationPoolDiagnostics.format(
+                                summary = diag,
+                                nowMs = nowEpochMs,
+                                startTs = obsWindowStartMs,
+                                endTs = obsWindowEndMs,
+                                lat = lat,
+                                lon = lon,
+                            ),
+                        "DEBUG",
+                    )
+                }
+            }
+
             // "Actual temperature data from X" — for sources using an alternative provider
             // (e.g. Silurian borrowing METAR, or Open-Meteo configured to METAR/NWS/Synoptic).
             // Only shown when the visible window actually contains observed data; future-only
@@ -509,6 +549,15 @@ internal object TemperatureStateResolver {
              */
             val newestObservationMs: Long? = null,
             val observationRowCount: Int = 0,
+            /**
+             * Why the pool is as fresh as it is, and over what window it was read. Answers the
+             * question [newestObservationMs] alone cannot: when the pool IS old, was it the
+             * device-site merge that dropped the fresher rows, or did the coarse box genuinely hold
+             * nothing newer? See [ObservationPoolDiagnostics].
+             */
+            val obsPoolDiagnostics: ObservationPoolDiagnostics.Summary? = null,
+            val obsWindowStartMs: Long = 0L,
+            val obsWindowEndMs: Long = 0L,
         ) : GraphLoadOutcome()
     }
 
@@ -564,13 +613,23 @@ internal object TemperatureStateResolver {
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
 
         var obsQueryMs = 0L
+        var obsPoolDiagnostics: ObservationPoolDiagnostics.Summary? = null
+        var obsWindowStartMs = 0L
+        var obsWindowEndMs = 0L
         val observations = if (deferStartupGraphActuals) {
             emptyList()
         } else {
             val minEpoch = alignedCenter.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             val maxEpoch = alignedCenter.plusHours(WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             val obsStartMs = System.currentTimeMillis()
-            val loaded = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
+            // Diagnosed variant: same one query, but it also hands back the pre-merge candidate
+            // numbers. They are only available here, and re-deriving them later costs a second box
+            // query (1.4 s on the reporting device).
+            val read = repository?.readObservationsInRange(minEpoch, maxEpoch, lat, lon)
+            val loaded = read?.rows ?: emptyList()
+            obsPoolDiagnostics = read?.diagnostics
+            obsWindowStartMs = minEpoch
+            obsWindowEndMs = maxEpoch
             obsQueryMs = System.currentTimeMillis() - obsStartMs
 
             maybeEnqueueHourlyObservationBackfill(
@@ -749,6 +808,9 @@ internal object TemperatureStateResolver {
             dominantStation = hourDataResult.dominantStation,
             newestObservationMs = observations.maxOfOrNull { it.timestamp },
             observationRowCount = observations.size,
+            obsPoolDiagnostics = obsPoolDiagnostics,
+            obsWindowStartMs = obsWindowStartMs,
+            obsWindowEndMs = obsWindowEndMs,
         )
     }
 
