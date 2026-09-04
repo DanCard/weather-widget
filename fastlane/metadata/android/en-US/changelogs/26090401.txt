@@ -1,0 +1,1 @@
+Release 26090401: Enhanced cloud cover display accuracy, past-day temperature label alignment, daily rain calculation fixes, and hourly zoom improvements.
