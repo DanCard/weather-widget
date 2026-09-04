@@ -300,11 +300,16 @@ object WeatherConditionResolver {
             }
             normalizedCondition.contains("overcast") -> {
                 if (isSunBoundary) IC_HORIZON_SUN
+                // The daily word is a whole-day summary and can contradict the measured noon sky
+                // (e.g. an Open-Meteo day coded 3 for midnight drizzle under a clear daytime), so
+                // below the fully-cloudy threshold the hourly cloud percent picks the tier.
+                else if (cloudCover != null && cloudCover < FULLY_CLOUDY_THRESHOLD) {
+                    getCloudCoverIcon(isNight, cloudCover)
+                }
                 else IC_CLOUDY
             }
-            isSubOvercastCloudy -> {
-                if (isNight) IC_MOSTLY_CLOUDY_NIGHT else IC_MOSTLY_CLOUDY
-            }
+            // Worded "cloudy" takes the same measured-cover tier instead of a flat mostly-cloudy.
+            isSubOvercastCloudy -> getCloudCoverIcon(isNight, cloudCover)
             normalizedCondition.contains("cloudy") -> IC_CLOUDY
             normalizedCondition.contains("wind") || normalizedCondition.contains("breez") || normalizedCondition.contains("gale") -> IC_WIND
             normalizedCondition.contains("clear") || normalizedCondition.contains("sunny") || normalizedCondition.contains("fair") || normalizedCondition.contains("observed") -> {

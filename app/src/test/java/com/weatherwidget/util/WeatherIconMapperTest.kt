@@ -111,6 +111,47 @@ class WeatherIconMapperTest {
     }
 
     @Test
+    fun testGetIconResource_CloudyWithNearClearCoverGradesToMostlyClear() {
+        val res = WeatherIconMapper.getIconResource("Cloudy", isNight = false, cloudCover = 2)
+        assertEquals(R.drawable.ic_weather_mostly_clear, res)
+    }
+
+    @Test
+    fun testGetIconResource_CloudyWithMidCoverGradesToPartlyCloudy() {
+        val res = WeatherIconMapper.getIconResource("Cloudy", isNight = false, cloudCover = 50)
+        assertEquals(R.drawable.ic_weather_partly_cloudy, res)
+    }
+
+    @Test
+    fun testGetIconResource_OvercastWithNearClearCoverGradesToMostlyClear() {
+        // Open-Meteo daily code 3 ("Overcast") under a measured-clear noon sky (2026-09-04).
+        val res = WeatherIconMapper.getIconResource("Overcast", isNight = false, cloudCover = 2)
+        assertEquals(R.drawable.ic_weather_mostly_clear, res)
+    }
+
+    @Test
+    fun testGetIconResource_OvercastGradesThroughCoverTiers() {
+        assertEquals(
+            R.drawable.ic_weather_partly_cloudy,
+            WeatherIconMapper.getIconResource("Overcast", isNight = false, cloudCover = 50),
+        )
+        assertEquals(
+            R.drawable.ic_weather_mostly_cloudy,
+            WeatherIconMapper.getIconResource("Overcast", isNight = false, cloudCover = 83),
+        )
+        assertEquals(
+            R.drawable.ic_weather_cloudy,
+            WeatherIconMapper.getIconResource("Overcast", isNight = false, cloudCover = 95),
+        )
+    }
+
+    @Test
+    fun testGetIconResource_OvercastWithoutMeasuredCoverKeepsCloudy() {
+        val res = WeatherIconMapper.getIconResource("Overcast", isNight = false, cloudCover = null)
+        assertEquals(R.drawable.ic_weather_cloudy, res)
+    }
+
+    @Test
     fun testGetIconResource_CloudyWithNearTotalCloudCoverKeepsCloudy() {
         val res = WeatherIconMapper.getIconResource("Cloudy", isNight = false, cloudCover = 97)
         assertEquals(R.drawable.ic_weather_cloudy, res)
