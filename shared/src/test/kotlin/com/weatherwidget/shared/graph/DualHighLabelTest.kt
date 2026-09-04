@@ -38,7 +38,7 @@ class DualHighLabelTest {
         //
         // Reproduces that column's real geometry rather than abstract Y values: the fold renders
         // ~20px/° at density 3.03, and the planner feeds showBoth the baselines AFTER
-        // bottomOffsetsDp has moved the two labels apart (DailyHighLabelPlanner.resolveHighLabelPlan).
+        // bottomOffsetsDp has placed the two labels (DailyHighLabelPlanner.resolveHighLabelPlan).
         val pxPerDeg = 20f
         val density = 3.03f
         val fullLabelH = 60f // measured "75.9°" box on the device
@@ -86,37 +86,38 @@ class DualHighLabelTest {
     private val gap = 8f
 
     @Test
-    fun `lower-valued label sits just below its bar top, higher-valued clears its normal gap`() {
-        // Actual warmer than forecast (the reported case: pink 89.4 over yellow 87).
+    fun `actual pins to its bar top and a cooler forecast pins to its own`() {
+        // Zero-padding request (2026-09-04): the actual sits ON its bar; when the forecast ran
+        // cooler it pins to its own bar top too, so the label gap is exactly the bar gap (the
+        // forecast miss) and order can never flip on any graph compression.
         val o = DualHighLabel.bottomOffsetsDp(actualHigh = 89.4f, forecastHigh = 87f, normalGapDp = gap)
-        assertEquals(DualHighLabel.DUAL_LOWER_BELOW_BAR_DP, o.forecastDp, 0.001f)
-        assertEquals(-(gap + DualHighLabel.DUAL_UPPER_PUSH_UP_DP), o.actualDp, 0.001f)
+        assertEquals(0f, o.actualDp, 0.001f)
+        assertEquals(0f, o.forecastDp, 0.001f)
     }
 
     @Test
-    fun `roles swap when the forecast ran hot`() {
-        // Forecast above the actual -> the ACTUAL is now the lower label and takes the below-bar spot.
+    fun `forecast ran hot - actual still pins, the forecast takes the raised slot`() {
         val o = DualHighLabel.bottomOffsetsDp(actualHigh = 87f, forecastHigh = 89.4f, normalGapDp = gap)
-        assertEquals(DualHighLabel.DUAL_LOWER_BELOW_BAR_DP, o.actualDp, 0.001f)
+        assertEquals(0f, o.actualDp, 0.001f)
         assertEquals(-(gap + DualHighLabel.DUAL_UPPER_PUSH_UP_DP), o.forecastDp, 0.001f)
     }
 
     @Test
-    fun `labels always move apart, never together, whichever high is larger`() {
-        // The whole point of the direction-aware rule: a role-based "always lower the forecast" could
-        // shove the two together (and cross them) when the forecast ran hot. Assert separation grows
-        // in both orientations, on a graph compressed enough that a minimum-diff miss barely shows.
+    fun `pinned labels follow their bars - order never flips and the gap is the miss`() {
+        // With both labels pinned (actual-warmer case), label order matches bar order at ANY graph
+        // compression, and the label separation equals the bar-top separation (the forecast miss).
+        // Extra room is the climb's job (extraUpperPushPx), not the offsets'.
         val pxPerDeg = 14f
-        fun separationChange(actual: Float, forecast: Float): Float {
-            val o = DualHighLabel.bottomOffsetsDp(actual, forecast, normalGapDp = gap)
-            val naturalGap = kotlin.math.abs(actual - forecast) * pxPerDeg
-            // Bar tops in screen Y: warmer temp = smaller Y. Apply each offset to its own bar top.
-            val aY = -actual * pxPerDeg + o.actualDp
-            val fY = -forecast * pxPerDeg + o.forecastDp
-            return kotlin.math.abs(aY - fY) - naturalGap
-        }
-        assertTrue(separationChange(89.4f, 87f) > 0f)
-        assertTrue(separationChange(87f, 89.4f) > 0f)
+        val o = DualHighLabel.bottomOffsetsDp(89.4f, 87f, normalGapDp = gap)
+        val aY = -89.4f * pxPerDeg + o.actualDp
+        val fY = -87f * pxPerDeg + o.forecastDp
+        assertTrue("warmer actual must stay above the cooler forecast", aY < fY)
+        assertEquals(
+            "label gap must equal the bar-top gap (the forecast miss)",
+            2.4f * pxPerDeg,
+            kotlin.math.abs(aY - fY),
+            0.001f,
+        )
     }
 
     @Test
@@ -138,10 +139,12 @@ class DualHighLabelTest {
     }
 
     @Test
-    fun `equal highs do not crash and keep the actual above`() {
+    fun `equal highs do not crash and keep the actual not below the forecast`() {
         // Unreachable through showBoth (MIN_DIFF_DEG gates it), but the pure fn must stay total.
+        // Both labels pin to their own bars, and equal bars mean equal Y — the best the offsets can
+        // promise is that the actual never lands BELOW the forecast.
         val o = DualHighLabel.bottomOffsetsDp(80f, 80f, normalGapDp = gap)
-        assertTrue(o.actualDp < o.forecastDp)
+        assertTrue(o.actualDp <= o.forecastDp)
     }
 
     // ── extraUpperPushPx (on-demand raise for the upper label) ───────────
@@ -188,18 +191,19 @@ class DualHighLabelTest {
 
     @Test
     fun `pushing the upper label clears a borderline pair instead of dropping or overlapping it`() {
-        // The device case (2026-07-31 Samsung history, Mon): actual 75.9 / forecast 77.0 at
-        // 7.75px per degree in bitmap space landed 13.53px apart against a 13.84px admission
-        // threshold -- rejected by 0.31px, with empty space directly above the upper (forecast)
-        // label. Aiming only at that threshold would have printed them overlapping instead.
+        // With both labels pinned (actual-warmer case), the pre-push gap is exactly the miss in px.
+        // The 2026-07-31 Samsung history report's geometry (actual 75.9 vs forecast 77.0 -- the
+        // orientation swapped here so the ACTUAL is the warmer/upper label, as pinning implies):
+        // a 1.08° miss at 7.75px per degree lands 8.37px apart against a 13.84px admission
+        // threshold -- rejected, and the offsets no longer buy any room on their own. The climb is
+        // the safety valve that must still clear the pair.
         val pxPerDeg = 7.75f
         val deviceLabelH = 34.59f
-        val fixedNudgePx = 5.16f // bottomOffsetsDp's -5dp vs -10dp, at this device's density
-        val gapBefore = 1.08f * pxPerDeg + fixedNudgePx
+        val gapBefore = 1.08f * pxPerDeg
 
         assertFalse(
-            "precondition: the pre-push positions really are short of the admission test",
-            DualHighLabel.showBoth(75.9f, 77.0f, 0f, gapBefore, deviceLabelH),
+            "precondition: the pinned pair really is short of the admission test",
+            DualHighLabel.showBoth(77.0f, 75.9f, 0f, gapBefore, deviceLabelH),
         )
         val push = DualHighLabel.extraUpperPushPx(
             gapBefore,
@@ -209,7 +213,7 @@ class DualHighLabelTest {
         val gapAfter = gapBefore + push
         assertTrue(
             "after the push the pair is admitted",
-            DualHighLabel.showBoth(75.9f, 77.0f, 0f, gapAfter, deviceLabelH),
+            DualHighLabel.showBoth(77.0f, 75.9f, 0f, gapAfter, deviceLabelH),
         )
         assertTrue(
             "and the digits actually clear each other (cap height ~0.61 of the box)",

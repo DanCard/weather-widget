@@ -92,27 +92,10 @@ object DualHighLabel {
     }
 
     /**
-     * Where the LOWER-valued of the two high labels sits: its bottom edge this far below its own
-     * bar's top, instead of the usual gap above it. Negative = just ABOVE the bar top. Giving up the
-     * whole normal gap is what buys the room; the exact sign here is fine tuning.
-     *
-     * Note this label cannot be lifted clear of "the bars" by tuning: it draws at its own bar's X,
-     * but the *taller* bars beside it (the actual, and today's snapshot) pass through it no matter
-     * where it sits, short of climbing to the actual's height where the actual's label already is.
-     * That is what the outline is for. [DUAL_FORECAST_FONT_SCALE] is the lever that declutters here.
-     *
-     * Stated as an absolute target rather than a "push down by N" delta because the two renderers
-     * use different normal gaps (Android [8dp][HIGH label offset], desktop 3) — a shared delta would
-     * land them in different places, an absolute target lands them the same.
-     */
-    const val DUAL_LOWER_BELOW_BAR_DP = -5f
-
-    /**
-     * How much further UP (dp) the higher-valued of the two high labels goes, beyond its normal gap.
-     * Deliberately much smaller than the lower label's move: up is the expensive direction (the rain
-     * % and the day header live there) and past attempts at a bigger raise read as exaggerated.
-     *
-     * This is the *baseline* push, always applied. [extraUpperPushPx] adds to it on demand.
+     * Raise (dp) for an upper FORECAST label, on top of [normalGapDp]-equivalent room: the forecast
+     * ran hotter than the actual, so it is the upper label and keeps a floating gap above its own
+     * bar. The actual never takes this slot anymore — it pins to its own bar top (see
+     * [bottomOffsetsDp]) — so this raise only ever applies to a forecast that ran hot.
      */
     const val DUAL_UPPER_PUSH_UP_DP = 2f
 
@@ -168,26 +151,28 @@ object DualHighLabel {
     /** True when a formatted temp has 3+ numeric digits (triple-digit ints or decimals like 84.3). */
     fun isWideLabel(label: String): Boolean = label.count { it.isDigit() } >= 3
 
-    /**
-     * Vertical placement of the two dual high labels, as each label's BOTTOM edge offset from its
+    /** Vertical placement of the two dual high labels, as each label's BOTTOM edge offset from its
      * own bar's top (positive = below the bar top, i.e. down the screen).
      *
-     * Each label moves *away* from the other — the lower-valued one down onto its bar, the
-     * higher-valued one a little further up — rather than "the forecast always moves down". The
-     * forecast is not always the lower of the two (a forecast that ran hot sits above the actual),
-     * and pushing by role would then shove the two labels together and could even cross them,
-     * printing the forecast number below the actual's while the forecast bar sits above it. Moving
-     * apart can never reorder them.
+     * Role-based (zero-padding request, 2026-09-04): the ACTUAL pins to its own bar top (0) in both
+     * orientations — the observed reading sits directly on the observed bar, and the label outline
+     * keeps it legible over the bar ink. The forecast takes the remaining slot:
+     *  - Forecast ran cooler (the common case): it ALSO pins to its own bar top. The two bottoms
+     *    then follow the bar tops exactly, so the labels can never cross or sit tighter than the
+     *    bars themselves, on any graph compression. The pair's gap is the forecast miss, and
+     *    [extraUpperPushPx] is the on-demand remedy that may lift the upper label when a tight miss
+     *    needs real separation (the "zero padding, climb as the safety valve" decision).
+     *  - Forecast ran hotter: it is the upper label and keeps a floating gap of
+     *    [normalGapDp] + [DUAL_UPPER_PUSH_UP_DP] above its own bar.
      *
      * @param normalGapDp the platform's usual gap between a high label's bottom and its bar top
      */
     fun bottomOffsetsDp(actualHigh: Float, forecastHigh: Float, normalGapDp: Float): Offsets {
-        val lower = DUAL_LOWER_BELOW_BAR_DP
         val upper = -(normalGapDp + DUAL_UPPER_PUSH_UP_DP)
         return if (actualHigh >= forecastHigh) {
-            Offsets(actualDp = upper, forecastDp = lower)
+            Offsets(actualDp = 0f, forecastDp = 0f)
         } else {
-            Offsets(actualDp = lower, forecastDp = upper)
+            Offsets(actualDp = 0f, forecastDp = upper)
         }
     }
 

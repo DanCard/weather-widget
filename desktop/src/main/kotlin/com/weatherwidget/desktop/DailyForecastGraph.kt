@@ -351,16 +351,23 @@ fun DailyForecastGraph(
             // test, decided in the room-test block and reused verbatim by the draw below so both
             // measure the same positions. See DualHighLabel.extraUpperPushPx.
             var dualExtraPush = 0f
-            // The two labels are only |miss| * pixelsPerDegree apart at their natural positions, so
-            // they collide on any small miss. Move each away from the other: the lower-valued one
-            // down onto its own bar, the higher-valued one a little further up (DualHighLabel).
+            // Role-based pinning (DualHighLabel): the actual always sits ON its own bar top; the
+            // forecast pins to its own bar when it ran cooler (bottoms then follow bar tops and can
+            // never cross) and keeps a raised gap when it ran hotter.
             val dualOffsets = if (dualActualHigh != null && dualForecastHigh != null)
                 DualHighLabel.bottomOffsetsDp(dualActualHigh, dualForecastHigh, normalGapDp = DUAL_NORMAL_GAP)
             else null
+            // Round caps extend a bar's ink half its stroke width ABOVE the geometric endpoint, so a
+            // label pinned to the bare endpoint would overlap the cap. Pinned dualTop calls subtract
+            // the matching bar's ink radius so the label bottom touches the visible ink top.
+            val actualInkRadiusPx = if (day.isPast) barWidth * 0.72f / 2f else compactTodayBarWidth / 2f
+            val forecastInkRadiusPx = if (day.isToday) compactTodayBarWidth / 2f else thinWidth / 2f
+            val forecastPinnedInkRadiusPx =
+                if (dualOffsets != null && dualOffsets.forecastDp == 0f) forecastInkRadiusPx else 0f
             // pushPx raises the label further (Y grows downward); the header clamp still wins, so a
             // push that would run off the top is simply absorbed and the room test sees that.
-            fun dualTop(temp: Float, height: Float, offsetDp: Float, pushPx: Float = 0f): Float =
-                (yAt(temp) + offsetDp * scale - height - pushPx).coerceAtLeast(-headerBleed)
+            fun dualTop(temp: Float, height: Float, offsetDp: Float, pushPx: Float = 0f, inkRadiusPx: Float = 0f): Float =
+                (yAt(temp) + offsetDp * scale - height - pushPx - inkRadiusPx).coerceAtLeast(-headerBleed)
             // Only the higher-valued label is raised, so the pair can never cross.
             val dualActualIsUpper = dualActualHigh != null && dualForecastHigh != null &&
                 dualActualHigh >= dualForecastHigh
@@ -371,12 +378,12 @@ fun DailyForecastGraph(
                 // Collision test at FULL size decides whether the forecast shrinks at all; the room
                 // test then measures the boxes at the size they will actually be drawn.
                 val fHFull = textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualBase).sp)).size.height.toFloat()
-                val aTop = dualTop(dualActualHigh, aH, dualOffsets.actualDp)
-                val fTopFull = dualTop(dualForecastHigh, fHFull, dualOffsets.forecastDp)
+                val aTop = dualTop(dualActualHigh, aH, dualOffsets.actualDp, inkRadiusPx = actualInkRadiusPx)
+                val fTopFull = dualTop(dualForecastHigh, fHFull, dualOffsets.forecastDp, inkRadiusPx = forecastPinnedInkRadiusPx)
                 dualForecastScale = DualHighLabel.forecastFontScale(aTop, fTopFull, maxOf(aH, fHFull))
                 val fH = if (dualForecastScale == 1f) fHFull else
                     textMeasurer.measure(fText, TextStyle(fontSize = tempFontSize(fText, dualBase * dualForecastScale).sp)).size.height.toFloat()
-                val fTop = dualTop(dualForecastHigh, fH, dualOffsets.forecastDp)
+                val fTop = dualTop(dualForecastHigh, fH, dualOffsets.forecastDp, inkRadiusPx = forecastPinnedInkRadiusPx)
                 // A small miss leaves the pair nearly on top of each other no matter how the fixed
                 // nudges are tuned; spend the empty space above the upper label rather than
                 // dropping a label or printing the two numbers over each other. dualTop's
@@ -386,8 +393,8 @@ fun DailyForecastGraph(
                     labelHeightPx = maxOf(aH, fH),
                     maxExtraPushPx = maxOf(aH, fH) * DualHighLabel.DUAL_UPPER_MAX_EXTRA_PUSH_FRACTION,
                 )
-                val aTopPushed = if (dualActualIsUpper) dualTop(dualActualHigh, aH, dualOffsets.actualDp, dualExtraPush) else aTop
-                val fTopPushed = if (dualActualIsUpper) fTop else dualTop(dualForecastHigh, fH, dualOffsets.forecastDp, dualExtraPush)
+                val aTopPushed = if (dualActualIsUpper) dualTop(dualActualHigh, aH, dualOffsets.actualDp, dualExtraPush, actualInkRadiusPx) else aTop
+                val fTopPushed = if (dualActualIsUpper) fTop else dualTop(dualForecastHigh, fH, dualOffsets.forecastDp, dualExtraPush, forecastPinnedInkRadiusPx)
                 DualHighLabel.showBoth(dualActualHigh, dualForecastHigh, aTopPushed, fTopPushed, maxOf(aH, fH))
             } else false
 
@@ -402,6 +409,7 @@ fun DailyForecastGraph(
                     aLayout.size.height.toFloat(),
                     dualOffsets.actualDp,
                     if (dualActualIsUpper) dualExtraPush else 0f,
+                    actualInkRadiusPx,
                 )
                 val aX = centerX - aLayout.size.width / 2f
                 drawOutlinedText(textMeasurer, aLayout, Offset(aX, aY))
@@ -415,6 +423,7 @@ fun DailyForecastGraph(
                     fLayout.size.height.toFloat(),
                     dualOffsets.forecastDp,
                     if (dualActualIsUpper) 0f else dualExtraPush,
+                    forecastPinnedInkRadiusPx,
                 )
                 val fLabelX = if (day.isToday) centerX else centerX + tripleOffset
                 val fX = fLabelX - fLayout.size.width / 2f
@@ -455,7 +464,14 @@ fun DailyForecastGraph(
                     )
                     // Sit above the bar top; for the hottest bar this rides up past the canvas top into
                     // the header (a little overlap is welcome) rather than dropping onto the bar.
-                    val highLabelY = (yAt(singleHigh) - highText.size.height - 3f * scale).coerceAtLeast(-headerBleed)
+                    // A genuine past actual pins to its bar top instead (zero padding, mirroring
+                    // Android/DualHighLabel): a promoted-forecast fallback reads as a forecast and
+                    // keeps the float. The ink radius lifts the pinned label onto the round cap's
+                    // visible top instead of inside it.
+                    val pinnedSingle = day.isPast && !day.solidIsForecastFallback
+                    val singleGapScale = if (pinnedSingle) 0f else 3f
+                    val singleInkRadiusPx = if (pinnedSingle) barWidth * 0.72f / 2f else 0f
+                    val highLabelY = (yAt(singleHigh) - highText.size.height - singleGapScale * scale - singleInkRadiusPx).coerceAtLeast(-headerBleed)
                     highLabelTopAtCenter = highLabelY
                     val highTopLeft = Offset(centerX - highText.size.width / 2f, highLabelY)
                     // History and today get the thin outline (today's headline sits over the triple
@@ -1084,11 +1100,11 @@ private fun formatTemp(v: Float?, useCelsius: Boolean): String {
     return com.weatherwidget.shared.util.TempUtils.formatTemp(v, useCelsius) ?: ""
 }
 
-/** Temp-label font size: wide 3+ digit temps (100°, 97.7°) draw a further 5% smaller. */
+/** Temp-label font size: wide 3+ digit temps (100°, 97.7°) draw a further 10% smaller. */
 private fun tempFontSize(text: String, base: Float): Float =
     base * (if (DualHighLabel.isWideLabel(text)) DualHighLabel.WIDE_LABEL_FONT_SCALE else 1f)
 
 // Usual gap between a high label's bottom and its bar top, in the same units as `scale`. Fed to
-// DualHighLabel.bottomOffsetsDp so the dual labels land where Android's do despite Android using a
-// wider normal gap (its HIGH_LABEL_OFFSET_DP is 8).
+// DualHighLabel.bottomOffsetsDp so an upper (ran-hot) forecast raises by the same room Android
+// gives (Android's HIGH_LABEL_OFFSET_DP is 8); pinned labels are unaffected by it.
 private const val DUAL_NORMAL_GAP = 3f

@@ -28,7 +28,12 @@ internal object DailyHighLabelPlanner {
 
     private const val TAG = "DailyHighLabel"
 
-    /** Gap in dp between a high-temp label and the top of its bar / the upper sibling in a dual. */
+    /**
+     * Floating gap in dp between a high-temp label's bottom and its bar top for today and future
+     * days, and the gap component for an upper (ran-hot) forecast in a dual. A past day's actual
+     * label — lone or dual — pins to its bar top instead (zero padding, see
+     * [DualHighLabel.bottomOffsetsDp]).
+     */
     internal const val HIGH_LABEL_OFFSET_DP = 8f
 
     /**
@@ -87,6 +92,19 @@ internal object DailyHighLabelPlanner {
         // so the actual label baseline is always the headline (effective) baseline.
         val actualHigh = effective
         val effectiveBaseline = layout.tempToY(effective) - labelOffset
+        // Zero padding for a genuine past actual: the label bottom sits ON its bar's visible top,
+        // matching the pinned dual actual in DualHighLabel.bottomOffsetsDp. Today and future days
+        // keep the floating gap, and a past day whose solid value is a promoted forecast reads as a
+        // forecast, not an observation — it keeps the gap too.
+        //
+        // Round caps extend a bar's ink half its stroke width ABOVE the geometric endpoint, so
+        // pinning to the bare endpoint overlaps the cap. Lift pinned labels by that ink radius so
+        // the label bottom exactly touches the visible bar top.
+        val actualInkRadiusPx = paints.historyBarPaint.strokeWidth / 2f
+        val forecastInkRadiusPx = paints.forecastBarPaint.strokeWidth / 2f
+        val singleBaseline =
+            if (day.isPast && !day.solidIsForecastFallback) layout.tempToY(effective) - actualInkRadiusPx
+            else effectiveBaseline
         val forecastHigh = if (day.isPast || todayHighSettled) day.dashedLineHigh else null
         // Two labels this close together (the gap IS the forecast miss, so a 2° miss is only a couple
         // of label-heights on a compressed graph) collide at their natural above-the-bar positions.
@@ -97,12 +115,19 @@ internal object DailyHighLabelPlanner {
         }
         val offsetScale = layout.bitmapScale.coerceAtMost(1f)
         fun offsetPx(dp: Float) = (dp * offsetScale).dp(layout.density)
-        val nudgedActualBaseline = offsets?.let { layout.tempToY(effective) + offsetPx(it.actualDp) }
-            ?: effectiveBaseline
+        val nudgedActualBaseline = offsets?.let {
+            layout.tempToY(effective) + offsetPx(it.actualDp) -
+                // The actual always pins (actualDp == 0) — lift it onto the ink top.
+                if (it.actualDp == 0f) actualInkRadiusPx else 0f
+        } ?: singleBaseline
         // offsets is non-null iff forecastHigh is non-null (both derive from the same source above),
         // so the chained ?.let is total. Avoid `offsets!!` so the invariant stays compiler-checkable.
         val forecastBaseline = forecastHigh?.let { high ->
-            offsets?.let { layout.tempToY(high) + offsetPx(it.forecastDp) }
+            offsets?.let {
+                layout.tempToY(high) + offsetPx(it.forecastDp) -
+                    // A pinned (ran-cooler) forecast sits over its overlay bar's cap too.
+                    if (it.forecastDp == 0f) forecastInkRadiusPx else 0f
+            }
         }
         // Label height for the room test, measured at the size each label is actually DRAWN — the
         // two can differ (a wide "75.9°" takes WIDE_LABEL_FONT_SCALE, a plain "77°" does not, and
@@ -166,8 +191,8 @@ internal object DailyHighLabelPlanner {
             DualHighLabel.forecastFontScale(pushedActualBaseline, pushedForecastBaseline, twoLabelHeight)
         else 1f
         // The nudge (and the extra push) only apply when two labels actually render; a lone high
-        // label keeps its true above-the-bar position.
-        val actualBaseline = if (showBoth) pushedActualBaseline else effectiveBaseline
+        // label keeps its own position — pinned to the bar for a past actual, floating otherwise.
+        val actualBaseline = if (showBoth) pushedActualBaseline else singleBaseline
         val forecastLabelBaseline = if (showBoth) pushedForecastBaseline else forecastBaseline
         val anchorHigh = if (showBoth && forecastHigh != null) maxOf(actualHigh, forecastHigh) else effective
         val anchorBaseline = if (showBoth && forecastLabelBaseline != null) {
