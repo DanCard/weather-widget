@@ -54,6 +54,12 @@ object TemperatureViewHandler {
         repository: WeatherRepository? = null,
         startupToken: String? = null,
         deferCurrentTempResolution: Boolean = false,
+        // Phase 1 of an interaction's two-phase paint: skip the graph observation read (71-461ms on
+        // the Samsung) and push the forecast curve at once, then let the caller repaint with actuals.
+        // Distinct from [startupToken], which sets the same resolver flag but ALSO schedules its own
+        // deferred follow-up broadcast; here the caller owns phase 2 and runs it inline under the
+        // same interaction lock. See GraphInteractionRenderer.
+        deferGraphActuals: Boolean = false,
         // True for opportunistic "UI-only" repaints (the ~2-min now-tracking alarm). Such repaints
         // carry a now-centered narrow data window, so re-rendering an ANCHORED past/future graph from
         // them corrupts it (forecast gaps -> blank curve + missing labels). For those we update only
@@ -175,6 +181,7 @@ object TemperatureViewHandler {
             repository = repository,
             deferCurrentTempResolution = deferCurrentTempResolution,
             startupToken = startupToken,
+            deferGraphActualsRequested = deferGraphActuals,
             onFetchDotResolved = onFetchDotResolved,
             appLogDao = appLogDao,
             sourceMissingFromLoad = sourceMissingFromLoad,
@@ -297,6 +304,7 @@ object TemperatureViewHandler {
                 "view" to "TEMPERATURE",
                 "useGraph" to resolutionResult.state.graph.useGraph,
                 "startupFastPath" to (startupToken != null && resolutionResult.state.graph.useGraph),
+                "deferActuals" to (deferGraphActuals && resolutionResult.state.graph.useGraph),
                 "resolveMs" to resolutionResult.resolveMs,
                 "obsQueryMs" to resolutionResult.obsQueryMs,
                 "buildHourDataMs" to resolutionResult.buildHourDataMs,

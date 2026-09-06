@@ -1,7 +1,8 @@
 # Attribute the click gap, then extend the deferred-actuals fast path to interactions
 
 **Date:** 2026-09-06
-**Status:** Tier 1 done and measured; Tier 2 still to build — see Tier 1 Outcome
+**Status:** Done. Tier 1 measured (see Tier 1 Outcome); Tier 2 built, tested and verified on
+device — see Tier 2 Outcome.
 
 Tiers 1 and 2 of
 [260906-click-latency-where-the-time-goes-next.md](260906-click-latency-where-the-time-goes-next.md),
@@ -225,3 +226,70 @@ under a *real* burst is now an open question again, because the burst test has t
 Thresholds are 50 ms against a measured normal of 0–15 ms, so a line appearing now means something
 changed. All logcat, never `app_logs`: these fire on every tap, and a diagnostic's own write must not
 land on the path it measures.
+
+---
+
+# Tier 2 Outcome
+
+## What shipped
+
+Exactly the plan's three changes, no more:
+
+1. **`deferActuals: Boolean`** on `InteractionRenderDispatcher.Request` (default false) →
+   `GraphRenderRequest` → `TemperatureViewHandler.updateWidget(deferGraphActuals)` →
+   `TemperatureStateResolver.shouldDeferGraphActuals(startupToken, requested, useGraph)` — a pure
+   generalisation of the old `startupToken != null && useGraph` gate. The startup path is untouched
+   (its token still sets the flag; its `startupFastPath` rows and tests are the control).
+2. **`GraphInteractionRenderer.paintPlan(deferActuals, viewMode, requestPartialPush)`** — a pure,
+   tested decision returning the paints one render performs. Two phases only for an opted-in
+   temperature render: phase 1 keeps the caller's delivery mode and skips the observation read;
+   phase 2 always pushes partially (same view set, complete body — the sticky-visibility trap).
+   Precip, cloud and daily paint once whatever the flag says: their handlers have no deferral to
+   use, and `dailyRequest` drops the flag entirely.
+3. **Opt-ins:** `SET_VIEW`, `TOGGLE_API`, `CYCLE_ZOOM` and `GRAPH_NAV` (nav left/right) pass
+   `deferActuals = true`. `TOGGLE_VIEW`, `RESET_SOURCE`, `RESIZE` and the refresh paths do not.
+   `INTERACTION_PHASE1` (logcat only, same rule as `INTERACTION_E2E`) times the first push of every
+   two-phase render; `TEMP_PIPELINE_PERF` gains a `deferActuals` field.
+
+`DeferredInteractionActualsTest` (8 tests, Short bucket) pins both pure decisions — startup-token
+behaviour, text-mode never deferring, per-view-mode plan shape, delivery-mode preservation, and the
+no-opt-in default. Full suite: **4,017 tests pass** (`:app` 2,139 · `:shared` 1,505 · `:desktop` 373).
+
+## Verified on device (emulator, real `input tap`s through the launcher)
+
+1. **Every opted-in action emits `INTERACTION_PHASE1`.** Warm process: `TOGGLE_API` **phase1=121 ms,
+   e2e=502 ms**; `GRAPH_NAV` **phase1=221 ms, e2e=366 ms** — phase 1 lands near the <100 ms target on
+   hardware far slower than the Samsung (the same taps' full paints cost 275–372 ms there). Cold
+   process: `SET_VIEW` 692/1,108 ms, `CYCLE_ZOOM` 791/1,141 ms.
+2. **Negative controls hold.** `TOGGLE_VIEW` (not opted in) and `TOGGLE_API` while in daily view
+   emit no phase line and paint once — the flag reaches nothing that cannot use it.
+3. **The observation read is really skipped.** `app_logs` shows the pairs:
+   `deferActuals=true obsQueryMs=0 … hours=19` then, ~280 ms later,
+   `deferActuals=false obsQueryMs=51`. `hours>0` in every phase-1 row — the forecast curve is drawn,
+   never a blank graph. (Phase-1 `TEMP_PIPELINE_PERF` rows appear only when the paint exceeds the
+   120 ms `logIfSlow` threshold — fast phase-1 paints are invisible to the DB log by design;
+   `INTERACTION_PHASE1` is the per-tap number.)
+4. **A 30 fps screenrecord caught the phase-1 frame itself.** For one `GRAPH_NAV` tap: frames show
+   the forecast curve throughout; for ~1.1 s the overlay is reduced (pink pixels 5,225 → 1,874 —
+   the residual is the history-fed overlay portion, which is not deferred), then phase 2 restores it
+   (4,795 px). The frame timeline matches the two push timestamps. Evidence frames:
+   `/tmp/phase1_frame_evidence.png`, `/tmp/phase2_frame_evidence.png`.
+5. **The startup control still works:** `token=startup-… startupFastPath=true` rows keep appearing
+   after the change, and their tests pass unchanged.
+
+## Samsung numbers — pending, and why
+
+An active Signal call (translucent `WebRtcCallActivity` holding window focus) absorbs `input tap`s
+on that phone, so warm Samsung numbers could not be gathered this session; tapping during a call
+risks hitting call controls. This also retroactively explains the session's "silent" missed taps.
+The two taps that did land pre-call behaved correctly (`TOGGLE_VIEW` e2e 732 ms, no phase line).
+`INTERACTION_PHASE1` now ships in every build, so the next tap on the Samsung produces the number.
+
+## Notes for whoever continues this thread
+
+1. Tap targets on the fold cover display (uiautomator-derived): header-left block is `TOGGLE_VIEW`,
+   the top-right label block is `TOGGLE_API`, daily columns fire `ACTION_DAY_CLICK` (which routes to
+   `SET_VIEW` — opted in), graph strips fire `CYCLE_ZOOM`, edge arrows `GRAPH_NAV`.
+2. Phase-1's 121–221 ms emulator figures include queue + prepare + the render itself; on the Samsung
+   the same shape should land well under 100 ms warm, since Tier 1 measured prepare at 9–10 ms and
+   the skipped `obsQueryMs` at 71–461 ms there.

@@ -20,6 +20,13 @@ internal object InteractionRenderDispatcher {
         val extraMetadata: String = "",
         val partialPush: Boolean = false,
         val origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.USER_INTERACTION,
+        /**
+         * Paint the graph twice: first without the observation read (forecast curve only), then
+         * again with actuals. Default false, so a caller that has not opted in behaves exactly as
+         * before. Only the temperature graph honours it — the precip and cloud handlers have no
+         * equivalent deferral, so they render once whatever this says.
+         */
+        val deferActuals: Boolean = false,
     )
 
     suspend fun render(viewMode: ViewMode, request: Request) {
@@ -42,6 +49,7 @@ internal object InteractionRenderDispatcher {
             extraMetadata = request.extraMetadata,
             partialPush = request.partialPush,
             origin = request.origin,
+            deferActuals = request.deferActuals,
         )
 
     fun dailyRequest(request: Request) =

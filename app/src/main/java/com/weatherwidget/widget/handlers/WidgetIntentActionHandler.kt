@@ -99,6 +99,7 @@ internal object WidgetIntentActionHandler {
                 repository,
                 startMs,
                 "NAV",
+                deferActuals = true,
             )
         if (viewMode.isGraphMode) {
             GraphInteractionRenderer.navigate(
@@ -135,6 +136,7 @@ internal object WidgetIntentActionHandler {
                     repository,
                     startMs,
                     "CYCLE_ZOOM",
+                    deferActuals = true,
                 ),
             ),
             zoomCenterOffset,
@@ -180,6 +182,7 @@ internal object WidgetIntentActionHandler {
                 startMs,
                 "TOGGLE_API",
                 "source=${newSource.id}",
+                deferActuals = true,
             ),
         )
     }
@@ -310,6 +313,7 @@ internal object WidgetIntentActionHandler {
                 append("mode=${targetMode.name}")
                 interactionToken?.let { append(" token=$it") }
             },
+            deferActuals = true,
         )
     }
 
@@ -353,6 +357,7 @@ internal object WidgetIntentActionHandler {
         staleReason: String,
         actionTag: String,
         metadata: String = "",
+        deferActuals: Boolean = false,
     ) {
         val refreshContext = prepareContext(context, appWidgetId, staleReason) ?: return
         InteractionRenderDispatcher.render(
@@ -366,6 +371,7 @@ internal object WidgetIntentActionHandler {
                 startMs,
                 actionTag,
                 metadata,
+                deferActuals = deferActuals,
             ),
         )
     }
@@ -455,6 +461,7 @@ internal object WidgetIntentActionHandler {
         extraMetadata: String = "",
         partialPush: Boolean = false,
         origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.USER_INTERACTION,
+        deferActuals: Boolean = false,
     ) = InteractionRenderDispatcher.Request(
         context,
         appWidgetId,
@@ -466,5 +473,6 @@ internal object WidgetIntentActionHandler {
         extraMetadata,
         partialPush,
         origin,
+        deferActuals,
     )
 }
