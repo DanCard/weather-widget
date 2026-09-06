@@ -625,7 +625,23 @@ internal object TemperatureStateResolver {
             // Diagnosed variant: same one query, but it also hands back the pre-merge candidate
             // numbers. They are only available here, and re-deriving them later costs a second box
             // query (1.4 s on the reporting device).
-            val read = repository?.readObservationsInRange(minEpoch, maxEpoch, lat, lon)
+            // Scope the read to the api that can actually drive THIS source's curve. Both consumers
+            // below filter by exactly this rule already — the blend via
+            // ObservationSourceMatcher.matchesActualSource (`if (api != providerId) return false`)
+            // and HourlyObservationBackfill's coverage check via matchesObservationSource — so every
+            // other api was read off disk only to be dropped. Measured on the Samsung: 33k
+            // candidates fall to ~8k for an NWS widget, and the discarded rows were 71% of the text
+            // bytes in the result set.
+            //
+            // Resolved, never a literal: a source can be configured to take another feed's actuals
+            // (this device has actuals_provider_SILURIAN = SYNOPTIC, so Silurian's curve is built
+            // entirely from Synoptic rows). GENERIC_GAP rides along because matchesActualSource
+            // admits it ahead of the provider check.
+            val readApis = setOf(
+                ActualsProviderResolver.providerIdFor(displaySource),
+                WeatherSource.GENERIC_GAP.id,
+            )
+            val read = repository?.readObservationsInRange(minEpoch, maxEpoch, lat, lon, readApis)
             val loaded = read?.rows ?: emptyList()
             obsPoolDiagnostics = read?.diagnostics
             obsWindowStartMs = minEpoch

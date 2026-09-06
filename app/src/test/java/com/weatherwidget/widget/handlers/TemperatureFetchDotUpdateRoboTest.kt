@@ -117,7 +117,7 @@ class TemperatureFetchDotUpdateRoboTest {
         )
         val resolved = mutableListOf<FetchDotDebug>()
         io.mockk.coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns firstActuals andThen secondActuals
-        io.mockk.coEvery { repository.readObservationsInRange(any(), any(), any(), any()) } returns observationReadOf(firstActuals) andThen observationReadOf(secondActuals)
+        io.mockk.coEvery { repository.readObservationsInRange(any(), any(), any(), any(), any()) } returns observationReadOf(firstActuals) andThen observationReadOf(secondActuals)
 
         TemperatureViewHandler.updateWidget(
             context = context,
@@ -193,7 +193,7 @@ class TemperatureFetchDotUpdateRoboTest {
         )
         val resolved = mutableListOf<FetchDotDebug>()
         io.mockk.coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns actuals
-        io.mockk.coEvery { repository.readObservationsInRange(any(), any(), any(), any()) } returns observationReadOf(actuals)
+        io.mockk.coEvery { repository.readObservationsInRange(any(), any(), any(), any(), any()) } returns observationReadOf(actuals)
 
         TemperatureViewHandler.updateWidget(
             context = context,

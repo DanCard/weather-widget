@@ -158,7 +158,9 @@ class WeatherRepository
             endTimestamp: Long,
             latitude: Double,
             longitude: Double,
-        ): ObservationRangeRead = forecastRepository.readObservationsInRange(startTimestamp, endTimestamp, latitude, longitude)
+            apis: Collection<String>? = null,
+        ): ObservationRangeRead =
+            forecastRepository.readObservationsInRange(startTimestamp, endTimestamp, latitude, longitude, apis)
         suspend fun getDailyActualsWithLiveToday(
             latitude: Double,
             longitude: Double,

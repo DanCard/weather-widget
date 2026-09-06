@@ -369,12 +369,14 @@ class ForecastRepository
             endTimestamp: Long,
             latitude: Double,
             longitude: Double,
+            apis: Collection<String>? = null,
         ): ObservationRangeRead {
             return observationDao.readObservationsInRange(
                 startTimestamp,
                 endTimestamp,
                 latitude,
                 longitude,
+                apis,
             )
         }
 

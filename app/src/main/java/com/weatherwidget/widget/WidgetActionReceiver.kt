@@ -15,7 +15,6 @@ import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 
@@ -23,7 +22,7 @@ import kotlinx.coroutines.SupervisorJob
 @dagger.hilt.android.AndroidEntryPoint
 class WidgetActionReceiver : BroadcastReceiver() {
     @VisibleForTesting
-    internal var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    internal var scope = CoroutineScope(SupervisorJob() + WidgetInteractionDispatcher.dispatcher)
 
     @Inject
     lateinit var repository: WeatherRepository

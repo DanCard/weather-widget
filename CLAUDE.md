@@ -8,6 +8,14 @@
 ## Important Guidelines
 
 - **Never clear app data** (`adb shell pm clear`) without explicit user consent. Cached data is valuable for testing and debugging.
+- **Plan files**: one new file per task, named `YYMMDD-kebab-title.md`, never overwriting an existing
+  one. Two directories, chosen by subject:
+  - **`performance/`** — latency, battery, CPU, memory, DB/query cost, render time.
+  - **`plans/`** — everything else.
+
+  `performance/` is a sibling of `plans/`, not a subdirectory. It exists because `plans/` has grown
+  past 650 files and a performance investigation is the kind that accumulates related-but-separate
+  entries over months; interleaved with everything else, that thread is unfollowable.
 - **Debugging workflow**: When investigating widget bugs, proactively pull device logs (`adb logcat`), grab the database from the device (`adb pull`), query the DB, and capture screenshots — don't just read source code.
 - **Screenshots**: `adb` can prepend warning text to PNG output, making the file unreadable. Always convert to JPG before reading:
   ```bash

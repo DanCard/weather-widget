@@ -72,6 +72,39 @@ interface ObservationDao {
     ): List<ObservationEntity>
 
     /**
+     * [getObservationCandidatesInRange] restricted to [apis].
+     *
+     * A pure filter, never a reordering: the `ORDER BY` is byte-identical to the unscoped query's
+     * for the reason its comment gives — row order leaks into the blend's `groupBy { stationId }`,
+     * which decides `dominantStationByDay`'s tie-break and `anchorStation`, and the same rows in a
+     * different order rendered two alternating series. See `ActualsRowOrderDeterminismTest`.
+     *
+     * Exists because the blend already discards most of what the unscoped query returns.
+     * `ObservationSourceMatcher.matchesActualSource` rejects every row whose `api` is not the
+     * display source's resolved provider, but the DAO took no source, so that filter could only run
+     * after the rows had crossed the CursorWindow. Measured 2026-09-06 on the Samsung, one 132h
+     * window held 34,726 SYNOPTIC rows (70%, and 1.35 MB of text) against 7,862 NWS rows — all of
+     * the former read off a cold disk and dropped by the first filter in the blend.
+     */
+    @Query(
+        """
+        SELECT * FROM observations
+        WHERE timestamp >= :startTs
+          AND timestamp < :endTs
+          AND ${LocationMatch.ROOM_WHERE}
+          AND api IN (:apis)
+        ORDER BY timestamp ASC, stationId ASC, locationLat ASC, locationLon ASC
+    """,
+    )
+    suspend fun getObservationCandidatesInRangeForApis(
+        startTs: Long,
+        endTs: Long,
+        lat: Double,
+        lon: Double,
+        apis: Collection<String>,
+    ): List<ObservationEntity>
+
+    /**
      * Returns the observations from the coarse [LocationMatch.ROOM_WHERE] box that describe the
      * user's current sky, merged across nearby device-site fragments and deduplicated.
      *
@@ -86,7 +119,8 @@ interface ObservationDao {
         endTs: Long,
         lat: Double,
         lon: Double,
-    ): List<ObservationEntity> = readObservationsInRange(startTs, endTs, lat, lon).rows
+        apis: Collection<String>? = null,
+    ): List<ObservationEntity> = readObservationsInRange(startTs, endTs, lat, lon, apis).rows
 
     /**
      * [getObservationsInRange] plus the [ObservationPoolDiagnostics] that say why the returned pool
@@ -103,9 +137,24 @@ interface ObservationDao {
         endTs: Long,
         lat: Double,
         lon: Double,
+        /**
+         * `observations.api` values worth reading, or null for every api.
+         *
+         * Pass the caller's resolved provider set — `ActualsProviderResolver.providerIdFor(source)`,
+         * never a literal, because a source can be configured to take another feed's actuals (this
+         * device has `actuals_provider_SILURIAN = SYNOPTIC`, so Silurian's curve is built entirely
+         * from Synoptic rows). Only scope a read whose every consumer filters by that same rule; the
+         * daily recompute, which computes history for all sources at once, must stay unscoped.
+         */
+        apis: Collection<String>? = null,
     ): ObservationRangeRead {
         val sqlStartMs = android.os.SystemClock.elapsedRealtime()
-        val candidates = getObservationCandidatesInRange(startTs, endTs, lat, lon)
+        val candidates =
+            if (apis == null) {
+                getObservationCandidatesInRange(startTs, endTs, lat, lon)
+            } else {
+                getObservationCandidatesInRangeForApis(startTs, endTs, lat, lon, apis)
+            }
         val afterSqlMs = android.os.SystemClock.elapsedRealtime()
         val merged =
             ObservationSiteMerge.merge(
@@ -129,7 +178,8 @@ interface ObservationDao {
                 "OBS_RANGE_READ",
                 "spanH=${(endTs - startTs) / 3_600_000} total=${endMs - sqlStartMs}ms " +
                     "sql=${afterSqlMs - sqlStartMs}ms merge=${endMs - afterSqlMs}ms " +
-                    "candidates=${candidates.size} merged=${merged.size}",
+                    "candidates=${candidates.size} merged=${merged.size} " +
+                    "apis=${apis?.joinToString("|") ?: "ALL"}",
             )
         }
         return ObservationRangeRead(rows = merged) {

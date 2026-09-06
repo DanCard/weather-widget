@@ -125,7 +125,7 @@ class TemperatureDeltaVisibilityRoboTest {
         )
         val read = observationReadOf(listOf(observation))
         coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns listOf(observation)
-        coEvery { repository.readObservationsInRange(any(), any(), any(), any()) } returns read
+        coEvery { repository.readObservationsInRange(any(), any(), any(), any(), any()) } returns read
         return repository
     }
 
@@ -180,7 +180,7 @@ class TemperatureDeltaVisibilityRoboTest {
         val now = LocalDateTime.now()
         val repository = mockk<WeatherRepository>()
         coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns emptyList()
-        coEvery { repository.readObservationsInRange(any(), any(), any(), any()) } returns observationReadOf(emptyList())
+        coEvery { repository.readObservationsInRange(any(), any(), any(), any(), any()) } returns observationReadOf(emptyList())
 
         val state = resolveState(hourlyCovering(now), now, 71.2f, repository)
 
