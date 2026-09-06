@@ -127,6 +127,7 @@ internal class FullSyncPipeline(
                         Log.d(TAG, "doWork: Triggering NWS backfill check")
                         weatherRepository.backfillNwsObservationsIfNeeded(location.first, location.second)
                     }
+                    val afterNwsBackfillMs = SystemClock.elapsedRealtime()
                     // Gated on `!uiOnlyRefresh` for the same reason the NWS backfill above is: a
                     // UI-only refresh exists precisely to repaint from cache WITHOUT touching the
                     // network. Measured 2026-08-23 — ungated, a `uiOnly=true` run issued a live
@@ -137,6 +138,7 @@ internal class FullSyncPipeline(
                     // sync is the battery-aware main fetch AND the path every user-initiated
                     // refresh and source toggle takes (both log `SYNC_START force=true`), making it
                     // the only place METAR reliably gets a turn.
+                    var metarDoneMs = afterNwsBackfillMs
                     if (!input.uiOnlyRefresh) {
                         metarRefresher.refreshIfDue(
                             setOf(com.weatherwidget.shared.util.MetarFetchPolicy.Tier.PRIMARY, com.weatherwidget.shared.util.MetarFetchPolicy.Tier.NON_PRIMARY),
@@ -146,6 +148,7 @@ internal class FullSyncPipeline(
                             // Deep pull: daily extremes need the whole day, not the last two hours.
                             hours = MetarObservationRefresher.DEEP_HOURS,
                         )
+                        metarDoneMs = SystemClock.elapsedRealtime()
                         synopticRefresher.refreshIfDue(
                             setOf(com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.PRIMARY, com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.NON_PRIMARY),
                             location.first,
@@ -162,6 +165,7 @@ internal class FullSyncPipeline(
                     val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
                         location.first, location.second, todayStartMs,
                     )
+                    val afterCurrentTempsMs = SystemClock.elapsedRealtime()
 
                     appLogDao.log(
                         "SYNC_SUCCESS",
@@ -215,7 +219,7 @@ internal class FullSyncPipeline(
                         activeSourceList = actualsSourceList,
                         recompute = !input.uiOnlyRefresh,
                     )
-                    val afterActualsMs = SystemClock.elapsedRealtime()
+                    val afterRecomputeMs = SystemClock.elapsedRealtime()
 
                     if (!input.uiOnlyRefresh) {
                         weatherRepository.ensureForecastOnlyHistoryRows(location.first, location.second)
@@ -224,6 +228,7 @@ internal class FullSyncPipeline(
                         weatherRepository.backfillFrozenDisplayColumnsIfNeeded(location.first, location.second)
                         weatherRepository.repairFrozenRainChanceIfNeeded(location.first, location.second)
                     }
+                    val afterRepairsMs = SystemClock.elapsedRealtime()
 
                     // One-shot dominant-station temperature watch. Costs a single boolean read when
                     // the user has not armed it, and must never fail a sync — it is an optional
@@ -243,6 +248,7 @@ internal class FullSyncPipeline(
                     } catch (e: Exception) {
                         appLogDao.logException("DOMINANT_TEMP_WATCH", "check failed (full_sync)", e)
                     }
+                    val afterActualsMs = SystemClock.elapsedRealtime()
 
                     appLogDao.log(
                         "WIDGET_LIFECYCLE",
@@ -288,7 +294,14 @@ internal class FullSyncPipeline(
                                 "weather=${afterWeatherMs - startMs}ms " +
                                 "hourly=${afterHourlyMs - afterWeatherMs}ms " +
                                 "backfill=${afterBackfillMs - afterHourlyMs}ms " +
+                                "[nwsObs=${afterNwsBackfillMs - afterHourlyMs}ms " +
+                                "metar=${metarDoneMs - afterNwsBackfillMs}ms " +
+                                "synoptic=${afterBackfillMs - metarDoneMs}ms] " +
                                 "actuals=${afterActualsMs - afterBackfillMs}ms " +
+                                "[currentTemps=${afterCurrentTempsMs - afterBackfillMs}ms " +
+                                "recompute=${afterRecomputeMs - afterCurrentTempsMs}ms " +
+                                "repairs=${afterRepairsMs - afterRecomputeMs}ms " +
+                                "notifier=${afterActualsMs - afterRepairsMs}ms] " +
                                 "widgets=${afterUpdateMs - afterActualsMs}ms",
                         )
                     }

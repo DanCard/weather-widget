@@ -7,6 +7,13 @@ import androidx.room.Query
 import com.weatherwidget.shared.actuals.MetarCloudBlender
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * A [ObservationDao.readObservationsInRange] slower than this writes one OBS_RANGE_READ line. Logcat
+ * only (Log.i) — this read happens many times per paint, so it must never touch `app_logs`, whose
+ * write would land on the very path being measured.
+ */
+private const val OBS_RANGE_READ_SLOW_MS = 300L
+
 @Dao
 interface ObservationDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -97,7 +104,9 @@ interface ObservationDao {
         lat: Double,
         lon: Double,
     ): ObservationRangeRead {
+        val sqlStartMs = android.os.SystemClock.elapsedRealtime()
         val candidates = getObservationCandidatesInRange(startTs, endTs, lat, lon)
+        val afterSqlMs = android.os.SystemClock.elapsedRealtime()
         val merged =
             ObservationSiteMerge.merge(
                 rows = candidates,
@@ -110,17 +119,28 @@ interface ObservationDao {
                 apiOf = ObservationEntity::api,
                 fetchedAtOf = ObservationEntity::fetchedAt,
             )
-        return ObservationRangeRead(
-            rows = merged,
-            diagnostics =
-                ObservationPoolDiagnostics.summarize(
-                    candidates = candidates,
-                    merged = merged,
-                    latOf = ObservationEntity::locationLat,
-                    lonOf = ObservationEntity::locationLon,
-                    timestampOf = ObservationEntity::timestamp,
-                ),
-        )
+        // This read is the single largest cost on both the sync and the tap-facing paint path
+        // (measured 2026-09-06 on the Samsung: obsQueryMs=5462 of a 7975ms paint). Split it so a
+        // slow read says whether the time is SQLite or the site merge. The pool summary is NOT
+        // counted here any more — it is deferred to first access; see [ObservationRangeRead].
+        val endMs = android.os.SystemClock.elapsedRealtime()
+        if (endMs - sqlStartMs >= OBS_RANGE_READ_SLOW_MS) {
+            android.util.Log.i(
+                "OBS_RANGE_READ",
+                "spanH=${(endTs - startTs) / 3_600_000} total=${endMs - sqlStartMs}ms " +
+                    "sql=${afterSqlMs - sqlStartMs}ms merge=${endMs - afterSqlMs}ms " +
+                    "candidates=${candidates.size} merged=${merged.size}",
+            )
+        }
+        return ObservationRangeRead(rows = merged) {
+            ObservationPoolDiagnostics.summarize(
+                candidates = candidates,
+                merged = merged,
+                latOf = ObservationEntity::locationLat,
+                lonOf = ObservationEntity::locationLon,
+                timestampOf = ObservationEntity::timestamp,
+            )
+        }
     }
 
     /**
@@ -276,8 +296,23 @@ interface ObservationDao {
 /**
  * An observation range read together with the numbers explaining its freshness.
  * See [ObservationDao.readObservationsInRange].
+ *
+ * [diagnostics] is computed ON FIRST ACCESS, not on read. Summarizing the pool costs real work
+ * proportional to the candidate list, and measured 2026-09-06 on the Samsung it was ~1.6s of every
+ * ~4.4s read — 40% of the single most expensive operation in the app. Exactly ONE caller reads it
+ * (`TemperatureStateResolver`); the other 23 go through [ObservationDao.getObservationsInRange],
+ * which takes `.rows` and drops the summary on the floor. Deferring it is observationally inert:
+ * the one consumer still gets the same numbers, everyone else stops paying for them.
  */
-data class ObservationRangeRead(
+class ObservationRangeRead(
     val rows: List<ObservationEntity>,
-    val diagnostics: ObservationPoolDiagnostics.Summary,
-)
+    summarize: () -> ObservationPoolDiagnostics.Summary,
+) {
+    /** Eager overload — for tests and any caller that already holds a computed summary. */
+    constructor(
+        rows: List<ObservationEntity>,
+        diagnostics: ObservationPoolDiagnostics.Summary,
+    ) : this(rows, { diagnostics })
+
+    val diagnostics: ObservationPoolDiagnostics.Summary by lazy(summarize)
+}

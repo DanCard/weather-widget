@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.AppLogDao
@@ -32,6 +33,15 @@ import javax.inject.Singleton
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 
 private const val TAG = "DailyActualsStore"
+
+/**
+ * Only write a DAILY_RECOMPUTE_PERF row when one day's recompute is genuinely slow. The recompute
+ * walks up to nine days per sync, so an ungated row per day would itself become app_logs bloat.
+ */
+private const val DAY_RECOMPUTE_SLOW_MS = 250L
+
+/** Log tag AND the `setprop log.tag.<...>` switch that turns the extrema window diagnostic on. */
+private const val EXTREMA_WINDOW_DIAG_TAG = "EXTREMA_WINDOW_DIAG"
 private const val DAYTIME_COVERAGE_HOUR = 14
 
 @VisibleForTesting
@@ -219,6 +229,7 @@ class DailyActualsStore @Inject constructor(
         date: LocalDate,
         hourlyForecasts: List<HourlyForecastEntity>,
     ) {
+        val dayStartMs = SystemClock.elapsedRealtime()
         val zone = ZoneId.systemDefault()
         val dateMillis = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val startTs = date.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -231,6 +242,7 @@ class DailyActualsStore @Inject constructor(
             latitude,
             longitude,
         )
+        val afterQueryMs = SystemClock.elapsedRealtime()
         val dayObs = contextObs.filter { it.timestamp in startTs until endTs }
         if (dayObs.isEmpty()) return
 
@@ -246,6 +258,7 @@ class DailyActualsStore @Inject constructor(
                 longitude,
             )
         }
+        val afterHourlyMs = SystemClock.elapsedRealtime()
         val newExtremes = ObservationResolver
             .computeDailyExtremes(
                 contextObs,
@@ -262,7 +275,9 @@ class DailyActualsStore @Inject constructor(
         // extremes come from a dedicated complete pull instead — see NwsApiDailyActualsFetcher.
         // persistExtremes preserves whatever that writer stored.
 
+        val afterExtremesMs = SystemClock.elapsedRealtime()
         logBlendBreakdown(date, dayObs, newExtremes, latitude, longitude)
+        val afterBreakdownMs = SystemClock.elapsedRealtime()
         logExtremaWindowDiagnostic(
             date = date,
             zone = zone,
@@ -274,7 +289,27 @@ class DailyActualsStore @Inject constructor(
             longitude = longitude,
         )
 
+        val afterDiagMs = SystemClock.elapsedRealtime()
+
         persistExtremes(date, dateMillis, newExtremes, latitude, longitude)
+        // Stage timing for one day's recompute. SYNC_PERF's parent `actuals=` stage measured ~24s
+        // on this 3-widget device without saying where it went; this splits it so the two pure
+        // diagnostics (logBreakdown/logDiag) can be told apart from the real extremes computation.
+        val endMs = SystemClock.elapsedRealtime()
+        if (endMs - dayStartMs >= DAY_RECOMPUTE_SLOW_MS) {
+            appLogDao.log(
+                "DAILY_RECOMPUTE_PERF",
+                "date=$date total=${endMs - dayStartMs}ms " +
+                    "query=${afterQueryMs - dayStartMs}ms " +
+                    "hourly=${afterHourlyMs - afterQueryMs}ms " +
+                    "extremes=${afterExtremesMs - afterHourlyMs}ms " +
+                    "logBreakdown=${afterBreakdownMs - afterExtremesMs}ms " +
+                    "logDiag=${afterDiagMs - afterBreakdownMs}ms " +
+                    "persist=${endMs - afterDiagMs}ms " +
+                    "contextObs=${contextObs.size} dayObs=${dayObs.size} hourly=${effectiveHourly.size}",
+                "INFO",
+            )
+        }
     }
 
     private suspend fun logBlendBreakdown(
@@ -480,6 +515,16 @@ class DailyActualsStore @Inject constructor(
         latitude: Double,
         longitude: Double,
     ) {
+        // OFF BY DEFAULT — enable with:
+        //   adb shell setprop log.tag.EXTREMA_WINDOW_DIAG VERBOSE
+        // This is a pure diagnostic, but not a cheap one: it issues its OWN +/-24h observation read
+        // and runs blendObservationSeries TWICE (isolated window and wide window). Measured
+        // 2026-09-06 on the Samsung it cost logDiag=4977ms for a single day and ~7.9s per sync,
+        // about a third of the whole actuals recompute, on a path the user is waiting behind.
+        // Guarding the WORK (not just the write) is the point — the AppLogDao VERBOSE gate only
+        // skips the insert, which is the cheapest part. Same idiom as
+        // TemperatureGraphAnnotationRenderer. The diagnostic itself is deliberately kept.
+        if (!Log.isLoggable(EXTREMA_WINDOW_DIAG_TAG, Log.VERBOSE)) return
         try {
             val hourlyReadings = effectiveHourly.map { it.toHourlyForecast() }
             val formatter = DateTimeFormatter.ofPattern("HH:mm")
@@ -519,7 +564,7 @@ class DailyActualsStore @Inject constructor(
                     .filter { it.api == WeatherSource.NWS.id }
                     .map { it.toReading() }
                 appLogDao.log(
-                    "EXTREMA_WINDOW_DIAG",
+                    EXTREMA_WINDOW_DIAG_TAG,
                     "date=$date isolated=[${probe(nwsDayObs, startTs, endTs)}] " +
                         "wide=[${probe(wideObs, startTs - dayMs, endTs + dayMs)}]",
                     "DEBUG",
