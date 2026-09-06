@@ -20,6 +20,9 @@ import java.time.LocalDateTime
 /** Implements action state transitions and delegates data/render work to the daily/graph pipelines. */
 internal object WidgetIntentActionHandler {
     private const val TAG = "WidgetIntentAction"
+
+    /** Below this a context prepare is not worth a line; this runs on every interaction. */
+    private const val PREPARE_SLOW_MS = 50L
     private val contextResolver = WidgetRefreshContextResolver()
     private val refreshRequester = InteractionRefreshRequester()
 
@@ -411,7 +414,14 @@ internal object WidgetIntentActionHandler {
         appWidgetId: Int,
         reason: String,
     ): WidgetRefreshContextResolver.Resolved? {
+        // The largest untimed span on the click path as of 2026-09-06: this runs
+        // ActiveLocationResolver and forecastDao.getLatestForecastBySource before
+        // TEMP_PIPELINE_PERF's timer starts, so a click measured ~1,224ms end to end while the paint
+        // it contains reported ~400ms. `requestIfStale` is timed apart from the resolve because it
+        // is a separate suspect inside the same call — it can enqueue work.
+        val prepareStartMs = SystemClock.elapsedRealtime()
         val resolved = contextResolver.resolve(context, appWidgetId)
+        val afterResolveMs = SystemClock.elapsedRealtime()
         if (resolved == null) {
             Log.w(TAG, "No location for widget=$appWidgetId reason=$reason; painting no-location state")
             WidgetRenderer.updateWidgetNoLocation(
@@ -422,6 +432,15 @@ internal object WidgetIntentActionHandler {
             return null
         }
         refreshRequester.requestIfStale(context, resolved, reason)
+        val endMs = SystemClock.elapsedRealtime()
+        if (endMs - prepareStartMs >= PREPARE_SLOW_MS) {
+            Log.i(
+                TAG,
+                "INTERACTION_PREPARE_PERF widget=$appWidgetId reason=$reason " +
+                    "total=${endMs - prepareStartMs}ms resolve=${afterResolveMs - prepareStartMs}ms " +
+                    "staleCheck=${endMs - afterResolveMs}ms",
+            )
+        }
         return resolved
     }
 

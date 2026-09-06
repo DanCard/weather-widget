@@ -18,6 +18,13 @@ internal object WidgetInteractionCoordinator {
     private const val TAG = "WidgetInteractionCoord"
     private const val RESIZE_DEBOUNCE_MS = 250L
 
+    /**
+     * Lock waits below this are not worth a line; this fires on every interaction. Logcat only, for
+     * the same reason OBS_RANGE_READ is: a diagnostic's own DB write must not land on the path it
+     * measures.
+     */
+    private const val LOCK_WAIT_SLOW_MS = 50L
+
     data class Metadata(val value: String = "")
 
     private val interactionMutexes = ConcurrentHashMap<Int, Mutex>()
@@ -27,7 +34,21 @@ internal object WidgetInteractionCoordinator {
     suspend fun <T> withWidgetLock(
         appWidgetId: Int,
         block: suspend () -> T,
-    ): T = interactionMutexes.computeIfAbsent(appWidgetId) { Mutex() }.withLock { block() }
+    ): T {
+        val mutex = interactionMutexes.computeIfAbsent(appWidgetId) { Mutex() }
+        // Time spent WAITING for the lock, not holding it. One of three candidate homes for the
+        // ~800ms a click spends outside TEMP_PIPELINE_PERF; it argues for a different fix than a
+        // slow data load does, so it has to be measured separately rather than inferred.
+        val waitStartMs = android.os.SystemClock.elapsedRealtime()
+        val alreadyHeld = mutex.isLocked
+        return mutex.withLock {
+            val waitedMs = android.os.SystemClock.elapsedRealtime() - waitStartMs
+            if (waitedMs >= LOCK_WAIT_SLOW_MS) {
+                Log.i(TAG, "INTERACTION_LOCK_PERF widget=$appWidgetId waited=${waitedMs}ms contended=$alreadyHeld")
+            }
+            block()
+        }
+    }
 
     /**
      * Captures [metadata] after taking the widget lock, then performs [block] under that same lock.

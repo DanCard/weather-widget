@@ -58,14 +58,14 @@ class WidgetActionReceiver : BroadcastReceiver() {
                     logRejected(intent, "invalid_toast")
                     return
                 }
-                handleShowToast(context, intent)
+                handleShowToast(context, intent, receivedAtElapsedMs)
             }
             WidgetActions.ACTION_DAY_CLICK -> {
                 if (!WidgetDayClickCoordinator.isValid(intent)) {
                     logRejected(intent, "invalid_day_click")
                     return
                 }
-                launchForWidget(context, intent) {
+                launchForWidget(context, intent, receivedAtElapsedMs) {
                     WidgetIntentRouter.handleDayClick(context, intent, repository)
                 }
             }
@@ -74,13 +74,13 @@ class WidgetActionReceiver : BroadcastReceiver() {
                     logRejected(intent, "invalid_no_hourly_complete")
                     return
                 }
-                launchForWidget(context, intent) {
+                launchForWidget(context, intent, receivedAtElapsedMs) {
                     WidgetIntentRouter.handleRefreshComplete(context, intent)
                 }
             }
             WidgetActions.ACTION_NAV_LEFT,
             WidgetActions.ACTION_NAV_RIGHT,
-            -> launchForValidWidget(context, intent) { appWidgetId ->
+            -> launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
                 WidgetIntentRouter.handleNavigation(
                     context,
                     appWidgetId,
@@ -89,17 +89,29 @@ class WidgetActionReceiver : BroadcastReceiver() {
                 )
             }
             WidgetActions.ACTION_TOGGLE_API ->
-                launchForValidWidget(context, intent) { appWidgetId ->
+                launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
+                    val toggleStartMs = SystemClock.elapsedRealtime()
                     WidgetIntentRouter.handleToggleApi(context, appWidgetId, repository)
+                    val afterToggleMs = SystemClock.elapsedRealtime()
                     WidgetRefreshCoordinator.restartHeartbeats(context)
+                    // restartHeartbeats is WorkManager enqueue/cancel and runs INSIDE the click,
+                    // after the paint. Split out because a consistent ~370-550ms sat between the
+                    // coroutine's total and TEMP_PIPELINE_PERF's, and it was neither queue (~2ms),
+                    // lock, nor context prepare.
+                    Log.i(
+                        "INTERACTION_E2E",
+                        "action=ACTION_TOGGLE_API widget=$appWidgetId phase=tail " +
+                            "handler=${afterToggleMs - toggleStartMs}ms " +
+                            "heartbeats=${SystemClock.elapsedRealtime() - afterToggleMs}ms",
+                    )
                 }
             WidgetActions.ACTION_RESET_SOURCE ->
-                launchForValidWidget(context, intent) { appWidgetId ->
+                launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
                     WidgetIntentRouter.handleResetSource(context, appWidgetId, repository)
                     WidgetRefreshCoordinator.restartHeartbeats(context)
                 }
             WidgetActions.ACTION_TOGGLE_VIEW ->
-                launchForValidWidget(context, intent) { appWidgetId ->
+                launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
                     val startMs = SystemClock.elapsedRealtime()
                     WidgetIntentRouter.handleToggleView(context, appWidgetId, repository)
                     WidgetRefreshCoordinator.restartHeartbeats(context)
@@ -112,18 +124,18 @@ class WidgetActionReceiver : BroadcastReceiver() {
                     )
                 }
             WidgetActions.ACTION_TOGGLE_PRECIP ->
-                launchForValidWidget(context, intent) { appWidgetId ->
+                launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
                     WidgetIntentRouter.handleTogglePrecip(context, appWidgetId, repository)
                     WidgetRefreshCoordinator.restartHeartbeats(context)
                 }
-            WidgetActions.ACTION_CYCLE_ZOOM -> handleCycleZoom(context, intent)
+            WidgetActions.ACTION_CYCLE_ZOOM -> handleCycleZoom(context, intent, receivedAtElapsedMs)
             WidgetActions.ACTION_SET_VIEW -> {
                 val targetView = parseTargetView(intent)
                 if (!hasValidWidgetId(intent) || targetView == null) {
                     logRejected(intent, "invalid_set_view")
                     return
                 }
-                launchForValidWidget(context, intent) { appWidgetId ->
+                launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
                     val interactionToken = "set-view-$receivedAtElapsedMs"
                     WidgetIntentRouter.handleSetView(
                         context,
@@ -166,6 +178,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
     private fun handleCycleZoom(
         context: Context,
         intent: Intent,
+        receivedAtElapsedMs: Long,
     ) {
         val appWidgetId = widgetId(intent)
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
@@ -181,7 +194,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
             } else {
                 null
             }
-        launchForWidget(context, intent) {
+        launchForWidget(context, intent, receivedAtElapsedMs) {
             WidgetIntentRouter.handleCycleZoom(
                 context,
                 appWidgetId,
@@ -195,6 +208,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
     private fun handleShowToast(
         context: Context,
         intent: Intent,
+        receivedAtElapsedMs: Long,
     ) {
         val appWidgetId = widgetId(intent)
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
@@ -203,7 +217,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
         }
         val message = requireNotNull(intent.getStringExtra(WidgetActions.EXTRA_TOAST_MESSAGE))
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-        launchForWidget(context, intent) {
+        launchForWidget(context, intent, receivedAtElapsedMs) {
             WeatherDatabase.getDatabase(context).appLogDao().log(
                 "WIDGET_TOAST",
                 "widget=$appWidgetId msg=$message",
@@ -215,6 +229,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
     private fun launchForValidWidget(
         context: Context,
         intent: Intent,
+        receivedAtElapsedMs: Long,
         block: suspend CoroutineScope.(Int) -> Unit,
     ) {
         val appWidgetId = widgetId(intent)
@@ -222,16 +237,57 @@ class WidgetActionReceiver : BroadcastReceiver() {
             logRejected(intent, "invalid_widget")
             return
         }
-        launchForWidget(context, intent) { block(appWidgetId) }
+        launchForWidget(context, intent, receivedAtElapsedMs) { block(appWidgetId) }
     }
 
+    /**
+     * Every widget action funnels through here, which is why the click-latency timing lives here and
+     * not in each action.
+     *
+     * Until 2026-09-06 only ACTION_SET_VIEW measured itself end to end, so TOGGLE_API, CYCLE_ZOOM,
+     * DAILY_NAV and RESIZE — the taps actually reported as slow — produced no user-perceived number
+     * at all, and their `*_SLOW` rows timed a sub-span of the wait. Measuring at this seam also means
+     * a new action cannot be added without a number.
+     *
+     * `queueMs` is the interval this could not previously see: broadcast receipt to the coroutine
+     * body actually running, i.e. time spent waiting for a slot on
+     * [WidgetInteractionDispatcher]. Split out because it and the work itself have opposite fixes —
+     * a queue wait argues about concurrency shape, a slow body argues about caching.
+     */
     private fun launchForWidget(
         context: Context,
         intent: Intent,
+        receivedAtElapsedMs: Long,
         block: suspend CoroutineScope.() -> Unit,
     ) {
         val appWidgetId = widgetId(intent)
-        val job = launchAsync(context, CoroutineStart.LAZY, block)
+        val action = intent.action?.substringAfterLast('.') ?: "unknown"
+        val job = launchAsync(context, CoroutineStart.LAZY) {
+            val startedAtMs = SystemClock.elapsedRealtime()
+            // Emitted at START as well as completion, deliberately. A single line in `finally`
+            // cannot tell "the coroutine never ran" from "it ran and never finished" — and it can
+            // genuinely never finish: BroadcastAsyncRunner releases the pending result after its
+            // 8s watchdog and the process can then be reclaimed mid-flight, taking the completion
+            // line with it. The queue figure is wanted on its own anyway.
+            Log.i(
+                "INTERACTION_E2E",
+                "action=$action widget=$appWidgetId phase=start queue=${startedAtMs - receivedAtElapsedMs}ms",
+            )
+            try {
+                block()
+            } finally {
+                val doneAtMs = SystemClock.elapsedRealtime()
+                // Logcat, not app_logs: this fires on every tap, and a diagnostic's own write must
+                // never land on the path it is measuring. Same rule as OBS_RANGE_READ.
+                Log.i(
+                    "INTERACTION_E2E",
+                    "action=$action widget=$appWidgetId phase=done " +
+                        "e2e=${doneAtMs - receivedAtElapsedMs}ms " +
+                        "queue=${startedAtMs - receivedAtElapsedMs}ms " +
+                        "work=${doneAtMs - startedAtMs}ms",
+                )
+            }
+        }
         WidgetActionJobRegistry.track(appWidgetId, job)
         job.start()
     }
