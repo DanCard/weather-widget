@@ -232,11 +232,25 @@ object ActualsAggregator {
                 byApi[providerId]?.takeIf { it.isNotEmpty() }?.let { borrower.id to it }
             }
 
-        // Provider-only feeds are dropped from the OUTPUT. METAR is not a display source, so a
-        // daily-history row filed under it would never be read — only written, retained a month and
-        // recomputed. The rows still do their work through `borrowedGroups`.
+        // Feeds that cannot be DISPLAYED are dropped from the output. A daily-history row filed
+        // under one is never read — only written, retained a month and recomputed — because every
+        // reader selects by display source: DailyActualsStore filters `it.source in activeSources`,
+        // ForecastHistoryActivity matches `requestedSource`, and AccuracyBreakdown's baseline
+        // resolver walks `orderedVisibleSources` only. The rows still do their work through
+        // `borrowedGroups`, which is built from `byApi` ABOVE this filter.
+        //
+        // This used to name METAR alone (`api != DEFAULT_PROVIDER.id`) while the comment described
+        // the whole category, so SYNOPTIC — equally unselectable, absent from ALL_CONFIGURABLE —
+        // kept getting rows. Measured 2026-09-06: METAR 0 rows, SYNOPTIC 51, and SYNOPTIC's group is
+        // the most expensive in the aggregator (34,726 observations in one 132h window against NWS's
+        // 7,862), duplicating the blend that Silurian's borrowed group already runs over the same
+        // rows on any device configured with actuals_provider_SILURIAN = SYNOPTIC.
+        //
+        // Derived from ALL_CONFIGURABLE rather than a list of exclusions, so making a feed
+        // selectable in Settings restores its rows with no second place to remember.
+        val displayableIds = WeatherSourceOrdering.ALL_CONFIGURABLE.mapTo(HashSet()) { it.id }
         val groups = byApi.entries
-            .filter { (api, _) -> api != ActualsProviderResolver.DEFAULT_PROVIDER.id }
+            .filter { (api, _) -> api in displayableIds }
             .map { it.key to it.value } + borrowedGroups
 
         return groups
