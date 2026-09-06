@@ -194,6 +194,53 @@ interface ObservationDao {
     }
 
     /**
+     * A cheap content signature for the observations covering [startTs, endTs) at this location:
+     * row count, newest observation time, and the summed temperature in centidegrees.
+     *
+     * Used to decide whether a past day's extremes can possibly have moved since they were last
+     * computed. One indexed aggregate; no rows are materialized.
+     *
+     * **Deliberately NOT `MAX(fetchedAt)`.** That was the first attempt and it never fired once:
+     * observations are written `INSERT OR REPLACE`, so every deep fetch re-stamps rows it already
+     * has, and `touchLatestFetchedAt` bumps the stamp even for a fetch that stored nothing. Measured
+     * 2026-09-06 on a *fully settled* day, 7,315 of 7,633 rows carried a `fetchedAt` more than an
+     * hour after their own `timestamp`, and the day's newest stamp was the current minute. The
+     * signal says "we looked", not "something changed".
+     *
+     * What is summed here is exactly what the reduction reads: `COUNT` catches an inserted row
+     * wherever it lands, `MAX(timestamp)` catches a new latest reading, and the value sums catch a
+     * station revising a row in place — the case the first two miss, because the primary key is
+     * unchanged. Sums are rounded to integers so float noise cannot manufacture a difference.
+     *
+     * **Adding a column the daily reduction consumes means adding it here.** Precip proved that the
+     * hard way: measured precip arrives by REPLACE on an existing key with temperature, count and
+     * newest timestamp all unchanged, so a temperature-only signature declared the day settled and
+     * dropped the rainfall (`ObservationRepositoryDailyMergeTest` caught it immediately). The columns
+     * below are the ones `persistExtremes` can write from: temps, precip, cloud/condition, and the
+     * QC flag that decides whether a row counts at all.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) || '|' || COALESCE(MAX(timestamp), 0) || '|' ||
+               COALESCE(SUM(CAST(ROUND(temperature * 100) AS INTEGER)), 0) || '|' ||
+               COALESCE(SUM(CAST(ROUND(precipAmountMm * 100) AS INTEGER)), 0) || '|' ||
+               COALESCE(SUM(cloudCover), 0) || '|' ||
+               COALESCE(SUM(cloudCoverLow), 0) || '|' ||
+               COALESCE(SUM(qcFailed), 0)
+        FROM observations
+        WHERE timestamp >= :startTs
+          AND timestamp < :endTs
+          AND ${LocationMatch.ROOM_WHERE}
+        """,
+    )
+    suspend fun observationSignatureInRange(
+        startTs: Long,
+        endTs: Long,
+        lat: Double,
+        lon: Double,
+    ): String?
+
+    /**
      * Cloud actuals for the window, as native observation epoch ms -> visible-layer percent
      * ([com.weatherwidget.shared.util.VisibleCloudCover], the same resolver the forecast curve uses).
      *

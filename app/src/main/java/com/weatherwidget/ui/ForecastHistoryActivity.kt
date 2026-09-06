@@ -528,7 +528,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val startDate = endDate.minusDays(2)
         val startEpoch = startDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val endEpoch = endDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startDate, endDate, emptyList())
+        weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startDate, endDate, emptyList(), force = true)
         val existingHistory = dailyHistoryDao.getExtremesInRange(startEpoch, endEpoch, lat, lon)
         val actualsSources = widgetStateManager.getVisibleSourcesOrder().filter { it.supportsTemperatureActuals }
 

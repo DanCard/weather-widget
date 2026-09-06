@@ -85,12 +85,14 @@ class ObservationRepository private constructor(
         startDate: LocalDate,
         endDateInclusive: LocalDate,
         hourlyForecasts: List<HourlyForecastEntity>,
+        force: Boolean = false,
     ) = components.dailyActualsStore.recomputeDailyExtremesFromStoredObservations(
         latitude,
         longitude,
         startDate,
         endDateInclusive,
         hourlyForecasts,
+        force,
     )
 
     suspend fun getDailyActualsWithLiveToday(

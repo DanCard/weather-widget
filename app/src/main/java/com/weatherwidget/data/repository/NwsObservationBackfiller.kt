@@ -87,6 +87,8 @@ class NwsObservationBackfiller @Inject constructor(
                     longitude,
                     day,
                     emptyList(),
+                    // Repair path: it distrusts what is stored, which is the whole reason it ran.
+                    force = true,
                 )
             }
             val rowDates = dailyHistoryDao
@@ -217,6 +219,8 @@ class NwsObservationBackfiller @Inject constructor(
                 startDate = affectedDates.min(),
                 endDateInclusive = affectedDates.max(),
                 hourlyForecasts = emptyList(),
+                // Repair path: it distrusts what is stored, which is the whole reason it ran.
+                force = true,
             )
         }
         appLogDao.log(

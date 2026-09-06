@@ -150,6 +150,8 @@ internal class WeatherApiHistoryBackfiller(
                 startDate = targetDate,
                 endDateInclusive = targetDate,
                 hourlyForecasts = emptyList(),
+                // Repair path: it distrusts what is stored, which is the whole reason it ran.
+                force = true,
             )
 
             val distinctHours =

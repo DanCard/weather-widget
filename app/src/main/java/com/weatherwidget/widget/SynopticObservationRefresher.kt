@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.repository.SynopticObservationSource
+import com.weatherwidget.shared.observations.PersonalStationThinning
 import com.weatherwidget.shared.util.SynopticFetchPolicy
 
 /**
@@ -47,12 +48,22 @@ internal class SynopticObservationRefresher(
         val tier = currentTier()
         if (tier !in acceptTiers) return
         try {
-            val rows = source.fetchObservations(latitude, longitude, hours = hours)
-            if (rows.isEmpty()) return
+            val fetched = source.fetchObservations(latitude, longitude, hours = hours)
+            if (fetched.isEmpty()) return
+            // Personal stations report every ~5 min, are weighted 0.05 and never carry sky; storing
+            // them at full density made them 80% of the Synoptic rows on the reporting device, and
+            // the table's size is what a cold read pays for. See PersonalStationThinning.
+            val rows = PersonalStationThinning.thin(
+                rows = fetched,
+                stationOf = { it.stationId },
+                stationTypeOf = { it.stationType },
+                timestampOf = { it.timestamp },
+            )
             WeatherDatabase.getDatabase(context).observationDao().insertAll(rows)
             appLogDao.log(
                 "SYNOPTIC_OBS_STORED",
                 "reason=$reason tier=${tier.name} hours=$hours rows=${rows.size} " +
+                    "fetched=${fetched.size} thinned=${fetched.size - rows.size} " +
                     "stations=${rows.map { it.stationId }.distinct().joinToString("|")}",
                 "INFO",
             )

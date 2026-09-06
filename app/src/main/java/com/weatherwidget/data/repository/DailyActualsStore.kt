@@ -42,6 +42,14 @@ private const val DAY_RECOMPUTE_SLOW_MS = 250L
 
 /** Log tag AND the `setprop log.tag.<...>` switch that turns the extrema window diagnostic on. */
 private const val EXTREMA_WINDOW_DIAG_TAG = "EXTREMA_WINDOW_DIAG"
+
+/**
+ * Cap on tracked (day, location) signatures. Retention keeps ~10 days and a device visits few
+ * places, so this is never reached in normal use; it exists so a pathological run of location
+ * changes cannot grow the map without bound. Cleared wholesale rather than evicted — the only cost
+ * of a miss is one recompute.
+ */
+private const val MAX_TRACKED_DAYS = 256
 private const val DAYTIME_COVERAGE_HOUR = 14
 
 @VisibleForTesting
@@ -66,6 +74,15 @@ class DailyActualsStore @Inject constructor(
     private val hourlyForecastDao: HourlyForecastDao,
     private val personalStationWeightProvider: PersonalStationWeightProvider,
 ) {
+    /**
+     * Last observation signature a day was successfully reduced from, keyed by (day, quantized
+     * location). Purely a within-process cache: losing it on process death costs exactly one
+     * redundant recompute, which is why it needs no storage, no migration and no pruning beyond the
+     * bound below.
+     *
+     * Concurrent because recomputes for different days overlap on the sync's dispatcher.
+     */
+    private val reducedSignatures = java.util.concurrent.ConcurrentHashMap<String, String>()
     suspend fun getDailyActualsWithLiveToday(
         latitude: Double,
         longitude: Double,
@@ -210,12 +227,14 @@ class DailyActualsStore @Inject constructor(
         startDate: LocalDate,
         endDateInclusive: LocalDate,
         hourlyForecasts: List<HourlyForecastEntity>,
+        /** See [recomputeDailyExtremesForDay]; true for the repair paths. */
+        force: Boolean = false,
     ) {
         val cutoffDate = LocalDate.now().minusDays(9)
         var current = startDate
         while (!current.isAfter(endDateInclusive)) {
             if (!current.isBefore(cutoffDate)) {
-                recomputeDailyExtremesForDay(latitude, longitude, current, hourlyForecasts)
+                recomputeDailyExtremesForDay(latitude, longitude, current, hourlyForecasts, force)
             } else {
                 Log.d(TAG, "recomputeDailyExtremesFromStoredObservations: skipping pruned date $current")
             }
@@ -228,12 +247,37 @@ class DailyActualsStore @Inject constructor(
         longitude: Double,
         date: LocalDate,
         hourlyForecasts: List<HourlyForecastEntity>,
+        /**
+         * Recompute even when nothing has been written for the day since the last one.
+         *
+         * For the repair paths — the history screen and the backfillers — which call this precisely
+         * because they distrust what is stored, and whose whole purpose the skip would defeat.
+         */
+        force: Boolean = false,
     ) {
         val dayStartMs = SystemClock.elapsedRealtime()
         val zone = ZoneId.systemDefault()
         val dateMillis = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val startTs = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val endTs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+
+        // A day's extremes cannot move while its observations are unchanged. Measured 2026-09-06 over
+        // three days on the Samsung, 6,805 of 7,468 per-day recomputes produced a byte-identical
+        // result (91%) — the day was queried, blended and reduced, and only then found unchanged,
+        // which is what DAILY_HISTORY_STABLE records. This skips that work.
+        //
+        // The signature is content-derived on purpose; see observationSignatureInRange for why the
+        // obvious `MAX(fetchedAt) <= updatedAt` test was tried first and never fired once.
+        val signatureKey = if (force) null else signatureKey(date, latitude, longitude)
+        val signature = if (force) null else observationSignature(startTs, endTs, latitude, longitude)
+        if (signatureKey != null && signature != null && reducedSignatures[signatureKey] == signature) {
+            appLogDao.log(
+                "DAILY_RECOMPUTE_SKIP",
+                "date=$date sig=$signature at=$latitude,$longitude",
+                "INFO",
+            )
+            return
+        }
         val contextStartTs = startTs - ActualsAggregator.DAILY_BLEND_CONTEXT_MS
         val contextEndTs = endTs + ActualsAggregator.DAILY_BLEND_CONTEXT_MS
         val contextObs = observationDao.getObservationsInRange(
@@ -292,6 +336,12 @@ class DailyActualsStore @Inject constructor(
         val afterDiagMs = SystemClock.elapsedRealtime()
 
         persistExtremes(date, dateMillis, newExtremes, latitude, longitude)
+        // Recorded only after the day has actually been reduced and written, so a failure part way
+        // through leaves the day open rather than marking it settled on work that did not finish.
+        if (signatureKey != null && signature != null) {
+            if (reducedSignatures.size >= MAX_TRACKED_DAYS) reducedSignatures.clear()
+            reducedSignatures[signatureKey] = signature
+        }
         // Stage timing for one day's recompute. SYNC_PERF's parent `actuals=` stage measured ~24s
         // on this 3-widget device without saying where it went; this splits it so the two pure
         // diagnostics (logBreakdown/logDiag) can be told apart from the real extremes computation.
@@ -504,6 +554,20 @@ class DailyActualsStore @Inject constructor(
                 .map { it.timestamp }
             pastDayLacksAfternoonCoverage(timestamps, date, zone, today)
         }
+
+    private suspend fun observationSignature(
+        startTs: Long,
+        endTs: Long,
+        latitude: Double,
+        longitude: Double,
+    ): String? = observationDao.observationSignatureInRange(startTs, endTs, latitude, longitude)
+
+    /**
+     * Quantized to the write grid so GPS jitter cannot mint an unbounded number of keys for what is
+     * one place; the same 3 dp the coordinate-keyed tables already store at.
+     */
+    private fun signatureKey(date: LocalDate, latitude: Double, longitude: Double): String =
+        "$date|${"%.3f".format(latitude)}|${"%.3f".format(longitude)}"
 
     private suspend fun logExtremaWindowDiagnostic(
         date: LocalDate,
