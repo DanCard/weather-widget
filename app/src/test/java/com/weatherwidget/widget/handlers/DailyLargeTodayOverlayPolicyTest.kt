@@ -30,13 +30,13 @@ class DailyLargeTodayOverlayPolicyTest {
         val decisions =
             listOf(
                 DailyLargeTodayOverlayPolicy.resolve(10, 3, useGraph = true, todayVisible = true),
-                DailyLargeTodayOverlayPolicy.resolve(9, 5, useGraph = true, todayVisible = true),
+                DailyLargeTodayOverlayPolicy.resolve(2, 5, useGraph = true, todayVisible = true),
                 DailyLargeTodayOverlayPolicy.resolve(10, 5, useGraph = false, todayVisible = true),
                 DailyLargeTodayOverlayPolicy.resolve(10, 5, useGraph = true, todayVisible = false),
             )
 
         assertTrue(decisions.all { !it.enabled })
-        assertEquals(listOf(10, 9, 10, 10), decisions.map { it.displayColumns })
+        assertEquals(listOf(10, 2, 10, 10), decisions.map { it.displayColumns })
     }
 
     @Test

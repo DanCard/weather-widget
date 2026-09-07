@@ -6,7 +6,10 @@ object LargeTodayOverlayPolicy {
     const val TODAY_WIDTH_MULTIPLIER = 1.25f
 
     enum class Profile(val minColumns: Int) {
-        ANDROID_WIDGET(minColumns = 10),
+        // 3, not 1: Today's doubled slot must still leave at least one full day column, and a
+        // degenerate 1-slot window must never be enabled. Below the old 10 the overlay still
+        // spans two slots, just with each slot narrower.
+        ANDROID_WIDGET(minColumns = 3),
         DESKTOP(minColumns = 9),
     }
 

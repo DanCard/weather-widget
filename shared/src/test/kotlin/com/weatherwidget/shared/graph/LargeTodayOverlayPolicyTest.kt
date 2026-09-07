@@ -24,6 +24,34 @@ class LargeTodayOverlayPolicyTest {
     }
 
     @Test
+    fun `small Android widget enables the overlay once Today keeps a full day column`() {
+        val decision = LargeTodayOverlayPolicy.resolve(
+            LargeTodayOverlayPolicy.Profile.ANDROID_WIDGET,
+            availableColumns = 5,
+            rows = 4,
+            useGraph = true,
+            todayVisible = true,
+        )
+
+        assertTrue(decision.enabled)
+        assertEquals(4, decision.displayColumns)
+    }
+
+    @Test
+    fun `sub-three-column Android widget keeps the overlay off`() {
+        val decision = LargeTodayOverlayPolicy.resolve(
+            LargeTodayOverlayPolicy.Profile.ANDROID_WIDGET,
+            availableColumns = 2,
+            rows = 4,
+            useGraph = true,
+            todayVisible = true,
+        )
+
+        assertEquals(false, decision.enabled)
+        assertEquals(2, decision.displayColumns)
+    }
+
+    @Test
     fun `desktop Today overlay stays enabled with extra history columns`() {
         val decision = LargeTodayOverlayPolicy.resolve(
             LargeTodayOverlayPolicy.Profile.DESKTOP,
