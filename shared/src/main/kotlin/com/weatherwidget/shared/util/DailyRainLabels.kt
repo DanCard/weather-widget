@@ -343,6 +343,52 @@ object DailyRainLabels {
     }
 
     /**
+     * Site-aware counterpart to [resolveDailyLabelPrecip] for display callers holding raw hourly
+     * persistence rows. Past-day snapshot semantics remain identical; only live today/future
+     * windows need site selection before their maximum is calculated.
+     */
+    fun resolveDailyLabelPrecipAtSite(
+        isPast: Boolean,
+        displaySourceId: String,
+        daytimePrecipProbability: Int?,
+        nighttimePrecipProbability: Int?,
+        precipProbability: Int?,
+        hourly: List<HourlyForecast>,
+        centerLat: Double,
+        centerLon: Double,
+        targetDate: LocalDate,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        storedDayPrecipChance: Int? = null,
+        storedNightPrecipChance: Int? = null,
+    ): ResolvedDailyPrecip {
+        if (isPast) {
+            return resolveDailyLabelPrecip(
+                isPast = true,
+                displaySourceId = displaySourceId,
+                daytimePrecipProbability = daytimePrecipProbability,
+                nighttimePrecipProbability = nighttimePrecipProbability,
+                precipProbability = precipProbability,
+                hourly = hourly,
+                targetDate = targetDate,
+                zoneId = zoneId,
+                storedDayPrecipChance = storedDayPrecipChance,
+                storedNightPrecipChance = storedNightPrecipChance,
+            )
+        }
+        return resolveLiveDayNightChanceAtSite(
+            displaySourceId = displaySourceId,
+            daytimePrecipProbability = daytimePrecipProbability,
+            nighttimePrecipProbability = nighttimePrecipProbability,
+            precipProbability = precipProbability,
+            hourly = hourly,
+            centerLat = centerLat,
+            centerLon = centerLon,
+            targetDate = targetDate,
+            zoneId = zoneId,
+        )
+    }
+
+    /**
      * Picks the observed amount the *daytime* label should show, given a `daily_history` row's
      * three precip fields.
      *

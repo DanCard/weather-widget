@@ -103,6 +103,8 @@ internal object DailyGraphRenderer {
             observedAt = ctx.observedAt,
             allowTodayRainChanceLabel = true,
             todayLabel = ctx.context.getString(R.string.today),
+            centerLat = ctx.centerLat,
+            centerLon = ctx.centerLon,
         )
         val days = preparedDays.map(DailyViewLogic.PreparedGraphDay::renderDay)
         val prepareMs = SystemClock.elapsedRealtime() - prepareStartMs

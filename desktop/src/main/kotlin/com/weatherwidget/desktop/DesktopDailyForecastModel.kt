@@ -181,6 +181,8 @@ object DesktopDailyForecastModel {
                 hourly = forecast.raw.hourly,
                 currentTemp = forecast.resolved.currentTemp,
                 displaySourceId = config.settings.weatherSource,
+                centerLat = config.lat,
+                centerLon = config.lon,
             )
         }
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -262,6 +264,8 @@ object DesktopDailyForecastModel {
         hourly: List<HourlyForecast>,
         currentTemp: Float?,
         displaySourceId: String,
+        centerLat: Double,
+        centerLon: Double,
     ): DesktopDailyDay {
         val isToday = date == today
         val isPast = date.isBefore(today)
@@ -348,13 +352,15 @@ object DesktopDailyForecastModel {
         // period fields for history written before that snapshot existed.
         // Past days have no live `forecast` row (the daily list holds only today + future), so the
         // forecast rain chance to keep visible in history comes from the day's snapshot instead.
-        val resolvedPrecip = com.weatherwidget.shared.util.DailyRainLabels.resolveDailyLabelPrecip(
+        val resolvedPrecip = com.weatherwidget.shared.util.DailyRainLabels.resolveDailyLabelPrecipAtSite(
             isPast = isPast,
             displaySourceId = displaySourceId,
             daytimePrecipProbability = forecast?.daytimePrecipProbability ?: displaySnapshot?.daytimePrecipProbability,
             nighttimePrecipProbability = forecast?.nighttimePrecipProbability ?: displaySnapshot?.nighttimePrecipProbability,
             precipProbability = forecast?.precipProbability ?: displaySnapshot?.precipProbability,
             hourly = hourly,
+            centerLat = centerLat,
+            centerLon = centerLon,
             targetDate = date,
             storedDayPrecipChance = actual?.forecastDayPrecipChance,
             storedNightPrecipChance = actual?.forecastNightPrecipChance,

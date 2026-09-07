@@ -34,8 +34,9 @@ class DailyRainChanceSiteSelectionTest {
         lat: Double,
         lon: Double,
         fetchedAt: Long = 1_000L,
+        onDate: LocalDate = date,
     ) = HourlyForecast(
-        dateTime = date.atTime(hourOfDay, 0).atZone(zone).toInstant().toEpochMilli(),
+        dateTime = onDate.atTime(hourOfDay, 0).atZone(zone).toInstant().toEpochMilli(),
         temperature = 70f,
         condition = "Clear",
         precipProbability = chance,
@@ -122,6 +123,51 @@ class DailyRainChanceSiteSelectionTest {
             zoneId = zone,
         )
         assertEquals(7, resolved.dayPrecip)
+    }
+
+    @Test
+    fun `daily display ignores older 21 percent coordinate fragment`() {
+        val tuesday = LocalDate.of(2026, 9, 8)
+        val centerLat = 37.416805
+        val centerLon = -122.088951
+        val rows = listOf(
+            // Fresh NWS rows at the current coordinate fragment: 1% Tuesday, 11% overnight.
+            hour(10, 1, 37.417, -122.089, fetchedAt = 10_000L, onDate = tuesday),
+            hour(20, 1, 37.417, -122.089, fetchedAt = 10_000L, onDate = tuesday),
+            hour(5, 11, 37.417, -122.089, fetchedAt = 10_000L, onDate = tuesday.plusDays(1)),
+            // Older rows at the stale fragment that produced the Samsung's 21% / 21% labels.
+            hour(10, 21, 37.415, -122.087, fetchedAt = 1_000L, onDate = tuesday),
+            hour(20, 21, 37.415, -122.087, fetchedAt = 1_000L, onDate = tuesday),
+            hour(5, 21, 37.415, -122.087, fetchedAt = 1_000L, onDate = tuesday.plusDays(1)),
+        )
+
+        val raw = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = false,
+            displaySourceId = "NWS",
+            daytimePrecipProbability = null,
+            nighttimePrecipProbability = null,
+            precipProbability = null,
+            hourly = rows,
+            targetDate = tuesday,
+            zoneId = zone,
+        )
+        assertEquals(21, raw.dayPrecip)
+        assertEquals(21, raw.nightPrecip)
+
+        val sited = DailyRainLabels.resolveDailyLabelPrecipAtSite(
+            isPast = false,
+            displaySourceId = "NWS",
+            daytimePrecipProbability = null,
+            nighttimePrecipProbability = null,
+            precipProbability = null,
+            hourly = rows.reversed(),
+            centerLat = centerLat,
+            centerLon = centerLon,
+            targetDate = tuesday,
+            zoneId = zone,
+        )
+        assertEquals(1, sited.dayPrecip)
+        assertEquals(11, sited.nightPrecip)
     }
 
     /**

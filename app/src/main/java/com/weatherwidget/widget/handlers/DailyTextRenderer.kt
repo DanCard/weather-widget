@@ -97,7 +97,9 @@ internal object DailyTextRenderer {
             ctx.currentTemps,
             currentTemp = ctx.currentTemp,
             observedAt = ctx.observedAt,
-            todayLabel = ctx.context.getString(R.string.today)
+            todayLabel = ctx.context.getString(R.string.today),
+            centerLat = ctx.centerLat,
+            centerLon = ctx.centerLon,
         )
 
         val dayIds = listOf(

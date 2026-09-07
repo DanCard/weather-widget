@@ -72,6 +72,7 @@ class DailyCloudCoverSiteParityRoboTest {
     private lateinit var stateManager: WidgetStateManager
     private lateinit var provider: WeatherWidgetProvider
     private lateinit var mockAppWidgetManager: AppWidgetManager
+    private lateinit var widgetOptions: Bundle
     private val viewsSlot = slot<android.widget.RemoteViews>()
 
     // A fresh id per test method. Two of the statics this harness drives are keyed by widget id and
@@ -101,7 +102,7 @@ class DailyCloudCoverSiteParityRoboTest {
 
     private val source = WeatherSource.NWS
     private val zone = ZoneId.systemDefault()
-    private val targetDate: LocalDate = LocalDate.now().plusDays(3)
+    private val targetDate: LocalDate = LocalDate.now().plusDays(2)
 
     @Before
     fun setUp() {
@@ -122,13 +123,13 @@ class DailyCloudCoverSiteParityRoboTest {
 
         mockAppWidgetManager = mockk()
         // Wide enough for ~10 daily columns so targetDate (today+3) is part of the prepared days.
-        val options = Bundle().apply {
+        widgetOptions = Bundle().apply {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 580)
             putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 580)
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 187)
             putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 187)
         }
-        every { mockAppWidgetManager.getAppWidgetOptions(any()) } returns options
+        every { mockAppWidgetManager.getAppWidgetOptions(any()) } answers { widgetOptions }
         every { mockAppWidgetManager.getAppWidgetIds(any()) } returns intArrayOf(widgetId)
         every { mockAppWidgetManager.updateAppWidget(any<Int>(), capture(viewsSlot)) } just runs
         every { mockAppWidgetManager.partiallyUpdateAppWidget(any<Int>(), any()) } just runs
@@ -181,6 +182,37 @@ class DailyCloudCoverSiteParityRoboTest {
         )
 
         assertBothLegsResolve(freshNoonCloud / 100f, testScheduler)
+    }
+
+    @Test
+    fun `ordinary graph and api-toggle text paths ignore stale 21 percent rain fragment`() = runTest {
+        db.hourlyForecastDao().deleteOldForecasts(Long.MAX_VALUE)
+        seedTwoSiteDatabase(
+            staleLat = 37.415,
+            staleLon = -122.087,
+            staleNoonCloud = sameSiteFragmentNoonCloud,
+            staleAgeDays = 5,
+            stalePrecip = 21,
+        )
+
+        // Ordinary DAILY graph render from NWS.
+        ShadowLog.clear()
+        WidgetIntentRouter.renderAllWidgetsFromCache(context)
+        assertResolvedRain("ordinary graph", expectedMode = "GRAPH")
+
+        // Switch away in state, make the widget short enough for the separate text preparation
+        // path, then exercise the real interaction transition back to NWS.
+        stateManager.setCurrentDisplaySource(widgetId, WeatherSource.OPEN_METEO)
+        widgetOptions = Bundle(widgetOptions).apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 60)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 60)
+        }
+        ShadowLog.clear()
+        WidgetIntentRouter.handleToggleApi(context, widgetId)
+
+        assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(widgetId))
+        assertResolvedRain("api-toggle text", expectedMode = "TEXT")
+        assertTrue("api-toggle leg must push RemoteViews", viewsSlot.isCaptured)
     }
 
     private suspend fun assertBothLegsResolve(expected: Float, testScheduler: TestCoroutineScheduler) {
@@ -275,6 +307,16 @@ class DailyCloudCoverSiteParityRoboTest {
         return ratios.first()
     }
 
+    private fun assertResolvedRain(leg: String, expectedMode: String) {
+        val matches = ShadowLog.getLogs()
+            .filter { it.tag == "DailyViewLogic" }
+            .map { it.msg }
+            .filter { it.contains("resolveDailyLabelPrecip: mode=$expectedMode date=$targetDate source=NWS") }
+        assertTrue("$leg must resolve rain for $targetDate; logs=${ShadowLog.getLogs().map { it.msg }.take(40)}", matches.isNotEmpty())
+        assertTrue("$leg must use fresh 1% / 11%, got $matches", matches.all { it.contains("day=1 night=11") })
+        assertTrue("$leg must not restore stale 21% / 21%, got $matches", matches.none { it.contains("day=21") || it.contains("night=21") })
+    }
+
     /**
      * Stale site inserted FIRST (lower rowids): with `ORDER BY dateTime ASC` its noon row
      * precedes the fresh site's in the raw query result — the ordering that made
@@ -285,15 +327,19 @@ class DailyCloudCoverSiteParityRoboTest {
         staleLon: Double = this.staleLon,
         staleNoonCloud: Int = this.staleNoonCloud,
         staleAgeDays: Long = 2,
+        stalePrecip: Int = 0,
     ) = runBlocking {
         val nowFetched = System.currentTimeMillis()
         val staleFetched = nowFetched - staleAgeDays * 24 * 3600 * 1000L
 
         db.hourlyForecastDao().insertAll(
-            (0..23).map { h -> hourly(targetDate.atTime(h, 0), staleLat, staleLon, staleNoonCloud, staleFetched) },
+            (0..23).map { h -> hourly(targetDate.atTime(h, 0), staleLat, staleLon, staleNoonCloud, staleFetched, stalePrecip) },
         )
         db.hourlyForecastDao().insertAll(
-            (0..23).map { h -> hourly(targetDate.atTime(h, 0), freshLat, freshLon, freshNoonCloud, nowFetched) },
+            (0..23).map { h ->
+                val precip = if (h < 20) 1 else 11
+                hourly(targetDate.atTime(h, 0), freshLat, freshLon, freshNoonCloud, nowFetched, precip)
+            },
         )
         // Today's fresh-site rows so the today column resolves without touching the stale site.
         val nowHour = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS)
@@ -315,6 +361,7 @@ class DailyCloudCoverSiteParityRoboTest {
         lon: Double,
         cloud: Int,
         fetchedAt: Long,
+        precip: Int = 0,
     ) = HourlyForecastEntity(
         dateTime = time.atZone(zone).toInstant().toEpochMilli(),
         locationLat = lat,
@@ -322,7 +369,7 @@ class DailyCloudCoverSiteParityRoboTest {
         temperature = 70f,
         condition = "Partly Cloudy",
         source = source.id,
-        precipProbability = 0,
+        precipProbability = precip,
         cloudCover = cloud,
         fetchedAt = fetchedAt,
     )

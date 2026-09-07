@@ -140,6 +140,8 @@ object DailyViewLogic {
         // to English — same rule as useCelsius. Callers with a Context pass
         // context.getString(R.string.today); this object stays Context-free for plain-JUnit tests.
         todayLabel: String,
+        centerLat: Double? = null,
+        centerLon: Double? = null,
     ): List<TextDayData> {
         Log.d(TAG, "prepareTextDays: today=$today, weatherByDateKeys=${weatherByDate.keys}, displaySource=${displaySource.id}")
 
@@ -286,9 +288,16 @@ object DailyViewLogic {
                 isPast = isPast,
                 displaySource = displaySource,
                 actual = dailyActuals[date],
+                centerLat = centerLat,
+                centerLon = centerLon,
             )
             val dayPrecipForIcon = resolvedPrecip.dayPrecip
             val nightPrecipForIcon = resolvedPrecip.nightPrecip
+            Log.v(
+                TAG,
+                "resolveDailyLabelPrecip: mode=TEXT date=$date source=${displaySource.id} " +
+                    "day=$dayPrecipForIcon night=$nightPrecipForIcon center=$centerLat,$centerLon",
+            )
 
 
             val iconRes =
@@ -366,6 +375,8 @@ object DailyViewLogic {
         allowTodayRainChanceLabel: Boolean = false,
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = ::entityRainSummary,
         todayLabel: String,
+        centerLat: Double? = null,
+        centerLon: Double? = null,
     ): List<DailyForecastGraphRenderer.DayData> =
         prepareGraphDayInputs(
             now = now,
@@ -389,6 +400,8 @@ object DailyViewLogic {
             allowTodayRainChanceLabel = allowTodayRainChanceLabel,
             rainSummaryProvider = rainSummaryProvider,
             todayLabel = todayLabel,
+            centerLat = centerLat,
+            centerLon = centerLon,
         ).map(PreparedGraphDay::renderDay)
 
     fun prepareGraphDayInputs(
@@ -414,6 +427,8 @@ object DailyViewLogic {
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = ::entityRainSummary,
         // See prepareTextDays: required localized "Today" label, no English fallback.
         todayLabel: String,
+        centerLat: Double? = null,
+        centerLon: Double? = null,
     ): List<PreparedGraphDay> {
         Log.d(TAG, "prepareGraphDays: today=$today, weatherByDateKeys=${weatherByDate.keys}, forecastSnapshotKeys=${forecastSnapshots.keys}")
 
@@ -583,9 +598,16 @@ object DailyViewLogic {
                 isPast = isPastDate,
                 displaySource = displaySource,
                 actual = actual,
+                centerLat = centerLat,
+                centerLon = centerLon,
             )
             val dayPrecipForIcon = resolvedPrecip.dayPrecip
             val nightPrecipForIcon = resolvedPrecip.nightPrecip
+            Log.v(
+                TAG,
+                "resolveDailyLabelPrecip: mode=GRAPH date=$date source=${displaySource.id} " +
+                    "day=$dayPrecipForIcon night=$nightPrecipForIcon center=$centerLat,$centerLon",
+            )
 
 
             // Past days prefer the noon cloud % frozen into daily_history while the day was live

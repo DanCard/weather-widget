@@ -3,6 +3,7 @@ package com.weatherwidget.util
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.WeatherCodeMapper
 import java.time.LocalDate
@@ -61,26 +62,38 @@ object DailyForecastIconResolver {
         isPast: Boolean,
         displaySource: WeatherSource,
         actual: com.weatherwidget.data.model.DailyHistory? = null,
-    ): com.weatherwidget.shared.util.DailyRainLabels.ResolvedDailyPrecip =
-        com.weatherwidget.shared.util.DailyRainLabels.resolveDailyLabelPrecip(
+        centerLat: Double? = null,
+        centerLon: Double? = null,
+    ): com.weatherwidget.shared.util.DailyRainLabels.ResolvedDailyPrecip {
+        val sharedHourly = hourlyForecasts.map(HourlyForecastEntity::toHourlyForecast)
+        val common = com.weatherwidget.shared.util.DailyRainLabels
+        if (centerLat != null && centerLon != null) {
+            return common.resolveDailyLabelPrecipAtSite(
+                isPast = isPast,
+                displaySourceId = displaySource.id,
+                daytimePrecipProbability = weather?.daytimePrecipProbability,
+                nighttimePrecipProbability = weather?.nighttimePrecipProbability,
+                precipProbability = weather?.precipProbability,
+                hourly = sharedHourly,
+                centerLat = centerLat,
+                centerLon = centerLon,
+                targetDate = targetDate,
+                storedDayPrecipChance = actual?.forecastDayPrecipChance,
+                storedNightPrecipChance = actual?.forecastNightPrecipChance,
+            )
+        }
+        return common.resolveDailyLabelPrecip(
             isPast = isPast,
             displaySourceId = displaySource.id,
             daytimePrecipProbability = weather?.daytimePrecipProbability,
             nighttimePrecipProbability = weather?.nighttimePrecipProbability,
             precipProbability = weather?.precipProbability,
-            hourly = hourlyForecasts.map {
-                com.weatherwidget.data.model.HourlyForecast(
-                    dateTime = it.dateTime,
-                    temperature = it.temperature,
-                    condition = it.condition,
-                    precipProbability = it.precipProbability,
-                    source = it.source,
-                )
-            },
+            hourly = sharedHourly,
             targetDate = targetDate,
             storedDayPrecipChance = actual?.forecastDayPrecipChance,
             storedNightPrecipChance = actual?.forecastNightPrecipChance,
         )
+    }
 
     fun resolveIcon(
         weather: ForecastEntity?,

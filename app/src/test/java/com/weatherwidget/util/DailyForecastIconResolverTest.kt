@@ -871,6 +871,42 @@ class DailyForecastIconResolverTest {
         assertEquals(50, result.dayMax!!)
     }
 
+    @Test
+    fun `daily label mapping preserves site and freshness before max`() {
+        val targetDate = LocalDate.of(2026, 9, 8)
+        val startMs = targetDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        fun row(hour: Int, chance: Int, lat: Double, lon: Double, fetchedAt: Long) =
+            HourlyForecastEntity(
+                dateTime = startMs + hour * 3_600_000L,
+                locationLat = lat,
+                locationLon = lon,
+                temperature = 70f,
+                condition = "Cloudy",
+                source = WeatherSource.NWS.id,
+                precipProbability = chance,
+                fetchedAt = fetchedAt,
+            )
+        val rows = listOf(
+            row(10, 1, 37.417, -122.089, 10_000L),
+            row(10, 21, 37.415, -122.087, 1_000L),
+            row(20, 11, 37.417, -122.089, 10_000L),
+            row(20, 21, 37.415, -122.087, 1_000L),
+        )
+
+        val result = DailyForecastIconResolver.resolveDailyLabelPrecip(
+            weather = null,
+            hourlyForecasts = rows,
+            targetDate = targetDate,
+            isPast = false,
+            displaySource = WeatherSource.NWS,
+            centerLat = 37.416805,
+            centerLon = -122.088951,
+        )
+
+        assertEquals(1, result.dayPrecip)
+        assertEquals(11, result.nightPrecip)
+    }
+
     private fun hourlyForecast(dateTime: Long, precip: Int, source: String): HourlyForecastEntity {
         return HourlyForecastEntity(
             dateTime = dateTime,

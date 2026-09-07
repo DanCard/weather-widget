@@ -61,6 +61,48 @@ settings = DesktopSettings(weatherSource = "NWS"),
     )
 
     @Test
+    fun `daily model ignores older 21 percent coordinate fragment`() {
+        val targetDate = LocalDate.of(2026, 9, 8)
+        val zone = java.time.ZoneId.systemDefault()
+        fun hour(hour: Int, chance: Int, lat: Double, lon: Double, fetchedAt: Long) =
+            HourlyForecast(
+                dateTime = targetDate.atTime(hour, 0).atZone(zone).toInstant().toEpochMilli(),
+                temperature = 70f,
+                condition = "Cloudy",
+                precipProbability = chance,
+                source = WeatherSource.NWS.id,
+                fetchedAt = fetchedAt,
+                locationLat = lat,
+                locationLon = lon,
+            )
+        val siteConfig = config.copy(
+            lat = 37.416805,
+            lon = -122.088951,
+            dateOffset = 0,
+        )
+        val state = DesktopDailyForecastModel.build(
+            config = siteConfig,
+            forecast = snapshot(
+                daily = (6..10).map { day ->
+                    DailyForecast("2026-09-${day.toString().padStart(2, '0')}", 80f, 60f, "Mostly Sunny")
+                },
+                hourly = listOf(
+                    hour(10, 1, 37.417, -122.089, 10_000L),
+                    hour(10, 21, 37.415, -122.087, 1_000L),
+                    hour(20, 11, 37.417, -122.089, 10_000L),
+                    hour(20, 21, 37.415, -122.087, 1_000L),
+                ),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = LocalDateTime.of(2026, 9, 6, 9, 0),
+        )
+
+        val tuesday = state.days.single { it.date == targetDate }
+        assertEquals(1, tuesday.dayPrecipProbability)
+        assertEquals(11, tuesday.nightPrecipProbability)
+    }
+
+    @Test
     fun `build properly groups and maps daily data`() {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
         val state = DesktopDailyForecastModel.build(
