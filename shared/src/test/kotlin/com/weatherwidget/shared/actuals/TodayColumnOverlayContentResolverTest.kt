@@ -19,7 +19,7 @@ class TodayColumnOverlayContentResolverTest {
     private val lon = -122.08
 
     @Test
-    fun `content uses dominant raw station temperature and Blend age without station text`() {
+    fun `content uses dominant raw station temperature without station text`() {
         val now = ms("2026-08-04T08:20:00")
         val observations =
             listOf(
@@ -45,11 +45,10 @@ class TodayColumnOverlayContentResolverTest {
         assertNotNull(content)
         content!!
         assertEquals("62.6°", content.dominantTempText)
-        assertEquals("0m", content.dominantAgeText)
         assertEquals("DOM", content.dominantContribution?.contribution?.stationId)
         assertEquals("fcst", content.deltaCaptionText)
         assertEquals("+0.4", content.deltaValueText)
-        assertTrue(listOfNotNull(content.deltaValueText, content.dominantTempText, content.dominantAgeText).none { "DOM" in it })
+        assertTrue(listOfNotNull(content.deltaValueText, content.dominantTempText).none { "DOM" in it })
     }
 
     @Test
@@ -61,29 +60,16 @@ class TodayColumnOverlayContentResolverTest {
         assertNull(content.deltaValueText)
         assertNull(content.deltaCaptionText)
         assertEquals("62.6°", content.dominantTempText)
-        assertEquals("0m", content.dominantAgeText)
     }
 
     @Test
-    fun `dominant temp flag off still shows reading age alone`() {
+    fun `dominant temp flag off suppresses only the station temperature`() {
         val content = resolve(showDominantStationTemp = false)
 
         assertNotNull(content)
         content!!
         assertEquals("+0.4", content.deltaValueText)
         assertNull(content.dominantTempText)
-        assertEquals("0m", content.dominantAgeText)
-    }
-
-    @Test
-    fun `dominant age flag off still shows station temperature alone`() {
-        val content = resolve(showDominantReadingAge = false)
-
-        assertNotNull(content)
-        content!!
-        assertEquals("+0.4", content.deltaValueText)
-        assertEquals("62.6°", content.dominantTempText)
-        assertNull(content.dominantAgeText)
     }
 
     @Test
@@ -92,7 +78,6 @@ class TodayColumnOverlayContentResolverTest {
             resolve(
                 showForecastDelta = false,
                 showDominantStationTemp = false,
-                showDominantReadingAge = false,
             )
 
         assertNull(content)
@@ -101,7 +86,6 @@ class TodayColumnOverlayContentResolverTest {
     private fun resolve(
         showForecastDelta: Boolean = true,
         showDominantStationTemp: Boolean = true,
-        showDominantReadingAge: Boolean = true,
     ): TodayColumnOverlayContent? {
         val now = ms("2026-08-04T08:20:00")
         val observations =
@@ -123,7 +107,6 @@ class TodayColumnOverlayContentResolverTest {
             forecastDelta = 0.4f,
             showForecastDelta = showForecastDelta,
             showDominantStationTemp = showDominantStationTemp,
-            showDominantReadingAge = showDominantReadingAge,
             zoneId = zone,
         )
     }

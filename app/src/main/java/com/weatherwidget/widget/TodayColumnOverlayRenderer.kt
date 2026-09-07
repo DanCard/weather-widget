@@ -63,7 +63,7 @@ internal object TodayColumnOverlayRenderer {
         val horizontalPadding = HORIZONTAL_PADDING_DP.dp(layout.density)
         val labelScale = layout.bitmapScale.coerceIn(0.5f, 1f)
 
-        // Block selection (including the independent temp/age toggles) and the ordered content
+        // Block selection and the ordered content
         // variants for the planner's degradation ladder are pure and shared with the desktop
         // renderer via TodayColumnOverlayBlocks.
         val variants =
@@ -71,7 +71,6 @@ internal object TodayColumnOverlayRenderer {
                 deltaValueText = data.deltaValueText,
                 deltaCaptionText = data.deltaCaptionText,
                 dominantTempText = data.dominantTempText,
-                dominantAgeText = data.dominantAgeText,
             ).map { blocks ->
                 blocks.map { block ->
                     TextBlockSpec(

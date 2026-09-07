@@ -123,12 +123,6 @@ class WidgetStateManager internal constructor(
         displayPreferences.setShowTodayOverlayDominantTemp(value)
     }
 
-    fun showTodayOverlayDominantAge(): Boolean = displayPreferences.showTodayOverlayDominantAge()
-
-    fun setShowTodayOverlayDominantAge(value: Boolean) {
-        displayPreferences.setShowTodayOverlayDominantAge(value)
-    }
-
     /**
      * One-shot watch: notify once when the dominant station behind the primary source reports a
      * different temperature, then clear itself. See

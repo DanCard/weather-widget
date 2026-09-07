@@ -72,7 +72,6 @@ object DailyForecastGraphRenderer {
         val deltaCaptionText: String? = null,
         val deltaColorArgb: Int = 0xE6FFFFFF.toInt(),
         val dominantTempText: String? = null,
-        val dominantAgeText: String? = null,
         /**
          * Zone each overlay block occupied on this widget's previous render, keyed by block key.
          * Feeds the planner's hysteresis: the obstacles it avoids are labels that shift as

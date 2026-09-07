@@ -222,7 +222,7 @@
     <string name="today_overlay_title">Tampilan Harian — Kolom Hari Ini</string>
     <string name="today_overlay_delta_label">Tampilkan selisih dari prakiraan</string>
     <string name="today_overlay_dominant_temp_label">Tampilkan suhu stasiun dominan</string>
-    <string name="today_overlay_dominant_age_label">Tampilkan usia pembacaan</string>
+    <string name="today_overlay_dominant_temp_description">Muncul di kolom hari ini hanya pada widget dengan tinggi setidaknya 4 baris.</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Bahasa</string>

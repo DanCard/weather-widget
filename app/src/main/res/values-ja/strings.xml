@@ -222,7 +222,7 @@
     <string name="today_overlay_title">日表示 — 今日の列</string>
     <string name="today_overlay_delta_label">予報との差を表示</string>
     <string name="today_overlay_dominant_temp_label">優勢な観測所の気温を表示</string>
-    <string name="today_overlay_dominant_age_label">観測値の経過時間を表示</string>
+    <string name="today_overlay_dominant_temp_description">今日の列には、高さ4行以上のウィジェットでのみ表示されます。</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">言語</string>

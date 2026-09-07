@@ -12,7 +12,6 @@ data class TodayColumnOverlayContent(
     val deltaValueText: String?,
     val deltaCaptionText: String?,
     val dominantTempText: String?,
-    val dominantAgeText: String?,
     val observedAt: Long,
     val dominantContribution: DominantBlend?,
     /**
@@ -49,7 +48,6 @@ object TodayColumnOverlayContentResolver {
         forecastDelta: Float? = null,
         showForecastDelta: Boolean = true,
         showDominantStationTemp: Boolean = true,
-        showDominantReadingAge: Boolean = true,
         lookaheadHours: Long = DEFAULT_LOOKAHEAD_HOURS,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): TodayColumnOverlayContent? {
@@ -79,7 +77,6 @@ object TodayColumnOverlayContentResolver {
             forecastDelta = forecastDelta,
             showForecastDelta = showForecastDelta,
             showDominantStationTemp = showDominantStationTemp,
-            showDominantReadingAge = showDominantReadingAge,
             lookaheadHours = lookaheadHours,
             zoneId = zoneId,
             resolvedDetails = details,
@@ -100,7 +97,6 @@ object TodayColumnOverlayContentResolver {
         forecastDelta: Float? = null,
         showForecastDelta: Boolean = true,
         showDominantStationTemp: Boolean = true,
-        showDominantReadingAge: Boolean = true,
         lookaheadHours: Long = DEFAULT_LOOKAHEAD_HOURS,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): TodayColumnOverlayContent? =
@@ -118,7 +114,6 @@ object TodayColumnOverlayContentResolver {
             forecastDelta = forecastDelta,
             showForecastDelta = showForecastDelta,
             showDominantStationTemp = showDominantStationTemp,
-            showDominantReadingAge = showDominantReadingAge,
             lookaheadHours = lookaheadHours,
             zoneId = zoneId,
             resolvedDetails = null,
@@ -138,7 +133,6 @@ object TodayColumnOverlayContentResolver {
         forecastDelta: Float?,
         showForecastDelta: Boolean,
         showDominantStationTemp: Boolean,
-        showDominantReadingAge: Boolean,
         lookaheadHours: Long,
         zoneId: ZoneId,
         resolvedDetails: ActualsAggregator.CurrentObservationResolution?,
@@ -178,7 +172,6 @@ object TodayColumnOverlayContentResolver {
         val dominantRows =
             dominant?.let { BlendTableFormatter.formatDominantTempAgeRows(it.contribution, useCelsius) }
         val dominantTempText = dominantRows?.temperature?.takeIf { showDominantStationTemp }
-        val dominantAgeText = dominantRows?.age?.takeIf { showDominantReadingAge }
         if (deltaText == null) {
             Log.d(
                 TAG,
@@ -187,12 +180,11 @@ object TodayColumnOverlayContentResolver {
                     "obsCount=${observations.size} displaySource=$displaySourceId",
             )
         }
-        if (deltaText == null && dominantTempText == null && dominantAgeText == null) return null
+        if (deltaText == null && dominantTempText == null) return null
         return TodayColumnOverlayContent(
             deltaValueText = deltaText,
             deltaCaptionText = deltaText?.let { ForecastDeltaLabel.COMPACT_CAPTION },
             dominantTempText = dominantTempText,
-            dominantAgeText = dominantAgeText,
             observedAt = observedAt,
             dominantContribution = dominant,
             dominantNullReason = dominantNullReason,

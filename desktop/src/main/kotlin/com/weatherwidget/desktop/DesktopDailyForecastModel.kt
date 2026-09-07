@@ -187,9 +187,9 @@ object DesktopDailyForecastModel {
         }
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val overlayFlags =
-            Triple(config.settings.todayOverlayDelta, config.settings.todayOverlayDominantTemp, config.settings.todayOverlayDominantAge)
+            Pair(config.settings.todayOverlayDelta, config.settings.todayOverlayDominantTemp)
         val todayOverlay =
-            if (overlayDecision.enabled && (overlayFlags.first || overlayFlags.second || overlayFlags.third)) {
+            if (overlayDecision.enabled && (overlayFlags.first || overlayFlags.second)) {
                 val obsCount = forecast.raw.rawObservations.size
                 val result = TodayColumnOverlayContentResolver.resolveLatest(
                     observations = forecast.raw.rawObservations,
@@ -205,14 +205,13 @@ object DesktopDailyForecastModel {
                     forecastDelta = forecast.resolved.appliedDelta,
                     showForecastDelta = overlayFlags.first,
                     showDominantStationTemp = overlayFlags.second,
-                    showDominantReadingAge = overlayFlags.third,
                 )
                 Log.d(
                     TAG,
                     "todayOverlay resolve obsCount=$obsCount enabled=${overlayDecision.enabled} " +
-                        "flags=delta:${overlayFlags.first},temp:${overlayFlags.second},age:${overlayFlags.third} " +
+                        "flags=delta:${overlayFlags.first},temp:${overlayFlags.second} " +
                         "deltaText=${result?.deltaValueText} dominantTemp=${result?.dominantTempText} " +
-                        "dominantAge=${result?.dominantAgeText} observedAt=${result?.observedAt}",
+                        "observedAt=${result?.observedAt}",
                 )
                 result
             } else {

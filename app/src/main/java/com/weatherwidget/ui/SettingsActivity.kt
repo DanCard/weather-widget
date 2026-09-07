@@ -229,13 +229,6 @@ class SettingsActivity : AppCompatActivity() {
             repaintWidgets()
         }
 
-        val overlayDominantAgeSwitch = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.today_overlay_dominant_age_switch)
-        overlayDominantAgeSwitch.isChecked = widgetStateManager.showTodayOverlayDominantAge()
-        overlayDominantAgeSwitch.setOnCheckedChangeListener { _, isChecked ->
-            widgetStateManager.setShowTodayOverlayDominantAge(isChecked)
-            repaintWidgets()
-        }
-
         // Notifications — one-shot dominant-station temperature watch.
         notifyDominantTempSwitch = findViewById(R.id.notify_dominant_temp_change_switch)
         notifyDominantTempSwitch.isChecked = widgetStateManager.notifyOnDominantTempChange()

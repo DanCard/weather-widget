@@ -134,7 +134,6 @@ class SettingsActivityRobolectricTest {
             listOf(
                 R.id.today_overlay_delta_switch,
                 R.id.today_overlay_dominant_temp_switch,
-                R.id.today_overlay_dominant_age_switch,
             ).forEach { id ->
                 val switch = activity.findViewById<androidx.appcompat.widget.SwitchCompat>(id)
                 assertNotNull(switch)
@@ -151,8 +150,6 @@ class SettingsActivityRobolectricTest {
                     { m: WidgetStateManager -> m.showTodayOverlayDelta() }, "delta"),
                 Triple(R.id.today_overlay_dominant_temp_switch,
                     { m: WidgetStateManager -> m.showTodayOverlayDominantTemp() }, "dominant temp"),
-                Triple(R.id.today_overlay_dominant_age_switch,
-                    { m: WidgetStateManager -> m.showTodayOverlayDominantAge() }, "dominant age"),
             )
         val intent = Intent(context, SettingsActivity::class.java)
         ActivityScenario.launch<SettingsActivity>(intent).onActivity { activity ->

@@ -737,15 +737,13 @@ private fun DrawScope.drawDesktopTodayOverlay(
     previousZones: Map<String, TodayColumnOverlayPlanner.Zone>,
     onZonesResolved: (Map<String, TodayColumnOverlayPlanner.Zone>) -> Unit,
 ) {
-    // Block selection (including the independent temp/age toggles) and the ordered content variants
-    // for the planner's degradation ladder are pure and shared with the Android renderer via
-    // TodayColumnOverlayBlocks.
+    // Block selection and the ordered content variants for the planner's degradation ladder are
+    // pure and shared with the Android renderer via TodayColumnOverlayBlocks.
     val variants =
         TodayColumnOverlayBlocks.variants(
             deltaValueText = content.deltaValueText,
             deltaCaptionText = content.deltaCaptionText,
             dominantTempText = content.dominantTempText,
-            dominantAgeText = content.dominantAgeText,
         ).map { blocks ->
             blocks.map { block ->
                 DesktopOverlayBlock(
@@ -842,7 +840,7 @@ private fun DrawScope.drawDesktopTodayOverlay(
     Log.v(
         TAG,
         "todayOverlay layout variant=${result.variantIndex}/${variants.size} " +
-            "content=delta:${content.deltaValueText},temp:${content.dominantTempText},age:${content.dominantAgeText} " +
+            "content=delta:${content.deltaValueText},temp:${content.dominantTempText} " +
             "variants=${variants.map { v -> v.map { it.key } }} " +
             "lines=${measuredFor(result.variantIndex).map { "${it.spec.key}:${it.layout.size.width}x${it.layout.size.height}" }} " +
             "column=$columnLeft..$columnRight graph=$graphTop..$graphBottom bars=$barTop..$barBottom " +

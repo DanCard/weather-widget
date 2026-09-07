@@ -404,8 +404,7 @@ internal object DailyGraphRenderer {
         val observedAt = ctx.observedAt ?: return null
         val showDelta = ctx.stateManager.showTodayOverlayDelta()
         val showDominantTemp = ctx.stateManager.showTodayOverlayDominantTemp()
-        val showDominantAge = ctx.stateManager.showTodayOverlayDominantAge()
-        if (!showDelta && !showDominantTemp && !showDominantAge) return null
+        if (!showDelta && !showDominantTemp) return null
         val nowMs = ctx.now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         // Prefer the per-render observation load shared with the header yesterday-delta; fall back
         // to a direct query (or the current-temps cache) when it is unavailable.
@@ -460,15 +459,13 @@ internal object DailyGraphRenderer {
                 // Must match the producer of `observedAt` (CurrentTempResolver), or the two blends
                 // disagree on which reading is latest and the station rows are dropped.
                 lookaheadHours = CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS,
-                showDominantReadingAge = showDominantAge,
             ) ?: return null
         val dominant = content.dominantContribution?.contribution
         ctx.appLogDao.log(
             "TODAY_OVERLAY",
             "widget=${ctx.appWidgetId} observedAt=$observedAt " +
                 "delta=${content.deltaValueText} dominantTemp=${content.dominantTempText} " +
-                "dominantAge=${content.dominantAgeText} " +
-                "flags=delta:${onOff(showDelta)},temp:${onOff(showDominantTemp)},age:${onOff(showDominantAge)} " +
+                "flags=delta:${onOff(showDelta)},temp:${onOff(showDominantTemp)} " +
                 "dominantNullReason=${content.dominantNullReason} obsRows=${sharedObservations.size} " +
                 "stationId=${dominant?.stationId} dominantWeight=${dominant?.weightShare} " +
                 "rawTemp=${dominant?.rawTemp} resolvedTemp=${dominant?.resolvedTemp}",
@@ -481,7 +478,6 @@ internal object DailyGraphRenderer {
                 headerState.observedTemp?.let(ForecastDeltaLabel::colorArgb)
                     ?: 0xE6FFFFFF.toInt(),
             dominantTempText = content.dominantTempText,
-            dominantAgeText = content.dominantAgeText,
             previousZones = overlayZonesFor(ctx.appWidgetId),
         )
     }

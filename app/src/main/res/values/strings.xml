@@ -228,7 +228,7 @@
     <string name="today_overlay_title">Daily View — Today Column</string>
     <string name="today_overlay_delta_label">Show delta from forecast</string>
     <string name="today_overlay_dominant_temp_label">Show dominant station temperature</string>
-    <string name="today_overlay_dominant_age_label">Show reading age</string>
+    <string name="today_overlay_dominant_temp_description">Appears in the Today column only on widgets at least 4 rows tall.</string>
 
     <!-- Notifications section: the one-shot dominant-station temperature watch. -->
     <string name="notifications_title">Notifications</string>

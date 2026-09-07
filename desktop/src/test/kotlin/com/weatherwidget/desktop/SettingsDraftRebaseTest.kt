@@ -106,8 +106,7 @@ narrowZoomSpanHours = 8,
 personalStationDiscount = 10,
 useCelsius = !baseline.settings.useCelsius,
 todayOverlayDelta = true,
-todayOverlayDominantTemp = true,
-todayOverlayDominantAge = true))
+todayOverlayDominantTemp = true))
         val rebased = baseline.copy(windowX = 5f).withSettingsFrom(draft)
 
         assertEquals(
@@ -194,8 +193,7 @@ narrowZoomSpanHours = 4,
 personalStationDiscount = 10,
 useCelsius = true,
 todayOverlayDelta = true,
-todayOverlayDominantTemp = true,
-todayOverlayDominantAge = true))
+todayOverlayDominantTemp = true))
         // A stale draft whose settings fields are all different, carrying a popup zoom/pan change.
         val draft = config().copy(zoomFactor = 0.7f, hourlyOffset = 3)
 

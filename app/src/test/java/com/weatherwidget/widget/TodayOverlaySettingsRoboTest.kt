@@ -37,7 +37,6 @@ class TodayOverlaySettingsRoboTest {
     fun `today overlay toggles default to off`() {
         assertFalse(stateManager.showTodayOverlayDelta())
         assertFalse(stateManager.showTodayOverlayDominantTemp())
-        assertFalse(stateManager.showTodayOverlayDominantAge())
     }
 
     @Test
@@ -45,18 +44,12 @@ class TodayOverlaySettingsRoboTest {
         stateManager.setShowTodayOverlayDelta(true)
         assertTrue(stateManager.showTodayOverlayDelta())
         assertFalse(stateManager.showTodayOverlayDominantTemp())
-        assertFalse(stateManager.showTodayOverlayDominantAge())
 
         stateManager.setShowTodayOverlayDominantTemp(true)
         assertTrue(stateManager.showTodayOverlayDominantTemp())
-        assertFalse(stateManager.showTodayOverlayDominantAge())
-
-        stateManager.setShowTodayOverlayDominantAge(true)
-        assertTrue(stateManager.showTodayOverlayDominantAge())
 
         stateManager.setShowTodayOverlayDelta(false)
         assertFalse(stateManager.showTodayOverlayDelta())
         assertTrue(stateManager.showTodayOverlayDominantTemp())
-        assertTrue(stateManager.showTodayOverlayDominantAge())
     }
 }

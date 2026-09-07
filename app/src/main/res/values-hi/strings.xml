@@ -222,7 +222,7 @@
     <string name="today_overlay_title">दैनिक दृश्य — आज का कॉलम</string>
     <string name="today_overlay_delta_label">पूर्वानुमान से अंतर दिखाएं</string>
     <string name="today_overlay_dominant_temp_label">प्रमुख स्टेशन का तापमान दिखाएं</string>
-    <string name="today_overlay_dominant_age_label">रीडिंग की अवधि दिखाएं</string>
+    <string name="today_overlay_dominant_temp_description">केवल कम से कम 4 पंक्तियों वाले विजेट में आज के कॉलम में दिखाई देता है।</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">भाषा</string>

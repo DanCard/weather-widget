@@ -242,6 +242,11 @@ internal fun SettingsWindow(
                         // Daily View — Today Column overlay toggles (matches Android's
                         // "Daily View — Today Column" settings section). All opt-in.
                         SettingsCard(title = "Daily View — Today Column") {
+                            Text(
+                                "Appears in the Today column only on windows at least 4 rows tall.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                             TodayOverlayToggleRow(
                                 label = "Show delta from forecast",
                                 checked = currentConfig.settings.todayOverlayDelta,
@@ -252,11 +257,6 @@ internal fun SettingsWindow(
                                 checked = currentConfig.settings.todayOverlayDominantTemp,
                                 testTag = "today_overlay_dominant_temp_switch",
                             ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDominantTemp = it))) }
-                            TodayOverlayToggleRow(
-                                label = "Show reading age",
-                                checked = currentConfig.settings.todayOverlayDominantAge,
-                                testTag = "today_overlay_dominant_age_switch",
-                            ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDominantAge = it))) }
                         }
 
                         // Personal Weather Stations

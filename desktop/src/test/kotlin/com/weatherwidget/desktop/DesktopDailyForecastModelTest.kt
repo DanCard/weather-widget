@@ -399,7 +399,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
     }
 
     @Test
-    fun `large desktop Today overlay uses dominant raw temperature and Blend age`() {
+    fun `large desktop Today overlay uses dominant raw temperature`() {
         val now = LocalDateTime.parse("2026-08-04T08:20:00")
         val forecast = overlayForecast()
 
@@ -407,8 +407,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
             config.copy(dateOffset = 0,
 settings = config.settings.copy(useCelsius = false,
 todayOverlayDelta = true,
-todayOverlayDominantTemp = true,
-todayOverlayDominantAge = true)),
+todayOverlayDominantTemp = true)),
             forecast,
             DesktopDailyForecastModel.dimensions(600, 400),
             now,
@@ -417,7 +416,6 @@ todayOverlayDominantAge = true)),
         assertTrue(state.largeTodayOverlayEnabled)
         assertEquals(8, state.days.size)
         assertEquals("62.6°", state.todayOverlay?.dominantTempText)
-        assertEquals("0m", state.todayOverlay?.dominantAgeText)
         assertEquals("fcst", state.todayOverlay?.deltaCaptionText)
         assertEquals("+0.4", state.todayOverlay?.deltaValueText)
     }
@@ -435,23 +433,6 @@ settings = config.settings.copy(useCelsius = false)),
 
         assertTrue(state.largeTodayOverlayEnabled)
         assertNull(state.todayOverlay)
-    }
-
-    @Test
-    fun `large desktop Today overlay shows reading age alone when only age toggle on`() {
-        val now = LocalDateTime.parse("2026-08-04T08:20:00")
-        val state = DesktopDailyForecastModel.build(
-            config.copy(dateOffset = 0,
-settings = config.settings.copy(useCelsius = false,
-todayOverlayDominantAge = true)),
-            overlayForecast(),
-            DesktopDailyForecastModel.dimensions(600, 400),
-            now,
-        )
-
-        assertNull(state.todayOverlay?.deltaValueText)
-        assertNull(state.todayOverlay?.dominantTempText)
-        assertEquals("0m", state.todayOverlay?.dominantAgeText)
     }
 
     private fun overlayForecast(): ForecastSnapshot {

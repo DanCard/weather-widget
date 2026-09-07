@@ -218,7 +218,7 @@
     <string name="today_overlay_title">Денний вигляд — Колонка «Сьогодні»</string>
     <string name="today_overlay_delta_label">Показати відхилення від прогнозу</string>
     <string name="today_overlay_dominant_temp_label">Показати температуру основної станції</string>
-    <string name="today_overlay_dominant_age_label">Показати вік показання</string>
+    <string name="today_overlay_dominant_temp_description">З\'являється в стовпці «Сьогодні» лише у віджетах заввишки щонайменше 4 рядки.</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Мова</string>

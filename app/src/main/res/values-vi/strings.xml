@@ -222,7 +222,7 @@
     <string name="today_overlay_title">Chế độ xem hằng ngày — Cột hôm nay</string>
     <string name="today_overlay_delta_label">Hiển thị chênh lệch so với dự báo</string>
     <string name="today_overlay_dominant_temp_label">Hiển thị nhiệt độ trạm chính</string>
-    <string name="today_overlay_dominant_age_label">Hiển thị tuổi số liệu đọc</string>
+    <string name="today_overlay_dominant_temp_description">Hiển thị trong cột Hôm nay chỉ trên tiện ích cao ít nhất 4 hàng.</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Ngôn ngữ</string>

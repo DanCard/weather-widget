@@ -42,7 +42,6 @@ data class DesktopSettings(
     // Daily-view large-Today-column overlay texts. All opt-in (default off).
     val todayOverlayDelta: Boolean = false,
     val todayOverlayDominantTemp: Boolean = false,
-    val todayOverlayDominantAge: Boolean = false,
     // Per-source override for the feed that supplies a forecast-only source's actuals, keyed by
     // WeatherSource.id -> provider WeatherSource.id. Mirrors Android's `actuals_provider_<SOURCE>`
     // SharedPreferences keys. An ABSENT entry means "use the default"
@@ -72,7 +71,6 @@ data class DesktopSettings(
         add("actualsProviders", actualsProviders, other.actualsProviders)
         add("todayOverlayDelta", todayOverlayDelta, other.todayOverlayDelta)
         add("todayOverlayDominantTemp", todayOverlayDominantTemp, other.todayOverlayDominantTemp)
-        add("todayOverlayDominantAge", todayOverlayDominantAge, other.todayOverlayDominantAge)
     }
 }
 
@@ -366,7 +364,7 @@ class DesktopConfigStore(
         val settingsKeys = setOf(
             "weatherSource", "visibleSources", "apiKeys", "narrowZoomSpanHours",
             "multiDayZoomEnabled", "personalStationDiscount", "useCelsius",
-            "todayOverlayDelta", "todayOverlayDominantTemp", "todayOverlayDominantAge",
+            "todayOverlayDelta", "todayOverlayDominantTemp",
         )
         val flatKeys = settingsKeys.filter { root.containsKey(it) }
         if (flatKeys.isEmpty()) return text

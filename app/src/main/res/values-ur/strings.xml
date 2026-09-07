@@ -222,7 +222,7 @@
     <string name="today_overlay_title">روزانہ منظر — آج کا کالم</string>
     <string name="today_overlay_delta_label">پیشگوئی سے فرق دکھائیں</string>
     <string name="today_overlay_dominant_temp_label">غالب اسٹیشن کا درجہ حرارت دکھائیں</string>
-    <string name="today_overlay_dominant_age_label">ریڈنگ کی عمر دکھائیں</string>
+    <string name="today_overlay_dominant_temp_description">آج کے کالم میں صرف ان ویجٹس میں ظاہر ہوتا ہے جو کم از کم 4 قطاروں کے اونچائی رکھتے ہوں۔</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">زبان</string>

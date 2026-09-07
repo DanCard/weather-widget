@@ -74,13 +74,6 @@ internal class WeatherDisplayPreferences(
         prefs.edit().putBoolean(KEY_SHOW_TODAY_OVERLAY_DOMINANT_TEMP, value).apply()
     }
 
-    fun showTodayOverlayDominantAge(): Boolean =
-        prefs.getBoolean(KEY_SHOW_TODAY_OVERLAY_DOMINANT_AGE, false)
-
-    fun setShowTodayOverlayDominantAge(value: Boolean) {
-        prefs.edit().putBoolean(KEY_SHOW_TODAY_OVERLAY_DOMINANT_AGE, value).apply()
-    }
-
     private companion object {
         const val TAG = "UNIT_DEFAULT"
         const val KEY_USE_CELSIUS = "use_celsius"
@@ -89,6 +82,5 @@ internal class WeatherDisplayPreferences(
         const val KEY_MULTI_DAY_ZOOM = "hourly_multi_day_zoom_enabled"
         const val KEY_SHOW_TODAY_OVERLAY_DELTA = "show_today_overlay_delta"
         const val KEY_SHOW_TODAY_OVERLAY_DOMINANT_TEMP = "show_today_overlay_dominant_temp"
-        const val KEY_SHOW_TODAY_OVERLAY_DOMINANT_AGE = "show_today_overlay_dominant_age"
     }
 }

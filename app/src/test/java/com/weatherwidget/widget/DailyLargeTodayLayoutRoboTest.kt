@@ -102,17 +102,16 @@ class DailyLargeTodayLayoutRoboTest {
                         deltaValueText = "+3.2",
                         deltaCaptionText = "yest",
                         dominantTempText = "63.4°",
-                        dominantAgeText = "15m",
                     ),
                 useCelsius = false,
             )
 
         assertEquals(
-            listOf("+3.2 yest", "63.4°", "15m"),
+            listOf("+3.2 yest", "63.4°"),
             result.todayOverlayPlacements.flatMap { it.text.lines() },
         )
         assertTrue(result.todayOverlayPlacements.none { "KNUQ" in it.text })
-        assertEquals(3, result.todayOverlayPlacements.sumOf { it.text.lines().size })
+        assertEquals(2, result.todayOverlayPlacements.sumOf { it.text.lines().size })
         assertEquals(
             "All three primary rows must use one fitted font size",
             1,
@@ -152,13 +151,12 @@ class DailyLargeTodayLayoutRoboTest {
                         deltaValueText = "-3.1",
                         deltaCaptionText = "yest",
                         dominantTempText = "62.5°",
-                        dominantAgeText = "5m",
                     ),
                 useCelsius = false,
             )
 
         assertEquals(
-            listOf("-3.1 yest", "62.5°", "5m"),
+            listOf("-3.1 yest", "62.5°"),
             result.todayOverlayPlacements.flatMap { it.text.lines() },
         )
     }

@@ -222,7 +222,7 @@
     <string name="today_overlay_title">العرض اليومي — عمود اليوم</string>
     <string name="today_overlay_delta_label">إظهار الفرق عن التوقعات</string>
     <string name="today_overlay_dominant_temp_label">إظهار درجة حرارة المحطة المسيطرة</string>
-    <string name="today_overlay_dominant_age_label">إظهار عمر القراءة</string>
+    <string name="today_overlay_dominant_temp_description">تظهر في عمود اليوم فقط في الأدوات التي يبلغ ارتفاعها 4 صفوف على الأقل.</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">اللغة</string>

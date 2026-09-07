@@ -218,7 +218,7 @@
     <string name="today_overlay_title">Vista diaria — Columna de hoy</string>
     <string name="today_overlay_delta_label">Mostrar diferencia con la previsión</string>
     <string name="today_overlay_dominant_temp_label">Mostrar temperatura de la estación dominante</string>
-    <string name="today_overlay_dominant_age_label">Mostrar antigüedad de la lectura</string>
+    <string name="today_overlay_dominant_temp_description">Aparece en la columna de hoy solo en widgets de al menos 4 filas de alto.</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Idioma</string>
