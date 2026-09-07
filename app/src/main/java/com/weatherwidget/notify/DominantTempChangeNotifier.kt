@@ -72,7 +72,12 @@ object DominantTempChangeNotifier {
         val minEpoch = window.start.atZone(zoneId).toInstant().toEpochMilli()
         val maxEpoch = window.end.atZone(zoneId).toInstant().toEpochMilli()
 
-        val observations = repository.getObservationsInRange(minEpoch, maxEpoch, lat, lon)
+        // Scoped: resolveCurrentObservationDetails filters by this same rule, so the other apis
+        // were read only to be dropped.
+        val observations = repository.getObservationsInRange(
+            minEpoch, maxEpoch, lat, lon,
+            com.weatherwidget.widget.handlers.ActualsReadScope.apisFor(displaySource),
+        )
         val hourly = HourlyForecastLoader(context, stateManager)
             .load(lat, lon, listOf(displaySource.id))
 

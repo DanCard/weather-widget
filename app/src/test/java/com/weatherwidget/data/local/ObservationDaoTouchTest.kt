@@ -167,6 +167,7 @@ class ObservationDaoTouchTest {
             endTs = 3_000L,
             lat = 37.420,
             lon = -122.080,
+            apis = null,
         )
 
         assertEquals(1, currentSite.size)

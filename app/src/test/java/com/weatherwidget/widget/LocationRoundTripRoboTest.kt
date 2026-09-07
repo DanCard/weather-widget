@@ -183,7 +183,7 @@ class LocationRoundTripRoboTest : RobolectricTest() {
     private suspend fun observationsAtActiveLocation(): List<ObservationEntity> {
         val active = requireNotNull(ActiveLocationResolver.current(context))
         return db.observationDao()
-            .getObservationsInRange(hourMs(-24), hourMs(1), active.first, active.second)
+            .getObservationsInRange(hourMs(-24), hourMs(1), active.first, active.second, apis = null)
     }
 
     private fun assertDrawableAndLocal(label: String, hourly: List<HourlyForecastEntity>, obs: List<ObservationEntity>) {

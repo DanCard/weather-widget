@@ -640,7 +640,9 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         val lat = hourlyForecasts.first().locationLat
         val lon = hourlyForecasts.first().locationLon
         val observations = WeatherDatabase.getDatabase(context).observationDao()
-            .getObservationsInRange(queryStartMs, queryEndMs, lat, lon)
+            // Unscoped: precip actuals are the hybrid set (measured NWS rows alongside the
+            // provider's own reports), so this is not the temperature blend's scope.
+            .getObservationsInRange(queryStartMs, queryEndMs, lat, lon, apis = null)
         val actualPrecipByHour = buildActualPrecipByHour(observations, displaySource, zoneId)
         if (actualPrecipByHour.isNotEmpty()) {
             Log.d(

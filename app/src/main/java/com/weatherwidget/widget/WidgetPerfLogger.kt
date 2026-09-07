@@ -26,6 +26,19 @@ object WidgetPerfLogger {
 
     fun newToken(prefix: String): String = "$prefix-${SystemClock.elapsedRealtime()}"
 
+    /**
+     * The part of [totalMs] that none of [accountedMs] explains, floored at zero.
+     *
+     * Log this next to the named spans. Every round of the Samsung tap-latency thread was found by
+     * subtracting a PERF line's fields from its own total by hand and noticing what was left:
+     * `TEMP_PIPELINE_PERF totalMs=7819` with `resolveMs=4`, then `WIDGET_RENDER_PERF totalMs=893`
+     * whose resolve+prepare+render summed to 95 while a 512ms observation read sat untimed between
+     * them. A residual that is printed cannot hide behind fields that look fast, so the next untimed
+     * span announces itself instead of waiting for someone to report that the widget feels slow.
+     */
+    fun residualMs(totalMs: Long, vararg accountedMs: Long): Long =
+        (totalMs - accountedMs.sum()).coerceAtLeast(0L)
+
     fun kv(vararg parts: Pair<String, Any?>): String =
         parts.joinToString(" ") { (key, value) -> "$key=${value ?: "<null>"}" }
 

@@ -116,7 +116,7 @@ class ObservationDaoApiScopeTest {
     @Test
     fun `readObservationsInRange honours the scope and defaults to every api`() = runTest {
         seed()
-        val all = dao.readObservationsInRange(0L, 10_000L, lat, lon).rows
+        val all = dao.readObservationsInRange(0L, 10_000L, lat, lon, apis = null).rows
         val nwsOnly = dao.readObservationsInRange(0L, 10_000L, lat, lon, listOf("NWS")).rows
 
         assertTrue(all.any { it.api == "SYNOPTIC" })

@@ -124,7 +124,7 @@ class TemperatureDeltaVisibilityRoboTest {
             api = WeatherSource.NWS.id,
         )
         val read = observationReadOf(listOf(observation))
-        coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns listOf(observation)
+        coEvery { repository.getObservationsInRange(any(), any(), any(), any(), any()) } returns listOf(observation)
         coEvery { repository.readObservationsInRange(any(), any(), any(), any(), any()) } returns read
         return repository
     }
@@ -179,7 +179,7 @@ class TemperatureDeltaVisibilityRoboTest {
     fun `delta badge is hidden when no yesterday observation exists`() = runBlocking {
         val now = LocalDateTime.now()
         val repository = mockk<WeatherRepository>()
-        coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns emptyList()
+        coEvery { repository.getObservationsInRange(any(), any(), any(), any(), any()) } returns emptyList()
         coEvery { repository.readObservationsInRange(any(), any(), any(), any(), any()) } returns observationReadOf(emptyList())
 
         val state = resolveState(hourlyCovering(now), now, 71.2f, repository)

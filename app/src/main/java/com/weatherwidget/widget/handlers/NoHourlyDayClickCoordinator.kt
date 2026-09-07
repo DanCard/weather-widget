@@ -80,7 +80,11 @@ object NoHourlyDayClickCoordinator {
         if (hasForecasts) return true
 
         if (targetDate.isBefore(LocalDate.now())) {
-            val observations = database.observationDao().getObservationsInRange(startMs, endMs, effectiveLat, effectiveLon)
+            // Unscoped on purpose: the question here is "does ANY observation exist for this day",
+            // which is what decides whether the day-tap shows a banner. Narrowing it would answer a
+            // different question.
+            val observations = database.observationDao()
+                .getObservationsInRange(startMs, endMs, effectiveLat, effectiveLon, apis = null)
             return observations.isNotEmpty()
         }
 

@@ -354,12 +354,15 @@ class ForecastRepository
             endTimestamp: Long,
             latitude: Double,
             longitude: Double,
+            /** See [ObservationDao.readObservationsInRange]; null reads every api. */
+            apis: Collection<String>?,
         ): List<ObservationEntity> {
             return observationDao.getObservationsInRange(
                 startTimestamp,
                 endTimestamp,
                 latitude,
                 longitude,
+                apis,
             )
         }
 
@@ -369,7 +372,7 @@ class ForecastRepository
             endTimestamp: Long,
             latitude: Double,
             longitude: Double,
-            apis: Collection<String>? = null,
+            apis: Collection<String>?,
         ): ObservationRangeRead {
             return observationDao.readObservationsInRange(
                 startTimestamp,

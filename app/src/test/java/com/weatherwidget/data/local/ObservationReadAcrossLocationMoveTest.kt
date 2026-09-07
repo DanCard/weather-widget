@@ -128,7 +128,7 @@ class ObservationReadAcrossLocationMoveTest {
     fun postMoveReadStillSeesTheReadingsFetchedAtTheOldSite() = runTest {
         seedIncidentState()
 
-        val pool = dao.getObservationsInRange(windowStart, windowEnd, movedCentreLat, movedCentreLon)
+        val pool = dao.getObservationsInRange(windowStart, windowEnd, movedCentreLat, movedCentreLon, apis = null)
         val knuqTimes = pool.filter { it.stationId == "KNUQ" }.map { it.timestamp }.toSet()
 
         assertTrue(
@@ -147,7 +147,7 @@ class ObservationReadAcrossLocationMoveTest {
     fun preMoveReadSeesTheSameReadings() = runTest {
         seedIncidentState()
 
-        val pool = dao.getObservationsInRange(windowStart, windowEnd, 37.41655731201172, -122.0866928100586)
+        val pool = dao.getObservationsInRange(windowStart, windowEnd, 37.41655731201172, -122.0866928100586, apis = null)
         val knuqTimes = pool.filter { it.stationId == "KNUQ" }.map { it.timestamp }.toSet()
 
         assertTrue("18:15 reachable from the pre-move centre too", at(18, 15) in knuqTimes)
@@ -158,7 +158,7 @@ class ObservationReadAcrossLocationMoveTest {
     fun diagnosticsReportTheMergeAsInnocentForThisState() = runTest {
         seedIncidentState()
 
-        val read = dao.readObservationsInRange(windowStart, windowEnd, movedCentreLat, movedCentreLon)
+        val read = dao.readObservationsInRange(windowStart, windowEnd, movedCentreLat, movedCentreLon, apis = null)
 
         assertFalse(
             "every site here is 0-2 thousandths from the centre, well inside the 0.01 tolerance",
@@ -178,7 +178,7 @@ class ObservationReadAcrossLocationMoveTest {
         seedIncidentState()
         dao.insertAll(listOf(knuq(at(18, 50), 88.0f, 37.406, -122.021)))
 
-        val read = dao.readObservationsInRange(windowStart, windowEnd, movedCentreLat, movedCentreLon)
+        val read = dao.readObservationsInRange(windowStart, windowEnd, movedCentreLat, movedCentreLon, apis = null)
         val knuqTimes = read.rows.filter { it.stationId == "KNUQ" }.map { it.timestamp }.toSet()
 
         assertFalse("the other town must not reach this blend", at(18, 50) in knuqTimes)

@@ -63,7 +63,10 @@ class RainAccuracyCalculator
                 )
                 val predByHour = latestSnapshotPrecipByHour(predicted, zoneId)
 
-                val observations = observationDao.getObservationsInRange(dayStartMs, dayEndMs, lat, lon)
+                // Unscoped: rain actuals are a hybrid (measured NWS rows plus provider reports),
+                // so the precip reducer's input set is not the temperature blend's. Not a hot path.
+                val observations =
+                    observationDao.getObservationsInRange(dayStartMs, dayEndMs, lat, lon, apis = null)
                 val actualByHour = actualPrecipByHour(observations, source, zoneId)
 
                 val (predDay, predNight) = bucketDayNight(predByHour)

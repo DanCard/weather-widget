@@ -128,6 +128,7 @@ class DailyTapActualsRegressionTest {
             endTs = maxEpoch,
             lat = TestData.LAT,
             lon = TestData.LON,
+            apis = null,
         )
 
         val hours = buildHourDataList(
@@ -183,7 +184,7 @@ class DailyTapActualsRegressionTest {
         val graphEnd = center.plusHours(ZoomStage.WIDE.window().forwardHours)
         val minEpoch = graphStart.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val maxEpoch = graphEnd.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val actuals = dao.getObservationsInRange(minEpoch, maxEpoch, TestData.LAT, TestData.LON)
+        val actuals = dao.getObservationsInRange(minEpoch, maxEpoch, TestData.LAT, TestData.LON, apis = null)
         val fixedHours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,

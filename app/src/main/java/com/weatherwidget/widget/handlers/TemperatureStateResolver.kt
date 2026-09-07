@@ -596,7 +596,12 @@ internal object TemperatureStateResolver {
             val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
             val minEpoch = truncated.minusHours(TEXT_MODE_DELTA_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
             val maxEpoch = truncated.plusHours(2).atZone(zoneId).toInstant().toEpochMilli()
-            val observations = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
+            // Scoped: the only consumer is computeDeltaFromYesterday, whose blend filters by
+            // exactly this rule. Same argument as the daily header's load.
+            val observations =
+                repository?.getObservationsInRange(
+                    minEpoch, maxEpoch, lat, lon, ActualsReadScope.apisFor(displaySource),
+                ) ?: emptyList()
             val delta = computeDeltaFromYesterday(
                 observations = observations,
                 hourlyForecasts = hourlyForecasts,
@@ -643,10 +648,7 @@ internal object TemperatureStateResolver {
             // (this device has actuals_provider_SILURIAN = SYNOPTIC, so Silurian's curve is built
             // entirely from Synoptic rows). GENERIC_GAP rides along because matchesActualSource
             // admits it ahead of the provider check.
-            val readApis = setOf(
-                ActualsProviderResolver.providerIdFor(displaySource),
-                WeatherSource.GENERIC_GAP.id,
-            )
+            val readApis = ActualsReadScope.apisFor(displaySource)
             val read = repository?.readObservationsInRange(minEpoch, maxEpoch, lat, lon, readApis)
             val loaded = read?.rows ?: emptyList()
             obsPoolDiagnostics = read?.diagnostics

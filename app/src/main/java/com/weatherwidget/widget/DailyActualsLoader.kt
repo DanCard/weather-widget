@@ -53,6 +53,10 @@ object DailyActualsLoader {
                     tomorrowMs,
                     lat,
                     lon,
+                    // Unscoped: the aggregator indexes today's actuals for EVERY source at once
+                    // (extremesToDailyActualsBySource), so this is one of the reads the DAO's note
+                    // means when it says the all-source paths must stay unscoped.
+                    apis = null,
                 )
                 .filter { it.stationId != "NWS_BLEND" }
 

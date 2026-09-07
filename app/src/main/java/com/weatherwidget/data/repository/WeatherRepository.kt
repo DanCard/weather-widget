@@ -152,7 +152,10 @@ class WeatherRepository
             endTimestamp: Long,
             latitude: Double,
             longitude: Double,
-        ): List<ObservationEntity> = forecastRepository.getObservationsInRange(startTimestamp, endTimestamp, latitude, longitude)
+            /** See [ObservationDao.readObservationsInRange]; null reads every api. */
+            apis: Collection<String>?,
+        ): List<ObservationEntity> =
+            forecastRepository.getObservationsInRange(startTimestamp, endTimestamp, latitude, longitude, apis)
 
         /** [getObservationsInRange] plus freshness diagnostics; see [ObservationDao.readObservationsInRange]. */
         suspend fun readObservationsInRange(
@@ -160,7 +163,7 @@ class WeatherRepository
             endTimestamp: Long,
             latitude: Double,
             longitude: Double,
-            apis: Collection<String>? = null,
+            apis: Collection<String>?,
         ): ObservationRangeRead =
             forecastRepository.readObservationsInRange(startTimestamp, endTimestamp, latitude, longitude, apis)
         suspend fun getDailyActualsWithLiveToday(

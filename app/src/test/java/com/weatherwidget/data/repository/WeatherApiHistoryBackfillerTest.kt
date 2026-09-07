@@ -49,7 +49,7 @@ class WeatherApiHistoryBackfillerTest {
 
     @Test
     fun `missing yesterday fetches stores and recomputes exactly once`() = runTest {
-        coEvery { observationDao.getObservationsInRange(any(), any(), lat, lon) } returns emptyList()
+        coEvery { observationDao.getObservationsInRange(any(), any(), lat, lon, setOf(WeatherSource.WEATHER_API.id)) } returns emptyList()
         coEvery {
             appLogDao.getLatestLogByTagAndMessagePrefix(any(), any())
         } returns null
@@ -86,7 +86,7 @@ class WeatherApiHistoryBackfillerTest {
 
     @Test
     fun `complete yesterday performs no history call`() = runTest {
-        coEvery { observationDao.getObservationsInRange(any(), any(), lat, lon) } returns
+        coEvery { observationDao.getObservationsInRange(any(), any(), lat, lon, setOf(WeatherSource.WEATHER_API.id)) } returns
             historyHours(20).map {
                 ObservationEntity(
                     stationId = "WEATHER_API_MAIN",
@@ -111,7 +111,7 @@ class WeatherApiHistoryBackfillerTest {
 
     @Test
     fun `history access failure is optional and records cooldown`() = runTest {
-        coEvery { observationDao.getObservationsInRange(any(), any(), lat, lon) } returns emptyList()
+        coEvery { observationDao.getObservationsInRange(any(), any(), lat, lon, setOf(WeatherSource.WEATHER_API.id)) } returns emptyList()
         coEvery {
             appLogDao.getLatestLogByTagAndMessagePrefix(any(), any())
         } returns null
@@ -134,7 +134,7 @@ class WeatherApiHistoryBackfillerTest {
 
     @Test(expected = CancellationException::class)
     fun `history cancellation propagates`() = runTest {
-        coEvery { observationDao.getObservationsInRange(any(), any(), lat, lon) } returns emptyList()
+        coEvery { observationDao.getObservationsInRange(any(), any(), lat, lon, setOf(WeatherSource.WEATHER_API.id)) } returns emptyList()
         coEvery {
             appLogDao.getLatestLogByTagAndMessagePrefix(any(), any())
         } returns null

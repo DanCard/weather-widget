@@ -1216,7 +1216,7 @@ class DailyViewHandlerTest {
             fetchedAt = 1L,
             api = "NWS",
         )
-        coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns listOf(observation)
+        coEvery { repository.getObservationsInRange(any(), any(), any(), any(), any()) } returns listOf(observation)
         return repository
     }
 

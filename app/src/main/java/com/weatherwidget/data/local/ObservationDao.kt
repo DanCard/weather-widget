@@ -119,7 +119,14 @@ interface ObservationDao {
         endTs: Long,
         lat: Double,
         lon: Double,
-        apis: Collection<String>? = null,
+        /**
+         * Required, with no default, so that reading every api is a decision someone made rather
+         * than one they inherited. Eleven of the twelve widget call sites were unscoped on
+         * 2026-09-07 and not one of them had chosen to be: `apis` simply defaulted to null. Pass
+         * [com.weatherwidget.widget.handlers.ActualsReadScope] on a source-filtered path, or
+         * `null` where every api genuinely matters (the daily recompute, the stats screens).
+         */
+        apis: Collection<String>?,
     ): List<ObservationEntity> = readObservationsInRange(startTs, endTs, lat, lon, apis).rows
 
     /**
@@ -146,7 +153,7 @@ interface ObservationDao {
          * from Synoptic rows). Only scope a read whose every consumer filters by that same rule; the
          * daily recompute, which computes history for all sources at once, must stay unscoped.
          */
-        apis: Collection<String>? = null,
+        apis: Collection<String>?,
     ): ObservationRangeRead {
         val sqlStartMs = android.os.SystemClock.elapsedRealtime()
         val candidates =
@@ -260,7 +267,10 @@ interface ObservationDao {
             endMs = endTs,
             sourceId = sourceId,
         ) { readStart, readEnd ->
-            getObservationsInRange(readStart, readEnd, lat, lon).map { it.toReading() }
+            // Unscoped on purpose: the cloud blend mixes METAR with the display source's own rows,
+            // so restricting to one provider here would drop half its input. Behaviour unchanged —
+            // this read was already reading every api, it just says so now.
+            getObservationsInRange(readStart, readEnd, lat, lon, apis = null).map { it.toReading() }
         }
 
     @Query("DELETE FROM observations WHERE timestamp < :cutoffMs")

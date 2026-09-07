@@ -338,11 +338,17 @@ object DailyViewHandler : WidgetViewHandler {
         // Header yesterday-delta: one observation range query per render, shared with the
         // today-column overlay (same window) via ctx.headerObservations.
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        // Scoped through ActualsReadScope, NOT with a local set: the today-column overlay narrows
+        // this same load and compares its re-derived `observedAt` to CurrentTempResolver's for exact
+        // equality, so the two reads must admit identical rows or the dominant-station rows vanish.
+        // Both consumers here (YesterdayDeltaCalculator's blend and the overlay resolver) already
+        // filter by matchesActualSource, so the SQL restriction is a no-op on their output.
         val headerObservations = repository?.getObservationsInRange(
             nowMs - DailyGraphRenderer.OVERLAY_OBSERVATION_LOOKBACK_MS,
             nowMs,
             lat,
             lon,
+            ActualsReadScope.apisFor(displaySource),
         )
         val deltaFromYesterday = headerObservations?.let { observations ->
             YesterdayDeltaCalculator.computeDelta(
@@ -543,6 +549,9 @@ object DailyViewHandler : WidgetViewHandler {
                 "resolveMs" to resolveMs,
                 "prepareMs" to prepareMs,
                 "renderMs" to renderMs,
+                // What none of the above explains. This was 798 of 893ms on 2026-09-07 and the
+                // named fields all read fast; see WidgetPerfLogger.residualMs.
+                "otherMs" to WidgetPerfLogger.residualMs(totalMs, resolveMs, prepareMs, renderMs),
                 "forecastCount" to weatherList.size,
                 "hourlyCount" to hourlyForecasts.size,
                 "totalMs" to totalMs,
@@ -573,7 +582,8 @@ object DailyViewHandler : WidgetViewHandler {
      * daily view, because the presence-only [computeMissingDataRefreshes] check treats it as
      * already populated. The shared backfill cooldown key prevents double-fetching with the graph.
      */
-    private suspend fun maybeBackfillIncompleteHistory(
+    @VisibleForTesting
+    internal suspend fun maybeBackfillIncompleteHistory(
         context: Context,
         database: WeatherDatabase,
         repository: WeatherRepository?,
@@ -588,11 +598,28 @@ object DailyViewHandler : WidgetViewHandler {
     ) {
         if (repository == null) return
         if (!shouldProbeHistoryBackfill(displaySource, centerDate, today)) return
+        // Cooldown BEFORE the read, exactly as the CLOUD probe does it. While the shared cooldown is
+        // active the evaluation below could only ever log a cooldown SKIP, so paying for a 72h
+        // observation load first is pure waste — and it was being paid on the click path, inside the
+        // paint, on every NWS daily render. Measured 2026-09-07 on the Samsung: 486-492ms warm,
+        // 3,185ms under a concurrent sync, once 8,325ms; nothing it returns is drawn. That single
+        // read was the whole reason an NWS tap cost ~350ms more than the same tap on any other
+        // source. See performance/260907-daily-path-observation-reads-unscoped-and-duplicated.md.
+        if (hourlyBackfillCoolingDown(stateManager, appWidgetId, displaySource, lat, lon)) return
 
         val graphStart = now.minusHours(WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS)
         val minEpoch = graphStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val maxEpoch = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val observations = repository.getObservationsInRange(minEpoch, maxEpoch, lat, lon)
+        // Scoped: evaluateHourlyBackfillNeed filters this list through matchesObservationSource,
+        // which is matchesActualSource, which admits only GENERIC_GAP or this source's resolved
+        // provider. Every other api crossed the CursorWindow to be dropped one line later.
+        val observations = repository.getObservationsInRange(
+            minEpoch,
+            maxEpoch,
+            lat,
+            lon,
+            ActualsReadScope.apisFor(displaySource),
+        )
         maybeEnqueueHourlyObservationBackfill(
             context = context,
             database = database,

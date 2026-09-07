@@ -416,6 +416,9 @@ internal object DailyGraphRenderer {
                     nowMs,
                     lat,
                     lon,
+                    // Same scope as the header load this falls back FROM, and as
+                    // CurrentTempResolver: see ActualsReadScope on why these three must agree.
+                    ActualsReadScope.apisFor(ctx.displaySource),
                 )
                 ?: ctx.currentTemps
         // `observedAt` above was derived by WidgetRenderer over the current-temp resolution window.
@@ -549,7 +552,11 @@ internal object DailyGraphRenderer {
         val startMs = today.atStartOfDay(zoneId).toInstant().toEpochMilli()
         val endMs = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
         return database.observationDao()
-            .getObservationsInRange(startMs, endMs, lat, lon)
+            // Scoped to exactly what the filter below keeps. This one is a plain `api` equality
+            // rather than ActualsReadScope: the caller wants THIS source's own rows, not the
+            // provider it may borrow actuals from, and GENERIC_GAP is a forecast filler with no
+            // observation to contribute.
+            .getObservationsInRange(startMs, endMs, lat, lon, setOf(displaySource.id))
             .filter { it.api == displaySource.id && it.stationId != "NWS_BLEND" }
     }
 

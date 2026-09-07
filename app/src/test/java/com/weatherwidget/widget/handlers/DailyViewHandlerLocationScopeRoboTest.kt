@@ -65,7 +65,7 @@ class DailyViewHandlerLocationScopeRoboTest {
         val latSlot = slot<Double>()
         val lonSlot = slot<Double>()
         coEvery {
-            repository.getObservationsInRange(any(), any(), capture(latSlot), capture(lonSlot))
+            repository.getObservationsInRange(any(), any(), capture(latSlot), capture(lonSlot), any())
         } returns emptyList()
 
         DailyViewHandler.updateWidget(

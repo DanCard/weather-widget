@@ -31,7 +31,17 @@ object CurrentTempResolver {
         val zoneId = ZoneId.systemDefault()
         val minEpoch = queryWindow.start.atZone(zoneId).toInstant().toEpochMilli()
         val maxEpoch = queryWindow.end.atZone(zoneId).toInstant().toEpochMilli()
-        val observations = repository.getObservationsInRange(minEpoch, maxEpoch, lat, lon)
+        // Scoped identically to the daily header load (ActualsReadScope). This resolver produces the
+        // `observedAt` that the today-column overlay re-derives and matches on EXACT equality, so if
+        // these two reads ever admit different rows the station rows drop out of the overlay.
+        val observations =
+            repository.getObservationsInRange(
+                minEpoch,
+                maxEpoch,
+                lat,
+                lon,
+                ActualsReadScope.apisFor(displaySource),
+            )
 
         return resolveGraphStyleCurrentTempFromInputs(
             observations = observations,

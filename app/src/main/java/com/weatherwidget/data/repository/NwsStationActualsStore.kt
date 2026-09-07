@@ -153,7 +153,9 @@ class NwsStationActualsStore @Inject constructor(
         val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val dayEndMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val stored = observationDao
-            .getObservationsInRange(dayStartMs, dayEndMs, latitude, longitude)
+            // Unscoped: StationDailyExtremes.resolve does its own station-level selection over the
+            // whole day's pool, and this store feeds the api-actuals column. Left as it was.
+            .getObservationsInRange(dayStartMs, dayEndMs, latitude, longitude, apis = null)
             .map { it.toReading() }
         return StationDailyExtremes.resolve(
             observations = stored,

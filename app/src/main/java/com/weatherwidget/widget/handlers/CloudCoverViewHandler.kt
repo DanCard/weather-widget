@@ -540,6 +540,10 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                     siteLat,
                     siteLon,
+                    // Same consumer as the daily probe: evaluateHourlyBackfillNeed filters this
+                    // list through matchesObservationSource, so every other api was read to be
+                    // dropped one call later.
+                    ActualsReadScope.apisFor(effectiveDisplaySource),
                 )
                 maybeEnqueueHourlyObservationBackfill(
                     context = context,

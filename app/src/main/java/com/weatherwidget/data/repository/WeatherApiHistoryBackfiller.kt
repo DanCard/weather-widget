@@ -58,6 +58,8 @@ internal class WeatherApiHistoryBackfiller(
                 dayEndMs,
                 latitude,
                 longitude,
+                // Scoped to exactly what the filter below keeps.
+                setOf(WeatherSource.WEATHER_API.id),
             ).asSequence()
                 .filter {
                     it.api == WeatherSource.WEATHER_API.id &&

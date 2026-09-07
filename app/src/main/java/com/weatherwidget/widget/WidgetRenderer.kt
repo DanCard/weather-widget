@@ -412,7 +412,14 @@ object WidgetRenderer {
         var watermarkRows: List<ObservationEntity> = currentTemps
         val graphStyleObs =
             if (repository != null) {
-                val observations = repository.getObservationsInRange(nowMinEpoch, nowMaxEpoch, locationLat, locationLon)
+                // Unscoped deliberately: these same rows become `watermarkRows`, and
+                // ObservationWatermark's gate counts what actually arrived rather than what this
+                // source draws. The blend below filters by source on its own, so narrowing the read
+                // would not change the resolved temperature — only the watermark.
+                val observations =
+                    repository.getObservationsInRange(
+                        nowMinEpoch, nowMaxEpoch, locationLat, locationLon, apis = null,
+                    )
                 watermarkRows = observations
                 CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
                     observations = observations,

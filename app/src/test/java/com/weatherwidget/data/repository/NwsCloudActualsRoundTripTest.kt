@@ -167,6 +167,7 @@ class NwsCloudActualsRoundTripTest {
             entity.timestamp + 1,
             userLat,
             userLon,
+            apis = null,
         ).single()
         assertEquals(75, stored.cloudCoverLow)
         assertNull(stored.cloudCover)

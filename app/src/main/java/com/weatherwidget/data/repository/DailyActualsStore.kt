@@ -129,6 +129,9 @@ class DailyActualsStore @Inject constructor(
                 tomorrowMs,
                 latitude,
                 longitude,
+                // Unscoped: this pass indexes actuals for every configured source at once, which is
+                // precisely the case the DAO's note says must NOT be narrowed.
+                apis = null,
             )
             // Observations are filtered by PROVIDER api, not by source id. A borrowing source's
             // actuals arrive under its provider's api (METAR), and METAR is not an active display
@@ -285,6 +288,8 @@ class DailyActualsStore @Inject constructor(
             contextEndTs,
             latitude,
             longitude,
+            // Unscoped: the daily recompute builds history for EVERY source in one pass.
+            apis = null,
         )
         val afterQueryMs = SystemClock.elapsedRealtime()
         val dayObs = contextObs.filter { it.timestamp in startTs until endTs }
@@ -549,7 +554,10 @@ class DailyActualsStore @Inject constructor(
             val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
             val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
             val timestamps = observationDao
-                .getObservationsInRange(dayStart, dayEnd, latitude, longitude)
+                // Scoped to exactly what the filter below keeps. This runs inside the daily
+                // recompute, which is where the worst reads of 2026-09-07 were measured
+                // (spanH=72 apis=ALL, 37,551 candidates, 8,325ms under contention).
+                .getObservationsInRange(dayStart, dayEnd, latitude, longitude, setOf(WeatherSource.NWS.id))
                 .filter { it.api == WeatherSource.NWS.id && it.stationId != "NWS_BLEND" }
                 .map { it.timestamp }
             pastDayLacksAfternoonCoverage(timestamps, date, zone, today)
@@ -624,6 +632,8 @@ class DailyActualsStore @Inject constructor(
                         endTs + dayMs,
                         latitude,
                         longitude,
+                        // Scoped to exactly what the filter below keeps; see above.
+                        setOf(WeatherSource.NWS.id),
                     )
                     .filter { it.api == WeatherSource.NWS.id }
                     .map { it.toReading() }
