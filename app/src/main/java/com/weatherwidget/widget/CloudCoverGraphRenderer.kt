@@ -141,6 +141,34 @@ object CloudCoverGraphRenderer {
     private fun ensurePaints(context: Context, tallGraph: Boolean, labelScale: Float) =
         CloudCoverGraphStyle.ensurePaints(context, tallGraph, labelScale)
 
+    fun renderGraph(request: CloudRenderRequest): Bitmap = renderGraph(
+        context = request.context,
+        hours = request.hours,
+        widthPx = request.widthPx,
+        heightPx = request.heightPx,
+        currentTime = request.currentTime,
+        bitmapScale = request.bitmapScale,
+        smoothIterations = request.smoothIterations,
+        actualSeries = request.actualSeries,
+        hourLabelSpacingDp = request.hourLabelSpacingDp,
+        missingHours = request.missingHours,
+        totalHours = request.totalHours,
+        numColumns = request.numColumns,
+        missingDescription = request.missingDescription,
+        missingReason = request.missingReason,
+        job = request.job,
+        onLabelPlaced = request.onLabelPlaced,
+        onDayLabelPlaced = request.onDayLabelPlaced,
+        onWatermarkPlaced = request.onWatermarkPlaced,
+        showErrorWatermark = request.showErrorWatermark,
+        errorSourceLabel = request.errorSourceLabel,
+        errorCode = request.errorCode,
+        errorFailureTimeMs = request.errorFailureTimeMs,
+        dominantStationLabel = request.dominantStationLabel,
+        onDominantStationPlaced = request.onDominantStationPlaced,
+        onLayerGlyphsPlaced = request.onLayerGlyphsPlaced,
+    )
+
     fun renderGraph(
         context: Context,
         hours: List<CloudHourData>,
@@ -152,20 +180,10 @@ object CloudCoverGraphRenderer {
         /** Native-timestamp actual/history points; may be denser than [hours]. */
         actualSeries: List<TimedCloudCover> = emptyList(),
         hourLabelSpacingDp: Float = HourlyGraphDefaults.DEFAULT_HOUR_LABEL_SPACING_DP,
-        // Total number of hours in the visible window and how many lack cloud cover data.
-        // Used to render an in-graph "data missing" diagnostic when the upstream feed has
-        // gaps, so the user sees the gap honestly instead of guessing whether the sky was
-        // clear or the fetch failed. When totalHours is 0 these are ignored.
         missingHours: Int = 0,
         totalHours: Int = 0,
-        // Number of grid columns available in the widget. Used to inject a middle
-        // label on wide widgets when only edges are labeled.
         numColumns: Int = 0,
-        // Compact human description of which hours are missing, e.g., "7a–8p" or
-        // "9a, 11p". Optional: when null, the diagnostic falls back to the count.
         missingDescription: String? = null,
-        // Short upstream reason (e.g., "NWS gridpoints fetch failed"). Renders as a
-        // dim second line below the main diagnostic when present.
         missingReason: String? = null,
         job: Job? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
@@ -177,11 +195,6 @@ object CloudCoverGraphRenderer {
         errorFailureTimeMs: Long? = null,
         dominantStationLabel: DominantStationLabel.LabelText? = null,
         onDominantStationPlaced: ((DominantStationLabel.Placement?) -> Unit)? = null,
-        /**
-         * The layer-glyph ink boxes, as handed to the free-label search. Exposed so a test
-         * can assert the annotation clears them; without it a placement test cannot tell a wired
-         * obstacle list from an empty one.
-         */
         onLayerGlyphsPlaced: ((List<GraphRect>) -> Unit)? = null,
     ): Bitmap {
         job?.ensureActive()
@@ -494,60 +507,41 @@ object CloudCoverGraphRenderer {
         val cloudLabelFm = paints.percentLabelPaint.fontMetrics
         val cloudLabelAscent = if (cloudLabelFm != null && cloudLabelFm.ascent != 0f) cloudLabelFm.ascent else -paints.percentLabelPaint.textSize
         val cloudLabelDescent = if (cloudLabelFm != null && cloudLabelFm.descent != 0f) cloudLabelFm.descent else paints.percentLabelPaint.textSize * 0.15f
-        ValueLabelEngine.computePlacements(
-            labelSignal = labelSignal,
-            points = points.map { ValueLabelEngine.GraphPoint(it.first, it.second) },
-            geometry = ValueLabelEngine.Geometry(graphTop, graphBottom, graphHeight, widthPx.toFloat(), heightPx.toFloat()),
-            config = ValueLabelEngine.Config.cloud(),
-            measureText = { paints.percentLabelPaint.measureText(it) },
-            textAscent = cloudLabelAscent,
-            textDescent = cloudLabelDescent,
-            dpToPx = { dpToPx(context, it) },
-            drawnIconBounds = drawnIconBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) },
-            numColumns = numColumns,
-        ).forEach { p ->
-            canvas.drawText(p.text, p.centerX, p.baselineY, paints.percentLabelPaint)
-            drawnLabelBounds.add(RectF(p.box.left, p.box.top, p.box.right, p.box.bottom))
-            onLabelPlaced?.invoke(
-                LabelPlacementDebug(
-                    index = p.index,
-                    cloudCover = labelSignal[p.index],
-                    placedAbove = p.placedAbove,
-                    isGlobalMax = p.isGlobalMax,
-                    isGlobalMin = p.isGlobalMin,
-                ),
-            )
-        }
-
-        // --- Day labels ---
-        val (today, leftDate, rightDate, leftText, rightText) =
-            HourlyTimelineGeometry.dayLabelEndpoints(hours.first().dateTime, hours.last().dateTime, currentTime)
-
-        val leftPaint = if (leftDate == today) paints.todayDayLabelPaint else paints.dayLabelTextPaint
-        val rightPaint = if (rightDate == today) paints.todayDayLabelPaint else paints.dayLabelTextPaint
-        val leftTextWidth = leftPaint.measureText(leftText)
-        val rightTextWidth = rightPaint.measureText(rightText)
-
-        HourlyIndicatorRenderer.drawDayLabels(
+        val graphPoints = points.map { ValueLabelEngine.GraphPoint(it.first, it.second) }
+        CloudCoverGraphLabels.drawPercentLabels(
+            context = context,
             canvas = canvas,
-            leftDate = leftDate,
-            rightDate = rightDate,
-            leftText = leftText,
-            rightText = rightText,
-            leftX = leftTextWidth / 2f,
-            rightX = widthPx - rightTextWidth / 2f,
-            today = today,
+            labelSignal = labelSignal,
+            graphPoints = graphPoints,
             graphTop = graphTop,
             graphBottom = graphBottom,
+            graphHeight = graphHeight,
+            widthPx = widthPx,
             heightPx = heightPx,
-            dayLabelTextPaint = paints.dayLabelTextPaint,
-            todayDayLabelPaint = paints.todayDayLabelPaint,
+            paints = paints,
+            cloudLabelAscent = cloudLabelAscent,
+            cloudLabelDescent = cloudLabelDescent,
+            drawnIconBounds = drawnIconBounds,
+            drawnLabelBounds = drawnLabelBounds,
+            numColumns = numColumns,
+            dpToPx = { dpToPx(context, it) },
+            onLabelPlaced = onLabelPlaced,
+        )
+
+        // --- Day labels ---
+        CloudCoverGraphLabels.drawDayLabels(
+            canvas = canvas,
+            hours = hours,
+            currentTime = currentTime,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            graphTop = graphTop,
+            graphBottom = graphBottom,
+            paints = paints,
             drawnLabelBounds = drawnLabelBounds,
             drawnIconBounds = drawnIconBounds,
             dpToPx = { dpToPx(context, it) },
-            onDayLabelPlaced = if (onDayLabelPlaced != null) { side, text, date, x, y, placement, isToday ->
-                onDayLabelPlaced.invoke(DayLabelPlacementDebug(side, text, date, x, y, placement, isToday))
-            } else null,
+            onDayLabelPlaced = onDayLabelPlaced,
         )
 
         // --- NOW indicator ---
@@ -564,59 +558,17 @@ object CloudCoverGraphRenderer {
         )
 
         // --- Cloud icon in emptiest region ---
-        val cloudDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_mostly_cloudy)
-        if (cloudDrawable != null && points.size >= 3) {
-            val iconSizePx = dpToPx(context, HourlyGraphDefaults.WATERMARK_ICON_SIZE_DP).toInt()
-            val iconGap = dpToPx(context, WATERMARK_ICON_CURVE_GAP_DP)
-            // Shared emptiest-region search (CloudWatermarkPlacement); only the bounds/overlap
-            // placement and drawing stay platform-specific below.
-            val candidateCenters = CloudWatermarkPlacement.candidateCenters(smoothedValues)
-
-            var placed = false
-            var placedCandidateIndex: Int? = null
-
-            for (candidateCenter in candidateCenters) {
-                val curveX = points[candidateCenter].first
-                val curveY = points[candidateCenter].second
-                val verticalFractions = WATERMARK_VERT_FRACTIONS
-
-                for (fraction in verticalFractions) {
-                    val centerY = graphTop + (curveY - graphTop) * fraction
-                    val bounds = RectF(
-                        curveX - iconSizePx / 2f,
-                        centerY - iconSizePx / 2f,
-                        curveX + iconSizePx / 2f,
-                        centerY + iconSizePx / 2f,
-                    )
-
-                    val fitsAboveCurve = bounds.top >= 0f && bounds.bottom < curveY - iconGap
-                    val overlapsLabels = drawnLabelBounds.any { RectF.intersects(it, bounds) }
-                    val overlapsIcons = drawnIconBounds.any { RectF.intersects(it, bounds) }
-                    if (!fitsAboveCurve || overlapsLabels || overlapsIcons) continue
-
-                    cloudDrawable.alpha = HourlyGraphDefaults.WATERMARK_ALPHA
-                    cloudDrawable.setBounds(
-                        bounds.left.toInt(),
-                        bounds.top.toInt(),
-                        bounds.right.toInt(),
-                        bounds.bottom.toInt(),
-                    )
-                    cloudDrawable.draw(canvas)
-                    placed = true
-                    placedCandidateIndex = candidateCenter
-                    break
-                }
-
-                if (placed) break
-            }
-
-            onWatermarkPlaced?.invoke(
-                WatermarkPlacementDebug(
-                    placed = placed,
-                    candidateCenterIndex = placedCandidateIndex,
-                ),
-            )
-        }
+        CloudCoverGraphAnnotations.drawWatermark(
+            context = context,
+            canvas = canvas,
+            smoothedValues = smoothedValues,
+            points = points,
+            graphTop = graphTop,
+            drawnLabelBounds = drawnLabelBounds,
+            drawnIconBounds = drawnIconBounds,
+            dpToPx = { dpToPx(context, it) },
+            onWatermarkPlaced = onWatermarkPlaced,
+        )
 
 
         // Second pass: label the actual curve. Without it the most informative number on the graph —
@@ -662,87 +614,29 @@ object CloudCoverGraphRenderer {
             }
         }
 
-        if (dominantStationLabel != null && hours.size >= 2) {
-            val spanHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
-            if (spanHours <= DominantStationLabel.MAX_HOURS_SPAN) {
-                val valuePaint = paints.dominantValueTextPaint
-                val stationPaint = paints.dominantStationTextPaint
-                val timePaint = paints.dominantTimeTextPaint
-                val segmentWidths = dominantStationLabel.segments.map { segment ->
-                    val paint = when (segment.part) {
-                        DominantStationLabel.Part.TEMPERATURE -> valuePaint
-                        DominantStationLabel.Part.TIME -> timePaint
-                        DominantStationLabel.Part.STATION,
-                        DominantStationLabel.Part.AT,
-                        DominantStationLabel.Part.AMPM -> stationPaint
-                    }
-                    paint.measureText(segment.text)
-                }
-                val totalWidth = segmentWidths.sum()
-                val fontAscent = TemperatureGraphStyle.fontAscent(valuePaint)
-                val fontDescent = TemperatureGraphStyle.fontDescent(valuePaint)
-                val padPx = dpToPx(context, 2f * labelScale)
-                val placement = DominantStationLabel.place(
-                    text = dominantStationLabel.fullText,
-                    spanHours = spanHours,
-                    plot = GraphRect(0f, topPadding, widthPx.toFloat(), graphBottom),
-                    drawnBounds = drawnLabelBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) } +
-                        layerGlyphBounds,
-                    curveYsAt = { x ->
-                        buildList {
-                            if (smoothedValues.size >= 2 && hourWidth > 0f) {
-                                val fraction = (x / hourWidth).coerceIn(0f, smoothedValues.lastIndex.toFloat())
-                                val idx = fraction.toInt().coerceIn(0, smoothedValues.size - 2)
-                                val f = fraction - idx
-                                val forecastY = mapCloudCoverToY(
-                                    cloudCover = smoothedValues[idx] + (smoothedValues[idx + 1] - smoothedValues[idx]) * f,
-                                    graphBottom = graphBottom,
-                                    graphHeight = graphHeight,
-                                    topScale = verticalScale.topScale,
-                                )
-                                add(forecastY)
-                            }
-                            if (actualPoints.isNotEmpty() && x <= actualPoints.last().first + hourWidth * 0.5f) {
-                                val actualIdx = actualPoints.indexOfLast { it.first <= x }
-                                if (actualIdx >= 0 && actualIdx < actualPoints.lastIndex) {
-                                    val p1 = actualPoints[actualIdx]
-                                    val p2 = actualPoints[actualIdx + 1]
-                                    val span = p2.first - p1.first
-                                    if (span > 0f) {
-                                        val actualY = p1.second + (p2.second - p1.second) * ((x - p1.first) / span).coerceIn(0f, 1f)
-                                        add(actualY)
-                                    }
-                                } else if (actualIdx == actualPoints.lastIndex) {
-                                    add(actualPoints.last().second)
-                                }
-                            }
-                        }
-                    },
-                    metrics = GraphEmptySpaceFinder.Metrics(
-                        width = totalWidth,
-                        ascent = fontAscent,
-                        descent = fontDescent,
-                    ),
-                    padPx = padPx,
-                    vetoBounds = if (nowX != null) listOf(GraphRect(nowX - 4f, graphTop, nowX + 4f, graphBottom)) else emptyList(),
-                )
-                if (placement != null) {
-                    var x = placement.box.left
-                    dominantStationLabel.segments.forEachIndexed { index, segment ->
-                        val paint = when (segment.part) {
-                            DominantStationLabel.Part.TEMPERATURE -> valuePaint
-                            DominantStationLabel.Part.TIME -> timePaint
-                            DominantStationLabel.Part.STATION,
-                            DominantStationLabel.Part.AT,
-                            DominantStationLabel.Part.AMPM -> stationPaint
-                        }
-                        canvas.drawText(segment.text, x, placement.baselineY, paint)
-                        x += segmentWidths[index]
-                    }
-                    drawnLabelBounds.add(RectF(placement.box.left, placement.box.top, placement.box.right, placement.box.bottom))
-                }
-                onDominantStationPlaced?.invoke(placement)
-            }
+        if (dominantStationLabel != null) {
+            CloudCoverGraphAnnotations.drawDominantStationLabel(
+                context = context,
+                canvas = canvas,
+                dominantStationLabel = dominantStationLabel,
+                hours = hours,
+                paints = paints,
+                topPadding = topPadding,
+                graphTop = graphTop,
+                graphBottom = graphBottom,
+                graphHeight = graphHeight,
+                widthPx = widthPx,
+                hourWidth = hourWidth,
+                smoothedValues = smoothedValues,
+                actualPoints = actualPoints,
+                drawnLabelBounds = drawnLabelBounds,
+                layerGlyphBounds = layerGlyphBounds,
+                nowX = nowX,
+                verticalScale = verticalScale,
+                labelScale = labelScale,
+                dpToPx = { dpToPx(context, it) },
+                onDominantStationPlaced = onDominantStationPlaced,
+            )
         }
 
         if (missingHours > 0 && totalHours > 0) {

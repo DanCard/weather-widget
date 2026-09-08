@@ -303,26 +303,23 @@ object WidgetRenderer {
         // only views that still include the now/fetch-dot point keep tracking live `now`.
         val centerTime = stateManager.resolveHourlyCenterTime(appWidgetId, now, zoom)
 
-        val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
-        val locationLat =
-            configuredLocation?.first
-                ?: weatherList.firstOrNull()?.locationLat
-                ?: hourlyForecasts.firstOrNull()?.locationLat
-                ?: currentTemps.firstOrNull()?.locationLat
-        val locationLon =
-            configuredLocation?.second
-                ?: weatherList.firstOrNull()?.locationLon
-                ?: hourlyForecasts.firstOrNull()?.locationLon
-                ?: currentTemps.firstOrNull()?.locationLon
+        val location = WidgetRenderLocationResolver.resolve(
+            stateManager = stateManager,
+            appWidgetId = appWidgetId,
+            weatherList = weatherList,
+            hourlyForecasts = hourlyForecasts,
+            currentTemps = currentTemps,
+        )
         // Unlike the handler-level fallbacks, this one is not decoration: it is the site every row is
         // unified against. With no configured location and no data carrying one, there is nothing to
         // render, so paint the no-location state instead of unifying against a fabricated coordinate.
         // The worker gates on this too; this is the last line of defence for direct render paths.
-        if (locationLat == null || locationLon == null || !locationLat.isFinite() || !locationLon.isFinite()) {
+        if (location == null) {
             Log.w(TAG, "updateWidgetWithData: no location for widget=$appWidgetId; painting no-location state")
             updateWidgetNoLocation(context, appWidgetManager, appWidgetId)
             return
         }
+        val (locationLat, locationLon) = location
 
         // 1. Pick the coordinate pair in the hourly data closest to our target location, then keep every
         // row at that SAME physical site. We can't use exact float equality: one site accumulates
@@ -333,66 +330,17 @@ object WidgetRenderer {
         val unifiedHourlyForecasts =
             GraphDataLoader.unifyToNearestSite(hourlyForecasts, locationLat, locationLon)
 
-        // Permanent diagnostic for the coordinate-fragmentation family, kept after the fix rather
-        // than retired with it: `borrowed=` shows unifyToNearestSite re-admitting hours the winning
-        // site cannot cover, and `lostHours=` still names rows dropped as genuinely too far.
-        //
-        // Before the fix these two layers disagreed — HourlyForecastStitcher.collapse borrowed a
-        // nearby fragment for an uncovered hour and this collapse deleted it again — and the result
-        // was invisible: the curve just ended, exactly as if the provider had never published those
-        // hours. On 2026-09-03 that read `CLOUD_COVER_GAPS missing=7 ranges=4a-10a` while the data
-        // sat 0.007 deg away, and reconstructing it took a device DB pull comparing HOURLY_LOAD's
-        // `outSites` against the handler's `rowsLoc`. Log it where it happens instead.
-        //
-        // Silent when nothing is borrowed or lost, so an ordinary paint stays quiet.
-        run {
-            val siteLat = unifiedHourlyForecasts.firstOrNull()?.locationLat
-            val siteLon = unifiedHourlyForecasts.firstOrNull()?.locationLon
-            if (siteLat != null && siteLon != null) {
-                val outHours = unifiedHourlyForecasts.asSequence()
-                    .filter { it.source == displaySource.id }
-                    .map { it.dateTime }
-                    .toSet()
-                // Hours the winning site covered on its own, before any borrowing.
-                val nativeHours = hourlyForecasts.asSequence()
-                    .filter {
-                        it.source == displaySource.id &&
-                            LocationMatch.sameSite(siteLat, siteLon, it.locationLat, it.locationLon)
-                    }
-                    .map { it.dateTime }
-                    .toSet()
-                val inHours = hourlyForecasts.asSequence()
-                    .filter { it.source == displaySource.id }
-                    .map { it.dateTime }
-                    .toSet()
-                val borrowedMs = (outHours - nativeHours).toSortedSet()
-                val lostMs = (inHours - outHours).toSortedSet()
-                if (borrowedMs.isNotEmpty() || lostMs.isNotEmpty()) {
-                    val zone = ZoneId.systemDefault()
-                    fun ranges(ms: Set<Long>): String =
-                        HourLabelFormatter.missingHourRanges(
-                            ms.map { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDateTime() },
-                        ).ifEmpty { "-" }
-                    val donorSites = hourlyForecasts.asSequence()
-                        .filter { it.dateTime in borrowedMs && it.source == displaySource.id }
-                        .filter { !LocationMatch.sameSite(siteLat, siteLon, it.locationLat, it.locationLon) }
-                        .map { String.format(java.util.Locale.US, "%.5f,%.5f", it.locationLat, it.locationLon) }
-                        .distinct()
-                        .joinToString("|")
-                        .ifEmpty { "-" }
-                    WeatherDatabase.getDatabase(context).appLogDao().log(
-                        "HOURLY_UNIFY_DROP",
-                        "widget=$appWidgetId view=$effectiveViewMode origin=${origin.name} " +
-                            "displaySource=${displaySource.id} in=${hourlyForecasts.size} " +
-                            "out=${unifiedHourlyForecasts.size} " +
-                            "borrowed=${borrowedMs.size} borrowedRanges=${ranges(borrowedMs)} " +
-                            "lostHours=${lostMs.size} lostRanges=${ranges(lostMs)} " +
-                            "site=$siteLat,$siteLon center=$locationLat,$locationLon donorSites=$donorSites",
-                        if (lostMs.isNotEmpty()) "WARN" else "INFO",
-                    )
-                }
-            }
-        }
+        HourlyUnifyDiagnostic.logIfDiscrepancy(
+            context = context,
+            appWidgetId = appWidgetId,
+            effectiveViewMode = effectiveViewMode,
+            origin = origin,
+            displaySource = displaySource,
+            hourlyForecasts = hourlyForecasts,
+            unifiedHourlyForecasts = unifiedHourlyForecasts,
+            locationLat = locationLat,
+            locationLon = locationLon,
+        )
 
         // Filter hourly forecasts to the NOW-centered window for current temp resolution.
         // This ensures the current temp display is always based on forecasts around NOW,
@@ -522,120 +470,35 @@ object WidgetRenderer {
             return
         }
 
-        when (effectiveViewMode) {
-            ViewMode.TEMPERATURE -> {
-                TemperatureViewHandler.updateWidget(
-                    context = context,
-                    appWidgetManager = appWidgetManager,
-                    appWidgetId = appWidgetId,
-                    hourlyForecasts = sourceFilteredHourly,
-                    currentTempHourlyForecasts = nowCenteredHourlyForecasts,
-                    centerTime = centerTime,
-                    displaySource = displaySource,
-                    precipProbability = targetPrecip,
-                    lastObservedTemp = observation?.temperature,
-                    observedAt = observation?.observedAt,
-                    repository = repository,
-                    startupToken = startupToken,
-                    deferCurrentTempResolution = startupToken != null,
-                    uiOnly = uiOnly,
-                    partialPush = partialPush,
-                    origin = origin,
-                    sourceMissingFromLoad = sourceMissingFromLoad,
-                    dataWatermarkMs = dataWatermarkMs,
-                    paintOwed = paintOwed,
-                )
-            }
-            ViewMode.PRECIPITATION -> {
-                PrecipViewHandler.updateWidget(
-                    context = context,
-                    appWidgetManager = appWidgetManager,
-                    appWidgetId = appWidgetId,
-                    hourlyForecasts = sourceFilteredHourly,
-                    centerTime = centerTime,
-                    precipProbability = targetPrecip,
-                    lastObservedTemp = observation?.temperature,
-                    observedAt = observation?.observedAt,
-                    repository = repository,
-                    startupToken = startupToken,
-                    uiOnly = uiOnly,
-                    partialPush = partialPush,
-                    origin = origin,
-                    sourceMissingFromLoad = sourceMissingFromLoad,
-                    dataWatermarkMs = dataWatermarkMs,
-                    paintOwed = paintOwed,
-                )
-            }
-            ViewMode.CLOUD_COVER -> {
-                CloudCoverViewHandler.updateWidget(
-                    context = context,
-                    appWidgetManager = appWidgetManager,
-                    appWidgetId = appWidgetId,
-                    hourlyForecasts = sourceFilteredHourly,
-                    centerTime = centerTime,
-                    displaySource = displaySource,
-                    precipProbability = targetPrecip,
-                    lastObservedTemp = observation?.temperature,
-                    observedAt = observation?.observedAt,
-                    repository = repository,
-                    startupToken = startupToken,
-                    uiOnly = uiOnly,
-                    partialPush = partialPush,
-                    origin = origin,
-                    sourceMissingFromLoad = sourceMissingFromLoad,
-                    dataWatermarkMs = dataWatermarkMs,
-                    paintOwed = paintOwed,
-                )
-            }
-            ViewMode.DAILY -> {
-                // Daily view has no sub-hourly moving element; skip the expensive rebuild on
-                // opportunistic UI-only repaints (the ~2-min now-tracking alarm) — but ONLY once this
-                // widget has a real graph painted in the current process. After a force-stop / fresh
-                // process / app update the widget shows the "Loading…" placeholder and the first update
-                // is often UI-only; skipping then strands it on "Loading…" (graph bitmap never set), so
-                // fall through to a full paint instead. See shouldSkipDailyUiOnlyRepaint.
-                // A pending transient message (e.g. the no-hourly banner) must paint even on a
-                // UI-only repaint — otherwise the daily skip optimization strands the banner shown
-                // (never painted) or, worse, never clears it. Grace covers the one post-expiry
-                // repaint that removes the banner.
-                val transientPending = stateManager.hasTransientMessagePending(
-                    appWidgetId,
-                    WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS,
-                )
-                if (shouldSkipDailyUiOnlyRepaint(uiOnly, fullyPaintedDailyWidgetIds.contains(appWidgetId)) && !transientPending) {
-                    WeatherDatabase.getDatabase(context).appLogDao().log(
-                        com.weatherwidget.widget.WidgetPerfLogger.TAG_WIDGET_PAINT,
-                        "widget=$appWidgetId caller=DAILY origin=${origin.name} state=skipped_ui_only thread=${Thread.currentThread().name}",
-                    )
-                    return
-                }
-                DailyViewHandler.updateWidget(
-                    context = context,
-                    appWidgetManager = appWidgetManager,
-                    appWidgetId = appWidgetId,
-                    weatherData = WeatherData(
-                        weatherList = weatherList,
-                        forecastSnapshots = forecastSnapshots,
-                        hourlyForecasts = unifiedHourlyForecasts,
-                        currentTemps = currentTemps,
-                        dailyActualsBySource = dailyActualsBySource,
-                    ),
-                    observationData = ObservationData(
-                        lastObservedTemp = observation?.temperature,
-                        observedAt = observation?.observedAt,
-                        currentTempHourlyForecasts = nowCenteredHourlyForecasts,
-                    ),
-                    now = LocalDateTime.now(),
-                    startupToken = startupToken,
-                    stateManagerNullable = stateManager,
-                    repository = repository,
-                    partialPush = partialPush,
-                    origin = origin,
-                )
-                // A real graph was just painted, so future UI-only ticks for this widget may skip.
-                fullyPaintedDailyWidgetIds.add(appWidgetId)
-            }
-        }
+        WidgetViewModeDispatcher.dispatch(
+            WidgetViewModeDispatcher.DispatchParams(
+                context = context,
+                appWidgetManager = appWidgetManager,
+                appWidgetId = appWidgetId,
+                effectiveViewMode = effectiveViewMode,
+                stateManager = stateManager,
+                sourceFilteredHourly = sourceFilteredHourly,
+                nowCenteredHourlyForecasts = nowCenteredHourlyForecasts,
+                unifiedHourlyForecasts = unifiedHourlyForecasts,
+                weatherList = weatherList,
+                forecastSnapshots = forecastSnapshots,
+                currentTemps = currentTemps,
+                dailyActualsBySource = dailyActualsBySource,
+                centerTime = centerTime,
+                displaySource = displaySource,
+                targetPrecip = targetPrecip,
+                observation = observation,
+                repository = repository,
+                startupToken = startupToken,
+                uiOnly = uiOnly,
+                partialPush = partialPush,
+                origin = origin,
+                sourceMissingFromLoad = sourceMissingFromLoad,
+                dataWatermarkMs = dataWatermarkMs,
+                paintOwed = paintOwed,
+                fullyPaintedDailyWidgetIds = fullyPaintedDailyWidgetIds,
+            )
+        )
 
         val totalMs = SystemClock.elapsedRealtime() - renderStartMs
         val firstPaintAgeMs = WeatherWidgetApp.logFirstPaintOnce(
