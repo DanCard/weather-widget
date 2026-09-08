@@ -215,14 +215,18 @@ class NwsApi
             }
         }
 
+        private fun HttpRequestBuilder.nwsHeaders(accept: String = "application/json") {
+            header("User-Agent", USER_AGENT)
+            header("Accept", accept)
+        }
+
         suspend fun getGridPoint(
             lat: Double,
             lon: Double,
         ): GridPointInfo {
             val response =
                 httpClient.get("$BASE_URL/points/$lat,$lon") {
-                    header("User-Agent", USER_AGENT)
-                    header("Accept", "application/json")
+                    nwsHeaders()
                 }
             val responseBody = response.bodyAsText()
 
@@ -267,8 +271,7 @@ class NwsApi
         suspend fun getObservationStations(stationsUrl: String): List<StationInfo> {
             val response: String =
                 httpClient.get(stationsUrl) {
-                    header("User-Agent", USER_AGENT)
-                    header("Accept", "application/geo+json")
+                    nwsHeaders("application/geo+json")
                 }.body()
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
@@ -320,8 +323,7 @@ class NwsApi
         ): List<Observation> {
             val response: String =
                 httpClient.get("$BASE_URL/stations/$stationId/observations") {
-                    header("User-Agent", USER_AGENT)
-                    header("Accept", "application/json")
+                    nwsHeaders()
                     parameter("start", start)
                     parameter("end", end)
                 }.body()
@@ -342,8 +344,7 @@ class NwsApi
             val fetchStartedAt = System.currentTimeMillis()
             val response: String =
                 httpClient.get(gridPoint.forecastUrl) {
-                    header("User-Agent", USER_AGENT)
-                    header("Accept", "application/json")
+                    nwsHeaders()
                 }.body()
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
@@ -397,8 +398,7 @@ class NwsApi
             val url = "$BASE_URL/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}/forecast/hourly"
             val response: String =
                 httpClient.get(url) {
-                    header("User-Agent", USER_AGENT)
-                    header("Accept", "application/json")
+                    nwsHeaders()
                 }.body()
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
@@ -451,8 +451,7 @@ class NwsApi
             val url = "$BASE_URL/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}"
             val response: String =
                 httpClient.get(url) {
-                    header("User-Agent", USER_AGENT)
-                    header("Accept", "application/json")
+                    nwsHeaders()
                 }.body()
 
             val properties = json.parseToJsonElement(response).jsonObject["properties"]?.jsonObject
@@ -475,6 +474,24 @@ class NwsApi
             )
         }
 
+        /**
+         * Splits an NWS `"start/duration"` validTime string into the start [ZonedDateTime] and
+         * the raw duration suffix (e.g. `"PT1H"`). Returns null when the string is malformed;
+         * callers parse the suffix with whichever rule they need (the sky-cover path expands
+         * per-hour via regex; QPF and daily-extremes use [Duration.parse]).
+         */
+        private data class ValidTimeRange(
+            val start: ZonedDateTime,
+            val durationRaw: String,
+        )
+
+        private fun parseValidTimeRange(raw: String): ValidTimeRange? {
+            val slashIndex = raw.indexOf('/')
+            if (slashIndex == -1) return null
+            val start = runCatching { ZonedDateTime.parse(raw.substring(0, slashIndex)) }.getOrNull() ?: return null
+            return ValidTimeRange(start, raw.substring(slashIndex + 1))
+        }
+
         private fun parseSkyCoverFromProperties(properties: JsonObject): Map<String, Int> {
             val skyCover = properties["skyCover"]?.jsonObject
             val values = skyCover?.get("values")?.jsonArray ?: return emptyMap()
@@ -486,16 +503,11 @@ class NwsApi
                 val value = obj["value"]?.jsonPrimitive?.content?.toDoubleOrNull()?.roundToInt() ?: continue
 
                 // validTime format: "2026-03-14T14:00:00+00:00/PT1H" or "PT3H"
-                val slashIndex = validTime.indexOf('/')
-                if (slashIndex == -1) continue
-                val startTimeStr = validTime.substring(0, slashIndex)
-                val durationStr = validTime.substring(slashIndex + 1)
+                val range = parseValidTimeRange(validTime) ?: continue
+                val durationHours = Regex("PT(\\d+)H").find(range.durationRaw)?.groupValues?.get(1)?.toIntOrNull() ?: 1
 
-                val durationHours = Regex("PT(\\d+)H").find(durationStr)?.groupValues?.get(1)?.toIntOrNull() ?: 1
-
-                val startZdt = runCatching { java.time.ZonedDateTime.parse(startTimeStr) }.getOrNull() ?: continue
                 for (h in 0 until durationHours) {
-                    val hourZdt = startZdt.plusHours(h.toLong()).withZoneSameInstant(java.time.ZoneId.systemDefault())
+                    val hourZdt = range.start.plusHours(h.toLong()).withZoneSameInstant(java.time.ZoneId.systemDefault())
                     val hourKey = hourZdt.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                     result[hourKey] = value
                 }
@@ -512,16 +524,13 @@ class NwsApi
             return values.mapNotNull { entry ->
                 val obj = entry.jsonObject
                 val validTime = obj["validTime"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                val slashIndex = validTime.indexOf('/')
-                if (slashIndex == -1) return@mapNotNull null
-
-                val start = runCatching { ZonedDateTime.parse(validTime.substring(0, slashIndex)) }.getOrNull() ?: return@mapNotNull null
-                val duration = runCatching { Duration.parse(validTime.substring(slashIndex + 1)) }.getOrNull() ?: return@mapNotNull null
-                val end = start.plus(duration)
+                val range = parseValidTimeRange(validTime) ?: return@mapNotNull null
+                val duration = runCatching { Duration.parse(range.durationRaw) }.getOrNull() ?: return@mapNotNull null
+                val end = range.start.plus(duration)
                 val amountMm = parseQuantitativePrecipitationMm(obj) ?: return@mapNotNull null
 
                 QuantitativePrecipitationInterval(
-                    startTime = start.toInstant().toEpochMilli(),
+                    startTime = range.start.toInstant().toEpochMilli(),
                     endTime = end.toInstant().toEpochMilli(),
                     amountMm = amountMm,
                 )
@@ -543,10 +552,9 @@ class NwsApi
                 val validTime = obj["validTime"]?.jsonPrimitive?.content ?: continue
                 val rawValue = obj["value"]?.jsonPrimitive?.content?.toFloatOrNull() ?: continue
 
-                val slashIndex = validTime.indexOf('/')
-                if (slashIndex == -1) continue
-                val start = runCatching { ZonedDateTime.parse(validTime.substring(0, slashIndex)) }.getOrNull() ?: continue
-                val duration = runCatching { Duration.parse(validTime.substring(slashIndex + 1)) }.getOrNull() ?: continue
+                val range = parseValidTimeRange(validTime) ?: continue
+                val start = range.start
+                val duration = runCatching { Duration.parse(range.durationRaw) }.getOrNull() ?: continue
                 val end = start.plus(duration)
 
                 // For maxTemperature (daytime windows), date = local date of start.
@@ -557,9 +565,9 @@ class NwsApi
                     end.minusMinutes(1).withZoneSameInstant(zone).toLocalDate().toString()
                 }
 
+                // Unknown unit codes fall through to the C→F conversion, matching prior behavior.
                 val tempF = when (unitCode) {
                     "wmoUnit:degF" -> rawValue
-                    null, "", "wmoUnit:degC" -> (rawValue * 1.8f) + 32f
                     else -> (rawValue * 1.8f) + 32f
                 }
 
@@ -598,8 +606,7 @@ class NwsApi
         suspend fun getLatestObservationDetailedResult(stationId: String, limit: Int = 10): FetchOutcome<Observation> {
             val response: String = try {
                 httpClient.get("$BASE_URL/stations/$stationId/observations?limit=$limit") {
-                    header("User-Agent", USER_AGENT)
-                    header("Accept", "application/geo+json")
+                    nwsHeaders("application/geo+json")
                 }.body()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
