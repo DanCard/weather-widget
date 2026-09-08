@@ -252,23 +252,38 @@ object ActualTemperatureSeriesBuilder {
             }
         }
 
-        var lastActual: Float? = blendedActuals
-            .filter { it.timestamp < startMs && it.timestamp <= nowMs }
-            .lastOrNull()
-            ?.temperature
+        // A gap in observations may be filled with the last known actual only while that reading is
+        // still fresh. 2026-09-08 on the Fold emulator: a two-day Synoptic quota outage left the pool
+        // ending 09-06 11:55, and the unbounded carry painted that single stale reading across every
+        // past hour as one flat pink line. Matches the blend's own staleness horizon on purpose: past
+        // that age the blend already treats a station as dead, so display should not trust it either.
+        val maxCarryGapMs = 3 * 60 * 60 * 1000L
+
+        // Seed from the newest pre-window reading WITH its time, so the gap bound above can reject a
+        // seed that is far older than the window (the flat-line bug) instead of trusting its value.
+        var lastActual: Float? = null
+        var lastActualMs: Long = Long.MIN_VALUE
+        blendedActuals.lastOrNull { it.timestamp < startMs && it.timestamp <= nowMs }?.let {
+            lastActual = it.temperature
+            lastActualMs = it.timestamp
+        }
 
         val carried = points.map { point ->
             if (point.isActual && point.actualTemp != null) {
                 lastActual = point.actualTemp
+                lastActualMs = point.timeMs
                 point
-            } else if (point.timeMs < nowMs) {
-                if (lastActual != null) {
-                    point.copy(isActual = true, actualTemp = lastActual, isObservedActual = false)
-                } else {
-                    point.copy(isActual = false, actualTemp = null, isObservedActual = false)
-                }
+            } else if (point.timeMs < nowMs && lastActual != null && point.timeMs - lastActualMs <= maxCarryGapMs) {
+                point.copy(isActual = true, actualTemp = lastActual, isObservedActual = false)
             } else {
-                point
+                if (point.timeMs < nowMs && lastActual != null) {
+                    Log.v(
+                        TAG,
+                        "carry: dropped stale actual gap t=${point.timeMs} lastActualGapMs=${point.timeMs - lastActualMs} " +
+                            "(>$maxCarryGapMs); actual line ends at last real observation",
+                    )
+                }
+                point.copy(isActual = false, actualTemp = null, isObservedActual = false)
             }
         }
 

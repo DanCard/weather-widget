@@ -334,9 +334,10 @@ class TemperatureViewHandlerActualsTest {
     @Test
     fun `actuals outside the zoom window contribute to isActual via carry-forward`() {
         val forecasts = wideForecasts()
-        // NARROW window around noon: back=2 → 10:00, forward=2 → 14:00
-        // Actual at 06:00 is outside NARROW window
-        val actuals = listOf(TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-02-20T06:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 55f))
+        // NARROW window around noon: back=3 → 09:00, forward=2 → 14:00
+        // Actual at 08:10 is outside NARROW window but inside the 3h carry horizon for the
+        // window's first hours (see ActualTemperatureSeriesBuilder's maxCarryGapMs).
+        val actuals = listOf(TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-02-20T08:10").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 55f))
 
         val hours = buildHourDataList(
             hourlyForecasts = forecasts,
@@ -347,13 +348,17 @@ class TemperatureViewHandlerActualsTest {
             actuals = actuals,
         )
 
-        // 06:00 is not in NARROW window — no HourData for it at all
-        val hour06 = hours.find { it.dateTime.hour == 6 }
-        assertNull("Hour 06 should not appear in NARROW window", hour06)
-        
-        // BUT, the points that ARE in the window should be isActual=true because of carry-forward from 06:00!
-        assertTrue("Hours in window should be isActual via carry-forward", hours.all { it.isActual })
+        // 08:10 is not in NARROW window — no HourData for it at all
+        val hour08 = hours.find { it.dateTime.hour == 8 }
+        assertNull("Hour 08 should not appear in NARROW window", hour08)
+
+        // Hours within 3h of the observation are isActual=true via carry-forward...
+        assertTrue("Hours near the observation should be isActual via carry-forward",
+            hours.filter { it.dateTime.hour <= 11 }.all { it.isActual })
         assertEquals("Carry-forward temperature should match the raw observation value", 55.0f, hours.first().actualTemperature!!, 0.1f)
+        // ...and hours past the horizon stay forecast-only instead of stretching one stale reading.
+        assertTrue("Hours beyond the carry horizon should not be isActual",
+            hours.filter { it.dateTime.hour >= 13 }.none { it.isActual })
     }
 
     @Test

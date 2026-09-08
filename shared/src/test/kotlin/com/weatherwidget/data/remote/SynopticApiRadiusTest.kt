@@ -90,6 +90,31 @@ class SynopticApiRadiusTest {
     }
 
     @Test
+    fun `rejection without a message still names the response code`() {
+        // Quota/limit rejections arrive as RESPONSE_CODE=2 with no message; the failure reason must
+        // not degrade to "synoptic: null" (app_logs 2026-09-08, 17h of unclassable failures).
+        val outcome = SynopticApi.parseRadiusTimeseries(
+            json,
+            """{"SUMMARY": {"RESPONSE_CODE": 2}}""",
+        )
+        assertTrue(outcome is FetchOutcome.Failed)
+        assertEquals(
+            "synoptic: RESPONSE_CODE=2 (no message)",
+            (outcome as FetchOutcome.Failed).reason,
+        )
+    }
+
+    @Test
+    fun `rejection with a message keeps the message`() {
+        val outcome = SynopticApi.parseRadiusTimeseries(
+            json,
+            """{"SUMMARY": {"RESPONSE_CODE": 2, "RESPONSE_MESSAGE": "Invalid token"}}""",
+        )
+        assertTrue(outcome is FetchOutcome.Failed)
+        assertEquals("synoptic: Invalid token", (outcome as FetchOutcome.Failed).reason)
+    }
+
+    @Test
     fun `fetchRadiusTimeseries with blank token returns failed without calling network`() {
         var requests = 0
         val engine = MockEngine {

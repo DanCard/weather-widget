@@ -148,7 +148,13 @@ class SynopticApi(
             val summaryObj = root["SUMMARY"]?.jsonObject
             val responseCode = summaryObj?.get("RESPONSE_CODE")?.jsonPrimitive?.intOrNull
             if (responseCode != 1) {
-                FetchOutcome.Failed("synoptic: ${summaryObj?.get("RESPONSE_MESSAGE")?.jsonPrimitive?.contentOrNull}")
+                // Quota/limit rejections arrive as RESPONSE_CODE=2 with NO message ("synoptic: null"
+                // in app_logs for 17h straight on 2026-09-08); always carry the code so the failure
+                // class is queryable even when Synoptic sends no explanation.
+                val message = summaryObj?.get("RESPONSE_MESSAGE")?.jsonPrimitive?.contentOrNull
+                FetchOutcome.Failed(
+                    if (message.isNullOrBlank()) "synoptic: RESPONSE_CODE=$responseCode (no message)" else "synoptic: $message",
+                )
             } else {
                 val stations = (root["STATION"]?.jsonArray).orEmpty().mapNotNull { element ->
                     val o = element as? JsonObject ?: return@mapNotNull null

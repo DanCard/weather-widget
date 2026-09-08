@@ -563,6 +563,67 @@ class ActualTemperatureSeriesBuilderTest {
         assertTrue(result.blendBreakdowns.isEmpty())
     }
 
+    @Test
+    fun `stale pre-window pool does not paint a flat carried line across the window`() {
+        // 2026-09-08 Fold regression: a two-day Synoptic outage left the newest row two days old,
+        // and the unbounded carry stamped that single reading onto every past hour.
+        val forecasts = forecasts("2026-06-03T08:00:00", 8)
+        val observations = listOf(
+            observation("S_STALE", "2026-06-01T11:55:00", 71.6f, distanceKm = 2f),
+        )
+
+        val result = ActualTemperatureSeriesBuilder.build(
+            hourlyForecasts = forecasts,
+            observations = observations,
+            centerTime = center,
+            displaySourceId = WeatherSource.NWS.id,
+            userLat = LAT,
+            userLon = LON,
+            backHours = 4,
+            forwardHours = 4,
+            contextLookbackHours = 72,
+            contextLookaheadHours = 60,
+            now = LocalDateTime.parse("2026-06-03T12:30:00"),
+            zoneId = zone,
+        )
+
+        assertTrue(result.points.none { it.isActual || it.actualTemp != null })
+    }
+
+    @Test
+    fun `carry-forward stops once the last observation is older than the max gap`() {
+        val forecasts = forecasts("2026-06-03T08:00:00", 8)
+        val observations = listOf(
+            observation("S_NEAR", "2026-06-03T10:10:00", 70f, distanceKm = 2f),
+        )
+
+        val result = ActualTemperatureSeriesBuilder.build(
+            hourlyForecasts = forecasts,
+            observations = observations,
+            centerTime = center,
+            displaySourceId = WeatherSource.NWS.id,
+            userLat = LAT,
+            userLon = LON,
+            backHours = 4,
+            forwardHours = 4,
+            contextLookbackHours = 72,
+            contextLookaheadHours = 60,
+            now = LocalDateTime.parse("2026-06-03T16:30:00"),
+            zoneId = zone,
+        )
+
+        // 10:10 + 3h = 13:10, so the 13:00 mark is still inside the carry horizon...
+        val carriedPoint = result.points.single { it.timeMs == epoch("2026-06-03T13:00:00") }
+        assertTrue(carriedPoint.isActual)
+        assertEquals(70f, carriedPoint.actualTemp!!, 0.01f)
+        // ...and everything past it is honest forecast-only, not a stretched flat line.
+        val droppedPoint = result.points.single { it.timeMs == epoch("2026-06-03T14:00:00") }
+        assertFalse(droppedPoint.isActual)
+        assertNull(droppedPoint.actualTemp)
+        val laterDroppedPoint = result.points.single { it.timeMs == epoch("2026-06-03T15:00:00") }
+        assertFalse(laterDroppedPoint.isActual)
+    }
+
     private fun forecasts(start: String, count: Int, source: String = WeatherSource.NWS.id): List<HourlyForecast> {
         val startTime = LocalDateTime.parse(start)
         return (0..count).map { index ->
