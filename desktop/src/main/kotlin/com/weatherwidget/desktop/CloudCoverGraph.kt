@@ -448,7 +448,8 @@ fun CloudCoverGraph(
                             }
                         DominantStationLabel.Part.STATION,
                         DominantStationLabel.Part.AT,
-                        DominantStationLabel.Part.AMPM -> append(segment.text)
+                        DominantStationLabel.Part.AMPM,
+                        DominantStationLabel.Part.SOURCE_PREFIX -> append(segment.text)
                     }
                 }
             }

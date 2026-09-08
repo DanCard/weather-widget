@@ -120,7 +120,8 @@ internal object CloudCoverGraphAnnotations {
                 DominantStationLabel.Part.TIME -> timePaint
                 DominantStationLabel.Part.STATION,
                 DominantStationLabel.Part.AT,
-                DominantStationLabel.Part.AMPM -> stationPaint
+                DominantStationLabel.Part.AMPM,
+                DominantStationLabel.Part.SOURCE_PREFIX -> stationPaint
             }
             paint.measureText(segment.text)
         }
@@ -180,7 +181,8 @@ internal object CloudCoverGraphAnnotations {
                     DominantStationLabel.Part.TIME -> timePaint
                     DominantStationLabel.Part.STATION,
                     DominantStationLabel.Part.AT,
-                    DominantStationLabel.Part.AMPM -> stationPaint
+                    DominantStationLabel.Part.AMPM,
+                    DominantStationLabel.Part.SOURCE_PREFIX -> stationPaint
                 }
                 canvas.drawText(segment.text, x, placement.baselineY, paint)
                 x += segmentWidths[index]

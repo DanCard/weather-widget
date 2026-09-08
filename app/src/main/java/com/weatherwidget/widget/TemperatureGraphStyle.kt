@@ -27,6 +27,8 @@ object TemperatureGraphStyle {
     // the station id plus the `@`/am-pm punctuation smallest (14dp). Segments share one baseline.
     const val DOMINANT_TEMP_LABEL_SIZE_DP = 24f
     const val DOMINANT_STATION_LABEL_SIZE_DP = 14f
+    // Actuals source label prefix ("Actual temperature data from") reduced by 20% from the 14dp provider name.
+    const val ACTUALS_SOURCE_PREFIX_LABEL_SIZE_DP = 11.2f
     const val DOMINANT_TIME_LABEL_SIZE_DP = 18f
     const val DOT_RADIUS_DP = 3.2f
     const val RING_STROKE_DP = 1.5f
@@ -232,6 +234,15 @@ object TemperatureGraphStyle {
             setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_DARK)
         }
 
+        // Borrowed-actuals source label prefix ("Actual temperature data from"), sized ~20% smaller
+        // than the provider name (11.2dp vs 14dp). LEFT-aligned.
+        val actualsSourcePrefixTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_ACTUAL_LINE
+            textSize = dpToPx(context, ACTUALS_SOURCE_PREFIX_LABEL_SIZE_DP * labelScale)
+            textAlign = Paint.Align.LEFT
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP), HourlyGraphDefaults.COLOR_SHADOW_DARK)
+        }
+
         // Clock-digits segment of the dominant-station label, larger than the station id/punctuation
         // and smaller than the temperature (the staleness annotation size). LEFT-aligned.
         val dominantTimeTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -288,6 +299,7 @@ object TemperatureGraphStyle {
             stalenessTextPaint = stalenessTextPaint,
             dominantTempTextPaint = dominantTempTextPaint,
             dominantStationTextPaint = dominantStationTextPaint,
+            actualsSourcePrefixTextPaint = actualsSourcePrefixTextPaint,
             dominantTimeTextPaint = dominantTimeTextPaint,
             actualLeaderLinePaint = actualLeaderLinePaint,
             forecastLeaderLinePaint = forecastLeaderLinePaint,

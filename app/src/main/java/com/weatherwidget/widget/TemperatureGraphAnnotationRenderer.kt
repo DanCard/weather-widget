@@ -405,7 +405,8 @@ internal object TemperatureGraphAnnotationRenderer {
                             DominantStationLabel.Part.TIME -> timePaint
                             DominantStationLabel.Part.STATION,
                             DominantStationLabel.Part.AT,
-                            DominantStationLabel.Part.AMPM -> stationPaint
+                            DominantStationLabel.Part.AMPM,
+                            DominantStationLabel.Part.SOURCE_PREFIX -> stationPaint
                         }
                     paint.measureText(segment.text)
                 }
@@ -437,7 +438,8 @@ internal object TemperatureGraphAnnotationRenderer {
                             DominantStationLabel.Part.TIME -> timePaint
                             DominantStationLabel.Part.STATION,
                             DominantStationLabel.Part.AT,
-                            DominantStationLabel.Part.AMPM -> stationPaint
+                            DominantStationLabel.Part.AMPM,
+                            DominantStationLabel.Part.SOURCE_PREFIX -> stationPaint
                         }
                     input.canvas.drawText(segment.text, x, placement.baselineY, paint)
                     x += segmentWidths[index]
@@ -596,12 +598,21 @@ internal object TemperatureGraphAnnotationRenderer {
         } else {
             val labelText = requireNotNull(text) { "non-null text required once the label is non-null" }
             val ghostVisible = ghostLineVisible(input, hours)
-            val paint = input.paints.dominantStationTextPaint
+            val stationPaint = input.paints.dominantStationTextPaint
+            val prefixPaint = input.paints.actualsSourcePrefixTextPaint
+            val segmentWidths = actualsSourceLabel.segments.map { segment ->
+                val paint = when (segment.part) {
+                    DominantStationLabel.Part.SOURCE_PREFIX -> prefixPaint
+                    else -> stationPaint
+                }
+                paint.measureText(segment.text)
+            }
+            val totalWidth = segmentWidths.sum()
             val metrics =
                 GraphEmptySpaceFinder.Metrics(
-                    width = paint.measureText(labelText),
-                    ascent = TemperatureGraphStyle.fontAscent(paint),
-                    descent = TemperatureGraphStyle.fontDescent(paint),
+                    width = totalWidth,
+                    ascent = TemperatureGraphStyle.fontAscent(stationPaint),
+                    descent = TemperatureGraphStyle.fontDescent(stationPaint),
                 )
             placement =
                 DominantStationLabel.place(
@@ -615,12 +626,20 @@ internal object TemperatureGraphAnnotationRenderer {
                     vetoBounds = input.labelVetoBounds(),
                 )
             if (placement != null) {
-                input.canvas.drawText(
-                    labelText,
-                    placement.box.left,
-                    placement.baselineY,
-                    paint,
-                )
+                var x = placement.box.left
+                actualsSourceLabel.segments.forEachIndexed { index, segment ->
+                    val paint = when (segment.part) {
+                        DominantStationLabel.Part.SOURCE_PREFIX -> prefixPaint
+                        else -> stationPaint
+                    }
+                    input.canvas.drawText(
+                        segment.text,
+                        x,
+                        placement.baselineY,
+                        paint,
+                    )
+                    x += segmentWidths[index]
+                }
                 input.obstacles.add(
                     TemperatureGraphObstacleType.ACTUALS_SOURCE,
                     placement.box.toRectF(),

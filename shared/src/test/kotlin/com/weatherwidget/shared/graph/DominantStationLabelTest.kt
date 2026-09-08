@@ -406,4 +406,51 @@ class DominantStationLabelTest {
     fun placedTextIsWhatWasPassedIn() {
         assertEquals("knuq 73.4°", requireNotNull(place()).text)
     }
+
+    @Test
+    fun formatActualsSourceLabelSplitsPrefixAndProvider() {
+        val label = DominantStationLabel.formatActualsSourceLabel(
+            localizedPattern = "Actual temperature data from %1\$s",
+            providerName = "Synoptic",
+        )
+        assertNotNull(label)
+        assertEquals("Actual temperature data from Synoptic", label!!.fullText)
+        assertEquals(2, label.segments.size)
+        assertEquals(
+            DominantStationLabel.Segment("Actual temperature data from ", DominantStationLabel.Part.SOURCE_PREFIX),
+            label.segments[0],
+        )
+        assertEquals(
+            DominantStationLabel.Segment("Synoptic", DominantStationLabel.Part.STATION),
+            label.segments[1],
+        )
+    }
+
+    @Test
+    fun formatActualsSourceLabelHandlesPrefixAndSuffix() {
+        // Japanese: "%1$s による実際の気温データ"
+        val label = DominantStationLabel.formatActualsSourceLabel(
+            localizedPattern = "%1\$s による実際の気温データ",
+            providerName = "Synoptic",
+        )
+        assertNotNull(label)
+        assertEquals("Synoptic による実際の気温データ", label!!.fullText)
+        assertEquals(2, label.segments.size)
+        assertEquals(
+            DominantStationLabel.Segment("Synoptic", DominantStationLabel.Part.STATION),
+            label.segments[0],
+        )
+        assertEquals(
+            DominantStationLabel.Segment(" による実際の気温データ", DominantStationLabel.Part.SOURCE_PREFIX),
+            label.segments[1],
+        )
+    }
+
+    @Test
+    fun formatActualsSourceLabelHandlesNullOrBlank() {
+        assertNull(DominantStationLabel.formatActualsSourceLabel(null, "Synoptic"))
+        assertNull(DominantStationLabel.formatActualsSourceLabel("", "Synoptic"))
+        assertNull(DominantStationLabel.formatActualsSourceLabel("Actual data from %1\$s", null))
+        assertNull(DominantStationLabel.formatActualsSourceLabel("Actual data from %1\$s", "   "))
+    }
 }

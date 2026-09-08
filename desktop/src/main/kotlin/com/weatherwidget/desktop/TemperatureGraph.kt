@@ -77,6 +77,8 @@ private const val TEMP_VALUE_LABEL_SP = 15f
 // the `@`/am-pm punctuation smallest (7sp, also the base dominantStyle).
 private const val DOMINANT_TEMP_LABEL_SP = 13f // 14f (TEMP_VALUE_LABEL_SP) − 20%
 private const val DOMINANT_STATION_LABEL_SP = 7f
+// Actuals source prefix ("Actual temperature data from") reduced by 20% from provider name (7sp).
+private const val ACTUALS_SOURCE_PREFIX_LABEL_SP = 5.6f
 private const val DOMINANT_TIME_LABEL_SP = 11f
 // Ghost-line label: wispier than the forecast/actual temp labels — fainter and 30% smaller.
 private const val GHOST_LINE_LABEL_ALPHA = 0.43f
@@ -855,7 +857,8 @@ fun TemperatureGraph(
                             }
                         DominantStationLabel.Part.STATION,
                         DominantStationLabel.Part.AT,
-                        DominantStationLabel.Part.AMPM -> append(segment.text)
+                        DominantStationLabel.Part.AMPM,
+                        DominantStationLabel.Part.SOURCE_PREFIX -> append(segment.text)
                     }
                 }
             }
@@ -1008,12 +1011,13 @@ fun TemperatureGraph(
         val hasActualsInWindow = actualLinePoints.isNotEmpty()
         if (actualsProviderId != displaySource.id && hasActualsInWindow) {
             val provider = WeatherSource.fromId(actualsProviderId)
-            val actualsSourceLabel = DominantStationLabel.plainLabelText(
-                localizedText = "Actual temperature data from ${provider.displayName}",
+            val actualsSourceLabel = DominantStationLabel.formatActualsSourceLabel(
+                localizedPattern = "Actual temperature data from %1\$s",
+                providerName = provider.displayName,
             )
             val actualsSourceText = actualsSourceLabel?.fullText
             if (actualsSourceText != null && (windowEnd - windowStart) / 3_600_000L <= DominantStationLabel.MAX_HOURS_SPAN) {
-                val actualsSourceStyle = TextStyle(
+                val actualsSourceBaseStyle = TextStyle(
                     fontSize = (DOMINANT_STATION_LABEL_SP * scale).sp,
                     color = COLOR_ACTUAL,
                     shadow = androidx.compose.ui.graphics.Shadow(
@@ -1022,7 +1026,18 @@ fun TemperatureGraph(
                         blurRadius = 2f * scale,
                     ),
                 )
-                val measured = textMeasurer.measure(actualsSourceText, actualsSourceStyle)
+                val annotated = buildAnnotatedString {
+                    actualsSourceLabel.segments.forEach { segment ->
+                        when (segment.part) {
+                            DominantStationLabel.Part.SOURCE_PREFIX ->
+                                withStyle(SpanStyle(fontSize = (ACTUALS_SOURCE_PREFIX_LABEL_SP * scale).sp)) {
+                                    append(segment.text)
+                                }
+                            else -> append(segment.text)
+                        }
+                    }
+                }
+                val measured = textMeasurer.measure(annotated, actualsSourceBaseStyle)
                 val actualsSourcePlot = GraphRect(0f, top, w, footer.graphBottom(h, scale))
                 val actualsSourceMetrics = GraphEmptySpaceFinder.Metrics(
                     width = measured.size.width.toFloat(),

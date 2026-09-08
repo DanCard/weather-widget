@@ -81,8 +81,9 @@ internal object TemperatureStateResolver {
         sourceName: String?,
     ): DominantStationLabel.LabelText? {
         val name = sourceName?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        return DominantStationLabel.plainLabelText(
-            context.getString(R.string.actual_temperature_data_from, name),
+        return DominantStationLabel.formatActualsSourceLabel(
+            context.getString(R.string.actual_temperature_data_from),
+            name,
         )
     }
 

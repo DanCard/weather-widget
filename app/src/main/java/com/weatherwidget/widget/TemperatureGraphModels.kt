@@ -31,6 +31,7 @@ data class PaintSet(
     val stalenessTextPaint: android.graphics.Paint,
     val dominantTempTextPaint: android.graphics.Paint,
     val dominantStationTextPaint: android.graphics.Paint,
+    val actualsSourcePrefixTextPaint: android.graphics.Paint,
     val dominantTimeTextPaint: android.graphics.Paint,
     val actualLeaderLinePaint: android.graphics.Paint,
     val forecastLeaderLinePaint: android.graphics.Paint,

@@ -79,10 +79,10 @@ object DominantStationLabel {
 
     /**
      * The visual parts of the label, so renderers can size each run independently: the station id
-     * plus the `@`/am-pm punctuation stay small, the clock digits are mid-size, and the temperature
-     * is largest.
+     * plus the `@`/am-pm punctuation stay small, the clock digits are mid-size, the temperature
+     * is largest, and the borrowed-actuals source prefix/surrounding text can be sized independently.
      */
-    enum class Part { STATION, TEMPERATURE, AT, TIME, AMPM }
+    enum class Part { STATION, TEMPERATURE, AT, TIME, AMPM, SOURCE_PREFIX }
 
     /** One run of the label with a single part role, e.g. `knuq ` / `66.2°` / ` @` / ` 8:10` / ` pm`. */
     data class Segment(val text: String, val part: Part)
@@ -154,6 +154,37 @@ object DominantStationLabel {
             fullText = text,
             segments = listOf(Segment(text, Part.STATION)),
         )
+    }
+
+    /**
+     * Formats borrowed-actuals source label (e.g. "Actual temperature data from %1$s" / "Synoptic").
+     * Separates the provider name ([Part.STATION]) from surrounding context/prefix ([Part.SOURCE_PREFIX])
+     * so renderers can style the prefix text (e.g. at 80% size) while preserving provider name size.
+     */
+    fun formatActualsSourceLabel(localizedPattern: String?, providerName: String?): LabelText? {
+        val pattern = localizedPattern?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val provider = providerName?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val placeholder = "%1\$s"
+        val idx = pattern.indexOf(placeholder)
+        if (idx < 0) {
+            val text = pattern.replace("%s", provider)
+            val pIdx = text.indexOf(provider)
+            if (pIdx < 0) return plainLabelText(text)
+            val segments = mutableListOf<Segment>()
+            val prefix = text.substring(0, pIdx)
+            if (prefix.isNotEmpty()) segments.add(Segment(prefix, Part.SOURCE_PREFIX))
+            segments.add(Segment(provider, Part.STATION))
+            val suffix = text.substring(pIdx + provider.length)
+            if (suffix.isNotEmpty()) segments.add(Segment(suffix, Part.SOURCE_PREFIX))
+            return LabelText(fullText = text, segments = segments)
+        }
+        val prefix = pattern.substring(0, idx)
+        val suffix = pattern.substring(idx + placeholder.length)
+        val segments = mutableListOf<Segment>()
+        if (prefix.isNotEmpty()) segments.add(Segment(prefix, Part.SOURCE_PREFIX))
+        segments.add(Segment(provider, Part.STATION))
+        if (suffix.isNotEmpty()) segments.add(Segment(suffix, Part.SOURCE_PREFIX))
+        return LabelText(fullText = "$prefix$provider$suffix", segments = segments)
     }
 
     /**
