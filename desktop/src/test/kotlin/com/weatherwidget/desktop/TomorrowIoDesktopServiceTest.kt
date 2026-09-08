@@ -29,15 +29,18 @@ class TomorrowIoDesktopServiceTest {
         val realtime = hour.plus(20, ChronoUnit.MINUTES)
         val capturedStarts = mutableListOf<String?>()
         val capturedHourlyFields = mutableListOf<String?>()
+        val capturedTimesteps = mutableListOf<List<String>>()
+        var timelineCalls = 0
         val engine = MockEngine { request ->
             val body = when {
                 request.url.encodedPath == "/v4/weather/realtime" -> realtimeJson(realtime)
-                request.url.parameters["timesteps"] == "1h" -> {
+                else -> {
+                    timelineCalls++
                     capturedStarts += request.url.parameters["startTime"]
                     capturedHourlyFields += request.url.parameters["fields"]
-                    hourlyJson(past, future)
+                    capturedTimesteps += request.url.parameters.getAll("timesteps").orEmpty()
+                    combinedTimelineJson(past, future, hour)
                 }
-                else -> dailyJson(hour)
             }
             respond(
                 content = body,
@@ -58,6 +61,8 @@ class TomorrowIoDesktopServiceTest {
 
             // Covers the whole elapsed local day so a first-time fetch at a new site still gets
             // today's overnight minimum — see TomorrowIoApi's startTime comment.
+            assertEquals(1, timelineCalls)
+            assertEquals(listOf(listOf("1h", "1d")), capturedTimesteps)
             assertEquals(listOf("nowMinus23h"), capturedStarts)
             assertTrue(capturedHourlyFields.single().orEmpty().contains("cloudBase"))
             assertTrue(capturedHourlyFields.single().orEmpty().contains("cloudCeiling"))
@@ -114,15 +119,14 @@ class TomorrowIoDesktopServiceTest {
         }
     }
 
-    private fun hourlyJson(past: Instant, future: Instant) =
-        """{"data":{"timelines":[{"intervals":[
+    private fun combinedTimelineJson(past: Instant, future: Instant, day: Instant) =
+        """{"data":{"timelines":[
+        {"timestep":"1d","intervals":[
+            {"startTime":"$day","values":{"temperatureMax":72.0,"temperatureMin":58.0,"weatherCode":1101}}
+        ]},
+        {"timestep":"1h","intervals":[
             {"startTime":"$past","values":{"temperature":64.0,"weatherCode":1101,"cloudCover":72,"cloudBase":1.0,"cloudCeiling":3.0}},
             {"startTime":"$future","values":{"temperature":70.0,"weatherCode":1000,"cloudCover":10}}
-        ]}]}}""".trimIndent()
-
-    private fun dailyJson(day: Instant) =
-        """{"data":{"timelines":[{"intervals":[
-            {"startTime":"$day","values":{"temperatureMax":72.0,"temperatureMin":58.0,"weatherCode":1101}}
         ]}]}}""".trimIndent()
 
     private fun realtimeJson(time: Instant) =

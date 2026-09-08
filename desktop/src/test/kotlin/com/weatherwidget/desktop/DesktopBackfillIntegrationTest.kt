@@ -12,6 +12,7 @@ import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -65,10 +66,11 @@ class DesktopBackfillIntegrationTest {
             daily = emptyList(),
         )
 
-        repository.refresh()
+        val outcome = repository.refreshWithOutcome()
 
         // History must come only from real accumulated snapshots — never an Open-Meteo past_days pull.
         coVerify(exactly = 0) { weatherService.fetchHistory(any()) }
+        assertFalse("forecast-only results must not suppress the observation fetch", outcome.suppliedObservations)
     }
 
     @Test

@@ -54,6 +54,10 @@ class DesktopWeatherRepository(
     private val personalStationWeight: Double = 1.0,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
 ) {
+    data class RefreshOutcome(
+        val snapshot: ForecastSnapshot,
+        val suppliedObservations: Boolean,
+    )
     /** The [WeatherSource] resolved once from [weatherSource]; every method previously re-derived this. */
     private val displaySource: WeatherSource = WeatherSource.fromDisplaySource(weatherSource)
 
@@ -450,7 +454,15 @@ class DesktopWeatherRepository(
 
     suspend fun refresh(
         now: Long = currentTimeMillis(),
-    ): ForecastSnapshot = withContext(Dispatchers.IO) {
+    ): ForecastSnapshot = refreshWithOutcome(now).snapshot
+
+    /**
+     * Runs a full refresh and reports whether it already supplied observation data. Schedulers can
+     * use this provider-neutral signal to avoid an immediately redundant observations-only call.
+     */
+    suspend fun refreshWithOutcome(
+        now: Long = currentTimeMillis(),
+    ): RefreshOutcome = withContext(Dispatchers.IO) {
         Log.i(TAG, "refresh() started source=$weatherSource")
         // Entry marker. The terminal REFRESH row below only lands on success, so without this an
         // aborted fetch is invisible unless it also throws (the catch logs a WARN); a hang or a
@@ -526,7 +538,10 @@ class DesktopWeatherRepository(
             )
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
-            loadCached(now) ?: rawFetchToSnapshot(result)
+            RefreshOutcome(
+                snapshot = loadCached(now) ?: rawFetchToSnapshot(result),
+                suppliedObservations = result.rawObservations.isNotEmpty(),
+            )
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) {
                 // Cancellation is not a pipeline failure, so it stays out of CURRENT_TEMP_STATUS

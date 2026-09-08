@@ -53,10 +53,15 @@ class TomorrowIoApi(
             throw IllegalStateException("TOMORROW_IO_API_KEY is missing.")
         }
 
-        val hourlyHttpResponse = httpClient.get(TIMELINES_URL) {
+        val timelineHttpResponse = httpClient.get(TIMELINES_URL) {
             parameter("location", "$lat,$lon")
-            parameter("fields", "temperature,weatherCode,precipitationProbability,precipitationAccumulation,cloudCover,cloudBase,cloudCeiling")
-            parameter("timesteps", "1h")
+            parameter(
+                "fields",
+                "temperature,temperatureMax,temperatureMin,weatherCode,precipitationProbability," +
+                    "precipitationAccumulation,cloudCover,cloudBase,cloudCeiling",
+            )
+            url.parameters.append("timesteps", "1h")
+            url.parameters.append("timesteps", "1d")
             parameter("units", "imperial")
             parameter("apikey", apiKey)
             // Reaches back far enough to cover the elapsed part of the local day, so a site being
@@ -79,24 +84,23 @@ class TomorrowIoApi(
             // 403003).
             parameter("startTime", "nowMinus23h")
         }
-        hourlyHttpResponse.require2xx(WeatherSource.TOMORROW_IO, "Tomorrow.io hourly fetch failed")
-        val hourlyResponse: String = hourlyHttpResponse.body()
+        timelineHttpResponse.require2xx(WeatherSource.TOMORROW_IO, "Tomorrow.io timeline fetch failed")
+        val timelineJson = json.parseToJsonElement(timelineHttpResponse.body<String>()).jsonObject
+        val timelines = timelineJson["data"]?.jsonObject?.get("timelines")?.jsonArray ?: JsonArray(emptyList())
 
-        val dailyHttpResponse = httpClient.get(TIMELINES_URL) {
-            parameter("location", "$lat,$lon")
-            parameter("fields", "temperatureMax,temperatureMin,weatherCode,precipitationProbability,precipitationAccumulation")
-            parameter("timesteps", "1d")
-            parameter("units", "imperial")
-            parameter("apikey", apiKey)
-        }
-        dailyHttpResponse.require2xx(WeatherSource.TOMORROW_IO, "Tomorrow.io daily fetch failed")
-        val dailyResponse: String = dailyHttpResponse.body()
+        // The API does not promise response order. Match by timestep so requesting both series in
+        // one call cannot accidentally parse daily values as hourly (or vice versa).
+        fun intervalsFor(timestep: String): JsonArray = timelines
+            .firstOrNull { timeline ->
+                timeline.jsonObject["timestep"]?.jsonPrimitive?.contentOrNull == timestep
+            }
+            ?.jsonObject
+            ?.get("intervals")
+            ?.jsonArray
+            ?: JsonArray(emptyList())
 
-        val hourlyJson = json.parseToJsonElement(hourlyResponse).jsonObject
-        val dailyJson = json.parseToJsonElement(dailyResponse).jsonObject
-
-        val hourlyIntervals = hourlyJson["data"]?.jsonObject?.get("timelines")?.jsonArray?.get(0)?.jsonObject?.get("intervals")?.jsonArray ?: JsonArray(emptyList())
-        val dailyIntervals = dailyJson["data"]?.jsonObject?.get("timelines")?.jsonArray?.get(0)?.jsonObject?.get("intervals")?.jsonArray ?: JsonArray(emptyList())
+        val hourlyIntervals = intervalsFor("1h")
+        val dailyIntervals = intervalsFor("1d")
 
         val hourlyForecasts = hourlyIntervals.mapIndexedNotNull { _, element ->
             val obj = element.jsonObject

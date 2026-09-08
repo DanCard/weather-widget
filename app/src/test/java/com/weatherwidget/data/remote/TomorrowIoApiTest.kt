@@ -8,7 +8,7 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -24,10 +24,19 @@ class TomorrowIoApiTest {
     }
 
     private fun createMockClient(hourlyJson: String, dailyJson: String): HttpClient {
+        val hourlyTimeline = json.parseToJsonElement(hourlyJson).jsonObject["data"]!!
+            .jsonObject["timelines"]!!.jsonArray.single()
+        val dailyTimeline = json.parseToJsonElement(dailyJson).jsonObject["data"]!!
+            .jsonObject["timelines"]!!.jsonArray.single()
+        // Daily first on purpose: production parsing must select by timestep, not array position.
+        val combinedJson = buildJsonObject {
+            put("data", buildJsonObject {
+                put("timelines", JsonArray(listOf(dailyTimeline, hourlyTimeline)))
+            })
+        }.toString()
         val engine = MockEngine { request ->
-            val responseJson = if (request.url.parameters["timesteps"] == "1h") hourlyJson else dailyJson
             respond(
-                content = responseJson,
+                content = combinedJson,
                 status = HttpStatusCode.OK,
                 headers = headersOf(HttpHeaders.ContentType, "application/json")
             )
@@ -217,11 +226,13 @@ class TomorrowIoApiTest {
     @Test
     fun `hourly request asks for a lookback covering the whole elapsed local day`() = runBlocking {
         var capturedStartTime: String? = null
-        val emptyTimeline = """{"data":{"timelines":[{"intervals":[]}]}}"""
+        var requestCount = 0
+        var capturedTimesteps = emptyList<String>()
+        val emptyTimeline = """{"data":{"timelines":[{"timestep":"1d","intervals":[]},{"timestep":"1h","intervals":[]}]}}"""
         val engine = MockEngine { request ->
-            if (request.url.parameters["timesteps"] == "1h") {
-                capturedStartTime = request.url.parameters["startTime"]
-            }
+            requestCount++
+            capturedStartTime = request.url.parameters["startTime"]
+            capturedTimesteps = request.url.parameters.getAll("timesteps").orEmpty()
             respond(
                 content = emptyTimeline,
                 status = HttpStatusCode.OK,
@@ -239,6 +250,8 @@ class TomorrowIoApiTest {
         // minimum, otherwise its "daily low" is just the earliest hour since it was promoted
         // (Samsung 2026-08-22 — a noon-onward window reported the noon reading as the day's low).
         // 23 rather than 24 because the plan rejects startTime more than 24 h back (403/403003).
+        assertEquals(1, requestCount)
+        assertEquals(listOf("1h", "1d"), capturedTimesteps)
         assertEquals("nowMinus23h", capturedStartTime)
     }
 

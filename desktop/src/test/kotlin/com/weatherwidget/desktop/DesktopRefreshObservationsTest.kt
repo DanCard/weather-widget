@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -101,5 +102,38 @@ class DesktopRefreshObservationsTest {
             "the panel must resolve from the same observations the popup reads from the DB",
             returned.raw.rawObservations.none { it.stationId == "OUT_OF_RANGE" },
         )
+    }
+
+    @Test
+    fun `full refresh reports observations so the scheduler can coalesce its follow-up`() = runTest {
+        val now = (System.currentTimeMillis() / 3600_000L) * 3600_000L
+        val tomorrowRepository = DesktopWeatherRepository(
+            weatherService,
+            dao,
+            lat,
+            lon,
+            WeatherSource.TOMORROW_IO.id,
+            currentTimeMillis = { now },
+        )
+        coEvery { weatherService.fetchForecast() } returns RawFetch(
+            hourly = listOf(HourlyForecast(now, 72f, "Clear", source = WeatherSource.TOMORROW_IO.id)),
+            rawObservations = listOf(
+                ObservationReading(
+                    stationId = "TOMORROW_IO_REALTIME",
+                    stationName = "Tomorrow.io Realtime",
+                    timestamp = now,
+                    temperature = 73f,
+                    condition = "Clear",
+                    locationLat = lat,
+                    locationLon = lon,
+                    api = WeatherSource.TOMORROW_IO.id,
+                ),
+            ),
+        )
+
+        val outcome = tomorrowRepository.refreshWithOutcome(now)
+
+        assertTrue(outcome.suppliedObservations)
+        assertEquals(1, outcome.snapshot.raw.rawObservations.size)
     }
 }

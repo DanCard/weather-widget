@@ -501,13 +501,15 @@ fun runDaemon() {
                     // Cloud-while-viewing: the screen is on, so the user is looking at the app. If the
                     // active source's forecast (which carries the cloud graph) is stale beyond the
                     // viewing threshold, refresh it now instead of waiting for the 60-min forecast loop.
+                    var fullRefreshSuppliedObservations = false
                     if (screenOn) {
                         val lastForecast = weatherDao.getLastSuccessfulFetch(config.settings.weatherSource)
                         if (CloudViewingRefreshPolicy.isStale(lastForecast, System.currentTimeMillis())) {
                             try {
                                 Log.i(TAG, "Cloud-while-viewing: forecast stale for ${config.settings.weatherSource}; refreshing now.")
-                                val result = newRepo.refresh()
-                                panelPublisher.publishForecastState(result)
+                                val outcome = newRepo.refreshWithOutcome()
+                                fullRefreshSuppliedObservations = outcome.suppliedObservations
+                                panelPublisher.publishForecastState(outcome.snapshot)
                                 notifyDataUpdated()
                             } catch (e: CancellationException) {
                                 throw e
@@ -515,6 +517,14 @@ fun runDaemon() {
                                 Log.i(TAG, "Cloud-while-viewing refresh failed: ${e.message}")
                             }
                         }
+                    }
+
+                    if (fullRefreshSuppliedObservations) {
+                        Log.i(
+                            TAG,
+                            "Temp actuals loop: full refresh supplied observations; skipping redundant observations-only fetch.",
+                        )
+                        continue
                     }
 
                     val src = WeatherSource.fromDisplaySource(config.settings.weatherSource).id
