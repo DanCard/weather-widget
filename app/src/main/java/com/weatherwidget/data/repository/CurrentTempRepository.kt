@@ -20,7 +20,6 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.OpenWeatherMapApi
-import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
@@ -59,7 +58,6 @@ class CurrentTempRepository
         private val appLogDao: AppLogDao,
         private val nwsApi: NwsApi,
         private val openMeteoApi: OpenMeteoApi,
-        private val visualCrossingApi: VisualCrossingApi,
         private val weatherApi: WeatherApi,
         private val silurianApi: SilurianApi,
         private val widgetStateManager: WidgetStateManager,
@@ -240,7 +238,6 @@ class CurrentTempRepository
         private suspend fun fetchFromSource(source: WeatherSource, latitude: Double, longitude: Double): CurrentReadingPayload? =
             when (source) {
                 WeatherSource.OPEN_WEATHER_MAP -> fetchOpenWeatherMapCurrent(latitude, longitude)
-                WeatherSource.VISUAL_CROSSING -> fetchVisualCrossingCurrent(latitude, longitude)
                 WeatherSource.OPEN_METEO -> fetchOpenMeteoCurrent(latitude, longitude)
                 WeatherSource.WEATHER_API -> fetchWeatherApiCurrent(latitude, longitude)
                 WeatherSource.NWS -> observationRepository.fetchNwsCurrent(latitude, longitude)
@@ -314,16 +311,6 @@ class CurrentTempRepository
                     null
                 }
             }
-        }
-
-        private suspend fun fetchVisualCrossingCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
-            fetchForecastCurrent(
-                source = WeatherSource.VISUAL_CROSSING,
-                stationPrefix = "VISUAL_CROSSING",
-                stationLabelPrefix = "VisCr",
-                latitude = latitude,
-                longitude = longitude,
-            ) { lat, lon -> visualCrossingApi.getForecast(lat, lon) }
         }
 
         private suspend fun fetchOpenMeteoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {

@@ -26,7 +26,6 @@ import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
-import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.widget.ForecastFetchContext
 import com.weatherwidget.widget.WidgetStateManager
@@ -56,7 +55,6 @@ class ForecastRepository
         private val appLogDao: AppLogDao,
         nwsApi: NwsApi,
         private val openMeteoApi: OpenMeteoApi,
-        visualCrossingApi: VisualCrossingApi,
         weatherApi: WeatherApi,
         silurianApi: SilurianApi,
         private val widgetStateManager: WidgetStateManager,
@@ -103,7 +101,6 @@ class ForecastRepository
             context = context,
             appLogDao = appLogDao,
             openMeteoApi = openMeteoApi,
-            visualCrossingApi = visualCrossingApi,
             weatherApi = weatherApi,
             silurianApi = silurianApi,
             widgetStateManager = widgetStateManager,

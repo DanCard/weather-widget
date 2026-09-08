@@ -90,7 +90,6 @@ class DesktopWeatherService(
     private val nwsApi = injectedNwsApi ?: NwsApi(httpClient, json)
     private val tomorrowIo = TomorrowIoApi(httpClient, json) { effectiveKeys[WeatherSource.TOMORROW_IO.id] }
     private val weatherApi = WeatherApi(httpClient, json) { effectiveKeys[WeatherSource.WEATHER_API.id] }
-    private val visualCrossing = VisualCrossingApi(httpClient, json) { effectiveKeys[WeatherSource.VISUAL_CROSSING.id] }
     private val silurian = SilurianApi(httpClient, json) { effectiveKeys[WeatherSource.SILURIAN.id] }
     private val openWeatherMap = OpenWeatherMapApi(httpClient, json) { effectiveKeys[WeatherSource.OPEN_WEATHER_MAP.id] }
     // "SYNOPTIC" is not a WeatherSource id — it is the NWS web-fallback transport, keyed by a token
@@ -146,7 +145,6 @@ class DesktopWeatherService(
             "NWS" -> fetchNwsForecast()
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoForecastWithRealtime()
             WeatherSource.WEATHER_API.id -> withHistoricalActuals(weatherApi.getForecast(latitude, longitude), WeatherSource.WEATHER_API.id)
-            WeatherSource.VISUAL_CROSSING.id -> withHistoricalActuals(visualCrossing.getForecast(latitude, longitude), WeatherSource.VISUAL_CROSSING.id)
             WeatherSource.SILURIAN.id -> withHistoricalActuals(silurian.getForecast(latitude, longitude), WeatherSource.SILURIAN.id)
             WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapForecastWithCurrent()
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoForecast()
@@ -759,8 +757,7 @@ class DesktopWeatherService(
             WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapObservationsOnly()
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
             WeatherSource.SILURIAN.id -> fetchBorrowedObservationsOnly(recentOnly)
-            WeatherSource.WEATHER_API.id,
-            WeatherSource.VISUAL_CROSSING.id -> {
+            WeatherSource.WEATHER_API.id -> {
                 Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path is defined")
                 RawFetch()
             }

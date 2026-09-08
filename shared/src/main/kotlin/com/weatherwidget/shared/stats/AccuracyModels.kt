@@ -10,7 +10,6 @@ package com.weatherwidget.shared.stats
  */
 data class ComparisonStatistics(
     val nwsStats: AccuracyPure.AccuracyStatistics?,
-    val visualCrossingStats: AccuracyPure.AccuracyStatistics?,
     val openWeatherMapStats: AccuracyPure.AccuracyStatistics?,
     val meteoStats: AccuracyPure.AccuracyStatistics?,
     val weatherApiStats: AccuracyPure.AccuracyStatistics?,

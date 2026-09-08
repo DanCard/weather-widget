@@ -565,7 +565,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     WeatherSource.entries.any { source ->
                         enabledSources.contains(source) && when (source) {
                             WeatherSource.NWS -> (comparison.nwsStats?.totalForecasts ?: 0) > 0
-                            WeatherSource.VISUAL_CROSSING -> (comparison.visualCrossingStats?.totalForecasts ?: 0) > 0
                             WeatherSource.OPEN_WEATHER_MAP -> (comparison.openWeatherMapStats?.totalForecasts ?: 0) > 0
                             WeatherSource.OPEN_METEO -> (comparison.meteoStats?.totalForecasts ?: 0) > 0
                             WeatherSource.WEATHER_API -> (comparison.weatherApiStats?.totalForecasts ?: 0) > 0
@@ -582,7 +581,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
                         buildString {
                             val sourcesToShow = listOf(
                                 WeatherSource.NWS to comparison.nwsStats,
-                                WeatherSource.VISUAL_CROSSING to comparison.visualCrossingStats,
                                 WeatherSource.OPEN_WEATHER_MAP to comparison.openWeatherMapStats,
                                 WeatherSource.OPEN_METEO to comparison.meteoStats,
                                 WeatherSource.WEATHER_API to comparison.weatherApiStats,

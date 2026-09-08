@@ -27,7 +27,6 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.OpenWeatherMapApi
-import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.WeatherApiCredentialProvider
 import com.weatherwidget.data.remote.SilurianApi
@@ -139,7 +138,6 @@ object AppModule {
                     host.contains("silurian.ai") -> "SILURIAN"
                     host.contains("tomorrow.io") -> "TOMORROW_IO"
                     host.contains("weather.gov") -> "NWS"
-                    host.contains("visualcrossing.com") -> "VISUAL_CROSSING"
                     host.contains("open-meteo.com") -> "OPEN_METEO"
                     host.contains("openweathermap.org") -> "OPEN_WEATHER_MAP"
                     host.contains("weatherapi.com") -> "WEATHER_API"
@@ -266,7 +264,6 @@ object AppModule {
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
         openMeteoApi: OpenMeteoApi,
-        visualCrossingApi: VisualCrossingApi,
         weatherApi: WeatherApi,
         silurianApi: SilurianApi,
         widgetStateManager: WidgetStateManager,
@@ -280,7 +277,7 @@ object AppModule {
         nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher,
     ): ForecastRepository = ForecastRepository(
         context, forecastDao, hourlyForecastDao, hourlyForecastHistoryDao, appLogDao,
-        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper, nwsApiDailyActualsFetcher
+        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper, nwsApiDailyActualsFetcher
     )
 
     @Provides
@@ -292,7 +289,6 @@ object AppModule {
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
         openMeteoApi: OpenMeteoApi,
-        visualCrossingApi: VisualCrossingApi,
         weatherApi: WeatherApi,
         silurianApi: SilurianApi,
         widgetStateManager: WidgetStateManager,
@@ -302,7 +298,7 @@ object AppModule {
         openWeatherMapApi: OpenWeatherMapApi,
     ): CurrentTempRepository = CurrentTempRepository(
         context, observationDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi
+        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi
     )
 
     @Provides
@@ -332,16 +328,6 @@ object AppModule {
         httpClient: HttpClient,
         json: Json,
     ): OpenMeteoApi = OpenMeteoApi(httpClient, json)
-
-    @Provides
-    @Singleton
-    fun provideVisualCrossingApi(
-        httpClient: HttpClient,
-        json: Json,
-        widgetStateManager: WidgetStateManager,
-    ): VisualCrossingApi = VisualCrossingApi(httpClient, json) { 
-        widgetStateManager.getApiKey(WeatherSource.VISUAL_CROSSING) ?: com.weatherwidget.BuildConfig.VISUAL_CROSSING_API_KEY 
-    }
 
     @Provides
     @Singleton

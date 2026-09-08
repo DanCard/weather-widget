@@ -52,7 +52,6 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
             appLogDao = db.appLogDao(),
             nwsApi = mockk(relaxed = true),
             openMeteoApi = mockk(relaxed = true),
-            visualCrossingApi = mockk(relaxed = true),
             weatherApi = mockk(relaxed = true),
             silurianApi = mockk(relaxed = true),
             widgetStateManager = mockk(relaxed = true),

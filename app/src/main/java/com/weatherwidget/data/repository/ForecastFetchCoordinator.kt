@@ -12,7 +12,6 @@ import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
-import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.widget.ForecastFetchContext
 import com.weatherwidget.widget.ForecastFetchPolicy
@@ -32,7 +31,6 @@ internal class ForecastFetchCoordinator(
     private val context: Context,
     private val appLogDao: AppLogDao,
     private val openMeteoApi: OpenMeteoApi,
-    private val visualCrossingApi: VisualCrossingApi,
     private val weatherApi: WeatherApi,
     private val silurianApi: SilurianApi,
     private val widgetStateManager: WidgetStateManager,
@@ -179,27 +177,6 @@ internal class ForecastFetchCoordinator(
             } else {
                 null
             }
-        val visualCrossingDeferred =
-            if (WeatherSource.VISUAL_CROSSING in sourcesToFetch) {
-                async {
-                    safeFetch(
-                        "FETCH_VISUAL_CROSSING_FAIL",
-                        WeatherSource.VISUAL_CROSSING,
-                        latitude,
-                        longitude,
-                    ) {
-                        fetchAndSaveSharedForecast(
-                            latitude,
-                            longitude,
-                            WeatherSource.VISUAL_CROSSING,
-                        ) {
-                            visualCrossingApi.getForecast(latitude, longitude)
-                        }
-                    }
-                }
-            } else {
-                null
-            }
         val meteoDeferred = if (WeatherSource.OPEN_METEO in sourcesToFetch) {
             async {
                 safeFetch(
@@ -317,7 +294,6 @@ internal class ForecastFetchCoordinator(
         val fetchedBySource = listOf(
             WeatherSource.NWS to nwsDeferred?.await(),
             WeatherSource.OPEN_WEATHER_MAP to openWeatherMapDeferred?.await(),
-            WeatherSource.VISUAL_CROSSING to visualCrossingDeferred?.await(),
             WeatherSource.OPEN_METEO to meteoDeferred?.await(),
             WeatherSource.WEATHER_API to weatherApiDeferred?.await(),
             WeatherSource.SILURIAN to silurianDeferred?.await(),
@@ -520,7 +496,6 @@ internal class ForecastFetchCoordinator(
 
         private val SOURCES_TO_CHECK = listOf(
             WeatherSource.NWS,
-            WeatherSource.VISUAL_CROSSING,
             WeatherSource.OPEN_WEATHER_MAP,
             WeatherSource.SILURIAN,
             WeatherSource.WEATHER_API,

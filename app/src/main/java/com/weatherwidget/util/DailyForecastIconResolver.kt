@@ -23,9 +23,6 @@ object DailyForecastIconResolver {
     fun getMinimumPrecipProbabilityNight(daysFromToday: Int): Int =
         com.weatherwidget.shared.util.DailyRainLabels.getMinimumPrecipProbabilityNight(daysFromToday)
 
-    @Deprecated("Use getMinimumPrecipProbabilityDay() for clarity", replaceWith = ReplaceWith("getMinimumPrecipProbabilityDay(daysFromToday)"))
-    fun getMinimumPrecipProbability(daysFromToday: Int): Int = getMinimumPrecipProbabilityDay(daysFromToday)
-
     fun calculateDayNightPrecipProbabilities(
         hourlyForecasts: List<HourlyForecastEntity>,
         targetDate: LocalDate,
@@ -193,7 +190,6 @@ object DailyForecastIconResolver {
                     precipProbability = weather.precipProbability,
                 )
             }
-            WeatherSource.VISUAL_CROSSING -> visualCrossingIcon(nativeToken)
             WeatherSource.OPEN_WEATHER_MAP -> openWeatherMapIcon(nativeToken)
             WeatherSource.WEATHER_API -> weatherApiIcon(nativeToken)
             WeatherSource.SILURIAN -> silurianIcon(nativeToken, targetDate, now, latitude, longitude, weather.precipProbability, cloudCover)
@@ -218,24 +214,7 @@ object DailyForecastIconResolver {
             // Neither produces a daily forecast row, so neither ever reaches this resolver:
             // GENERIC_GAP carries no condition token, and METAR is an observation-only feed with
             // no forecast product at all.
-            WeatherSource.GENERIC_GAP, WeatherSource.METAR, WeatherSource.SYNOPTIC -> null
-        }
-    }
-
-    private fun visualCrossingIcon(nativeToken: String): Int? {
-        return when (nativeToken.lowercase()) {
-            "clear-day" -> R.drawable.ic_weather_clear
-            "clear-night" -> R.drawable.ic_weather_night
-            "partly-cloudy-day" -> R.drawable.ic_weather_partly_cloudy
-            "partly-cloudy-night" -> R.drawable.ic_weather_partly_cloudy_night
-            "cloudy", "overcast" -> R.drawable.ic_weather_cloudy
-            "rain", "showers-day", "showers-night" -> R.drawable.ic_weather_rain
-            "snow", "snow-showers-day", "snow-showers-night" -> R.drawable.ic_weather_snow
-            "thunder-rain", "thunder-showers-day", "thunder-showers-night", "thunder", "storm" ->
-                R.drawable.ic_weather_storm
-            "fog" -> R.drawable.ic_weather_fog
-            "wind" -> R.drawable.ic_weather_wind
-            else -> null
+            WeatherSource.GENERIC_GAP, WeatherSource.METAR, WeatherSource.SYNOPTIC, WeatherSource.VISUAL_CROSSING -> null
         }
     }
 

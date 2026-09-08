@@ -49,7 +49,6 @@ class YesterdayActualHighConsistencyTest {
         val widgetStateManager = WidgetStateManager(context)
         val nwsApi = mockk<NwsApi>(relaxed = true)
         val openMeteoApi = mockk<OpenMeteoApi>(relaxed = true)
-        val visualCrossingApi = mockk<VisualCrossingApi>(relaxed = true)
         val weatherApi = mockk<WeatherApi>(relaxed = true)
         val silurianApi = mockk<SilurianApi>(relaxed = true)
         val tomorrowIoApi = mockk<TomorrowIoApi>(relaxed = true)
@@ -71,7 +70,6 @@ class YesterdayActualHighConsistencyTest {
             db.appLogDao(),
             nwsApi,
             openMeteoApi,
-            visualCrossingApi,
             weatherApi,
             silurianApi,
             widgetStateManager,
@@ -91,7 +89,6 @@ class YesterdayActualHighConsistencyTest {
             db.appLogDao(),
             nwsApi,
             openMeteoApi,
-            visualCrossingApi,
             weatherApi,
             silurianApi,
             widgetStateManager,

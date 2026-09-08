@@ -80,7 +80,6 @@ class OpenMeteoDayNightPrecipIntegrationTest {
             appLogDao = db.appLogDao(),
             nwsApi = nwsApi,
             openMeteoApi = openMeteoApi,
-            visualCrossingApi = mockk(relaxed = true),
             weatherApi = mockk(relaxed = true),
             silurianApi = mockk(relaxed = true),
             widgetStateManager = widgetStateManager,

@@ -62,7 +62,6 @@ class ClimateNormalsTest {
             mockk<AppLogDao>(relaxed = true),
             mockk<NwsApi>(),
             openMeteoApi,
-            mockk(relaxed = true),
             mockk<WeatherApi>(),
             mockk(relaxed = true),
             widgetStateManager,

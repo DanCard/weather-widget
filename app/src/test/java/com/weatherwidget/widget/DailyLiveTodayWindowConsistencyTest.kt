@@ -60,7 +60,6 @@ class DailyLiveTodayWindowConsistencyTest {
         val widgetStateManager = WidgetStateManager(context)
         val nwsApi = mockk<NwsApi>(relaxed = true)
         val openMeteoApi = mockk<OpenMeteoApi>(relaxed = true)
-        val visualCrossingApi = mockk<VisualCrossingApi>(relaxed = true)
         val weatherApi = mockk<WeatherApi>(relaxed = true)
         val silurianApi = mockk<SilurianApi>(relaxed = true)
         val tomorrowIoApi = mockk<TomorrowIoApi>(relaxed = true)
@@ -71,13 +70,13 @@ class DailyLiveTodayWindowConsistencyTest {
         )
         val currentTempRepository = CurrentTempRepository(
             context, db.observationDao(), db.hourlyForecastDao(), db.appLogDao(), nwsApi, openMeteoApi,
-            visualCrossingApi, weatherApi, silurianApi, widgetStateManager, db.dailyHistoryDao(),
+            weatherApi, silurianApi, widgetStateManager, db.dailyHistoryDao(),
             observationRepository, tomorrowIoApi, openWeatherMapApi,
         )
         val nwsForecastMapper = NwsForecastMapper(nwsApi, db.appLogDao())
         val forecastRepository = ForecastRepository(
             context, db.forecastDao(), db.hourlyForecastDao(), db.hourlyForecastHistoryDao(), db.appLogDao(),
-            nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager,
+            nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager,
             db.climateNormalDao(), db.observationDao(), db.dailyHistoryDao(), observationRepository,
             tomorrowIoApi, openWeatherMapApi, nwsForecastMapper,
         )

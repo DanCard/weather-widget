@@ -92,9 +92,6 @@ class WeatherRepository
         suspend fun getLatestForecastsInRangeForSources(startDate: Long, endDate: Long, latitude: Double, longitude: Double, sources: List<String>) =
             forecastRepository.getLatestForecastsInRangeForSources(startDate, endDate, latitude, longitude, sources)
 
-        suspend fun getWeatherRange(startDate: Long, endDate: Long, latitude: Double, longitude: Double) =
-            forecastRepository.getForecastsInRange(startDate, endDate, latitude, longitude)
-            
         suspend fun getLatestLocation(): Pair<Double, Double>? = 
             forecastDao.getLatestWeather()?.let { it.locationLat to it.locationLon }
 

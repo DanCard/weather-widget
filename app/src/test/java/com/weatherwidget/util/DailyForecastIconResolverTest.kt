@@ -37,23 +37,6 @@ class DailyForecastIconResolverTest {
     }
 
     @Test
-    fun `visual crossing icon token maps directly`() {
-        val icon = DailyForecastIconResolver.resolveIcon(
-            weather = forecast(
-                source = WeatherSource.VISUAL_CROSSING.id,
-                condition = "Rain, Partially cloudy",
-                nativeDailyIconToken = "partly-cloudy-day",
-            ),
-            targetDate = today,
-            now = now,
-            latitude = 37.42,
-            longitude = -122.08,
-        )
-
-        assertEquals(R.drawable.ic_weather_partly_cloudy, icon)
-    }
-
-    @Test
     fun `open weather map icon code maps directly`() {
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(

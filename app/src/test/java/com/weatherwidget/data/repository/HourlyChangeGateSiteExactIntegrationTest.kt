@@ -63,7 +63,6 @@ class HourlyChangeGateSiteExactIntegrationTest {
             appLogDao = db.appLogDao(),
             nwsApi = nwsApi,
             openMeteoApi = mockk(relaxed = true),
-            visualCrossingApi = mockk(relaxed = true),
             weatherApi = mockk(relaxed = true),
             silurianApi = mockk(relaxed = true),
             widgetStateManager = widgetStateManager,

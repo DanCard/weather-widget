@@ -129,7 +129,6 @@ class StatisticsActivity : AppCompatActivity() {
                 val allDaily = mutableListOf<DailyResult>()
                 val sourcesToQuery = listOf(
                     WeatherSource.NWS,
-                    WeatherSource.VISUAL_CROSSING,
                     WeatherSource.OPEN_WEATHER_MAP,
                     WeatherSource.OPEN_METEO,
                     WeatherSource.WEATHER_API,
@@ -158,7 +157,6 @@ class StatisticsActivity : AppCompatActivity() {
                         buildString {
                             val sourcesToStats = listOf(
                                 WeatherSource.NWS to comparison.nwsStats,
-                                WeatherSource.VISUAL_CROSSING to comparison.visualCrossingStats,
                                 WeatherSource.OPEN_WEATHER_MAP to comparison.openWeatherMapStats,
                                 WeatherSource.OPEN_METEO to comparison.meteoStats,
                                 WeatherSource.WEATHER_API to comparison.weatherApiStats,

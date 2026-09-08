@@ -73,7 +73,6 @@ class WeatherGapTest {
             appLogDao,
             nwsApi,
             openMeteoApi,
-            mockk(relaxed = true),
             weatherApi,
             mockk(relaxed = true),
             widgetStateManager,
@@ -92,11 +91,10 @@ class WeatherGapTest {
             appLogDao,
             nwsApi,
             openMeteoApi,
-            mockk(relaxed = true),
             weatherApi,
             mockk(relaxed = true),
             widgetStateManager,
-            
+
             mockk(relaxed = true),
             mockk(relaxed = true)
         )

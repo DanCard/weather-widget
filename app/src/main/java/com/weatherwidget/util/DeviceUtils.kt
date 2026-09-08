@@ -1,7 +1,5 @@
 package com.weatherwidget.util
 
-import android.content.Context
-import android.content.pm.PackageManager
 import android.os.Build
 
 object DeviceUtils {
@@ -22,13 +20,5 @@ object DeviceUtils {
                 || Build.PRODUCT.contains("sdk_gphone")
                 || Build.HARDWARE.contains("goldfish")
                 || Build.HARDWARE.contains("ranchu"))
-    }
-
-    /**
-     * Checks if the device has a standard GPS reporter.
-     * We consider a device to "report GPS" if it's NOT an emulator AND has GPS hardware.
-     */
-    fun reportsStandardGps(context: Context): Boolean {
-        return !isEmulator() && context.packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION_GPS)
     }
 }

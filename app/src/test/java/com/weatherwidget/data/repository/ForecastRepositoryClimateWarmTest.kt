@@ -85,7 +85,6 @@ class ForecastRepositoryClimateWarmTest {
             appLogDao = appLogDao,
             nwsApi = mockk(relaxed = true),
             openMeteoApi = openMeteoApi,
-            visualCrossingApi = mockk(relaxed = true),
             weatherApi = mockk(relaxed = true),
             silurianApi = mockk(relaxed = true),
             widgetStateManager = widgetStateManager,
