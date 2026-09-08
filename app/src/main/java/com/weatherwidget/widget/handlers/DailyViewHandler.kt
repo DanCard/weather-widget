@@ -73,8 +73,8 @@ object DailyViewHandler : WidgetViewHandler {
     private const val LOG_TAG_WIDGET_ACTUAL = "WIDGET_ACTUAL"
     internal const val LOG_TAG_TODAY_BAR_DEBUG = DailyTextRenderer.LOG_TAG_TODAY_BAR_DEBUG
     internal const val LOG_TAG_TODAY_HIGH_PROVENANCE = "TODAY_HIGH_PROVENANCE"
-    private const val LOG_TAG_DAILY_RENDER = "DAILY_RENDER"
-    private const val LOG_TAG_DAILY_RENDER_EMPTY = "DAILY_RENDER_EMPTY"
+    internal const val LOG_TAG_DAILY_RENDER = "DAILY_RENDER"
+    internal const val LOG_TAG_DAILY_RENDER_EMPTY = "DAILY_RENDER_EMPTY"
     // Locale is resolved per call (not captured at class-load) so ACTION_LOCALE_CHANGED —
     // which does NOT restart the process — is honoured the next time the widget paints.
     // DateTimeFormatter.of_pattern allocation is microseconds; negligible per render.
@@ -570,18 +570,9 @@ object DailyViewHandler : WidgetViewHandler {
         displaySource: WeatherSource,
         centerDate: LocalDate,
         today: LocalDate,
-        visibleDays: Long = HISTORY_BACKFILL_VISIBLE_DAYS,
-    ): Boolean =
-        displaySource == WeatherSource.NWS && !centerDate.isBefore(today.minusDays(visibleDays))
+        visibleDays: Long = DailyHistoryBackfillCoordinator.HISTORY_BACKFILL_VISIBLE_DAYS,
+    ): Boolean = DailyHistoryBackfillCoordinator.shouldProbeHistoryBackfill(displaySource, centerDate, today, visibleDays)
 
-    /**
-     * Probe recent NWS observation coverage and enqueue the gap-aware observation backfill when
-     * it is incomplete. This mirrors what the temperature graph does in [loadGraphHours]; without
-     * it, a past day whose daily_history row exists but was computed from a partial day of
-     * observations (e.g. the device was off during the afternoon) never gets repaired from the
-     * daily view, because the presence-only [computeMissingDataRefreshes] check treats it as
-     * already populated. The shared backfill cooldown key prevents double-fetching with the graph.
-     */
     @VisibleForTesting
     internal suspend fun maybeBackfillIncompleteHistory(
         context: Context,
@@ -595,45 +586,19 @@ object DailyViewHandler : WidgetViewHandler {
         centerDate: LocalDate,
         today: LocalDate,
         now: LocalDateTime,
-    ) {
-        if (repository == null) return
-        if (!shouldProbeHistoryBackfill(displaySource, centerDate, today)) return
-        // Cooldown BEFORE the read, exactly as the CLOUD probe does it. While the shared cooldown is
-        // active the evaluation below could only ever log a cooldown SKIP, so paying for a 72h
-        // observation load first is pure waste — and it was being paid on the click path, inside the
-        // paint, on every NWS daily render. Measured 2026-09-07 on the Samsung: 486-492ms warm,
-        // 3,185ms under a concurrent sync, once 8,325ms; nothing it returns is drawn. That single
-        // read was the whole reason an NWS tap cost ~350ms more than the same tap on any other
-        // source. See performance/260907-daily-path-observation-reads-unscoped-and-duplicated.md.
-        if (hourlyBackfillCoolingDown(stateManager, appWidgetId, displaySource, lat, lon)) return
-
-        val graphStart = now.minusHours(WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS)
-        val minEpoch = graphStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val maxEpoch = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        // Scoped: evaluateHourlyBackfillNeed filters this list through matchesObservationSource,
-        // which is matchesActualSource, which admits only GENERIC_GAP or this source's resolved
-        // provider. Every other api crossed the CursorWindow to be dropped one line later.
-        val observations = repository.getObservationsInRange(
-            minEpoch,
-            maxEpoch,
-            lat,
-            lon,
-            ActualsReadScope.apisFor(displaySource),
-        )
-        maybeEnqueueHourlyObservationBackfill(
-            context = context,
-            database = database,
-            stateManager = stateManager,
-            appWidgetId = appWidgetId,
-            displaySource = displaySource,
-            graphStart = graphStart,
-            graphEnd = now,
-            observations = observations,
-            repositoryPresent = true,
-            observationsLat = lat,
-            observationsLon = lon,
-        )
-    }
+    ) = DailyHistoryBackfillCoordinator.maybeBackfillIncompleteHistory(
+        context = context,
+        database = database,
+        repository = repository,
+        stateManager = stateManager,
+        appWidgetId = appWidgetId,
+        displaySource = displaySource,
+        lat = lat,
+        lon = lon,
+        centerDate = centerDate,
+        today = today,
+        now = now,
+    )
 
     internal suspend fun requestMissingDataRefresh(
         context: Context,
@@ -647,19 +612,19 @@ object DailyViewHandler : WidgetViewHandler {
         forceRefresh: Boolean,
         reason: String,
         message: String,
-    ) {
-        if (!stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, refreshType, cooldownMs)) {
-            return
-        }
-        appLogDao.log(logTag, message, "INFO")
-        WidgetWorkScheduler.enqueueRedundantImmediateSync(
-            context = context,
-            forceRefresh = forceRefresh,
-            reason = reason,
-        )
-        // Mark after the trigger succeeds so a failure doesn't consume the cooldown.
-        stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, refreshType)
-    }
+    ) = DailyHistoryBackfillCoordinator.requestMissingDataRefresh(
+        context = context,
+        appLogDao = appLogDao,
+        stateManager = stateManager,
+        appWidgetId = appWidgetId,
+        displaySource = displaySource,
+        refreshType = refreshType,
+        cooldownMs = cooldownMs,
+        logTag = logTag,
+        forceRefresh = forceRefresh,
+        reason = reason,
+        message = message,
+    )
 
     private fun setupCurrentTempToggle(context: Context, views: RemoteViews, appWidgetId: Int) {
         HeaderTapTargetHelper.bindToggleTemperatureHeader(context, views, appWidgetId)
@@ -697,51 +662,30 @@ object DailyViewHandler : WidgetViewHandler {
         visibleDates: List<LocalDate>,
         cloudDays: List<CloudCoverDiagnosticRow>? = null,
         hourlyForecasts: List<HourlyForecastEntity>? = null,
-    ) {
-        val mode = if (useGraph) "GRAPH" else "TEXT"
-        val datesSummary = visibleDates.joinToString(",").ifEmpty { "<none>" }
-        val tag = if (visibleDates.isEmpty()) LOG_TAG_DAILY_RENDER_EMPTY else LOG_TAG_DAILY_RENDER
-        val cloudSummary = if (cloudDays != null) {
-            " " + buildCloudCoverDiagnostic(cloudDays, hourlyForecasts, displaySource)
-        } else ""
-        appLogDao.log(
-            tag,
-            "widget=$appWidgetId mode=$mode offset=$dateOffset cols=$numColumns rows=$numRows skipYesterday=$skipYesterday center=$centerDate source=${displaySource.id} days=${visibleDates.size} dates=$datesSummary$cloudSummary"
-        )
-    }
+    ) = DailyRenderLogger.logDailyRenderSummary(
+        appLogDao = appLogDao,
+        appWidgetId = appWidgetId,
+        dateOffset = dateOffset,
+        displaySource = displaySource,
+        numColumns = numColumns,
+        numRows = numRows,
+        useGraph = useGraph,
+        skipYesterday = skipYesterday,
+        centerDate = centerDate,
+        visibleDates = visibleDates,
+        cloudDays = cloudDays,
+        hourlyForecasts = hourlyForecasts,
+    )
 
-    /**
-     * Persists why cloud-cover shading does/doesn't appear on the daily vertical bars while
-     * navigating history. The shading is derived per displayed day from near-noon hourly
-     * cloud cover (DailyViewLogic.resolveNoonCloudCoverRatio), so a bar can render without
-     * shading if the in-memory hourly window does not reach that date — even though the data
-     * exists in the DB. This logs, for each render: how many visible days resolved a cloud
-     * ratio, which dates missed it (with daysFromToday), and the actual hourly window span for
-     * the display source so a window/coverage gap is visible from app_logs alone.
-     */
     internal fun buildCloudCoverDiagnostic(
         cloudDays: List<CloudCoverDiagnosticRow>,
         hourlyForecasts: List<HourlyForecastEntity>?,
         displaySource: WeatherSource,
-    ): String {
-        val resolved = cloudDays.count { it.cloudCoverRatioOverride != null }
-        val missing = cloudDays.filter { it.cloudCoverRatioOverride == null }
-            .map { "${it.date}(d${it.daysFromToday})" }
-        val missingStr = if (missing.isEmpty()) "-" else missing.joinToString(",")
-
-        val zone = ZoneId.systemDefault()
-        val sourceRows = hourlyForecasts
-            ?.filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
-            ?: emptyList()
-        val withCloud = sourceRows.count { it.cloudCover != null }
-        val dates = sourceRows.asSequence()
-            .map { Instant.ofEpochMilli(it.dateTime).atZone(zone).toLocalDate() }
-            .toList()
-        val window = if (dates.isEmpty()) "none" else "${dates.min()}..${dates.max()}"
-
-        return "cloud=$resolved/${cloudDays.size} cloudMissing=$missingStr " +
-            "hourlyRows=${sourceRows.size} hourlyWithCloud=$withCloud hourlyWindow=$window"
-    }
+    ): String = DailyRenderLogger.buildCloudCoverDiagnostic(
+        cloudDays = cloudDays,
+        hourlyForecasts = hourlyForecasts,
+        displaySource = displaySource,
+    )
 
     @VisibleForTesting
     internal fun buildAvailableNavigationDates(

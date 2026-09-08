@@ -185,18 +185,19 @@ object PrecipitationGraphRenderer {
         nowLabelText: String = "NOW",
     ): PrecipGraphLayout {
         val labelScale = bitmapScale.coerceAtMost(1f)
-        val topPadding = textMeasurer.dpToPx(GRAPH_TOP_PADDING_DP * labelScale)
-        val labelHeight = textMeasurer.dpToPx(HourlyGraphDefaults.BOTTOM_LABEL_HEIGHT_DP * labelScale)
-        val footerBottomInset = textMeasurer.dpToPx(HourlyGraphDefaults.FOOTER_BOTTOM_INSET_DP)
-
-        val graphTop = topPadding
-        val graphBottom =
-            if (showHourlyIcons) {
-                heightPx - footerIconSize - footerBottomInset
-            } else {
-                heightPx - labelHeight
-            }
-        val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
+        val geometry = PrecipGraphGeometry.compute(
+            widthPx = widthPx,
+            heightPx = heightPx,
+            labelScale = labelScale,
+            showHourlyIcons = showHourlyIcons,
+            footerIconSize = footerIconSize,
+            dpToPx = { textMeasurer.dpToPx(it) },
+            topPaddingDp = GRAPH_TOP_PADDING_DP,
+        )
+        val footerBottomInset = geometry.footerBottomInset
+        val graphTop = geometry.graphTop
+        val graphBottom = geometry.graphBottom
+        val graphHeight = geometry.graphHeight
         val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
 
         val points = mutableListOf<Pair<Float, Float>>()
