@@ -462,75 +462,28 @@ object PrecipitationGraphRenderer {
         getTextBounds: (String) -> Pair<Float, Float>,
         dpToPx: (Float) -> Float
     ): List<RainAmountPlacement> {
-        val placements = mutableListOf<RainAmountPlacement>()
-        val rainCollisionBounds = initialCollisionBounds.toMutableList()
-        val xFractions = HourlyGraphDefaults.OVERLAY_X_FRACTIONS
-        val yFractions = HourlyGraphDefaults.OVERLAY_Y_FRACTIONS
-        val rainPadPx = dpToPx(RAIN_AMOUNT_PADDING_DP)
-
-        for (period in rainPeriods) {
-            val amountText = labelPrefix + DailyRainLabels.formatPrecipAmount(period.totalAmountMm)
-            val textWidth = measureText(amountText)
-            val (textAscent, textDescent) = getTextBounds(amountText)
-
-            var best: RainCandidate? = null
-
-            // Day/night and per-hour periods carry an anchorX so the label sits over its region;
-            // window totals (anchorX == null) keep the legacy free-floating grid search.
-            val candidateXs = period.anchorX?.let { listOf(it) }
-                ?: xFractions.map { geometry.widthPx * it }
-
-            outer@ for (yFrac in yFractions) {
-                for (rawX in candidateXs) {
-                    val cx = rawX.coerceIn(textWidth / 2f, geometry.widthPx - textWidth / 2f)
-                    val cy = geometry.graphTop + geometry.graphHeight * yFrac
-                    val candidateBounds = PrecipRect(
-                        cx - textWidth / 2f,
-                        cy + textAscent,
-                        cx + textWidth / 2f,
-                        cy + textDescent,
-                    )
-                    if (candidateBounds.top < geometry.graphTop || candidateBounds.bottom > geometry.graphBottom) continue
-
-                    val paddedBounds = PrecipRect(
-                        candidateBounds.left - rainPadPx,
-                        candidateBounds.top - rainPadPx,
-                        candidateBounds.right + rainPadPx,
-                        candidateBounds.bottom + rainPadPx,
-                    )
-                    val overlapping = rainCollisionBounds.filter { it.intersects(paddedBounds) }
-                    if (overlapping.isEmpty()) {
-                        best = RainCandidate(cx, cy, candidateBounds, 0f)
-                        break@outer
-                    }
-                    val overlapArea = overlapping.sumOf { existing ->
-                        val intersectLeft = maxOf(existing.left, paddedBounds.left)
-                        val intersectTop = maxOf(existing.top, paddedBounds.top)
-                        val intersectRight = minOf(existing.right, paddedBounds.right)
-                        val intersectBottom = minOf(existing.bottom, paddedBounds.bottom)
-                        if (intersectLeft < intersectRight && intersectTop < intersectBottom) {
-                            ((intersectRight - intersectLeft) * (intersectBottom - intersectTop)).toDouble()
-                        } else 0.0
-                    }.toFloat()
-                    if (overlapArea < (best?.overlapArea ?: Float.MAX_VALUE)) {
-                        best = RainCandidate(cx, cy, candidateBounds, overlapArea)
-                    }
-                }
-            }
-
-            best?.let { b ->
-                placements.add(RainAmountPlacement(amountText, b.x, b.y, b.bounds, b.overlapArea))
-                rainCollisionBounds.add(
-                    PrecipRect(
-                        b.bounds.left - rainPadPx,
-                        b.bounds.top - rainPadPx,
-                        b.bounds.right + rainPadPx,
-                        b.bounds.bottom + rainPadPx,
-                    )
-                )
-            }
+        val sharedBounds = initialCollisionBounds.map { com.weatherwidget.shared.graph.GraphRect(it.left, it.top, it.right, it.bottom) }
+        val sharedPlacements = com.weatherwidget.shared.graph.RainAmountLabelPlacer.calculatePlacements(
+            rainPeriods = rainPeriods,
+            widthPx = geometry.widthPx.toFloat(),
+            graphTop = geometry.graphTop,
+            graphBottom = geometry.graphBottom,
+            graphHeight = geometry.graphHeight,
+            initialCollisionBounds = sharedBounds,
+            labelPrefix = labelPrefix,
+            measureText = measureText,
+            getTextBounds = getTextBounds,
+            paddingPx = dpToPx(RAIN_AMOUNT_PADDING_DP),
+        )
+        return sharedPlacements.map {
+            RainAmountPlacement(
+                text = it.text,
+                x = it.x,
+                y = it.y,
+                bounds = PrecipRect(it.bounds.left, it.bounds.top, it.bounds.right, it.bounds.bottom),
+                overlapArea = it.overlapArea,
+            )
         }
-        return placements
     }
 
     private data class RainCandidate(

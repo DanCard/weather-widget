@@ -278,3 +278,99 @@ object CloudLayerGlyphPlacer {
     fun hasVisibleCover(covers: List<Int?>, minCover: Int = MIN_COVER): Boolean =
         covers.any { it != null && it >= minCover }
 }
+
+/**
+ * Pure, shared plan for building cloud layer glyph lists for forecast and actual series.
+ */
+object CloudLayerGlyphPlan {
+    data class Result(
+        val forecastGlyphs: List<LayerGlyph>,
+        val actualGlyphs: List<LayerGlyph>,
+    )
+
+    fun build(
+        midCovers: List<Int?>,
+        highCovers: List<Int?>,
+        actualLowCovers: List<Int?>,
+        actualMidCovers: List<Int?>,
+        actualHighCovers: List<Int?>,
+        forecastTotals: List<Int?>,
+        actualTotals: List<Int?>,
+        lows: List<Int?>,
+        glyphStepPx: Float,
+        actualGlyphStepPx: Float,
+        nudgePx: Float,
+        actualNudgePx: Float,
+        xAt: (Int) -> Float,
+        yAt: (Float) -> Float,
+    ): Result {
+        fun layerVertices(
+            cover: List<Int?>,
+            other: List<Int?>,
+            totals: List<Int?>,
+            lowerBands: List<Int?>,
+        ) = cover.mapIndexed { index, value ->
+            LayerVertex(
+                x = xAt(index),
+                y = yAt((value ?: 0).toFloat()),
+                cover = value,
+                otherCover = other.getOrNull(index),
+                totalCover = totals.getOrNull(index),
+                lowerBandCover = lowerBands.getOrNull(index),
+            )
+        }
+
+        val highLowerBands = lows.indices.map { index ->
+            listOfNotNull(lows.getOrNull(index), midCovers.getOrNull(index)).maxOrNull()
+        }
+        val noLowerBand = List<Int?>(midCovers.size) { null }
+
+        val forecastGlyphs =
+            CloudLayerGlyphPlacer.place(
+                vertices = layerVertices(midCovers, highCovers, forecastTotals, lows),
+                glyph = CloudLayerGlyphPlacer.MID_GLYPH,
+                stepPx = glyphStepPx,
+                phaseFraction = CloudLayerGlyphPlacer.MID_PHASE,
+                nudgePx = nudgePx,
+            ) +
+                CloudLayerGlyphPlacer.place(
+                    vertices = layerVertices(highCovers, midCovers, forecastTotals, highLowerBands),
+                    glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
+                    stepPx = glyphStepPx,
+                    phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
+                    nudgePx = -nudgePx,
+                )
+
+        val actualGlyphs =
+            CloudLayerGlyphPlacer.place(
+                vertices = layerVertices(actualLowCovers, actualMidCovers, actualTotals, noLowerBand),
+                glyph = CloudLayerGlyphPlacer.LOW_GLYPH,
+                stepPx = actualGlyphStepPx,
+                phaseFraction = CloudLayerGlyphPlacer.LOW_ACTUAL_PHASE,
+                nudgePx = actualNudgePx,
+                minCover = 0,
+                suppressMatchingTotal = true,
+            ) +
+                CloudLayerGlyphPlacer.place(
+                    vertices = layerVertices(actualMidCovers, actualHighCovers, actualTotals, noLowerBand),
+                    glyph = CloudLayerGlyphPlacer.MID_GLYPH,
+                    stepPx = actualGlyphStepPx,
+                    phaseFraction = CloudLayerGlyphPlacer.MID_ACTUAL_PHASE,
+                    nudgePx = actualNudgePx,
+                    minCover = 0,
+                    suppressMatchingTotal = true,
+                ) +
+                CloudLayerGlyphPlacer.place(
+                    vertices = layerVertices(actualHighCovers, actualMidCovers, actualTotals, noLowerBand),
+                    glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
+                    stepPx = actualGlyphStepPx,
+                    phaseFraction = CloudLayerGlyphPlacer.HIGH_ACTUAL_PHASE,
+                    nudgePx = -actualNudgePx,
+                    minCover = 0,
+                    suppressMatchingTotal = true,
+                )
+
+        return Result(forecastGlyphs, actualGlyphs)
+    }
+}
+

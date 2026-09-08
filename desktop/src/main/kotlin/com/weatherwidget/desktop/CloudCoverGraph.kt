@@ -249,46 +249,24 @@ fun CloudCoverGraph(
             val actualGlyphStepPx = CloudLayerGlyphPlacer.ACTUAL_GLYPH_STEP_DP.dp.toPx() * scale
             val nudgePx = CloudLayerGlyphPlacer.GLYPH_SIZE_DP.dp.toPx() * scale * 0.55f
             val actualNudgePx = CloudLayerGlyphPlacer.ACTUAL_GLYPH_SIZE_DP.dp.toPx() * scale * 0.55f
-            // The curve each trail is drawn against, and the highest band BELOW the one being
-            // placed. Forecast trails answer to the forecast curve, observed trails to the actual
-            // curve; see CloudLayerGlyphPlacer.coincidenceWithTotal.
-            val forecastTotals = points.map { seriesByTime[it.dateTime]?.forecastCover }
-            val actualTotals = points.map { seriesByTime[it.dateTime]?.actualCover }
-            val lows = points.map { it.cloudCoverLow }
-            val highLowerBands = points.indices.map { index ->
-                listOfNotNull(lows.getOrNull(index), midCovers.getOrNull(index)).maxOrNull()
-            }
-            val noLowerBand = List<Int?>(points.size) { null }
-            fun layerVertices(
-                cover: List<Int?>,
-                other: List<Int?>,
-                totals: List<Int?>,
-                lowerBands: List<Int?>,
-            ) = cover.mapIndexed { index, value ->
-                LayerVertex(
-                    x = xAt(index),
-                    y = yAt((value ?: 0).toFloat()),
-                    cover = value,
-                    otherCover = other.getOrNull(index),
-                    totalCover = totals.getOrNull(index),
-                    lowerBandCover = lowerBands.getOrNull(index),
-                )
-            }
-            val layerGlyphs =
-                CloudLayerGlyphPlacer.place(
-                    vertices = layerVertices(midCovers, highCovers, forecastTotals, lows),
-                    glyph = CloudLayerGlyphPlacer.MID_GLYPH,
-                    stepPx = glyphStepPx,
-                    phaseFraction = CloudLayerGlyphPlacer.MID_PHASE,
-                    nudgePx = nudgePx,
-                ) +
-                    CloudLayerGlyphPlacer.place(
-                        vertices = layerVertices(highCovers, midCovers, forecastTotals, highLowerBands),
-                        glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
-                        stepPx = glyphStepPx,
-                        phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
-                        nudgePx = -nudgePx,
-                    )
+            val planResult = com.weatherwidget.shared.graph.CloudLayerGlyphPlan.build(
+                midCovers = midCovers,
+                highCovers = highCovers,
+                actualLowCovers = actualLowCovers,
+                actualMidCovers = actualMidCovers,
+                actualHighCovers = actualHighCovers,
+                forecastTotals = points.map { seriesByTime[it.dateTime]?.forecastCover },
+                actualTotals = points.map { seriesByTime[it.dateTime]?.actualCover },
+                lows = points.map { it.cloudCoverLow },
+                glyphStepPx = glyphStepPx,
+                actualGlyphStepPx = actualGlyphStepPx,
+                nudgePx = nudgePx,
+                actualNudgePx = actualNudgePx,
+                xAt = { xAt(it) },
+                yAt = { yAt(it) },
+            )
+            val layerGlyphs = planResult.forecastGlyphs
+
             // Actual layers have no 5% floor: a reported 0-4% value still explains the vertical
             // profile when it differs from total.
             val actualGlyphStyle = glyphStyle.copy(
@@ -296,34 +274,7 @@ fun CloudCoverGraph(
                 color = COLOR_CLOUD_ACTUAL,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Normal,
             )
-            val actualLayerGlyphs =
-                CloudLayerGlyphPlacer.place(
-                    vertices = layerVertices(actualLowCovers, actualMidCovers, actualTotals, noLowerBand),
-                    glyph = CloudLayerGlyphPlacer.LOW_GLYPH,
-                    stepPx = actualGlyphStepPx,
-                    phaseFraction = CloudLayerGlyphPlacer.LOW_ACTUAL_PHASE,
-                    nudgePx = actualNudgePx,
-                    minCover = 0,
-                    suppressMatchingTotal = true,
-                ) +
-                    CloudLayerGlyphPlacer.place(
-                    vertices = layerVertices(actualMidCovers, actualHighCovers, actualTotals, noLowerBand),
-                    glyph = CloudLayerGlyphPlacer.MID_GLYPH,
-                    stepPx = actualGlyphStepPx,
-                    phaseFraction = CloudLayerGlyphPlacer.MID_ACTUAL_PHASE,
-                    nudgePx = actualNudgePx,
-                    minCover = 0,
-                    suppressMatchingTotal = true,
-                ) +
-                    CloudLayerGlyphPlacer.place(
-                        vertices = layerVertices(actualHighCovers, actualMidCovers, actualTotals, noLowerBand),
-                        glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
-                        stepPx = actualGlyphStepPx,
-                        phaseFraction = CloudLayerGlyphPlacer.HIGH_ACTUAL_PHASE,
-                        nudgePx = -actualNudgePx,
-                        minCover = 0,
-                        suppressMatchingTotal = true,
-                    )
+            val actualLayerGlyphs = planResult.actualGlyphs
             fun drawGlyphs(glyphs: List<com.weatherwidget.shared.graph.LayerGlyph>, style: TextStyle) {
                 glyphs.forEach { glyph ->
                     // The placer returns the glyph's visual centre; drawText takes its top-left.

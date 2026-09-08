@@ -334,3 +334,93 @@ object GraphEmptySpaceFinder {
         return minGap
     }
 }
+
+/**
+ * Pure, platform-independent rain amount label placement algorithm.
+ * Extracted from Android PrecipitationGraphRenderer and Desktop PrecipitationGraph.
+ */
+object RainAmountLabelPlacer {
+    data class PlacementResult(
+        val text: String,
+        val x: Float,
+        val y: Float,
+        val bounds: GraphRect,
+        val overlapArea: Float,
+    )
+
+    fun calculatePlacements(
+        rainPeriods: List<RainPeriodSelection.RainPeriod>,
+        widthPx: Float,
+        graphTop: Float,
+        graphBottom: Float,
+        graphHeight: Float,
+        initialCollisionBounds: List<GraphRect>,
+        labelPrefix: String = "",
+        measureText: (String) -> Float,
+        getTextBounds: (String) -> Pair<Float, Float>, // (ascent, descent) relative to cy
+        paddingPx: Float,
+        xFractions: List<Float> = HourlyGraphDefaults.OVERLAY_X_FRACTIONS,
+        yFractions: List<Float> = HourlyGraphDefaults.OVERLAY_Y_FRACTIONS,
+    ): List<PlacementResult> {
+        val placements = mutableListOf<PlacementResult>()
+        val rainCollisionBounds = initialCollisionBounds.toMutableList()
+
+        for (period in rainPeriods) {
+            val amountText = labelPrefix + com.weatherwidget.shared.util.DailyRainLabels.formatPrecipAmount(period.totalAmountMm)
+            val textWidth = measureText(amountText)
+            val (textAscent, textDescent) = getTextBounds(amountText)
+
+            var bestX = 0f
+            var bestY = 0f
+            var bestBounds = GraphRect.Zero
+            var bestOverlapArea = Float.MAX_VALUE
+            var found = false
+
+            val candidateXs = period.anchorX?.let { listOf(it) }
+                ?: xFractions.map { widthPx * it }
+
+            outer@ for (yFrac in yFractions) {
+                for (rawX in candidateXs) {
+                    val cx = rawX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
+                    val cy = graphTop + graphHeight * yFrac
+                    val candidateBounds = GraphRect(
+                        cx - textWidth / 2f,
+                        cy + textAscent,
+                        cx + textWidth / 2f,
+                        cy + textDescent,
+                    )
+                    if (candidateBounds.top < graphTop || candidateBounds.bottom > graphBottom) continue
+
+                    val paddedBounds = candidateBounds.inflate(paddingPx)
+                    val overlapping = rainCollisionBounds.filter { it.intersects(paddedBounds) }
+                    if (overlapping.isEmpty()) {
+                        bestX = cx
+                        bestY = cy
+                        bestBounds = candidateBounds
+                        bestOverlapArea = 0f
+                        found = true
+                        break@outer
+                    }
+
+                    val overlapArea = overlapping.sumOf { existing ->
+                        existing.intersectionArea(paddedBounds).toDouble()
+                    }.toFloat()
+
+                    if (overlapArea < bestOverlapArea) {
+                        bestOverlapArea = overlapArea
+                        bestX = cx
+                        bestY = cy
+                        bestBounds = candidateBounds
+                        found = true
+                    }
+                }
+            }
+
+            if (found) {
+                placements.add(PlacementResult(amountText, bestX, bestY, bestBounds, bestOverlapArea))
+                rainCollisionBounds.add(bestBounds.inflate(paddingPx))
+            }
+        }
+        return placements
+    }
+}

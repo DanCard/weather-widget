@@ -395,69 +395,30 @@ private fun calculateRainAmountPlacements(
     textStyle: TextStyle,
     dpToPx: Float,
 ): List<RainAmountPlacement> {
-    val placements = mutableListOf<RainAmountPlacement>()
-    val rainCollisionBounds = initialCollisionBounds.toMutableList()
-    
-    val xFractions = listOf(0.18f, 0.35f, 0.50f, 0.65f, 0.82f)
-    val yFractions = listOf(0.25f, 0.45f, 0.65f, 0.82f)
-    val rainPadPx = 4f * dpToPx
-
-    for (period in rainPeriods) {
-        val amountText = labelPrefix + formatPrecipAmount(period.totalAmountMm)
-        val textLayout = textMeasurer.measure(amountText, textStyle)
-        val textWidth = textLayout.size.width.toFloat()
-        val textHeight = textLayout.size.height.toFloat()
-
-        var bestX = 0f
-        var bestY = 0f
-        var bestBounds = Rect.Zero
-        var bestOverlapArea = Float.MAX_VALUE
-
-        val candidateXs = period.anchorX?.let { listOf(it) }
-            ?: xFractions.map { widthPx * it }
-
-        outer@ for (yFrac in yFractions) {
-            for (rawX in candidateXs) {
-                val cx = rawX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
-                val cy = graphTop + graphHeight * yFrac
-                val candidateBounds = Rect(
-                    left = cx - textWidth / 2f,
-                    top = cy - textHeight / 2f,
-                    right = cx + textWidth / 2f,
-                    bottom = cy + textHeight / 2f
-                )
-                if (candidateBounds.top < graphTop || candidateBounds.bottom > graphBottom) continue
-
-                val paddedBounds = candidateBounds.inflate(rainPadPx)
-                val overlapping = rainCollisionBounds.filter { it.overlaps(paddedBounds) }
-                if (overlapping.isEmpty()) {
-                    bestX = cx
-                    bestY = cy
-                    bestBounds = candidateBounds
-                    bestOverlapArea = 0f
-                    break@outer
-                }
-                
-                val overlapArea = overlapping.sumOf { existing ->
-                    val intersect = existing.intersect(paddedBounds)
-                    if (intersect.width > 0 && intersect.height > 0) {
-                        (intersect.width * intersect.height).toDouble()
-                    } else 0.0
-                }.toFloat()
-                
-                if (overlapArea < bestOverlapArea) {
-                    bestOverlapArea = overlapArea
-                    bestX = cx
-                    bestY = cy
-                    bestBounds = candidateBounds
-                }
-            }
-        }
-
-        if (bestOverlapArea != Float.MAX_VALUE) {
-            placements.add(RainAmountPlacement(amountText, bestX, bestY, bestBounds))
-            rainCollisionBounds.add(bestBounds.inflate(rainPadPx))
-        }
+    val sharedBounds = initialCollisionBounds.map {
+        com.weatherwidget.shared.graph.GraphRect(it.left, it.top, it.right, it.bottom)
     }
-    return placements
+    val sharedPlacements = com.weatherwidget.shared.graph.RainAmountLabelPlacer.calculatePlacements(
+        rainPeriods = rainPeriods,
+        widthPx = widthPx,
+        graphTop = graphTop,
+        graphBottom = graphBottom,
+        graphHeight = graphHeight,
+        initialCollisionBounds = sharedBounds,
+        labelPrefix = labelPrefix,
+        measureText = { textMeasurer.measure(it, textStyle).size.width.toFloat() },
+        getTextBounds = {
+            val h = textMeasurer.measure(it, textStyle).size.height.toFloat()
+            Pair(-h / 2f, h / 2f)
+        },
+        paddingPx = 4f * dpToPx,
+    )
+    return sharedPlacements.map {
+        RainAmountPlacement(
+            text = it.text,
+            x = it.x,
+            y = it.y,
+            bounds = Rect(it.bounds.left, it.bounds.top, it.bounds.right, it.bounds.bottom),
+        )
+    }
 }

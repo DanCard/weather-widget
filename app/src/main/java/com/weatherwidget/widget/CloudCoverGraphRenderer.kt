@@ -348,80 +348,31 @@ object CloudCoverGraphRenderer {
             // explains it. The forecast trails answer to the forecast curve, the observed trails to
             // the actual curve — measuring either against the other would suppress on a
             // coincidence that never appears on screen.
-            val forecastTotals = hours.map { it.cloudCover }
-            val actualTotals = hours.map { it.actualCloudCover }
-            val lows = hours.map { it.lowCover }
-            fun layerVertices(
-                cover: List<Int?>,
-                other: List<Int?>,
-                totals: List<Int?>,
-                lowerBands: List<Int?>,
-            ) = cover.mapIndexed { index, value ->
-                LayerVertex(
-                    x = hourWidth * index,
-                    y = mapCloudCoverToY(
-                        cloudCover = (value ?: 0).toFloat(),
+            val planResult = com.weatherwidget.shared.graph.CloudLayerGlyphPlan.build(
+                midCovers = midCovers,
+                highCovers = highCovers,
+                actualLowCovers = actualLowCovers,
+                actualMidCovers = actualMidCovers,
+                actualHighCovers = actualHighCovers,
+                forecastTotals = hours.map { it.cloudCover },
+                actualTotals = hours.map { it.actualCloudCover },
+                lows = hours.map { it.lowCover },
+                glyphStepPx = glyphStepPx,
+                actualGlyphStepPx = actualGlyphStepPx,
+                nudgePx = nudgePx,
+                actualNudgePx = actualNudgePx,
+                xAt = { hourWidth * it },
+                yAt = {
+                    mapCloudCoverToY(
+                        cloudCover = it,
                         graphBottom = graphBottom,
                         graphHeight = graphHeight,
                         topScale = verticalScale.topScale,
-                    ),
-                    cover = value,
-                    otherCover = other.getOrNull(index),
-                    totalCover = totals.getOrNull(index),
-                    lowerBandCover = lowerBands.getOrNull(index),
-                )
-            }
-            // For `h` the low deck and the mid band both sit below it; either explaining the total
-            // makes the forecast `h` redundant. Actual layers use exact total-match suppression.
-            val highLowerBands = lows.indices.map { index ->
-                listOfNotNull(lows.getOrNull(index), midCovers.getOrNull(index)).maxOrNull()
-            }
-            val noLowerBand = List<Int?>(hours.size) { null }
-            val layerGlyphs =
-                CloudLayerGlyphPlacer.place(
-                    vertices = layerVertices(midCovers, highCovers, forecastTotals, lows),
-                    glyph = CloudLayerGlyphPlacer.MID_GLYPH,
-                    stepPx = glyphStepPx,
-                    phaseFraction = CloudLayerGlyphPlacer.MID_PHASE,
-                    nudgePx = nudgePx,
-                ) +
-                    CloudLayerGlyphPlacer.place(
-                        vertices = layerVertices(highCovers, midCovers, forecastTotals, highLowerBands),
-                        glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
-                        stepPx = glyphStepPx,
-                        phaseFraction = CloudLayerGlyphPlacer.HIGH_PHASE,
-                        nudgePx = -nudgePx,
                     )
-            // Actual layers have no 5% floor: a reported 0-4% value still explains the vertical
-            // profile when it differs from total.
-            val actualLayerGlyphs =
-                CloudLayerGlyphPlacer.place(
-                    vertices = layerVertices(actualLowCovers, actualMidCovers, actualTotals, noLowerBand),
-                    glyph = CloudLayerGlyphPlacer.LOW_GLYPH,
-                    stepPx = actualGlyphStepPx,
-                    phaseFraction = CloudLayerGlyphPlacer.LOW_ACTUAL_PHASE,
-                    nudgePx = actualNudgePx,
-                    minCover = 0,
-                    suppressMatchingTotal = true,
-                ) +
-                    CloudLayerGlyphPlacer.place(
-                    vertices = layerVertices(actualMidCovers, actualHighCovers, actualTotals, noLowerBand),
-                    glyph = CloudLayerGlyphPlacer.MID_GLYPH,
-                    stepPx = actualGlyphStepPx,
-                    phaseFraction = CloudLayerGlyphPlacer.MID_ACTUAL_PHASE,
-                    nudgePx = actualNudgePx,
-                    minCover = 0,
-                    suppressMatchingTotal = true,
-                ) +
-                    CloudLayerGlyphPlacer.place(
-                        vertices = layerVertices(actualHighCovers, actualMidCovers, actualTotals, noLowerBand),
-                        glyph = CloudLayerGlyphPlacer.HIGH_GLYPH,
-                        stepPx = actualGlyphStepPx,
-                        phaseFraction = CloudLayerGlyphPlacer.HIGH_ACTUAL_PHASE,
-                        nudgePx = -actualNudgePx,
-                        minCover = 0,
-                        suppressMatchingTotal = true,
-                    )
+                },
+            )
+            val layerGlyphs = planResult.forecastGlyphs
+            val actualLayerGlyphs = planResult.actualGlyphs
             // drawText takes a baseline; the placer returns the glyph's visual centre.
             val baselineOffset =
                 -(paints.layerGlyphPaint.ascent() + paints.layerGlyphPaint.descent()) / 2f

@@ -968,8 +968,8 @@ class DesktopWeatherRepository(
 
         val toUpsert = mutableListOf<DailyHistory>()
         listOf(yesterday, today).forEach { date ->
-            val dayWindowOpen = now < date.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
-            val nightWindowOpen = now < date.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+            val dayWindowOpen = DailyHistoryFreeze.dayWindowOpen(now, date, zoneId)
+            val nightWindowOpen = DailyHistoryFreeze.nightWindowOpen(now, date, zoneId)
             // The night window is the last to close (next-day 8am, same as the noon-cloud window;
             // the overlay window closes earlier at midnight), so this early-exit covers every
             // freeze window too.
@@ -998,12 +998,21 @@ class DesktopWeatherRepository(
                 // Overlay freeze candidate: only a real, non-degenerate forecast row
                 // (climate-normal filler and collapsed high==low rows must never masquerade as
                 // the day's displayed forecast). highTemp/lowTemp are non-nullable on desktop.
-                val overlayRow = row.takeIf { !it.isClimateNormal && it.highTemp != it.lowTemp }
+                val overlayRow = row.takeIf {
+                    DailyHistoryFreeze.isValidOverlayCandidate(
+                        isClimateNormal = it.isClimateNormal,
+                        sourceId = weatherSource,
+                        highTemp = it.highTemp,
+                        lowTemp = it.lowTemp,
+                    )
+                }
                 val resolvedNoonCloud = com.weatherwidget.shared.util.DailyNoonCloudCover
-                    .resolveMeasuredNoonCloudCoverPercent(
+                    .resolveMeasuredNoonCloudCoverPercentAtSite(
                         hourly = hourlyRows,
                         date = date,
                         displaySourceId = weatherSource,
+                        centerLat = latitude,
+                        centerLon = longitude,
                     )
                 fragments.forEach { existing ->
                     val newDay = if (dayWindowOpen) resolved.dayPrecip else existing.forecastDayPrecipChance

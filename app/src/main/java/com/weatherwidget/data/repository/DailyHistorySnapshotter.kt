@@ -164,10 +164,8 @@ internal class DailyHistorySnapshotter(
 
         val toInsert = mutableListOf<DailyHistoryEntity>()
         listOf(yesterday, today).forEach { date ->
-            val dayWindowOpen = nowMs <
-                date.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
-            val nightWindowOpen = nowMs <
-                date.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+            val dayWindowOpen = DailyHistoryFreeze.dayWindowOpen(nowMs, date, zoneId)
+            val nightWindowOpen = DailyHistoryFreeze.nightWindowOpen(nowMs, date, zoneId)
             if (!dayWindowOpen && !nightWindowOpen) return@forEach
             val overlayOpen = DailyHistoryFreeze.overlayWindowOpen(nowMs, date, zoneId)
             val noonCloudOpen = DailyHistoryFreeze.noonCloudWindowOpen(nowMs, date, zoneId)
@@ -188,10 +186,12 @@ internal class DailyHistorySnapshotter(
                     zoneId = zoneId,
                 )
                 val overlayRow = row.takeIf {
-                    !it.isClimateNormal &&
-                        it.source != WeatherSource.GENERIC_GAP.id &&
-                        it.highTemp != null &&
-                        it.lowTemp != null
+                    DailyHistoryFreeze.isValidOverlayCandidate(
+                        isClimateNormal = it.isClimateNormal,
+                        sourceId = it.source,
+                        highTemp = it.highTemp,
+                        lowTemp = it.lowTemp,
+                    )
                 }
                 val resolvedNoonCloud =
                     DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercentAtSite(

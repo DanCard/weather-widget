@@ -16,7 +16,6 @@ import java.time.ZoneId
  * hindcast-drift the archive.
  */
 object DailyHistoryFreeze {
-
     /**
      * Forecast-overlay freeze window (forecastHighTemp/LowTemp/PrecipAmountMm): open until local
      * midnight at the end of [date]. The past-day overlay means "the most recent complete forecast
@@ -32,6 +31,35 @@ object DailyHistoryFreeze {
      */
     fun noonCloudWindowOpen(nowMs: Long, date: LocalDate, zoneId: ZoneId = ZoneId.systemDefault()): Boolean =
         nowMs < date.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+
+    /**
+     * Day rain-chance freeze window: open until 8pm (20:00) on [date].
+     */
+    fun dayWindowOpen(nowMs: Long, date: LocalDate, zoneId: ZoneId = ZoneId.systemDefault()): Boolean =
+        nowMs < date.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
+
+    /**
+     * Night rain-chance freeze window: open until 8am (08:00) on the day after [date].
+     */
+    fun nightWindowOpen(nowMs: Long, date: LocalDate, zoneId: ZoneId = ZoneId.systemDefault()): Boolean =
+        nowMs < date.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+
+    /**
+     * Candidate row for forecast overlay freeze: only a real, non-degenerate forecast row
+     * (climate normals, generic gaps, or placeholder/degenerate high==low rows must never
+     * masquerade as the day's displayed forecast).
+     */
+    fun isValidOverlayCandidate(
+        isClimateNormal: Boolean,
+        sourceId: String,
+        highTemp: Float?,
+        lowTemp: Float?,
+    ): Boolean = !isClimateNormal &&
+        sourceId != com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id &&
+        highTemp != null &&
+        lowTemp != null &&
+        highTemp != lowTemp
+
 
     data class FrozenDisplay(
         val forecastHighTemp: Float?,
