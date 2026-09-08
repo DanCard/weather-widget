@@ -205,7 +205,6 @@ object ApiSourceWarningHelper {
 
     private fun sourceFailureTag(source: WeatherSource): String? =
         when (source) {
-            WeatherSource.VISUAL_CROSSING -> "FETCH_VISUAL_CROSSING_FAIL"
             WeatherSource.OPEN_WEATHER_MAP -> "FETCH_OWM_FAIL"
             WeatherSource.WEATHER_API -> "FETCH_WAPI_FAIL"
             WeatherSource.SILURIAN -> "FETCH_SILURIAN_FAIL"

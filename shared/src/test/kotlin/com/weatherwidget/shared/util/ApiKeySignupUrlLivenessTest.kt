@@ -19,7 +19,7 @@ import java.net.URL
  * redirects, or unresolvable host) fails with every broken URL listed.
  *
  * Moved from `:app` to `:shared` so both clients (Android + desktop) exercise the same URLs;
- * the [ApiKeySignupUrls] object it guards also lives in `:shared`.
+ * the signup URLs live on [com.weatherwidget.data.model.WeatherSource] in `:shared`.
  */
 @Category(LongDuration::class)
 class ApiKeySignupUrlLivenessTest {
@@ -27,7 +27,7 @@ class ApiKeySignupUrlLivenessTest {
     @Test
     fun everyKeyRequiringSourceHasAnHttpsSignupUrl() {
         for (source in ApiKeySignupUrls.sourcesRequiringKeys) {
-            val url = ApiKeySignupUrls.signupUrl(source)
+            val url = source.signupUrl
             assertTrue(
                 "signup URL for ${source.id} must be https, got: $url",
                 url.startsWith("https://"),
@@ -41,7 +41,7 @@ class ApiKeySignupUrlLivenessTest {
 
         val failures = mutableListOf<String>()
         for (source in ApiKeySignupUrls.sourcesRequiringKeys) {
-            val url = ApiKeySignupUrls.signupUrl(source)
+            val url = source.signupUrl
             val result = fetchWithRetries(source.id, url)
             if (result.code !in 200..399) {
                 failures += "${source.id}: $url -> ${result.describe()}"

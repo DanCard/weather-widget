@@ -282,7 +282,7 @@ class SettingsActivity : AppCompatActivity() {
             nameView.text = source.displayName
             inputView.setText(widgetStateManager.getApiKey(source))
 
-            val signupUrl = ApiKeySignupUrls.signupUrl(source)
+            val signupUrl = source.signupUrl
             getKeyButton.setOnClickListener {
                 try {
                     startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(signupUrl)))
@@ -308,7 +308,6 @@ class SettingsActivity : AppCompatActivity() {
         WeatherSource.SILURIAN -> getString(R.string.api_source_silurian_desc)
         WeatherSource.NWS -> getString(R.string.api_source_nws_desc)
         WeatherSource.TOMORROW_IO -> getString(R.string.api_source_tomorrowio_desc)
-        WeatherSource.VISUAL_CROSSING -> getString(R.string.api_source_visualcrossing_desc)
         WeatherSource.OPEN_METEO -> getString(R.string.api_source_openmeteo_desc)
         WeatherSource.WEATHER_API -> getString(R.string.api_source_weatherapi_desc)
         WeatherSource.OPEN_WEATHER_MAP -> getString(R.string.api_source_openweathermap_desc)
@@ -361,7 +360,7 @@ class SettingsActivity : AppCompatActivity() {
             downButton.visibility = if (isVisible && visibleSources.indexOf(source) < visibleSources.size - 1) View.VISIBLE else View.INVISIBLE
 
             checkbox.setOnCheckedChangeListener { _, isChecked ->
-                if (isChecked && ApiKeySignupUrls.requiresUserKey(source)) {
+                if (isChecked && source.requiresUserEnteredKey) {
                     val key = widgetStateManager.getApiKey(source)?.trim()
                     if (key.isNullOrBlank()) {
                         checkbox.isChecked = false

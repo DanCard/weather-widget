@@ -34,7 +34,6 @@ import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.util.Log
-import com.weatherwidget.shared.util.WeatherSourceDescriptions
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import kotlin.math.roundToInt
 
@@ -628,7 +627,7 @@ private fun ApiSourcesList(
                 Checkbox(
                     checked = isVisible,
                     onCheckedChange = { checked ->
-                        if (checked && ApiKeySignupUrls.requiresUserKey(source) && apiKeys[source.id].isNullOrBlank()) {
+                        if (checked && source.requiresUserEnteredKey && apiKeys[source.id].isNullOrBlank()) {
                             onRequiresApiKey(source)
                             return@Checkbox
                         }
@@ -649,7 +648,7 @@ private fun ApiSourcesList(
                         .clickable {
                             // Mirrors Android: tapping the source name toggles the checkbox.
                             val targetState = !isVisible
-                            if (targetState && ApiKeySignupUrls.requiresUserKey(source) && apiKeys[source.id].isNullOrBlank()) {
+                            if (targetState && source.requiresUserEnteredKey && apiKeys[source.id].isNullOrBlank()) {
                                 onRequiresApiKey(source)
                                 return@clickable
                             }
@@ -663,7 +662,7 @@ private fun ApiSourcesList(
                 ) {
                     Text(source.displayName, style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        WeatherSourceDescriptions.describe(source),
+                        source.description,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -698,7 +697,7 @@ private fun ApiSourcesList(
 /**
  * Phase 4 item 2: each row gains a "Get key…" button (TertiaryActionButton — navy, matching
  * Android's rounded_button_navy.xml) that opens the source's signup page in the default browser.
- * URLs come from the shared `:shared` ApiKeySignupUrls object so both platforms stay in sync.
+ * URLs come from `WeatherSource.signupUrl` in `:shared` so both platforms stay in sync.
  */
 @Composable
 private fun ApiKeysList(
@@ -721,7 +720,7 @@ private fun ApiKeysList(
                     )
                     TertiaryActionButton(
                         text = "Get key…",
-                        onClick = { openInBrowser(ApiKeySignupUrls.signupUrl(source)) },
+                        onClick = { openInBrowser(source.signupUrl) },
                         modifier = Modifier.testTag("get_key_${source.id}"),
                     )
                 }

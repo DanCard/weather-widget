@@ -140,8 +140,8 @@ label = "Test Location",
     @Test
     fun getKeyButtonsRenderForEachKeyRequiringSource() {
         // Phase 4 item 2: each keyed source gets a "Get key…" button. Verify the count matches
-        // ApiKeySignupUrls.sourcesRequiringKeys (5: TOMORROW_IO, SILURIAN, WEATHER_API,
-        // VISUAL_CROSSING, OPEN_WEATHER_MAP).
+        // ApiKeySignupUrls.sourcesRequiringKeys (4: TOMORROW_IO, SILURIAN, WEATHER_API,
+        // OPEN_WEATHER_MAP).
         composeTestRule.setContent {
             SettingsWindow(
                 config = sampleConfig,

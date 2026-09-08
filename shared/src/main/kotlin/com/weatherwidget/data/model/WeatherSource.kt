@@ -22,11 +22,16 @@ enum class HistoricalDataKind(
  * Enum representing weather data sources.
  * Centralizes source identification to eliminate string constant duplication
  * and provide type-safe source handling throughout the app.
+ *
+ * Source metadata (display name, description, signup URL, key requirements) lives here as
+ * constructor params so adding a new entry is a single edit — no scattered `when` blocks to
+ * forget.
  */
 enum class WeatherSource(
     val id: String,
     val displayName: String,
     val shortDisplayName: String,
+    val description: String,
     val supportsHourly: Boolean = true,
     val historicalDataKind: HistoricalDataKind = HistoricalDataKind.NONE,
     /** Whether observation/analysis rows may drive temperature actuals for this source. */
@@ -35,17 +40,34 @@ enum class WeatherSource(
     val supportsCloudActuals: Boolean = historicalDataKind.preservesHistoricalCloud,
     /** Whether elapsed forecast/history rows may be re-filed as observations. */
     val supportsHistoricalActualsBackfill: Boolean = supportsTemperatureActuals,
+    /** Signup page for key-requiring sources; keyless sources fall back to open-meteo.com. */
+    val signupUrl: String = "https://open-meteo.com",
+    /**
+     * True when the source needs an API key from anywhere (user-entered or build-time provisioned).
+     * NWS and Open-Meteo are free and keyless, so a failure from either must never be reported
+     * as a missing-key problem. Synoptic's token is build-time provisioned and it is never
+     * user-selectable, so it is false.
+     */
+    val requiresApiKey: Boolean = false,
+    /**
+     * True when the user must manually enter a key in Settings for the source to work at all.
+     * Differs from [requiresApiKey] only for SILURIAN, which has a build-time key fallback and
+     * therefore does not require the user to enter one.
+     */
+    val requiresUserEnteredKey: Boolean = false,
 ) {
     NWS(
         id = "NWS",
         displayName = "NWS",
         shortDisplayName = "NWS",
+        description = "National Weather Service (US only)",
         historicalDataKind = HistoricalDataKind.STATION_OBSERVATION,
     ),
     OPEN_METEO(
         id = "OPEN_METEO",
         displayName = "Open-Meteo",
         shortDisplayName = "Meteo",
+        description = "Open-Meteo — shown as Meteo (global coverage)",
         historicalDataKind = HistoricalDataKind.RECENT_ANALYSIS,
         supportsTemperatureActuals = true,
         supportsCloudActuals = true,
@@ -55,17 +77,28 @@ enum class WeatherSource(
         id = "VISUAL_CROSSING",
         displayName = "Visual Crossing",
         shortDisplayName = "VisCr",
+        description = "Visual Crossing — shown as VisCr (global coverage)",
+        requiresApiKey = true,
+        requiresUserEnteredKey = true,
     ),
     OPEN_WEATHER_MAP(
         id = "OPEN_WEATHER_MAP",
         displayName = "OpenWeatherMap",
         shortDisplayName = "OWM",
+        description = "OpenWeatherMap — shown as OWM (global coverage)",
+        signupUrl = "https://home.openweathermap.org/users/sign_up",
+        requiresApiKey = true,
+        requiresUserEnteredKey = true,
     ),
     WEATHER_API(
         id = "WEATHER_API",
         displayName = "WeatherAPI",
         shortDisplayName = "WAPI",
+        description = "WeatherAPI — shown as WAPI (global coverage)",
         historicalDataKind = HistoricalDataKind.ARCHIVED_PROVIDER_HISTORY,
+        signupUrl = "https://www.weatherapi.com/signup.aspx",
+        requiresApiKey = true,
+        requiresUserEnteredKey = true,
     ),
     /**
      * Raw METAR observations from `aviationweather.gov`. An **actuals feed, not a forecast
@@ -85,6 +118,7 @@ enum class WeatherSource(
         id = "METAR",
         displayName = "METAR",
         shortDisplayName = "MTR",
+        description = "Airport METAR observations (actuals only, never user-selectable)",
         supportsHourly = false,
         historicalDataKind = HistoricalDataKind.STATION_OBSERVATION,
         supportsTemperatureActuals = true,
@@ -115,6 +149,7 @@ enum class WeatherSource(
         id = "SYNOPTIC",
         displayName = "Synoptic",
         shortDisplayName = "Syn",
+        description = "Synoptic/MesoWest stations (actuals only, never user-selectable)",
         supportsHourly = false,
         historicalDataKind = HistoricalDataKind.STATION_OBSERVATION,
         supportsTemperatureActuals = true,
@@ -125,6 +160,7 @@ enum class WeatherSource(
         id = "Generic",
         displayName = "Climate Avg",
         shortDisplayName = "C",
+        description = "Synthetic climate-normal fallback (never user-selectable)",
         supportsHourly = false,
         supportsTemperatureActuals = false,
     ),
@@ -132,39 +168,32 @@ enum class WeatherSource(
         id = "SILURIAN",
         displayName = "Silurian",
         shortDisplayName = "Silur",
+        description = "Silurian.ai — shown as Silur (global coverage)",
         historicalDataKind = HistoricalDataKind.NONE,
         // Silurian documents `include_past` on /forecast/hourly as forecast output, not an
         // observation or analysis product. Keep its forecast curves, but never relabel the
         // elapsed portion of that response as temperature or cloud actuals.
         supportsTemperatureActuals = false,
         supportsCloudActuals = false,
+        signupUrl = "https://earth.weather.silurian.ai",
+        requiresApiKey = true,
+        // Silurian has a build-time key fallback, so the user does not HAVE to enter one.
+        requiresUserEnteredKey = false,
     ),
     TOMORROW_IO(
         id = "TOMORROW_IO",
         displayName = "Tomorrow.io",
         shortDisplayName = "Tmrw",
-        // Provisionally treat the bounded six-hour Timeline lookback as recent analysis. It is
-        // stored under distinct provenance from /realtime so it can be compared and removed alone
-        // if later evidence shows the product is only revised forecast history.
+        description = "Tomorrow.io — shown as Tmrw (global coverage)",
         historicalDataKind = HistoricalDataKind.RECENT_ANALYSIS,
         supportsTemperatureActuals = true,
         supportsCloudActuals = true,
         supportsHistoricalActualsBackfill = true,
+        signupUrl = "https://app.tomorrow.io/signup",
+        requiresApiKey = true,
+        requiresUserEnteredKey = true,
     ),
     ;
-
-    /**
-     * True when the source needs a user-supplied API key. NWS and Open-Meteo are free and keyless,
-     * so a failure from either must never be reported as a missing-key problem.
-     */
-    val requiresApiKey: Boolean
-        get() = when (this) {
-            VISUAL_CROSSING, OPEN_WEATHER_MAP, WEATHER_API, SILURIAN, TOMORROW_IO -> true
-            // METAR is aviationweather.gov: free, keyless, and not user-selectable at all.
-            // Synoptic DOES need a token, but it is provisioned at build time like the others and
-            // is never user-selectable as a display source, so it is not a "requires user key" case.
-            NWS, OPEN_METEO, GENERIC_GAP, METAR, SYNOPTIC -> false
-        }
 
     companion object {
         /**
@@ -193,27 +222,12 @@ enum class WeatherSource(
             fromDisplaySourceOrNull(displaySource) ?: NWS
 
         /**
-         * Maps a database ID to WeatherSource.
+         * Maps a database ID to WeatherSource. Unrecognised ids fall back to NWS so callers
+         * that read from the database always render something. Every new enum entry is
+         * automatically covered — no per-entry `when` arm to forget.
          */
         fun fromId(id: String): WeatherSource =
-            when (id) {
-                "NWS" -> NWS
-                "OPEN_METEO" -> OPEN_METEO
-                "VISUAL_CROSSING" -> VISUAL_CROSSING
-                "OPEN_WEATHER_MAP" -> OPEN_WEATHER_MAP
-                "WEATHER_API" -> WEATHER_API
-                "SILURIAN" -> SILURIAN
-                "TOMORROW_IO" -> TOMORROW_IO
-                "Generic" -> GENERIC_GAP
-                METAR.id -> METAR
-                SYNOPTIC.id -> SYNOPTIC
-                // Deliberately last, and deliberately NWS: callers pass ids read back from the
-                // database, where an unrecognised value must still render something. It also means
-                // a missing entry above is invisible — adding METAR/SYNOPTIC to the enum without
-                // adding them here silently labelled the borrowed actuals feed "NWS" in the
-                // observations picker. Every new entry needs a line here.
-                else -> NWS
-            }
+            entries.firstOrNull { it.id == id } ?: NWS
 
         /**
          * Gets the database source name from a display source string.

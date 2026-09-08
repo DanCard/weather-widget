@@ -9,9 +9,9 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * Guards the API-key signup URL single source of truth. The liveness check (real network
- * requests) lives in `ApiKeySignupUrlLivenessTest` as LongDuration; this is the fast
- * structural test that always runs.
+ * Guards the API-key signup URL single source of truth (now on [WeatherSource] itself).
+ * The liveness check (real network requests) lives in `ApiKeySignupUrlLivenessTest` as
+ * LongDuration; this is the fast structural test that always runs.
  */
 @Category(ShortDuration::class)
 class ApiKeySignupUrlsTest {
@@ -19,7 +19,7 @@ class ApiKeySignupUrlsTest {
     @Test
     fun everyKeyRequiringSourceHasAnHttpsSignupUrl() {
         for (source in ApiKeySignupUrls.sourcesRequiringKeys) {
-            val url = ApiKeySignupUrls.signupUrl(source)
+            val url = source.signupUrl
             assertTrue(
                 "signup URL for ${source.id} must be https, got: $url",
                 url.startsWith("https://"),
@@ -40,13 +40,13 @@ class ApiKeySignupUrlsTest {
     }
 
     @Test
-    fun requiresUserKeyIdentifiesSourcesNeedingUserKeys() {
-        assertTrue(ApiKeySignupUrls.requiresUserKey(WeatherSource.OPEN_WEATHER_MAP))
-        assertTrue(ApiKeySignupUrls.requiresUserKey(WeatherSource.WEATHER_API))
-        assertTrue(ApiKeySignupUrls.requiresUserKey(WeatherSource.TOMORROW_IO))
-        assertFalse(ApiKeySignupUrls.requiresUserKey(WeatherSource.SILURIAN))
-        assertFalse(ApiKeySignupUrls.requiresUserKey(WeatherSource.NWS))
-        assertFalse(ApiKeySignupUrls.requiresUserKey(WeatherSource.OPEN_METEO))
+    fun requiresUserEnteredKeyIdentifiesSourcesNeedingUserKeys() {
+        assertTrue(WeatherSource.OPEN_WEATHER_MAP.requiresUserEnteredKey)
+        assertTrue(WeatherSource.WEATHER_API.requiresUserEnteredKey)
+        assertTrue(WeatherSource.TOMORROW_IO.requiresUserEnteredKey)
+        assertFalse(WeatherSource.SILURIAN.requiresUserEnteredKey)
+        assertFalse(WeatherSource.NWS.requiresUserEnteredKey)
+        assertFalse(WeatherSource.OPEN_METEO.requiresUserEnteredKey)
     }
 
     @Test
@@ -60,7 +60,7 @@ class ApiKeySignupUrlsTest {
             )
             assertEquals(
                 "https://open-meteo.com",
-                ApiKeySignupUrls.signupUrl(source),
+                source.signupUrl,
             )
         }
     }

@@ -21,6 +21,7 @@ import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import java.time.LocalDate
 
@@ -134,171 +135,71 @@ internal class ForecastFetchCoordinator(
         targetSourceId != null &&
             widgetStateManager.getVisibleSourcesOrder().none { it.id == targetSourceId }
 
+    private data class SourceFetchEntry(
+        val tag: String,
+        val fetch: suspend (Double, Double) -> List<ForecastEntity>?,
+    )
+
+    /**
+     * Per-source fetch configuration. Sources whose API client is null (debug-only providers not
+     * provisioned in this build) are absent — the fetch loop skips them just as the old per-source
+     * `if` guards did.
+     */
+    private fun buildFetchRegistry(): Map<WeatherSource, SourceFetchEntry> = buildMap {
+        put(WeatherSource.NWS, SourceFetchEntry("FETCH_NWS_FAIL") { lat, lon ->
+            fetchFromNws(lat, lon)
+        })
+        openWeatherMapApi?.let { api ->
+            put(WeatherSource.OPEN_WEATHER_MAP, SourceFetchEntry("FETCH_OWM_FAIL") { lat, lon ->
+                fetchAndSaveSharedForecast(lat, lon, WeatherSource.OPEN_WEATHER_MAP) {
+                    api.getForecast(lat, lon)
+                }
+            })
+        }
+        put(WeatherSource.OPEN_METEO, SourceFetchEntry("FETCH_METEO_FAIL") { lat, lon ->
+            fetchAndSaveSharedForecast(lat, lon, WeatherSource.OPEN_METEO) {
+                openMeteoApi.getForecast(lat, lon, historyDays = 7)
+            }.also {
+                // Only Open-Meteo has a previous-runs product, and this rides its fetch so
+                // the call is never spent when Open-Meteo is not being fetched at all.
+                fetchPriorDayCloudForecast(lat, lon)
+            }
+        })
+        put(WeatherSource.WEATHER_API, SourceFetchEntry("FETCH_WAPI_FAIL") { lat, lon ->
+            val forecasts = fetchAndSaveSharedForecast(lat, lon, WeatherSource.WEATHER_API) {
+                weatherApi.getForecast(lat, lon)
+            }
+            weatherApiHistoryBackfiller.backfillIfNeeded(lat, lon)
+            forecasts
+        })
+        put(WeatherSource.SILURIAN, SourceFetchEntry("FETCH_SILURIAN_FAIL") { lat, lon ->
+            fetchFromSilurian(lat, lon)
+        })
+        tomorrowIoApi?.let { api ->
+            put(WeatherSource.TOMORROW_IO, SourceFetchEntry("FETCH_TMRW_FAIL") { lat, lon ->
+                fetchAndSaveSharedForecast(lat, lon, WeatherSource.TOMORROW_IO) {
+                    api.getForecast(lat, lon)
+                }
+            })
+        }
+    }
+
     suspend fun fetchFromAllApis(
         latitude: Double,
         longitude: Double,
         sourcesToFetch: Set<WeatherSource>,
     ) = coroutineScope {
-        val nwsDeferred = if (WeatherSource.NWS in sourcesToFetch) {
-            async {
-                safeFetch(
-                    "FETCH_NWS_FAIL",
-                    WeatherSource.NWS,
-                    latitude,
-                    longitude,
-                ) {
-                    fetchFromNws(latitude, longitude)
-                }
-            }
-        } else {
-            null
-        }
-        val openWeatherMapDeferred =
-            if (
-                openWeatherMapApi != null &&
-                WeatherSource.OPEN_WEATHER_MAP in sourcesToFetch
-            ) {
-                async {
-                    safeFetch(
-                        "FETCH_OWM_FAIL",
-                        WeatherSource.OPEN_WEATHER_MAP,
-                        latitude,
-                        longitude,
-                    ) {
-                        fetchAndSaveSharedForecast(
-                            latitude,
-                            longitude,
-                            WeatherSource.OPEN_WEATHER_MAP,
-                        ) {
-                            openWeatherMapApi.getForecast(latitude, longitude)
-                        }
-                    }
-                }
-            } else {
-                null
-            }
-        val meteoDeferred = if (WeatherSource.OPEN_METEO in sourcesToFetch) {
-            async {
-                safeFetch(
-                    "FETCH_METEO_FAIL",
-                    WeatherSource.OPEN_METEO,
-                    latitude,
-                    longitude,
-                ) {
-                    fetchAndSaveSharedForecast(
-                        latitude,
-                        longitude,
-                        WeatherSource.OPEN_METEO,
-                    ) {
-                        openMeteoApi.getForecast(
-                            latitude,
-                            longitude,
-                            historyDays = 7,
-                        )
-                    }.also {
-                        // Only Open-Meteo has a previous-runs product, and this rides its fetch so
-                        // the call is never spent when Open-Meteo is not being fetched at all.
-                        fetchPriorDayCloudForecast(latitude, longitude)
-                    }
-                }
-            }
-        } else {
-            null
-        }
-        val weatherApiDeferred = if (WeatherSource.WEATHER_API in sourcesToFetch) {
-            async {
-                safeFetch(
-                    "FETCH_WAPI_FAIL",
-                    WeatherSource.WEATHER_API,
-                    latitude,
-                    longitude,
-                ) {
-                    val forecasts = fetchAndSaveSharedForecast(
-                        latitude,
-                        longitude,
-                        WeatherSource.WEATHER_API,
-                    ) {
-                        weatherApi.getForecast(latitude, longitude)
-                    }
-                    weatherApiHistoryBackfiller.backfillIfNeeded(latitude, longitude)
-                    forecasts
-                }
-            }
-        } else {
-            null
-        }
-        val silurianDeferred = if (WeatherSource.SILURIAN in sourcesToFetch) {
-            async {
-                safeFetch(
-                    "FETCH_SILURIAN_FAIL",
-                    WeatherSource.SILURIAN,
-                    latitude,
-                    longitude,
-                ) {
-                    val result = silurianApi.getForecast(latitude, longitude)
-                    if (result.hourly.isNotEmpty()) {
-                        hourlyStore.saveHourlyEntitiesFromShared(
-                            result.hourly,
-                            latitude,
-                            longitude,
-                            WeatherSource.SILURIAN.id,
-                        )
-                    }
-                    result.daily.map { day ->
-                        snapshotStore.mapDailyForecast(
-                            DailyForecast(
-                                date = day.date,
-                                highTemp = day.highTemp,
-                                lowTemp = day.lowTemp,
-                                condition = day.condition,
-                                iconToken = day.condition,
-                                precipProbability = day.precipProbability,
-                                precipAmountMm = day.precipAmountMm,
-                            ),
-                            latitude,
-                            longitude,
-                            WeatherSource.SILURIAN.id,
-                            result.hourly,
-                        )
-                    }
-                }
-            }
-        } else {
-            null
-        }
-        val tomorrowIoDeferred =
-            if (
-                tomorrowIoApi != null &&
-                WeatherSource.TOMORROW_IO in sourcesToFetch
-            ) {
-                async {
-                    safeFetch(
-                        "FETCH_TMRW_FAIL",
-                        WeatherSource.TOMORROW_IO,
-                        latitude,
-                        longitude,
-                    ) {
-                        fetchAndSaveSharedForecast(
-                            latitude,
-                            longitude,
-                            WeatherSource.TOMORROW_IO,
-                        ) {
-                            tomorrowIoApi.getForecast(latitude, longitude)
-                        }
-                    }
-                }
-            } else {
-                null
-            }
+        val registry = buildFetchRegistry()
 
-        val fetchedBySource = listOf(
-            WeatherSource.NWS to nwsDeferred?.await(),
-            WeatherSource.OPEN_WEATHER_MAP to openWeatherMapDeferred?.await(),
-            WeatherSource.OPEN_METEO to meteoDeferred?.await(),
-            WeatherSource.WEATHER_API to weatherApiDeferred?.await(),
-            WeatherSource.SILURIAN to silurianDeferred?.await(),
-            WeatherSource.TOMORROW_IO to tomorrowIoDeferred?.await(),
-        )
+        val fetchedBySource = sourcesToFetch.mapNotNull { source ->
+            val entry = registry[source] ?: return@mapNotNull null
+            async {
+                source to safeFetch(entry.tag, source, latitude, longitude) {
+                    entry.fetch(latitude, longitude)
+                }
+            }
+        }.awaitAll()
+
         fetchedBySource.forEach { (source, forecasts) ->
             forecasts?.let {
                 snapshotStore.saveForecastSnapshot(
@@ -329,6 +230,38 @@ internal class ForecastFetchCoordinator(
             hourlyStore.saveHourlyEntities(hourlyEntities)
         }
         return forecastEntities
+    }
+
+    private suspend fun fetchFromSilurian(
+        latitude: Double,
+        longitude: Double,
+    ): List<ForecastEntity> {
+        val result = silurianApi.getForecast(latitude, longitude)
+        if (result.hourly.isNotEmpty()) {
+            hourlyStore.saveHourlyEntitiesFromShared(
+                result.hourly,
+                latitude,
+                longitude,
+                WeatherSource.SILURIAN.id,
+            )
+        }
+        return result.daily.map { day ->
+            snapshotStore.mapDailyForecast(
+                DailyForecast(
+                    date = day.date,
+                    highTemp = day.highTemp,
+                    lowTemp = day.lowTemp,
+                    condition = day.condition,
+                    iconToken = day.condition,
+                    precipProbability = day.precipProbability,
+                    precipAmountMm = day.precipAmountMm,
+                ),
+                latitude,
+                longitude,
+                WeatherSource.SILURIAN.id,
+                result.hourly,
+            )
+        }
     }
 
     private fun isStale(
