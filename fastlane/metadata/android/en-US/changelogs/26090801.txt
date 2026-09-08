@@ -1,0 +1,1 @@
+Release 26090801: Added hourly graph center temperature indicator, optimized Tomorrow.io API quota usage, and improved widget rendering architecture.
