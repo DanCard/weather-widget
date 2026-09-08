@@ -36,127 +36,156 @@ class WidgetActionReceiver : BroadcastReceiver() {
         com.weatherwidget.WeatherWidgetApp.logFirstTriggerOnce(
             "WidgetActionReceiver:${intent.action}",
         )
-        when (intent.action) {
-            WidgetActions.ACTION_REFRESH ->
-                launchGlobal(context) {
-                    val requestedWidgetId =
-                        intent.getIntExtra(
-                            AppWidgetManager.EXTRA_APPWIDGET_ID,
-                            AppWidgetManager.INVALID_APPWIDGET_ID,
-                        ).takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID }
-                    WidgetRefreshCoordinator.refresh(
-                        context,
-                        intent.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false),
-                        repository,
-                        requestedWidgetId,
-                    )
-                }
-            WidgetActions.ACTION_SHOW_TOAST -> {
-                if (!hasValidWidgetId(intent) ||
-                    intent.getStringExtra(WidgetActions.EXTRA_TOAST_MESSAGE).isNullOrBlank()
-                ) {
-                    logRejected(intent, "invalid_toast")
-                    return
-                }
+        val handler = actionHandlers[intent.action]
+        if (handler != null) {
+            handler(context, intent, receivedAtElapsedMs)
+        } else {
+            logRejected(intent, "unknown_action")
+        }
+    }
+
+    private val actionHandlers: Map<String, (Context, Intent, Long) -> Unit> = mapOf(
+        WidgetActions.ACTION_REFRESH to { context, intent, _ ->
+            launchGlobal(context) {
+                val requestedWidgetId =
+                    intent.getIntExtra(
+                        AppWidgetManager.EXTRA_APPWIDGET_ID,
+                        AppWidgetManager.INVALID_APPWIDGET_ID,
+                    ).takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+                WidgetRefreshCoordinator.refresh(
+                    context,
+                    intent.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false),
+                    repository,
+                    requestedWidgetId,
+                )
+            }
+        },
+        WidgetActions.ACTION_SHOW_TOAST to { context, intent, receivedAtElapsedMs ->
+            if (!hasValidWidgetId(intent) ||
+                intent.getStringExtra(WidgetActions.EXTRA_TOAST_MESSAGE).isNullOrBlank()
+            ) {
+                logRejected(intent, "invalid_toast")
+            } else {
                 handleShowToast(context, intent, receivedAtElapsedMs)
             }
-            WidgetActions.ACTION_DAY_CLICK -> {
-                if (!WidgetDayClickCoordinator.isValid(intent)) {
-                    logRejected(intent, "invalid_day_click")
-                    return
-                }
+        },
+        WidgetActions.ACTION_DAY_CLICK to { context, intent, receivedAtElapsedMs ->
+            if (!WidgetDayClickCoordinator.isValid(intent)) {
+                logRejected(intent, "invalid_day_click")
+            } else {
                 launchForWidget(context, intent, receivedAtElapsedMs) {
                     WidgetIntentRouter.handleDayClick(context, intent, repository)
                 }
             }
-            WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE -> {
-                if (!WidgetDayClickCoordinator.isValid(intent)) {
-                    logRejected(intent, "invalid_no_hourly_complete")
-                    return
-                }
+        },
+        WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE to { context, intent, receivedAtElapsedMs ->
+            if (!WidgetDayClickCoordinator.isValid(intent)) {
+                logRejected(intent, "invalid_no_hourly_complete")
+            } else {
                 launchForWidget(context, intent, receivedAtElapsedMs) {
                     WidgetIntentRouter.handleRefreshComplete(context, intent)
                 }
             }
-            WidgetActions.ACTION_NAV_LEFT,
-            WidgetActions.ACTION_NAV_RIGHT,
-            -> launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
-                WidgetIntentRouter.handleNavigation(
-                    context,
-                    appWidgetId,
-                    intent.action == WidgetActions.ACTION_NAV_LEFT,
-                    repository,
+        },
+        WidgetActions.ACTION_NAV_LEFT to { context, intent, receivedAtElapsedMs ->
+            handleNav(context, intent, receivedAtElapsedMs, isLeft = true)
+        },
+        WidgetActions.ACTION_NAV_RIGHT to { context, intent, receivedAtElapsedMs ->
+            handleNav(context, intent, receivedAtElapsedMs, isLeft = false)
+        },
+        WidgetActions.ACTION_TOGGLE_API to { context, intent, receivedAtElapsedMs ->
+            launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
+                val toggleStartMs = SystemClock.elapsedRealtime()
+                WidgetIntentRouter.handleToggleApi(context, appWidgetId, repository)
+                val afterToggleMs = SystemClock.elapsedRealtime()
+                WidgetRefreshCoordinator.restartHeartbeats(context)
+                Log.i(
+                    "INTERACTION_E2E",
+                    "action=ACTION_TOGGLE_API widget=$appWidgetId phase=tail " +
+                        "handler=${afterToggleMs - toggleStartMs}ms " +
+                        "heartbeats=${SystemClock.elapsedRealtime() - afterToggleMs}ms",
                 )
             }
-            WidgetActions.ACTION_TOGGLE_API ->
-                launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
-                    val toggleStartMs = SystemClock.elapsedRealtime()
-                    WidgetIntentRouter.handleToggleApi(context, appWidgetId, repository)
-                    val afterToggleMs = SystemClock.elapsedRealtime()
-                    WidgetRefreshCoordinator.restartHeartbeats(context)
-                    // restartHeartbeats is WorkManager enqueue/cancel and runs INSIDE the click,
-                    // after the paint. Split out because a consistent ~370-550ms sat between the
-                    // coroutine's total and TEMP_PIPELINE_PERF's, and it was neither queue (~2ms),
-                    // lock, nor context prepare.
-                    Log.i(
-                        "INTERACTION_E2E",
-                        "action=ACTION_TOGGLE_API widget=$appWidgetId phase=tail " +
-                            "handler=${afterToggleMs - toggleStartMs}ms " +
-                            "heartbeats=${SystemClock.elapsedRealtime() - afterToggleMs}ms",
-                    )
-                }
-            WidgetActions.ACTION_RESET_SOURCE ->
-                launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
-                    WidgetIntentRouter.handleResetSource(context, appWidgetId, repository)
-                    WidgetRefreshCoordinator.restartHeartbeats(context)
-                }
-            WidgetActions.ACTION_TOGGLE_VIEW ->
-                launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
-                    val startMs = SystemClock.elapsedRealtime()
-                    WidgetIntentRouter.handleToggleView(context, appWidgetId, repository)
-                    WidgetRefreshCoordinator.restartHeartbeats(context)
-                    val totalMs = SystemClock.elapsedRealtime() - startMs
-                    WeatherDatabase.getDatabase(context).appLogDao().log(
-                        "TOGGLE_VIEW_TIMING",
-                        "widget=$appWidgetId source=" +
-                            "${intent.getStringExtra(WidgetActions.EXTRA_INTERACTION_SOURCE) ?: "unknown"} " +
-                            "total=${totalMs}ms",
-                    )
-                }
-            WidgetActions.ACTION_TOGGLE_PRECIP ->
-                launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
-                    WidgetIntentRouter.handleTogglePrecip(context, appWidgetId, repository)
-                    WidgetRefreshCoordinator.restartHeartbeats(context)
-                }
-            WidgetActions.ACTION_CYCLE_ZOOM -> handleCycleZoom(context, intent, receivedAtElapsedMs)
-            WidgetActions.ACTION_SET_VIEW -> {
-                val targetView = parseTargetView(intent)
-                if (!hasValidWidgetId(intent) || targetView == null) {
-                    logRejected(intent, "invalid_set_view")
-                    return
-                }
-                launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
-                    val interactionToken = "set-view-$receivedAtElapsedMs"
-                    WidgetIntentRouter.handleSetView(
-                        context,
-                        appWidgetId,
-                        targetView,
-                        intent.getIntExtra(
-                            WidgetActions.EXTRA_HOURLY_OFFSET,
-                            Int.MIN_VALUE,
-                        ),
-                        repository,
-                        interactionToken,
-                    )
-                    val receiveToCompleteMs = SystemClock.elapsedRealtime() - receivedAtElapsedMs
-                    WeatherDatabase.getDatabase(context).appLogDao().log(
-                        "SET_VIEW_E2E_TIMING",
-                        "widget=$appWidgetId token=$interactionToken mode=${targetView.name} " +
-                            "receiveToComplete=${receiveToCompleteMs}ms",
-                    )
-                }
+        },
+        WidgetActions.ACTION_RESET_SOURCE to { context, intent, receivedAtElapsedMs ->
+            launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
+                WidgetIntentRouter.handleResetSource(context, appWidgetId, repository)
+                WidgetRefreshCoordinator.restartHeartbeats(context)
             }
-            else -> logRejected(intent, "unknown_action")
+        },
+        WidgetActions.ACTION_TOGGLE_VIEW to { context, intent, receivedAtElapsedMs ->
+            launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
+                val startMs = SystemClock.elapsedRealtime()
+                WidgetIntentRouter.handleToggleView(context, appWidgetId, repository)
+                WidgetRefreshCoordinator.restartHeartbeats(context)
+                val totalMs = SystemClock.elapsedRealtime() - startMs
+                WeatherDatabase.getDatabase(context).appLogDao().log(
+                    "TOGGLE_VIEW_TIMING",
+                    "widget=$appWidgetId source=" +
+                        "${intent.getStringExtra(WidgetActions.EXTRA_INTERACTION_SOURCE) ?: "unknown"} " +
+                        "total=${totalMs}ms",
+                )
+            }
+        },
+        WidgetActions.ACTION_TOGGLE_PRECIP to { context, intent, receivedAtElapsedMs ->
+            launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
+                WidgetIntentRouter.handleTogglePrecip(context, appWidgetId, repository)
+                WidgetRefreshCoordinator.restartHeartbeats(context)
+            }
+        },
+        WidgetActions.ACTION_CYCLE_ZOOM to { context, intent, receivedAtElapsedMs ->
+            handleCycleZoom(context, intent, receivedAtElapsedMs)
+        },
+        WidgetActions.ACTION_SET_VIEW to { context, intent, receivedAtElapsedMs ->
+            handleSetViewAction(context, intent, receivedAtElapsedMs)
+        },
+    )
+
+    private fun handleNav(
+        context: Context,
+        intent: Intent,
+        receivedAtElapsedMs: Long,
+        isLeft: Boolean,
+    ) {
+        launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
+            WidgetIntentRouter.handleNavigation(
+                context,
+                appWidgetId,
+                isLeft,
+                repository,
+            )
+        }
+    }
+
+    private fun handleSetViewAction(
+        context: Context,
+        intent: Intent,
+        receivedAtElapsedMs: Long,
+    ) {
+        val targetView = parseTargetView(intent)
+        if (!hasValidWidgetId(intent) || targetView == null) {
+            logRejected(intent, "invalid_set_view")
+            return
+        }
+        launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
+            val interactionToken = "set-view-$receivedAtElapsedMs"
+            WidgetIntentRouter.handleSetView(
+                context,
+                appWidgetId,
+                targetView,
+                intent.getIntExtra(
+                    WidgetActions.EXTRA_HOURLY_OFFSET,
+                    Int.MIN_VALUE,
+                ),
+                repository,
+                interactionToken,
+            )
+            val receiveToCompleteMs = SystemClock.elapsedRealtime() - receivedAtElapsedMs
+            WeatherDatabase.getDatabase(context).appLogDao().log(
+                "SET_VIEW_E2E_TIMING",
+                "widget=$appWidgetId token=$interactionToken mode=${targetView.name} " +
+                    "receiveToComplete=${receiveToCompleteMs}ms",
+            )
         }
     }
 
