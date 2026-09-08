@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
 import com.weatherwidget.shared.stats.AccuracyBaselineField
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.stats.AccuracyPreferences
@@ -168,8 +169,8 @@ class StatisticsActivity : AppCompatActivity() {
                             sourcesToStats.forEachIndexed { index, (source, stats) ->
                                 if (enabledSources.contains(source)) {
                                     if (stats != null && stats.totalForecasts > 0) {
-                                        val highErr = if (useCelsius) stats.avgHighError / 1.8 else stats.avgHighError
-                                        val lowErr = if (useCelsius) stats.avgLowError / 1.8 else stats.avgLowError
+                                        val highErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgHighError, useCelsius)
+                                        val lowErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgLowError, useCelsius)
                                         append(
                                             getString(
                                                 R.string.stats_source_line,
@@ -200,15 +201,8 @@ class StatisticsActivity : AppCompatActivity() {
         }
     }
 
-    private fun formatBias(bias: Double, useCelsius: Boolean): String {
-        val displayBias = if (useCelsius) bias / 1.8 else bias
-        val absBias = kotlin.math.abs(displayBias)
-        val threshold = if (useCelsius) 0.5 / 1.8 else 0.5
-        val biasValue = if (useCelsius) "%.1f°".format(absBias) else "${absBias.toInt()}°"
-        return when {
-            absBias < threshold -> ""
-            displayBias > 0 -> getString(R.string.bias_low_suffix, biasValue)
-            else -> getString(R.string.bias_high_suffix, biasValue)
+    private fun formatBias(bias: Double, useCelsius: Boolean): String =
+        ForecastHistoryViewLogic.formatBias(bias, useCelsius) { v, low ->
+            getString(if (low) R.string.bias_low_suffix else R.string.bias_high_suffix, v)
         }
-    }
 }

@@ -48,10 +48,6 @@ private val COLOR_CLOUD_LABEL_FORECAST = Color(CloudCoverGraphPalette.LABEL_FORE
 private val COLOR_CLOUD_FILL_START = Color(CloudCoverGraphPalette.CURVE_FORECAST).copy(alpha = 0.22f)
 private val COLOR_CLOUD_FILL_END = Color.Transparent
 
-private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags): Color {
-    val argb = com.weatherwidget.shared.util.WeatherColors.forecastColor(flags.isSunny, flags.isRainy, flags.isMixed, flags.isNight, flags.isTwilight)
-    return Color(argb)
-}
 
 /**
  * What the free-label search saw, for tests.

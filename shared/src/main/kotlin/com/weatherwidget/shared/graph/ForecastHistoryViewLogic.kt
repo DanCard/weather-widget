@@ -50,15 +50,25 @@ object ForecastHistoryViewLogic {
     fun normalizeSource(rawSource: String?): WeatherSource? =
         WeatherSource.fromDisplaySourceOrNull(rawSource)
 
-    /** Format a directional bias for the accuracy summary (warmer actual → forecast ran "low"). */
-    fun formatBias(bias: Double, useCelsius: Boolean): String {
+    /**
+     * Format a directional bias for the accuracy summary (warmer actual → forecast ran "low").
+     *
+     * @param formatSuffix called with the formatted bias value (e.g. "1.2°") and whether the
+     *   forecast ran low; returns the full suffix string. Defaults to English " (1.2° low)".
+     *   Android callers pass a lambda that resolves `R.string.bias_low_suffix` /
+     *   `R.string.bias_high_suffix` for localization.
+     */
+    fun formatBias(
+        bias: Double,
+        useCelsius: Boolean,
+        formatSuffix: (biasValue: String, isLow: Boolean) -> String =
+            { v, low -> " ($v ${if (low) "low" else "high"})" },
+    ): String {
         val displayBias = if (useCelsius) bias / 1.8 else bias
         val absBias = kotlin.math.abs(displayBias)
         val threshold = if (useCelsius) 0.5 / 1.8 else 0.5
-        return when {
-            absBias < threshold -> ""
-            displayBias > 0 -> " (${String.format("%.1f", absBias)}° low)"
-            else -> " (${String.format("%.1f", absBias)}° high)"
-        }
+        if (absBias < threshold) return ""
+        val biasValue = "%.1f°".format(absBias)
+        return formatSuffix(biasValue, displayBias > 0)
     }
 }

@@ -90,6 +90,6 @@ internal fun trayTempToColor(temp: Float): Color {
 }
 
 internal fun formatTrayTemperature(temperature: Float, useCelsius: Boolean): String {
-    val displayVal = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(temperature) else temperature
+    val displayVal = com.weatherwidget.shared.util.TempUtils.display(temperature, useCelsius)
     return String.format(Locale.US, "%.1f", displayVal)
 }

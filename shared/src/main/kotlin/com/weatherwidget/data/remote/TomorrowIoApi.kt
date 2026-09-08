@@ -79,15 +79,7 @@ class TomorrowIoApi(
             // 403003).
             parameter("startTime", "nowMinus23h")
         }
-        if (hourlyHttpResponse.status.value !in 200..299) {
-            val errorBody = runCatching { hourlyHttpResponse.bodyAsText() }.getOrDefault("No error body")
-            throw ApiAccessException(
-                source = WeatherSource.TOMORROW_IO,
-                statusCode = hourlyHttpResponse.status.value,
-                detail = errorBody,
-                message = "Tomorrow.io hourly fetch failed: status ${hourlyHttpResponse.status.value}. Detail: $errorBody"
-            )
-        }
+        hourlyHttpResponse.require2xx(WeatherSource.TOMORROW_IO, "Tomorrow.io hourly fetch failed")
         val hourlyResponse: String = hourlyHttpResponse.body()
 
         val dailyHttpResponse = httpClient.get(TIMELINES_URL) {
@@ -97,15 +89,7 @@ class TomorrowIoApi(
             parameter("units", "imperial")
             parameter("apikey", apiKey)
         }
-        if (dailyHttpResponse.status.value !in 200..299) {
-            val errorBody = runCatching { dailyHttpResponse.bodyAsText() }.getOrDefault("No error body")
-            throw ApiAccessException(
-                source = WeatherSource.TOMORROW_IO,
-                statusCode = dailyHttpResponse.status.value,
-                detail = errorBody,
-                message = "Tomorrow.io daily fetch failed: status ${dailyHttpResponse.status.value}. Detail: $errorBody"
-            )
-        }
+        dailyHttpResponse.require2xx(WeatherSource.TOMORROW_IO, "Tomorrow.io daily fetch failed")
         val dailyResponse: String = dailyHttpResponse.body()
 
         val hourlyJson = json.parseToJsonElement(hourlyResponse).jsonObject
@@ -178,15 +162,7 @@ class TomorrowIoApi(
             parameter("units", "imperial")
             parameter("apikey", apiKey)
         }
-        if (response.status.value !in 200..299) {
-            val errorBody = runCatching { response.bodyAsText() }.getOrDefault("No error body")
-            throw ApiAccessException(
-                source = WeatherSource.TOMORROW_IO,
-                statusCode = response.status.value,
-                detail = errorBody,
-                message = "Tomorrow.io realtime fetch failed: status ${response.status.value}. Detail: $errorBody",
-            )
-        }
+        response.require2xx(WeatherSource.TOMORROW_IO, "Tomorrow.io realtime fetch failed")
 
         val root = json.parseToJsonElement(response.body<String>()).jsonObject
         val data = root["data"]?.jsonObject ?: return null

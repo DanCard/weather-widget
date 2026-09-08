@@ -69,15 +69,7 @@ class OpenWeatherMapApi(
     }
 
     private suspend fun checkResponseStatus(response: HttpResponse) {
-        if (response.status.value !in 200..299) {
-            val errorBody = runCatching { response.bodyAsText() }.getOrDefault("No error body")
-            throw ApiAccessException(
-                source = WeatherSource.OPEN_WEATHER_MAP,
-                statusCode = response.status.value,
-                detail = errorBody,
-                message = "OpenWeatherMap fetch failed: status ${response.status.value}. Detail: $errorBody"
-            )
-        }
+        response.require2xx(WeatherSource.OPEN_WEATHER_MAP, "OpenWeatherMap fetch failed")
     }
 
     private fun parseResponses(currentBody: String, forecastBody: String): RawFetch {

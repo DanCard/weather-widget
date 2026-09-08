@@ -584,18 +584,9 @@ private fun loadHistory(
 
 private fun fmt(v: Float, useCelsius: Boolean): String = ForecastEvolutionGeometry.formatTempLabel(v, useCelsius)
 
-private fun formatAge(durationMs: Long): String {
-    val minutes = durationMs / 60_000
-    return when {
-        minutes < 1 -> "just now"
-        minutes < 60 -> "${minutes}m"
-        else -> {
-            val h = minutes / 60
-            val m = minutes % 60
-            if (m == 0L) "${h}h" else "${h}h ${m}m"
-        }
-    }
-}
+private fun formatAge(durationMs: Long): String =
+    com.weatherwidget.shared.util.AgeFormatter.formatDuration(durationMs)
+
 
 /** Parses a `#RRGGBB` / `#AARRGGBB` style string into a Compose [Color]. */
 private fun parseColor(hex: String): Color {

@@ -62,13 +62,13 @@ class DailyAccuracyAdapter(private val useCelsius: Boolean) : RecyclerView.Adapt
                 }
             }
 
-            val dispActualHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.computedHighTemp.toFloat()).roundToInt() else item.computedHighTemp
-            val dispActualLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.computedLowTemp.toFloat()).roundToInt() else item.computedLowTemp
-            val dispForecastHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.forecastHigh.toFloat()).roundToInt() else item.forecastHigh
-            val dispForecastLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(item.forecastLow.toFloat()).roundToInt() else item.forecastLow
+            val dispActualHigh = com.weatherwidget.shared.util.TempUtils.display(item.computedHighTemp.toFloat(), useCelsius).roundToInt()
+            val dispActualLow = com.weatherwidget.shared.util.TempUtils.display(item.computedLowTemp.toFloat(), useCelsius).roundToInt()
+            val dispForecastHigh = com.weatherwidget.shared.util.TempUtils.display(item.forecastHigh.toFloat(), useCelsius).roundToInt()
+            val dispForecastLow = com.weatherwidget.shared.util.TempUtils.display(item.forecastLow.toFloat(), useCelsius).roundToInt()
 
-            val dispHighError = if (useCelsius) (item.highError.toFloat() / 1.8f).roundToInt() else item.highError
-            val dispLowError = if (useCelsius) (item.lowError.toFloat() / 1.8f).roundToInt() else item.lowError
+            val dispHighError = com.weatherwidget.shared.util.TempUtils.displayDelta(item.highError.toFloat(), useCelsius).roundToInt()
+            val dispLowError = com.weatherwidget.shared.util.TempUtils.displayDelta(item.lowError.toFloat(), useCelsius).roundToInt()
 
             actualTempsText.text = "$dispActualHigh° / $dispActualLow°"
             forecastTempsText.text = "$dispForecastHigh° / $dispForecastLow°"

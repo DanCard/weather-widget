@@ -46,4 +46,4 @@ fun buildBugReportMailto(config: DesktopConfig): String {
     return "mailto:$BUG_REPORT_RECIPIENT?subject=$encodedSubject&body=$encodedBody"
 }
 
-private fun formatCoord(value: Double): String = "%.4f".format(value)
+private fun formatCoord(value: Double): String = com.weatherwidget.shared.util.formatCoord(value)

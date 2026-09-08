@@ -776,12 +776,6 @@ internal fun runDesktopUiApplication() = application {
     }
 }
 
-private fun formatAge(ageMillis: Long): String {
-    val minutes = ageMillis / 60_000
-    val hours = minutes / 60
-    return when {
-        hours >= 24 -> "${hours / 24}d ${hours % 24}h old"
-        hours > 0 -> "${hours}h ${minutes % 60}m old"
-        else -> "${minutes}m old"
-    }
-}
+private fun formatAge(ageMillis: Long): String =
+    com.weatherwidget.shared.util.AgeFormatter.formatAgeOld(ageMillis)
+

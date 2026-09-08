@@ -112,7 +112,9 @@ object NwsObservationMapper {
         )
     }
 
-    private fun celsiusToFahrenheit(celsius: Float): Float = (celsius * 1.8f) + 32f
+    private fun celsiusToFahrenheit(celsius: Float): Float =
+        com.weatherwidget.shared.util.TempUtils.celsiusToFahrenheit(celsius)
+
 
     /**
      * Hardened NWS timestamp parse: repairs a `+0000`-style offset to `+00:00`, and falls back to

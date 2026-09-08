@@ -43,10 +43,7 @@ private val COLOR_ACTUAL_RAIN_AMOUNT = Color(0xFFFF9F0A)
 // visible); Android uses #66FFFFFF (~0.4 alpha) and is untouched.
 private val COLOR_DAY_NIGHT_DIVIDER = Color.White.copy(alpha = 0.2f)
 
-private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags): Color {
-    val argb = com.weatherwidget.shared.util.WeatherColors.forecastColor(flags.isSunny, flags.isRainy, flags.isMixed, flags.isNight, flags.isTwilight)
-    return Color(argb)
-}
+
 
 
 @Composable

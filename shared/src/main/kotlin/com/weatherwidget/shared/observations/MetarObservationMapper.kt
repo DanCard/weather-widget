@@ -103,5 +103,6 @@ object MetarObservationMapper {
         )
     }
 
-    private fun celsiusToFahrenheit(celsius: Float): Float = (celsius * 1.8f) + 32f
+    private fun celsiusToFahrenheit(celsius: Float): Float =
+        com.weatherwidget.shared.util.TempUtils.celsiusToFahrenheit(celsius)
 }

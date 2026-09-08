@@ -1,5 +1,7 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.shared.util.AgeFormatter
+
 /**
  * Platform-free formatting for the fetch-dot staleness age label, shared by the Android widget
  * (`TemperatureGraphStyle.formatAgeLabel`) and the desktop graph (`TemperatureGraph`).
@@ -18,13 +20,5 @@ object FetchDotLabel {
         ageMinutes: Long,
         spanHours: Long,
         maxSpanHours: Long = AGE_LABEL_MAX_HOURS_SPAN,
-    ): String? {
-        if (ageMinutes < 0) return null
-        if (spanHours > maxSpanHours) return null
-        return if (ageMinutes >= 60) {
-            "${ageMinutes / 60}h${if (ageMinutes % 60 > 0) " ${ageMinutes % 60}m" else ""}"
-        } else {
-            "${ageMinutes}m"
-        }
-    }
+    ): String? = AgeFormatter.formatFetchDotLabel(ageMinutes, spanHours, maxSpanHours)
 }

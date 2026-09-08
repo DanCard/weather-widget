@@ -112,8 +112,8 @@ class DesktopWeatherRepository(
             userLat = latitude,
             userLon = longitude,
             nowMs = now,
-            lookbackHours = 12L,
-            lookaheadHours = 3L,
+            lookbackHours = CurrentTemperatureResolver.RESOLUTION_LOOKBACK_HOURS,
+            lookaheadHours = CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS,
             personalStationWeight = personalStationWeight,
         )
 
@@ -171,8 +171,8 @@ class DesktopWeatherRepository(
             userLat = latitude,
             userLon = longitude,
             nowMs = now,
-            lookbackHours = 12L,
-            lookaheadHours = 3L,
+            lookbackHours = CurrentTemperatureResolver.RESOLUTION_LOOKBACK_HOURS,
+            lookaheadHours = CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS,
             personalStationWeight = personalStationWeight,
         )?.dominantContribution?.contribution
     }

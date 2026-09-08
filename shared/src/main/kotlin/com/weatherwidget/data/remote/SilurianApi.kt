@@ -125,15 +125,7 @@ class SilurianApi(
             parameter("timezone", "local")
             extra()
         }
-        if (response.status.value !in 200..299) {
-            val errorBody = runCatching { response.bodyAsText() }.getOrDefault("No error body")
-            throw ApiAccessException(
-                source = WeatherSource.SILURIAN,
-                statusCode = response.status.value,
-                detail = errorBody,
-                message = "Silurian fetch failed ($path): status ${response.status.value}. Detail: $errorBody",
-            )
-        }
+        response.require2xx(WeatherSource.SILURIAN, "Silurian fetch failed ($path)")
         return json.parseToJsonElement(response.bodyAsText()).jsonObject
     }
 

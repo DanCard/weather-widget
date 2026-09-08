@@ -6,7 +6,9 @@ package com.weatherwidget.shared.graph
  * (`TodayColumnOverlayRenderer`) and desktop (`DailyForecastGraph`) renderers.
  */
 object TodayColumnOverlayBlocks {
-    data class Row(val text: String, val caption: String? = null)
+    data class Row(val text: String, val caption: String? = null) {
+        fun displayText(): String = listOfNotNull(text, caption).joinToString(" ")
+    }
 
     data class Block(val key: String, val rows: List<Row>)
 

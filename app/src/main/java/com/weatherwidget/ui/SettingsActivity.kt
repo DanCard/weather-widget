@@ -511,11 +511,8 @@ class SettingsActivity : AppCompatActivity() {
         val seekBar = findViewById<SeekBar>(R.id.personal_station_discount_seekbar)
         val valueLabel = findViewById<TextView>(R.id.personal_station_discount_value)
 
-        fun labelFor(percent: Int): String = when (percent) {
-            0 -> "0% — no discount (counts the same as official)"
-            100 -> "100% — personal stations ignored"
-            else -> "$percent% discount"
-        }
+        fun labelFor(percent: Int): String =
+            com.weatherwidget.shared.util.formatPersonalStationDiscount(percent)
 
         val initial = widgetStateManager.getPersonalStationDiscountPercent()
         seekBar.progress = initial

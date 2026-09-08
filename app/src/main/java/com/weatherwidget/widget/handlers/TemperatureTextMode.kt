@@ -62,7 +62,7 @@ internal fun updateHourlyTextMode(
             views.setViewVisibility(ids.iconId, View.GONE)
 
             if (forecast != null) {
-                val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(forecast.temperature) else forecast.temperature
+                val displayTemp = com.weatherwidget.shared.util.TempUtils.display(forecast.temperature, useCelsius)
                 val temp = String.format("%.1f\u00B0", displayTemp)
                 views.setTextViewText(ids.tempId, temp)
                 views.setTextViewText(ids.lowId, "")

@@ -154,12 +154,12 @@ private fun BreakdownTable(rows: List<AccuracyPure.DailyAccuracy>, useCelsius: B
         rows.reversed().forEach { r ->
             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 BodyCell(r.date, 2f)
-                val dispForecastHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.forecastHigh.toFloat()).roundToInt() else r.forecastHigh
-                val dispForecastLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.forecastLow.toFloat()).roundToInt() else r.forecastLow
-                val dispActualHigh = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.computedHighTemp.toFloat()).roundToInt() else r.computedHighTemp
-                val dispActualLow = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(r.computedLowTemp.toFloat()).roundToInt() else r.computedLowTemp
-                val dispHighError = if (useCelsius) (r.highError.toFloat() / 1.8f).roundToInt() else r.highError
-                val dispLowError = if (useCelsius) (r.lowError.toFloat() / 1.8f).roundToInt() else r.lowError
+                val dispForecastHigh = com.weatherwidget.shared.util.TempUtils.display(r.forecastHigh.toFloat(), useCelsius).roundToInt()
+                val dispForecastLow = com.weatherwidget.shared.util.TempUtils.display(r.forecastLow.toFloat(), useCelsius).roundToInt()
+                val dispActualHigh = com.weatherwidget.shared.util.TempUtils.display(r.computedHighTemp.toFloat(), useCelsius).roundToInt()
+                val dispActualLow = com.weatherwidget.shared.util.TempUtils.display(r.computedLowTemp.toFloat(), useCelsius).roundToInt()
+                val dispHighError = com.weatherwidget.shared.util.TempUtils.displayDelta(r.highError.toFloat(), useCelsius).roundToInt()
+                val dispLowError = com.weatherwidget.shared.util.TempUtils.displayDelta(r.lowError.toFloat(), useCelsius).roundToInt()
 
                 BodyCell("$dispForecastHigh/$dispForecastLow", 1.4f)
                 BodyCell("$dispActualHigh/$dispActualLow", 1.4f)

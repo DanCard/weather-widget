@@ -62,11 +62,6 @@ import kotlin.math.roundToInt
  */
 private val COLOR_ACTUAL = Color(com.weatherwidget.shared.util.WeatherColors.OBSERVED)
 
-private fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags): Color {
-    val argb = com.weatherwidget.shared.util.WeatherColors.forecastColor(flags.isSunny, flags.isRainy, flags.isMixed, flags.isNight, flags.isTwilight)
-    return Color(argb)
-}
-
 // Floors for the actual-line blend context window. The effective window scales with the visible
 // back/forward span (see the build() call) so the pink actual line reaches the left edge at any
 // zoom — these are just the minimums that preserved the pre-30-day-zoom behavior at near zoom.

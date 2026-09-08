@@ -421,7 +421,7 @@ internal fun SettingsWindow(
     }
 }
 
-private fun formatCoord(value: Double): String = "%.4f".format(value)
+private fun formatCoord(value: Double): String = com.weatherwidget.shared.util.formatCoord(value)
 
 /**
  * The arm switch for the one-shot dominant-station temperature notification.
@@ -560,11 +560,8 @@ private fun PersonalStationDiscount(
     discountPercent: Int,
     onChanged: (Int) -> Unit
 ) {
-    fun labelFor(percent: Int): String = when (percent) {
-        0 -> "0% — no discount (counts the same as official)"
-        100 -> "100% — personal stations ignored"
-        else -> "$percent% discount"
-    }
+    fun labelFor(percent: Int): String =
+        com.weatherwidget.shared.util.formatPersonalStationDiscount(percent)
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(

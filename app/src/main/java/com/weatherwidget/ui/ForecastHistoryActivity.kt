@@ -25,6 +25,7 @@ import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
 import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.WeatherRepository
@@ -593,8 +594,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
                                 if (enabledSources.contains(source)) {
                                     if (stats != null && stats.totalForecasts > 0) {
                                         append("${source.displayName}\n")
-                                        val highErr = if (useCelsius) stats.avgHighError / 1.8 else stats.avgHighError
-                                        val lowErr = if (useCelsius) stats.avgLowError / 1.8 else stats.avgLowError
+                                        val highErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgHighError, useCelsius)
+                                        val lowErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgLowError, useCelsius)
                                         append(getString(
                                             R.string.accuracy_high_low_line,
                                             "%.1f°".format(highErr) + formatBias(stats.highBias, useCelsius),
@@ -631,16 +632,10 @@ class ForecastHistoryActivity : AppCompatActivity() {
         }
     }
 
-    private fun formatBias(bias: Double, useCelsius: Boolean): String {
-        val displayBias = if (useCelsius) bias / 1.8 else bias
-        val absBias = kotlin.math.abs(displayBias)
-        val threshold = if (useCelsius) 0.5 / 1.8 else 0.5
-        return when {
-            absBias < threshold -> ""
-            displayBias > 0 -> getString(R.string.bias_low_suffix, "%.1f°".format(absBias))
-            else -> getString(R.string.bias_high_suffix, "%.1f°".format(absBias))
+    private fun formatBias(bias: Double, useCelsius: Boolean): String =
+        ForecastHistoryViewLogic.formatBias(bias, useCelsius) { v, low ->
+            getString(if (low) R.string.bias_low_suffix else R.string.bias_high_suffix, v)
         }
-    }
 
     private fun updateModeUi() {
         val modeButton = findViewById<Button>(R.id.graph_mode_button)
