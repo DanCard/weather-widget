@@ -165,7 +165,7 @@ class WeatherObservationsActivityRobolectricTest {
         val scenario = launchActivity()
 
         scenario.onActivity { activity ->
-            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as ObservationAdapter
             val stationIds = adapter.items.map { it.stationId }
             val subtitle = activity.findViewById<TextView>(R.id.subtitle).text.toString()
             val logs = activity.findViewById<TextView>(R.id.fetch_logs).text.toString()
@@ -266,7 +266,7 @@ class WeatherObservationsActivityRobolectricTest {
         val scenario = launchActivity()
 
         scenario.onActivity { activity ->
-            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as ObservationAdapter
             val stationIds = adapter.items.map { it.stationId }
 
             assertFalse("Tomorrow.io observations should be excluded from NWS view", stationIds.contains("TOMORROW_IO_MAIN"))
@@ -303,7 +303,7 @@ class WeatherObservationsActivityRobolectricTest {
         val scenario = launchActivity()
 
         scenario.onActivity { activity ->
-            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as ObservationAdapter
             val stationIds = adapter.items.map { it.stationId }
 
             assertFalse("Austin observation must not leak into the Bay Area list", stationIds.contains("KATT"))
@@ -343,7 +343,7 @@ class WeatherObservationsActivityRobolectricTest {
         val scenario = launchActivity()
 
         scenario.onActivity { activity ->
-            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as ObservationAdapter
             val stationIds = adapter.items.map { it.stationId }
 
             assertFalse("A station from the previous site must not linger in the list", stationIds.contains("LSGC1"))
@@ -369,9 +369,9 @@ class WeatherObservationsActivityRobolectricTest {
 
         scenario.onActivity { activity ->
             val recycler = activity.findViewById<RecyclerView>(R.id.observations_list)
-            val adapter = recycler.adapter as WeatherObservationsActivity.ObservationAdapter
+            val adapter = recycler.adapter as ObservationAdapter
 
-            fun bind(stationId: String): WeatherObservationsActivity.ObservationAdapter.ViewHolder {
+            fun bind(stationId: String): ObservationAdapter.ViewHolder {
                 val holder = adapter.onCreateViewHolder(recycler, 0)
                 adapter.onBindViewHolder(holder, adapter.items.indexOfFirst { it.stationId == stationId })
                 return holder
@@ -407,9 +407,9 @@ class WeatherObservationsActivityRobolectricTest {
 
         scenario.onActivity { activity ->
             val recycler = activity.findViewById<RecyclerView>(R.id.observations_list)
-            val adapter = recycler.adapter as WeatherObservationsActivity.ObservationAdapter
+            val adapter = recycler.adapter as ObservationAdapter
 
-            fun bind(stationId: String): WeatherObservationsActivity.ObservationAdapter.ViewHolder {
+            fun bind(stationId: String): ObservationAdapter.ViewHolder {
                 val holder = adapter.onCreateViewHolder(recycler, 0)
                 adapter.onBindViewHolder(holder, adapter.items.indexOfFirst { it.stationId == stationId })
                 return holder
@@ -449,7 +449,7 @@ class WeatherObservationsActivityRobolectricTest {
         shadowOf(Looper.getMainLooper()).idle()
 
         scenario.onActivity { activity ->
-            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as ObservationAdapter
             val updated = adapter.items.first { it.stationId == "AW020" }
 
             assertEquals(newerFetchAt, updated.fetchedAt)
@@ -484,7 +484,7 @@ class WeatherObservationsActivityRobolectricTest {
         val scenario = launchActivity()
 
         scenario.onActivity { activity ->
-            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as ObservationAdapter
             adapter.onItemClick(adapter.items.first { it.stationId == "KNUQ" })
             shadowOf(Looper.getMainLooper()).idle()
 
@@ -499,7 +499,7 @@ class WeatherObservationsActivityRobolectricTest {
         val scenario = launchActivity()
 
         scenario.onActivity { activity ->
-            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as ObservationAdapter
             adapter.onItemClick(adapter.items.first { it.stationId == "AW020" })
             shadowOf(Looper.getMainLooper()).idle()
 
@@ -522,7 +522,7 @@ class WeatherObservationsActivityRobolectricTest {
         }
 
         scenario.onActivity { activity ->
-            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as ObservationAdapter
             adapter.onItemClick(adapter.items.first { it.stationId == "WEATHER_API_MAIN" })
             shadowOf(Looper.getMainLooper()).idle()
 
@@ -544,7 +544,7 @@ class WeatherObservationsActivityRobolectricTest {
         }
 
         scenario.onActivity { activity ->
-            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as ObservationAdapter
             val stationIds = adapter.items.map { it.stationId }
             val subtitle = activity.findViewById<TextView>(R.id.subtitle).text.toString()
             val logs = activity.findViewById<TextView>(R.id.fetch_logs).text.toString()
@@ -835,7 +835,7 @@ class WeatherObservationsActivityRobolectricTest {
 
     private fun adapterOf(activity: WeatherObservationsActivity) =
         activity.findViewById<RecyclerView>(R.id.observations_list).adapter
-            as WeatherObservationsActivity.ObservationAdapter
+            as ObservationAdapter
 
     private fun moveWidgetTo(newLat: Double, newLon: Double) {
         SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME).edit()
