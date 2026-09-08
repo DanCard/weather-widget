@@ -706,6 +706,7 @@ fun TemperatureGraph(
                 TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW -> Color.White
                 TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_END -> COLOR_ACTUAL
                 TemperatureRole.LOCAL -> Color.White
+                TemperatureRole.CENTER -> if (label.isFuture) Color.White else COLOR_ACTUAL
                 TemperatureRole.START, TemperatureRole.END -> Color.White.copy(alpha = 0.6f)
             }
             val textLayout = textMeasurer.measure(label.text, TextStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp, color = color))

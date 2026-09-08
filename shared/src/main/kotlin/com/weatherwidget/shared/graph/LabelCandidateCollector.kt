@@ -159,17 +159,7 @@ internal object LabelCandidateCollector {
             nearbyWindow = min(5, (hours.lastIndex / 3).coerceAtLeast(1))
         )
 
-        val finalIndices =
-            if (numColumns >= 5 && filteredIndices.size == 2 && filteredIndices.containsAll(listOf(0, hours.lastIndex))) {
-                val midIndex = hours.lastIndex / 2
-                if (midIndex != 0 && midIndex != hours.lastIndex) {
-                    (filteredIndices + midIndex).sorted()
-                } else {
-                    filteredIndices
-                }
-            } else {
-                filteredIndices
-            }
+        val finalIndices = filteredIndices
 
         val specialCandidates = mutableListOf<TempLabelCandidate>()
         val suppressedIndices = mutableSetOf<Int>()
@@ -263,8 +253,79 @@ internal object LabelCandidateCollector {
             useCelsius = useCelsius,
         )
         addForecastMidpointLabel(specialCandidates, effectiveActualEndIndex, hours, labelTemps, useCelsius = useCelsius)
+        addCenterLabel(
+            specialCandidates = specialCandidates,
+            hours = hours,
+            labelTemps = labelTemps,
+            actualLabelTemps = actualLabelTemps,
+            effectiveActualEndIndex = effectiveActualEndIndex,
+            numColumns = numColumns,
+            useCelsius = useCelsius,
+        )
 
         return specialCandidates
+    }
+
+    /**
+     * Adds one label at the temporal midpoint of a graph with enough horizontal room. Dense observed
+     * samples make the list midpoint drift away from the visual midpoint, so selection is based on
+     * elapsed time. When the actual line covers that sample its value wins; otherwise the forecast
+     * value is used. Any other candidate at the same sample is replaced so the center stays singular.
+     */
+    private fun addCenterLabel(
+        specialCandidates: MutableList<TempLabelCandidate>,
+        hours: List<HourData>,
+        labelTemps: List<Float>,
+        actualLabelTemps: List<Float>,
+        effectiveActualEndIndex: Int,
+        numColumns: Int,
+        useCelsius: Boolean,
+    ) {
+        if (numColumns < 5 || hours.size < 3) return
+        val totalMinutes = Duration.between(hours.first().dateTime, hours.last().dateTime).toMinutes()
+        if (totalMinutes <= 0L) return
+        val midpointMinutes = totalMinutes / 2.0
+        val mid = hours.indices.minByOrNull { idx ->
+            kotlin.math.abs(Duration.between(hours.first().dateTime, hours[idx].dateTime).toMinutes() - midpointMinutes)
+        } ?: return
+        if (mid == 0 || mid == hours.lastIndex) return
+
+        val actualAvailable =
+            mid <= effectiveActualEndIndex &&
+                hours[mid].isActual &&
+                mid in actualLabelTemps.indices &&
+                !actualLabelTemps[mid].isNaN()
+        val temps = if (actualAvailable) actualLabelTemps else labelTemps
+        if (mid !in temps.indices || temps[mid].isNaN()) return
+
+        val matchingExisting = specialCandidates.firstOrNull { candidate ->
+            candidate.index == mid && candidate.forceForecastSeries == !actualAvailable
+        }
+        specialCandidates.removeAll { it.index == mid }
+        logLabelDecision(
+            action = "LabelAccepted",
+            role = TemperatureRole.CENTER,
+            idx = mid,
+            value = temps[mid],
+            hours = hours,
+            reason = "GRAPH_CENTER",
+            provenance = if (actualAvailable) "OBSERVED" else "FORECAST",
+            useCelsius = useCelsius,
+        )
+        specialCandidates.add(
+            matchingExisting?.copy(
+                labelTemps = temps,
+                forceForecastSeries = !actualAvailable,
+                isCenter = true,
+            ) ?: TempLabelCandidate(
+                index = mid,
+                role = TemperatureRole.CENTER,
+                labelTemps = temps,
+                rawTemperature = hours[mid].temperature,
+                forceForecastSeries = !actualAvailable,
+                isCenter = true,
+            ),
+        )
     }
 
     /**

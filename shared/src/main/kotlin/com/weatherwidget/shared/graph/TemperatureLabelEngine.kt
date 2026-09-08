@@ -31,6 +31,7 @@ object TemperatureLabelEngine {
         TemperatureRole.ACTUAL_LOW, TemperatureRole.LOW,
         TemperatureRole.ACTUAL_HIGH, TemperatureRole.HIGH,
         TemperatureRole.ACTUAL_END, TemperatureRole.LOCAL,
+        TemperatureRole.CENTER,
         TemperatureRole.START, TemperatureRole.END,
     )
 
@@ -289,6 +290,7 @@ object TemperatureLabelEngine {
             val forceAbove = idx in forcedAboveLows
             val valueBasedRoles = candidate.role == TemperatureRole.ACTUAL_END ||
                 candidate.role == TemperatureRole.LOCAL ||
+                candidate.role == TemperatureRole.CENTER ||
                 candidate.role == TemperatureRole.START ||
                 candidate.role == TemperatureRole.END
             val preferAbove = when {

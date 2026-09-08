@@ -64,7 +64,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
         val indices = placements.map { it.index }.sorted()
         assertEquals("Expected start, midpoint, and end labels on a wide sparse graph. placements=$placements", listOf(0, 5, 11), indices)
-        assertTrue("Expected injected midpoint to be a LOCAL label. placements=$placements", placements.any { it.index == 5 && it.role == TemperatureRole.LOCAL })
+        assertTrue("Expected injected midpoint to be a CENTER label. placements=$placements", placements.any { it.index == 5 && it.role == TemperatureRole.CENTER })
     }
 
     @Test
@@ -88,7 +88,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     }
 
     @Test
-    fun `wide widget does not inject middle label when temperature graph already has interior labels`() {
+    fun `wide widget keeps center label when temperature graph already has interior labels`() {
         val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 3, 19, 10, 0)
         val temps = listOf(50f, 55f, 61f, 55f, 49f, 52f, 54f, 56f, 58f, 60f, 62f, 64f)
@@ -103,7 +103,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) }, useCelsius = false,
         )
 
-        assertFalse("Midpoint should not be injected when interior extrema are already labeled. placements=$placements", placements.any { it.index == 5 && it.role == TemperatureRole.LOCAL })
+        assertTrue("Center should remain labeled when interior extrema are present. placements=$placements", placements.any { it.index == 5 && it.role == TemperatureRole.CENTER })
         assertTrue("Expected at least one real interior extrema label. placements=$placements", placements.any { it.index !in listOf(0, temps.lastIndex) })
     }
 

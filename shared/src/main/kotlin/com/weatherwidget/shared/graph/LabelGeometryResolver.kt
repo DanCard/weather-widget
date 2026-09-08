@@ -124,7 +124,7 @@ internal object LabelGeometryResolver {
             if (isPeak) -displayTemp else displayTemp
         }
         candidates.sortWith(
-            compareBy<TempLabelCandidate> { roleGroup(it.role) }
+            compareBy<TempLabelCandidate> { if (it.isCenter) -1 else roleGroup(it.role) }
                 .thenBy { secondaryKey.getValue(it) }
         )
     }
@@ -135,6 +135,7 @@ internal object LabelGeometryResolver {
     )
 
     private fun roleGroup(role: TemperatureRole): Int = when (role) {
+        TemperatureRole.CENTER -> 1
         TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW,
         TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW -> 0
         TemperatureRole.LOCAL, TemperatureRole.ACTUAL_END -> 1

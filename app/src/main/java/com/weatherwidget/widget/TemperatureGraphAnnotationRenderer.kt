@@ -43,6 +43,7 @@ internal object TemperatureGraphAnnotationRenderer {
             TemperatureRole.HIGH,
             TemperatureRole.LOW,
             TemperatureRole.LOCAL,
+            TemperatureRole.CENTER,
             TemperatureRole.START,
             TemperatureRole.END,
         )

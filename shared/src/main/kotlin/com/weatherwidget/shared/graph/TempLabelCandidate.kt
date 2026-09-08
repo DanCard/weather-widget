@@ -5,5 +5,6 @@ data class TempLabelCandidate(
     val role: TemperatureRole,
     val labelTemps: List<Float>,
     val rawTemperature: Float,
-    val forceForecastSeries: Boolean
+    val forceForecastSeries: Boolean,
+    val isCenter: Boolean = false,
 )

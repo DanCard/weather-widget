@@ -36,6 +36,7 @@ object TemperatureLabelResolver {
         TemperatureRole.PAST_FORECAST_LOW,
         TemperatureRole.PAST_FORECAST_HIGH,
         TemperatureRole.LOCAL,
+        TemperatureRole.CENTER,
         TemperatureRole.START,
         TemperatureRole.END,
         TemperatureRole.ACTUAL_END,
