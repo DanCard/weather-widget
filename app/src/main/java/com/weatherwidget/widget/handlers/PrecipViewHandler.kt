@@ -240,73 +240,20 @@ object PrecipViewHandler {
         val isPrecipVisible = headerPrecipProbability != null
         val precipTextSizeDp = if (headerPrecipProbability != null) HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability) else null
 
-        val headerScale = HeaderWidthChecker.computeHeaderScale(
-            context = context,
-            widthDp = dimensions.widthDp,
-            apiSourceText = sourceIndicator,
-            apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
-            currentTempText = formattedTemp,
-            deltaText = null,
-            precipText = if (isPrecipVisible) "$headerPrecipProbability%" else null,
-            precipTextSizeDp = precipTextSizeDp,
-        )
-
-        HeaderRemoteViewsBinder.bindApiSource(
+        val headerResult = HourlyHeaderBinder.bindHourlyHeader(
             context = context,
             views = views,
-            sourceText = sourceIndicator,
-            textSizeDp = HeaderConstants.apiTextSizeDp(numRows),
-            scale = headerScale,
-        )
-        views.setViewVisibility(R.id.api_touch_zone, View.VISIBLE)
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = R.id.settings_icon,
-            iconRes = R.drawable.ic_settings_gear,
-            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
-            scale = headerScale,
-            tintColor = 0xAAFFFFFF.toInt()
-        )
-        views.setViewVisibility(R.id.top_right_header_container, View.VISIBLE)
-
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = R.id.weather_icon,
             iconRes = iconRes,
-            sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
-            scale = headerScale,
-        )
-
-        HeaderRemoteViewsBinder.bindCurrentTemp(
-            context = context,
-            views = views,
             formattedTemp = formattedTemp,
-            scale = headerScale,
+            isPrecipVisible = isPrecipVisible,
+            headerPrecipProbability = headerPrecipProbability,
+            precipTextSizeDp = precipTextSizeDp,
+            widthDp = dimensions.widthDp,
+            numRows = numRows,
+            sourceIndicator = sourceIndicator,
         )
-
-        HeaderRemoteViewsBinder.bindPrecipProbability(
-            context = context,
-            views = views,
-            precipText = if (isPrecipVisible) "$headerPrecipProbability%" else null,
-            textSizeDp = precipTextSizeDp ?: 0f,
-            scale = headerScale,
-        )
-HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
-
-// Apply progressive disclosure for narrow widgets
-val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
-    context = context,
-    widthDp = dimensions.widthDp,
-    apiSourceText = sourceIndicator,
-    apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
-    currentTempText = formattedTemp,
-    deltaText = null,
-    precipText = if (isPrecipVisible) "$headerPrecipProbability%" else null,
-    precipTextSizeDp = precipTextSizeDp,
-)
-HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isPrecipVisible)
+        val headerScale = headerResult.headerScale
+        val disclosure = headerResult.disclosure
 
         val today = LocalDateTime.now().toLocalDate()
         val isToday = centerTime.toLocalDate() == today

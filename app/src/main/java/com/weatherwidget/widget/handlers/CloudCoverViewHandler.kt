@@ -307,73 +307,20 @@ object CloudCoverViewHandler {
         val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(headerPrecipProbability)
         val precipTextSizeDp = if (headerPrecipProbability != null) HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability) else null
 
-        val headerScale = HeaderWidthChecker.computeHeaderScale(
-            context = context,
-            widthDp = dimensions.widthDp,
-            apiSourceText = sourceIndicator,
-            apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
-            currentTempText = formattedTemp,
-            deltaText = null,
-            precipText = if (isPrecipVisible) "$headerPrecipProbability%" else null,
-            precipTextSizeDp = precipTextSizeDp,
-        )
-
-        HeaderRemoteViewsBinder.bindApiSource(
+        val headerResult = HourlyHeaderBinder.bindHourlyHeader(
             context = context,
             views = views,
-            sourceText = sourceIndicator,
-            textSizeDp = HeaderConstants.apiTextSizeDp(numRows),
-            scale = headerScale,
-        )
-        views.setViewVisibility(R.id.api_touch_zone, View.VISIBLE)
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = R.id.settings_icon,
-            iconRes = R.drawable.ic_settings_gear,
-            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
-            scale = headerScale,
-            tintColor = 0xAAFFFFFF.toInt()
-        )
-        views.setViewVisibility(R.id.top_right_header_container, View.VISIBLE)
-
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = R.id.weather_icon,
             iconRes = iconRes,
-            sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
-            scale = headerScale,
-        )
-
-        HeaderRemoteViewsBinder.bindCurrentTemp(
-            context = context,
-            views = views,
             formattedTemp = formattedTemp,
-            scale = headerScale,
+            isPrecipVisible = isPrecipVisible,
+            headerPrecipProbability = headerPrecipProbability,
+            precipTextSizeDp = precipTextSizeDp,
+            widthDp = dimensions.widthDp,
+            numRows = numRows,
+            sourceIndicator = sourceIndicator,
         )
-
-        HeaderRemoteViewsBinder.bindPrecipProbability(
-            context = context,
-            views = views,
-            precipText = if (isPrecipVisible) "$headerPrecipProbability%" else null,
-            textSizeDp = precipTextSizeDp ?: 0f,
-            scale = headerScale,
-        )
-HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
-
-// Apply progressive disclosure for narrow widgets
-val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
-    context = context,
-    widthDp = dimensions.widthDp,
-    apiSourceText = sourceIndicator,
-    apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
-    currentTempText = formattedTemp,
-    deltaText = null,
-    precipText = if (isPrecipVisible) "$headerPrecipProbability%" else null,
-    precipTextSizeDp = precipTextSizeDp,
-)
-HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isPrecipVisible)
+        val headerScale = headerResult.headerScale
+        val disclosure = headerResult.disclosure
 
         val today = LocalDateTime.now().toLocalDate()
         val isToday = centerTime.toLocalDate() == today
@@ -414,101 +361,19 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             views.setViewVisibility(R.id.graph_interaction_container, View.VISIBLE)
 
             val buildHoursStartMs = SystemClock.elapsedRealtime()
-            // Day-ago predictions for the visible window: the forecast curve's frozen half. Scoped
-            // to the same site the rows being drawn came from, and empty for every source without a
-            // previous-runs product — which collapses both curves onto the live value.
-            val siteLat = hourlyForecasts.firstOrNull()?.locationLat
-            val siteLon = hourlyForecasts.firstOrNull()?.locationLon
-            val siteResolved = siteLat != null && siteLon != null && windowHourKeys.isNotEmpty()
-            // The actual curve exists wherever a cloud product exists, asked of the feed that
-            // actually SUPPLIES this source's cloud rather than of the source itself: a
-            // provider-history source via its synthetic backfill row, a station-observation feed via
-            // the read-time station blend, and a forecast-only source via whichever feed it borrows
-            // (ActualsProviderResolver — the same choice that supplies its temperature actuals).
-            // Must agree with MetarCloudBlender.fromSiteRows, which gates on the same provider; a
-            // curve declared available here and refused there paints an empty graph.
-            //
-            // The frozen forecast curve stays Open-Meteo-only — it is the one source with a
-            // previous-runs product, so under every other source the forecast falls back to the
-            // live value with isFrozen = false, which the builder and renderer already handle.
-            val cloudProvider =
-                WeatherSource.fromId(ActualsProviderResolver.providerIdFor(effectiveDisplaySource))
-            val cloudSeriesAvailable = siteResolved && cloudProvider.supportsCloudActuals
-            val priorCloudAvailable = siteResolved && effectiveDisplaySource == WeatherSource.OPEN_METEO
-            val cloudHistoryDao = if (priorCloudAvailable) {
-                WeatherDatabase.getDatabase(context).hourlyForecastHistoryDao()
-            } else {
-                null
-            }
-            val windowStart = windowHourKeys.minOrNull() ?: 0L
-            val windowEnd = (windowHourKeys.maxOrNull() ?: 0L) + 1
-            val priorCloud = if (cloudHistoryDao != null) {
-                runCatching {
-                    cloudHistoryDao.getPriorDayCloudForecast(
-                        startDateTime = windowStart,
-                        endDateTime = windowEnd,
-                        lat = siteLat!!,
-                        lon = siteLon!!,
-                    )
-                }.getOrElse {
-                    Log.w(TAG, "prior-day cloud read failed; falling back to live values", it)
-                    emptyMap()
-                }
-            } else {
-                emptyMap()
-            }
-            // The bands' frozen forecast, from our own snapshots under the REAL source id. Same
-            // availability gate as priorCloud (Open-Meteo is the only source that forecasts bands),
-            // but a different table scope — see PriorDayBandForecast for why the Previous Runs API
-            // cannot serve this.
-            val priorBands = if (cloudHistoryDao != null) {
-                runCatching {
-                    cloudHistoryDao.getPriorDayBandForecast(
-                        startDateTime = windowStart,
-                        endDateTime = windowEnd,
-                        lat = siteLat!!,
-                        lon = siteLon!!,
-                        source = effectiveDisplaySource.id,
-                    )
-                }.getOrElse {
-                    Log.w(TAG, "prior-day band read failed; band glyphs stay forecast-only", it)
-                    emptyMap()
-                }
-            } else {
-                emptyMap()
-            }
-            val retroActual = if (cloudSeriesAvailable) {
-                runCatching {
-                    WeatherDatabase.getDatabase(context).observationDao().getCloudActuals(
-                        startTs = windowStart,
-                        // Bounded at "now", matching DesktopWeatherRepository. Cloud buckets round to
-                        // the NEAREST hour, so a reading at 11:35 buckets to 12:00 — and with the
-                        // window end alone, the actual curve would draw a real observation to the
-                        // RIGHT of the NOW marker. A past-day window keeps its own end.
-                        endTs = minOf(windowEnd, System.currentTimeMillis()),
-                        lat = siteLat!!,
-                        lon = siteLon!!,
-                        sourceId = effectiveDisplaySource.id,
-                    )
-                }.getOrElse {
-                    Log.w(TAG, "cloud actual read failed; graph shows forecast only", it)
-                    MetarCloudBlender.empty(isMetarBlend = false)
-                }
-            } else {
-                MetarCloudBlender.empty(isMetarBlend = false)
-            }
-
-            // Permanent diagnostic: the cloud actual has now failed silently twice — once because the
-            // write dropped it, once because nothing was stored at all — and both looked identical
-            // on screen (a single solid curve). This pins which leg is empty without a DB pull, and
-            // the METAR blend stats separate "every station is a PWS" from a thin-but-alive blend.
-            val metarStats = if (retroActual.isMetarBlend) " ${retroActual.stats.summary()}" else ""
-            Log.i(
-                TAG,
-                "CLOUD_SERIES src=${effectiveDisplaySource.id} site=$siteLat,$siteLon " +
-                    "window=${windowStart}..${windowEnd} prior=${priorCloud.size} actual=${retroActual.hours.size} " +
-                    "inWindow=${retroActual.hours.keys.count { it in windowStart until windowEnd }}$metarStats",
+            val cloudData = CloudSeriesLoader.loadCloudSeries(
+                context = context,
+                hourlyForecasts = hourlyForecasts,
+                windowHourKeys = windowHourKeys,
+                effectiveDisplaySource = effectiveDisplaySource,
             )
+            val siteLat = cloudData.siteLat
+            val siteLon = cloudData.siteLon
+            val windowStart = cloudData.windowStart
+            val windowEnd = cloudData.windowEnd
+            val priorCloud = cloudData.priorCloud
+            val priorBands = cloudData.priorBands
+            val retroActual = cloudData.retroActual
 
             // Cloud-while-viewing watchdog: this view is literally being drawn, so if the active
             // source's cloud data is stale, fetch it now instead of waiting for the slow full-forecast
