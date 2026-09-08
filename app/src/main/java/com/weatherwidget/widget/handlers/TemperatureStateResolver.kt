@@ -21,6 +21,7 @@ import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.shared.util.HeaderFormatter
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPhase
+import com.weatherwidget.util.SunInfo
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
@@ -165,7 +166,7 @@ internal object TemperatureStateResolver {
             hasSelectedSourceData = hourlyForecasts.any { it.source == displaySource.id },
         )
         if (warning != null) {
-            return buildWarningResult(appWidgetId, displaySource, zoom, hourlyOffset, warning, lat, lon)
+            return buildFallbackResult(appWidgetId, displaySource, zoom, hourlyOffset, lat, lon, warning = warning)
         }
 
         // 2. Data Pre-processing
@@ -222,7 +223,7 @@ internal object TemperatureStateResolver {
                         "centerTime=$centerTime useGraph=$useGraph defer=$deferGraphActuals",
                     "WARN",
                 )
-                return buildEmptyGraphResult(appWidgetId, displaySource, zoom, hourlyOffset, lat, lon, smoothedForecasts)
+                return buildFallbackResult(appWidgetId, displaySource, zoom, hourlyOffset, lat, lon, smoothedForecasts = smoothedForecasts)
             }
             is GraphLoadOutcome.Loaded -> {
                 graphHours = graphLoadResult.hours
@@ -238,126 +239,38 @@ internal object TemperatureStateResolver {
             }
         }
 
-        // HOURLY_DAY_EXTREMA: per-day actual high/low the hourly graph derives from its rendered points,
-        // for direct comparison against the daily bar's persisted daily_history (logged as
-        // DAILY_HISTORY_BLEND). Diagnoses the "daily bar 72.4 vs hourly 72.9" divergence: same blend
-        // function, but the two pipelines feed it different obs windows. Logs the actual-point count and
-        // window span too so we can see whether a window/interpolation edge is moving the max.
-        run {
-            val zoneId = ZoneId.systemDefault()
-            val actualPts = graphHours.filter { it.isActual }
-            val byDay = actualPts.groupBy { it.dateTime.toLocalDate() }
-            val fmt = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
-            val perDay = byDay.entries.sortedBy { it.key }.joinToString("; ") { (date, pts) ->
-                val hi = pts.maxByOrNull { it.actualTemperature ?: it.temperature }!!
-                val lo = pts.minByOrNull { it.actualTemperature ?: it.temperature }!!
-                "$date hi=${"%.2f".format(hi.actualTemperature ?: hi.temperature)}@${hi.dateTime.format(fmt)} " +
-                    "lo=${"%.2f".format(lo.actualTemperature ?: lo.temperature)}@${lo.dateTime.format(fmt)} n=${pts.size}"
-            }
-            val span = if (graphHours.isEmpty()) "none" else "${graphHours.first().dateTime}..${graphHours.last().dateTime}"
-            effectiveAppLogDao.log(
-                "HOURLY_DAY_EXTREMA",
-                "widget=$appWidgetId source=${displaySource.id} zoom=$zoom offset=$hourlyOffset span=$span perDay=[$perDay]",
-            )
-        }
+        logHourlyDayExtrema(graphHours, appWidgetId, displaySource, zoom, hourlyOffset, effectiveAppLogDao)
 
         // 4. Current Temp Resolution
-        val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
-        val resolveStartMs = System.currentTimeMillis()
-        val currentTempResolution = if (deferCurrentTempResolution) {
-            val quick = CurrentTemperatureResolver.resolveQuick(
-                now = now,
-                displaySource = displaySource,
-                hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
-                lastObservedTemp = lastObservedTemp,
-                smoothedForecasts = currentTempSmoothedForecasts,
-            )
-            CurrentTemperatureResolution(
-                displayTemp = quick.displayTemp,
-                estimatedTemp = quick.estimatedTemp,
-                observedTemp = quick.observedTemp,
-                isStaleEstimate = quick.isStaleEstimate,
-                appliedDelta = null,
-                updatedDeltaState = null,
-                shouldClearStoredDelta = false,
-            )
-        } else {
-            CurrentTemperatureResolver.resolve(
-                now = now,
-                displaySource = displaySource,
-                hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
-                lastObservedTemp = lastObservedTemp,
-                observedAt = observedAt,
-                storedDeltaState = storedDeltaState,
-                currentLat = lat,
-                currentLon = lon,
-                smoothedForecasts = currentTempSmoothedForecasts,
-            )
-        }
-        val resolveMs = System.currentTimeMillis() - resolveStartMs
+        val (currentTempResolution, resolveMs) = resolveCurrentTempPhase(
+            now = now,
+            displaySource = displaySource,
+            currentTempHourlyForecasts = currentTempHourlyForecasts,
+            lastObservedTemp = lastObservedTemp,
+            observedAt = observedAt,
+            deferCurrentTempResolution = deferCurrentTempResolution,
+            appWidgetId = appWidgetId,
+            stateManager = stateManager,
+            lat = lat,
+            lon = lon,
+            currentTempSmoothedForecasts = currentTempSmoothedForecasts,
+        )
 
         // 5. Header State Resolution
-        val currentTemp = currentTempResolution.displayTemp
         val isNowLineVisible = graphHours.any { it.isCurrentHour }
-        // The header delta is the DELTA FROM YESTERDAY (observed now vs blended actual at the same
-        // clock time 24h earlier). It is pan-independent, so it always shows when it exists and
-        // clears the noise threshold — no graph-window gate (decided: header stays simple).
-        // The forecast delta (appliedDelta) still drives the ghost line and the on-graph
-        // "from forecast" label; it just no longer appears in the header.
-        val headerDelta = deltaFromYesterday
-        val deltaVisible = currentTemp != null && headerDelta != null &&
-            abs(headerDelta) >= DELTA_VISIBILITY_THRESHOLD
-
-        val sourceIndicator = HeaderFormatter.formatSourceIndicator(
+        val useCelsius = stateManager.useCelsius()
+        val (headerState, headerPrecipProbability) = buildHeaderState(
+            currentTempResolution = currentTempResolution,
+            deltaFromYesterday = deltaFromYesterday,
             centerTime = centerTime,
             now = now,
-            sourceName = displaySource.shortDisplayName,
-            widthDp = dimensions.widthDp
-        )
-
-        val currentHourForecast = WeatherTimeUtils.getCurrentHourForecast(currentTempHourlyForecasts, displaySource)
-        val iconRes = WeatherIconMapper.getIconResource(
-            condition = currentHourForecast?.condition,
-            isNight = sunInfo.isNight,
-            cloudCover = currentHourForecast?.cloudCover,
-            precipProbability = currentHourForecast?.precipProbability,
-            isTwilight = sunInfo.phase == SunPhase.TWILIGHT,
-            isSunBoundary = sunInfo.isSunBoundary,
-        )
-
-        val headerPrecipProbability = HeaderPrecipCalculator.getNext6HourPrecipProbability(
-            hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
-            fallbackDailyProbability = precipProbability,
-            referenceTime = centerTime,
-        )
-        val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(headerPrecipProbability)
-
-        val useCelsius = stateManager.useCelsius()
-        val headerState = TemperatureWidgetState.HeaderState(
-            sourceIndicator = sourceIndicator,
-            iconRes = iconRes,
-            currentTemp = if (currentTemp != null) {
-                val formatted = CurrentTemperatureResolver.formatDisplayTemperature(
-                    currentTemp,
-                    dimensions.cols,
-                    currentTempResolution.isStaleEstimate,
-                    useCelsius = useCelsius
-                )
-                formatted
-            } else null,
-            currentTempSizeDp = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
-            deltaText = if (deltaVisible) {
-                val displayDelta = headerDelta?.let { if (useCelsius) it / 1.8f else it }
-                if (displayDelta != null) String.format("%+.1f", displayDelta) else null
-            } else null,
-            deltaColor = Color.parseColor(DELTA_COLOR_HEX),
-            precipProbability = if (isPrecipVisible) "$headerPrecipProbability%" else null,
-            precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(checkNotNull(headerPrecipProbability)) else 0f,
-            isPrecipVisible = isPrecipVisible,
-            isCurrentTempVisible = currentTemp != null,
-            isDeltaVisible = deltaVisible,
-            isStaleEstimate = currentTempResolution.isStaleEstimate,
+            dimensions = dimensions,
+            hourlyForecasts = hourlyForecasts,
+            currentTempHourlyForecasts = currentTempHourlyForecasts,
+            sunInfo = sunInfo,
+            precipProbability = precipProbability,
+            useCelsius = useCelsius,
         )
 
         // 6. Graph Rendering
@@ -537,6 +450,165 @@ internal object TemperatureStateResolver {
             isNowLineVisible = isNowLineVisible,
             deltaFromYesterday = deltaFromYesterday,
         )
+    }
+
+    /**
+     * HOURLY_DAY_EXTREMA: per-day actual high/low the hourly graph derives from its rendered points,
+     * for direct comparison against the daily bar's persisted daily_history (logged as
+     * DAILY_HISTORY_BLEND). Diagnoses the "daily bar 72.4 vs hourly 72.9" divergence: same blend
+     * function, but the two pipelines feed it different obs windows. Logs the actual-point count and
+     * window span too so we can see whether a window/interpolation edge is moving the max.
+     */
+    private suspend fun logHourlyDayExtrema(
+        graphHours: List<HourData>,
+        appWidgetId: Int,
+        displaySource: WeatherSource,
+        zoom: ZoomWindow,
+        hourlyOffset: Int,
+        appLogDao: AppLogDao,
+    ) {
+        val zoneId = ZoneId.systemDefault()
+        val actualPts = graphHours.filter { it.isActual }
+        val byDay = actualPts.groupBy { it.dateTime.toLocalDate() }
+        val fmt = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+        val perDay = byDay.entries.sortedBy { it.key }.joinToString("; ") { (date, pts) ->
+            val hi = pts.maxByOrNull { it.actualTemperature ?: it.temperature }!!
+            val lo = pts.minByOrNull { it.actualTemperature ?: it.temperature }!!
+            "$date hi=${"%.2f".format(hi.actualTemperature ?: hi.temperature)}@${hi.dateTime.format(fmt)} " +
+                "lo=${"%.2f".format(lo.actualTemperature ?: lo.temperature)}@${lo.dateTime.format(fmt)} n=${pts.size}"
+        }
+        val span = if (graphHours.isEmpty()) "none" else "${graphHours.first().dateTime}..${graphHours.last().dateTime}"
+        appLogDao.log(
+            "HOURLY_DAY_EXTREMA",
+            "widget=$appWidgetId source=${displaySource.id} zoom=$zoom offset=$hourlyOffset span=$span perDay=[$perDay]",
+        )
+    }
+
+    /** Phase 4 of [resolve]: resolve the current display temperature (quick or full path). */
+    private suspend fun resolveCurrentTempPhase(
+        now: LocalDateTime,
+        displaySource: WeatherSource,
+        currentTempHourlyForecasts: List<HourlyForecastEntity>,
+        lastObservedTemp: Float?,
+        observedAt: Long?,
+        deferCurrentTempResolution: Boolean,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        lat: Double,
+        lon: Double,
+        currentTempSmoothedForecasts: Map<Long, Float>,
+    ): Pair<CurrentTemperatureResolution, Long> {
+        val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
+        val resolveStartMs = System.currentTimeMillis()
+        val currentTempResolution = if (deferCurrentTempResolution) {
+            val quick = CurrentTemperatureResolver.resolveQuick(
+                now = now,
+                displaySource = displaySource,
+                hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
+                lastObservedTemp = lastObservedTemp,
+                smoothedForecasts = currentTempSmoothedForecasts,
+            )
+            CurrentTemperatureResolution(
+                displayTemp = quick.displayTemp,
+                estimatedTemp = quick.estimatedTemp,
+                observedTemp = quick.observedTemp,
+                isStaleEstimate = quick.isStaleEstimate,
+                appliedDelta = null,
+                updatedDeltaState = null,
+                shouldClearStoredDelta = false,
+            )
+        } else {
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = displaySource,
+                hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
+                lastObservedTemp = lastObservedTemp,
+                observedAt = observedAt,
+                storedDeltaState = storedDeltaState,
+                currentLat = lat,
+                currentLon = lon,
+                smoothedForecasts = currentTempSmoothedForecasts,
+            )
+        }
+        val resolveMs = System.currentTimeMillis() - resolveStartMs
+        return currentTempResolution to resolveMs
+    }
+
+    /** Phase 5 of [resolve]: build the header state and precip probability. */
+    private fun buildHeaderState(
+        currentTempResolution: CurrentTemperatureResolution,
+        deltaFromYesterday: Float?,
+        centerTime: LocalDateTime,
+        now: LocalDateTime,
+        displaySource: WeatherSource,
+        dimensions: WidgetDimensions,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        currentTempHourlyForecasts: List<HourlyForecastEntity>,
+        sunInfo: SunInfo,
+        precipProbability: Int?,
+        useCelsius: Boolean,
+    ): Pair<TemperatureWidgetState.HeaderState, Int?> {
+        val currentTemp = currentTempResolution.displayTemp
+        // The header delta is the DELTA FROM YESTERDAY (observed now vs blended actual at the same
+        // clock time 24h earlier). It is pan-independent, so it always shows when it exists and
+        // clears the noise threshold — no graph-window gate (decided: header stays simple).
+        // The forecast delta (appliedDelta) still drives the ghost line and the on-graph
+        // "from forecast" label; it just no longer appears in the header.
+        val headerDelta = deltaFromYesterday
+        val deltaVisible = currentTemp != null && headerDelta != null &&
+            abs(headerDelta) >= DELTA_VISIBILITY_THRESHOLD
+
+        val sourceIndicator = HeaderFormatter.formatSourceIndicator(
+            centerTime = centerTime,
+            now = now,
+            sourceName = displaySource.shortDisplayName,
+            widthDp = dimensions.widthDp
+        )
+
+        val currentHourForecast = WeatherTimeUtils.getCurrentHourForecast(currentTempHourlyForecasts, displaySource)
+        val iconRes = WeatherIconMapper.getIconResource(
+            condition = currentHourForecast?.condition,
+            isNight = sunInfo.isNight,
+            cloudCover = currentHourForecast?.cloudCover,
+            precipProbability = currentHourForecast?.precipProbability,
+            isTwilight = sunInfo.phase == SunPhase.TWILIGHT,
+            isSunBoundary = sunInfo.isSunBoundary,
+        )
+
+        val headerPrecipProbability = HeaderPrecipCalculator.getNext6HourPrecipProbability(
+            hourlyForecasts = hourlyForecasts,
+            displaySource = displaySource,
+            fallbackDailyProbability = precipProbability,
+            referenceTime = centerTime,
+        )
+        val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(headerPrecipProbability)
+
+        val headerState = TemperatureWidgetState.HeaderState(
+            sourceIndicator = sourceIndicator,
+            iconRes = iconRes,
+            currentTemp = if (currentTemp != null) {
+                val formatted = CurrentTemperatureResolver.formatDisplayTemperature(
+                    currentTemp,
+                    dimensions.cols,
+                    currentTempResolution.isStaleEstimate,
+                    useCelsius = useCelsius
+                )
+                formatted
+            } else null,
+            currentTempSizeDp = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
+            deltaText = if (deltaVisible) {
+                val displayDelta = if (useCelsius) headerDelta / 1.8f else headerDelta
+                String.format("%+.1f", displayDelta)
+            } else null,
+            deltaColor = Color.parseColor(DELTA_COLOR_HEX),
+            precipProbability = if (isPrecipVisible) "$headerPrecipProbability%" else null,
+            precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(checkNotNull(headerPrecipProbability)) else 0f,
+            isPrecipVisible = isPrecipVisible,
+            isCurrentTempVisible = currentTemp != null,
+            isDeltaVisible = deltaVisible,
+            isStaleEstimate = currentTempResolution.isStaleEstimate,
+        )
+        return headerState to headerPrecipProbability
     }
 
     private sealed class GraphLoadOutcome {
@@ -884,75 +956,39 @@ internal object TemperatureStateResolver {
             zoneId = ZoneId.systemDefault(),
         )
 
-    private fun buildWarningResult(
-        appWidgetId: Int,
-        displaySource: WeatherSource,
-        zoom: ZoomWindow,
-        hourlyOffset: Int,
-        warning: ApiSourceWarningHelper.SourceWarning,
-        lat: Double,
-        lon: Double
-    ): ResolutionResult {
-        return ResolutionResult(
-            state = TemperatureWidgetState(
-                appWidgetId = appWidgetId,
-                numRows = 1, // Fallback for warning
-                widthDp = 300, // Fallback
-                header = emptyHeaderState(),
-                graph = emptyGraphState(),
-                warning = TemperatureWidgetState.SourceWarningState(warning),
-                displaySource = displaySource,
-                zoom = zoom,
-                hourlyOffset = hourlyOffset
-            ),
-            resolveMs = 0L,
-            obsQueryMs = 0L,
-            buildHourDataMs = 0L,
-            renderMs = 0L,
-            currentTempResolution = emptyResolution(),
-            headerPrecipProbability = null,
-            lat = lat,
-            lon = lon,
-            smoothedForecasts = emptyMap(),
-            isNowLineVisible = false,
-            deltaFromYesterday = null,
-        )
-    }
-
-    private fun buildEmptyGraphResult(
+    private fun buildFallbackResult(
         appWidgetId: Int,
         displaySource: WeatherSource,
         zoom: ZoomWindow,
         hourlyOffset: Int,
         lat: Double,
         lon: Double,
-        smoothedForecasts: Map<Long, Float>
-    ): ResolutionResult {
-        return ResolutionResult(
-            state = TemperatureWidgetState(
-                appWidgetId = appWidgetId,
-                numRows = 1, // Fallback
-                widthDp = 300, // Fallback
-                header = emptyHeaderState(),
-                graph = emptyGraphState(),
-                warning = null,
-                displaySource = displaySource,
-                zoom = zoom,
-                hourlyOffset = hourlyOffset
-            ),
-            resolveMs = 0L,
-            obsQueryMs = 0L,
-            buildHourDataMs = 0L,
-            renderMs = 0L,
-            currentTempResolution = emptyResolution(),
-            headerPrecipProbability = null,
-            lat = lat,
-            lon = lon,
-            smoothedForecasts = smoothedForecasts,
-            isNowLineVisible = false,
-            deltaFromYesterday = null,
-        )
-    }
+        smoothedForecasts: Map<Long, Float> = emptyMap(),
+        warning: ApiSourceWarningHelper.SourceWarning? = null,
+    ): ResolutionResult = ResolutionResult(
+        state = TemperatureWidgetState(
+            appWidgetId = appWidgetId,
+            numRows = 1, // Fallback
+            widthDp = 300, // Fallback
+            header = emptyHeaderState(),
+            graph = emptyGraphState(),
+            warning = warning?.let { TemperatureWidgetState.SourceWarningState(it) },
+            displaySource = displaySource,
+            zoom = zoom,
+            hourlyOffset = hourlyOffset,
+        ),
+        resolveMs = 0L,
+        obsQueryMs = 0L,
+        buildHourDataMs = 0L,
+        renderMs = 0L,
+        currentTempResolution = emptyResolution(),
+        headerPrecipProbability = null,
+        lat = lat,
+        lon = lon,
+        smoothedForecasts = smoothedForecasts,
+        isNowLineVisible = false,
+        deltaFromYesterday = null,
+    )
 
     private fun emptyHeaderState() = TemperatureWidgetState.HeaderState(
         sourceIndicator = "",
