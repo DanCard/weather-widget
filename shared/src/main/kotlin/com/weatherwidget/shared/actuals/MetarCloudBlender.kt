@@ -82,6 +82,12 @@ object MetarCloudBlender {
          * correct exactly when this is non-zero, and suspicious when it is not.
          */
         val ceilometerBlindBuckets: Int = 0,
+        /**
+         * EXPERIMENT B: candidates whose bands were anchored by an above-ceiling report that was
+         * not that candidate's own anchor. Counts the deck persisting across the ceilometer rows
+         * that cannot see it.
+         */
+        val stickyDeckPoints: Int = 0,
     ) {
         /**
          * Compact single-line form for CLOUD_SERIES / BACKFILL_CLOUD. The width histogram separates
@@ -96,6 +102,7 @@ object MetarCloudBlender {
                 (if (shadowedBuckets == 0) "" else " shadowed=$shadowedBuckets") +
                 (if (metarPreferredBuckets == 0) "" else " metarPreferred=$metarPreferredBuckets") +
                 (if (ceilometerBlindBuckets == 0) "" else " ceilometerBlind=$ceilometerBlindBuckets") +
+                (if (stickyDeckPoints == 0) "" else " stickyDeck=$stickyDeckPoints") +
                 (if (widthHistogram.isEmpty()) "" else " blendWidth=[$widthHistogram]")
         }
     }
@@ -340,6 +347,19 @@ object MetarCloudBlender {
             rows.filter { it.visibleCloud() != null }
         }
 
+        // EXPERIMENT B (2026-09-09): reports whose sky condition sits ABOVE the ASOS ceilometer's
+        // 12,000 ft ceiling. Cloud aloft does not vanish between one station's hourly reports, and
+        // the 5-minute ceilometer rows either side of the METAR cannot see it — so these readings
+        // anchor their station's bands for the whole anchor window, not just their own candidate.
+        // Without this the above-ceiling mid layer exists at exactly one candidate per hour and the
+        // line draws a one-point spike (measured 2026-09-09: 75/44/19% at each hourly :53 METAR).
+        val aboveCeilingCarriersByStation = byStation.mapValues { (_, rows) ->
+            rows.filter { row ->
+                val base = CeilometerBlindSpot.highestReportedBase(row) ?: return@filter false
+                base > CeilometerBlindSpot.ASOS_CEILING_M && (row.visibleCloud() ?: 0) > 0
+            }
+        }
+
         // One candidate point per distinct cloud-carrying report timestamp: every emitted point
         // has at least one FRESH observation at its own time. Timestamps that carried no sky
         // condition (partial METARs) add no cloud information, so they are not candidates — the
@@ -358,6 +378,7 @@ object MetarCloudBlender {
         var shadowedAnchors = 0
         var metarPreferredAnchors = 0
         var ceilometerBlindAnchors = 0
+        var stickyDeckAnchors = 0
         var latestDominantContribution: BlendContribution? = null
         for (ts in candidateTimes) {
             val contributions = byStation.mapNotNull { (id, rows) ->
@@ -408,14 +429,30 @@ object MetarCloudBlender {
             // Blend each reported vertical layer through the SAME station anchors accepted for
             // the total. Comparing a nearest station's layer with a multi-station total would make
             // equality suppression and the glyph's vertical position describe different skies.
+            //
+            // EXPERIMENT B: a station's per-band value is the MAX over its anchored reading and any
+            // above-ceiling report it made within the anchor tolerance, so the deck persists across
+            // the ceilometer rows that cannot see it.
+            fun carriesLayers(reading: ObservationReading): Boolean =
+                reading.cloudVerticalKind == CloudVerticalKind.CUMULATIVE_LAYERS ||
+                    reading.cloudVerticalKind == CloudVerticalKind.PROVIDER_BANDS
+            fun stickyDeckFor(reading: ObservationReading): List<ObservationReading> =
+                aboveCeilingCarriersByStation[reading.stationId].orEmpty().filter {
+                    it !== reading && abs(it.timestamp - ts) <= ANCHOR_TOLERANCE_MS
+                }
             fun blendedLayer(valueOf: (ObservationReading) -> Int?): Int? {
                 val values = visible.mapNotNull { (reading, _) ->
-                    val carriesLayers = reading.cloudVerticalKind == CloudVerticalKind.CUMULATIVE_LAYERS ||
-                        reading.cloudVerticalKind == CloudVerticalKind.PROVIDER_BANDS
-                    if (!carriesLayers) null else valueOf(reading)?.let { reading.distanceKm to it.toFloat() }
+                    val carriers = buildList {
+                        if (carriesLayers(reading)) add(reading)
+                        stickyDeckFor(reading).filterTo(this) { carriesLayers(it) }
+                    }
+                    val value = carriers.mapNotNull { valueOf(it) }.maxOrNull()
+                        ?: return@mapNotNull null
+                    reading.distanceKm to value.toFloat()
                 }
                 return SpatialInterpolator.interpolateIDWValues(values)?.roundToInt()?.coerceIn(0, 100)
             }
+            if (visible.any { stickyDeckFor(it.first).isNotEmpty() }) stickyDeckAnchors++
             val layers = CloudBands(
                 low = blendedLayer { it.cloudCoverLow },
                 mid = blendedLayer { it.cloudCoverMid },
@@ -479,6 +516,7 @@ object MetarCloudBlender {
                 shadowedAnchors,
                 metarPreferredAnchors,
                 ceilometerBlindAnchors,
+                stickyDeckPoints = stickyDeckAnchors,
             ),
             isMetarBlend = true,
             dominantContribution = latestDominantContribution,
