@@ -350,5 +350,4 @@ internal object DailyGraphLayoutResolver {
         return (TEMP_LABEL_TEXT_SIZE_DP * heightScaleFactor * labelScale).dp(density)
     }
 
-    private fun Float.dp(density: Float): Float = this * density
 }

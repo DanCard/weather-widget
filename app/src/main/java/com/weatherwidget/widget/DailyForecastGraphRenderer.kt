@@ -465,5 +465,4 @@ object DailyForecastGraphRenderer {
         return overlapWidth > tolerancePx && overlapHeight > tolerancePx
     }
 
-    private fun Float.dp(density: Float): Float = this * density
 }

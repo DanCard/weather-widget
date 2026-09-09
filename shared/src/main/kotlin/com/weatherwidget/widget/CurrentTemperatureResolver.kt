@@ -325,7 +325,7 @@ object CurrentTemperatureResolver {
         isStaleEstimate: Boolean,
         useCelsius: Boolean,
     ): String {
-        val displayVal = if (useCelsius) TempUtils.fahrenheitToCelsius(temp) else temp
+        val displayVal = TempUtils.display(temp, useCelsius)
         return when {
             numColumns >= 2 -> String.format("%.1f°", displayVal)
             else -> String.format("%.0f°", displayVal)

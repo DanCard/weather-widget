@@ -550,5 +550,4 @@ internal object DailyBarRenderer {
         return hY to clampMinBarHeight(hY, lY, minBarHeight)
     }
 
-    private fun Float.dp(density: Float): Float = this * density
 }

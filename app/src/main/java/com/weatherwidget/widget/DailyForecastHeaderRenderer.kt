@@ -641,5 +641,4 @@ internal object DailyForecastHeaderRenderer {
         return set
     }
 
-    private fun Float.dp(density: Float): Float = this * density
 }

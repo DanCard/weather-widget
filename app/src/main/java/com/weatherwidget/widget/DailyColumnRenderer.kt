@@ -210,5 +210,4 @@ internal object DailyColumnRenderer {
         drawable.draw(canvas)
     }
 
-    private fun Float.dp(density: Float): Float = this * density
 }

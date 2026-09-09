@@ -108,7 +108,7 @@ object BlendTableFormatter {
         useCelsius: Boolean,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): BlendTable {
-        fun temp(f: Float): Float = if (useCelsius) TempUtils.fahrenheitToCelsius(f) else f
+        fun temp(f: Float): Float = TempUtils.display(f, useCelsius)
         fun time(ms: Long): String = Instant.ofEpochMilli(ms).atZone(zoneId).format(TIME)
 
         // Nearest first, matching the Observations tab's own ordering so the two lists can be read

@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.shared.util.TempUtils
 import java.time.LocalDateTime
 
 data class ResolvedLabelGeometry(
@@ -43,7 +44,7 @@ object TemperatureLabelResolver {
     )
 
     fun formatTemp(value: Float, useCelsius: Boolean): String {
-        val displayVal = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(value) else value
+        val displayVal = TempUtils.display(value, useCelsius)
         val rounded = kotlin.math.round(displayVal * 10f) / 10f
         return if (rounded % 1f == 0f) {
             "%.0f".format(rounded)

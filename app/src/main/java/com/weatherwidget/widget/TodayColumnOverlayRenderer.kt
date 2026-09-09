@@ -335,5 +335,4 @@ internal object TodayColumnOverlayRenderer {
     private fun RectF.toPlannerBounds() =
         TodayColumnOverlayPlanner.Bounds(left, top, right, bottom)
 
-    private fun Float.dp(density: Float): Float = this * density
 }

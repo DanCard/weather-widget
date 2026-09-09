@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.graph
 
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.TempUtils
 import java.time.LocalDate
 
 /**
@@ -64,9 +65,9 @@ object ForecastHistoryViewLogic {
         formatSuffix: (biasValue: String, isLow: Boolean) -> String =
             { v, low -> " ($v ${if (low) "low" else "high"})" },
     ): String {
-        val displayBias = if (useCelsius) bias / 1.8 else bias
+        val displayBias = TempUtils.displayDelta(bias, useCelsius)
         val absBias = kotlin.math.abs(displayBias)
-        val threshold = if (useCelsius) 0.5 / 1.8 else 0.5
+        val threshold = TempUtils.displayDelta(0.5, useCelsius)
         if (absBias < threshold) return ""
         val biasValue = "%.1f°".format(absBias)
         return formatSuffix(biasValue, displayBias > 0)

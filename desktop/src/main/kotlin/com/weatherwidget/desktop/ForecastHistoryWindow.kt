@@ -43,6 +43,7 @@ import com.weatherwidget.shared.graph.ForecastEvolutionStyle
 import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
 import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.GraphMode
 import com.weatherwidget.shared.graph.NiceAxisScale
+import com.weatherwidget.shared.util.TempUtils
 import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -552,8 +553,8 @@ private fun loadHistory(
             val stats = calc.calculateAccuracy(s.id, lat, lon, days = 30)
             if (stats != null && stats.totalForecasts > 0) {
                 append("${s.displayName}\n")
-                val highErr = if (useCelsius) stats.avgHighError / 1.8 else stats.avgHighError
-                val lowErr = if (useCelsius) stats.avgLowError / 1.8 else stats.avgLowError
+                val highErr = TempUtils.displayDelta(stats.avgHighError, useCelsius)
+                val lowErr = TempUtils.displayDelta(stats.avgLowError, useCelsius)
                 append("High ±%.1f°%s  Low ±%.1f°%s\n".format(
                     highErr, ForecastHistoryViewLogic.formatBias(stats.highBias, useCelsius),
                     lowErr, ForecastHistoryViewLogic.formatBias(stats.lowBias, useCelsius),

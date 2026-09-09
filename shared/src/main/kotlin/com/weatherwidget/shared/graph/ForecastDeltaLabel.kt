@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.shared.util.TempUtils
 import kotlin.math.abs
 import kotlin.math.round
 
@@ -74,14 +75,14 @@ object ForecastDeltaLabel {
      * A zero delta carries no comparison information, so the on-graph label is suppressed.
      */
     fun isZero(delta: Float, useCelsius: Boolean): Boolean {
-        val displayDelta = if (useCelsius) delta / 1.8f else delta
+        val displayDelta = TempUtils.displayDelta(delta, useCelsius)
         return round(displayDelta * 10f).toInt() == 0
     }
 
     /** Signed numeric portion, shared by the one-line hourly label and multi-line daily overlay. */
     fun formatValue(delta: Float, useCelsius: Boolean): String {
         // The delta is a temperature *difference* in °F: convert by scaling only (no −32 offset).
-        val displayDelta = if (useCelsius) delta / 1.8f else delta
+        val displayDelta = TempUtils.displayDelta(delta, useCelsius)
         val tenths = round(displayDelta * 10f).toInt() // round-half-up at the tenths place
         val sign = if (tenths >= 0) "+" else "-"
         val mag = abs(tenths)

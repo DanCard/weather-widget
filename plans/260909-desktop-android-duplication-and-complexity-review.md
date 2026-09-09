@@ -285,9 +285,38 @@ platform supplying the API client, station cache, and observation-source adapter
 `NwsForecastMapper`/`NwsObservationSource` and desktop's `fetchNwsForecast`/`fetchObservationBundles`
 both become adapters.
 
+**Status (2026-09-09): deferred — not a safe quick win.** Evidence: the mapping *algorithms* are
+already single-sourced (`NwsDailyMapper`, `NwsHourlyGridMerge`, `NwsObservationMapper`,
+`SpatialInterpolator`, `TemperatureInterpolator`), and `NwsDailyMapper.buildDailyForecasts`
+explicitly documents "Keeps desktop at parity with Android's NwsForecastMapper". What remains is not
+a line-for-line fork but a difference in **output shape and mapping depth**: Android
+`NwsForecastMapper.fetchFromNws` writes Room `ForecastEntity`/`HourlyForecastEntity` and runs the
+richer accumulator pipeline (plausibility repair, hourly-divergence detection, phantom-day removal,
+per-field source logging); desktop `fetchNwsForecast` returns the shared `RawFetch` via the simpler
+`buildDailyForecasts` wrapper and folds observation fetching into the same function. Unifying means
+changing one platform's forecast data path and output type, which is behavior-changing and needs its
+own before/after data comparison. Recommend a dedicated plan if pursued.
+
 ### Phase 4 — Mechanical leftovers
 A5 `TempUtils.display`, A7 `Dp` object, A6 residual age formatters, C4 doc/code decision. Then the
 `WeatherDatabase` migration/auto-migration plan as its own document (not a drive-by).
+
+**Status (2026-09-09): done.**
+- **A7:** the eight identical `private fun Float.dp(density)` declarations in `:app` daily-view files
+  were replaced by one `internal fun Float.dp` in `app/.../widget/Dp.kt`.
+- **A5:** the remaining inline unit conversions were routed through `TempUtils.display`/
+  `displayDelta` in `StatisticsWindow`, `ForecastHistoryWindow`, `ForecastHistoryViewLogic`,
+  `ForecastDeltaLabel`, `TemperatureLabelResolver`, `CurrentTemperatureResolver` and
+  `BlendTableFormatter`. What remains is `TempUtils`' own definition plus non-conversion thresholds
+  (`if (useCelsius) 1.7 else 3.0`).
+- **A6:** the two `formatAgeLabel` wrappers already delegate to `FetchDotLabel`; the remaining
+  `StaleObservationFallback`/`BlendTableFormatter` styles are intentionally different and documented,
+  so they stay.
+- **C4:** `AGENTS.md` now states the shipped behaviour — Tomorrow.io is not default-visible (Android
+  debug-only default, desktop never) but is user-selectable on both platforms.
+- **Migrations:** scoped as [plans/260909-weatherdatabase-migration-strategy.md](260909-weatherdatabase-migration-strategy.md)
+  (proposal only; no code changed).
+- Verified: `./scripts/staggered-tests.sh` 4057 unit + 95 instrumented green.
 
 ---
 

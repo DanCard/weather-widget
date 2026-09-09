@@ -24,6 +24,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.stats.AccuracyPure
+import com.weatherwidget.shared.util.TempUtils
 import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -124,9 +125,9 @@ private fun SummaryCard(s: AccuracyPure.AccuracyStatistics, useCelsius: Boolean)
                     color = scoreColor(s.accuracyScore))
             }
             Spacer(Modifier.height(8.dp))
-            val avgHigh = if (useCelsius) s.avgHighError / 1.8 else s.avgHighError
-            val avgLow = if (useCelsius) s.avgLowError / 1.8 else s.avgLowError
-            val maxErr = if (useCelsius) s.maxError / 1.8 else s.maxError
+            val avgHigh = TempUtils.displayDelta(s.avgHighError, useCelsius)
+            val avgLow = TempUtils.displayDelta(s.avgLowError, useCelsius)
+            val maxErr = TempUtils.displayDelta(s.maxError.toDouble(), useCelsius)
             StatRow("Avg error (high / low)", "%.1f° / %.1f°".format(avgHigh, avgLow))
             StatRow("Bias (high / low)", "${biasText(s.highBias, useCelsius)} / ${biasText(s.lowBias, useCelsius)}")
             StatRow("Max error", "%.1f°".format(maxErr))
@@ -186,9 +187,9 @@ private fun androidx.compose.foundation.layout.RowScope.BodyCell(text: String, w
 private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
 
 private fun biasText(bias: Double, useCelsius: Boolean): String {
-    val displayBias = if (useCelsius) bias / 1.8 else bias
+    val displayBias = TempUtils.displayDelta(bias, useCelsius)
     val absBias = abs(displayBias)
-    val threshold = if (useCelsius) 0.05 / 1.8 else 0.05
+    val threshold = TempUtils.displayDelta(0.05, useCelsius)
     return when {
         absBias < threshold -> "0.0°"
         displayBias > 0 -> "%.1f° low".format(absBias)

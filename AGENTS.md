@@ -4,7 +4,7 @@
 There is also a Linux app that is intended to function similarly.
 
 ### Key Features
-- **Multiple API Sources**: NWS (US-only, official government data), Open-Meteo (global, no API key), and Silurian are the default-visible sources; Tomorrow.io is debug-only (tight free quota). Visual Crossing and OpenWeatherMap remain in the `WeatherSource` enum but are hidden/deprecated. API clients live in `:shared` (`shared/.../data/remote/`), not `:app`.
+- **Multiple API Sources**: NWS (US-only, official government data), Open-Meteo (global, no API key), and Silurian are the default-visible sources. Tomorrow.io has a tight free quota, so it is **not default-visible** (Android enables it only in debug builds; desktop never by default) but remains user-selectable on both platforms via `WeatherSourceOrdering.ALL_CONFIGURABLE`. Visual Crossing and OpenWeatherMap remain in the `WeatherSource` enum but are hidden/deprecated. API clients live in `:shared` (`shared/.../data/remote/`), not `:app`.
 - **Resizable Widget**: Adapts layout from 1x1 (single day) to 8+ columns (7+ days)
 - **Multiple View Modes**: Daily view (forecast bars), Hourly view (temperature curve), and more
 - **Temperature Interpolation**: Smooth current temperature display using hourly forecast data

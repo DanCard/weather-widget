@@ -65,7 +65,6 @@ internal object DailyHighLabelPlanner {
         val anchorBaseline: Float,
     )
 
-    private fun Float.dp(density: Float): Float = this * density
 
     internal fun resolveHighLabelPlan(
         day: DayData,
