@@ -454,6 +454,7 @@ internal object TemperatureGraphAnnotationRenderer {
                 0L
             }
         var dominantPlacement: DominantStationLabel.Placement? = null
+        var dominantFontScale = 1f
         val reason: String
         if (dominantStationLabel == null) {
             reason = "no_text"
@@ -466,58 +467,53 @@ internal object TemperatureGraphAnnotationRenderer {
             val tempPaint = input.paints.dominantTempTextPaint
             val stationPaint = input.paints.dominantStationTextPaint
             val timePaint = input.paints.dominantTimeTextPaint
-            val segmentWidths =
-                dominantStationLabel.segments.map { segment ->
-                    val paint =
-                        when (segment.part) {
-                            DominantStationLabel.Part.TEMPERATURE -> tempPaint
-                            DominantStationLabel.Part.TIME -> timePaint
-                            DominantStationLabel.Part.STATION,
-                            DominantStationLabel.Part.AT,
-                            DominantStationLabel.Part.AMPM,
-                            DominantStationLabel.Part.SOURCE_PREFIX -> stationPaint
-                        }
-                    paint.measureText(segment.text)
+            fun paintFor(part: DominantStationLabel.Part, scale: Float): Paint =
+                when (part) {
+                    DominantStationLabel.Part.TEMPERATURE -> scaledPaint(tempPaint, scale)
+                    DominantStationLabel.Part.TIME -> scaledPaint(timePaint, scale)
+                    DominantStationLabel.Part.STATION,
+                    DominantStationLabel.Part.AT,
+                    DominantStationLabel.Part.AMPM,
+                    DominantStationLabel.Part.SOURCE_PREFIX -> scaledPaint(stationPaint, scale)
                 }
-            val totalWidth = segmentWidths.sum()
-            val placement =
-                DominantStationLabel.place(
+            val scaled =
+                DominantStationLabel.placeWithFontFallback(
                     text = text,
                     spanHours = spanHours,
                     plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
                     drawnBounds = input.graphObstacles(),
                     curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
-                    metrics =
+                    metricsForScale = { scale ->
+                        val widths =
+                            dominantStationLabel.segments.map { segment ->
+                                paintFor(segment.part, scale).measureText(segment.text)
+                            }
+                        val tempPaintScaled = paintFor(DominantStationLabel.Part.TEMPERATURE, scale)
                         GraphEmptySpaceFinder.Metrics(
-                            width = totalWidth,
-                            ascent = TemperatureGraphStyle.fontAscent(tempPaint),
-                            descent = TemperatureGraphStyle.fontDescent(tempPaint),
-                        ),
+                            width = widths.sum(),
+                            ascent = TemperatureGraphStyle.fontAscent(tempPaintScaled),
+                            descent = TemperatureGraphStyle.fontDescent(tempPaintScaled),
+                        )
+                    },
                     padPx = TemperatureGraphStyle.dpToPx(input.context, DOMINANT_STATION_LABEL_PAD_DP),
                     vetoBounds = input.labelVetoBounds(),
                     nowIndicatorVisible = nowIndicatorVisible,
                 )
-            if (placement != null) {
+            if (scaled != null) {
+                val placement = scaled.placement
                 dominantPlacement = placement
                 var x = placement.box.left
-                dominantStationLabel.segments.forEachIndexed { index, segment ->
-                    val paint =
-                        when (segment.part) {
-                            DominantStationLabel.Part.TEMPERATURE -> tempPaint
-                            DominantStationLabel.Part.TIME -> timePaint
-                            DominantStationLabel.Part.STATION,
-                            DominantStationLabel.Part.AT,
-                            DominantStationLabel.Part.AMPM,
-                            DominantStationLabel.Part.SOURCE_PREFIX -> stationPaint
-                        }
+                dominantStationLabel.segments.forEach { segment ->
+                    val paint = paintFor(segment.part, scaled.fontScale)
                     input.canvas.drawText(segment.text, x, placement.baselineY, paint)
-                    x += segmentWidths[index]
+                    x += paint.measureText(segment.text)
                 }
                 input.obstacles.add(
                     TemperatureGraphObstacleType.DOMINANT_STATION,
                     placement.box.toRectF(),
                 )
                 reason = "drawn"
+                dominantFontScale = scaled.fontScale
             } else {
                 reason = "no_empty_band"
             }
@@ -538,7 +534,7 @@ internal object TemperatureGraphAnnotationRenderer {
             Log.v(
                 TAG,
                 "DominantStationDiag: reason=$reason spanH=$spanHours maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} " +
-                    "text=${text ?: "null"} drawnBounds=${input.obstacles.bounds().size} " +
+                    "text=${text ?: "null"} fontScale=$dominantFontScale drawnBounds=${input.obstacles.bounds().size} " +
                     "plotW=${input.widthPx} plotH=${(input.graphBottom - input.graphTop).roundToInt()}" +
                     (dominantPlacement?.let {
                         " boxLeft=${it.box.left.roundToInt()} boxRight=${it.box.right.roundToInt()} " +
@@ -547,6 +543,9 @@ internal object TemperatureGraphAnnotationRenderer {
             )
         }
     }
+
+    private fun scaledPaint(base: Paint, scale: Float): Paint =
+        if (scale == 1f) base else Paint(base).apply { textSize = base.textSize * scale }
 
     fun placeGhostLineLabel(
         input: Input,

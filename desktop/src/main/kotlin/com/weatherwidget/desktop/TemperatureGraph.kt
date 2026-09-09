@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
@@ -856,59 +857,68 @@ fun TemperatureGraph(
                 else -> null
             }
         var dominantPlacedBox: GraphRect? = null
+        var dominantFontScale = 1f
         if (dominantLabel != null && dominantReason == null) {
-            val dominantStyle = TextStyle(
-                fontSize = (DOMINANT_STATION_LABEL_SP * scale).sp,
-                color = COLOR_ACTUAL,
-                shadow = androidx.compose.ui.graphics.Shadow(
-                    color = Color.Black.copy(alpha = 0.7f),
-                    offset = Offset(0f, 1f * scale),
-                    blurRadius = 2f * scale,
-                ),
-            )
-            // Mixed-size: the temperature runs at DOMINANT_TEMP_LABEL_SP, the clock digits at
-            // DOMINANT_TIME_LABEL_SP, and the station id plus the `@`/am-pm punctuation at the
-            // smaller DOMINANT_STATION_LABEL_SP (the base dominantStyle). One AnnotatedString so
-            // Compose lays the spans on a shared baseline.
-            val annotated = buildAnnotatedString {
-                dominantLabel.segments.forEach { segment ->
-                    when (segment.part) {
-                        DominantStationLabel.Part.TEMPERATURE ->
-                            withStyle(SpanStyle(fontSize = (DOMINANT_TEMP_LABEL_SP * scale).sp)) {
-                                append(segment.text)
-                            }
-                        DominantStationLabel.Part.TIME ->
-                            withStyle(SpanStyle(fontSize = (DOMINANT_TIME_LABEL_SP * scale).sp)) {
-                                append(segment.text)
-                            }
-                        DominantStationLabel.Part.STATION,
-                        DominantStationLabel.Part.AT,
-                        DominantStationLabel.Part.AMPM,
-                        DominantStationLabel.Part.SOURCE_PREFIX -> append(segment.text)
+            fun measureDominant(fontScale: Float): TextLayoutResult {
+                val dominantStyle = TextStyle(
+                    fontSize = (DOMINANT_STATION_LABEL_SP * scale * fontScale).sp,
+                    color = COLOR_ACTUAL,
+                    shadow = androidx.compose.ui.graphics.Shadow(
+                        color = Color.Black.copy(alpha = 0.7f),
+                        offset = Offset(0f, 1f * scale),
+                        blurRadius = 2f * scale,
+                    ),
+                )
+                // Mixed-size: the temperature runs at DOMINANT_TEMP_LABEL_SP, the clock digits at
+                // DOMINANT_TIME_LABEL_SP, and the station id plus the `@`/am-pm punctuation at the
+                // smaller DOMINANT_STATION_LABEL_SP (the base dominantStyle). One AnnotatedString so
+                // Compose lays the spans on a shared baseline.
+                val annotated = buildAnnotatedString {
+                    dominantLabel.segments.forEach { segment ->
+                        when (segment.part) {
+                            DominantStationLabel.Part.TEMPERATURE ->
+                                withStyle(SpanStyle(fontSize = (DOMINANT_TEMP_LABEL_SP * scale * fontScale).sp)) {
+                                    append(segment.text)
+                                }
+                            DominantStationLabel.Part.TIME ->
+                                withStyle(SpanStyle(fontSize = (DOMINANT_TIME_LABEL_SP * scale * fontScale).sp)) {
+                                    append(segment.text)
+                                }
+                            DominantStationLabel.Part.STATION,
+                            DominantStationLabel.Part.AT,
+                            DominantStationLabel.Part.AMPM,
+                            DominantStationLabel.Part.SOURCE_PREFIX -> append(segment.text)
+                        }
                     }
                 }
+                return textMeasurer.measure(annotated, dominantStyle)
             }
-            val measured = textMeasurer.measure(annotated, dominantStyle)
             val dominantPlot = GraphRect(0f, top, w, footer.graphBottom(h, scale))
             val dominantPadPx = 2f * scale
-            val dominantMetrics = GraphEmptySpaceFinder.Metrics(
-                width = measured.size.width.toFloat(),
-                ascent = -measured.size.height.toFloat(),
-                descent = 0f,
-            )
-            val placement = DominantStationLabel.place(
-                text = dominantText,
-                spanHours = dominantSpanHours,
-                plot = dominantPlot,
-                drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
-                curveYsAt = ::visibleCurveYsAt,
-                metrics = dominantMetrics,
-                padPx = dominantPadPx,
-                vetoBounds = labelVeto,
-                nowIndicatorVisible = nowInWindow,
-            )
-            if (placement != null) {
+            val scaled =
+                DominantStationLabel.placeWithFontFallback(
+                    text = dominantText,
+                    spanHours = dominantSpanHours,
+                    plot = dominantPlot,
+                    drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                    curveYsAt = ::visibleCurveYsAt,
+                    metricsForScale = { fontScale ->
+                        val measured = measureDominant(fontScale)
+                        GraphEmptySpaceFinder.Metrics(
+                            width = measured.size.width.toFloat(),
+                            ascent = -measured.size.height.toFloat(),
+                            descent = 0f,
+                        )
+                    },
+                    padPx = dominantPadPx,
+                    vetoBounds = labelVeto,
+                    nowIndicatorVisible = nowInWindow,
+                )
+            if (scaled != null) {
+                val placement = scaled.placement
                 dominantPlacedBox = placement.box
+                dominantFontScale = scaled.fontScale
+                val measured = measureDominant(scaled.fontScale)
                 val topLeft = Offset(placement.box.left, placement.box.top)
                 drawText(measured, topLeft = topLeft)
                 drawnLabels.add(Rect(topLeft, Size(measured.size.width.toFloat(), measured.size.height.toFloat())))
@@ -943,7 +953,7 @@ fun TemperatureGraph(
                     "DominantStationDiag",
                     "reason=${dominantReason ?: "unknown"} spanH=$dominantSpanHours maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} " +
                         "contribution=${dominantContribution?.let { "${it.stationId} raw=${it.rawTemp} synthetic=${it.isSynthetic}" } ?: "null"} " +
-                        "text=${dominantText ?: "null"} drawnBounds=${drawnLabels.size} " +
+                        "text=${dominantText ?: "null"} fontScale=$dominantFontScale drawnBounds=${drawnLabels.size} " +
                         "plotW=${w.roundToInt()} plotH=${(footer.graphBottom(h, scale) - top).roundToInt()}" +
                         (dominantPlacedBox?.let {
                             " boxLeft=${it.left.roundToInt()} boxRight=${it.right.roundToInt()} " +

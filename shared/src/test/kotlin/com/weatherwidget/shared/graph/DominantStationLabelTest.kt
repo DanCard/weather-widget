@@ -45,6 +45,37 @@ class DominantStationLabelTest {
         nowIndicatorVisible = nowIndicatorVisible,
     )
 
+    private fun placeWithFallback(
+        metricsForScale: (Float) -> GraphEmptySpaceFinder.Metrics,
+    ) = DominantStationLabel.placeWithFontFallback(
+        text = "knuq 73.4°",
+        spanHours = 24L,
+        plot = plot,
+        drawnBounds = emptyList(),
+        curveYsAt = lowCurve,
+        metricsForScale = metricsForScale,
+        padPx = 4f,
+    )
+
+    @Test
+    fun `font fallback keeps full size when it fits`() {
+        val result = placeWithFallback { metrics }
+        assertEquals(1.0f, result?.fontScale)
+    }
+
+    @Test
+    fun `font fallback shrinks to 80 percent when full size does not fit`() {
+        val result = placeWithFallback { scale ->
+            if (scale == 1.0f) metrics.copy(width = 10_000f) else metrics
+        }
+        assertEquals(0.8f, result?.fontScale)
+    }
+
+    @Test
+    fun `font fallback returns null when no scale fits`() {
+        assertNull(placeWithFallback { metrics.copy(width = 10_000f) })
+    }
+
     // ---- format ----
 
     // A fixed zone + wall-clock instant, so the expected string cannot drift with the CI machine's

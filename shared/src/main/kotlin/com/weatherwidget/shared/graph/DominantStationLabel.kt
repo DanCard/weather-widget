@@ -294,6 +294,53 @@ object DominantStationLabel {
     }
 
     /**
+     * Font scales tried in order when the full-size label finds no empty band. The wide view packs
+     * enough numbers that a 2 dp inset no longer fits the dominant-station annotation at full size;
+     * one 20% shrink recovers it without competing with the temperatures it explains.
+     */
+    val FALLBACK_FONT_SCALES = listOf(1.0f, 0.8f)
+
+    /** A [Placement] plus the [fontScale] from [FALLBACK_FONT_SCALES] that produced it. */
+    data class ScaledPlacement(val placement: Placement, val fontScale: Float)
+
+    /**
+     * [place] with the [FALLBACK_FONT_SCALES] fallback: tries each scale in order and returns the
+     * first that fits, or null when none does. The platform supplies [metricsForScale] (re-measured
+     * text for that scale) and draws with the returned [ScaledPlacement.fontScale].
+     */
+    fun placeWithFontFallback(
+        text: String?,
+        spanHours: Long,
+        plot: GraphRect,
+        drawnBounds: List<GraphRect>,
+        curveYsAt: (Float) -> List<Float>,
+        metricsForScale: (Float) -> GraphEmptySpaceFinder.Metrics,
+        padPx: Float,
+        maxSpanHours: Long = MAX_HOURS_SPAN,
+        vetoBounds: List<GraphRect> = emptyList(),
+        nowIndicatorVisible: Boolean = true,
+        fontScales: List<Float> = FALLBACK_FONT_SCALES,
+    ): ScaledPlacement? {
+        for (scale in fontScales) {
+            val placement =
+                place(
+                    text = text,
+                    spanHours = spanHours,
+                    plot = plot,
+                    drawnBounds = drawnBounds,
+                    curveYsAt = curveYsAt,
+                    metrics = metricsForScale(scale),
+                    padPx = padPx,
+                    maxSpanHours = maxSpanHours,
+                    vetoBounds = vetoBounds,
+                    nowIndicatorVisible = nowIndicatorVisible,
+                )
+            if (placement != null) return ScaledPlacement(placement, scale)
+        }
+        return null
+    }
+
+    /**
      * Places already-[format]ted [text], or returns null when it should not be drawn (nothing to say,
      * window too wide, or no empty band fits).
      *
