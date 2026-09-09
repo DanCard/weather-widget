@@ -41,6 +41,25 @@
 
 - **Phase 3d onward:** pending.
 
+### Phase 3d — DONE (shared decision layer)
+
+- New `:shared` `NwsObservationPlanner.mergeLatest<T>` owns the latest-observation merge +
+  `cloudCarrier` rule (generic over the reading type, so Android's `ObservationEntity` and the
+  shared `ObservationReading` both use it). Android `NwsObservationSource.fetchLatest` (both the
+  parallel and legacy branches) and desktop `fetchObservationBundles` now call it; the duplicated
+  `LatestObservationMerge.preferNewest` + cloud-carrier assembly is gone.
+- New `NwsObservationPlannerTest` (6 tests) pins: newer API wins with no carrier, strictly-newer web
+  wins and keeps a low-cloud API row, metrics-only tier never selects web, API without low cloud
+  yields no carrier, QC-flagged newest web is never chosen, no-API falls back to web.
+- **Not yet extracted (explicitly deferred):** the fetch *orchestration* itself (the per-station
+  loop, transport lambdas, persistence callbacks) and the current-blend selection. The transports
+  and persistence models differ (`MetarObservationSource`+Room vs `MetarObservationFetcher`+bundles),
+  and the current-blend has a real remaining divergence: Android's provider anchor is
+  observation-only while desktop falls back to `TemperatureInterpolator`/hourly `shortForecast`.
+  Unifying that is a behavior change needing its own decision, so it is not folded into this phase.
+- Verified: staggered suite 4065 unit + 95 instrumented green; desktop daemon in an isolated XDG
+  dir fetched 5 stations and produced `OBS_WEB_API_DELTA` rows with no errors.
+
 ## Goal
 
 Remove the remaining NWS-fetch duplication between desktop (`DesktopWeatherService.fetchNwsForecast`

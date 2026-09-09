@@ -10,9 +10,9 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.shared.actuals.TomorrowIoActuals
-import com.weatherwidget.shared.observations.LatestObservationMerge
 import com.weatherwidget.shared.observations.MetarSkyCover
 import com.weatherwidget.shared.observations.NwsObservationMapper
+import com.weatherwidget.shared.observations.NwsObservationPlanner
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
@@ -645,14 +645,16 @@ class DesktopWeatherService(
                         synopticApi.fetchSynopticObservations(station.id, windowMinutes, station.name)
                     }
                     webReadings = synopticOutcome.valueOrNull().orEmpty()
-                    val merge = LatestObservationMerge.preferNewest(
+                    val merge = NwsObservationPlanner.mergeLatest(
                         apiLatest = latest,
                         apiNewestMs = newestObservationMs,
                         webReadings = webReadings,
+                        useWebForLatest = fetchWebForUse,
                         isQcFailed = { it.qcFailed },
                         observedAtMillis = {
                             runCatching { ZonedDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrNull()
                         },
+                        hasLowCloud = { MetarSkyCover.lowPercent(it.cloudLayers) != null },
                     )
                     val apiMs = merge.apiNewestMs
                     val webMs = merge.webNewestMs
@@ -672,22 +674,19 @@ class DesktopWeatherService(
                             "webQcFailed=${webReadings.any { it.qcFailed }} chosen=${if (merge.chosenIsWeb) "web" else "api"}",
                         "INFO",
                     )
-                    if (fetchWebForUse) {
-                        // Prefer-newest anchors current temp; historical stays the NWS API window.
-                        bundleLatest = merge.chosen
-                        latestIsWeb = merge.chosenIsWeb
-                    }
+                    // Prefer-newest anchors current temp; when the web row wins, the API row is
+                    // preserved as the cloudCarrier (below) rather than discarded.
+                    bundleLatest = merge.chosen
+                    latestIsWeb = merge.chosenIsWeb
                     // Android's cloudCarrier: the web swap is a TEMPERATURE decision, but it drops
                     // the API row's sky condition (and 24h extremes/precip). Keep the API row as a
                     // second observation when it carries sky cover, so the cloud blend still sees it.
-                    if (fetchWebForUse && merge.chosenIsWeb && latest != null &&
-                        MetarSkyCover.lowPercent(latest.cloudLayers) != null
-                    ) {
-                        cloudCarrier = latest
+                    merge.cloudCarrier?.let { carrier ->
+                        cloudCarrier = carrier
                         weatherDao?.log(
                             "OBS_CLOUD_CARRIER",
                             "station=${station.id} timestamp=$newestObservationMs " +
-                                "cloudLow=${MetarSkyCover.lowPercent(latest.cloudLayers)} " +
+                                "cloudLow=${MetarSkyCover.lowPercent(carrier.cloudLayers)} " +
                                 "reason=preserve_independent_api_observation",
                             "INFO",
                         )

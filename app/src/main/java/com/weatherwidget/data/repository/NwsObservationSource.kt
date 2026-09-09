@@ -13,6 +13,7 @@ import com.weatherwidget.data.remote.SynopticApi
 import com.weatherwidget.data.remote.shouldTouchObservationFetchedAt
 import com.weatherwidget.shared.observations.MetarSkyCover
 import com.weatherwidget.shared.observations.LatestObservationMerge
+import com.weatherwidget.shared.observations.NwsObservationPlanner
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.util.SharedPreferencesUtil
 import java.time.OffsetDateTime
@@ -176,15 +177,16 @@ class NwsObservationSource(
             val apiEntity = apiObservation?.let {
                 toEntity(it, stationInfo, latitude, longitude, isWebFallback = false)
             }
-            val merge = LatestObservationMerge.preferNewest(
+            val merge = NwsObservationPlanner.mergeLatest(
                 apiLatest = apiEntity,
                 apiNewestMs = apiObservedAtMs,
                 webReadings = listOfNotNull(webEntity),
+                useWebForLatest = fetchWebForUse,
                 isQcFailed = { it.qcFailed },
                 observedAtMillis = { it.timestamp },
+                hasLowCloud = { it.cloudCoverLow != null },
             )
-            val useWeb = fetchWebForUse && merge.chosenIsWeb
-            val chosen = if (useWeb) {
+            val chosen = if (merge.chosenIsWeb) {
                 merge.chosen?.copy(
                     api = WeatherSource.NWS.id,
                     isWebFallback = true,
@@ -213,17 +215,16 @@ class NwsObservationSource(
                     "outcome=$outcomeLabel apiNewestMs=$mergedApiMs " +
                     "webNewestMs=$mergedWebMs deltaMin=$deltaMinutes " +
                     "apiTempC=${apiObservation?.temperatureCelsius} webTempF=${webEntity?.temperature} " +
-                    "webQcFailed=${webEntity?.qcFailed == true} chosen=${if (useWeb) "web" else "api"}",
+                    "webQcFailed=${webEntity?.qcFailed == true} chosen=${if (merge.chosenIsWeb) "web" else "api"}",
                 "INFO",
             )
-            val cloudCarrier = if (useWeb && apiEntity?.cloudCoverLow != null) apiEntity else null
             return LatestStationObservation(
                 chosen = chosen,
                 qcFlagged = listOfNotNull(webEntity?.takeIf { it.qcFailed }?.copy(
                     api = WeatherSource.NWS.id,
                     isWebFallback = true,
                 )),
-                cloudCarrier = cloudCarrier,
+                cloudCarrier = merge.cloudCarrier,
                 shouldTouchFetchedAt = chosen == null && shouldTouchObservationFetchedAt(nwsOutcome, webOutcome),
                 nwsFailureReason = (nwsOutcome as? FetchOutcome.Failed)?.reason,
                 secondaryFailureReason = (webOutcome as? FetchOutcome.Failed)?.reason,
@@ -246,12 +247,14 @@ class NwsObservationSource(
                 stationInfo.name,
             )
             val webReadings = synopticOutcome.valueOrNull().orEmpty()
-            val merge = LatestObservationMerge.preferNewest(
+            val merge = NwsObservationPlanner.mergeLatest(
                 apiLatest = apiObservation,
                 apiNewestMs = apiObservedAtMs,
                 webReadings = webReadings,
+                useWebForLatest = fetchWebForUse,
                 isQcFailed = { it.qcFailed },
                 observedAtMillis = { it.observedAtMillis() },
+                hasLowCloud = { MetarSkyCover.lowPercent(it.cloudLayers) != null },
             )
             val apiNewestMs = merge.apiNewestMs
             val webNewestMs = merge.webNewestMs
@@ -264,7 +267,7 @@ class NwsObservationSource(
             appLogDao.log(
                 "OBS_WEB_API_DELTA",
                 "station=${stationInfo.id} index=$stationIndex tier=${if (fetchWebForUse) "use" else "metrics"} " +
-                    "apiNewestMs=${merge.apiNewestMs} webNewestMs=${merge.webNewestMs} " +
+                    "apiNewestMs=$apiNewestMs webNewestMs=$webNewestMs " +
                     "deltaMin=$deltaMinutes apiTempC=${apiObservation?.temperatureCelsius} " +
                     "webTempC=${webUsableLatest?.temperatureCelsius} " +
                     "webQcFailed=${webReadings.any { it.qcFailed }} " +
@@ -281,11 +284,8 @@ class NwsObservationSource(
                 // carries. Keep the API row as a second observation (its own timestamp keeps it a
                 // distinct primary key) so those fields survive; only the temperature stays with the
                 // fresher web row.
-                if (merge.chosenIsWeb && apiObservation != null &&
-                    MetarSkyCover.lowPercent(apiObservation.cloudLayers) != null
-                ) {
-                    cloudCarrierEntity =
-                        toEntity(apiObservation, stationInfo, latitude, longitude, isWebFallback = false)
+                merge.cloudCarrier?.let { carrier ->
+                    cloudCarrierEntity = toEntity(carrier, stationInfo, latitude, longitude, isWebFallback = false)
                 }
                 merge.chosen
             } else {
