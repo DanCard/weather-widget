@@ -112,7 +112,7 @@ object ForecastDeltaLabel {
      * Font scales tried in order when the full-size label finds no empty band (the wide view packs
      * enough numbers that the delta caption no longer fits). Mirrors [DominantStationLabel].
      */
-    val FALLBACK_FONT_SCALES = listOf(1.0f, 0.8f)
+    val FALLBACK_FONT_SCALES = listOf(1.0f, 0.8f, 0.6f)
 
     /** A [Placement] plus the [fontScale] from [FALLBACK_FONT_SCALES] that produced it. */
     data class ScaledPlacement(val placement: Placement, val fontScale: Float)

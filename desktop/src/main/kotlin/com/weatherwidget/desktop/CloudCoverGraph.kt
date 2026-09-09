@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
@@ -426,43 +427,41 @@ fun CloudCoverGraph(
         val dominantText = dominantLabel?.fullText
         var actualsSourcePlacement: DominantStationLabel.Placement? = null
         if (dominantLabel != null && dominantText != null && dominantSpanHours <= DominantStationLabel.MAX_HOURS_SPAN) {
-            val dominantStyle = TextStyle(
-                fontSize = (DOMINANT_STATION_LABEL_SP * scale).sp,
-                color = COLOR_CLOUD_ACTUAL,
-                shadow = androidx.compose.ui.graphics.Shadow(
-                    color = Color.Black.copy(alpha = 0.7f),
-                    offset = Offset(0f, 1f * scale),
-                    blurRadius = 2f * scale,
-                ),
-            )
-            val annotated = buildAnnotatedString {
-                dominantLabel.segments.forEach { segment ->
-                    when (segment.part) {
-                        DominantStationLabel.Part.TEMPERATURE ->
-                            withStyle(SpanStyle(fontSize = (DOMINANT_VALUE_LABEL_SP * scale).sp)) {
-                                append(segment.text)
-                            }
-                        DominantStationLabel.Part.TIME ->
-                            withStyle(SpanStyle(fontSize = (DOMINANT_TIME_LABEL_SP * scale).sp)) {
-                                append(segment.text)
-                            }
-                        DominantStationLabel.Part.STATION,
-                        DominantStationLabel.Part.AT,
-                        DominantStationLabel.Part.AMPM,
-                        DominantStationLabel.Part.SOURCE_PREFIX -> append(segment.text)
+            fun measureDominant(fontScale: Float): TextLayoutResult {
+                val dominantStyle = TextStyle(
+                    fontSize = (DOMINANT_STATION_LABEL_SP * scale * fontScale).sp,
+                    color = COLOR_CLOUD_ACTUAL,
+                    shadow = androidx.compose.ui.graphics.Shadow(
+                        color = Color.Black.copy(alpha = 0.7f),
+                        offset = Offset(0f, 1f * scale),
+                        blurRadius = 2f * scale,
+                    ),
+                )
+                val annotated = buildAnnotatedString {
+                    dominantLabel.segments.forEach { segment ->
+                        when (segment.part) {
+                            DominantStationLabel.Part.TEMPERATURE ->
+                                withStyle(SpanStyle(fontSize = (DOMINANT_VALUE_LABEL_SP * scale * fontScale).sp)) {
+                                    append(segment.text)
+                                }
+                            DominantStationLabel.Part.TIME ->
+                                withStyle(SpanStyle(fontSize = (DOMINANT_TIME_LABEL_SP * scale * fontScale).sp)) {
+                                    append(segment.text)
+                                }
+                            DominantStationLabel.Part.STATION,
+                            DominantStationLabel.Part.AT,
+                            DominantStationLabel.Part.AMPM,
+                            DominantStationLabel.Part.SOURCE_PREFIX -> append(segment.text)
+                        }
                     }
                 }
+                return textMeasurer.measure(annotated, dominantStyle)
             }
-            val measured = textMeasurer.measure(annotated, dominantStyle)
             val dominantPlot = GraphRect(0f, graphTop, w, footer.graphBottom(h, scale))
             val dominantPadPx = 2f * scale
-            val dominantMetrics = GraphEmptySpaceFinder.Metrics(
-                width = measured.size.width.toFloat(),
-                ascent = -measured.size.height.toFloat(),
-                descent = 0f,
-            )
             val actualFlatCoords = actualCoordSegments.flatten()
-            val placement = DominantStationLabel.place(
+            val scaled =
+                DominantStationLabel.placeWithFontFallback(
                 text = dominantText,
                 spanHours = dominantSpanHours,
                 plot = dominantPlot,
@@ -489,16 +488,25 @@ fun CloudCoverGraph(
                         }
                     }
                 },
-                metrics = dominantMetrics,
+                metricsForScale = { fontScale ->
+                    val measured = measureDominant(fontScale)
+                    GraphEmptySpaceFinder.Metrics(
+                        width = measured.size.width.toFloat(),
+                        ascent = -measured.size.height.toFloat(),
+                        descent = 0f,
+                    )
+                },
                 padPx = dominantPadPx,
                 vetoBounds = if (markerX in 0f..w) listOf(GraphRect(markerX - 4f * scale, graphTop, markerX + 4f * scale, graphTop + graphHeight)) else emptyList(),
             )
-            if (placement != null) {
+            if (scaled != null) {
+                val placement = scaled.placement
+                val measured = measureDominant(scaled.fontScale)
                 val topLeft = Offset(placement.box.left, placement.box.top)
                 drawText(measured, topLeft = topLeft)
                 drawnLabels.add(Rect(topLeft, Size(measured.size.width.toFloat(), measured.size.height.toFloat())))
+                actualsSourcePlacement = placement
             }
-            actualsSourcePlacement = placement
         }
         // Emitted outside the gate above, so a test can tell "searched and found nowhere" from
         // "never got as far as searching".

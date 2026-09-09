@@ -298,7 +298,7 @@ object DominantStationLabel {
      * enough numbers that a 2 dp inset no longer fits the dominant-station annotation at full size;
      * one 20% shrink recovers it without competing with the temperatures it explains.
      */
-    val FALLBACK_FONT_SCALES = listOf(1.0f, 0.8f)
+    val FALLBACK_FONT_SCALES = listOf(1.0f, 0.8f, 0.6f)
 
     /** A [Placement] plus the [fontScale] from [FALLBACK_FONT_SCALES] that produced it. */
     data class ScaledPlacement(val placement: Placement, val fontScale: Float)

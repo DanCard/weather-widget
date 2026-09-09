@@ -72,6 +72,14 @@ class DominantStationLabelTest {
     }
 
     @Test
+    fun `font fallback shrinks to 60 percent when 80 percent does not fit`() {
+        val result = placeWithFallback { scale ->
+            if (scale > 0.6f) metrics.copy(width = 10_000f) else metrics
+        }
+        assertEquals(0.6f, result?.fontScale)
+    }
+
+    @Test
     fun `font fallback returns null when no scale fits`() {
         assertNull(placeWithFallback { metrics.copy(width = 10_000f) })
     }

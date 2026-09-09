@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.weatherwidget.R
 import com.weatherwidget.shared.graph.CloudWatermarkPlacement
@@ -19,8 +20,13 @@ import java.time.Duration
  */
 internal object CloudCoverGraphAnnotations {
 
+    private const val TAG = "CloudCoverGraphAnnotations"
+
     val WATERMARK_VERT_FRACTIONS = listOf(0.5f, 0.65f, 0.35f)
     const val WATERMARK_ICON_CURVE_GAP_DP = 2f
+
+    private fun scaledPaint(base: Paint, scale: Float): Paint =
+        if (scale == 1f) base else Paint(base).apply { textSize = base.textSize * scale }
 
     fun drawWatermark(
         context: Context,
@@ -107,29 +113,39 @@ internal object CloudCoverGraphAnnotations {
         dpToPx: (Float) -> Float,
         onDominantStationPlaced: ((DominantStationLabel.Placement?) -> Unit)?,
     ) {
-        if (hours.size < 2) return
+        if (hours.size < 2) {
+            if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                Log.v(TAG, "ActualsSourceDiag: reason=too_few_hours text=${dominantStationLabel.fullText}")
+            }
+            return
+        }
         val spanHours = Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
-        if (spanHours > DominantStationLabel.MAX_HOURS_SPAN) return
+        if (spanHours > DominantStationLabel.MAX_HOURS_SPAN) {
+            if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                Log.v(
+                    TAG,
+                    "ActualsSourceDiag: reason=span_too_wide spanH=$spanHours " +
+                        "maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} text=${dominantStationLabel.fullText}",
+                )
+            }
+            return
+        }
 
         val valuePaint = paints.dominantValueTextPaint
         val stationPaint = paints.dominantStationTextPaint
         val timePaint = paints.dominantTimeTextPaint
-        val segmentWidths = dominantStationLabel.segments.map { segment ->
-            val paint: Paint = when (segment.part) {
-                DominantStationLabel.Part.TEMPERATURE -> valuePaint
-                DominantStationLabel.Part.TIME -> timePaint
+        fun paintFor(part: DominantStationLabel.Part, scale: Float): Paint =
+            when (part) {
+                DominantStationLabel.Part.TEMPERATURE -> scaledPaint(valuePaint, scale)
+                DominantStationLabel.Part.TIME -> scaledPaint(timePaint, scale)
                 DominantStationLabel.Part.STATION,
                 DominantStationLabel.Part.AT,
                 DominantStationLabel.Part.AMPM,
-                DominantStationLabel.Part.SOURCE_PREFIX -> stationPaint
+                DominantStationLabel.Part.SOURCE_PREFIX -> scaledPaint(stationPaint, scale)
             }
-            paint.measureText(segment.text)
-        }
-        val totalWidth = segmentWidths.sum()
-        val fontAscent = TemperatureGraphStyle.fontAscent(valuePaint)
-        val fontDescent = TemperatureGraphStyle.fontDescent(valuePaint)
         val padPx = dpToPx(2f * labelScale)
-        val placement = DominantStationLabel.place(
+        val scaled =
+            DominantStationLabel.placeWithFontFallback(
             text = dominantStationLabel.fullText,
             spanHours = spanHours,
             plot = GraphRect(0f, topPadding, widthPx.toFloat(), graphBottom),
@@ -165,30 +181,47 @@ internal object CloudCoverGraphAnnotations {
                     }
                 }
             },
-            metrics = GraphEmptySpaceFinder.Metrics(
-                width = totalWidth,
-                ascent = fontAscent,
-                descent = fontDescent,
-            ),
+            metricsForScale = { scale ->
+                val widths =
+                    dominantStationLabel.segments.map { segment ->
+                        paintFor(segment.part, scale).measureText(segment.text)
+                    }
+                val valuePaintScaled = paintFor(DominantStationLabel.Part.TEMPERATURE, scale)
+                GraphEmptySpaceFinder.Metrics(
+                    width = widths.sum(),
+                    ascent = TemperatureGraphStyle.fontAscent(valuePaintScaled),
+                    descent = TemperatureGraphStyle.fontDescent(valuePaintScaled),
+                )
+            },
             padPx = padPx,
             vetoBounds = if (nowX != null) listOf(GraphRect(nowX - 4f, graphTop, nowX + 4f, graphBottom)) else emptyList(),
         )
-        if (placement != null) {
+        if (scaled != null) {
+            val placement = scaled.placement
             var x = placement.box.left
-            dominantStationLabel.segments.forEachIndexed { index, segment ->
-                val paint: Paint = when (segment.part) {
-                    DominantStationLabel.Part.TEMPERATURE -> valuePaint
-                    DominantStationLabel.Part.TIME -> timePaint
-                    DominantStationLabel.Part.STATION,
-                    DominantStationLabel.Part.AT,
-                    DominantStationLabel.Part.AMPM,
-                    DominantStationLabel.Part.SOURCE_PREFIX -> stationPaint
-                }
+            dominantStationLabel.segments.forEach { segment ->
+                val paint = paintFor(segment.part, scaled.fontScale)
                 canvas.drawText(segment.text, x, placement.baselineY, paint)
-                x += segmentWidths[index]
+                x += paint.measureText(segment.text)
             }
             drawnLabelBounds.add(RectF(placement.box.left, placement.box.top, placement.box.right, placement.box.bottom))
+            if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                Log.v(
+                    TAG,
+                    "ActualsSourceDiag: reason=drawn spanH=$spanHours fontScale=${scaled.fontScale} " +
+                        "text=${dominantStationLabel.fullText}",
+                )
+            }
+            onDominantStationPlaced?.invoke(placement)
+        } else {
+            if (Log.isLoggable(TAG, Log.VERBOSE)) {
+                Log.v(
+                    TAG,
+                    "ActualsSourceDiag: reason=no_empty_band spanH=$spanHours fontScale=1.0 " +
+                        "text=${dominantStationLabel.fullText}",
+                )
+            }
+            onDominantStationPlaced?.invoke(null)
         }
-        onDominantStationPlaced?.invoke(placement)
     }
 }

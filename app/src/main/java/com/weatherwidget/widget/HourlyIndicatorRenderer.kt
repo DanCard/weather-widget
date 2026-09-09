@@ -209,7 +209,7 @@ internal object HourlyIndicatorRenderer {
         heightPx: Int,
         dayLabelTextPaint: Paint,
         todayDayLabelPaint: Paint,
-        drawnLabelBounds: List<RectF>,
+        drawnLabelBounds: MutableList<RectF>,
         drawnIconBounds: List<RectF>,
         dpToPx: (Float) -> Float,
         onDayLabelPlaced: ((
@@ -247,6 +247,18 @@ internal object HourlyIndicatorRenderer {
         placements.forEach { placement ->
             val paint = if (placement.isToday) todayDayLabelPaint else dayLabelTextPaint
             canvas.drawText(placement.text, placement.x, placement.y, paint)
+            // Register the drawn day label so later free-floating annotations (the actuals-source
+            // label) treat it as an obstacle instead of drawing through it.
+            val halfWidth = paint.measureText(placement.text) / 2f
+            val metrics = paint.metricsPair()
+            drawnLabelBounds.add(
+                RectF(
+                    placement.x - halfWidth,
+                    placement.y + metrics.first,
+                    placement.x + halfWidth,
+                    placement.y + metrics.second,
+                ),
+            )
             Log.v(
                 TAG,
                 "${placement.side} \"${placement.text}\" at y=${placement.y} " +

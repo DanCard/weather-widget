@@ -73,3 +73,28 @@ same `no_empty_band` gate, so the same fallback was added to both, on both platf
   actuals-source label was `no_text` because NWS is the display source.
 - `./scripts/unit-tests.sh`: **4071 tests passed** (1548 shared); `ktlintCheck` and
   `:desktop:createDistributable` pass.
+
+## Cloud graph follow-up — same fallback, extended ladder
+
+The cloud-cover graph's borrowed-actuals label ("Actual cloud cover data from METAR") still used the
+single-scale `place`, and on the emulator's 2×2 Silurian cloud widget it was dropped
+(`ActualsSourceDiag: reason=no_empty_band … text=Actual cloud cover data from METAR`). Two things
+were needed:
+
+1. **Extended ladder.** 20% (0.8) still did not fit — the label measured 248 px wide × 31.5 px tall
+   against a ~25 px band. `FALLBACK_FONT_SCALES` is now `[1.0f, 0.8f, 0.6f]` in both
+   `DominantStationLabel` and `ForecastDeltaLabel`; the cloud label draws at `fontScale=0.6`
+   (184 px × 23.6 px).
+2. **Day labels are now obstacles.** `HourlyIndicatorRenderer.drawDayLabels` drew the `Wed` day
+   labels but never added their bounds to `drawnLabelBounds`, so the newly-visible label drew
+   through `Wed`. Its `drawnLabelBounds` param is now `MutableList<RectF>` and each placed day label
+   is registered.
+3. **Cloud diagnostic.** `CloudCoverGraphAnnotations.drawDominantStationLabel` now uses
+   `DominantStationLabel.placeWithFontFallback` and logs
+   `ActualsSourceDiag: reason=… fontScale=… text=…` (VERBOSE), so this path is diagnosable.
+   Desktop `CloudCoverGraph` got the same fallback (`measureDominant(fontScale)`).
+
+Live emulator verification: `ActualsSourceDiag: reason=drawn spanH=18 fontScale=0.6
+text=Actual cloud cover data from METAR`, and the screenshot shows the label at the top-right,
+clear of `Wed` and unclipped. `./scripts/unit-tests.sh`: **4071 tests passed**; new
+"shrinks to 60 percent" tests in both shared label test classes.
