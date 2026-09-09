@@ -11,6 +11,7 @@ import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.shared.observations.LatestObservationMerge
+import com.weatherwidget.shared.observations.MetarSkyCover
 import com.weatherwidget.shared.observations.NwsObservationMapper
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.shared.config.ForecastHorizon
@@ -468,6 +469,8 @@ class DesktopWeatherService(
             buildList {
                 bundle.latest?.let { add(it.toReading(bundle.station, bundle.latestIsWeb)) }
                 bundle.historical.forEach { add(it.toReading(bundle.station, bundle.historicalIsWeb)) }
+                // Preserved API row when the web reading won the temperature merge (Android parity).
+                bundle.cloudCarrier?.let { add(it.toReading(bundle.station, isWebFallback = false)) }
             }
         }
 
@@ -612,6 +615,7 @@ class DesktopWeatherService(
                 val logWebMetrics = ObservationFallbackPolicy.shouldLogWebMetrics(index)
                 var bundleLatest = latest
                 var latestIsWeb = false
+                var cloudCarrier: NwsApi.Observation? = null
                 if (fetchWebForUse || logWebMetrics) {
                     val nowMs = System.currentTimeMillis()
                     val windowMinutes = if (fetchWebForUse) {
@@ -673,21 +677,48 @@ class DesktopWeatherService(
                         bundleLatest = merge.chosen
                         latestIsWeb = merge.chosenIsWeb
                     }
+                    // Android's cloudCarrier: the web swap is a TEMPERATURE decision, but it drops
+                    // the API row's sky condition (and 24h extremes/precip). Keep the API row as a
+                    // second observation when it carries sky cover, so the cloud blend still sees it.
+                    if (fetchWebForUse && merge.chosenIsWeb && latest != null &&
+                        MetarSkyCover.lowPercent(latest.cloudLayers) != null
+                    ) {
+                        cloudCarrier = latest
+                        weatherDao?.log(
+                            "OBS_CLOUD_CARRIER",
+                            "station=${station.id} timestamp=$newestObservationMs " +
+                                "cloudLow=${MetarSkyCover.lowPercent(latest.cloudLayers)} " +
+                                "reason=preserve_independent_api_observation",
+                            "INFO",
+                        )
+                    }
                 }
 
-                if (historical.isNotEmpty()) {
-                    ObservationBundle(station, bundleLatest, historical, latestIsWeb = latestIsWeb, historicalIsWeb = false)
-                } else if (fetchWebForUse && webReadings.isNotEmpty()) {
-                    // NWS returned no historical window; surface the web readings we already fetched so
-                    // the station still contributes (mirrors the pre-260721 web-fallback bundle, just a
-                    // narrower window). QC-flagged stay in historical for the stations UI; the chosen
-                    // usable latest anchors current temp. All-flagged → latest=null (station shows QC).
+                // Android parity (ObservationFallbackPolicy.shouldUseWebFallback): fall back to the
+                // web window when the NWS history is stale, not only when it is empty. A lagging
+                // station is exactly the case the policy exists for.
+                val newestHistoricalMs = historical.mapNotNull {
+                    runCatching { ZonedDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrNull()
+                }.maxOrNull()
+                val useWebForHistory = fetchWebForUse && webReadings.isNotEmpty() &&
+                    ObservationFallbackPolicy.shouldUseWebFallback(index, newestHistoricalMs, System.currentTimeMillis())
+
+                if (historical.isNotEmpty() && !useWebForHistory) {
+                    ObservationBundle(
+                        station, bundleLatest, historical,
+                        latestIsWeb = latestIsWeb, historicalIsWeb = false, cloudCarrier = cloudCarrier,
+                    )
+                } else if (useWebForHistory) {
+                    // NWS history is empty or stale; surface the web readings we already fetched so
+                    // the station still contributes. QC-flagged stay in historical for the stations
+                    // UI; the chosen usable latest anchors current temp. All-flagged → latest=null.
                     ObservationBundle(
                         station,
                         bundleLatest,
                         webReadings.filter { it !== bundleLatest },
                         latestIsWeb = latestIsWeb,
                         historicalIsWeb = true,
+                        cloudCarrier = cloudCarrier,
                     )
                 } else if (recentOnly && bundleLatest != null) {
                     // Recent-window cycle against a slow station (KPAO can go ~90 min between
@@ -727,6 +758,11 @@ class DesktopWeatherService(
         // window. A single flag would mislabel one of them in the stations UI.
         val latestIsWeb: Boolean = false,
         val historicalIsWeb: Boolean = false,
+        /**
+         * The API observation to store alongside a web-won latest (Android's `cloudCarrier`): the
+         * web swap is a temperature decision, but Synoptic carries no sky/extremes/precip.
+         */
+        val cloudCarrier: NwsApi.Observation? = null,
     )
 
     /** Shared hardened parse (see [NwsObservationMapper]); retained as a seam for tests. */
@@ -922,6 +958,8 @@ class DesktopWeatherService(
             buildList {
                 bundle.latest?.let { add(it.toReading(bundle.station, bundle.latestIsWeb)) }
                 bundle.historical.forEach { add(it.toReading(bundle.station, bundle.historicalIsWeb)) }
+                // Preserved API row when the web reading won the temperature merge (Android parity).
+                bundle.cloudCarrier?.let { add(it.toReading(bundle.station, isWebFallback = false)) }
             }
         }
 

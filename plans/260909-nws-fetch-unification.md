@@ -22,6 +22,25 @@
   follow-up rather than silently skipped.
 - **Phase 3c onward:** pending (3c is the behavior-parity phase described below).
 
+### Phase 3c — DONE (behavior parity)
+
+1. **Closest-station retry deleted on Android.** `NwsCurrentObservationUpdater` now launches every
+   station with one `fetchAndStoreStation` attempt (`stations.mapIndexed`), the
+   `CLOSEST_STATION_RETRY_DELAYS_MS` constant and the dead `NWS_STATION_RETRY_OK` log are gone.
+2. **`cloudCarrier` adopted on desktop.** When a web reading wins `LatestObservationMerge`, the API
+   row is kept as a second observation (its own timestamp) when it carries low cloud cover, logged
+   as `OBS_CLOUD_CARRIER`, and included in `rawObservations`. Verified live: KNUQ
+   `OBS_CLOUD_CARRIER ... cloudLow=0` after a `chosen=web` merge.
+3. **Staleness-based historical fallback adopted on desktop.** `fetchObservationBundles` now uses
+   `ObservationFallbackPolicy.shouldUseWebFallback(index, newestHistoricalMs, now)` instead of
+   `historical.isEmpty()`, so a lagging (not just silent) NWS station falls back to the web window.
+4. **Verified:** staggered suite 4059 unit + 95 instrumented green; desktop daemon run in an
+   isolated XDG dir fetched 5 stations and produced `OBS_CLOUD_CARRIER` / `OBS_WEB_API_DELTA` rows
+   with no errors. Focused unit tests for the desktop observation-merge branches remain a follow-up
+   (the branch is private and needs a fake `NwsApi`/METAR integration test).
+
+- **Phase 3d onward:** pending.
+
 ## Goal
 
 Remove the remaining NWS-fetch duplication between desktop (`DesktopWeatherService.fetchNwsForecast`

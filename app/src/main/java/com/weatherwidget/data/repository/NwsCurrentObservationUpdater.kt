@@ -12,7 +12,6 @@ import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.shared.util.SpatialInterpolator
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
@@ -20,10 +19,6 @@ import javax.inject.Singleton
 
 private const val TAG = "NwsCurrentObsUpdate"
 internal const val MAX_NWS_STATIONS = 5
-
-// Retry cadence for the CLOSEST station only (see fetchNwsCurrent). The other stations get a
-// single attempt each.
-private val CLOSEST_STATION_RETRY_DELAYS_MS = listOf(10_000L, 30_000L)
 
 @Singleton
 class NwsCurrentObservationUpdater private constructor(
@@ -98,40 +93,22 @@ class NwsCurrentObservationUpdater private constructor(
                 is FetchOutcome.Failed -> batch
             }
 
-        // Only the CLOSEST station is retried (10s, then 30s); the other stations get a single
-        // attempt each. The closest station dominates the IDW blend, so its freshness is worth the
-        // extra latency; retrying all five would multiply the worst-case fetch time.
-        val closestDeferred = async {
-            var entity = fetchAndStoreStation(
-                stations.first(), latitude, longitude, attempt = 0, stationIndex = 0,
-                parallelWebOutcome = parallelWebDeferred?.let { { webOutcomeFor(stations.first().id)!! } },
-            )
-            for ((index, delayMs) in CLOSEST_STATION_RETRY_DELAYS_MS.withIndex()) {
-                if (entity != null) break
-                delay(delayMs)
-                entity = fetchAndStoreStation(
-                    stations.first(),
-                    latitude,
-                    longitude,
-                    attempt = index + 1,
-                    stationIndex = 0,
-                    parallelWebOutcome = parallelWebDeferred?.let { { webOutcomeFor(stations.first().id)!! } },
-                )
-            }
-            entity
-        }
-        val otherDeferreds = stations.drop(1).mapIndexed { index, station ->
+        // Every station gets exactly one attempt. The old 10s/30s retry targeted stations.first(),
+        // which is nearest by distance — often a personal station the blend discounts to ~5% — so
+        // it retried the station that mattered least while blocking the whole fetch for up to 40s.
+        // The observation loop and the network-restored/resume kicks re-fetch within a cycle.
+        val stationDeferreds = stations.mapIndexed { index, station ->
             async {
                 fetchAndStoreStation(
                     station,
                     latitude,
                     longitude,
-                    stationIndex = index + 1,
+                    stationIndex = index,
                     parallelWebOutcome = parallelWebDeferred?.let { { webOutcomeFor(station.id)!! } },
                 )
             }
         }
-        val successful = (listOf(closestDeferred) + otherDeferreds).mapNotNull { it.await() }
+        val successful = stationDeferreds.mapNotNull { it.await() }
         val totalMs = System.currentTimeMillis() - fetchStartMs
         if (successful.isEmpty()) {
             appLogDao.log(
@@ -167,7 +144,6 @@ class NwsCurrentObservationUpdater private constructor(
         station: com.weatherwidget.data.remote.NwsApi.StationInfo,
         latitude: Double,
         longitude: Double,
-        attempt: Int = 0,
         stationIndex: Int,
         parallelWebOutcome: (suspend () -> FetchOutcome<ObservationEntity>)? = null,
     ): ObservationEntity? {
@@ -184,10 +160,10 @@ class NwsCurrentObservationUpdater private constructor(
         } catch (e: Exception) {
             appLogDao.log(
                 "NWS_STATION_FAIL",
-                "station=${station.id} attempt=$attempt error=${e::class.simpleName}:${e.message}",
+                "station=${station.id} error=${e::class.simpleName}:${e.message}",
                 "WARN",
             )
-            Log.e(TAG, "NWS station ${station.id} attempt $attempt failed", e)
+            Log.e(TAG, "NWS station ${station.id} fetch failed", e)
             return null
         }
 
@@ -225,13 +201,13 @@ class NwsCurrentObservationUpdater private constructor(
                 )
                 appLogDao.log(
                     "OBS_ATTEMPT_TOUCH",
-                    "station=${station.id} reason=no_valid_observation attempt=$attempt",
+                    "station=${station.id} reason=no_valid_observation",
                     "INFO",
                 )
             } else {
                 appLogDao.log(
                     "NWS_STATION_FAIL",
-                    "station=${station.id} attempt=$attempt " +
+                    "station=${station.id} " +
                         "nws=${result.nwsFailureReason ?: "unknown"} " +
                         "secondary=${result.secondaryFailureReason ?: "not_tried"}",
                     "WARN",
@@ -240,13 +216,6 @@ class NwsCurrentObservationUpdater private constructor(
             return null
         }
 
-        if (attempt > 0) {
-            appLogDao.log(
-                "NWS_STATION_RETRY_OK",
-                "station=${station.id} attempt=$attempt",
-                "INFO",
-            )
-        }
         observationDao.insertAll(listOf(chosen))
         observationDao.touchLatestFetchedAt(
             chosen.stationId,
