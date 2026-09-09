@@ -503,65 +503,12 @@ internal fun runDesktopUiApplication() = application {
             exitApplication()
         }
 
-        // Watch for external show request (`.ui-show`) and data updates (`.data-updated`). This is the
-        // fallback signal path alongside the socket push (UiNotifyClient above): Java's WatchService
-        // drops/coalesces events, so it can't be the only signal. It must also SELF-HEAL — the old
-        // code did `if (!key.reset()) break`, so a single reset failure (or a closed service) killed
-        // the watcher permanently, after which only the slow poll remained. Here a dead watch re-arms:
-        // the inner loop exits, the outer loop rebuilds the WatchService and re-registers, after a
-        // short pause to avoid a tight spin if the directory is persistently unwatchable.
-        LaunchedEffect(Unit) {
-            withContext(Dispatchers.IO) {
-                val dir = appDataDir()
-                java.nio.file.Files.createDirectories(dir)
-                while (true) {
-                    runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
-                    runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(DATA_UPDATED_TRIGGER)) }
+        // Fallback signal path alongside the socket push: see [DataUpdateWatcher].
+        DataUpdateWatcher(
+            onShowRequested = ::requestShowPopup,
+            onDataUpdated = { reloadCachedForecast("watch") },
+        )
 
-                    val watchService = java.nio.file.FileSystems.getDefault().newWatchService()
-                    try {
-                        dir.register(
-                            watchService,
-                            java.nio.file.StandardWatchEventKinds.ENTRY_CREATE,
-                            java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
-                        )
-                        var watchValid = true
-                        while (watchValid) {
-                            val key = watchService.take() // Blocks until an event occurs
-                            for (event in key.pollEvents()) {
-                                val name = (event.context() as? java.nio.file.Path)?.toString()
-                                if (name == UI_SHOW_TRIGGER) {
-                                    Log.i(TAG, "WatchService: .ui-show trigger detected. Bumping showRequestId.")
-                                    runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
-                                    SwingUtilities.invokeLater { requestShowPopup() }
-                                } else if (name == DATA_UPDATED_TRIGGER) {
-                                    Log.i(TAG, "WatchService: .data-updated trigger detected. Reloading cache...")
-                                    runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(DATA_UPDATED_TRIGGER)) }
-                                    // Deliberately no dataStatus write: the daemon touches this trigger
-                                    // on fetch *failures* too, and a bare trigger carries no outcome —
-                                    // assuming Live here erased the offline/stale indication. Fetch
-                                    // outcome reaches the UI through the CURRENT_TEMP_STATUS log
-                                    // contract, re-read when dataUpdateCount bumps (reloadCachedForecast).
-                                    reloadCachedForecast("watch")
-                                }
-                            }
-                            if (!key.reset()) watchValid = false // watch invalid → rebuild below
-                        }
-                        Log.w(TAG, "WatchService key invalidated — re-arming watcher.")
-                    } catch (e: java.nio.file.ClosedWatchServiceException) {
-                        Log.w(TAG, "WatchService closed — re-arming watcher.")
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        runCatching { watchService.close() }
-                        throw e
-                    } catch (e: Exception) {
-                        Log.e(TAG, "WatchService loop error: ${e.message} — re-arming watcher.")
-                    } finally {
-                        runCatching { watchService.close() }
-                    }
-                    delay(1000L) // pause before re-arming so a persistent failure can't tight-spin
-                }
-            }
-        }
 
         // Time ticker: re-reads the daemon-published current_status each STATUS_TICK_MS. The daemon
         // owns the resolution (and re-persists it on the same cadence), so this process only
@@ -775,6 +722,78 @@ internal fun runDesktopUiApplication() = application {
         }
     }
 }
+
+/**
+ * Fallback signal path alongside the socket push (UiNotifyClient): watches `.ui-show` and
+ * `.data-updated`, and self-heals by rebuilding the WatchService when a key is invalidated.
+ * Extracted from `runDesktopUiApplication` (Phase 2 of the duplication/complexity review).
+ */
+@Composable
+private fun DataUpdateWatcher(
+    onShowRequested: () -> Unit,
+    onDataUpdated: () -> Unit,
+) {
+    // Watch for external show request (`.ui-show`) and data updates (`.data-updated`). This is the
+    // fallback signal path alongside the socket push (UiNotifyClient above): Java's WatchService
+    // drops/coalesces events, so it can't be the only signal. It must also SELF-HEAL — the old
+    // code did `if (!key.reset()) break`, so a single reset failure (or a closed service) killed
+    // the watcher permanently, after which only the slow poll remained. Here a dead watch re-arms:
+    // the inner loop exits, the outer loop rebuilds the WatchService and re-registers, after a
+    // short pause to avoid a tight spin if the directory is persistently unwatchable.
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val dir = appDataDir()
+            java.nio.file.Files.createDirectories(dir)
+            while (true) {
+                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
+                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(DATA_UPDATED_TRIGGER)) }
+
+                val watchService = java.nio.file.FileSystems.getDefault().newWatchService()
+                try {
+                    dir.register(
+                        watchService,
+                        java.nio.file.StandardWatchEventKinds.ENTRY_CREATE,
+                        java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
+                    )
+                    var watchValid = true
+                    while (watchValid) {
+                        val key = watchService.take() // Blocks until an event occurs
+                        for (event in key.pollEvents()) {
+                            val name = (event.context() as? java.nio.file.Path)?.toString()
+                            if (name == UI_SHOW_TRIGGER) {
+                                Log.i(TAG, "WatchService: .ui-show trigger detected. Bumping showRequestId.")
+                                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(UI_SHOW_TRIGGER)) }
+                                SwingUtilities.invokeLater { onShowRequested() }
+                            } else if (name == DATA_UPDATED_TRIGGER) {
+                                Log.i(TAG, "WatchService: .data-updated trigger detected. Reloading cache...")
+                                runCatching { java.nio.file.Files.deleteIfExists(dir.resolve(DATA_UPDATED_TRIGGER)) }
+                                // Deliberately no dataStatus write: the daemon touches this trigger
+                                // on fetch *failures* too, and a bare trigger carries no outcome —
+                                // assuming Live here erased the offline/stale indication. Fetch
+                                // outcome reaches the UI through the CURRENT_TEMP_STATUS log
+                                // contract, re-read when dataUpdateCount bumps (reloadCachedForecast).
+                                onDataUpdated()
+                            }
+                        }
+                        if (!key.reset()) watchValid = false // watch invalid → rebuild below
+                    }
+                    Log.w(TAG, "WatchService key invalidated — re-arming watcher.")
+                } catch (e: java.nio.file.ClosedWatchServiceException) {
+                    Log.w(TAG, "WatchService closed — re-arming watcher.")
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    runCatching { watchService.close() }
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "WatchService loop error: ${e.message} — re-arming watcher.")
+                } finally {
+                    runCatching { watchService.close() }
+                }
+                delay(1000L) // pause before re-arming so a persistent failure can't tight-spin
+            }
+        }
+    }
+}
+
 
 private fun formatAge(ageMillis: Long): String =
     com.weatherwidget.shared.util.AgeFormatter.formatAgeOld(ageMillis)

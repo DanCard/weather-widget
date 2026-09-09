@@ -68,6 +68,17 @@ divergence. Structural length is a readability cost; the Phase 1 fork is a corre
   adapters. Revisit only if the fetch payloads converge.
 - **Phase 1 complete. `./scripts/staggered-tests.sh`: 4057 unit + 95 instrumented (2 skipped), all green.**
 
+- **Phase 2 — desktop daemon/UI decomposition: DONE (daemon) / partial (UI).**
+  `DaemonProcess.kt` went from 962 to 107 lines: the daemon's state, fetch loops, kick handlers and
+  watchers moved verbatim into a new `DaemonRuntime` class (`desktop/.../DaemonRuntime.kt`), and
+  `runDaemon()` is now a composition root that builds the DB/state flows and calls `runtime.start()`.
+  From `DesktopUiApplication.kt`, the self-healing `.ui-show`/`.data-updated` WatchService effect was
+  extracted to a `DataUpdateWatcher` composable (the window hosts were already separate composables;
+  the remaining composition root is declarative state/effect wiring, deferred as lower value/riskier
+  to split further). Verified by running the refactored daemon in an isolated XDG dir for 25s
+  (full fetch, METAR, backfills, panel IPC) and the UI for 40s; `./scripts/staggered-tests.sh` again
+  4057 unit + 95 instrumented green, `:desktop:createDistributable` passes.
+
 ---
 
 ## 2. Duplicate code still present
