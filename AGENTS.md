@@ -238,6 +238,39 @@ Bucket by the class's measured wall time: **Short <0.2s, Medium 0.2â€“2s, Long â
 empty on purpose and run as no-ops. `scripts/unit-tests.sh` still drives whole-module
 `:shared:test` / `:desktop:test`, which now fail fast on an uncategorized test.
 
+### Running All Tests
+
+**Use `./scripts/staggered-tests.sh` as the full-suite gate** (e.g. after each refactor phase). It
+runs every JVM unit test across all three modules and buckets, then the instrumented/emulator
+suite, staggered so the unit-test Gradle build finishes before the device phase starts (concurrent
+build + instrumentation has produced truncated per-emulator logs). Emulators in the device phase
+run in parallel after a single `assembleDebug`.
+
+```bash
+./scripts/staggered-tests.sh                 # all unit tests, then all emulator tests
+./scripts/staggered-tests.sh --install       # also installDebug AFTER both phases pass
+./scripts/staggered-tests.sh --emulator-args "-c com.weatherwidget.widget.SomeTest"
+```
+
+Individual layers, when iterating:
+
+```bash
+./scripts/unit-tests.sh                      # all JVM unit tests (all modules + buckets)
+./scripts/unit-tests.sh Short                # one bucket only
+./scripts/unit-tests.sh --cached             # reuse prior build output
+./scripts/emulator-tests.sh                  # instrumented tests on all connected emulators
+./scripts/emulator-tests.sh -c <TestClass>   # focused instrumented test
+```
+
+Notes:
+- Do **not** pass `--install` to `scripts/unit-tests.sh` while emulator tests run: its `installDebug`
+broadcasts to every device, force-stopping the instrumentation. `staggered-tests.sh` defers the
+install for exactly this reason.
+- `staggered-tests.sh` skips the emulator phase when unit tests fail, and retries transient
+emulator/runner disconnects up to 3 times.
+- Logs land in `logs/staggered-tests/` (unit, per-emulator, and install logs), auto-pruned after
+14 days.
+
 ### Test Structure
 ```kotlin
 class TemperatureInterpolatorTest {

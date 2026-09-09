@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
+import com.weatherwidget.shared.actuals.NwsStationActualsMaintenance
 import com.weatherwidget.widget.WidgetConstants
 import java.time.LocalDate
 import java.time.ZoneId
@@ -62,8 +63,8 @@ class NwsApiDailyActualsFetcher
             }
             val stationsById = stations.associateBy { it.id }
 
-            val resolved = NwsDailyExtremesFetch.resolveForDates(
-                datesEpochDayMs = missing,
+            val outcome = NwsStationActualsMaintenance.resolve(
+                missingDates = missing,
                 stationIdsNearestFirst = stations.map { it.id },
                 userLat = latitude,
                 userLon = longitude,
@@ -73,42 +74,25 @@ class NwsApiDailyActualsFetcher
                 hourlyForecastsForDay = { dayStartMs, dayEndMs ->
                     stationActualsStore.nwsHourlyForecastsForDay(latitude, longitude, dayStartMs, dayEndMs)
                 },
-            ) { stationId, startIso, endIso ->
-                val station = stationsById[stationId] ?: return@resolveForDates emptyList()
-                // null == request failed (retry later); emptyList == answered with nothing.
-                fetchStationDay(station, latitude, longitude, startIso, endIso)
+                fetchStationDay = { stationId, startIso, endIso ->
+                    stationsById[stationId]?.let { fetchStationDay(it, latitude, longitude, startIso, endIso) }
+                },
+                stationExtremeFromStoredObservations = { date ->
+                    stationActualsStore.stationExtremeFromStoredObservations(latitude, longitude, date, zone)
+                },
+            )
+            if (outcome.pulled.isNotEmpty()) {
+                stationActualsStore.persistNwsDailyActuals(latitude, longitude, outcome.pulled)
+            }
+            if (outcome.cached.isNotEmpty()) {
+                stationActualsStore.persistCachedStationActuals(latitude, longitude, outcome.cached)
             }
 
-            val pulled = resolved
-                .mapNotNull { (date, outcome) ->
-                    (outcome as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.let { date to it.actuals }
-                }
-                .toMap()
-            if (pulled.isNotEmpty()) {
-                stationActualsStore.persistNwsDailyActuals(latitude, longitude, pulled)
-            }
-
-            // Only Insufficient falls back. Unavailable means a request failed, so the date stays
-            // in the missing set and retries rather than locking in a cached value over a live one.
-            val insufficient = resolved
-                .filterValues { it is NwsDailyExtremesFetch.DayOutcome.Insufficient }
-                .keys
-            val cached = insufficient.mapNotNull { dateMs ->
-                val date = LocalDate.ofEpochDay(dateMs / WidgetConstants.MS_IN_A_DAY)
-                stationActualsStore
-                    .stationExtremeFromStoredObservations(latitude, longitude, date, zone)
-                    ?.let { dateMs to it }
-            }.toMap()
-            if (cached.isNotEmpty()) {
-                stationActualsStore.persistCachedStationActuals(latitude, longitude, cached)
-            }
-
-            val unavailable = resolved.count { it.value is NwsDailyExtremesFetch.DayOutcome.Unavailable }
             appLogDao.log(
                 "NWS_STATION_ACTUALS_OUTCOME",
                 "requested=${missing.size} stations=${stations.size} " +
-                    "pulled=${pulled.size} cached=${cached.size} " +
-                    "insufficientUnresolved=${insufficient.size - cached.size} unavailable=$unavailable",
+                    "pulled=${outcome.pulled.size} cached=${outcome.cached.size} " +
+                    "insufficientUnresolved=${outcome.insufficientUnresolved} unavailable=${outcome.unavailable}",
                 "DEBUG",
             )
         }

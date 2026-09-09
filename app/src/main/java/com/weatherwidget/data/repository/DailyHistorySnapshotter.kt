@@ -5,7 +5,6 @@ import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.DailyHistoryEntity
-import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
@@ -13,12 +12,12 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.getForecastsInRange
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.toDailyHistory
+import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.local.toHourlyForecast
-import com.weatherwidget.data.model.HourlyForecastStitcher
-import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.util.DailyHistoryFreeze
-import com.weatherwidget.shared.util.DailyNoonCloudCover
-import com.weatherwidget.shared.util.DailyRainLabels
+import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.shared.actuals.DailyHistoryMaintenance
+import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.shared.util.FrozenRainChanceRepair
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WidgetConstants
@@ -29,6 +28,11 @@ private const val TAG = "DailyHistorySnapshotter"
 
 /**
  * Owns daily-history freeze windows and one-time repair/backfill policies.
+ *
+ * The planning rules live in [DailyHistoryMaintenance] (`:shared`) so Android and desktop agree
+ * exactly; this class is the Android adapter that loads DAO rows, maps them to the shared row
+ * types, and writes the planned rows back. [repairFrozenRainChanceIfNeeded] is Android-only (a
+ * one-time repair of rows written before the site-aware chance resolution existed).
  */
 internal class DailyHistorySnapshotter(
     context: Context,
@@ -49,11 +53,8 @@ internal class DailyHistorySnapshotter(
      * actuals write never landed. Without these rows the daily widget/desktop history columns
      * lose their high/low labels and depend on the forecasts table's rolling retention.
      *
-     * computedHighTemp/computedLowTemp stay NULL (no fabricated actuals — see
-     * ForecastOnlyHistoryPlanner); a later real-actuals write fills them in. Idempotent: existing
-     * (date, source) rows are skipped, so this runs on every sync like the freeze pass and covers
-     * both the one-time backfill and each day rollover. Runs over the past [FORECAST_ONLY_LOOKBACK_DAYS]
-     * days; the planner keeps only days strictly before today.
+     * Idempotent: existing (date, source) rows are skipped, so this runs on every sync like the
+     * freeze pass and covers both the one-time backfill and each day rollover.
      */
     suspend fun ensureForecastOnlyHistoryRows(
         latitude: Double,
@@ -61,7 +62,7 @@ internal class DailyHistorySnapshotter(
     ) {
         val zoneId = ZoneId.systemDefault()
         val today = LocalDate.now(zoneId)
-        val startMs = today.minusDays(FORECAST_ONLY_LOOKBACK_DAYS)
+        val startMs = today.minusDays(DailyHistoryMaintenance.FORECAST_ONLY_LOOKBACK_DAYS)
             .toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val endMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
@@ -80,47 +81,15 @@ internal class DailyHistorySnapshotter(
             longitude,
         ).map { it.date to it.source }.toSet()
 
-        val todayMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val planned = com.weatherwidget.shared.actuals.ForecastOnlyHistoryPlanner.plan(
-            candidates = forecastRows.map { row ->
-                com.weatherwidget.shared.actuals.ForecastOnlyHistoryPlanner.Candidate(
-                    dateMs = row.targetDate,
-                    source = row.source,
-                    locationLat = row.locationLat,
-                    locationLon = row.locationLon,
-                    highTemp = row.highTemp,
-                    lowTemp = row.lowTemp,
-                    precipAmountMm = row.precipAmountMm,
-                    condition = row.condition,
-                    fetchedAt = row.fetchedAt,
-                    isClimateNormal = row.isClimateNormal,
-                )
-            },
-            existing = existing,
-            todayMs = todayMs,
-            genericGapSourceId = WeatherSource.GENERIC_GAP.id,
+        val rows = DailyHistoryMaintenance.planForecastOnlyRows(
+            forecastRows = forecastRows.map { it.toMaintenanceRow() },
+            existingKeys = existing,
+            todayMs = endMs,
+            nowMs = System.currentTimeMillis(),
         )
-        if (planned.isEmpty()) return
+        if (rows.isEmpty()) return
 
-        val nowMs = System.currentTimeMillis()
-        val entities = planned.map { row ->
-            DailyHistoryEntity(
-                date = row.dateMs,
-                source = row.source,
-                locationLat = row.locationLat,
-                locationLon = row.locationLon,
-                // No fabricated actuals: NULL computed* is the "no actuals" marker that keeps this
-                // row out of accuracy baselines (see DailyHistoryWriter.FORECAST_ONLY_ROW).
-                computedHighTemp = null,
-                computedLowTemp = null,
-                condition = row.condition,
-                updatedAt = nowMs,
-                forecastHighTemp = row.forecastHighTemp,
-                forecastLowTemp = row.forecastLowTemp,
-                forecastPrecipAmountMm = row.forecastPrecipAmountMm,
-                lastWriter = DailyHistoryWriter.FORECAST_ONLY_ROW.storedValue,
-            )
-        }
+        val entities = rows.map { it.toEntity() }
         dailyHistoryDao.insertAll(entities)
         Log.i(TAG, "ensureForecastOnlyHistoryRows: created ${entities.size} rows " +
             "sources=${entities.map { it.source }.distinct()} dates=${entities.minOf { it.date }}..${entities.maxOf { it.date }}")
@@ -155,146 +124,25 @@ internal class DailyHistorySnapshotter(
             latitude,
             longitude,
         ).map { it.toHourlyForecast() }
-        val existingByDateSource = dailyHistoryDao.getExtremesInRange(
+        val existing = dailyHistoryDao.getExtremesInRange(
             startMs,
             endMs,
             latitude,
             longitude,
-        ).groupBy { it.date to it.source }
+        ).map { it.toDailyHistory() }
 
-        val toInsert = mutableListOf<DailyHistoryEntity>()
-        listOf(yesterday, today).forEach { date ->
-            val dayWindowOpen = DailyHistoryFreeze.dayWindowOpen(nowMs, date, zoneId)
-            val nightWindowOpen = DailyHistoryFreeze.nightWindowOpen(nowMs, date, zoneId)
-            if (!dayWindowOpen && !nightWindowOpen) return@forEach
-            val overlayOpen = DailyHistoryFreeze.overlayWindowOpen(nowMs, date, zoneId)
-            val noonCloudOpen = DailyHistoryFreeze.noonCloudWindowOpen(nowMs, date, zoneId)
-            val dateMs = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-
-            dailyRows.filter { it.targetDate == dateMs }.forEach { row ->
-                val fragments = existingByDateSource[dateMs to row.source].orEmpty()
-                if (fragments.isEmpty()) return@forEach
-                val resolved = DailyRainLabels.resolveLiveDayNightChanceAtSite(
-                    displaySourceId = row.source,
-                    daytimePrecipProbability = row.daytimePrecipProbability,
-                    nighttimePrecipProbability = row.nighttimePrecipProbability,
-                    precipProbability = row.precipProbability,
-                    hourly = hourlyRows,
-                    centerLat = latitude,
-                    centerLon = longitude,
-                    targetDate = date,
-                    zoneId = zoneId,
-                )
-                val overlayRow = row.takeIf {
-                    DailyHistoryFreeze.isValidOverlayCandidate(
-                        isClimateNormal = it.isClimateNormal,
-                        sourceId = it.source,
-                        highTemp = it.highTemp,
-                        lowTemp = it.lowTemp,
-                    )
-                }
-                val resolvedNoonCloud =
-                    DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercentAtSite(
-                        hourly = hourlyRows,
-                        date = date,
-                        displaySourceId = row.source,
-                        centerLat = latitude,
-                        centerLon = longitude,
-                    )
-                fragments.forEach { existing ->
-                    val updated = freezeDailyHistoryFragment(
-                        existing = existing,
-                        row = row,
-                        date = date,
-                        dayWindowOpen = dayWindowOpen,
-                        nightWindowOpen = nightWindowOpen,
-                        overlayOpen = overlayOpen,
-                        noonCloudOpen = noonCloudOpen,
-                        resolved = resolved,
-                        resolvedNoonCloud = resolvedNoonCloud,
-                        overlayRow = overlayRow,
-                    )
-                    if (updated != existing) toInsert.add(updated)
-                }
-            }
-        }
-        if (toInsert.isNotEmpty()) dailyHistoryDao.insertAll(toInsert)
-    }
-
-    private suspend fun freezeDailyHistoryFragment(
-        existing: DailyHistoryEntity,
-        row: ForecastEntity,
-        date: LocalDate,
-        dayWindowOpen: Boolean,
-        nightWindowOpen: Boolean,
-        overlayOpen: Boolean,
-        noonCloudOpen: Boolean,
-        resolved: DailyRainLabels.ResolvedDailyPrecip,
-        resolvedNoonCloud: Int?,
-        overlayRow: ForecastEntity?,
-    ): DailyHistoryEntity {
-        val newDay = if (dayWindowOpen) {
-            resolved.dayPrecip
-        } else {
-            existing.forecastDayPrecipChance
-        }
-        val newNight = if (nightWindowOpen) {
-            resolved.nightPrecip
-        } else {
-            existing.forecastNightPrecipChance
-        }
-        val frozen = DailyHistoryFreeze.merge(
-            overlayOpen = overlayOpen,
-            noonCloudOpen = noonCloudOpen,
-            resolvedHigh = overlayRow?.highTemp,
-            resolvedLow = overlayRow?.lowTemp,
-            resolvedPrecipAmountMm = overlayRow?.precipAmountMm,
-            resolvedNoonCloudPercent = resolvedNoonCloud,
-            existing = DailyHistoryFreeze.FrozenDisplay(
-                forecastHighTemp = existing.forecastHighTemp,
-                forecastLowTemp = existing.forecastLowTemp,
-                forecastPrecipAmountMm = existing.forecastPrecipAmountMm,
-                noonCloudPercent = existing.noonCloudPercent,
-            ),
+        val plan = DailyHistoryMaintenance.planSnapshotDisplayedRainChance(
+            dailyRows = dailyRows.map { it.toMaintenanceRow() },
+            hourly = hourlyRows,
+            existing = existing,
+            centerLat = latitude,
+            centerLon = longitude,
+            nowMs = nowMs,
+            zoneId = zoneId,
         )
-        val updated = existing.copy(
-            lastWriter = DailyHistoryWriter.FORECAST_FREEZE.storedValue,
-            forecastDayPrecipChance = newDay,
-            forecastNightPrecipChance = newNight,
-            forecastHighTemp = frozen.forecastHighTemp,
-            forecastLowTemp = frozen.forecastLowTemp,
-            forecastPrecipAmountMm = frozen.forecastPrecipAmountMm,
-            noonCloudPercent = frozen.noonCloudPercent,
-        )
-        Log.v(
-            TAG,
-            "freezeDisplay: date=$date src=${row.source} overlayOpen=$overlayOpen " +
-                "noonCloudOpen=$noonCloudOpen dayWin=$dayWindowOpen " +
-                "nightWin=$nightWindowOpen " +
-                "dayChance=${existing.forecastDayPrecipChance}->$newDay" +
-                "(resolved=${resolved.dayPrecip}) " +
-                "nightChance=${existing.forecastNightPrecipChance}->$newNight" +
-                "(resolved=${resolved.nightPrecip}) " +
-                "high=${existing.forecastHighTemp}->${updated.forecastHighTemp} " +
-                "low=${existing.forecastLowTemp}->${updated.forecastLowTemp} " +
-                "amount=${existing.forecastPrecipAmountMm}->" +
-                "${updated.forecastPrecipAmountMm} " +
-                "noonCloud=${existing.noonCloudPercent}->${updated.noonCloudPercent}",
-        )
-        if (
-            newDay != existing.forecastDayPrecipChance ||
-            newNight != existing.forecastNightPrecipChance
-        ) {
-            appLogDao.log(
-                "FREEZE_RAIN_CHANCE",
-                "date=$date src=${row.source} dayWin=$dayWindowOpen " +
-                    "nightWin=$nightWindowOpen resolvedDay=${resolved.dayPrecip} " +
-                    "resolvedNight=${resolved.nightPrecip} " +
-                    "day=${existing.forecastDayPrecipChance}->$newDay " +
-                    "night=${existing.forecastNightPrecipChance}->$newNight",
-            )
-        }
-        return updated
+        plan.traces.forEach { Log.v(TAG, it) }
+        plan.chanceChangeLogs.forEach { appLogDao.log("FREEZE_RAIN_CHANCE", it) }
+        if (plan.rows.isNotEmpty()) dailyHistoryDao.insertAll(plan.rows.map { it.toEntity() })
     }
 
     suspend fun repairFrozenRainChanceIfNeeded(
@@ -386,43 +234,19 @@ internal class DailyHistorySnapshotter(
         ).filter {
             it.forecastDayPrecipChance == null &&
                 it.forecastNightPrecipChance == null
-        }
+        }.map { it.toDailyHistory() }
 
-        val toInsert = mutableListOf<DailyHistoryEntity>()
-        for (row in rowsNeedingBackfill) {
-            val date = LocalDate.ofEpochDay(row.date / WidgetConstants.MS_IN_A_DAY)
-            val historyRows = historyRowsForDate(
-                date = date,
-                endHourNextDay = 8,
-                latitude = latitude,
-                longitude = longitude,
-                source = row.source,
-                zoneId = zoneId,
-            )
-            if (historyRows.isEmpty()) continue
-            val stitched = HourlyForecastStitcher.stitch(
-                current = emptyList(),
-                history = historyRows,
-                nowMs = System.currentTimeMillis(),
-                centerLat = latitude,
-                centerLon = longitude,
-            )
-            val dayNight = DailyRainLabels.calculateDayNightPrecipProbabilities(
-                hourly = stitched,
-                targetDate = date,
-                displaySourceId = row.source,
-                zoneId = zoneId,
-            )
-            if (dayNight.dayMax == null && dayNight.nightMax == null) continue
-            toInsert.add(
-                row.copy(
-                    lastWriter = DailyHistoryWriter.FORECAST_FREEZE.storedValue,
-                    forecastDayPrecipChance = dayNight.dayMax,
-                    forecastNightPrecipChance = dayNight.nightMax,
-                ),
-            )
-        }
-        if (toInsert.isNotEmpty()) dailyHistoryDao.insertAll(toInsert)
+        val rows = DailyHistoryMaintenance.planChanceBackfill(
+            rowsNeedingBackfill = rowsNeedingBackfill,
+            historyFor = { date, source ->
+                historyRowsForDate(date, 8, latitude, longitude, source, zoneId)
+            },
+            centerLat = latitude,
+            centerLon = longitude,
+            nowMs = System.currentTimeMillis(),
+            zoneId = zoneId,
+        )
+        if (rows.isNotEmpty()) dailyHistoryDao.insertAll(rows.map { it.toEntity() })
         prefs.edit().putBoolean(PREF_CHANCE_BACKFILL_DONE, true).apply()
     }
 
@@ -444,66 +268,34 @@ internal class DailyHistorySnapshotter(
         ).filter {
             (it.forecastHighTemp == null && it.forecastLowTemp == null) ||
                 it.noonCloudPercent == null
-        }
+        }.map { it.toDailyHistory() }
         if (rowsNeedingBackfill.isEmpty()) {
             prefs.edit().putBoolean(PREF_FROZEN_DISPLAY_BACKFILL_DONE, true).apply()
             return
         }
 
-        val snapshotsByDateSource = forecastDao.getAllForecastsInRange(
+        val snapshots = forecastDao.getAllForecastsInRange(
             startMs,
             endMs,
             latitude,
             longitude,
-        ).groupBy { it.targetDate to it.source }
-        val toInsert = mutableListOf<DailyHistoryEntity>()
-        for (row in rowsNeedingBackfill) {
-            val date = LocalDate.ofEpochDay(row.date / WidgetConstants.MS_IN_A_DAY)
-            val overlay = snapshotsByDateSource[row.date to row.source].orEmpty()
-                .filter {
-                    !it.isClimateNormal &&
-                        it.highTemp != null &&
-                        it.lowTemp != null
-                }
-                .maxByOrNull { it.fetchedAt }
-            val historyRows = historyRowsForDate(
-                date = date,
-                endHourNextDay = 0,
-                latitude = latitude,
-                longitude = longitude,
-                source = row.source,
-                zoneId = zoneId,
-            )
-            val noonCloud = if (historyRows.isEmpty()) {
-                null
-            } else {
-                DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(
-                    hourly = HourlyForecastStitcher.stitch(
-                        current = emptyList(),
-                        history = historyRows,
-                        nowMs = System.currentTimeMillis(),
-                        centerLat = latitude,
-                        centerLon = longitude,
-                    ),
-                    date = date,
-                    displaySourceId = row.source,
-                    zone = zoneId,
-                )
-            }
-            val updated = row.copy(
-                lastWriter = DailyHistoryWriter.FORECAST_FREEZE.storedValue,
-                forecastHighTemp = row.forecastHighTemp ?: overlay?.highTemp,
-                forecastLowTemp = row.forecastLowTemp ?: overlay?.lowTemp,
-                forecastPrecipAmountMm = row.forecastPrecipAmountMm
-                    ?: overlay?.precipAmountMm,
-                noonCloudPercent = row.noonCloudPercent ?: noonCloud,
-            )
-            if (updated != row) toInsert.add(updated)
-        }
-        if (toInsert.isNotEmpty()) dailyHistoryDao.insertAll(toInsert)
+        ).map { it.toMaintenanceRow() }
+
+        val rows = DailyHistoryMaintenance.planFrozenDisplayBackfill(
+            rowsNeedingBackfill = rowsNeedingBackfill,
+            snapshots = snapshots,
+            historyFor = { date, source ->
+                historyRowsForDate(date, 0, latitude, longitude, source, zoneId)
+            },
+            centerLat = latitude,
+            centerLon = longitude,
+            nowMs = System.currentTimeMillis(),
+            zoneId = zoneId,
+        )
+        if (rows.isNotEmpty()) dailyHistoryDao.insertAll(rows.map { it.toEntity() })
         appLogDao.log(
             "FROZEN_DISPLAY_BACKFILL",
-            "backfilled=${toInsert.size} scanned=${rowsNeedingBackfill.size}",
+            "backfilled=${rows.size} scanned=${rowsNeedingBackfill.size}",
         )
         prefs.edit().putBoolean(PREF_FROZEN_DISPLAY_BACKFILL_DONE, true).apply()
     }
@@ -515,32 +307,33 @@ internal class DailyHistorySnapshotter(
         longitude: Double,
         source: String,
         zoneId: ZoneId,
-    ) = hourlyForecastHistoryDao.getHistoryInRangeForBucketWindow(
-        startDateTime = date.atStartOfDay(zoneId).toInstant().toEpochMilli(),
-        endDateTime = date.plusDays(1).atTime(endHourNextDay, 0).atZone(zoneId)
-            .toInstant().toEpochMilli(),
-        bucketStart = Long.MIN_VALUE,
-        bucketEnd = Long.MAX_VALUE,
-        lat = latitude,
-        lon = longitude,
-        source = source,
-    ).map {
-        HourlyForecastEntity(
-            dateTime = it.dateTime,
-            locationLat = it.locationLat,
-            locationLon = it.locationLon,
-            temperature = it.temperature,
-            condition = it.condition,
-            source = it.source,
-            precipProbability = it.precipProbability,
-            cloudCover = it.cloudCover,
-            cloudCoverLow = it.cloudCoverLow,
-            cloudCoverMid = it.cloudCoverMid,
-            cloudCoverHigh = it.cloudCoverHigh,
-            precipAmountMm = it.precipAmountMm,
-            fetchedAt = it.fetchedAt,
-        ).toHourlyForecast()
-    }
+    ): List<HourlyForecast> =
+        hourlyForecastHistoryDao.getHistoryInRangeForBucketWindow(
+            startDateTime = date.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+            endDateTime = date.plusDays(1).atTime(endHourNextDay, 0).atZone(zoneId)
+                .toInstant().toEpochMilli(),
+            bucketStart = Long.MIN_VALUE,
+            bucketEnd = Long.MAX_VALUE,
+            lat = latitude,
+            lon = longitude,
+            source = source,
+        ).map {
+            HourlyForecastEntity(
+                dateTime = it.dateTime,
+                locationLat = it.locationLat,
+                locationLon = it.locationLon,
+                temperature = it.temperature,
+                condition = it.condition,
+                source = it.source,
+                precipProbability = it.precipProbability,
+                cloudCover = it.cloudCover,
+                cloudCoverLow = it.cloudCoverLow,
+                cloudCoverMid = it.cloudCoverMid,
+                cloudCoverHigh = it.cloudCoverHigh,
+                precipAmountMm = it.precipAmountMm,
+                fetchedAt = it.fetchedAt,
+            ).toHourlyForecast()
+        }
 
     companion object {
         private const val PREF_CHANCE_BACKFILL_DONE = "rain_chance_backfill_done"
@@ -548,7 +341,23 @@ internal class DailyHistorySnapshotter(
         private const val PREF_FROZEN_DISPLAY_BACKFILL_DONE =
             "frozen_display_backfill_done"
         private const val CHANCE_BACKFILL_LOOKBACK_DAYS = 30L
-        /** Lookback for [ensureForecastOnlyHistoryRows]: matches the widget's 30-day history nav. */
-        private const val FORECAST_ONLY_LOOKBACK_DAYS = 31L
     }
 }
+
+/** Flattens a Room forecast row into the shared planner's row type. */
+internal fun ForecastEntity.toMaintenanceRow() =
+    DailyHistoryMaintenance.ForecastHistoryRow(
+        dateMs = targetDate,
+        source = source,
+        locationLat = locationLat,
+        locationLon = locationLon,
+        highTemp = highTemp,
+        lowTemp = lowTemp,
+        precipAmountMm = precipAmountMm,
+        condition = condition,
+        fetchedAt = fetchedAt,
+        isClimateNormal = isClimateNormal,
+        precipProbability = precipProbability,
+        daytimePrecipProbability = daytimePrecipProbability,
+        nighttimePrecipProbability = nighttimePrecipProbability,
+    )
