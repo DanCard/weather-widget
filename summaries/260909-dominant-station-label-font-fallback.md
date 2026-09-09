@@ -55,8 +55,21 @@ pre-fix screenshot confirmed the label absent in the wide view and present in th
 - `./scripts/unit-tests.sh`: **4068 tests passed** (1545 shared, incl. 3 new).
 - `ktlintCheck`, `:app:assembleDebug`, `:desktop:createDistributable` pass.
 
-## Follow-up (not done)
+## Follow-up — now implemented
 
-The borrowed-actuals source label (`placeActualsSourceLabel`) and the forecast-delta label share
-the same `no_empty_band` gate; the same font fallback would apply to them if they are seen dropping
-in the wide view.
+The borrowed-actuals source label (`placeActualsSourceLabel`) and the forecast-delta label share the
+same `no_empty_band` gate, so the same fallback was added to both, on both platforms:
+
+- Shared `ForecastDeltaLabel.placeWithFontFallback` (mirrors `DominantStationLabel`) with
+  `FALLBACK_FONT_SCALES = [1.0f, 0.8f]`; 3 new tests in `ForecastDeltaLabelTest`.
+- Android `placeActualsSourceLabel` now uses `DominantStationLabel.placeWithFontFallback`
+  (re-measured per scale); `placeForecastDeltaLabel` uses `ForecastDeltaLabel.placeWithFontFallback`
+  and re-measures value/caption at the winning scale.
+- Desktop `TemperatureGraph`: both labels use their `placeWithFontFallback` variant
+  (`buildDeltaLabelAnnotatedString` gained a `fontScale` parameter; the actuals-source label
+  re-measures the annotated string per scale).
+- Both Android diagnostics now log `fontScale=`. Live check on the Pixel: the delta label still
+  draws at full size (`ForecastDeltaDiag reason=drawn fontScale=1.0`) — no regression; the
+  actuals-source label was `no_text` because NWS is the display source.
+- `./scripts/unit-tests.sh`: **4071 tests passed** (1548 shared); `ktlintCheck` and
+  `:desktop:createDistributable` pass.

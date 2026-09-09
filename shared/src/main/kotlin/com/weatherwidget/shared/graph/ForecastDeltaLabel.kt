@@ -109,6 +109,56 @@ object ForecastDeltaLabel {
     )
 
     /**
+     * Font scales tried in order when the full-size label finds no empty band (the wide view packs
+     * enough numbers that the delta caption no longer fits). Mirrors [DominantStationLabel].
+     */
+    val FALLBACK_FONT_SCALES = listOf(1.0f, 0.8f)
+
+    /** A [Placement] plus the [fontScale] from [FALLBACK_FONT_SCALES] that produced it. */
+    data class ScaledPlacement(val placement: Placement, val fontScale: Float)
+
+    /**
+     * [place] with the [FALLBACK_FONT_SCALES] fallback: tries each scale in order and returns the
+     * first that fits, or null when none does. The platform supplies [metricsForScale] (re-measured
+     * runs for that scale) and draws with the returned [ScaledPlacement.fontScale].
+     */
+    fun placeWithFontFallback(
+        delta: Float?,
+        currentTemp: Float?,
+        spanHours: Long,
+        plot: GraphRect,
+        drawnBounds: List<GraphRect>,
+        curveYsAt: (Float) -> List<Float>,
+        metricsForScale: (Float) -> Metrics,
+        padPx: Float,
+        useCelsius: Boolean,
+        suffix: String = SUFFIX,
+        maxSpanHours: Long = DELTA_LABEL_MAX_HOURS_SPAN,
+        vetoBounds: List<GraphRect> = emptyList(),
+        fontScales: List<Float> = FALLBACK_FONT_SCALES,
+    ): ScaledPlacement? {
+        for (scale in fontScales) {
+            val placement =
+                place(
+                    delta = delta,
+                    currentTemp = currentTemp,
+                    spanHours = spanHours,
+                    plot = plot,
+                    drawnBounds = drawnBounds,
+                    curveYsAt = curveYsAt,
+                    metrics = metricsForScale(scale),
+                    padPx = padPx,
+                    useCelsius = useCelsius,
+                    suffix = suffix,
+                    maxSpanHours = maxSpanHours,
+                    vetoBounds = vetoBounds,
+                )
+            if (placement != null) return ScaledPlacement(placement, scale)
+        }
+        return null
+    }
+
+    /**
      * Resolves the label, or null when it should not be drawn (no delta / current temp, window too wide,
      * or no empty band fits). [plot] is the curve-drawing area (exclude the footer). [drawnBounds] are
      * obstacles already on the canvas (labels, icons, fetch-dot). [curveYsAt] returns the y of every line

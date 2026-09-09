@@ -331,6 +331,7 @@ internal object TemperatureGraphAnnotationRenderer {
         var reason: String
         var valueText: String? = null
         var placement: ForecastDeltaLabel.Placement? = null
+        var forecastDeltaFontScale = 1f
 
         val fetchDotX = input.series.fetchDotX
         val currentTemp = input.lastObservedTemp
@@ -352,46 +353,52 @@ internal object TemperatureGraphAnnotationRenderer {
             else -> {
                 val segments = ForecastDeltaLabel.segments(delta, input.useCelsius, suffix)
                 valueText = segments.value
-                val valueWidth = basePaint.measureText(segments.value)
-                val suffixWidth = suffixPaint.measureText(segments.suffix)
-                val combinedWidth = valueWidth + suffixWidth
                 val ghostVisible = ghostLineVisible(input, hours)
-                val placed =
-                    ForecastDeltaLabel.place(
+                val scaled =
+                    ForecastDeltaLabel.placeWithFontFallback(
                         delta = delta,
                         currentTemp = currentTemp,
                         spanHours = spanHours,
                         plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
                         drawnBounds = input.graphObstacles(),
                         curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
-                        metrics =
+                        metricsForScale = { scale ->
+                            val base = scaledPaint(basePaint, scale)
+                            val cap = scaledPaint(suffixPaint, scale)
                             ForecastDeltaLabel.Metrics(
                                 // Combined ink width: the empty-space finder reserves what is
                                 // actually drawn, not the old single-run width. Height stays the
                                 // value's, since the caption is smaller and fits inside it.
-                                width = combinedWidth,
-                                ascent = TemperatureGraphStyle.fontAscent(basePaint),
-                                descent = TemperatureGraphStyle.fontDescent(basePaint),
-                            ),
+                                width = base.measureText(segments.value) + cap.measureText(segments.suffix),
+                                ascent = TemperatureGraphStyle.fontAscent(base),
+                                descent = TemperatureGraphStyle.fontDescent(base),
+                            )
+                        },
                         padPx = TemperatureGraphStyle.dpToPx(input.context, FORECAST_DELTA_LABEL_PAD_DP),
                         useCelsius = input.useCelsius,
                         suffix = suffix,
                         vetoBounds = input.labelVetoBounds(),
                     )
-                placement = placed
-                if (placed == null) {
+                if (scaled == null) {
                     reason = "no_empty_band"
                 } else {
+                    val placed = scaled.placement
+                    placement = placed
+                    forecastDeltaFontScale = scaled.fontScale
+                    val base = scaledPaint(basePaint, scaled.fontScale)
+                    val cap = scaledPaint(suffixPaint, scaled.fontScale)
+                    val valueWidth = base.measureText(segments.value)
+                    val combinedWidth = valueWidth + cap.measureText(segments.suffix)
                     // Split the centered box at the run boundary: value right-aligned and caption
                     // left-aligned on the same x keeps them flush with no rounding gap.
                     val splitX = placed.centerX - combinedWidth / 2f + valueWidth
                     val valuePaint =
-                        Paint(basePaint).apply {
+                        Paint(base).apply {
                             color = placed.colorArgb
                             textAlign = Paint.Align.RIGHT
                         }
                     val captionPaint =
-                        Paint(suffixPaint).apply {
+                        Paint(cap).apply {
                             color = placed.colorArgb
                             textAlign = Paint.Align.LEFT
                         }
@@ -423,7 +430,7 @@ internal object TemperatureGraphAnnotationRenderer {
             Log.v(
                 TAG,
                 "ForecastDeltaDiag: reason=$reason spanH=$spanHours " +
-                    "value=${valueText ?: "null"} suffix=$suffix " +
+                    "value=${valueText ?: "null"} suffix=$suffix fontScale=$forecastDeltaFontScale " +
                     "valueSizePx=${basePaint.textSize} suffixSizePx=${suffixPaint.textSize}" +
                     (placement?.let {
                         " boxLeft=${it.box.left.roundToInt()} boxRight=${it.box.right.roundToInt()} " +
@@ -656,6 +663,7 @@ internal object TemperatureGraphAnnotationRenderer {
                 0L
             }
         var placement: DominantStationLabel.Placement? = null
+        var actualsSourceFontScale = 1f
         val reason: String
         if (actualsSourceLabel == null) {
             reason = "no_text"
@@ -668,51 +676,53 @@ internal object TemperatureGraphAnnotationRenderer {
             val ghostVisible = ghostLineVisible(input, hours)
             val stationPaint = input.paints.dominantStationTextPaint
             val prefixPaint = input.paints.actualsSourcePrefixTextPaint
-            val segmentWidths = actualsSourceLabel.segments.map { segment ->
-                val paint = when (segment.part) {
-                    DominantStationLabel.Part.SOURCE_PREFIX -> prefixPaint
-                    else -> stationPaint
+            fun paintFor(part: DominantStationLabel.Part, scale: Float): Paint =
+                when (part) {
+                    DominantStationLabel.Part.SOURCE_PREFIX -> scaledPaint(prefixPaint, scale)
+                    else -> scaledPaint(stationPaint, scale)
                 }
-                paint.measureText(segment.text)
-            }
-            val totalWidth = segmentWidths.sum()
-            val metrics =
-                GraphEmptySpaceFinder.Metrics(
-                    width = totalWidth,
-                    ascent = TemperatureGraphStyle.fontAscent(stationPaint),
-                    descent = TemperatureGraphStyle.fontDescent(stationPaint),
-                )
-            placement =
-                DominantStationLabel.place(
+            val scaled =
+                DominantStationLabel.placeWithFontFallback(
                     text = labelText,
                     spanHours = spanHours,
                     plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
                     drawnBounds = input.graphObstacles(),
                     curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
-                    metrics = metrics,
+                    metricsForScale = { scale ->
+                        val widths =
+                            actualsSourceLabel.segments.map { segment ->
+                                paintFor(segment.part, scale).measureText(segment.text)
+                            }
+                        val stationPaintScaled = paintFor(DominantStationLabel.Part.STATION, scale)
+                        GraphEmptySpaceFinder.Metrics(
+                            width = widths.sum(),
+                            ascent = TemperatureGraphStyle.fontAscent(stationPaintScaled),
+                            descent = TemperatureGraphStyle.fontDescent(stationPaintScaled),
+                        )
+                    },
                     padPx = TemperatureGraphStyle.dpToPx(input.context, DOMINANT_STATION_LABEL_PAD_DP),
                     vetoBounds = input.labelVetoBounds(),
                 )
-            if (placement != null) {
-                var x = placement.box.left
-                actualsSourceLabel.segments.forEachIndexed { index, segment ->
-                    val paint = when (segment.part) {
-                        DominantStationLabel.Part.SOURCE_PREFIX -> prefixPaint
-                        else -> stationPaint
-                    }
+            if (scaled != null) {
+                val placed = scaled.placement
+                placement = placed
+                var x = placed.box.left
+                actualsSourceLabel.segments.forEach { segment ->
+                    val paint = paintFor(segment.part, scaled.fontScale)
                     input.canvas.drawText(
                         segment.text,
                         x,
-                        placement.baselineY,
+                        placed.baselineY,
                         paint,
                     )
-                    x += segmentWidths[index]
+                    x += paint.measureText(segment.text)
                 }
                 input.obstacles.add(
                     TemperatureGraphObstacleType.ACTUALS_SOURCE,
-                    placement.box.toRectF(),
+                    placed.box.toRectF(),
                 )
                 reason = "drawn"
+                actualsSourceFontScale = scaled.fontScale
             } else {
                 reason = "no_empty_band"
             }
@@ -731,7 +741,7 @@ internal object TemperatureGraphAnnotationRenderer {
             Log.v(
                 TAG,
                 "ActualsSourceDiag: reason=$reason spanH=$spanHours maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} " +
-                    "text=${text ?: "null"} drawnBounds=${input.obstacles.bounds().size}" +
+                    "text=${text ?: "null"} fontScale=$actualsSourceFontScale drawnBounds=${input.obstacles.bounds().size}" +
                     (placement?.let {
                         " boxLeft=${it.box.left.roundToInt()} boxRight=${it.box.right.roundToInt()} " +
                             "centerX=${it.centerX.roundToInt()} baselineY=${it.baselineY.roundToInt()} boxW=${it.box.width.roundToInt()}"

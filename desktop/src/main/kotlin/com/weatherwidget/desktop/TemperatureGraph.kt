@@ -99,10 +99,11 @@ internal fun buildDeltaLabelAnnotatedString(
     value: String,
     suffix: String,
     scale: Float,
+    fontScale: Float = 1f,
 ): AnnotatedString =
     buildAnnotatedString {
-        withStyle(SpanStyle(fontSize = (DELTA_LABEL_SP * scale).sp)) { append(value) }
-        withStyle(SpanStyle(fontSize = (DELTA_CAPTION_SP * scale).sp)) { append(suffix) }
+        withStyle(SpanStyle(fontSize = (DELTA_LABEL_SP * scale * fontScale).sp)) { append(value) }
+        withStyle(SpanStyle(fontSize = (DELTA_CAPTION_SP * scale * fontScale).sp)) { append(suffix) }
     }
 
 /**
@@ -801,34 +802,51 @@ fun TemperatureGraph(
                     blurRadius = 2f * scale,
                 ),
             )
-            val deltaAnnotated = buildDeltaLabelAnnotatedString(
-                value = deltaSegments.value,
-                suffix = deltaSegments.suffix,
-                scale = scale,
-            )
-            val measured = textMeasurer.measure(deltaAnnotated, deltaStyle)
-            val metrics = ForecastDeltaLabel.Metrics(
-                width = measured.size.width.toFloat(),
-                ascent = -measured.size.height.toFloat(),
-                descent = 0f,
-            )
-            val placement = ForecastDeltaLabel.place(
-                delta = appliedDelta,
-                currentTemp = deltaCurrentTemp,
-                spanHours = deltaSpanHours,
-                plot = GraphRect(0f, top, w, footer.graphBottom(h, scale)),
-                drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
-                curveYsAt = ::visibleCurveYsAt,
-                metrics = metrics,
-                padPx = 6f * scale,
-                useCelsius = useCelsius,
-                vetoBounds = labelVeto,
-            )
-            if (placement != null) {
-                val layout = textMeasurer.measure(deltaAnnotated, deltaStyle.copy(color = Color(placement.colorArgb)))
+            fun measureDelta(fontScale: Float): TextLayoutResult =
+                textMeasurer.measure(
+                    buildDeltaLabelAnnotatedString(
+                        value = deltaSegments.value,
+                        suffix = deltaSegments.suffix,
+                        scale = scale,
+                        fontScale = fontScale,
+                    ),
+                    deltaStyle,
+                )
+            val scaled =
+                ForecastDeltaLabel.placeWithFontFallback(
+                    delta = appliedDelta,
+                    currentTemp = deltaCurrentTemp,
+                    spanHours = deltaSpanHours,
+                    plot = GraphRect(0f, top, w, footer.graphBottom(h, scale)),
+                    drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                    curveYsAt = ::visibleCurveYsAt,
+                    metricsForScale = { fontScale ->
+                        val measured = measureDelta(fontScale)
+                        ForecastDeltaLabel.Metrics(
+                            width = measured.size.width.toFloat(),
+                            ascent = -measured.size.height.toFloat(),
+                            descent = 0f,
+                        )
+                    },
+                    padPx = 6f * scale,
+                    useCelsius = useCelsius,
+                    vetoBounds = labelVeto,
+                )
+            if (scaled != null) {
+                val placement = scaled.placement
+                val layout =
+                    textMeasurer.measure(
+                        buildDeltaLabelAnnotatedString(
+                            value = deltaSegments.value,
+                            suffix = deltaSegments.suffix,
+                            scale = scale,
+                            fontScale = scaled.fontScale,
+                        ),
+                        deltaStyle.copy(color = Color(placement.colorArgb)),
+                    )
                 val topLeft = Offset(placement.box.left, placement.box.top)
                 drawText(layout, topLeft = topLeft)
-                drawnLabels.add(Rect(topLeft, Size(metrics.width, metrics.height)))
+                drawnLabels.add(Rect(topLeft, Size(layout.size.width.toFloat(), layout.size.height.toFloat())))
             }
         }
 
@@ -1062,36 +1080,44 @@ fun TemperatureGraph(
                         blurRadius = 2f * scale,
                     ),
                 )
-                val annotated = buildAnnotatedString {
-                    actualsSourceLabel.segments.forEach { segment ->
-                        when (segment.part) {
-                            DominantStationLabel.Part.SOURCE_PREFIX ->
-                                withStyle(SpanStyle(fontSize = (ACTUALS_SOURCE_PREFIX_LABEL_SP * scale).sp)) {
-                                    append(segment.text)
+                fun measureActuals(fontScale: Float): TextLayoutResult =
+                    textMeasurer.measure(
+                        buildAnnotatedString {
+                            actualsSourceLabel.segments.forEach { segment ->
+                                when (segment.part) {
+                                    DominantStationLabel.Part.SOURCE_PREFIX ->
+                                        withStyle(SpanStyle(fontSize = (ACTUALS_SOURCE_PREFIX_LABEL_SP * scale * fontScale).sp)) {
+                                            append(segment.text)
+                                        }
+                                    else -> append(segment.text)
                                 }
-                            else -> append(segment.text)
-                        }
-                    }
-                }
-                val measured = textMeasurer.measure(annotated, actualsSourceBaseStyle)
+                            }
+                        },
+                        actualsSourceBaseStyle.copy(fontSize = (DOMINANT_STATION_LABEL_SP * scale * fontScale).sp),
+                    )
                 val actualsSourcePlot = GraphRect(0f, top, w, footer.graphBottom(h, scale))
-                val actualsSourceMetrics = GraphEmptySpaceFinder.Metrics(
-                    width = measured.size.width.toFloat(),
-                    ascent = -measured.size.height.toFloat(),
-                    descent = 0f,
-                )
-                val actualsSourcePlacement = DominantStationLabel.place(
-                    text = actualsSourceText,
-                    spanHours = (windowEnd - windowStart) / 3_600_000L,
-                    plot = actualsSourcePlot,
-                    drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
-                    curveYsAt = ::visibleCurveYsAt,
-                    metrics = actualsSourceMetrics,
-                    padPx = 2f * scale,
-                    vetoBounds = labelVeto,
-                )
-                if (actualsSourcePlacement != null) {
-                    val topLeft = Offset(actualsSourcePlacement.box.left, actualsSourcePlacement.box.top)
+                val actualsSourceScaled =
+                    DominantStationLabel.placeWithFontFallback(
+                        text = actualsSourceText,
+                        spanHours = (windowEnd - windowStart) / 3_600_000L,
+                        plot = actualsSourcePlot,
+                        drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+                        curveYsAt = ::visibleCurveYsAt,
+                        metricsForScale = { fontScale ->
+                            val measured = measureActuals(fontScale)
+                            GraphEmptySpaceFinder.Metrics(
+                                width = measured.size.width.toFloat(),
+                                ascent = -measured.size.height.toFloat(),
+                                descent = 0f,
+                            )
+                        },
+                        padPx = 2f * scale,
+                        vetoBounds = labelVeto,
+                    )
+                if (actualsSourceScaled != null) {
+                    val placement = actualsSourceScaled.placement
+                    val measured = measureActuals(actualsSourceScaled.fontScale)
+                    val topLeft = Offset(placement.box.left, placement.box.top)
                     drawText(measured, topLeft = topLeft)
                     drawnLabels.add(
                         Rect(

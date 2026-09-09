@@ -163,4 +163,36 @@ class ForecastDeltaLabelTest {
         )
         assertNull(p)
     }
+
+    private fun placeWithFallback(
+        metricsForScale: (Float) -> ForecastDeltaLabel.Metrics,
+    ) = ForecastDeltaLabel.placeWithFontFallback(
+        delta = 0.4f,
+        currentTemp = 72f,
+        spanHours = 6,
+        plot = plot,
+        drawnBounds = emptyList(),
+        curveYsAt = lowCurve,
+        metricsForScale = metricsForScale,
+        padPx = 4f,
+        useCelsius = false,
+    )
+
+    @Test
+    fun `font fallback keeps full size when it fits`() {
+        assertEquals(1.0f, placeWithFallback { metrics }?.fontScale)
+    }
+
+    @Test
+    fun `font fallback shrinks to 80 percent when full size does not fit`() {
+        val result = placeWithFallback { scale ->
+            if (scale == 1.0f) metrics.copy(width = 10_000f) else metrics
+        }
+        assertEquals(0.8f, result?.fontScale)
+    }
+
+    @Test
+    fun `font fallback returns null when no scale fits`() {
+        assertNull(placeWithFallback { metrics.copy(width = 10_000f) })
+    }
 }
