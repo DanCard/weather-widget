@@ -129,6 +129,7 @@ object TemperatureGraphRenderer {
         navArrowVisibility: NavArrowGeometry.Visibility = NavArrowGeometry.Visibility.BOTH,
         onDominantStationPlaced: ((DominantStationDebug) -> Unit)? = null,
         onActualsSourcePlaced: ((ActualsSourceDebug) -> Unit)? = null,
+        onForecastDeltaPlaced: ((ForecastDeltaDebug) -> Unit)? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -272,6 +273,7 @@ object TemperatureGraphRenderer {
                 navArrowVisibility = navArrowVisibility,
                 onDominantStationPlaced = onDominantStationPlaced,
                 onActualsSourcePlaced = onActualsSourcePlaced,
+                onForecastDeltaPlaced = onForecastDeltaPlaced,
             )
         val fetchDotInput =
             TemperatureFetchDotRenderer.Input(

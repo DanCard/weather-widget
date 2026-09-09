@@ -182,6 +182,15 @@ for xml_file in sorted(results_dir.glob("TEST-*.xml")):
                 short_classname = classname.split(".")[-1]
                 name = testcase.attrib.get("name", "UnknownTest")
                 print(f"  ✗ {short_classname} > {name}")
+                # Keep the assertion message: without it a one-off failure (e.g. a live-network
+                # flake) is undiagnosable once the Gradle log is gone.
+                node = failure if failure is not None else error
+                message = (node.attrib.get("message") or "").strip()
+                if not message:
+                    text = (node.text or "").strip()
+                    message = text.splitlines()[0] if text else ""
+                for line in message.splitlines()[:4]:
+                    print(f"      {line}")
     except:
         continue
 PY
@@ -359,10 +368,15 @@ fi
 total_tests=0
 total_failures=0
 
-# Wait for the parallel :shared/:desktop tests to finish and report results.
-if [ -n "$SHARED_DESKTOP_PID" ] && kill -0 "$SHARED_DESKTOP_PID" 2>/dev/null; then
-  log_and_echo "Waiting for :shared and :desktop tests to finish..."
-  wait "$SHARED_DESKTOP_PID" || shared_desktop_status=$?
+# Wait for the parallel :shared/:desktop tests to finish and report results. Always `wait` — the
+# process may have finished before this point, and gating the wait on `kill -0` used to drop a
+# non-zero exit status (the test failure was visible in the XML summary but its Gradle output was
+# never printed). `kill -0` now only decides whether to print the "waiting" line.
+if [ -n "$SHARED_DESKTOP_PID" ]; then
+  if kill -0 "$SHARED_DESKTOP_PID" 2>/dev/null; then
+    log_and_echo "Waiting for :shared and :desktop tests to finish..."
+  fi
+  wait "$SHARED_DESKTOP_PID" 2>/dev/null || shared_desktop_status=$?
 fi
 if [ "$DEFAULT_RUN" = true ]; then
 for module in shared desktop; do

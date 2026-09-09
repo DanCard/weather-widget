@@ -211,7 +211,10 @@ situations where the agent might assume or infer state instead of observing it.
 
 **Like to have Robolectric (JVM) tests for each instrumented (androidTest/emulator) tests.**
 
-Robolectric tests connecting ≥2 real components are integration tests, not unit tests.
+**An integration test is defined by what it connects, not by its scaffolding:** any test that
+connects two or more modules/components is an integration test — whether it uses Robolectric, an
+instrumented (`androidTest`) test, or no scaffolding at all (plain JVM). Framework choice is
+governed by the needs below; it does not decide unit-vs-integration.
 
 1. **Pure logic** (no Android dependencies): Write as plain unit tests in `test/` with no framework.
 2. **Needs Android Context, SharedPreferences, Room, or Resources**: Extend `com.weatherwidget.test.RobolectricTest` (which provides `@RunWith(RobolectricTestRunner::class)`, `@Config(sdk = [34])`, and `@Category(LongDuration::class)`). Use `ApplicationProvider.getApplicationContext()` for Context. Single-component tests here are unit tests; multi-component ones are integration tests.

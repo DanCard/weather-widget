@@ -20,9 +20,12 @@ import java.net.URL
  * under us** — a field that becomes a string, an array that becomes an object. Fixtures captured on
  * 2026-08-23 would keep passing straight through that.
  *
- * Follows [com.weatherwidget.shared.util.ApiKeySignupUrlLivenessTest]: real requests, so it SKIPS on
- * a JUnit assumption when the network is unavailable rather than failing. A red suite on a plane
- * teaches people to ignore the suite.
+ * Follows [com.weatherwidget.shared.util.ApiKeySignupUrlLivenessTest]: real requests, so it SKIPS
+ * (JUnit assumption) rather than failing whenever a request cannot be completed at all — the
+ * network is down, the service is rate-limiting, or it returned a non-2xx. Only a response that
+ * *did* arrive and then does not parse (or yields no usable reading) is a hard failure, because
+ * that is the payload-shape change this test exists to catch. A red suite on a plane teaches
+ * people to ignore the suite.
  *
  * Both a US and a French location are checked, because "works outside the United States" is the
  * entire reason this transport exists.
@@ -30,19 +33,57 @@ import java.net.URL
 @Category(LongDuration::class)
 class AviationWeatherLivenessTest {
 
+    private companion object {
+        const val USER_AGENT = "weather-widget-test (daniel.cardenas@gmail.com)"
+        const val RETRY_DELAY_MS = 1_500L
+    }
+
     private val json = Json { ignoreUnknownKeys = true }
 
-    private fun get(url: String): String? = try {
-        (URL(url).openConnection() as HttpURLConnection).run {
-            requestMethod = "GET"
-            connectTimeout = 15_000
-            readTimeout = 20_000
-            setRequestProperty("User-Agent", "weather-widget-test (daniel.cardenas@gmail.com)")
-            if (responseCode in 200..299) inputStream.bufferedReader().readText() else null
-                .also { disconnect() }
+    /**
+     * GET [url], retrying once on any transport failure. Returns the body for a 2xx response, or
+     * null when the request could not be completed (timeout, DNS failure, non-2xx). The connection
+     * is disconnected on every path — the previous expression form only disconnected the error
+     * branch, leaking successful connections.
+     */
+    private fun get(url: String): String? {
+        repeat(2) { attempt ->
+            val body = try {
+                (URL(url).openConnection() as HttpURLConnection).let { connection ->
+                    try {
+                        connection.requestMethod = "GET"
+                        connection.connectTimeout = 15_000
+                        connection.readTimeout = 20_000
+                        connection.setRequestProperty("User-Agent", USER_AGENT)
+                        if (connection.responseCode in 200..299) {
+                            connection.inputStream.bufferedReader().use { it.readText() }
+                        } else {
+                            null
+                        }
+                    } finally {
+                        connection.disconnect()
+                    }
+                }
+            } catch (e: Exception) {
+                null
+            }
+            if (body != null) return body
+            if (attempt == 0) Thread.sleep(RETRY_DELAY_MS)
         }
-    } catch (e: Exception) {
-        null
+        return null
+    }
+
+    /**
+     * [get] for a live endpoint, skipping the test when the request could not be completed at all.
+     *
+     * A response that arrived but does not parse is still a hard failure — that is the payload-shape
+     * guard. A request that never arrived is third-party flakiness and must not turn the suite red;
+     * `assumeTrue` marks the test skipped instead.
+     */
+    private fun getOrSkip(url: String, what: String): String {
+        val body = get(url)
+        assumeTrue("$what: request failed (network/API unavailable) — skipping liveness check", body != null)
+        return body!!
     }
 
     private fun networkAvailable(): Boolean = get("${AviationWeatherApi.BASE_URL}/metar?ids=KSJC&format=json&hours=1") != null
@@ -59,10 +100,9 @@ class AviationWeatherLivenessTest {
 
         for ((label, lat, lon) in sites()) {
             val bbox = AviationWeatherBbox.forLocation(lat, lon)
-            val stationBody = get("${AviationWeatherApi.BASE_URL}/stationinfo?bbox=$bbox&format=json")
-            assertTrue("$label: stationinfo returned nothing for bbox=$bbox", stationBody != null)
+            val stationBody = getOrSkip("${AviationWeatherApi.BASE_URL}/stationinfo?bbox=$bbox&format=json", "$label stationinfo")
 
-            val candidates = AviationWeatherApi.parseStationInfo(json, stationBody!!)
+            val candidates = AviationWeatherApi.parseStationInfo(json, stationBody)
             assertTrue(
                 "$label: stationinfo did not parse — the payload shape may have changed",
                 candidates is FetchOutcome.Success,
@@ -73,10 +113,9 @@ class AviationWeatherLivenessTest {
             assertTrue("$label: no METAR-reporting station within the base box", ranked.isNotEmpty())
 
             val ids = ranked.joinToString(",") { it.info.id }
-            val metarBody = get("${AviationWeatherApi.BASE_URL}/metar?ids=$ids&format=json&hours=3")
-            assertTrue("$label: metar returned nothing for ids=$ids", metarBody != null)
+            val metarBody = getOrSkip("${AviationWeatherApi.BASE_URL}/metar?ids=$ids&format=json&hours=3", "$label metar")
 
-            val rows = AviationWeatherApi.parseMetars(json, metarBody!!)
+            val rows = AviationWeatherApi.parseMetars(json, metarBody)
             assertTrue(
                 "$label: metar did not parse — the payload shape may have changed",
                 rows is FetchOutcome.Success,
@@ -108,10 +147,9 @@ class AviationWeatherLivenessTest {
         assumeTrue("network unavailable — skipping liveness check", networkAvailable())
 
         val ids = listOf("KSJC", "KSFO", "KOAK", "KHWD", "KLVK")
-        val body = get("${AviationWeatherApi.BASE_URL}/metar?ids=${ids.joinToString(",")}&format=json&hours=3")
-        assertTrue("metar returned nothing", body != null)
+        val body = getOrSkip("${AviationWeatherApi.BASE_URL}/metar?ids=${ids.joinToString(",")}&format=json&hours=3", "metar")
 
-        val rows = AviationWeatherApi.parseMetars(json, body!!)
+        val rows = AviationWeatherApi.parseMetars(json, body)
         assertTrue("payload did not parse", rows is FetchOutcome.Success)
         val distinct = (rows as FetchOutcome.Success).value.map { it.stationId }.distinct()
         assertTrue(

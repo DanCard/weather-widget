@@ -33,6 +33,26 @@ class ForecastDeltaLabelTest {
     }
 
     @Test
+    fun `caption is drawn 30 percent smaller than the value`() {
+        assertEquals(0.7f, ForecastDeltaLabel.SUFFIX_FONT_SCALE, 0.0001f)
+    }
+
+    @Test
+    fun `segments split the label into value and caption runs`() {
+        assertEquals(
+            ForecastDeltaLabel.Segments(value = "-0.2", suffix = ForecastDeltaLabel.SUFFIX),
+            ForecastDeltaLabel.segments(-0.234f, useCelsius = false),
+        )
+        // Android passes the localized suffix through; the split must preserve it verbatim.
+        assertEquals(
+            ForecastDeltaLabel.Segments(value = "+1.2", suffix = " gegenüber der Prognose"),
+            ForecastDeltaLabel.segments(1.2f, useCelsius = false, suffix = " gegenüber der Prognose"),
+        )
+        // Celsius scales the value without the -32 offset, exactly like formatValue.
+        assertEquals("+0.2", ForecastDeltaLabel.segments(0.4f, useCelsius = true).value)
+    }
+
+    @Test
     fun `color comes from the thermostat model at current temp`() {
         assertEquals(TemperatureColorModel.tempToColorArgb(72f), ForecastDeltaLabel.colorArgb(72f))
     }

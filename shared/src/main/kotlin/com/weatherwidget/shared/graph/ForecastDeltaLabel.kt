@@ -11,7 +11,9 @@ import kotlin.math.round
  * pixel-consistent.
  *
  * - **Text**: signed, one decimal, e.g. `+0.4 from forecast`, `-1.2 from forecast`. A delta that
- *   rounds to zero (e.g. `+0.0 from forecast`) is never shown — see [isZero].
+ *   rounds to zero (e.g. `+0.0 from forecast`) is never shown — see [isZero]. The number and the
+ *   caption are two runs sharing one baseline: the caption is drawn at [SUFFIX_FONT_SCALE] of the
+ *   number's size (see [segments]) so it reads as a label rather than competing with the value.
  * - **Color**: the thermostat gradient ([TemperatureColorModel]) evaluated at the *current* temperature,
  *   so the label harmonizes with the curve color at "now".
  * - **Visibility**: the narrow AND the 24 h view, gated by [DELTA_LABEL_MAX_HOURS_SPAN] (25 h — admits a
@@ -27,6 +29,24 @@ import kotlin.math.round
 object ForecastDeltaLabel {
     const val SUFFIX = " from forecast"
     const val COMPACT_CAPTION = "fcst"
+
+    /**
+     * Size of the caption run ("from forecast") relative to the numeric run. The number carries the
+     * comparison, so the caption is drawn 30% smaller; both runs share the label baseline. Platform
+     * renderers multiply their staleness/age paint size by this, so Android and desktop stay in step.
+     */
+    const val SUFFIX_FONT_SCALE = 0.7f
+
+    /**
+     * The label split into its two differently-sized runs: the signed [value] at the base size and
+     * the [suffix] caption at [SUFFIX_FONT_SCALE] of it. Callers measure/draw each run separately
+     * (see `TemperatureGraphAnnotationRenderer.placeForecastDeltaLabel` on Android and the delta
+     * label in desktop `TemperatureGraph.kt`), keeping one baseline and one combined-width box.
+     */
+    data class Segments(val value: String, val suffix: String)
+
+    fun segments(delta: Float, useCelsius: Boolean, suffix: String = SUFFIX): Segments =
+        Segments(formatValue(delta, useCelsius), suffix)
 
     /**
      * Show the label for windows up to this span: admits the narrow view and the 24 h view (span 24 h),

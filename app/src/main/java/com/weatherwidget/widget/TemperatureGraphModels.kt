@@ -102,6 +102,29 @@ data class ActualsSourceDebug(
     val navArrowBounds: List<RectF> = emptyList(),
 )
 
+/**
+ * Outcome of the hourly graph's `+0.2 from forecast` delta label. Exists because the label is now
+ * two differently-sized runs on one baseline, and a rendered bitmap reveals nothing about the split.
+ * [valueTextSizePx] / [suffixTextSizePx] are reported so an integration test can assert the caption
+ * really is drawn at `ForecastDeltaLabel.SUFFIX_FONT_SCALE` of the value, in the active locale.
+ */
+data class ForecastDeltaDebug(
+    /**
+     * "drawn", "no_delta", "fetch_dot_offscreen", "no_current_temp", "too_few_hours",
+     * "zero_delta", "span_too_wide", or "no_empty_band".
+     */
+    val reason: String,
+    /** Full label, e.g. `-0.2 较预报`; null when no value was formatted. */
+    val text: String?,
+    val valueText: String?,
+    val suffixText: String?,
+    val valueTextSizePx: Float?,
+    val suffixTextSizePx: Float?,
+    val box: RectF?,
+    val centerX: Float?,
+    val baselineY: Float?,
+)
+
 data class DayLabelPlacementDebug(
     val side: String,       // "LEFT" or "RIGHT"
     val dayText: String,

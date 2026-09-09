@@ -23,9 +23,10 @@ import org.junit.experimental.categories.Category
 
 /**
  * Renders the hourly graph with a supplied forecast delta (observed minus forecast, the same value
- * that shifts the ghost line) and asserts the "+X.X from forecast" label is drawn in the zoomed-in
- * (narrow) view and suppressed past the day-span gate. Placement/format/color live in shared
- * [ForecastDeltaLabel]; this only checks the Android render path delegates and draws.
+ * that shifts the ghost line) and asserts the `+X.X` value and its `from forecast` caption are drawn
+ * as two runs in the zoomed-in (narrow) view, and suppressed past the day-span gate. Placement/
+ * format/color live in shared [ForecastDeltaLabel]; this only checks the Android render path
+ * delegates and draws the split.
  */
 @Category(MediumDuration::class)
 class TemperatureGraphRendererForecastDeltaTest {
@@ -64,7 +65,8 @@ class TemperatureGraphRendererForecastDeltaTest {
             appliedDelta = 2.3f, useCelsius = false,
         )
 
-        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("+2.3 from forecast", any(), any(), any()) }
+        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("+2.3", any(), any(), any()) }
+        verify(atLeast = 1) { anyConstructed<Canvas>().drawText(" from forecast", any(), any(), any()) }
     }
 
     @Test
@@ -95,7 +97,8 @@ class TemperatureGraphRendererForecastDeltaTest {
             appliedDelta = 2.3f, useCelsius = false,
         )
 
-        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("+2.3 from forecast", any(), any(), any()) }
+        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("+2.3", any(), any(), any()) }
+        verify(atLeast = 1) { anyConstructed<Canvas>().drawText(" from forecast", any(), any(), any()) }
     }
 
     @Test
@@ -126,7 +129,7 @@ class TemperatureGraphRendererForecastDeltaTest {
             appliedDelta = 2.3f, useCelsius = false,
         )
 
-        verify(exactly = 0) { anyConstructed<Canvas>().drawText("+2.3 from forecast", any(), any(), any()) }
+        verify(exactly = 0) { anyConstructed<Canvas>().drawText(match<String> { it.endsWith("from forecast") }, any(), any(), any()) }
     }
 
     @Test

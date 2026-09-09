@@ -84,6 +84,7 @@ internal object TemperatureGraphAnnotationRenderer {
         val navArrowVisibility: NavArrowGeometry.Visibility = NavArrowGeometry.Visibility.NONE,
         val onDominantStationPlaced: ((DominantStationDebug) -> Unit)? = null,
         val onActualsSourcePlaced: ((ActualsSourceDebug) -> Unit)? = null,
+        val onForecastDeltaPlaced: ((ForecastDeltaDebug) -> Unit)? = null,
     ) {
         fun tempToY(temp: Float): Float =
             TemperatureGraphStyle.tempToY(
@@ -318,50 +319,118 @@ internal object TemperatureGraphAnnotationRenderer {
         hours: List<HourData>,
         forecastDelta: Float?,
     ) {
-        val delta = forecastDelta ?: return
-        val fetchDotX = input.series.fetchDotX
-        if (fetchDotX == null || fetchDotX < 0f || fetchDotX > input.widthPx.toFloat()) return
-        val currentTemp = input.lastObservedTemp ?: return
-        if (hours.size < 2) return
-        val spanHours = Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
-        val paint = input.paints.stalenessTextPaint
+        val basePaint = input.paints.stalenessTextPaint
         val suffix = " " + input.context.getString(R.string.forecast_delta_suffix)
-        val text = ForecastDeltaLabel.format(delta, input.useCelsius, suffix)
-        val ghostVisible = ghostLineVisible(input, hours)
-        val placement =
-            ForecastDeltaLabel.place(
-                delta = delta,
-                currentTemp = currentTemp,
-                spanHours = spanHours,
-                plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
-                drawnBounds = input.graphObstacles(),
-                curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
-                metrics =
-                    ForecastDeltaLabel.Metrics(
-                        width = paint.measureText(text),
-                        ascent = TemperatureGraphStyle.fontAscent(paint),
-                        descent = TemperatureGraphStyle.fontDescent(paint),
-                    ),
-                padPx = TemperatureGraphStyle.dpToPx(input.context, FORECAST_DELTA_LABEL_PAD_DP),
-                useCelsius = input.useCelsius,
-                suffix = suffix,
-                vetoBounds = input.labelVetoBounds(),
-            ) ?: return
-        val labelPaint =
-            Paint(paint).apply {
-                color = placement.colorArgb
-                textAlign = Paint.Align.CENTER
+        // Caption run: same paint, [ForecastDeltaLabel.SUFFIX_FONT_SCALE] of the value's size, sharing
+        // the value's baseline. Shadow/typeface carry over with the copy.
+        val suffixPaint =
+            Paint(basePaint).apply {
+                textSize = basePaint.textSize * ForecastDeltaLabel.SUFFIX_FONT_SCALE
             }
-        input.canvas.drawText(
-            placement.text,
-            placement.centerX,
-            placement.baselineY,
-            labelPaint,
+
+        var reason: String
+        var valueText: String? = null
+        var placement: ForecastDeltaLabel.Placement? = null
+
+        val fetchDotX = input.series.fetchDotX
+        val currentTemp = input.lastObservedTemp
+        val delta = forecastDelta
+        val spanHours =
+            if (hours.size >= 2) {
+                Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
+            } else {
+                0L
+            }
+        when {
+            delta == null -> reason = "no_delta"
+            fetchDotX == null || fetchDotX < 0f || fetchDotX > input.widthPx.toFloat() ->
+                reason = "fetch_dot_offscreen"
+            currentTemp == null -> reason = "no_current_temp"
+            hours.size < 2 -> reason = "too_few_hours"
+            ForecastDeltaLabel.isZero(delta, input.useCelsius) -> reason = "zero_delta"
+            spanHours > ForecastDeltaLabel.DELTA_LABEL_MAX_HOURS_SPAN -> reason = "span_too_wide"
+            else -> {
+                val segments = ForecastDeltaLabel.segments(delta, input.useCelsius, suffix)
+                valueText = segments.value
+                val valueWidth = basePaint.measureText(segments.value)
+                val suffixWidth = suffixPaint.measureText(segments.suffix)
+                val combinedWidth = valueWidth + suffixWidth
+                val ghostVisible = ghostLineVisible(input, hours)
+                val placed =
+                    ForecastDeltaLabel.place(
+                        delta = delta,
+                        currentTemp = currentTemp,
+                        spanHours = spanHours,
+                        plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
+                        drawnBounds = input.graphObstacles(),
+                        curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
+                        metrics =
+                            ForecastDeltaLabel.Metrics(
+                                // Combined ink width: the empty-space finder reserves what is
+                                // actually drawn, not the old single-run width. Height stays the
+                                // value's, since the caption is smaller and fits inside it.
+                                width = combinedWidth,
+                                ascent = TemperatureGraphStyle.fontAscent(basePaint),
+                                descent = TemperatureGraphStyle.fontDescent(basePaint),
+                            ),
+                        padPx = TemperatureGraphStyle.dpToPx(input.context, FORECAST_DELTA_LABEL_PAD_DP),
+                        useCelsius = input.useCelsius,
+                        suffix = suffix,
+                        vetoBounds = input.labelVetoBounds(),
+                    )
+                placement = placed
+                if (placed == null) {
+                    reason = "no_empty_band"
+                } else {
+                    // Split the centered box at the run boundary: value right-aligned and caption
+                    // left-aligned on the same x keeps them flush with no rounding gap.
+                    val splitX = placed.centerX - combinedWidth / 2f + valueWidth
+                    val valuePaint =
+                        Paint(basePaint).apply {
+                            color = placed.colorArgb
+                            textAlign = Paint.Align.RIGHT
+                        }
+                    val captionPaint =
+                        Paint(suffixPaint).apply {
+                            color = placed.colorArgb
+                            textAlign = Paint.Align.LEFT
+                        }
+                    input.canvas.drawText(segments.value, splitX, placed.baselineY, valuePaint)
+                    input.canvas.drawText(segments.suffix, splitX, placed.baselineY, captionPaint)
+                    input.obstacles.add(
+                        TemperatureGraphObstacleType.FORECAST_DELTA,
+                        placed.box.toRectF(),
+                    )
+                    reason = "drawn"
+                }
+            }
+        }
+
+        input.onForecastDeltaPlaced?.invoke(
+            ForecastDeltaDebug(
+                reason = reason,
+                text = placement?.text ?: valueText?.let { it + suffix },
+                valueText = valueText,
+                suffixText = suffix,
+                valueTextSizePx = basePaint.textSize,
+                suffixTextSizePx = suffixPaint.textSize,
+                box = placement?.box?.toRectF(),
+                centerX = placement?.centerX,
+                baselineY = placement?.baselineY,
+            ),
         )
-        input.obstacles.add(
-            TemperatureGraphObstacleType.FORECAST_DELTA,
-            placement.box.toRectF(),
-        )
+        if (Log.isLoggable(TAG, Log.VERBOSE)) {
+            Log.v(
+                TAG,
+                "ForecastDeltaDiag: reason=$reason spanH=$spanHours " +
+                    "value=${valueText ?: "null"} suffix=$suffix " +
+                    "valueSizePx=${basePaint.textSize} suffixSizePx=${suffixPaint.textSize}" +
+                    (placement?.let {
+                        " boxLeft=${it.box.left.roundToInt()} boxRight=${it.box.right.roundToInt()} " +
+                            "centerX=${it.centerX.roundToInt()} baselineY=${it.baselineY.roundToInt()}"
+                    } ?: ""),
+            )
+        }
     }
 
     /**

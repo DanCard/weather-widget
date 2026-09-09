@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -80,9 +81,28 @@ private const val DOMINANT_STATION_LABEL_SP = 7f
 // Actuals source prefix ("Actual temperature data from") reduced by 20% from provider name (7sp).
 private const val ACTUALS_SOURCE_PREFIX_LABEL_SP = 5.6f
 private const val DOMINANT_TIME_LABEL_SP = 11f
+// Forecast-delta label: the numeric value keeps the staleness/age size; the "from forecast"
+// caption runs at ForecastDeltaLabel.SUFFIX_FONT_SCALE of it (30% smaller), matching Android.
+private const val DELTA_LABEL_SP = 11.25f
+private const val DELTA_CAPTION_SP = DELTA_LABEL_SP * ForecastDeltaLabel.SUFFIX_FONT_SCALE
 // Ghost-line label: wispier than the forecast/actual temp labels — fainter and 30% smaller.
 private const val GHOST_LINE_LABEL_ALPHA = 0.43f
 private const val GHOST_LINE_LABEL_SIZE_SCALE = 0.7f
+
+/**
+ * Builds the two-run forecast-delta label: the value at [DELTA_LABEL_SP] * [scale], the caption at
+ * [DELTA_CAPTION_SP] * [scale], laid on one shared baseline. Extracted from the draw block so a unit
+ * test can assert the split (and its 20% ratio) without a Compose render.
+ */
+internal fun buildDeltaLabelAnnotatedString(
+    value: String,
+    suffix: String,
+    scale: Float,
+): AnnotatedString =
+    buildAnnotatedString {
+        withStyle(SpanStyle(fontSize = (DELTA_LABEL_SP * scale).sp)) { append(value) }
+        withStyle(SpanStyle(fontSize = (DELTA_CAPTION_SP * scale).sp)) { append(suffix) }
+    }
 
 /**
  * Fetch-dot staleness age, mirroring Android's `TemperatureGraphStyle.formatAgeLabel`: show the age
@@ -766,20 +786,26 @@ fun TemperatureGraph(
 
         // "+0.4 from forecast" label: the graph's ghost-line delta (last actual minus forecast), in
         // empty space, at the staleness/age font size and shadow, in thermostat color. Placement +
-        // gate + format are shared with Android (ForecastDeltaLabel).
+        // gate + format are shared with Android (ForecastDeltaLabel). Two runs, one baseline: the
+        // value keeps the base size, the caption is 30% smaller so it reads as a caption.
         val deltaCurrentTemp = fetchDotPoint?.actualTemp
         if (deltaCurrentTemp != null && fetchDotXVal != null) {
             val deltaSpanHours = (windowEnd - windowStart) / 3_600_000L
-            val deltaText = ForecastDeltaLabel.format(appliedDelta, useCelsius)
+            val deltaSegments = ForecastDeltaLabel.segments(appliedDelta, useCelsius)
             val deltaStyle = TextStyle(
-                fontSize = (11.25f * scale).sp,
+                fontSize = (DELTA_LABEL_SP * scale).sp,
                 shadow = androidx.compose.ui.graphics.Shadow(
                     color = Color.Black.copy(alpha = 0.7f),
                     offset = Offset(0f, 1f * scale),
                     blurRadius = 2f * scale,
                 ),
             )
-            val measured = textMeasurer.measure(deltaText, deltaStyle)
+            val deltaAnnotated = buildDeltaLabelAnnotatedString(
+                value = deltaSegments.value,
+                suffix = deltaSegments.suffix,
+                scale = scale,
+            )
+            val measured = textMeasurer.measure(deltaAnnotated, deltaStyle)
             val metrics = ForecastDeltaLabel.Metrics(
                 width = measured.size.width.toFloat(),
                 ascent = -measured.size.height.toFloat(),
@@ -798,7 +824,7 @@ fun TemperatureGraph(
                 vetoBounds = labelVeto,
             )
             if (placement != null) {
-                val layout = textMeasurer.measure(deltaText, deltaStyle.copy(color = Color(placement.colorArgb)))
+                val layout = textMeasurer.measure(deltaAnnotated, deltaStyle.copy(color = Color(placement.colorArgb)))
                 val topLeft = Offset(placement.box.left, placement.box.top)
                 drawText(layout, topLeft = topLeft)
                 drawnLabels.add(Rect(topLeft, Size(metrics.width, metrics.height)))
