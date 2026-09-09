@@ -295,7 +295,13 @@ richer accumulator pipeline (plausibility repair, hourly-divergence detection, p
 per-field source logging); desktop `fetchNwsForecast` returns the shared `RawFetch` via the simpler
 `buildDailyForecasts` wrapper and folds observation fetching into the same function. Unifying means
 changing one platform's forecast data path and output type, which is behavior-changing and needs its
-own before/after data comparison. Recommend a dedicated plan if pursued.
+own before/after data comparison.
+
+**Detailed plan:** [plans/260909-nws-fetch-unification.md](260909-nws-fetch-unification.md) —
+phased: 3a split desktop observation fetch, 3b shared `NwsForecastFetch` core + parity harness,
+**3c current-observation behavior parity (GO — decided 2026-09-09: delete the closest-station retry
+on both platforms, `cloudCarrier` on desktop, staleness-based historical fallback on desktop)**, then
+3d/3e shared current-observation + historical-backfill cores, 3f optional station-cache policy.
 
 ### Phase 4 — Mechanical leftovers
 A5 `TempUtils.display`, A7 `Dp` object, A6 residual age formatters, C4 doc/code decision. Then the

@@ -392,39 +392,53 @@ class DesktopWeatherService(
 
     private suspend fun fetchNwsForecast(): RawFetch = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
-        val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
-        val dailyDeferred = async { nwsApi.getForecast(grid) }
-        // Raw gridpoints supply per-date min/max extremes that backstop the day/night periods —
-        // notably the final forecast day, whose overnight low is otherwise absent. Best-effort:
-        // on failure the daily mapping falls back to whatever the periods provide.
-        val gridpointsDeferred = async {
-            bestEffort("gridpoints") { nwsApi.getGridpointsBundle(grid) }
-                ?: NwsApi.GridpointsBundle(
-                    skyCoverByHour = emptyMap(),
-                    qpfIntervals = emptyList(),
-                    dailyTemperatures = NwsApi.DailyTemperatureExtremes(emptyMap(), emptyMap()),
-                )
-        }
 
-        // Resolve candidate observation stations once, then try official stations first for the
-        // historical window that drives actuals. Observation fetches are best-effort: if they fail
-        // the forecast still renders from hourly/daily feeds.
+        // Resolve candidate observation stations concurrently with the forecast fetch, then try
+        // official stations first for the historical window that drives actuals. Observation
+        // fetches are best-effort: if they fail the forecast still renders from hourly/daily feeds.
         val stationsDeferred = async {
             bestEffort("observation stations") {
                 grid.observationStationsUrl?.let { url -> getCachedOrFetchStations(url) }
             } ?: emptyList()
         }
 
-        val hourlyRaw = hourlyDeferred.await()
-        val dailyRaw = dailyDeferred.await()
-        val gridpoints = gridpointsDeferred.await()
-        // The hourly endpoint omits sky cover + grid QPF; merge them on via the shared helper so
-        // the cloud-cover graph (and grid precip) match Android. Without this, every NWS hourly
-        // row has cloudCover=null and the cloud graph collapses to a flat zero line.
-        val hourly = NwsHourlyGridMerge.applyGridpointData(
-            hourlyRaw, gridpoints.skyCoverByHour, gridpoints.qpfIntervals,
+        val bundle = NwsForecastFetch.fetch(nwsApi, grid)
+        // Preserves the previous bestEffort("gridpoints") diagnostic.
+        bundle.gridpointsFailure?.let { Log.w(TAG, "gridpoints fetch failed: $it") }
+
+        val observations = fetchNwsObservations(stationsDeferred.await(), bundle.rawHourlyPeriods)
+
+        RawFetch(
+            providerCurrentTemp = observations.currentTemp,
+            providerCurrentCondition = observations.currentCondition,
+            providerCurrentObservedAt = observations.currentObservedAt,
+            hourly = bundle.hourlyPeriods.map { it.toHourlyForecast() },
+            daily = NwsDailyMapper.buildDailyForecasts(
+                bundle.forecastPeriods,
+                bundle.gridpoints.dailyTemperatures,
+                LocalDate.now(),
+                bundle.hourlyPeriods,
+            ),
+            rawObservations = observations.observations,
+            nwsDailyExtremes = bundle.gridpoints.dailyTemperatures,
         )
-        val bundles = fetchObservationBundles(stationsDeferred.await())
+    }
+
+    /**
+     * NWS current-observation fetch: per-station bundles → IDW current temp → stored readings.
+     *
+     * Split out of [fetchNwsForecast] (Phase 3a of
+     * plans/260909-nws-fetch-unification.md) so the desktop forecast path mirrors Android's
+     * `NwsForecastMapper` (forecast only) and the observation path mirrors `NwsCurrentObservationUpdater`.
+     * Behavior is unchanged.
+     */
+    private suspend fun fetchNwsObservations(
+        stations: List<NwsApi.StationInfo>,
+        hourlyRaw: List<NwsApi.HourlyForecastPeriod>,
+        historyDays: Long = HISTORY_DAYS,
+        recentOnly: Boolean = false,
+    ): NwsObservationFetch {
+        val bundles = fetchObservationBundles(stations, historyDays, recentOnly)
 
         // All station latest readings, including moderately stale ones — IDW applies its own
         // time-decay weighting (1 - age/3h) so older stations reduce their own contribution
@@ -441,7 +455,11 @@ class DesktopWeatherService(
             ?: TemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
             ?: hourlyRaw.firstOrNull()?.temperature
 
-        val closestBundle = bundles.minByOrNull { com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(latitude, longitude, it.station.lat, it.station.lon) }
+        val closestBundle = bundles.minByOrNull {
+            com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(
+                latitude, longitude, it.station.lat, it.station.lon,
+            )
+        }
         val currentCondition = closestBundle?.latest?.textDescription
             ?: hourlyRaw.firstOrNull()?.shortForecast
 
@@ -475,16 +493,22 @@ class DesktopWeatherService(
             rawObservations
         }
 
-        RawFetch(
-            providerCurrentTemp = currentTemp,
-            providerCurrentCondition = currentCondition,
-            providerCurrentObservedAt = latestReadings.maxOfOrNull { it.timestamp } ?: observations.firstOrNull()?.timestamp,
-            hourly = hourly.map { it.toHourlyForecast() },
-            daily = NwsDailyMapper.buildDailyForecasts(dailyRaw, gridpoints.dailyTemperatures, LocalDate.now(), hourly),
-            rawObservations = observations,
-            nwsDailyExtremes = gridpoints.dailyTemperatures,
+        return NwsObservationFetch(
+            currentTemp = currentTemp,
+            currentCondition = currentCondition,
+            currentObservedAt = latestReadings.maxOfOrNull { it.timestamp }
+                ?: observations.firstOrNull()?.timestamp,
+            observations = observations,
         )
     }
+
+    /** Result of [fetchNwsObservations]: the current-reading anchor plus the rows to persist. */
+    private data class NwsObservationFetch(
+        val currentTemp: Float?,
+        val currentCondition: String?,
+        val currentObservedAt: Long?,
+        val observations: List<ObservationReading>,
+    )
 
     /**
      * Runs a best-effort supplementary fetch. Failures degrade to null (callers fall back to the

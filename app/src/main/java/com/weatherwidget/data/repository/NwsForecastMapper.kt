@@ -8,9 +8,8 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.NwsDailyMapper
-import com.weatherwidget.data.remote.NwsHourlyGridMerge
+import com.weatherwidget.data.remote.NwsForecastFetch
 import com.weatherwidget.widget.WidgetConstants
-import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import java.time.Instant
 import java.time.LocalDate
@@ -46,38 +45,25 @@ class NwsForecastMapper @Inject constructor(
         longitude: Double,
     ): Pair<List<ForecastEntity>, List<HourlyForecastEntity>> = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
-        val forecastDeferred = async { nwsApi.getForecast(grid) }
-        val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
-        val gridpointsDeferred = async {
-            try {
-                nwsApi.getGridpointsBundle(grid)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "getGridpointsBundle failed: ${e.message}")
-                appLogDao.log(
-                    "NWS_GRIDPOINTS_FAIL",
-                    "exception=${e::class.simpleName} message=${e.message} " +
-                        "grid=${grid.gridId}/${grid.gridX},${grid.gridY}",
-                )
-                NwsApi.GridpointsBundle(
-                    skyCoverByHour = emptyMap(),
-                    qpfIntervals = emptyList(),
-                    dailyTemperatures = NwsApi.DailyTemperatureExtremes(emptyMap(), emptyMap()),
-                )
-            }
+        val bundle = NwsForecastFetch.fetch(nwsApi, grid)
+        bundle.gridpointsFailure?.let { e ->
+            Log.w(TAG, "getGridpointsBundle failed: ${e.message}")
+            appLogDao.log(
+                "NWS_GRIDPOINTS_FAIL",
+                "exception=${e::class.simpleName} message=${e.message} " +
+                    "grid=${grid.gridId}/${grid.gridX},${grid.gridY}",
+            )
         }
-
-        val forecastPeriods = forecastDeferred.await()
-        val rawHourlyPeriods = hourlyDeferred.await()
-        val gridpoints = gridpointsDeferred.await()
+        val forecastPeriods = bundle.forecastPeriods
+        val hourlyPeriods = bundle.hourlyPeriods
+        val gridpoints = bundle.gridpoints
         val skyCoverMap = gridpoints.skyCoverByHour
         val gridQpfIntervals = gridpoints.qpfIntervals
         val gridDailyTemps = gridpoints.dailyTemperatures
 
         // If skyCover is empty after a successful fetch, the API returned a structurally
-        // valid response missing the skyCover field — distinct from the catch-block path
-        // above. Log enough sibling-field counts to tell the two cases apart post-hoc.
+        // valid response missing the skyCover field — distinct from the failure path above.
+        // Log enough sibling-field counts to tell the two cases apart post-hoc.
         if (skyCoverMap.isEmpty()) {
             appLogDao.log(
                 "NWS_SKYCOVER_EMPTY",
@@ -93,13 +79,6 @@ class NwsForecastMapper @Inject constructor(
         // the leftover past-date windows as "API actuals" made every past day's actual equal that
         // day's forecast. See plans/260808-nws-actuals-forecast-contamination.md. NWS actuals now
         // come from station observations via StationDailyExtremes.
-
-        // Sky cover + grid QPF live in the gridpoints response, not the hourly endpoint. Merge
-        // them onto the hourly rows via the shared helper so Android and desktop populate
-        // identical cloudCover/precip data. See NwsHourlyGridMerge.
-        val hourlyPeriods = NwsHourlyGridMerge.applyGridpointData(
-            rawHourlyPeriods, skyCoverMap, gridQpfIntervals,
-        )
 
         persistNwsPeriodSummary(grid.forecastUrl, forecastPeriods)
 
