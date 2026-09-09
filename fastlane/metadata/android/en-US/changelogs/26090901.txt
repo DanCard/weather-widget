@@ -1,0 +1,1 @@
+Release 26090901: Improved cloud graph deck persistence, added dynamic label font scaling fallbacks, synchronized NWS forecast observation sharing, and tuned network backoff.
