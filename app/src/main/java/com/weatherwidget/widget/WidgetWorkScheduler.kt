@@ -12,6 +12,8 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 /**
@@ -25,6 +27,11 @@ import java.util.concurrent.TimeUnit
  * input fully describes idempotent work ("pull N hours of observations for this site"). Appending a
  * second one therefore buys nothing and costs a serial repeat of a 5-station, 72-hour fetch — see
  * [enqueueRequiredObservationBackfill].
+ *
+ * KEEP's own failure mode is that it defers to pending work forever, including pending work that
+ * will never run, and no other caller cancels [WORK_NAME_OBSERVATION_BACKFILL]. So that one lane
+ * replaces a request that has gone overdue past [BACKFILL_OVERDUE_GRACE_MS] — the narrowest
+ * exception that keeps a stalled queue from disabling observation repair permanently.
  */
 object WidgetWorkScheduler {
     const val WORK_NAME_PERIODIC = "weather_widget_update"
@@ -160,20 +167,101 @@ object WidgetWorkScheduler {
         )
 
     /**
-     * Enqueues a required observation-history repair after any active repair.
+     * How long past its own scheduled run time a pending backfill may sit before it is treated as
+     * wedged rather than merely waiting.
      *
-     * A newer request is not redundant with a running request because its lookback window ends
-     * later. KEEP can therefore discard the only request that covers a newly visible overnight
-     * gap. APPEND_OR_REPLACE retains that follow-up without cancelling a running worker.
+     * A backfill is enqueued with a ~16-second jittered delay, so `nextScheduleTimeMillis` is
+     * essentially "now" at enqueue. Five minutes past that, the job is not waiting on its delay; it
+     * is waiting on something that is not coming. The grace is generous enough that an ordinary
+     * unmet network constraint does not churn (and re-enqueueing an identical idempotent request
+     * would be harmless if it did), and the caller's own 30-minute cooldown bounds how often this
+     * can fire at all.
      */
-    fun enqueueRequiredObservationBackfill(
+    @androidx.annotation.VisibleForTesting
+    internal const val BACKFILL_OVERDUE_GRACE_MS = 5 * 60 * 1000L
+
+    /** What [enqueueRequiredObservationBackfill] actually did, so callers can log the truth. */
+    internal enum class BackfillEnqueueOutcome(val logValue: String) {
+        /** The unique name was free; this request owns it. */
+        ENQUEUED("enqueued"),
+
+        /** An equivalent request is already pending and on schedule; this one was dropped by KEEP. */
+        KEPT_PENDING("kept_pending"),
+
+        /** The pending request was overdue past [BACKFILL_OVERDUE_GRACE_MS] and was replaced. */
+        REPLACED_OVERDUE("replaced_overdue"),
+    }
+
+    internal data class ObservationBackfillEnqueue(
+        val request: OneTimeWorkRequest,
+        val outcome: BackfillEnqueueOutcome,
+        val detail: String,
+    )
+
+    /** The subset of `WorkInfo` this decision needs, so the rule is unit-testable. */
+    @androidx.annotation.VisibleForTesting
+    internal data class PendingBackfillWork(
+        val id: java.util.UUID,
+        val state: androidx.work.WorkInfo.State,
+        val nextScheduleTimeMs: Long,
+    )
+
+    /**
+     * Whether a fresh backfill request can take the unique name, must yield to the pending one, or
+     * should replace a pending one that has stopped making progress.
+     *
+     * The wedge this exists to break: KEEP silently discards a request whenever *any* unfinished
+     * work holds the name, and nothing else in the app ever cancels
+     * [WORK_NAME_OBSERVATION_BACKFILL]. So a single workspec that JobScheduler accepts but never
+     * dispatches disables observation repair permanently — every later request is dropped, the
+     * caller's cooldown re-requests every 30 minutes forever, and the NWS actuals line stays a
+     * straight interpolation across the hole. Observed on the emulator 2026-09-10: job 26816 sat
+     * `Ready: true` with every constraint satisfied for ten minutes while the graph showed an
+     * 8-hour gap, and one forced run filled 1,238 rows.
+     *
+     * RUNNING is never replaced. The work is idempotent, so there is nothing to gain by cancelling
+     * a fetch that is already talking to the network, and cancelling a running worker mid-coroutine
+     * is its own hazard ([[samsung_widget_dead_native_sigsegv]]).
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun decideObservationBackfillEnqueue(
+        pending: List<PendingBackfillWork>,
+        nowMs: Long,
+    ): Pair<BackfillEnqueueOutcome, String> {
+        val unfinished = pending.filterNot { it.state.isFinished }
+        if (unfinished.isEmpty()) {
+            return BackfillEnqueueOutcome.ENQUEUED to "no_pending_work"
+        }
+        unfinished.firstOrNull { it.state == androidx.work.WorkInfo.State.RUNNING }?.let {
+            return BackfillEnqueueOutcome.KEPT_PENDING to "running id=${it.id}"
+        }
+        // Long.MAX_VALUE is WorkManager's "not scheduled to run again" sentinel; it says nothing
+        // about lateness, so it can never make a request look overdue.
+        val overdueBy =
+            unfinished.map { work ->
+                if (work.nextScheduleTimeMs == Long.MAX_VALUE) 0L else nowMs - work.nextScheduleTimeMs
+            }
+        return if (overdueBy.all { it > BACKFILL_OVERDUE_GRACE_MS }) {
+            BackfillEnqueueOutcome.REPLACED_OVERDUE to
+                "overdue_min=${overdueBy.min() / 60_000L}m pending=${unfinished.size}"
+        } else {
+            BackfillEnqueueOutcome.KEPT_PENDING to
+                "pending=${unfinished.size} overdue_max=${overdueBy.max() / 60_000L}m"
+        }
+    }
+
+    /**
+     * Enqueues a required observation-history repair, yielding to an equivalent one already pending
+     * unless that one has gone overdue — see [decideObservationBackfillEnqueue].
+     */
+    internal suspend fun enqueueRequiredObservationBackfill(
         context: Context,
         latitude: Double,
         longitude: Double,
         lookbackHours: Long,
         reason: String,
         initialDelayMs: Long,
-    ): OneTimeWorkRequest {
+    ): ObservationBackfillEnqueue {
         val request =
             OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                 .setInputData(
@@ -199,18 +287,42 @@ object WidgetWorkScheduler {
         // them stacked up in five minutes on the emulator, and the actuals the user was waiting for
         // sat behind the lot. KEEP is safe for the caller's 30-minute cooldown precisely because the
         // request is dropped only when an equivalent one is already pending: the work still happens,
-        // it is just not done twice.
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            WORK_NAME_OBSERVATION_BACKFILL,
-            ExistingWorkPolicy.KEEP,
-            request,
-        )
+        // it is just not done twice. The one thing KEEP cannot survive is a pending request that
+        // never runs, which is what decideObservationBackfillEnqueue watches for.
+        val workManager = WorkManager.getInstance(context)
+        val pending =
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    workManager.getWorkInfosForUniqueWork(WORK_NAME_OBSERVATION_BACKFILL).get()
+                }.map {
+                    PendingBackfillWork(
+                        id = it.id,
+                        state = it.state,
+                        nextScheduleTimeMs = it.nextScheduleTimeMillis,
+                    )
+                }
+            }.getOrElse {
+                // Never let an inspection failure block the repair; fall back to plain KEEP.
+                Log.e(TAG, "Observation backfill inspect failed: ${it.message}", it)
+                emptyList()
+            }
+        val (outcome, detail) =
+            decideObservationBackfillEnqueue(pending, System.currentTimeMillis())
+        val policy =
+            when (outcome) {
+                // Nothing is RUNNING on this branch, so REPLACE cannot cancel a live fetch.
+                BackfillEnqueueOutcome.REPLACED_OVERDUE -> ExistingWorkPolicy.REPLACE
+                BackfillEnqueueOutcome.ENQUEUED,
+                BackfillEnqueueOutcome.KEPT_PENDING,
+                -> ExistingWorkPolicy.KEEP
+            }
+        workManager.enqueueUniqueWork(WORK_NAME_OBSERVATION_BACKFILL, policy, request)
         Log.d(
             TAG,
-            "Observation backfill enqueued policy=KEEP reason=$reason " +
-                "delayMs=$initialDelayMs id=${request.id}",
+            "Observation backfill outcome=${outcome.logValue} ($detail) policy=$policy " +
+                "reason=$reason delayMs=$initialDelayMs id=${request.id}",
         )
-        return request
+        return ObservationBackfillEnqueue(request, outcome, detail)
     }
 
     fun enqueueUiRepaint(

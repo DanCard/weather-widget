@@ -469,7 +469,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     // flow, which already tolerates a several-second wait.
     val backfillReason =
         "temperature_graph_sparse_history widget=$appWidgetId reason=${decision.reason}"
-    val request = WidgetWorkScheduler.enqueueRequiredObservationBackfill(
+    val enqueue = WidgetWorkScheduler.enqueueRequiredObservationBackfill(
         context = context,
         latitude = lat,
         longitude = lon,
@@ -478,11 +478,15 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
         initialDelayMs = delayMs,
     )
     stateManager.markMissingActualsRefreshRequested(appWidgetId, sourceKey)
+    // Log what WorkManager DID, not the request that was built. Under KEEP the built request is
+    // discarded whenever one is already pending, so logging `request.id` unconditionally reported a
+    // fresh requestId for work that never existed — which is how a wedged backfill read as a
+    // healthy one for a full day of 30-minute retries.
     database.appLogDao().log(
         "OBS_HOURLY_BACKFILL_REQ",
         "widget=$appWidgetId source=${displaySource.id} reason=${decision.reason} " +
             "graphStart=$graphStart graphEnd=$graphEnd delayMs=$delayMs " +
-            "policy=append_or_replace requestId=${request.id}",
+            "outcome=${enqueue.outcome.logValue} (${enqueue.detail}) requestId=${enqueue.request.id}",
         "INFO",
     )
 }

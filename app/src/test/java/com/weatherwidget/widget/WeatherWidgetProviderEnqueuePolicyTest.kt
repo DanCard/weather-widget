@@ -6,7 +6,9 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequest
 import androidx.work.PeriodicWorkRequest
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.google.common.util.concurrent.ListenableFuture
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.ui.LocationUpdater
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -16,6 +18,7 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.After
@@ -48,6 +51,11 @@ class WeatherWidgetProviderEnqueuePolicyTest {
         mockWorkManager = mockk(relaxed = true)
         mockkStatic(WorkManager::class)
         every { WorkManager.getInstance(any()) } returns mockWorkManager
+        // The backfill lane inspects the unique name before choosing its policy; with nothing
+        // pending it must still take the KEEP path this suite pins.
+        val noPendingWork = mockk<ListenableFuture<List<WorkInfo>>>()
+        every { noPendingWork.get() } returns emptyList()
+        every { mockWorkManager.getWorkInfosForUniqueWork(any()) } returns noPendingWork
         SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit().clear().commit()
     }
 
@@ -170,7 +178,7 @@ class WeatherWidgetProviderEnqueuePolicyTest {
      * the carve-out — the other required lanes still append.
      */
     @Test
-    fun `required observation history repair collapses into a pending one`() {
+    fun `required observation history repair collapses into a pending one`() = runBlocking {
         val requestSlot = slot<OneTimeWorkRequest>()
 
         WidgetWorkScheduler.enqueueRequiredObservationBackfill(
