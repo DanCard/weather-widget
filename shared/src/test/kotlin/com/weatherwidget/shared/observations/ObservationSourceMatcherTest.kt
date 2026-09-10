@@ -50,14 +50,14 @@ class ObservationSourceMatcherTest {
     }
 
     @Test
-    fun `Tomorrow stations list and actuals accept recent history and realtime provenance`() {
+    fun `Tomorrow stations list and actuals accept only five minute provenance`() {
         assertTrue(
             ObservationSourceMatcher.matchesObservationSource(
-                "TOMORROW_IO_RECENT_HISTORY",
+                "TOMORROW_IO_5M_HISTORY",
                 WeatherSource.TOMORROW_IO,
             ),
         )
-        assertTrue(
+        assertFalse(
             ObservationSourceMatcher.matchesObservationSource(
                 "TOMORROW_IO_REALTIME",
                 WeatherSource.TOMORROW_IO,
@@ -69,16 +69,23 @@ class ObservationSourceMatcherTest {
                 WeatherSource.TOMORROW_IO,
             ),
         )
-        assertTrue(
+        assertFalse(
             ObservationSourceMatcher.matchesActualSource(
                 stationId = "TOMORROW_IO_RECENT_HISTORY",
                 api = WeatherSource.TOMORROW_IO.id,
                 source = WeatherSource.TOMORROW_IO,
             ),
         )
-        assertTrue(
+        assertFalse(
             ObservationSourceMatcher.matchesActualSource(
                 stationId = "TOMORROW_IO_REALTIME",
+                api = WeatherSource.TOMORROW_IO.id,
+                source = WeatherSource.TOMORROW_IO,
+            ),
+        )
+        assertTrue(
+            ObservationSourceMatcher.matchesActualSource(
+                stationId = "TOMORROW_IO_5M_HISTORY",
                 api = WeatherSource.TOMORROW_IO.id,
                 source = WeatherSource.TOMORROW_IO,
             ),

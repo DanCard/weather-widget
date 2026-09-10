@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.widget.handlers.buildHourDataList
 import org.junit.Assert.assertEquals
@@ -72,6 +73,44 @@ class CurrentTempViewConsistencyTest {
             api = WeatherSource.NWS.id,
         )
         return stations + nwsBlend
+    }
+
+    @Test
+    fun `tomorrow header uses five minute history and ignores retired products`() {
+        val rows = listOf(
+            ObservationEntity(
+                stationId = TomorrowIoActuals.REALTIME_STATION_ID,
+                stationName = TomorrowIoActuals.REALTIME_STATION_NAME,
+                timestamp = nowMs - 26 * 60_000L,
+                temperature = 72.70f,
+                condition = "Older realtime",
+                locationLat = TestData.LAT,
+                locationLon = TestData.LON,
+                distanceKm = 0f,
+                stationType = "OFFICIAL",
+                fetchedAt = nowMs - 25 * 60_000L,
+                api = WeatherSource.TOMORROW_IO.id,
+            ),
+            ObservationEntity(
+                stationId = TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID,
+                stationName = TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_NAME,
+                timestamp = nowMs,
+                temperature = 75.60f,
+                condition = "Newer history",
+                locationLat = TestData.LAT,
+                locationLon = TestData.LON,
+                distanceKm = 0f,
+                stationType = "OFFICIAL",
+                fetchedAt = nowMs + 20 * 60_000L,
+                api = WeatherSource.TOMORROW_IO.id,
+            ),
+        )
+
+        val resolved = ObservationResolver.resolveObservedCurrentTemp(rows, WeatherSource.TOMORROW_IO)
+
+        assertNotNull(resolved)
+        assertEquals(75.60f, resolved!!.temperature, 0.001f)
+        assertEquals(nowMs, resolved.observedAt)
     }
 
     @Test

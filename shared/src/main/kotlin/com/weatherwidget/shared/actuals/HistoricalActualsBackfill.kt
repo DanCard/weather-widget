@@ -54,13 +54,13 @@ object HistoricalActualsBackfill {
         val keepCloud = source.supportsCloudActuals
         val stationId =
             if (source == WeatherSource.TOMORROW_IO) {
-                TomorrowIoActuals.RECENT_HISTORY_STATION_ID
+                TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID
             } else {
                 syntheticStationId(sourceId)
             }
         val stationName =
             if (source == WeatherSource.TOMORROW_IO) {
-                TomorrowIoActuals.RECENT_HISTORY_STATION_NAME
+                TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_NAME
             } else {
                 "$sourceId: History Backfill"
             }

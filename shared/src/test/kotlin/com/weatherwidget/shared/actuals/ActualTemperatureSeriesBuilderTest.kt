@@ -167,7 +167,7 @@ class ActualTemperatureSeriesBuilderTest {
     }
 
     @Test
-    fun `borrowed tomorrow actuals normalize realtime over recent history`() {
+    fun `borrowed tomorrow actuals use only five minute history`() {
         ActualsProviderResolver.installPreferenceSource { source ->
             WeatherSource.TOMORROW_IO.takeIf { source == WeatherSource.SILURIAN }
         }
@@ -175,15 +175,22 @@ class ActualTemperatureSeriesBuilderTest {
             val result = ActualTemperatureSeriesBuilder.blendObservationSeries(
                 observations = listOf(
                     observation(
-                        TomorrowIoActuals.RECENT_HISTORY_STATION_ID,
+                        TomorrowIoActuals.REALTIME_STATION_ID,
+                        "2026-06-03T09:34:00",
+                        55f,
+                        api = WeatherSource.TOMORROW_IO.id,
+                        distanceKm = 0f,
+                    ),
+                    observation(
+                        TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID,
                         "2026-06-03T10:00:00",
                         60f,
                         api = WeatherSource.TOMORROW_IO.id,
                         distanceKm = 0f,
                     ),
                     observation(
-                        TomorrowIoActuals.REALTIME_STATION_ID,
-                        "2026-06-03T10:05:00",
+                        TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID,
+                        "2026-06-03T10:30:00",
                         72f,
                         api = WeatherSource.TOMORROW_IO.id,
                         distanceKm = 0f,
@@ -197,8 +204,13 @@ class ActualTemperatureSeriesBuilderTest {
                 endMs = epoch("2026-06-03T16:00:00"),
             )
 
-            assertEquals(1, result.stats.filteredObservationCount)
-            assertEquals(72f, result.observations.single().temperature, 0.01f)
+            assertEquals(2, result.stats.filteredObservationCount)
+            assertEquals(2, result.stats.emittedPointCount)
+            assertEquals(listOf(60f, 72f), result.observations.map { it.temperature })
+            assertEquals(
+                listOf(TomorrowIoActuals.MERGED_SERIES_STATION_ID),
+                result.observations.map { it.stationId }.distinct(),
+            )
         } finally {
             ActualsProviderResolver.resetPreferenceSource()
         }

@@ -9,9 +9,13 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
@@ -256,20 +260,33 @@ class TomorrowIoApiTest {
     }
 
     @Test
-    fun `getRealtime parses source-native current temperature cloud and timestamp`() = runBlocking {
+    fun `getFiveMinuteHistory requests elapsed window and preserves native timestamps`() = runBlocking {
         var capturedPath: String? = null
+        var capturedStart: String? = null
+        var capturedEnd: String? = null
+        var capturedUnits: String? = null
+        var capturedFields: String? = null
+        var capturedTimesteps = emptyList<String>()
         val engine = MockEngine { request ->
             capturedPath = request.url.encodedPath
+            capturedStart = request.url.parameters["startTime"]
+            capturedEnd = request.url.parameters["endTime"]
+            capturedUnits = request.url.parameters["units"]
+            capturedFields = request.url.parameters["fields"]
+            capturedTimesteps = request.url.parameters.getAll("timesteps").orEmpty()
             respond(
                 content = """
                     {
                       "data": {
-                        "time": "2026-08-21T21:15:00Z",
-                        "values": {
-                          "temperature": 69.1,
-                          "weatherCode": 1101,
-                          "cloudCover": 56.4
-                        }
+                        "timelines": [{
+                          "timestep": "5m",
+                          "intervals": [
+                            {"startTime":"2026-08-21T21:10:00Z","values":{"temperature":68.8,"weatherCode":1101,"cloudCover":55.1}},
+                            {"startTime":"not-a-time","values":{"temperature":99.0}},
+                            {"startTime":"2026-08-21T21:12:00Z","values":{}},
+                            {"startTime":"2026-08-21T21:15:00Z","values":{"temperature":69.1,"weatherCode":1101,"cloudCover":56.4,"cloudBase":1.0,"cloudCeiling":3.0}}
+                          ]
+                        }]
                       }
                     }
                 """.trimIndent(),
@@ -280,16 +297,27 @@ class TomorrowIoApiTest {
         val api = TomorrowIoApi(
             HttpClient(engine) { install(ContentNegotiation) { json(json) } },
             json,
+            Clock.fixed(Instant.parse("2026-08-21T21:17:42Z"), ZoneOffset.UTC),
         ) { "test-key" }
 
-        val reading = api.getRealtime(37.4220, -122.0841)
+        val result = api.getFiveMinuteHistory(37.4220, -122.0841, lookbackHours = 1)
 
-        assertNotNull(reading)
-        assertEquals("/v4/weather/realtime", capturedPath)
-        assertEquals(69.1f, reading!!.temperature, 0.01f)
-        assertEquals("Partly Cloudy", reading.condition)
-        assertEquals(56, reading.cloudCover)
-        assertEquals(1787346900000L, reading.observedAt)
+        assertEquals("/v4/timelines", capturedPath)
+        assertEquals("2026-08-21T20:15:00Z", capturedStart)
+        assertEquals("2026-08-21T21:15:00Z", capturedEnd)
+        assertEquals("imperial", capturedUnits)
+        assertEquals(listOf("5m"), capturedTimesteps)
+        assertEquals("temperature,weatherCode,cloudCover,cloudBase,cloudCeiling", capturedFields)
+        assertEquals(2, result.subHourly.size)
+        assertEquals(1787346600000L, result.subHourly[0].dateTime)
+        assertEquals(1787346900000L, result.subHourly[1].dateTime)
+        assertEquals(69.1f, result.providerCurrentTemp!!, 0.01f)
+        assertEquals("Partly Cloudy", result.providerCurrentCondition)
+        assertEquals(56, result.providerCurrentCloudCover)
+        assertEquals(1787346900000L, result.providerCurrentObservedAt)
+        assertEquals(1_609, result.subHourly[1].cloudEnvelopeBaseMeters)
+        assertEquals(4_828, result.subHourly[1].cloudEnvelopeTopMeters)
+        assertEquals(null, result.subHourly[1].precipAmountMm)
     }
 
     @Test

@@ -178,7 +178,34 @@ internal class ForecastFetchCoordinator(
         tomorrowIoApi?.let { api ->
             put(WeatherSource.TOMORROW_IO, SourceFetchEntry("FETCH_TMRW_FAIL") { lat, lon ->
                 fetchAndSaveSharedForecast(lat, lon, WeatherSource.TOMORROW_IO) {
-                    api.getForecast(lat, lon)
+                    coroutineScope {
+                        val forecastDeferred = async { api.getForecast(lat, lon) }
+                        val historyDeferred = async {
+                            runCatching {
+                                api.getFiveMinuteHistory(
+                                    lat,
+                                    lon,
+                                    TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS,
+                                )
+                            }.onFailure { error ->
+                                if (error is CancellationException) throw error
+                                appLogDao.log(
+                                    "FETCH_TMRW_5M_FAIL",
+                                    "full history unavailable; retaining cached actuals: ${error.javaClass.simpleName}",
+                                    "WARN",
+                                )
+                            }.getOrNull()
+                        }
+                        val forecast = forecastDeferred.await()
+                        val history = historyDeferred.await()
+                        forecast.copy(
+                            subHourly = history?.subHourly.orEmpty(),
+                            providerCurrentTemp = history?.providerCurrentTemp,
+                            providerCurrentCondition = history?.providerCurrentCondition,
+                            providerCurrentObservedAt = history?.providerCurrentObservedAt,
+                            providerCurrentCloudCover = history?.providerCurrentCloudCover,
+                        )
+                    }
                 }
             })
         }
@@ -298,13 +325,28 @@ internal class ForecastFetchCoordinator(
         fetch: suspend () -> RawFetch?,
     ): List<ForecastEntity>? {
         val result = fetch() ?: return null
-        if (result.hourly.isNotEmpty()) {
+        val actualsWrite = if (result.hourly.isNotEmpty()) {
             hourlyStore.saveHourlyEntitiesFromShared(
                 result.hourly,
                 latitude,
                 longitude,
                 source.id,
-                historicalData = result.subHourly.ifEmpty { result.hourly },
+                historicalData = result.subHourly.ifEmpty {
+                    if (source == WeatherSource.TOMORROW_IO) emptyList() else result.hourly
+                },
+            )
+        } else {
+            HourlyForecastStore.HistoricalActualsWriteSummary(0, 0)
+        }
+        if (source == WeatherSource.TOMORROW_IO) {
+            appLogDao.log(
+                "TMRW_5M_FETCH",
+                "windowHours=${TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS} " +
+                    "rows=${actualsWrite.rowCount} " +
+                    "earliest=${result.subHourly.minOfOrNull { it.dateTime }} " +
+                    "latest=${result.subHourly.maxOfOrNull { it.dateTime }} " +
+                    "replacements=${actualsWrite.replacementCount}",
+                "INFO",
             )
         }
         return result.daily.map { day ->

@@ -22,6 +22,11 @@ internal class HourlyForecastStore(
     private val observationDao: ObservationDao,
     private val widgetStateManager: WidgetStateManager,
 ) {
+    data class HistoricalActualsWriteSummary(
+        val rowCount: Int,
+        val replacementCount: Int,
+    )
+
     suspend fun saveHourlyEntities(rawEntities: List<HourlyForecastEntity>) {
         if (rawEntities.isEmpty()) return
 
@@ -92,12 +97,13 @@ internal class HourlyForecastStore(
         longitude: Double,
         sourceId: String,
         historicalData: List<HourlyForecast> = hourlyData,
-    ) {
+    ): HistoricalActualsWriteSummary {
         val now = System.currentTimeMillis()
         // Deliberately drops elapsed hours: `hourly_forecasts` is a forecast archive, and letting a
         // `past_days` payload rewrite past rows would destroy the record of what was predicted.
-        // The retro-corrected values those rows carry are not thrown away — saveHistoricalActuals
-        // re-files them into `observations`, as actuals, which is what they are.
+        // Providers with a distinct actuals-capable historical product pass that series through
+        // historicalData. Tomorrow.io passes only its separate five-minute Timeline result; its
+        // elapsed hourly forecast rows are never reclassified as observations.
         val futureData = hourlyData.filter { it.dateTime >= now - 3_600_000L }
         saveHourlyEntities(
             futureData.map {
@@ -118,7 +124,7 @@ internal class HourlyForecastStore(
                 )
             },
         )
-        saveHistoricalActuals(historicalData, latitude, longitude, sourceId)
+        return saveHistoricalActuals(historicalData, latitude, longitude, sourceId)
     }
 
     private suspend fun saveHistoricalActuals(
@@ -126,7 +132,7 @@ internal class HourlyForecastStore(
         latitude: Double,
         longitude: Double,
         sourceId: String,
-    ) {
+    ): HistoricalActualsWriteSummary {
         val historicalObs = HistoricalActualsBackfill.build(
             hourly = hourlyData,
             latitude = latitude,
@@ -159,9 +165,32 @@ internal class HourlyForecastStore(
                 cloudVerticalKind = reading.cloudVerticalKind,
             ).withQuantizedLocation()
         }
-        if (historicalObs.isNotEmpty()) {
+        if (historicalObs.isEmpty()) return HistoricalActualsWriteSummary(0, 0)
+        if (sourceId != com.weatherwidget.data.model.WeatherSource.TOMORROW_IO.id) {
             observationDao.insertAll(historicalObs)
+            return HistoricalActualsWriteSummary(historicalObs.size, 0)
         }
+        val minTimestamp = historicalObs.minOf { it.timestamp }
+        val maxTimestamp = historicalObs.maxOf { it.timestamp }
+        val sample = historicalObs.first()
+        val existingKeys = observationDao.getObservationsInRange(
+            minTimestamp,
+            maxTimestamp,
+            sample.locationLat,
+            sample.locationLon,
+            listOf(sourceId),
+        ).asSequence()
+            .filter {
+                it.locationLat == sample.locationLat &&
+                    it.locationLon == sample.locationLon
+            }
+            .map { Triple(it.stationId, it.timestamp, it.api) }
+            .toSet()
+        val replacementCount = historicalObs.count {
+            Triple(it.stationId, it.timestamp, it.api) in existingKeys
+        }
+        observationDao.insertAll(historicalObs)
+        return HistoricalActualsWriteSummary(historicalObs.size, replacementCount)
     }
 
     companion object {

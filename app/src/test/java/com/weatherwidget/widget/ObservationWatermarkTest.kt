@@ -90,10 +90,10 @@ class ObservationWatermarkTest {
     }
 
     @Test
-    fun `Tomorrow watermark accepts both products and rejects newer legacy timeline row`() {
+    fun `Tomorrow watermark accepts five minute history and rejects retired products`() {
         val rows = listOf(
             obs("TOMORROW_IO_REALTIME", base, api = WeatherSource.TOMORROW_IO.id),
-            obs("TOMORROW_IO_RECENT_HISTORY", base + 60_000L, api = WeatherSource.TOMORROW_IO.id),
+            obs("TOMORROW_IO_5M_HISTORY", base + 60_000L, api = WeatherSource.TOMORROW_IO.id),
             obs("TOMORROW_IO_MAIN", base + 120_000L, api = WeatherSource.TOMORROW_IO.id),
         )
 

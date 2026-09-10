@@ -72,8 +72,13 @@ interface DailyHistoryDao {
 
     // The computed-null guard keeps FORECAST_ONLY_ROW rows (the display surface for these sources'
     // history, not legacy actuals) alive if a one-time cleanup ever runs after the writer.
-    @Query("DELETE FROM daily_history WHERE source = 'TOMORROW_IO' AND computedHighTemp IS NOT NULL")
-    suspend fun deleteTomorrowIoHistory(): Int
+    @Query(
+        "DELETE FROM daily_history " +
+            "WHERE source = 'TOMORROW_IO' " +
+            "AND computedHighTemp IS NOT NULL " +
+            "AND ${LocationMatch.ROOM_SAME_SITE_WHERE}",
+    )
+    suspend fun deleteTomorrowIoHistoryAtSite(lat: Double, lon: Double): Int
 
     @Query("DELETE FROM daily_history WHERE source = 'OPEN_METEO' AND computedHighTemp IS NOT NULL")
     suspend fun deleteOpenMeteoHistory(): Int

@@ -279,9 +279,27 @@ interface ObservationDao {
     @Query(
         "DELETE FROM observations " +
             "WHERE api = 'TOMORROW_IO' " +
-            "AND stationId NOT IN ('TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME')",
+            "AND stationId NOT IN ('TOMORROW_IO_5M_HISTORY', 'TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME')",
     )
     suspend fun deleteLegacyTomorrowIoObservations(): Int
+
+    @Query(
+        "SELECT COUNT(*) FROM observations " +
+            "WHERE api = 'TOMORROW_IO' " +
+            "AND stationId = 'TOMORROW_IO_5M_HISTORY' " +
+            "AND timestamp % 300000 = 0 " +
+            "AND ${LocationMatch.ROOM_SAME_SITE_WHERE}",
+    )
+    suspend fun countTomorrowIoFiveMinuteObservationsAtSite(lat: Double, lon: Double): Int
+
+    @Query(
+        "DELETE FROM observations " +
+            "WHERE api = 'TOMORROW_IO' " +
+            "AND (stationId IN ('TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME') " +
+            "OR (stationId = 'TOMORROW_IO_5M_HISTORY' AND timestamp % 300000 != 0)) " +
+            "AND ${LocationMatch.ROOM_SAME_SITE_WHERE}",
+    )
+    suspend fun deleteRetiredTomorrowIoProductsAtSite(lat: Double, lon: Double): Int
 
     @Query("DELETE FROM observations WHERE api = 'OPEN_METEO'")
     suspend fun deleteOpenMeteoModelObservations(): Int

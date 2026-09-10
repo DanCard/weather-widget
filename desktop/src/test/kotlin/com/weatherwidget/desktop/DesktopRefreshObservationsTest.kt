@@ -119,8 +119,8 @@ class DesktopRefreshObservationsTest {
             hourly = listOf(HourlyForecast(now, 72f, "Clear", source = WeatherSource.TOMORROW_IO.id)),
             rawObservations = listOf(
                 ObservationReading(
-                    stationId = "TOMORROW_IO_REALTIME",
-                    stationName = "Tomorrow.io Realtime",
+                    stationId = "TOMORROW_IO_5M_HISTORY",
+                    stationName = "Tmrw: 5-minute history",
                     timestamp = now,
                     temperature = 73f,
                     condition = "Clear",

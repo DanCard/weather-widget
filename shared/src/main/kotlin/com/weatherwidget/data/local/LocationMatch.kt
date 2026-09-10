@@ -58,6 +58,11 @@ object LocationMatch {
         "locationLat BETWEEN :lat - $SAME_SITE_TOLERANCE_DEG AND :lat + $SAME_SITE_TOLERANCE_DEG " +
             "AND locationLon BETWEEN :lon - $SAME_SITE_TOLERANCE_DEG AND :lon + $SAME_SITE_TOLERANCE_DEG"
 
+    /** JDBC positional-parameter equivalent of [ROOM_SAME_SITE_WHERE], bound lat then lon. */
+    const val JDBC_SAME_SITE_WHERE =
+        "ABS(locationLat - ?) <= $SAME_SITE_TOLERANCE_DEG AND " +
+            "ABS(locationLon - ?) <= $SAME_SITE_TOLERANCE_DEG"
+
     /**
      * Collapses a raw [ROOM_WHERE]/[JDBC_WHERE] proximity-box result to the single physical site
      * nearest (lat, lon). Sub-precision fragments of that site survive (they are [sameSite]);

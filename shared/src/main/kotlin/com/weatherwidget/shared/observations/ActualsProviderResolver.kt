@@ -89,7 +89,7 @@ object ActualsProviderResolver {
      *    (`ObservationSourceMatcher`).
      *
      * Its honest class would be [HistoricalDataKind.RECENT_ANALYSIS], the same bucket as
-     * Tomorrow.io's realtime product, which would make it a [Tier.DERIVED] candidate rather than no
+     * Tomorrow.io's five-minute analysis product, which makes it a [Tier.DERIVED] candidate rather than no
      * candidate at all. Reclassifying is a live option, deliberately not taken: `historicalDataKind`
      * also drives `preservesHistoricalCloud` and the backfill gate, so the change reaches past this
      * picker. Visual Crossing is a plainer case — no historical product in use at all.

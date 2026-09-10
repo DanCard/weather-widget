@@ -695,7 +695,7 @@ class MetarCloudBlenderTest {
     }
 
     @Test
-    fun `Tomorrow cloud actuals prefer realtime then fall back to recent history`() = runBlocking {
+    fun `Tomorrow cloud actuals use only five minute history`() = runBlocking {
         val readings = listOf(
             reading(
                 "TOMORROW_IO_MAIN",
@@ -705,7 +705,7 @@ class MetarCloudBlenderTest {
                 api = WeatherSource.TOMORROW_IO.id,
             ),
             reading(
-                "TOMORROW_IO_RECENT_HISTORY",
+                "TOMORROW_IO_5M_HISTORY",
                 hour + 3 * min,
                 cloudLow = 88,
                 distanceKm = 0f,
@@ -719,7 +719,7 @@ class MetarCloudBlenderTest {
                 api = WeatherSource.TOMORROW_IO.id,
             ),
             reading(
-                "TOMORROW_IO_RECENT_HISTORY",
+                "TOMORROW_IO_5M_HISTORY",
                 hour + 50 * min,
                 cloudLow = 72,
                 distanceKm = 0f,
@@ -734,7 +734,7 @@ class MetarCloudBlenderTest {
             FakeSiteReader(readings)::read,
         )
 
-        assertEquals(mapOf(hour to 56, hour + 3_600_000L to 72), result.hours)
+        assertEquals(mapOf(hour to 88, hour + 3_600_000L to 72), result.hours)
         assertFalse(result.isMetarBlend)
     }
 

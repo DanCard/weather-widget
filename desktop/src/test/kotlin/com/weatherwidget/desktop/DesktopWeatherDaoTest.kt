@@ -72,7 +72,7 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
-    fun `Tomorrow cleanup keeps recent history and realtime and deletes generic legacy rows`() {
+    fun `Tomorrow startup cleanup keeps accepted products and daily cache while deleting generic rows`() {
         val now = System.currentTimeMillis()
         val lat = 37.42
         val lon = -122.08
@@ -90,6 +90,7 @@ class DesktopWeatherDaoTest {
         dao.upsertObservations(
             listOf(
                 observation("TOMORROW_IO_MAIN", now - 3_000L),
+                observation("TOMORROW_IO_5M_HISTORY", now - 2_500L),
                 observation("TOMORROW_IO_RECENT_HISTORY", now - 2_000L),
                 observation("TOMORROW_IO_REALTIME", now - 1_000L),
             ),
@@ -113,13 +114,73 @@ class DesktopWeatherDaoTest {
 
         assertNotNull(result)
         assertEquals(1, result!!.observationsDeleted)
-        assertEquals(1, result.dailyRowsDeleted)
+        assertEquals(0, result.dailyRowsDeleted)
         assertEquals(
-            setOf("TOMORROW_IO_RECENT_HISTORY", "TOMORROW_IO_REALTIME"),
+            setOf("TOMORROW_IO_5M_HISTORY", "TOMORROW_IO_RECENT_HISTORY", "TOMORROW_IO_REALTIME"),
             dao.getObservationsInRange(now - 10_000L, now + 1L, lat, lon).map { it.stationId }.toSet(),
         )
-        assertTrue(dao.getExtremesInRange(now - 1L, now + 1L, lat, lon).isEmpty())
+        assertEquals(1, dao.getExtremesInRange(now - 1L, now + 1L, lat, lon).size)
         assertNull(dao.cleanupLegacyTomorrowIoActuals())
+    }
+
+    @Test
+    fun `five minute coverage guards targeted Tomorrow product retirement`() {
+        val now = System.currentTimeMillis().let { it - Math.floorMod(it, 5 * 60_000L) }
+        val lat = 37.417
+        val lon = -122.089
+        val farLat = 37.617
+        fun observation(
+            stationId: String,
+            temperature: Float,
+            locationLat: Double = lat,
+            timestamp: Long = now,
+        ) = DesktopObservationEntity(
+            stationId = stationId,
+            stationName = stationId,
+            timestamp = timestamp,
+            temperature = temperature,
+            condition = "Clear",
+            locationLat = locationLat,
+            locationLon = lon,
+            fetchedAt = now,
+            api = WeatherSource.TOMORROW_IO.id,
+        )
+        dao.upsertObservations(
+            listOf(
+                observation("TOMORROW_IO_REALTIME", 74.6f),
+                observation("TOMORROW_IO_RECENT_HISTORY", 77.07f),
+                observation("TOMORROW_IO_5M_HISTORY", 99f, timestamp = now + 60_000L),
+                observation("TOMORROW_IO_REALTIME", 63f, farLat),
+            ),
+        )
+        dao.upsertDailyHistory(
+            listOf(
+                DailyHistory(now, WeatherSource.TOMORROW_IO.id, lat, lon, 77.07f, 74.6f, "Clear", now),
+                DailyHistory(now, WeatherSource.TOMORROW_IO.id, farLat, lon, 63f, 60f, "Clear", now),
+            ),
+        )
+
+        assertNull(dao.retireConflictingTomorrowIoProductsIfCovered(lat, lon))
+        assertEquals(3, dao.getObservationsInRange(now, now + 60_001L, lat, lon).size)
+
+        dao.upsertObservations(listOf(observation("TOMORROW_IO_5M_HISTORY", 78.16f)))
+        // Exact-key upsert accepts a provider revision without creating a second point.
+        dao.upsertObservations(listOf(observation("TOMORROW_IO_5M_HISTORY", 78.05f)))
+        val result = dao.retireConflictingTomorrowIoProductsIfCovered(lat, lon)
+
+        assertNotNull(result)
+        assertEquals(3, result!!.observationsDeleted)
+        assertEquals(1, result.dailyRowsDeleted)
+        val siteRows = dao.getObservationsInRange(now, now + 60_001L, lat, lon)
+        assertEquals(listOf("TOMORROW_IO_5M_HISTORY"), siteRows.map { it.stationId })
+        assertEquals(78.05f, siteRows.single().temperature, 0.001f)
+        assertEquals(
+            listOf("TOMORROW_IO_REALTIME"),
+            dao.getObservationsInRange(now, now + 1L, farLat, lon).map { it.stationId },
+        )
+        assertTrue(dao.getExtremesInRange(now, now, lat, lon).isEmpty())
+        assertEquals(1, dao.getExtremesInRange(now, now, farLat, lon).size)
+        assertEquals(1, dao.getRecentLogsByTags(listOf("TMRW_5M_CLEANUP"), 10).size)
     }
 
     @Test

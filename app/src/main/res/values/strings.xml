@@ -349,6 +349,7 @@
     <string name="bug_report_share_failed">Failed to start sharing intent</string>
     <string name="bug_report_email_subject">Weather widget bug report</string>
     <string name="obs_actuals_source_label">Actuals source</string>
+    <string name="station_name_tomorrow_five_minute_history" translatable="false">Tmrw: 5-minute history</string>
     <string name="actual_cloud_cover_data_from">Actual cloud cover data from %1$s</string>
     <string name="actual_temperature_data_from">Actual temperature data from %1$s</string>
     <string name="forecast_delta_suffix">from forecast</string>

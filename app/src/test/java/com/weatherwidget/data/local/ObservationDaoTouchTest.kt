@@ -104,10 +104,11 @@ class ObservationDaoTouchTest {
     }
 
     @Test
-    fun tomorrowCleanup_keepsRecentHistoryAndRealtime_only() = runTest {
+    fun tomorrowStartupCleanup_keepsFiveMinuteAndRetiredRows_untilTargetedCleanup() = runTest {
         dao.insertAll(
             listOf(
                 obs("TOMORROW_IO_MAIN", 1_000L, 1_000L, api = "TOMORROW_IO"),
+                obs("TOMORROW_IO_5M_HISTORY", 1_500L, 1_500L, api = "TOMORROW_IO"),
                 obs("TOMORROW_IO_RECENT_HISTORY", 2_000L, 2_000L, api = "TOMORROW_IO"),
                 obs("TOMORROW_IO_REALTIME", 3_000L, 3_000L, api = "TOMORROW_IO"),
                 obs("KNUQ", 4_000L, 4_000L),
@@ -117,7 +118,7 @@ class ObservationDaoTouchTest {
         assertEquals(1, dao.deleteLegacyTomorrowIoObservations())
 
         assertEquals(
-            setOf("TOMORROW_IO_RECENT_HISTORY", "TOMORROW_IO_REALTIME", "KNUQ"),
+            setOf("TOMORROW_IO_5M_HISTORY", "TOMORROW_IO_RECENT_HISTORY", "TOMORROW_IO_REALTIME", "KNUQ"),
             dao.getRecentObservations(0L).map { it.stationId }.toSet(),
         )
     }

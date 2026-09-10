@@ -17,20 +17,38 @@ internal object TomorrowIoLegacyActualsCleanup {
     suspend fun runIfNeeded(
         context: Context,
         observationDao: ObservationDao,
-        dailyHistoryDao: DailyHistoryDao,
         appLogDao: AppLogDao,
     ) = mutex.withLock {
         val prefs = SharedPreferencesUtil.getPrefs(context, "weather_prefs")
         if (prefs.getBoolean(PREF_KEY, false)) return@withLock
 
         val observationsDeleted = observationDao.deleteLegacyTomorrowIoObservations()
-        // computedHigh/Low are non-null columns, so delete and rebuild the debug-only Tomorrow row
-        // from the two explicitly accepted observation products.
-        val dailyRowsDeleted = dailyHistoryDao.deleteTomorrowIoHistory()
         prefs.edit().putBoolean(PREF_KEY, true).apply()
         appLogDao.log(
             "TMRW_ACTUALS_CLEANUP",
-            "legacyObservations=$observationsDeleted dailyRows=$dailyRowsDeleted",
+            "legacyObservations=$observationsDeleted dailyRows=0",
+        )
+    }
+
+    /** Retire conflicting products only after replacement five-minute coverage exists at the site. */
+    suspend fun retireConflictingProductsIfCovered(
+        latitude: Double,
+        longitude: Double,
+        observationDao: ObservationDao,
+        dailyHistoryDao: DailyHistoryDao,
+        appLogDao: AppLogDao,
+    ) = mutex.withLock {
+        if (observationDao.countTomorrowIoFiveMinuteObservationsAtSite(latitude, longitude) == 0) {
+            return@withLock
+        }
+        val observationsDeleted =
+            observationDao.deleteRetiredTomorrowIoProductsAtSite(latitude, longitude)
+        val dailyRowsDeleted = dailyHistoryDao.deleteTomorrowIoHistoryAtSite(latitude, longitude)
+        if (observationsDeleted == 0 && dailyRowsDeleted == 0) return@withLock
+        appLogDao.log(
+            "TMRW_5M_CLEANUP",
+            "lat=$latitude lon=$longitude coverage=present " +
+                "retiredObservations=$observationsDeleted dailyRows=$dailyRowsDeleted",
         )
     }
 }

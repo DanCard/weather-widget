@@ -145,7 +145,6 @@ class ForecastRepository
                 TomorrowIoLegacyActualsCleanup.runIfNeeded(
                     context = context,
                     observationDao = observationDao,
-                    dailyHistoryDao = dailyHistoryDao,
                     appLogDao = appLogDao,
                 )
                 var cachedForecasts = getCachedData(latitude, longitude)
@@ -212,6 +211,15 @@ class ForecastRepository
                         longitude,
                         sourcesToFetch,
                     )
+                    if (WeatherSource.TOMORROW_IO in sourcesToFetch) {
+                        TomorrowIoLegacyActualsCleanup.retireConflictingProductsIfCovered(
+                            latitude = latitude,
+                            longitude = longitude,
+                            observationDao = observationDao,
+                            dailyHistoryDao = dailyHistoryDao,
+                            appLogDao = appLogDao,
+                        )
+                    }
                     climateNormalsRepository.warmBestEffort(
                         latitude,
                         longitude,

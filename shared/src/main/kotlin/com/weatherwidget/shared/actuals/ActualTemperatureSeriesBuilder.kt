@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.observations.ActualsProviderResolver
+import com.weatherwidget.shared.observations.ObservationTimelineNormalizer
 import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.util.Log
@@ -338,26 +339,9 @@ object ActualTemperatureSeriesBuilder {
         val sourceFiltered = observations
             .filter { !it.qcFailed && matchesObservationSource(it, displaySourceId) }
         val actualsProviderId = ActualsProviderResolver.providerIdFor(WeatherSource.fromId(displaySourceId))
-        val filtered = (
-            // Tomorrow.io stores realtime and recent-history products as two provenance rows for one
-            // logical feed. Normalize them only when Tomorrow.io is the resolved ACTUALS provider.
-            // Keying this on the display source erased every borrowed Synoptic/METAR/NWS row from a
-            // Tomorrow.io forecast graph, while failing to normalize Tomorrow.io rows borrowed by a
-            // different forecast source.
-            if (actualsProviderId == WeatherSource.TOMORROW_IO.id) {
-                TomorrowIoActuals.forTemperatureSeries(sourceFiltered)
-            } else {
-                sourceFiltered
-            }
-        )
-            .sortedWith(
-                compareBy(
-                    { it.timestamp },
-                    { it.stationId },
-                    { it.locationLat },
-                    { it.locationLon },
-                ),
-            )
+        // All providers enter the blend through one native-timestamp timeline. Tomorrow.io's
+        // five-minute product is one logical feed; other providers retain physical station ids.
+        val filtered = ObservationTimelineNormalizer.normalize(sourceFiltered, actualsProviderId)
 
         if (filtered.isEmpty()) {
             return BlendObservationResult(

@@ -58,21 +58,91 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 val observationsDeleted = conn.createStatement().use { stmt ->
                     stmt.executeUpdate(
                         "DELETE FROM observations WHERE api = 'TOMORROW_IO' " +
-                            "AND stationId NOT IN ('TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME')",
+                            "AND stationId NOT IN " +
+                            "('TOMORROW_IO_5M_HISTORY', 'TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME')",
                     )
                 }
-                // Contaminated debug-only rows are removed as a unit; computed-null rows are
-                // FORECAST_ONLY_ROWs from the newer writer (display surface, not legacy actuals)
-                // and are kept. Current/future forecast state lives in the forecast tables.
-                val dailyRowsDeleted = conn.createStatement().use { stmt ->
-                    stmt.executeUpdate("DELETE FROM daily_history WHERE source = 'TOMORROW_IO' AND computedHighTemp IS NOT NULL")
-                }
+                // Preserve daily rows until five-minute replacement coverage exists. The targeted
+                // retirement transaction below deletes and rebuilds them only after that gate.
+                val dailyRowsDeleted = 0
                 conn.prepareStatement(
                     "INSERT INTO app_logs (timestamp, level, tag, message) VALUES (?, 'INFO', 'TMRW_ACTUALS_CLEANUP_V2', ?)",
                 ).use { stmt ->
                     stmt.setLong(1, System.currentTimeMillis())
                     stmt.setString(2, "legacyObservations=$observationsDeleted dailyRows=$dailyRowsDeleted")
                     stmt.executeUpdate()
+                }
+                conn.commit()
+                return TomorrowCleanupResult(observationsDeleted, dailyRowsDeleted)
+            } catch (e: Exception) {
+                conn.rollback()
+                throw e
+            }
+        }
+    }
+
+    /**
+     * Removes retired Tomorrow.io products at one site only after five-minute replacement rows
+     * exist there. The observation and derived-daily cleanup is atomic so readers cannot see a
+     * half-retired cache.
+     */
+    fun retireConflictingTomorrowIoProductsIfCovered(
+        latitude: Double,
+        longitude: Double,
+    ): TomorrowCleanupResult? {
+        db.getConnection().use { conn ->
+            conn.autoCommit = false
+            try {
+                val coverage = conn.prepareStatement(
+                    "SELECT COUNT(*) FROM observations WHERE api = 'TOMORROW_IO' " +
+                        "AND stationId = 'TOMORROW_IO_5M_HISTORY' " +
+                        "AND timestamp % 300000 = 0 " +
+                        "AND ${LocationMatch.JDBC_SAME_SITE_WHERE}",
+                ).use { stmt ->
+                    stmt.setDouble(1, latitude)
+                    stmt.setDouble(2, longitude)
+                    stmt.executeQuery().use { rows ->
+                        rows.next()
+                        rows.getInt(1)
+                    }
+                }
+                if (coverage == 0) {
+                    conn.rollback()
+                    return null
+                }
+
+                val observationsDeleted = conn.prepareStatement(
+                    "DELETE FROM observations WHERE api = 'TOMORROW_IO' " +
+                        "AND (stationId IN ('TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME') " +
+                        "OR (stationId = 'TOMORROW_IO_5M_HISTORY' AND timestamp % 300000 != 0)) " +
+                        "AND ${LocationMatch.JDBC_SAME_SITE_WHERE}",
+                ).use { stmt ->
+                    stmt.setDouble(1, latitude)
+                    stmt.setDouble(2, longitude)
+                    stmt.executeUpdate()
+                }
+                val dailyRowsDeleted = conn.prepareStatement(
+                    "DELETE FROM daily_history WHERE source = 'TOMORROW_IO' " +
+                        "AND computedHighTemp IS NOT NULL " +
+                        "AND ${LocationMatch.JDBC_SAME_SITE_WHERE}",
+                ).use { stmt ->
+                    stmt.setDouble(1, latitude)
+                    stmt.setDouble(2, longitude)
+                    stmt.executeUpdate()
+                }
+                if (observationsDeleted > 0 || dailyRowsDeleted > 0) {
+                    conn.prepareStatement(
+                        "INSERT INTO app_logs (timestamp, level, tag, message) " +
+                            "VALUES (?, 'INFO', 'TMRW_5M_CLEANUP', ?)",
+                    ).use { stmt ->
+                        stmt.setLong(1, System.currentTimeMillis())
+                        stmt.setString(
+                            2,
+                            "lat=$latitude lon=$longitude coverage=$coverage " +
+                                "retiredObservations=$observationsDeleted dailyRows=$dailyRowsDeleted",
+                        )
+                        stmt.executeUpdate()
+                    }
                 }
                 conn.commit()
                 return TomorrowCleanupResult(observationsDeleted, dailyRowsDeleted)

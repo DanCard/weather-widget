@@ -25,7 +25,7 @@ import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.shared.util.TemperatureInterpolator
-import com.weatherwidget.shared.actuals.TomorrowIoActuals
+import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -130,7 +130,6 @@ class CurrentTempRepository
                     TomorrowIoLegacyActualsCleanup.runIfNeeded(
                         context = context,
                         observationDao = observationDao,
-                        dailyHistoryDao = dailyHistoryDao,
                         appLogDao = appLogDao,
                     )
 
@@ -389,8 +388,12 @@ class CurrentTempRepository
 
         private suspend fun fetchTomorrowIoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? {
             val api = tomorrowIoApi ?: return null
-            val reading = try {
-                api.getRealtime(latitude, longitude)
+            val result = try {
+                api.getFiveMinuteHistory(
+                    latitude,
+                    longitude,
+                    TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS,
+                )
             } catch (e: ApiAccessException) {
                 throw e
             } catch (e: ClientRequestException) {
@@ -401,36 +404,74 @@ class CurrentTempRepository
             } catch (e: Exception) {
                 null
             } ?: return null
-
-            insertCurrentObservation(
-                ObservationEntity(
-                    stationId = TomorrowIoActuals.REALTIME_STATION_ID,
-                    stationName = TomorrowIoActuals.REALTIME_STATION_NAME,
-                    timestamp = reading.observedAt,
-                    temperature = reading.temperature,
-                    condition = reading.condition,
-                    locationLat = latitude,
-                    locationLon = longitude,
-                    distanceKm = 0f,
-                    stationType = "OFFICIAL",
-                    api = WeatherSource.TOMORROW_IO.id,
-                    cloudCover = reading.cloudCover,
-                    cloudEnvelopeBaseMeters = reading.cloudEnvelopeBaseMeters,
-                    cloudEnvelopeTopMeters = reading.cloudEnvelopeTopMeters,
-                    cloudVerticalKind = if (
-                        reading.cloudEnvelopeBaseMeters != null || reading.cloudEnvelopeTopMeters != null
-                    ) {
-                        CloudVerticalKind.TOTAL_ENVELOPE
-                    } else {
-                        CloudVerticalKind.NONE
-                    },
-                ),
+            val fetchedAt = System.currentTimeMillis()
+            val readings = HistoricalActualsBackfill.build(
+                hourly = result.subHourly,
+                latitude = latitude,
+                longitude = longitude,
+                sourceId = WeatherSource.TOMORROW_IO.id,
+                nowMs = fetchedAt,
+                fetchedAt = fetchedAt,
             )
+            val entities = readings.map { reading ->
+                ObservationEntity(
+                        stationId = reading.stationId,
+                        stationName = reading.stationName,
+                        timestamp = reading.timestamp,
+                        temperature = reading.temperature,
+                        condition = reading.condition,
+                        locationLat = reading.locationLat,
+                        locationLon = reading.locationLon,
+                        distanceKm = reading.distanceKm,
+                        stationType = reading.stationType,
+                        fetchedAt = reading.fetchedAt,
+                        api = reading.api,
+                        cloudCover = reading.cloudCover,
+                        cloudEnvelopeBaseMeters = reading.cloudEnvelopeBaseMeters,
+                        cloudEnvelopeTopMeters = reading.cloudEnvelopeTopMeters,
+                        cloudVerticalKind = reading.cloudVerticalKind,
+                    ).withQuantizedLocation()
+            }
+            val replacementCount = if (entities.isEmpty()) {
+                0
+            } else {
+                val sample = entities.first()
+                val existingKeys = observationDao.getObservationsInRange(
+                    entities.minOf { it.timestamp },
+                    entities.maxOf { it.timestamp },
+                    sample.locationLat,
+                    sample.locationLon,
+                    listOf(WeatherSource.TOMORROW_IO.id),
+                ).asSequence()
+                    .filter {
+                        it.locationLat == sample.locationLat &&
+                            it.locationLon == sample.locationLon
+                    }
+                    .map { Triple(it.stationId, it.timestamp, it.api) }
+                    .toSet()
+                entities.count { Triple(it.stationId, it.timestamp, it.api) in existingKeys }
+            }
+            if (entities.isNotEmpty()) observationDao.insertAll(entities)
+            appLogDao.log(
+                "TMRW_5M_FETCH",
+                "windowHours=${TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS} " +
+                    "rows=${entities.size} earliest=${entities.minOfOrNull { it.timestamp }} " +
+                    "latest=${entities.maxOfOrNull { it.timestamp }} replacements=$replacementCount",
+                "INFO",
+            )
+            TomorrowIoLegacyActualsCleanup.retireConflictingProductsIfCovered(
+                latitude = latitude,
+                longitude = longitude,
+                observationDao = observationDao,
+                dailyHistoryDao = dailyHistoryDao,
+                appLogDao = appLogDao,
+            )
+            val latest = readings.maxByOrNull { it.timestamp } ?: return null
             return CurrentReadingPayload(
                 source = WeatherSource.TOMORROW_IO,
-                temperature = reading.temperature,
-                condition = reading.condition,
-                observedAt = reading.observedAt,
+                temperature = latest.temperature,
+                condition = latest.condition,
+                observedAt = latest.timestamp,
             )
         }
 

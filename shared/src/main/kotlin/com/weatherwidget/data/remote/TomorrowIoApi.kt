@@ -1,6 +1,5 @@
 package com.weatherwidget.data.remote
 
-import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
@@ -10,7 +9,10 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.*
+import java.time.Clock
+import java.time.Instant
 import java.time.OffsetDateTime
+import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
 
 private const val TAG = "TomorrowIoApi"
@@ -18,12 +20,15 @@ private const val TAG = "TomorrowIoApi"
 class TomorrowIoApi(
     private val httpClient: HttpClient,
     private val json: Json,
+    private val clock: Clock = Clock.systemUTC(),
     private val apiKeyProvider: () -> String?,
 ) {
     companion object {
         private const val TIMELINES_URL = "https://api.tomorrow.io/v4/timelines"
-        private const val REALTIME_URL = "https://api.tomorrow.io/v4/weather/realtime"
         private const val METERS_PER_MILE = 1_609.344
+        const val FULL_ACTUALS_LOOKBACK_HOURS = 23
+        const val INCREMENTAL_ACTUALS_LOOKBACK_HOURS = 1
+        private const val FIVE_MINUTE_INTERVAL_MS = 5 * 60 * 1_000L
 
         internal fun imperialDistanceToMeters(value: Double?): Int? = value
             ?.takeIf { it.isFinite() && it >= 0.0 }
@@ -65,9 +70,9 @@ class TomorrowIoApi(
             parameter("units", "imperial")
             parameter("apikey", apiKey)
             // Reaches back far enough to cover the elapsed part of the local day, so a site being
-            // fetched for the FIRST time still gets today's overnight minimum rather than only the
-            // hours since it was promoted. Callers persist the elapsed slice with distinct
-            // RECENT_HISTORY provenance.
+            // fetched for the FIRST time still receives a complete provider forecast timeline
+            // rather than only the hours since it was promoted. Elapsed hourly intervals remain
+            // forecast data; Tomorrow.io actuals come only from [getFiveMinuteHistory].
             //
             // This was `nowMinus6h`, annotated "core temperature/cloud fields are available six
             // hours into the past on the free plan". That claim does not hold. Probed 2026-08-22
@@ -154,49 +159,91 @@ class TomorrowIoApi(
         )
     }
 
-    /** Current source-native conditions. Callers accumulate these samples as honest actuals. */
-    suspend fun getRealtime(lat: Double, lon: Double): TomorrowIoRealtimeReading? {
+    /**
+     * Returns Tomorrow.io's canonical elapsed five-minute analysis window.
+     *
+     * This is deliberately separate from [getForecast]: forecast resolution remains `1h + 1d`,
+     * while temperature actuals use exactly one provider product. Callers persist [RawFetch.subHourly]
+     * at the API timestamps and upsert repeated timestamps so later provider revisions replace the
+     * earlier value. The realtime endpoint is intentionally not used.
+     */
+    suspend fun getFiveMinuteHistory(
+        lat: Double,
+        lon: Double,
+        lookbackHours: Int,
+    ): RawFetch {
+        require(lookbackHours in 1..FULL_ACTUALS_LOOKBACK_HOURS) {
+            "Tomorrow.io five-minute lookback must be 1..$FULL_ACTUALS_LOOKBACK_HOURS hours"
+        }
         val apiKey = apiKeyProvider()
         if (apiKey.isNullOrBlank()) {
             throw IllegalStateException("TOMORROW_IO_API_KEY is missing.")
         }
 
-        val response = httpClient.get(REALTIME_URL) {
+        // Literal `endTime=now` makes Tomorrow.io anchor the series to the request minute. A call
+        // at 12:09 returns :09/:04/... while one at 12:10 returns :10/:05/..., defeating exact-key
+        // revision upserts. Anchor the request to a stable five-minute boundary; returned interval
+        // timestamps are still parsed and persisted exactly, with no local timestamp rounding.
+        val now = clock.instant()
+        val endTime = Instant.ofEpochMilli(
+            now.toEpochMilli() - Math.floorMod(now.toEpochMilli(), FIVE_MINUTE_INTERVAL_MS),
+        )
+        val startTime = endTime.minus(lookbackHours.toLong(), ChronoUnit.HOURS)
+
+        val response = httpClient.get(TIMELINES_URL) {
             parameter("location", "$lat,$lon")
+            parameter(
+                "fields",
+                // Tomorrow.io rejects precipitationAccumulation for timestep=5m (400001).
+                // Keep this actuals request to fields the provider supports at five-minute
+                // resolution; precipitation remains supplied by the unchanged forecast request.
+                "temperature,weatherCode,cloudCover,cloudBase,cloudCeiling",
+            )
+            parameter("timesteps", "5m")
             parameter("units", "imperial")
+            parameter("startTime", startTime.toString())
+            parameter("endTime", endTime.toString())
             parameter("apikey", apiKey)
         }
-        response.require2xx(WeatherSource.TOMORROW_IO, "Tomorrow.io realtime fetch failed")
+        response.require2xx(WeatherSource.TOMORROW_IO, "Tomorrow.io five-minute history fetch failed")
 
         val root = json.parseToJsonElement(response.body<String>()).jsonObject
-        val data = root["data"]?.jsonObject ?: return null
-        val values = data["values"]?.jsonObject ?: return null
-        val temperature = values["temperature"]?.jsonPrimitive?.floatOrNull
-            ?.takeIf { it.isFinite() }
-            ?: return null
-        val observedAt = data["time"]?.jsonPrimitive?.contentOrNull
-            ?.let { runCatching { OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() }
-            ?: return null
-        val weatherCode = values["weatherCode"]?.jsonPrimitive?.intOrNull
-
-        return TomorrowIoRealtimeReading(
-            temperature = temperature,
-            condition = weatherCode?.let(::weatherCodeToCondition) ?: "Unknown",
-            observedAt = observedAt,
-            cloudCover = percentOrNull(values["cloudCover"]?.jsonPrimitive?.floatOrNull),
-            cloudEnvelopeBaseMeters = imperialDistanceToMeters(values["cloudBase"]?.jsonPrimitive?.doubleOrNull),
-            cloudEnvelopeTopMeters = imperialDistanceToMeters(values["cloudCeiling"]?.jsonPrimitive?.doubleOrNull),
+        val intervals = root["data"]?.jsonObject
+            ?.get("timelines")?.jsonArray
+            ?.firstOrNull { it.jsonObject["timestep"]?.jsonPrimitive?.contentOrNull == "5m" }
+            ?.jsonObject
+            ?.get("intervals")?.jsonArray
+            ?: JsonArray(emptyList())
+        val history = intervals.mapNotNull { element ->
+            val obj = element.jsonObject
+            val startTime = obj["startTime"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val values = obj["values"]?.jsonObject ?: return@mapNotNull null
+            val temperature = values["temperature"]?.jsonPrimitive?.floatOrNull
+                ?.takeIf { it.isFinite() }
+                ?: return@mapNotNull null
+            val timestamp = runCatching { OffsetDateTime.parse(startTime).toInstant().toEpochMilli() }
+                .getOrNull()
+                ?: return@mapNotNull null
+            val code = values["weatherCode"]?.jsonPrimitive?.intOrNull
+            HourlyForecast(
+                dateTime = timestamp,
+                temperature = temperature,
+                condition = code?.let(::weatherCodeToCondition) ?: "Unknown",
+                cloudCover = percentOrNull(values["cloudCover"]?.jsonPrimitive?.floatOrNull),
+                cloudEnvelopeBaseMeters = imperialDistanceToMeters(values["cloudBase"]?.jsonPrimitive?.doubleOrNull),
+                cloudEnvelopeTopMeters = imperialDistanceToMeters(values["cloudCeiling"]?.jsonPrimitive?.doubleOrNull),
+                source = WeatherSource.TOMORROW_IO.id,
+            )
+        }.sortedBy { it.dateTime }
+        val latest = history.lastOrNull()
+        return RawFetch(
+            subHourly = history,
+            providerCurrentTemp = latest?.temperature,
+            providerCurrentCondition = latest?.condition,
+            providerCurrentObservedAt = latest?.dateTime,
+            providerCurrentCloudCover = latest?.cloudCover,
         )
     }
 
     fun weatherCodeToCondition(code: Int): String = WeatherCodeMapper.tomorrowIoCodeToCondition(code)
 }
-
-data class TomorrowIoRealtimeReading(
-    val temperature: Float,
-    val condition: String,
-    val observedAt: Long,
-    val cloudCover: Int?,
-    val cloudEnvelopeBaseMeters: Int? = null,
-    val cloudEnvelopeTopMeters: Int? = null,
-)

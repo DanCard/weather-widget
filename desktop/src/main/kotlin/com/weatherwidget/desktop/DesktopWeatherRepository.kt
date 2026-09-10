@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.*
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.shared.actuals.DailyHistoryMaintenance
 import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.shared.util.DailyHistoryFreeze
@@ -24,6 +25,7 @@ import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.observations.ActualsProviderResolver
+import com.weatherwidget.shared.observations.ObservationTimelineNormalizer
 import com.weatherwidget.shared.history.ProviderHistoryDecision
 import com.weatherwidget.shared.history.ProviderHistoryFailureClass
 import com.weatherwidget.shared.history.ProviderHistoryPolicy
@@ -248,12 +250,10 @@ class DesktopWeatherRepository(
                 source = displaySource,
             )
         }
-        val sourceObs =
-            if (displaySource == WeatherSource.TOMORROW_IO) {
-                TomorrowIoActuals.preferRealtimeWithinHour(matchedSourceObs)
-            } else {
-                matchedSourceObs
-            }
+        val sourceObs = ObservationTimelineNormalizer.normalize(
+            matchedSourceObs,
+            ActualsProviderResolver.providerIdFor(displaySource),
+        )
 
         // Prefer the most-recent NWS_BLEND synthetic row — it represents the IDW-weighted truth
         // across all stations. Raw station rows can have newer timestamps (from historical fetches)
@@ -592,7 +592,16 @@ class DesktopWeatherRepository(
                     "hourlyWithLow=${result.hourly.count { it.cloudCoverLow != null }} " +
                     "hourlyTotal=${result.hourly.size}",
             )
-            weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
+        }
+        if (
+            result.rawObservations.isNotEmpty() ||
+            ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.TOMORROW_IO.id
+        ) {
+            persistObservations(
+                readings = result.rawObservations,
+                now = now,
+                tomorrowWindowHours = TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS,
+            )
         }
         return forecastHours
     }
@@ -768,8 +777,15 @@ class DesktopWeatherRepository(
             val result = weatherService.fetchObservationsOnly(recentOnly = true)
             val now = currentTimeMillis()
 
-            if (result.rawObservations.isNotEmpty()) {
-                weatherDao.upsertObservations(result.rawObservations.map { it.toEntity(now) })
+            if (
+                result.rawObservations.isNotEmpty() ||
+                ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.TOMORROW_IO.id
+            ) {
+                persistObservations(
+                    readings = result.rawObservations,
+                    now = now,
+                    tomorrowWindowHours = TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS,
+                )
             }
 
             val extremesCount = recomputeDailyExtremes(now)
@@ -818,6 +834,52 @@ class DesktopWeatherRepository(
                 weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(displaySource.id, e), "WARN")
             }
             throw e
+        }
+    }
+
+    private fun persistObservations(
+        readings: List<ObservationReading>,
+        now: Long,
+        tomorrowWindowHours: Int,
+    ) {
+        val fiveMinute = readings.filter {
+            it.api == WeatherSource.TOMORROW_IO.id &&
+                it.stationId == TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID
+        }
+        val replacementCount = if (fiveMinute.isEmpty()) {
+            0
+        } else {
+            val minTimestamp = fiveMinute.minOf { it.timestamp }
+            val maxTimestampExclusive = fiveMinute.maxOf { it.timestamp } + 1L
+            val existingKeys = weatherDao.getObservationsInRange(
+                minTimestamp,
+                maxTimestampExclusive,
+                latitude,
+                longitude,
+            ).asSequence()
+                .filter {
+                    it.locationLat == fiveMinute.first().locationLat &&
+                        it.locationLon == fiveMinute.first().locationLon
+                }
+                .map { Triple(it.stationId, it.timestamp, it.api) }
+                .toSet()
+            fiveMinute.count { Triple(it.stationId, it.timestamp, it.api) in existingKeys }
+        }
+
+        weatherDao.upsertObservations(readings.map { it.toEntity(now) })
+        val actualsProvider = ActualsProviderResolver.providerIdFor(displaySource)
+        if (actualsProvider == WeatherSource.TOMORROW_IO.id) {
+            weatherDao.log(
+                "TMRW_5M_FETCH",
+                "windowHours=$tomorrowWindowHours rows=${fiveMinute.size} " +
+                    "earliest=${fiveMinute.minOfOrNull { it.timestamp }} " +
+                    "latest=${fiveMinute.maxOfOrNull { it.timestamp }} " +
+                    "replacements=$replacementCount",
+                "INFO",
+            )
+        }
+        if (fiveMinute.isNotEmpty()) {
+            weatherDao.retireConflictingTomorrowIoProductsIfCovered(latitude, longitude)
         }
     }
 

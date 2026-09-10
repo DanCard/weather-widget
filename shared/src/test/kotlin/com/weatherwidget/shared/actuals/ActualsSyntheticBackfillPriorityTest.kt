@@ -142,7 +142,7 @@ class ActualsSyntheticBackfillPriorityTest {
         val at = epoch("2026-08-02T18:00:00")
         val obs = listOf(
             observation(
-                TomorrowIoActuals.REALTIME_STATION_ID,
+                TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID,
                 "2026-08-02T18:00:00",
                 73.9f,
                 api = WeatherSource.TOMORROW_IO.id,

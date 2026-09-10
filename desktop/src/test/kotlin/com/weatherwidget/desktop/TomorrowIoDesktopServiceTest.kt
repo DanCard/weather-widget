@@ -22,25 +22,27 @@ import org.junit.experimental.categories.Category
 class TomorrowIoDesktopServiceTest {
 
     @Test
-    fun `full refresh returns recent history and realtime with separate provenance`() = runTest {
+    fun `full refresh keeps hourly daily forecast and adds five minute history`() = runTest {
         val hour = Instant.now().truncatedTo(ChronoUnit.HOURS)
         val past = hour.minus(1, ChronoUnit.HOURS)
         val future = hour.plus(1, ChronoUnit.HOURS)
-        val realtime = hour.plus(20, ChronoUnit.MINUTES)
+        val latestFiveMinute = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.MINUTES)
         val capturedStarts = mutableListOf<String?>()
+        val capturedEnds = mutableListOf<String?>()
         val capturedHourlyFields = mutableListOf<String?>()
         val capturedTimesteps = mutableListOf<List<String>>()
         var timelineCalls = 0
         val engine = MockEngine { request ->
-            val body = when {
-                request.url.encodedPath == "/v4/weather/realtime" -> realtimeJson(realtime)
-                else -> {
-                    timelineCalls++
-                    capturedStarts += request.url.parameters["startTime"]
-                    capturedHourlyFields += request.url.parameters["fields"]
-                    capturedTimesteps += request.url.parameters.getAll("timesteps").orEmpty()
-                    combinedTimelineJson(past, future, hour)
-                }
+            timelineCalls++
+            capturedStarts += request.url.parameters["startTime"]
+            capturedEnds += request.url.parameters["endTime"]
+            capturedHourlyFields += request.url.parameters["fields"]
+            val timesteps = request.url.parameters.getAll("timesteps").orEmpty()
+            capturedTimesteps += timesteps
+            val body = if (timesteps == listOf("5m")) {
+                fiveMinuteTimelineJson(latestFiveMinute.minus(5, ChronoUnit.MINUTES), latestFiveMinute)
+            } else {
+                combinedTimelineJson(past, future, hour)
             }
             respond(
                 content = body,
@@ -61,41 +63,48 @@ class TomorrowIoDesktopServiceTest {
 
             // Covers the whole elapsed local day so a first-time fetch at a new site still gets
             // today's overnight minimum — see TomorrowIoApi's startTime comment.
-            assertEquals(1, timelineCalls)
-            assertEquals(listOf(listOf("1h", "1d")), capturedTimesteps)
-            assertEquals(listOf("nowMinus23h"), capturedStarts)
-            assertTrue(capturedHourlyFields.single().orEmpty().contains("cloudBase"))
-            assertTrue(capturedHourlyFields.single().orEmpty().contains("cloudCeiling"))
+            assertEquals(2, timelineCalls)
+            assertEquals(setOf(listOf("1h", "1d"), listOf("5m")), capturedTimesteps.toSet())
+            assertEquals(2, capturedStarts.size)
+            val forecastIndex = capturedTimesteps.indexOf(listOf("1h", "1d"))
+            val fiveMinuteIndex = capturedTimesteps.indexOf(listOf("5m"))
+            assertEquals("nowMinus23h", capturedStarts[forecastIndex])
+            val fiveMinuteStart = Instant.parse(capturedStarts[fiveMinuteIndex])
+            val fiveMinuteEnd = Instant.parse(capturedEnds[fiveMinuteIndex])
+            assertEquals(23L, ChronoUnit.HOURS.between(fiveMinuteStart, fiveMinuteEnd))
+            assertEquals(0L, Math.floorMod(fiveMinuteEnd.epochSecond, 5 * 60L))
+            assertTrue(capturedHourlyFields.all { it.orEmpty().contains("cloudBase") })
+            assertTrue(capturedHourlyFields.all { it.orEmpty().contains("cloudCeiling") })
             assertEquals(
-                setOf(
-                    TomorrowIoActuals.RECENT_HISTORY_STATION_ID,
-                    TomorrowIoActuals.REALTIME_STATION_ID,
-                ),
+                setOf(TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID),
                 result.rawObservations.map { it.stationId }.toSet(),
             )
+            assertEquals(2, result.rawObservations.size)
             assertEquals(68f, result.providerCurrentTemp!!, 0.01f)
-            assertEquals(realtime.toEpochMilli(), result.providerCurrentObservedAt)
-            val history = result.rawObservations.single { it.stationId == TomorrowIoActuals.RECENT_HISTORY_STATION_ID }
+            assertEquals(latestFiveMinute.toEpochMilli(), result.providerCurrentObservedAt)
+            val history = result.rawObservations.maxBy { it.timestamp }
             assertEquals(1_609, history.cloudEnvelopeBaseMeters)
             assertEquals(4_828, history.cloudEnvelopeTopMeters)
             assertEquals(CloudVerticalKind.TOTAL_ENVELOPE, history.cloudVerticalKind)
-            val current = result.rawObservations.single { it.stationId == TomorrowIoActuals.REALTIME_STATION_ID }
-            assertEquals(3_219, current.cloudEnvelopeBaseMeters)
-            assertEquals(6_437, current.cloudEnvelopeTopMeters)
-            assertEquals(CloudVerticalKind.TOTAL_ENVELOPE, current.cloudVerticalKind)
         } finally {
             service.close()
         }
     }
 
     @Test
-    fun `observations only refresh returns realtime without timeline history`() = runTest {
-        val realtime = Instant.now().truncatedTo(ChronoUnit.MINUTES)
+    fun `observations only refresh returns one hour five minute history`() = runTest {
+        val latest = Instant.now().truncatedTo(ChronoUnit.MINUTES)
         val requestedPaths = mutableListOf<String>()
+        val requestedStarts = mutableListOf<String?>()
+        val requestedEnds = mutableListOf<String?>()
+        val requestedTimesteps = mutableListOf<List<String>>()
         val engine = MockEngine { request ->
             requestedPaths += request.url.encodedPath
+            requestedStarts += request.url.parameters["startTime"]
+            requestedEnds += request.url.parameters["endTime"]
+            requestedTimesteps += request.url.parameters.getAll("timesteps").orEmpty()
             respond(
-                content = realtimeJson(realtime),
+                content = fiveMinuteTimelineJson(latest.minus(5, ChronoUnit.MINUTES), latest),
                 status = HttpStatusCode.OK,
                 headers = headersOf(HttpHeaders.ContentType, "application/json"),
             )
@@ -111,8 +120,19 @@ class TomorrowIoDesktopServiceTest {
         try {
             val result = service.fetchObservationsOnly(recentOnly = true)
 
-            assertEquals(listOf("/v4/weather/realtime"), requestedPaths)
-            assertEquals(listOf(TomorrowIoActuals.REALTIME_STATION_ID), result.rawObservations.map { it.stationId })
+            assertEquals(listOf("/v4/timelines"), requestedPaths)
+            val requestedStart = Instant.parse(requestedStarts.single())
+            val requestedEnd = Instant.parse(requestedEnds.single())
+            assertEquals(1L, ChronoUnit.HOURS.between(requestedStart, requestedEnd))
+            assertEquals(0L, Math.floorMod(requestedEnd.epochSecond, 5 * 60L))
+            assertEquals(listOf(listOf("5m")), requestedTimesteps)
+            assertEquals(
+                listOf(
+                    TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID,
+                    TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID,
+                ),
+                result.rawObservations.map { it.stationId },
+            )
             assertTrue(result.hourly.isEmpty())
         } finally {
             service.close()
@@ -129,6 +149,9 @@ class TomorrowIoDesktopServiceTest {
             {"startTime":"$future","values":{"temperature":70.0,"weatherCode":1000,"cloudCover":10}}
         ]}]}}""".trimIndent()
 
-    private fun realtimeJson(time: Instant) =
-        """{"data":{"time":"$time","values":{"temperature":68.0,"weatherCode":1101,"cloudCover":56,"cloudBase":2.0,"cloudCeiling":4.0}}}"""
+    private fun fiveMinuteTimelineJson(first: Instant, latest: Instant) =
+        """{"data":{"timelines":[{"timestep":"5m","intervals":[
+            {"startTime":"$first","values":{"temperature":67.5,"weatherCode":1101,"cloudCover":54,"cloudBase":0.5,"cloudCeiling":2.0}},
+            {"startTime":"$latest","values":{"temperature":68.0,"weatherCode":1101,"cloudCover":56,"cloudBase":1.0,"cloudCeiling":3.0}}
+        ]}]}}""".trimIndent()
 }

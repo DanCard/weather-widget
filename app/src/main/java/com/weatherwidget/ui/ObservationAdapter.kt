@@ -14,6 +14,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.shared.observations.ObservationOrigin
 import java.time.Instant
 import java.time.ZoneId
@@ -38,12 +39,12 @@ internal class ObservationAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
+        val context = holder.itemView.context
         holder.itemView.setOnClickListener { onItemClick(item) }
-        holder.stationName.text = item.stationName
+        holder.stationName.text = stationDisplayName(context, item.stationId, item.stationName)
         val distanceStr = if (item.distanceKm > 0) String.format(" • %.1f mi", item.distanceKm * 0.621371f) else ""
         holder.stationIdTime.text = "${item.stationId}$distanceStr • "
 
-        val context = holder.itemView.context
         val origin = ObservationOrigin.of(
             timestampMs = item.timestamp,
             qcFailed = item.qcFailed,
@@ -126,6 +127,18 @@ internal class ObservationAdapter(
     }
 
     companion object {
+        @VisibleForTesting
+        internal fun stationDisplayName(
+            context: Context,
+            stationId: String,
+            fallback: String,
+        ): String =
+            if (stationId == TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID) {
+                context.getString(R.string.station_name_tomorrow_five_minute_history)
+            } else {
+                fallback
+            }
+
         private const val TIME_VALUE_SP = 21
         private val COLOR_TEXT_SECONDARY = Color.parseColor("#AAAAAA")
         private val COLOR_TIME_REPORTED = Color.parseColor("#E8A24E")

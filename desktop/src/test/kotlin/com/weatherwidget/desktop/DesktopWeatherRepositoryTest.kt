@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.shared.util.ClimateNormals
 import com.weatherwidget.test.category.ShortDuration
 import kotlinx.coroutines.test.runTest
@@ -149,6 +150,73 @@ class DesktopWeatherRepositoryTest {
         assertEquals("Forecast clear", result.resolved.currentCondition)
         assertTrue(result.raw.dailyActuals.isEmpty())
         silurianService.close()
+    }
+
+    @Test
+    fun `loadCached uses five minute Tomorrow history and ignores retired realtime`() = runTest {
+        val hour = (System.currentTimeMillis() / 3600_000L) * 3600_000L
+        val now = hour + 20 * 60_000L
+        val realtimeTimestamp = hour - 26 * 60_000L
+        val historyTimestamp = hour
+        val tomorrowService = DesktopWeatherService(37.4220, -122.0841, WeatherSource.TOMORROW_IO.id)
+        val tomorrowRepository = DesktopWeatherRepository(
+            tomorrowService,
+            dao,
+            37.4220,
+            -122.0841,
+            WeatherSource.TOMORROW_IO.id,
+            currentTimeMillis = { now },
+        )
+        dao.upsertHourlyForecasts(
+            37.4220,
+            -122.0841,
+            WeatherSource.TOMORROW_IO.id,
+            listOf(
+                HourlyForecast(hour - 3600_000L, 72f, "Forecast", source = WeatherSource.TOMORROW_IO.id),
+                HourlyForecast(hour, 75f, "Forecast", source = WeatherSource.TOMORROW_IO.id),
+                HourlyForecast(hour + 3600_000L, 78f, "Forecast", source = WeatherSource.TOMORROW_IO.id),
+            ),
+        )
+        dao.upsertObservations(
+            listOf(
+                DesktopObservationEntity(
+                    stationId = TomorrowIoActuals.REALTIME_STATION_ID,
+                    stationName = TomorrowIoActuals.REALTIME_STATION_NAME,
+                    timestamp = realtimeTimestamp,
+                    temperature = 72.70f,
+                    condition = "Older realtime",
+                    locationLat = 37.4220,
+                    locationLon = -122.0841,
+                    distanceKm = 0f,
+                    stationType = "OFFICIAL",
+                    fetchedAt = hour - 25 * 60_000L,
+                    api = WeatherSource.TOMORROW_IO.id,
+                ),
+                DesktopObservationEntity(
+                    stationId = TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID,
+                    stationName = TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_NAME,
+                    timestamp = historyTimestamp,
+                    temperature = 75.60f,
+                    condition = "Newer history",
+                    locationLat = 37.4220,
+                    locationLon = -122.0841,
+                    distanceKm = 0f,
+                    stationType = "OFFICIAL",
+                    fetchedAt = hour + 19 * 60_000L,
+                    api = WeatherSource.TOMORROW_IO.id,
+                ),
+            ),
+        )
+
+        try {
+            val result = tomorrowRepository.loadCached(now)
+
+            assertNotNull(result)
+            assertEquals(historyTimestamp, result!!.resolved.currentObservedAt)
+            assertEquals("Newer history", result.resolved.currentCondition)
+        } finally {
+            tomorrowService.close()
+        }
     }
 
     @Test

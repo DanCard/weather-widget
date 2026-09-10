@@ -214,9 +214,7 @@ object MetarCloudBlender {
                 .groupBy { (row, _) -> CloudHourBucket.startMsOf(row.timestamp) }
                 .filterKeys { it in startMs until endMs }
                 .mapValues { (hourMs, samples) ->
-                    val realtime = samples.filter { (row, _) -> TomorrowIoActuals.isRealtime(row.stationId) }
-                    (realtime.ifEmpty { samples })
-                        .minBy { (row, _) -> abs(row.timestamp - hourMs) }
+                    samples.minBy { (row, _) -> abs(row.timestamp - hourMs) }
                         .second
                 }
             return synthetic(hours)

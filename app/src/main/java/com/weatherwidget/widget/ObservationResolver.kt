@@ -11,9 +11,9 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualsAggregator
-import com.weatherwidget.shared.actuals.TomorrowIoActuals
-import com.weatherwidget.shared.observations.CloudHourBucket
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
+import com.weatherwidget.shared.observations.ObservationTimelineNormalizer
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -50,19 +50,10 @@ object ObservationResolver {
                 source = displaySource,
             )
         }
-        val selectionPool =
-            if (displaySource == WeatherSource.TOMORROW_IO) {
-                val realtimeBuckets = filtered.asSequence()
-                    .filter { TomorrowIoActuals.isRealtime(it.stationId) }
-                    .map { CloudHourBucket.startMsOf(it.timestamp) }
-                    .toSet()
-                filtered.filter {
-                    TomorrowIoActuals.isRealtime(it.stationId) ||
-                        CloudHourBucket.startMsOf(it.timestamp) !in realtimeBuckets
-                }
-            } else {
-                filtered
-            }
+        val selectionPool = ObservationTimelineNormalizer.normalize(
+            filtered.map { it.toReading() },
+            ActualsProviderResolver.providerIdFor(displaySource),
+        )
         val maxTs = selectionPool.maxOfOrNull { it.timestamp }
         val selected = if (maxTs != null) {
             val candidates = selectionPool.filter { it.timestamp == maxTs }

@@ -25,7 +25,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -110,6 +110,7 @@ class WeatherWidgetProviderDayTapSourceGapRoboTest {
 
     @After
     fun tearDown() {
+        WidgetActionJobRegistry.clearForTesting()
         db.close()
         WeatherDatabase.resetInstanceForTesting()
         unmockkAll()
@@ -123,7 +124,7 @@ class WeatherWidgetProviderDayTapSourceGapRoboTest {
         seedSourceGapToday()
 
         receiver.onReceive(context, dayClickIntent(LocalDate.now()))
-        advanceUntilIdle()
+        awaitDayClickOutcome(testScheduler)
 
         assertEquals(
             "day tap must flip stored view mode to TEMPERATURE",
@@ -144,6 +145,25 @@ class WeatherWidgetProviderDayTapSourceGapRoboTest {
             "render must reach updateAppWidget (old bug: NPE aborted before any RemoteViews push)",
             viewsSlot.isCaptured,
         )
+    }
+
+    /**
+     * The receiver job is rooted in its own SupervisorJob, while Room resumes DAO calls from real
+     * executor threads. A single advanceUntilIdle() can therefore return after the mode flip but
+     * before runInteraction writes its terminal breadcrumb. Pump the virtual dispatcher without
+     * advancing the 8-second broadcast watchdog, and give Room a bounded amount of real time to
+     * resume the render coroutine.
+     */
+    private suspend fun awaitDayClickOutcome(testScheduler: TestCoroutineScheduler) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline) {
+            testScheduler.runCurrent()
+            val succeeded = db.appLogDao().getLogsByTag("DAY_CLICK_RENDER_OK", 10).isNotEmpty()
+            val failed = db.appLogDao().getLogsByTag("DAY_CLICK_FAIL", 10).isNotEmpty()
+            if (succeeded || failed) return
+            Thread.sleep(10)
+        }
+        testScheduler.runCurrent()
     }
 
     /**

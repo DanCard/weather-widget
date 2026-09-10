@@ -17,9 +17,9 @@ import com.weatherwidget.data.model.CloudVerticalKind
     // here, OnConflictStrategy.REPLACE silently overwrote the NWS row with the METAR one and flipped
     // its provenance, dropping the station out of the NWS blend entirely: measured 2026-08-23 on two
     // devices, KNUQ was reduced to 1 surviving NWS row against 70 METAR rows, and the widget
-    // oscillated as each feed took the key in turn. The old key only ever worked because every other
-    // non-NWS source writes SYNTHETIC station ids (`OPEN_METEO_MAIN`, `TOMORROW_IO_REALTIME`) that
-    // cannot collide; METAR is the first to reuse real ones.
+    // oscillated as each feed took the key in turn. The old key only ever worked because other
+    // non-NWS sources use synthetic station ids that cannot collide; METAR is the first to reuse
+    // real ones.
     primaryKeys = ["stationId", "timestamp", "locationLat", "locationLon", "api"],
     indices = [
         Index(value = ["locationLat", "locationLon"]),

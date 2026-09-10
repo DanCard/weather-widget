@@ -140,6 +140,22 @@ class LocaleStringFormattingRobolectricTest {
     }
 
     @Test
+    fun `Tomorrow five minute provenance name resolves through Android resources in every locale`() {
+        shippedQualifiers().forEach { qualifier ->
+            RuntimeEnvironment.setQualifiers(qualifier)
+            assertEquals(
+                "[$qualifier]",
+                app().getString(R.string.station_name_tomorrow_five_minute_history),
+                ObservationAdapter.stationDisplayName(
+                    app(),
+                    com.weatherwidget.shared.actuals.TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID,
+                    "unlocalized database fallback",
+                ),
+            )
+        }
+    }
+
+    @Test
     fun `RTL locales resolve RTL layout direction`() {
         RuntimeEnvironment.setQualifiers("ar")
         assertEquals(

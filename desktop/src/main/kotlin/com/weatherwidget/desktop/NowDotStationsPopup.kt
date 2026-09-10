@@ -213,7 +213,7 @@ fun NowDotStationsPopup(
 }
 
 // Proportional columns rather than fixed widths: a fixed station column has to be sized for the
-// longest id that could appear (`TOMORROW_IO_REALTIME`), which leaves a visible gap after a 4-char
+// longest provider id that could appear, which leaves a visible gap after a 4-char
 // ICAO code like `KNUQ` on every ordinary row. Weights keep the columns aligned down the table while
 // spending the width where the content is.
 private const val STATION_WEIGHT = 2.0f

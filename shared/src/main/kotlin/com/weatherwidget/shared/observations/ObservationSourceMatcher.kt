@@ -23,7 +23,8 @@ object ObservationSourceMatcher {
 
     /**
      * True when [stationId] is the historical-actuals backfill row for [sourceId] — a slice of that
-     * source's hourly *forecast* re-filed as observations at `distanceKm = 0`, not a measurement.
+     * source's approved historical product re-filed as observations at `distanceKm = 0`, not a
+     * physical-station measurement.
      *
      * The blend uses this to rank such a row below every real station
      * (`ActualTemperatureSeriesBuilder.blendCandidateTemperature`): its zero distance would otherwise
