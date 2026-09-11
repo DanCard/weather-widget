@@ -73,16 +73,17 @@ class DailyActualsStore @Inject constructor(
     private val appLogDao: AppLogDao,
     private val hourlyForecastDao: HourlyForecastDao,
     private val personalStationWeightProvider: PersonalStationWeightProvider,
-) {
     /**
      * Last observation signature a day was successfully reduced from, keyed by (day, quantized
-     * location). Purely a within-process cache: losing it on process death costs exactly one
-     * redundant recompute, which is why it needs no storage, no migration and no pruning beyond the
-     * bound below.
+     * location). Was a within-process map on the reasoning that losing it on process death costs
+     * "exactly one redundant recompute" — which turned out to be 12 s of cold CPU at the worst
+     * moment (see [ReducedSignatureStore]). Hilt supplies the persisted one; the in-memory default
+     * keeps manual construction and tests unchanged.
      *
      * Concurrent because recomputes for different days overlap on the sync's dispatcher.
      */
-    private val reducedSignatures = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val reducedSignatures: ReducedSignatureStore = InMemoryReducedSignatureStore(),
+) {
     suspend fun getDailyActualsWithLiveToday(
         latitude: Double,
         longitude: Double,

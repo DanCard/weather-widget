@@ -8,7 +8,9 @@ import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.WeatherWidgetApp
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.MetarObservationSource
 import com.weatherwidget.shared.util.MetarFetchPolicy
 import com.weatherwidget.data.local.log
@@ -75,7 +77,9 @@ class WeatherWidgetWorker
 
             ProcessExitLogger.logRecentExitsOnce(context, appLogDao)
 
-            val input = WorkInput.from(inputData)
+            val requested = WorkInput.from(inputData)
+            deferForStartupCooldown(requested)?.let { return it }
+            val input = dropSatisfiedForce(requested)
             val device = measureDeviceContext()
             appLogDao.log(
                 "SYNC_START",
@@ -109,6 +113,70 @@ class WeatherWidgetWorker
             }
 
             return fullSyncPipeline.run(input, device, stopReason)
+        }
+
+        /**
+         * The startup cooldown: while a user-facing process start is still fresh, every run except a
+         * UI-only repaint is turned away and replayed later ([StartupCooldown]). The repaint is the
+         * one thing a cold process owes the user; everything else — fetches, observation backfills,
+         * actuals recomputes — is what made the taps slow.
+         *
+         * Returns the result to hand back when the run was deferred, or null to proceed.
+         */
+        private suspend fun deferForStartupCooldown(input: WorkInput): Result? {
+            if (input.uiOnlyRefresh) return null
+            val remainingMs = startupCooldownProvider().remainingMs(SystemClock.elapsedRealtime())
+            if (remainingMs <= 0L) return null
+            val delayMs = remainingMs.coerceAtLeast(StartupCooldown.MIN_DEFERRAL_MS)
+            val (outcome, detail) =
+                WidgetWorkScheduler.enqueueStartupDeferred(context, inputData, delayMs, excludeId = id)
+            appLogDao.log(
+                "SYNC_DEFERRED_STARTUP",
+                "reason=${input.currentTempReason} force=${input.forceRefresh} " +
+                    "currentOnly=${input.currentTempOnly} backfill=${input.observationBackfillMode} " +
+                    "processAgeMs=${WeatherWidgetApp.processAgeMs()} delayMs=$delayMs " +
+                    "outcome=${outcome.logValue} $detail",
+                "INFO",
+            )
+            return Result.success()
+        }
+
+        /**
+         * A forced request that has already been satisfied runs unforced.
+         *
+         * "Satisfied" = the target (one source, or the full fetch) succeeded AFTER the request was
+         * made. The case this exists for: a toggle-forced sync fetched, then the install killed the
+         * process during its recompute, and WorkManager re-ran the whole thing as `force=true` with
+         * `lastFullFetch=26s ago` — 50 s of work for data it already had. Requests that carry no
+         * request time (0) are left alone.
+         */
+        private suspend fun dropSatisfiedForce(input: WorkInput): WorkInput {
+            if (!input.forceRefresh || input.uiOnlyRefresh || input.requestedAtMs <= 0L) return input
+            val satisfiedAtMs = forcedTargetLastSuccessMs(input.targetSourceId)
+            if (!ForcedRefreshSatisfaction.isSatisfied(input.requestedAtMs, satisfiedAtMs)) return input
+            appLogDao.log(
+                "FORCED_REFRESH_SATISFIED",
+                "reason=${input.currentTempReason} target=${input.targetSourceId ?: "all"} " +
+                    "requestedAt=${input.requestedAtMs} satisfiedAt=$satisfiedAtMs deferred=${input.startupDeferred}",
+                "INFO",
+            )
+            return input.copy(forceRefresh = false)
+        }
+
+        private suspend fun forcedTargetLastSuccessMs(targetSourceId: String?): Long {
+            if (targetSourceId == null) return weatherRepository.lastNetworkFetchTimeMs
+            val location =
+                ActiveLocationResolver.resolve(
+                    context,
+                    widgetStateManager,
+                    WeatherDatabase.getDatabase(context).forecastDao(),
+                ) ?: return 0L
+            return FetchMetadata.getLastForecastSourceSuccessTime(
+                context,
+                targetSourceId,
+                location.first,
+                location.second,
+            )
         }
 
         /**
@@ -466,6 +534,10 @@ class WeatherWidgetWorker
             // No DEFAULT_LAT/DEFAULT_LON. "No location" is the absence of coordinates, not a
             // stand-in for one; the retired Google-HQ values survive only in
             // LegacyDefaultLocationMigration, which erases them from upgrading installs.
+            /** Swappable so a worker test can put the process inside or outside the cooldown. */
+            @androidx.annotation.VisibleForTesting
+            internal var startupCooldownProvider: () -> StartupCooldown = { WeatherWidgetApp.startupCooldown() }
+
             const val KEY_UI_ONLY_REFRESH = "ui_only_refresh"
             const val KEY_FORCE_REFRESH = "force_refresh"
             const val KEY_LOCATION_CANDIDATE_REFRESH = "location_candidate_refresh"
@@ -501,6 +573,18 @@ class WeatherWidgetWorker
              * "a test enqueued this" and the later process that executes it.
              */
             const val KEY_ENQUEUED_IN_TESTING = "enqueued_in_testing"
+
+            /**
+             * Wall-clock millis when a forced sync was requested. A forced request whose target has
+             * been fetched successfully SINCE this time has already been satisfied — typically the
+             * request itself ran, fetched, and was killed before finishing, and WorkManager is now
+             * re-running it. Absent (0) on requests from paths that do not stamp it; those keep
+             * their force.
+             */
+            const val KEY_REQUESTED_AT_MS = "requested_at_ms"
+
+            /** Set on a run that [StartupCooldown] deferred and re-enqueued; for logs and tests. */
+            const val KEY_STARTUP_DEFERRED = "startup_deferred"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
             const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
         }

@@ -31,7 +31,7 @@ class PackageReplacedReceiverTest {
     fun `package replacement renders every widget from cache once`() = runTest {
         val receiver = receiverWithTestScope()
         var renderCount = 0
-        receiver.renderAllWidgetsFromCache = { _, _ -> renderCount++ }
+        receiver.rebindAllWidgets = { _, _ -> renderCount++ }
 
         receiver.onReceive(context, Intent(Intent.ACTION_MY_PACKAGE_REPLACED))
         advanceUntilIdle()
@@ -43,7 +43,7 @@ class PackageReplacedReceiverTest {
     fun `unexpected action is ignored`() = runTest {
         val receiver = receiverWithTestScope()
         var renderCount = 0
-        receiver.renderAllWidgetsFromCache = { _, _ -> renderCount++ }
+        receiver.rebindAllWidgets = { _, _ -> renderCount++ }
 
         receiver.onReceive(context, Intent("com.weatherwidget.UNEXPECTED"))
         advanceUntilIdle()

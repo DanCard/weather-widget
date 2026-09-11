@@ -37,6 +37,10 @@ object WidgetWorkScheduler {
     const val WORK_NAME_PERIODIC = "weather_widget_update"
     const val WORK_NAME_ONE_TIME = "weather_widget_one_time"
     const val WORK_NAME_STARTUP_DELAYED = "weather_widget_startup_delayed"
+
+    /** Runs that [StartupCooldown] deferred, replayed serially once the cooldown lapses. */
+    const val WORK_NAME_STARTUP_DEFERRED = "weather_widget_startup_deferred"
+    private const val DEFERRED_SIGNATURE_TAG_PREFIX = "startup_deferred:"
     const val WORK_NAME_CURRENT_TEMP = "weather_widget_current_temp"
     const val WORK_NAME_OBSERVATION_BACKFILL = "weather_widget_observation_backfill"
     const val WORK_NAME_UI = "weather_widget_one_time_ui"
@@ -384,6 +388,7 @@ object WidgetWorkScheduler {
             Data.Builder()
                 .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, forceRefresh)
                 .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
+                .putLong(WeatherWidgetWorker.KEY_REQUESTED_AT_MS, System.currentTimeMillis())
                 .apply {
                     targetSourceId?.let {
                         putString(WeatherWidgetWorker.KEY_TARGET_SOURCE, it)
@@ -408,6 +413,74 @@ object WidgetWorkScheduler {
                 "force=$forceRefresh delayMs=$initialDelayMs id=${request.id}",
         )
         return request
+    }
+
+    /** What [enqueueStartupDeferred] did, so the worker can log the truth. */
+    internal enum class DeferredEnqueueOutcome(val logValue: String) {
+        ENQUEUED("enqueued"),
+
+        /** An identical deferred run is already pending; this one folds into it. */
+        COALESCED("coalesced"),
+    }
+
+    /**
+     * The identity of a deferred run for coalescing: everything that changes what the worker does,
+     * nothing that merely describes it (the reason string, the request time).
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun deferredSignature(data: Data): String =
+        listOf(
+            data.getBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, false),
+            data.getBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, false),
+            data.getBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_ONLY, false),
+            data.getBoolean(WeatherWidgetWorker.KEY_NONPRIMARY_CURRENT_TEMP_ONLY, false),
+            data.getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, false),
+            data.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE) ?: "",
+            data.getInt(WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID, -1),
+            data.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE) ?: "",
+        ).joinToString(":")
+
+    /**
+     * Re-enqueues a run that the startup cooldown turned away, with its input intact, to execute
+     * [delayMs] from now. Deferred runs share one lane and APPEND, so they replay one at a time
+     * once the cooldown lapses — the opposite of the storm this exists to prevent. An identical
+     * run already waiting in the lane absorbs this one (three refresh taps during the cooldown are
+     * one refresh, not three); [excludeId] is the deferring run itself, which is still RUNNING and
+     * must not count as "already pending".
+     */
+    internal fun enqueueStartupDeferred(
+        context: Context,
+        inputData: Data,
+        delayMs: Long,
+        excludeId: java.util.UUID,
+    ): Pair<DeferredEnqueueOutcome, String> {
+        val signature = deferredSignature(inputData)
+        val signatureTag = DEFERRED_SIGNATURE_TAG_PREFIX + signature
+        val workManager = WorkManager.getInstance(context)
+        val alreadyPending =
+            runCatching { workManager.getWorkInfosForUniqueWork(WORK_NAME_STARTUP_DEFERRED).get() }
+                .getOrDefault(emptyList())
+                .any { !it.state.isFinished && it.id != excludeId && signatureTag in it.tags }
+        if (alreadyPending) {
+            return DeferredEnqueueOutcome.COALESCED to "signature=$signature"
+        }
+        val data =
+            Data.Builder()
+                .putAll(inputData)
+                .putBoolean(WeatherWidgetWorker.KEY_STARTUP_DEFERRED, true)
+                .build()
+        val request =
+            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                .setInputData(data)
+                .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+                .addTag(signatureTag)
+                .build()
+        workManager.enqueueUniqueWork(
+            WORK_NAME_STARTUP_DEFERRED,
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            request,
+        )
+        return DeferredEnqueueOutcome.ENQUEUED to "signature=$signature id=${request.id}"
     }
 
     private fun buildUiRequest(

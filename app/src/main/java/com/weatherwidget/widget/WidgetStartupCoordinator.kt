@@ -54,6 +54,8 @@ internal class WidgetStartupCoordinator(
         appWidgetIds: IntArray,
         startupToken: String,
         onUpdateStartMs: Long,
+        /** Who is painting, for [StartupPaintClaims]: `onUpdate` or the package-replaced rebind. */
+        claimVia: String = STARTUP_CLAIM_VIA,
     ) {
         val dbOpenStartMs = elapsedRealtime()
         val database = WeatherDatabase.getDatabase(context)
@@ -141,24 +143,31 @@ internal class WidgetStartupCoordinator(
                     }
                 }
             } else {
-                queryResult =
-                    loadStartupData(
-                        forecastDao = forecastDao,
-                        hourlyDao = hourlyDao,
-                        latestWeather = latestWeather,
-                        activeSourceList = activeSources.toList(),
-                        needsDailyData = needsDailyData,
-                        gapFiller = gapFiller,
-                        loadWindow = DailyLoadWindowResolver.resolve(context),
+                // One startup cache paint per widget: PackageReplacedReceiver may already have
+                // painted these seconds ago (see StartupPaintClaims). Painting them again costs a
+                // second cold full render and shows nothing new. The staleness check and the
+                // periodic schedule below are this path's own job and still run.
+                val unpaintedIds = claimStartupPaints(validWidgetIds, claimVia, appLogDao)
+                if (unpaintedIds.isNotEmpty()) {
+                    queryResult =
+                        loadStartupData(
+                            forecastDao = forecastDao,
+                            hourlyDao = hourlyDao,
+                            latestWeather = latestWeather,
+                            activeSourceList = activeSources.toList(),
+                            needsDailyData = needsDailyData,
+                            gapFiller = gapFiller,
+                            loadWindow = DailyLoadWindowResolver.resolve(context),
+                        )
+                    renderStartupWidgets(
+                        context = context,
+                        appWidgetManager = appWidgetManager,
+                        appWidgetIds = unpaintedIds,
+                        result = queryResult,
+                        startupToken = startupToken,
+                        appLogDao = appLogDao,
                     )
-                renderStartupWidgets(
-                    context = context,
-                    appWidgetManager = appWidgetManager,
-                    appWidgetIds = validWidgetIds,
-                    result = queryResult,
-                    startupToken = startupToken,
-                    appLogDao = appLogDao,
-                )
+                }
                 staleCheckMs = checkStalenessAndFetch(context)
             }
         } catch (e: CancellationException) {
@@ -467,6 +476,25 @@ internal class WidgetStartupCoordinator(
         )
     }
 
+    private suspend fun claimStartupPaints(
+        appWidgetIds: IntArray,
+        claimVia: String,
+        appLogDao: AppLogDao,
+    ): IntArray {
+        val now = elapsedRealtime()
+        return appWidgetIds.filter { appWidgetId ->
+            val holder = StartupPaintClaims.claim(appWidgetId, claimVia, now)
+            if (holder != null) {
+                appLogDao.log(
+                    "STARTUP_PAINT_SKIP",
+                    "widget=$appWidgetId via=$claimVia holder=$holder",
+                    "INFO",
+                )
+            }
+            holder == null
+        }.toIntArray()
+    }
+
     private suspend fun checkStalenessAndFetch(context: Context): Long {
         val startMs = elapsedRealtime()
         if (DataFreshness.isDataStale(context)) {
@@ -487,7 +515,8 @@ internal class WidgetStartupCoordinator(
         return elapsedRealtime() - startMs
     }
 
-    private companion object {
+    internal companion object {
         const val TAG = "WidgetStartupCoordinator"
+        const val STARTUP_CLAIM_VIA = "on_update"
     }
 }

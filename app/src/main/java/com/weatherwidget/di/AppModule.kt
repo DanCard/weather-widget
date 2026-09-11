@@ -210,6 +210,12 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideReducedSignatureStore(
+        store: com.weatherwidget.data.repository.PersistedReducedSignatureStore,
+    ): com.weatherwidget.data.repository.ReducedSignatureStore = store
+
+    @Provides
+    @Singleton
     fun provideNwsObservationSource(
         @ApplicationContext context: Context,
         appLogDao: AppLogDao,

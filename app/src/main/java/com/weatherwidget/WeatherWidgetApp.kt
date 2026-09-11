@@ -160,7 +160,22 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
 
         fun coldStartTriggerAgeMs(): Long = firstTriggerAgeMs
 
+        // Every user-facing trigger (onUpdate, widget action, package replacement, locale change)
+        // passes through logFirstTriggerOnce, so that call is also where the startup cooldown learns
+        // that someone is looking. Background entry points (the worker, JobScheduler services) never
+        // call it, which is what keeps a job-started process free of any cooldown.
+        @Volatile
+        private var startupCooldownInstance: com.weatherwidget.widget.StartupCooldown? = null
+
+        internal fun startupCooldown(): com.weatherwidget.widget.StartupCooldown =
+            startupCooldownInstance ?: synchronized(this) {
+                startupCooldownInstance ?: com.weatherwidget.widget.StartupCooldown(
+                    processStartElapsedMs = processStartElapsedRealtime,
+                ).also { startupCooldownInstance = it }
+            }
+
         fun logFirstTriggerOnce(via: String) {
+            startupCooldown().onUserFacingTrigger(SystemClock.elapsedRealtime())
             if (firstTriggerLogged.compareAndSet(false, true)) {
                 firstTriggerAgeMs = processAgeMs()
                 Log.i(COLD_START_TAG, "first_trigger ageMs=$firstTriggerAgeMs via=$via")

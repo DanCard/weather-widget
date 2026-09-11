@@ -23,6 +23,10 @@ internal data class WorkInput(
     val noHourlyLat: Double,
     val noHourlyLon: Double,
     val shouldBroadcastNoHourlyComplete: Boolean,
+    /** See [WeatherWidgetWorker.KEY_REQUESTED_AT_MS]; 0 when the enqueue path did not stamp it. */
+    val requestedAtMs: Long = 0L,
+    /** See [WeatherWidgetWorker.KEY_STARTUP_DEFERRED]. */
+    val startupDeferred: Boolean = false,
 ) {
     companion object {
         fun from(data: Data): WorkInput {
@@ -60,6 +64,8 @@ internal data class WorkInput(
                 noHourlyLat = data.getDouble(WeatherWidgetWorker.KEY_NO_HOURLY_LAT, 0.0),
                 noHourlyLon = data.getDouble(WeatherWidgetWorker.KEY_NO_HOURLY_LON, 0.0),
                 shouldBroadcastNoHourlyComplete = shouldBroadcastNoHourlyComplete,
+                requestedAtMs = data.getLong(WeatherWidgetWorker.KEY_REQUESTED_AT_MS, 0L),
+                startupDeferred = data.getBoolean(WeatherWidgetWorker.KEY_STARTUP_DEFERRED, false),
             )
         }
     }
