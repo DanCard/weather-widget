@@ -123,6 +123,95 @@ class TemperatureActualTurningPointLabelTest {
         )
     }
 
+    /**
+     * The 2026-09-10 emulator afternoon, reduced: the observed line falls from 88.1 to 78.2 at Now
+     * with one >= 0.75°F wiggle (81.8 -> 82.6) on the way down. The day has no confirmed daily low
+     * (its coldest sample is the Now edge), so the fallback runs — and before the fix it labelled the
+     * 81.8 dip as ACTUAL_LOW although the line went 3.6° colder afterwards.
+     */
+    @Test
+    fun `descent wiggle surpassed by later samples is not a fallback actual low`() {
+        val hours = descentHours(tail = listOf(82.6f, 81.0f, 79.8f, 78.2f))
+
+        val candidates = candidates(hours, effectiveActualEndIndex = 17)
+
+        val lows = candidates.filter { it.role == TemperatureRole.ACTUAL_LOW }
+        assertTrue(
+            "no observed dip is a low when the line is colder at Now: ${lows.map { it.index }}",
+            lows.isEmpty(),
+        )
+        assertTrue(
+            "the daily high is untouched by the fallback change",
+            candidates.any { it.role == TemperatureRole.ACTUAL_HIGH && it.index == 4 },
+        )
+    }
+
+    /**
+     * Same series, but the line rebounds after the dip and is warmer at Now: the dip is where the
+     * line bottomed out, so the fallback still labels it. Proves the gate is "surpassed later", not
+     * "fallback lows are gone".
+     */
+    @Test
+    fun `descent dip the line rebounds from is still a fallback actual low`() {
+        val hours = descentHours(tail = listOf(82.6f, 83.0f, 83.4f))
+
+        val candidates = candidates(hours, effectiveActualEndIndex = 16)
+
+        val lows = candidates.filter { it.role == TemperatureRole.ACTUAL_LOW }
+        assertEquals("the rebounded-from dip is the low: ${lows.map { it.index }}", listOf(13), lows.map { it.index })
+    }
+
+    /** Guards the reduction: the descent fixture really does offer the dip as a prominent turn. */
+    @Test
+    fun `descent fixture offers the dip as a prominent low before the surpassed gate`() {
+        val hours = descentHours(tail = listOf(82.6f, 81.0f, 79.8f, 78.2f))
+        val extrema = TemperatureLabelResolver.computeExtremaIndices(
+            hours = hours,
+            transitionX = 1_000f,
+            effectiveActualEndIndex = 17,
+            fetchTime = null,
+            useCelsius = false,
+        )
+        assertEquals("fixture should offer the dip: ${extrema.actualProminentLowIndices}", listOf(5, 13), extrema.actualProminentLowIndices)
+        assertTrue(
+            "fixture must have no confirmed daily actual low, or the fallback never runs",
+            extrema.actualDailyLowIndices.isEmpty(),
+        )
+    }
+
+    private fun descentHours(tail: List<Float>): List<HourData> {
+        // 15-minute observed samples from 13:00. Left edge 77 is the coldest sample (as on the emulator,
+        // where the morning climb starts below the evening reading) so the daily-low path has nothing
+        // and the end is not the actual low either; 88.1 at idx 4 is an interior peak the forecast
+        // never beats.
+        // Reversals: 85.7 -> 86.5 (0.8) and 81.8 -> 82.6 (0.8) both clear 0.75.
+        val actual = listOf(
+            77.0f, 84.0f, 85.6f, 87.0f, 88.1f, 85.7f, 86.2f, 86.5f, 86.6f,
+            85.5f, 84.5f, 83.5f, 82.7f, 81.8f,
+        ) + tail
+        val start = LocalDateTime.of(2026, 9, 10, 13, 0)
+        val observed = actual.indices.map { index ->
+            val dateTime = start.plusMinutes(index * 15L)
+            HourData(
+                dateTime = dateTime,
+                temperature = 85f,
+                label = dateTime.toLocalTime().toString(),
+                isActual = true,
+                actualTemperature = actual[index],
+            )
+        }
+        val future = listOf(77.3f, 75f, 72f, 70f).mapIndexed { step, temp ->
+            val dateTime = start.plusMinutes((actual.size + step) * 15L)
+            HourData(
+                dateTime = dateTime,
+                temperature = temp,
+                label = dateTime.toLocalTime().toString(),
+                isActual = false,
+            )
+        }
+        return observed + future
+    }
+
     private fun plateauHours(): List<HourData> {
         // Reversals: 76.64->75.84 (0.80), ->77.25 (1.41), ->76.14 (1.11), ->77.35 (1.21), ->76.5 (0.85).
         // All clear 0.75, so all five turns register. Coldest sample (70) is the left edge, so the day

@@ -80,15 +80,32 @@ internal object LabelCandidateCollector {
         // piled on the same spot. The question this fallback answers is "where did the observed line
         // peak/bottom out in this slice?", which has one answer per side — so keep the most extreme
         // turn and drop the rest. (Multi-peak windows are the daily-extrema path's job, not this one.)
+        //
+        // And the turn must be one the line has not since gone past. The hysteresis walk has no notion
+        // of trend, so on a steep monotone descent every >= 0.75°F wiggle registers as a "low"; the
+        // 2026-09-10 emulator afternoon (88.1 -> 78.2 at Now) labelled an 81.8 dip that the line then
+        // fell 3.6° through. Only applied when the observed line terminates on screen (a forecast
+        // region follows it), because there its last sample is the terminal reading the reader can see
+        // it went past. A historical slice whose observed line runs off the window edge keeps its
+        // interior peak/valley: the cut is arbitrary and the interior turn is still the shape on
+        // screen (TemperatureActualTurningPointLabelTest's "historical slice" case).
         val fallbackActualHighIndices =
             if (dailyActualHighLabelIndices.isEmpty()) {
-                mostExtremeTurn(extrema.actualProminentHighIndices, actualLabelTemps, wantMax = true)
+                mostExtremeTurn(
+                    dropTurnsSurpassedLater(extrema.actualProminentHighIndices, hours, extrema, wantMax = true),
+                    actualLabelTemps,
+                    wantMax = true,
+                )
             } else {
                 emptyList()
             }
         val fallbackActualLowIndices =
             if (dailyActualLowLabelIndices.isEmpty()) {
-                mostExtremeTurn(extrema.actualProminentLowIndices, actualLabelTemps, wantMax = false)
+                mostExtremeTurn(
+                    dropTurnsSurpassedLater(extrema.actualProminentLowIndices, hours, extrema, wantMax = false),
+                    actualLabelTemps,
+                    wantMax = false,
+                )
             } else {
                 emptyList()
             }
@@ -352,6 +369,39 @@ internal object LabelCandidateCollector {
             )
         }
         return listOf(best)
+    }
+
+    /**
+     * [indices] minus the turns the observed line has since gone past: a low warmer than a later
+     * observed sample, or a high colder than one, up to [ExtremaIndices.actualEndIndex]. A pass-through
+     * when the observed line runs to the window's last index (a historical cut — see the fallback
+     * comment in [collect]).
+     */
+    private fun dropTurnsSurpassedLater(
+        indices: List<Int>,
+        hours: List<HourData>,
+        extrema: TemperatureExtrema.ExtremaIndices,
+        wantMax: Boolean,
+    ): List<Int> {
+        val actualEnd = extrema.actualEndIndex
+        if (indices.isEmpty() || actualEnd !in hours.indices || actualEnd >= hours.lastIndex) return indices
+        val temps = extrema.actualLabelTemps
+        return indices.filter { idx ->
+            if (idx !in temps.indices || temps[idx].isNaN()) return@filter false
+            val surpassedAt = (idx + 1..actualEnd).firstOrNull { later ->
+                later in temps.indices && hours[later].isActual && !temps[later].isNaN() &&
+                    (if (wantMax) temps[later] > temps[idx] else temps[later] < temps[idx])
+            }
+            if (surpassedAt != null) {
+                Log.v(
+                    TAG,
+                    "ActualTurnSurpassed: dropped ${if (wantMax) "high" else "low"} idx=$idx " +
+                        "t=${hours[idx].dateTime.toLocalTime()} temp=${temps[idx]} by idx=$surpassedAt " +
+                        "t=${hours[surpassedAt].dateTime.toLocalTime()} temp=${temps[surpassedAt]}",
+                )
+            }
+            surpassedAt == null
+        }
     }
 
     private fun addActualTurningPointLabels(
