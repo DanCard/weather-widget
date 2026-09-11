@@ -1,0 +1,1 @@
+Release 26091001: Defer background sync during cold start, drop surpassed actual-turn labels, support 5-minute Tomorrow.io actuals history, and improve observation backfill resilience.

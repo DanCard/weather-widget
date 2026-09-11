@@ -25,7 +25,7 @@ window (`desktop/src/main/kotlin/com/weatherwidget/desktop/SettingsWindow.kt`), 
 
 ## Review Fixes Before Implementing (Memory)
 
-**Before implementing any fix or non-trivial change, first present the root-cause analysis and the
+**Before implementing any significant change, first present the root-cause analysis and the
 proposed fix plan, and wait for the user's approval before editing code.** (Evidence-gathering —
 screenshots, logs, DB queries — comes first as usual; the gate applies to code edits.) After
 approval, proceed through implementation, tests, build, and on-device verification without further
