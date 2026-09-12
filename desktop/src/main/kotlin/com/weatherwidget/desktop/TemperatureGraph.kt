@@ -776,7 +776,7 @@ fun TemperatureGraph(
         if (fetchDotXVal != null && fetchDotYVal != null && fetchDotPoint != null) {
             val dotRadius = 4.5f * scale
             // Publish the hover hit target. A plain holder, not state — see NowDotTarget.
-            nowDotTarget.set(fetchDotXVal, fetchDotYVal, dotRadius, size.width)
+            nowDotTarget.set(fetchDotXVal, fetchDotYVal, dotRadius)
             val outerRadius = dotRadius + 0.75f * scale
             drawCircle(color = Color.Black.copy(alpha = 0.26f), radius = outerRadius, center = Offset(fetchDotXVal, fetchDotYVal))
             drawCircle(color = Color.White, radius = dotRadius, center = Offset(fetchDotXVal, fetchDotYVal))
@@ -1136,11 +1136,18 @@ fun TemperatureGraph(
     }
 
     // Sibling of the Canvas, never inside it: the popup reads the hover state, the Canvas must not.
+    // The cards are built from the same `observations` the blend above consumed.
     NowDotStationsPopup(
         hovered = nowDotHovered,
-        table = nowDotStationsTable(actualSeries.blendBreakdowns, useCelsius, zoneId),
+        cards = nowDotStationCards(
+            breakdowns = actualSeries.blendBreakdowns,
+            observations = observations,
+            source = WeatherSource.fromId(displaySourceId),
+        ),
         target = nowDotTarget,
         scale = scale,
+        nowMs = now,
+        useCelsius = useCelsius,
     )
     }
 }

@@ -3,15 +3,13 @@ package com.weatherwidget.desktop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,17 +18,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.Text
+import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.BlendBreakdown
-import com.weatherwidget.shared.actuals.BlendTable
-import com.weatherwidget.shared.actuals.BlendTableFormatter
-import java.time.ZoneId
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -40,13 +37,14 @@ import kotlin.math.sqrt
  * The dot is the one pixel on the graph that claims to be a measurement, and it is the least
  * self-explanatory: it is an IDW blend of several stations, some of them carried forward by the
  * forecast, so it can legitimately sit outside the range of every reading in the list (see the
- * `observed_dot_is_forecast_extrapolated` finding). This overlay answers "which thermometers, and how
- * much did each count" without leaving the graph.
+ * `observed_dot_is_forecast_extrapolated` finding). This overlay answers "what are the nearby
+ * thermometers reading right now" without leaving the graph.
  *
- * **The numbers are never computed here.** Rows come from [BlendTableFormatter], the same pure
- * formatter behind the Stations window's Blend tab, so the two surfaces cannot disagree about what
- * the blend did — the point of both is to be trustworthy, which they cannot be if each derives its
- * own figures.
+ * **Nothing is derived here.** The cards are the Stations window's Observations tab — its default
+ * view — rendered by the same [ObservationCard] over the same [visibleStationRows] selection, so the
+ * two surfaces list the same stations with the same values by construction. (The overlay used to
+ * show the Blend tab's weight table; that answers "how was the blend weighted", which is the tab's
+ * question, not the glance's.)
  */
 
 /**
@@ -61,20 +59,16 @@ class NowDotTarget {
     var centerY: Float? = null
     var radius: Float = 0f
 
-    /** Canvas width in px, so the popup can flip to the dot's left near the right edge. */
-    var canvasWidth: Float = 0f
-
     fun clear() {
         centerX = null
         centerY = null
         radius = 0f
     }
 
-    fun set(x: Float, y: Float, r: Float, width: Float) {
+    fun set(x: Float, y: Float, r: Float) {
         centerX = x
         centerY = y
         radius = r
-        canvasWidth = width
     }
 }
 
@@ -84,8 +78,7 @@ const val NOW_DOT_HOVER_SLOP_PX: Float = 7f
 /**
  * True when [pointer] is within the dot's painted radius plus [NOW_DOT_HOVER_SLOP_PX].
  *
- * Pure so the geometry is testable without a UI harness, the same reason [BlendTableFormatter] is
- * pure. A target with no centre (the dot is off-window, or nothing has been drawn yet) never hits.
+ * Pure so the geometry is testable without a UI harness, the same reason [nowDotStationCards] is. A target with no centre (the dot is off-window, or nothing has been drawn yet) never hits.
  */
 fun nowDotHitTest(target: NowDotTarget, pointer: Offset): Boolean {
     val cx = target.centerX ?: return false
@@ -117,139 +110,177 @@ fun Modifier.nowDotHoverInput(
     }
 
 /**
- * The rows to show, or null when there is nothing worth popping up.
+ * What the overlay shows: station cards, nothing else (a header naming the blended figure was tried
+ * and cut — the dot's own label already says it).
  *
- * Returns the newest breakdown formatted by the shared formatter, capped to [maxRows] contributors
- * (highest weight first — [BlendTableFormatter] already orders them). Null rather than an empty
- * frame when the blend produced no contributions, so the caller draws nothing at all.
+ * [shown] is the [visibleStationRows] selection over [observations] — the Observations tab's exact
+ * row set — reduced to OFFICIAL stations and capped at [maxRows] (the nearest first); [remaining] is
+ * how many the cap cut.
  */
-fun nowDotStationsTable(
+data class NowDotStationCards(
+    val officialOnly: Boolean,
+    val shown: List<ObservationReading>,
+    val remaining: Int,
+)
+
+/**
+ * The cards to show, or null when there is nothing worth popping up.
+ *
+ * Personal stations are dropped when at least one OFFICIAL station is present: near a city the PWS
+ * rows outnumber the official ones two to one, and the overlay is a glance, not the list. When the
+ * selection has no official station at all (a Synoptic-borrowing setup in PWS-only country) every
+ * row is kept rather than showing nothing — [NowDotStationCards.officialOnly] reports which happened.
+ *
+ * Null rather than an empty frame when the blend produced no point (there is no dot to explain) or
+ * the selection is empty, so the caller draws nothing at all.
+ */
+fun nowDotStationCards(
     breakdowns: List<BlendBreakdown>,
-    useCelsius: Boolean,
-    zoneId: ZoneId = ZoneId.systemDefault(),
+    observations: List<ObservationReading>,
+    source: WeatherSource,
     maxRows: Int = MAX_POPUP_ROWS,
-): BlendTable? {
+): NowDotStationCards? {
     val newest = breakdowns.firstOrNull() ?: return null
     if (newest.contributions.isEmpty()) return null
-    val table = BlendTableFormatter.format(newest, useCelsius, zoneId)
-    if (table.rows.isEmpty()) return null
-    return if (table.rows.size <= maxRows) table else table.copy(rows = table.rows.take(maxRows))
+    val all = visibleStationRows(observations, source)
+    if (all.isEmpty()) return null
+    val official = all.filter { it.stationType == OFFICIAL_STATION_TYPE }
+    val officialOnly = official.isNotEmpty()
+    val rows = if (officialOnly) official else all
+    return NowDotStationCards(
+        officialOnly = officialOnly,
+        shown = rows.take(maxRows),
+        remaining = (rows.size - maxRows).coerceAtLeast(0),
+    )
 }
 
-/** Beyond this the overlay stops being a glance and starts being the Blend tab. */
-const val MAX_POPUP_ROWS: Int = 8
+/** The `stationType` value the Observations tab tints green; everything else is a personal station. */
+const val OFFICIAL_STATION_TYPE = "OFFICIAL"
+
+/** The nearest official station only: one card is the glance. */
+const val MAX_POPUP_ROWS: Int = 1
+
+/**
+ * Places the overlay beside the dot, inside the graph's own bounds.
+ *
+ * Pure so the cases are testable without a UI harness. [anchor] is the dot's bounding box (centre ±
+ * radius) and [container] the graph area, both in graph pixels. The overlay is a sibling of the
+ * Canvas laid out by [NowDotStationsPopup]'s `Layout`, which is what lets it know its own measured
+ * size and the graph's — the two things the old `offset()` Box lacked when it ran off both edges.
+ *
+ * Why not a `Popup`: tried first. A popup is a separate pointer layer, and opening one sends the
+ * Canvas a pointer Exit even when the popup is nowhere near the pointer — hover false, popup gone,
+ * hover true again: a flicker loop the moment the dot is touched.
+ *
+ * Rules, in order: [fitWidth] first so the overlay can always sit beside the dot; sit to the right
+ * with [GAP_PX] clearance; flip left when the right would overflow; otherwise the wider side,
+ * clamped to the edge; then clamp vertically. The overlay must never cover the dot — the pointer
+ * landing on it would end the very hover that opened it.
+ */
+object NowDotPopupPositioner {
+    /**
+     * The widest the overlay may be and still fit beside the dot on its roomier side, capped at
+     * [preferred]. Near the centre of a default-zoom graph the dot leaves under half the width on
+     * either side; a card list wider than that has nowhere to go, so the cards narrow (station names
+     * ellipsize, as they do in a narrow Stations window) rather than the overlay covering the dot.
+     */
+    fun fitWidth(anchor: IntRect, containerWidth: Int, preferred: Int): Int {
+        val gap = GAP_PX.roundToInt()
+        val roomRight = containerWidth - anchor.right - gap
+        val roomLeft = anchor.left - gap
+        return minOf(preferred, maxOf(roomRight, roomLeft)).coerceAtLeast(0)
+    }
+
+    fun calculate(anchor: IntRect, container: IntSize, popup: IntSize): IntOffset {
+        val gap = GAP_PX.roundToInt()
+        val right = anchor.right + gap
+        val left = anchor.left - gap - popup.width
+        val x = when {
+            right + popup.width <= container.width -> right
+            left >= 0 -> left
+            // Neither side fits (popup wider than fitWidth allows only if the caller ignored it):
+            // take the roomier side and clamp to that edge.
+            container.width - anchor.right >= anchor.left -> (container.width - popup.width).coerceAtLeast(0)
+            else -> 0
+        }
+        // Top edge a little above the dot, as before, then kept inside the graph.
+        val preferredY = anchor.top - 10
+        val maxY = (container.height - popup.height).coerceAtLeast(0)
+        val y = preferredY.coerceIn(0, maxY)
+        return IntOffset(x, y)
+    }
+}
 
 /**
  * The overlay itself. Reads [hovered] internally — see [nowDotHoverInput] for why that matters.
  *
- * Positioned from [target], which the draw scope filled in, and flipped to the left of the dot when
- * it would otherwise run off the right edge.
+ * A `Layout` filling the graph measures the card column with [NowDotPopupPositioner.fitWidth] as
+ * its maximum (it wraps to its content below that) and places it where
+ * [NowDotPopupPositioner.calculate] says. The layout node has no pointer-input
+ * modifier of its own, and the cards are built non-clickable, so the Canvas underneath keeps the
+ * hover; the positioner keeps the cards off the dot.
  */
 @Composable
 fun NowDotStationsPopup(
     hovered: MutableState<Boolean>,
-    table: BlendTable?,
+    cards: NowDotStationCards?,
     target: NowDotTarget,
     scale: Float,
+    nowMs: Long,
+    useCelsius: Boolean,
 ) {
-    if (!hovered.value || table == null) return
+    if (!hovered.value || cards == null) return
     val dotX = target.centerX ?: return
     val dotY = target.centerY ?: return
 
-    val density = LocalDensity.current
-    val widthPx = with(density) { (POPUP_WIDTH_DP * scale).dp.toPx() }
-    // Flip to the dot's left rather than run off the right edge of the graph.
-    val flipLeft = dotX + widthPx + GAP_PX > target.canvasWidth
-    val x = if (flipLeft) dotX - widthPx - GAP_PX else dotX + GAP_PX
-    val y = (dotY - 10f).coerceAtLeast(0f)
+    val r = target.radius.roundToInt()
+    val anchor = IntRect(dotX.roundToInt() - r, dotY.roundToInt() - r, dotX.roundToInt() + r, dotY.roundToInt() + r)
+    val preferredWidthPx = with(LocalDensity.current) { (POPUP_WIDTH_DP * scale).dp.roundToPx() }
+    // Card fonts are the Observations tab's sizes times this — a glance, smaller than the tab.
+    val fontScale = scale * CARD_FONT_SCALE_PER_UI_SCALE
 
-    Box(
-        modifier = Modifier
-            .offset { IntOffset(x.roundToInt(), y.roundToInt()) }
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xF01C1C1E))
-            .padding(horizontal = 8.dp, vertical = 6.dp)
-            .width((POPUP_WIDTH_DP * scale).dp),
-    ) {
-        Column {
-            Text(
-                text = "${table.blendedLabel} blended · ${table.stationCount} stations",
-                color = Color(0xFFEDEDED),
-                fontSize = (11f * scale).sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            // Headers come from the shared formatter's own list, so a column renamed there is renamed
-            // here. `raw` and `fed to blend` are the two that must never be confused: the first is what
-            // the thermometer measured, the second is what the blend actually used — they differ
-            // whenever a stale station was carried forward by the forecast.
-            Row(Modifier.padding(top = 3.dp)) {
-                HeaderCell(BlendTableFormatter.COLUMN_HEADERS[0], STATION_WEIGHT, scale)
-                HeaderCell(BlendTableFormatter.COLUMN_HEADERS[2], KM_WEIGHT, scale)
-                HeaderCell(BlendTableFormatter.COLUMN_HEADERS[4], AGE_WEIGHT, scale)
-                HeaderCell(BlendTableFormatter.COLUMN_HEADERS[5], RAW_WEIGHT, scale)
-                HeaderCell(BlendTableFormatter.COLUMN_HEADERS[6], FED_WEIGHT, scale)
-                HeaderCell(BlendTableFormatter.COLUMN_HEADERS[7], WEIGHT_WEIGHT, scale)
-            }
-            table.rows.forEach { row ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Cell(row.station, STATION_WEIGHT, scale, Color(0xFFEDEDED))
-                    Cell(row.km, KM_WEIGHT, scale, Color(0xFF9A9A9E))
-                    Cell(row.age, AGE_WEIGHT, scale, Color(0xFF9A9A9E))
-                    // What the thermometer actually read.
-                    Cell(row.raw, RAW_WEIGHT, scale, Color(0xFFEDEDED))
-                    // What the blend used. Amber when the two differ because the value is
-                    // forecast-carried rather than measured — the distinction the Blend tab tints for.
-                    Cell(
-                        row.valueFedToBlend,
-                        FED_WEIGHT,
-                        scale,
-                        if (row.isExtrapolated) Color(0xFFE0B44A) else Color(0xFFEDEDED),
+    Layout(
+        modifier = Modifier.fillMaxSize(),
+        content = {
+            // IntrinsicSize.Max: the column is as wide as its widest line and no wider, and every
+            // card fills that width, so the temperatures line up without a slab of empty space.
+            Column(
+                modifier = Modifier
+                    .width(IntrinsicSize.Max)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xF01C1C1E))
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+            ) {
+                cards.shown.forEach { obs ->
+                    ObservationCard(
+                        obs = obs,
+                        useCelsius = useCelsius,
+                        nowMs = nowMs,
+                        fontScale = fontScale,
+                        showRawMetar = false,
+                        clickable = false,
+                        compact = true,
                     )
-                    Cell(row.weightShare, WEIGHT_WEIGHT, scale, Color(0xFFEDEDED))
                 }
+                // Rows beyond the cap are not footnoted; the Stations window lists them.
             }
-        }
+        },
+    ) { measurables, constraints ->
+        val container = IntSize(constraints.maxWidth, constraints.maxHeight)
+        val width = NowDotPopupPositioner.fitWidth(anchor, container.width, preferredWidthPx)
+        val placeable = measurables.single().measure(
+            Constraints(maxWidth = width, maxHeight = container.height),
+        )
+        val pos = NowDotPopupPositioner.calculate(anchor, container, IntSize(placeable.width, placeable.height))
+        layout(container.width, container.height) { placeable.place(pos) }
     }
 }
 
-// Proportional columns rather than fixed widths: a fixed station column has to be sized for the
-// longest provider id that could appear, which leaves a visible gap after a 4-char
-// ICAO code like `KNUQ` on every ordinary row. Weights keep the columns aligned down the table while
-// spending the width where the content is.
-private const val STATION_WEIGHT = 2.0f
-private const val KM_WEIGHT = 1.0f
-private const val AGE_WEIGHT = 0.9f
-private const val RAW_WEIGHT = 1.0f
-private const val FED_WEIGHT = 1.7f
-private const val WEIGHT_WEIGHT = 1.2f
+/** Upper bound; the column wraps to its content below this. */
+private const val POPUP_WIDTH_DP = 220f
 
-private const val POPUP_WIDTH_DP = 250f
+/** Card text = Observations-tab size × uiScale × this (0.5 read as a list, not a glance). */
+private const val CARD_FONT_SCALE_PER_UI_SCALE = 0.36f
 
 /** Clearance between the dot and the overlay, in px. */
 private const val GAP_PX = 12f
-
-@Composable
-private fun RowScope.Cell(text: String, weight: Float, scale: Float, color: Color) {
-    Text(
-        text = text,
-        color = color,
-        fontSize = (10.5f * scale).sp,
-        fontFamily = FontFamily.Monospace,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.weight(weight),
-    )
-}
-
-@Composable
-private fun RowScope.HeaderCell(text: String, weight: Float, scale: Float) {
-    Text(
-        text = text,
-        color = Color(0xFF7A7A7E),
-        fontSize = (9f * scale).sp,
-        fontFamily = FontFamily.Monospace,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.weight(weight),
-    )
-}

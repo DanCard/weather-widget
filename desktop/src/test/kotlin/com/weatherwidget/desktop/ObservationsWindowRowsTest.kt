@@ -1,6 +1,6 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.local.desktop.DesktopObservationEntity
+import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
@@ -24,7 +24,7 @@ class ObservationsWindowRowsTest {
         temperature: Float = 60f,
         distanceKm: Float = 1f,
         stationType: String = "OFFICIAL",
-    ) = DesktopObservationEntity(
+    ) = ObservationReading(
         stationId = stationId,
         stationName = stationId,
         timestamp = timestamp,

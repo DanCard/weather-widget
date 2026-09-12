@@ -34,9 +34,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import com.weatherwidget.data.local.desktop.DesktopLogEntity
-import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.toReading
+import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
@@ -154,11 +154,15 @@ private fun loadBlendTables(
  * **Order-dependent:** picking `first()` per station is only "newest" because
  * [DesktopWeatherDao.getRecentObservations] returns `ORDER BY timestamp DESC`. Sorting defensively
  * here keeps the result correct even if that contract changes.
+ *
+ * Takes [ObservationReading] rather than the DAO entity so the hourly graph's now-dot overlay
+ * ([NowDotStationsPopup]) can run the *same* selection over the rows it already holds: the two
+ * surfaces list the same stations by construction, not by keeping two filters in step.
  */
 internal fun visibleStationRows(
-    all: List<DesktopObservationEntity>,
+    all: List<ObservationReading>,
     source: WeatherSource,
-): List<DesktopObservationEntity> =
+): List<ObservationReading> =
     all.asSequence()
         // Hides synthetic rows (IDW blend + NWS history backfill) and matches the stored `api`
         // against the feed that actually supplies this source's actuals — the same shared matcher
@@ -239,7 +243,7 @@ internal fun ObservationsWindow(
             window.requestFocus()
         }
         var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.settings.weatherSource)) }
-        var observations by remember { mutableStateOf<List<DesktopObservationEntity>>(emptyList()) }
+        var observations by remember { mutableStateOf<List<ObservationReading>>(emptyList()) }
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
         var blendTables by remember { mutableStateOf<List<BlendTable>>(emptyList()) }
         var selectedTab by remember { mutableStateOf(config.obsSelectedTab) }
@@ -255,7 +259,10 @@ internal fun ObservationsWindow(
         val loadData = {
             scope.launch(Dispatchers.IO) {
                 val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
-                val obs = visibleStationRows(weatherDao.getRecentObservations(sinceMs), currentSource)
+                val obs = visibleStationRows(
+                    weatherDao.getRecentObservations(sinceMs).map { it.toReading() },
+                    currentSource,
+                )
 
                 // Filter by tag in SQL so the cap counts fetch rows, not the verbose current-temp
                 // tags (CurrentTempResolver etc.) that otherwise swamp app_logs.
@@ -558,114 +565,13 @@ private fun ActualsSourceRow(
 
 @Composable
 private fun ObservationList(
-    observations: List<DesktopObservationEntity>,
+    observations: List<ObservationReading>,
     useCelsius: Boolean,
     nowMs: Long,
 ) {
-    val timeFormatter = remember { DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault()) }
-    
     LazyColumn(modifier = Modifier.fillMaxSize().padding(6.dp)) {
         items(observations) { obs ->
-            // NWS stations link to their public time-series history page; other sources have none.
-            val historyUrl = StationHistoryUrl.forStation(obs.api, obs.stationId)
-            val origin = ObservationOrigin.of(
-                timestampMs = obs.timestamp,
-                qcFailed = obs.qcFailed,
-                isWebFallback = obs.isWebFallback,
-                nowMs = nowMs,
-            )
-            // QC-rejected and stale readings are both absent from the blend, so neither shows a value.
-            val excludedFromBlend = origin == ObservationOrigin.Kind.QC_FAILED ||
-                origin == ObservationOrigin.Kind.STALE
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
-                    .clickable(enabled = historyUrl != null) {
-                        historyUrl?.let(::openInBrowser)
-                    },
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = ObsStyle.cardFill),
-                border = BorderStroke(1.dp, ObsStyle.cardBorder)
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            obs.stationName,
-                            fontSize = 21.sp,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (obs.condition.isNotBlank()) {
-                            Text(
-                                obs.condition,
-                                fontSize = 17.sp,
-                                color = ObsStyle.textSecondary,
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            )
-                        }
-                        if (excludedFromBlend) {
-                            Text(
-                                "—",
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = ObsStyle.textSecondary
-                            )
-                        } else {
-                            val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(obs.temperature) else obs.temperature
-                            Text(
-                                String.format("%.1f°", displayTemp),
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = trayTempToColor(obs.temperature)
-                            )
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val distanceStr = if (obs.distanceKm > 0) String.format("%.1f mi", obs.distanceKm * 0.621371f) else "Local"
-                        val originStr = when (origin) {
-                            ObservationOrigin.Kind.QC_FAILED -> "failed QC check"
-                            ObservationOrigin.Kind.STALE -> "Stale"
-                            ObservationOrigin.Kind.WEB -> "Web"
-                            ObservationOrigin.Kind.API -> "API"
-                        }
-                        Text("${obs.stationId} • $distanceStr • ", fontSize = 18.sp, color = ObsStyle.textSecondary)
-                        Text(
-                            "${obs.stationType} ($originStr)",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = when {
-                                excludedFromBlend -> ObsStyle.error
-                                obs.stationType == "OFFICIAL" -> ObsStyle.typeOfficial
-                                else -> ObsStyle.typePersonal
-                            }
-                        )
-                    }
-                    Text(
-                        buildAnnotatedString {
-                            withStyle(SpanStyle(color = ObsStyle.textSecondary)) { append("Reported ") }
-                            withStyle(SpanStyle(color = ObsStyle.timeReported, fontSize = 32.sp)) {
-                                append(timeFormatter.format(Instant.ofEpochMilli(obs.timestamp)))
-                            }
-                            withStyle(SpanStyle(color = ObsStyle.textSecondary)) { append(" • Fetched ") }
-                            withStyle(SpanStyle(color = ObsStyle.timeFetched, fontSize = 32.sp)) {
-                                append(timeFormatter.format(Instant.ofEpochMilli(obs.fetchedAt)))
-                            }
-                        },
-                        fontSize = 18.sp
-                    )
-                    val rawMetar = obs.rawMetar
-                    if (!rawMetar.isNullOrBlank()) {
-                        Text(
-                            rawMetar,
-                            fontSize = 13.sp,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            color = ObsStyle.textSecondary,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
-                }
-            }
+            ObservationCard(obs, useCelsius, nowMs)
         }
 
         if (observations.isEmpty()) {
@@ -673,6 +579,140 @@ private fun ObservationList(
                 Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No recent observations found", fontSize = 18.sp, color = ObsStyle.textSecondary)
                 }
+            }
+        }
+    }
+}
+
+/**
+ * One station's card: the Observations tab's row, and the body of the hourly graph's now-dot hover
+ * overlay ([NowDotStationsPopup]). One composable for both so the overlay is literally the tab's
+ * default view, not a re-drawing of it that drifts when the tab changes.
+ *
+ * [fontScale] multiplies every text size (the tab passes 1); [showRawMetar] and [clickable] are the
+ * two things the overlay drops — the raw report is inspection detail ~80 monospace characters wide,
+ * and an overlay that closes when the pointer leaves the dot has nothing that can be clicked.
+ * [compact] tightens the horizontal padding and lets the card wrap its width to the content for the
+ * overlay's narrow column.
+ */
+@Composable
+internal fun ObservationCard(
+    obs: ObservationReading,
+    useCelsius: Boolean,
+    nowMs: Long,
+    fontScale: Float = 1f,
+    showRawMetar: Boolean = true,
+    clickable: Boolean = true,
+    compact: Boolean = false,
+) {
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault()) }
+    // NWS stations link to their public time-series history page; other sources have none.
+    val historyUrl = if (clickable) StationHistoryUrl.forStation(obs.api, obs.stationId) else null
+    val origin = ObservationOrigin.of(
+        timestampMs = obs.timestamp,
+        qcFailed = obs.qcFailed,
+        isWebFallback = obs.isWebFallback,
+        nowMs = nowMs,
+    )
+    // QC-rejected and stale readings are both absent from the blend, so neither shows a value.
+    val excludedFromBlend = origin == ObservationOrigin.Kind.QC_FAILED ||
+        origin == ObservationOrigin.Kind.STALE
+    Card(
+        // No pointer-input modifier at all when there is nothing to open: the hover overlay's cards
+        // must not be hit-testable, or they would take the pointer from the graph beneath them.
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+            .then(
+                if (historyUrl != null) Modifier.clickable { openInBrowser(historyUrl) } else Modifier,
+            ),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = ObsStyle.cardFill),
+        border = BorderStroke(1.dp, ObsStyle.cardBorder)
+    ) {
+        val hPad = if (compact) 4.dp else 10.dp
+        Column(modifier = Modifier.padding(horizontal = hPad, vertical = if (compact) 4.dp else 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // weight(1f) pushes the temperature to the card's right edge. In the overlay the
+                // column wraps to its widest line (IntrinsicSize.Max), so the slack this absorbs is
+                // only the difference between this card and the widest — the temperatures line up
+                // on the right without a slab of empty space.
+                Text(
+                    obs.stationName,
+                    fontSize = (21f * fontScale).sp,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (obs.condition.isNotBlank()) {
+                    Text(
+                        obs.condition,
+                        fontSize = (17f * fontScale).sp,
+                        color = ObsStyle.textSecondary,
+                        modifier = Modifier.padding(horizontal = hPad)
+                    )
+                }
+                val tempModifier = if (compact) Modifier.padding(start = hPad) else Modifier
+                if (excludedFromBlend) {
+                    Text(
+                        "—",
+                        fontSize = (32f * fontScale).sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ObsStyle.textSecondary,
+                        modifier = tempModifier,
+                    )
+                } else {
+                    val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(obs.temperature) else obs.temperature
+                    Text(
+                        String.format("%.1f°", displayTemp),
+                        fontSize = (32f * fontScale).sp,
+                        fontWeight = FontWeight.Bold,
+                        color = trayTempToColor(obs.temperature),
+                        modifier = tempModifier,
+                    )
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val distanceStr = if (obs.distanceKm > 0) String.format("%.1f mi", obs.distanceKm * 0.621371f) else "Local"
+                val originStr = when (origin) {
+                    ObservationOrigin.Kind.QC_FAILED -> "failed QC check"
+                    ObservationOrigin.Kind.STALE -> "Stale"
+                    ObservationOrigin.Kind.WEB -> "Web"
+                    ObservationOrigin.Kind.API -> "API"
+                }
+                Text("${obs.stationId} • $distanceStr • ", fontSize = (18f * fontScale).sp, color = ObsStyle.textSecondary)
+                Text(
+                    "${obs.stationType} ($originStr)",
+                    fontSize = (16f * fontScale).sp,
+                    fontWeight = FontWeight.Bold,
+                    color = when {
+                        excludedFromBlend -> ObsStyle.error
+                        obs.stationType == "OFFICIAL" -> ObsStyle.typeOfficial
+                        else -> ObsStyle.typePersonal
+                    }
+                )
+            }
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(color = ObsStyle.textSecondary)) { append("Reported ") }
+                    withStyle(SpanStyle(color = ObsStyle.timeReported, fontSize = (32f * fontScale).sp)) {
+                        append(timeFormatter.format(Instant.ofEpochMilli(obs.timestamp)))
+                    }
+                    withStyle(SpanStyle(color = ObsStyle.textSecondary)) { append(" • Fetched ") }
+                    withStyle(SpanStyle(color = ObsStyle.timeFetched, fontSize = (32f * fontScale).sp)) {
+                        append(timeFormatter.format(Instant.ofEpochMilli(obs.fetchedAt)))
+                    }
+                },
+                fontSize = (18f * fontScale).sp
+            )
+            val rawMetar = obs.rawMetar
+            if (showRawMetar && !rawMetar.isNullOrBlank()) {
+                Text(
+                    rawMetar,
+                    fontSize = (13f * fontScale).sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    color = ObsStyle.textSecondary,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
         }
     }
