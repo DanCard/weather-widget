@@ -153,10 +153,11 @@ internal object TemperatureGraphHoursLoader {
             zoneId = zoneId,
             forecastsByTime = forecastsByTime,
             displaySource = displaySource,
+            nowMs = System.currentTimeMillis(),
         )
 
-        if (missingForecasts.missingCount > 0) {
-            val cooldownMs = 15 * 60 * 1000L
+        val cooldownMs = 15 * 60 * 1000L
+        if (missingForecasts.fillableCount > 0) {
             if (!sourceMissingFromLoad &&
                 stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, "hourly_gaps", cooldownMs)
             ) {
@@ -172,6 +173,20 @@ internal object TemperatureGraphHoursLoader {
                     context = context,
                     forceRefresh = true,
                     reason = "hourly_gaps"
+                )
+            }
+        } else if (missingForecasts.missingCount > 0) {
+            // Every gap is older than the live-table boundary. The move's own fetch already filed
+            // every elapsed hour the payload carried (HOURLY_HISTORY_BACKFILL), so a forced
+            // re-fetch would offer the same hours and store nothing — which is exactly what it did
+            // every 15 minutes before this branch existed. Record it, fetch nothing.
+            if (stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, "hourly_gaps_elapsed", cooldownMs)) {
+                stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, "hourly_gaps_elapsed")
+                database.appLogDao().log(
+                    "TEMP_GAPS_ELAPSED_ONLY",
+                    "widget=$appWidgetId source=${displaySource.id} ${missingForecasts.diagnosticText()} " +
+                        "dataRows=${hourlyForecasts.size}, no fetch can fill these",
+                    "INFO",
                 )
             }
         }

@@ -2,6 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -18,10 +19,14 @@ internal fun summarizeMissingForecastHours(
     zoneId: ZoneId,
     forecastsByTime: Map<Long, HourlyForecastEntity?>,
     displaySource: WeatherSource,
+    /** Wall clock; hours before `nowMs - ELAPSED_BOUNDARY_MS` are reported as elapsed. */
+    nowMs: Long,
 ): MissingForecastHours {
     val missingHours = mutableListOf<LocalDateTime>()
     var noSelectedForecastCount = 0
     var wrongSourceCount = 0
+    var elapsedCount = 0
+    val elapsedBeforeMs = nowMs - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS
     var current = startHour
 
     // End-inclusive, matching the hours the graph draws (ActualTemperatureSeriesBuilder): the last
@@ -29,15 +34,14 @@ internal fun summarizeMissingForecastHours(
     while (!current.isAfter(endHour)) {
         val hourMs = current.atZone(zoneId).toInstant().toEpochMilli()
         val selected = forecastsByTime[hourMs]
-        when {
-            selected == null -> {
-                noSelectedForecastCount++
-                missingHours += current
-            }
-            selected.source != displaySource.id -> {
-                wrongSourceCount++
-                missingHours += current
-            }
+        val missing = when {
+            selected == null -> { noSelectedForecastCount++; true }
+            selected.source != displaySource.id -> { wrongSourceCount++; true }
+            else -> false
+        }
+        if (missing) {
+            missingHours += current
+            if (hourMs < elapsedBeforeMs) elapsedCount++
         }
         current = current.plusHours(1)
     }
@@ -56,5 +60,6 @@ internal fun summarizeMissingForecastHours(
         noSelectedForecastCount = noSelectedForecastCount,
         wrongSourceCount = wrongSourceCount,
         spans = spans,
+        elapsedCount = elapsedCount,
     )
 }

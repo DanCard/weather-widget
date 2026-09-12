@@ -51,13 +51,24 @@ internal data class MissingForecastHours(
     val noSelectedForecastCount: Int,
     val wrongSourceCount: Int,
     val spans: List<Pair<LocalDateTime, LocalDateTime>>,
+    /**
+     * Gaps older than the live-table boundary (`now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS`).
+     * These are history's to fill — `ElapsedForecastBackfill` already files every elapsed hour a
+     * payload carries — so a live fetch cannot change them and must not be forced for them
+     * (performance/260912-hourly-gap-refresh-ignores-elapsed-hours.md).
+     */
+    val elapsedCount: Int = 0,
 ) {
+    /** Gaps a live fetch could still fill: the current hour onward. */
+    val fillableCount: Int get() = missingCount - elapsedCount
+
     fun diagnosticText(): String {
         val formatter = DateTimeFormatter.ofPattern("MM-dd HH:mm")
         val spanText = spans.joinToString(",") { (start, endExclusive) ->
             "${start.format(formatter)}..${endExclusive.format(formatter)}"
         }
-        return "missing=$missingCount noSelected=$noSelectedForecastCount wrongSource=$wrongSourceCount spans=[$spanText]"
+        return "missing=$missingCount elapsed=$elapsedCount noSelected=$noSelectedForecastCount " +
+            "wrongSource=$wrongSourceCount spans=[$spanText]"
     }
 }
 
