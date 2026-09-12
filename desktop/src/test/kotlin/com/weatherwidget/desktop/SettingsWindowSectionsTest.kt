@@ -7,6 +7,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import com.weatherwidget.test.category.LongDuration
 import org.junit.Rule
+import com.weatherwidget.shared.settings.Platform
+import com.weatherwidget.shared.settings.SettingsSection
 import org.junit.Test
 import org.junit.Assert.assertTrue
 import org.junit.experimental.categories.Category
@@ -25,23 +27,11 @@ import org.junit.experimental.categories.Category
 class SettingsWindowSectionsTest {
 
     /**
-     * Android's `activity_settings.xml` section order, minus Language (the desktop has no
-     * translations). Both tests below read from this one list so a section added to one platform
-     * must be added here — and therefore to the other — before the suite goes green.
+     * The shared catalogue's on-screen order for this platform. Android's Robolectric test reads the
+     * same enum, so a section added to one screen without deciding about the other fails a test on
+     * whichever side lacks it.
      */
-    private val ANDROID_SECTION_ORDER = listOf(
-        "Hourly Zoom",
-        "Notifications",
-        "Units",
-        "Daily View — Today Column",
-        "Personal Weather Stations",
-        "Weather Data Sources",
-        "Icon gallery",
-        "Default Location",
-        "Feedback & Bug Reports",
-        "API Keys",
-        "Support Development",
-    )
+    private val SECTION_ORDER = SettingsSection.forPlatform(Platform.DESKTOP).map { it.title }
 
     @get:Rule
     val composeTestRule = createComposeRule()
@@ -67,7 +57,7 @@ label = "Test Location",
         // Every SettingsCard title, each rendering exactly once. Titles are Android's
         // strings.xml values verbatim (icon_preview_title is "Icon gallery", lower-case g).
         // "Diagnostics" is deliberately absent: Android has no Observations entry in Settings.
-        ANDROID_SECTION_ORDER.forEach { title ->
+        SECTION_ORDER.forEach { title ->
             composeTestRule.onAllNodesWithText(title).assertCountEquals(1)
         }
         composeTestRule.onAllNodesWithText("Diagnostics").assertCountEquals(0)
@@ -88,7 +78,7 @@ label = "Test Location",
         // positionInRoot, not boundsInRoot: boundsInRoot is clipped by the scroll viewport and
         // collapses to zero for a section below the fold, which would invert this comparison as
         // the form grows. Ordering is what's under test, not visibility.
-        val order = ANDROID_SECTION_ORDER
+        val order = SECTION_ORDER
         val tops = order.associateWith { title ->
             composeTestRule.onNodeWithText(title).fetchSemanticsNode().positionInRoot.y
         }

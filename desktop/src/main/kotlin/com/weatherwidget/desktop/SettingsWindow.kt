@@ -35,6 +35,7 @@ import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.settings.SettingsSection
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import kotlin.math.roundToInt
 
@@ -198,7 +199,7 @@ internal fun SettingsWindow(
                     ) {
                         // Hourly Zoom -- matches Android's R.string.hourly_zoom_title, and sits
                         // directly above Personal Weather Stations on both platforms.
-                        SettingsCard(title = "Hourly Zoom") {
+                        SettingsCard(title = SettingsSection.HOURLY_ZOOM.title) {
                             HourlyZoomSpan(
                                 spanHours = currentConfig.settings.narrowZoomSpanHours,
                                 onChanged = { newSpan ->
@@ -217,13 +218,13 @@ internal fun SettingsWindow(
                         // clears this flag when the notification fires, and this process does not
                         // watch config.json for external edits, so a draft-backed toggle would
                         // re-arm the spent watch on the next auto-save. See DominantTempWatchStore.
-                        SettingsCard(title = "Notifications") {
+                        SettingsCard(title = SettingsSection.NOTIFICATIONS.title) {
                             DominantTempNotifyToggle(watchStore = watchStore)
                         }
 
                         // Units — Android keeps this high-use display preference directly below
                         // the Notifications card.
-                        SettingsCard(title = "Units") {
+                        SettingsCard(title = SettingsSection.UNITS.title) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -245,7 +246,7 @@ internal fun SettingsWindow(
 
                         // Daily View — Today Column overlay toggles (matches Android's
                         // "Daily View — Today Column" settings section). All opt-in.
-                        SettingsCard(title = "Daily View — Today Column") {
+                        SettingsCard(title = SettingsSection.TODAY_COLUMN.title) {
                             Text(
                                 "Appears in the Today column only on windows at least 4 rows tall.",
                                 style = MaterialTheme.typography.bodySmall,
@@ -264,7 +265,7 @@ internal fun SettingsWindow(
                         }
 
                         // Personal Weather Stations
-                        SettingsCard(title = "Personal Weather Stations") {
+                        SettingsCard(title = SettingsSection.PERSONAL_STATIONS.title) {
                             PersonalStationDiscount(
                                 discountPercent = currentConfig.settings.personalStationDiscount,
                                 onChanged = { newPercent ->
@@ -275,7 +276,7 @@ internal fun SettingsWindow(
 
                         // Weather Data Sources -- title matches Android's
                         // R.string.api_sources_title = "Weather Data Sources".
-                        SettingsCard(title = "Weather Data Sources") {
+                        SettingsCard(title = SettingsSection.WEATHER_SOURCES.title) {
                             ApiSourcesList(
                                 visibleSources = currentConfig.settings.visibleSources,
                                 apiKeys = currentConfig.settings.apiKeys,
@@ -304,7 +305,7 @@ internal fun SettingsWindow(
                         // Icon gallery -- Android: R.string.icon_preview_title / _description +
                         // a "View Icon Gallery" button to IconGalleryActivity. The grid used to be
                         // inline here, which made this form far longer than Android's.
-                        SettingsCard(title = "Icon gallery") {
+                        SettingsCard(title = SettingsSection.ICON_GALLERY.title) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -330,7 +331,7 @@ internal fun SettingsWindow(
                         // Title, line and button copy follow Android's R.string.default_location_title /
                         // no_location_set / set_location_button. Android appends "• Follows device" or
                         // "• Fixed"; the desktop has no location mode, so the line ends at the coordinates.
-                        SettingsCard(title = "Default Location") {
+                        SettingsCard(title = SettingsSection.DEFAULT_LOCATION.title) {
                             var locationLabel by remember(currentConfig.label, currentConfig.lat, currentConfig.lon) {
                                 mutableStateOf(currentConfig.label.ifEmpty { "No location set" })
                             }
@@ -368,7 +369,7 @@ internal fun SettingsWindow(
                         // the desktop MVP is a single button that opens a mailto: link with basic
                         // diagnostic info. Main.kt constructs the URI (so it can pull runtime
                         // details like app version / OS); SettingsWindow just fires the callback.
-                        SettingsCard(title = "Feedback & Bug Reports") {
+                        SettingsCard(title = SettingsSection.FEEDBACK.title) {
                             Text(
                                 text = "Encountered an issue or want to suggest an improvement? Submit a " +
                                     "detailed bug report with optional system diagnostics.",
@@ -384,7 +385,7 @@ internal fun SettingsWindow(
 
                         // API Keys -- after Feedback, where Android puts it (R.string.api_keys_title /
                         // _description). It used to sit directly under Weather Data Sources here.
-                        SettingsCard(title = "API Keys") {
+                        SettingsCard(title = SettingsSection.API_KEYS.title) {
                             Text(
                                 text = "Enter your own API keys for restricted services. Free services " +
                                     "(NWS, Open-Meteo) do not require keys.",
@@ -400,7 +401,7 @@ internal fun SettingsWindow(
                         }
 
                         // Support Development (kept last, mirrors Android's SettingsActivity)
-                        SettingsCard(title = "Support Development") {
+                        SettingsCard(title = SettingsSection.SUPPORT.title) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
