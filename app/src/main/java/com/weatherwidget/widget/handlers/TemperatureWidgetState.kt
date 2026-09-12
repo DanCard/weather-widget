@@ -35,6 +35,10 @@ internal data class TemperatureWidgetState(
         val useGraph: Boolean,
         val bitmap: Bitmap?,
         val hourData: List<HourData>,
+        /**
+         * The 1-row text layout (`!useGraph`). Never true for a failed graph render: with
+         * [useGraph] set and [bitmap] null the binder leaves the previous bitmap on screen.
+         */
         val showTextMode: Boolean,
     )
 

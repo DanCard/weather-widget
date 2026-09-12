@@ -11,6 +11,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.ObservationPoolDiagnostics
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.shared.actuals.DominantBlend
 import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
@@ -36,6 +37,7 @@ import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.WidgetWorkScheduler
 import com.weatherwidget.widget.ZoomWindow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlin.coroutines.coroutineContext
 import java.time.LocalDateTime
@@ -86,6 +88,32 @@ internal object TemperatureStateResolver {
             name,
         )
     }
+
+    /**
+     * Runs the graph render, turning a failed render into `null` for the binder.
+     *
+     * Cancellation is not a failure and is rethrown. `renderGraph`'s first statement is
+     * `job?.ensureActive()`; a bare `catch (e: Exception)` here caught that
+     * `CancellationException`, so a paint cancelled by its replacement carried on inside a dead
+     * coroutine and pushed `GraphState(bitmap=null, showTextMode=true)` — an empty body, since
+     * `text_container` is the daily text layout and nothing on this path populates it (widget #88
+     * blank for four minutes, 2026-09-12; see
+     * plans/260912-cancelled-temperature-render-pushes-blank-body.md). The replacing paint owns
+     * the screen; a cancelled one must send nothing.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal inline fun <T : Any> renderOrNull(
+        onFailure: (Exception) -> Unit,
+        render: () -> T,
+    ): T? =
+        try {
+            render()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            onFailure(e)
+            null
+        }
 
     data class ResolutionResult(
         val state: TemperatureWidgetState,
@@ -381,7 +409,19 @@ internal object TemperatureStateResolver {
             )
 
             val renderStartMs = System.currentTimeMillis()
-            bitmap = try {
+            bitmap = renderOrNull(
+                onFailure = { e ->
+                    Log.e(TAG, "renderGraph failed", e)
+                    // Log.e never reaches app_logs, so a bug report of a blank body carried no
+                    // trace of the throw. The binder keeps the previous bitmap on screen for this.
+                    effectiveAppLogDao.logException(
+                        "HOURLY_RENDER_EXCEPTION",
+                        "widget=$appWidgetId source=${displaySource.id} hours=${graphHours.size} " +
+                            "size=${bitmapDims.widthPx}x${bitmapDims.heightPx}",
+                        e,
+                    )
+                },
+            ) {
                 TemperatureGraphRenderer.renderGraph(
                     context = context,
                     hours = graphHours,
@@ -403,9 +443,6 @@ internal object TemperatureStateResolver {
                     dominantStationLabel = dominantStationLabel,
                     actualsSourceLabel = actualsSourceLabel,
                 )
-            } catch (e: Exception) {
-                Log.e(TAG, "renderGraph failed", e)
-                null
             }
             renderMs = System.currentTimeMillis() - renderStartMs
         }
@@ -414,11 +451,13 @@ internal object TemperatureStateResolver {
             useGraph = useGraph,
             bitmap = bitmap,
             hourData = graphHours,
-            showTextMode = !useGraph || bitmap == null
+            // Text mode is the 1-row layout only. A null bitmap with useGraph is a render failure and
+            // must NOT route here: text_container is unpopulated on this path (blank body).
+            showTextMode = !useGraph,
         )
 
         // HOURLY_PAINT_TRACE: final graph decision. A null bitmap with useGraph=true means renderGraph
-        // threw (caught above) and we fall back to text mode — another path that can look "blank".
+        // threw (caught above); the binder then leaves the previous bitmap standing.
         if (useGraph && bitmap == null) {
             effectiveAppLogDao.log(
                 "HOURLY_PAINT_TRACE",

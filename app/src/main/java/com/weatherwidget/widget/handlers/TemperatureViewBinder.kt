@@ -214,6 +214,10 @@ HeaderRemoteViewsBinder.applyDisclosure(
         } else if (state.graph.showTextMode) {
             showTextMode(views)
         }
+        // useGraph with a null bitmap means renderGraph threw (HOURLY_RENDER_EXCEPTION). Do not
+        // fall through to text mode: text_container is the daily layout, unpopulated on this
+        // path, so that "fallback" is an empty body. Leaving graph_view untouched keeps the last
+        // good bitmap on screen — RemoteViews visibility is sticky, so the previous frame stands.
     }
 
     private fun showTextMode(views: RemoteViews) {
