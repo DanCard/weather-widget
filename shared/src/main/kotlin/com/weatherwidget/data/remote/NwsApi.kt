@@ -40,7 +40,6 @@ class NwsApi
         companion object {
             private const val TAG = "NwsApi"
             private const val BASE_URL = "https://api.weather.gov"
-            private const val USER_AGENT = "WeatherWidget/1.0 (contact@weatherwidget.app)"
 
             fun classifyStationType(id: String): StationType {
                 return if (id.length == 4 && (id.startsWith("K") || id.startsWith("P") || id.startsWith("T"))) {
@@ -216,7 +215,7 @@ class NwsApi
         }
 
         private fun HttpRequestBuilder.nwsHeaders(accept: String = "application/json") {
-            header("User-Agent", USER_AGENT)
+            header("User-Agent", HttpUserAgent.VALUE)
             header("Accept", accept)
         }
 

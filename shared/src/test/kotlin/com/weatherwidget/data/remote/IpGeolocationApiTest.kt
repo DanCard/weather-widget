@@ -20,9 +20,11 @@ class IpGeolocationApiTest {
     @Test
     fun `locate maps ipapi response`() = runBlocking {
         val json = Json { ignoreUnknownKeys = true }
+        var sentUserAgent: String? = null
         val client = HttpClient(MockEngine) {
             engine {
-                addHandler {
+                addHandler { request ->
+                    sentUserAgent = request.headers[HttpHeaders.UserAgent]
                     respond(
                         content = """
                             {
@@ -48,5 +50,8 @@ class IpGeolocationApiTest {
         assertEquals("San Francisco", location?.city)
         assertEquals("California", location?.region)
         assertEquals("United States", location?.country)
+        // ipapi.co answers Ktor's default "Ktor client" agent with 429; the identifying agent is
+        // what makes the lookup work at all, so its absence must fail here rather than in the field.
+        assertEquals(HttpUserAgent.VALUE, sentUserAgent)
     }
 }

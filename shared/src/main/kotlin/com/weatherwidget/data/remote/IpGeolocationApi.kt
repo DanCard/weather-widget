@@ -3,6 +3,7 @@ package com.weatherwidget.data.remote
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -15,7 +16,10 @@ class IpGeolocationApi
         private val json: Json,
     ) {
         suspend fun locate(): IpLocation? {
-            val response: String = httpClient.get(BASE_URL).body()
+            val response: String = httpClient.get(BASE_URL) {
+                // Without this ipapi.co returns 429 to Ktor's default agent — see HttpUserAgent.
+                header("User-Agent", HttpUserAgent.VALUE)
+            }.body()
             return json.decodeFromString<IpApiResponse>(response).toLocation()
         }
 

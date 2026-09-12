@@ -20,7 +20,7 @@ class NominatimApi
             if (query.isBlank()) return emptyList()
             val response: String =
                 httpClient.get("$BASE_URL/search") {
-                    header("User-Agent", USER_AGENT)
+                    header("User-Agent", HttpUserAgent.VALUE)
                     header("Accept", "application/json")
                     parameter("q", query)
                     parameter("format", "jsonv2")
@@ -36,7 +36,7 @@ class NominatimApi
         ): GeocodeResult? {
             val response: String =
                 httpClient.get("$BASE_URL/reverse") {
-                    header("User-Agent", USER_AGENT)
+                    header("User-Agent", HttpUserAgent.VALUE)
                     header("Accept", "application/json")
                     parameter("lat", lat)
                     parameter("lon", lon)
@@ -49,7 +49,6 @@ class NominatimApi
 
         companion object {
             private const val BASE_URL = "https://nominatim.openstreetmap.org"
-            private const val USER_AGENT = "WeatherWidget/1.0 (contact@weatherwidget.app)"
         }
     }
 
