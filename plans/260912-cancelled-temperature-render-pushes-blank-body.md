@@ -24,7 +24,8 @@ Widget #88 (temperature graph) with a header and an empty body for ~4 minutes,
 | 12:10:20.612 | `HOURLY_PAINT_TRACE phase=resolve_NULL_BITMAP widget=88 hours=130 renderMs=1` |
 | 12:10:20.694 | `WIDGET_PAINT widget=88 origin=WORKER_FETCH state=data push=partial` — **the blank is pushed**. |
 | 12:10:20.759 | `SYNC_CANCELLED Worker cancelled. stopReason=-256 msg=Job was cancelled` — the painting worker unwinds. |
-| 12:14:23 | The re-run worker finally paints #88 correctly. It took 243 s because the synoptic backfill inside the sync waited on an AW020 `HttpRequestTimeoutException` (`SYNC_PERF synoptic=242663ms`). |
+| 12:10:21 → 12:14:23 | **Screen off.** Nothing at all is logged by any coroutine for four minutes; the next event is `GPS_RESAMPLE trigger=screen_on`. The two in-flight HTTP calls (Synoptic radius fetch, NWS `AW020`) both resume within 100 ms of the wake — `SYNC_PERF synoptic=242663ms` is wall-clock across the sleep (the same fetch measured 5.7 s on 2026-09-12 14:03), and the `AW020` 30 s timeout fires late for the same reason. |
+| 12:14:23 | Screen on. The blank pushed at 12:10:20 is the first thing on screen; the re-run worker repaints #88 within a second (`worker_paint_done` 12:14:23, cache paint 12:14:27). Bug report filed 12:14:55. |
 
 Two independent WorkManager workers (unique names `weather_widget_one_time` and
 `weather_widget_observation_backfill`) were stopped within 600 ms of each other and both re-ran
@@ -118,10 +119,11 @@ fallback that looks like "nothing".
 
 ### Out of scope (separate plans)
 
-- **Paint sequenced behind a 4-minute synoptic backfill** (`SYNC_PERF synoptic=242663ms`). The
-  sync pipeline runs the observation backfill before the widget paint, so a single hung station
-  request delays the whole repaint. That is why the blank lasted four minutes instead of a few
-  seconds. → `performance/` plan.
+- ~~Paint sequenced behind a 4-minute synoptic backfill~~ — withdrawn. The 242 s was the phone
+  asleep with the screen off (see timeline), not a slow fetch; the same synoptic call took 5.7 s
+  in the 14:03 reproduction. What remains true is that the paint sits *after* the network stages
+  in `FullSyncPipeline`, so a genuinely slow station request would delay the repaint; not
+  observed here.
 - **Four syncs in ten seconds on a location move** (`on_update_stale`, `location_changed`, forced
   `unspecified`, forced `hourly_gaps`, plus two backfills) — the fan-out that made an overlapping
   paint likely in the first place.
@@ -159,9 +161,9 @@ fallback that looks like "nothing".
   worker logged `SYNC_CANCELLED stopReason=-256 msg=Job was cancelled` with no `worker_paint_done`,
   and WorkManager re-ran the same request 400 ms later — the bug report's signature exactly,
   `-256` included. This confirms a connectivity change stops a CONNECTED-constrained worker
-  mid-paint. The re-run painted all three widgets; none went blank.
+  mid-paint (on 2026-09-12 the flap was almost certainly the screen going off and the venue WiFi
+  dropping with it). The re-run painted all three widgets; none went blank.
 - Caveat: the user has since toggled #88 to DAILY, so the cancellation went through the daily
   path on-device; the temperature `renderGraph` catch is covered by the unit tests.
 
-**Not done** — see "Out of scope" above (paint sequenced behind the synoptic backfill; sync
-fan-out on a location move).
+**Not done** — see "Out of scope" above (sync fan-out on a location move).
