@@ -25,11 +25,15 @@ window (`desktop/src/main/kotlin/com/weatherwidget/desktop/SettingsWindow.kt`), 
 
 ## Review Fixes Before Implementing (Memory)
 
-**Before implementing any significant change, first present the root-cause analysis and the
+**Before implementing any significant change or bugfix, first present the root-cause analysis and the
 proposed fix plan, and wait for the user's approval before editing code.** (Evidence-gathering —
 screenshots, logs, DB queries — comes first as usual; the gate applies to code edits.) After
 approval, proceed through implementation, tests, build, and on-device verification without further
 check-ins unless the plan needs to change.
+
+**Exemptions (proceed immediately without asking for approval):**
+- Routine release operations requested by the user: bumping `versionCode`/`versionName`, writing changelogs/plans, running release validation tests, and pushing/promoting builds via Fastlane.
+- Explicit single-purpose instructions (e.g., "commit", "run tests", "reformat code").
 
 ## Technology Stack
 
