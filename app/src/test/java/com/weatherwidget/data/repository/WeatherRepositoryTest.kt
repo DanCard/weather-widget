@@ -157,7 +157,7 @@ class WeatherRepositoryTest {
         } returns emptyList()
         coEvery {
             nwsForecastMapper.fetchFromNws(testLat, testLon)
-        } returns (listOf(createForecastEntity(today, 70, 50)) to emptyList())
+        } returns NwsForecastMapper.NwsFetchResult(listOf(createForecastEntity(today, 70, 50)), emptyList())
 
         val beforeFetch = System.currentTimeMillis()
         repository.getWeatherData(

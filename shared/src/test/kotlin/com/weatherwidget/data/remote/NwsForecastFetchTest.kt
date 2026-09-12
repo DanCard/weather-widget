@@ -74,11 +74,31 @@ class NwsForecastFetchTest {
         }
     """.trimIndent()
 
+    // The raw grid still carries the issuance's elapsed hours: 11:00-13:00Z sit before the first
+    // live hourly period (14:00Z). temperature is degC (a PT3H run + one PT1H entry); the -100°F
+    // sentinel leaks as -73.33 degC on the 10:00Z hour and must be dropped.
     private val gridpointsJson = """
         {
           "properties": {
             "skyCover": {
-              "values": [ { "validTime": "2026-09-09T14:00:00+00:00/PT1H", "value": 42 } ]
+              "values": [
+                { "validTime": "2026-09-09T11:00:00+00:00/PT2H", "value": 90 },
+                { "validTime": "2026-09-09T13:00:00+00:00/PT1H", "value": 10 },
+                { "validTime": "2026-09-09T14:00:00+00:00/PT1H", "value": 42 }
+              ]
+            },
+            "temperature": {
+              "uom": "wmoUnit:degC",
+              "values": [
+                { "validTime": "2026-09-09T10:00:00+00:00/PT1H", "value": -73.33333 },
+                { "validTime": "2026-09-09T11:00:00+00:00/PT3H", "value": 20 },
+                { "validTime": "2026-09-09T14:00:00+00:00/PT1H", "value": 21.11111 },
+                { "validTime": "not-a-time", "value": 5 }
+              ]
+            },
+            "probabilityOfPrecipitation": {
+              "uom": "wmoUnit:percent",
+              "values": [ { "validTime": "2026-09-09T12:00:00+00:00/PT1H", "value": 30 } ]
             }
           }
         }
@@ -123,6 +143,51 @@ class NwsForecastFetchTest {
     }
 
     @Test
+    fun `grid temperature series expands durations, converts degC, drops sentinel and malformed`() = runBlocking {
+        val grid = apiWith().getGridPoint(37.42, -122.08)
+        val bundle = NwsForecastFetch.fetch(apiWith(), grid)
+        val byHour = bundle.gridpoints.temperatureByHour
+
+        val h = 3_600_000L
+        val t11 = java.time.Instant.parse("2026-09-09T11:00:00Z").toEpochMilli()
+        // PT3H run from 11:00Z expands to 11/12/13; 14:00Z is its own entry; 10:00Z sentinel gone.
+        assertEquals(setOf(t11, t11 + h, t11 + 2 * h, t11 + 3 * h), byHour.keys)
+        assertEquals(68f, byHour.getValue(t11), 0.01f)
+        assertEquals(70f, byHour.getValue(t11 + 3 * h), 0.01f)
+        assertEquals(mapOf(t11 + h to 30), bundle.gridpoints.precipProbabilityByHour)
+    }
+
+    @Test
+    fun `elapsed periods are the grid hours before the first live hour, with sky cover and condition`() = runBlocking {
+        val grid = apiWith().getGridPoint(37.42, -122.08)
+        val bundle = NwsForecastFetch.fetch(apiWith(), grid)
+
+        val h = 3_600_000L
+        val t11 = java.time.Instant.parse("2026-09-09T11:00:00Z").toEpochMilli()
+        val elapsed = bundle.elapsedHourlyPeriods
+        // 14:00Z is the live start and is NOT elapsed, whatever the grid says about it.
+        assertEquals(listOf(t11, t11 + h, t11 + 2 * h), elapsed.map { it.startTime })
+        assertEquals(listOf(68f, 68f, 68f), elapsed.map { it.temperature })
+        // Sky cover merged per hour (PT2H run of 90 then 10) and the condition follows its band.
+        assertEquals(listOf(90, 90, 10), elapsed.map { it.cloudCover })
+        assertEquals(listOf("Cloudy", "Cloudy", "Clear"), elapsed.map { it.shortForecast })
+        assertEquals(listOf(null, 30, null), elapsed.map { it.precipProbability })
+        // The live list is untouched by the grid's extra hours.
+        assertEquals(1, bundle.hourlyPeriods.size)
+    }
+
+    @Test
+    fun `no live periods means no elapsed periods`() {
+        val bundle = NwsApi.GridpointsBundle(
+            skyCoverByHour = emptyMap(),
+            qpfIntervals = emptyList(),
+            dailyTemperatures = NwsApi.DailyTemperatureExtremes(emptyMap(), emptyMap()),
+            temperatureByHour = mapOf(1_000L to 60f),
+        )
+        assertTrue(NwsForecastFetch.elapsedPeriodsFromGrid(bundle, emptyList()).isEmpty())
+    }
+
+    @Test
     fun `gridpoints failure degrades to an empty bundle without failing the fetch`() = runBlocking {
         val grid = apiWith().getGridPoint(37.42, -122.08)
         val bundle = NwsForecastFetch.fetch(apiWith(HttpStatusCode.InternalServerError), grid)
@@ -130,6 +195,7 @@ class NwsForecastFetchTest {
         assertNotNull(bundle.gridpointsFailure)
         assertTrue(bundle.gridpoints.skyCoverByHour.isEmpty())
         assertTrue(bundle.gridpoints.qpfIntervals.isEmpty())
+        assertTrue(bundle.elapsedHourlyPeriods.isEmpty())
         // The forecast legs still came through.
         assertEquals(1, bundle.forecastPeriods.size)
         assertEquals(1, bundle.hourlyPeriods.size)

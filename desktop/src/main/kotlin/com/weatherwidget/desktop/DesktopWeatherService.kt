@@ -413,6 +413,7 @@ class DesktopWeatherService(
             providerCurrentCondition = observations.currentCondition,
             providerCurrentObservedAt = observations.currentObservedAt,
             hourly = bundle.hourlyPeriods.map { it.toHourlyForecast() },
+            elapsedHourly = bundle.elapsedHourlyPeriods.map { it.toHourlyForecast() },
             daily = NwsDailyMapper.buildDailyForecasts(
                 bundle.forecastPeriods,
                 bundle.gridpoints.dailyTemperatures,

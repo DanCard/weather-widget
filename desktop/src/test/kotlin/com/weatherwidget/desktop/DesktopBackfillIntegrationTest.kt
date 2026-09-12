@@ -246,6 +246,14 @@ class DesktopBackfillIntegrationTest {
             WeatherSource.TOMORROW_IO.id,
             currentTimeMillis = { now },
         )
+        // What an earlier fetch predicted for the elapsed hour, snapshotted while it was still
+        // future. The refresh's revised value for that hour must not replace it (an hour with NO
+        // snapshot is a different case — see ElapsedForecastBackfill — and is not this test).
+        val earlierBucket = (oldTimelineHour - 24 * 3_600_000L) / (4 * 3_600_000L) * (4 * 3_600_000L)
+        dao.upsertHourlyForecastHistory(
+            lat, lon, WeatherSource.TOMORROW_IO.id, earlierBucket,
+            listOf(HourlyForecast(oldTimelineHour, 55f, "Predicted", source = WeatherSource.TOMORROW_IO.id)),
+        )
         coEvery { weatherService.fetchForecast() } returns RawFetch(
             hourly = listOf(
                 HourlyForecast(oldTimelineHour, 60f, "Past analysis", source = WeatherSource.TOMORROW_IO.id),
@@ -272,7 +280,9 @@ class DesktopBackfillIntegrationTest {
             futureHour + 1L,
             nowMs = now,
         )
-        assertEquals(false, archived.any { it.dateTime == oldTimelineHour })
+        val archivedElapsed = archived.filter { it.dateTime == oldTimelineHour }
+        assertEquals(listOf(55f), archivedElapsed.map { it.temperature })
+        assertEquals(listOf("Predicted"), archivedElapsed.map { it.condition })
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.NwsDailyMapper
@@ -40,10 +41,21 @@ class NwsForecastMapper @Inject constructor(
         val preservedLowTemp: Float?,
     )
 
+    /**
+     * @param elapsedHourly the issuance's already-elapsed hours from the raw grid, as the shared
+     *   model — history-only material for `HourlyForecastStore.backfillElapsedHistory`, never
+     *   written to the live table. Empty when the grid leg failed.
+     */
+    data class NwsFetchResult(
+        val forecasts: List<ForecastEntity>,
+        val hourly: List<HourlyForecastEntity>,
+        val elapsedHourly: List<HourlyForecast> = emptyList(),
+    )
+
     suspend fun fetchFromNws(
         latitude: Double,
         longitude: Double,
-    ): Pair<List<ForecastEntity>, List<HourlyForecastEntity>> = coroutineScope {
+    ): NwsFetchResult = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
         val bundle = NwsForecastFetch.fetch(nwsApi, grid)
         bundle.gridpointsFailure?.let { e ->
@@ -211,7 +223,19 @@ class NwsForecastMapper @Inject constructor(
             )
         }
 
-        Pair(forecastEntities, hourlyEntities)
+        val elapsedHourly = bundle.elapsedHourlyPeriods.map { period ->
+            HourlyForecast(
+                dateTime = period.startTime,
+                temperature = period.temperature,
+                condition = period.shortForecast,
+                precipProbability = period.precipProbability,
+                precipAmountMm = period.precipAmountMm,
+                cloudCover = period.cloudCover,
+                source = WeatherSource.NWS.id,
+            )
+        }
+
+        NwsFetchResult(forecastEntities, hourlyEntities, elapsedHourly)
     }
 
     fun initPrecipFromHourly(

@@ -168,6 +168,13 @@ data class ObservationReading(
 
 data class RawFetch(
     val hourly: List<HourlyForecast> = emptyList(),
+    /**
+     * The issuance's already-elapsed hours when the provider serves them *separately* from
+     * [hourly] (NWS: the raw grid, since `/forecast/hourly` starts at the current hour). Providers
+     * whose [hourly] already reaches back (Open-Meteo `past_days`, Silurian `include_past`) leave
+     * this empty. History-only material for the elapsed-hour backfill; never the live table.
+     */
+    val elapsedHourly: List<HourlyForecast> = emptyList(),
     /** Optional provider history at its native sub-hour cadence, when provenance permits actuals. */
     val subHourly: List<HourlyForecast> = emptyList(),
     val daily: List<DailyForecast> = emptyList(),

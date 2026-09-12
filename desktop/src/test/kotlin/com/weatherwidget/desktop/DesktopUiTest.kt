@@ -845,17 +845,22 @@ currentCondition = "Sunny"),
 
             // Filter out "error"
             composeTestRule.onNodeWithTag("app_log_filter_input").performTextInput("error")
-            
+
+            // Await the FINAL state — both halves together. LogList is an unkeyed LazyColumn whose
+            // item content is composed at measure, so after the filter there is a frame where index 1
+            // ("Fetch success") has left the semantics tree while index 0 has not yet re-measured from
+            // "Fetch success" to "Network error". Waiting only for the first to vanish and then
+            // asserting the second unguarded passed on an idle machine and failed under full-suite
+            // load (1.0 s vs 0.5 s run; 2026-09-11, concurrent with a jpackage build).
             composeTestRule.waitUntil(timeoutMillis = 5000L) {
                 try {
                     composeTestRule.onNodeWithText("Fetch success").assertDoesNotExist()
+                    composeTestRule.onNodeWithText("Network error").assertExists()
                     true
                 } catch (e: AssertionError) {
                     false
                 }
             }
-
-            composeTestRule.onNodeWithText("Network error").assertExists()
         } finally {
             java.nio.file.Files.deleteIfExists(tempDbPath)
         }

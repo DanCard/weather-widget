@@ -6,6 +6,8 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.RawFetch
+import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -251,12 +253,45 @@ internal class ForecastFetchCoordinator(
         latitude: Double,
         longitude: Double,
     ): List<ForecastEntity> {
-        val (forecastEntities, hourlyEntities) =
+        val (forecastEntities, hourlyEntities, elapsedHourly) =
             nwsForecastMapper.fetchFromNws(latitude, longitude)
         if (hourlyEntities.isNotEmpty()) {
             hourlyStore.saveHourlyEntities(hourlyEntities)
         }
+        backfillElapsedHistory(elapsedHourly, latitude, longitude, WeatherSource.NWS)
         return forecastEntities
+    }
+
+    /**
+     * Gives a site with no forecast history yet the elapsed hours this payload carries. Same
+     * source only; never overwrites. INFO only when something was written — in steady state this
+     * runs every fetch and stores nothing, which is VERBOSE.
+     */
+    private suspend fun backfillElapsedHistory(
+        hourly: List<HourlyForecast>,
+        latitude: Double,
+        longitude: Double,
+        source: WeatherSource,
+    ) {
+        if (hourly.isEmpty()) return
+        val summary = try {
+            hourlyStore.backfillElapsedHistory(hourly, latitude, longitude, source.id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            appLogDao.log(
+                "HOURLY_HISTORY_BACKFILL_FAIL",
+                "source=${source.id} ${e.javaClass.simpleName}: ${e.message}",
+                "WARN",
+            )
+            return
+        }
+        appLogDao.log(
+            "HOURLY_HISTORY_BACKFILL",
+            "source=${source.id} site=${LocationMatch.quantize(latitude)},${LocationMatch.quantize(longitude)} " +
+                "offered=${summary.offered} covered=${summary.covered} stored=${summary.stored}",
+            if (summary.stored > 0) "INFO" else "VERBOSE",
+        )
     }
 
     private suspend fun fetchFromSilurian(
@@ -334,7 +369,11 @@ internal class ForecastFetchCoordinator(
                 historicalData = result.subHourly.ifEmpty {
                     if (source == WeatherSource.TOMORROW_IO) emptyList() else result.hourly
                 },
-            )
+            ).also {
+                // The elapsed hours the live write just dropped, filed as history where the site
+                // has none (Open-Meteo past_days, Silurian include_past, Tomorrow.io nowMinus23h).
+                backfillElapsedHistory(result.hourly, latitude, longitude, source)
+            }
         } else {
             HourlyForecastStore.HistoricalActualsWriteSummary(0, 0)
         }

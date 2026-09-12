@@ -9,6 +9,7 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.withQuantizedLocation
+import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.widget.WidgetStateManager
@@ -104,7 +105,9 @@ internal class HourlyForecastStore(
         // Providers with a distinct actuals-capable historical product pass that series through
         // historicalData. Tomorrow.io passes only its separate five-minute Timeline result; its
         // elapsed hourly forecast rows are never reclassified as observations.
-        val futureData = hourlyData.filter { it.dateTime >= now - 3_600_000L }
+        // The elapsed hours are not lost, though: the caller hands them to [backfillElapsedHistory],
+        // which files them as history only where the site has no snapshot yet (same boundary).
+        val futureData = hourlyData.filter { it.dateTime >= now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
         saveHourlyEntities(
             futureData.map {
                 HourlyForecastEntity(
@@ -125,6 +128,83 @@ internal class HourlyForecastStore(
             },
         )
         return saveHistoricalActuals(historicalData, latitude, longitude, sourceId)
+    }
+
+    /** Outcome of one [backfillElapsedHistory] call, for the caller's `HOURLY_HISTORY_BACKFILL` log line. */
+    data class ElapsedBackfillSummary(
+        /** Elapsed hours the payload offered inside the backfill window. */
+        val offered: Int,
+        /** Of those, hours the site already had a history row for. */
+        val covered: Int,
+        /** Rows written. */
+        val stored: Int,
+    )
+
+    /**
+     * Files the payload's already-elapsed hours into `hourly_forecast_history` — only for hours
+     * this source has no row for at this site. See [ElapsedForecastBackfill] for why: a fresh
+     * install or new location has no earlier fetch to have snapshotted those hours, so the graph's
+     * past forecast line is blank for a day while every payload carries the missing values.
+     *
+     * Never touches `hourly_forecasts`, and never rewrites an existing snapshot: an hour with any
+     * history row (in any bucket, on any same-site fragment) is left alone, so on a device in
+     * steady state this is a no-op every fetch. Filed under the regular [ForecastHistoryPolicy]
+     * bucket for the fetch, so the row is what it is — this fetch's forecast for that hour.
+     */
+    suspend fun backfillElapsedHistory(
+        hourlyData: List<HourlyForecast>,
+        latitude: Double,
+        longitude: Double,
+        sourceId: String,
+        nowMs: Long = System.currentTimeMillis(),
+    ): ElapsedBackfillSummary {
+        val window = ElapsedForecastBackfill.window(nowMs)
+        val offered = hourlyData.filter { it.dateTime in window }
+        if (offered.isEmpty()) return ElapsedBackfillSummary(0, 0, 0)
+        val keyLat = LocationMatch.quantize(latitude)
+        val keyLon = LocationMatch.quantize(longitude)
+        val covered = hourlyForecastHistoryDao.getHistoryInRangeForBucketWindow(
+            startDateTime = offered.minOf { it.dateTime },
+            endDateTime = offered.maxOf { it.dateTime } + 1,
+            bucketStart = Long.MIN_VALUE,
+            bucketEnd = Long.MAX_VALUE,
+            lat = keyLat,
+            lon = keyLon,
+            source = sourceId,
+        ).asSequence()
+            .filter { LocationMatch.sameSite(keyLat, keyLon, it.locationLat, it.locationLon) }
+            .map { it.dateTime }
+            .toSet()
+        val selected = ElapsedForecastBackfill.select(offered, nowMs, covered)
+        if (selected.isEmpty()) {
+            return ElapsedBackfillSummary(offered.size, covered.size, 0)
+        }
+        val bucket = ForecastHistoryPolicy.timestampToGroupPredictions(
+            nowMs,
+            sourceId,
+            widgetStateManager.getActiveDisplaySourceIds(),
+        )
+        hourlyForecastHistoryDao.insertAll(
+            selected.map {
+                HourlyForecastHistoryEntity(
+                    dateTime = it.dateTime,
+                    locationLat = keyLat,
+                    locationLon = keyLon,
+                    temperature = it.temperature,
+                    condition = it.condition,
+                    source = sourceId,
+                    timestampToGroupPredictions = bucket,
+                    precipProbability = it.precipProbability,
+                    cloudCover = it.cloudCover,
+                    cloudCoverLow = it.cloudCoverLow,
+                    cloudCoverMid = it.cloudCoverMid,
+                    cloudCoverHigh = it.cloudCoverHigh,
+                    precipAmountMm = it.precipAmountMm,
+                    fetchedAt = nowMs,
+                )
+            },
+        )
+        return ElapsedBackfillSummary(offered.size, covered.size, selected.size)
     }
 
     private suspend fun saveHistoricalActuals(

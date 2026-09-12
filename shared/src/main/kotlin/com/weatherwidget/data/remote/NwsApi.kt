@@ -462,16 +462,67 @@ class NwsApi
             val rejectedTemps = mutableListOf<RejectedNwsTemperature>()
             val maxByDate = parseDailyExtremes(properties["maxTemperature"]?.jsonObject, isMax = true, rejected = rejectedTemps)
             val minByDate = parseDailyExtremes(properties["minTemperature"]?.jsonObject, isMax = false, rejected = rejectedTemps)
+            val temperatureByHour = parseGridTemperatureByHour(properties)
+            val precipProbabilityByHour = parseGridHourlySeries(properties["probabilityOfPrecipitation"]?.jsonObject)
+                .mapValues { (_, value) -> value.toInt().coerceIn(0, 100) }
 
             Log.d(
                 TAG,
-                "getGridpointsBundle: skyCover=${skyCoverByHour.size}h qpf=${qpfIntervals.size} maxDays=${maxByDate.size} minDays=${minByDate.size} rejected=${rejectedTemps.size}",
+                "getGridpointsBundle: skyCover=${skyCoverByHour.size}h qpf=${qpfIntervals.size} " +
+                    "temp=${temperatureByHour.size}h maxDays=${maxByDate.size} minDays=${minByDate.size} rejected=${rejectedTemps.size}",
             )
             return GridpointsBundle(
                 skyCoverByHour,
                 qpfIntervals,
                 DailyTemperatureExtremes(maxByDate, minByDate, rejectedTemps),
+                temperatureByHour = temperatureByHour,
+                precipProbabilityByHour = precipProbabilityByHour,
             )
+        }
+
+        /**
+         * Hourly temperature (°F) from the raw grid's `temperature` series. The grid is the only
+         * NWS product that still carries hours already elapsed since the current issuance —
+         * `/forecast/hourly` begins at the current hour — which is what makes an elapsed-hour
+         * history backfill possible for this source at all (see `ElapsedForecastBackfill`).
+         * Applies the same plausibility gate as the daily extremes: the -100°F sentinel leaks
+         * here too.
+         */
+        internal fun parseGridTemperatureByHour(properties: JsonObject): Map<Long, Float> {
+            val node = properties["temperature"]?.jsonObject ?: return emptyMap()
+            val unitCode = node["uom"]?.jsonPrimitive?.contentOrNull
+            return parseGridHourlySeries(node)
+                .mapValues { (_, raw) ->
+                    when (unitCode) {
+                        "wmoUnit:degF" -> raw.toFloat()
+                        else -> (raw.toFloat() * 1.8f) + 32f
+                    }
+                }
+                .filterValues { NwsTemperaturePlausibility.isPlausibleF(it) }
+        }
+
+        /**
+         * Expands one raw-grid `values` array (`validTime = "start/PTnH"`) into a per-hour map
+         * keyed by the hour's epoch millis. Mirrors [parseSkyCoverFromProperties]'s expansion
+         * but keyed on the instant rather than a zone-formatted string, so it can meet
+         * `HourlyForecastPeriod.startTime` directly. Malformed entries are skipped.
+         */
+        internal fun parseGridHourlySeries(node: JsonObject?): Map<Long, Double> {
+            val values = node?.get("values")?.jsonArray ?: return emptyMap()
+            val result = linkedMapOf<Long, Double>()
+            for (entry in values) {
+                val obj = entry.jsonObject
+                val validTime = obj["validTime"]?.jsonPrimitive?.contentOrNull ?: continue
+                val value = obj["value"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: continue
+                val range = parseValidTimeRange(validTime) ?: continue
+                val duration = runCatching { Duration.parse(range.durationRaw) }.getOrNull() ?: continue
+                val hours = duration.toHours().coerceAtLeast(1)
+                val startMs = range.start.toInstant().toEpochMilli()
+                for (h in 0 until hours) {
+                    result[startMs + h * 3_600_000L] = value
+                }
+            }
+            return result
         }
 
         /**
@@ -702,6 +753,10 @@ class NwsApi
             val skyCoverByHour: Map<String, Int>,
             val qpfIntervals: List<QuantitativePrecipitationInterval>,
             val dailyTemperatures: DailyTemperatureExtremes,
+            /** Hourly °F keyed by the hour's epoch millis; covers elapsed hours of the issuance. */
+            val temperatureByHour: Map<Long, Float> = emptyMap(),
+            /** Hourly PoP (0-100) keyed like [temperatureByHour]. */
+            val precipProbabilityByHour: Map<Long, Int> = emptyMap(),
         )
 
         private fun parseQuantitativePrecipitationMm(obj: JsonObject?): Float? {

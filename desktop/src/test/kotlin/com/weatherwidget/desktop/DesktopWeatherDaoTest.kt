@@ -6,6 +6,8 @@ import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.CurrentTempStatus
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyHistory
+import com.weatherwidget.data.model.ElapsedForecastBackfill
+import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
@@ -391,5 +393,45 @@ class DesktopWeatherDaoTest {
         assertEquals(time4, omStatus2!!.timestamp)
         assertFalse(omStatus2.ok)
         assertEquals("source=OPEN_METEO ok=false class=SocketTimeoutException detail=Timeout2", omStatus2.message)
+    }
+
+    // plans/260911-backfill-elapsed-hour-forecast-history-on-fresh-site.md test #7: the JDBC
+    // coverage read + ElapsedForecastBackfill.select + the history upsert, together.
+    @Test
+    fun `elapsed backfill files only uncovered same-site hours and is a no-op on a second pass`() {
+        val h = 3_600_000L
+        val lat = 37.4168
+        val lon = -122.0890
+        val source = WeatherSource.NWS.id
+        val now = (System.currentTimeMillis() / h) * h + 20 * 60_000L
+        fun hour(t: Long, temp: Float) = HourlyForecast(dateTime = t, temperature = temp, condition = "Clear", source = source)
+        val payload = (-6..2).map { hour(now - now % h + it * h, 60f + it) }
+        val window = ElapsedForecastBackfill.window(now)
+        val offered = payload.filter { it.dateTime in window }
+        assertEquals(6, offered.size)
+
+        // A genuine snapshot from an earlier fetch on a 0.001-deg jitter fragment covers its hour;
+        // a row 0.05 deg away (inside the +/-0.1 query box) is a different site and covers nothing.
+        val snapshotted = offered[2].dateTime
+        dao.upsertHourlyForecastHistory(lat + 0.001, lon, source, snapshotted - 24 * h, listOf(hour(snapshotted, 99f)))
+        dao.upsertHourlyForecastHistory(lat + 0.05, lon, source, 0L, listOf(hour(offered[0].dateTime, 1f)))
+
+        val covered = dao.getHourlyHistoryCoveredHours(lat, lon, source, offered.first().dateTime, offered.last().dateTime + 1)
+        assertEquals(setOf(snapshotted), covered)
+
+        val selected = ElapsedForecastBackfill.select(offered, now, covered)
+        val bucket = (now / (4 * h)) * (4 * h)
+        dao.upsertHourlyForecastHistory(lat, lon, source, bucket, selected)
+
+        val stored = dao.getHourlyHistory(lat, lon, source, now - 24 * h, now + 24 * h, now)
+        // Every elapsed hour now has a same-site row; the snapshotted one kept its original value.
+        assertEquals(offered.map { it.dateTime }, stored.map { it.dateTime }.distinct().sorted())
+        assertEquals(99f, stored.first { it.dateTime == snapshotted }.temperature, 0f)
+        // Nothing reached the live table.
+        assertTrue(dao.getHourlyForecasts(lat, lon, source, now - 24 * h, now + 24 * h).isEmpty())
+
+        // Second pass: everything covered, nothing to write.
+        val coveredAgain = dao.getHourlyHistoryCoveredHours(lat, lon, source, offered.first().dateTime, offered.last().dateTime + 1)
+        assertTrue(ElapsedForecastBackfill.select(offered, now, coveredAgain).isEmpty())
     }
 }

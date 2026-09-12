@@ -518,6 +518,7 @@ class DesktopWeatherRepository(
                 timestampToGroupPredictions,
                 forecastHours,
             )
+            backfillElapsedHistory(result, now, timestampToGroupPredictions)
 
             // The cloud graph's frozen forecast curve. Throttled to once an hour: the day-ago
             // prediction for an elapsed hour never changes, so refetching it on every refresh would
@@ -564,6 +565,35 @@ class DesktopWeatherRepository(
     }
 
     /**
+     * Files the elapsed hours [persistForecastResult] dropped from the live write into history —
+     * only for hours this source has no history row for at this site. A fresh install or a new
+     * location has no earlier fetch to have snapshotted them, so the graph's past forecast line
+     * is blank for a day while every payload carries the values (`ElapsedForecastBackfill`).
+     * Same source only; existing rows are never touched, so in steady state this stores nothing.
+     */
+    private fun backfillElapsedHistory(result: RawFetch, now: Long, timestampToGroupPredictions: Long) {
+        val window = ElapsedForecastBackfill.window(now)
+        val offered = (result.hourly + result.elapsedHourly).filter { it.dateTime in window }
+        if (offered.isEmpty()) return
+        val covered = weatherDao.getHourlyHistoryCoveredHours(
+            LocationMatch.quantize(latitude),
+            LocationMatch.quantize(longitude),
+            weatherSource,
+            offered.minOf { it.dateTime },
+            offered.maxOf { it.dateTime } + 1,
+        )
+        val selected = ElapsedForecastBackfill.select(offered, now, covered)
+        if (selected.isNotEmpty()) {
+            weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, selected)
+        }
+        weatherDao.log(
+            tag = "HOURLY_HISTORY_BACKFILL",
+            message = "source=$weatherSource offered=${offered.size} covered=${covered.size} stored=${selected.size}",
+            level = if (selected.isNotEmpty()) "INFO" else "VERBOSE",
+        )
+    }
+
+    /**
      * Persists the just-fetched [result]: the elapsed-hour forecast rows, the daily forecast, and
      * any observations (with the `BACKFILL_CLOUD` diagnostic that separates "backfill produced no
      * cloud" from "the write dropped it"). Returns the filtered [forecastHours] so [refresh] can
@@ -573,7 +603,7 @@ class DesktopWeatherRepository(
         // Preserve the forecast that was actually shown for elapsed hours. Tomorrow's Timeline
         // response also contains a revised six-hour lookback; that slice belongs only in
         // observations and must not rewrite either live forecast storage or its snapshots.
-        val forecastHours = result.hourly.filter { it.dateTime >= now - 3_600_000L }
+        val forecastHours = result.hourly.filter { it.dateTime >= now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
         weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, forecastHours)
         weatherDao.upsertForecasts(latitude, longitude, weatherSource, result.daily)
 

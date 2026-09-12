@@ -377,6 +377,35 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             .mapNotNull { row -> with(VisibleCloudCover) { row.visibleCloudCover() }?.let { row.dateTime to it } }
             .toMap()
 
+    /**
+     * Hours in [startMs, endMs) that already have a `hourly_forecast_history` row for [source] at
+     * the same site as ([locationLat], [locationLon]) — any bucket, any jitter fragment within
+     * [LocationMatch.sameSite]. The coverage set `ElapsedForecastBackfill.select` subtracts.
+     */
+    fun getHourlyHistoryCoveredHours(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Set<Long> {
+        val covered = mutableSetOf<Long>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT DISTINCT dateTime, locationLat, locationLon FROM hourly_forecast_history
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND dateTime >= ? AND dateTime < ?
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                stmt.setLong(4, startMs)
+                stmt.setLong(5, endMs)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    if (LocationMatch.sameSite(locationLat, locationLon, rs.getDouble("locationLat"), rs.getDouble("locationLon"))) {
+                        covered.add(rs.getLong("dateTime"))
+                    }
+                }
+            }
+        }
+        return covered
+    }
+
     fun upsertHourlyForecastHistory(locationLat: Double, locationLon: Double, source: String, timestampToGroupPredictions: Long, hourly: List<HourlyForecast>) {
         db.getConnection().use { conn ->
             conn.autoCommit = false

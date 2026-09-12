@@ -3,6 +3,9 @@ package com.weatherwidget.data.remote
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * The raw NWS forecast pieces both platforms need, before each platform's own daily mapping.
@@ -13,6 +16,11 @@ import kotlinx.coroutines.coroutineScope
  * @param gridpoints the empty bundle when [gridpointsFailure] is non-null.
  * @param gridpointsFailure non-null when the gridpoints request failed; the caller logs its own tag
  *   (Android `NWS_GRIDPOINTS_FAIL`, desktop `bestEffort`).
+ * @param elapsedHourlyPeriods hours the raw grid still carries from *before* the first
+ *   `/forecast/hourly` period — the current issuance's already-elapsed hours, assembled like
+ *   [hourlyPeriods] (grid temperature, sky cover, PoP; condition from the sky-cover band). Empty
+ *   when the grid leg failed. These never enter the live table; they exist so a site with no
+ *   forecast history yet can be given one (`ElapsedForecastBackfill`).
  */
 data class NwsForecastBundle(
     val rawHourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
@@ -20,6 +28,7 @@ data class NwsForecastBundle(
     val forecastPeriods: List<NwsApi.ForecastPeriod>,
     val gridpoints: NwsApi.GridpointsBundle,
     val gridpointsFailure: Throwable?,
+    val elapsedHourlyPeriods: List<NwsApi.HourlyForecastPeriod> = emptyList(),
 )
 
 /**
@@ -79,6 +88,38 @@ object NwsForecastFetch {
             forecastPeriods = forecastPeriods,
             gridpoints = gridpoints,
             gridpointsFailure = gridpointsFailure,
+            elapsedHourlyPeriods = elapsedPeriodsFromGrid(gridpoints, rawHourlyPeriods),
         )
     }
+
+    /**
+     * Grid hours strictly before the first live hourly period, as [NwsApi.HourlyForecastPeriod]s.
+     * Bounded by the live start rather than "now" so the two lists never overlap whatever the
+     * clock skew between issuance and fetch; the writer applies its own elapsed boundary on top.
+     */
+    internal fun elapsedPeriodsFromGrid(
+        gridpoints: NwsApi.GridpointsBundle,
+        rawHourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): List<NwsApi.HourlyForecastPeriod> {
+        val liveStartMs = rawHourlyPeriods.minOfOrNull { it.startTime } ?: return emptyList()
+        return gridpoints.temperatureByHour
+            .filterKeys { it < liveStartMs }
+            .toSortedMap()
+            .map { (hourMs, tempF) ->
+                val local = Instant.ofEpochMilli(hourMs).atZone(zone)
+                val cover = gridpoints.skyCoverByHour[local.format(HOUR_KEY_FORMAT)]
+                NwsApi.HourlyForecastPeriod(
+                    startTime = hourMs,
+                    localDate = local.toLocalDate().toString(),
+                    localHour = local.hour,
+                    temperature = tempF,
+                    shortForecast = NwsSkyCoverCondition.shortForecastFor(cover),
+                    precipProbability = gridpoints.precipProbabilityByHour[hourMs],
+                    cloudCover = cover,
+                )
+            }
+    }
+
+    private val HOUR_KEY_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
 }
