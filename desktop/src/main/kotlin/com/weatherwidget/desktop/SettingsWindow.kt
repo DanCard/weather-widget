@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.WeatherSource
@@ -48,7 +49,11 @@ internal fun SettingsWindow(
     onSave: (DesktopConfig) -> Unit,
     onExit: () -> Unit,
     onUpdateLocation: () -> Unit = {},
-    onOpenObservations: () -> Unit = {},
+    // Android's Settings has no Observations entry — the widget's current-temperature tap opens
+    // that screen, and the desktop header's thermometer icon is the same door — so there is no
+    // onOpenObservations here. The icon gallery, by contrast, IS a Settings destination on Android
+    // (a button to IconGalleryActivity), mirrored here as a button to its own window.
+    onOpenIconGallery: () -> Unit = {},
     // Fire-and-forget: the caller owns both the coroutine and the progress flag. Fetching weather is
     // app-level work, not this window's, so it must NOT run on the local rememberCoroutineScope —
     // closing Settings during the ~5s fetch cancelled the scope and threw the completed result away
@@ -296,26 +301,36 @@ internal fun SettingsWindow(
                             )
                         }
 
-                        // API Keys
-                        SettingsCard(title = "API Keys") {
-                            ApiKeysList(
-                                apiKeys = currentConfig.settings.apiKeys,
-                                onChanged = { newKeys ->
-                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(apiKeys = newKeys)))
-                                }
-                            )
-                        }
-
-                        // Icon Gallery
-                        SettingsCard(title = "Icon Gallery") {
-                            IconGallery()
+                        // Icon gallery -- Android: R.string.icon_preview_title / _description +
+                        // a "View Icon Gallery" button to IconGalleryActivity. The grid used to be
+                        // inline here, which made this form far longer than Android's.
+                        SettingsCard(title = "Icon gallery") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(
+                                    text = "Comprehensive gallery of all weather icons used in the widget.",
+                                    style = WeatherTypography.bodySmall,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                SecondaryActionButton(
+                                    text = "View Icon Gallery",
+                                    onClick = onOpenIconGallery,
+                                    modifier = Modifier.testTag("view_icon_gallery_btn"),
+                                    prominent = true,
+                                )
+                            }
                         }
 
                         // Location
                         // Phase 4 item 4: enrich the label with a reverse-geocoded place name from
                         // the shared resolver. The raw config.label stays as the immediate display
                         // value while the lookup runs (and as a fallback if it fails).
-                        SettingsCard(title = "Location") {
+                        // Title, line and button copy follow Android's R.string.default_location_title /
+                        // no_location_set / set_location_button. Android appends "• Follows device" or
+                        // "• Fixed"; the desktop has no location mode, so the line ends at the coordinates.
+                        SettingsCard(title = "Default Location") {
                             var locationLabel by remember(currentConfig.label, currentConfig.lat, currentConfig.lon) {
                                 mutableStateOf(currentConfig.label.ifEmpty { "No location set" })
                             }
@@ -336,26 +351,16 @@ internal fun SettingsWindow(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = locationLabel,
+                                    text = if (currentConfig.label.isEmpty()) locationLabel else "Widget Location: $locationLabel",
                                     style = MaterialTheme.typography.bodyLarge,
                                     modifier = Modifier.weight(1f).padding(end = 8.dp),
                                 )
                                 PrimaryActionProminentButton(
-                                    text = "Change Location",
+                                    text = "Set Location…",
                                     onClick = onUpdateLocation,
-                                    modifier = Modifier.testTag("change_location_btn"),
+                                    modifier = Modifier.testTag("set_location_btn"),
                                 )
                             }
-                        }
-
-                        // Diagnostics / Observations
-                        SettingsCard(title = "Diagnostics") {
-                            SecondaryActionButton(
-                                text = "Stations / Observations",
-                                onClick = onOpenObservations,
-                                modifier = Modifier.testTag("open_observations_btn"),
-                                prominent = true,
-                            )
                         }
 
                         // Phase 4 item 5: Bug Report MVP. The full Android BugReportActivity is a
@@ -363,11 +368,34 @@ internal fun SettingsWindow(
                         // the desktop MVP is a single button that opens a mailto: link with basic
                         // diagnostic info. Main.kt constructs the URI (so it can pull runtime
                         // details like app version / OS); SettingsWindow just fires the callback.
-                        SettingsCard(title = "Feedback") {
+                        SettingsCard(title = "Feedback & Bug Reports") {
+                            Text(
+                                text = "Encountered an issue or want to suggest an improvement? Submit a " +
+                                    "detailed bug report with optional system diagnostics.",
+                                style = WeatherTypography.bodySmall,
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
                             AlertActionButton(
                                 text = "Submit Bug Report",
                                 onClick = onSubmitBugReport,
                                 modifier = Modifier.testTag("submit_bug_report_btn"),
+                            )
+                        }
+
+                        // API Keys -- after Feedback, where Android puts it (R.string.api_keys_title /
+                        // _description). It used to sit directly under Weather Data Sources here.
+                        SettingsCard(title = "API Keys") {
+                            Text(
+                                text = "Enter your own API keys for restricted services. Free services " +
+                                    "(NWS, Open-Meteo) do not require keys.",
+                                style = WeatherTypography.bodySmall,
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
+                            ApiKeysList(
+                                apiKeys = currentConfig.settings.apiKeys,
+                                onChanged = { newKeys ->
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(apiKeys = newKeys)))
+                                }
                             )
                         }
 
@@ -752,9 +780,14 @@ private fun ApiKeysList(
     }
 }
 
+/**
+ * The icon grid, shown in its own window (see `IconGalleryWindowHost`) — the desktop counterpart of
+ * Android's `IconGalleryActivity`. [iconSize] is larger there than the 32 dp it had when this sat
+ * inline in the Settings form.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun IconGallery() {
+internal fun IconGallery(iconSize: Dp = 32.dp, cellWidth: Dp = 80.dp) {
     val icons = listOf(
         "drawable/ic_weather_clear.xml" to "Clear",
         "drawable/ic_weather_mostly_clear.xml" to "Mostly Clear",
@@ -776,12 +809,12 @@ private fun IconGallery() {
         icons.forEach { (res, name) ->
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.width(80.dp)
+                modifier = Modifier.width(cellWidth)
             ) {
                 androidx.compose.foundation.Image(
                     painter = androidx.compose.ui.res.painterResource(res),
                     contentDescription = name,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(iconSize)
                 )
                 Text(name, style = MaterialTheme.typography.labelSmall, maxLines = 1)
             }

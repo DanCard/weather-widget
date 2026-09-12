@@ -138,6 +138,7 @@ internal fun runDesktopUiApplication() = application {
         var observationsVisible by remember { mutableStateOf(false) }
         var obsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
+        var iconGalleryVisible by remember { mutableStateOf(false) }
         // Owned here rather than in either child window: full refresh work runs on uiScope and
         // survives closing Settings or Stations/Observations.
         var refreshInFlight by remember { mutableStateOf(false) }
@@ -328,7 +329,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         // Exit on close logic:
-        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || historyVisible || observationsVisible || appLogsVisible
+        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || historyVisible || observationsVisible || appLogsVisible || iconGalleryVisible
         LaunchedEffect(anyWindowOpen) {
             if (!anyWindowOpen) {
                 Log.i(TAG, "All windows closed. Ephemeral UI process exiting...")
@@ -634,6 +635,10 @@ internal fun runDesktopUiApplication() = application {
             )
         }
 
+        if (iconGalleryVisible) {
+            IconGalleryWindowHost(icon = appIcon, onClose = { iconGalleryVisible = false })
+        }
+
         if (appLogsVisible) {
             AppLogsWindow(
                 weatherDao = weatherDao,
@@ -666,10 +671,7 @@ internal fun runDesktopUiApplication() = application {
                 onClose = { settingsVisible = false },
                 onExit = { quit() },
                 onUpdateLocation = { pickerVisible = true },
-                onOpenObservations = {
-                    observationsVisible = true
-                    obsShowRequestId++
-                },
+                onOpenIconGallery = { iconGalleryVisible = true },
                 onRefreshData = { requestFullRefresh("settings") },
                 onViewAppLogs = { appLogsVisible = true },
             )

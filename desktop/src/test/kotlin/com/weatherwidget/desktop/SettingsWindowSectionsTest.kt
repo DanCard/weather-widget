@@ -24,6 +24,25 @@ import org.junit.experimental.categories.Category
 @Category(LongDuration::class)
 class SettingsWindowSectionsTest {
 
+    /**
+     * Android's `activity_settings.xml` section order, minus Language (the desktop has no
+     * translations). Both tests below read from this one list so a section added to one platform
+     * must be added here — and therefore to the other — before the suite goes green.
+     */
+    private val ANDROID_SECTION_ORDER = listOf(
+        "Hourly Zoom",
+        "Notifications",
+        "Units",
+        "Daily View — Today Column",
+        "Personal Weather Stations",
+        "Weather Data Sources",
+        "Icon gallery",
+        "Default Location",
+        "Feedback & Bug Reports",
+        "API Keys",
+        "Support Development",
+    )
+
     @get:Rule
     val composeTestRule = createComposeRule()
 
@@ -45,14 +64,13 @@ label = "Test Location",
         }
         composeTestRule.waitForIdle()
 
-        // The 10 sections that became SettingsCard titles. Each must render exactly once.
-        // Phase 5: "API Sources" was renamed to "Weather Data Sources" to match Android's
-        // strings.xml R.string.api_sources_title = "Weather Data Sources".
-        // "Daily View — Today Column" (overlay toggles) matches Android's
-        // R.string.today_overlay_title and sits between Units and Weather Data Sources.
-        listOf("Units", "Daily View — Today Column", "Weather Data Sources", "Personal Weather Stations", "Notifications", "API Keys", "Icon Gallery", "Location", "Diagnostics", "Feedback").forEach { title ->
+        // Every SettingsCard title, each rendering exactly once. Titles are Android's
+        // strings.xml values verbatim (icon_preview_title is "Icon gallery", lower-case g).
+        // "Diagnostics" is deliberately absent: Android has no Observations entry in Settings.
+        ANDROID_SECTION_ORDER.forEach { title ->
             composeTestRule.onAllNodesWithText(title).assertCountEquals(1)
         }
+        composeTestRule.onAllNodesWithText("Diagnostics").assertCountEquals(0)
     }
 
     @Test
@@ -70,22 +88,15 @@ label = "Test Location",
         // positionInRoot, not boundsInRoot: boundsInRoot is clipped by the scroll viewport and
         // collapses to zero for a section below the fold, which would invert this comparison as
         // the form grows. Ordering is what's under test, not visibility.
-        val order = listOf(
-            "Hourly Zoom",
-            "Notifications",
-            "Units",
-            "Daily View — Today Column",
-            "Personal Weather Stations",
-            "Weather Data Sources",
-        )
+        val order = ANDROID_SECTION_ORDER
         val tops = order.associateWith { title ->
             composeTestRule.onNodeWithText(title).fetchSemanticsNode().positionInRoot.y
         }
 
-        // Pin the leading section order to match Android's activity_settings.xml (Hourly Zoom,
-        // Notifications, Units, Daily View, Personal Weather Stations, Weather Data Sources).
-        // Notifications and Personal Weather Stations were swapped on both platforms together;
-        // this assertion is what keeps them from drifting apart again.
+        // Pin the FULL section order to Android's activity_settings.xml. Notifications and
+        // Personal Weather Stations were once swapped on both platforms together, and API Keys sat
+        // under Weather Data Sources here while Android had it after Feedback; this assertion is
+        // what keeps the two forms from drifting apart again.
         order.zipWithNext().forEach { (upper, lower) ->
             assertTrue(
                 "\"$upper\" should precede \"$lower\", matching Android",
@@ -128,12 +139,12 @@ label = "Test Location",
         composeTestRule.waitForIdle()
 
         // Body-interior content that lived inside the now-card-wrapped sections. Use assertExists
-        // for items below the scroll fold (Diagnostics and Feedback) so the test is independent
+        // for items below the scroll fold (Icon gallery onward) so the test is independent
         // of the window's pixel height vs. the form's natural length.
         composeTestRule.onNodeWithText("Use Celsius").assertExists()
-        composeTestRule.onNodeWithText("Change Location").assertExists()
-        composeTestRule.onNodeWithText("Test Location").assertExists()
-        composeTestRule.onNodeWithText("Stations / Observations").assertExists()
+        composeTestRule.onNodeWithText("Set Location…").assertExists()
+        composeTestRule.onNodeWithText("Widget Location: Test Location", substring = true).assertExists()
+        composeTestRule.onNodeWithText("View Icon Gallery").assertExists()
         composeTestRule.onNodeWithText("Submit Bug Report").assertExists()
     }
 

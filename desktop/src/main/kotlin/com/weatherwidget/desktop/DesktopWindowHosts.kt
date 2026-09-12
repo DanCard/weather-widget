@@ -1,5 +1,11 @@
 package com.weatherwidget.desktop
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -8,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -22,6 +29,8 @@ import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.ForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.repository.SharedLocationResolver
+import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
+import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.util.Log
 import java.time.LocalDate
 
@@ -60,6 +69,49 @@ internal fun LocationPickerWindowHost(
     }
 }
 
+/**
+ * Desktop counterpart of Android's `IconGalleryActivity`: Settings → "View Icon Gallery" opens the
+ * grid in its own window instead of inlining it in the form.
+ */
+@Composable
+internal fun IconGalleryWindowHost(
+    icon: Painter,
+    onClose: () -> Unit,
+) {
+    val windowState = rememberWindowState(
+        position = WindowPosition(Alignment.Center),
+        width = 520.dp,
+        height = 420.dp,
+    )
+    Window(
+        onCloseRequest = onClose,
+        state = windowState,
+        title = "Icon Gallery",
+        icon = icon,
+        onKeyEvent = { keyEvent ->
+            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
+                onClose()
+                true
+            } else {
+                false
+            }
+        },
+    ) {
+        MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Comprehensive gallery of all weather icons used in the widget.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
+                    IconGallery(iconSize = 56.dp, cellWidth = 110.dp)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 internal fun SettingsWindowHost(
     config: DesktopConfig,
@@ -71,7 +123,7 @@ internal fun SettingsWindowHost(
     onClose: () -> Unit,
     onExit: () -> Unit,
     onUpdateLocation: () -> Unit,
-    onOpenObservations: () -> Unit,
+    onOpenIconGallery: () -> Unit,
     onRefreshData: () -> Unit,
     onViewAppLogs: () -> Unit,
 ) {
@@ -132,7 +184,7 @@ internal fun SettingsWindowHost(
             onDraftChanged = { draft -> settingsDraft = draft.takeIf { it != latestConfig.value } },
             onExit = onExit,
             onUpdateLocation = onUpdateLocation,
-            onOpenObservations = onOpenObservations,
+            onOpenIconGallery = onOpenIconGallery,
             isRefreshing = isRefreshing,
             onRefreshBreadcrumb = { message -> weatherDao.log("REFRESH_CLICK", message, "INFO") },
             onRefreshData = onRefreshData,

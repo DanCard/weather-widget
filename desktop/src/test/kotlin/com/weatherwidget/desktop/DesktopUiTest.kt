@@ -171,10 +171,16 @@ currentCondition = "Sunny"),
         composeTestRule.onNodeWithTag("open_forecast_history_daily").assertExists()
     }
 
+    /**
+     * Settings reaches the location picker and the icon gallery, as Android's does. It deliberately
+     * has NO Observations entry: Android opens that screen from the widget's current-temperature
+     * tap, and the desktop header's thermometer icon is that same door (see
+     * `hourlyHeaderObservationsButtonOpensObservations`).
+     */
     @Test
-    fun testSettingsExposesLocationAndObservations() {
+    fun testSettingsExposesLocationAndIconGallery() {
         var locationClicked = false
-        var observationsClicked = false
+        var galleryClicked = false
         composeTestRule.setContent {
             SettingsWindow(
                 config = stubConfig,
@@ -182,18 +188,21 @@ currentCondition = "Sunny"),
                 onSave = {},
                 onExit = {},
                 onUpdateLocation = { locationClicked = true },
-                onOpenObservations = { observationsClicked = true }
+                onOpenIconGallery = { galleryClicked = true },
             )
         }
 
-        composeTestRule.onNodeWithText("Mountain View").assertExists()
-        composeTestRule.onNodeWithTag("change_location_btn").performScrollTo().performClick()
+        composeTestRule.onNodeWithText("Widget Location: Mountain View", substring = true).assertExists()
+        composeTestRule.onNodeWithTag("set_location_btn").performScrollTo().performClick()
         composeTestRule.waitForIdle()
         assert(locationClicked)
 
-        composeTestRule.onNodeWithTag("open_observations_btn").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("view_icon_gallery_btn").performScrollTo().performClick()
         composeTestRule.waitForIdle()
-        assert(observationsClicked)
+        assert(galleryClicked)
+
+        composeTestRule.onNodeWithText("Stations / Observations").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Diagnostics").assertDoesNotExist()
     }
 
     @Test
