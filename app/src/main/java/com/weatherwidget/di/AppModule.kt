@@ -26,6 +26,7 @@ import com.weatherwidget.data.repository.WidgetPersonalStationWeightProvider
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.data.remote.BuiltInApiKeys
 import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.WeatherApiCredentialProvider
@@ -342,7 +343,7 @@ object AppModule {
         json: Json,
         widgetStateManager: WidgetStateManager,
     ): OpenWeatherMapApi = OpenWeatherMapApi(httpClient, json) { 
-        widgetStateManager.getApiKey(WeatherSource.OPEN_WEATHER_MAP) ?: com.weatherwidget.BuildConfig.OPEN_WEATHER_MAP_API_KEY 
+        BuiltInApiKeys.effectiveKey(WeatherSource.OPEN_WEATHER_MAP, widgetStateManager)
     }
 
     @Provides
@@ -376,7 +377,7 @@ object AppModule {
         json: Json,
         widgetStateManager: WidgetStateManager,
     ): SilurianApi = SilurianApi(httpClient, json) { 
-        widgetStateManager.getApiKey(WeatherSource.SILURIAN) ?: com.weatherwidget.BuildConfig.SILURIAN_API_KEY 
+        BuiltInApiKeys.effectiveKey(WeatherSource.SILURIAN, widgetStateManager)
     }
 
     @Provides
@@ -386,7 +387,7 @@ object AppModule {
         json: Json,
         widgetStateManager: WidgetStateManager,
     ): TomorrowIoApi = TomorrowIoApi(httpClient, json) { 
-        widgetStateManager.getApiKey(WeatherSource.TOMORROW_IO) ?: com.weatherwidget.BuildConfig.TOMORROW_IO_API_KEY 
+        BuiltInApiKeys.effectiveKey(WeatherSource.TOMORROW_IO, widgetStateManager)
     }
 
     @Provides

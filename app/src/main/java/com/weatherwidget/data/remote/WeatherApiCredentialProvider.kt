@@ -1,6 +1,5 @@
 package com.weatherwidget.data.remote
 
-import com.weatherwidget.BuildConfig
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WidgetStateManager
 import javax.inject.Inject
@@ -16,10 +15,7 @@ class WeatherApiCredentialProvider
     constructor(
         private val widgetStateManager: WidgetStateManager,
     ) {
-        fun get(): String? =
-            widgetStateManager.getApiKey(WeatherSource.WEATHER_API)
-                ?.takeIf { it.isNotBlank() }
-                ?: BuildConfig.WEATHER_API_KEY.takeIf { it.isNotBlank() }
+        fun get(): String? = BuiltInApiKeys.effectiveKey(WeatherSource.WEATHER_API, widgetStateManager)
 
         fun isConfigured(): Boolean = get() != null
     }

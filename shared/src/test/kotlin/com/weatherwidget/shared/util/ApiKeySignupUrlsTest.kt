@@ -39,14 +39,18 @@ class ApiKeySignupUrlsTest {
         assertEquals(expected, ApiKeySignupUrls.sourcesRequiringKeys.toSet())
     }
 
+    /**
+     * The only static key fact: whether a key is needed at all. Whether the USER must type one is
+     * a per-build question (baked key or not) and is answered by each platform's Settings screen.
+     */
     @Test
-    fun requiresUserEnteredKeyIdentifiesSourcesNeedingUserKeys() {
-        assertTrue(WeatherSource.OPEN_WEATHER_MAP.requiresUserEnteredKey)
-        assertTrue(WeatherSource.WEATHER_API.requiresUserEnteredKey)
-        assertTrue(WeatherSource.TOMORROW_IO.requiresUserEnteredKey)
-        assertFalse(WeatherSource.SILURIAN.requiresUserEnteredKey)
-        assertFalse(WeatherSource.NWS.requiresUserEnteredKey)
-        assertFalse(WeatherSource.OPEN_METEO.requiresUserEnteredKey)
+    fun requiresApiKeyIdentifiesTheKeyedSources() {
+        assertTrue(WeatherSource.OPEN_WEATHER_MAP.requiresApiKey)
+        assertTrue(WeatherSource.WEATHER_API.requiresApiKey)
+        assertTrue(WeatherSource.TOMORROW_IO.requiresApiKey)
+        assertTrue(WeatherSource.SILURIAN.requiresApiKey)
+        assertFalse(WeatherSource.NWS.requiresApiKey)
+        assertFalse(WeatherSource.OPEN_METEO.requiresApiKey)
     }
 
     @Test

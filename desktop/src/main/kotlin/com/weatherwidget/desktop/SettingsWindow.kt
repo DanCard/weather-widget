@@ -599,6 +599,18 @@ private fun PersonalStationDiscount(
  * missing: hidden-source dimming, click-on-text toggles the checkbox, and a Snackbar-driven
  * "must keep at least one source" message (Android's `R.string.must_keep_one_source`).
  */
+/**
+ * True when enabling [source] would leave it with no key at all: it needs one, the user has not
+ * entered one, and this build did not bake one ([DesktopApiKeys.DEFAULTS], from
+ * `local.properties`; empty on public builds). Mirrors `BuiltInApiKeys.hasEffectiveKey` on Android
+ * and the fallback `DesktopWeatherService` actually fetches with, so Settings never demands a key
+ * the fetch path already has — nor lets a source through that the fetch path cannot serve.
+ */
+internal fun needsKeyFromUser(source: WeatherSource, userKeys: Map<String, String>): Boolean =
+    source.requiresApiKey &&
+        userKeys[source.id].isNullOrBlank() &&
+        DesktopApiKeys.DEFAULTS[source.id].isNullOrBlank()
+
 @Composable
 private fun ApiSourcesList(
     visibleSources: List<String>,
@@ -624,7 +636,7 @@ private fun ApiSourcesList(
                 Checkbox(
                     checked = isVisible,
                     onCheckedChange = { checked ->
-                        if (checked && source.requiresUserEnteredKey && apiKeys[source.id].isNullOrBlank()) {
+                        if (checked && needsKeyFromUser(source, apiKeys)) {
                             onRequiresApiKey(source)
                             return@Checkbox
                         }
@@ -645,7 +657,7 @@ private fun ApiSourcesList(
                         .clickable {
                             // Mirrors Android: tapping the source name toggles the checkbox.
                             val targetState = !isVisible
-                            if (targetState && source.requiresUserEnteredKey && apiKeys[source.id].isNullOrBlank()) {
+                            if (targetState && needsKeyFromUser(source, apiKeys)) {
                                 onRequiresApiKey(source)
                                 return@clickable
                             }

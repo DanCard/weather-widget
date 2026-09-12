@@ -36,6 +36,7 @@ import dagger.hilt.android.AndroidEntryPoint
 
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.BuiltInApiKeys
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.util.WeatherSourceOrdering
@@ -360,9 +361,10 @@ class SettingsActivity : AppCompatActivity() {
             downButton.visibility = if (isVisible && visibleSources.indexOf(source) < visibleSources.size - 1) View.VISIBLE else View.INVISIBLE
 
             checkbox.setOnCheckedChangeListener { _, isChecked ->
-                if (isChecked && source.requiresUserEnteredKey) {
-                    val key = widgetStateManager.getApiKey(source)?.trim()
-                    if (key.isNullOrBlank()) {
+                // Gate on the key the fetch path will actually use (user-entered, else the one this
+                // build baked from local.properties) — not on a static per-source flag.
+                if (isChecked && source.requiresApiKey) {
+                    if (!BuiltInApiKeys.hasEffectiveKey(source, widgetStateManager)) {
                         checkbox.isChecked = false
                         Toast.makeText(
                             this,

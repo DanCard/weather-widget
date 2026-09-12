@@ -47,14 +47,14 @@ enum class WeatherSource(
      * NWS and Open-Meteo are free and keyless, so a failure from either must never be reported
      * as a missing-key problem. Synoptic's token is build-time provisioned and it is never
      * user-selectable, so it is false.
+     *
+     * Whether the *user* must enter a key is not a property of the source: it depends on whether
+     * this build baked one (`local.properties` keys reach `BuildConfig` on Android and
+     * `DesktopApiKeys` on desktop; public builds bake nothing). Each Settings screen asks its
+     * platform's effective-key resolver at toggle time instead — a static flag here went stale the
+     * moment sources other than Silurian gained build-time fallbacks.
      */
     val requiresApiKey: Boolean = false,
-    /**
-     * True when the user must manually enter a key in Settings for the source to work at all.
-     * Differs from [requiresApiKey] only for SILURIAN, which has a build-time key fallback and
-     * therefore does not require the user to enter one.
-     */
-    val requiresUserEnteredKey: Boolean = false,
 ) {
     NWS(
         id = "NWS",
@@ -79,7 +79,6 @@ enum class WeatherSource(
         shortDisplayName = "VisCr",
         description = "Visual Crossing — shown as VisCr (global coverage)",
         requiresApiKey = true,
-        requiresUserEnteredKey = true,
     ),
     OPEN_WEATHER_MAP(
         id = "OPEN_WEATHER_MAP",
@@ -88,7 +87,6 @@ enum class WeatherSource(
         description = "OpenWeatherMap — shown as OWM (global coverage)",
         signupUrl = "https://home.openweathermap.org/users/sign_up",
         requiresApiKey = true,
-        requiresUserEnteredKey = true,
     ),
     WEATHER_API(
         id = "WEATHER_API",
@@ -98,7 +96,6 @@ enum class WeatherSource(
         historicalDataKind = HistoricalDataKind.ARCHIVED_PROVIDER_HISTORY,
         signupUrl = "https://www.weatherapi.com/signup.aspx",
         requiresApiKey = true,
-        requiresUserEnteredKey = true,
     ),
     /**
      * Raw METAR observations from `aviationweather.gov`. An **actuals feed, not a forecast
@@ -178,7 +175,6 @@ enum class WeatherSource(
         signupUrl = "https://earth.weather.silurian.ai",
         requiresApiKey = true,
         // Silurian has a build-time key fallback, so the user does not HAVE to enter one.
-        requiresUserEnteredKey = false,
     ),
     TOMORROW_IO(
         id = "TOMORROW_IO",
@@ -191,7 +187,6 @@ enum class WeatherSource(
         supportsHistoricalActualsBackfill = true,
         signupUrl = "https://app.tomorrow.io/signup",
         requiresApiKey = true,
-        requiresUserEnteredKey = true,
     ),
     ;
 
