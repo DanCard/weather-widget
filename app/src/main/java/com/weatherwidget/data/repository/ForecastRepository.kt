@@ -28,6 +28,7 @@ import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.widget.ForecastFetchContext
+import com.weatherwidget.widget.ForcedRefreshSatisfaction
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -70,6 +71,15 @@ class ForecastRepository
         nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher? = null,
     ) {
         private val syncMutex = Mutex()
+
+        /**
+         * The last network fetch this process completed, written under [syncMutex]. A forced
+         * request that queued behind it is compared against this, not against row stamps — see
+         * ForcedRefreshSatisfaction.isSatisfiedByCompletedFetch. In-memory on purpose: the race it
+         * resolves is between two coroutines contending for the same mutex.
+         */
+        @Volatile
+        private var lastCompletedFetch: ForcedRefreshSatisfaction.CompletedFetch? = null
         private val snapshotStore = ForecastSnapshotStore(
             forecastDao = forecastDao,
             appLogDao = appLogDao,
@@ -139,6 +149,9 @@ class ForecastRepository
             networkAllowed: Boolean = true,
             targetSourceId: String? = null,
             fetchContext: ForecastFetchContext? = null,
+            // When the caller's force was requested (WorkInput.requestedAtMs); 0 = unstamped, never
+            // coalesced. Consumed under the lock below.
+            requestedAtMs: Long = 0L,
         ): Result<List<ForecastEntity>> {
             val fetchStartTime = System.currentTimeMillis()
             try {
@@ -168,6 +181,33 @@ class ForecastRepository
                             fetchContext,
                         )
                     ) {
+                        return Result.success(cachedForecasts)
+                    }
+                    // The time limit for FORCED requests. Every check above and below is
+                    // `!forceRefresh`, so a force that queued behind an in-flight fetch of this
+                    // site used to re-fetch every source the moment the lock was released
+                    // (2026-09-12 12:09:49: five sources, 10 s, 70 ms after an identical fetch
+                    // completed — see performance/260912-forced-sync-refetches-under-the-lock.md).
+                    // The worker's dropSatisfiedForce asks the same question, but at worker start,
+                    // before the wait; here is where the answer is known. Compared against the
+                    // fetch that just released the lock (site + sources + completion time), not
+                    // the global lastFetchTime: a fetch for the site just left must not satisfy
+                    // this one.
+                    val priorFetch = lastCompletedFetch
+                    if (
+                        forceRefresh &&
+                        ForcedRefreshSatisfaction.isSatisfiedByCompletedFetch(
+                            requestedAtMs, priorFetch, latitude, longitude, targetSourceId,
+                        )
+                    ) {
+                        appLogDao.log(
+                            "NET_FETCH_COALESCED",
+                            "reason=satisfied_under_lock requestedAt=$requestedAtMs " +
+                                "fetchCompletedAt=${priorFetch?.completedAtMs} " +
+                                "fetched=${priorFetch?.sourceIds?.joinToString(",")} " +
+                                "target=${targetSourceId ?: "all"}",
+                            "INFO",
+                        )
                         return Result.success(cachedForecasts)
                     }
                     val timeSinceLastFetch =
@@ -228,6 +268,13 @@ class ForecastRepository
                     val totalFetchTime =
                         System.currentTimeMillis() - fetchStartTime
                     lastFetchTime = System.currentTimeMillis()
+                    lastCompletedFetch = ForcedRefreshSatisfaction.CompletedFetch(
+                        lat = latitude,
+                        lon = longitude,
+                        targetSourceId = targetSourceId,
+                        sourceIds = sourcesToFetch.map { it.id }.toSet(),
+                        completedAtMs = lastFetchTime,
+                    )
                     appLogDao.log(
                         "NET_FETCH_COMPLETE",
                         "durationMs=$totalFetchTime sources=" +

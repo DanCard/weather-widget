@@ -99,6 +99,7 @@ internal class FullSyncPipeline(
                 networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(input.uiOnlyRefresh),
                 targetSourceId = input.targetSourceId,
                 fetchContext = fetchContext,
+                requestedAtMs = input.requestedAtMs,
             )
 
             return result.fold(

@@ -39,9 +39,10 @@ class WeatherRepository
             networkAllowed: Boolean = true,
             targetSourceId: String? = null,
             fetchContext: ForecastFetchContext? = null,
+            requestedAtMs: Long = 0L,
         ): Result<List<ForecastEntity>> {
             return forecastRepository.getWeatherData(
-                latitude, longitude, forceRefresh, networkAllowed, targetSourceId, fetchContext
+                latitude, longitude, forceRefresh, networkAllowed, targetSourceId, fetchContext, requestedAtMs
             )
         }
 
