@@ -90,6 +90,15 @@ class HardcodedUserFacingStringTest {
                 "Tmrw: 5-minute history" to
                     "TomorrowIoActuals desktop default; Android resolves R.string.station_name_tomorrow_five_minute_history",
                 "synoptic: no token configured" to "SynopticObservationFetcher error reason (diagnostic)",
+                "API Keys" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
+                "Daily View — Today Column" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
+                "Default Location" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
+                "Feedback & Bug Reports" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
+                "Hourly Zoom" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
+                "Icon gallery" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
+                "Personal Weather Stations" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
+                "Support Development" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
+                "Weather Data Sources" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
             )
     }
 

@@ -1,0 +1,1 @@
+Release 26091201: Shared Settings catalog alignment across platforms, dynamic effective-key gating for weather sources, user-agent geolocation headers, and history backfill improvements.
