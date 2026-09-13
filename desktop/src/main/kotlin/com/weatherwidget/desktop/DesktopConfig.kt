@@ -153,6 +153,39 @@ data class DesktopConfig(
      */
     fun withSettingsFrom(draft: DesktopConfig): DesktopConfig = copy(settings = draft.settings)
 
+    /**
+     * Rebases the Settings window's in-progress [draft] onto this newer persisted baseline, given
+     * the [previous] baseline the draft was seeded from.
+     *
+     * [withSettingsFrom] keeps the draft's settings wholesale, which is right while the Settings
+     * window is the only settings writer. It is not: the location picker retires/restores NWS
+     * (`visibleSources`, `nwsAutoRetired`) and picks a per-region `weatherSource`, the popup
+     * header toggles `weatherSource`, and the observations window edits `actualsProviders` — the
+     * same fields [mergeNonSettingsSave] admits from those writers. A draft that never touched
+     * them still carries the OLD baseline's values, so a two-way rebase read the picker's NWS
+     * retirement as an unsaved edit and the auto-save wrote NWS back five seconds later, tagged as
+     * the user's own choice so a later move back into coverage could never restore it.
+     *
+     * For exactly those fields the merge is three-way: where the draft still equals [previous]
+     * (no edit in flight) the new baseline wins; where the user has an edit pending, it is kept.
+     * Every other settings field stays the draft's, as before.
+     */
+    fun rebaseSettingsDraft(previous: DesktopConfig, draft: DesktopConfig): DesktopConfig {
+        val prev = previous.settings
+        val new = settings
+        val d = draft.settings
+        fun <T> pick(prevValue: T, newValue: T, draftValue: T): T =
+            if (draftValue == prevValue) newValue else draftValue
+        return copy(
+            settings = d.copy(
+                weatherSource = pick(prev.weatherSource, new.weatherSource, d.weatherSource),
+                visibleSources = pick(prev.visibleSources, new.visibleSources, d.visibleSources),
+                nwsAutoRetired = pick(prev.nwsAutoRetired, new.nwsAutoRetired, d.nwsAutoRetired),
+                actualsProviders = pick(prev.actualsProviders, new.actualsProviders, d.actualsProviders),
+            ),
+        )
+    }
+
     /** `field: old -> new` for every settings-owned field that differs from [other]. */
     fun settingsDiffFrom(other: DesktopConfig): List<String> = settings.diffFrom(other.settings)
 }

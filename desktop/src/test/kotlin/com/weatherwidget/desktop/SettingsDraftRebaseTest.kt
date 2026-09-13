@@ -207,4 +207,54 @@ todayOverlayDominantTemp = true))
         assertEquals("popup zoom must pass through", 0.7f, merged.zoomFactor)
         assertEquals("popup pan must pass through", 3, merged.hourlyOffset)
     }
+
+    @Test
+    fun `a picker NWS retirement lands in an untouched draft`() {
+        // The Lviv bug: Settings is open, the user sets a site outside NWS coverage in the picker,
+        // and the picker save arrives as a new baseline with NWS retired. The draft never touched
+        // the source list, so the retirement must be adopted — a two-way rebase kept the draft's
+        // stale NWS and the auto-save wrote it straight back.
+        val previous = config().copy(
+            settings = config().settings.copy(visibleSources = listOf("NWS", "OPEN_METEO"), nwsAutoRetired = false),
+        )
+        val untouchedDraft = previous.copy(settings = previous.settings.copy(narrowZoomSpanHours = 7))
+        val pickerSave = previous.copy(
+            lat = 49.842, lon = 24.032, label = "Lviv",
+            settings = previous.settings.copy(visibleSources = listOf("OPEN_METEO"), nwsAutoRetired = true),
+        )
+
+        val rebased = pickerSave.rebaseSettingsDraft(previous = previous, draft = untouchedDraft)
+
+        assertEquals(listOf("OPEN_METEO"), rebased.settings.visibleSources)
+        assertTrue("the retirement must stay tagged as the app's", rebased.settings.nwsAutoRetired)
+        assertEquals("the pending 7h edit must survive alongside it", 7, rebased.settings.narrowZoomSpanHours)
+        assertEquals(
+            "with no edit in flight the rebased draft must read clean against the new baseline",
+            pickerSave,
+            pickerSave.withSettingsFrom(pickerSave.rebaseSettingsDraft(previous = previous, draft = previous)),
+        )
+    }
+
+    @Test
+    fun `an in-flight source-list edit beats a concurrent baseline change to the same field`() {
+        // The draft's value differs from the previous baseline: that is a real unsaved edit and
+        // it keeps priority, exactly as it did under the two-way rebase.
+        val previous = config().copy(settings = config().settings.copy(visibleSources = listOf("NWS", "OPEN_METEO", "SILURIAN")))
+        val editedDraft = previous.copy(settings = previous.settings.copy(visibleSources = listOf("NWS", "OPEN_METEO")))
+        val newBaseline = previous.copy(settings = previous.settings.copy(visibleSources = listOf("OPEN_METEO", "SILURIAN")))
+
+        val rebased = newBaseline.rebaseSettingsDraft(previous = previous, draft = editedDraft)
+
+        assertEquals(listOf("NWS", "OPEN_METEO"), rebased.settings.visibleSources)
+    }
+
+    @Test
+    fun `a popup source toggle lands in an untouched draft too`() {
+        // Same mechanism, other writer: the popup header cycles weatherSource. Previously the open
+        // Settings window's auto-save rewound it five seconds later.
+        val previous = config().copy(settings = config().settings.copy(weatherSource = "NWS"))
+        val popupSave = previous.copy(zoomFactor = 0.4f, settings = previous.settings.copy(weatherSource = "SILURIAN"))
+
+        assertEquals("SILURIAN", popupSave.rebaseSettingsDraft(previous = previous, draft = previous).settings.weatherSource)
+    }
 }

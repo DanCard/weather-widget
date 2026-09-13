@@ -598,8 +598,11 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Refresh after returning from the location setup screen.
+        // Refresh after returning from the location setup screen. The source rows too: saving a
+        // site outside NWS coverage retires NWS from the visible list while this screen is paused,
+        // and the rows built in onCreate would otherwise keep showing it ticked.
         refreshLocationLabel()
+        rebuildSourceRows(findViewById(R.id.api_sources_container))
         widgetStateManager.registerPreferenceListener(watchPrefsListener)
         // Catch a fire that landed while this screen was in the background — the listener only
         // covers writes that happen while it is registered.

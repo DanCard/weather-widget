@@ -116,8 +116,15 @@ internal fun SettingsWindow(
     // so a new baseline usually carries a POPUP change (window bounds, zoom) rather than a settings
     // one. Rebase rather than reset: take the popup fields from the new baseline and keep the user's
     // settings edits. Without this, whoever saved last clobbered the other.
+    //
+    // The baseline the draft was last rebased onto. Needed because a few settings fields ARE
+    // written by other windows while this one is open (the location picker retiring NWS is the
+    // reported case): only a three-way comparison can tell an unsaved edit from a draft that is
+    // merely older than the new baseline. See DesktopConfig.rebaseSettingsDraft.
+    var previousBaseline by remember { mutableStateOf(config) }
     LaunchedEffect(config) {
-        val rebased = config.withSettingsFrom(currentConfig)
+        val rebased = config.rebaseSettingsDraft(previous = previousBaseline, draft = currentConfig)
+        previousBaseline = config
         if (rebased != currentConfig) {
             val kept = currentConfig.settingsDiffFrom(config)
             Log.i(

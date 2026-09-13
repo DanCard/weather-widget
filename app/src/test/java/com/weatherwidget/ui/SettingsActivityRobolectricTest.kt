@@ -4,10 +4,14 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.widget.WidgetStateManager
 import org.junit.After
@@ -225,5 +229,43 @@ class SettingsActivityRobolectricTest {
             org.robolectric.shadows.ShadowLooper.idleMainLooper()
             assertFalse("the switch must follow the watch clearing itself", switch.isChecked)
         }
+    }
+
+    // Lviv regression: "Set Location…" opens ConfigActivity, which retires NWS from the visible
+    // list when the new site is outside its coverage — while this screen is paused. The rows were
+    // built in onCreate, so without a resume-time rebuild NWS stayed ticked over a store that had
+    // already dropped it.
+    @Test
+    fun `source rows follow a retirement written while the screen was paused`() {
+        WidgetStateManager(context).setVisibleSourcesOrder(
+            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+        )
+        val intent = Intent(context, SettingsActivity::class.java)
+        val scenario = ActivityScenario.launch<SettingsActivity>(intent)
+        scenario.onActivity { activity ->
+            assertTrue("precondition: NWS ticked before the location change", activity.nwsRow().isChecked)
+        }
+
+        scenario.moveToState(Lifecycle.State.STARTED) // paused, like under ConfigActivity
+        // What ConfigActivity's setup check does for a site api.weather.gov does not cover.
+        assertTrue(
+            WidgetStateManager(context).retireNwsOutsideCoverage(49.842, 24.032, IntArray(0)),
+        )
+        scenario.moveToState(Lifecycle.State.RESUMED)
+
+        scenario.onActivity { activity ->
+            assertFalse("NWS must show unticked after the retirement", activity.nwsRow().isChecked)
+        }
+    }
+
+    private fun SettingsActivity.nwsRow(): CheckBox {
+        val container = findViewById<LinearLayout>(R.id.api_sources_container)
+        for (i in 0 until container.childCount) {
+            val row = container.getChildAt(i)
+            if (row.findViewById<TextView>(R.id.source_name).text == WeatherSource.NWS.displayName) {
+                return row.findViewById(R.id.source_checkbox)
+            }
+        }
+        throw AssertionError("no NWS row rendered")
     }
 }

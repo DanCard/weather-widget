@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.weatherwidget.test.category.LongDuration
@@ -156,5 +157,51 @@ useCelsius = false),
         composeTestRule.onNodeWithTag("save_settings").performClick()
         composeTestRule.waitForIdle()
         assertTrue("a clean Save must not write anything", saved.isEmpty())
+    }
+
+    @Test
+    fun aLocationPickerSaveThatRetiresNws_isAdoptedAndNotAutoSavedBack() {
+        // The Lviv report, desktop side. Settings stays open while "Set Location…" runs the picker;
+        // the picker save (outside NWS coverage) arrives as a new baseline with NWS retired and
+        // nwsAutoRetired=true. Before the fix the two-way rebase kept the draft's stale NWS, the
+        // window read dirty, and the auto-save wrote NWS back under source "settings" — which the
+        // save policy treats as the user's own edit and clears nwsAutoRetired.
+        val baseline = mutableStateOf(sampleConfig)
+        val saved = mutableListOf<DesktopConfig>()
+        val testDelay = 100L
+        composeTestRule.setContent {
+            val current by baseline
+            SettingsWindow(
+                config = current,
+                onClose = {},
+                onSave = { saved += it },
+                onExit = {},
+                autoSaveDelayMs = testDelay,
+            )
+        }
+        composeTestRule.waitForIdle()
+        val nwsCheckbox = composeTestRule.onNodeWithTag("source_checkbox_NWS")
+        nwsCheckbox.performScrollTo()
+        composeTestRule.mainClock.autoAdvance = false
+
+        baseline.value = sampleConfig.copy(
+            lat = 49.842, lon = 24.032, label = "Lviv",
+            settings = sampleConfig.settings.copy(
+                visibleSources = listOf("OPEN_METEO", "SILURIAN", "TOMORROW_IO"),
+                nwsAutoRetired = true,
+            ),
+        )
+        // Two frames: the rebase effect writes currentConfig on the first, the rows recompose on
+        // the next. Still well inside the auto-save delay.
+        composeTestRule.mainClock.advanceTimeByFrame()
+        composeTestRule.mainClock.advanceTimeByFrame()
+        composeTestRule.waitForIdle()
+
+        nwsCheckbox.assertIsOff()
+        composeTestRule.onNodeWithText("Save").assertIsDisplayed()
+
+        composeTestRule.mainClock.advanceTimeBy(testDelay * 5L)
+        composeTestRule.waitForIdle()
+        assertTrue("nothing may be auto-saved: the retirement is not an edit — saved=$saved", saved.isEmpty())
     }
 }
