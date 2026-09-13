@@ -226,6 +226,7 @@ internal object GraphFailureWatermarkRenderer {
             "ACCESS_ERROR" -> "Access Error"
             "DNS_ERROR" -> "DNS Error"
             "CONN_REFUSED" -> "Connection Refused"
+            "DATA_RESTRICTED" -> "Background Data Blocked"
             "TIMEOUT" -> "Timed Out"
             "SSL_ERROR" -> "SSL Error"
             "SOCKET_ERROR" -> "Socket Error"
@@ -254,6 +255,7 @@ internal object GraphFailureWatermarkRenderer {
             "ACCESS_ERROR" -> context.getString(R.string.watermark_access_error)
             "DNS_ERROR" -> context.getString(R.string.watermark_dns_error)
             "CONN_REFUSED" -> context.getString(R.string.watermark_conn_refused)
+            "DATA_RESTRICTED" -> context.getString(R.string.watermark_data_restricted)
             "TIMEOUT" -> context.getString(R.string.watermark_timeout)
             "SSL_ERROR" -> context.getString(R.string.watermark_ssl_error)
             "SOCKET_ERROR" -> context.getString(R.string.watermark_socket_error)

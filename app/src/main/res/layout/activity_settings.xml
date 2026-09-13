@@ -687,6 +687,169 @@
                     android:textSize="16sp" />
             </LinearLayout>
 
+            <!-- Data Usage Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/data_usage_title"
+                android:tag="settings_section"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="@string/data_usage_description"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="14sp" />
+
+            <LinearLayout
+                android:id="@+id/data_usage_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:background="@drawable/bg_surface_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- Row 1: Past 24 Hours -->
+                <TextView
+                    android:id="@+id/data_usage_24h_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/data_usage_past_24h"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/data_usage_24h_cell"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/data_usage_loading"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/data_usage_24h_wifi"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="13sp" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="12dp"
+                    android:layout_marginBottom="12dp"
+                    android:background="#22FFFFFF" />
+
+                <!-- Row 2: Past 7 Days (Week) -->
+                <TextView
+                    android:id="@+id/data_usage_7d_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/data_usage_past_7d"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/data_usage_7d_cell"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/data_usage_loading"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/data_usage_7d_wifi"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="13sp" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="12dp"
+                    android:layout_marginBottom="12dp"
+                    android:background="#22FFFFFF" />
+
+                <!-- Row 3: Past 30 Days (Month) -->
+                <TextView
+                    android:id="@+id/data_usage_30d_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/data_usage_past_30d"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/data_usage_30d_cell"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/data_usage_loading"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/data_usage_30d_wifi"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="13sp" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="12dp"
+                    android:layout_marginBottom="12dp"
+                    android:background="#22FFFFFF" />
+
+                <!-- Row 4: Past 90 Days -->
+                <TextView
+                    android:id="@+id/data_usage_90d_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/data_usage_past_90d"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/data_usage_90d_cell"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/data_usage_loading"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/data_usage_90d_wifi"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
         </LinearLayout>
     </ScrollView>
 

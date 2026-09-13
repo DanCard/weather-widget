@@ -2,11 +2,16 @@ package com.weatherwidget.ui
 
 import android.Manifest
 import android.appwidget.AppWidgetManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.provider.Settings
+import com.weatherwidget.util.SharedPreferencesUtil
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
@@ -459,6 +464,7 @@ class ConfigActivity : AppCompatActivity() {
                 .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
                 .distinct()
                 .toIntArray()
+        var saveSucceeded = false
         saveJob = lifecycleScope.launch {
             val startedAt = SystemClock.elapsedRealtime()
             val currentSources = widgetStateManager.getVisibleSourcesOrder()
@@ -489,10 +495,13 @@ class ConfigActivity : AppCompatActivity() {
             widgetStateManager.setVisibleSourcesOrderForSetup(selection.sources, widgetIds)
             LocationMode.set(this@ConfigActivity, mode)
             persistWidgetLocation(lat, lon, label, mode, widgetIds)
-            finishWithSuccess()
+            saveSucceeded = true
+            checkAndPromptBackgroundDataRestrictions {
+                finishWithSuccess()
+            }
         }.also { job ->
             job.invokeOnCompletion {
-                if (!completedOk) {
+                if (!saveSucceeded && !completedOk) {
                     runOnUiThread {
                         saveInProgress = false
                         setSaveControlsEnabled(true)
@@ -628,6 +637,53 @@ class ConfigActivity : AppCompatActivity() {
         finishWithSuccess()
     }
 
+    private fun checkAndPromptBackgroundDataRestrictions(onComplete: () -> Unit) {
+        val prefs = SharedPreferencesUtil.getPrefs(this, "weather_prefs")
+        val alreadyPrompted = prefs.getBoolean(KEY_BACKGROUND_DATA_PROMPTED, false)
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val isWhitelisted = cm?.restrictBackgroundStatus == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_WHITELISTED
+
+        if (alreadyPrompted || isWhitelisted || isFinishing || isDestroyed) {
+            onComplete()
+            return
+        }
+
+        prefs.edit().putBoolean(KEY_BACKGROUND_DATA_PROMPTED, true).apply()
+
+        var handled = false
+        fun completeOnce() {
+            if (!handled) {
+                handled = true
+                onComplete()
+            }
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.background_data_disclosure_title)
+            .setMessage(R.string.background_data_disclosure_desc)
+            .setPositiveButton(R.string.settings) { _, _ ->
+                val intent = Intent(Settings.ACTION_IGNORE_BACKGROUND_DATA_RESTRICTIONS_SETTINGS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                try {
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    runCatching { startActivity(fallback) }
+                }
+                completeOnce()
+            }
+            .setNegativeButton(R.string.no_thanks) { _, _ ->
+                completeOnce()
+            }
+            .setOnDismissListener {
+                completeOnce()
+            }
+            .show()
+    }
+
     private fun finishWithSuccess() {
         completedOk = true
         logConfig("RESULT outcome=saved widget=$appWidgetId", "INFO")
@@ -686,6 +742,7 @@ class ConfigActivity : AppCompatActivity() {
         const val PREFS_NAME = "weather_widget_prefs"
         const val KEY_LAT_PREFIX = "widget_lat_"
         const val KEY_LON_PREFIX = "widget_lon_"
+        const val KEY_BACKGROUND_DATA_PROMPTED = "background_data_prompted"
 
         /** Launch extra: no widget id; saves apply to all widgets and no RESULT_OK is set. */
         const val EXTRA_GLOBAL_CONFIG = "extra_global_config"

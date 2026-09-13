@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">Thiếu dữ liệu mây %1$s (%2$d trong %3$d giờ)</string>
     <string name="cloud_reason_gridpoints_failed">Không tải được lưới điểm NWS</string>
     <string name="cloud_reason_skycover_unavailable">Không có dữ liệu mây NWS</string>
+
+    <string name="data_usage_title">Sử dụng dữ liệu</string>
+    <string name="data_usage_description">Dữ liệu mạng được sử dụng để cập nhật dự báo và quan sát.</string>
+    <string name="watermark_data_restricted">Dữ liệu nền bị chặn</string>
+    <string name="background_data_disclosure_title">Cập nhật thời tiết trong nền</string>
+    <string name="background_data_disclosure_desc">Để đảm bảo dự báo thời tiết cập nhật trên mạng di động và khi bật Tiết kiệm dữ liệu, hãy cho phép sử dụng dữ liệu nền không hạn chế cho Weather Widget.</string>
+
+    <string name="cellular_label">Di động</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">24 giờ qua</string>
+    <string name="data_usage_past_7d">7 ngày qua (Tuần)</string>
+    <string name="data_usage_past_30d">30 ngày qua (Tháng)</string>
+    <string name="data_usage_past_90d">90 ngày qua</string>
+    <string name="data_usage_loading">Đang tải mức sử dụng dữ liệu…</string>
+    <string name="data_usage_unavailable">Chi tiết sử dụng dữ liệu không khả dụng</string>
 </resources>

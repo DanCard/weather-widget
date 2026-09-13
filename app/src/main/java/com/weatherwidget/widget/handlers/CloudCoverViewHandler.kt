@@ -537,7 +537,15 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 zoom = zoom,
                 hourlyOffset = hourlyOffset,
             )
+            ErrorPillTouchTargetHelper.setupErrorPillTouchTarget(
+                context = context,
+                views = views,
+                appWidgetId = appWidgetId,
+                showErrorWatermark = stateManager.isSourceErrored(effectiveDisplaySource),
+                errorCode = stateManager.getSourceLastErrorCode(effectiveDisplaySource),
+            )
         } else {
+            views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
             views.setViewVisibility(R.id.graph_hour_zones, View.GONE)

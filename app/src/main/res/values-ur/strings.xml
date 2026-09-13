@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">بادل ڈیٹا غائب %1$s (%3$d میں سے %2$d گھنٹے)</string>
     <string name="cloud_reason_gridpoints_failed">NWS گرڈ پوائنٹس حاصل کرنے میں ناکامی</string>
     <string name="cloud_reason_skycover_unavailable">NWS اسکائی کور دستیاب نہیں</string>
+
+    <string name="data_usage_title">ڈیٹا کا استعمال</string>
+    <string name="data_usage_description">پیشین گوئی اور مشاہدات کی تازہ کاری کے لیے استعمال شدہ نیٹ ورک ڈیٹا۔</string>
+    <string name="watermark_data_restricted">پس منظر کا ڈیٹا بلاک ہے</string>
+    <string name="background_data_disclosure_title">پس منظر میں موسم کی تازہ کاری</string>
+    <string name="background_data_disclosure_desc">موبائل نیٹ ورکس پر اور ڈیٹا سیور فعال ہونے پر موسم کی پیشین گوئی کی تازہ کاری کو یقینی بنانے کے لیے، Weather Widget کے لیے غیر محدود پس منظر کے ڈیٹا کی اجازت دیں۔</string>
+
+    <string name="cellular_label">سیلولر</string>
+    <string name="wifi_label">وائی فائی</string>
+    <string name="data_usage_past_24h">پچھلے 24 گھنٹے</string>
+    <string name="data_usage_past_7d">پچھلے 7 دن (ہفتہ)</string>
+    <string name="data_usage_past_30d">پچھلے 30 دن (مہینہ)</string>
+    <string name="data_usage_past_90d">پچھلے 90 دن</string>
+    <string name="data_usage_loading">ڈیٹا کا استعمال لوڈ ہو رہا ہے…</string>
+    <string name="data_usage_unavailable">ڈیٹا کے استعمال کی تفصیلات دستیاب نہیں ہیں</string>
 </resources>

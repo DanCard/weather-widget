@@ -93,6 +93,11 @@
             android:exported="false"
             android:label="@string/icon_preview_title" />
 
+        <activity
+            android:name=".ui.BackgroundDataResolutionActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <receiver
             android:name=".widget.WeatherWidgetProvider"
             android:exported="false">

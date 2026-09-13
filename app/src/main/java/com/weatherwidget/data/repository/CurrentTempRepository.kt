@@ -28,6 +28,7 @@ import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.util.NetworkRestrictionHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.statement.bodyAsText
@@ -500,10 +501,14 @@ class CurrentTempRepository
                 val name = exception.javaClass.simpleName
                 when {
                     name.contains("UnknownHost") || name.contains("UnresolvedAddress") -> "DNS_ERROR"
-                    name.contains("ConnectException") || name.contains("ConnectionRefused") -> "CONN_REFUSED"
+                    name.contains("ConnectException") || name.contains("ConnectionRefused") -> {
+                        if (NetworkRestrictionHelper.isBackgroundDataRestricted(context)) "DATA_RESTRICTED" else "CONN_REFUSED"
+                    }
                     name.contains("Timeout") || name.contains("SocketTimeout") -> "TIMEOUT"
                     name.contains("SSL") || name.contains("TLS") -> "SSL_ERROR"
-                    name.contains("SocketException") -> "SOCKET_ERROR"
+                    name.contains("SocketException") -> {
+                        if (NetworkRestrictionHelper.isBackgroundDataRestricted(context)) "DATA_RESTRICTED" else "SOCKET_ERROR"
+                    }
                     else -> name.take(20).ifBlank { "ERROR" }
                 }
             }

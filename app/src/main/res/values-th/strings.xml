@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">ข้อมูลเมฆหายไป %1$s (%2$d จาก %3$d ชม.)</string>
     <string name="cloud_reason_gridpoints_failed">ดึงข้อมูลกริด NWS ไม่สำเร็จ</string>
     <string name="cloud_reason_skycover_unavailable">ข้อมูลเมฆ NWS ไม่พร้อมใช้งาน</string>
+
+    <string name="data_usage_title">การใช้ข้อมูล</string>
+    <string name="data_usage_description">ข้อมูลเครือข่ายที่ใช้สำหรับการอัปเดตการพยากรณ์และการสังเกตการณ์</string>
+    <string name="watermark_data_restricted">ข้อมูลเบื้องหลังถูกบล็อก</string>
+    <string name="background_data_disclosure_title">การอัปเดตสภาพอากาศในเบื้องหลัง</string>
+    <string name="background_data_disclosure_desc">เพื่อให้มั่นใจว่าการพยากรณ์อากาศจะอัปเดตบนเครือข่ายมือถือและเมื่อเปิดใช้งานโหมดประหยัดข้อมูล ให้เปิดการใช้งานข้อมูลเบื้องหลังแบบไม่จำกัดสำหรับ Weather Widget</string>
+
+    <string name="cellular_label">เซลลูลาร์</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">24 ชั่วโมงที่ผ่านมา</string>
+    <string name="data_usage_past_7d">7 วันที่ผ่านมา (สัปดาห์)</string>
+    <string name="data_usage_past_30d">30 วันที่ผ่านมา (เดือน)</string>
+    <string name="data_usage_past_90d">90 วันที่ผ่านมา</string>
+    <string name="data_usage_loading">กำลังโหลดการใช้ข้อมูล…</string>
+    <string name="data_usage_unavailable">ไม่มีรายละเอียดการใช้ข้อมูล</string>
 </resources>

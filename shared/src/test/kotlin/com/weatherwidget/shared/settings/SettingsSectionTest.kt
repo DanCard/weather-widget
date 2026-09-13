@@ -28,8 +28,8 @@ class SettingsSectionTest {
         val desktop = SettingsSection.forPlatform(Platform.DESKTOP)
         assertEquals(SettingsSection.entries.filter { Platform.ANDROID in it.platforms }, android)
         assertEquals(SettingsSection.entries.filter { Platform.DESKTOP in it.platforms }, desktop)
-        // Language is the one Android-only section; nothing is desktop-only.
-        assertEquals(android - desktop.toSet(), listOf(SettingsSection.LANGUAGE))
+        // Language and Data Usage are the Android-only sections; nothing is desktop-only.
+        assertEquals(android - desktop.toSet(), listOf(SettingsSection.LANGUAGE, SettingsSection.DATA_USAGE))
         assertTrue((desktop - android.toSet()).isEmpty())
     }
 }

@@ -361,6 +361,79 @@ class ConfigActivityRobolectricTest {
         }
     }
 
+    @Test
+    fun `first widget setup prompts background data disclosure dialog when not whitelisted`() {
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        }
+        val scenario = ActivityScenario.launch<ConfigActivity>(intent)
+        val mockResolver = mockk<SharedLocationResolver>()
+        coEvery { mockResolver.fromCoordinates(any(), any()) } returns ResolvedLocation(
+            lat = 34.0522,
+            lon = -118.2437,
+            label = "Los Angeles, CA",
+            source = "Manual coordinates",
+        )
+
+        scenario.onActivity { activity ->
+            activity.sharedLocationResolver = mockResolver
+            activity.findViewById<EditText>(R.id.lat_input).setText("34.0522")
+            activity.findViewById<EditText>(R.id.lon_input).setText("-118.2437")
+            activity.findViewById<Button>(R.id.use_coordinates_button).performClick()
+        }
+
+        shadowOf(context.mainLooper).idle()
+
+        // Background data disclosure dialog should now be shown
+        val dialog = ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog
+        assertNotNull("Expected background data disclosure dialog to be displayed", dialog)
+
+        val weatherPrefs = SharedPreferencesUtil.getPrefs(context, "weather_prefs")
+        assertTrue(weatherPrefs.getBoolean(ConfigActivity.KEY_BACKGROUND_DATA_PROMPTED, false))
+
+        // Clicking negative button dismisses and completes setup with RESULT_OK
+        dialog!!.getButton(android.content.DialogInterface.BUTTON_NEGATIVE).performClick()
+        shadowOf(context.mainLooper).idle()
+
+        scenario.onActivity { activity ->
+            assertTrue(activity.isFinishing)
+            assertEquals(Activity.RESULT_OK, shadowOf(activity).resultCode)
+        }
+    }
+
+    @Test
+    fun `widget setup skips background data disclosure if already prompted`() {
+        SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit()
+            .putBoolean(ConfigActivity.KEY_BACKGROUND_DATA_PROMPTED, true)
+            .commit()
+
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        }
+        val scenario = ActivityScenario.launch<ConfigActivity>(intent)
+        val mockResolver = mockk<SharedLocationResolver>()
+        coEvery { mockResolver.fromCoordinates(any(), any()) } returns ResolvedLocation(
+            lat = 34.0522,
+            lon = -118.2437,
+            label = "Los Angeles, CA",
+            source = "Manual coordinates",
+        )
+
+        scenario.onActivity { activity ->
+            activity.sharedLocationResolver = mockResolver
+            activity.findViewById<EditText>(R.id.lat_input).setText("34.0522")
+            activity.findViewById<EditText>(R.id.lon_input).setText("-118.2437")
+            activity.findViewById<Button>(R.id.use_coordinates_button).performClick()
+        }
+
+        shadowOf(context.mainLooper).idle()
+
+        scenario.onActivity { activity ->
+            assertTrue(activity.isFinishing)
+            assertEquals(Activity.RESULT_OK, shadowOf(activity).resultCode)
+        }
+    }
+
     private fun bindWidget(id: Int, lat: Double, lon: Double) {
         val info = AppWidgetProviderInfo().apply {
             provider = ComponentName(context, WeatherWidgetProvider::class.java)

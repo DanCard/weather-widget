@@ -348,4 +348,19 @@
     <string name="cloud_data_missing_range">Faltan datos de nubes %1$s (%2$d de %3$d h)</string>
     <string name="cloud_reason_gridpoints_failed">Error al obtener la cuadrícula del NWS</string>
     <string name="cloud_reason_skycover_unavailable">Cobertura del cielo del NWS no disponible</string>
+
+    <string name="data_usage_title">Uso de datos</string>
+    <string name="data_usage_description">Datos de red utilizados para actualizaciones de pronósticos y observaciones.</string>
+    <string name="watermark_data_restricted">Datos en segundo plano bloqueados</string>
+    <string name="background_data_disclosure_title">Actualizaciones meteorológicas en segundo plano</string>
+    <string name="background_data_disclosure_desc">Para garantizar que los pronósticos del tiempo se actualicen en redes móviles y cuando el Ahorro de datos esté activo, permita el uso de datos en segundo plano sin restricciones para Weather Widget.</string>
+
+    <string name="cellular_label">Celular</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">Últimas 24 horas</string>
+    <string name="data_usage_past_7d">Últimos 7 días (semana)</string>
+    <string name="data_usage_past_30d">Últimos 30 días (mes)</string>
+    <string name="data_usage_past_90d">Últimos 90 días</string>
+    <string name="data_usage_loading">Cargando uso de datos…</string>
+    <string name="data_usage_unavailable">Detalles de uso de datos no disponibles</string>
 </resources>

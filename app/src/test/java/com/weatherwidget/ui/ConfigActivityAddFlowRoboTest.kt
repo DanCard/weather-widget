@@ -73,6 +73,9 @@ class ConfigActivityAddFlowRoboTest {
         }
         WidgetStateManager.setPrefsNameOverrideForTesting(null)
         context.getSharedPreferences("widget_state_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE).edit()
+            .putBoolean(ConfigActivity.KEY_BACKGROUND_DATA_PROMPTED, true)
+            .commit()
         clearSavedLocation()
     }
 
@@ -81,6 +84,7 @@ class ConfigActivityAddFlowRoboTest {
         ConfigActivity.locationStagesForTesting = null
         ConfigActivity.setupSourceSelectorForTesting = null
         context.getSharedPreferences("widget_state_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE).edit().clear().commit()
         clearSavedLocation()
     }
 

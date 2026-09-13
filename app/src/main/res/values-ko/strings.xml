@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">구름 데이터 없음 %1$s (%3$d시간 중 %2$d시간)</string>
     <string name="cloud_reason_gridpoints_failed">NWS 격자점 가져오기 실패</string>
     <string name="cloud_reason_skycover_unavailable">NWS 운량을 사용할 수 없음</string>
+
+    <string name="data_usage_title">데이터 사용량</string>
+    <string name="data_usage_description">예보 및 관측치 업데이트에 사용된 네트워크 데이터입니다.</string>
+    <string name="watermark_data_restricted">백그라운드 데이터 차단됨</string>
+    <string name="background_data_disclosure_title">백그라운드 날씨 업데이트</string>
+    <string name="background_data_disclosure_desc">모바일 네트워크 및 데이터 절약 모드가 켜져 있을 때도 날씨 예보가 업데이트되도록 Weather Widget의 무제한 백그라운드 데이터 사용을 허용해 주세요.</string>
+
+    <string name="cellular_label">모바일 데이터</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">지난 24시간</string>
+    <string name="data_usage_past_7d">지난 7일 (주간)</string>
+    <string name="data_usage_past_30d">지난 30일 (월간)</string>
+    <string name="data_usage_past_90d">지난 90일</string>
+    <string name="data_usage_loading">데이터 사용량 불러오는 중…</string>
+    <string name="data_usage_unavailable">데이터 사용량 상세 정보를 사용할 수 없습니다</string>
 </resources>

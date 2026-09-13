@@ -19,6 +19,7 @@ import com.weatherwidget.widget.ForecastFetchContext
 import com.weatherwidget.widget.ForecastFetchPolicy
 import com.weatherwidget.widget.ForecastStalenessPolicy
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.util.NetworkRestrictionHelper
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
@@ -479,11 +480,15 @@ internal class ForecastFetchCoordinator(
                 name.contains("UnknownHost") ||
                     name.contains("UnresolvedAddress") -> "DNS_ERROR"
                 name.contains("ConnectException") ||
-                    name.contains("ConnectionRefused") -> "CONN_REFUSED"
+                    name.contains("ConnectionRefused") -> {
+                    if (NetworkRestrictionHelper.isBackgroundDataRestricted(context)) "DATA_RESTRICTED" else "CONN_REFUSED"
+                }
                 name.contains("Timeout") ||
                     name.contains("SocketTimeout") -> "TIMEOUT"
                 name.contains("SSL") || name.contains("TLS") -> "SSL_ERROR"
-                name.contains("SocketException") -> "SOCKET_ERROR"
+                name.contains("SocketException") -> {
+                    if (NetworkRestrictionHelper.isBackgroundDataRestricted(context)) "DATA_RESTRICTED" else "SOCKET_ERROR"
+                }
                 else -> name.take(20).ifBlank { "ERROR" }
             }
         }

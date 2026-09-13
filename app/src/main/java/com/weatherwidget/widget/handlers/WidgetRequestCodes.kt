@@ -35,6 +35,7 @@ object WidgetRequestCodes {
     private const val BASE_SET_LOCATION = 5100
     private const val BASE_ERROR_REFRESH = 5200
     private const val BASE_SOURCE_HOME = 5300
+    private const val BASE_ERROR_PILL = 5400
 
     fun navLeft(id: Int) = id * 10000 + BASE_NAV_LEFT
     fun navRight(id: Int) = id * 10000 + BASE_NAV_RIGHT
@@ -75,4 +76,7 @@ object WidgetRequestCodes {
      * code would leave whichever was bound first able to satisfy the other's FLAG_UPDATE_CURRENT.
      */
     fun sourceHome(id: Int) = id * 10000 + BASE_SOURCE_HOME
+
+    /** The failure watermark pill touch target on graphs. */
+    fun errorPill(id: Int) = id * 10000 + BASE_ERROR_PILL
 }

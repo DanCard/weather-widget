@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">缺少云数据 %1$s（%3$d 小时中的 %2$d 小时）</string>
     <string name="cloud_reason_gridpoints_failed">NWS 网格点获取失败</string>
     <string name="cloud_reason_skycover_unavailable">NWS 云量不可用</string>
+
+    <string name="data_usage_title">数据使用量</string>
+    <string name="data_usage_description">用于天气预报和气象观测更新的网络数据。</string>
+    <string name="watermark_data_restricted">后台数据受限</string>
+    <string name="background_data_disclosure_title">后台天气更新</string>
+    <string name="background_data_disclosure_desc">为确保在移动网络和省流量模式下天气预报正常更新，请允许 Weather Widget 不受限制地使用后台数据。</string>
+
+    <string name="cellular_label">蜂窝网络</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">过去24小时</string>
+    <string name="data_usage_past_7d">过去7天（周）</string>
+    <string name="data_usage_past_30d">过去30天（月）</string>
+    <string name="data_usage_past_90d">过去90天</string>
+    <string name="data_usage_loading">正在加载数据使用量…</string>
+    <string name="data_usage_unavailable">数据使用详情不可用</string>
 </resources>

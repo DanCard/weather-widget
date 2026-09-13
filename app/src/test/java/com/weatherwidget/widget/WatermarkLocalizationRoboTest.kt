@@ -26,6 +26,7 @@ class WatermarkLocalizationRoboTest {
 
         assertEquals("AKTUALISIERUNGEN FEHLGESCHLAGEN", context.getString(R.string.updates_failing))
         assertEquals("429 Limit erreicht", GraphFailureWatermarkRenderer.localizedErrorCodeText(context, "HTTP_429"))
+        assertEquals("Hintergrunddaten blockiert", GraphFailureWatermarkRenderer.localizedErrorCodeText(context, "DATA_RESTRICTED"))
         assertEquals("Zeitüberschreitung", GraphFailureWatermarkRenderer.localizedErrorCodeText(context, "TIMEOUT"))
         assertEquals("502 Serverfehler", GraphFailureWatermarkRenderer.localizedErrorCodeText(context, "HTTP_502"))
     }

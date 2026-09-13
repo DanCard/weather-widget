@@ -407,7 +407,15 @@ object PrecipViewHandler {
                 zoom = zoom,
                 hourlyOffset = hourlyOffset,
             )
+            ErrorPillTouchTargetHelper.setupErrorPillTouchTarget(
+                context = context,
+                views = views,
+                appWidgetId = appWidgetId,
+                showErrorWatermark = stateManager.isSourceErrored(displaySource),
+                errorCode = stateManager.getSourceLastErrorCode(displaySource),
+            )
         } else {
+            views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
             views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)

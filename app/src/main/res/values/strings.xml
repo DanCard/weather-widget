@@ -378,4 +378,21 @@
     <string name="cloud_data_missing_range">Cloud data missing %1$s (%2$d of %3$d hrs)</string>
     <string name="cloud_reason_gridpoints_failed">NWS gridpoints fetch failed</string>
     <string name="cloud_reason_skycover_unavailable">NWS sky cover unavailable</string>
+
+    <string name="data_usage_title">Data Usage</string>
+    <string name="data_usage_description">Network data used for forecast and observation updates.</string>
+    <string name="watermark_data_restricted">Background Data Blocked</string>
+    <string name="background_data_disclosure_title">Background Weather Updates</string>
+    <string name="background_data_disclosure_desc">To ensure weather forecasts update on mobile networks and when Data Saver is active, allow unrestricted background data for Weather Widget.</string>
+
+    <string name="cellular_label">Cellular</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">Past 24 Hours</string>
+    <string name="data_usage_past_7d">Past 7 Days (Week)</string>
+    <string name="data_usage_past_30d">Past 30 Days (Month)</string>
+    <string name="data_usage_past_90d">Past 90 Days</string>
+    <string name="data_usage_loading">Loading data usage…</string>
+    <string name="data_usage_unavailable">Data usage details unavailable</string>
+    <string name="data_usage_fg_bg_format" translatable="false">%1$s (FG: %2$s • BG: %3$s)</string>
+    <string name="data_usage_entry_format" translatable="false">%1$s: %2$s (FG: %3$s • BG: %4$s)</string>
 </resources>

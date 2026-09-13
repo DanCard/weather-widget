@@ -42,6 +42,7 @@ enum class SettingsSection(
     FEEDBACK("Feedback & Bug Reports"),
     API_KEYS("API Keys"),
     SUPPORT("Support Development"),
+    DATA_USAGE("Data Usage", platforms = setOf(Platform.ANDROID)),
     ;
 
     companion object {

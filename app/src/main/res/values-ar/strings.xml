@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">بيانات السحب مفقودة %1$s (%2$d من %3$d ساعة)</string>
     <string name="cloud_reason_gridpoints_failed">فشل جلب نقاط شبكة NWS</string>
     <string name="cloud_reason_skycover_unavailable">غطاء السماء من NWS غير متاح</string>
+
+    <string name="data_usage_title">استخدام البيانات</string>
+    <string name="data_usage_description">بيانات الشبكة المستخدمة لتحديثات التوقعات والرصد.</string>
+    <string name="watermark_data_restricted">بيانات الخلفية محظورة</string>
+    <string name="background_data_disclosure_title">تحديثات الطقس في الخلفية</string>
+    <string name="background_data_disclosure_desc">لضمان تحديث توقعات الطقس على شبكات الجوال وعند تفعيل موفر البيانات، يُرجى السماح باستخدام بيانات الخلفية بلا قيود لتطبيق Weather Widget.</string>
+
+    <string name="cellular_label">خلوي</string>
+    <string name="wifi_label">واي فاي</string>
+    <string name="data_usage_past_24h">آخر 24 ساعة</string>
+    <string name="data_usage_past_7d">آخر 7 أيام (أسبوع)</string>
+    <string name="data_usage_past_30d">آخر 30 يوماً (شهر)</string>
+    <string name="data_usage_past_90d">آخر 90 يوماً</string>
+    <string name="data_usage_loading">جارٍ تحميل استخدام البيانات…</string>
+    <string name="data_usage_unavailable">تفاصيل استخدام البيانات غير متوفرة</string>
 </resources>

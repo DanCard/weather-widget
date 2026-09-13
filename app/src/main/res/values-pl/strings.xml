@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">Brak danych o chmurach %1$s (%2$d z %3$d godz.)</string>
     <string name="cloud_reason_gridpoints_failed">Nie udało się pobrać siatki NWS</string>
     <string name="cloud_reason_skycover_unavailable">Zachmurzenie NWS niedostępne</string>
+
+    <string name="data_usage_title">Użycie danych</string>
+    <string name="data_usage_description">Dane sieciowe wykorzystane do aktualizacji prognoz i obserwacji.</string>
+    <string name="watermark_data_restricted">Dane w tle zablokowane</string>
+    <string name="background_data_disclosure_title">Aktualizacje pogody w tle</string>
+    <string name="background_data_disclosure_desc">Aby prognozy pogody aktualizowały się w sieciach komórkowych oraz przy włączonym Oszczędzaniu danych, zezwól aplikacji Weather Widget na nieograniczone korzystanie z danych w tle.</string>
+
+    <string name="cellular_label">Komórkowa</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">Ostatnie 24 godziny</string>
+    <string name="data_usage_past_7d">Ostatnie 7 dni (tydzień)</string>
+    <string name="data_usage_past_30d">Ostatnie 30 dni (miesiąc)</string>
+    <string name="data_usage_past_90d">Ostatnie 90 dni</string>
+    <string name="data_usage_loading">Ładowanie użycia danych…</string>
+    <string name="data_usage_unavailable">Szczegóły użycia danych są niedostępne</string>
 </resources>

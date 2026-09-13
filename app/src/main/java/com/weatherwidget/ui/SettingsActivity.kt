@@ -258,6 +258,9 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        // Load network data usage stats
+        loadDataUsageStats()
+
         // Back button
         findViewById<android.widget.ImageButton>(R.id.back_button).setOnClickListener {
             finish()
@@ -265,6 +268,54 @@ class SettingsActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.settings_title).setOnClickListener {
             finish()
+        }
+    }
+
+    private fun loadDataUsageStats() {
+        val cell24h = findViewById<TextView>(R.id.data_usage_24h_cell)
+        val wifi24h = findViewById<TextView>(R.id.data_usage_24h_wifi)
+        val cell7d = findViewById<TextView>(R.id.data_usage_7d_cell)
+        val wifi7d = findViewById<TextView>(R.id.data_usage_7d_wifi)
+        val cell30d = findViewById<TextView>(R.id.data_usage_30d_cell)
+        val wifi30d = findViewById<TextView>(R.id.data_usage_30d_wifi)
+        val cell90d = findViewById<TextView>(R.id.data_usage_90d_cell)
+        val wifi90d = findViewById<TextView>(R.id.data_usage_90d_wifi)
+
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val report = com.weatherwidget.util.NetworkUsageTracker.queryNetworkUsage(this@SettingsActivity)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                if (report == null) {
+                    val unavailable = getString(R.string.data_usage_unavailable)
+                    cell24h.text = unavailable
+                    cell7d.text = unavailable
+                    cell30d.text = unavailable
+                    cell90d.text = unavailable
+                    return@withContext
+                }
+
+                fun renderWindow(
+                    cellView: TextView,
+                    wifiView: TextView,
+                    window: com.weatherwidget.util.NetworkUsageWindow,
+                ) {
+                    val cellLabel = getString(R.string.cellular_label)
+                    val wifiLabel = getString(R.string.wifi_label)
+                    val cellTotal = com.weatherwidget.util.NetworkUsageTracker.formatBytes(window.cellular.totalBytes)
+                    val cellFg = com.weatherwidget.util.NetworkUsageTracker.formatBytes(window.cellular.foregroundBytes)
+                    val cellBg = com.weatherwidget.util.NetworkUsageTracker.formatBytes(window.cellular.backgroundBytes)
+                    cellView.text = getString(R.string.data_usage_entry_format, cellLabel, cellTotal, cellFg, cellBg)
+
+                    val wifiTotal = com.weatherwidget.util.NetworkUsageTracker.formatBytes(window.wifi.totalBytes)
+                    val wifiFg = com.weatherwidget.util.NetworkUsageTracker.formatBytes(window.wifi.foregroundBytes)
+                    val wifiBg = com.weatherwidget.util.NetworkUsageTracker.formatBytes(window.wifi.backgroundBytes)
+                    wifiView.text = getString(R.string.data_usage_entry_format, wifiLabel, wifiTotal, wifiFg, wifiBg)
+                }
+
+                renderWindow(cell24h, wifi24h, report.past24Hours)
+                renderWindow(cell7d, wifi7d, report.past7Days)
+                renderWindow(cell30d, wifi30d, report.past30Days)
+                renderWindow(cell90d, wifi90d, report.past90Days)
+            }
         }
     }
 

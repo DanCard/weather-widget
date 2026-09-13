@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">Нет данных об облачности %1$s (%2$d из %3$d ч)</string>
     <string name="cloud_reason_gridpoints_failed">Не удалось получить сетку NWS</string>
     <string name="cloud_reason_skycover_unavailable">Облачность NWS недоступна</string>
+
+    <string name="data_usage_title">Использование данных</string>
+    <string name="data_usage_description">Сетевые данные, использованные для обновлений прогноза и наблюдений.</string>
+    <string name="watermark_data_restricted">Фоновые данные заблокированы</string>
+    <string name="background_data_disclosure_title">Обновления погоды в фоновом режиме</string>
+    <string name="background_data_disclosure_desc">Чтобы прогнозы погоды обновлялись в мобильных сетях и при включенном режиме экономии трафика, разрешите приложению Weather Widget неограниченное использование данных в фоновом режиме.</string>
+
+    <string name="cellular_label">Мобильные</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">За последние 24 часа</string>
+    <string name="data_usage_past_7d">За последние 7 дней (неделя)</string>
+    <string name="data_usage_past_30d">За последние 30 дней (месяц)</string>
+    <string name="data_usage_past_90d">За последние 90 дней</string>
+    <string name="data_usage_loading">Загрузка данных об использовании…</string>
+    <string name="data_usage_unavailable">Сведения об использовании данных недоступны</string>
 </resources>

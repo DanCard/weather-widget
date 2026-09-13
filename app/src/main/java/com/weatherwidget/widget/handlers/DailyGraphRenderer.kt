@@ -391,6 +391,13 @@ internal object DailyGraphRenderer {
                 DailyClickHandlerFactory.buildDayClickIntent(ctx.context, aid, di, d, ir, la, lo, ds, n, tmo, oo, cs)
             },
         )
+        ErrorPillTouchTargetHelper.setupErrorPillTouchTarget(
+            context = ctx.context,
+            views = ctx.views,
+            appWidgetId = ctx.appWidgetId,
+            showErrorWatermark = ctx.stateManager.isSourceErrored(ctx.displaySource),
+            errorCode = ctx.stateManager.getSourceLastErrorCode(ctx.displaySource),
+        )
 
         return RenderMetrics(prepareMs, renderMs)
     }

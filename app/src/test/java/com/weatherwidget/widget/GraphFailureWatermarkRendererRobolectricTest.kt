@@ -69,6 +69,7 @@ class GraphFailureWatermarkRendererRobolectricTest {
                 .toEpochMilli()
 
         assertEquals("429 Rate Limited", GraphFailureWatermarkRenderer.humanReadableErrorCode("HTTP_429"))
+        assertEquals("Background Data Blocked", GraphFailureWatermarkRenderer.humanReadableErrorCode("DATA_RESTRICTED"))
         assertEquals(
             "9:30 AM",
             GraphFailureWatermarkRenderer.formatFailureTime(

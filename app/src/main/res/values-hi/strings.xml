@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">बादल डेटा गायब %1$s (%3$d में से %2$d घंटे)</string>
     <string name="cloud_reason_gridpoints_failed">NWS ग्रिडपॉइंट प्राप्त करने में विफल</string>
     <string name="cloud_reason_skycover_unavailable">NWS आकाश कवरेज अनुपलब्ध</string>
+
+    <string name="data_usage_title">डेटा उपयोग</string>
+    <string name="data_usage_description">पूर्वानुमान और अवलोकन अपडेट के लिए उपयोग किया गया नेटवर्क डेटा।</string>
+    <string name="watermark_data_restricted">बैकग्राउंड डेटा अवरुद्ध</string>
+    <string name="background_data_disclosure_title">बैकग्राउंड मौसम अपडेट</string>
+    <string name="background_data_disclosure_desc">मोबाइल नेटवर्क पर और डेटा सेवर सक्रिय होने पर मौसम पूर्वानुमान अपडेट सुनिश्चित करने के लिए, Weather Widget को अप्रतिबंधित बैकग्राउंड डेटा की अनुमति दें।</string>
+
+    <string name="cellular_label">सेल्युलर</string>
+    <string name="wifi_label">वाई-फ़ाई</string>
+    <string name="data_usage_past_24h">पिछले 24 घंटे</string>
+    <string name="data_usage_past_7d">पिछले 7 दिन (सप्ताह)</string>
+    <string name="data_usage_past_30d">पिछले 30 दिन (माह)</string>
+    <string name="data_usage_past_90d">पिछले 90 दिन</string>
+    <string name="data_usage_loading">डेटा उपयोग लोड हो रहा है…</string>
+    <string name="data_usage_unavailable">डेटा उपयोग विवरण अनुपलब्ध</string>
 </resources>

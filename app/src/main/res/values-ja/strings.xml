@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">雲データがありません %1$s（%3$d 時間中 %2$d 時間）</string>
     <string name="cloud_reason_gridpoints_failed">NWS グリッドポイントの取得に失敗</string>
     <string name="cloud_reason_skycover_unavailable">NWS の雲量を利用できません</string>
+
+    <string name="data_usage_title">データ使用量</string>
+    <string name="data_usage_description">予報および観測の更新に使用されたネットワークデータ。</string>
+    <string name="watermark_data_restricted">バックグラウンドデータが制限されています</string>
+    <string name="background_data_disclosure_title">バックグラウンド天気更新</string>
+    <string name="background_data_disclosure_desc">モバイルネットワークやデータセーバーが有効なときでも天気予報が更新されるよう、Weather Widget のバックグラウンドデータの無制限使用を許可してください。</string>
+
+    <string name="cellular_label">モバイル通信</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">過去24時間</string>
+    <string name="data_usage_past_7d">過去7日間（週間）</string>
+    <string name="data_usage_past_30d">過去30日間（月間）</string>
+    <string name="data_usage_past_90d">過去90日間</string>
+    <string name="data_usage_loading">データ使用量を読み込み中…</string>
+    <string name="data_usage_unavailable">データ使用量の詳細は利用できません</string>
 </resources>

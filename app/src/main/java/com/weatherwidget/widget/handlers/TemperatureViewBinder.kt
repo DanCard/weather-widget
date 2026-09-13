@@ -211,7 +211,16 @@ HeaderRemoteViewsBinder.applyDisclosure(
                 zoom = state.zoom,
                 hourlyOffset = state.hourlyOffset,
             )
+
+            ErrorPillTouchTargetHelper.setupErrorPillTouchTarget(
+                context = context,
+                views = views,
+                appWidgetId = appWidgetId,
+                showErrorWatermark = stateManager.isSourceErrored(state.displaySource),
+                errorCode = stateManager.getSourceLastErrorCode(state.displaySource),
+            )
         } else if (state.graph.showTextMode) {
+            views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
             showTextMode(views)
         }
         // useGraph with a null bitmap means renderGraph threw (HOURLY_RENDER_EXCEPTION). Do not

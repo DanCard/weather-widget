@@ -348,4 +348,19 @@
     <string name="cloud_data_missing_range">Немає даних про хмарність %1$s (%2$d із %3$d год)</string>
     <string name="cloud_reason_gridpoints_failed">Помилка отримання сітки NWS</string>
     <string name="cloud_reason_skycover_unavailable">Дані про хмарність NWS недоступні</string>
+
+    <string name="data_usage_title">Використання даних</string>
+    <string name="data_usage_description">Мережеві дані, використані для оновлення прогнозів та спостережень.</string>
+    <string name="watermark_data_restricted">Фоновий трафік заблоковано</string>
+    <string name="background_data_disclosure_title">Оновлення погоди у фоновому режимі</string>
+    <string name="background_data_disclosure_desc">Щоб прогнози погоди оновлювалися в мобільних мережах і під час активного режиму економії трафіку, дозвольте необмежений фоновий трафік для Weather Widget.</string>
+
+    <string name="cellular_label">Мобільні</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">Останні 24 години</string>
+    <string name="data_usage_past_7d">Останні 7 днів (тиждень)</string>
+    <string name="data_usage_past_30d">Останні 30 днів (місяць)</string>
+    <string name="data_usage_past_90d">Останні 90 днів</string>
+    <string name="data_usage_loading">Завантаження використання даних…</string>
+    <string name="data_usage_unavailable">Відомості про використання даних недоступні</string>
 </resources>

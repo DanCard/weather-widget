@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">মেঘের তথ্য অনুপস্থিত %1$s (%3$dটির মধ্যে %2$d ঘণ্টা)</string>
     <string name="cloud_reason_gridpoints_failed">NWS গ্রিডপয়েন্ট আনা ব্যর্থ হয়েছে</string>
     <string name="cloud_reason_skycover_unavailable">NWS আকাশ আবরণ উপলব্ধ নেই</string>
+
+    <string name="data_usage_title">ডেটা ব্যবহার</string>
+    <string name="data_usage_description">পূর্বাভাস এবং পর্যবেক্ষণের আপডেটের জন্য ব্যবহৃত নেটওয়ার্ক ডেটা।</string>
+    <string name="watermark_data_restricted">ব্যাকগ্রাউন্ড ডেটা অবরুদ্ধ</string>
+    <string name="background_data_disclosure_title">ব্যাকগ্রাউন্ড আবহাওয়া আপডেট</string>
+    <string name="background_data_disclosure_desc">মোবাইল নেটওয়ার্কে এবং ডেটা সেভার সক্রিয় থাকলে আবহাওয়ার পূর্বাভাস যাতে আপডেট হয় তা নিশ্চিত করতে, Weather Widget-এর জন্য অনিয়ন্ত্রিত ব্যাকগ্রাউন্ড ডেটা ব্যবহারের অনুমতি দিন।</string>
+
+    <string name="cellular_label">সেলুলার</string>
+    <string name="wifi_label">ওয়াই-ফাই</string>
+    <string name="data_usage_past_24h">বিগত ২৪ ঘন্টা</string>
+    <string name="data_usage_past_7d">বিগত ৭ দিন (সপ্তাহ)</string>
+    <string name="data_usage_past_30d">বিগত ৩০ দিন (মাস)</string>
+    <string name="data_usage_past_90d">বিগত ৯০ দিন</string>
+    <string name="data_usage_loading">ডেটা ব্যবহার লোড হচ্ছে…</string>
+    <string name="data_usage_unavailable">ডেটা ব্যবহারের বিবরণ অনুপলব্ধ</string>
 </resources>

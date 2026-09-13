@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">Data awan hilang %1$s (%2$d dari %3$d jam)</string>
     <string name="cloud_reason_gridpoints_failed">Gagal mengambil titik kisi NWS</string>
     <string name="cloud_reason_skycover_unavailable">Tutupan langit NWS tidak tersedia</string>
+
+    <string name="data_usage_title">Penggunaan Data</string>
+    <string name="data_usage_description">Data jaringan yang digunakan untuk pembaruan prakiraan dan pengamatan.</string>
+    <string name="watermark_data_restricted">Data Latar Belakang Diblokir</string>
+    <string name="background_data_disclosure_title">Pembaruan Cuaca Latar Belakang</string>
+    <string name="background_data_disclosure_desc">Untuk memastikan prakiraan cuaca diperbarui di jaringan seluler dan saat Penghemat Data aktif, izinkan data latar belakang tanpa batas untuk Weather Widget.</string>
+
+    <string name="cellular_label">Seluler</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">24 Jam Terakhir</string>
+    <string name="data_usage_past_7d">7 Hari Terakhir (Minggu)</string>
+    <string name="data_usage_past_30d">30 Hari Terakhir (Bulan)</string>
+    <string name="data_usage_past_90d">90 Hari Terakhir</string>
+    <string name="data_usage_loading">Memuat penggunaan data…</string>
+    <string name="data_usage_unavailable">Detail penggunaan data tidak tersedia</string>
 </resources>

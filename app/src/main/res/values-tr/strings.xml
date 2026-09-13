@@ -363,4 +363,19 @@
     <string name="cloud_data_missing_range">Bulut verisi eksik %1$s (%3$d saatin %2$d\'i)</string>
     <string name="cloud_reason_gridpoints_failed">NWS ızgara noktaları alınamadı</string>
     <string name="cloud_reason_skycover_unavailable">NWS gökyüzü örtüsü kullanılamıyor</string>
+
+    <string name="data_usage_title">Veri Kullanımı</string>
+    <string name="data_usage_description">Tahmin ve gözlem güncellemeleri için kullanılan ağ verileri.</string>
+    <string name="watermark_data_restricted">Arka Plan Verisi Engellendi</string>
+    <string name="background_data_disclosure_title">Arka Plan Hava Durumu Güncellemeleri</string>
+    <string name="background_data_disclosure_desc">Mobil ağlarda ve Veri Tasarrufu etkinken hava durumu tahminlerinin güncellenmesini sağlamak için Weather Widget için kısıtlamasız arka plan verisine izin verin.</string>
+
+    <string name="cellular_label">Hücresel</string>
+    <string name="wifi_label">Wi-Fi</string>
+    <string name="data_usage_past_24h">Son 24 Saat</string>
+    <string name="data_usage_past_7d">Son 7 Gün (Hafta)</string>
+    <string name="data_usage_past_30d">Son 30 Gün (Ay)</string>
+    <string name="data_usage_past_90d">Son 90 Gün</string>
+    <string name="data_usage_loading">Veri kullanımı yükleniyor…</string>
+    <string name="data_usage_unavailable">Veri kullanımı ayrıntıları mevcut değil</string>
 </resources>
