@@ -11,7 +11,11 @@
     <string name="or_search_location">Veya şehir, adres ya da posta koduna göre arayın:</string>
     <string name="location_search_hint">Şehir, adres veya posta kodu</string>
     <string name="search_location">Ara</string>
-    <string name="location_search_no_results">Eşleşme bulunamadı — yazımı veya ağı kontrol edin</string>
+    <string name="location_search_no_results">Sonuç bulunamadı — yazımı kontrol edin</string>
+    <string name="location_search_failed">Arama başarısız — ağ bağlantınızı kontrol edin</string>
+    <string name="location_search_choose_title">Kullanılacak konuma dokunun (%1$d sonuç)</string>
+    <string name="location_search_confirm_title">Bu konumu onaylamak için dokunun</string>
+    <string name="location_choice_use">KULLAN</string>
     <string name="getting_location">Konum alınıyor…</string>
     <string name="use_this_location">Bu konumu kullan</string>
     <string name="location_found_label">Cihaz konumu bulundu: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">Konumu kaydet</string>
     <string name="default_location_title">Varsayılan konum</string>
     <string name="location_saved_success">Tüm widget\'lar için konum güncellendi</string>
+    <string name="location_saved_success_named">Tüm widget\'lar için konum %1$s olarak ayarlandı</string>
     <string name="location_updated_from_gps">Konum GPS\'ten güncellendi</string>
     <string name="invalid_coordinates_range">Lütfen geçerli koordinatlar girin (enlem -90 ile 90, boylam -180 ile 180 arası)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">Zaman aşımı</string>
     <string name="watermark_ssl_error">SSL hatası</string>
     <string name="watermark_socket_error">Soket hatası</string>
+    <string name="watermark_no_coverage">Bu bölgede kullanılamıyor</string>
     <string name="watermark_server_error">%1$s Sunucu hatası</string>
     <string name="blend_stations_count">%1$d istasyon</string>
     <string name="obs_no_fetch_logs">%1$s için geçerli gözlem alma günlüğü bulunamadı.</string>

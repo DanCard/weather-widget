@@ -11,7 +11,11 @@
     <string name="or_search_location">O busca por ciudad, dirección o código postal:</string>
     <string name="location_search_hint">Ciudad, dirección o código postal</string>
     <string name="search_location">Buscar</string>
-    <string name="location_search_no_results">Sin resultados — revisa la ortografía o la red</string>
+    <string name="location_search_no_results">Sin resultados — revisa la ortografía</string>
+    <string name="location_search_failed">Error en la búsqueda — revisa tu conexión de red</string>
+    <string name="location_search_choose_title">Toca la ubicación que quieres usar (%1$d resultados)</string>
+    <string name="location_search_confirm_title">Toca para confirmar esta ubicación</string>
+    <string name="location_choice_use">USAR</string>
     <string name="getting_location">Obteniendo ubicación…</string>
     <string name="use_this_location">Usar esta ubicación</string>
     <string name="location_found_label">Ubicación del dispositivo encontrada: %1$s</string>
@@ -182,6 +186,7 @@
     <string name="save_location">Guardar ubicación</string>
     <string name="default_location_title">Ubicación predeterminada</string>
     <string name="location_saved_success">Ubicación actualizada para todos los widgets</string>
+    <string name="location_saved_success_named">Ubicación establecida en %1$s para todos los widgets</string>
     <string name="location_updated_from_gps">Ubicación actualizada por GPS</string>
     <string name="invalid_coordinates_range">Introduce coordenadas válidas (lat -90 a 90, lon -180 a 180)</string>
 
@@ -336,6 +341,7 @@
     <string name="watermark_timeout">Tiempo agotado</string>
     <string name="watermark_ssl_error">Error de SSL</string>
     <string name="watermark_socket_error">Error de socket</string>
+    <string name="watermark_no_coverage">No disponible en esta región</string>
     <string name="watermark_server_error">Error del servidor %1$s</string>
     <string name="blend_stations_count">%1$d estaciones</string>
     <string name="obs_no_fetch_logs">No se encontraron registros de obtención de la observación actual para %1$s.</string>

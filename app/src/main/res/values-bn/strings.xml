@@ -11,7 +11,11 @@
     <string name="or_search_location">অথবা শহর, ঠিকানা বা পোস্টকোড দিয়ে খুঁজুন:</string>
     <string name="location_search_hint">শহর, ঠিকানা বা পোস্টকোড</string>
     <string name="search_location">খুঁজুন</string>
-    <string name="location_search_no_results">কোনো মিল নেই — বানান বা নেটওয়ার্ক পরীক্ষা করুন</string>
+    <string name="location_search_no_results">কোনো মিল নেই — বানান পরীক্ষা করুন</string>
+    <string name="location_search_failed">অনুসন্ধান ব্যর্থ — নেটওয়ার্ক সংযোগ পরীক্ষা করুন</string>
+    <string name="location_search_choose_title">ব্যবহারের জন্য অবস্থানে ট্যাপ করুন (%1$dটি মিল)</string>
+    <string name="location_search_confirm_title">এই অবস্থান নিশ্চিত করতে ট্যাপ করুন</string>
+    <string name="location_choice_use">ব্যবহার</string>
     <string name="getting_location">অবস্থান নেওয়া হচ্ছে…</string>
     <string name="use_this_location">এই অবস্থান ব্যবহার করুন</string>
     <string name="location_found_label">ডিভাইসের অবস্থান পাওয়া গেছে: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">অবস্থান সংরক্ষণ করুন</string>
     <string name="default_location_title">ডিফল্ট অবস্থান</string>
     <string name="location_saved_success">সব উইজেটের জন্য অবস্থান আপডেট হয়েছে</string>
+    <string name="location_saved_success_named">সব উইজেটের জন্য অবস্থান %1$s-এ সেট করা হয়েছে</string>
     <string name="location_updated_from_gps">GPS থেকে অবস্থান আপডেট হয়েছে</string>
     <string name="invalid_coordinates_range">অনুগ্রহ করে বৈধ স্থানাঙ্ক লিখুন (অক্ষাংশ -90 থেকে 90, দ্রাঘিমাংশ -180 থেকে 180)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">সময় শেষ</string>
     <string name="watermark_ssl_error">SSL ত্রুটি</string>
     <string name="watermark_socket_error">সকেট ত্রুটি</string>
+    <string name="watermark_no_coverage">এই অঞ্চলে উপলব্ধ নয়</string>
     <string name="watermark_server_error">%1$s সার্ভার ত্রুটি</string>
     <string name="blend_stations_count">%1$d স্টেশন</string>
     <string name="obs_no_fetch_logs">%1$s-এর জন্য বর্তমান পর্যবেক্ষণ আনার কোনো লগ পাওয়া যায়নি।</string>

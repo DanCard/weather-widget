@@ -11,7 +11,11 @@
     <string name="or_search_location">Atau cari berdasarkan kota, alamat, atau kode pos:</string>
     <string name="location_search_hint">Kota, alamat, atau kode pos</string>
     <string name="search_location">Cari</string>
-    <string name="location_search_no_results">Tidak ada hasil — periksa ejaan atau jaringan</string>
+    <string name="location_search_no_results">Tidak ada hasil — periksa ejaan</string>
+    <string name="location_search_failed">Pencarian gagal — periksa koneksi jaringan Anda</string>
+    <string name="location_search_choose_title">Ketuk lokasi yang ingin digunakan (%1$d hasil)</string>
+    <string name="location_search_confirm_title">Ketuk untuk mengonfirmasi lokasi ini</string>
+    <string name="location_choice_use">GUNAKAN</string>
     <string name="getting_location">Mendapatkan lokasi…</string>
     <string name="use_this_location">Gunakan lokasi ini</string>
     <string name="location_found_label">Lokasi perangkat ditemukan: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">Simpan lokasi</string>
     <string name="default_location_title">Lokasi default</string>
     <string name="location_saved_success">Lokasi diperbarui untuk semua widget</string>
+    <string name="location_saved_success_named">Lokasi diatur ke %1$s untuk semua widget</string>
     <string name="location_updated_from_gps">Lokasi diperbarui dari GPS</string>
     <string name="invalid_coordinates_range">Masukkan koordinat yang valid (lintang -90 hingga 90, bujur -180 hingga 180)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">Waktu habis</string>
     <string name="watermark_ssl_error">Kesalahan SSL</string>
     <string name="watermark_socket_error">Kesalahan soket</string>
+    <string name="watermark_no_coverage">Tidak tersedia di wilayah ini</string>
     <string name="watermark_server_error">%1$s Kesalahan server</string>
     <string name="blend_stations_count">%1$d stasiun</string>
     <string name="obs_no_fetch_logs">Tidak ada log pengambilan observasi saat ini untuk %1$s.</string>

@@ -230,6 +230,7 @@ internal object GraphFailureWatermarkRenderer {
             "TIMEOUT" -> "Timed Out"
             "SSL_ERROR" -> "SSL Error"
             "SOCKET_ERROR" -> "Socket Error"
+            "NO_COVERAGE" -> "Not Available In This Region"
             else ->
                 when {
                     code.startsWith("HTTP_5") ->
@@ -259,6 +260,7 @@ internal object GraphFailureWatermarkRenderer {
             "TIMEOUT" -> context.getString(R.string.watermark_timeout)
             "SSL_ERROR" -> context.getString(R.string.watermark_ssl_error)
             "SOCKET_ERROR" -> context.getString(R.string.watermark_socket_error)
+            "NO_COVERAGE" -> context.getString(R.string.watermark_no_coverage)
             else ->
                 when {
                     code.startsWith("HTTP_5") ->

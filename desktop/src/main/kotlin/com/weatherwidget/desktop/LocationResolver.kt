@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.model.ResolvedLocation
 import com.weatherwidget.data.repository.SharedLocationResolver
 import kotlin.math.roundToInt
+import com.weatherwidget.shared.util.NwsCoverage
 
 class LocationResolver(
     private val phoneLocator: PhoneLocator,
@@ -77,11 +78,7 @@ class LocationResolver(
 }
 
 fun ResolvedLocation.toConfig(): DesktopConfig {
-    val isUs = (lat in 24.0..50.0 && lon in -125.0..-66.0) || // CONUS
-               (lat in 51.0..72.0 && lon in -180.0..-130.0) || // Alaska
-               (lat in 18.0..23.0 && lon in -161.0..-154.0) || // Hawaii
-               (lat in 17.0..19.0 && lon in -68.0..-65.0)      // Puerto Rico
-    
+    val isUs = NwsCoverage.covers(lat, lon)
     return DesktopConfig(
         lat = lat,
         lon = lon,

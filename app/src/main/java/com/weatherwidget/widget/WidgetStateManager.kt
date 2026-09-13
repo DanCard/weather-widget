@@ -185,6 +185,13 @@ class WidgetStateManager internal constructor(
         widgetIds: IntArray,
     ): Boolean = sourcePreferences.setVisibleSourcesForSetup(sources, widgetIds)
 
+    fun retireNwsOutsideCoverage(lat: Double, lon: Double, widgetIds: IntArray): Boolean =
+        sourcePreferences.retireNwsOutsideCoverage(lat, lon, widgetIds)
+
+    fun isNwsAutoRetired(): Boolean = sourcePreferences.isNwsAutoRetired()
+
+    fun setNwsAutoRetired(value: Boolean) = sourcePreferences.setNwsAutoRetired(value)
+
     fun isSourceVisible(source: WeatherSource): Boolean = sourcePreferences.isVisible(source)
 
     fun getCurrentDisplaySource(widgetId: Int): WeatherSource =

@@ -75,6 +75,12 @@ internal class FullSyncPipeline(
                     "(configured=${appWidgetIds.toList().firstNotNullOfOrNull { widgetStateManager.getWidgetLocation(it) } != null})",
             )
 
+            // Prefs written before location changes retired NWS (or by an older build) can still
+            // list NWS at a site it does not cover; heal before choosing what to fetch/paint.
+            if (widgetStateManager.retireNwsOutsideCoverage(location.first, location.second, appWidgetIds)) {
+                logStage("nws_retired_outside_coverage lat=${location.first} lon=${location.second}")
+            }
+
             val activeSourceList = hourlyForecastLoader.currentDisplaySourceIds()
             val fetchContext = if (!input.forceRefresh && !input.uiOnlyRefresh) {
                 ForecastFetchContext(

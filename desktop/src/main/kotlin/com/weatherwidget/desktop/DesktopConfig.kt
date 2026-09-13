@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.graph.ZoomStage
+import com.weatherwidget.shared.util.NwsCoverage
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -48,6 +49,9 @@ data class DesktopSettings(
     // (ActualsProviderResolver.DEFAULT_PROVIDER) and is deliberately not written as an explicit
     // value: storing the default would silently pin the user if the default ever moves.
     val actualsProviders: Map<String, String> = emptyMap(),
+    // NWS is missing from visibleSources because the app retired it (site outside NWS coverage),
+    // not because the user unticked it — so a move back into coverage may restore it.
+    val nwsAutoRetired: Boolean = false,
 ) {
     // 0% discount -> weight 1.0 (no discount); 100% discount -> weight 0.0 (PWS ignored).
     fun personalStationWeight(): Double = 1.0 - personalStationDiscount.coerceIn(0, 100) / 100.0
@@ -71,6 +75,7 @@ data class DesktopSettings(
         add("actualsProviders", actualsProviders, other.actualsProviders)
         add("todayOverlayDelta", todayOverlayDelta, other.todayOverlayDelta)
         add("todayOverlayDominantTemp", todayOverlayDominantTemp, other.todayOverlayDominantTemp)
+        add("nwsAutoRetired", nwsAutoRetired, other.nwsAutoRetired)
     }
 }
 
@@ -210,6 +215,18 @@ internal fun resolveDesktopConfigSave(
     } else {
         draft
     }
+    if (source == "location-picker") {
+        // Moving outside NWS coverage retires NWS from the popup's source cycle too — otherwise
+        // the picker's Open-Meteo default is one header tap away from a source that 404s at the
+        // new site and leaves the UI on "Loading...". Moving back inside restores it, but only
+        // when the app was the one that removed it. Mirrors Android's setup source check.
+        effective = effective.copy(settings = effective.settings.withNwsCoverageApplied(effective.lat, effective.lon))
+    } else if (persisted != null && source in SETTINGS_SAVE_SOURCES &&
+        draft.settings.visibleSources != persisted.settings.visibleSources
+    ) {
+        // The user edited the source list themselves: whatever NWS's state is now, it is theirs.
+        effective = effective.copy(settings = effective.settings.copy(nwsAutoRetired = false))
+    }
     val beforeResnap = effective
     if (persisted != null) effective = resnapNarrowZoomAfterSpanChange(persisted, effective)
 
@@ -249,6 +266,22 @@ internal fun resnapNarrowZoomAfterSpanChange(prev: DesktopConfig, next: DesktopC
 }
 
 private val SETTINGS_SAVE_SOURCES = setOf("settings", "settings-close")
+
+/**
+ * Applies [NwsCoverage] for a site: outside it retires NWS and remembers that the app did so;
+ * inside it restores NWS only if the app had retired it. A list the user shaped is left alone.
+ */
+internal fun DesktopSettings.withNwsCoverageApplied(lat: Double, lon: Double): DesktopSettings =
+    if (NwsCoverage.covers(lat, lon)) {
+        if (nwsAutoRetired) {
+            copy(visibleSources = NwsCoverage.restoreNws(visibleSources), nwsAutoRetired = false)
+        } else {
+            this
+        }
+    } else {
+        val retired = NwsCoverage.retireNws(visibleSources)
+        if (retired === visibleSources) this else copy(visibleSources = retired, nwsAutoRetired = true)
+    }
 
 /**
  * Heals a persisted config whose `zoomFactor` was left at an old NARROW-stage factor when
@@ -306,13 +339,15 @@ class DesktopConfigStore(
             if (WeatherSource.OPEN_WEATHER_MAP.id in normalizedVisible && normalizedVisible.last() != WeatherSource.OPEN_WEATHER_MAP.id) {
                 normalizedVisible = normalizedVisible.filter { it != WeatherSource.OPEN_WEATHER_MAP.id } + WeatherSource.OPEN_WEATHER_MAP.id
             }
+            // Heal configs whose location left NWS coverage before the picker retired NWS: an
+            // NWS selection there can never load, so drop it and let the source fall through.
+            val healed = decoded.settings.copy(visibleSources = normalizedVisible)
+                .withNwsCoverageApplied(decoded.lat, decoded.lon)
+            normalizedVisible = healed.visibleSources
             val normalizedSource = decoded.settings.weatherSource.takeIf { it in normalizedVisible }
                 ?: normalizedVisible.first()
             var normalized = decoded.copy(
-                settings = decoded.settings.copy(
-                    weatherSource = normalizedSource,
-                    visibleSources = normalizedVisible,
-                ),
+                settings = healed.copy(weatherSource = normalizedSource),
             )
             // Heal configs written before the save-time re-snap existed: a stale NARROW factor
             // makes the view render the wrong number of hours for the configured span.

@@ -150,6 +150,25 @@ class SetupSourceSelectorTest {
         }
 
     @Test
+    fun `supported result restores NWS only after an automatic retirement`() =
+        runTest {
+            val selector = selector(
+                nws = SetupNwsCoverage.SUPPORTED,
+                weatherApi = SetupWeatherApiAvailability.NOT_CHECKED,
+                configured = true,
+            )
+            val current = listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN)
+
+            val restored = selector.select(current, 37.4168, -122.0890, nwsAutoRetired = true)
+            assertEquals(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN), restored.sources)
+            assertEquals("nws_restored", restored.reason)
+
+            // The user unticked NWS themselves: a supported site must not override that.
+            val untouched = selector.select(current, 37.4168, -122.0890, nwsAutoRetired = false)
+            assertSame(current, untouched.sources)
+        }
+
+    @Test
     fun `unsupported result is exact no-op when NWS was already disabled`() =
         runTest {
             val current = listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN)
@@ -183,11 +202,30 @@ class SetupSourceSelectorTest {
                     detail = "not found",
                     message = "not found",
                 )
-            val unrelated404 = checker.checkNws(51.5074, -0.1278)
+            val unrelated404 = checker.checkNws(37.4168, -122.0890)
 
             assertEquals(SetupNwsCoverage.UNSUPPORTED, unsupported.first)
             assertEquals(SetupNwsCoverage.INCONCLUSIVE, unrelated404.first)
             assertEquals("http_404", unrelated404.second)
+        }
+
+    @Test
+    fun `NWS checker retires NWS on an inconclusive probe outside the coverage box`() =
+        runTest {
+            val nwsApi = mockk<NwsApi>()
+            val weatherApi = mockk<WeatherApi>(relaxed = true)
+            val checker = SetupSourceAvailabilityChecker(nwsApi, weatherApi)
+            coEvery { nwsApi.getGridPoint(any(), any()) } throws java.net.UnknownHostException("offline")
+
+            // Lviv while offline: the probe cannot answer, but the box can.
+            val lviv = checker.checkNws(49.8419, 24.0316)
+            assertEquals(SetupNwsCoverage.UNSUPPORTED, lviv.first)
+            assertEquals("network_outside_coverage_box", lviv.second)
+
+            // Mountain View while offline: keep NWS, it almost certainly works.
+            val mountainView = checker.checkNws(37.4168, -122.0890)
+            assertEquals(SetupNwsCoverage.INCONCLUSIVE, mountainView.first)
+            assertEquals("network", mountainView.second)
         }
 
     @Test
@@ -199,7 +237,7 @@ class SetupSourceSelectorTest {
 
             val result =
                 SetupSourceAvailabilityChecker(nwsApi, weatherApi)
-                    .checkNws(51.5074, -0.1278)
+                    .checkNws(37.4168, -122.0890)
 
             assertEquals(SetupNwsCoverage.INCONCLUSIVE, result.first)
             assertEquals("timeout", result.second)

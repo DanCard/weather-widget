@@ -6,6 +6,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.NwsPointUnavailableException
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.WeatherApiCredentialProvider
+import com.weatherwidget.shared.util.NwsCoverage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -39,15 +40,20 @@ object SetupSourcePolicy {
         current: List<WeatherSource>,
         nwsCoverage: SetupNwsCoverage,
         weatherApiAvailable: Boolean,
+        nwsAutoRetired: Boolean = false,
     ): List<WeatherSource> {
+        // Back inside coverage after an automatic retirement: put NWS back where it was. A user
+        // who unticked NWS themselves (flag false) keeps their choice.
+        if (nwsCoverage == SetupNwsCoverage.SUPPORTED && nwsAutoRetired && WeatherSource.NWS !in current) {
+            return NwsCoverage.restoreNws(current.map { it.id }).map { WeatherSource.fromId(it) }
+        }
         if (nwsCoverage != SetupNwsCoverage.UNSUPPORTED || WeatherSource.NWS !in current) {
             return current
         }
 
-        val result = current.filterNot { it == WeatherSource.NWS }.toMutableList()
-        if (result.isEmpty()) {
-            result += WeatherSource.OPEN_METEO
-        }
+        val result = NwsCoverage.retireNws(current.map { it.id })
+            .map { WeatherSource.fromId(it) }
+            .toMutableList()
         if (weatherApiAvailable && WeatherSource.WEATHER_API !in result) {
             result += WeatherSource.WEATHER_API
         }
@@ -74,15 +80,31 @@ class SetupSourceAvailabilityChecker
             } catch (e: NwsPointUnavailableException) {
                 SetupNwsCoverage.UNSUPPORTED to "invalid_point"
             } catch (e: TimeoutCancellationException) {
-                SetupNwsCoverage.INCONCLUSIVE to "timeout"
+                inconclusive(latitude, longitude, "timeout")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiAccessException) {
-                SetupNwsCoverage.INCONCLUSIVE to "http_${e.statusCode ?: "unknown"}"
+                inconclusive(latitude, longitude, "http_${e.statusCode ?: "unknown"}")
             } catch (e: IOException) {
-                SetupNwsCoverage.INCONCLUSIVE to "network"
+                inconclusive(latitude, longitude, "network")
             } catch (e: Exception) {
-                SetupNwsCoverage.INCONCLUSIVE to "error_${e.javaClass.simpleName}"
+                inconclusive(latitude, longitude, "error_${e.javaClass.simpleName}")
+            }
+
+        /**
+         * The probe could not answer. Inside the coverage box that stays INCONCLUSIVE (keep NWS,
+         * it very likely works); outside it the box is authoritative enough to retire NWS — a
+         * location set while offline must not keep a source that can never load there.
+         */
+        private fun inconclusive(
+            latitude: Double,
+            longitude: Double,
+            reason: String,
+        ): Pair<SetupNwsCoverage, String?> =
+            if (NwsCoverage.covers(latitude, longitude)) {
+                SetupNwsCoverage.INCONCLUSIVE to reason
+            } else {
+                SetupNwsCoverage.UNSUPPORTED to "${reason}_outside_coverage_box"
             }
 
         suspend fun checkWeatherApi(
@@ -127,13 +149,20 @@ class SetupSourceSelector
             current: List<WeatherSource>,
             latitude: Double,
             longitude: Double,
+            nwsAutoRetired: Boolean = false,
         ): SetupSourceSelection {
             val (nwsCoverage, nwsReason) = checker.checkNws(latitude, longitude)
             if (nwsCoverage != SetupNwsCoverage.UNSUPPORTED || WeatherSource.NWS !in current) {
-                return SetupSourceSelection(
-                    sources = current,
+                val restored = SetupSourcePolicy.sourcesAfterSetupCheck(
+                    current = current,
                     nwsCoverage = nwsCoverage,
-                    reason = nwsReason,
+                    weatherApiAvailable = false,
+                    nwsAutoRetired = nwsAutoRetired,
+                )
+                return SetupSourceSelection(
+                    sources = restored,
+                    nwsCoverage = nwsCoverage,
+                    reason = if (restored !== current) "nws_restored" else nwsReason,
                 )
             }
 

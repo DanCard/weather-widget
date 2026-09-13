@@ -11,7 +11,11 @@
     <string name="or_search_location">Or search by city, address, or ZIP code:</string>
     <string name="location_search_hint">City, address, or ZIP code</string>
     <string name="search_location">Search</string>
-    <string name="location_search_no_results">No matches found — check spelling or network</string>
+    <string name="location_search_no_results">No matches found — check spelling</string>
+    <string name="location_search_failed">Search failed — check your network connection</string>
+    <string name="location_search_choose_title">Tap the location to use (%1$d matches)</string>
+    <string name="location_search_confirm_title">Tap to confirm this location</string>
+    <string name="location_choice_use">USE</string>
     <string name="getting_location">Getting location…</string>
     <string name="use_this_location">Use this location</string>
     <string name="location_found_label">Found device location: %1$s</string>
@@ -189,6 +193,7 @@
     <string name="save_location">Save Location</string>
     <string name="default_location_title">Default Location</string>
     <string name="location_saved_success">Location updated for all widgets</string>
+    <string name="location_saved_success_named">Location set to %1$s for all widgets</string>
     <string name="location_updated_from_gps">Location updated from GPS</string>
     <string name="invalid_coordinates_range">Please enter valid coordinates (-90 to 90 lat, -180 to 180 lon)</string>
 
@@ -366,6 +371,7 @@
     <string name="watermark_timeout">Timed Out</string>
     <string name="watermark_ssl_error">SSL Error</string>
     <string name="watermark_socket_error">Socket Error</string>
+    <string name="watermark_no_coverage">Not available in this region</string>
     <string name="watermark_server_error">%1$s Server Error</string>
     <string name="blend_stations_count">%1$d stations</string>
     <string name="obs_no_fetch_logs">No current observation fetch logs found for %1$s.</string>

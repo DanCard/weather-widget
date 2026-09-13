@@ -11,7 +11,11 @@
     <string name="or_search_location">또는 도시, 주소, 우편번호로 검색:</string>
     <string name="location_search_hint">도시, 주소 또는 우편번호</string>
     <string name="search_location">검색</string>
-    <string name="location_search_no_results">일치 항목 없음 — 철자나 네트워크를 확인하세요</string>
+    <string name="location_search_no_results">일치하는 결과 없음 — 철자를 확인하세요</string>
+    <string name="location_search_failed">검색 실패 — 네트워크 연결을 확인하세요</string>
+    <string name="location_search_choose_title">사용할 위치를 탭하세요 (%1$d개 일치)</string>
+    <string name="location_search_confirm_title">탭하여 이 위치 확인</string>
+    <string name="location_choice_use">사용</string>
     <string name="getting_location">위치 확인 중…</string>
     <string name="use_this_location">이 위치 사용</string>
     <string name="location_found_label">기기 위치 확인됨: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">위치 저장</string>
     <string name="default_location_title">기본 위치</string>
     <string name="location_saved_success">모든 위젯의 위치가 업데이트됨</string>
+    <string name="location_saved_success_named">모든 위젯의 위치를 %1$s(으)로 설정했습니다</string>
     <string name="location_updated_from_gps">GPS로 위치가 업데이트됨</string>
     <string name="invalid_coordinates_range">유효한 좌표를 입력하세요 (위도 -90~90, 경도 -180~180)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">시간 초과</string>
     <string name="watermark_ssl_error">SSL 오류</string>
     <string name="watermark_socket_error">소켓 오류</string>
+    <string name="watermark_no_coverage">이 지역에서는 사용할 수 없음</string>
     <string name="watermark_server_error">%1$s 서버 오류</string>
     <string name="blend_stations_count">%1$d개소</string>
     <string name="obs_no_fetch_logs">%1$s의 현재 관측 가져오기 로그를 찾을 수 없습니다.</string>

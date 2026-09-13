@@ -25,6 +25,7 @@ class NominatimApi
                     parameter("q", query)
                     parameter("format", "jsonv2")
                     parameter("limit", "5")
+                    parameter("accept-language", LANGUAGE)
                 }.body()
 
             return json.decodeFromString<List<NominatimPlace>>(response).mapNotNull { it.toResult() }
@@ -42,6 +43,7 @@ class NominatimApi
                     parameter("lon", lon)
                     parameter("format", "jsonv2")
                     parameter("addressdetails", "1")
+                    parameter("accept-language", LANGUAGE)
                 }.body()
 
             return json.decodeFromString<NominatimPlace>(response).toResult()
@@ -49,6 +51,13 @@ class NominatimApi
 
         companion object {
             private const val BASE_URL = "https://nominatim.openstreetmap.org"
+
+            /**
+             * Without this Nominatim names places in the local script ("Львів, Львівська область,
+             * Україна" for Lviv), which the UI shows verbatim. English with a wildcard fallback
+             * for names OSM has no English label for.
+             */
+            private const val LANGUAGE = "en,*"
         }
     }
 

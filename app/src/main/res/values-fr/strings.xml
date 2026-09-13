@@ -11,7 +11,11 @@
     <string name="or_search_location">Ou recherchez par ville, adresse ou code postal :</string>
     <string name="location_search_hint">Ville, adresse ou code postal</string>
     <string name="search_location">Rechercher</string>
-    <string name="location_search_no_results">Aucun résultat — vérifiez l\'orthographe ou le réseau</string>
+    <string name="location_search_no_results">Aucun résultat — vérifiez l\'orthographe</string>
+    <string name="location_search_failed">Échec de la recherche — vérifiez votre connexion réseau</string>
+    <string name="location_search_choose_title">Touchez le lieu à utiliser (%1$d résultats)</string>
+    <string name="location_search_confirm_title">Touchez pour confirmer ce lieu</string>
+    <string name="location_choice_use">UTILISER</string>
     <string name="getting_location">Localisation en cours…</string>
     <string name="use_this_location">Utiliser cette position</string>
     <string name="location_found_label">Position de l\'appareil trouvée : %1$s</string>
@@ -182,6 +186,7 @@
     <string name="save_location">Enregistrer la position</string>
     <string name="default_location_title">Position par défaut</string>
     <string name="location_saved_success">Position mise à jour pour tous les widgets</string>
+    <string name="location_saved_success_named">Lieu défini sur %1$s pour tous les widgets</string>
     <string name="location_updated_from_gps">Position mise à jour par GPS</string>
     <string name="invalid_coordinates_range">Saisissez des coordonnées valides (lat -90 à 90, lon -180 à 180)</string>
 
@@ -336,6 +341,7 @@
     <string name="watermark_timeout">Délai dépassé</string>
     <string name="watermark_ssl_error">Erreur SSL</string>
     <string name="watermark_socket_error">Erreur de socket</string>
+    <string name="watermark_no_coverage">Indisponible dans cette région</string>
     <string name="watermark_server_error">Erreur serveur %1$s</string>
     <string name="blend_stations_count">%1$d stations</string>
     <string name="obs_no_fetch_logs">Aucun journal de récupération de l\'observation actuelle trouvé pour %1$s.</string>

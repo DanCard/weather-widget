@@ -11,7 +11,11 @@
     <string name="or_search_location">Hoặc tìm theo thành phố, địa chỉ hay mã bưu chính:</string>
     <string name="location_search_hint">Thành phố, địa chỉ hoặc mã bưu chính</string>
     <string name="search_location">Tìm kiếm</string>
-    <string name="location_search_no_results">Không tìm thấy — kiểm tra chính tả hoặc mạng</string>
+    <string name="location_search_no_results">Không có kết quả — kiểm tra chính tả</string>
+    <string name="location_search_failed">Tìm kiếm thất bại — kiểm tra kết nối mạng của bạn</string>
+    <string name="location_search_choose_title">Chạm vào vị trí muốn dùng (%1$d kết quả)</string>
+    <string name="location_search_confirm_title">Chạm để xác nhận vị trí này</string>
+    <string name="location_choice_use">DÙNG</string>
     <string name="getting_location">Đang lấy vị trí…</string>
     <string name="use_this_location">Dùng vị trí này</string>
     <string name="location_found_label">Đã tìm thấy vị trí thiết bị: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">Lưu vị trí</string>
     <string name="default_location_title">Vị trí mặc định</string>
     <string name="location_saved_success">Đã cập nhật vị trí cho tất cả tiện ích</string>
+    <string name="location_saved_success_named">Đã đặt vị trí thành %1$s cho tất cả tiện ích</string>
     <string name="location_updated_from_gps">Đã cập nhật vị trí từ GPS</string>
     <string name="invalid_coordinates_range">Vui lòng nhập tọa độ hợp lệ (vĩ độ -90 đến 90, kinh độ -180 đến 180)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">Hết thời gian</string>
     <string name="watermark_ssl_error">Lỗi SSL</string>
     <string name="watermark_socket_error">Lỗi socket</string>
+    <string name="watermark_no_coverage">Không khả dụng ở khu vực này</string>
     <string name="watermark_server_error">%1$s Lỗi máy chủ</string>
     <string name="blend_stations_count">%1$d trạm</string>
     <string name="obs_no_fetch_logs">Không tìm thấy nhật ký tải quan sát hiện tại cho %1$s.</string>

@@ -11,7 +11,11 @@
     <string name="or_search_location">Или найдите по городу, адресу или индексу:</string>
     <string name="location_search_hint">Город, адрес или индекс</string>
     <string name="search_location">Поиск</string>
-    <string name="location_search_no_results">Совпадений нет — проверьте написание или сеть</string>
+    <string name="location_search_no_results">Ничего не найдено — проверьте написание</string>
+    <string name="location_search_failed">Ошибка поиска — проверьте подключение к сети</string>
+    <string name="location_search_choose_title">Нажмите на нужное место (%1$d совпадений)</string>
+    <string name="location_search_confirm_title">Нажмите, чтобы подтвердить это место</string>
+    <string name="location_choice_use">ВЫБРАТЬ</string>
     <string name="getting_location">Определение местоположения…</string>
     <string name="use_this_location">Использовать это местоположение</string>
     <string name="location_found_label">Найдено местоположение устройства: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">Сохранить местоположение</string>
     <string name="default_location_title">Местоположение по умолчанию</string>
     <string name="location_saved_success">Местоположение обновлено для всех виджетов</string>
+    <string name="location_saved_success_named">Для всех виджетов установлено место: %1$s</string>
     <string name="location_updated_from_gps">Местоположение обновлено по GPS</string>
     <string name="invalid_coordinates_range">Введите корректные координаты (широта от -90 до 90, долгота от -180 до 180)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">Тайм-аут</string>
     <string name="watermark_ssl_error">Ошибка SSL</string>
     <string name="watermark_socket_error">Ошибка сокета</string>
+    <string name="watermark_no_coverage">Недоступно в этом регионе</string>
     <string name="watermark_server_error">%1$s Ошибка сервера</string>
     <string name="blend_stations_count">%1$d станций</string>
     <string name="obs_no_fetch_logs">Журналы получения текущих наблюдений для %1$s не найдены.</string>

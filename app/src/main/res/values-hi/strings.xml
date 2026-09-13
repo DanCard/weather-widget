@@ -11,7 +11,11 @@
     <string name="or_search_location">या शहर, पता या पिन कोड से खोजें:</string>
     <string name="location_search_hint">शहर, पता या पिन कोड</string>
     <string name="search_location">खोजें</string>
-    <string name="location_search_no_results">कोई मिलान नहीं — वर्तनी या नेटवर्क जाँचें</string>
+    <string name="location_search_no_results">कोई मिलान नहीं — वर्तनी जांचें</string>
+    <string name="location_search_failed">खोज विफल — अपना नेटवर्क कनेक्शन जांचें</string>
+    <string name="location_search_choose_title">उपयोग करने के लिए स्थान पर टैप करें (%1$d मिलान)</string>
+    <string name="location_search_confirm_title">इस स्थान की पुष्टि के लिए टैप करें</string>
+    <string name="location_choice_use">उपयोग</string>
     <string name="getting_location">स्थान प्राप्त किया जा रहा है…</string>
     <string name="use_this_location">यह स्थान उपयोग करें</string>
     <string name="location_found_label">डिवाइस का स्थान मिला: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">स्थान सहेजें</string>
     <string name="default_location_title">डिफ़ॉल्ट स्थान</string>
     <string name="location_saved_success">सभी विजेट के लिए स्थान अपडेट हुआ</string>
+    <string name="location_saved_success_named">सभी विजेट के लिए स्थान %1$s पर सेट किया गया</string>
     <string name="location_updated_from_gps">GPS से स्थान अपडेट हुआ</string>
     <string name="invalid_coordinates_range">कृपया मान्य निर्देशांक दर्ज करें (अक्षांश -90 से 90, देशांतर -180 से 180)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">समय समाप्त</string>
     <string name="watermark_ssl_error">SSL त्रुटि</string>
     <string name="watermark_socket_error">सॉकेट त्रुटि</string>
+    <string name="watermark_no_coverage">इस क्षेत्र में उपलब्ध नहीं</string>
     <string name="watermark_server_error">%1$s सर्वर त्रुटि</string>
     <string name="blend_stations_count">%1$d स्टेशन</string>
     <string name="obs_no_fetch_logs">%1$s के लिए वर्तमान अवलोकन प्राप्त करने के लॉग नहीं मिले।</string>

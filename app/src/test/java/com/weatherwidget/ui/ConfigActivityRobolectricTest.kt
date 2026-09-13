@@ -13,6 +13,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.data.model.ResolvedLocation
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -214,7 +215,53 @@ class ConfigActivityRobolectricTest {
             assertTrue(activity.isFinishing)
             assertEquals(Activity.RESULT_CANCELED, shadowOf(activity).resultCode)
         }
-        assertEquals("Settings/global saves must not run setup source checks", 0, setupChecks)
+        assertEquals("Settings/global saves run the setup source check once", 1, setupChecks)
+    }
+
+    @Test
+    fun `global mode drops NWS when the new location is outside its coverage`() {
+        val stateManager = WidgetStateManager(context)
+        stateManager.setVisibleSourcesOrder(
+            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+        )
+        ConfigActivity.setupSourceSelectorForTesting = { _, _, _ ->
+            SetupSourceSelection(
+                sources = listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+                nwsCoverage = SetupNwsCoverage.UNSUPPORTED,
+                reason = "invalid_point",
+            )
+        }
+        bindWidget(9001, 37.4168, -122.0890)
+
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(ConfigActivity.EXTRA_GLOBAL_CONFIG, true)
+        }
+        val scenario = ActivityScenario.launch<ConfigActivity>(intent)
+
+        val mockResolver = mockk<SharedLocationResolver>()
+        coEvery { mockResolver.searchText("Lviv") } returns listOf(
+            ResolvedLocation(lat = 49.8419, lon = 24.0316, label = "Lviv, Lviv Oblast, Ukraine", source = "Nominatim"),
+        )
+
+        scenario.onActivity { activity ->
+            activity.sharedLocationResolver = mockResolver
+            activity.findViewById<EditText>(R.id.location_search_input).setText("Lviv")
+            activity.findViewById<Button>(R.id.search_location_button).performClick()
+        }
+        shadowOf(context.mainLooper).idle()
+        scenario.onActivity {
+            val dialog = ShadowDialog.getLatestDialog() as androidx.appcompat.app.AlertDialog
+            dialog.listView.performItemClick(dialog.listView, 0, 0)
+        }
+        shadowOf(context.mainLooper).idle()
+
+        assertEquals(
+            listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+            stateManager.getVisibleSourcesOrder(),
+        )
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        assertEquals(49.8419f, prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}9001", Float.NaN), 0.0001f)
+        scenario.onActivity { assertTrue(it.isFinishing) }
     }
 
     @Test

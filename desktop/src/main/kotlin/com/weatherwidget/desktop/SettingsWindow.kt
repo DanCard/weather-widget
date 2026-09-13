@@ -312,28 +312,6 @@ internal fun SettingsWindow(
                             )
                         }
 
-                        // Icon gallery -- Android: R.string.icon_preview_title / _description +
-                        // a "View Icon Gallery" button to IconGalleryActivity. The grid used to be
-                        // inline here, which made this form far longer than Android's.
-                        SettingsCard(title = SettingsSection.ICON_GALLERY.title) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                Text(
-                                    text = "Comprehensive gallery of all weather icons used in the widget.",
-                                    style = WeatherTypography.bodySmall,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                SecondaryActionButton(
-                                    text = "View Icon Gallery",
-                                    onClick = onOpenIconGallery,
-                                    modifier = Modifier.testTag("view_icon_gallery_btn"),
-                                    prominent = true,
-                                )
-                            }
-                        }
-
                         // Location
                         // Phase 4 item 4: enrich the label with a reverse-geocoded place name from
                         // the shared resolver. The raw config.label stays as the immediate display
@@ -370,6 +348,28 @@ internal fun SettingsWindow(
                                     text = "Set Location…",
                                     onClick = onUpdateLocation,
                                     modifier = Modifier.testTag("set_location_btn"),
+                                )
+                            }
+                        }
+
+                        // Icon gallery -- Android: R.string.icon_preview_title / _description +
+                        // a "View Icon Gallery" button to IconGalleryActivity. The grid used to be
+                        // inline here, which made this form far longer than Android's.
+                        SettingsCard(title = SettingsSection.ICON_GALLERY.title) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(
+                                    text = "Comprehensive gallery of all weather icons used in the widget.",
+                                    style = WeatherTypography.bodySmall,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                SecondaryActionButton(
+                                    text = "View Icon Gallery",
+                                    onClick = onOpenIconGallery,
+                                    modifier = Modifier.testTag("view_icon_gallery_btn"),
+                                    prominent = true,
                                 )
                             }
                         }

@@ -42,6 +42,31 @@ class DesktopConfigStoreTest {
     }
 
     @Test
+    fun `load retires NWS when the saved location is outside its coverage`() {
+        val configPath = Files.createTempDirectory("desktop-config-nws-coverage").resolve("config.json")
+        configPath.writeText(
+            """
+            {
+              "lat": 49.841952,
+              "lon": 24.0315921,
+              "label": "Lviv",
+              "settings": { "weatherSource": "NWS", "visibleSources": ["NWS", "OPEN_METEO", "SILURIAN"] }
+            }
+            """.trimIndent(),
+        )
+
+        val loaded = requireNotNull(DesktopConfigStore(configPath, missingUnitDefault = { false }).load())
+
+        assertEquals(listOf("OPEN_METEO", "SILURIAN"), loaded.settings.visibleSources)
+        assertEquals("OPEN_METEO", loaded.settings.weatherSource)
+        val persisted = Json.parseToJsonElement(configPath.readText()).jsonObject
+        assertEquals(
+            "OPEN_METEO",
+            persisted.getValue("settings").jsonObject.getValue("weatherSource").jsonPrimitive.content,
+        )
+    }
+
+    @Test
     fun `explicit unit wins over the process default`() {
         val configPath = Files.createTempDirectory("desktop-config-explicit-unit").resolve("config.json")
         configPath.writeText(

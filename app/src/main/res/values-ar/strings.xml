@@ -11,7 +11,11 @@
     <string name="or_search_location">أو ابحث بالمدينة أو العنوان أو الرمز البريدي:</string>
     <string name="location_search_hint">المدينة أو العنوان أو الرمز البريدي</string>
     <string name="search_location">بحث</string>
-    <string name="location_search_no_results">لا توجد نتائج — تحقق من الإملاء أو الشبكة</string>
+    <string name="location_search_no_results">لا توجد نتائج — تحقق من الإملاء</string>
+    <string name="location_search_failed">فشل البحث — تحقق من اتصال الشبكة</string>
+    <string name="location_search_choose_title">انقر على الموقع المراد استخدامه (%1$d نتائج)</string>
+    <string name="location_search_confirm_title">انقر لتأكيد هذا الموقع</string>
+    <string name="location_choice_use">استخدام</string>
     <string name="getting_location">جارٍ تحديد الموقع…</string>
     <string name="use_this_location">استخدام هذا الموقع</string>
     <string name="location_found_label">تم العثور على موقع الجهاز: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">حفظ الموقع</string>
     <string name="default_location_title">الموقع الافتراضي</string>
     <string name="location_saved_success">تم تحديث الموقع لكل الأدوات</string>
+    <string name="location_saved_success_named">تم تعيين الموقع إلى %1$s لجميع الأدوات</string>
     <string name="location_updated_from_gps">تم تحديث الموقع من GPS</string>
     <string name="invalid_coordinates_range">يرجى إدخال إحداثيات صحيحة (خط العرض من -90 إلى 90، خط الطول من -180 إلى 180)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">انتهت المهلة</string>
     <string name="watermark_ssl_error">خطأ SSL</string>
     <string name="watermark_socket_error">خطأ في المقبس</string>
+    <string name="watermark_no_coverage">غير متاح في هذه المنطقة</string>
     <string name="watermark_server_error">%1$s خطأ في الخادم</string>
     <string name="blend_stations_count">%1$d محطات</string>
     <string name="obs_no_fetch_logs">لم يتم العثور على سجلات جلب الملاحظة الحالية لـ %1$s.</string>

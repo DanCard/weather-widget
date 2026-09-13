@@ -11,7 +11,11 @@
     <string name="or_search_location">或按城市、地址或邮政编码搜索：</string>
     <string name="location_search_hint">城市、地址或邮政编码</string>
     <string name="search_location">搜索</string>
-    <string name="location_search_no_results">未找到匹配项 — 请检查拼写或网络</string>
+    <string name="location_search_no_results">未找到匹配项 — 请检查拼写</string>
+    <string name="location_search_failed">搜索失败 — 请检查网络连接</string>
+    <string name="location_search_choose_title">点按要使用的位置（%1$d 个匹配）</string>
+    <string name="location_search_confirm_title">点按以确认此位置</string>
+    <string name="location_choice_use">使用</string>
     <string name="getting_location">正在获取位置…</string>
     <string name="use_this_location">使用此位置</string>
     <string name="location_found_label">已找到设备位置：%1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">保存位置</string>
     <string name="default_location_title">默认位置</string>
     <string name="location_saved_success">已为所有小部件更新位置</string>
+    <string name="location_saved_success_named">已将所有小部件的位置设为 %1$s</string>
     <string name="location_updated_from_gps">已通过 GPS 更新位置</string>
     <string name="invalid_coordinates_range">请输入有效坐标（纬度 -90 至 90，经度 -180 至 180）</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">超时</string>
     <string name="watermark_ssl_error">SSL 错误</string>
     <string name="watermark_socket_error">套接字错误</string>
+    <string name="watermark_no_coverage">此地区不可用</string>
     <string name="watermark_server_error">%1$s 服务器错误</string>
     <string name="blend_stations_count">%1$d 个站点</string>
     <string name="obs_no_fetch_logs">未找到 %1$s 的当前观测获取日志。</string>

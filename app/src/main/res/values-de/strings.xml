@@ -11,7 +11,11 @@
     <string name="or_search_location">Oder nach Stadt, Adresse oder PLZ suchen:</string>
     <string name="location_search_hint">Stadt, Adresse oder PLZ</string>
     <string name="search_location">Suchen</string>
-    <string name="location_search_no_results">Keine Treffer — Schreibweise oder Netzwerk prüfen</string>
+    <string name="location_search_no_results">Keine Treffer — Schreibweise prüfen</string>
+    <string name="location_search_failed">Suche fehlgeschlagen — Netzwerkverbindung prüfen</string>
+    <string name="location_search_choose_title">Tippe auf den gewünschten Ort (%1$d Treffer)</string>
+    <string name="location_search_confirm_title">Tippen, um diesen Ort zu bestätigen</string>
+    <string name="location_choice_use">WÄHLEN</string>
     <string name="getting_location">Standort wird ermittelt…</string>
     <string name="use_this_location">Diesen Standort verwenden</string>
     <string name="location_found_label">Gerätestandort gefunden: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">Standort speichern</string>
     <string name="default_location_title">Standard-Standort</string>
     <string name="location_saved_success">Standort für alle Widgets aktualisiert</string>
+    <string name="location_saved_success_named">Standort für alle Widgets auf %1$s gesetzt</string>
     <string name="location_updated_from_gps">Standort per GPS aktualisiert</string>
     <string name="invalid_coordinates_range">Bitte gültige Koordinaten eingeben (-90 bis 90 Breite, -180 bis 180 Länge)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">Zeitüberschreitung</string>
     <string name="watermark_ssl_error">SSL-Fehler</string>
     <string name="watermark_socket_error">Socket-Fehler</string>
+    <string name="watermark_no_coverage">In dieser Region nicht verfügbar</string>
     <string name="watermark_server_error">%1$s Serverfehler</string>
     <string name="blend_stations_count">%1$d Stationen</string>
     <string name="obs_no_fetch_logs">Keine Abrufprotokolle der aktuellen Beobachtung für %1$s gefunden.</string>

@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.ResolvedLocation
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
@@ -137,25 +139,46 @@ fun LocationPicker(
 
                 LaunchedEffect(status) {
                     if (status == "Searching...") {
-                        results = withContext(Dispatchers.IO) { resolver.searchText(query) }
-                        status = if (results.isEmpty()) "No results" else "Choose a result"
+                        results = runCatching { withContext(Dispatchers.IO) { resolver.searchText(query) } }
+                            .getOrElse { e ->
+                                status = "Search failed: ${e.message ?: e.javaClass.simpleName}"
+                                return@LaunchedEffect
+                            }
+                        status = if (results.isEmpty()) "No results" else ""
                     }
                 }
 
                 if (results.isNotEmpty()) {
-                    LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                    // Plain text rows read as output, not as a choice: say so, and give each match
+                    // a visible button so the required next step is unmistakable.
+                    Text(
+                        if (results.size == 1) "One match — confirm it:" else "Choose one of these ${results.size} matches:",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    LazyColumn(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
                         items(results) { result ->
-                            Column(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small)
                                     .clickable { selectLocation(result) }
-                                    .padding(vertical = 8.dp),
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                Text(result.label, style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    "${result.lat}, ${result.lon}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(result.label, style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        "${result.lat}, ${result.lon}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                Button(onClick = { selectLocation(result) }) {
+                                    Text("Use")
+                                }
                             }
                         }
                     }

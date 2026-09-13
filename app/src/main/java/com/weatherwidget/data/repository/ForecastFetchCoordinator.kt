@@ -10,6 +10,7 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
+import com.weatherwidget.data.remote.NwsPointUnavailableException
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.SilurianApi
@@ -471,6 +472,9 @@ internal class ForecastFetchCoordinator(
     }
 
     private fun extractErrorCode(exception: Exception): String = when (exception) {
+        // NWS 404 InvalidPoint: the site is outside its (US-only) coverage, not a transient
+        // failure — the watermark should say so rather than "404 Not Found".
+        is NwsPointUnavailableException -> "NO_COVERAGE"
         is ApiAccessException ->
             exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
         is ClientRequestException -> "HTTP_${exception.response.status.value}"

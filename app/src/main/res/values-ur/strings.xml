@@ -11,7 +11,11 @@
     <string name="or_search_location">یا شہر، پتہ یا پوسٹل کوڈ سے تلاش کریں:</string>
     <string name="location_search_hint">شہر، پتہ یا پوسٹل کوڈ</string>
     <string name="search_location">تلاش کریں</string>
-    <string name="location_search_no_results">کوئی مطابقت نہیں — ہجے یا نیٹ ورک چیک کریں</string>
+    <string name="location_search_no_results">کوئی نتیجہ نہیں ملا — ہجے چیک کریں</string>
+    <string name="location_search_failed">تلاش ناکام — اپنا نیٹ ورک کنکشن چیک کریں</string>
+    <string name="location_search_choose_title">استعمال کے لیے مقام پر ٹیپ کریں (%1$d نتائج)</string>
+    <string name="location_search_confirm_title">اس مقام کی تصدیق کے لیے ٹیپ کریں</string>
+    <string name="location_choice_use">استعمال</string>
     <string name="getting_location">مقام حاصل کیا جا رہا ہے…</string>
     <string name="use_this_location">یہ مقام استعمال کریں</string>
     <string name="location_found_label">آلے کا مقام مل گیا: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">مقام محفوظ کریں</string>
     <string name="default_location_title">طے شدہ مقام</string>
     <string name="location_saved_success">تمام ویجٹس کے لیے مقام اپ ڈیٹ ہو گیا</string>
+    <string name="location_saved_success_named">تمام ویجٹس کے لیے مقام %1$s پر سیٹ کر دیا گیا</string>
     <string name="location_updated_from_gps">GPS سے مقام اپ ڈیٹ ہو گیا</string>
     <string name="invalid_coordinates_range">براہ کرم درست نقاط درج کریں (عرض بلد -90 تا 90، طول بلد -180 تا 180)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">وقت ختم</string>
     <string name="watermark_ssl_error">SSL خرابی</string>
     <string name="watermark_socket_error">ساکٹ خرابی</string>
+    <string name="watermark_no_coverage">اس علاقے میں دستیاب نہیں</string>
     <string name="watermark_server_error">%1$s سرور خرابی</string>
     <string name="blend_stations_count">%1$d اسٹیشن</string>
     <string name="obs_no_fetch_logs">%1$s کے لیے موجودہ مشاہدے حاصل کرنے کے لاگز نہیں ملے۔</string>

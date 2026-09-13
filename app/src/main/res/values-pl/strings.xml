@@ -11,7 +11,11 @@
     <string name="or_search_location">Lub wyszukaj według miasta, adresu lub kodu pocztowego:</string>
     <string name="location_search_hint">Miasto, adres lub kod pocztowy</string>
     <string name="search_location">Szukaj</string>
-    <string name="location_search_no_results">Brak wyników — sprawdź pisownię lub sieć</string>
+    <string name="location_search_no_results">Brak wyników — sprawdź pisownię</string>
+    <string name="location_search_failed">Wyszukiwanie nie powiodło się — sprawdź połączenie sieciowe</string>
+    <string name="location_search_choose_title">Dotknij lokalizacji, której chcesz użyć (%1$d wyników)</string>
+    <string name="location_search_confirm_title">Dotknij, aby potwierdzić tę lokalizację</string>
+    <string name="location_choice_use">UŻYJ</string>
     <string name="getting_location">Pobieranie lokalizacji…</string>
     <string name="use_this_location">Użyj tej lokalizacji</string>
     <string name="location_found_label">Znaleziono lokalizację urządzenia: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">Zapisz lokalizację</string>
     <string name="default_location_title">Lokalizacja domyślna</string>
     <string name="location_saved_success">Lokalizacja zaktualizowana dla wszystkich widżetów</string>
+    <string name="location_saved_success_named">Ustawiono lokalizację %1$s dla wszystkich widżetów</string>
     <string name="location_updated_from_gps">Lokalizacja zaktualizowana z GPS</string>
     <string name="invalid_coordinates_range">Wprowadź prawidłowe współrzędne (szer. od -90 do 90, dł. od -180 do 180)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">Przekroczono czas</string>
     <string name="watermark_ssl_error">Błąd SSL</string>
     <string name="watermark_socket_error">Błąd gniazda</string>
+    <string name="watermark_no_coverage">Niedostępne w tym regionie</string>
     <string name="watermark_server_error">%1$s Błąd serwera</string>
     <string name="blend_stations_count">%1$d stacji</string>
     <string name="obs_no_fetch_logs">Nie znaleziono dzienników pobierania bieżącej obserwacji dla %1$s.</string>

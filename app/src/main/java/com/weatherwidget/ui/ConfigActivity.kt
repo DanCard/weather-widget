@@ -11,7 +11,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.Settings
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import com.weatherwidget.util.SharedPreferencesUtil
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
@@ -33,6 +37,8 @@ import com.google.android.gms.tasks.Task
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.model.ResolvedLocation
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -41,6 +47,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -199,15 +206,29 @@ class ConfigActivity : AppCompatActivity() {
             }
             searchButton.isEnabled = false
             lifecycleScope.launch {
-                val results = sharedLocationResolver.searchText(query)
+                val results = try {
+                    sharedLocationResolver.searchText(query)
+                } catch (e: Exception) {
+                    logConfig("SEARCH_FAILED query=\"$query\" error=${e.javaClass.simpleName}: ${e.message}")
+                    searchButton.isEnabled = true
+                    Toast.makeText(this@ConfigActivity, getString(R.string.location_search_failed), Toast.LENGTH_LONG).show()
+                    return@launch
+                }
                 searchButton.isEnabled = true
                 if (results.isEmpty()) {
                     Toast.makeText(this@ConfigActivity, getString(R.string.location_search_no_results), Toast.LENGTH_SHORT).show()
                 } else {
                     // A single match still goes through the dialog so the user confirms the label.
+                    // The title has to say this is a choice: with the raw query as the title the
+                    // list read as search output and users did not realise a tap was required.
+                    val title = if (results.size == 1) {
+                        getString(R.string.location_search_confirm_title)
+                    } else {
+                        getString(R.string.location_search_choose_title, results.size)
+                    }
                     AlertDialog.Builder(this@ConfigActivity)
-                        .setTitle(query)
-                        .setItems(results.map { it.label }.toTypedArray()) { _, which ->
+                        .setTitle(title)
+                        .setAdapter(LocationChoiceAdapter(this@ConfigActivity, results)) { _, which ->
                             val chosen = results[which]
                             saveChosenLocation(chosen.lat, chosen.lon, chosen.label, LocationMode.FIXED)
                         }
@@ -437,17 +458,20 @@ class ConfigActivity : AppCompatActivity() {
     private fun saveChosenLocation(lat: Double, lon: Double, label: String?, mode: String) {
         if (isGlobalMode) {
             LocationMode.set(this, mode)
-            if (label != null) {
-                finishGlobalSave(lat, lon, label, mode)
-            } else {
-                lifecycleScope.launch {
-                    val resolvedLabel = try {
-                        sharedLocationResolver.fromCoordinates(lat, lon).label
-                    } catch (e: Exception) {
-                        String.format(Locale.US, "%.4f, %.4f", lat, lon)
-                    }
-                    finishGlobalSave(lat, lon, resolvedLabel, mode)
+            lifecycleScope.launch {
+                // Same coverage check as widget-add: a Settings location change used to skip it,
+                // so moving from the US to e.g. Lviv left NWS enabled (and displayed) even though
+                // api.weather.gov 404s for the point — the widget kept painting the old site's
+                // NWS forecast under the new label.
+                applySetupSourceSelection(lat, lon, LocationUpdater.getWidgetIds(this@ConfigActivity))
+                val resolvedLabel = label ?: try {
+                    sharedLocationResolver.fromCoordinates(lat, lon).label
+                } catch (e: Exception) {
+                    String.format(Locale.US, "%.4f, %.4f", lat, lon)
                 }
+                // "Mountain View, California" for the toast; the full label is what gets stored.
+                val friendlyName = runCatching { sharedLocationResolver.friendlyName(lat, lon) }.getOrNull()
+                finishGlobalSave(lat, lon, resolvedLabel, mode, friendlyName)
             }
             return
         }
@@ -466,33 +490,7 @@ class ConfigActivity : AppCompatActivity() {
                 .toIntArray()
         var saveSucceeded = false
         saveJob = lifecycleScope.launch {
-            val startedAt = SystemClock.elapsedRealtime()
-            val currentSources = widgetStateManager.getVisibleSourcesOrder()
-            val selection = try {
-                setupSourceSelectorForTesting?.invoke(currentSources, lat, lon)
-                    ?: setupSourceSelector.select(currentSources, lat, lon)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                SetupSourceSelection(
-                    sources = currentSources,
-                    nwsCoverage = SetupNwsCoverage.INCONCLUSIVE,
-                    reason = "selector_${e.javaClass.simpleName}",
-                )
-            }
-            if (!isActive) return@launch
-
-            val sourceChanged = selection.sources != currentSources
-            logSetupDecision(
-                "widget=$appWidgetId lat=$lat lon=$lon " +
-                    "result=${selection.nwsCoverage.name.lowercase(Locale.US)} " +
-                    "weatherapi=${selection.weatherApiAvailability.name.lowercase(Locale.US)} " +
-                    "reason=${selection.reason ?: "none"} " +
-                    "sourceChange=${if (sourceChanged) "updated" else "none"} " +
-                    "elapsedMs=${SystemClock.elapsedRealtime() - startedAt}",
-            )
-
-            widgetStateManager.setVisibleSourcesOrderForSetup(selection.sources, widgetIds)
+            applySetupSourceSelection(lat, lon, widgetIds) ?: return@launch
             LocationMode.set(this@ConfigActivity, mode)
             persistWidgetLocation(lat, lon, label, mode, widgetIds)
             saveSucceeded = true
@@ -509,6 +507,51 @@ class ConfigActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Probes source coverage for the new site (NWS is US-only; see [SetupSourceSelector]) and
+     * rewrites the visible-source order for [widgetIds] accordingly. Returns null only when the
+     * coroutine was cancelled mid-check, in which case nothing was written.
+     */
+    private suspend fun applySetupSourceSelection(
+        lat: Double,
+        lon: Double,
+        widgetIds: IntArray,
+    ): SetupSourceSelection? {
+        val startedAt = SystemClock.elapsedRealtime()
+        val currentSources = widgetStateManager.getVisibleSourcesOrder()
+        val nwsAutoRetired = widgetStateManager.isNwsAutoRetired()
+        val selection = try {
+            setupSourceSelectorForTesting?.invoke(currentSources, lat, lon)
+                ?: setupSourceSelector.select(currentSources, lat, lon, nwsAutoRetired)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            SetupSourceSelection(
+                sources = currentSources,
+                nwsCoverage = SetupNwsCoverage.INCONCLUSIVE,
+                reason = "selector_${e.javaClass.simpleName}",
+            )
+        }
+        if (!currentCoroutineContext().isActive) return null
+
+        val sourceChanged = selection.sources != currentSources
+        logSetupDecision(
+            "widget=$appWidgetId global=$isGlobalMode lat=$lat lon=$lon " +
+                "result=${selection.nwsCoverage.name.lowercase(Locale.US)} " +
+                "weatherapi=${selection.weatherApiAvailability.name.lowercase(Locale.US)} " +
+                "reason=${selection.reason ?: "none"} " +
+                "sourceChange=${if (sourceChanged) "updated" else "none"} " +
+                "elapsedMs=${SystemClock.elapsedRealtime() - startedAt}",
+        )
+
+        widgetStateManager.setVisibleSourcesOrderForSetup(selection.sources, widgetIds)
+        // NWS absent after this check because of us (just now, or earlier and still so).
+        widgetStateManager.setNwsAutoRetired(
+            WeatherSource.NWS !in selection.sources && (nwsAutoRetired || WeatherSource.NWS in currentSources),
+        )
+        return selection
     }
 
     private fun persistWidgetLocation(
@@ -567,13 +610,20 @@ class ConfigActivity : AppCompatActivity() {
         }
     }
 
-    private fun finishGlobalSave(lat: Double, lon: Double, label: String, mode: String) {
+    private fun finishGlobalSave(lat: Double, lon: Double, label: String, mode: String, friendlyName: String?) {
         // applyToAllWidgets enqueues its own force-refresh worker.
         LocationUpdater.applyToAllWidgets(this, lat, lon, label)
         lifecycleScope.launch {
             appLogDao.log("CONFIG", "Global location set lat=$lat lon=$lon mode=$mode label=$label")
         }
-        Toast.makeText(this, getString(R.string.location_saved_success), Toast.LENGTH_SHORT).show()
+        // Name the place: "Location updated" alone left users unsure what was actually chosen.
+        val displayName = friendlyName ?: label.takeUnless { FriendlyLocationName.isCoordinateLabel(it) }
+        val message = if (displayName != null) {
+            getString(R.string.location_saved_success_named, displayName)
+        } else {
+            getString(R.string.location_saved_success)
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         finish()
     }
 
@@ -735,6 +785,26 @@ class ConfigActivity : AppCompatActivity() {
         val activeFix: suspend () -> LocationFixFlow.Coordinates?,
         val cachedFix: suspend () -> LocationFixFlow.Coordinates?,
     )
+
+    /**
+     * One bordered card per search match — name in bold, coordinates beneath, "USE" on the right.
+     * Plain `setItems` rows had no separation, so a wrapped label and the next result read as one
+     * paragraph and users did not see that there were several options to tap.
+     */
+    private class LocationChoiceAdapter(
+        context: Context,
+        results: List<ResolvedLocation>,
+    ) : ArrayAdapter<ResolvedLocation>(context, R.layout.item_location_choice, results) {
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val row = convertView
+                ?: LayoutInflater.from(context).inflate(R.layout.item_location_choice, parent, false)
+            val item = getItem(position)!!
+            row.findViewById<TextView>(R.id.location_choice_label).text = item.label
+            row.findViewById<TextView>(R.id.location_choice_coords).text =
+                String.format(Locale.US, "%.4f, %.4f", item.lat, item.lon)
+            return row
+        }
+    }
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST = 1001

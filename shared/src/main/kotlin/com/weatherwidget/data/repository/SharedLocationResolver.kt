@@ -9,10 +9,12 @@ class SharedLocationResolver(
     private val nominatimApi: NominatimApi,
     private val ipGeolocationApi: IpGeolocationApi,
 ) {
+    /**
+     * Forward-geocode a free-text query. Throws on network/HTTP failure so callers can tell
+     * "offline" apart from a genuine empty result instead of blaming the user's spelling.
+     */
     suspend fun searchText(query: String): List<ResolvedLocation> =
-        runCatching {
-            nominatimApi.search(query).map { it.toResolved(source = "Nominatim") }
-        }.getOrElse { emptyList() }
+        nominatimApi.search(query).map { it.toResolved(source = "Nominatim") }
 
     suspend fun fromCoordinates(
         lat: Double,

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One search match in the "Tap the location to use" dialog: a bordered card so multi-line
+     labels read as separate, tappable options instead of one run of text. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#F4F9FD" />
+    <stroke
+        android:width="1dp"
+        android:color="#5AC8FA" />
+    <corners android:radius="10dp" />
+</shape>

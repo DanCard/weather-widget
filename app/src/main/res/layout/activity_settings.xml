@@ -441,44 +441,6 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
 
-            <!-- Icon Gallery Section -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="8dp"
-                android:text="@string/icon_preview_title"
-                android:tag="settings_section"
-                android:textColor="@color/widget_text_primary"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:text="@string/icon_preview_description"
-                android:textColor="@color/widget_text_secondary"
-                android:textSize="14sp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                android:background="@drawable/bg_surface_card"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <Button
-                    android:id="@+id/view_icon_gallery_button"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/rounded_button_blue"
-                    android:text="@string/view_icon_gallery"
-                    android:textColor="#FFFFFF"
-                    android:textSize="21sp" />
-            </LinearLayout>
-
             <!-- Default Location Section -->
             <LinearLayout
                 android:id="@+id/location_settings_section"
@@ -525,6 +487,44 @@
                         android:textColor="#1A1A1A"
                         android:textSize="21sp" />
                 </LinearLayout>
+            </LinearLayout>
+
+            <!-- Icon Gallery Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/icon_preview_title"
+                android:tag="settings_section"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:text="@string/icon_preview_description"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="14sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:background="@drawable/bg_surface_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <Button
+                    android:id="@+id/view_icon_gallery_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/rounded_button_blue"
+                    android:text="@string/view_icon_gallery"
+                    android:textColor="#FFFFFF"
+                    android:textSize="21sp" />
             </LinearLayout>
 
             <!-- Language Section (Android 13+ per-app locale; kept gone on older versions) -->

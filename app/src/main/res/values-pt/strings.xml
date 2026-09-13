@@ -11,7 +11,11 @@
     <string name="or_search_location">Ou pesquise por cidade, endereço ou CEP:</string>
     <string name="location_search_hint">Cidade, endereço ou CEP</string>
     <string name="search_location">Pesquisar</string>
-    <string name="location_search_no_results">Nenhum resultado — verifique a ortografia ou a rede</string>
+    <string name="location_search_no_results">Nenhum resultado — verifique a ortografia</string>
+    <string name="location_search_failed">Falha na pesquisa — verifique sua conexão de rede</string>
+    <string name="location_search_choose_title">Toque no local que deseja usar (%1$d resultados)</string>
+    <string name="location_search_confirm_title">Toque para confirmar este local</string>
+    <string name="location_choice_use">USAR</string>
     <string name="getting_location">Obtendo localização…</string>
     <string name="use_this_location">Usar esta localização</string>
     <string name="location_found_label">Localização do dispositivo encontrada: %1$s</string>
@@ -184,6 +188,7 @@
     <string name="save_location">Salvar localização</string>
     <string name="default_location_title">Localização padrão</string>
     <string name="location_saved_success">Localização atualizada para todos os widgets</string>
+    <string name="location_saved_success_named">Local definido como %1$s para todos os widgets</string>
     <string name="location_updated_from_gps">Localização atualizada pelo GPS</string>
     <string name="invalid_coordinates_range">Insira coordenadas válidas (-90 a 90 lat, -180 a 180 lon)</string>
 
@@ -351,6 +356,7 @@
     <string name="watermark_timeout">Tempo esgotado</string>
     <string name="watermark_ssl_error">Erro de SSL</string>
     <string name="watermark_socket_error">Erro de socket</string>
+    <string name="watermark_no_coverage">Indisponível nesta região</string>
     <string name="watermark_server_error">%1$s Erro do servidor</string>
     <string name="blend_stations_count">%1$d estações</string>
     <string name="obs_no_fetch_logs">Nenhum log de obtenção da observação atual encontrado para %1$s.</string>
