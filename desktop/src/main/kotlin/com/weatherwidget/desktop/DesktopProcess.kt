@@ -12,6 +12,8 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.contentLength
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
@@ -233,7 +235,7 @@ fun computeRefreshDelayMs(hourly: List<com.weatherwidget.data.model.HourlyForeca
     return intervalMs
 }
 
-class DesktopClients {
+class DesktopClients(private val weatherDao: com.weatherwidget.data.local.desktop.DesktopWeatherDao? = null) {
     val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -255,6 +257,18 @@ class DesktopClients {
                 cause is java.io.IOException
             }
             exponentialDelay(base = 2.0, maxDelayMs = 2_000)
+        }
+        if (weatherDao != null) {
+            install(io.ktor.client.plugins.observer.ResponseObserver) {
+                onResponse { response ->
+                    val bodyBytes = runCatching {
+                        response.contentLength()
+                            ?: response.bodyAsText().toByteArray(Charsets.UTF_8).size.toLong()
+                    }.getOrDefault(0L)
+                    val totalBytes = bodyBytes + 500L
+                    weatherDao.recordNetworkUsage(totalBytes, isForeground = true)
+                }
+            }
         }
     }
 

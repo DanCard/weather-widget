@@ -23,7 +23,10 @@ import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.client.call.body
+import io.ktor.client.plugins.observer.ResponseObserver
 import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.contentLength
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -46,9 +49,10 @@ import com.weatherwidget.data.remote.AviationWeatherApi
 class DesktopWeatherService(
     private val latitude: Double,
     private val longitude: Double,
-    private val weatherSource: String = "NWS",
-    private val apiKeys: Map<String, String> = emptyMap(),
+    private val weatherSource: String,
+    apiKeys: Map<String, String> = emptyMap(),
     private val weatherDao: DesktopWeatherDao? = null,
+    private val isForeground: Boolean = false,
     // Injectable seams for tests; null = construct the real production client/apis.
     private val injectedHttpClient: HttpClient? = null,
     private val injectedNwsApi: NwsApi? = null,
@@ -75,6 +79,18 @@ class DesktopWeatherService(
                 cause is java.io.IOException
             }
             exponentialDelay(base = 2.0, maxDelayMs = 2_000)
+        }
+        if (weatherDao != null) {
+            install(ResponseObserver) {
+                onResponse { response ->
+                    val bodyBytes = runCatching {
+                        response.contentLength()
+                            ?: response.bodyAsText().toByteArray(Charsets.UTF_8).size.toLong()
+                    }.getOrDefault(0L)
+                    val totalBytes = bodyBytes + 500L
+                    weatherDao.recordNetworkUsage(totalBytes, isForeground)
+                }
+            }
         }
     }
 

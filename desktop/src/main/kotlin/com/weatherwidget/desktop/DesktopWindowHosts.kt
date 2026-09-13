@@ -191,6 +191,7 @@ internal fun SettingsWindowHost(
             onViewAppLogs = onViewAppLogs,
             locationResolver = locationResolver,
             onSubmitBugReport = { openInBrowser(buildBugReportMailto(latestConfig.value)) },
+            dataUsageProvider = { weatherDao.queryNetworkUsageReport() },
         )
     }
 }

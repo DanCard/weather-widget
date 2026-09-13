@@ -83,6 +83,8 @@ internal fun SettingsWindow(
     onDraftChanged: (DesktopConfig) -> Unit = {},
     // The one-shot dominant-station temperature watch, deliberately outside the config draft.
     watchStore: DominantTempWatchStore = DominantTempWatchStore(),
+    // Data usage provider for querying historical network usage statistics.
+    dataUsageProvider: (suspend () -> com.weatherwidget.shared.util.NetworkUsageReport?)? = null,
 ) {
     // NOT keyed on `config`. It used to be — `remember(config) { mutableStateOf(config) }` — which
     // made Compose discard the in-progress draft and re-seed from the baseline every time anything
@@ -91,6 +93,14 @@ internal fun SettingsWindow(
     // routinely wiped: the slider snapped back and the now-clean Save button became a silent no-op.
     // Un-keyed, the draft survives for the life of the window; `rebase` below keeps it current.
     var currentConfig by remember { mutableStateOf(config) }
+    var dataUsageReport by remember { mutableStateOf<com.weatherwidget.shared.util.NetworkUsageReport?>(null) }
+    var dataUsageLoading by remember { mutableStateOf(dataUsageProvider != null) }
+    if (dataUsageProvider != null) {
+        LaunchedEffect(Unit) {
+            dataUsageReport = dataUsageProvider()
+            dataUsageLoading = false
+        }
+    }
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -417,6 +427,14 @@ internal fun SettingsWindow(
                                     modifier = Modifier.testTag("support_development_btn"),
                                 )
                             }
+                        }
+
+                        // Data Usage (mirrors Android's SettingsActivity)
+                        SettingsCard(title = SettingsSection.DATA_USAGE.title) {
+                            DataUsageSectionContent(
+                                report = dataUsageReport,
+                                isLoading = dataUsageLoading,
+                            )
                         }
                     }
 
@@ -820,5 +838,96 @@ internal fun IconGallery(iconSize: Dp = 32.dp, cellWidth: Dp = 80.dp) {
                 Text(name, style = MaterialTheme.typography.labelSmall, maxLines = 1)
             }
         }
+    }
+}
+
+@Composable
+private fun DataUsageSectionContent(
+    report: com.weatherwidget.shared.util.NetworkUsageReport?,
+    isLoading: Boolean,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Network data used for forecast and observation updates.",
+            style = WeatherTypography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
+
+        if (isLoading) {
+            Text(
+                text = "Loading data usage…",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            val r = report ?: com.weatherwidget.shared.util.NetworkUsageReport(
+                past24Hours = com.weatherwidget.shared.util.NetworkUsageWindow(),
+                past7Days = com.weatherwidget.shared.util.NetworkUsageWindow(),
+                past30Days = com.weatherwidget.shared.util.NetworkUsageWindow(),
+                past90Days = com.weatherwidget.shared.util.NetworkUsageWindow(),
+            )
+
+            DataUsageWindowBlock(
+                title = "Past 24 Hours",
+                window = r.past24Hours,
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 12.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+            )
+            DataUsageWindowBlock(
+                title = "Past 7 Days (Week)",
+                window = r.past7Days,
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 12.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+            )
+            DataUsageWindowBlock(
+                title = "Past 30 Days (Month)",
+                window = r.past30Days,
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 12.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+            )
+            DataUsageWindowBlock(
+                title = "Past 90 Days",
+                window = r.past90Days,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DataUsageWindowBlock(
+    title: String,
+    window: com.weatherwidget.shared.util.NetworkUsageWindow,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(2.dp))
+        val cellTotal = com.weatherwidget.shared.util.formatNetworkBytes(window.cellular.totalBytes)
+        val cellFg = com.weatherwidget.shared.util.formatNetworkBytes(window.cellular.foregroundBytes)
+        val cellBg = com.weatherwidget.shared.util.formatNetworkBytes(window.cellular.backgroundBytes)
+        Text(
+            text = "Cellular: $cellTotal (FG: $cellFg • BG: $cellBg)",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(1.dp))
+        val wifiTotal = com.weatherwidget.shared.util.formatNetworkBytes(window.wifi.totalBytes)
+        val wifiFg = com.weatherwidget.shared.util.formatNetworkBytes(window.wifi.foregroundBytes)
+        val wifiBg = com.weatherwidget.shared.util.formatNetworkBytes(window.wifi.backgroundBytes)
+        Text(
+            text = "Wi-Fi: $wifiTotal (FG: $wifiFg • BG: $wifiBg)",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

@@ -142,7 +142,7 @@ internal fun runDesktopUiApplication() = application {
         // Owned here rather than in either child window: full refresh work runs on uiScope and
         // survives closing Settings or Stations/Observations.
         var refreshInFlight by remember { mutableStateOf(false) }
-        val desktopClients = remember { DesktopClients() }
+        val desktopClients = remember { DesktopClients(weatherDao) }
         // Held as a top-level remember so SettingsWindow can call friendlyName() directly for the
         // reverse-geocoded location label, without going through the higher-level LocationResolver
         // wrapper that LocationPicker uses.
@@ -178,7 +178,7 @@ internal fun runDesktopUiApplication() = application {
 
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.apiKeys) {
             currentConfig?.let {
-                DesktopWeatherService(it.lat, it.lon, it.settings.weatherSource, it.settings.apiKeys, weatherDao)
+                DesktopWeatherService(it.lat, it.lon, it.settings.weatherSource, it.settings.apiKeys, weatherDao, isForeground = true)
             }
         }
         val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.personalStationDiscount) {

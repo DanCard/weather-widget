@@ -136,6 +136,7 @@ label = "Test Location",
         composeTestRule.onNodeWithText("Widget Location: Test Location", substring = true).assertExists()
         composeTestRule.onNodeWithText("View Icon Gallery").assertExists()
         composeTestRule.onNodeWithText("Submit Bug Report").assertExists()
+        composeTestRule.onNodeWithText("Past 24 Hours").assertExists()
     }
 
     @Test

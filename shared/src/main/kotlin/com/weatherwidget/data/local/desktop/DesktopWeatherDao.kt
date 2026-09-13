@@ -19,6 +19,9 @@ import com.weatherwidget.data.remote.orNullIfImplausibleTempF
 import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.util.ForecastTempRounding
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.util.NetworkUsageReport
+import com.weatherwidget.shared.util.NetworkUsageWindow
+import com.weatherwidget.shared.util.TrafficBucket
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.Types
@@ -1630,6 +1633,80 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
         return null
+    }
+
+    fun recordNetworkUsage(
+        bytes: Long,
+        isForeground: Boolean,
+        networkType: String = "WIFI",
+        timestamp: Long = System.currentTimeMillis(),
+    ) {
+        if (bytes <= 0L) return
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO network_usage (timestamp, bytes, networkType, isForeground) VALUES (?, ?, ?, ?)",
+            ).use { stmt ->
+                stmt.setLong(1, timestamp)
+                stmt.setLong(2, bytes)
+                stmt.setString(3, networkType)
+                stmt.setInt(4, if (isForeground) 1 else 0)
+                stmt.executeUpdate()
+            }
+        }
+    }
+
+    fun queryNetworkUsageReport(nowMs: Long = System.currentTimeMillis()): NetworkUsageReport {
+        val w24h = nowMs - 24 * 60 * 60 * 1000L
+        val w7d = nowMs - 7 * 24 * 60 * 60 * 1000L
+        val w30d = nowMs - 30 * 24 * 60 * 60 * 1000L
+        val w90d = nowMs - 90 * 24 * 60 * 60 * 1000L
+
+        var cell24h = TrafficBucket()
+        var cell7d = TrafficBucket()
+        var cell30d = TrafficBucket()
+        var cell90d = TrafficBucket()
+
+        var wifi24h = TrafficBucket()
+        var wifi7d = TrafficBucket()
+        var wifi30d = TrafficBucket()
+        var wifi90d = TrafficBucket()
+
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT timestamp, bytes, networkType, isForeground FROM network_usage WHERE timestamp >= ?",
+            ).use { stmt ->
+                stmt.setLong(1, w90d)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    val ts = rs.getLong("timestamp")
+                    val bytes = rs.getLong("bytes")
+                    val netType = rs.getString("networkType") ?: "WIFI"
+                    val isFg = rs.getInt("isForeground") != 0
+
+                    val bucket = if (isFg) TrafficBucket(foregroundBytes = bytes) else TrafficBucket(backgroundBytes = bytes)
+                    val isCell = netType.equals("CELLULAR", ignoreCase = true) || netType.equals("MOBILE", ignoreCase = true)
+
+                    if (isCell) {
+                        cell90d += bucket
+                        if (ts >= w30d) cell30d += bucket
+                        if (ts >= w7d) cell7d += bucket
+                        if (ts >= w24h) cell24h += bucket
+                    } else {
+                        wifi90d += bucket
+                        if (ts >= w30d) wifi30d += bucket
+                        if (ts >= w7d) wifi7d += bucket
+                        if (ts >= w24h) wifi24h += bucket
+                    }
+                }
+            }
+        }
+
+        return NetworkUsageReport(
+            past24Hours = NetworkUsageWindow(cellular = cell24h, wifi = wifi24h),
+            past7Days = NetworkUsageWindow(cellular = cell7d, wifi = wifi7d),
+            past30Days = NetworkUsageWindow(cellular = cell30d, wifi = wifi30d),
+            past90Days = NetworkUsageWindow(cellular = cell90d, wifi = wifi90d),
+        )
     }
 
     // Helper extensions for nullable types with JDBC

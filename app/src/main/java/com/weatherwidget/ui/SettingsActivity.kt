@@ -296,7 +296,7 @@ class SettingsActivity : AppCompatActivity() {
                 fun renderWindow(
                     cellView: TextView,
                     wifiView: TextView,
-                    window: com.weatherwidget.util.NetworkUsageWindow,
+                    window: com.weatherwidget.shared.util.NetworkUsageWindow,
                 ) {
                     val cellLabel = getString(R.string.cellular_label)
                     val wifiLabel = getString(R.string.wifi_label)

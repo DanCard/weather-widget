@@ -206,6 +206,18 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     )
                 """.trimIndent())
 
+                // Network usage — persistent record of network data usage (request + response bytes)
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS network_usage (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp INTEGER NOT NULL,
+                        bytes INTEGER NOT NULL,
+                        networkType TEXT NOT NULL DEFAULT 'WIFI',
+                        isForeground INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_network_usage_timestamp ON network_usage(timestamp)")
+
                 // Migration / Versioning
                 val rs = stmt.executeQuery("PRAGMA user_version")
                 val currentVersion = if (rs.next()) rs.getInt(1) else 0

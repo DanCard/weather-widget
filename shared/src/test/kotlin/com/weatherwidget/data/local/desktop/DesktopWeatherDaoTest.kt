@@ -422,4 +422,68 @@ class DesktopWeatherDaoTest {
         assertEquals(null, reread.condition)
         assertEquals(1_780_000_000_001L, reread.updatedAt)
     }
+
+    @Test
+    fun `test network usage recording and window reporting`() {
+        val now = 1_000_000_000_000L
+        val hour1Ago = now - 1 * 3600 * 1000L
+        val day3Ago = now - 3 * 24 * 3600 * 1000L
+        val day15Ago = now - 15 * 24 * 3600 * 1000L
+        val day45Ago = now - 45 * 24 * 3600 * 1000L
+        val day100Ago = now - 100 * 24 * 3600 * 1000L
+
+        // When empty, report has zero bytes across all windows
+        val emptyReport = dao.queryNetworkUsageReport(now)
+        assertEquals(0L, emptyReport.past24Hours.wifi.totalBytes)
+        assertEquals(0L, emptyReport.past90Days.wifi.totalBytes)
+        assertEquals(0L, emptyReport.past90Days.cellular.totalBytes)
+
+        // Record 1h ago: Wi-Fi FG 1000, BG 2000
+        dao.recordNetworkUsage(1000L, isForeground = true, networkType = "WIFI", timestamp = hour1Ago)
+        dao.recordNetworkUsage(2000L, isForeground = false, networkType = "WIFI", timestamp = hour1Ago)
+
+        // Record 3d ago: Wi-Fi BG 3000, Cellular FG 500
+        dao.recordNetworkUsage(3000L, isForeground = false, networkType = "WIFI", timestamp = day3Ago)
+        dao.recordNetworkUsage(500L, isForeground = true, networkType = "CELLULAR", timestamp = day3Ago)
+
+        // Record 15d ago: Wi-Fi FG 4000
+        dao.recordNetworkUsage(4000L, isForeground = true, networkType = "WIFI", timestamp = day15Ago)
+
+        // Record 45d ago: Wi-Fi BG 5000
+        dao.recordNetworkUsage(5000L, isForeground = false, networkType = "WIFI", timestamp = day45Ago)
+
+        // Record 100d ago: older than 90 days, should be excluded
+        dao.recordNetworkUsage(99999L, isForeground = true, networkType = "WIFI", timestamp = day100Ago)
+
+        // Negative/zero bytes should be ignored
+        dao.recordNetworkUsage(0L, isForeground = true, timestamp = hour1Ago)
+        dao.recordNetworkUsage(-100L, isForeground = false, timestamp = hour1Ago)
+
+        val report = dao.queryNetworkUsageReport(now)
+
+        // 24 Hours: only 1h ago (Wi-Fi FG 1000, BG 2000; Cellular 0)
+        assertEquals(3000L, report.past24Hours.wifi.totalBytes)
+        assertEquals(1000L, report.past24Hours.wifi.foregroundBytes)
+        assertEquals(2000L, report.past24Hours.wifi.backgroundBytes)
+        assertEquals(0L, report.past24Hours.cellular.totalBytes)
+
+        // 7 Days: 1h ago + 3d ago (Wi-Fi total: 3000 + 3000 = 6000; Cellular: FG 500)
+        assertEquals(6000L, report.past7Days.wifi.totalBytes)
+        assertEquals(1000L, report.past7Days.wifi.foregroundBytes)
+        assertEquals(5000L, report.past7Days.wifi.backgroundBytes)
+        assertEquals(500L, report.past7Days.cellular.totalBytes)
+        assertEquals(500L, report.past7Days.cellular.foregroundBytes)
+
+        // 30 Days: 1h ago + 3d ago + 15d ago (Wi-Fi total: 6000 + 4000 = 10000)
+        assertEquals(10000L, report.past30Days.wifi.totalBytes)
+        assertEquals(5000L, report.past30Days.wifi.foregroundBytes)
+        assertEquals(5000L, report.past30Days.wifi.backgroundBytes)
+        assertEquals(500L, report.past30Days.cellular.totalBytes)
+
+        // 90 Days: 1h + 3d + 15d + 45d (Wi-Fi total: 10000 + 5000 = 15000)
+        assertEquals(15000L, report.past90Days.wifi.totalBytes)
+        assertEquals(5000L, report.past90Days.wifi.foregroundBytes)
+        assertEquals(10000L, report.past90Days.wifi.backgroundBytes)
+        assertEquals(500L, report.past90Days.cellular.totalBytes)
+    }
 }
