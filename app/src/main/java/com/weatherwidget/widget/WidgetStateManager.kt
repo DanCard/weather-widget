@@ -390,6 +390,27 @@ class WidgetStateManager internal constructor(
         }
     }
 
+    /**
+     * The place name a setup-screen location change is fetching for, while the
+     * "Getting weather for {place}…" interstitial is (or is about to be) on screen; null otherwise.
+     *
+     * Set synchronously by `LocationUpdater` before the force-refresh worker is enqueued, so every
+     * later paint path agrees on the state: an empty-cache repaint re-asserts the interstitial
+     * instead of pushing a blank graph, the first render with forecast rows clears it, and a sync
+     * failure swaps it for the "Tap to refresh" fallback rather than leaving it up forever.
+     *
+     * Global, like [isPaintOwed]: the active location is app-wide, so the fetch it waits on is too.
+     */
+    fun getPendingLocationFetch(): String? = prefs.getString(KEY_PENDING_LOCATION_FETCH, null)
+
+    fun setPendingLocationFetch(placeName: String) {
+        prefs.edit().putString(KEY_PENDING_LOCATION_FETCH, placeName).apply()
+    }
+
+    fun clearPendingLocationFetch() {
+        prefs.edit().remove(KEY_PENDING_LOCATION_FETCH).apply()
+    }
+
     fun getSourceFailureCount(source: WeatherSource): Int =
         fetchStateStore.sourceFailureCount(source)
 
@@ -443,6 +464,9 @@ class WidgetStateManager internal constructor(
 
         /** Global (not per-widget) flag: a paint was skipped for screen-off and is still owed. */
         const val KEY_PAINT_OWED = "widget_paint_owed"
+
+        /** Global: place name of a setup-screen location change whose first fetch has not landed. */
+        const val KEY_PENDING_LOCATION_FETCH = "widget_pending_location_fetch"
 
         const val SOURCE_FAILURE_WATERMARK_THRESHOLD = 3
         const val DEFAULT_PERSONAL_STATION_DISCOUNT = 95

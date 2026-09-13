@@ -9,6 +9,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.weatherwidget.R
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.shared.util.LocationChangePaintPolicy
 import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -113,14 +114,24 @@ object LocationUpdater {
         lon: Double,
         label: String,
         ids: IntArray = getWidgetIds(context),
+        displayName: String? = null,
     ) {
-        applyActiveLocationToAllWidgets(context, lat, lon, label, ids)
+        applyActiveLocationToAllWidgets(context, lat, lon, label, ids, displayName)
     }
 
     /**
      * Enforces the app-wide active-location invariant for widget-add and Settings flows. The worker,
      * GPS handoff, and startup renderer all operate on one active site, so allowing widget setup to
      * write only one ID would create preferences the rest of the application cannot honor.
+     *
+     * This is the user-initiated path, so it is the one that paints feedback: when the site actually
+     * changed, the widgets show "Getting weather for {place}…" until the force-refresh lands, instead
+     * of the previous city (or a blank graph, when the `location_changed` cache repaint won the
+     * race). The pending mark is written here, synchronously, so every paint path that follows
+     * sees the same state; the cache probe and the paint belong to the forced sync itself
+     * (`WidgetPaintCoordinator.paintLocationChangeInterstitial`), which receives the place on its
+     * work request. [applyFollowDeviceLocation] deliberately does none of this — see
+     * `LocationChangePaintPolicy`.
      */
     internal fun applyActiveLocationToAllWidgets(
         context: Context,
@@ -128,10 +139,26 @@ object LocationUpdater {
         lon: Double,
         label: String?,
         ids: IntArray = getWidgetIds(context),
+        displayName: String? = null,
+        paintInterstitial: Boolean = true,
     ) {
+        val previous = ActiveLocationResolver.current(context)
         writeActiveLocation(context, lat, lon, ids)
         if (label != null) {
             recordHistoricalPoi(context, lat, lon, label)
+        }
+        val placeName = displayName ?: label
+        val siteChanged = !LocationChangePaintPolicy.isSameSite(previous, lat, lon)
+        val stateManager = WidgetStateManager(context)
+        if (paintInterstitial && placeName != null && siteChanged) {
+            stateManager.setPendingLocationFetch(placeName)
+            enqueueForceRefresh(context, locationChangePlace = placeName)
+            return
+        }
+        if (!siteChanged) {
+            // A re-save of the site on screen: nothing there is wrong, and a wait left over from an
+            // earlier change must not outlive the render that already satisfied it.
+            stateManager.clearPendingLocationFetch()
         }
         enqueueForceRefresh(context)
     }
@@ -223,11 +250,12 @@ object LocationUpdater {
         weatherPrefs.edit().putString("historical_pois", updatedPois).apply()
     }
 
-    private fun enqueueForceRefresh(context: Context) {
+    private fun enqueueForceRefresh(context: Context, locationChangePlace: String? = null) {
         val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
             .setInputData(
                 Data.Builder()
                     .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                    .putString(WeatherWidgetWorker.KEY_LOCATION_CHANGE_PLACE, locationChangePlace)
                     .tagTestModeEnqueue()
                     .build(),
             )

@@ -234,6 +234,7 @@
     <string name="today">Auj.</string>
     <string name="header_delta_from_yesterday">vs hier</string>
     <string name="widget_loading">Chargement...</string>
+    <string name="widget_fetching_location">Récupération de la météo pour %1$s…</string>
     <string name="widget_tap_to_refresh">Touchez pour actualiser</string>
     <string name="widget_no_location">Aucune position — touchez pour définir</string>
     <string name="current_stations_desc">Stations actuelles</string>

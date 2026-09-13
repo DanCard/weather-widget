@@ -32,6 +32,7 @@ import com.weatherwidget.widget.handlers.PrecipViewHandler
 import com.weatherwidget.widget.handlers.TemperatureViewHandler
 import com.weatherwidget.widget.handlers.WeatherData
 import com.weatherwidget.widget.handlers.WidgetSizeCalculator
+import com.weatherwidget.widget.handlers.setupSettingsShortcut
 import com.weatherwidget.shared.util.HourLabelFormatter
 import java.time.ZoneId
 import java.time.LocalDate
@@ -123,6 +124,37 @@ object WidgetRenderer {
     internal fun hasDailyPaintedForTest(appWidgetId: Int): Boolean =
         fullyPaintedDailyWidgetIds.contains(appWidgetId)
 
+    /**
+     * Header chrome for every full-push placeholder (Loading, No location, Tap to refresh,
+     * Getting weather for…).
+     *
+     * `widget_weather.xml` ships its header populated — `current_temp="72°"`, `api_source="NWS"`,
+     * the gear and the nav arrows all visible — and none of the placeholder painters used to touch
+     * it. What showed there was therefore either those XML defaults (a fresh inflate) or whatever
+     * the previous render had left (a launcher `reapply()` over the live tree, where untouched views
+     * keep their old state): "72° / NWS" over "Tap to refresh", or the hourly view's icons over
+     * "Getting weather for Denver…". Neither is true, and the arrows and gear had no PendingIntent,
+     * so a tap on them fell through to the root (One UI: to MainActivity).
+     *
+     * Blank the data views, hide the controls that mean nothing without data, and keep the settings
+     * gear — bound for real — so every placeholder offers a way to Settings → Set Location….
+     */
+    private fun applyPlaceholderChrome(context: Context, views: RemoteViews, appWidgetId: Int) {
+        views.setTextViewText(R.id.current_temp, "")
+        views.setTextViewText(R.id.api_source, "")
+        views.setTextViewText(R.id.text_mode_api_source, "")
+        listOf(
+            R.id.current_temp_delta, R.id.current_temp_delta_label, R.id.weather_icon,
+            R.id.precip_touch_zone, R.id.hourly_center_header_container, R.id.api_touch_zone,
+            R.id.text_mode_api_source_container, R.id.text_mode_api_touch_zone,
+            R.id.nav_left, R.id.nav_left_zone, R.id.nav_right, R.id.nav_right_zone,
+        ).forEach { views.setViewVisibility(it, View.GONE) }
+        views.setViewVisibility(R.id.top_right_header_container, View.VISIBLE)
+        views.setViewVisibility(R.id.settings_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.settings_touch_zone, View.VISIBLE)
+        setupSettingsShortcut(context, views, appWidgetId)
+    }
+
     suspend fun updateWidgetLoading(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -132,6 +164,7 @@ object WidgetRenderer {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         views.setViewVisibility(R.id.text_container, View.VISIBLE)
         views.setViewVisibility(R.id.graph_view, View.GONE)
+        applyPlaceholderChrome(context, views, appWidgetId)
         views.setTextViewText(R.id.day2_label, context.getString(R.string.today))
         views.setTextViewText(R.id.day2_high, "--°")
         views.setTextViewText(R.id.day2_low, context.getString(R.string.widget_loading))
@@ -173,6 +206,7 @@ object WidgetRenderer {
             val views = RemoteViews(context.packageName, R.layout.widget_weather)
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
+        applyPlaceholderChrome(context, views, appWidgetId)
             views.setTextViewText(R.id.day2_label, context.getString(R.string.today))
             views.setTextViewText(R.id.day2_high, "--°")
             views.setTextViewText(R.id.day2_low, context.getString(R.string.widget_no_location))
@@ -211,6 +245,7 @@ object WidgetRenderer {
             val views = RemoteViews(context.packageName, R.layout.widget_weather)
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
+        applyPlaceholderChrome(context, views, appWidgetId)
             views.setTextViewText(R.id.day2_label, context.getString(R.string.today))
             views.setTextViewText(R.id.day2_high, "--°")
             views.setTextViewText(R.id.day2_low, context.getString(R.string.widget_tap_to_refresh))
@@ -227,6 +262,54 @@ object WidgetRenderer {
             )
         } catch (e: Exception) {
             Log.e(TAG, "updateWidgetError failed for widget=$appWidgetId", e)
+        }
+    }
+
+    /**
+     * Shown after a setup-screen location change while the new site's first fetch is in flight —
+     * "Getting weather for {place}…". This is the one placeholder that deliberately replaces good-
+     * looking content: the render it covers is the *previous* city's, and the user who just tapped
+     * Save is looking at the widget asking whether the choice registered. Naming the place answers
+     * that; "Loading…" would not. Never used for a follow-device move (see
+     * `LocationChangePaintPolicy`) — nobody is watching there and the battery-gated fetch could
+     * leave this up for hours.
+     *
+     * Full push, so like [updateWidgetNoLocation] it must bind its own tap: the root goes to
+     * `ACTION_REFRESH`, which re-attempts the fetch and is the way out if the worker never lands.
+     * Kept deliberately simple — it must never itself throw.
+     */
+    suspend fun updateWidgetFetchingLocation(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        placeName: String,
+        origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.LOADING,
+    ) {
+        try {
+            val views = RemoteViews(context.packageName, R.layout.widget_weather)
+            views.setViewVisibility(R.id.text_container, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_view, View.GONE)
+        applyPlaceholderChrome(context, views, appWidgetId)
+            views.setTextViewText(R.id.day2_label, context.getString(R.string.today))
+            views.setTextViewText(R.id.day2_high, "--°")
+            views.setTextViewText(R.id.day2_low, context.getString(R.string.widget_fetching_location, placeName))
+            views.setOnClickPendingIntent(R.id.widget_root, errorRefreshIntent(context, appWidgetId))
+            Log.d(
+                TAG,
+                "WIDGET_PAINT widget=$appWidgetId caller=fetching_location origin=${origin.name} " +
+                    "state=fetching_location place=$placeName thread=${Thread.currentThread().name}",
+            )
+            WidgetPushDispatcher.push(
+                appWidgetManager = appWidgetManager,
+                appWidgetId = appWidgetId,
+                views = views,
+                partialPush = false,
+                caller = "FETCHING_LOCATION",
+                appLogDao = WeatherDatabase.getDatabase(context).appLogDao(),
+                origin = origin,
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "updateWidgetFetchingLocation failed for widget=$appWidgetId", e)
         }
     }
 

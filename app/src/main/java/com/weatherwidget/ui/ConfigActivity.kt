@@ -611,13 +611,14 @@ class ConfigActivity : AppCompatActivity() {
     }
 
     private fun finishGlobalSave(lat: Double, lon: Double, label: String, mode: String, friendlyName: String?) {
-        // applyToAllWidgets enqueues its own force-refresh worker.
-        LocationUpdater.applyToAllWidgets(this, lat, lon, label)
+        // Name the place: "Location updated" alone left users unsure what was actually chosen.
+        val displayName = friendlyName ?: label.takeUnless { FriendlyLocationName.isCoordinateLabel(it) }
+        // applyToAllWidgets enqueues its own force-refresh worker, and paints "Getting weather for
+        // {place}…" on the widgets meanwhile — the same name the toast below announces.
+        LocationUpdater.applyToAllWidgets(this, lat, lon, label, displayName = displayName)
         lifecycleScope.launch {
             appLogDao.log("CONFIG", "Global location set lat=$lat lon=$lon mode=$mode label=$label")
         }
-        // Name the place: "Location updated" alone left users unsure what was actually chosen.
-        val displayName = friendlyName ?: label.takeUnless { FriendlyLocationName.isCoordinateLabel(it) }
         val message = if (displayName != null) {
             getString(R.string.location_saved_success_named, displayName)
         } else {

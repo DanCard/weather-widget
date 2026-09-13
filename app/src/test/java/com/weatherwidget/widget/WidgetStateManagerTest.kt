@@ -972,4 +972,13 @@ class WidgetStateManagerTest {
         )
         assertEquals(LocalDateTime.of(2026, 3, 9, 5, 30), afterZoneChange)
     }
+
+    @Test
+    fun `pending location fetch round-trips and clears`() {
+        assertNull(stateManager.getPendingLocationFetch())
+        stateManager.setPendingLocationFetch("San Francisco")
+        assertEquals("San Francisco", stateManager.getPendingLocationFetch())
+        stateManager.clearPendingLocationFetch()
+        assertNull(stateManager.getPendingLocationFetch())
+    }
 }

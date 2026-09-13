@@ -8,6 +8,7 @@ import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.ActiveLocationResolver
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetStateManager
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -34,6 +35,8 @@ class LocationUpdaterTest : RobolectricTest() {
         val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
         prefs.edit().clear().commit()
         SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit().clear().commit()
+        ActiveLocationResolver.clear(context)
+        WidgetStateManager(context).clearPendingLocationFetch()
     }
 
     private fun bindWidget(widgetId: Int) {
@@ -158,5 +161,60 @@ class LocationUpdaterTest : RobolectricTest() {
         assertEquals(-122.0749f, prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", Float.NaN), 0.0001f)
         // The canonical record moves too, not just the per-widget compatibility copies.
         assertEquals(37.3774, ActiveLocationResolver.current(context)!!.first, 1e-5)
+    }
+
+    /**
+     * The setup path is the user-initiated one, so it — and only it — leaves the mark that tells
+     * every later paint "the widgets are showing 'Getting weather for {place}…', not data".
+     */
+    @Test
+    fun `a setup change to a new site marks a pending location fetch`() {
+        bindWidget(301)
+        ActiveLocationResolver.persist(context, 37.4168, -122.0890)
+
+        LocationUpdater.applyActiveLocationToAllWidgets(
+            context = context,
+            lat = 37.7749,
+            lon = -122.4194,
+            label = "San Francisco, CA, USA",
+            ids = intArrayOf(301),
+            displayName = "San Francisco",
+        )
+
+        assertEquals("San Francisco", WidgetStateManager(context).getPendingLocationFetch())
+    }
+
+    @Test
+    fun `re-saving the site already on screen marks nothing and clears a stale wait`() {
+        bindWidget(302)
+        ActiveLocationResolver.persist(context, 37.4168, -122.0890)
+        WidgetStateManager(context).setPendingLocationFetch("Somewhere Else")
+
+        LocationUpdater.applyActiveLocationToAllWidgets(
+            context = context,
+            lat = 37.4170,
+            lon = -122.0892,
+            label = "Mountain View",
+            ids = intArrayOf(302),
+        )
+
+        assertEquals(null, WidgetStateManager(context).getPendingLocationFetch())
+    }
+
+    @Test
+    fun `a follow-device move never marks a pending location fetch`() {
+        bindWidget(303)
+        ActiveLocationResolver.persist(context, 37.4168, -122.0890)
+
+        LocationUpdater.applyFollowDeviceLocation(
+            context = context,
+            lat = 37.7749,
+            lon = -122.4194,
+            label = "Away",
+            enqueueRefresh = false,
+            ids = intArrayOf(303),
+        )
+
+        assertEquals(null, WidgetStateManager(context).getPendingLocationFetch())
     }
 }

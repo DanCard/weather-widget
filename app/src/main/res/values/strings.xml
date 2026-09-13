@@ -261,6 +261,7 @@
     <!-- Small caption after the header delta temperature ("+1.2 from yest") -->
     <string name="header_delta_from_yesterday">from yest</string>
     <string name="widget_loading">Loading...</string>
+    <string name="widget_fetching_location">Getting weather for %1$s…</string>
     <string name="widget_tap_to_refresh">Tap to refresh</string>
     <string name="widget_no_location">No location — tap to set</string>
     <string name="current_stations_desc">Current Stations</string>

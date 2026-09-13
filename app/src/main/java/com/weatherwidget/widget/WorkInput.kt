@@ -27,6 +27,8 @@ internal data class WorkInput(
     val requestedAtMs: Long = 0L,
     /** See [WeatherWidgetWorker.KEY_STARTUP_DEFERRED]. */
     val startupDeferred: Boolean = false,
+    /** See [WeatherWidgetWorker.KEY_LOCATION_CHANGE_PLACE]; null on every other run. */
+    val locationChangePlace: String? = null,
 ) {
     companion object {
         fun from(data: Data): WorkInput {
@@ -66,6 +68,7 @@ internal data class WorkInput(
                 shouldBroadcastNoHourlyComplete = shouldBroadcastNoHourlyComplete,
                 requestedAtMs = data.getLong(WeatherWidgetWorker.KEY_REQUESTED_AT_MS, 0L),
                 startupDeferred = data.getBoolean(WeatherWidgetWorker.KEY_STARTUP_DEFERRED, false),
+                locationChangePlace = data.getString(WeatherWidgetWorker.KEY_LOCATION_CHANGE_PLACE),
             )
         }
     }

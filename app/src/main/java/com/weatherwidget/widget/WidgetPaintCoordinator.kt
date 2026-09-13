@@ -63,6 +63,77 @@ internal class WidgetPaintCoordinator(
         return androidx.work.ListenableWorker.Result.success()
     }
 
+    /**
+     * The "Getting weather for {place}…" interstitial must never be a dead end. Called from the
+     * full-sync failure branches: when a setup-screen location change is still waiting on its first
+     * fetch, swap the interstitial for the "Tap to refresh" fallback and clear the wait. With no
+     * pending change this is a no-op — a failed background sync leaves the last good render alone.
+     */
+    suspend fun renderPendingLocationFetchFailure(reason: String) {
+        val placeName = widgetStateManager.getPendingLocationFetch() ?: return
+        widgetStateManager.clearPendingLocationFetch()
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
+        appLogDao.log(
+            "LOCATION_FETCH_PENDING",
+            "action=render_error reason=$reason place=$placeName widgets=${appWidgetIds.size}",
+            "WARN",
+        )
+        appWidgetIds.forEach { appWidgetId ->
+            WidgetRenderer.updateWidgetError(context, appWidgetManager, appWidgetId)
+        }
+    }
+
+    /**
+     * Start of the forced sync a setup-screen location change enqueued. Paints the interstitial
+     * only while the change is still the pending one (a later save supersedes it) and the new site
+     * has no forecast row for today; a site with a row clears the wait instead — the ordinary cache
+     * repaint will draw it, and switching home ↔ work must not flash a message.
+     */
+    suspend fun paintLocationChangeInterstitial(
+        placeName: String,
+        lat: Double,
+        lon: Double,
+        hasTodayRowAt: suspend (Double, Double) -> Boolean = ::hasTodayForecastRowAt,
+    ) {
+        if (widgetStateManager.getPendingLocationFetch() != placeName) return
+        val cached = runCatching { hasTodayRowAt(lat, lon) }.getOrDefault(false)
+        val show = com.weatherwidget.shared.util.LocationChangePaintPolicy.shouldShowInterstitial(
+            userInitiated = true,
+            // The site comparison already happened when the change was applied; only the cache
+            // gate is decided here.
+            previous = null,
+            newLat = lat,
+            newLon = lon,
+            hasCachedRowsAtNewSite = cached,
+        )
+        if (!show) {
+            widgetStateManager.clearPendingLocationFetch()
+            appLogDao.log("LOCATION_FETCH_PENDING", "action=cached_rows_adopted place=$placeName", "INFO")
+            return
+        }
+        renderFetchingLocation(placeName, reason = "full_sync_start")
+    }
+
+    private suspend fun hasTodayForecastRowAt(lat: Double, lon: Double): Boolean {
+        val todayUtc = java.time.LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        return WeatherDatabase.getDatabase(context).forecastDao().getForecastForDate(todayUtc, lat, lon) != null
+    }
+
+    /** Paints the interstitial for [placeName] on every widget. */
+    suspend fun renderFetchingLocation(placeName: String, reason: String) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
+        appLogDao.log(
+            "LOCATION_FETCH_PENDING",
+            "action=render_interstitial reason=$reason place=$placeName widgets=${appWidgetIds.size}",
+            "INFO",
+        )
+        appWidgetIds.forEach { appWidgetId ->
+            WidgetRenderer.updateWidgetFetchingLocation(context, appWidgetManager, appWidgetId, placeName)
+        }
+    }
+
     suspend fun updateAllWidgets(
         weatherList: List<ForecastEntity>,
         forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
@@ -78,6 +149,15 @@ internal class WidgetPaintCoordinator(
         hourlyLat: Double? = null,
         hourlyLon: Double? = null,
     ) = coroutineScope {
+        // Nothing to draw: DailyForecastGraphRenderer paints an empty day list as a blank bitmap,
+        // and pushing that over whatever is on screen — the previous site's render, the
+        // "Getting weather for…" interstitial, the "Tap to refresh" fallback — is the worst outcome
+        // on every path that reaches here (a fetch that found no rows, a cache read at a site with
+        // none). Leave the last render standing; the callers that own a placeholder paint it.
+        if (weatherList.isEmpty() && hourlyForecasts.isEmpty()) {
+            appLogDao.log("WIDGET_PAINT_SKIP", "reason=empty_data origin=${origin.name}", "INFO")
+            return@coroutineScope
+        }
         if (!isScreenInteractive()) {
             // Record the debt. Nothing repaints on unlock — ACTION_USER_PRESENT is manifest-declared
             // and undeliverable at targetSdk 26+ (see ScreenOnReceiver) — so without this the next
@@ -161,6 +241,13 @@ internal class WidgetPaintCoordinator(
         if (paintOwed && rendered) {
             widgetStateManager.setPaintOwed(false)
             appLogDao.log("WIDGET_PAINT_OWED", "action=force_rebuild widgets=${appWidgetIds.size}", "INFO")
+        }
+
+        // The setup-screen interstitial waits for exactly this: a render carrying forecast rows for
+        // the new site. Same "only once a render launched" rule as the paint-owed flag above.
+        if (rendered && weatherList.isNotEmpty() && widgetStateManager.getPendingLocationFetch() != null) {
+            widgetStateManager.clearPendingLocationFetch()
+            appLogDao.log("LOCATION_FETCH_PENDING", "action=cleared rows=${weatherList.size}", "INFO")
         }
     }
 
@@ -271,6 +358,17 @@ internal class WidgetPaintCoordinator(
             targetSourceId = null,
             fetchContext = null,
         )
+        // A site with no rows yet (a location just changed, its fetch still in flight): if a
+        // setup-screen change is waiting, re-assert its interstitial — this job can race the one
+        // that painted it, and updateAllWidgets' empty-data guard would otherwise just skip.
+        if (bundle.weatherList.isEmpty() && bundle.hourlyForecasts.isEmpty()) {
+            val pending = widgetStateManager.getPendingLocationFetch()
+            if (pending != null) {
+                renderFetchingLocation(pending, reason = "refresh_from_cache_empty")
+                return
+            }
+            // Falls through to updateAllWidgets, whose empty-data guard logs the skip.
+        }
         updateAllWidgets(
             weatherList = bundle.weatherList,
             forecastSnapshots = bundle.forecastSnapshots,

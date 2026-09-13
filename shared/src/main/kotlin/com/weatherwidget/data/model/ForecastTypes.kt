@@ -230,6 +230,12 @@ data class ForecastSnapshot(
 
 sealed class DataStatus {
     data object Loading : DataStatus()
+    /**
+     * A user-chosen location changed to a site with nothing cached, and its first fetch is in
+     * flight. Distinct from [Loading] so the UI can name the place — the confirmation the user who
+     * just picked it is waiting for. See `LocationChangePaintPolicy`.
+     */
+    data class FetchingLocation(val placeName: String) : DataStatus()
     data class Live(val updatedAt: Long) : DataStatus()
     data class Stale(val updatedAt: Long, val reason: StaleReason) : DataStatus()
     data object NoData : DataStatus()

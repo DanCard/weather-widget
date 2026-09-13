@@ -128,6 +128,14 @@ class WeatherWidgetWorker
             val remainingMs = startupCooldownProvider().remainingMs(SystemClock.elapsedRealtime())
             if (remainingMs <= 0L) return null
             val delayMs = remainingMs.coerceAtLeast(StartupCooldown.MIN_DEFERRAL_MS)
+            // The fetch waits; the feedback must not. A setup-screen location change saved inside
+            // the cooldown (open the app cold, pick a place within 30 s) would otherwise leave the
+            // previous city on screen for the whole deferral. Paint "Getting weather for {place}…"
+            // now; the replayed run repeats the (idempotent) decision before it fetches.
+            input.locationChangePlace?.let { place ->
+                ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
+                    ?.let { (lat, lon) -> painter.paintLocationChangeInterstitial(place, lat, lon) }
+            }
             val (outcome, detail) =
                 WidgetWorkScheduler.enqueueStartupDeferred(context, inputData, delayMs, excludeId = id)
             appLogDao.log(
@@ -585,6 +593,15 @@ class WeatherWidgetWorker
 
             /** Set on a run that [StartupCooldown] deferred and re-enqueued; for logs and tests. */
             const val KEY_STARTUP_DEFERRED = "startup_deferred"
+
+            /**
+             * Place name of the setup-screen location change this forced sync was enqueued for.
+             * The run paints "Getting weather for {place}…" before it fetches, when the new site
+             * has nothing cached — see `WidgetPaintCoordinator.paintLocationChangeInterstitial`.
+             * Worker-owned on purpose: a fire-and-forget thread from the activity outlived it, and
+             * in Robolectric outlived the *test*, racing the next one's environment.
+             */
+            const val KEY_LOCATION_CHANGE_PLACE = "location_change_place"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
             const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
         }

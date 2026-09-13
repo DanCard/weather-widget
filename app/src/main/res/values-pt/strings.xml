@@ -239,6 +239,7 @@
     <string name="today">Hoje</string>
     <string name="header_delta_from_yesterday">vs ontem</string>
     <string name="widget_loading">Carregando...</string>
+    <string name="widget_fetching_location">Obtendo o tempo para %1$s…</string>
     <string name="widget_tap_to_refresh">Toque para atualizar</string>
     <string name="widget_no_location">Sem localização — toque para definir</string>
     <string name="current_stations_desc">Estações atuais</string>

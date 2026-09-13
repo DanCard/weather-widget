@@ -82,6 +82,20 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   a mile away instantly, because its readiness test read forecast rows only and returned before the
   grace check. Acquisition and following are now one operation.
   See `plans/260828-remove-the-location-handoff-policy.md`.
+- **A setup-screen location change paints "Getting weather for {place}…"; a GPS move does not.**
+  The axis is user-initiated vs background, not setup vs GPS: the user who just tapped Save is
+  looking at the widget and the fetch bypasses the battery gate, so feedback is worth the flash;
+  nobody is watching a follow-device move and its fetch may be hours away, so a placeholder there
+  would be worse than the sparse-but-correct graph. `LocationChangePaintPolicy` (`:shared`) holds
+  the three gates (user-initiated, site actually changed, no cached row for today at the new
+  site); `WidgetStateManager.getPendingLocationFetch` is the Android mark, the forced sync
+  (`KEY_LOCATION_CHANGE_PLACE`) owns the probe and the paint — never a thread launched from the
+  activity, which outlived Robolectric tests — and a sync that fails or returns 0 rows swaps the
+  interstitial for "Tap to refresh" — it is never a dead end.
+  `WidgetPaintCoordinator.updateAllWidgets` never pushes with zero daily *and* zero hourly rows
+  (`WIDGET_PAINT_SKIP reason=empty_data`): an empty day list renders as a blank bitmap, and that is
+  never an improvement on what is already on screen.
+  See `plans/260913-setup-location-change-interstitial.md`.
 - **Fetch cost is bounded by the battery cadence, not by withholding the location.** A location
   change no longer forces a fetch past the budget: `ForecastFetchCoordinator.isStale` takes its
   last-fetch time from the *location-scoped* forecast rows, so a new site is due at once while a

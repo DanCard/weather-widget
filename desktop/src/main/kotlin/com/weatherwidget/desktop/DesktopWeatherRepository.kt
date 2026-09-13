@@ -52,8 +52,9 @@ import com.weatherwidget.data.remote.OpenMeteoApi
 class DesktopWeatherRepository(
     private val weatherService: WeatherApiClient,
     private val weatherDao: DesktopWeatherDao,
-    private val latitude: Double,
-    private val longitude: Double,
+    // Readable so a caller keyed on the repository can confirm which site it was built for.
+    val latitude: Double,
+    val longitude: Double,
     private val weatherSource: String,
     private val personalStationWeight: Double = 1.0,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,

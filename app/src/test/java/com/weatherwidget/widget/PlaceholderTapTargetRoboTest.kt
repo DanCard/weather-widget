@@ -80,4 +80,61 @@ class PlaceholderTapTargetRoboTest : RobolectricTest() {
             rootClaimsTap(captured.viewsSlot.captured),
         )
     }
+
+    /**
+     * The setup-screen interstitial is a full push too, and it exists to answer "did my choice
+     * register, for the right place?" — so it must carry the place name, and a tap must go somewhere
+     * (a refresh) rather than fall through to MainActivity on One UI.
+     */
+    @Test
+    fun `fetching-location placeholder names the place and claims the tap`() = runTest {
+        val captured = mockAppWidgetManager(widgetId = 1)
+
+        WidgetRenderer.updateWidgetFetchingLocation(
+            context = context,
+            appWidgetManager = captured.appWidgetManager,
+            appWidgetId = 1,
+            placeName = "San Francisco",
+        )
+
+        assertTrue("fetching-location render pushed nothing", captured.viewsSlot.isCaptured)
+        val views = captured.viewsSlot.captured
+        assertTrue("interstitial must let a tap retry the fetch", rootClaimsTap(views))
+        val applied = views.apply(context, FrameLayout(context))
+        val body = applied.findViewById<android.widget.TextView>(R.id.day2_low).text.toString()
+        assertTrue("expected the place name in \"$body\"", body.contains("San Francisco"))
+    }
+
+    /**
+     * The layout ships its header populated ("72°", "NWS", nav arrows) and none of the placeholders
+     * used to touch it, so a placeholder showed either those defaults or the previous render's
+     * leftovers. Every placeholder must blank the data views and offer a bound settings gear — the
+     * way to Settings → Set Location… from a widget that has nothing else to offer.
+     */
+    @Test
+    fun `every placeholder blanks the header and binds the settings gear`() = runTest {
+        val painters: List<Pair<String, suspend (android.appwidget.AppWidgetManager) -> Unit>> = listOf(
+            "loading" to { mgr -> WidgetRenderer.updateWidgetLoading(context, mgr, 1) },
+            "no_location" to { mgr -> WidgetRenderer.updateWidgetNoLocation(context, mgr, 1) },
+            "error" to { mgr -> WidgetRenderer.updateWidgetError(context, mgr, 1) },
+            "fetching_location" to { mgr -> WidgetRenderer.updateWidgetFetchingLocation(context, mgr, 1, "Denver") },
+        )
+        for ((name, paint) in painters) {
+            val captured = mockAppWidgetManager(widgetId = 1)
+            paint(captured.appWidgetManager)
+            assertTrue("$name pushed nothing", captured.viewsSlot.isCaptured)
+            val applied = captured.viewsSlot.captured.apply(context, FrameLayout(context))
+            val temp = applied.findViewById<android.widget.TextView>(R.id.current_temp).text.toString()
+            val source = applied.findViewById<android.widget.TextView>(R.id.api_source).text.toString()
+            assertTrue("$name left current_temp=\"$temp\"", temp.isEmpty())
+            assertTrue("$name left api_source=\"$source\"", source.isEmpty())
+            assertTrue(
+                "$name nav arrows must be hidden",
+                applied.findViewById<View>(R.id.nav_left_zone).visibility == View.GONE &&
+                    applied.findViewById<View>(R.id.nav_right_zone).visibility == View.GONE,
+            )
+            val gear = applied.findViewById<View>(R.id.settings_touch_zone)
+            assertTrue("$name settings gear must be visible and bound", gear.visibility == View.VISIBLE && gear.hasOnClickListeners())
+        }
+    }
 }

@@ -239,6 +239,7 @@
     <string name="today">اليوم</string>
     <string name="header_delta_from_yesterday">من أمس</string>
     <string name="widget_loading">جارٍ التحميل...</string>
+    <string name="widget_fetching_location">جارٍ جلب الطقس لـ %1$s…</string>
     <string name="widget_tap_to_refresh">انقر للتحديث</string>
     <string name="widget_no_location">لا يوجد موقع — انقر للتعيين</string>
     <string name="current_stations_desc">المحطات الحالية</string>

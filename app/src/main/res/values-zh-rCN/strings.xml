@@ -239,6 +239,7 @@
     <string name="today">今天</string>
     <string name="header_delta_from_yesterday">较昨日</string>
     <string name="widget_loading">加载中...</string>
+    <string name="widget_fetching_location">正在获取 %1$s 的天气…</string>
     <string name="widget_tap_to_refresh">点按以刷新</string>
     <string name="widget_no_location">无位置 — 点按设置</string>
     <string name="current_stations_desc">当前气象站</string>

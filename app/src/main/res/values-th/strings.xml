@@ -239,6 +239,7 @@
     <string name="today">วันนี้</string>
     <string name="header_delta_from_yesterday">เทียบเมื่อวาน</string>
     <string name="widget_loading">กำลังโหลด...</string>
+    <string name="widget_fetching_location">กำลังดึงข้อมูลสภาพอากาศสำหรับ %1$s…</string>
     <string name="widget_tap_to_refresh">แตะเพื่อรีเฟรช</string>
     <string name="widget_no_location">ไม่มีตำแหน่ง — แตะเพื่อตั้งค่า</string>
     <string name="current_stations_desc">สถานีปัจจุบัน</string>

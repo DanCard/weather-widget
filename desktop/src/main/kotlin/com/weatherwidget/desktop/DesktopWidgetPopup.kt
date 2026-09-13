@@ -63,6 +63,7 @@ internal fun WidgetPopup(
         when (dataStatus) {
             is DataStatus.Error -> CenteredMessage(dataStatus.message)
             is DataStatus.Loading -> CenteredMessage("Loading…")
+            is DataStatus.FetchingLocation -> CenteredMessage("Getting weather for ${dataStatus.placeName}…")
             is DataStatus.NoData -> CenteredMessage("Tap to configure")
             is DataStatus.Live, is DataStatus.Stale -> {
                 val snapshot = forecast ?: return@Surface

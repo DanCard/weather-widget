@@ -37,6 +37,7 @@ import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
 import com.weatherwidget.data.model.isOfflineException
 import com.weatherwidget.data.model.isOfflineExceptionName
+import com.weatherwidget.shared.util.LocationChangePaintPolicy
 import com.weatherwidget.shared.util.PreferredSourceHome
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.DayClickResolver
@@ -162,6 +163,10 @@ internal fun runDesktopUiApplication() = application {
 
         var forecast by remember { mutableStateOf<ForecastSnapshot?>(null) }
         var dataStatus by remember { mutableStateOf<DataStatus>(DataStatus.Loading) }
+        // Place name of a location-picker save whose new site had nothing cached; drives the
+        // "Getting weather for {place}…" interstitial until the first fetch lands (or fails).
+        // Android parity: WidgetStateManager.getPendingLocationFetch.
+        var pendingLocationLabel by remember { mutableStateOf<String?>(null) }
         // Transient "Fetching older data…" banner shown while an on-demand deep-history pull runs.
         var historyFetchToast by remember { mutableStateOf<String?>(null) }
         var currentTempFetchError by remember { mutableStateOf<String?>(null) }
@@ -200,7 +205,15 @@ internal fun runDesktopUiApplication() = application {
                 val repo = currentRepository.value ?: return@fn
                 uiScope.launch {
                     try {
-                        repo.loadCached()?.let { forecast = it }
+                        repo.loadCached()?.let {
+                            forecast = it
+                            // The daemon's own fetch for a just-picked site can land before the
+                            // UI-side one: rows are here, so the interstitial (or the error it
+                            // became) is over.
+                            if (dataStatus is DataStatus.FetchingLocation || dataStatus is DataStatus.Error) {
+                                dataStatus = DataStatus.Live(System.currentTimeMillis())
+                            }
+                        }
                         dataUpdateCount++
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
@@ -267,6 +280,9 @@ internal fun runDesktopUiApplication() = application {
 
                 configStore.save(effective)
                 config = effective
+                DesktopLocationChangeFeedback.pendingPlaceName(source, prev, effective)?.let { place ->
+                    pendingLocationLabel = place
+                }
                 runCatching {
                     val trigger = appDataDir().resolve(CONFIG_CHANGED_TRIGGER)
                     java.nio.file.Files.writeString(trigger, "", java.nio.charset.StandardCharsets.UTF_8)
@@ -386,6 +402,58 @@ internal fun runDesktopUiApplication() = application {
                 } catch (e: Exception) {
                     Log.e(TAG, "Fallback cache reload failed: ${e.message}")
                 }
+            }
+        }
+
+        // Setup-driven location change (Android parity: LocationUpdater.paintInterstitialIfUncached).
+        // Keyed on the repository so it runs after the new site's repository exists. A site that
+        // already has rows is adopted straight from cache — switching home ↔ work must not flash a
+        // message. Otherwise the previous city's snapshot is dropped (it is the wrong place, and
+        // leaving it up is what this exists to stop), the place is named, and the fetch runs here in
+        // the UI process so its outcome is known: success → Live, failure → an Error that names the
+        // place and points at Refresh. The daemon's `.config-changed` fetch still runs in parallel;
+        // whichever lands first ends the wait (see reloadCachedForecast).
+        LaunchedEffect(repository, pendingLocationLabel) {
+            val place = pendingLocationLabel ?: return@LaunchedEffect
+            val repo = repository ?: return@LaunchedEffect
+            val cfg = currentConfig ?: return@LaunchedEffect
+            if (!LocationChangePaintPolicy.isSameSite(cfg.lat to cfg.lon, repo.latitude, repo.longitude)) {
+                // Stale repository from before recomposition; the keyed rerun handles the new one.
+                return@LaunchedEffect
+            }
+            try {
+                val cached = runCatching { repo.loadCached() }.getOrNull()
+                if (cached != null) {
+                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$place action=cached_rows_adopted", "INFO")
+                    forecast = cached
+                    dataStatus = DataStatus.Live(System.currentTimeMillis())
+                    return@LaunchedEffect
+                }
+                weatherDao.log("LOCATION_FETCH_PENDING", "place=$place action=render_interstitial", "INFO")
+                forecast = null
+                dataStatus = DataStatus.FetchingLocation(place)
+                refreshInFlight = true
+                try {
+                    forecast = repo.refresh()
+                    dataStatus = DataStatus.Live(System.currentTimeMillis())
+                    dataUpdateCount++
+                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$place action=cleared", "INFO")
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    weatherDao.log(
+                        "LOCATION_FETCH_PENDING",
+                        "place=$place action=render_error ${e::class.simpleName}: ${e.message}",
+                        "WARN",
+                    )
+                    if (dataStatus is DataStatus.FetchingLocation) {
+                        dataStatus = DataStatus.Error("Couldn\u2019t get weather for $place \u2014 check the network, then Refresh")
+                    }
+                } finally {
+                    refreshInFlight = false
+                }
+            } finally {
+                if (pendingLocationLabel == place) pendingLocationLabel = null
             }
         }
 
@@ -570,6 +638,10 @@ internal fun runDesktopUiApplication() = application {
             uiScope.launch {
                 try {
                     forecast = repo.refresh()
+                    // A Refresh is the way out the location-change error message points at.
+                    if (dataStatus is DataStatus.FetchingLocation || dataStatus is DataStatus.Error) {
+                        dataStatus = DataStatus.Live(System.currentTimeMillis())
+                    }
                     dataUpdateCount++
                     weatherDao.log(
                         "REFRESH_CLICK",

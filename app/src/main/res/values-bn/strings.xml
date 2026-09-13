@@ -239,6 +239,7 @@
     <string name="today">আজ</string>
     <string name="header_delta_from_yesterday">গতকাল থেকে</string>
     <string name="widget_loading">লোড হচ্ছে...</string>
+    <string name="widget_fetching_location">%1$s-এর আবহাওয়া আনা হচ্ছে…</string>
     <string name="widget_tap_to_refresh">রিফ্রেশ করতে ট্যাপ করুন</string>
     <string name="widget_no_location">কোনো অবস্থান নেই — সেট করতে ট্যাপ করুন</string>
     <string name="current_stations_desc">বর্তমান স্টেশন</string>

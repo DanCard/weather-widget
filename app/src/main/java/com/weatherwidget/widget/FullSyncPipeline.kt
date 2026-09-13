@@ -69,6 +69,11 @@ internal class FullSyncPipeline(
             // over it (plans/260828-remove-the-location-handoff-policy.md).
             val location = activeLocation
                 ?: return painter.renderNoLocationAndFinish("full_sync")
+            // A setup-screen location change: say which place we are fetching for before the fetch,
+            // unless the site already has today's row (then the cache repaint draws it correctly).
+            input.locationChangePlace?.let { place ->
+                painter.paintLocationChangeInterstitial(place, location.first, location.second)
+            }
             Log.d(
                 TAG,
                 "doWork: Location = $location " +
@@ -292,6 +297,12 @@ internal class FullSyncPipeline(
                         "WIDGET_LIFECYCLE",
                         "phase=worker_paint_done uiOnly=${input.uiOnlyRefresh} elapsedMs=${afterUpdateMs - afterActualsMs}",
                     )
+                    // "Success" with no rows is a failure from the interstitial's point of view: every
+                    // source declined and the repository fell back to an (empty) cache. Nothing above
+                    // cleared the wait, so give the user the tap-to-refresh way out.
+                    if (weatherList.isEmpty()) {
+                        painter.renderPendingLocationFetchFailure("sync_success_empty")
+                    }
 
                     val totalMs = afterUpdateMs - startMs
                     if (totalMs > 500) {
@@ -329,6 +340,7 @@ internal class FullSyncPipeline(
                 },
                 onFailure = { e ->
                     appLogDao.log("SYNC_FAILURE", "Repository failed: ${e.message}", "ERROR")
+                    painter.renderPendingLocationFetchFailure("sync_failure")
                     ListenableWorker.Result.retry()
                 },
             )
@@ -337,6 +349,7 @@ internal class FullSyncPipeline(
             throw e
         } catch (e: Exception) {
             appLogDao.logException("SYNC_EXCEPTION", "Synchronization failed", e)
+            runCatching { painter.renderPendingLocationFetchFailure("sync_exception") }
             return ListenableWorker.Result.retry()
         } finally {
             if (input.shouldBroadcastNoHourlyComplete) {
