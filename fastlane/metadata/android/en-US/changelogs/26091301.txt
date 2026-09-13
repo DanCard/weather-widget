@@ -1,0 +1,1 @@
+Release 26091301: International location search and coverage fixes, metered data awareness and network usage tracking, fetch coalescing, and widget rendering stability improvements.
