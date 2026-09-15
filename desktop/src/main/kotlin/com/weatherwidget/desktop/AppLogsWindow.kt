@@ -29,10 +29,14 @@ internal fun AppLogsWindow(
     weatherDao: DesktopWeatherDao,
     onClose: () -> Unit
 ) {
-    val state = rememberWindowState(
-        position = WindowPosition(Alignment.Center),
-        width = 600.dp,
-        height = 800.dp
+    val state = rememberSanitizedWindowState(
+        savedX = null,
+        savedY = null,
+        savedWidth = null,
+        savedHeight = null,
+        defaultWidth = 600.dp,
+        defaultHeight = 800.dp,
+        defaultAlignment = Alignment.Center,
     )
 
     Window(
@@ -48,6 +52,10 @@ internal fun AppLogsWindow(
             }
         }
     ) {
+        LaunchedEffect(Unit) {
+            window.toFront()
+            window.requestFocus()
+        }
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
         var filterQuery by remember { mutableStateOf("") }
         val scope = rememberCoroutineScope()

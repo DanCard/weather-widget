@@ -32,6 +32,8 @@ for _ in 1 2 3 4 5 6; do
   sleep 0.25
 done
 pkill -9 -f "$APP_PROC_PATTERN" 2>/dev/null || true
+rm -f "$QUIT_FILE" "${QUIT_FILE}-*" 2>/dev/null || true
+
 
 echo "Relaunching existing distributable..."
 nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 & disown

@@ -84,14 +84,14 @@ internal fun ForecastHistoryWindow(
     onClose: () -> Unit,
     onConfigUpdate: (DesktopConfig) -> Unit = {},
 ) {
-    val state = rememberWindowState(
-        position = if (config.historyWindowX != null && config.historyWindowY != null) {
-            WindowPosition(config.historyWindowX.dp, config.historyWindowY.dp)
-        } else {
-            WindowPosition(Alignment.Center)
-        },
-        width = config.historyWindowWidth?.dp ?: 520.dp,
-        height = config.historyWindowHeight?.dp ?: 720.dp,
+    val state = rememberSanitizedWindowState(
+        savedX = config.historyWindowX,
+        savedY = config.historyWindowY,
+        savedWidth = config.historyWindowWidth,
+        savedHeight = config.historyWindowHeight,
+        defaultWidth = 520.dp,
+        defaultHeight = 720.dp,
+        defaultAlignment = Alignment.Center,
     )
 
     // Persist size/position back to config so the window reopens where the user left it.
@@ -123,6 +123,10 @@ internal fun ForecastHistoryWindow(
             }
         }
     ) {
+        LaunchedEffect(Unit) {
+            window.toFront()
+            window.requestFocus()
+        }
         LaunchedEffect(showRequestId) {
             if (showRequestId > 0) window.toFront()
         }

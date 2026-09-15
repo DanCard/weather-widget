@@ -4,46 +4,54 @@ import com.weatherwidget.shared.util.Log
 import java.io.File
 import java.util.concurrent.TimeUnit
 
+data class DisplayDimensions(val width: Int, val height: Int)
+
 /**
- * Detects the active screen height for the desktop environment without initializing Java AWT
- * (which throws HeadlessException in the headless daemon and spawns unwanted X11 waker threads).
+ * Detects the active screen geometry (width and height) for the desktop environment without
+ * initializing Java AWT (which throws HeadlessException in the headless daemon and spawns unwanted
+ * X11 waker threads).
  *
- * Provides a pure resolution-to-font sizing function for XFCE genmon panel markup.
+ * Provides resolution detection for window bounds sanitization and resolution-to-font sizing for
+ * XFCE genmon panel markup.
  */
 object DisplayResolutionDetector {
     private const val TAG = "DisplayResolutionDetector"
     private const val CACHE_TTL_MS = 60_000L
+    const val DEFAULT_FALLBACK_WIDTH = 1920
     const val DEFAULT_FALLBACK_HEIGHT = 1080
 
-    private var cachedHeight: Int? = null
+    private var cachedDimensions: DisplayDimensions? = null
     private var lastCheckMs = 0L
 
-    fun currentScreenHeight(clockMs: Long = System.currentTimeMillis()): Int {
-        val cached = cachedHeight
+    fun currentScreenDimensions(clockMs: Long = System.currentTimeMillis()): DisplayDimensions {
+        val cached = cachedDimensions
         if (cached != null && (clockMs - lastCheckMs) < CACHE_TTL_MS) {
             return cached
         }
-        val detected = detectScreenHeight() ?: DEFAULT_FALLBACK_HEIGHT
-        cachedHeight = detected
+        val detected = detectScreenDimensions() ?: DisplayDimensions(DEFAULT_FALLBACK_WIDTH, DEFAULT_FALLBACK_HEIGHT)
+        cachedDimensions = detected
         lastCheckMs = clockMs
         return detected
     }
 
+    fun currentScreenHeight(clockMs: Long = System.currentTimeMillis()): Int =
+        currentScreenDimensions(clockMs).height
+
     /** Clears cache (useful for testing). */
     fun clearCache() {
-        cachedHeight = null
+        cachedDimensions = null
         lastCheckMs = 0L
     }
 
-    internal fun detectScreenHeight(): Int? {
+    internal fun detectScreenDimensions(): DisplayDimensions? {
         // 1. Try xrandr --current
         queryCommand("xrandr", "--current")?.let { output ->
-            parseXrandrHeight(output)?.let { return it }
+            parseXrandrDimensions(output)?.let { return it }
         }
 
         // 2. Try xwininfo -root
         queryCommand("xwininfo", "-root")?.let { output ->
-            parseXwininfoHeight(output)?.let { return it }
+            parseXwininfoDimensions(output)?.let { return it }
         }
 
         // 3. Fallback: inspect sysfs DRM modes
@@ -52,28 +60,42 @@ object DisplayResolutionDetector {
         return null
     }
 
-    internal fun parseXrandrHeight(output: String): Int? {
+    internal fun parseXrandrDimensions(output: String): DisplayDimensions? {
         // Look for connected line: e.g. "HDMI-A-0 connected 1280x720+0+0" or "... connected primary 3840x2160+0+0"
         val connectedRegex = Regex("""\bconnected\s+(?:primary\s+)?(\d+)x(\d+)\+""")
         connectedRegex.find(output)?.let { match ->
-            return match.groupValues[2].toIntOrNull()
+            val w = match.groupValues[1].toIntOrNull()
+            val h = match.groupValues[2].toIntOrNull()
+            if (w != null && h != null) return DisplayDimensions(w, h)
         }
 
         // Alternative: "Screen 0: ... current 1280 x 720"
         val screenRegex = Regex("""\bcurrent\s+(\d+)\s*x\s*(\d+)""")
         screenRegex.find(output)?.let { match ->
-            return match.groupValues[2].toIntOrNull()
+            val w = match.groupValues[1].toIntOrNull()
+            val h = match.groupValues[2].toIntOrNull()
+            if (w != null && h != null) return DisplayDimensions(w, h)
         }
 
         return null
     }
 
-    internal fun parseXwininfoHeight(output: String): Int? {
+    internal fun parseXrandrHeight(output: String): Int? =
+        parseXrandrDimensions(output)?.height
+
+    internal fun parseXwininfoDimensions(output: String): DisplayDimensions? {
+        val widthRegex = Regex("""\bWidth:\s*(\d+)""")
         val heightRegex = Regex("""\bHeight:\s*(\d+)""")
-        return heightRegex.find(output)?.groupValues?.get(1)?.toIntOrNull()
+        val w = widthRegex.find(output)?.groupValues?.get(1)?.toIntOrNull()
+        val h = heightRegex.find(output)?.groupValues?.get(1)?.toIntOrNull()
+        if (w != null && h != null) return DisplayDimensions(w, h)
+        return null
     }
 
-    private fun detectFromDrmSysfs(): Int? {
+    internal fun parseXwininfoHeight(output: String): Int? =
+        parseXwininfoDimensions(output)?.height
+
+    private fun detectFromDrmSysfs(): DisplayDimensions? {
         return try {
             val drmDir = File("/sys/class/drm")
             if (!drmDir.isDirectory) return null
@@ -87,7 +109,9 @@ object DisplayResolutionDetector {
                         if (!firstMode.isNullOrBlank()) {
                             val parts = firstMode.trim().split("x")
                             if (parts.size == 2) {
-                                parts[1].toIntOrNull()?.let { return it }
+                                val w = parts[0].toIntOrNull()
+                                val h = parts[1].toIntOrNull()
+                                if (w != null && h != null) return DisplayDimensions(w, h)
                             }
                         }
                     }

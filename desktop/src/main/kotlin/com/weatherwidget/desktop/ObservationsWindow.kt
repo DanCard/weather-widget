@@ -189,14 +189,14 @@ internal fun ObservationsWindow(
     onClose: () -> Unit,
     onConfigUpdate: (DesktopConfig) -> Unit,
 ) {
-    val state = rememberWindowState(
-        position = if (config.obsWindowX != null && config.obsWindowY != null) {
-            WindowPosition(config.obsWindowX.dp, config.obsWindowY.dp)
-        } else {
-            WindowPosition(Alignment.Center)
-        },
-        width = config.obsWindowWidth?.dp ?: 500.dp,
-        height = config.obsWindowHeight?.dp ?: 700.dp,
+    val state = rememberSanitizedWindowState(
+        savedX = config.obsWindowX,
+        savedY = config.obsWindowY,
+        savedWidth = config.obsWindowWidth,
+        savedHeight = config.obsWindowHeight,
+        defaultWidth = 500.dp,
+        defaultHeight = 700.dp,
+        defaultAlignment = Alignment.Center,
     )
 
     // Sync window state back to config
@@ -228,16 +228,18 @@ internal fun ObservationsWindow(
             }
         }
     ) {
+        LaunchedEffect(Unit) {
+            window.toFront()
+            window.requestFocus()
+        }
         // Bring to front on every new show request (incremented showRequestId)
         LaunchedEffect(showRequestId) {
             if (state.isMinimized) {
                 state.isMinimized = false
             }
-            if (window is java.awt.Frame) {
-                val frameState = window.extendedState
-                if ((frameState and java.awt.Frame.ICONIFIED) != 0) {
-                    window.extendedState = java.awt.Frame.NORMAL
-                }
+            val frameState = window.extendedState
+            if ((frameState and java.awt.Frame.ICONIFIED) != 0) {
+                window.extendedState = java.awt.Frame.NORMAL
             }
             window.toFront()
             window.requestFocus()

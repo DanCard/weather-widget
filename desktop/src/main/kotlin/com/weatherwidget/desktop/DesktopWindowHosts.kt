@@ -44,10 +44,14 @@ internal fun LocationPickerWindowHost(
     onClose: () -> Unit,
     onResolved: (DesktopConfig) -> Unit,
 ) {
-    val windowState = rememberWindowState(
-        position = WindowPosition(Alignment.Center),
-        width = 560.dp,
-        height = 680.dp,
+    val windowState = rememberSanitizedWindowState(
+        savedX = null,
+        savedY = null,
+        savedWidth = null,
+        savedHeight = null,
+        defaultWidth = 560.dp,
+        defaultHeight = 680.dp,
+        defaultAlignment = Alignment.Center,
     )
     Window(
         onCloseRequest = onClose,
@@ -129,14 +133,14 @@ internal fun SettingsWindowHost(
 ) {
     val latestConfig = rememberUpdatedState(config)
     var settingsDraft by remember { mutableStateOf<DesktopConfig?>(null) }
-    val windowState = rememberWindowState(
-        position = if (config.settingsWindowX != null && config.settingsWindowY != null) {
-            WindowPosition(config.settingsWindowX.dp, config.settingsWindowY.dp)
-        } else {
-            WindowPosition(Alignment.Center)
-        },
-        width = config.settingsWindowWidth?.dp ?: 500.dp,
-        height = config.settingsWindowHeight?.dp ?: 700.dp,
+    val windowState = rememberSanitizedWindowState(
+        savedX = config.settingsWindowX,
+        savedY = config.settingsWindowY,
+        savedWidth = config.settingsWindowWidth,
+        savedHeight = config.settingsWindowHeight,
+        defaultWidth = 500.dp,
+        defaultHeight = 700.dp,
+        defaultAlignment = Alignment.Center,
     )
 
     fun closeSettings() {
@@ -174,6 +178,10 @@ internal fun SettingsWindowHost(
             }
         },
     ) {
+        LaunchedEffect(Unit) {
+            window.toFront()
+            window.requestFocus()
+        }
         SettingsWindow(
             config = config,
             onClose = ::closeSettings,
@@ -221,14 +229,14 @@ internal fun PopupWindowHost(
 ) {
     val latestConfig = rememberUpdatedState(config)
     var arrowKeyHandler by remember { mutableStateOf<((left: Boolean) -> Boolean)?>(null) }
-    val windowState = rememberWindowState(
-        position = if (config.windowX != null && config.windowY != null) {
-            WindowPosition(config.windowX.dp, config.windowY.dp)
-        } else {
-            WindowPosition(Alignment.TopEnd)
-        },
-        width = config.windowWidth?.dp ?: 380.dp,
-        height = config.windowHeight?.dp ?: 320.dp,
+    val windowState = rememberSanitizedWindowState(
+        savedX = config.windowX,
+        savedY = config.windowY,
+        savedWidth = config.windowWidth,
+        savedHeight = config.windowHeight,
+        defaultWidth = 380.dp,
+        defaultHeight = 320.dp,
+        defaultAlignment = Alignment.TopEnd,
     )
 
     LaunchedEffect(windowState.position, windowState.size) {

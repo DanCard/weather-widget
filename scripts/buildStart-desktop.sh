@@ -28,6 +28,7 @@ for _ in 1 2 3 4 5 6; do
   sleep 0.25
 done
 pkill -9 -f "$APP_PROC_PATTERN" 2>/dev/null || true
+rm -f "$QUIT_FILE" "${QUIT_FILE}-*" 2>/dev/null || true
 
 printf "\n\t Starting desktop app through autostart launcher: $AUTOSTART_SCRIPT\n"
 set -x
