@@ -198,6 +198,24 @@ class DailyForecastGraphRendererTest {
         assertEquals(false, placement.fits)
     }
 
+    @Test
+    fun `resolveRainAboveHighPlacement clears snapshotBarTop when snapshot reaches higher than high label`() {
+        val placement = DailyForecastRainLabelRenderer.resolveRainAboveHighPlacement(
+            highBaseline = 80f,
+            highMetrics = DailyForecastRainLabelRenderer.TextMetrics(ascent = -24f, descent = 6f),
+            rainMetrics = DailyForecastRainLabelRenderer.TextMetrics(ascent = -14f, descent = 4f),
+            topMargin = 8f,
+            gap = 3f,
+            snapshotBarTop = 30f,
+        )
+
+        assertEquals(true, placement.fits)
+        assertEquals(30f, placement.highLabelTop, 0.01f)
+        assertEquals(23f, placement.baseline, 0.01f)
+        assertEquals(27f, placement.bottom, 0.01f)
+        assertEquals(9f, placement.top, 0.01f)
+    }
+
     // Samsung repro: the interstitial night label lands beside this day's own low label and clips
     // its degree symbol. It should nudge DOWN to share the low label's baseline (beside the number),
     // never moving sideways or dropping past the baseline.

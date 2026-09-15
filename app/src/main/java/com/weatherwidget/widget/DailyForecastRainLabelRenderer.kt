@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.graphics.*
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import com.weatherwidget.shared.graph.DailyRainLabelPlanner
 import com.weatherwidget.shared.util.DailyRainLabels
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.widget.DailyGraphLayoutInfo
@@ -152,12 +153,16 @@ internal object DailyForecastRainLabelRenderer {
         val highScale = DailyHighLabelPlanner.resolveHighLabelDrawScale(day, layout, paints)
         val fullHighMetrics = textMetrics(tempPaint)
         val drawnHighMetrics = TextMetrics(fullHighMetrics.ascent * highScale, fullHighMetrics.descent * highScale)
+        val snapshotBarTop = if (day.isToday && day.snapshotHigh != null) {
+            layout.tempToY(day.snapshotHigh) - paints.todaySnapshotYellowPaint.strokeWidth / 2f
+        } else null
         val placement = resolveRainAboveHighPlacement(
             highBaseline = highBaseline,
             highMetrics = drawnHighMetrics,
             rainMetrics = textMetrics(localRainPaint),
             topMargin = layout.graphTop * 0.2f,
             gap = (RAIN_HIGH_TEMP_GAP_DP * layout.bitmapScale.coerceAtMost(1f)).toPx(layout.density),
+            snapshotBarTop = snapshotBarTop,
         )
 
         return ResolvedDailyRainLabel(
@@ -294,15 +299,19 @@ internal object DailyForecastRainLabelRenderer {
         ownBottom: Float,
         ownBaseline: Float,
     ): NightCollisionResult {
-        val nightLeft = nightCenterX - nightHalfWidth
-        val nightRight = nightCenterX + nightHalfWidth
-        val nightTop = nightBaseline + ascent
-        val nightBottom = nightBaseline + descent
-        val intersects = nightLeft < ownRight && ownLeft < nightRight && nightTop < ownBottom && ownTop < nightBottom
-        if (!intersects || ownBaseline <= nightBaseline) {
-            return NightCollisionResult(nightCenterX, nightBaseline, "none")
-        }
-        return NightCollisionResult(nightCenterX, ownBaseline, "down")
+        val result = DailyRainLabelPlanner.resolveNightCollision(
+            nightCenterX = nightCenterX,
+            nightBaseline = nightBaseline,
+            nightHalfWidth = nightHalfWidth,
+            ascent = ascent,
+            descent = descent,
+            ownLeft = ownLeft,
+            ownTop = ownTop,
+            ownRight = ownRight,
+            ownBottom = ownBottom,
+            ownBaseline = ownBaseline,
+        )
+        return NightCollisionResult(result.centerX, result.baseline, result.resolution)
     }
 
     internal fun resolveRainAboveHighPlacement(
@@ -311,17 +320,22 @@ internal object DailyForecastRainLabelRenderer {
         rainMetrics: TextMetrics,
         topMargin: Float,
         gap: Float,
+        snapshotBarTop: Float? = null,
     ): RainAboveHighPlacement {
-        val highLabelTop = highBaseline + highMetrics.ascent
-        val baseline = highLabelTop - gap - rainMetrics.descent
-        val top = baseline + rainMetrics.ascent
-        val bottom = baseline + rainMetrics.descent
+        val result = DailyRainLabelPlanner.resolveRainAboveHighPlacement(
+            highBaseline = highBaseline,
+            highMetrics = DailyRainLabelPlanner.TextMetrics(highMetrics.ascent, highMetrics.descent),
+            rainMetrics = DailyRainLabelPlanner.TextMetrics(rainMetrics.ascent, rainMetrics.descent),
+            topMargin = topMargin,
+            gap = gap,
+            snapshotBarTop = snapshotBarTop,
+        )
         return RainAboveHighPlacement(
-            baseline = baseline,
-            top = top,
-            bottom = bottom,
-            highLabelTop = highLabelTop,
-            fits = top >= topMargin,
+            baseline = result.baseline,
+            top = result.top,
+            bottom = result.bottom,
+            highLabelTop = result.anchorTop,
+            fits = result.fits,
         )
     }
 
@@ -360,20 +374,19 @@ internal object DailyForecastRainLabelRenderer {
         val roomBelowPx = (hardBottomLimit - anchorBaseline).coerceAtLeast(0f)
         val roomBelowDp = roomBelowPx / layout.density
 
-        val tightFraction = (1f - (roomBelowDp - NIGHT_TUCK_ROOM_MIN_DP) / (NIGHT_TUCK_ROOM_MAX_DP - NIGHT_TUCK_ROOM_MIN_DP)).coerceIn(0f, 1f)
-        val dynamicOverlapDp = NIGHT_TUCK_OVERLAP_BASE_DP * tightFraction
-        val dynamicNudgeDp = NIGHT_TUCK_NUDGE_BASE_DP + (NIGHT_TUCK_NUDGE_RANGE_DP * tightFraction)
-
         val isLeftTempLower = rightNeighborBaseline != null && leftBaseline > rightNeighborBaseline
-        val effectiveNudgeDp = if (isLeftTempLower) dynamicNudgeDp * 0.0f else dynamicNudgeDp
+        val tuck = DailyRainLabelPlanner.calculateNightTuck(
+            roomBelowDp = roomBelowDp,
+            isLeftTempLower = isLeftTempLower,
+        )
 
         return NightTuckParams(
             anchorBaseline = anchorBaseline,
             leftBaseline = leftBaseline,
             rightNeighborBaseline = rightNeighborBaseline,
-            dynamicOverlapDp = dynamicOverlapDp,
-            effectiveNudgeDp = effectiveNudgeDp,
-            tightFraction = tightFraction,
+            dynamicOverlapDp = tuck.dynamicOverlapDp,
+            effectiveNudgeDp = tuck.effectiveNudgeDp,
+            tightFraction = tuck.tightFraction,
             roomBelowDp = roomBelowDp,
             isLeftTempLower = isLeftTempLower,
             tempMetrics = tempMetrics,
