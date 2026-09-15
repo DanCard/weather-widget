@@ -107,4 +107,62 @@ settings = DesktopSettings(useCelsius = false),
         assertTrue("empty body must be --", m.contains("--"))
         assertTrue("empty state must read no data", m.contains("no data just now"))
     }
+
+    @Test
+    fun `buildPanelMarkup with custom font sizes applies them to spans`() {
+        val m = PanelIpcServer.buildPanelMarkup(
+            body = "68.8°",
+            color = PanelIpcServer.LIVE_COLOR,
+            deltaText = "+0.9",
+            tooltip = "test",
+            clickCmd = "#",
+            tempFontSize = 10,
+            deltaFontSize = 9,
+        )
+        assertTrue("scaled temp font size missing", m.contains("font='Sans Bold 10'"))
+        assertTrue("scaled delta font size missing", m.contains("font='Sans Bold 9'"))
+    }
+
+    @Test
+    fun `resolveGenmonFontSizes scales fonts across standard resolutions`() {
+        // 720p or lower clamps to minimum readable panel size
+        org.junit.Assert.assertEquals(10 to 9, DisplayResolutionDetector.resolveGenmonFontSizes(480))
+        org.junit.Assert.assertEquals(10 to 9, DisplayResolutionDetector.resolveGenmonFontSizes(720))
+
+        // Intermediate resolutions
+        org.junit.Assert.assertEquals(12 to 10, DisplayResolutionDetector.resolveGenmonFontSizes(900))
+        org.junit.Assert.assertEquals(13 to 12, DisplayResolutionDetector.resolveGenmonFontSizes(1080))
+        org.junit.Assert.assertEquals(16 to 15, DisplayResolutionDetector.resolveGenmonFontSizes(1440))
+
+        // 4K and higher clamps to 22 / 20 baseline
+        org.junit.Assert.assertEquals(22 to 20, DisplayResolutionDetector.resolveGenmonFontSizes(2160))
+        org.junit.Assert.assertEquals(22 to 20, DisplayResolutionDetector.resolveGenmonFontSizes(4320))
+    }
+
+    @Test
+    fun `parseXrandrHeight extracts height from connected monitor or screen line`() {
+        val xrandrOutput = """
+            Screen 0: minimum 320 x 200, current 1280 x 720, maximum 16384 x 16384
+            HDMI-A-0 connected 1280x720+0+0 (normal left inverted right x axis y axis) 708mm x 398mm
+               1280x720      60.00*
+        """.trimIndent()
+        org.junit.Assert.assertEquals(720, DisplayResolutionDetector.parseXrandrHeight(xrandrOutput))
+
+        val xrandr4k = """
+            Screen 0: minimum 320 x 200, current 3840 x 2160, maximum 16384 x 16384
+            DP-1 connected primary 3840x2160+0+0 (normal left inverted right x axis y axis) 600mm x 340mm
+        """.trimIndent()
+        org.junit.Assert.assertEquals(2160, DisplayResolutionDetector.parseXrandrHeight(xrandr4k))
+    }
+
+    @Test
+    fun `parseXwininfoHeight extracts height correctly`() {
+        val xwininfoOutput = """
+            xwininfo: Window id: 0x25c (the root window) (has no name)
+              Width: 1280
+              Height: 720
+              Depth: 24
+        """.trimIndent()
+        org.junit.Assert.assertEquals(720, DisplayResolutionDetector.parseXwininfoHeight(xwininfoOutput))
+    }
 }

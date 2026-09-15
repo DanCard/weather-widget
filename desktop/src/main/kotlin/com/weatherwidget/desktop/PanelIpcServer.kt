@@ -135,12 +135,15 @@ class PanelIpcServer(
         val displayTemp = if (useCelsius && temp != null) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(temp) else temp
         val body = if (displayTemp != null) String.format(Locale.US, "%.1f°", displayTemp) else "--"
 
+        val screenHeight = DisplayResolutionDetector.currentScreenHeight()
+        val (tempSize, deltaSize) = DisplayResolutionDetector.resolveGenmonFontSizes(screenHeight)
+
         // The distributable can be deleted out from under us (a clean/rebuild) while this daemon
         // keeps running on its deleted inode. We still serve fresh data here, but the daemon can no
         // longer spawn the popup, so every genmon click fails silently. Surface that on the panel
         // itself (and rewire the click to explain the fix) instead of leaving the user guessing.
         if (isUiLauncherMissing()) {
-            return missingLauncherMarkup(body)
+            return missingLauncherMarkup(body, tempSize, deltaSize)
         }
 
         val isStale = dataStatus is DataStatus.Stale
@@ -173,7 +176,7 @@ class PanelIpcServer(
         val showTrigger = appDataDir.resolve(".show").toAbsolutePath().toString()
         val clickCmd = "touch $showTrigger"
 
-        return buildPanelMarkup(body, color, deltaText, tooltip, clickCmd)
+        return buildPanelMarkup(body, color, deltaText, tooltip, clickCmd, tempSize, deltaSize)
     }
 
     private fun formatRelativeTime(epochMs: Long): String {
@@ -196,6 +199,9 @@ class PanelIpcServer(
         const val DELTA_COLOR = "#FF6B35"  // orange, matches the popup header delta
         const val WARN_COLOR = "#FF3333"   // red, for "app files removed — restart needed"
 
+        const val DEFAULT_TEMP_FONT_SIZE = 22
+        const val DEFAULT_DELTA_FONT_SIZE = 20
+
         /**
          * Panel markup shown when the UI launcher binary was deleted (see [isUiLauncherMissing]).
          * Keeps the live temperature but flags it with a red ⚠, explains the fix in the tooltip, and
@@ -207,23 +213,48 @@ class PanelIpcServer(
          * Placeholder for when the markup has never rendered successfully. Mirrors the panel
          * client's own fallback so the two agree on what "no data" looks like.
          */
-        internal fun unavailableMarkup(): String = buildPanelMarkup(
-            body = "--",
-            color = STALE_COLOR,
-            deltaText = null,
-            tooltip = "Weather Widget: no data",
-            clickCmd = "#",
-        )
+        internal fun unavailableMarkup(
+            tempFontSize: Int? = null,
+            deltaFontSize: Int? = null,
+        ): String {
+            val (tempSize, deltaSize) = if (tempFontSize != null && deltaFontSize != null) {
+                tempFontSize to deltaFontSize
+            } else {
+                DisplayResolutionDetector.resolveGenmonFontSizes(DisplayResolutionDetector.currentScreenHeight())
+            }
+            return buildPanelMarkup(
+                body = "--",
+                color = STALE_COLOR,
+                deltaText = null,
+                tooltip = "Weather Widget: no data",
+                clickCmd = "#",
+                tempFontSize = tempSize,
+                deltaFontSize = deltaSize,
+            )
+        }
 
-        internal fun missingLauncherMarkup(body: String): String = buildPanelMarkup(
-            body = "$body ⚠",
-            color = WARN_COLOR,
-            deltaText = null,
-            tooltip = "Weather Widget: app files were removed — rebuild and restart " +
-                "(scripts/buildStart-desktop.sh)",
-            clickCmd = "notify-send -u critical -a 'Weather Widget' 'Weather Widget' " +
-                "'App files were removed. Rebuild and restart: scripts/buildStart-desktop.sh'",
-        )
+        internal fun missingLauncherMarkup(
+            body: String,
+            tempFontSize: Int? = null,
+            deltaFontSize: Int? = null,
+        ): String {
+            val (tempSize, deltaSize) = if (tempFontSize != null && deltaFontSize != null) {
+                tempFontSize to deltaFontSize
+            } else {
+                DisplayResolutionDetector.resolveGenmonFontSizes(DisplayResolutionDetector.currentScreenHeight())
+            }
+            return buildPanelMarkup(
+                body = "$body ⚠",
+                color = WARN_COLOR,
+                deltaText = null,
+                tooltip = "Weather Widget: app files were removed — rebuild and restart " +
+                    "(scripts/buildStart-desktop.sh)",
+                clickCmd = "notify-send -u critical -a 'Weather Widget' 'Weather Widget' " +
+                    "'App files were removed. Rebuild and restart: scripts/buildStart-desktop.sh'",
+                tempFontSize = tempSize,
+                deltaFontSize = deltaSize,
+            )
+        }
 
         /**
          * Builds the genmon Pango markup. Pure (no I/O) so the delta logic is unit-testable.
@@ -236,12 +267,14 @@ class PanelIpcServer(
             deltaText: String?,
             tooltip: String,
             clickCmd: String,
+            tempFontSize: Int = DEFAULT_TEMP_FONT_SIZE,
+            deltaFontSize: Int = DEFAULT_DELTA_FONT_SIZE,
         ): String {
             val deltaSpan = if (deltaText != null) {
-                "<span font='Sans Bold 20' foreground='$DELTA_COLOR' line_height='0.6'> $deltaText</span>"
+                "<span font='Sans Bold $deltaFontSize' foreground='$DELTA_COLOR' line_height='0.6'> $deltaText</span>"
             } else ""
             return """
-                <txt><span font='Sans Bold 22' foreground='$color' line_height='0.6'>$body</span>$deltaSpan</txt>
+                <txt><span font='Sans Bold $tempFontSize' foreground='$color' line_height='0.6'>$body</span>$deltaSpan</txt>
                 <tool>$tooltip</tool>
                 <txtclick>$clickCmd</txtclick>
             """.trimIndent()

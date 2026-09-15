@@ -73,7 +73,7 @@ int main() {
 
 fallback:
     // Grayed out "--" with a clear tooltip if the app isn't serving data.
-    printf("<txt><span font='Sans Bold 20' foreground='#888888' line_height='0.6'>--</span></txt>\n");
+    printf("<txt><span font='Sans Bold 10' foreground='#888888' line_height='0.6'>--</span></txt>\n");
     printf("<tool>Weather Widget: App not running</tool>\n");
     printf("<txtclick>#</txtclick>\n");
     return 0;
