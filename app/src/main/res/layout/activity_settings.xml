@@ -80,6 +80,53 @@
                     android:textSize="14sp" />
             </com.google.android.flexbox.FlexboxLayout>
 
+            <!-- Default Location Section -->
+            <LinearLayout
+                android:id="@+id/location_settings_section"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp"
+                    android:text="@string/default_location_title"
+                    android:tag="settings_section"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_surface_card"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/current_location_label"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/widget_text_secondary"
+                        android:textSize="14sp"
+                        android:layout_marginBottom="12dp"
+                        android:text="@string/no_location_set" />
+
+                    <Button
+                        android:id="@+id/set_location_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/rounded_button_green"
+                        android:paddingTop="16dp"
+                        android:paddingBottom="16dp"
+                        android:text="@string/set_location_button"
+                        android:textColor="#1A1A1A"
+                        android:textSize="21sp" />
+                </LinearLayout>
+            </LinearLayout>
+
             <!-- Hourly Zoom Section -->
             <TextView
                 android:layout_width="wrap_content"
@@ -440,54 +487,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
-
-            <!-- Default Location Section -->
-            <LinearLayout
-                android:id="@+id/location_settings_section"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:layout_marginBottom="8dp"
-                    android:text="@string/default_location_title"
-                    android:tag="settings_section"
-                    android:textColor="@color/widget_text_primary"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="24dp"
-                    android:background="@drawable/bg_surface_card"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:id="@+id/current_location_label"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/widget_text_secondary"
-                        android:textSize="14sp"
-                        android:layout_marginBottom="12dp"
-                        android:text="@string/no_location_set" />
-
-                    <Button
-                        android:id="@+id/set_location_button"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/rounded_button_green"
-                        android:paddingTop="16dp"
-                        android:paddingBottom="16dp"
-                        android:text="@string/set_location_button"
-                        android:textColor="#1A1A1A"
-                        android:textSize="21sp" />
-                </LinearLayout>
-            </LinearLayout>
 
             <!-- Icon Gallery Section -->
             <TextView

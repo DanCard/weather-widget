@@ -278,6 +278,7 @@ val validateDesktopTestCategories by tasks.registering {
 
 tasks.withType<Test>().configureEach {
     dependsOn(validateDesktopTestCategories)
+    systemProperty("user.timezone", "America/Los_Angeles")
 }
 
 desktopTestCategoryBuckets.forEach { (bucketName, categoryClassName) ->

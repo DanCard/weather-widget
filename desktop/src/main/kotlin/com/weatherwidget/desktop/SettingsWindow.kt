@@ -214,6 +214,46 @@ internal fun SettingsWindow(
                             .verticalScroll(scrollState)
                             .padding(16.dp)
                     ) {
+                        // Location
+                        // Phase 4 item 4: enrich the label with a reverse-geocoded place name from
+                        // the shared resolver. The raw config.label stays as the immediate display
+                        // value while the lookup runs (and as a fallback if it fails).
+                        // Title, line and button copy follow Android's R.string.default_location_title /
+                        // no_location_set / set_location_button. Android appends "• Follows device" or
+                        // "• Fixed"; the desktop has no location mode, so the line ends at the coordinates.
+                        SettingsCard(title = SettingsSection.DEFAULT_LOCATION.title) {
+                            var locationLabel by remember(currentConfig.label, currentConfig.lat, currentConfig.lon) {
+                                mutableStateOf(currentConfig.label.ifEmpty { "No location set" })
+                            }
+                            val resolver = locationResolver
+                            if (resolver != null && currentConfig.label.isNotBlank()) {
+                                LaunchedEffect(currentConfig.lat, currentConfig.lon) {
+                                    val friendly = runCatching {
+                                        resolver.friendlyName(currentConfig.lat, currentConfig.lon)
+                                    }.getOrNull()
+                                    if (!friendly.isNullOrBlank()) {
+                                        locationLabel = "$friendly (${formatCoord(currentConfig.lat)}, ${formatCoord(currentConfig.lon)})"
+                                    }
+                                }
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = if (currentConfig.label.isEmpty()) locationLabel else "Widget Location: $locationLabel",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                )
+                                PrimaryActionProminentButton(
+                                    text = "Set Location…",
+                                    onClick = onUpdateLocation,
+                                    modifier = Modifier.testTag("set_location_btn"),
+                                )
+                            }
+                        }
+
                         // Hourly Zoom -- matches Android's R.string.hourly_zoom_title, and sits
                         // directly above Personal Weather Stations on both platforms.
                         SettingsCard(title = SettingsSection.HOURLY_ZOOM.title) {
@@ -317,46 +357,6 @@ internal fun SettingsWindow(
                                     }
                                 },
                             )
-                        }
-
-                        // Location
-                        // Phase 4 item 4: enrich the label with a reverse-geocoded place name from
-                        // the shared resolver. The raw config.label stays as the immediate display
-                        // value while the lookup runs (and as a fallback if it fails).
-                        // Title, line and button copy follow Android's R.string.default_location_title /
-                        // no_location_set / set_location_button. Android appends "• Follows device" or
-                        // "• Fixed"; the desktop has no location mode, so the line ends at the coordinates.
-                        SettingsCard(title = SettingsSection.DEFAULT_LOCATION.title) {
-                            var locationLabel by remember(currentConfig.label, currentConfig.lat, currentConfig.lon) {
-                                mutableStateOf(currentConfig.label.ifEmpty { "No location set" })
-                            }
-                            val resolver = locationResolver
-                            if (resolver != null && currentConfig.label.isNotBlank()) {
-                                LaunchedEffect(currentConfig.lat, currentConfig.lon) {
-                                    val friendly = runCatching {
-                                        resolver.friendlyName(currentConfig.lat, currentConfig.lon)
-                                    }.getOrNull()
-                                    if (!friendly.isNullOrBlank()) {
-                                        locationLabel = "$friendly (${formatCoord(currentConfig.lat)}, ${formatCoord(currentConfig.lon)})"
-                                    }
-                                }
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = if (currentConfig.label.isEmpty()) locationLabel else "Widget Location: $locationLabel",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    modifier = Modifier.weight(1f).padding(end = 8.dp),
-                                )
-                                PrimaryActionProminentButton(
-                                    text = "Set Location…",
-                                    onClick = onUpdateLocation,
-                                    modifier = Modifier.testTag("set_location_btn"),
-                                )
-                            }
                         }
 
                         // Icon gallery -- Android: R.string.icon_preview_title / _description +

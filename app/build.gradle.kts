@@ -259,6 +259,7 @@ tasks.withType<Test> {
         "-XX:CompileCommand=exclude,android.database.sqlite.SQLiteProgram::<init>",
         "-XX:CompileCommand=exclude,androidx.room.driver.SupportSQLitePooledConnection::usePrepared",
     )
+    systemProperty("user.timezone", "America/Los_Angeles")
     testLogging {
         events("passed", "skipped", "failed", "standardOut", "standardError")
         showStandardStreams = true

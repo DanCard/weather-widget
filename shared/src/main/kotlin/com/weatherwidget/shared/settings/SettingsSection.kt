@@ -29,13 +29,13 @@ enum class SettingsSection(
     /** Which platforms show it. A one-sided section is a declaration here, never an accident. */
     val platforms: Set<Platform> = setOf(Platform.ANDROID, Platform.DESKTOP),
 ) {
+    DEFAULT_LOCATION("Default Location"),
     HOURLY_ZOOM("Hourly Zoom"),
     NOTIFICATIONS("Notifications"),
     UNITS("Units"),
     TODAY_COLUMN("Daily View — Today Column"),
     PERSONAL_STATIONS("Personal Weather Stations"),
     WEATHER_SOURCES("Weather Data Sources"),
-    DEFAULT_LOCATION("Default Location"),
     ICON_GALLERY("Icon gallery"),
     /** The desktop ships no translations (user-facing text cannot live in `:shared`), so no picker. */
     LANGUAGE("Language", platforms = setOf(Platform.ANDROID)),

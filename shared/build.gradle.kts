@@ -103,6 +103,7 @@ val validateSharedTestCategories by tasks.registering {
 
 tasks.withType<Test>().configureEach {
     dependsOn(validateSharedTestCategories)
+    systemProperty("user.timezone", "America/Los_Angeles")
 }
 
 sharedTestCategoryBuckets.forEach { (bucketName, categoryClassName) ->
