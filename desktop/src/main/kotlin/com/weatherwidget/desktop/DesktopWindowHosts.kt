@@ -44,6 +44,7 @@ internal fun LocationPickerWindowHost(
     isFirstLaunch: Boolean,
     recentLocations: List<RecentLocation> = emptyList(),
     icon: Painter,
+    showRequestId: Int = 0,
     onClose: () -> Unit,
     onResolved: (DesktopConfig) -> Unit,
 ) {
@@ -70,6 +71,11 @@ internal fun LocationPickerWindowHost(
             }
         },
     ) {
+        BringToFrontOnShow(
+            window = window,
+            windowState = windowState,
+            showRequestId = showRequestId,
+        )
         LocationPicker(
             resolver = locationResolver,
             allowAutoSelect = isFirstLaunch,
@@ -89,6 +95,7 @@ internal fun LocationPickerWindowHost(
 @Composable
 internal fun IconGalleryWindowHost(
     icon: Painter,
+    showRequestId: Int = 0,
     onClose: () -> Unit,
 ) {
     val windowState = rememberWindowState(
@@ -110,6 +117,11 @@ internal fun IconGalleryWindowHost(
             }
         },
     ) {
+        BringToFrontOnShow(
+            window = window,
+            windowState = windowState,
+            showRequestId = showRequestId,
+        )
         MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -132,6 +144,7 @@ internal fun SettingsWindowHost(
     isRefreshing: Boolean,
     weatherDao: DesktopWeatherDao,
     locationResolver: SharedLocationResolver,
+    showRequestId: Int = 0,
     onSaveConfig: (DesktopConfig, String) -> Unit,
     onClose: () -> Unit,
     onExit: () -> Unit,
@@ -187,10 +200,11 @@ internal fun SettingsWindowHost(
             }
         },
     ) {
-        LaunchedEffect(Unit) {
-            window.toFront()
-            window.requestFocus()
-        }
+        BringToFrontOnShow(
+            window = window,
+            windowState = windowState,
+            showRequestId = showRequestId,
+        )
         SettingsWindow(
             config = config,
             onClose = ::closeSettings,
@@ -287,14 +301,12 @@ internal fun PopupWindowHost(
         LaunchedEffect(Unit) { Log.i(TAG, "Window composed/visible now") }
         LaunchedEffect(showRequestId) {
             Log.i(TAG, "Window show request received: showRequestId=$showRequestId")
-            if (windowState.isMinimized) windowState.isMinimized = false
-            val frameState = window.extendedState
-            if ((frameState and java.awt.Frame.ICONIFIED) != 0) {
-                window.extendedState = java.awt.Frame.NORMAL
-            }
-            window.toFront()
-            window.requestFocus()
         }
+        BringToFrontOnShow(
+            window = window,
+            windowState = windowState,
+            showRequestId = showRequestId,
+        )
         WidgetPopup(
             config = config,
             forecast = forecast,

@@ -128,8 +128,11 @@ internal fun runDesktopUiApplication() = application {
             Log.i(TAG, "config loaded: config != null is ${config != null}")
         }
         var pickerVisible by remember { mutableStateOf(config == null) }
+        var pickerShowRequestId by remember { mutableStateOf(0) }
         var settingsVisible by remember { mutableStateOf(false) }
+        var settingsShowRequestId by remember { mutableStateOf(0) }
         var statsVisible by remember { mutableStateOf(false) }
+        var statsShowRequestId by remember { mutableStateOf(0) }
         var historyVisible by remember { mutableStateOf(false) }
         var historyShowRequestId by remember { mutableStateOf(0) }
         // Day the forecast-history window opens on. Seeded from the hourly graph's viewed center
@@ -139,7 +142,9 @@ internal fun runDesktopUiApplication() = application {
         var observationsVisible by remember { mutableStateOf(false) }
         var obsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
+        var appLogsShowRequestId by remember { mutableStateOf(0) }
         var iconGalleryVisible by remember { mutableStateOf(false) }
+        var iconGalleryShowRequestId by remember { mutableStateOf(0) }
         // Owned here rather than in either child window: full refresh work runs on uiScope and
         // survives closing Settings or Stations/Observations.
         var refreshInFlight by remember { mutableStateOf(false) }
@@ -675,6 +680,7 @@ internal fun runDesktopUiApplication() = application {
             StatisticsWindow(
                 weatherDao = weatherDao,
                 config = currentConfig,
+                showRequestId = statsShowRequestId,
                 onClose = { statsVisible = false },
             )
         }
@@ -708,13 +714,18 @@ internal fun runDesktopUiApplication() = application {
         }
 
         if (iconGalleryVisible) {
-            IconGalleryWindowHost(icon = appIcon, onClose = { iconGalleryVisible = false })
+            IconGalleryWindowHost(
+                icon = appIcon,
+                showRequestId = iconGalleryShowRequestId,
+                onClose = { iconGalleryVisible = false },
+            )
         }
 
         if (appLogsVisible) {
             AppLogsWindow(
                 weatherDao = weatherDao,
-                onClose = { appLogsVisible = false }
+                showRequestId = appLogsShowRequestId,
+                onClose = { appLogsVisible = false },
             )
         }
 
@@ -724,11 +735,13 @@ internal fun runDesktopUiApplication() = application {
                 isFirstLaunch = config == null,
                 recentLocations = config?.recentLocations ?: emptyList(),
                 icon = appIcon,
+                showRequestId = pickerShowRequestId,
                 onClose = { pickerVisible = false },
                 onResolved = { saved ->
                     saveConfigAndNotify(saved, "location-picker")
                     pickerVisible = false
                     popupVisible = true
+                    showRequestId++
                 },
             )
         }
@@ -740,13 +753,23 @@ internal fun runDesktopUiApplication() = application {
                 isRefreshing = refreshInFlight,
                 weatherDao = weatherDao,
                 locationResolver = sharedLocationResolver,
+                showRequestId = settingsShowRequestId,
                 onSaveConfig = saveConfigAndNotify,
                 onClose = { settingsVisible = false },
                 onExit = { quit() },
-                onUpdateLocation = { pickerVisible = true },
-                onOpenIconGallery = { iconGalleryVisible = true },
+                onUpdateLocation = {
+                    pickerVisible = true
+                    pickerShowRequestId++
+                },
+                onOpenIconGallery = {
+                    iconGalleryVisible = true
+                    iconGalleryShowRequestId++
+                },
                 onRefreshData = { requestFullRefresh("settings") },
-                onViewAppLogs = { appLogsVisible = true },
+                onViewAppLogs = {
+                    appLogsVisible = true
+                    appLogsShowRequestId++
+                },
             )
         }
 
@@ -763,12 +786,14 @@ internal fun runDesktopUiApplication() = application {
                 onUpdateLocation = {
                     popupVisible = false
                     pickerVisible = true
+                    pickerShowRequestId++
                 },
                 onUpdateConfig = { newConfig ->
                     saveConfigAndNotify(newConfig, "popup")
                 },
                 onOpenSettings = {
                     settingsVisible = true
+                    settingsShowRequestId++
                 },
                 onOpenObservations = {
                     observationsVisible = true

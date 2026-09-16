@@ -228,22 +228,11 @@ internal fun ObservationsWindow(
             }
         }
     ) {
-        LaunchedEffect(Unit) {
-            window.toFront()
-            window.requestFocus()
-        }
-        // Bring to front on every new show request (incremented showRequestId)
-        LaunchedEffect(showRequestId) {
-            if (state.isMinimized) {
-                state.isMinimized = false
-            }
-            val frameState = window.extendedState
-            if ((frameState and java.awt.Frame.ICONIFIED) != 0) {
-                window.extendedState = java.awt.Frame.NORMAL
-            }
-            window.toFront()
-            window.requestFocus()
-        }
+        BringToFrontOnShow(
+            window = window,
+            windowState = state,
+            showRequestId = showRequestId,
+        )
         var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.settings.weatherSource)) }
         var observations by remember { mutableStateOf<List<ObservationReading>>(emptyList()) }
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }

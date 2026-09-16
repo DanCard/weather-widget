@@ -27,6 +27,7 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun AppLogsWindow(
     weatherDao: DesktopWeatherDao,
+    showRequestId: Int = 0,
     onClose: () -> Unit
 ) {
     val state = rememberSanitizedWindowState(
@@ -52,10 +53,11 @@ internal fun AppLogsWindow(
             }
         }
     ) {
-        LaunchedEffect(Unit) {
-            window.toFront()
-            window.requestFocus()
-        }
+        BringToFrontOnShow(
+            window = window,
+            windowState = state,
+            showRequestId = showRequestId,
+        )
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
         var filterQuery by remember { mutableStateOf("") }
         val scope = rememberCoroutineScope()

@@ -35,6 +35,7 @@ import kotlin.math.roundToInt
 internal fun StatisticsWindow(
     weatherDao: DesktopWeatherDao,
     config: DesktopConfig,
+    showRequestId: Int = 0,
     onClose: () -> Unit,
 ) {
     val state = rememberWindowState(
@@ -55,6 +56,11 @@ internal fun StatisticsWindow(
             }
         }
     ) {
+        BringToFrontOnShow(
+            window = window,
+            windowState = state,
+            showRequestId = showRequestId,
+        )
         val source = config.settings.weatherSource
         var loading by remember { mutableStateOf(true) }
         var stats by remember { mutableStateOf<AccuracyPure.AccuracyStatistics?>(null) }

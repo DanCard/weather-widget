@@ -123,13 +123,11 @@ internal fun ForecastHistoryWindow(
             }
         }
     ) {
-        LaunchedEffect(Unit) {
-            window.toFront()
-            window.requestFocus()
-        }
-        LaunchedEffect(showRequestId) {
-            if (showRequestId > 0) window.toFront()
-        }
+        BringToFrontOnShow(
+            window = window,
+            windowState = state,
+            showRequestId = showRequestId,
+        )
         val visibleSources = remember(config.settings.visibleSources) {
             config.settings.visibleSources.map { WeatherSource.fromId(it) }.ifEmpty { listOf(WeatherSource.NWS) }
         }
