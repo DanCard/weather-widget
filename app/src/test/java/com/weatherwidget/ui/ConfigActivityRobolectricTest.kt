@@ -298,6 +298,40 @@ class ConfigActivityRobolectricTest {
     }
 
     @Test
+    fun `hitting enter or search IME action in location search input triggers search`() {
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        }
+        val scenario = ActivityScenario.launch<ConfigActivity>(intent)
+
+        val mockResolver = mockk<SharedLocationResolver>()
+        coEvery { mockResolver.searchText("Austin") } returns listOf(
+            ResolvedLocation(lat = 30.2672, lon = -97.7431, label = "Austin, TX", source = "Nominatim")
+        )
+
+        scenario.onActivity { activity ->
+            activity.sharedLocationResolver = mockResolver
+            val searchInput = activity.findViewById<android.widget.AutoCompleteTextView>(R.id.location_search_input)
+            searchInput.setText("Austin")
+            searchInput.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH)
+        }
+
+        shadowOf(context.mainLooper).idle()
+
+        scenario.onActivity {
+            val dialog = ShadowDialog.getLatestDialog() as androidx.appcompat.app.AlertDialog
+            assertNotNull(dialog)
+            dialog.listView.performItemClick(dialog.listView, 0, 0)
+        }
+
+        shadowOf(context.mainLooper).idle()
+
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        assertEquals(30.2672f, prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$widgetId", Float.NaN), 0.0001f)
+        assertEquals(-97.7431f, prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$widgetId", Float.NaN), 0.0001f)
+    }
+
+    @Test
     fun `initial widget setup auto-starts the precise location flow`() {
         val intent = Intent(context, ConfigActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
@@ -478,6 +512,72 @@ class ConfigActivityRobolectricTest {
         scenario.onActivity { activity ->
             assertTrue(activity.isFinishing)
             assertEquals(Activity.RESULT_OK, shadowOf(activity).resultCode)
+        }
+    }
+
+    @Test
+    fun `recent locations are wired to search autocomplete and clicking item saves location`() {
+        bindWidget(9001, 37.422, -122.084)
+        val stateManager = WidgetStateManager(context)
+        stateManager.addRecentLocation(com.weatherwidget.data.model.RecentLocation(49.8420, 24.0316, "Lviv, Ukraine"))
+        stateManager.addRecentLocation(com.weatherwidget.data.model.RecentLocation(50.4501, 30.5234, "Kyiv, Ukraine"))
+
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(ConfigActivity.EXTRA_GLOBAL_CONFIG, true)
+        }
+        val scenario = ActivityScenario.launch<ConfigActivity>(intent)
+
+        val mockResolver = mockk<SharedLocationResolver>()
+        coEvery { mockResolver.friendlyName(any(), any()) } returns "Kyiv"
+
+        scenario.onActivity { activity ->
+            activity.sharedLocationResolver = mockResolver
+            val searchInput = activity.findViewById<android.widget.AutoCompleteTextView>(R.id.location_search_input)
+            val adapter = searchInput.adapter
+            assertNotNull(adapter)
+            assertEquals(2, adapter.count)
+
+            // Simulate clicking on the first item (Kyiv, Ukraine)
+            searchInput.onItemClickListener?.onItemClick(null, null, 0, 0)
+        }
+
+        shadowOf(context.mainLooper).idle()
+
+        scenario.onActivity { activity ->
+            assertTrue(activity.isFinishing)
+            val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+            assertEquals(50.4501f, prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}9001", Float.NaN), 0.001f)
+            assertEquals(30.5234f, prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}9001", Float.NaN), 0.001f)
+        }
+    }
+
+    @Test
+    fun `recent locations autocomplete refreshes dynamically on resume`() {
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearRecentLocations()
+
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(ConfigActivity.EXTRA_GLOBAL_CONFIG, true)
+        }
+        val scenario = ActivityScenario.launch<ConfigActivity>(intent)
+
+        scenario.onActivity { activity ->
+            val searchInput = activity.findViewById<android.widget.AutoCompleteTextView>(R.id.location_search_input)
+            val adapter = searchInput.adapter
+            assertNotNull(adapter)
+            assertEquals(0, adapter.count)
+
+            stateManager.addRecentLocation(com.weatherwidget.data.model.RecentLocation(49.8420, 24.0316, "Lviv, Ukraine"))
+        }
+
+        scenario.moveToState(androidx.lifecycle.Lifecycle.State.STARTED)
+        scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+
+        scenario.onActivity { activity ->
+            val searchInput = activity.findViewById<android.widget.AutoCompleteTextView>(R.id.location_search_input)
+            val adapter = searchInput.adapter
+            assertNotNull(adapter)
+            assertEquals(1, adapter.count)
         }
     }
 

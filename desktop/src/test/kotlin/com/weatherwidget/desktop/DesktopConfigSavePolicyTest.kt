@@ -112,6 +112,22 @@ class DesktopConfigSavePolicyTest {
         assertEquals(persisted.settings.visibleSources, result.config.settings.visibleSources)
     }
 
+    @Test
+    fun `location picker save preserves and updates recent locations`() {
+        val kyiv = com.weatherwidget.data.model.RecentLocation(50.45, 30.52, "Kyiv")
+        val persisted = config(source = "NWS").copy(recentLocations = listOf(kyiv))
+        val lviv = com.weatherwidget.data.model.RecentLocation(49.84, 24.03, "Lviv")
+        val updatedRecents = com.weatherwidget.shared.util.RecentLocationsHelper.addRecent(persisted.recentLocations, lviv)
+        val lvivConfig = ResolvedLocation(lat = 49.84, lon = 24.03, label = "Lviv", source = "Nominatim")
+            .toConfig()
+            .copy(recentLocations = updatedRecents)
+
+        val result = resolveDesktopConfigSave(persisted, lvivConfig, source = "location-picker")
+        assertEquals(2, result.config.recentLocations.size)
+        assertEquals("Lviv", result.config.recentLocations[0].label)
+        assertEquals("Kyiv", result.config.recentLocations[1].label)
+    }
+
     private fun config(
         source: String = "NWS",
         narrowSpan: Int = 6,

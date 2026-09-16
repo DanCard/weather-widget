@@ -3,7 +3,9 @@ package com.weatherwidget.widget
 import android.content.Context
 import android.content.SharedPreferences
 import com.weatherwidget.BuildConfig
+import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.RecentLocationsHelper
 import com.weatherwidget.util.SharedPreferencesUtil
 import java.time.LocalDateTime
 import javax.inject.Singleton
@@ -411,6 +413,27 @@ class WidgetStateManager internal constructor(
         prefs.edit().remove(KEY_PENDING_LOCATION_FETCH).apply()
     }
 
+    fun getRecentLocations(): List<RecentLocation> {
+        val raw = prefs.getString(KEY_RECENT_LOCATIONS, null)
+        return RecentLocationsHelper.decodeFromJson(raw)
+    }
+
+    fun addRecentLocation(location: RecentLocation) {
+        val current = getRecentLocations()
+        val updated = RecentLocationsHelper.addRecent(current, location)
+        prefs.edit().putString(KEY_RECENT_LOCATIONS, RecentLocationsHelper.encodeToJson(updated)).apply()
+    }
+
+    fun removeRecentLocation(location: RecentLocation) {
+        val current = getRecentLocations()
+        val updated = RecentLocationsHelper.removeRecent(current, location)
+        prefs.edit().putString(KEY_RECENT_LOCATIONS, RecentLocationsHelper.encodeToJson(updated)).apply()
+    }
+
+    fun clearRecentLocations() {
+        prefs.edit().remove(KEY_RECENT_LOCATIONS).apply()
+    }
+
     fun getSourceFailureCount(source: WeatherSource): Int =
         fetchStateStore.sourceFailureCount(source)
 
@@ -467,6 +490,9 @@ class WidgetStateManager internal constructor(
 
         /** Global: place name of a setup-screen location change whose first fetch has not landed. */
         const val KEY_PENDING_LOCATION_FETCH = "widget_pending_location_fetch"
+
+        /** Global: JSON array of recent locations. */
+        const val KEY_RECENT_LOCATIONS = "recent_locations"
 
         const val SOURCE_FAILURE_WATERMARK_THRESHOLD = 3
         const val DEFAULT_PERSONAL_STATION_DISCOUNT = 95

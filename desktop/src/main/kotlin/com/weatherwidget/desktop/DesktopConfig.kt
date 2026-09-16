@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.graph.ZoomStage
@@ -108,6 +109,7 @@ data class DesktopConfig(
     val lat: Double,
     val lon: Double,
     val label: String,
+    val recentLocations: List<RecentLocation> = emptyList(),
     // Settings-window-owned fields, nested so a non-settings writer can preserve them as a unit.
     val settings: DesktopSettings = DesktopSettings(),
     val viewMode: ViewMode = ViewMode.DAILY,

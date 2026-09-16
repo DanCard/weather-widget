@@ -31,6 +31,8 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
+import com.weatherwidget.data.model.RecentLocation
+import com.weatherwidget.shared.util.RecentLocationsHelper
 import com.weatherwidget.shared.util.Log
 import java.time.LocalDate
 
@@ -40,6 +42,7 @@ private const val TAG = "Main"
 internal fun LocationPickerWindowHost(
     locationResolver: LocationResolver,
     isFirstLaunch: Boolean,
+    recentLocations: List<RecentLocation> = emptyList(),
     icon: Painter,
     onClose: () -> Unit,
     onResolved: (DesktopConfig) -> Unit,
@@ -67,8 +70,14 @@ internal fun LocationPickerWindowHost(
             }
         },
     ) {
-        LocationPicker(locationResolver, allowAutoSelect = isFirstLaunch) { resolved ->
-            onResolved(resolved.toConfig())
+        LocationPicker(
+            resolver = locationResolver,
+            allowAutoSelect = isFirstLaunch,
+            recentLocations = recentLocations,
+        ) { resolved ->
+            val newRecent = RecentLocation(lat = resolved.lat, lon = resolved.lon, label = resolved.label)
+            val updatedRecents = RecentLocationsHelper.addRecent(recentLocations, newRecent)
+            onResolved(resolved.toConfig().copy(recentLocations = updatedRecents))
         }
     }
 }

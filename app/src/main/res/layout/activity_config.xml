@@ -104,7 +104,7 @@
                 android:textSize="14sp"
                 android:layout_marginBottom="12dp" />
 
-            <EditText
+            <AutoCompleteTextView
                 android:id="@+id/location_search_input"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -112,6 +112,12 @@
                 android:textColor="#FFFFFF"
                 android:textColorHint="#666666"
                 android:inputType="textPostalAddress"
+                android:imeOptions="actionSearch"
+                android:singleLine="true"
+                android:completionThreshold="0"
+                android:dropDownWidth="match_parent"
+                android:dropDownVerticalOffset="4dp"
+                android:popupBackground="@drawable/bg_surface_card"
                 android:layout_marginBottom="16dp" />
 
             <Button

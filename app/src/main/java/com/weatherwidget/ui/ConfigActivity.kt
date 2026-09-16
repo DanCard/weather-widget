@@ -14,10 +14,17 @@ import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import com.weatherwidget.data.model.RecentLocation
+import com.weatherwidget.shared.util.RecentLocationsHelper
 import com.weatherwidget.util.SharedPreferencesUtil
+import android.view.KeyEvent
+import android.view.inputmethod.EditorInfo
 import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.EditText
+import android.widget.Filter
+import android.widget.Filterable
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -94,6 +101,7 @@ class ConfigActivity : AppCompatActivity() {
     /** Guards the one-time setup network decision and duplicate save taps. */
     private var saveInProgress = false
     private var saveJob: Job? = null
+    private var recentAdapter: RecentLocationAdapter? = null
 
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
@@ -163,11 +171,13 @@ class ConfigActivity : AppCompatActivity() {
 
     private fun setupViews() {
         val useGpsButton = findViewById<Button>(R.id.use_gps_button)
-        val searchInput = findViewById<EditText>(R.id.location_search_input)
+        val searchInput = findViewById<AutoCompleteTextView>(R.id.location_search_input)
         val searchButton = findViewById<Button>(R.id.search_location_button)
         val latInput = findViewById<EditText>(R.id.lat_input)
         val lonInput = findViewById<EditText>(R.id.lon_input)
         val useCoordinatesButton = findViewById<Button>(R.id.use_coordinates_button)
+
+        setupRecentLocationsAutocomplete(searchInput)
 
         findViewById<TextView>(R.id.current_location_label).text =
             LocationUpdater.describeCurrentLocation(this)
@@ -235,6 +245,18 @@ class ConfigActivity : AppCompatActivity() {
                         .setNegativeButton(android.R.string.cancel, null)
                         .show()
                 }
+            }
+        }
+
+        searchInput.setOnEditorActionListener { _, actionId, event ->
+            val isEnter = event != null && event.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || isEnter) {
+                if (searchButton.isEnabled) {
+                    searchButton.performClick()
+                }
+                true
+            } else {
+                false
             }
         }
 
@@ -569,6 +591,9 @@ class ConfigActivity : AppCompatActivity() {
             ids = widgetIds,
         )
 
+        val recentLabel = label ?: String.format(Locale.US, "%.4f, %.4f", lat, lon)
+        widgetStateManager.addRecentLocation(RecentLocation(lat, lon, recentLabel))
+
         lifecycleScope.launch {
             appLogDao.log("CONFIG", "Widget $appWidgetId configured with lat=$lat, lon=$lon mode=$mode")
         }
@@ -578,7 +603,7 @@ class ConfigActivity : AppCompatActivity() {
         findViewById<Button>(R.id.use_gps_button)?.isEnabled = enabled
         findViewById<Button>(R.id.search_location_button)?.isEnabled = enabled
         findViewById<Button>(R.id.use_coordinates_button)?.isEnabled = enabled
-        findViewById<EditText>(R.id.location_search_input)?.isEnabled = enabled
+        findViewById<AutoCompleteTextView>(R.id.location_search_input)?.isEnabled = enabled
         findViewById<EditText>(R.id.lat_input)?.isEnabled = enabled
         findViewById<EditText>(R.id.lon_input)?.isEnabled = enabled
     }
@@ -613,6 +638,8 @@ class ConfigActivity : AppCompatActivity() {
     private fun finishGlobalSave(lat: Double, lon: Double, label: String, mode: String, friendlyName: String?) {
         // Name the place: "Location updated" alone left users unsure what was actually chosen.
         val displayName = friendlyName ?: label.takeUnless { FriendlyLocationName.isCoordinateLabel(it) }
+        val recentLabel = displayName ?: label
+        widgetStateManager.addRecentLocation(RecentLocation(lat, lon, recentLabel))
         // applyToAllWidgets enqueues its own force-refresh worker, and paints "Getting weather for
         // {place}…" on the widgets meanwhile — the same name the toast below announces.
         LocationUpdater.applyToAllWidgets(this, lat, lon, label, displayName = displayName)
@@ -762,6 +789,38 @@ class ConfigActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    override fun onResume() {
+        super.onResume()
+        recentAdapter?.updateRecents(widgetStateManager.getRecentLocations())
+    }
+
+    private fun setupRecentLocationsAutocomplete(searchInput: AutoCompleteTextView) {
+        val adapter = RecentLocationAdapter(this, widgetStateManager.getRecentLocations())
+        recentAdapter = adapter
+        searchInput.setAdapter(adapter)
+        searchInput.threshold = 0
+
+        searchInput.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus && (recentAdapter?.count ?: 0) > 0 && !isFinishing) {
+                searchInput.post {
+                    if (searchInput.hasFocus() && (recentAdapter?.count ?: 0) > 0 && !isFinishing) {
+                        searchInput.showDropDown()
+                    }
+                }
+            }
+        }
+        searchInput.setOnClickListener {
+            if ((recentAdapter?.count ?: 0) > 0 && !searchInput.isPopupShowing && !isFinishing) {
+                searchInput.showDropDown()
+            }
+        }
+        searchInput.setOnItemClickListener { _, _, position, _ ->
+            val chosen = recentAdapter?.getItem(position) ?: return@setOnItemClickListener
+            searchInput.setText(chosen.label)
+            saveChosenLocation(chosen.lat, chosen.lon, chosen.label, LocationMode.FIXED)
+        }
+    }
+
     private fun hasPermission(permission: String) =
         ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
@@ -804,6 +863,56 @@ class ConfigActivity : AppCompatActivity() {
             row.findViewById<TextView>(R.id.location_choice_coords).text =
                 String.format(Locale.US, "%.4f, %.4f", item.lat, item.lon)
             return row
+        }
+    }
+
+    private class RecentLocationAdapter(
+        context: Context,
+        private var allRecents: List<RecentLocation>,
+    ) : ArrayAdapter<RecentLocation>(context, R.layout.item_recent_location), Filterable {
+
+        private var filteredList: List<RecentLocation> = allRecents
+
+        fun updateRecents(newRecents: List<RecentLocation>) {
+            allRecents = newRecents
+            filteredList = newRecents
+            notifyDataSetChanged()
+        }
+
+        override fun getCount(): Int = filteredList.size
+        override fun getItem(position: Int): RecentLocation? = filteredList.getOrNull(position)
+
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val row = convertView
+                ?: LayoutInflater.from(context).inflate(R.layout.item_recent_location, parent, false)
+            val item = getItem(position) ?: return row
+            row.findViewById<TextView>(R.id.recent_location_label).text = item.label
+            row.findViewById<TextView>(R.id.recent_location_coords).text =
+                String.format(Locale.US, "%.4f, %.4f", item.lat, item.lon)
+            return row
+        }
+
+        override fun getFilter(): Filter {
+            return object : Filter() {
+                override fun performFiltering(constraint: CharSequence?): FilterResults {
+                    val query = constraint?.toString().orEmpty()
+                    val matches = RecentLocationsHelper.filterMatching(allRecents, query)
+                    return FilterResults().apply {
+                        values = matches
+                        count = matches.size
+                    }
+                }
+
+                @Suppress("UNCHECKED_CAST")
+                override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
+                    filteredList = (results?.values as? List<RecentLocation>) ?: emptyList()
+                    if (filteredList.isNotEmpty()) {
+                        notifyDataSetChanged()
+                    } else {
+                        notifyDataSetInvalidated()
+                    }
+                }
+            }
         }
     }
 

@@ -722,6 +722,7 @@ internal fun runDesktopUiApplication() = application {
             LocationPickerWindowHost(
                 locationResolver = locationResolver,
                 isFirstLaunch = config == null,
+                recentLocations = config?.recentLocations ?: emptyList(),
                 icon = appIcon,
                 onClose = { pickerVisible = false },
                 onResolved = { saved ->
