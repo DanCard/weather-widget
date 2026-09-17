@@ -1,0 +1,1 @@
+Release 26091701: Location setup and search improvements with recent locations autocomplete and keyboard enter-to-search, location settings prioritization, shared daily rain chance label placement, and display resolution adaptation.
