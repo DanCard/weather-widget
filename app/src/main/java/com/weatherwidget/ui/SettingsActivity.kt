@@ -62,6 +62,9 @@ class SettingsActivity : AppCompatActivity() {
     @Inject
     lateinit var sharedLocationResolver: com.weatherwidget.data.repository.SharedLocationResolver
 
+    @Inject
+    lateinit var eventLogger: com.weatherwidget.widget.WidgetStateEventLogger
+
     private lateinit var notifyDominantTempSwitch: androidx.appcompat.widget.SwitchCompat
 
     /**
@@ -394,6 +397,12 @@ class SettingsActivity : AppCompatActivity() {
             val downButton = row.findViewById<ImageButton>(R.id.move_down_button)
 
             val isVisible = source in visibleSources
+            // Every row shares R.id.source_checkbox, and Android restores view state by id — so
+            // after this activity is recreated behind the location picker, onRestoreInstanceState
+            // pushes one row's saved (unticked) state into every checkbox, firing the listener
+            // below as if the user had untoggled each source. The rows are rebuilt from prefs in
+            // onResume anyway, so opt them out of state restoration entirely.
+            checkbox.isSaveEnabled = false
             checkbox.isChecked = isVisible
             nameView.text = source.displayName
             descView.text = sourceDescription(source)
@@ -433,13 +442,26 @@ class SettingsActivity : AppCompatActivity() {
                     }
                 }
                 val currentIds = widgetStateManager.getVisibleSourcesOrder().map { it.id }
+                // isPressed is true only for a real tap; a programmatic setChecked (state restore,
+                // a stale listener) arrives with it false. Persisted so a source that disappears
+                // without a tap can be traced in the app log rather than guessed at.
+                val trigger = if (checkbox.isPressed) "tap" else "programmatic"
+                if (isChecked == (source.id in currentIds)) {
+                    eventLogger.log(
+                        "SOURCE_ORDER",
+                        "Checkbox no-op: ${source.name} already ${if (isChecked) "enabled" else "disabled"} trigger=$trigger",
+                    )
+                    return@setOnCheckedChangeListener
+                }
                 val updatedIds = WeatherSourceOrdering.toggle(currentIds, source, isChecked)
                 if (updatedIds == null) {
                     checkbox.isChecked = true
                     Toast.makeText(this, getString(R.string.must_keep_one_source), Toast.LENGTH_SHORT).show()
                     return@setOnCheckedChangeListener
                 }
-                Log.d("SOURCE_ORDER", "Checkbox: ${if (isChecked) "enabled" else "disabled"} ${source.name}, new list=$updatedIds")
+                val summary = "Checkbox: ${if (isChecked) "enabled" else "disabled"} ${source.name} trigger=$trigger, new list=$updatedIds"
+                Log.d("SOURCE_ORDER", summary)
+                eventLogger.log("SOURCE_ORDER", summary)
                 widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
                 rebuildSourceRows(container)
             }

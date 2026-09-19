@@ -101,6 +101,27 @@ class SettingsActivityRobolectricTest {
         }
     }
 
+    // Pixel 7 Pro, 2026-09-18: returning from the location picker dropped Open-Meteo, Tomorrow.io
+    // and WeatherAPI in one second with no tap. Every row shares R.id.source_checkbox, so
+    // onRestoreInstanceState pushed one row's saved (unticked) state into every checkbox and the
+    // change listener persisted each as a user untoggle. recreate() drives that save/restore path.
+    @Test
+    fun `recreating the activity does not untoggle visible sources`() {
+        val seeded = listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN, WeatherSource.TOMORROW_IO)
+        WidgetStateManager(context).setVisibleSourcesOrder(seeded)
+
+        val scenario = ActivityScenario.launch<SettingsActivity>(Intent(context, SettingsActivity::class.java))
+        scenario.recreate()
+        scenario.onActivity { activity ->
+            assertEquals(seeded, WidgetStateManager(activity).getVisibleSourcesOrder())
+            val container = activity.findViewById<LinearLayout>(R.id.api_sources_container)
+            val checked = (0 until container.childCount)
+                .map { container.getChildAt(it).findViewById<CheckBox>(R.id.source_checkbox).isChecked }
+            assertEquals(listOf(true, true, true, false, false, false), checked)
+        }
+        scenario.close()
+    }
+
     @Test
     fun `celsius toggle persists the unit and repaints widgets via direct broadcast`() {
         val intent = Intent(context, SettingsActivity::class.java)
