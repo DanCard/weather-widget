@@ -239,10 +239,26 @@ object DailyDayValueResolver {
      * @param solidLow Observed/primary bar bottom (today = observed mercury; past = actual; future = forecast).
      * @param forecastLow Forecast comparison bar bottom (dashed overlay), or null when absent.
      * @param snapshotLow 24h-prior snapshot bar bottom (today only), or null when absent.
+     * @param solidHigh Top of the solid bar (today = current temp). The solid bar's drawn bottom is
+     *   [mercuryBottom], which a current temp colder than [solidLow] pushes below [solidLow].
      */
     fun iconAnchorLow(
         solidLow: Float?,
         forecastLow: Float?,
         snapshotLow: Float?,
-    ): Float? = listOfNotNull(solidLow, forecastLow, snapshotLow).minOrNull()
+        solidHigh: Float? = null,
+    ): Float? = listOfNotNull(mercuryBottom(solidHigh, solidLow), forecastLow, snapshotLow).minOrNull()
+
+    /**
+     * The bottom of today's thermostat mercury — where the bulb sits. The mercury's top is the
+     * current temp ([solidHigh]); its bottom is the coldest point so far, which can never be
+     * warmer than the current temp. [solidLow] can be: on a forecast-only source it is the
+     * forecast low (the pre-dawn temp is often already under it), and a stored actual low lags
+     * a newer current reading. Unclamped, the "low" end sat above the top and the bulb was drawn
+     * on top of the column.
+     *
+     * Geometry only — the low *label* keeps using [effectiveLowForLabel] on the raw [solidLow].
+     */
+    fun mercuryBottom(solidHigh: Float?, solidLow: Float?): Float? =
+        listOfNotNull(solidHigh, solidLow).minOrNull()
 }

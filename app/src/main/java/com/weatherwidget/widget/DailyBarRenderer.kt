@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.TodayColumnHighlight
+import com.weatherwidget.shared.util.DailyDayValueResolver
 import com.weatherwidget.util.WeatherConditionColors
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer.BarDrawnDebug
@@ -100,7 +101,11 @@ internal object DailyBarRenderer {
         val lowY = day.solidLineLow?.let { layout.tempToY(it) }
 
         if (day.isToday) {
-            drawTodayTripleBar(canvas, day, centerX, highY, lowY, layout, paints, onBarDrawn)
+            // The mercury's bottom (bulb) is never warmer than its top (current temp); see
+            // DailyDayValueResolver.mercuryBottom.
+            val mercuryLowY = DailyDayValueResolver.mercuryBottom(day.solidLineHigh, day.solidLineLow)
+                ?.let { layout.tempToY(it) }
+            drawTodayTripleBar(canvas, day, centerX, highY, mercuryLowY, layout, paints, onBarDrawn)
         } else if (highY != null || lowY != null) {
             val endpoints = resolveBarEndpoints(highY, lowY, layout.minBarHeightPx)
             if (endpoints == null) {

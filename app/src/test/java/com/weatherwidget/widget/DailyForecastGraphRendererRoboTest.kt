@@ -295,6 +295,42 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun today_thermostat_bulbAtBottom_whenCurrentTempBelowStandInLow() {
+        // Regression (Pixel 7 Pro, 2026-09-25 06:08, Open-Meteo): pre-dawn current temp 45.7
+        // was already under the forecast-low stand-in 50.3. The TODAY line ran from the current
+        // temp UP to the "low", so the bulb (drawn at lowY) sat on top of the mercury.
+        val today = LocalDate.of(2026, 2, 2)
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today,
+                label = "Today",
+                isToday = true,
+                solidLineHigh = 45.7f, // current temp
+                solidLineLow = 50.3f, // forecast stand-in, warmer than now
+                dashedLineHigh = 57.9f,
+                dashedLineLow = 50.3f,
+                todayHasActualLow = false,
+                nowHour = 6,
+            ),
+        )
+
+        val bars = render(days).filter { it.date == today }
+        val thermostat = bars.single { it.barType == "TODAY" }
+        val forecast = bars.single { it.barType == "TODAY_FORECAST" }
+
+        assertTrue(
+            "Bulb end (lowY) must be at or below the mercury top " +
+                "(highY=${thermostat.highY}, lowY=${thermostat.lowY})",
+            thermostat.lowY > thermostat.highY,
+        )
+        assertTrue(
+            "Mercury top is the current temp, colder than the forecast low " +
+                "(thermostat.highY=${thermostat.highY}, forecast.lowY=${forecast.lowY})",
+            thermostat.highY > forecast.lowY,
+        )
+    }
+
+    @Test
     fun today_thermostat_bottomReachesDeeperThanForecastBar_whenActualLowIsColder() {
         // When a genuine observed low exists and is colder than the forecast low, the
         // thermostat bottom must extend past the forecast comparison bar's bottom.

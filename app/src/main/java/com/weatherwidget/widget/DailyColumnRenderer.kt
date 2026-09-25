@@ -185,6 +185,7 @@ internal object DailyColumnRenderer {
             solidLow = day.solidLineLow,
             forecastLow = day.dashedLineLow,
             snapshotLow = day.snapshotLow,
+            solidHigh = day.solidLineHigh,
         ) ?: day.bottomStackLow ?: day.solidLineLow
 
     private fun drawWeatherIcon(

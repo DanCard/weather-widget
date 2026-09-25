@@ -213,6 +213,7 @@ fun DailyForecastGraph(
                 solidLow = d.solidLow,
                 forecastLow = d.forecastLow,
                 snapshotLow = d.snapshotLow,
+                solidHigh = d.solidHigh,
             ) ?: lowVal
 
             val iconTopMax = size.height - dayLabelBand - lowTextLayout.size.height - 2f * scale - iconSize - 2f * scale
@@ -263,8 +264,11 @@ fun DailyForecastGraph(
                 if (ghostHigh != null && solidHigh != null && ghostHigh > solidHigh) {
                     drawRangeLine(centerX, ghostHigh, solidHigh, ::yAt, COLOR_OBSERVED.copy(alpha = GHOST_BAR_ALPHA), compactTodayBarWidth)
                 }
-                drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, COLOR_OBSERVED, compactTodayBarWidth)
-                day.solidLow?.let { low ->
+                // The bulb sits at the mercury's bottom, which is never warmer than its top
+                // (current temp) — see DailyDayValueResolver.mercuryBottom.
+                val mercuryLow = com.weatherwidget.shared.util.DailyDayValueResolver.mercuryBottom(day.solidHigh, day.solidLow)
+                drawRangeLine(centerX, day.solidHigh, mercuryLow, ::yAt, COLOR_OBSERVED, compactTodayBarWidth)
+                mercuryLow?.let { low ->
                     val bulbRadius = compactTodayBarWidth * BULB_RADIUS_SCALE
                     drawCircle(
                         color = COLOR_OBSERVED,
@@ -273,7 +277,7 @@ fun DailyForecastGraph(
                     )
                 }
                 val todayHighs = listOfNotNull(day.solidHigh, day.forecastHigh, day.snapshotHigh, day.ghostHigh)
-                val todayLows = listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow)
+                val todayLows = listOfNotNull(mercuryLow, day.forecastLow, day.snapshotLow)
                 todayBarTop = todayHighs.maxOrNull()?.let(::yAt) ?: (top + graphHeight * 0.35f)
                 todayBarBottom =
                     (todayLows.minOrNull()?.let(::yAt)?.plus(compactTodayBarWidth * BULB_RADIUS_SCALE * 1.5f)
@@ -515,6 +519,7 @@ fun DailyForecastGraph(
                     solidLow = day.solidLow,
                     forecastLow = day.forecastLow,
                     snapshotLow = day.snapshotLow,
+                    solidHigh = day.solidHigh,
                 ) ?: lowForLabel
                 val iconTopMax = size.height - dayLabelBand - lowText.size.height - 2f * scale - iconSize - 2f * scale
                 val iconTop = (yAt(anchorLow) + 4f * scale).coerceAtMost(iconTopMax)
@@ -1059,6 +1064,7 @@ internal fun computeDailyGraphTapLayout(
             solidLow = day.solidLow,
             forecastLow = day.forecastLow,
             snapshotLow = day.snapshotLow,
+            solidHigh = day.solidHigh,
         ) ?: lowForLabel
         val iconTopMax = canvasHeight - dayLabelBand - lowTextHeight - 2f * scale - iconSize - 2f * scale
         (yAt(anchorLow) + 4f * scale).coerceAtMost(iconTopMax)

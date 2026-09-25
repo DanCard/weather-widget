@@ -211,6 +211,29 @@ class DailyDayValueResolverTest {
     }
 
     @Test
+    fun iconAnchorFollowsMercuryBelowStandInLow() {
+        // Current temp (solidHigh) under the forecast-low stand-in: the mercury's drawn bottom
+        // is the current temp, so the icon must sit under it rather than under the stand-in.
+        val anchor = DailyDayValueResolver.iconAnchorLow(
+            solidLow = 50.3f, forecastLow = 50.3f, snapshotLow = 49f, solidHigh = 45.7f,
+        )
+        assertEquals(45.7f, anchor)
+    }
+
+    @Test
+    fun mercuryBottomNeverWarmerThanCurrentTemp() {
+        assertEquals(45.7f, DailyDayValueResolver.mercuryBottom(solidHigh = 45.7f, solidLow = 50.3f))
+        assertEquals(46.23f, DailyDayValueResolver.mercuryBottom(solidHigh = 46.23f, solidLow = 46.94f))
+    }
+
+    @Test
+    fun mercuryBottomIsLowWhenOrdered() {
+        assertEquals(48f, DailyDayValueResolver.mercuryBottom(solidHigh = 68f, solidLow = 48f))
+        assertEquals(48f, DailyDayValueResolver.mercuryBottom(solidHigh = null, solidLow = 48f))
+        assertNull(DailyDayValueResolver.mercuryBottom(solidHigh = null, solidLow = null))
+    }
+
+    @Test
     fun iconAnchorAllNullReturnsNull() {
         assertNull(DailyDayValueResolver.iconAnchorLow(solidLow = null, forecastLow = null, snapshotLow = null))
     }
