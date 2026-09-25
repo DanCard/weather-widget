@@ -32,7 +32,7 @@ approval, proceed through implementation, tests, build, and on-device verificati
 check-ins unless the plan needs to change.
 
 **Exemptions (proceed immediately without asking for approval):**
-- Routine release operations requested by the user: bumping `versionCode`/`versionName`, writing changelogs/plans, running release validation tests, and pushing/promoting builds via Fastlane.
+- Routine release operations requested by the user: bumping `versionCode`/`versionName`, writing Fastlane changelogs, running release validation tests, and pushing/promoting builds via Fastlane (no plan or summary files needed).
 - Explicit single-purpose instructions (e.g., "commit", "run tests", "reformat code").
 
 ## Technology Stack
@@ -306,9 +306,10 @@ class TemperatureInterpolatorTest {
 - Include user prompts
 - Prefer numbered lists over bulleted lists in `session-logs/` for long lists.
 
-### Plans
-- Prefer a plan for moderate and large changes.
-- User prefers verbose output.  Always keep the user informed about what is happening.
+### Plans & Summaries
+- A plan or summary file isn't needed for simple or routine changes (e.g., version bumps, Play Store releases, minor fixes). Never create `plans/` or `summaries/` files for routine releases or simple tasks.
+- Prefer a plan for moderate and large changes. Only create plan files for complex, multi-step, or non-trivial architectural tasks.
+- User prefers verbose output. Always keep the user informed about what is happening.
 - Always write or copy plan files directly to the `plans/` directory in the repository root.
 - When committing changes associated with plans, explicitly reference the plan file paths in the commit message.
 
