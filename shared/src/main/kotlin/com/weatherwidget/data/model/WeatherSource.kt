@@ -104,8 +104,8 @@ enum class WeatherSource(
      * selected as a display source.
      *
      * Its rows exist to supply actuals to the real providers that ship none of their own —
-     * `ALL_CONFIGURABLE.filter { !it.supportsTemperatureActuals }`, currently OPEN_METEO and
-     * SILURIAN. That set deliberately excludes GENERIC_GAP, which is not a provider: it synthesizes
+     * `ALL_CONFIGURABLE.filter { !it.supportsTemperatureActuals }`, currently SILURIAN (and by
+     * default to any source the user points at it in Settings). That set deliberately excludes GENERIC_GAP, which is not a provider: it synthesizes
      * climate normals for future dates beyond real forecast coverage and never needs actuals.
      *
      * Also the app's only station-observation source outside the United States, where NWS

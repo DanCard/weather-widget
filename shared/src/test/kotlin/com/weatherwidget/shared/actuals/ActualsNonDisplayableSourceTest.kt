@@ -143,4 +143,28 @@ class ActualsNonDisplayableSourceTest {
         assertNotNull(silurian!!.computedHighTemp)
         assertNotNull(silurian.computedLowTemp)
     }
+
+    @Test
+    fun `a source with its own actuals that the user pointed at another provider gets that provider's rows`() {
+        // Regression 2026-09-25 (Pixel 7 Pro + emulator, Lviv): actuals_provider_OPEN_METEO =
+        // SYNOPTIC. Open-Meteo HAS its own analysis rows (supportsTemperatureActuals = true), so
+        // `borrows()` is false and no borrowed group was built; its own group was then emptied by the
+        // series builder's source matcher, which honours the preference and admits only SYNOPTIC.
+        // Result: no Open-Meteo actual at all, so today's low fell back to the forecast (50.3°) under
+        // a Synoptic-derived current temp (45.6°), inverting the thermostat.
+        ActualsProviderResolver.installPreferenceSource { source ->
+            if (source == WeatherSource.OPEN_METEO) WeatherSource.SYNOPTIC else null
+        }
+
+        val rows = aggregate(
+            dayOf(WeatherSource.OPEN_METEO.id, "OPEN_METEO_MAIN", 50f) +
+                dayOf(WeatherSource.SYNOPTIC.id, "SYN33393", 30f),
+        )
+
+        val openMeteo = rows.filter { it.source == WeatherSource.OPEN_METEO.id }
+        assertEquals("exactly one Open-Meteo row for the day", 1, openMeteo.size)
+        // Synoptic readings span 36..50, Open-Meteo's own 56..70: the values must be Synoptic's.
+        assertEquals(36f, openMeteo.single().computedLowTemp!!, 0.5f)
+        assertEquals(50f, openMeteo.single().computedHighTemp!!, 0.5f)
+    }
 }

@@ -219,18 +219,24 @@ object ActualsAggregator {
             .filter { it.stationId != "NWS_BLEND" }
             .groupBy { it.api }
 
-        // A forecast-only provider has no observations of its own, so grouping by `api` alone leaves
-        // it with no daily history at all — measured 2026-08-23, OPEN_METEO had zero observation
-        // rows on a live device. It BORROWS a real feed instead ([ActualsProviderResolver]), so an
-        // extra group is synthesised under the borrowing source's id from the provider's rows.
-        // Its own hourly forecast is still what those actuals get compared against, because
-        // `sourceHourly` below keys on the group id: Open-Meteo's forecast, METAR's measurements.
-        val borrowedGroups = WeatherSourceOrdering.ALL_CONFIGURABLE
-            .filter(ActualsProviderResolver::borrows)
-            .mapNotNull { borrower ->
-                val providerId = ActualsProviderResolver.providerIdFor(borrower)
-                byApi[providerId]?.takeIf { it.isNotEmpty() }?.let { borrower.id to it }
-            }
+        // A source whose actuals come from ANOTHER feed ([ActualsProviderResolver.providerIdFor])
+        // gets an extra group synthesised under its own id from that provider's rows. That covers
+        // both forced borrowers (Silurian: no observations of its own) and sources the user pointed
+        // elsewhere (Open-Meteo → Synoptic). Its own hourly forecast is still what those actuals get
+        // compared against, because `sourceHourly` below keys on the group id: Open-Meteo's forecast,
+        // Synoptic's measurements.
+        //
+        // Keyed on the resolved provider, NOT on `borrows()`: the series builder's source matcher
+        // already honours the preference, so a redirected source's own-api group has every row
+        // rejected there. Gating on `borrows()` left Open-Meteo (which has its own analysis rows)
+        // with neither group — no actuals at all, today's low falling back to the forecast under a
+        // Synoptic current temp (2026-09-25, Pixel 7 Pro + emulator).
+        val redirected = WeatherSourceOrdering.ALL_CONFIGURABLE
+            .associate { it.id to ActualsProviderResolver.providerIdFor(it) }
+            .filter { (sourceId, providerId) -> providerId != sourceId }
+        val borrowedGroups = redirected.mapNotNull { (sourceId, providerId) ->
+            byApi[providerId]?.takeIf { it.isNotEmpty() }?.let { sourceId to it }
+        }
 
         // Feeds that cannot be DISPLAYED are dropped from the output. A daily-history row filed
         // under one is never read — only written, retained a month and recomputed — because every
@@ -250,7 +256,9 @@ object ActualsAggregator {
         // selectable in Settings restores its rows with no second place to remember.
         val displayableIds = WeatherSourceOrdering.ALL_CONFIGURABLE.mapTo(HashSet()) { it.id }
         val groups = byApi.entries
-            .filter { (api, _) -> api in displayableIds }
+            // A redirected source's own rows would all be rejected by the source matcher, and its id
+            // is already taken by the borrowed group.
+            .filter { (api, _) -> api in displayableIds && api !in redirected }
             .map { it.key to it.value } + borrowedGroups
 
         return groups

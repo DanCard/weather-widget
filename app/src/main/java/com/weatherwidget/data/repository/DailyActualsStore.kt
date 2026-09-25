@@ -172,7 +172,10 @@ class DailyActualsStore @Inject constructor(
             .entries
             .joinToString("; ") { (source, actualsByDate) ->
                 val actual = actualsByDate[today]
-                val stationCount = todayObs.count { it.api == source }
+                // Provider rows, as the coverage gate below counts them — a redirected source's
+                // own-api rows never reach its blend.
+                val providerId = ActualsProviderResolver.providerIdFor(WeatherSource.fromId(source))
+                val stationCount = todayObs.count { it.api == providerId }
                 "$source[blendedHigh=${actual?.computedHighTemp},blendedLow=${actual?.computedLowTemp},rows=$stationCount]"
             }
             .ifEmpty { "none" }
