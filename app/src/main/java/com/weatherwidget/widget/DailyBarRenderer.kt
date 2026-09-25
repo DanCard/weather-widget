@@ -1,11 +1,13 @@
 package com.weatherwidget.widget
 
 import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.shared.graph.DualHighLabel
+import com.weatherwidget.shared.graph.StandInBarStyle
 import com.weatherwidget.shared.graph.TodayColumnHighlight
 import com.weatherwidget.shared.util.DailyDayValueResolver
 import com.weatherwidget.util.WeatherConditionColors
@@ -147,6 +149,7 @@ internal object DailyBarRenderer {
                     day = day,
                     logPrefix = "primary",
                     allowAdaptiveSegments = !day.isPast,
+                    dashed = day.isPast && day.actualsFromOtherSite,
                 )
                 onBarDrawn?.invoke(
                     BarDrawnDebug(
@@ -156,6 +159,7 @@ internal object DailyBarRenderer {
                         effectiveLowY,
                         centerX,
                         paint.color,
+                        dashed = day.isPast && day.actualsFromOtherSite,
                     ),
                 )
             }
@@ -361,6 +365,7 @@ internal object DailyBarRenderer {
                     day = snapshotDay,
                     logPrefix = "today_snapshot",
                     allowAdaptiveSegments = true,
+                    dashed = day.snapshotIsStale,
                 )
                 onBarDrawn?.invoke(
                     BarDrawnDebug(
@@ -371,6 +376,7 @@ internal object DailyBarRenderer {
                         snapshotX,
                         sPaint.color,
                         adaptiveSegments = true,
+                        dashed = day.snapshotIsStale,
                     ),
                 )
             }
@@ -469,7 +475,11 @@ internal object DailyBarRenderer {
         day: DayData,
         logPrefix: String,
         allowAdaptiveSegments: Boolean = true,
+        /** A stand-in bar (StandInBarStyle): same colors, dashed. */
+        dashed: Boolean = false,
     ) {
+        @Suppress("NAME_SHADOWING")
+        val paint = if (dashed) standInDashed(paint) else paint
         if (!allowAdaptiveSegments || !shouldUseAdaptiveSegments(day) || day.iconRes == null) {
             canvas.drawLine(centerX, topY, centerX, bottomY, paint)
             return
@@ -512,6 +522,10 @@ internal object DailyBarRenderer {
                 " bottomColor=${String.format("#%08X", split.bottomColor)}"
         }
     }
+
+    // Both split segments are cloned from this paint and start at topY, so their dashes line up.
+    private fun standInDashed(paint: Paint): Paint =
+        Paint(paint).apply { pathEffect = DashPathEffect(StandInBarStyle.intervals(paint.strokeWidth), 0f) }
 
     private fun shouldUseAdaptiveSegments(day: DayData): Boolean =
         day.isMixed || (day.cloudCoverRatioOverride ?: 0f) > 0f

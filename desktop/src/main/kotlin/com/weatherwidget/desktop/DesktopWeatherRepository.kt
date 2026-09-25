@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.actuals.PreviousSiteHistory
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.*
@@ -1187,7 +1188,19 @@ class DesktopWeatherRepository(
         val dates = daily.map { LocalDate.parse(it.date) }
         val start = dates.min().minusDays(ACTUALS_HISTORY_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         val end = dates.max().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        return weatherDao.getDailyActuals(start, end, latitude, longitude, weatherSource)
+        val local = weatherDao.getDailyActuals(start, end, latitude, longitude, weatherSource)
+        // Yesterday measured at a previous site fills a day this site never measured (display-only,
+        // drawn dashed). See PreviousSiteHistory.
+        val today = LocalDate.now()
+        val yesterdayMs = today.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        val filled = PreviousSiteHistory.fill(
+            local = mapOf(weatherSource to local.mapKeys { LocalDate.parse(it.key) }),
+            candidates = weatherDao.getMeasuredExtremesForDateAnySite(yesterdayMs, weatherSource),
+            lat = latitude,
+            lon = longitude,
+            today = today,
+        )
+        return filled[weatherSource].orEmpty().mapKeys { it.key.toString() }
     }
 
     private fun loadDailySnapshots(daily: List<DailyForecast>): Map<String, List<DailyForecastSnapshot>> {

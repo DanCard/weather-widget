@@ -48,7 +48,12 @@ internal fun computeMissingDataRefreshes(
         )
     }
 
-    if (visibleDates.any { it.isBefore(today) && dailyActuals[it] == null }) {
+    // A day filled wholesale from a previous site (PreviousSiteHistory) is still missing HERE —
+    // keep asking for it exactly as before borrowing existed.
+    if (visibleDates.any { date ->
+            date.isBefore(today) && dailyActuals[date].let { it == null || it.borrowedWithoutLocalRow }
+        }
+    ) {
         decisions.add(
             MissingDataRefreshDecision(
                 refreshType = "actuals_history",

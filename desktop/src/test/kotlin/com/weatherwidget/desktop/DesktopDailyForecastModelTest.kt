@@ -274,6 +274,40 @@ settings = DesktopSettings(weatherSource = "NWS"),
     }
 
     @Test
+    fun `stand-in flags - borrowed yesterday and a snapshot older than 48h`() {
+        // Mirrors Android's DayData flags; both bars are then drawn dashed (StandInBarStyle).
+        val now = LocalDateTime.parse("2026-06-03T07:00:00")
+        val nowMs = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val hour = 3_600_000L
+        fun build(snapshotAgeHours: Long, borrowedKm: Double?) = DesktopDailyForecastModel.build(
+            config = config,
+            forecast = snapshot(
+                currentTemp = 72.4f,
+                currentCondition = "Sunny",
+                daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
+                dailyActuals = mapOf(
+                    "2026-06-02" to extreme("2026-06-02", 77f, 56f, "Fair").copy(actualsBorrowedFromKm = borrowedKm),
+                ),
+                dailySnapshots = mapOf(
+                    "2026-06-03" to listOf(
+                        DailyForecastSnapshot("2026-06-03", 79f, 58f, "Sunny", fetchedAt = nowMs - snapshotAgeHours * hour),
+                    ),
+                ),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = now,
+        ).days
+
+        val flagged = build(snapshotAgeHours = 150, borrowedKm = 460.0)
+        assertTrue(flagged.first { it.date == LocalDate.parse("2026-06-02") }.actualsFromOtherSite)
+        assertTrue(flagged.first { it.isToday }.snapshotIsStale)
+
+        val plain = build(snapshotAgeHours = 30, borrowedKm = null)
+        assertTrue(!plain.first { it.date == LocalDate.parse("2026-06-02") }.actualsFromOtherSite)
+        assertTrue(!plain.first { it.isToday }.snapshotIsStale)
+    }
+
+    @Test
     fun `today thermostat tracks high-water mark via ghostHigh`() {
         // Evening case: the day already peaked above the current reading, so the solid mercury
         // sits at the current temp while the ghost preserves the day's high.

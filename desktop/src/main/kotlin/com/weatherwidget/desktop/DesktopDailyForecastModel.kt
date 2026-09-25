@@ -69,6 +69,10 @@ data class DesktopDailyDay(
     val isClimateNormal: Boolean,
     /** Local hour-of-day (0–23) for the today column's actual-tracking cutoffs; null = legacy. */
     val nowHour: Int? = null,
+    /** Today's snapshot bar is older than 48h — drawn dashed (StandInBarStyle). Mirrors Android. */
+    val snapshotIsStale: Boolean = false,
+    /** This past day's actuals were measured at a previous site (PreviousSiteHistory) — drawn dashed. */
+    val actualsFromOtherSite: Boolean = false,
 )
 
 data class DesktopDailyViewState(
@@ -434,6 +438,9 @@ object DesktopDailyForecastModel {
             isToday = isToday,
             isPast = isPast,
             solidIsForecastFallback = solidIsForecastFallback,
+            snapshotIsStale = isToday && todaySnapshot != null &&
+                com.weatherwidget.shared.util.DailySnapshotSelector.isStale(todaySnapshot.fetchedAt, nowMillis),
+            actualsFromOtherSite = isPast && !solidIsForecastFallback && actual?.isActualsBorrowed == true,
             cloudCoverRatio = noonCloudPercentForBar / 100f,
             dailyRainLabelText = dailyRainLabelText,
             nightRainLabelText = nightRainLabelText,

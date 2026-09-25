@@ -67,6 +67,20 @@ interface DailyHistoryDao {
         lon: Double,
     ): List<DailyHistoryEntity>
 
+    /**
+     * Measured rows for one day at ANY site. Deliberately not location-scoped: the donor pool for
+     * `PreviousSiteHistory`, which shows yesterday's history from where the user was before a move.
+     */
+    @Query(
+        """
+        SELECT * FROM daily_history
+        WHERE date = :date
+          AND computedHighTemp IS NOT NULL
+          AND computedLowTemp IS NOT NULL
+        """,
+    )
+    suspend fun getMeasuredExtremesForDateAnySite(date: Long): List<DailyHistoryEntity>
+
     @Query("DELETE FROM daily_history WHERE updatedAt < :cutoffMs")
     suspend fun deleteOldExtremes(cutoffMs: Long)
 

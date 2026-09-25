@@ -437,6 +437,7 @@ object DailyViewLogic {
             var snapshotHigh: Float? = null
             var snapshotLow: Float? = null
             var snapshotIconRes: Int? = null
+            var snapshotIsStale = false
             val isClimateOverlay: Boolean
             val isTodayForecastFallback: Boolean
             var trueActualHigh: Float? = null
@@ -481,6 +482,7 @@ object DailyViewLogic {
                 snapshotHigh = todayValues.snapshotHigh
                 snapshotLow = todayValues.snapshotLow
                 snapshotIconRes = todayValues.snapshotIconRes
+                snapshotIsStale = todayValues.snapshotIsStale
                 trueActualHigh = todayValues.trueActualHigh
                 todayHasActualLow = todayValues.todayHasActualLow
                 isTodayForecastFallback = todayValues.isTodayForecastFallback
@@ -644,6 +646,9 @@ object DailyViewLogic {
                         snapshotHigh = snapshotHigh,
                         snapshotLow = snapshotLow,
                         snapshotIconRes = snapshotIconRes,
+                        snapshotIsStale = snapshotIsStale,
+                        actualsFromOtherSite = isPastDate && !solidIsForecastFallback &&
+                            actual?.isActualsBorrowed == true,
                         ghostLineHigh = trueActualHigh,
                         cloudCoverRatioOverride = cloudCoverRatioOverride,
                         daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),

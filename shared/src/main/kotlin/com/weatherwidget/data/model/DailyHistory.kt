@@ -46,6 +46,17 @@ data class DailyHistory(
     val actualsSource: String? = null,
     /** See `DailyHistoryWriter`; diagnostic only. */
     val lastWriter: String? = null,
+    /**
+     * Display-only, never persisted: when non-null, [computedHighTemp]/[computedLowTemp] were
+     * measured at ANOTHER site this far away (km) because the current site has no measured row
+     * for this day — see `PreviousSiteHistory`. Renderers draw such a day's actual bar dashed.
+     */
+    val actualsBorrowedFromKm: Double? = null,
+    /**
+     * Display-only: true when the whole row came from another site because the current site has
+     * no row at all for the day. Missing-data refresh logic treats such a day as still missing.
+     */
+    val borrowedWithoutLocalRow: Boolean = false,
 ) {
     fun toLocalDate(): LocalDate =
         LocalDate.ofEpochDay(date / 86_400_000L)
@@ -73,6 +84,9 @@ data class DailyHistory(
 
     /** Label-facing extreme: actual when present, else the frozen forecast (forecast-only rows). */
     val displayLowTemp: Float? get() = computedLowTemp ?: forecastLowTemp
+
+    /** True when this row's actuals were measured at another site (display-only; see [actualsBorrowedFromKm]). */
+    val isActualsBorrowed: Boolean get() = actualsBorrowedFromKm != null
 
     /** True when this row carries observed extremes (i.e. it may serve as an accuracy baseline). */
     val hasActuals: Boolean get() = computedHighTemp != null && computedLowTemp != null

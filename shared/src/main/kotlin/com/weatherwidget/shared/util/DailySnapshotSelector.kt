@@ -12,6 +12,16 @@ object DailySnapshotSelector {
     const val PRIOR_WINDOW_HOURS = 24L
 
     /**
+     * A real "yesterday's forecast" is 24–48h old. Older (a device that fetched nothing for days)
+     * is still SHOWN — the user chose that over hiding it — but drawn dashed
+     * ([com.weatherwidget.shared.graph.StandInBarStyle]).
+     */
+    const val STALE_AFTER_HOURS = 48L
+
+    fun isStale(fetchedAtMillis: Long, nowMillis: Long): Boolean =
+        nowMillis - fetchedAtMillis > STALE_AFTER_HOURS * 3_600_000L
+
+    /**
      * Forecast "as of ~24h ago": the most-recent candidate whose [fetchedAt] is older than
      * `nowMillis - 24h`, falling back to the earliest available candidate when none are old
      * enough. Mirrors the Android DailyViewLogic today-snapshot selection.

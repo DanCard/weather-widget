@@ -11,6 +11,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.toDailyHistory
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.ObservationReading
@@ -30,6 +31,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.weatherwidget.shared.actuals.PreviousSiteHistory
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 
 private const val TAG = "DailyActualsStore"
@@ -120,7 +122,28 @@ class DailyActualsStore @Inject constructor(
         val pastExtremes = dailyHistoryDao
             .getExtremesInRange(startDate, endDate, latitude, longitude)
             .filter { it.source in activeSources }
-        val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes, latitude, longitude)
+        // Yesterday measured at a previous site fills a day this site never measured (display-only,
+        // drawn dashed). See PreviousSiteHistory.
+        val yesterdayDonors = dailyHistoryDao
+            .getMeasuredExtremesForDateAnySite(endDate)
+            .filter { it.source in activeSources }
+            .map { it.toDailyHistory() }
+        val pastActuals = PreviousSiteHistory.fill(
+            local = ObservationResolver.extremesToDailyActualsBySource(pastExtremes, latitude, longitude),
+            candidates = yesterdayDonors,
+            lat = latitude,
+            lon = longitude,
+            today = today,
+        )
+        pastActuals.forEach { (source, byDate) ->
+            byDate.values.filter { it.isActualsBorrowed }.forEach {
+                Log.d(
+                    TAG,
+                    "PREVIOUS_SITE_HISTORY source=$source date=${it.toLocalDate()} km=${"%.0f".format(it.actualsBorrowedFromKm)} " +
+                        "high=${it.computedHighTemp} low=${it.computedLowTemp} wholeRow=${it.borrowedWithoutLocalRow}",
+                )
+            }
+        }
 
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()

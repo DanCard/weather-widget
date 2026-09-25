@@ -31,6 +31,8 @@ internal object DailyTodayResolver {
         val trueActualHigh: Float?,
         val todayHasActualLow: Boolean,
         val isTodayForecastFallback: Boolean,
+        /** The snapshot was fetched more than [DailySnapshotSelector.STALE_AFTER_HOURS] ago — draw it dashed. */
+        val snapshotIsStale: Boolean = false,
     )
 
     /**
@@ -126,6 +128,7 @@ internal object DailyTodayResolver {
             trueActualHigh = trueActualHigh,
             todayHasActualLow = todayHasActualLow,
             isTodayForecastFallback = isTodayForecastFallback,
+            snapshotIsStale = snapshot?.let { DailySnapshotSelector.isStale(it.fetchedAt, nowMillis) } ?: false,
         )
     }
 }

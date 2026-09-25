@@ -255,7 +255,11 @@ fun DailyForecastGraph(
                 // Both today bars carry today's cloud-cover ratio (same day); the rain-vs-cloud
                 // bottom color follows each bar's own condition (live forecast vs 24h-prior snapshot).
                 drawAdaptiveBar(centerX + compactTodayTripleOffset, day.forecastHigh, day.forecastLow, ::yAt, compactTodayBarWidth, baseColor, day.cloudCoverRatio, day.iconCondition)
-                drawAdaptiveBar(centerX - compactTodayTripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, compactTodayBarWidth, snapshotColor, day.cloudCoverRatio, day.snapshot?.condition)
+                drawAdaptiveBar(
+                    centerX - compactTodayTripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, compactTodayBarWidth,
+                    snapshotColor, day.cloudCoverRatio, day.snapshot?.condition,
+                    pathEffect = standInDash(compactTodayBarWidth).takeIf { day.snapshotIsStale },
+                )
                 // The thermostat: solid red "mercury" (current temp), a faint ghost reaching up to
                 // the day's high-water mark, and a round bulb at the low end. Drawn last so the
                 // mercury and bulb sit on top of the forecast/snapshot bars.
@@ -297,7 +301,10 @@ fun DailyForecastGraph(
                     iconCondition = day.iconCondition,
                 )
                 val solidBarColor = if (day.solidIsForecastFallback) forecastColor(day) else COLOR_OBSERVED
-                drawRangeLine(centerX, day.solidHigh, day.solidLow, ::yAt, solidBarColor, barWidth * 0.72f)
+                drawRangeLine(
+                    centerX, day.solidHigh, day.solidLow, ::yAt, solidBarColor, barWidth * 0.72f,
+                    pathEffect = standInDash(barWidth * 0.72f).takeIf { day.actualsFromOtherSite },
+                )
             } else {
                 val high = day.solidHigh
                 val low = day.solidLow
@@ -912,6 +919,8 @@ private fun DrawScope.drawAdaptiveBar(
     baseColor: Color,
     cloudCoverRatio: Float?,
     iconCondition: String?,
+    /** Stand-in bar ([standInDash]); both split segments start at highY, so their dashes line up. */
+    pathEffect: PathEffect? = null,
 ) {
     if (high == null || low == null) return
     val highY = yAt(high)
@@ -929,6 +938,7 @@ private fun DrawScope.drawAdaptiveBar(
             end = Offset(centerX, lowY),
             strokeWidth = width,
             cap = StrokeCap.Round,
+            pathEffect = pathEffect,
         )
         return
     }
@@ -944,6 +954,7 @@ private fun DrawScope.drawAdaptiveBar(
         end = Offset(centerX, lowY),
         strokeWidth = width,
         cap = StrokeCap.Round,
+        pathEffect = pathEffect,
     )
     if (topEndY - highY > 0.5f) {
         drawLine(
@@ -952,9 +963,14 @@ private fun DrawScope.drawAdaptiveBar(
             end = Offset(centerX, topEndY),
             strokeWidth = width,
             cap = StrokeCap.Round,
+            pathEffect = pathEffect,
         )
     }
 }
+
+/** Dash for a stand-in bar; the pattern is shared with Android via StandInBarStyle. */
+private fun standInDash(strokeWidth: Float): PathEffect =
+    PathEffect.dashPathEffect(com.weatherwidget.shared.graph.StandInBarStyle.intervals(strokeWidth), 0f)
 
 private fun forecastColor(day: DesktopDailyDay): Color {
     // Derive flags from the resolved+gated icon name so the bar color matches the displayed icon.

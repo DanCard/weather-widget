@@ -39,6 +39,8 @@ object DailyForecastGraphRenderer {
         val centerX: Float,
         val color: Int,
         val adaptiveSegments: Boolean = false,
+        /** Drawn with the StandInBarStyle dash (borrowed history / stale snapshot). */
+        val dashed: Boolean = false,
     )
 
     enum class RainLabelKind {
@@ -191,6 +193,10 @@ object DailyForecastGraphRenderer {
         override val daysFromToday: Int = 0,
         /** Local hour-of-day (0–23) for the today column's actual-tracking cutoffs; null = legacy. */
         val nowHour: Int? = null,
+        /** Today's snapshot bar is older than 48h — drawn dashed (StandInBarStyle). */
+        val snapshotIsStale: Boolean = false,
+        /** This past day's actuals were measured at a previous site (PreviousSiteHistory) — drawn dashed. */
+        val actualsFromOtherSite: Boolean = false,
     ) : CloudCoverDiagnosticRow
 
     fun renderGraph(

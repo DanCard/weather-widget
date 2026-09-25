@@ -295,6 +295,31 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun standInBars_areDashed_onlyWhenFlagged() {
+        // Borrowed previous-site history (past day) and a >48h-old snapshot (today) are stand-ins,
+        // drawn dashed (StandInBarStyle); normal history and snapshot bars stay solid.
+        val today = LocalDate.of(2026, 2, 2)
+        fun days(flagged: Boolean) = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today.minusDays(1), label = "Sun", solidLineHigh = 61f, solidLineLow = 45f,
+                isPast = true, actualsFromOtherSite = flagged,
+            ),
+            DailyForecastGraphRenderer.DayData(
+                date = today, label = "Today", isToday = true, solidLineHigh = 50f, solidLineLow = 46f,
+                dashedLineHigh = 58f, dashedLineLow = 50f, snapshotHigh = 57f, snapshotLow = 46f,
+                snapshotIsStale = flagged,
+            ),
+        )
+        val flagged = render(days(true))
+        assertTrue(flagged.single { it.barType == "HISTORY" }.dashed)
+        assertTrue(flagged.single { it.barType == "TODAY_SNAPSHOT" }.dashed)
+        assertFalse(flagged.single { it.barType == "TODAY" }.dashed)
+        val plain = render(days(false))
+        assertFalse(plain.single { it.barType == "HISTORY" }.dashed)
+        assertFalse(plain.single { it.barType == "TODAY_SNAPSHOT" }.dashed)
+    }
+
+    @Test
     fun today_thermostat_bulbAtBottom_whenCurrentTempBelowStandInLow() {
         // Regression (Pixel 7 Pro, 2026-09-25 06:08, Open-Meteo): pre-dawn current temp 45.7
         // was already under the forecast-low stand-in 50.3. The TODAY line ran from the current

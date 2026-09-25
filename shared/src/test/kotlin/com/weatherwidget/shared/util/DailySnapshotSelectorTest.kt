@@ -3,6 +3,8 @@ package com.weatherwidget.shared.util
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
@@ -47,5 +49,17 @@ class DailySnapshotSelectorTest {
     fun singleCandidateReturnedRegardlessOfAge() {
         assertEquals(now - 2 * hour, select(now - 2 * hour))
         assertEquals(now - 48 * hour, select(now - 48 * hour))
+    }
+
+    @Test
+    fun staleOnlyPast48Hours() {
+        // A real "yesterday's forecast" is 24–48h old; older ones are drawn dashed (StandInBarStyle).
+        val now = 1_000_000_000_000L
+        val hour = 3_600_000L
+        assertFalse(DailySnapshotSelector.isStale(now - 47 * hour, now))
+        assertFalse(DailySnapshotSelector.isStale(now - 48 * hour, now))
+        assertTrue(DailySnapshotSelector.isStale(now - 49 * hour, now))
+        // emulator-5554 on 2026-09-25 showed a 09-18 forecast: ~6 days.
+        assertTrue(DailySnapshotSelector.isStale(now - 150 * hour, now))
     }
 }

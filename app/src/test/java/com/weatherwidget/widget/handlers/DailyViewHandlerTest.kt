@@ -1351,6 +1351,53 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `computeMissingDataRefreshes still requests history when yesterday is wholly borrowed from a previous site`() {
+        // PreviousSiteHistory fills the DISPLAY; this site still has no row, so keep asking for it.
+        val today = LocalDate.of(2030, 6, 15)
+        val yesterday = today.minusDays(1)
+        val borrowedWhole = extreme(yesterday, 61f, 45f).copy(actualsBorrowedFromKm = 460.0, borrowedWithoutLocalRow = true)
+        val borrowedIntoLocal = extreme(yesterday, 61f, 45f).copy(actualsBorrowedFromKm = 460.0)
+
+        fun historyRequested(row: com.weatherwidget.data.model.DailyHistory) = computeMissingDataRefreshes(
+            today = today,
+            displaySource = WeatherSource.NWS,
+            dailyActuals = mapOf(today to extreme(today, 70f, 55f), yesterday to row),
+            visibleDates = setOf(yesterday),
+        ).any { it.refreshType == "actuals_history" }
+
+        assertTrue("no local row → still missing", historyRequested(borrowedWhole))
+        assertFalse("a local (forecast-only) row existed before borrowing → unchanged behavior", historyRequested(borrowedIntoLocal))
+    }
+
+    @Test
+    fun `prepareGraphDays marks a past day with borrowed actuals`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val yesterday = today.minusDays(1)
+        val yesterdayStr = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        fun yesterdayDay(row: com.weatherwidget.data.model.DailyHistory) = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = mapOf(yesterday to createWeather(yesterdayStr, highTemp = 57f, lowTemp = 48f)),
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = mapOf(yesterday to row),
+        ).first { it.date == yesterday }
+
+        val borrowed = yesterdayDay(extreme(yesterday, 61.9f, 44.9f).copy(actualsBorrowedFromKm = 460.0))
+        assertTrue(borrowed.actualsFromOtherSite)
+        assertEquals(61.9f, borrowed.solidLineHigh!!, 0.1f)
+        assertFalse(yesterdayDay(extreme(yesterday, 61.9f, 44.9f)).actualsFromOtherSite)
+    }
+
+    @Test
     fun `computeMissingDataRefreshes requests actuals history when past graph day lacks actuals`() {
         val today = LocalDate.of(2030, 6, 15)
         val yesterday = today.minusDays(1)

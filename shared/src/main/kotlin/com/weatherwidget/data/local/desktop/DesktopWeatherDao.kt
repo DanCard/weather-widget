@@ -1471,36 +1471,61 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setLong(4, endEpoch)
                 val rs = stmt.executeQuery()
                 while (rs.next()) {
-                    result.add(DailyHistory(
-                        date = rs.getLong("date"),
-                        source = rs.getString("source"),
-                        locationLat = rs.getDouble("locationLat"),
-                        locationLon = rs.getDouble("locationLon"),
-                        computedHighTemp = rs.getNullableFloat("computedHighTemp"),
-                        computedLowTemp = rs.getNullableFloat("computedLowTemp"),
-                        condition = rs.getString("condition"),
-                        updatedAt = rs.getLong("updatedAt"),
-                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
-                        precipDayMm = rs.getNullableFloat("precipDayMm"),
-                        precipNightMm = rs.getNullableFloat("precipNightMm"),
-                        forecastDayPrecipChance = rs.getNullableInt("forecastDayPrecipChance"),
-                        forecastNightPrecipChance = rs.getNullableInt("forecastNightPrecipChance"),
-                        forecastHighTemp = rs.getNullableFloat("forecastHighTemp"),
-                        forecastLowTemp = rs.getNullableFloat("forecastLowTemp"),
-                        forecastPrecipAmountMm = rs.getNullableFloat("forecastPrecipAmountMm"),
-                        noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
-                        apiHighTemp = rs.getNullableFloat("apiHighTemp"),
-                        apiLowTemp = rs.getNullableFloat("apiLowTemp"),
-                        apiStationId = rs.getString("apiStationId"),
-                        apiStationDistanceKm = rs.getNullableFloat("apiStationDistanceKm"),
-                        actualsSource = rs.getString("actualsSource"),
-                        lastWriter = rs.getString("lastWriter"),
-                    ))
+                    result.add(readDailyHistoryRow(rs))
                 }
             }
         }
         return result
     }
+
+    /**
+     * Measured rows for one day at ANY site. Deliberately not location-scoped: the donor pool for
+     * `PreviousSiteHistory`, which shows yesterday's history from where the user was before a move.
+     */
+    fun getMeasuredExtremesForDateAnySite(dateEpoch: Long, source: String): List<DailyHistory> {
+        val result = mutableListOf<DailyHistory>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT * FROM daily_history
+                WHERE date = ? AND source = ?
+                  AND computedHighTemp IS NOT NULL AND computedLowTemp IS NOT NULL
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setLong(1, dateEpoch)
+                stmt.setString(2, source)
+                val rs = stmt.executeQuery()
+                while (rs.next()) result.add(readDailyHistoryRow(rs))
+            }
+        }
+        return result
+    }
+
+    private fun readDailyHistoryRow(rs: java.sql.ResultSet): DailyHistory =
+        DailyHistory(
+            date = rs.getLong("date"),
+            source = rs.getString("source"),
+            locationLat = rs.getDouble("locationLat"),
+            locationLon = rs.getDouble("locationLon"),
+            computedHighTemp = rs.getNullableFloat("computedHighTemp"),
+            computedLowTemp = rs.getNullableFloat("computedLowTemp"),
+            condition = rs.getString("condition"),
+            updatedAt = rs.getLong("updatedAt"),
+            precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+            precipDayMm = rs.getNullableFloat("precipDayMm"),
+            precipNightMm = rs.getNullableFloat("precipNightMm"),
+            forecastDayPrecipChance = rs.getNullableInt("forecastDayPrecipChance"),
+            forecastNightPrecipChance = rs.getNullableInt("forecastNightPrecipChance"),
+            forecastHighTemp = rs.getNullableFloat("forecastHighTemp"),
+            forecastLowTemp = rs.getNullableFloat("forecastLowTemp"),
+            forecastPrecipAmountMm = rs.getNullableFloat("forecastPrecipAmountMm"),
+            noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
+            apiHighTemp = rs.getNullableFloat("apiHighTemp"),
+            apiLowTemp = rs.getNullableFloat("apiLowTemp"),
+            apiStationId = rs.getString("apiStationId"),
+            apiStationDistanceKm = rs.getNullableFloat("apiStationDistanceKm"),
+            actualsSource = rs.getString("actualsSource"),
+            lastWriter = rs.getString("lastWriter"),
+        )
 
     fun getDailyActuals(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): Map<String, DailyHistory> {
         return getExtremesInRange(startEpoch, endEpoch, locationLat, locationLon)
