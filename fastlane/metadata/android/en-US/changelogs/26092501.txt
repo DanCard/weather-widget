@@ -1,0 +1,1 @@
+Release 26092501: Stand-in history from previous location with dashed bars when traveling; dashed stale comparison bars in Today column; fixed thermostat bulb rendering below daily low; fixed actuals provider mapping for redirected sources; fixed source toggle state retention on activity recreation.
