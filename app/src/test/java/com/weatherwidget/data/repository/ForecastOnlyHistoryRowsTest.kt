@@ -12,7 +12,6 @@ import com.weatherwidget.test.category.LongDuration
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -149,35 +148,5 @@ class ForecastOnlyHistoryRowsTest : RobolectricTest() {
 
         val rows = db.dailyHistoryDao().getExtremesInRange(epochDay(yesterday.minusDays(1)), epochDay(today), lat, lon)
         assertEquals(emptyList<DailyHistoryEntity>(), rows)
-    }
-
-    @Test
-    fun `open-meteo legacy cleanup preserves forecast-only rows`() = runTest {
-        // Ordering guard: if the one-time cleanup ever runs after the writer, the display rows
-        // survive — the delete only targets legacy rows that carry (model) computed values.
-        db.forecastDao().insertAll(
-            listOf(forecast(yesterday, WeatherSource.OPEN_METEO.id, 73f, 58f)),
-        )
-        snapshotter.ensureForecastOnlyHistoryRows(lat, lon)
-        // A legacy-style row with fabricated computed values still gets deleted.
-        db.dailyHistoryDao().insertAll(
-            listOf(historyRow(yesterday.minusDays(2), WeatherSource.OPEN_METEO.id)),
-        )
-
-        com.weatherwidget.util.SharedPreferencesUtil
-            .getPrefs(context, "weather_prefs").edit().clear().commit()
-        OpenMeteoLegacyActualsCleanup.runIfNeeded(
-            context,
-            db.observationDao(),
-            db.dailyHistoryDao(),
-            db.appLogDao(),
-        )
-
-        val rows = db.dailyHistoryDao().getExtremesInRange(epochDay(yesterday.minusDays(2)), epochDay(yesterday), lat, lon)
-        val survivors = rows.filter { it.source == WeatherSource.OPEN_METEO.id }
-        assertEquals(1, survivors.size)
-        assertNull(survivors[0].computedHighTemp)
-        assertEquals(73f, survivors[0].forecastHighTemp)
-        assertNotNull(survivors[0].forecastLowTemp)
     }
 }

@@ -4,6 +4,8 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RawQuery
+import androidx.sqlite.db.SupportSQLiteQuery
 import com.weatherwidget.shared.actuals.MetarCloudBlender
 import kotlinx.coroutines.flow.Flow
 
@@ -276,33 +278,16 @@ interface ObservationDao {
     @Query("DELETE FROM observations WHERE timestamp < :cutoffMs")
     suspend fun deleteOldObservations(cutoffMs: Long)
 
-    @Query(
-        "DELETE FROM observations " +
-            "WHERE api = 'TOMORROW_IO' " +
-            "AND stationId NOT IN ('TOMORROW_IO_5M_HISTORY', 'TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME')",
-    )
-    suspend fun deleteLegacyTomorrowIoObservations(): Int
+    // Generic retired-product cleanup (RetiredProductCleanup): the WHERE clauses come from the shared
+    // RetiredActualsProducts registry, so they are raw SELECTs; the delete itself stays a checked query.
+    @RawQuery
+    suspend fun countRaw(query: SupportSQLiteQuery): Int
 
-    @Query(
-        "SELECT COUNT(*) FROM observations " +
-            "WHERE api = 'TOMORROW_IO' " +
-            "AND stationId = 'TOMORROW_IO_5M_HISTORY' " +
-            "AND timestamp % 300000 = 0 " +
-            "AND ${LocationMatch.ROOM_SAME_SITE_WHERE}",
-    )
-    suspend fun countTomorrowIoFiveMinuteObservationsAtSite(lat: Double, lon: Double): Int
+    @RawQuery
+    suspend fun rowIdsRaw(query: SupportSQLiteQuery): List<Long>
 
-    @Query(
-        "DELETE FROM observations " +
-            "WHERE api = 'TOMORROW_IO' " +
-            "AND (stationId IN ('TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME') " +
-            "OR (stationId = 'TOMORROW_IO_5M_HISTORY' AND timestamp % 300000 != 0)) " +
-            "AND ${LocationMatch.ROOM_SAME_SITE_WHERE}",
-    )
-    suspend fun deleteRetiredTomorrowIoProductsAtSite(lat: Double, lon: Double): Int
-
-    @Query("DELETE FROM observations WHERE api = 'OPEN_METEO'")
-    suspend fun deleteOpenMeteoModelObservations(): Int
+    @Query("DELETE FROM observations WHERE rowid IN (:rowIds)")
+    suspend fun deleteByRowIds(rowIds: List<Long>): Int
 
     @Query(
         """

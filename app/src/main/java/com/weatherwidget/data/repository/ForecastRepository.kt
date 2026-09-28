@@ -155,11 +155,6 @@ class ForecastRepository
         ): Result<List<ForecastEntity>> {
             val fetchStartTime = System.currentTimeMillis()
             try {
-                TomorrowIoLegacyActualsCleanup.runIfNeeded(
-                    context = context,
-                    observationDao = observationDao,
-                    appLogDao = appLogDao,
-                )
                 var cachedForecasts = getCachedData(latitude, longitude)
                 if (
                     !forceRefresh &&
@@ -251,8 +246,11 @@ class ForecastRepository
                         longitude,
                         sourcesToFetch,
                     )
-                    if (WeatherSource.TOMORROW_IO in sourcesToFetch) {
-                        TomorrowIoLegacyActualsCleanup.retireConflictingProductsIfCovered(
+                    // Retire any source's replaced observation products at this site (shared with
+                    // desktop; only ever deletes old data — see RetiredProductCleanup).
+                    for (source in sourcesToFetch) {
+                        RetiredProductCleanupRunner.runFor(
+                            api = source.id,
                             latitude = latitude,
                             longitude = longitude,
                             observationDao = observationDao,

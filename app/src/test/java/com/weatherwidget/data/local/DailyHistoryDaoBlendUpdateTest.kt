@@ -73,22 +73,6 @@ class DailyHistoryDaoBlendUpdateTest {
     )
 
     @Test
-    fun `Open Meteo cleanup deletes only Meteo daily history`() = runTest {
-        dao.insertAll(
-            listOf(
-                row().copy(source = "OPEN_METEO"),
-                row().copy(source = "NWS"),
-            ),
-        )
-
-        assertEquals(1, dao.deleteOpenMeteoHistory())
-        assertEquals(
-            listOf("NWS"),
-            dao.getExtremesInRange(date, date, lat, lon).map { it.source },
-        )
-    }
-
-    @Test
     fun `recompute update sets owned fields and preserves provenance columns`() = runTest {
         dao.insertAll(listOf(row()))
 

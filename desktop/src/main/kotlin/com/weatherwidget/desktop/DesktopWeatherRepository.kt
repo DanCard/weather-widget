@@ -67,15 +67,6 @@ class DesktopWeatherRepository(
     /** The [WeatherSource] resolved once from [weatherSource]; every method previously re-derived this. */
     private val displaySource: WeatherSource = WeatherSource.fromDisplaySource(weatherSource)
 
-    init {
-        weatherDao.cleanupLegacyTomorrowIoActuals()?.let { result ->
-            Log.i(
-                "DesktopWeatherRepository",
-                "Tomorrow.io actuals cleanup: observations=${result.observationsDeleted} daily=${result.dailyRowsDeleted}",
-            )
-        }
-    }
-
     /** Result of the current-temperature resolution: display temp, forecast delta, yesterday delta. */
     data class ResolvedCurrentTemp(
         val displayTemp: Float?,
@@ -913,8 +904,10 @@ class DesktopWeatherRepository(
                 "INFO",
             )
         }
-        if (fiveMinute.isNotEmpty()) {
-            weatherDao.retireConflictingTomorrowIoProductsIfCovered(latitude, longitude)
+        // Retire any stored source's replaced observation products at this site. Shared with
+        // Android; only ever deletes old data — see RetiredProductCleanup.
+        readings.mapTo(HashSet()) { it.api }.forEach { api ->
+            weatherDao.retireProductsIfCovered(api, latitude, longitude)
         }
     }
 

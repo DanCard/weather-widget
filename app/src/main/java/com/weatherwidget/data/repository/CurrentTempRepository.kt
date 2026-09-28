@@ -128,12 +128,6 @@ class CurrentTempRepository
                         appLogDao.log("CURR_FETCH_MUTEX", "reason=$reason waitMs=$mutexWaitMs", "WARN")
                     }
 
-                    TomorrowIoLegacyActualsCleanup.runIfNeeded(
-                        context = context,
-                        observationDao = observationDao,
-                        appLogDao = appLogDao,
-                    )
-
                     val currentTime = System.currentTimeMillis()
                     // Location-scoped: a location handoff must not inherit the previous site's
                     // cooldown. The same source fetched 2 minutes ago at an old site is still stale
@@ -460,7 +454,8 @@ class CurrentTempRepository
                     "latest=${entities.maxOfOrNull { it.timestamp }} replacements=$replacementCount",
                 "INFO",
             )
-            TomorrowIoLegacyActualsCleanup.retireConflictingProductsIfCovered(
+            RetiredProductCleanupRunner.runFor(
+                api = WeatherSource.TOMORROW_IO.id,
                 latitude = latitude,
                 longitude = longitude,
                 observationDao = observationDao,

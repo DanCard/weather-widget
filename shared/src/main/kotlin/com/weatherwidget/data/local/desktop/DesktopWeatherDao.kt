@@ -14,9 +14,11 @@ import com.weatherwidget.data.model.CurrentStatus
 import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationSiteMerge
+import com.weatherwidget.data.local.RetiredActualsProducts
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.orNullIfImplausibleTempF
 import com.weatherwidget.shared.actuals.MetarCloudBlender
+import com.weatherwidget.shared.actuals.RetiredProductCleanup
 import com.weatherwidget.shared.util.ForecastTempRounding
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.NetworkUsageReport
@@ -35,164 +37,64 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         private const val PRIOR_CLOUD_CONDITION = "prior-run cloud"
     }
 
-    data class TomorrowCleanupResult(
-        val observationsDeleted: Int,
-        val dailyRowsDeleted: Int,
-    )
-
-    data class OpenMeteoCleanupResult(
-        val observationsDeleted: Int,
-        val dailyRowsDeleted: Int,
-    )
-
-    /** One-time removal of generic Tomorrow.io actuals written by older builds. */
-    fun cleanupLegacyTomorrowIoActuals(): TomorrowCleanupResult? {
-        db.getConnection().use { conn ->
-            conn.autoCommit = false
-            try {
-                val alreadyDone = conn.prepareStatement(
-                    "SELECT 1 FROM app_logs WHERE tag = 'TMRW_ACTUALS_CLEANUP_V2' LIMIT 1",
-                ).use { it.executeQuery().next() }
-                if (alreadyDone) {
-                    conn.rollback()
-                    return null
-                }
-
-                val observationsDeleted = conn.createStatement().use { stmt ->
-                    stmt.executeUpdate(
-                        "DELETE FROM observations WHERE api = 'TOMORROW_IO' " +
-                            "AND stationId NOT IN " +
-                            "('TOMORROW_IO_5M_HISTORY', 'TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME')",
-                    )
-                }
-                // Preserve daily rows until five-minute replacement coverage exists. The targeted
-                // retirement transaction below deletes and rebuilds them only after that gate.
-                val dailyRowsDeleted = 0
-                conn.prepareStatement(
-                    "INSERT INTO app_logs (timestamp, level, tag, message) VALUES (?, 'INFO', 'TMRW_ACTUALS_CLEANUP_V2', ?)",
-                ).use { stmt ->
-                    stmt.setLong(1, System.currentTimeMillis())
-                    stmt.setString(2, "legacyObservations=$observationsDeleted dailyRows=$dailyRowsDeleted")
-                    stmt.executeUpdate()
-                }
-                conn.commit()
-                return TomorrowCleanupResult(observationsDeleted, dailyRowsDeleted)
-            } catch (e: Exception) {
-                conn.rollback()
-                throw e
-            }
-        }
-    }
-
     /**
-     * Removes retired Tomorrow.io products at one site only after five-minute replacement rows
-     * exist there. The observation and derived-daily cleanup is atomic so readers cannot see a
-     * half-retired cache.
+     * Desktop executor for [RetiredProductCleanup] (Android: `RetiredProductCleanupRunner`): retires
+     * replaced observation products for [api] at one site, and derived daily rows only alongside
+     * them. Each product runs in one transaction so readers never see a half-retired cache. Empty
+     * in the steady state.
      */
-    fun retireConflictingTomorrowIoProductsIfCovered(
+    fun retireProductsIfCovered(
+        api: String,
         latitude: Double,
         longitude: Double,
-    ): TomorrowCleanupResult? {
-        db.getConnection().use { conn ->
-            conn.autoCommit = false
-            try {
-                val coverage = conn.prepareStatement(
-                    "SELECT COUNT(*) FROM observations WHERE api = 'TOMORROW_IO' " +
-                        "AND stationId = 'TOMORROW_IO_5M_HISTORY' " +
-                        "AND timestamp % 300000 = 0 " +
-                        "AND ${LocationMatch.JDBC_SAME_SITE_WHERE}",
-                ).use { stmt ->
-                    stmt.setDouble(1, latitude)
-                    stmt.setDouble(2, longitude)
-                    stmt.executeQuery().use { rows ->
-                        rows.next()
-                        rows.getInt(1)
+    ): List<RetiredProductCleanup.Outcome> =
+        RetiredActualsProducts.forApi(api).mapNotNull { product ->
+            db.getConnection().use { conn ->
+                conn.autoCommit = false
+                try {
+                    fun bindSite(stmt: PreparedStatement) {
+                        stmt.setDouble(1, latitude)
+                        stmt.setDouble(2, longitude)
                     }
-                }
-                if (coverage == 0) {
-                    conn.rollback()
-                    return null
-                }
-
-                val observationsDeleted = conn.prepareStatement(
-                    "DELETE FROM observations WHERE api = 'TOMORROW_IO' " +
-                        "AND (stationId IN ('TOMORROW_IO_RECENT_HISTORY', 'TOMORROW_IO_REALTIME') " +
-                        "OR (stationId = 'TOMORROW_IO_5M_HISTORY' AND timestamp % 300000 != 0)) " +
-                        "AND ${LocationMatch.JDBC_SAME_SITE_WHERE}",
-                ).use { stmt ->
-                    stmt.setDouble(1, latitude)
-                    stmt.setDouble(2, longitude)
-                    stmt.executeUpdate()
-                }
-                val dailyRowsDeleted = conn.prepareStatement(
-                    "DELETE FROM daily_history WHERE source = 'TOMORROW_IO' " +
-                        "AND computedHighTemp IS NOT NULL " +
-                        "AND ${LocationMatch.JDBC_SAME_SITE_WHERE}",
-                ).use { stmt ->
-                    stmt.setDouble(1, latitude)
-                    stmt.setDouble(2, longitude)
-                    stmt.executeUpdate()
-                }
-                if (observationsDeleted > 0 || dailyRowsDeleted > 0) {
+                    fun delete(table: String, where: String): Int =
+                        conn.prepareStatement("DELETE FROM $table WHERE $where").use { stmt ->
+                            bindSite(stmt)
+                            stmt.executeUpdate()
+                        }
+                    val outcome = RetiredProductCleanup.retireIfCovered(
+                        product = product,
+                        countObservations = { where ->
+                            conn.prepareStatement("SELECT COUNT(*) FROM observations WHERE $where").use { stmt ->
+                                bindSite(stmt)
+                                stmt.executeQuery().use { rows ->
+                                    rows.next()
+                                    rows.getInt(1)
+                                }
+                            }
+                        },
+                        deleteObservations = { where -> delete("observations", where) },
+                        deleteDailyRows = { where -> delete("daily_history", where) },
+                    )
+                    if (outcome == null) {
+                        conn.rollback()
+                        return@use null
+                    }
                     conn.prepareStatement(
-                        "INSERT INTO app_logs (timestamp, level, tag, message) " +
-                            "VALUES (?, 'INFO', 'TMRW_5M_CLEANUP', ?)",
+                        "INSERT INTO app_logs (timestamp, level, tag, message) VALUES (?, 'INFO', ?, ?)",
                     ).use { stmt ->
                         stmt.setLong(1, System.currentTimeMillis())
-                        stmt.setString(
-                            2,
-                            "lat=$latitude lon=$longitude coverage=$coverage " +
-                                "retiredObservations=$observationsDeleted dailyRows=$dailyRowsDeleted",
-                        )
+                        stmt.setString(2, RetiredProductCleanup.LOG_TAG)
+                        stmt.setString(3, outcome.logMessage(latitude, longitude))
                         stmt.executeUpdate()
                     }
-                }
-                conn.commit()
-                return TomorrowCleanupResult(observationsDeleted, dailyRowsDeleted)
-            } catch (e: Exception) {
-                conn.rollback()
-                throw e
-            }
-        }
-    }
-
-    /** One-time removal of Open-Meteo Forecast API model rows previously stored as actuals. */
-    fun cleanupLegacyOpenMeteoActuals(): OpenMeteoCleanupResult? {
-        db.getConnection().use { conn ->
-            conn.autoCommit = false
-            try {
-                val alreadyDone = conn.prepareStatement(
-                    "SELECT 1 FROM app_logs WHERE tag = 'METEO_ACTUALS_CLEANUP_V1' LIMIT 1",
-                ).use { it.executeQuery().next() }
-                if (alreadyDone) {
+                    conn.commit()
+                    outcome
+                } catch (e: Exception) {
                     conn.rollback()
-                    return null
+                    throw e
                 }
-
-                val observationsDeleted = conn.createStatement().use { stmt ->
-                    stmt.executeUpdate("DELETE FROM observations WHERE api = 'OPEN_METEO'")
-                }
-                // computed-null rows are FORECAST_ONLY_ROWs written by the newer writer — they are
-                // the display surface for Meteo history, not legacy model actuals; keep them.
-                val dailyRowsDeleted = conn.createStatement().use { stmt ->
-                    stmt.executeUpdate("DELETE FROM daily_history WHERE source = 'OPEN_METEO' AND computedHighTemp IS NOT NULL")
-                }
-                conn.prepareStatement(
-                    "INSERT INTO app_logs (timestamp, level, tag, message) VALUES (?, 'INFO', 'METEO_ACTUALS_CLEANUP_V1', ?)",
-                ).use { stmt ->
-                    stmt.setLong(1, System.currentTimeMillis())
-                    stmt.setString(2, "modelObservations=$observationsDeleted dailyRows=$dailyRowsDeleted")
-                    stmt.executeUpdate()
-                }
-                conn.commit()
-                return OpenMeteoCleanupResult(observationsDeleted, dailyRowsDeleted)
-            } catch (e: Exception) {
-                conn.rollback()
-                throw e
             }
         }
-    }
-
 
     fun upsertHourlyForecasts(locationLat: Double, locationLon: Double, source: String, hourly: List<HourlyForecast>) {
         db.getConnection().use { conn ->

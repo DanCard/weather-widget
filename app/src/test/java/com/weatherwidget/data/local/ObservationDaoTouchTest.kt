@@ -104,40 +104,6 @@ class ObservationDaoTouchTest {
     }
 
     @Test
-    fun tomorrowStartupCleanup_keepsFiveMinuteAndRetiredRows_untilTargetedCleanup() = runTest {
-        dao.insertAll(
-            listOf(
-                obs("TOMORROW_IO_MAIN", 1_000L, 1_000L, api = "TOMORROW_IO"),
-                obs("TOMORROW_IO_5M_HISTORY", 1_500L, 1_500L, api = "TOMORROW_IO"),
-                obs("TOMORROW_IO_RECENT_HISTORY", 2_000L, 2_000L, api = "TOMORROW_IO"),
-                obs("TOMORROW_IO_REALTIME", 3_000L, 3_000L, api = "TOMORROW_IO"),
-                obs("KNUQ", 4_000L, 4_000L),
-            ),
-        )
-
-        assertEquals(1, dao.deleteLegacyTomorrowIoObservations())
-
-        assertEquals(
-            setOf("TOMORROW_IO_5M_HISTORY", "TOMORROW_IO_RECENT_HISTORY", "TOMORROW_IO_REALTIME", "KNUQ"),
-            dao.getRecentObservations(0L).map { it.stationId }.toSet(),
-        )
-    }
-
-    @Test
-    fun openMeteoCleanup_deletesOnlyMeteoModelRows() = runTest {
-        dao.insertAll(
-            listOf(
-                obs("OPEN_METEO_MAIN", 1_000L, 1_000L, api = "OPEN_METEO"),
-                obs("OPEN_METEO_1", 2_000L, 2_000L, api = "OPEN_METEO"),
-                obs("KNUQ", 3_000L, 3_000L),
-            ),
-        )
-
-        assertEquals(2, dao.deleteOpenMeteoModelObservations())
-        assertEquals(listOf("KNUQ"), dao.getRecentObservations(0L).map { it.stationId })
-    }
-
-    @Test
     fun sameStationTimestamp_isStoredAndTouchedIndependentlyPerSite() = runTest {
         dao.insertAll(
             listOf(

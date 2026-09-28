@@ -10,6 +10,7 @@ import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.shared.actuals.RetiredProductCleanup
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -74,59 +75,7 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
-    fun `Tomorrow startup cleanup keeps accepted products and daily cache while deleting generic rows`() {
-        val now = System.currentTimeMillis()
-        val lat = 37.42
-        val lon = -122.08
-        fun observation(stationId: String, timestamp: Long) = DesktopObservationEntity(
-            stationId = stationId,
-            stationName = stationId,
-            timestamp = timestamp,
-            temperature = 65f,
-            condition = "Clear",
-            locationLat = lat,
-            locationLon = lon,
-            fetchedAt = now,
-            api = "TOMORROW_IO",
-        )
-        dao.upsertObservations(
-            listOf(
-                observation("TOMORROW_IO_MAIN", now - 3_000L),
-                observation("TOMORROW_IO_5M_HISTORY", now - 2_500L),
-                observation("TOMORROW_IO_RECENT_HISTORY", now - 2_000L),
-                observation("TOMORROW_IO_REALTIME", now - 1_000L),
-            ),
-        )
-        dao.upsertDailyHistory(
-            listOf(
-                DailyHistory(
-                    date = now,
-                    source = "TOMORROW_IO",
-                    locationLat = lat,
-                    locationLon = lon,
-                    computedHighTemp = 65f,
-                    computedLowTemp = 60f,
-                    condition = "Clear",
-                    updatedAt = now,
-                ),
-            ),
-        )
-
-        val result = dao.cleanupLegacyTomorrowIoActuals()
-
-        assertNotNull(result)
-        assertEquals(1, result!!.observationsDeleted)
-        assertEquals(0, result.dailyRowsDeleted)
-        assertEquals(
-            setOf("TOMORROW_IO_5M_HISTORY", "TOMORROW_IO_RECENT_HISTORY", "TOMORROW_IO_REALTIME"),
-            dao.getObservationsInRange(now - 10_000L, now + 1L, lat, lon).map { it.stationId }.toSet(),
-        )
-        assertEquals(1, dao.getExtremesInRange(now - 1L, now + 1L, lat, lon).size)
-        assertNull(dao.cleanupLegacyTomorrowIoActuals())
-    }
-
-    @Test
-    fun `five minute coverage guards targeted Tomorrow product retirement`() {
+    fun `replacement coverage guards Tomorrow retired-product cleanup`() {
         val now = System.currentTimeMillis().let { it - Math.floorMod(it, 5 * 60_000L) }
         val lat = 37.417
         val lon = -122.089
@@ -162,17 +111,16 @@ class DesktopWeatherDaoTest {
             ),
         )
 
-        assertNull(dao.retireConflictingTomorrowIoProductsIfCovered(lat, lon))
+        assertTrue(dao.retireProductsIfCovered("TOMORROW_IO", lat, lon).isEmpty())
         assertEquals(3, dao.getObservationsInRange(now, now + 60_001L, lat, lon).size)
 
         dao.upsertObservations(listOf(observation("TOMORROW_IO_5M_HISTORY", 78.16f)))
         // Exact-key upsert accepts a provider revision without creating a second point.
         dao.upsertObservations(listOf(observation("TOMORROW_IO_5M_HISTORY", 78.05f)))
-        val result = dao.retireConflictingTomorrowIoProductsIfCovered(lat, lon)
+        val result = dao.retireProductsIfCovered("TOMORROW_IO", lat, lon).single()
 
-        assertNotNull(result)
-        assertEquals(3, result!!.observationsDeleted)
-        assertEquals(1, result.dailyRowsDeleted)
+        assertEquals(3, result.retiredObservations)
+        assertEquals(1, result.dailyRows)
         val siteRows = dao.getObservationsInRange(now, now + 60_001L, lat, lon)
         assertEquals(listOf("TOMORROW_IO_5M_HISTORY"), siteRows.map { it.stationId })
         assertEquals(78.05f, siteRows.single().temperature, 0.001f)
@@ -182,66 +130,38 @@ class DesktopWeatherDaoTest {
         )
         assertTrue(dao.getExtremesInRange(now, now, lat, lon).isEmpty())
         assertEquals(1, dao.getExtremesInRange(now, now, farLat, lon).size)
-        assertEquals(1, dao.getRecentLogsByTags(listOf("TMRW_5M_CLEANUP"), 10).size)
+        assertEquals(1, dao.getRecentLogsByTags(listOf(RetiredProductCleanup.LOG_TAG), 10).size)
     }
 
+    /** Same regression as Android's: the cleanup must not delete a row built from five-minute data. */
     @Test
-    fun `Open Meteo cleanup removes model observations and daily actual rows once`() {
-        val now = System.currentTimeMillis()
-        val lat = 37.42
-        val lon = -122.08
+    fun `a site with only five minute data keeps its computed Tomorrow daily row`() {
+        val now = System.currentTimeMillis().let { it - Math.floorMod(it, 5 * 60_000L) }
+        val lat = 52.233
+        val lon = 21.071
         dao.upsertObservations(
             listOf(
                 DesktopObservationEntity(
-                    stationId = "OPEN_METEO_MAIN",
-                    stationName = "Meteo model current",
+                    stationId = "TOMORROW_IO_5M_HISTORY",
+                    stationName = "TOMORROW_IO_5M_HISTORY",
                     timestamp = now,
-                    temperature = 65f,
+                    temperature = 68.14f,
                     condition = "Clear",
                     locationLat = lat,
                     locationLon = lon,
                     fetchedAt = now,
-                    api = WeatherSource.OPEN_METEO.id,
-                ),
-                DesktopObservationEntity(
-                    stationId = "KNUQ",
-                    stationName = "KNUQ",
-                    timestamp = now,
-                    temperature = 64f,
-                    condition = "Clear",
-                    locationLat = lat,
-                    locationLon = lon,
-                    fetchedAt = now,
-                    api = WeatherSource.NWS.id,
+                    api = WeatherSource.TOMORROW_IO.id,
                 ),
             ),
         )
         dao.upsertDailyHistory(
-            listOf(
-                DailyHistory(
-                    date = now,
-                    source = WeatherSource.OPEN_METEO.id,
-                    locationLat = lat,
-                    locationLon = lon,
-                    computedHighTemp = 65f,
-                    computedLowTemp = 60f,
-                    condition = "Clear",
-                    updatedAt = now,
-                ),
-            ),
+            listOf(DailyHistory(now, WeatherSource.TOMORROW_IO.id, lat, lon, 68.14f, 54.45f, "Clear", now)),
         )
 
-        val result = dao.cleanupLegacyOpenMeteoActuals()
+        repeat(3) { assertTrue(dao.retireProductsIfCovered("TOMORROW_IO", lat, lon).isEmpty()) }
 
-        assertNotNull(result)
-        assertEquals(1, result!!.observationsDeleted)
-        assertEquals(1, result.dailyRowsDeleted)
-        assertEquals(
-            listOf("KNUQ"),
-            dao.getObservationsInRange(now - 1L, now + 1L, lat, lon).map { it.stationId },
-        )
-        assertTrue(dao.getExtremesInRange(now - 1L, now + 1L, lat, lon).isEmpty())
-        assertNull(dao.cleanupLegacyOpenMeteoActuals())
+        assertEquals(1, dao.getExtremesInRange(now, now, lat, lon).size)
+        assertTrue(dao.getRecentLogsByTags(listOf(RetiredProductCleanup.LOG_TAG), 10).isEmpty())
     }
 
     @Test

@@ -4,6 +4,8 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RawQuery
+import androidx.sqlite.db.SupportSQLiteQuery
 
 @Dao
 interface DailyHistoryDao {
@@ -84,16 +86,10 @@ interface DailyHistoryDao {
     @Query("DELETE FROM daily_history WHERE updatedAt < :cutoffMs")
     suspend fun deleteOldExtremes(cutoffMs: Long)
 
-    // The computed-null guard keeps FORECAST_ONLY_ROW rows (the display surface for these sources'
-    // history, not legacy actuals) alive if a one-time cleanup ever runs after the writer.
-    @Query(
-        "DELETE FROM daily_history " +
-            "WHERE source = 'TOMORROW_IO' " +
-            "AND computedHighTemp IS NOT NULL " +
-            "AND ${LocationMatch.ROOM_SAME_SITE_WHERE}",
-    )
-    suspend fun deleteTomorrowIoHistoryAtSite(lat: Double, lon: Double): Int
+    // Generic retired-product cleanup (RetiredProductCleanup); see ObservationDao.rowIdsRaw.
+    @RawQuery
+    suspend fun rowIdsRaw(query: SupportSQLiteQuery): List<Long>
 
-    @Query("DELETE FROM daily_history WHERE source = 'OPEN_METEO' AND computedHighTemp IS NOT NULL")
-    suspend fun deleteOpenMeteoHistory(): Int
+    @Query("DELETE FROM daily_history WHERE rowid IN (:rowIds)")
+    suspend fun deleteByRowIds(rowIds: List<Long>): Int
 }
