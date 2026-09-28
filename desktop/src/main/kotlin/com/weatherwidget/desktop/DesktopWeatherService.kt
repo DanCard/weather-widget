@@ -40,6 +40,8 @@ import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.MetarObservationFetcher
 import com.weatherwidget.shared.observations.SynopticObservationFetcher
 import com.weatherwidget.shared.observations.MetarRawSkyParser
+import com.weatherwidget.shared.util.SynopticBackoffStore
+import com.weatherwidget.shared.util.SynopticFetchGate
 import com.weatherwidget.data.remote.AviationWeatherApi
 
 /**
@@ -57,6 +59,8 @@ class DesktopWeatherService(
     private val injectedHttpClient: HttpClient? = null,
     private val injectedNwsApi: NwsApi? = null,
     private val injectedSynopticApi: SynopticApi? = null,
+    /** Shared Synoptic backoff state; production passes [DesktopSynopticBackoffStore.default]. */
+    synopticBackoffStore: SynopticBackoffStore = InMemorySynopticBackoffStore(),
 ) : WeatherApiClient {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -143,6 +147,15 @@ class DesktopWeatherService(
             else -> Log.i(TAG, "$tag $message")
         }
     }
+
+    // Same backoff state machine and log rows as Android's SynopticObservationRefresher.
+    private val synopticGate = SynopticFetchGate(
+        store = synopticBackoffStore,
+        log = { tag, message, level ->
+            Log.i(TAG, "$tag $message")
+            weatherDao?.log(tag, message, level)
+        },
+    )
 
     constructor(config: DesktopConfig) : this(
         latitude = config.lat,
@@ -813,17 +826,17 @@ class DesktopWeatherService(
         source = "NWS",
     )
 
-    override suspend fun fetchObservationsOnly(recentOnly: Boolean): RawFetch {
+    override suspend fun fetchObservationsOnly(recentOnly: Boolean, userLocationChange: Boolean): RawFetch {
         val source = WeatherSource.fromId(weatherSource)
         val provider = ActualsProviderResolver.providerIdFor(source)
         if (provider != source.id) {
             return when (provider) {
-                WeatherSource.METAR.id, WeatherSource.SYNOPTIC.id -> fetchBorrowedObservationsOnly(recentOnly)
+                WeatherSource.METAR.id, WeatherSource.SYNOPTIC.id -> fetchBorrowedObservationsOnly(recentOnly, userLocationChange)
                 WeatherSource.NWS.id -> fetchNwsObservationsOnly(recentOnly)
                 WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
                 WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
                 WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapObservationsOnly()
-                else -> fetchBorrowedObservationsOnly(recentOnly)
+                else -> fetchBorrowedObservationsOnly(recentOnly, userLocationChange)
             }
         }
         return when (weatherSource) {
@@ -831,7 +844,7 @@ class DesktopWeatherService(
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
             WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapObservationsOnly()
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
-            WeatherSource.SILURIAN.id -> fetchBorrowedObservationsOnly(recentOnly)
+            WeatherSource.SILURIAN.id -> fetchBorrowedObservationsOnly(recentOnly, userLocationChange)
             WeatherSource.WEATHER_API.id -> {
                 Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path is defined")
                 RawFetch()
@@ -885,7 +898,7 @@ class DesktopWeatherService(
      * NWS path already stored rather than a fresh pull, and never a silently substituted feed
      * (`no_cross_source_fallback`).
      */
-    private suspend fun fetchBorrowedObservationsOnly(recentOnly: Boolean): RawFetch {
+    private suspend fun fetchBorrowedObservationsOnly(recentOnly: Boolean, userLocationChange: Boolean = false): RawFetch {
         val source = WeatherSource.fromId(weatherSource)
         val provider = ActualsProviderResolver.providerIdFor(source)
         if (provider == WeatherSource.METAR.id) {
@@ -899,7 +912,9 @@ class DesktopWeatherService(
             return RawFetch(rawObservations = readings)
         } else if (provider == WeatherSource.SYNOPTIC.id) {
             val hours = if (recentOnly) RECENT_BORROWED_METAR_HOURS else RECOVERY_BORROWED_METAR_HOURS
-            val readings = synopticFetcher.fetchObservations(latitude, longitude, hours = hours)
+            val readings = synopticGate.run("reason=borrowed_${if (recentOnly) "recent" else "recovery"}", userLocationChange) {
+                synopticFetcher.fetchObservationsResult(latitude, longitude, hours = hours)
+            }?.valueOrNull().orEmpty()
             Log.i(
                 TAG,
                 "BORROWED_SYNOPTIC_FETCH source=$weatherSource hours=$hours rows=${readings.size} " +

@@ -197,7 +197,7 @@ internal fun runDesktopUiApplication() = application {
 
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.apiKeys) {
             currentConfig?.let {
-                DesktopWeatherService(it.lat, it.lon, it.settings.weatherSource, it.settings.apiKeys, weatherDao, isForeground = true)
+                DesktopWeatherService(it.lat, it.lon, it.settings.weatherSource, it.settings.apiKeys, weatherDao, isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default())
             }
         }
         val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.personalStationDiscount) {
@@ -473,7 +473,8 @@ internal fun runDesktopUiApplication() = application {
                 }
                 refreshInFlight = true
                 try {
-                    forecast = repo.refresh()
+                    // A Synoptic backoff earned at the previous site must not blank this one's actuals.
+                    forecast = repo.refresh(userLocationChange = true)
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
                     dataUpdateCount++
                     weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=cleared", "INFO")

@@ -35,7 +35,11 @@ interface WeatherApiClient {
      * it to a single reading. See
      * plans/260820-observation-loop-recent-window-not-latest-row.md.
      */
-    suspend fun fetchObservationsOnly(recentOnly: Boolean = false): RawFetch
+    suspend fun fetchObservationsOnly(
+        recentOnly: Boolean = false,
+        /** The UI's picker-save refresh: may fetch Synoptic through a backoff (SynopticBackoff.shouldSkip). */
+        userLocationChange: Boolean = false,
+    ): RawFetch
 
     suspend fun nearestStationsForDailyActuals(): List<NwsApi.StationInfo>
 

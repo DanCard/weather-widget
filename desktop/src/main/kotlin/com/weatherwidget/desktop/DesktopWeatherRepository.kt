@@ -441,13 +441,13 @@ class DesktopWeatherRepository(
      * window so a suspend/restart gap does not stay permanently visible after the upstream reports
      * are available again. Failures are best-effort and leave the cached gap intact.
      */
-    private suspend fun fetchBorrowedRecovery(displaySource: WeatherSource): RawFetch {
+    private suspend fun fetchBorrowedRecovery(displaySource: WeatherSource, userLocationChange: Boolean): RawFetch {
         val provider = ActualsProviderResolver.providerIdFor(displaySource)
         val borrowsActuals = provider != displaySource.id &&
             (provider == WeatherSource.METAR.id || provider == WeatherSource.SYNOPTIC.id)
         if (!borrowsActuals) return RawFetch()
         return try {
-            weatherService.fetchObservationsOnly(recentOnly = false)
+            weatherService.fetchObservationsOnly(recentOnly = false, userLocationChange = userLocationChange)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -458,7 +458,9 @@ class DesktopWeatherRepository(
 
     suspend fun refresh(
         now: Long = currentTimeMillis(),
-    ): ForecastSnapshot = refreshWithOutcome(now).snapshot
+        /** The UI's picker-save refresh; see [WeatherApiClient.fetchObservationsOnly]. */
+        userLocationChange: Boolean = false,
+    ): ForecastSnapshot = refreshWithOutcome(now, userLocationChange).snapshot
 
     /**
      * Runs a full refresh and reports whether it already supplied observation data. Schedulers can
@@ -466,6 +468,7 @@ class DesktopWeatherRepository(
      */
     suspend fun refreshWithOutcome(
         now: Long = currentTimeMillis(),
+        userLocationChange: Boolean = false,
     ): RefreshOutcome = withContext(Dispatchers.IO) {
         Log.i(TAG, "refresh() started source=$weatherSource")
         // Entry marker. The terminal REFRESH row below only lands on success, so without this an
@@ -482,7 +485,7 @@ class DesktopWeatherRepository(
             // fills in as it runs), so we never seed Open-Meteo decimals into the past.
             val (forecastResult, borrowedRecovery) = coroutineScope {
                 val forecast = async { weatherService.fetchForecast() }
-                val recovery = async { fetchBorrowedRecovery(displaySource) }
+                val recovery = async { fetchBorrowedRecovery(displaySource, userLocationChange) }
                 forecast.await() to recovery.await()
             }
             val result = if (borrowedRecovery.rawObservations.isEmpty()) {

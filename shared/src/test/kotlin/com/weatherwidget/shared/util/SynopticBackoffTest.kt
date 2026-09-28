@@ -2,6 +2,7 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -45,5 +46,21 @@ class SynopticBackoffTest {
             attempts++
         }
         assertTrue("expected few attempts, got $attempts", attempts <= 8)
+    }
+
+    @Test
+    fun `an active backoff skips ordinary fetches`() {
+        assertTrue(SynopticBackoff.shouldSkip(nowMs = 1_000L, backoffUntilMs = 2_000L, userLocationChange = false))
+    }
+
+    @Test
+    fun `a user location change fetches through an active backoff`() {
+        // 2026-09-28: a Kyiv timeout at 09:13 blanked Warsaw's yesterday after a 09:14 move.
+        assertFalse(SynopticBackoff.shouldSkip(nowMs = 1_000L, backoffUntilMs = 2_000L, userLocationChange = true))
+    }
+
+    @Test
+    fun `an expired backoff skips nothing`() {
+        assertFalse(SynopticBackoff.shouldSkip(nowMs = 3_000L, backoffUntilMs = 2_000L, userLocationChange = false))
     }
 }

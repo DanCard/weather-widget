@@ -651,7 +651,7 @@ internal class DaemonRuntime(
         runCatching { weatherService?.close() }
 
         val config = currentConfig ?: return
-        val svc = DesktopWeatherService(config.lat, config.lon, config.settings.weatherSource, config.settings.apiKeys, weatherDao)
+        val svc = DesktopWeatherService(config.lat, config.lon, config.settings.weatherSource, config.settings.apiKeys, weatherDao, synopticBackoffStore = DesktopSynopticBackoffStore.default())
         weatherService = svc
         val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.settings.weatherSource, config.personalStationWeight())
         repo = newRepo
@@ -821,7 +821,8 @@ internal class DaemonRuntime(
                                     config.lon,
                                     otherSource,
                                     config.settings.apiKeys,
-                                    weatherDao
+                                    weatherDao,
+                                    synopticBackoffStore = DesktopSynopticBackoffStore.default(),
                                 )
                                 val otherRepo = DesktopWeatherRepository(
                                     otherService,
@@ -877,7 +878,8 @@ internal class DaemonRuntime(
                                 config.lon,
                                 otherSource,
                                 config.settings.apiKeys,
-                                weatherDao
+                                weatherDao,
+                                synopticBackoffStore = DesktopSynopticBackoffStore.default(),
                             )
                             val otherRepo = DesktopWeatherRepository(
                                 otherService,

@@ -18,4 +18,16 @@ object SynopticBackoff {
         val shift = (failStreak - 1).coerceAtMost(20)
         return (BASE_BACKOFF_MS shl shift).coerceAtMost(MAX_BACKOFF_MS)
     }
+
+    /**
+     * True when a fetch should be skipped because an earlier failure's backoff is still running.
+     *
+     * The forced sync of a user-initiated location change ([userLocationChange]) is exempt: the
+     * backoff is global, not per site, and on 2026-09-28 one timeout at Kyiv made Warsaw's first
+     * sync 80 s later skip Synoptic — Open-Meteo (actuals redirected to Synoptic) then showed no
+     * yesterday for 30 min. One exempt attempt per deliberate move costs little quota; if it fails
+     * it extends the backoff like any other failure.
+     */
+    fun shouldSkip(nowMs: Long, backoffUntilMs: Long, userLocationChange: Boolean): Boolean =
+        !userLocationChange && nowMs < backoffUntilMs
 }
