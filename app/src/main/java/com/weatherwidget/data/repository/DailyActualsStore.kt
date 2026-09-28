@@ -55,6 +55,26 @@ private const val MAX_TRACKED_DAYS = 256
 private const val DAYTIME_COVERAGE_HOUR = 14
 
 @VisibleForTesting
+/**
+ * The observation `api` whose rows actually built [rowSource]'s daily blend: the resolved actuals
+ * provider, which for a redirected source is another feed entirely (ActualsAggregator drops a
+ * redirected source's own rows). DAILY_HISTORY_BLEND keyed its station list on the row's own id,
+ * so on 2026-09-28 Open-Meteo's Warsaw row — built from 8 Synoptic stations — logged
+ * `stations=[OPEN_METEO_MAIN]` and hid that it could not exist until Synoptic answered.
+ */
+internal fun blendInputApi(
+    rowSource: String,
+    /** Null = the app's installed actuals-provider preferences. */
+    preference: ((WeatherSource) -> WeatherSource?)? = null,
+): String {
+    val source = WeatherSource.entries.firstOrNull { it.id == rowSource } ?: return rowSource
+    return if (preference == null) {
+        ActualsProviderResolver.providerIdFor(source)
+    } else {
+        ActualsProviderResolver.providerIdFor(source, preference)
+    }
+}
+
 internal fun pastDayLacksAfternoonCoverage(
     obsTimestampsMs: List<Long>,
     date: LocalDate,
@@ -415,7 +435,7 @@ class DailyActualsStore @Inject constructor(
             appLogDao.log(
                 "DAILY_HISTORY_BLEND",
                 "date=$date src=${new.source} computed_hi=${new.computedHighTemp} computed_lo=${new.computedLowTemp} " +
-                    "stations=[${perSourceBreakdown[new.source] ?: "n/a"}] " +
+                    "stations=[${perSourceBreakdown[blendInputApi(new.source)] ?: "n/a"}] " +
                     "userLat=$latitude userLon=$longitude",
                 "VERBOSE",
             )
