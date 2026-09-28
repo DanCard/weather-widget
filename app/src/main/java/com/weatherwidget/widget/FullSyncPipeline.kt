@@ -72,8 +72,13 @@ internal class FullSyncPipeline(
             // A setup-screen location change: say which place we are fetching for before the fetch,
             // unless the site already has today's row (then the cache repaint draws it correctly).
             input.locationChangePlace?.let { place ->
-                painter.paintLocationChangeInterstitial(place, location.first, location.second)
+                if (input.locationChangeBanner) {
+                    appLogDao.log("LOCATION_FETCH_PENDING", "action=banner_sync_start place=$place", "INFO")
+                } else {
+                    painter.paintLocationChangeInterstitial(place, location.first, location.second)
+                }
             }
+            val bannerPlace = input.locationChangePlace?.takeIf { input.locationChangeBanner }
             Log.d(
                 TAG,
                 "doWork: Location = $location " +
@@ -268,6 +273,10 @@ internal class FullSyncPipeline(
                     )
                     val jobType = if (input.uiOnlyRefresh) WidgetUpdateTracker.JobType.UI_PAINT else WidgetUpdateTracker.JobType.BACKGROUND_SYNC
                     val workerOrigin = if (input.uiOnlyRefresh) WidgetPushDispatcher.Origin.UI_ONLY else WidgetPushDispatcher.Origin.WORKER_FETCH
+                    // Before the paint, so the new site's render binds the banner GONE itself.
+                    if (bannerPlace != null && weatherList.isNotEmpty()) {
+                        painter.finishLocationChangeBanner(bannerPlace, succeeded = true, reason = "sync_success")
+                    }
                     painter.updateAllWidgets(
                         weatherList = weatherList,
                         forecastSnapshots = forecastSnapshots,
@@ -302,6 +311,7 @@ internal class FullSyncPipeline(
                     // cleared the wait, so give the user the tap-to-refresh way out.
                     if (weatherList.isEmpty()) {
                         painter.renderPendingLocationFetchFailure("sync_success_empty")
+                        bannerPlace?.let { painter.finishLocationChangeBanner(it, succeeded = false, reason = "sync_success_empty") }
                     }
 
                     val totalMs = afterUpdateMs - startMs
@@ -341,6 +351,7 @@ internal class FullSyncPipeline(
                 onFailure = { e ->
                     appLogDao.log("SYNC_FAILURE", "Repository failed: ${e.message}", "ERROR")
                     painter.renderPendingLocationFetchFailure("sync_failure")
+                    bannerPlace?.let { painter.finishLocationChangeBanner(it, succeeded = false, reason = "sync_failure") }
                     ListenableWorker.Result.retry()
                 },
             )
@@ -350,6 +361,9 @@ internal class FullSyncPipeline(
         } catch (e: Exception) {
             appLogDao.logException("SYNC_EXCEPTION", "Synchronization failed", e)
             runCatching { painter.renderPendingLocationFetchFailure("sync_exception") }
+            input.locationChangePlace?.takeIf { input.locationChangeBanner }?.let { place ->
+                runCatching { painter.finishLocationChangeBanner(place, succeeded = false, reason = "sync_exception") }
+            }
             return ListenableWorker.Result.retry()
         } finally {
             if (input.shouldBroadcastNoHourlyComplete) {

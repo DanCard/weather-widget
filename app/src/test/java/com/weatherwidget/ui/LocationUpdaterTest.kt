@@ -8,6 +8,7 @@ import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.ActiveLocationResolver
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.LocationChangeBanner
 import com.weatherwidget.widget.WidgetStateManager
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
@@ -164,11 +165,12 @@ class LocationUpdaterTest : RobolectricTest() {
     }
 
     /**
-     * The setup path is the user-initiated one, so it — and only it — leaves the mark that tells
-     * every later paint "the widgets are showing 'Getting weather for {place}…', not data".
+     * The setup path is the user-initiated one, so it — and only it — gives feedback. Moving from a
+     * site already on screen floats "Getting weather for {place}…" over that render (user's call,
+     * 2026-09-28) and sets no interstitial mark: nothing should replace the render under the banner.
      */
     @Test
-    fun `a setup change to a new site marks a pending location fetch`() {
+    fun `a setup change away from a shown site raises the banner over it`() {
         bindWidget(301)
         ActiveLocationResolver.persist(context, 37.4168, -122.0890)
 
@@ -181,7 +183,46 @@ class LocationUpdaterTest : RobolectricTest() {
             displayName = "San Francisco",
         )
 
-        assertEquals("San Francisco", WidgetStateManager(context).getPendingLocationFetch())
+        val state = WidgetStateManager(context)
+        assertEquals(null, state.getPendingLocationFetch())
+        assertEquals(
+            LocationChangeBanner.message(context, "San Francisco"),
+            state.getActiveTransientMessage(301),
+        )
+    }
+
+    /** With nothing on screen there is no render to keep: the full-screen interstitial is marked. */
+    @Test
+    fun `a first-ever setup location marks the interstitial, not the banner`() {
+        bindWidget(304)
+
+        LocationUpdater.applyActiveLocationToAllWidgets(
+            context = context,
+            lat = 37.7749,
+            lon = -122.4194,
+            label = "San Francisco, CA, USA",
+            ids = intArrayOf(304),
+            displayName = "San Francisco",
+        )
+
+        val state = WidgetStateManager(context)
+        assertEquals("San Francisco", state.getPendingLocationFetch())
+        assertEquals(null, state.getActiveTransientMessage(304))
+    }
+
+    @Test
+    fun `the banner clears only its own message`() {
+        bindWidget(305)
+        bindWidget(306)
+        val state = WidgetStateManager(context)
+        LocationChangeBanner.show(context, "San Francisco", intArrayOf(305, 306))
+        state.setTransientMessage(306, "Hourly data missing", System.currentTimeMillis() + 60_000L)
+
+        val cleared = LocationChangeBanner.clear(context, "San Francisco", intArrayOf(305, 306))
+
+        assertEquals(1, cleared)
+        assertEquals(null, state.getActiveTransientMessage(305))
+        assertEquals("Hourly data missing", state.getActiveTransientMessage(306))
     }
 
     @Test

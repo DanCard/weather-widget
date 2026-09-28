@@ -14,6 +14,7 @@ import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.ActiveLocationResolver
+import com.weatherwidget.widget.LocationChangeBanner
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.tagTestModeEnqueue
@@ -150,7 +151,21 @@ object LocationUpdater {
         val placeName = displayName ?: label
         val siteChanged = !LocationChangePaintPolicy.isSameSite(previous, lat, lon)
         val stateManager = WidgetStateManager(context)
-        if (paintInterstitial && placeName != null && siteChanged) {
+        // Something already on screen (the previous site) → banner over it until the forced sync
+        // ends; nothing → the full-screen interstitial, which the sync paints and clears.
+        val feedback = LocationChangePaintPolicy.feedback(
+            userInitiated = paintInterstitial,
+            siteChanged = siteChanged,
+            hasRenderToKeep = previous != null,
+        )
+        if (placeName != null && feedback == LocationChangePaintPolicy.Feedback.BANNER) {
+            // No pending-interstitial mark: nothing should replace the render under the banner.
+            stateManager.clearPendingLocationFetch()
+            LocationChangeBanner.show(context, placeName, ids)
+            enqueueForceRefresh(context, locationChangePlace = placeName, banner = true)
+            return
+        }
+        if (placeName != null && feedback == LocationChangePaintPolicy.Feedback.INTERSTITIAL) {
             stateManager.setPendingLocationFetch(placeName)
             enqueueForceRefresh(context, locationChangePlace = placeName)
             return
@@ -250,12 +265,13 @@ object LocationUpdater {
         weatherPrefs.edit().putString("historical_pois", updatedPois).apply()
     }
 
-    private fun enqueueForceRefresh(context: Context, locationChangePlace: String? = null) {
+    private fun enqueueForceRefresh(context: Context, locationChangePlace: String? = null, banner: Boolean = false) {
         val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
             .setInputData(
                 Data.Builder()
                     .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
                     .putString(WeatherWidgetWorker.KEY_LOCATION_CHANGE_PLACE, locationChangePlace)
+                    .putBoolean(WeatherWidgetWorker.KEY_LOCATION_CHANGE_BANNER, banner)
                     .tagTestModeEnqueue()
                     .build(),
             )

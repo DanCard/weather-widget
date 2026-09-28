@@ -85,6 +85,29 @@ internal class WidgetPaintCoordinator(
     }
 
     /**
+     * End of a banner-mode location change's forced sync (see [LocationChangeBanner]). Success
+     * clears the banner — called before the final paint so that render binds it GONE as well.
+     * Failure clears it and paints the "Tap to refresh" fallback: the render under the banner is
+     * the previous site, and leaving it up unlabelled after the fetch gave up would say it is here.
+     */
+    suspend fun finishLocationChangeBanner(place: String, succeeded: Boolean, reason: String) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
+        val cleared = LocationChangeBanner.clear(context, place, appWidgetIds)
+        appLogDao.log(
+            "LOCATION_FETCH_PENDING",
+            "action=${if (succeeded) "banner_cleared" else "banner_failed"} reason=$reason place=$place " +
+                "widgets=${appWidgetIds.size} cleared=$cleared",
+            if (succeeded) "INFO" else "WARN",
+        )
+        if (!succeeded) {
+            appWidgetIds.forEach { appWidgetId ->
+                WidgetRenderer.updateWidgetError(context, appWidgetManager, appWidgetId)
+            }
+        }
+    }
+
+    /**
      * Start of the forced sync a setup-screen location change enqueued. Paints the interstitial
      * only while the change is still the pending one (a later save supersedes it) and the new site
      * has no forecast row for today; a site with a row clears the wait instead — the ordinary cache

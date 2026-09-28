@@ -641,13 +641,16 @@ class ConfigActivity : AppCompatActivity() {
         val recentLabel = displayName ?: label
         widgetStateManager.addRecentLocation(RecentLocation(lat, lon, recentLabel))
         // applyToAllWidgets enqueues its own force-refresh worker, and paints "Getting weather for
-        // {place}…" on the widgets meanwhile — the same name the toast below announces.
+        // {place}…" on the widgets meanwhile when the new site has nothing cached for today. The
+        // toast says the same thing unconditionally: a site that IS cached keeps its graph, so the
+        // toast is the only sign the save registered and a fetch is under way (desktop parity:
+        // the popup's location banner).
         LocationUpdater.applyToAllWidgets(this, lat, lon, label, displayName = displayName)
         lifecycleScope.launch {
             appLogDao.log("CONFIG", "Global location set lat=$lat lon=$lon mode=$mode label=$label")
         }
         val message = if (displayName != null) {
-            getString(R.string.location_saved_success_named, displayName)
+            getString(R.string.widget_fetching_location, displayName)
         } else {
             getString(R.string.location_saved_success)
         }

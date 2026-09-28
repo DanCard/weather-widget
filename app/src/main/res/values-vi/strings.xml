@@ -188,7 +188,6 @@
     <string name="save_location">Lưu vị trí</string>
     <string name="default_location_title">Vị trí mặc định</string>
     <string name="location_saved_success">Đã cập nhật vị trí cho tất cả tiện ích</string>
-    <string name="location_saved_success_named">Đã đặt vị trí thành %1$s cho tất cả tiện ích</string>
     <string name="location_updated_from_gps">Đã cập nhật vị trí từ GPS</string>
     <string name="invalid_coordinates_range">Vui lòng nhập tọa độ hợp lệ (vĩ độ -90 đến 90, kinh độ -180 đến 180)</string>
 

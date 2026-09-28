@@ -174,6 +174,15 @@ internal fun runDesktopUiApplication() = application {
         var pendingLocationLabel by remember { mutableStateOf<String?>(null) }
         // Transient "Fetching older data…" banner shown while an on-demand deep-history pull runs.
         var historyFetchToast by remember { mutableStateOf<String?>(null) }
+        // "Getting weather for {place}…" over the cached graph while a picker save's fetch runs;
+        // takes precedence over historyFetchToast in the popup's single banner slot.
+        var locationBanner by remember { mutableStateOf<LocationBanner?>(null) }
+        // While a picker save's fetch runs, a cache reload for the new site that can't draw today
+        // (nothing cached, or two-week-old rows) must not replace the previous site's graph under
+        // the banner with an empty one. Every reload path goes through this.
+        fun holdForLocationChange(snapshot: ForecastSnapshot): Boolean =
+            (pendingLocationLabel != null || locationBanner != null) &&
+                !LocationChangePaintPolicy.hasTodayRow(snapshot.raw.daily, LocalDate.now())
         var currentTempFetchError by remember { mutableStateOf<String?>(null) }
         // True when the failure is offline-classified during the post-wake grace window: the banner
         // renders as a calm "waiting for network" notice instead of a hard error.
@@ -210,7 +219,7 @@ internal fun runDesktopUiApplication() = application {
                 val repo = currentRepository.value ?: return@fn
                 uiScope.launch {
                     try {
-                        repo.loadCached()?.let {
+                        repo.loadCached()?.takeUnless { holdForLocationChange(it) }?.let {
                             forecast = it
                             // The daemon's own fetch for a just-picked site can land before the
                             // UI-side one: rows are here, so the interstitial (or the error it
@@ -378,7 +387,7 @@ internal fun runDesktopUiApplication() = application {
             try {
                 Log.i(TAG, "Loading cached data...")
                 val cached = repo.loadCached()
-                if (cached != null) {
+                if (cached != null && !holdForLocationChange(cached)) {
                     forecast = cached
                     val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.settings?.weatherSource)
                     dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
@@ -397,7 +406,7 @@ internal fun runDesktopUiApplication() = application {
                 expectedMs = now
                 if (!resumed && now - lastReloadMs < UI_FALLBACK_RELOAD_MS) continue
                 try {
-                    repo.loadCached()?.let { forecast = it }
+                    repo.loadCached()?.takeUnless { holdForLocationChange(it) }?.let { forecast = it }
                     // Also re-evaluates the status banner (see the dataUpdateCount-keyed effect).
                     dataUpdateCount++
                     lastReloadMs = now
@@ -411,54 +420,98 @@ internal fun runDesktopUiApplication() = application {
         }
 
         // Setup-driven location change (Android parity: LocationUpdater.paintInterstitialIfUncached).
-        // Keyed on the repository so it runs after the new site's repository exists. A site that
-        // already has rows is adopted straight from cache — switching home ↔ work must not flash a
-        // message. Otherwise the previous city's snapshot is dropped (it is the wrong place, and
-        // leaving it up is what this exists to stop), the place is named, and the fetch runs here in
-        // the UI process so its outcome is known: success → Live, failure → an Error that names the
-        // place and points at Refresh. The daemon's `.config-changed` fetch still runs in parallel;
-        // whichever lands first ends the wait (see reloadCachedForecast).
+        // Keyed on the repository so it runs after the new site's repository exists. Every picker
+        // move is confirmed and fetched here, in the UI process, so its outcome is known:
+        //  - the new site has a forecast row for today → keep the cached graph (switching home ↔
+        //    work must not blank it) and float a "Getting weather for {place}…" banner over it;
+        //  - it does not → drop the snapshot (the previous city, or a stale one with nothing in the
+        //    visible window — that painted an empty graph for 26 s on 2026-09-28) and show the
+        //    full-screen interstitial naming the place.
+        // The fetch runs in both cases: the daemon's `.config-changed` refresh is gated on the
+        // SOURCE's last fetch, not the site's, so it may skip a site that is days stale. Success →
+        // Live; failure → an Error naming the place, or a brief failure banner over the cache.
         LaunchedEffect(repository, pendingLocationLabel) {
-            val place = pendingLocationLabel ?: return@LaunchedEffect
+            val label = pendingLocationLabel ?: return@LaunchedEffect
             val repo = repository ?: return@LaunchedEffect
             val cfg = currentConfig ?: return@LaunchedEffect
             if (!LocationChangePaintPolicy.isSameSite(cfg.lat to cfg.lon, repo.latitude, repo.longitude)) {
                 // Stale repository from before recomposition; the keyed rerun handles the new one.
                 return@LaunchedEffect
             }
+            // Named from the label when it leads with the place; otherwise "the new location" until
+            // the reverse lookup (the same compact name Android's save toast uses) fills it in.
+            var place = LocationChangePaintPolicy.shortPlaceNameOrNull(label)
+            val token = Any()
+            fun ownsBanner() = locationBanner?.token === token
             try {
                 val cached = runCatching { repo.loadCached() }.getOrNull()
-                if (cached != null) {
-                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$place action=cached_rows_adopted", "INFO")
-                    forecast = cached
-                    dataStatus = DataStatus.Live(System.currentTimeMillis())
-                    return@LaunchedEffect
+                val decision = DesktopLocationChangeFeedback.decide(cached, hasRenderOnScreen = forecast != null, LocalDate.now())
+                if (decision.feedback == LocationChangePaintPolicy.Feedback.INTERSTITIAL) {
+                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=render_interstitial", "INFO")
+                    forecast = null
+                    dataStatus = DataStatus.FetchingLocation(DesktopLocationChangeFeedback.placePhrase(place))
+                } else {
+                    val kept = if (decision.adoptCached) "new_site_cache" else "previous_site"
+                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=banner_shown under=$kept", "INFO")
+                    if (decision.adoptCached) {
+                        forecast = cached
+                        dataStatus = DataStatus.Live(System.currentTimeMillis())
+                    }
+                    locationBanner = LocationBanner(token, DesktopLocationChangeFeedback.fetchingMessage(place))
                 }
-                weatherDao.log("LOCATION_FETCH_PENDING", "place=$place action=render_interstitial", "INFO")
-                forecast = null
-                dataStatus = DataStatus.FetchingLocation(place)
+                val naming = if (place != null) null else launch {
+                    val friendly = runCatching {
+                        sharedLocationResolver.friendlyName(repo.latitude, repo.longitude)
+                    }.getOrNull() ?: return@launch
+                    place = friendly
+                    if (ownsBanner() && locationBanner?.failed == false) {
+                        locationBanner = LocationBanner(token, DesktopLocationChangeFeedback.fetchingMessage(friendly))
+                    }
+                    if (dataStatus is DataStatus.FetchingLocation) {
+                        dataStatus = DataStatus.FetchingLocation(friendly)
+                    }
+                }
                 refreshInFlight = true
                 try {
                     forecast = repo.refresh()
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
                     dataUpdateCount++
-                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$place action=cleared", "INFO")
+                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=cleared", "INFO")
+                    if (ownsBanner()) locationBanner = null
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     weatherDao.log(
                         "LOCATION_FETCH_PENDING",
-                        "place=$place action=render_error ${e::class.simpleName}: ${e.message}",
+                        "place=$label action=render_error ${e::class.simpleName}: ${e.message}",
                         "WARN",
                     )
+                    val phrase = DesktopLocationChangeFeedback.placePhrase(place)
                     if (dataStatus is DataStatus.FetchingLocation) {
-                        dataStatus = DataStatus.Error("Couldn\u2019t get weather for $place \u2014 check the network, then Refresh")
+                        dataStatus = DataStatus.Error("Couldn\u2019t get weather for $phrase \u2014 check the network, then Refresh")
+                    }
+                    if (ownsBanner()) {
+                        locationBanner = LocationBanner(token, DesktopLocationChangeFeedback.failedMessage(place), failed = true)
                     }
                 } finally {
                     refreshInFlight = false
+                    naming?.cancel()
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Superseded (another pick, or a repository rebuild): don't strand our banner.
+                if (ownsBanner()) locationBanner = null
+                throw e
             } finally {
-                if (pendingLocationLabel == place) pendingLocationLabel = null
+                if (pendingLocationLabel == label) pendingLocationLabel = null
+            }
+        }
+
+        // A failure banner is informational: show it briefly, then get out of the way.
+        LaunchedEffect(locationBanner) {
+            val banner = locationBanner ?: return@LaunchedEffect
+            if (banner.failed) {
+                kotlinx.coroutines.delay(4000)
+                if (locationBanner === banner) locationBanner = null
             }
         }
 
@@ -811,7 +864,7 @@ internal fun runDesktopUiApplication() = application {
                     Log.d("CLICK_DAILY", message)
                     weatherDao.log("CLICK_DAILY", message, "DEBUG")
                 },
-                historyFetchToast = historyFetchToast,
+                transientMessage = locationBanner?.text ?: historyFetchToast,
                 currentTempFetchError = currentTempFetchError,
                 currentTempFetchIsWarmup = currentTempFetchIsWarmup,
                 onDismissCurrentTempError = {

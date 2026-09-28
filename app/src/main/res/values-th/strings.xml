@@ -188,7 +188,6 @@
     <string name="save_location">บันทึกตำแหน่ง</string>
     <string name="default_location_title">ตำแหน่งเริ่มต้น</string>
     <string name="location_saved_success">อัปเดตตำแหน่งของวิดเจ็ตทั้งหมดแล้ว</string>
-    <string name="location_saved_success_named">ตั้งค่าตำแหน่งเป็น %1$s สำหรับวิดเจ็ตทั้งหมดแล้ว</string>
     <string name="location_updated_from_gps">อัปเดตตำแหน่งจาก GPS แล้ว</string>
     <string name="invalid_coordinates_range">โปรดใส่พิกัดที่ถูกต้อง (ละติจูด -90 ถึง 90, ลองจิจูด -180 ถึง 180)</string>
 

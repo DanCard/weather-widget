@@ -188,7 +188,6 @@
     <string name="save_location">Simpan lokasi</string>
     <string name="default_location_title">Lokasi default</string>
     <string name="location_saved_success">Lokasi diperbarui untuk semua widget</string>
-    <string name="location_saved_success_named">Lokasi diatur ke %1$s untuk semua widget</string>
     <string name="location_updated_from_gps">Lokasi diperbarui dari GPS</string>
     <string name="invalid_coordinates_range">Masukkan koordinat yang valid (lintang -90 hingga 90, bujur -180 hingga 180)</string>
 

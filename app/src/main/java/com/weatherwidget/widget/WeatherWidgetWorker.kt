@@ -602,6 +602,13 @@ class WeatherWidgetWorker
              * in Robolectric outlived the *test*, racing the next one's environment.
              */
             const val KEY_LOCATION_CHANGE_PLACE = "location_change_place"
+
+            /**
+             * True when the save showed [LocationChangeBanner] over the previous render instead of
+             * the interstitial; the run clears it before its final paint, or swaps it for the
+             * "Tap to refresh" fallback when the fetch fails.
+             */
+            const val KEY_LOCATION_CHANGE_BANNER = "location_change_banner"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
             const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
         }

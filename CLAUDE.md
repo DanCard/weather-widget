@@ -82,7 +82,13 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   a mile away instantly, because its readiness test read forecast rows only and returned before the
   grace check. Acquisition and following are now one operation.
   See `plans/260828-remove-the-location-handoff-policy.md`.
-- **A setup-screen location change paints "Getting weather for {place}…"; a GPS move does not.**
+- **A setup-screen location change shows "Getting weather for {place}…"; a GPS move does not.**
+  Since 2026-09-28 (user's call) it is a **banner over whatever is on screen** — the previous
+  site's graph included — until that change's forced sync ends (`LocationChangeBanner` on Android,
+  `LocationBanner` in the desktop popup); the full-screen interstitial is only for a first-ever
+  location with nothing to keep (`LocationChangePaintPolicy.feedback`). A toast was tried and is
+  too short (~4 s) for a 10–50 s fetch. "Cached" means a forecast row for **today**
+  (`hasTodayRow`), not any row — a two-week-old cache drew an empty graph.
   The axis is user-initiated vs background, not setup vs GPS: the user who just tapped Save is
   looking at the widget and the fetch bypasses the battery gate, so feedback is worth the flash;
   nobody is watching a follow-device move and its fetch may be hours away, so a placeholder there

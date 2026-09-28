@@ -186,7 +186,6 @@
     <string name="save_location">Guardar ubicación</string>
     <string name="default_location_title">Ubicación predeterminada</string>
     <string name="location_saved_success">Ubicación actualizada para todos los widgets</string>
-    <string name="location_saved_success_named">Ubicación establecida en %1$s para todos los widgets</string>
     <string name="location_updated_from_gps">Ubicación actualizada por GPS</string>
     <string name="invalid_coordinates_range">Introduce coordenadas válidas (lat -90 a 90, lon -180 a 180)</string>
 

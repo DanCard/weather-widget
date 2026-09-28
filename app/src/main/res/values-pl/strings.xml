@@ -188,7 +188,6 @@
     <string name="save_location">Zapisz lokalizację</string>
     <string name="default_location_title">Lokalizacja domyślna</string>
     <string name="location_saved_success">Lokalizacja zaktualizowana dla wszystkich widżetów</string>
-    <string name="location_saved_success_named">Ustawiono lokalizację %1$s dla wszystkich widżetów</string>
     <string name="location_updated_from_gps">Lokalizacja zaktualizowana z GPS</string>
     <string name="invalid_coordinates_range">Wprowadź prawidłowe współrzędne (szer. od -90 do 90, dł. od -180 do 180)</string>
 

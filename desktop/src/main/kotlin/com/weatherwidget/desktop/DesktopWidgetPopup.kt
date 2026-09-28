@@ -50,7 +50,7 @@ internal fun WidgetPopup(
     onNeedHistory: (Int) -> Unit = {},
     onNeedHourlyRefresh: (onComplete: (List<HourlyForecast>) -> Unit) -> Unit = { _ -> },
     onDayClickAudit: (String) -> Unit = {},
-    historyFetchToast: String? = null,
+    transientMessage: String? = null,
     currentTempFetchError: String? = null,
     currentTempFetchIsWarmup: Boolean = false,
     onDismissCurrentTempError: () -> Unit = {},
@@ -252,9 +252,10 @@ internal fun WidgetPopup(
                                 Log.d(TAG, "HourlyNav: right jump=+${jump}h zoom=${config.zoomFactor} offset ${config.hourlyOffset}->$newOffset")
                                 onUpdateConfig(config.copy(hourlyOffset = newOffset))
                             }
-                            // Transient banner while an on-demand deep-history pull is in flight (or
-                            // briefly on failure). Drawn last so it floats over the graph + arrows.
-                            historyFetchToast?.let { msg ->
+                            // Transient banner: a location-picker save's first fetch ("Getting weather
+                            // for {place}…") or an on-demand deep-history pull, in flight or briefly on
+                            // failure. Drawn last so it floats over the graph + arrows.
+                            transientMessage?.let { msg ->
                                 Surface(
                                     modifier = Modifier
                                         .align(Alignment.TopCenter)
