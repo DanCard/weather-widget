@@ -184,7 +184,7 @@ object DesktopDailyForecastModel {
                 snapshots = snapshotsByDate[date].orEmpty(),
                 hourly = forecast.raw.hourly,
                 currentTemp = forecast.resolved.currentTemp,
-                displaySourceId = config.settings.weatherSource,
+                displaySourceId = config.displaySource,
                 centerLat = config.lat,
                 centerLon = config.lon,
             )
@@ -198,7 +198,7 @@ object DesktopDailyForecastModel {
                 val result = TodayColumnOverlayContentResolver.resolveLatest(
                     observations = forecast.raw.rawObservations,
                     hourlyForecasts = forecast.raw.hourly,
-                    displaySourceId = WeatherSource.fromDisplaySource(config.settings.weatherSource).id,
+                    displaySourceId = WeatherSource.fromDisplaySource(config.displaySource).id,
                     userLat = config.lat,
                     userLon = config.lon,
                     nowMs = nowMs,

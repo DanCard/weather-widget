@@ -380,7 +380,9 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun rebuildSourceRows(container: LinearLayout) {
         container.removeAllViews()
-        val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+        // The user's enabled list, unfiltered by location: a source that cannot serve the current
+        // location (NWS outside the US) stays checked and is marked unavailable, not unticked.
+        val visibleSources = widgetStateManager.getEnabledSourcesOrder()
 
         // Build full ordered list: visible sources first (in order), then hidden sources
         val availableSources = WeatherSourceOrdering.ALL_CONFIGURABLE
@@ -405,7 +407,11 @@ class SettingsActivity : AppCompatActivity() {
             checkbox.isSaveEnabled = false
             checkbox.isChecked = isVisible
             nameView.text = source.displayName
-            descView.text = sourceDescription(source)
+            descView.text = if (isVisible && widgetStateManager.isSourceUnavailableHere(source)) {
+                "${sourceDescription(source)}\n${getString(R.string.source_unavailable_at_location)}"
+            } else {
+                sourceDescription(source)
+            }
 
             // Dim hidden sources
             row.alpha = if (isVisible) 1.0f else 0.5f
@@ -441,7 +447,7 @@ class SettingsActivity : AppCompatActivity() {
                         return@setOnCheckedChangeListener
                     }
                 }
-                val currentIds = widgetStateManager.getVisibleSourcesOrder().map { it.id }
+                val currentIds = widgetStateManager.getEnabledSourcesOrder().map { it.id }
                 // isPressed is true only for a real tap; a programmatic setChecked (state restore,
                 // a stale listener) arrives with it false. Persisted so a source that disappears
                 // without a tap can be traced in the app log rather than guessed at.
@@ -467,7 +473,7 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             upButton.setOnClickListener {
-                val currentIds = widgetStateManager.getVisibleSourcesOrder().map { it.id }
+                val currentIds = widgetStateManager.getEnabledSourcesOrder().map { it.id }
                 val updatedIds = WeatherSourceOrdering.moveUp(currentIds, source)
                 if (updatedIds != currentIds) {
                     Log.d("SOURCE_ORDER", "Move up: ${source.name}, new list=$updatedIds")
@@ -477,7 +483,7 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             downButton.setOnClickListener {
-                val currentIds = widgetStateManager.getVisibleSourcesOrder().map { it.id }
+                val currentIds = widgetStateManager.getEnabledSourcesOrder().map { it.id }
                 val updatedIds = WeatherSourceOrdering.moveDown(currentIds, source)
                 if (updatedIds != currentIds) {
                     Log.d("SOURCE_ORDER", "Move down: ${source.name}, new list=$updatedIds")

@@ -542,11 +542,15 @@ class ConfigActivity : AppCompatActivity() {
         widgetIds: IntArray,
     ): SetupSourceSelection? {
         val startedAt = SystemClock.elapsedRealtime()
-        val currentSources = widgetStateManager.getVisibleSourcesOrder()
-        val nwsAutoRetired = widgetStateManager.isNwsAutoRetired()
+        // The enabled list, not the location-filtered one: this writes it back.
+        val currentSources = widgetStateManager.getEnabledSourcesOrder()
         val selection = try {
             setupSourceSelectorForTesting?.invoke(currentSources, lat, lon)
-                ?: setupSourceSelector.select(currentSources, lat, lon, nwsAutoRetired)
+                ?: setupSourceSelector.select(
+                    currentSources, lat, lon,
+                    // Still the old site: the new one is persisted after this check.
+                    previous = com.weatherwidget.widget.ActiveLocationResolver.current(this),
+                )
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -569,10 +573,6 @@ class ConfigActivity : AppCompatActivity() {
         )
 
         widgetStateManager.setVisibleSourcesOrderForSetup(selection.sources, widgetIds)
-        // NWS absent after this check because of us (just now, or earlier and still so).
-        widgetStateManager.setNwsAutoRetired(
-            WeatherSource.NWS !in selection.sources && (nwsAutoRetired || WeatherSource.NWS in currentSources),
-        )
         return selection
     }
 

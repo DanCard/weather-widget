@@ -23,7 +23,7 @@ internal fun dayClickRoutingPrecip(
         targetDay = clickedDate,
         now = now,
         hourly = hourly,
-        displaySourceId = config.settings.weatherSource,
+        displaySourceId = config.displaySource,
         fallbackSourceId = WeatherSource.GENERIC_GAP.id,
         dailyProbability = clickedDay?.forecast?.precipProbability
             ?: clickedDay?.snapshot?.precipProbability,

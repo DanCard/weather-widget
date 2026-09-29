@@ -41,6 +41,15 @@ Also desktop Linux app that is intended to be the same as Android weather widget
 - Settings → "Weather Data Sources" enables/disables and **orders** sources. "Primary" = the
   displayed source (`getActiveDisplaySourceIds()`); non-selected APIs are throttled. The old
   Alternate/NWS-Primary/Open-Meteo-Primary preference no longer exists.
+- **Enabled vs usable sources.** The stored list is the user's choices only; a location never edits
+  it. `SourceCoverage.effectiveSources` (`:shared`) derives what can serve the current location
+  (today: NWS only inside `NwsCoverage.covers`) every time it is read —
+  `WidgetStateManager.getVisibleSourcesOrder()` / desktop `DesktopConfig.effectiveSources` and
+  `displaySource`. Settings reads the raw list (`getEnabledSourcesOrder()`) and marks a source
+  "Not available at this location". A widget's stored source is never rewritten for coverage.
+  The old model removed NWS abroad and needed an "app did it" flag to restore it; a lost flag left
+  NWS off for good (removed 2026-09-29, see
+  `plans/260929-nws-unavailable-outside-coverage-derived-not-removed.md`).
 
 ## Widget Sizing Behavior
 
@@ -89,6 +98,15 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   location with nothing to keep (`LocationChangePaintPolicy.feedback`). A toast was tried and is
   too short (~4 s) for a 10–50 s fetch. "Cached" means a forecast row for **today**
   (`hasTodayRow`), not any row — a two-week-old cache drew an empty graph.
+  When the new site has a **drawable, fresh** cache (`LocationChangePaintPolicy.hasDrawableCache`:
+  today's daily row AND hourly rows for today through the render's own loader, fetched within
+  `MAX_ADOPTABLE_CACHE_AGE_MS` = 24 h), the forced sync repaints from it and *then* drops the banner
+  (`action=banner_cleared reason=cache_adopted`) and fetches unforced; desktop shows no banner at all
+  (`action=cache_adopted`). A daily row alone is not enough: 16-day forecasts leave rows dated today
+  in caches weeks old, and the daily proximity box is wider than the hourly site match. The
+  location-change sync is expedited on API 31+ (it waited 22 s in JobScheduler), and the cache
+  decision also runs inside the startup-cooldown deferral
+  (`plans/260929-location-change-adopts-cached-new-site-under-banner.md`).
   The axis is user-initiated vs background, not setup vs GPS: the user who just tapped Save is
   looking at the widget and the fetch bypasses the battery gate, so feedback is worth the flash;
   nobody is watching a follow-device move and its fetch may be hours away, so a placeholder there

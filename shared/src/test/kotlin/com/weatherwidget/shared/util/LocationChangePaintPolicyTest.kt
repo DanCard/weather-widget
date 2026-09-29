@@ -166,4 +166,53 @@ class LocationChangePaintPolicyTest {
             LocationChangePaintPolicy.feedback(userInitiated = true, siteChanged = false, hasRenderToKeep = true),
         )
     }
+
+    @Test
+    fun `decide adopts a new site that has today's row, with no banner over it`() {
+        // No "Getting weather for Mountain View…" over Mountain View's own graph.
+        val d = LocationChangePaintPolicy.decide(hasTodayRowAtNewSite = true, hasRenderOnScreen = true)
+        assertEquals(LocationChangePaintPolicy.Feedback.NONE, d.feedback)
+        assertTrue(d.adoptCached)
+    }
+
+    @Test
+    fun `decide keeps the previous render when the new site has no row for today`() {
+        val d = LocationChangePaintPolicy.decide(hasTodayRowAtNewSite = false, hasRenderOnScreen = true)
+        assertEquals(LocationChangePaintPolicy.Feedback.BANNER, d.feedback)
+        assertFalse(d.adoptCached)
+    }
+
+    @Test
+    fun `decide adopts the cache even with nothing on screen`() {
+        val d = LocationChangePaintPolicy.decide(hasTodayRowAtNewSite = true, hasRenderOnScreen = false)
+        assertEquals(LocationChangePaintPolicy.Feedback.NONE, d.feedback)
+        assertTrue(d.adoptCached)
+    }
+
+    @Test
+    fun `decide falls back to the interstitial with nothing to show`() {
+        val d = LocationChangePaintPolicy.decide(hasTodayRowAtNewSite = false, hasRenderOnScreen = false)
+        assertEquals(LocationChangePaintPolicy.Feedback.INTERSTITIAL, d.feedback)
+        assertFalse(d.adoptCached)
+    }
+
+    private val zone = java.time.ZoneId.of("Europe/Warsaw")
+    private fun at(hour: Int, date: LocalDate = today) = date.atTime(hour, 0).atZone(zone).toInstant().toEpochMilli()
+
+    @Test
+    fun `a daily row without hourly rows for today is not drawable`() {
+        // Warsaw -> Wola 2026-09-29: the centre's daily row matched, the new site had 0 hourly rows.
+        assertFalse(LocationChangePaintPolicy.hasDrawableCache(listOf(day("2026-09-28")), emptyList(), today, zone))
+    }
+
+    @Test
+    fun `daily and hourly rows for today are drawable`() {
+        assertTrue(LocationChangePaintPolicy.hasDrawableCache(listOf(day("2026-09-28")), listOf(at(9), at(10)), today, zone))
+    }
+
+    @Test
+    fun `hourly rows only for other days are not drawable`() {
+        val yesterday = today.minusDays(1)
+        assertFalse(LocationChangePaintPolicy.hasDrawableCache(listOf(day("2026-09-28")), listOf(at(22, yesterday)), today, zone))
+    }
 }

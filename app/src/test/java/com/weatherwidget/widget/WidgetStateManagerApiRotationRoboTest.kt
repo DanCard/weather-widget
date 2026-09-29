@@ -33,40 +33,98 @@ class WidgetStateManagerApiRotationRoboTest {
         stateManager.clearWidgetState(testWidgetId)
     }
 
+    // NWS outside its coverage is unavailable, not removed (2026-09-29). These run the real
+    // WidgetStateManager + WeatherSourcePreferences + ActiveLocationResolver together: the location
+    // the filter reads is the one ConfigActivity/GpsResampler persist.
+    private val mountainView = 37.4166 to -122.0889
+    private val warsaw = 52.2334 to 21.0711
+
+    private fun moveTo(site: Pair<Double, Double>) = ActiveLocationResolver.persist(context, site.first, site.second)
+
     @Test
-    fun retireNwsOutsideCoverage_dropsNwsAndMovesTheDisplayedSourceOff() {
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
+    fun outsideCoverage_nwsIsFilteredButStaysEnabled() {
+        val enabled = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN)
+        stateManager.setVisibleSourcesOrder(enabled)
+        moveTo(warsaw)
+
+        assertEquals(listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN), stateManager.getVisibleSourcesOrder())
+        assertEquals(enabled, stateManager.getEnabledSourcesOrder())
+        assertEquals(true, stateManager.isSourceUnavailableHere(WeatherSource.NWS))
+        assertEquals(false, stateManager.isSourceUnavailableHere(WeatherSource.OPEN_METEO))
+    }
+
+    @Test
+    fun widgetShowingNws_fallsBackAbroad_andShowsNwsAgainBackHome() {
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
+        moveTo(mountainView)
         stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.NWS)
 
-        // Lviv: outside coverage, NWS goes and the widget lands on the first survivor.
-        assertEquals(true, stateManager.retireNwsOutsideCoverage(49.8419, 24.0316, intArrayOf(testWidgetId)))
-        assertEquals(listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN), stateManager.getVisibleSourcesOrder())
+        moveTo(warsaw)
+        assertEquals(WeatherSource.OPEN_METEO, stateManager.getCurrentDisplaySource(testWidgetId))
+        // Reading it again must not have persisted the fallback.
         assertEquals(WeatherSource.OPEN_METEO, stateManager.getCurrentDisplaySource(testWidgetId))
 
-        // Idempotent: nothing left to retire.
-        assertEquals(false, stateManager.retireNwsOutsideCoverage(49.8419, 24.0316, intArrayOf(testWidgetId)))
+        moveTo(mountainView)
+        assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
     }
 
     @Test
-    fun retireNwsOutsideCoverage_marksTheRetirementAutomatic_andUserEditsClearIt() {
+    fun toggleAbroad_cyclesOnlyUsableSources() {
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
+        moveTo(warsaw)
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.OPEN_METEO)
+
+        assertEquals(WeatherSource.SILURIAN, stateManager.toggleDisplaySource(testWidgetId))
+        assertEquals(WeatherSource.OPEN_METEO, stateManager.toggleDisplaySource(testWidgetId))
+    }
+
+    @Test
+    fun settingsEditAbroad_keepsTheWidgetsStoredNwsChoice() {
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
-        assertEquals(false, stateManager.isNwsAutoRetired())
+        moveTo(mountainView)
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.NWS)
 
-        stateManager.retireNwsOutsideCoverage(49.8419, 24.0316, intArrayOf(testWidgetId))
-        assertEquals(true, stateManager.isNwsAutoRetired())
+        moveTo(warsaw)
+        // Reorder in Settings while abroad: selections are preserved against the ENABLED list.
+        stateManager.setVisibleSourcesOrderForSetup(
+            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+            intArrayOf(testWidgetId),
+        )
 
-        // A Settings edit of the list is the user's decision, whichever way it goes.
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
-        assertEquals(false, stateManager.isNwsAutoRetired())
+        moveTo(mountainView)
+        assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
     }
 
     @Test
-    fun retireNwsOutsideCoverage_isANoOpInsideCoverage() {
-        val visible = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO)
-        stateManager.setVisibleSourcesOrder(visible)
+    fun nwsReenableMigration_restoresNwsOnce_thenAnUntickSticks() {
+        // The 2026-09-29 phone: NWS absent from the stored list with no reliable marker saying why.
+        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "widget_state_prefs")
+        prefs.edit()
+            .putString("visible_sources_order", "OPEN_METEO,SILURIAN")
+            .putBoolean("nws_auto_retired", true)
+            .remove("nws_reenabled_migration_done_v1")
+            .commit()
 
-        assertEquals(false, stateManager.retireNwsOutsideCoverage(37.4168, -122.0890, intArrayOf(testWidgetId)))
-        assertEquals(visible, stateManager.getVisibleSourcesOrder())
+        assertEquals(
+            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+            WidgetStateManager(context).getEnabledSourcesOrder(),
+        )
+        assertEquals(false, prefs.contains("nws_auto_retired"))
+
+        WidgetStateManager(context).setVisibleSourcesOrder(listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
+        assertEquals(
+            listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+            WidgetStateManager(context).getEnabledSourcesOrder(),
+        )
+    }
+
+    @Test
+    fun nwsOnlyListAbroad_fallsBackToOpenMeteoWithoutStoringIt() {
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS))
+        moveTo(warsaw)
+
+        assertEquals(listOf(WeatherSource.OPEN_METEO), stateManager.getVisibleSourcesOrder())
+        assertEquals(listOf(WeatherSource.NWS), stateManager.getEnabledSourcesOrder())
     }
 
     @Test

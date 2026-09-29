@@ -11,7 +11,9 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -69,6 +71,55 @@ class WidgetPaintCoordinatorLocationChangeTest : RobolectricTest() {
 
         assertNull(stateManager.getPendingLocationFetch())
         logged("cached_rows_adopted")
+    }
+
+    @Test
+    fun `banner change to a cached site clears the banner and repaints the new site from cache`() = runBlocking {
+        var repaints = 0
+
+        val adopted = coordinator.adoptCachedNewSite(
+            "Mountain View", 37.42, -122.09,
+            hasTodayRowAt = { _, _ -> true },
+            repaintFromCache = {
+                // The banner must still be up while the new site is being drawn: cleared first,
+                // the old city showed bannerless for the whole (12 s, cold) repaint.
+                coVerify(exactly = 0) {
+                    appLogDao.insert(match<AppLogEntity> { it.message.contains("reason=cache_adopted") })
+                }
+                repaints++
+            },
+        )
+
+        assertTrue(adopted)
+        assertEquals(1, repaints)
+        // No "Getting weather for Mountain View…" over Mountain View's own graph.
+        logged("banner_cleared reason=cache_adopted")
+    }
+
+    @Test
+    fun `banner change to an uncached site keeps the previous render`() = runBlocking {
+        var repaints = 0
+
+        val adopted = coordinator.adoptCachedNewSite(
+            "Denver", 39.74, -104.98,
+            hasTodayRowAt = { _, _ -> false },
+            repaintFromCache = { repaints++ },
+        )
+
+        assertFalse(adopted)
+        assertEquals(0, repaints)
+        logged("banner_shown under=previous_site")
+    }
+
+    @Test
+    fun `a failing cache probe counts as uncached`() = runBlocking {
+        val adopted = coordinator.adoptCachedNewSite(
+            "Denver", 39.74, -104.98,
+            hasTodayRowAt = { _, _ -> error("db closed") },
+            repaintFromCache = { throw AssertionError("must not repaint") },
+        )
+
+        assertFalse(adopted)
     }
 
     @Test

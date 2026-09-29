@@ -50,8 +50,21 @@ class DesktopLocationChangeFeedbackTest {
 
     private val today = LocalDate.of(2026, 9, 28)
 
-    private fun snapshot(vararg dates: String) = ForecastSnapshot(
-        raw = RawFetch(daily = dates.map { DailyForecast(date = it, highTemp = 70f, lowTemp = 55f, condition = "Clear") }),
+    private fun snapshot(vararg dates: String, hourlyToday: Boolean = true) = ForecastSnapshot(
+        raw = RawFetch(
+            daily = dates.map { DailyForecast(date = it, highTemp = 70f, lowTemp = 55f, condition = "Clear") },
+            hourly = if (hourlyToday) {
+                listOf(
+                    com.weatherwidget.data.model.HourlyForecast(
+                        dateTime = today.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                        temperature = 60f,
+                        condition = "Clear",
+                    ),
+                )
+            } else {
+                emptyList()
+            },
+        ),
         resolved = ResolvedView(),
     )
 
@@ -59,9 +72,9 @@ class DesktopLocationChangeFeedbackTest {
     private val interstitial = com.weatherwidget.shared.util.LocationChangePaintPolicy.Feedback.INTERSTITIAL
 
     @Test
-    fun `cache with a row for today is adopted under the banner`() {
+    fun `cache with a row for today is adopted with no banner over it`() {
         val d = DesktopLocationChangeFeedback.decide(snapshot("2026-09-28", "2026-09-29"), hasRenderOnScreen = true, today)
-        assertEquals(banner, d.feedback)
+        assertEquals(com.weatherwidget.shared.util.LocationChangePaintPolicy.Feedback.NONE, d.feedback)
         assertTrue(d.adoptCached)
     }
 
@@ -79,6 +92,14 @@ class DesktopLocationChangeFeedbackTest {
     fun `nothing cached and nothing on screen shows the interstitial`() {
         val d = DesktopLocationChangeFeedback.decide(null, hasRenderOnScreen = false, today)
         assertEquals(interstitial, d.feedback)
+        assertFalse(d.adoptCached)
+    }
+
+    @Test
+    fun `a daily row for today with no hourly rows is not adopted`() {
+        // Warsaw centre -> Wola (2026-09-29): a daily row matched, the new site had no hourly rows.
+        val d = DesktopLocationChangeFeedback.decide(snapshot("2026-09-28", hourlyToday = false), hasRenderOnScreen = true, today)
+        assertEquals(banner, d.feedback)
         assertFalse(d.adoptCached)
     }
 }

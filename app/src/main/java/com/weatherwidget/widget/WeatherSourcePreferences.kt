@@ -7,21 +7,44 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.observations.ActualsProviderResolver
-import com.weatherwidget.shared.util.NwsCoverage
+import com.weatherwidget.shared.util.SourceCoverage
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 
 /**
  * Owns the global visible-source policy, source preference migrations, API keys, and each widget's
  * selected source identity. Persisted selections use stable [WeatherSource.id] values.
+ *
+ * Two lists, deliberately distinct:
+ * - **enabled** ([enabledSources]) — the user's choices, as persisted. Only the user changes it
+ *   (Settings; the setup screen's WeatherAPI add). A location never edits it.
+ * - **visible** ([visibleSources]) — enabled minus what cannot serve the active location
+ *   ([SourceCoverage]). Everything that fetches, displays, or cycles reads this one.
+ * The visible list used to be the enabled list with NWS *removed* outside coverage, plus a marker to
+ * put it back; a lost marker left NWS off for good (2026-09-29).
  */
 internal class WeatherSourcePreferences(
     private val context: Context,
     private val prefs: SharedPreferences,
     private val defaultVisibleSources: List<WeatherSource>,
     private val eventLogger: (String, String) -> Unit = { _, _ -> },
+    private val activeLocation: () -> Pair<Double, Double>? = { ActiveLocationResolver.current(context) },
 ) {
-    fun visibleSources(): List<WeatherSource> =
+    /** The user's enabled sources, in their order. Settings reads and writes this. */
+    fun enabledSources(): List<WeatherSource> =
         storedVisibleIds().mapNotNull(::sourceFromStoredId)
+
+    /** [enabledSources] minus sources that cannot serve the active location. Never empty. */
+    fun visibleSources(): List<WeatherSource> {
+        val location = activeLocation()
+        return SourceCoverage.effectiveSources(storedVisibleIds(), location?.first, location?.second)
+            .mapNotNull(::sourceFromStoredId)
+    }
+
+    /** Enabled, but not usable at the active location — Settings shows it checked, marked unavailable. */
+    fun isUnavailableHere(source: WeatherSource): Boolean {
+        val location = activeLocation()
+        return !SourceCoverage.supports(source.id, location?.first, location?.second)
+    }
 
     fun primarySource(): WeatherSource = visibleSources().first()
 
@@ -32,25 +55,13 @@ internal class WeatherSourcePreferences(
         return active.ifEmpty { setOf(primarySource().id) }
     }
 
-    /** The Settings screen's writer: a user edit, so any automatic NWS retirement is superseded. */
+    /** The Settings screen's writer. */
     fun setVisibleSources(sources: List<WeatherSource>) {
         setVisibleSourcesPreservingSelections(
             sources = sources,
             widgetIds = activeWidgetIds(),
             logPrefix = "Order changed",
         )
-        setNwsAutoRetired(false)
-    }
-
-    /**
-     * Whether NWS is absent from the visible list because the app retired it (location outside
-     * its coverage) rather than because the user unticked it. Lets a later move back into
-     * coverage restore NWS without overriding a deliberate choice.
-     */
-    fun isNwsAutoRetired(): Boolean = prefs.getBoolean(KEY_NWS_AUTO_RETIRED, false)
-
-    fun setNwsAutoRetired(value: Boolean) {
-        if (isNwsAutoRetired() != value) prefs.edit().putBoolean(KEY_NWS_AUTO_RETIRED, value).apply()
     }
 
     fun setVisibleSourcesForSetup(
@@ -63,40 +74,23 @@ internal class WeatherSourcePreferences(
             logPrefix = "Setup order changed",
         )
 
-    /**
-     * Retires NWS from the visible list when the active site is outside its coverage box. Heals
-     * prefs written before location changes retired NWS (or by an older build), so a widget does
-     * not keep NWS — and its cached previous-site forecast — as a source that can never load
-     * here. Same rule the desktop applies on config load. Returns whether anything changed.
-     */
-    fun retireNwsOutsideCoverage(
-        lat: Double,
-        lon: Double,
-        widgetIds: IntArray,
-    ): Boolean {
-        val ids = visibleSources().map { it.id }
-        val healed = NwsCoverage.visibleSourcesFor(lat, lon, ids)
-        if (healed === ids) return false
-        val changed = setVisibleSourcesPreservingSelections(
-            sources = healed.mapNotNull(::sourceFromStoredId),
-            widgetIds = widgetIds,
-            logPrefix = "NWS retired outside coverage",
-        )
-        if (changed) setNwsAutoRetired(true)
-        return changed
-    }
-
     fun isVisible(source: WeatherSource): Boolean = source in visibleSources()
 
+    /**
+     * The source [widgetId] shows. The stored selection is canonicalised against the **enabled**
+     * list only: a widget set to NWS shows the fallback in Warsaw, but its stored choice stays NWS,
+     * so it shows NWS again in Mountain View. Persisting the location-driven fallback would make a
+     * trip abroad permanently change what the widget displays.
+     */
     fun currentDisplaySource(widgetId: Int): WeatherSource {
-        val visible = visibleSources()
         val key = displaySourceKey(widgetId)
         val raw = prefs.all[key]
-        val decoded = decodeSelection(raw, visible)
-        if (raw != null && raw != decoded.id) {
-            prefs.edit().putString(key, decoded.id).apply()
+        val stored = decodeSelection(raw, enabledSources())
+        if (raw != null && raw != stored.id) {
+            prefs.edit().putString(key, stored.id).apply()
         }
-        return decoded
+        val visible = visibleSources()
+        return stored.takeIf { it in visible } ?: visible.first()
     }
 
     fun nextDisplaySource(widgetId: Int): WeatherSource {
@@ -173,6 +167,7 @@ internal class WeatherSourcePreferences(
         migrateDeprecatedSourcesIfNeeded()
         migrateSilurianIfNeeded()
         migrateOpenWeatherMapPositionIfNeeded()
+        migrateNwsReenabledIfNeeded()
 
         val fallback = defaultVisibleSources.map { it.id }
         val raw = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
@@ -193,13 +188,13 @@ internal class WeatherSourcePreferences(
         widgetIds: IntArray,
         logPrefix: String,
     ): Boolean {
-        val old = visibleSources()
+        val old = enabledSources()
         val fallback = defaultVisibleSources.map { it.id }
         val newIds = WeatherSourceOrdering.sanitizeVisibleIds(sources.map { it.id }, fallback)
         val new = newIds.mapNotNull(::sourceFromStoredId)
         if (new == old) return false
 
-        val selected = widgetIds.distinct().associateWith(::currentDisplaySource)
+        val selected = widgetIds.distinct().associateWith(::storedDisplaySource)
         val editor = prefs.edit().putString(KEY_VISIBLE_SOURCES_ORDER, newIds.joinToString(","))
         selected.forEach { (widgetId, oldSource) ->
             val survivor = oldSource.takeIf { it in new } ?: new.first()
@@ -213,6 +208,10 @@ internal class WeatherSourcePreferences(
         eventLogger(TAG, "$logPrefix: $oldNames -> $newNames")
         return true
     }
+
+    /** The widget's stored choice, resolved against the enabled list (not the location-filtered one). */
+    private fun storedDisplaySource(widgetId: Int): WeatherSource =
+        decodeSelection(prefs.all[displaySourceKey(widgetId)], enabledSources())
 
     private fun decodeSelection(raw: Any?, visible: List<WeatherSource>): WeatherSource {
         val fallback = visible.first()
@@ -299,6 +298,30 @@ internal class WeatherSourcePreferences(
         editor.apply()
     }
 
+    /**
+     * One-time: put NWS back in the enabled list. Until 2026-09-29 the app removed NWS from that list
+     * outside its coverage, and a lost "the app did it" marker (an older build, any Settings save)
+     * left it off for good. The app cannot tell such a removal from a real untick, so this re-enables
+     * a deliberate untick once — the accepted trade-off. Coverage is now [SourceCoverage]'s job.
+     */
+    private fun migrateNwsReenabledIfNeeded() {
+        if (prefs.getBoolean(KEY_NWS_REENABLED_MIGRATION_DONE, false)) return
+        val current = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
+        val editor = prefs.edit()
+            .putBoolean(KEY_NWS_REENABLED_MIGRATION_DONE, true)
+            .remove(KEY_NWS_AUTO_RETIRED_LEGACY)
+        val ids = current?.split(",")?.map(String::trim)?.filter { it.isNotEmpty() }
+        val outcome = if (ids != null && WeatherSource.NWS.id !in ids) {
+            editor.putString(KEY_VISIBLE_SOURCES_ORDER, (listOf(WeatherSource.NWS.id) + ids).joinToString(","))
+            "restored"
+        } else {
+            "already_present"
+        }
+        editor.apply()
+        Log.d(TAG, "NWS re-enable migration: outcome=$outcome")
+        eventLogger("NWS_ENABLED_MIGRATION", "outcome=$outcome")
+    }
+
     private fun activeWidgetIds(): IntArray {
         val manager = AppWidgetManager.getInstance(context)
         return manager.getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
@@ -313,7 +336,9 @@ internal class WeatherSourcePreferences(
         const val TAG = "SOURCE_ORDER"
         const val KEY_API_PREFERENCE = "api_preference"
         const val KEY_VISIBLE_SOURCES_ORDER = "visible_sources_order"
-        const val KEY_NWS_AUTO_RETIRED = "nws_auto_retired"
+        /** Written by builds before 2026-09-29; removed by [migrateNwsReenabledIfNeeded]. */
+        const val KEY_NWS_AUTO_RETIRED_LEGACY = "nws_auto_retired"
+        const val KEY_NWS_REENABLED_MIGRATION_DONE = "nws_reenabled_migration_done_v1"
         const val KEY_API_PREFERENCE_MIGRATION_DONE = "api_pref_migrated"
         const val KEY_SILURIAN_MIGRATION_DONE = "silurian_migration_done_v2"
         const val KEY_DEPRECATED_SOURCE_MIGRATION_DONE = "hide_deprecated_sources_migration_done_v6"

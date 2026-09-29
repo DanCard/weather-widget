@@ -71,28 +71,30 @@ internal class FullSyncPipeline(
                 ?: return painter.renderNoLocationAndFinish("full_sync")
             // A setup-screen location change: say which place we are fetching for before the fetch,
             // unless the site already has today's row (then the cache repaint draws it correctly).
+            var adoptedCache = false
             input.locationChangePlace?.let { place ->
                 if (input.locationChangeBanner) {
                     appLogDao.log("LOCATION_FETCH_PENDING", "action=banner_sync_start place=$place", "INFO")
+                    adoptedCache = painter.adoptCachedNewSite(place, location.first, location.second)
                 } else {
                     painter.paintLocationChangeInterstitial(place, location.first, location.second)
                 }
             }
-            val bannerPlace = input.locationChangePlace?.takeIf { input.locationChangeBanner }
+            // The new site's cache is already on screen: refetch only what is actually stale. A
+            // forced refetch of every source (60 s, 2026-09-29) is what held the previous city's
+            // graph up under the banner.
+            val forceFetch = input.forceRefresh && !adoptedCache
+            // Null once the cache is adopted: its banner is already cleared, and a failed refresh
+            // must not paint an error over the new site's good cached graph.
+            val bannerPlace = input.locationChangePlace?.takeIf { input.locationChangeBanner && !adoptedCache }
             Log.d(
                 TAG,
                 "doWork: Location = $location " +
                     "(configured=${appWidgetIds.toList().firstNotNullOfOrNull { widgetStateManager.getWidgetLocation(it) } != null})",
             )
 
-            // Prefs written before location changes retired NWS (or by an older build) can still
-            // list NWS at a site it does not cover; heal before choosing what to fetch/paint.
-            if (widgetStateManager.retireNwsOutsideCoverage(location.first, location.second, appWidgetIds)) {
-                logStage("nws_retired_outside_coverage lat=${location.first} lon=${location.second}")
-            }
-
             val activeSourceList = hourlyForecastLoader.currentDisplaySourceIds()
-            val fetchContext = if (!input.forceRefresh && !input.uiOnlyRefresh) {
+            val fetchContext = if (!forceFetch && !input.uiOnlyRefresh) {
                 ForecastFetchContext(
                     isCharging = device.isCharging,
                     isScreenInteractive = device.isScreenInteractive,
@@ -111,7 +113,7 @@ internal class FullSyncPipeline(
                 // it was tolerable only while the handoff policy made location changes rare. With
                 // promotion immediate (plans/260828-remove-the-location-handoff-policy.md), one
                 // budget governs fetch cost and nothing governs what the user is shown.
-                forceRefresh = input.forceRefresh && !input.uiOnlyRefresh,
+                forceRefresh = forceFetch && !input.uiOnlyRefresh,
                 networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(input.uiOnlyRefresh),
                 targetSourceId = input.targetSourceId,
                 fetchContext = fetchContext,

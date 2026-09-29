@@ -130,11 +130,18 @@ class WeatherWidgetWorker
             val delayMs = remainingMs.coerceAtLeast(StartupCooldown.MIN_DEFERRAL_MS)
             // The fetch waits; the feedback must not. A setup-screen location change saved inside
             // the cooldown (open the app cold, pick a place within 30 s) would otherwise leave the
-            // previous city on screen for the whole deferral. Paint "Getting weather for {place}…"
-            // now; the replayed run repeats the (idempotent) decision before it fetches.
+            // previous city on screen for the whole deferral. Decide now — interstitial, or (banner
+            // mode) adopt the new site's fresh cache and drop the banner; both are local reads and a
+            // repaint. The replayed run repeats the (idempotent) decision before it fetches.
             input.locationChangePlace?.let { place ->
                 ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
-                    ?.let { (lat, lon) -> painter.paintLocationChangeInterstitial(place, lat, lon) }
+                    ?.let { (lat, lon) ->
+                        if (input.locationChangeBanner) {
+                            painter.adoptCachedNewSite(place, lat, lon)
+                        } else {
+                            painter.paintLocationChangeInterstitial(place, lat, lon)
+                        }
+                    }
             }
             val (outcome, detail) =
                 WidgetWorkScheduler.enqueueStartupDeferred(context, inputData, delayMs, excludeId = id)

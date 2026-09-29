@@ -76,9 +76,9 @@ internal fun WidgetPopup(
                 var dailyTodayInView by remember { mutableStateOf(true) }
                 var dailyObservationsInView by remember { mutableStateOf(true) }
                 val toggleWeatherSource = {
-                    val visibleSources = config.settings.visibleSources
+                    val visibleSources = config.effectiveSources
                     if (visibleSources.size > 1) {
-                        val nextIdx = (visibleSources.indexOf(config.settings.weatherSource) + 1) % visibleSources.size
+                        val nextIdx = (visibleSources.indexOf(config.displaySource) + 1) % visibleSources.size
                         onUpdateConfig(config.copy(settings = config.settings.copy(weatherSource = visibleSources[nextIdx])))
                     }
                 }
@@ -177,7 +177,7 @@ internal fun WidgetPopup(
                                     retroCloudActual = snapshot.retroCloudActual,
                                     priorDayBandForecast = snapshot.priorDayBandForecast,
                                     retroCloudBands = snapshot.retroCloudBands,
-                                    displaySourceId = config.settings.weatherSource,
+                                    displaySourceId = config.displaySource,
                                     latitude = config.lat,
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
@@ -195,7 +195,7 @@ internal fun WidgetPopup(
                                 PrecipitationGraph(
                                     hourly = snapshot.raw.hourly,
                                     observations = snapshot.raw.rawObservations,
-                                    displaySourceId = config.settings.weatherSource,
+                                    displaySourceId = config.displaySource,
                                     latitude = config.lat,
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
@@ -215,7 +215,7 @@ internal fun WidgetPopup(
                                     currentTemp = snapshot.resolved.currentTemp,
                                     currentObservedAt = snapshot.resolved.currentObservedAt,
                                     observations = snapshot.raw.rawObservations,
-                                    displaySourceId = config.settings.weatherSource,
+                                    displaySourceId = config.displaySource,
                                     latitude = config.lat,
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
@@ -404,7 +404,7 @@ internal fun WidgetPopup(
                             }
 
                             val handleDayClick: (LocalDate, DayClickResolver.DayTapZone) -> Unit = { clickedDate, zone ->
-                                val visibleSourceIds = config.settings.visibleSources.toSet()
+                                val visibleSourceIds = config.effectiveSources.toSet()
                                 val clickNow = LocalDateTime.now()
                                 val clickedDay = dailyState.days.find { it.date == clickedDate }
                                 val routingPrecip = dayClickRoutingPrecip(

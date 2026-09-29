@@ -160,7 +160,7 @@ class DesktopWeatherService(
     constructor(config: DesktopConfig) : this(
         latitude = config.lat,
         longitude = config.lon,
-        weatherSource = config.settings.weatherSource,
+        weatherSource = config.displaySource,
         apiKeys = config.settings.apiKeys
     )
 

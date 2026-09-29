@@ -252,31 +252,42 @@ class SettingsActivityRobolectricTest {
         }
     }
 
-    // Lviv regression: "Set Location…" opens ConfigActivity, which retires NWS from the visible
-    // list when the new site is outside its coverage — while this screen is paused. The rows were
-    // built in onCreate, so without a resume-time rebuild NWS stayed ticked over a store that had
-    // already dropped it.
+    // "Set Location…" opens ConfigActivity while this screen is paused; the rows are rebuilt on
+    // resume, so the unavailable note must follow the new location.
     @Test
-    fun `source rows follow a retirement written while the screen was paused`() {
+    fun `NWS stays ticked and is marked unavailable after a move outside coverage`() {
         WidgetStateManager(context).setVisibleSourcesOrder(
             listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
         )
+        com.weatherwidget.widget.ActiveLocationResolver.persist(context, 37.4166, -122.0889)
         val intent = Intent(context, SettingsActivity::class.java)
         val scenario = ActivityScenario.launch<SettingsActivity>(intent)
         scenario.onActivity { activity ->
-            assertTrue("precondition: NWS ticked before the location change", activity.nwsRow().isChecked)
+            assertTrue("precondition: NWS ticked in Mountain View", activity.nwsRow().isChecked)
+            assertFalse(activity.nwsDescription().contains(activity.getString(R.string.source_unavailable_at_location)))
         }
 
         scenario.moveToState(Lifecycle.State.STARTED) // paused, like under ConfigActivity
-        // What ConfigActivity's setup check does for a site api.weather.gov does not cover.
-        assertTrue(
-            WidgetStateManager(context).retireNwsOutsideCoverage(49.842, 24.032, IntArray(0)),
-        )
+        com.weatherwidget.widget.ActiveLocationResolver.persist(context, 49.842, 24.032) // Lviv
         scenario.moveToState(Lifecycle.State.RESUMED)
 
         scenario.onActivity { activity ->
-            assertFalse("NWS must show unticked after the retirement", activity.nwsRow().isChecked)
+            // The 2026-09-29 bug came from this row being unticked by a location: a later move
+            // back had nothing reliable to restore. Coverage now only annotates it.
+            assertTrue("NWS must stay ticked outside coverage", activity.nwsRow().isChecked)
+            assertTrue(activity.nwsDescription().contains(activity.getString(R.string.source_unavailable_at_location)))
         }
+    }
+
+    private fun SettingsActivity.nwsDescription(): String {
+        val container = findViewById<LinearLayout>(R.id.api_sources_container)
+        for (i in 0 until container.childCount) {
+            val row = container.getChildAt(i)
+            if (row.findViewById<TextView>(R.id.source_name).text == WeatherSource.NWS.displayName) {
+                return row.findViewById<TextView>(R.id.source_description).text.toString()
+            }
+        }
+        throw AssertionError("no NWS row rendered")
     }
 
     private fun SettingsActivity.nwsRow(): CheckBox {

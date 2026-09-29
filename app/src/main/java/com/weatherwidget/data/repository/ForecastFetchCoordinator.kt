@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.shared.util.SourceCoverage
 import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ForecastEntity
@@ -221,8 +222,12 @@ internal class ForecastFetchCoordinator(
         sourcesToFetch: Set<WeatherSource>,
     ) = coroutineScope {
         val registry = buildFetchRegistry()
+        // The network choke point. `visibleSources()` already drops sources that cannot serve the
+        // *stored* active location; this re-checks against the coordinates actually being fetched,
+        // so no caller can send NWS a point outside its coverage (a guaranteed 404 InvalidPoint).
+        val servable = sourcesToFetch.filterTo(LinkedHashSet()) { SourceCoverage.supports(it.id, latitude, longitude) }
 
-        val fetchedBySource = sourcesToFetch.mapNotNull { source ->
+        val fetchedBySource = servable.mapNotNull { source ->
             val entry = registry[source] ?: return@mapNotNull null
             async {
                 source to safeFetch(entry.tag, source, latitude, longitude) {
@@ -245,7 +250,7 @@ internal class ForecastFetchCoordinator(
 
         // NWS daily actuals from a dedicated /stations/{id}/observations pull. Idempotent: only
         // dates still missing a station-derived actual trigger a request.
-        if (WeatherSource.NWS in sourcesToFetch) {
+        if (WeatherSource.NWS in servable) {
             runCatching { nwsApiDailyActualsFetcher?.fillMissingIfNeeded(latitude, longitude) }
                 .onFailure { if (it is CancellationException) throw it }
         }

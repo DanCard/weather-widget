@@ -2,8 +2,6 @@ package com.weatherwidget.ui
 
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
-import com.weatherwidget.data.remote.NwsApi
-import com.weatherwidget.data.remote.NwsPointUnavailableException
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.WeatherApiCredentialProvider
 import com.weatherwidget.shared.util.NwsCoverage
@@ -14,6 +12,7 @@ import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Coverage-box result, for the setup log line. INCONCLUSIVE only when the selector itself threw. */
 enum class SetupNwsCoverage {
     SUPPORTED,
     UNSUPPORTED,
@@ -35,78 +34,26 @@ data class SetupSourceSelection(
     val reason: String? = null,
 )
 
+/**
+ * The setup screen's only edit to the enabled list: outside NWS coverage, add WeatherAPI when it is
+ * available and not already there. NWS itself is never added or removed here — whether it can
+ * serve a site is derived per location by `SourceCoverage` and never written to the list
+ * (2026-09-29: a lost "the app removed NWS" marker left it off for good).
+ */
 object SetupSourcePolicy {
     fun sourcesAfterSetupCheck(
         current: List<WeatherSource>,
-        nwsCoverage: SetupNwsCoverage,
         weatherApiAvailable: Boolean,
-        nwsAutoRetired: Boolean = false,
-    ): List<WeatherSource> {
-        // Back inside coverage after an automatic retirement: put NWS back where it was. A user
-        // who unticked NWS themselves (flag false) keeps their choice.
-        if (nwsCoverage == SetupNwsCoverage.SUPPORTED && nwsAutoRetired && WeatherSource.NWS !in current) {
-            return NwsCoverage.restoreNws(current.map { it.id }).map { WeatherSource.fromId(it) }
-        }
-        if (nwsCoverage != SetupNwsCoverage.UNSUPPORTED || WeatherSource.NWS !in current) {
-            return current
-        }
-
-        val result = NwsCoverage.retireNws(current.map { it.id })
-            .map { WeatherSource.fromId(it) }
-            .toMutableList()
-        if (weatherApiAvailable && WeatherSource.WEATHER_API !in result) {
-            result += WeatherSource.WEATHER_API
-        }
-        return result
-    }
+    ): List<WeatherSource> =
+        if (weatherApiAvailable && WeatherSource.WEATHER_API !in current) current + WeatherSource.WEATHER_API else current
 }
 
 @Singleton
 class SetupSourceAvailabilityChecker
     @Inject
     constructor(
-        private val nwsApi: NwsApi,
         private val weatherApi: WeatherApi,
     ) {
-        suspend fun checkNws(
-            latitude: Double,
-            longitude: Double,
-        ): Pair<SetupNwsCoverage, String?> =
-            try {
-                withTimeout(NWS_TIMEOUT_MS) {
-                    nwsApi.getGridPoint(latitude, longitude)
-                }
-                SetupNwsCoverage.SUPPORTED to null
-            } catch (e: NwsPointUnavailableException) {
-                SetupNwsCoverage.UNSUPPORTED to "invalid_point"
-            } catch (e: TimeoutCancellationException) {
-                inconclusive(latitude, longitude, "timeout")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: ApiAccessException) {
-                inconclusive(latitude, longitude, "http_${e.statusCode ?: "unknown"}")
-            } catch (e: IOException) {
-                inconclusive(latitude, longitude, "network")
-            } catch (e: Exception) {
-                inconclusive(latitude, longitude, "error_${e.javaClass.simpleName}")
-            }
-
-        /**
-         * The probe could not answer. Inside the coverage box that stays INCONCLUSIVE (keep NWS,
-         * it very likely works); outside it the box is authoritative enough to retire NWS — a
-         * location set while offline must not keep a source that can never load there.
-         */
-        private fun inconclusive(
-            latitude: Double,
-            longitude: Double,
-            reason: String,
-        ): Pair<SetupNwsCoverage, String?> =
-            if (NwsCoverage.covers(latitude, longitude)) {
-                SetupNwsCoverage.INCONCLUSIVE to reason
-            } else {
-                SetupNwsCoverage.UNSUPPORTED to "${reason}_outside_coverage_box"
-            }
-
         suspend fun checkWeatherApi(
             latitude: Double,
             longitude: Double,
@@ -133,7 +80,6 @@ class SetupSourceAvailabilityChecker
             }
 
         companion object {
-            const val NWS_TIMEOUT_MS = 5_000L
             const val WEATHER_API_TIMEOUT_MS = 5_000L
         }
     }
@@ -145,64 +91,58 @@ class SetupSourceSelector
         private val checker: SetupSourceAvailabilityChecker,
         private val weatherApiCredentialProvider: WeatherApiCredentialProvider,
     ) {
+        /**
+         * [SetupSourceSelection.nwsCoverage] is the coverage box ([NwsCoverage.covers]) — the same
+         * test that decides whether NWS is usable at the site. The live `/points` probe this used to
+         * run (~1 s per save) only fed the NWS remove/restore decision, which no longer exists.
+         *
+         * WeatherAPI is offered as NWS's stand-in only when a save *leaves* coverage with NWS
+         * enabled ([previous] covered, or no previous site). It used to fire once because it also
+         * removed NWS; with NWS kept enabled, firing on every save outside coverage would re-add a
+         * WeatherAPI the user had unticked.
+         */
         suspend fun select(
             current: List<WeatherSource>,
             latitude: Double,
             longitude: Double,
-            nwsAutoRetired: Boolean = false,
+            previous: Pair<Double, Double>? = null,
         ): SetupSourceSelection {
-            val (nwsCoverage, nwsReason) = checker.checkNws(latitude, longitude)
-            if (nwsCoverage != SetupNwsCoverage.UNSUPPORTED || WeatherSource.NWS !in current) {
-                val restored = SetupSourcePolicy.sourcesAfterSetupCheck(
-                    current = current,
-                    nwsCoverage = nwsCoverage,
-                    weatherApiAvailable = false,
-                    nwsAutoRetired = nwsAutoRetired,
-                )
+            if (NwsCoverage.covers(latitude, longitude)) {
+                return SetupSourceSelection(sources = current, nwsCoverage = SetupNwsCoverage.SUPPORTED)
+            }
+            val leavingCoverage = previous == null || NwsCoverage.covers(previous.first, previous.second)
+            if (WeatherSource.NWS !in current || !leavingCoverage) {
                 return SetupSourceSelection(
-                    sources = restored,
-                    nwsCoverage = nwsCoverage,
-                    reason = if (restored !== current) "nws_restored" else nwsReason,
+                    sources = current,
+                    nwsCoverage = SetupNwsCoverage.UNSUPPORTED,
+                    reason = if (WeatherSource.NWS !in current) "nws_not_enabled" else "already_outside_coverage",
                 )
             }
-
             if (WeatherSource.WEATHER_API in current) {
                 return SetupSourceSelection(
-                    sources = SetupSourcePolicy.sourcesAfterSetupCheck(
-                        current = current,
-                        nwsCoverage = nwsCoverage,
-                        weatherApiAvailable = true,
-                    ),
-                    nwsCoverage = nwsCoverage,
+                    sources = current,
+                    nwsCoverage = SetupNwsCoverage.UNSUPPORTED,
                     weatherApiAvailability = SetupWeatherApiAvailability.ALREADY_ENABLED,
-                    reason = nwsReason,
+                    reason = "outside_coverage_box",
                 )
             }
-
             if (!weatherApiCredentialProvider.isConfigured()) {
                 return SetupSourceSelection(
-                    sources = SetupSourcePolicy.sourcesAfterSetupCheck(
-                        current = current,
-                        nwsCoverage = nwsCoverage,
-                        weatherApiAvailable = false,
-                    ),
-                    nwsCoverage = nwsCoverage,
+                    sources = current,
+                    nwsCoverage = SetupNwsCoverage.UNSUPPORTED,
                     weatherApiAvailability = SetupWeatherApiAvailability.MISSING_KEY,
                     reason = "missing_key",
                 )
             }
-
-            val (weatherApiAvailability, weatherApiReason) =
-                checker.checkWeatherApi(latitude, longitude)
+            val (weatherApiAvailability, weatherApiReason) = checker.checkWeatherApi(latitude, longitude)
             return SetupSourceSelection(
                 sources = SetupSourcePolicy.sourcesAfterSetupCheck(
                     current = current,
-                    nwsCoverage = nwsCoverage,
                     weatherApiAvailable = weatherApiAvailability == SetupWeatherApiAvailability.AVAILABLE,
                 ),
-                nwsCoverage = nwsCoverage,
+                nwsCoverage = SetupNwsCoverage.UNSUPPORTED,
                 weatherApiAvailability = weatherApiAvailability,
-                reason = weatherApiReason ?: nwsReason,
+                reason = weatherApiReason ?: "outside_coverage_box",
             )
         }
     }

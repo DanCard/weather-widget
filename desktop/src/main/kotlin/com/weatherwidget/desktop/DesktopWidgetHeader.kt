@@ -54,8 +54,8 @@ internal fun WidgetHeader(
     val nowLocal = remember(nowEpoch, zoneId) {
         LocalDateTime.ofInstant(Instant.ofEpochMilli(nowEpoch), zoneId)
     }
-    val displaySource = remember(config.settings.weatherSource) {
-        WeatherSource.fromDisplaySource(config.settings.weatherSource)
+    val displaySource = remember(config.displaySource) {
+        WeatherSource.fromDisplaySource(config.displaySource)
     }
     val displayTemp = resolvedCurrentTemp ?: forecast.resolved.currentTemp
     // The header shows the DELTA FROM YESTERDAY (observed vs blended actual 24h earlier). It is
@@ -91,9 +91,9 @@ internal fun WidgetHeader(
     val precipFontScale = headerPrecipitation.fontScale
 
     val toggleWeatherSource = {
-        val visibleSources = config.settings.visibleSources
+        val visibleSources = config.effectiveSources
         if (visibleSources.size > 1) {
-            val nextIdx = (visibleSources.indexOf(config.settings.weatherSource) + 1) % visibleSources.size
+            val nextIdx = (visibleSources.indexOf(config.displaySource) + 1) % visibleSources.size
             onUpdateConfig(config.copy(settings = config.settings.copy(weatherSource = visibleSources[nextIdx])))
         }
     }
@@ -262,8 +262,8 @@ internal fun WidgetHeader(
                     // already home in the view sense, and the one axis it can still be off home on
                     // is the API indicator having been tapped away from the preferred source.
                     val showHomeButton = PreferredSourceHome.shouldShowHomeButton(
-                        currentSourceId = config.settings.weatherSource,
-                        visibleSourceIds = config.settings.visibleSources,
+                        currentSourceId = config.displaySource,
+                        visibleSourceIds = config.effectiveSources,
                     )
                     val dateText = targetHour.format(dateFormatter)
                     val dateStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (12 * scale).sp)
@@ -309,7 +309,7 @@ internal fun WidgetHeader(
                                     tint = Color.White.copy(alpha = 0.6f),
                                     modifier = Modifier.size(iconSizeDp.dp).clickable {
                                         val preferred =
-                                            PreferredSourceHome.preferredSourceId(config.settings.visibleSources)
+                                            PreferredSourceHome.preferredSourceId(config.effectiveSources)
                                         if (preferred != null) {
                                             onUpdateConfig(
                                                 config.copy(
@@ -351,10 +351,10 @@ internal fun WidgetHeader(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val visibleSources = config.settings.visibleSources
+                val visibleSources = config.effectiveSources
                 // Show the shared short label (e.g. "Meteo"), matching Android's API indicator, rather
                 // than the raw stored id ("OPEN_METEO"). One source of truth: WeatherSource.shortDisplayName.
-                val sourceLabel = WeatherSource.fromDisplaySource(config.settings.weatherSource).shortDisplayName
+                val sourceLabel = WeatherSource.fromDisplaySource(config.displaySource).shortDisplayName
                 if (visibleSources.size > 1) {
                     Text(
                         text = sourceLabel,
@@ -362,7 +362,7 @@ internal fun WidgetHeader(
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = (10 * scale).sp,
                         modifier = Modifier.clickable {
-                            val nextIdx = (visibleSources.indexOf(config.settings.weatherSource) + 1) % visibleSources.size
+                            val nextIdx = (visibleSources.indexOf(config.displaySource) + 1) % visibleSources.size
                             onUpdateConfig(config.copy(settings = config.settings.copy(weatherSource = visibleSources[nextIdx])))
                         }.padding(end = 6.dp)
                     )

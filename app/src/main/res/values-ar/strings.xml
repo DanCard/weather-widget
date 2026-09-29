@@ -52,6 +52,7 @@
     <string name="api_sources_title">مصادر بيانات الطقس</string>
     <string name="api_sources_description">فعّل/عطّل المصادر وأعد ترتيبها. تُستبعد المصادر المعطّلة من تبديل الأداة والجلب في الخلفية حتى يُعاد تفعيلها.</string>
     <string name="must_keep_one_source">يجب أن يبقى مصدر واحد على الأقل مفعّلًا</string>
+    <string name="source_unavailable_at_location">غير متاح في هذا الموقع</string>
     <string name="api_key_required_to_enable">يتطلب %1$s مفتاح API قبل التمكين</string>
     <string name="personal_stations_title">محطات الطقس الشخصية</string>
     <string name="personal_stations_description" formatted="false">المحطات الشخصية (المنزلية) غالبًا ما تعطي قراءات مرتفعة في الشمس. حدد مقدار خصم مساهمتها في درجة الحرارة المقاسة. 0% = بلا خصم: تُحسب المحطات الشخصية مثل الرسمية. 100% = تُتجاهل المحطات الشخصية.</string>

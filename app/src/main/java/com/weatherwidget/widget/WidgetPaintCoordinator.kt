@@ -100,7 +100,9 @@ internal class WidgetPaintCoordinator(
                 "widgets=${appWidgetIds.size} cleared=$cleared",
             if (succeeded) "INFO" else "WARN",
         )
-        if (!succeeded) {
+        // Nothing cleared = the banner is already gone (the cache was adopted, or a later change
+        // took over): whatever is on screen now is not this change's to replace with an error.
+        if (!succeeded && cleared > 0) {
             appWidgetIds.forEach { appWidgetId ->
                 WidgetRenderer.updateWidgetError(context, appWidgetManager, appWidgetId)
             }
@@ -117,7 +119,7 @@ internal class WidgetPaintCoordinator(
         placeName: String,
         lat: Double,
         lon: Double,
-        hasTodayRowAt: suspend (Double, Double) -> Boolean = ::hasTodayForecastRowAt,
+        hasTodayRowAt: suspend (Double, Double) -> Boolean = { lat, lon -> hasDrawableCacheAt(lat, lon) },
     ) {
         if (widgetStateManager.getPendingLocationFetch() != placeName) return
         val cached = runCatching { hasTodayRowAt(lat, lon) }.getOrDefault(false)
@@ -138,9 +140,66 @@ internal class WidgetPaintCoordinator(
         renderFetchingLocation(placeName, reason = "full_sync_start")
     }
 
-    private suspend fun hasTodayForecastRowAt(lat: Double, lon: Double): Boolean {
+    /**
+     * Start of the forced sync for a setup-screen change shown as a banner. When the new site
+     * already has today's forecast row, clears the banner and repaints from that cache: the new
+     * site's own graph is the feedback, and "Getting weather for Mountain View…" over Mountain
+     * View's graph read as still loading (2026-09-29). Mirrors desktop's `cache_adopted`. The banner
+     * [LocationChangeBanner.show] raised at Save was right until now — the previous site was on
+     * screen. Returns whether the cache was adopted: the caller then refreshes unforced and must not
+     * paint a failure over the good cache.
+     */
+    suspend fun adoptCachedNewSite(
+        placeName: String,
+        lat: Double,
+        lon: Double,
+        hasTodayRowAt: suspend (Double, Double) -> Boolean = { lat, lon -> hasDrawableCacheAt(lat, lon) },
+        repaintFromCache: suspend () -> Unit = ::refreshWidgetsFromCache,
+    ): Boolean {
+        val cached = runCatching { hasTodayRowAt(lat, lon) }.getOrDefault(false)
+        val decision = com.weatherwidget.shared.util.LocationChangePaintPolicy.decide(
+            hasTodayRowAtNewSite = cached,
+            hasRenderOnScreen = true,
+        )
+        if (!decision.adoptCached) {
+            appLogDao.log("LOCATION_FETCH_PENDING", "action=banner_shown under=previous_site place=$placeName", "INFO")
+            return false
+        }
+        // Repaint first, THEN drop the banner. Cleared first, the previous city stood bannerless for
+        // as long as the repaint took — 12 s in a cold process on 2026-09-29 (22:12:06 → 18), which
+        // read as "nothing happened". The repaint re-binds the still-active banner; the clear's own
+        // push hides it a moment later, over the new site's graph.
+        repaintFromCache()
+        finishLocationChangeBanner(placeName, succeeded = true, reason = "cache_adopted")
+        return true
+    }
+
+    /**
+     * [com.weatherwidget.shared.util.LocationChangePaintPolicy.hasDrawableCache] for [lat]/[lon],
+     * reading hourly rows through the same loader and scope the render uses — the daily query's
+     * proximity box alone admitted a 15-day-old row 7 km away with no hourly rows at the new site —
+     * and only rows fetched within `MAX_ADOPTABLE_CACHE_AGE_MS` (Kyiv's 5-day-old cache, 2026-09-29).
+     */
+    internal suspend fun hasDrawableCacheAt(
+        lat: Double,
+        lon: Double,
+        hourlySources: List<String> = hourlyForecastLoader.hourlySourceIds(),
+    ): Boolean {
         val todayUtc = java.time.LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        return WeatherDatabase.getDatabase(context).forecastDao().getForecastForDate(todayUtc, lat, lon) != null
+        if (WeatherDatabase.getDatabase(context).forecastDao().getForecastForDate(todayUtc, lat, lon) == null) return false
+        val hourly = hourlyForecastLoader.load(
+            lat = lat,
+            lon = lon,
+            sources = hourlySources,
+            caller = "location_change_probe",
+        )
+        // Only rows fetched recently enough to show as the new site's weather without a banner.
+        val oldestAdoptable = System.currentTimeMillis() -
+            com.weatherwidget.shared.util.LocationChangePaintPolicy.MAX_ADOPTABLE_CACHE_AGE_MS
+        return com.weatherwidget.shared.util.LocationChangePaintPolicy.hasHourlyForToday(
+            hourly.filter { it.fetchedAt >= oldestAdoptable }.map { it.dateTime },
+            java.time.LocalDate.now(),
+        )
     }
 
     /** Paints the interstitial for [placeName] on every widget. */

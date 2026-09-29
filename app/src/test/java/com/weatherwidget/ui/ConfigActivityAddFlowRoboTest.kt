@@ -247,7 +247,8 @@ class ConfigActivityAddFlowRoboTest {
         }
 
         assertEquals(1, calls)
-        assertEquals(originalSources, stateManager.getVisibleSourcesOrder())
+        // The user's list: Back saves London, where NWS is merely unavailable (filtered), not removed.
+        assertEquals(originalSources, stateManager.getEnabledSourcesOrder())
         assertEquals(Activity.RESULT_OK, scenario.result.resultCode)
         scenario.close()
     }

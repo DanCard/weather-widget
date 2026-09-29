@@ -52,6 +52,7 @@
     <string name="api_sources_title">موسمی ڈیٹا کے مآخذ</string>
     <string name="api_sources_description">مآخذ فعال/غیر فعال کریں اور ترتیب بدلیں۔ غیر فعال مآخذ دوبارہ فعال ہونے تک ویجٹ ٹوگل اور پس منظر ڈاؤن لوڈ سے خارج رہتے ہیں۔</string>
     <string name="must_keep_one_source">کم از کم ایک ماخذ فعال رہنا چاہیے</string>
+    <string name="source_unavailable_at_location">اس مقام پر دستیاب نہیں</string>
     <string name="api_key_required_to_enable">%1$s کو فعال کرنے سے پہلے ایک API کلید درکار ہے</string>
     <string name="personal_stations_title">ذاتی موسمی اسٹیشن</string>
     <string name="personal_stations_description" formatted="false">ذاتی (گھریلو) اسٹیشن دھوپ میں اکثر زیادہ درجہ حرارت دکھاتے ہیں۔ ماپے گئے درجہ حرارت میں ان کے حصے میں کتنی کمی ہو، طے کریں۔ 0% = کوئی کمی نہیں: ذاتی اسٹیشن سرکاری اسٹیشنوں کے برابر شمار ہوتے ہیں۔ 100% = ذاتی اسٹیشن نظر انداز کیے جاتے ہیں۔</string>

@@ -3,9 +3,12 @@ package com.weatherwidget.ui
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import android.os.Build
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import com.weatherwidget.R
 import com.weatherwidget.data.local.LocationMatch
@@ -266,7 +269,27 @@ object LocationUpdater {
     }
 
     private fun enqueueForceRefresh(context: Context, locationChangePlace: String? = null, banner: Boolean = false) {
-        val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+        WorkManager.getInstance(context).enqueue(buildForceRefreshRequest(locationChangePlace, banner))
+    }
+
+    /**
+     * A setup-screen change is the one fetch the user is watching: its sync owns the cache probe
+     * that swaps the banner for the new site. Plain work waited 22 s in JobScheduler behind other
+     * jobs on 2026-09-29 (Save 21:56:47, SYNC_START 21:57:09) with the old city on screen, so it is
+     * expedited. Only on API 31+, where that is an expedited job; below it WorkManager runs expedited
+     * work as a foreground service, which needs getForegroundInfo() and a notification this worker
+     * does not have.
+     */
+    internal fun buildForceRefreshRequest(
+        locationChangePlace: String?,
+        banner: Boolean,
+        sdkInt: Int = Build.VERSION.SDK_INT,
+    ): OneTimeWorkRequest {
+        val builder = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+        if (locationChangePlace != null && sdkInt >= Build.VERSION_CODES.S) {
+            builder.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+        }
+        return builder
             .setInputData(
                 Data.Builder()
                     .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
@@ -276,7 +299,6 @@ object LocationUpdater {
                     .build(),
             )
             .build()
-        WorkManager.getInstance(context).enqueue(workRequest)
     }
 
     private fun enqueueCandidateRefresh(context: Context) {

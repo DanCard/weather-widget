@@ -42,7 +42,7 @@ class DesktopConfigStoreTest {
     }
 
     @Test
-    fun `load retires NWS when the saved location is outside its coverage`() {
+    fun `load keeps NWS enabled outside its coverage and only displays a fallback`() {
         val configPath = Files.createTempDirectory("desktop-config-nws-coverage").resolve("config.json")
         configPath.writeText(
             """
@@ -57,12 +57,16 @@ class DesktopConfigStoreTest {
 
         val loaded = requireNotNull(DesktopConfigStore(configPath, missingUnitDefault = { false }).load())
 
-        assertEquals(listOf("OPEN_METEO", "SILURIAN"), loaded.settings.visibleSources)
-        assertEquals("OPEN_METEO", loaded.settings.weatherSource)
+        // Coverage is derived, never written (2026-09-29): the user's list and choice survive.
+        assertEquals(listOf("NWS", "OPEN_METEO", "SILURIAN"), loaded.settings.visibleSources)
+        assertEquals("NWS", loaded.settings.weatherSource)
+        assertEquals(listOf("OPEN_METEO", "SILURIAN"), loaded.effectiveSources)
+        assertEquals("OPEN_METEO", loaded.displaySource)
         val persisted = Json.parseToJsonElement(configPath.readText()).jsonObject
+        // "NWS" is the default, so an unchanged choice is omitted from the file (encodeDefaults=false).
         assertEquals(
-            "OPEN_METEO",
-            persisted.getValue("settings").jsonObject.getValue("weatherSource").jsonPrimitive.content,
+            "NWS",
+            persisted.getValue("settings").jsonObject["weatherSource"]?.jsonPrimitive?.content ?: "NWS",
         )
     }
 
@@ -114,8 +118,9 @@ class DesktopConfigStoreTest {
         val loaded = DesktopConfigStore(configPath).load()
 
         requireNotNull(loaded)
-        assertEquals(listOf("OPEN_METEO"), loaded.settings.visibleSources)
-        assertEquals("OPEN_METEO", loaded.settings.weatherSource)
+        // A legacy config has not run the one-time NWS re-enable yet, so NWS comes back in front.
+        assertEquals(listOf("NWS", "OPEN_METEO"), loaded.settings.visibleSources)
+        assertEquals("NWS", loaded.settings.weatherSource)
         val normalizedJson = configPath.readText()
         assertEquals(false, normalizedJson.contains("VISUAL_CROSSING"))
         assertEquals(false, normalizedJson.contains("MADE_UP_SOURCE"))

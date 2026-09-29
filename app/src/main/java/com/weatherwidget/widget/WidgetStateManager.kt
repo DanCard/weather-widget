@@ -169,7 +169,13 @@ class WidgetStateManager internal constructor(
         sourcePreferences.setApiKey(source, apiKey)
     }
 
+    /** Enabled sources usable at the active location — what fetches, displays and cycles. */
     fun getVisibleSourcesOrder(): List<WeatherSource> = sourcePreferences.visibleSources()
+
+    /** The user's enabled list, unfiltered by location. Settings only. */
+    fun getEnabledSourcesOrder(): List<WeatherSource> = sourcePreferences.enabledSources()
+
+    fun isSourceUnavailableHere(source: WeatherSource): Boolean = sourcePreferences.isUnavailableHere(source)
 
     fun getPrimarySource(): WeatherSource = sourcePreferences.primarySource()
 
@@ -186,13 +192,6 @@ class WidgetStateManager internal constructor(
         sources: List<WeatherSource>,
         widgetIds: IntArray,
     ): Boolean = sourcePreferences.setVisibleSourcesForSetup(sources, widgetIds)
-
-    fun retireNwsOutsideCoverage(lat: Double, lon: Double, widgetIds: IntArray): Boolean =
-        sourcePreferences.retireNwsOutsideCoverage(lat, lon, widgetIds)
-
-    fun isNwsAutoRetired(): Boolean = sourcePreferences.isNwsAutoRetired()
-
-    fun setNwsAutoRetired(value: Boolean) = sourcePreferences.setNwsAutoRetired(value)
 
     fun isSourceVisible(source: WeatherSource): Boolean = sourcePreferences.isVisible(source)
 

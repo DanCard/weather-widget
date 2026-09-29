@@ -4,8 +4,6 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
-import com.weatherwidget.data.remote.NwsApi
-import com.weatherwidget.data.remote.NwsPointUnavailableException
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.WeatherApiCredentialProvider
 import com.weatherwidget.test.category.MediumDuration
@@ -14,241 +12,127 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
+/**
+ * The setup screen no longer adds or removes NWS: whether NWS can serve a site is derived per
+ * location (`SourceCoverage`) and never written to the enabled list (2026-09-29). Its one remaining
+ * edit is offering WeatherAPI as NWS's stand-in when a save leaves coverage.
+ */
 @Category(MediumDuration::class)
 class SetupSourceSelectorTest {
-    @Test
-    fun `unsupported default sources add available WeatherAPI after survivors`() =
-        runTest {
-            val selector = selector(
-                nws = SetupNwsCoverage.UNSUPPORTED,
-                weatherApi = SetupWeatherApiAvailability.AVAILABLE,
-                configured = true,
-            )
+    private val london = 51.5074 to -0.1278
+    private val warsaw = 52.2334 to 21.0711
+    private val mountainView = 37.4168 to -122.0890
 
-            val result =
-                selector.select(
-                    current =
-                        listOf(
-                            WeatherSource.NWS,
-                            WeatherSource.OPEN_METEO,
-                            WeatherSource.SILURIAN,
-                        ),
-                    latitude = 51.5074,
-                    longitude = -0.1278,
+    @Test
+    fun `leaving coverage keeps NWS enabled and adds available WeatherAPI`() =
+        runTest {
+            val result = selector(weatherApi = SetupWeatherApiAvailability.AVAILABLE, configured = true)
+                .select(
+                    current = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+                    latitude = london.first,
+                    longitude = london.second,
+                    previous = mountainView,
                 )
 
             assertEquals(
-                listOf(
-                    WeatherSource.OPEN_METEO,
-                    WeatherSource.SILURIAN,
-                    WeatherSource.WEATHER_API,
-                ),
+                listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN, WeatherSource.WEATHER_API),
                 result.sources,
             )
+            assertEquals(SetupNwsCoverage.UNSUPPORTED, result.nwsCoverage)
             assertEquals(SetupWeatherApiAvailability.AVAILABLE, result.weatherApiAvailability)
         }
 
     @Test
-    fun `unsupported NWS-only list falls back to Open-Meteo when WeatherAPI is unavailable`() =
-        runTest {
-            val selector = selector(
-                nws = SetupNwsCoverage.UNSUPPORTED,
-                weatherApi = SetupWeatherApiAvailability.UNAVAILABLE,
-                configured = true,
-            )
-
-            val result =
-                selector.select(
-                    current = listOf(WeatherSource.NWS),
-                    latitude = 51.5074,
-                    longitude = -0.1278,
-                )
-
-            assertEquals(listOf(WeatherSource.OPEN_METEO), result.sources)
-            assertEquals(SetupWeatherApiAvailability.UNAVAILABLE, result.weatherApiAvailability)
-        }
-
-    @Test
-    fun `missing WeatherAPI key disables unsupported NWS without probing WeatherAPI`() =
+    fun `leaving coverage without a WeatherAPI key changes nothing and does not probe`() =
         runTest {
             val checker = mockk<SetupSourceAvailabilityChecker>()
-            coEvery { checker.checkNws(any(), any()) } returns
-                (SetupNwsCoverage.UNSUPPORTED to "invalid_point")
             val credentialProvider = mockk<WeatherApiCredentialProvider>()
             every { credentialProvider.isConfigured() } returns false
-            val selector = SetupSourceSelector(checker, credentialProvider)
+            val current = listOf(WeatherSource.NWS, WeatherSource.SILURIAN)
 
-            val result =
-                selector.select(
-                    current = listOf(WeatherSource.NWS, WeatherSource.SILURIAN),
-                    latitude = 51.5074,
-                    longitude = -0.1278,
-                )
+            val result = SetupSourceSelector(checker, credentialProvider)
+                .select(current, london.first, london.second, previous = mountainView)
 
-            assertEquals(listOf(WeatherSource.SILURIAN), result.sources)
+            assertSame(current, result.sources)
             assertEquals(SetupWeatherApiAvailability.MISSING_KEY, result.weatherApiAvailability)
+            coVerify(exactly = 0) { checker.checkWeatherApi(any(), any()) }
         }
 
     @Test
     fun `already enabled WeatherAPI is preserved without validation`() =
         runTest {
-            val checker = mockk<SetupSourceAvailabilityChecker>()
-            coEvery { checker.checkNws(any(), any()) } returns
-                (SetupNwsCoverage.UNSUPPORTED to "invalid_point")
-            val credentialProvider = mockk<WeatherApiCredentialProvider>(relaxed = true)
-            val selector = SetupSourceSelector(checker, credentialProvider)
+            val current = listOf(WeatherSource.NWS, WeatherSource.WEATHER_API, WeatherSource.OPEN_METEO)
 
-            val result =
-                selector.select(
-                    current =
-                        listOf(
-                            WeatherSource.NWS,
-                            WeatherSource.WEATHER_API,
-                            WeatherSource.OPEN_METEO,
-                        ),
-                    latitude = 51.5074,
-                    longitude = -0.1278,
-                )
+            val result = selector(weatherApi = SetupWeatherApiAvailability.UNAVAILABLE, configured = true)
+                .select(current, london.first, london.second, previous = mountainView)
 
-            assertEquals(
-                listOf(WeatherSource.WEATHER_API, WeatherSource.OPEN_METEO),
-                result.sources,
-            )
-            assertEquals(
-                SetupWeatherApiAvailability.ALREADY_ENABLED,
-                result.weatherApiAvailability,
-            )
+            assertSame(current, result.sources)
+            assertEquals(SetupWeatherApiAvailability.ALREADY_ENABLED, result.weatherApiAvailability)
         }
 
     @Test
-    fun `supported and inconclusive NWS checks return exact source list instance`() =
+    fun `inside coverage the enabled list is returned as the same instance`() =
         runTest {
             val current = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO)
+            val result = selector(weatherApi = SetupWeatherApiAvailability.AVAILABLE, configured = true)
+                .select(current, mountainView.first, mountainView.second, previous = warsaw)
 
-            val supported =
-                selector(
-                    nws = SetupNwsCoverage.SUPPORTED,
-                    weatherApi = SetupWeatherApiAvailability.AVAILABLE,
-                    configured = true,
-                ).select(current, 37.42, -122.08)
-            val inconclusive =
-                selector(
-                    nws = SetupNwsCoverage.INCONCLUSIVE,
-                    weatherApi = SetupWeatherApiAvailability.AVAILABLE,
-                    configured = true,
-                ).select(current, 37.42, -122.08)
-
-            assertSame(current, supported.sources)
-            assertSame(current, inconclusive.sources)
+            assertSame(current, result.sources)
+            assertEquals(SetupNwsCoverage.SUPPORTED, result.nwsCoverage)
         }
 
     @Test
-    fun `supported result restores NWS only after an automatic retirement`() =
+    fun `returning to coverage does not need to restore anything`() =
         runTest {
-            val selector = selector(
-                nws = SetupNwsCoverage.SUPPORTED,
-                weatherApi = SetupWeatherApiAvailability.NOT_CHECKED,
-                configured = true,
-            )
-            val current = listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN)
+            // The 2026-09-29 report: Warsaw -> Mountain View. NWS was never removed, so the list
+            // that comes back is the one that went out.
+            val selector = selector(weatherApi = SetupWeatherApiAvailability.NOT_CHECKED, configured = false)
+            val enabled = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN)
 
-            val restored = selector.select(current, 37.4168, -122.0890, nwsAutoRetired = true)
-            assertEquals(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN), restored.sources)
-            assertEquals("nws_restored", restored.reason)
+            val inWarsaw = selector.select(enabled, warsaw.first, warsaw.second, previous = mountainView)
+            val backHome = selector.select(inWarsaw.sources, mountainView.first, mountainView.second, previous = warsaw)
 
-            // The user unticked NWS themselves: a supported site must not override that.
-            val untouched = selector.select(current, 37.4168, -122.0890, nwsAutoRetired = false)
-            assertSame(current, untouched.sources)
+            assertEquals(enabled, backHome.sources)
         }
 
     @Test
-    fun `unsupported result is exact no-op when NWS was already disabled`() =
+    fun `a second save outside coverage does not re-add an unticked WeatherAPI`() =
+        runTest {
+            val checker = mockk<SetupSourceAvailabilityChecker>()
+            val credentialProvider = mockk<WeatherApiCredentialProvider>()
+            every { credentialProvider.isConfigured() } returns true
+            val current = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO)
+
+            val result = SetupSourceSelector(checker, credentialProvider)
+                .select(current, london.first, london.second, previous = warsaw)
+
+            assertSame(current, result.sources)
+            assertEquals("already_outside_coverage", result.reason)
+            coVerify(exactly = 0) { checker.checkWeatherApi(any(), any()) }
+        }
+
+    @Test
+    fun `without NWS enabled there is nothing to stand in for`() =
         runTest {
             val current = listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN)
-
-            val result =
-                selector(
-                    nws = SetupNwsCoverage.UNSUPPORTED,
-                    weatherApi = SetupWeatherApiAvailability.AVAILABLE,
-                    configured = true,
-                ).select(current, 51.5074, -0.1278)
+            val result = selector(weatherApi = SetupWeatherApiAvailability.AVAILABLE, configured = true)
+                .select(current, london.first, london.second, previous = mountainView)
 
             assertSame(current, result.sources)
             assertEquals(SetupWeatherApiAvailability.NOT_CHECKED, result.weatherApiAvailability)
         }
 
     @Test
-    fun `NWS checker distinguishes unsupported point from generic HTTP failure`() =
-        runTest {
-            val nwsApi = mockk<NwsApi>()
-            val weatherApi = mockk<WeatherApi>(relaxed = true)
-            val checker = SetupSourceAvailabilityChecker(nwsApi, weatherApi)
-            coEvery { nwsApi.getGridPoint(any(), any()) } throws
-                NwsPointUnavailableException("""{"type":"InvalidPoint"}""")
-
-            val unsupported = checker.checkNws(51.5074, -0.1278)
-
-            coEvery { nwsApi.getGridPoint(any(), any()) } throws
-                ApiAccessException(
-                    source = WeatherSource.NWS,
-                    statusCode = 404,
-                    detail = "not found",
-                    message = "not found",
-                )
-            val unrelated404 = checker.checkNws(37.4168, -122.0890)
-
-            assertEquals(SetupNwsCoverage.UNSUPPORTED, unsupported.first)
-            assertEquals(SetupNwsCoverage.INCONCLUSIVE, unrelated404.first)
-            assertEquals("http_404", unrelated404.second)
-        }
-
-    @Test
-    fun `NWS checker retires NWS on an inconclusive probe outside the coverage box`() =
-        runTest {
-            val nwsApi = mockk<NwsApi>()
-            val weatherApi = mockk<WeatherApi>(relaxed = true)
-            val checker = SetupSourceAvailabilityChecker(nwsApi, weatherApi)
-            coEvery { nwsApi.getGridPoint(any(), any()) } throws java.net.UnknownHostException("offline")
-
-            // Lviv while offline: the probe cannot answer, but the box can.
-            val lviv = checker.checkNws(49.8419, 24.0316)
-            assertEquals(SetupNwsCoverage.UNSUPPORTED, lviv.first)
-            assertEquals("network_outside_coverage_box", lviv.second)
-
-            // Mountain View while offline: keep NWS, it almost certainly works.
-            val mountainView = checker.checkNws(37.4168, -122.0890)
-            assertEquals(SetupNwsCoverage.INCONCLUSIVE, mountainView.first)
-            assertEquals("network", mountainView.second)
-        }
-
-    @Test
-    fun `NWS checker classifies its bounded timeout as inconclusive`() =
-        runTest {
-            val nwsApi = mockk<NwsApi>()
-            val weatherApi = mockk<WeatherApi>(relaxed = true)
-            coEvery { nwsApi.getGridPoint(any(), any()) } coAnswers { awaitCancellation() }
-
-            val result =
-                SetupSourceAvailabilityChecker(nwsApi, weatherApi)
-                    .checkNws(37.4168, -122.0890)
-
-            assertEquals(SetupNwsCoverage.INCONCLUSIVE, result.first)
-            assertEquals("timeout", result.second)
-        }
-
-    @Test
     fun `WeatherAPI checker requires a nonempty forecast`() =
         runTest {
-            val nwsApi = mockk<NwsApi>(relaxed = true)
             val weatherApi = mockk<WeatherApi>()
-            val checker = SetupSourceAvailabilityChecker(nwsApi, weatherApi)
+            val checker = SetupSourceAvailabilityChecker(weatherApi)
             coEvery { weatherApi.getForecast(any(), any(), any()) } returns RawFetch()
 
             val empty = checker.checkWeatherApi(51.5074, -0.1278)
@@ -278,9 +162,8 @@ class SetupSourceSelectorTest {
     @Test
     fun `WeatherAPI checker reports access and quota failures without enabling`() =
         runTest {
-            val nwsApi = mockk<NwsApi>(relaxed = true)
             val weatherApi = mockk<WeatherApi>()
-            val checker = SetupSourceAvailabilityChecker(nwsApi, weatherApi)
+            val checker = SetupSourceAvailabilityChecker(weatherApi)
             coEvery { weatherApi.getForecast(any(), any(), any()) } throws
                 ApiAccessException(
                     source = WeatherSource.WEATHER_API,
@@ -307,33 +190,20 @@ class SetupSourceSelectorTest {
         }
 
     @Test(expected = CancellationException::class)
-    fun `NWS checker propagates cancellation`() =
-        runTest {
-            val nwsApi = mockk<NwsApi>()
-            val weatherApi = mockk<WeatherApi>(relaxed = true)
-            coEvery { nwsApi.getGridPoint(any(), any()) } throws CancellationException("cancel")
-
-            SetupSourceAvailabilityChecker(nwsApi, weatherApi).checkNws(51.5074, -0.1278)
-        }
-
-    @Test(expected = CancellationException::class)
     fun `WeatherAPI checker propagates cancellation`() =
         runTest {
-            val nwsApi = mockk<NwsApi>(relaxed = true)
             val weatherApi = mockk<WeatherApi>()
             coEvery { weatherApi.getForecast(any(), any(), any()) } throws CancellationException("cancel")
 
-            SetupSourceAvailabilityChecker(nwsApi, weatherApi)
+            SetupSourceAvailabilityChecker(weatherApi)
                 .checkWeatherApi(51.5074, -0.1278)
         }
 
     private fun selector(
-        nws: SetupNwsCoverage,
         weatherApi: SetupWeatherApiAvailability,
         configured: Boolean,
     ): SetupSourceSelector {
         val checker = mockk<SetupSourceAvailabilityChecker>()
-        coEvery { checker.checkNws(any(), any()) } returns (nws to null)
         coEvery { checker.checkWeatherApi(any(), any()) } returns (weatherApi to null)
         val credentialProvider = mockk<WeatherApiCredentialProvider>()
         every { credentialProvider.isConfigured() } returns configured

@@ -61,7 +61,7 @@ internal fun StatisticsWindow(
             windowState = state,
             showRequestId = showRequestId,
         )
-        val source = config.settings.weatherSource
+        val source = config.displaySource
         var loading by remember { mutableStateOf(true) }
         var stats by remember { mutableStateOf<AccuracyPure.AccuracyStatistics?>(null) }
         var breakdown by remember { mutableStateOf<List<AccuracyPure.DailyAccuracy>>(emptyList()) }
@@ -70,7 +70,7 @@ internal fun StatisticsWindow(
             loading = true
             val calc = DesktopAccuracyCalculator(
                 weatherDao,
-                orderedVisibleSources = config.settings.visibleSources.map { WeatherSource.fromId(it) }
+                orderedVisibleSources = config.effectiveSources.map { WeatherSource.fromId(it) }
                     .ifEmpty { listOf(WeatherSource.NWS) },
             )
             val (s, b) = withContext(Dispatchers.IO) {

@@ -131,6 +131,30 @@ class WeatherWidgetWorkerStartupCooldownTest {
     }
 
     @Test
+    fun `a banner location change decides its feedback during the cooldown instead of after it`() = runBlocking {
+        // Opening the setup screen cold starts the cooldown; the forced sync that owns the cache
+        // probe is deferred up to 30 s. The probe must not wait with it, or a site with a fresh
+        // cache keeps the previous city under "Getting weather for…" for the whole deferral.
+        WeatherWidgetWorker.startupCooldownProvider = { inCooldown() }
+        ActiveLocationResolver.persist(context, 50.4495, 30.4910)
+        val input =
+            Data.Builder()
+                .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                .putString(WeatherWidgetWorker.KEY_LOCATION_CHANGE_PLACE, "Kyiv")
+                .putBoolean(WeatherWidgetWorker.KEY_LOCATION_CHANGE_BANNER, true)
+                .build()
+
+        worker(input).doWork()
+
+        val logs = db.appLogDao().getRecentLogs(50)
+        assertTrue("still deferred: ${logs.map { it.tag }}", logs.any { it.tag == "SYNC_DEFERRED_STARTUP" })
+        assertTrue(
+            "the cache probe ran inside the deferral: ${logs.map { it.tag + " " + it.message }}",
+            logs.any { it.tag == "LOCATION_FETCH_PENDING" && "place=Kyiv" in it.message && "action=banner_" in it.message },
+        )
+    }
+
+    @Test
     fun `an identical run arriving during the cooldown folds into the pending one`() = runBlocking {
         WeatherWidgetWorker.startupCooldownProvider = { inCooldown() }
         val input =

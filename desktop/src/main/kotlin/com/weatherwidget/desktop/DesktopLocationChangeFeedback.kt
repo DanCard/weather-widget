@@ -24,25 +24,20 @@ internal object DesktopLocationChangeFeedback {
 
     /**
      * What the popup shows while a picker save's fetch runs.
-     * - The new site has a forecast row for today → draw its cache ([adoptCached]) under the banner.
+     * - The new site has a forecast row for today → draw its cache (`adoptCached`), no banner.
      * - It doesn't, but the previous site is on screen → keep that under the banner (user's call,
      *   2026-09-28: old data plus "Getting weather for…" beats a blank placeholder).
      * - Neither → the full-screen interstitial.
      * A non-null cache is not "drawable": a site last visited two weeks ago still loads its old
      * daily rows, none of them in the visible window — adopting that painted an empty graph.
      */
-    data class Decision(val feedback: LocationChangePaintPolicy.Feedback, val adoptCached: Boolean)
-
-    fun decide(cached: ForecastSnapshot?, hasRenderOnScreen: Boolean, today: LocalDate): Decision {
-        val drawable = cached != null && LocationChangePaintPolicy.hasTodayRow(cached.raw.daily, today)
-        val feedback = LocationChangePaintPolicy.feedback(
-            userInitiated = true,
-            // pendingPlaceName already established that the site changed.
-            siteChanged = true,
-            hasRenderToKeep = drawable || hasRenderOnScreen,
+    fun decide(cached: ForecastSnapshot?, hasRenderOnScreen: Boolean, today: LocalDate): LocationChangePaintPolicy.Decision =
+        // pendingPlaceName already established that the site changed.
+        LocationChangePaintPolicy.decide(
+            hasTodayRowAtNewSite = cached != null &&
+                LocationChangePaintPolicy.hasDrawableCache(cached.raw.daily, cached.raw.hourly.map { it.dateTime }, today),
+            hasRenderOnScreen = hasRenderOnScreen,
         )
-        return Decision(feedback, adoptCached = drawable)
-    }
 
     /** "Mountain View" / "the new location" — what the banner and interstitial call the site. */
     fun placePhrase(place: String?): String = place ?: "the new location"

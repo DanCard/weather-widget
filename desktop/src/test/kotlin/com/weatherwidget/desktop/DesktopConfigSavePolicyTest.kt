@@ -56,60 +56,72 @@ class DesktopConfigSavePolicyTest {
     }
 
     @Test
-    fun `location picker save outside NWS coverage retires NWS from the source cycle`() {
+    fun `location picker save outside NWS coverage rewrites no source setting`() {
+        // Coverage is derived, never written (2026-09-29): the enabled list and the stored choice
+        // survive a trip abroad; only what is displayed changes.
         val persisted = config(source = "NWS")
         val lviv = ResolvedLocation(lat = 49.8419, lon = 24.0316, label = "Lviv", source = "Nominatim").toConfig()
 
-        val result = resolveDesktopConfigSave(persisted, lviv, source = "location-picker")
+        val result = resolveDesktopConfigSave(persisted, lviv, source = "location-picker").config
 
-        assertEquals("OPEN_METEO", result.config.settings.weatherSource)
-        assertEquals(
-            persisted.settings.visibleSources.filter { it != "NWS" },
-            result.config.settings.visibleSources,
-        )
+        assertEquals("NWS", result.settings.weatherSource)
+        assertEquals(persisted.settings.visibleSources, result.settings.visibleSources)
+        assertEquals("OPEN_METEO", result.displaySource)
+        assertEquals(persisted.settings.visibleSources.filter { it != "NWS" }, result.effectiveSources)
         // Non-source settings still come from the persisted config, not the picker's defaults.
-        assertEquals(persisted.settings.narrowZoomSpanHours, result.config.settings.narrowZoomSpanHours)
+        assertEquals(persisted.settings.narrowZoomSpanHours, result.settings.narrowZoomSpanHours)
     }
 
     @Test
-    fun `location picker round trip out of and back into coverage restores NWS`() {
+    fun `location picker round trip out of and back into coverage shows NWS again`() {
         val home = config(source = "NWS")
         val lviv = ResolvedLocation(lat = 49.8419, lon = 24.0316, label = "Lviv", source = "Nominatim").toConfig()
         val away = resolveDesktopConfigSave(home, lviv, source = "location-picker").config
-        assertEquals(true, away.settings.nwsAutoRetired)
+        assertEquals("OPEN_METEO", away.displaySource)
 
         val austin = ResolvedLocation(lat = 30.2672, lon = -97.7431, label = "Austin", source = "Nominatim").toConfig()
         val back = resolveDesktopConfigSave(away, austin, source = "location-picker").config
 
         assertEquals(home.settings.visibleSources, back.settings.visibleSources)
-        assertEquals("NWS", back.settings.weatherSource)
-        assertEquals(false, back.settings.nwsAutoRetired)
+        assertEquals("NWS", back.displaySource)
     }
 
     @Test
-    fun `a settings edit of the source list makes the NWS state the user's own`() {
-        val away = config(source = "OPEN_METEO").let {
-            it.copy(settings = it.settings.copy(visibleSources = listOf("OPEN_METEO", "SILURIAN"), nwsAutoRetired = true))
-        }
-        val edited = away.copy(settings = away.settings.copy(visibleSources = listOf("SILURIAN", "OPEN_METEO")))
+    fun `an NWS untick in settings survives a round trip`() {
+        val home = config(source = "OPEN_METEO")
+        val unticked = home.copy(settings = home.settings.copy(visibleSources = listOf("OPEN_METEO", "SILURIAN")))
+        val edited = resolveDesktopConfigSave(home, unticked, source = "settings").config
 
-        val result = resolveDesktopConfigSave(away, edited, source = "settings").config
-
-        assertEquals(false, result.settings.nwsAutoRetired)
+        val lviv = ResolvedLocation(lat = 49.8419, lon = 24.0316, label = "Lviv", source = "Nominatim").toConfig()
         val austin = ResolvedLocation(lat = 30.2672, lon = -97.7431, label = "Austin", source = "Nominatim").toConfig()
-        val back = resolveDesktopConfigSave(result, austin, source = "location-picker").config
-        assertEquals(listOf("SILURIAN", "OPEN_METEO"), back.settings.visibleSources)
+        val away = resolveDesktopConfigSave(edited, lviv, source = "location-picker").config
+        val back = resolveDesktopConfigSave(away, austin, source = "location-picker").config
+
+        assertEquals(listOf("OPEN_METEO", "SILURIAN"), back.settings.visibleSources)
+        assertEquals(listOf("OPEN_METEO", "SILURIAN"), back.effectiveSources)
     }
 
     @Test
-    fun `location picker save inside NWS coverage keeps the source cycle`() {
+    fun `location picker save inside NWS coverage keeps the user's selected source`() {
+        // The picker used to force NWS in the US / Open-Meteo abroad; a location no longer
+        // rewrites the user's choice.
         val persisted = config(source = "OPEN_METEO")
         val austin = ResolvedLocation(lat = 30.2672, lon = -97.7431, label = "Austin", source = "Nominatim").toConfig()
 
         val result = resolveDesktopConfigSave(persisted, austin, source = "location-picker")
 
-        assertEquals("NWS", result.config.settings.weatherSource)
+        assertEquals("OPEN_METEO", result.config.settings.weatherSource)
         assertEquals(persisted.settings.visibleSources, result.config.settings.visibleSources)
+    }
+
+    @Test
+    fun `nws re-enable migration restores NWS once`() {
+        val legacy = DesktopSettings(visibleSources = listOf("OPEN_METEO", "SILURIAN"))
+        val migrated = legacy.withNwsReenabledOnce()
+        assertEquals(listOf("NWS", "OPEN_METEO", "SILURIAN"), migrated.visibleSources)
+
+        val untickedAfter = migrated.copy(visibleSources = listOf("OPEN_METEO"))
+        assertEquals(untickedAfter, untickedAfter.withNwsReenabledOnce())
     }
 
     @Test

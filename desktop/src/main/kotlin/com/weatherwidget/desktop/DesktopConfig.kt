@@ -4,7 +4,7 @@ import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.graph.ZoomStage
-import com.weatherwidget.shared.util.NwsCoverage
+import com.weatherwidget.shared.util.SourceCoverage
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -50,9 +50,10 @@ data class DesktopSettings(
     // (ActualsProviderResolver.DEFAULT_PROVIDER) and is deliberately not written as an explicit
     // value: storing the default would silently pin the user if the default ever moves.
     val actualsProviders: Map<String, String> = emptyMap(),
-    // NWS is missing from visibleSources because the app retired it (site outside NWS coverage),
-    // not because the user unticked it — so a move back into coverage may restore it.
-    val nwsAutoRetired: Boolean = false,
+    // One-time re-enable of NWS (2026-09-29): until then a location outside NWS coverage REMOVED it
+    // from visibleSources, and a lost "the app did it" flag left it off for good. Coverage is now
+    // derived per location ([effectiveSources]) and never written to this list.
+    val nwsReenabledMigrationDone: Boolean = false,
 ) {
     // 0% discount -> weight 1.0 (no discount); 100% discount -> weight 0.0 (PWS ignored).
     fun personalStationWeight(): Double = 1.0 - personalStationDiscount.coerceIn(0, 100) / 100.0
@@ -76,7 +77,6 @@ data class DesktopSettings(
         add("actualsProviders", actualsProviders, other.actualsProviders)
         add("todayOverlayDelta", todayOverlayDelta, other.todayOverlayDelta)
         add("todayOverlayDominantTemp", todayOverlayDominantTemp, other.todayOverlayDominantTemp)
-        add("nwsAutoRetired", nwsAutoRetired, other.nwsAutoRetired)
     }
 }
 
@@ -160,10 +160,11 @@ data class DesktopConfig(
      * the [previous] baseline the draft was seeded from.
      *
      * [withSettingsFrom] keeps the draft's settings wholesale, which is right while the Settings
-     * window is the only settings writer. It is not: the location picker retires/restores NWS
-     * (`visibleSources`, `nwsAutoRetired`) and picks a per-region `weatherSource`, the popup
-     * header toggles `weatherSource`, and the observations window edits `actualsProviders` — the
-     * same fields [mergeNonSettingsSave] admits from those writers. A draft that never touched
+     * window is the only settings writer. It is not: the popup header toggles `weatherSource` and the
+     * observations window edits `actualsProviders` — the same fields [mergeNonSettingsSave] admits
+     * from those writers. (Until 2026-09-29 the location picker also rewrote `visibleSources` and
+     * `weatherSource`; `visibleSources` stays in the three-way set so a draft seeded before an
+     * external edit cannot rewind it.) A draft that never touched
      * them still carries the OLD baseline's values, so a two-way rebase read the picker's NWS
      * retirement as an unsaved edit and the auto-save wrote NWS back five seconds later, tagged as
      * the user's own choice so a later move back into coverage could never restore it.
@@ -182,7 +183,6 @@ data class DesktopConfig(
             settings = d.copy(
                 weatherSource = pick(prev.weatherSource, new.weatherSource, d.weatherSource),
                 visibleSources = pick(prev.visibleSources, new.visibleSources, d.visibleSources),
-                nwsAutoRetired = pick(prev.nwsAutoRetired, new.nwsAutoRetired, d.nwsAutoRetired),
                 actualsProviders = pick(prev.actualsProviders, new.actualsProviders, d.actualsProviders),
             ),
         )
@@ -244,23 +244,14 @@ internal fun resolveDesktopConfigSave(
         mergeNonSettingsSave(
             persisted = persisted,
             draft = draft,
-            allowWeatherSourceChange = source == "popup" || source == "location-picker",
+            // Not the location picker: a location never rewrites the user's selected source. One
+            // that cannot serve the new site is replaced at read time ([displaySource]) and comes
+            // back when the location does.
+            allowWeatherSourceChange = source == "popup",
             allowActualsProvidersChange = source == "observations-window" || source == "observations",
         )
     } else {
         draft
-    }
-    if (source == "location-picker") {
-        // Moving outside NWS coverage retires NWS from the popup's source cycle too — otherwise
-        // the picker's Open-Meteo default is one header tap away from a source that 404s at the
-        // new site and leaves the UI on "Loading...". Moving back inside restores it, but only
-        // when the app was the one that removed it. Mirrors Android's setup source check.
-        effective = effective.copy(settings = effective.settings.withNwsCoverageApplied(effective.lat, effective.lon))
-    } else if (persisted != null && source in SETTINGS_SAVE_SOURCES &&
-        draft.settings.visibleSources != persisted.settings.visibleSources
-    ) {
-        // The user edited the source list themselves: whatever NWS's state is now, it is theirs.
-        effective = effective.copy(settings = effective.settings.copy(nwsAutoRetired = false))
     }
     val beforeResnap = effective
     if (persisted != null) effective = resnapNarrowZoomAfterSpanChange(persisted, effective)
@@ -302,21 +293,27 @@ internal fun resnapNarrowZoomAfterSpanChange(prev: DesktopConfig, next: DesktopC
 
 private val SETTINGS_SAVE_SOURCES = setOf("settings", "settings-close")
 
+/** Enabled sources usable at this config's location ([SourceCoverage]); fetches, displays and cycles read this. */
+val DesktopConfig.effectiveSources: List<String>
+    get() = SourceCoverage.effectiveSources(settings.visibleSources, lat, lon)
+
 /**
- * Applies [NwsCoverage] for a site: outside it retires NWS and remembers that the app did so;
- * inside it restores NWS only if the app had retired it. A list the user shaped is left alone.
+ * The source to show: the stored choice when it can serve this location, else the first usable one.
+ * The stored `weatherSource` is never rewritten for coverage, so NWS chosen in Mountain View shows
+ * Open-Meteo in Warsaw and NWS again back home.
  */
-internal fun DesktopSettings.withNwsCoverageApplied(lat: Double, lon: Double): DesktopSettings =
-    if (NwsCoverage.covers(lat, lon)) {
-        if (nwsAutoRetired) {
-            copy(visibleSources = NwsCoverage.restoreNws(visibleSources), nwsAutoRetired = false)
-        } else {
-            this
-        }
-    } else {
-        val retired = NwsCoverage.retireNws(visibleSources)
-        if (retired === visibleSources) this else copy(visibleSources = retired, nwsAutoRetired = true)
+val DesktopConfig.displaySource: String
+    get() {
+        val usable = effectiveSources
+        return settings.weatherSource.takeIf { it in usable } ?: usable.first()
     }
+
+/** See [DesktopSettings.nwsReenabledMigrationDone]. Puts NWS back in front, once. */
+internal fun DesktopSettings.withNwsReenabledOnce(): DesktopSettings {
+    if (nwsReenabledMigrationDone) return this
+    val ids = if (WeatherSource.NWS.id in visibleSources) visibleSources else listOf(WeatherSource.NWS.id) + visibleSources
+    return copy(visibleSources = ids, nwsReenabledMigrationDone = true)
+}
 
 /**
  * Heals a persisted config whose `zoomFactor` was left at an old NARROW-stage factor when
@@ -374,10 +371,7 @@ class DesktopConfigStore(
             if (WeatherSource.OPEN_WEATHER_MAP.id in normalizedVisible && normalizedVisible.last() != WeatherSource.OPEN_WEATHER_MAP.id) {
                 normalizedVisible = normalizedVisible.filter { it != WeatherSource.OPEN_WEATHER_MAP.id } + WeatherSource.OPEN_WEATHER_MAP.id
             }
-            // Heal configs whose location left NWS coverage before the picker retired NWS: an
-            // NWS selection there can never load, so drop it and let the source fall through.
-            val healed = decoded.settings.copy(visibleSources = normalizedVisible)
-                .withNwsCoverageApplied(decoded.lat, decoded.lon)
+            val healed = decoded.settings.copy(visibleSources = normalizedVisible).withNwsReenabledOnce()
             normalizedVisible = healed.visibleSources
             val normalizedSource = decoded.settings.weatherSource.takeIf { it in normalizedVisible }
                 ?: normalizedVisible.first()

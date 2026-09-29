@@ -197,14 +197,14 @@ internal fun runDesktopUiApplication() = application {
 
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.apiKeys) {
             currentConfig?.let {
-                DesktopWeatherService(it.lat, it.lon, it.settings.weatherSource, it.settings.apiKeys, weatherDao, isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default())
+                DesktopWeatherService(it.lat, it.lon, it.displaySource, it.settings.apiKeys, weatherDao, isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default())
             }
         }
         val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.personalStationDiscount) {
             val service = weatherService
             currentConfig?.let { cfg ->
                 service?.let {
-                    DesktopWeatherRepository(it, weatherDao, cfg.lat, cfg.lon, cfg.settings.weatherSource, cfg.personalStationWeight())
+                    DesktopWeatherRepository(it, weatherDao, cfg.lat, cfg.lon, cfg.displaySource, cfg.personalStationWeight())
                 }
             }
         }
@@ -422,8 +422,8 @@ internal fun runDesktopUiApplication() = application {
         // Setup-driven location change (Android parity: LocationUpdater.paintInterstitialIfUncached).
         // Keyed on the repository so it runs after the new site's repository exists. Every picker
         // move is confirmed and fetched here, in the UI process, so its outcome is known:
-        //  - the new site has a forecast row for today → keep the cached graph (switching home ↔
-        //    work must not blank it) and float a "Getting weather for {place}…" banner over it;
+        //  - the new site has a forecast row for today → show its cached graph at once, no banner
+        //    (switching home ↔ work must not blank it, nor claim to be loading what is shown);
         //  - it does not → drop the snapshot (the previous city, or a stale one with nothing in the
         //    visible window — that painted an empty graph for 26 s on 2026-09-28) and show the
         //    full-screen interstitial naming the place.
@@ -450,13 +450,14 @@ internal fun runDesktopUiApplication() = application {
                     weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=render_interstitial", "INFO")
                     forecast = null
                     dataStatus = DataStatus.FetchingLocation(DesktopLocationChangeFeedback.placePhrase(place))
+                } else if (decision.adoptCached) {
+                    // The new site's own graph is the feedback; a "Getting weather for…" banner over
+                    // it read as still loading (2026-09-29). The refresh below runs silently.
+                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=cache_adopted", "INFO")
+                    forecast = cached
+                    dataStatus = DataStatus.Live(System.currentTimeMillis())
                 } else {
-                    val kept = if (decision.adoptCached) "new_site_cache" else "previous_site"
-                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=banner_shown under=$kept", "INFO")
-                    if (decision.adoptCached) {
-                        forecast = cached
-                        dataStatus = DataStatus.Live(System.currentTimeMillis())
-                    }
+                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=banner_shown under=previous_site", "INFO")
                     locationBanner = LocationBanner(token, DesktopLocationChangeFeedback.fetchingMessage(place))
                 }
                 val naming = if (place != null) null else launch {
@@ -541,7 +542,7 @@ internal fun runDesktopUiApplication() = application {
                     return
                 }
                 
-                val src = WeatherSource.fromDisplaySource(activeConfig.settings.weatherSource).id
+                val src = WeatherSource.fromDisplaySource(activeConfig.displaySource).id
                 val status = weatherDao.getLatestCurrentTempStatus(src)
                 if (status != null && !status.ok && status.timestamp > dismissedErrorTimestamp) {
                     val timeFmt = DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault())
@@ -654,7 +655,7 @@ internal fun runDesktopUiApplication() = application {
         // already resolved when the daemon hasn't published yet (e.g. startup/preview paths).
         val publishedStatus = remember(forecast, currentConfig, nowMs) {
             val cfg = currentConfig
-            if (cfg != null) weatherDao.getCurrentStatus(cfg.lat, cfg.lon, cfg.settings.weatherSource) else null
+            if (cfg != null) weatherDao.getCurrentStatus(cfg.lat, cfg.lon, cfg.displaySource) else null
         }
         val resolvedCurrentTemp = publishedStatus?.displayTempF ?: forecast?.resolved?.currentTemp
         val resolvedDeltaFromYesterday = publishedStatus?.deltaFromYesterdayF ?: forecast?.resolved?.deltaFromYesterday
@@ -680,7 +681,7 @@ internal fun runDesktopUiApplication() = application {
                 "origin=$origin repository=" +
                     (if (repo == null) "NULL (no-op)" else "present") +
                     " config=" +
-                    (currentConfig?.let { "lat=${it.lat} lon=${it.lon} src=${it.settings.weatherSource}" }
+                    (currentConfig?.let { "lat=${it.lat} lon=${it.lon} src=${it.displaySource}" }
                         ?: "null"),
                 "INFO",
             )

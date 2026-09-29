@@ -52,6 +52,7 @@
     <string name="api_sources_title">Sumber data cuaca</string>
     <string name="api_sources_description">Aktifkan/nonaktifkan dan urutkan ulang sumber. Sumber yang dinonaktifkan dikecualikan dari pergantian di widget dan pengambilan latar belakang sampai diaktifkan kembali.</string>
     <string name="must_keep_one_source">Setidaknya satu sumber harus tetap aktif</string>
+    <string name="source_unavailable_at_location">Tidak tersedia di lokasi ini</string>
     <string name="api_key_required_to_enable">%1$s memerlukan kunci API sebelum diaktifkan</string>
     <string name="personal_stations_title">Stasiun cuaca pribadi</string>
     <string name="personal_stations_description" formatted="false">Stasiun pribadi (halaman rumah) sering membaca terlalu tinggi saat terkena matahari. Atur seberapa besar kontribusinya terhadap suhu terukur dikurangi. 0% = tanpa pengurangan: stasiun pribadi dihitung sama dengan stasiun resmi. 100% = stasiun pribadi diabaikan.</string>

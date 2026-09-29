@@ -209,24 +209,22 @@ todayOverlayDominantTemp = true))
     }
 
     @Test
-    fun `a picker NWS retirement lands in an untouched draft`() {
-        // The Lviv bug: Settings is open, the user sets a site outside NWS coverage in the picker,
-        // and the picker save arrives as a new baseline with NWS retired. The draft never touched
-        // the source list, so the retirement must be adopted — a two-way rebase kept the draft's
-        // stale NWS and the auto-save wrote it straight back.
+    fun `an external source-list change lands in an untouched draft`() {
+        // Settings is open and the source list changes underneath it (a second Settings window,
+        // the daemon). The draft never touched the list, so the change must be adopted — a two-way
+        // rebase kept the draft's stale list and the auto-save wrote it straight back.
         val previous = config().copy(
-            settings = config().settings.copy(visibleSources = listOf("NWS", "OPEN_METEO"), nwsAutoRetired = false),
+            settings = config().settings.copy(visibleSources = listOf("NWS", "OPEN_METEO")),
         )
         val untouchedDraft = previous.copy(settings = previous.settings.copy(narrowZoomSpanHours = 7))
         val pickerSave = previous.copy(
             lat = 49.842, lon = 24.032, label = "Lviv",
-            settings = previous.settings.copy(visibleSources = listOf("OPEN_METEO"), nwsAutoRetired = true),
+            settings = previous.settings.copy(visibleSources = listOf("OPEN_METEO")),
         )
 
         val rebased = pickerSave.rebaseSettingsDraft(previous = previous, draft = untouchedDraft)
 
         assertEquals(listOf("OPEN_METEO"), rebased.settings.visibleSources)
-        assertTrue("the retirement must stay tagged as the app's", rebased.settings.nwsAutoRetired)
         assertEquals("the pending 7h edit must survive alongside it", 7, rebased.settings.narrowZoomSpanHours)
         assertEquals(
             "with no edit in flight the rebased draft must read clean against the new baseline",

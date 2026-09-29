@@ -160,12 +160,11 @@ useCelsius = false),
     }
 
     @Test
-    fun aLocationPickerSaveThatRetiresNws_isAdoptedAndNotAutoSavedBack() {
-        // The Lviv report, desktop side. Settings stays open while "Set Location…" runs the picker;
-        // the picker save (outside NWS coverage) arrives as a new baseline with NWS retired and
-        // nwsAutoRetired=true. Before the fix the two-way rebase kept the draft's stale NWS, the
-        // window read dirty, and the auto-save wrote NWS back under source "settings" — which the
-        // save policy treats as the user's own edit and clears nwsAutoRetired.
+    fun anExternalSourceListChange_isAdoptedAndNotAutoSavedBack() {
+        // Settings stays open while another writer changes the source list (formerly the location
+        // picker retiring NWS; since 2026-09-29 no location writes the list, but the rebase
+        // contract is unchanged). Before the fix the two-way rebase kept the draft's stale list,
+        // the window read dirty, and the auto-save wrote it back under source "settings".
         val baseline = mutableStateOf(sampleConfig)
         val saved = mutableListOf<DesktopConfig>()
         val testDelay = 100L
@@ -188,7 +187,6 @@ useCelsius = false),
             lat = 49.842, lon = 24.032, label = "Lviv",
             settings = sampleConfig.settings.copy(
                 visibleSources = listOf("OPEN_METEO", "SILURIAN", "TOMORROW_IO"),
-                nwsAutoRetired = true,
             ),
         )
         // Two frames: the rebase effect writes currentConfig on the first, the rows recompose on

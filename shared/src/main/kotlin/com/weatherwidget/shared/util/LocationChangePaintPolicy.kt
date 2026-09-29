@@ -3,6 +3,7 @@ package com.weatherwidget.shared.util
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.DailyForecast
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Decides whether a location change should replace what is on screen with a
@@ -69,6 +70,33 @@ object LocationChangePaintPolicy {
     }
 
     /**
+     * What a user-initiated change puts on screen. [adoptCached] = draw the new site's cache now.
+     *
+     * A new site with today's row needs no feedback at all ([Feedback.NONE]): its own graph is the
+     * answer to "did my choice register?", and a "Getting weather for Mountain View…" banner over
+     * Mountain View's graph reads as still loading (2026-09-29, Pixel 7 Pro: 42 s of banner over
+     * already-correct data while a background refresh ran). The banner is for when the *previous*
+     * site is what is on screen.
+     */
+    data class Decision(val feedback: Feedback, val adoptCached: Boolean)
+
+    /**
+     * For a user-initiated change to a different site (the caller has established both).
+     *
+     * @param hasTodayRowAtNewSite [hasTodayRow] for the new site's cache.
+     * @param hasRenderOnScreen the previous site's render is showing.
+     */
+    fun decide(hasTodayRowAtNewSite: Boolean, hasRenderOnScreen: Boolean): Decision =
+        if (hasTodayRowAtNewSite) {
+            Decision(Feedback.NONE, adoptCached = true)
+        } else {
+            Decision(
+                feedback = feedback(userInitiated = true, siteChanged = true, hasRenderToKeep = hasRenderOnScreen),
+                adoptCached = false,
+            )
+        }
+
+    /**
      * The one definition of `hasCachedRowsAtNewSite`: a real (non-climate-normal) forecast row whose
      * date is [today]. "Any cached row" is not enough — a site last visited two weeks ago still
      * returns its old daily rows, none of which fall in the visible window, and adopting that cache
@@ -78,6 +106,33 @@ object LocationChangePaintPolicy {
         val todayIso = today.toString()
         return dailyRows.any { !it.isClimateNormal && it.date == todayIso }
     }
+
+    /**
+     * The oldest hourly fetch a location change will adopt without a banner. A 16-day forecast
+     * fetched days ago still has rows dated today — Kyiv's cache from 09-24 was adopted as-is on
+     * 2026-09-29 — and showing that silently as the new site's weather is not "cached", it is stale.
+     * Matches desktop's `DesktopWeatherRepository.loadCached` hourly max age, so both platforms
+     * draw the same line.
+     */
+    const val MAX_ADOPTABLE_CACHE_AGE_MS = 24 * 60 * 60 * 1000L
+
+    /** True when [hourlyTimesMs] (epoch ms) include an hour of [today] in [zone]. */
+    fun hasHourlyForToday(hourlyTimesMs: Iterable<Long>, today: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Boolean =
+        hourlyTimesMs.any { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() == today }
+
+    /**
+     * The one definition of "the new site's cache can be drawn": today's daily row AND hourly rows
+     * for today, both read the way the render reads them. A daily row alone is not enough — the
+     * daily selector's proximity box is wider than the hourly site match, so a precise-location fix
+     * 7 km from a cached city centre found the centre's daily row, adopted it, and drew a graph with
+     * zero hourly rows for the 31 s its own fetch took (Warsaw → Wola, 2026-09-29).
+     */
+    fun hasDrawableCache(
+        dailyRows: Iterable<DailyForecast>,
+        hourlyTimesMs: Iterable<Long>,
+        today: LocalDate,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Boolean = hasTodayRow(dailyRows, today) && hasHourlyForToday(hourlyTimesMs, today, zone)
 
     /**
      * Short place name for transient messages, or null when the label can't say which component

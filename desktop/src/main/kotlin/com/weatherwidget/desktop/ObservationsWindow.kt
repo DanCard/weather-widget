@@ -233,7 +233,7 @@ internal fun ObservationsWindow(
             windowState = state,
             showRequestId = showRequestId,
         )
-        var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.settings.weatherSource)) }
+        var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.displaySource)) }
         var observations by remember { mutableStateOf<List<ObservationReading>>(emptyList()) }
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
         var blendTables by remember { mutableStateOf<List<BlendTable>>(emptyList()) }
@@ -320,7 +320,7 @@ internal fun ObservationsWindow(
                         )
 
                         // Source Cycler
-                        val visibleSources = config.settings.visibleSources.map { WeatherSource.valueOf(it) }
+                        val visibleSources = config.effectiveSources.map { WeatherSource.valueOf(it) }
                         if (visibleSources.isNotEmpty()) {
                             Button(
                                 onClick = {

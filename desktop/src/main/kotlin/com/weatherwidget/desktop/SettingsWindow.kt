@@ -336,6 +336,7 @@ internal fun SettingsWindow(
                         SettingsCard(title = SettingsSection.WEATHER_SOURCES.title) {
                             ApiSourcesList(
                                 visibleSources = currentConfig.settings.visibleSources,
+                                unavailableHere = currentConfig.settings.visibleSources.toSet() - currentConfig.effectiveSources.toSet(),
                                 apiKeys = currentConfig.settings.apiKeys,
                                 onChanged = { newSources ->
                                     updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(visibleSources = newSources)))
@@ -668,6 +669,8 @@ internal fun needsKeyFromUser(source: WeatherSource, userKeys: Map<String, Strin
 @Composable
 private fun ApiSourcesList(
     visibleSources: List<String>,
+    // Enabled, but unable to serve the current location (NWS outside the US): stays checked, noted.
+    unavailableHere: Set<String> = emptySet(),
     apiKeys: Map<String, String> = emptyMap(),
     onChanged: (List<String>) -> Unit,
     onMustKeepOne: () -> Unit,
@@ -729,6 +732,14 @@ private fun ApiSourcesList(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (source.id in unavailableHere) {
+                        Text(
+                            "Not available at this location",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("source_unavailable_${source.id}"),
+                        )
+                    }
                 }
                 // Phase 4 item 3: hide reorder arrows for hidden sources, matching Android's
                 // View.INVISIBLE on the same buttons (SettingsActivity.kt:293-294).
