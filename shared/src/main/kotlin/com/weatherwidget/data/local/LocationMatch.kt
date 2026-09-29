@@ -49,6 +49,27 @@ object LocationMatch {
         abs(lat1 - lat2) <= SAME_SITE_TOLERANCE_DEG && abs(lon1 - lon2) <= SAME_SITE_TOLERANCE_DEG
 
     /**
+     * How far the device may be from the active site before following it makes a new one.
+     *
+     * [sameSite] answers "is this GPS jitter?" (~200 m); this answers "is this different weather?".
+     * Every new site gets its own fetches and rows, so moving on jitter-sized steps fragmented a week
+     * in Kyiv into 13 sites the render load had to read and stitch (2026-09-29).
+     *
+     * 1 km, not the 2 km first proposed: the observation blend is centred on the site, not the phone.
+     * Measured on the Pixel DB with real station coordinates (Mountain View, NWS, 849 blended points,
+     * 8 bearings): a 1 km offset moves the blend by mean 0.20 °F / p95 0.58 °F; 2 km by mean 0.45 °F /
+     * p95 1.92 °F / max 5.85 °F, because the nearest station (AW020, 2.2 km) swaps in and out.
+     * Open-Meteo and Silurian actuals come from the provider at distance 0 and do not move at all.
+     * See plans/260929-follow-device-weather-site-radius.md.
+     */
+    const val WEATHER_SITE_RADIUS_KM = 1.0
+
+    /** True when the two points are within [WEATHER_SITE_RADIUS_KM] (great-circle). */
+    fun sameWeatherSite(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Boolean =
+        com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(lat1, lon1, lat2, lon2) <=
+            WEATHER_SITE_RADIUS_KM
+
+    /**
      * The SQL form of [sameSite] — the tight box, deliberately **not** [ROOM_WHERE]'s ±0.1°.
      *
      * Reads want the coarse box ("near the user"); a row-*deleting* query must not, or it takes out

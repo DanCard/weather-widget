@@ -82,8 +82,13 @@ Also desktop Linux app that is intended to be the same as Android weather widget
 - **A detected move is applied immediately. There is no candidate and no readiness gate.**
   `GpsResampler` compares the passive fix against the active location and, when it is a different
   site, writes it through `LocationUpdater.applyFollowDeviceLocation` there and then
-  (`GPS_RESAMPLE outcome=location_moved`). If the user is looking at the phone they should see where
-  they are; a briefly sparse graph for the right place beats a complete graph for a city they left.
+  (`GPS_RESAMPLE outcome=location_moved`). "Different site" means more than
+  `LocationMatch.WEATHER_SITE_RADIUS_KM` (1 km) from the active site — measured from the site, not the
+  last fix; closer fixes log `outcome=same_weather_site distKm=…` and do not move (200 m moves had
+  fragmented a week in Kyiv into 13 sites). "Use precise device location" within 1 km keeps the
+  active site. 1 km, not 2: the observation blend is centred on the site, and 2 km shifted NWS
+  actuals by up to ~6 °F (`plans/260929-follow-device-weather-site-radius.md`). If the user is
+  looking at the phone they should see where they are; a briefly sparse graph for the right place beats a complete graph for a city they left.
   The handoff policy that used to hold a move pending (`LocationHandoffPolicy`,
   `LocationHandoffStore`, `MOVING_GRACE_MS`, `evaluateCandidateUsability`, `isAcquisition`) was
   **deleted 2026-08-28** — it was wrong in both directions: it held a fully-drawable San Francisco

@@ -178,6 +178,41 @@ class GpsResamplerTest : RobolectricTest() {
         assertTrue(outcomes()[0].startsWith("outcome=same_site trigger=worker"))
     }
 
+    // ~111 m per 0.001 deg of latitude.
+    @Test
+    fun `a fix 500 m away is the same weather site and does not move`() = runTest {
+        bindWidgetAt(101, 34.0522, -118.2437)
+
+        val changed = resampler(fix = fix(34.0567, -118.2437)).resample(context)
+
+        assertFalse(changed)
+        assertTrue(applied.isEmpty())
+        assertTrue(outcomes().single().startsWith("outcome=same_weather_site trigger=worker"))
+        assertTrue(outcomes().single(), outcomes().single().contains("distKm=0.50"))
+    }
+
+    @Test
+    fun `a fix 3 km away moves`() = runTest {
+        bindWidgetAt(101, 34.0522, -118.2437)
+
+        val changed = resampler(fix = fix(34.0792, -118.2437)).resample(context)
+
+        assertTrue(changed)
+        assertEquals(1, applied.size)
+    }
+
+    @Test
+    fun `short steps are measured from the site, not the last fix, so they move once`() = runTest {
+        // Two 0.7 km steps north. Each is inside 1 km of the fix before it; only the second is more
+        // than 1 km from the site — and the site never followed the first step.
+        bindWidgetAt(101, 34.0522, -118.2437)
+
+        assertFalse(resampler(fix = fix(34.0585, -118.2437)).resample(context))
+        assertTrue(applied.isEmpty())
+        assertTrue(resampler(fix = fix(34.0648, -118.2437)).resample(context))
+        assertEquals(1, applied.size)
+    }
+
     @Test
     fun `differing cached fix is applied with a resolved label`() = runTest {
         bindWidgetAt(101, 34.0522, -118.2437)

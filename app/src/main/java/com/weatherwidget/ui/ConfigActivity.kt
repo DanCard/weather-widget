@@ -14,6 +14,7 @@ import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.shared.util.RecentLocationsHelper
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -201,7 +202,7 @@ class ConfigActivity : AppCompatActivity() {
         useGpsButton.setOnClickListener {
             // Confirm tap on an auto-filled fix: the coordinates are already resolved.
             prefetchedFix?.let { fix ->
-                saveChosenLocation(fix.lat, fix.lon, null, LocationMode.FOLLOW_DEVICE)
+                saveDeviceFix(fix.lat, fix.lon)
                 return@setOnClickListener
             }
             autoFillFlow = false
@@ -391,7 +392,7 @@ class ConfigActivity : AppCompatActivity() {
                     if (isAutoFill) {
                         offerPrefetchedFix(outcome.coordinates)
                     } else {
-                        saveChosenLocation(outcome.coordinates.lat, outcome.coordinates.lon, null, LocationMode.FOLLOW_DEVICE)
+                        saveDeviceFix(outcome.coordinates.lat, outcome.coordinates.lon)
                     }
                 LocationFixFlow.Outcome.NoFix ->
                     if (isAutoFill) {
@@ -477,6 +478,24 @@ class ConfigActivity : AppCompatActivity() {
      * replicated into the per-widget preference keys for compatibility, but every save synchronizes
      * all placed widgets rather than creating unsupported per-widget locations.
      */
+    /**
+     * "Use precise device location": follow the device from here on. A fix within
+     * [LocationMatch.WEATHER_SITE_RADIUS_KM] of the active site keeps that site — the same weather —
+     * rather than writing a new one a few hundred metres away (Warsaw centre -> Wola, 2026-09-29,
+     * started an empty cache). Searched and typed-in places keep their exact coordinates.
+     */
+    private fun saveDeviceFix(lat: Double, lon: Double) {
+        val active = com.weatherwidget.widget.ActiveLocationResolver.current(this)
+        if (active != null && LocationMatch.sameWeatherSite(active.first, active.second, lat, lon)) {
+            logConfig(
+                "DEVICE_FIX snapped_to_active_site fixLat=$lat fixLon=$lon siteLat=${active.first} siteLon=${active.second}",
+            )
+            saveChosenLocation(active.first, active.second, null, LocationMode.FOLLOW_DEVICE)
+            return
+        }
+        saveChosenLocation(lat, lon, null, LocationMode.FOLLOW_DEVICE)
+    }
+
     private fun saveChosenLocation(lat: Double, lon: Double, label: String?, mode: String) {
         if (isGlobalMode) {
             LocationMode.set(this, mode)

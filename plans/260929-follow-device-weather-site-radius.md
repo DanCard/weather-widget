@@ -67,3 +67,36 @@ Existing fragments are not migrated; they age out under the 30-day retention.
 
 CLAUDE.md "Location mode" / "A detected move is applied immediately": add the ~2 km weather-site
 radius and the new outcome token.
+
+## Outcome (2026-09-29): 1 km, not 2 km
+
+**Blend measurement** (the plan's gate). A temporary harness ran the real
+`ActualTemperatureSeriesBuilder.blendObservationSeries` on the pulled Pixel DB, with every station's
+distance recomputed from centres shifted in 8 directions. Station coordinates came from Synoptic
+(the app's own token); the distances recomputed at the true site matched the stored ones to within
+0.05 km.
+
+| Offset | NWS Mountain View: mean | p95 | max | max at "now" |
+|---|---|---|---|---|
+| 0.5 km | 0.09 °F | 0.23 °F | 0.47 °F | 0.29 °F |
+| 1 km | 0.20 °F | 0.58 °F | 1.43 °F | 0.87 °F |
+| 2 km | 0.45 °F | 1.92 °F | 5.85 °F | 3.13 °F |
+
+Open-Meteo and Silurian actuals (Warsaw, Kyiv, Mountain View): **0.00 °F** at every offset; their
+actual is the provider's own series at distance 0, which wins the blend's near-zero fast path.
+The 2 km tail comes from the nearest station (AW020, 2.2 km) swapping in and out, so the radius is
+**1 km**, in km (great-circle) rather than degrees: 0.01° of longitude is only 0.71 km at 50°N.
+
+**Implemented:** `LocationMatch.WEATHER_SITE_RADIUS_KM` / `sameWeatherSite` (`:shared`),
+`GpsResampler` (`outcome=same_weather_site distKm=`), and `ConfigActivity.saveDeviceFix`
+(`DEVICE_FIX snapped_to_active_site`).
+
+**Tests:** `LocationMatchWeatherSiteTest`; `GpsResamplerTest` (500 m no move, 3 km moves, two
+0.7 km steps move once); `ConfigActivityAddFlowRoboTest` (precise fix 500 m keeps the site, 3 km
+moves). Mutation-checked with the radius set to 0.
+
+**Device (Pixel 7 Pro, `DebugLocationOverride`):** site Wola (52.233414, 20.970348):
+- +500 m → `same_weather_site … distKm=0.50`;
+- +3 km → `location_moved` (Żoliborz);
+- override cleared → the real fix moved it back to Wola.
+

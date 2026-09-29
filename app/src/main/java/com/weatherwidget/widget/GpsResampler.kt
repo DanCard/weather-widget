@@ -148,6 +148,17 @@ class GpsResampler(
             appLogDao.log(LOG_TAG, "outcome=same_site trigger=$trigger lat=$lat lon=$lon")
             return false
         }
+        // Within the weather-site radius: the same weather, so not a move. Measured from the ACTIVE
+        // site, never the last fix, so a walk in short steps cannot drift the site along with it.
+        if (active != null && LocationMatch.sameWeatherSite(active.first, active.second, lat, lon)) {
+            val distKm = com.weatherwidget.shared.observations.NwsObservationMapper
+                .distanceKm(active.first, active.second, lat, lon)
+            appLogDao.log(
+                LOG_TAG,
+                "outcome=same_weather_site trigger=$trigger lat=$lat lon=$lon distKm=${"%.2f".format(java.util.Locale.US, distKm)}",
+            )
+            return false
+        }
         val label = try {
             sharedLocationResolver.fromCoordinates(lat, lon).label
         } catch (e: Exception) {

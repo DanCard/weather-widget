@@ -301,6 +301,44 @@ class ConfigActivityAddFlowRoboTest {
     }
 
     /** True once the auto-fill fix resolved and the button became a one-tap confirm. */
+    // "Use precise device location" within LocationMatch.WEATHER_SITE_RADIUS_KM of the active site
+    // keeps that site (same weather) instead of writing a new one a few hundred metres away.
+    private fun confirmLondonFixWithActiveSiteAt(siteLat: Double, siteLon: Double): Pair<Double, Double> {
+        com.weatherwidget.widget.ActiveLocationResolver.persist(context, siteLat, siteLon)
+        ConfigActivity.locationStagesForTesting = fixedStages(activeFix = LONDON_FIX)
+        try {
+            val scenario = launchAddFlow()
+            drainUntil("London auto-fill resolved") { scenario.confirmButtonIsOffered() }
+            scenario.onActivity { it.findViewById<Button>(R.id.use_gps_button).performClick() }
+            drainUntil("location saved") {
+                SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+                    .contains("${ConfigActivity.KEY_LAT_PREFIX}$TEST_WIDGET_ID")
+            }
+            scenario.close()
+            val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+            assertEquals(com.weatherwidget.util.LocationMode.FOLLOW_DEVICE, com.weatherwidget.util.LocationMode.get(context))
+            return prefs.getFloat("${ConfigActivity.KEY_LAT_PREFIX}$TEST_WIDGET_ID", Float.NaN).toDouble() to
+                prefs.getFloat("${ConfigActivity.KEY_LON_PREFIX}$TEST_WIDGET_ID", Float.NaN).toDouble()
+        } finally {
+            com.weatherwidget.widget.ActiveLocationResolver.clearForTesting(context)
+        }
+    }
+
+    @Test
+    fun `precise fix 500 m from the active site keeps the site`() {
+        // ~0.0045 deg of latitude = 500 m north of the London fix.
+        val saved = confirmLondonFixWithActiveSiteAt(51.5119, -0.1278)
+        assertEquals(51.5119, saved.first, 1e-4)
+        assertEquals(-0.1278, saved.second, 1e-4)
+    }
+
+    @Test
+    fun `precise fix 3 km from the active site moves to the fix`() {
+        val saved = confirmLondonFixWithActiveSiteAt(51.5344, -0.1278)
+        assertEquals(LONDON_FIX.lat, saved.first, 1e-4)
+        assertEquals(LONDON_FIX.lon, saved.second, 1e-4)
+    }
+
     private fun ActivityScenario<ConfigActivity>.confirmButtonIsOffered(): Boolean {
         var offered = false
         onActivity { activity ->
