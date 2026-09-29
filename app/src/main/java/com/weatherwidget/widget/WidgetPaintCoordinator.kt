@@ -119,7 +119,7 @@ internal class WidgetPaintCoordinator(
         placeName: String,
         lat: Double,
         lon: Double,
-        hasTodayRowAt: suspend (Double, Double) -> Boolean = { lat, lon -> hasDrawableCacheAt(lat, lon) },
+        hasTodayRowAt: suspend (Double, Double) -> Boolean = { lat, lon -> drawableHourlyAt(lat, lon) != null },
     ) {
         if (widgetStateManager.getPendingLocationFetch() != placeName) return
         val cached = runCatching { hasTodayRowAt(lat, lon) }.getOrDefault(false)
@@ -153,12 +153,14 @@ internal class WidgetPaintCoordinator(
         placeName: String,
         lat: Double,
         lon: Double,
-        hasTodayRowAt: suspend (Double, Double) -> Boolean = { lat, lon -> hasDrawableCacheAt(lat, lon) },
-        repaintFromCache: suspend () -> Unit = ::refreshWidgetsFromCache,
+        /** The new site's drawable hourly rows, or null when its cache is not drawable. */
+        probe: suspend (Double, Double) -> List<HourlyForecastEntity>? = { lat, lon -> drawableHourlyAt(lat, lon) },
+        /** Receives the probe's rows, so the repaint does not load them a second time. */
+        repaintFromCache: suspend (List<HourlyForecastEntity>) -> Unit = { refreshWidgetsFromCache(preloadedHourly = it) },
     ): Boolean {
-        val cached = runCatching { hasTodayRowAt(lat, lon) }.getOrDefault(false)
+        val hourly = runCatching { probe(lat, lon) }.getOrNull()
         val decision = com.weatherwidget.shared.util.LocationChangePaintPolicy.decide(
-            hasTodayRowAtNewSite = cached,
+            hasTodayRowAtNewSite = hourly != null,
             hasRenderOnScreen = true,
         )
         if (!decision.adoptCached) {
@@ -169,7 +171,7 @@ internal class WidgetPaintCoordinator(
         // as long as the repaint took — 12 s in a cold process on 2026-09-29 (22:12:06 → 18), which
         // read as "nothing happened". The repaint re-binds the still-active banner; the clear's own
         // push hides it a moment later, over the new site's graph.
-        repaintFromCache()
+        repaintFromCache(requireNotNull(hourly))
         finishLocationChangeBanner(placeName, succeeded = true, reason = "cache_adopted")
         return true
     }
@@ -184,9 +186,21 @@ internal class WidgetPaintCoordinator(
         lat: Double,
         lon: Double,
         hourlySources: List<String> = hourlyForecastLoader.hourlySourceIds(),
-    ): Boolean {
+    ): Boolean = drawableHourlyAt(lat, lon, hourlySources) != null
+
+    /**
+     * The hourly rows the render would draw at [lat]/[lon] when the site's cache is drawable and
+     * fresh, else null. Returned rather than a Boolean so the repaint reuses them: loading them
+     * twice back to back was half the cold-process wait for a fragmented site (Kyiv, 26k rows, 13
+     * sites — performance/260929-cold-process-location-change-repaint.md).
+     */
+    internal suspend fun drawableHourlyAt(
+        lat: Double,
+        lon: Double,
+        hourlySources: List<String> = hourlyForecastLoader.hourlySourceIds(),
+    ): List<HourlyForecastEntity>? {
         val todayUtc = java.time.LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        if (WeatherDatabase.getDatabase(context).forecastDao().getForecastForDate(todayUtc, lat, lon) == null) return false
+        if (WeatherDatabase.getDatabase(context).forecastDao().getForecastForDate(todayUtc, lat, lon) == null) return null
         val hourly = hourlyForecastLoader.load(
             lat = lat,
             lon = lon,
@@ -196,10 +210,11 @@ internal class WidgetPaintCoordinator(
         // Only rows fetched recently enough to show as the new site's weather without a banner.
         val oldestAdoptable = System.currentTimeMillis() -
             com.weatherwidget.shared.util.LocationChangePaintPolicy.MAX_ADOPTABLE_CACHE_AGE_MS
-        return com.weatherwidget.shared.util.LocationChangePaintPolicy.hasHourlyForToday(
+        val drawable = com.weatherwidget.shared.util.LocationChangePaintPolicy.hasHourlyForToday(
             hourly.filter { it.fetchedAt >= oldestAdoptable }.map { it.dateTime },
             java.time.LocalDate.now(),
         )
+        return hourly.takeIf { drawable }
     }
 
     /** Paints the interstitial for [placeName] on every widget. */
@@ -424,7 +439,10 @@ internal class WidgetPaintCoordinator(
         return SystemClock.elapsedRealtime() - last < MIN_RENDER_INTERVAL_MS
     }
 
-    suspend fun refreshWidgetsFromCache() {
+    suspend fun refreshWidgetsFromCache(
+        /** Hourly rows already loaded for the active site by the caller (the location-change probe). */
+        preloadedHourly: List<HourlyForecastEntity>? = null,
+    ) {
         val location = ActiveLocationResolver.resolve(
             context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao(),
         ) ?: run {
@@ -439,6 +457,8 @@ internal class WidgetPaintCoordinator(
             forceRefresh = false,
             targetSourceId = null,
             fetchContext = null,
+            caller = "refresh_from_cache",
+            preloadedHourly = preloadedHourly,
         )
         // A site with no rows yet (a location just changed, its fetch still in flight): if a
         // setup-screen change is waiting, re-assert its interstitial — this job can race the one

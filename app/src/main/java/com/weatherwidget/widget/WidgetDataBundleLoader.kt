@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
@@ -32,7 +33,15 @@ internal class WidgetDataBundleLoader(
         forceRefresh: Boolean,
         targetSourceId: String?,
         fetchContext: ForecastFetchContext?,
+        /** Which path asked, for the BUNDLE_PERF line. */
+        caller: String = "unspecified",
+        /**
+         * Hourly rows the caller already loaded for this site under the same source scope
+         * ([HourlyForecastLoader.hourlySourceIds]); skips the second load of the same rows.
+         */
+        preloadedHourly: List<HourlyForecastEntity>? = null,
     ): WidgetDataBundle {
+        val startMs = android.os.SystemClock.elapsedRealtime()
         val weatherList = weatherRepository.getWeatherData(
             latitude = latitude,
             longitude = longitude,
@@ -42,14 +51,17 @@ internal class WidgetDataBundleLoader(
             fetchContext = fetchContext,
         ).getOrDefault(emptyList())
 
+        val afterWeatherMs = android.os.SystemClock.elapsedRealtime()
         val forecastSnapshots = fetchForecastSnapshots(latitude, longitude)
-        val hourlyForecasts = hourlyForecastLoader.load(
+        val afterSnapshotsMs = android.os.SystemClock.elapsedRealtime()
+        val hourlyForecasts = preloadedHourly ?: hourlyForecastLoader.load(
             lat = latitude,
             lon = longitude,
             sources = hourlyForecastLoader.hourlySourceIds(),
             caller = "bundle",
         )
         val activeSourceIds = hourlyForecastLoader.currentDisplaySourceIds()
+        val afterHourlyMs = android.os.SystemClock.elapsedRealtime()
 
         val dailyActuals = fetchDailyActuals(
             lat = latitude,
@@ -58,12 +70,27 @@ internal class WidgetDataBundleLoader(
             activeSourceList = activeSourceIds,
             recompute = recomputeActuals,
         )
+        val afterActualsMs = android.os.SystemClock.elapsedRealtime()
         val todayStartMs = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
             latitude,
             longitude,
             todayStartMs,
         )
+        val endMs = android.os.SystemClock.elapsedRealtime()
+        // Kept permanently (keep-diagnostics rule): a cold-process cache repaint spent ~9 s here with
+        // no log line to attribute it to (performance/260929-cold-process-location-change-repaint.md).
+        runCatching {
+            WeatherDatabase.getDatabase(context).appLogDao().log(
+                "BUNDLE_PERF",
+                "caller=$caller total=${endMs - startMs}ms weather=${afterWeatherMs - startMs}ms " +
+                    "snapshots=${afterSnapshotsMs - afterWeatherMs}ms hourly=${afterHourlyMs - afterSnapshotsMs}ms " +
+                    "actuals=${afterActualsMs - afterHourlyMs}ms currentTemps=${endMs - afterActualsMs}ms " +
+                    "recompute=$recomputeActuals hourlyRows=${hourlyForecasts.size} preloaded=${preloadedHourly != null} " +
+                    "processAgeMs=${com.weatherwidget.WeatherWidgetApp.processAgeMs()}",
+                "INFO",
+            )
+        }
 
         return WidgetDataBundle(
             weatherList = weatherList,

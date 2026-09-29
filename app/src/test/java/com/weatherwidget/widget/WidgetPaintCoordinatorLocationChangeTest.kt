@@ -13,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -73,19 +74,33 @@ class WidgetPaintCoordinatorLocationChangeTest : RobolectricTest() {
         logged("cached_rows_adopted")
     }
 
+    private val probeRows = listOf(
+        com.weatherwidget.data.local.HourlyForecastEntity(
+            dateTime = System.currentTimeMillis(),
+            locationLat = 37.42,
+            locationLon = -122.09,
+            temperature = 60f,
+            condition = "Clear",
+            source = "OPEN_METEO",
+            fetchedAt = System.currentTimeMillis(),
+        ),
+    )
+
     @Test
     fun `banner change to a cached site clears the banner and repaints the new site from cache`() = runBlocking {
         var repaints = 0
 
         val adopted = coordinator.adoptCachedNewSite(
             "Mountain View", 37.42, -122.09,
-            hasTodayRowAt = { _, _ -> true },
-            repaintFromCache = {
+            probe = { _, _ -> probeRows },
+            repaintFromCache = { rows ->
                 // The banner must still be up while the new site is being drawn: cleared first,
                 // the old city showed bannerless for the whole (12 s, cold) repaint.
                 coVerify(exactly = 0) {
                     appLogDao.insert(match<AppLogEntity> { it.message.contains("reason=cache_adopted") })
                 }
+                // The probe's rows, not a second load of the same rows.
+                assertSame(probeRows, rows)
                 repaints++
             },
         )
@@ -102,7 +117,7 @@ class WidgetPaintCoordinatorLocationChangeTest : RobolectricTest() {
 
         val adopted = coordinator.adoptCachedNewSite(
             "Denver", 39.74, -104.98,
-            hasTodayRowAt = { _, _ -> false },
+            probe = { _, _ -> null },
             repaintFromCache = { repaints++ },
         )
 
@@ -115,7 +130,7 @@ class WidgetPaintCoordinatorLocationChangeTest : RobolectricTest() {
     fun `a failing cache probe counts as uncached`() = runBlocking {
         val adopted = coordinator.adoptCachedNewSite(
             "Denver", 39.74, -104.98,
-            hasTodayRowAt = { _, _ -> error("db closed") },
+            probe = { _, _ -> error("db closed") },
             repaintFromCache = { throw AssertionError("must not repaint") },
         )
 

@@ -56,7 +56,9 @@ internal class HourlyForecastLoader(
             val startTimeMs = now.minusHours(72).atZone(zoneId).toInstant().toEpochMilli()
             val endTimeMs = now.plusHours(168).atZone(zoneId).toInstant().toEpochMilli()
             Log.d(TAG, "load: range=${now.minusHours(72)} to ${now.plusHours(168)} (ms=$startTimeMs to $endTimeMs)")
+            val sqlStartMs = android.os.SystemClock.elapsedRealtime()
             val current = hourlyDao.getHourlyForecastsForSources(startTimeMs, endTimeMs, lat, lon, sources)
+            val afterCurrentMs = android.os.SystemClock.elapsedRealtime()
             val history = historyDao.getHistoryInRangeForBucketWindowForSources(
                 startDateTime = startTimeMs,
                 endDateTime = endTimeMs,
@@ -84,6 +86,7 @@ internal class HourlyForecastLoader(
             // rendered last. The stitcher picks `maxByOrNull { fetchedAt }` per hour and same-sites
             // against the raw centre, so neither row order nor centre form can decide the outcome.
             // See plans/260806-today-column-stale-fragment-delta-opus.md.
+            val afterHistoryMs = android.os.SystemClock.elapsedRealtime()
             val stitched = HourlyForecastStitcher.stitchBySource(
                 current = current.map { it.toHourlyForecast() },
                 history = history.map { it.toHourlyForecast() },
@@ -91,6 +94,7 @@ internal class HourlyForecastLoader(
                 centerLat = lat,
                 centerLon = lon,
             ).map { it.toEntity(lat, lon) }
+            val afterStitchMs = android.os.SystemClock.elapsedRealtime()
             // `sources` is the SQL scope, snapshotted from the widgets' CURRENT display sources
             // before the caller's fetch. Log it: a later repaint that filters to a source absent
             // from this list renders an empty graph, and without this field the two counts alone
@@ -105,7 +109,10 @@ internal class HourlyForecastLoader(
                 "caller=$caller stitched=${stitched.size} from current=${current.size} history=${history.size} " +
                     "center=$lat,$lon outSites=${sitesOf(stitched)} " +
                     "inSites=${current.map { it.locationLat to it.locationLon }.distinct().size} " +
-                    "sources=${sources.joinToString("|")}"
+                    "sources=${sources.joinToString("|")} " +
+                    // performance/260929-cold-process-location-change-repaint.md: which half is slow.
+                    "currentSqlMs=${afterCurrentMs - sqlStartMs} historySqlMs=${afterHistoryMs - afterCurrentMs} " +
+                    "stitchMs=${afterStitchMs - afterHistoryMs}"
             Log.i(TAG, "load: $summary")
             WeatherDatabase.getDatabase(context).appLogDao().log("HOURLY_LOAD", summary)
             stitched

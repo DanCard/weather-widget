@@ -52,3 +52,29 @@ The job itself starts promptly (expedited; ~0.1–0.8 s). The time is inside the
 
 - Robolectric: a location-change adoption loads hourly rows once (probe result reused).
 - A `BUNDLE_PERF` line exists per bundle load (diagnostic kept, per the keep-diagnostics rule).
+
+## Results (2026-09-29, same evening)
+
+Breadcrumbs first: `BUNDLE_PERF` (per-stage bundle timing, `preloaded=`) and
+`currentSqlMs/historySqlMs/stitchMs` on every `HOURLY_LOAD` line. Both are kept permanently.
+
+What they showed (cold Kyiv, 26k rows over 13 real GPS sites from a 09-16..24 stay):
+- The "9 s silence" was the **second hourly load** inside the bundle; the rest of the bundle is
+  ~1.5 s (actuals ~0.8 s, current temps ~0.3 s, snapshots/weather ~0.2 s each).
+- One Kyiv hourly load: ~0.9 s warm (SQL 0.5 + stitch 0.25), 3.5–5.5 s cold (history SQL up to 2.9 s,
+  stitch up to 2.2 s; worse when three loads ran concurrently at process start).
+
+Changes:
+1. The location-change probe returns its rows (`WidgetPaintCoordinator.drawableHourlyAt`) and the cache
+   repaint reuses them (`refreshWidgetsFromCache(preloadedHourly)` →
+   `WidgetDataBundleLoader.load(preloadedHourly)`).
+2. A startup-deferred replay whose deferral already adopted the cache carries
+   `KEY_LOCATION_CACHE_ADOPTED` and skips the probe/repaint (`action=cache_already_adopted`).
+
+Measured, cold Kyiv, Save → drawn: **~12 s → 9.2 s**; bundle 5.1 s → 1.55 s (`hourly=12ms preloaded=true`).
+Kraków (light site) cold: 4.4 s. Replay no longer repeats 4.7 s of work.
+
+Still open: the one remaining cold hourly load for a fragmented site (5.5 s). The history query returns
+every fetch snapshot at all 13 sites (20k rows) to stitch 480 for one. Narrowing it (SQL-side
+newest-per-hour, or the stitcher's same-site radius) must preserve the stitcher's fragment
+borrowing — not done here.

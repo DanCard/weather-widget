@@ -132,19 +132,26 @@ class WeatherWidgetWorker
             // the cooldown (open the app cold, pick a place within 30 s) would otherwise leave the
             // previous city on screen for the whole deferral. Decide now — interstitial, or (banner
             // mode) adopt the new site's fresh cache and drop the banner; both are local reads and a
-            // repaint. The replayed run repeats the (idempotent) decision before it fetches.
-            input.locationChangePlace?.let { place ->
+            // repaint. An adoption is carried to the replay so it is not repeated; the interstitial
+            // decision is idempotent and the replay simply repeats it.
+            var adopted = input.locationCacheAdopted
+            input.locationChangePlace?.takeIf { !adopted }?.let { place ->
                 ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
                     ?.let { (lat, lon) ->
                         if (input.locationChangeBanner) {
-                            painter.adoptCachedNewSite(place, lat, lon)
+                            adopted = painter.adoptCachedNewSite(place, lat, lon)
                         } else {
                             painter.paintLocationChangeInterstitial(place, lat, lon)
                         }
                     }
             }
+            val replayData = if (adopted && !input.locationCacheAdopted) {
+                Data.Builder().putAll(inputData).putBoolean(KEY_LOCATION_CACHE_ADOPTED, true).build()
+            } else {
+                inputData
+            }
             val (outcome, detail) =
-                WidgetWorkScheduler.enqueueStartupDeferred(context, inputData, delayMs, excludeId = id)
+                WidgetWorkScheduler.enqueueStartupDeferred(context, replayData, delayMs, excludeId = id)
             appLogDao.log(
                 "SYNC_DEFERRED_STARTUP",
                 "reason=${input.currentTempReason} force=${input.forceRefresh} " +
@@ -616,6 +623,13 @@ class WeatherWidgetWorker
              * "Tap to refresh" fallback when the fetch fails.
              */
             const val KEY_LOCATION_CHANGE_BANNER = "location_change_banner"
+
+            /**
+             * Set on a banner change's startup-deferred replay when the deferral already adopted the
+             * new site's cache: the replay skips the probe and repaint (4.7 s of repeated work,
+             * 2026-09-29) and goes straight to its unforced refresh.
+             */
+            const val KEY_LOCATION_CACHE_ADOPTED = "location_cache_adopted"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
             const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
         }

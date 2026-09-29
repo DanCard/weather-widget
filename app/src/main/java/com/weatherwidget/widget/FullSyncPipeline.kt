@@ -75,7 +75,13 @@ internal class FullSyncPipeline(
             input.locationChangePlace?.let { place ->
                 if (input.locationChangeBanner) {
                     appLogDao.log("LOCATION_FETCH_PENDING", "action=banner_sync_start place=$place", "INFO")
-                    adoptedCache = painter.adoptCachedNewSite(place, location.first, location.second)
+                    adoptedCache = if (input.locationCacheAdopted) {
+                        // The startup deferral already drew the cache and dropped the banner.
+                        appLogDao.log("LOCATION_FETCH_PENDING", "action=cache_already_adopted place=$place", "INFO")
+                        true
+                    } else {
+                        painter.adoptCachedNewSite(place, location.first, location.second)
+                    }
                 } else {
                     painter.paintLocationChangeInterstitial(place, location.first, location.second)
                 }

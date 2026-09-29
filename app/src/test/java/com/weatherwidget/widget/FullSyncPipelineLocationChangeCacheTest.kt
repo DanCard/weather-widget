@@ -122,6 +122,19 @@ class FullSyncPipelineLocationChangeCacheTest {
     }
 
     @Test
+    fun `a replay whose deferral already adopted the cache skips the probe and runs unforced`() = runBlocking {
+        // 2026-09-29 22:24:45: the replay re-probed and repainted Kyiv (4.7 s) after the deferral
+        // had already drawn it and dropped the banner.
+        pipeline().run(bannerInput().copy(locationCacheAdopted = true), device(), stopReason = 0)
+
+        coVerify(exactly = 0) { painter.adoptCachedNewSite(any(), any(), any(), any(), any()) }
+        val force = slot<Boolean>()
+        coVerify { weatherRepository.getWeatherData(any(), any(), capture(force), any(), any(), any(), any()) }
+        assertFalse(force.captured)
+        coVerify(exactly = 0) { painter.finishLocationChangeBanner(any(), any(), any()) }
+    }
+
+    @Test
     fun `new site without today's row keeps the forced fetch`() = runBlocking {
         val fetch = runBannerSync(cacheAdopted = false)
 
