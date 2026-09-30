@@ -187,7 +187,7 @@
     <string name="longitude_hint">경도 (예: -122.0841)</string>
     <string name="use_coordinates">좌표 사용</string>
     <string name="save_location">위치 저장</string>
-    <string name="default_location_title">기본 위치</string>
+    <string name="location_title">위치</string>
     <string name="location_saved_success">모든 위젯의 위치가 업데이트됨</string>
     <string name="location_updated_from_gps">GPS로 위치가 업데이트됨</string>
     <string name="invalid_coordinates_range">유효한 좌표를 입력하세요 (위도 -90~90, 경도 -180~180)</string>

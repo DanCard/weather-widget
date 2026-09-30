@@ -187,7 +187,7 @@
     <string name="longitude_hint">Długość geogr. (np. -122.0841)</string>
     <string name="use_coordinates">Użyj współrzędnych</string>
     <string name="save_location">Zapisz lokalizację</string>
-    <string name="default_location_title">Lokalizacja domyślna</string>
+    <string name="location_title">Lokalizacja</string>
     <string name="location_saved_success">Lokalizacja zaktualizowana dla wszystkich widżetów</string>
     <string name="location_updated_from_gps">Lokalizacja zaktualizowana z GPS</string>
     <string name="invalid_coordinates_range">Wprowadź prawidłowe współrzędne (szer. od -90 do 90, dł. od -180 do 180)</string>

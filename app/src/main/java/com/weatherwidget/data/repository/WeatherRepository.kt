@@ -49,12 +49,11 @@ class WeatherRepository
         suspend fun refreshCurrentTemperature(
             latitude: Double,
             longitude: Double,
-            locationName: String,
             source: WeatherSource? = null,
             reason: String = "unspecified",
             forceRefresh: Boolean = false,
         ): Result<Int> {
-            return currentTempRepository.refreshCurrentTemperature(latitude, longitude, locationName, source, reason, forceRefresh)
+            return currentTempRepository.refreshCurrentTemperature(latitude, longitude, source, reason, forceRefresh)
         }
 
         suspend fun getInterpolatedTemperature(
@@ -114,13 +113,6 @@ class WeatherRepository
         @androidx.annotation.VisibleForTesting
         internal suspend fun fetchFromNws(latitude: Double, longitude: Double) = 
             forecastRepository.fetchFromNws(latitude, longitude)
-            
-        @androidx.annotation.VisibleForTesting
-        internal fun getHistoricalPois() = currentTempRepository.getHistoricalPois()
-        
-        @androidx.annotation.VisibleForTesting
-        internal fun recordHistoricalPoi(latitude: Double, longitude: Double, name: String) = 
-            currentTempRepository.recordHistoricalPoi(latitude, longitude, name)
             
         suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) =
             observationRepository.backfillNwsObservationsIfNeeded(latitude, longitude)

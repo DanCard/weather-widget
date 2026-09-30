@@ -187,7 +187,7 @@
     <string name="longitude_hint">Longitude (ex.: -122.0841)</string>
     <string name="use_coordinates">Usar coordenadas</string>
     <string name="save_location">Salvar localização</string>
-    <string name="default_location_title">Localização padrão</string>
+    <string name="location_title">Localização</string>
     <string name="location_saved_success">Localização atualizada para todos os widgets</string>
     <string name="location_updated_from_gps">Localização atualizada pelo GPS</string>
     <string name="invalid_coordinates_range">Insira coordenadas válidas (-90 a 90 lat, -180 a 180 lon)</string>

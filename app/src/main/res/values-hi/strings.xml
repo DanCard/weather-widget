@@ -187,7 +187,7 @@
     <string name="longitude_hint">देशांतर (जैसे -122.0841)</string>
     <string name="use_coordinates">निर्देशांक उपयोग करें</string>
     <string name="save_location">स्थान सहेजें</string>
-    <string name="default_location_title">डिफ़ॉल्ट स्थान</string>
+    <string name="location_title">स्थान</string>
     <string name="location_saved_success">सभी विजेट के लिए स्थान अपडेट हुआ</string>
     <string name="location_updated_from_gps">GPS से स्थान अपडेट हुआ</string>
     <string name="invalid_coordinates_range">कृपया मान्य निर्देशांक दर्ज करें (अक्षांश -90 से 90, देशांतर -180 से 180)</string>

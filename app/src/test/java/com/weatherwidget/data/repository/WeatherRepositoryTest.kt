@@ -50,7 +50,6 @@ class WeatherRepositoryTest {
 
     private val testLat = 37.42
     private val testLon = -122.08
-    private val testLocationName = "Test Location"
     private val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
     private val yesterday = LocalDate.now().minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
 
@@ -197,7 +196,7 @@ class WeatherRepositoryTest {
             val editor = mockk<SharedPreferences.Editor>(relaxed = true)
             every { sharedPrefs.edit() } returns editor
             every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
-            val result = repository.refreshCurrentTemperature(testLat, testLon, testLocationName, source = WeatherSource.SILURIAN)
+            val result = repository.refreshCurrentTemperature(testLat, testLon, source = WeatherSource.SILURIAN)
             assertTrue(result.isSuccess)
             assertEquals(0, result.getOrNull())
             verify { openMeteoApi wasNot Called }
@@ -211,12 +210,31 @@ class WeatherRepositoryTest {
             every { sharedPrefs.edit() } returns editor
             every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
             every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.SILURIAN)
-            val result = repository.refreshCurrentTemperature(testLat, testLon, testLocationName)
+            val result = repository.refreshCurrentTemperature(testLat, testLon)
 
             assertTrue(result.isSuccess)
             assertEquals(0, result.getOrNull())
             verify { openMeteoApi wasNot Called }
             coVerify(exactly = 0) { observationDao.insertAll(any()) }
+        }
+
+    /**
+     * The name list belongs to the setup screen. A current-temp refresh used to prepend a name here
+     * and keep the first three — cutting the user's newest save off the end, where
+     * `LocationUpdater` appends it (2026-09-30: a searched "860 Avery Drive" became "Mountain View,
+     * California" within the save's own refresh).
+     */
+    @Test
+    fun `refreshCurrentTemperature never writes the historical POI list`() =
+        runTest {
+            val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+            every { sharedPrefs.edit() } returns editor
+            every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
+            every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.SILURIAN)
+
+            repository.refreshCurrentTemperature(testLat, testLon, forceRefresh = true)
+
+            verify(exactly = 0) { editor.putString("historical_pois", any()) }
         }
 
     @Test
@@ -230,7 +248,6 @@ class WeatherRepositoryTest {
             val result = repository.refreshCurrentTemperature(
                 testLat,
                 testLon,
-                testLocationName,
                 source = WeatherSource.SILURIAN,
             )
 

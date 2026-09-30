@@ -10,6 +10,7 @@ object ActiveLocationResolver {
     private const val PREFS_NAME = "active_weather_location"
     private const val KEY_LAT = "latitude"
     private const val KEY_LON = "longitude"
+    private const val KEY_LABEL = "chosen_label"
 
     fun current(context: Context): Pair<Double, Double>? {
         val prefs = SharedPreferencesUtil.getPrefs(context, PREFS_NAME)
@@ -20,12 +21,26 @@ object ActiveLocationResolver {
         return lat to lon
     }
 
-    fun persist(context: Context, lat: Double, lon: Double) {
-        SharedPreferencesUtil.getPrefs(context, PREFS_NAME)
+    /**
+     * The name the user picked on the setup screen for the active location ("860 Avery Drive,
+     * Mountain View, CA 94043"), or null when the active location was not chosen by name — a
+     * follow-device move, a migration, or a save that had no name. Settings shows it in preference
+     * to the reverse-geocoded city, which is all [com.weatherwidget.util.FriendlyLocationName] knows.
+     */
+    fun chosenLabel(context: Context): String? =
+        SharedPreferencesUtil.getPrefs(context, PREFS_NAME).getString(KEY_LABEL, null)?.takeIf { it.isNotBlank() }
+
+    /**
+     * [chosenLabel] travels with the coordinates: every write replaces both, so a label can never
+     * outlive the site it names.
+     */
+    fun persist(context: Context, lat: Double, lon: Double, chosenLabel: String? = null) {
+        val editor = SharedPreferencesUtil.getPrefs(context, PREFS_NAME)
             .edit()
             .putFloat(KEY_LAT, lat.toFloat())
             .putFloat(KEY_LON, lon.toFloat())
-            .commit()
+        if (chosenLabel.isNullOrBlank()) editor.remove(KEY_LABEL) else editor.putString(KEY_LABEL, chosenLabel)
+        editor.commit()
     }
 
     /**

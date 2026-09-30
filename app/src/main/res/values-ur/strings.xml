@@ -187,7 +187,7 @@
     <string name="longitude_hint">طول بلد (مثلاً -122.0841)</string>
     <string name="use_coordinates">نقاط استعمال کریں</string>
     <string name="save_location">مقام محفوظ کریں</string>
-    <string name="default_location_title">طے شدہ مقام</string>
+    <string name="location_title">مقام</string>
     <string name="location_saved_success">تمام ویجٹس کے لیے مقام اپ ڈیٹ ہو گیا</string>
     <string name="location_updated_from_gps">GPS سے مقام اپ ڈیٹ ہو گیا</string>
     <string name="invalid_coordinates_range">براہ کرم درست نقاط درج کریں (عرض بلد -90 تا 90، طول بلد -180 تا 180)</string>

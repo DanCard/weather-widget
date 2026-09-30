@@ -215,27 +215,29 @@ internal fun SettingsWindow(
                             .padding(16.dp)
                     ) {
                         // Location
-                        // Phase 4 item 4: enrich the label with a reverse-geocoded place name from
-                        // the shared resolver. The raw config.label stays as the immediate display
-                        // value while the lookup runs (and as a fallback if it fails).
-                        // Title, line and button copy follow Android's R.string.default_location_title /
+                        // The label the user picked in the location picker is what this card names
+                        // ("860 Avery Drive, Mountain View, CA 94043"); the reverse-geocoded city is
+                        // only a stand-in for a coordinate-shaped label. It used to replace the
+                        // picked label outright, so a searched address showed as "Mountain View,
+                        // California" (2026-09-30).
+                        // Title, line and button copy follow Android's R.string.location_title /
                         // no_location_set / set_location_button. Android appends "• Follows device" or
                         // "• Fixed"; the desktop has no location mode, so the line ends at the coordinates.
-                        SettingsCard(title = SettingsSection.DEFAULT_LOCATION.title) {
-                            var locationLabel by remember(currentConfig.label, currentConfig.lat, currentConfig.lon) {
-                                mutableStateOf(currentConfig.label.ifEmpty { "No location set" })
+                        SettingsCard(title = SettingsSection.LOCATION.title) {
+                            var friendlyName by remember(currentConfig.label, currentConfig.lat, currentConfig.lon) {
+                                mutableStateOf<String?>(null)
                             }
                             val resolver = locationResolver
-                            if (resolver != null && currentConfig.label.isNotBlank()) {
+                            if (resolver != null && needsFriendlyName(currentConfig.label)) {
                                 LaunchedEffect(currentConfig.lat, currentConfig.lon) {
-                                    val friendly = runCatching {
+                                    friendlyName = runCatching {
                                         resolver.friendlyName(currentConfig.lat, currentConfig.lon)
-                                    }.getOrNull()
-                                    if (!friendly.isNullOrBlank()) {
-                                        locationLabel = "$friendly (${formatCoord(currentConfig.lat)}, ${formatCoord(currentConfig.lon)})"
-                                    }
+                                    }.getOrNull()?.takeIf { it.isNotBlank() }
                                 }
                             }
+                            val locationLabel = settingsLocationLine(
+                                currentConfig.label, currentConfig.lat, currentConfig.lon, friendlyName,
+                            )
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -477,6 +479,20 @@ internal fun SettingsWindow(
 }
 
 private fun formatCoord(value: Double): String = com.weatherwidget.shared.util.formatCoord(value)
+
+/** A label with no letters ("37.4166, -122.0889") names nothing; ask the resolver for a place instead. */
+internal fun needsFriendlyName(label: String): Boolean = label.isNotBlank() && label.none { it.isLetter() }
+
+/**
+ * The Settings location line (before the "Widget Location: " prefix): the picked [label] with
+ * coordinates; for a coordinate-shaped label, the resolver's [friendlyName] when it has one.
+ */
+internal fun settingsLocationLine(label: String, lat: Double, lon: Double, friendlyName: String?): String {
+    if (label.isBlank()) return "No location set"
+    val coords = "(${formatCoord(lat)}, ${formatCoord(lon)})"
+    if (!needsFriendlyName(label)) return "$label $coords"
+    return friendlyName?.let { "$it $coords" } ?: label
+}
 
 /**
  * The arm switch for the one-shot dominant-station temperature notification.

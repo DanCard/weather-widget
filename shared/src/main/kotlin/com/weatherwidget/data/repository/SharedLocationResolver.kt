@@ -24,7 +24,7 @@ class SharedLocationResolver(
         return ResolvedLocation(
             lat = lat,
             lon = lon,
-            label = reverse?.displayName ?: "${lat.formatCoord()}, ${lon.formatCoord()}",
+            label = reverse?.shortLabel() ?: "${lat.formatCoord()}, ${lon.formatCoord()}",
             source = "Manual coordinates",
         )
     }
@@ -64,7 +64,13 @@ class SharedLocationResolver(
         ResolvedLocation(
             lat = lat,
             lon = lon,
-            label = displayName,
+            label = shortLabel(),
             source = source,
         )
+
+    /**
+     * The label users pick from and later see in Settings: the postal-style short address when
+     * Nominatim sent a structured one, else its full display name.
+     */
+    private fun GeocodeResult.shortLabel(): String = shortAddress ?: displayName
 }

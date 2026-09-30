@@ -25,6 +25,7 @@ class NominatimApi
                     parameter("q", query)
                     parameter("format", "jsonv2")
                     parameter("limit", "5")
+                    parameter("addressdetails", "1")
                     parameter("accept-language", LANGUAGE)
                 }.body()
 
@@ -65,8 +66,14 @@ data class GeocodeResult(
     val displayName: String,
     val lat: Double,
     val lon: Double,
-    /** Compact "place, region" name from the structured address (reverse lookups only). */
+    /** Compact "place, region" name from the structured address. */
     val shortName: String? = null,
+    /**
+     * Postal-style one-liner from the structured address ("860 Avery Drive, Mountain View, CA 94043");
+     * null when Nominatim returned no address. [displayName] runs to county and country
+     * ("860, Avery Drive, Mountain View, Santa Clara County, California, 94043, United States").
+     */
+    val shortAddress: String? = null,
 ) {
     /**
      * Best available compact name: the structured short name, else the first two components
@@ -91,12 +98,16 @@ private data class NominatimPlace(
             lat = parsedLat,
             lon = parsedLon,
             shortName = address?.toShortName(),
+            shortAddress = address?.toShortAddress(),
         )
     }
 }
 
 @Serializable
 private data class NominatimAddress(
+    @SerialName("house_number")
+    val houseNumber: String? = null,
+    val road: String? = null,
     val city: String? = null,
     val town: String? = null,
     val village: String? = null,
@@ -105,6 +116,12 @@ private data class NominatimAddress(
     val county: String? = null,
     val state: String? = null,
     val country: String? = null,
+    val postcode: String? = null,
+    @SerialName("country_code")
+    val countryCode: String? = null,
+    /** "US-CA": the state's postal abbreviation, without a name table. */
+    @SerialName("ISO3166-2-lvl4")
+    val isoRegion: String? = null,
 ) {
     /** "Mountain View, California" — most specific settlement plus region, whatever exists. */
     fun toShortName(): String? {
@@ -112,5 +129,25 @@ private data class NominatimAddress(
         val region = state ?: country
         val parts = listOfNotNull(place, region).filter { it.isNotBlank() }
         return parts.takeIf { it.isNotEmpty() }?.joinToString(", ")
+    }
+
+    /**
+     * US: "860 Avery Drive, Mountain View, CA 94043" (a ZIP is what people type, so it stays).
+     * Elsewhere: "34A Skierniewicka, Warsaw, Poland" — the country reads better than a
+     * voivodeship or oblast name, and foreign postcodes add length without recognition.
+     * Street and place are each optional; a city search gives "Kyiv, Ukraine".
+     */
+    fun toShortAddress(): String? {
+        val street = listOfNotNull(houseNumber, road).filter { it.isNotBlank() }.joinToString(" ")
+        val place = city ?: town ?: village ?: hamlet ?: municipality ?: county
+        val tail = if (countryCode.equals("us", ignoreCase = true)) {
+            val stateCode = isoRegion?.takeIf { it.startsWith("US-") }?.removePrefix("US-") ?: state
+            listOfNotNull(stateCode, postcode).filter { it.isNotBlank() }.joinToString(" ")
+        } else {
+            country
+        }
+        val parts = listOf(street, place ?: state, tail).filterNotNull().filter { it.isNotBlank() }
+        // "Poland" searched alone would otherwise repeat as place and country.
+        return parts.distinct().takeIf { it.isNotEmpty() }?.joinToString(", ")
     }
 }

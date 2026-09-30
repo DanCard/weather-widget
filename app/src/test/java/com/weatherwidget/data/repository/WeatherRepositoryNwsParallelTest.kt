@@ -108,7 +108,7 @@ class WeatherRepositoryNwsParallelTest {
             com.weatherwidget.data.remote.FetchOutcome.Success(NwsApi.Observation(now, 22.78f, "Sunny", "AW020"))
         coEvery { nwsApi.getLatestObservationDetailedResult("KNUQ", any()) } returns
             com.weatherwidget.data.remote.FetchOutcome.Success(NwsApi.Observation(now, 18.89f, "Clear", "Moffett Field"))
-        repository.refreshCurrentTemperature(testLat, testLon, "Test", source = WeatherSource.NWS, forceRefresh = true)
+        repository.refreshCurrentTemperature(testLat, testLon, source = WeatherSource.NWS, forceRefresh = true)
         coVerify { observationDao.insertAll(match { it.any { obs -> obs.temperature > 72f } }) }
     }
 }

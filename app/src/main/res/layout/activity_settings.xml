@@ -80,7 +80,7 @@
                     android:textSize="14sp" />
             </com.google.android.flexbox.FlexboxLayout>
 
-            <!-- Default Location Section -->
+            <!-- Location Section -->
             <LinearLayout
                 android:id="@+id/location_settings_section"
                 android:layout_width="match_parent"
@@ -92,7 +92,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="8dp"
-                    android:text="@string/default_location_title"
+                    android:text="@string/location_title"
                     android:tag="settings_section"
                     android:textColor="@color/widget_text_primary"
                     android:textSize="16sp"

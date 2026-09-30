@@ -69,7 +69,21 @@ object LocationUpdater {
      * [describeCurrentLocationResolved] adds a reverse-geocode fallback for the callers that can suspend.
      */
     fun describeCurrentLocation(context: Context): String =
-        describe(context, effectiveLocation(context)) { lat, lon -> FriendlyLocationName.cached(context, lat, lon) }
+        describe(context, effectiveLocation(context)) { lat, lon ->
+            chosenLabelAt(context, lat, lon) ?: FriendlyLocationName.cached(context, lat, lon)
+        }
+
+    /**
+     * The name the user picked for the site being described, when it is that site. It outranks
+     * [FriendlyLocationName]: that chain's reverse-geocode cache knows only "Mountain View,
+     * California", and it used to replace a searched "860 Avery Drive, Mountain View, CA 94043"
+     * the moment the save landed (2026-09-30).
+     */
+    private fun chosenLabelAt(context: Context, lat: Double, lon: Double): String? {
+        val active = ActiveLocationResolver.current(context) ?: return null
+        if (!LocationMatch.sameSite(active.first, active.second, lat, lon)) return null
+        return ActiveLocationResolver.chosenLabel(context)
+    }
 
     /** [describeCurrentLocation], but reverse-geocodes (and caches) a name when none is stored. */
     suspend fun describeCurrentLocationResolved(
@@ -77,7 +91,8 @@ object LocationUpdater {
         resolver: com.weatherwidget.data.repository.SharedLocationResolver,
     ): String {
         val effective = effectiveLocation(context) ?: return describe(context, null) { _, _ -> null }
-        val name = FriendlyLocationName.resolve(context, resolver, effective.first, effective.second)
+        val name = chosenLabelAt(context, effective.first, effective.second)
+            ?: FriendlyLocationName.resolve(context, resolver, effective.first, effective.second)
         return describe(context, effective) { _, _ -> name }
     }
 
@@ -147,7 +162,10 @@ object LocationUpdater {
         paintInterstitial: Boolean = true,
     ) {
         val previous = ActiveLocationResolver.current(context)
-        writeActiveLocation(context, lat, lon, ids)
+        writeActiveLocation(
+            context, lat, lon, ids,
+            chosenLabel = label?.takeUnless { FriendlyLocationName.isCoordinateLabel(it) },
+        )
         if (label != null) {
             recordHistoricalPoi(context, lat, lon, label)
         }
@@ -235,8 +253,9 @@ object LocationUpdater {
         lat: Double,
         lon: Double,
         ids: IntArray,
+        chosenLabel: String? = null,
     ) {
-        ActiveLocationResolver.persist(context, lat, lon)
+        ActiveLocationResolver.persist(context, lat, lon, chosenLabel)
         val stateManager = WidgetStateManager(context)
         // Promotion clears the candidate immediately afterward. Persist active coordinates first
         // so a process death cannot leave neither durable active nor candidate state.

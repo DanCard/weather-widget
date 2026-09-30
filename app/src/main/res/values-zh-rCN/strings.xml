@@ -187,7 +187,7 @@
     <string name="longitude_hint">经度（如 -122.0841）</string>
     <string name="use_coordinates">使用坐标</string>
     <string name="save_location">保存位置</string>
-    <string name="default_location_title">默认位置</string>
+    <string name="location_title">位置</string>
     <string name="location_saved_success">已为所有小部件更新位置</string>
     <string name="location_updated_from_gps">已通过 GPS 更新位置</string>
     <string name="invalid_coordinates_range">请输入有效坐标（纬度 -90 至 90，经度 -180 至 180）</string>

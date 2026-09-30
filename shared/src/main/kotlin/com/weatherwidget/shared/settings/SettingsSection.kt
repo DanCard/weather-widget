@@ -29,7 +29,7 @@ enum class SettingsSection(
     /** Which platforms show it. A one-sided section is a declaration here, never an accident. */
     val platforms: Set<Platform> = setOf(Platform.ANDROID, Platform.DESKTOP),
 ) {
-    DEFAULT_LOCATION("Default Location"),
+    LOCATION("Location"),
     HOURLY_ZOOM("Hourly Zoom"),
     NOTIFICATIONS("Notifications"),
     UNITS("Units"),

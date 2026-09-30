@@ -258,4 +258,72 @@ class LocationUpdaterTest : RobolectricTest() {
 
         assertEquals(null, WidgetStateManager(context).getPendingLocationFetch())
     }
+
+    /**
+     * 2026-09-30, Pixel 7 Pro: a search for "860 Avery dr. 94043" saved that address, and Settings
+     * read "Mountain View, California" — the reverse-geocode cache for the site outranked the name the
+     * user had just picked. The picked name is what the card must show.
+     */
+    @Test
+    fun `the name picked on the setup screen outranks the reverse-geocoded city`() {
+        bindWidget(307)
+        SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit()
+            .putString("geo_name_37.417_-122.089", "Mountain View, California")
+            .commit()
+
+        LocationUpdater.applyActiveLocationToAllWidgets(
+            context = context,
+            lat = 37.4166014,
+            lon = -122.0888722,
+            label = "860 Avery Drive, Mountain View, CA 94043",
+            ids = intArrayOf(307),
+        )
+
+        val label = LocationUpdater.describeCurrentLocation(context)
+        assertTrue("expected the picked address in: $label", label.contains("860 Avery Drive, Mountain View, CA 94043"))
+        assertTrue("expected coordinates in: $label", label.contains("37.4166"))
+    }
+
+    /** The picked name belongs to the picked site: once the device moves on, the card names the new site. */
+    @Test
+    fun `a follow-device move drops the picked name`() {
+        bindWidget(308)
+        LocationUpdater.applyActiveLocationToAllWidgets(
+            context = context,
+            lat = 37.4166014,
+            lon = -122.0888722,
+            label = "860 Avery Drive, Mountain View, CA 94043",
+            ids = intArrayOf(308),
+        )
+
+        LocationUpdater.applyFollowDeviceLocation(
+            context = context,
+            lat = 37.7749,
+            lon = -122.4194,
+            label = "San Francisco, California",
+            enqueueRefresh = false,
+            ids = intArrayOf(308),
+        )
+
+        assertEquals(null, ActiveLocationResolver.chosenLabel(context))
+        val label = LocationUpdater.describeCurrentLocation(context)
+        assertFalse("must not name the site we left: $label", label.contains("Avery"))
+        assertTrue("expected the new site's name in: $label", label.contains("San Francisco"))
+    }
+
+    /** A coordinate-shaped label (offline save) is not a name and must not be kept as one. */
+    @Test
+    fun `a coordinate label is not kept as the picked name`() {
+        bindWidget(309)
+
+        LocationUpdater.applyActiveLocationToAllWidgets(
+            context = context,
+            lat = 37.4166,
+            lon = -122.0889,
+            label = "37.4166, -122.0889",
+            ids = intArrayOf(309),
+        )
+
+        assertEquals(null, ActiveLocationResolver.chosenLabel(context))
+    }
 }

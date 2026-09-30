@@ -93,7 +93,7 @@ class HardcodedUserFacingStringTest {
                 "API Keys" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
                 "Daily View — Today Column" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
                 "Data Usage" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
-                "Default Location" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
+                "Location" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
                 "Feedback & Bug Reports" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
                 "Hourly Zoom" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
                 "Icon gallery" to "SettingsSection canonical title (English, localized on Android via strings.xml)",

@@ -88,32 +88,11 @@ class CurrentTempRepository
             // lat ≈ 8 km and ~0.09° lon ≈ 9-10 km at mid-latitudes.
             private const val POI_LAT_OFFSET_DEGREES = 0.072
             private const val POI_LON_OFFSET_DEGREES = 0.09
-
-            fun appendHistoricalPoi(poiString: String, latitude: Double, longitude: Double, name: String): String {
-                val poiStrings = poiString.split(";").filter { it.isNotEmpty() }.toMutableList()
-                poiStrings.removeIf { it.contains("|$latitude|$longitude") }
-                poiStrings.add(0, "$name|$latitude|$longitude")
-                return poiStrings.take(3).joinToString(";")
-            }
-
-            fun parseHistoricalPois(poiString: String): List<Triple<Double, Double, String>> =
-                poiString
-                    .split(";")
-                    .filter { it.isNotEmpty() }
-                    .mapNotNull {
-                        runCatching {
-                            val parts = it.split("|")
-                            Triple(parts[1].toDouble(), parts[2].toDouble(), parts[0])
-                        }.getOrNull()
-                    }
         }
-        
-        private val prefs by lazy { com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs") }
 
         suspend fun refreshCurrentTemperature(
             latitude: Double, 
             longitude: Double, 
-            locationName: String, 
             source: WeatherSource? = null, 
             reason: String = "unspecified", 
             forceRefresh: Boolean = false
@@ -142,7 +121,6 @@ class CurrentTempRepository
                         return Result.success(0)
                     }
                     
-                    recordHistoricalPoi(latitude, longitude, locationName)
                     val enabledSources = widgetStateManager.getVisibleSourcesOrder()
                     // Rank = position in the visible order; used to throttle low-priority sources.
                     val rankBySource = enabledSources.withIndex().associate { (index, src) -> src to index }
@@ -655,17 +633,6 @@ class CurrentTempRepository
             val nextEpochMs = TemperatureInterpolator.getNextUpdateTime(time.atZone(zoneId).toInstant().toEpochMilli(), tempDiff)
             return Instant.ofEpochMilli(nextEpochMs).atZone(zoneId).toLocalDateTime()
         }
-
-        @androidx.annotation.VisibleForTesting
-        internal fun recordHistoricalPoi(latitude: Double, longitude: Double, name: String) {
-            val current = prefs.getString("historical_pois", "") ?: ""
-            val updated = appendHistoricalPoi(current, latitude, longitude, name)
-            prefs.edit().putString("historical_pois", updated).apply()
-        }
-
-        @androidx.annotation.VisibleForTesting
-        internal fun getHistoricalPois(): List<Triple<Double, Double, String>> =
-            parseHistoricalPois(prefs.getString("historical_pois", "") ?: "")
 
         fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
             val results = FloatArray(1)

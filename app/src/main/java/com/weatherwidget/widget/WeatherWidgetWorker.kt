@@ -317,7 +317,6 @@ class WeatherWidgetWorker
                     val refreshResult = weatherRepository.refreshCurrentTemperature(
                         latitude = location.first,
                         longitude = location.second,
-                        locationName = getLocationName(location.first, location.second),
                         source = targetSource,
                         reason = input.currentTempReason,
                         forceRefresh = input.forceRefresh,
@@ -452,7 +451,6 @@ class WeatherWidgetWorker
                         val refreshResult = weatherRepository.refreshCurrentTemperature(
                             latitude = location.first,
                             longitude = location.second,
-                            locationName = getLocationName(location.first, location.second),
                             source = source,
                             reason = "non_primary_${input.currentTempReason}",
                             forceRefresh = input.forceRefresh,
@@ -544,10 +542,6 @@ class WeatherWidgetWorker
          * coordinates, which is how a user with no resolvable location ended up seeing Google HQ's
          * weather labelled as their own. A coordinate string is the honest fallback.
          */
-        private fun getLocationName(lat: Double, lon: Double): String =
-            com.weatherwidget.util.FriendlyLocationName.cached(context, lat, lon)
-                ?: "%.2f, %.2f".format(lat, lon)
-
         // ---- constants ----
 
         companion object {

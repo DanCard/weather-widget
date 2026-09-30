@@ -68,6 +68,70 @@ class NominatimApiTest {
         assertEquals("Mountain View, California", result?.compactName())
     }
 
+    /** Real response for "860 Avery dr. 94043" (2026-09-30), the report this format came from. */
+    @Test
+    fun `search composes a postal-style US address`() = runBlocking {
+        val client = mockClient(
+            """
+            [{
+              "display_name":"860, Avery Drive, Mountain View, Santa Clara County, California, 94043, United States",
+              "lat":"37.4166014","lon":"-122.0888722",
+              "address":{"house_number":"860","road":"Avery Drive","city":"Mountain View",
+                "county":"Santa Clara County","state":"California","ISO3166-2-lvl4":"US-CA",
+                "postcode":"94043","country":"United States","country_code":"us"}
+            }]
+            """.trimIndent(),
+        )
+
+        val result = NominatimApi(client, json).search("860 Avery dr. 94043").single()
+
+        assertEquals("860 Avery Drive, Mountain View, CA 94043", result.shortAddress)
+    }
+
+    @Test
+    fun `short address outside the US ends in the country`() = runBlocking {
+        val client = mockClient(
+            """
+            [
+              {"display_name":"Kyiv, Ukraine","lat":"50.45","lon":"30.52",
+               "address":{"city":"Kyiv","ISO3166-2-lvl4":"UA-30","country":"Ukraine","country_code":"ua"}},
+              {"display_name":"34A, Skierniewicka, Czyste, Wola, Warsaw, Masovian Voivodeship, 01-230, Poland",
+               "lat":"52.2333","lon":"20.9702",
+               "address":{"house_number":"34A","road":"Skierniewicka","city":"Warsaw",
+                 "state":"Masovian Voivodeship","postcode":"01-230","country":"Poland","country_code":"pl"}},
+              {"display_name":"Poland","lat":"52.0","lon":"19.0",
+               "address":{"country":"Poland","country_code":"pl"}}
+            ]
+            """.trimIndent(),
+        )
+
+        val results = NominatimApi(client, json).search("anything")
+
+        assertEquals("Kyiv, Ukraine", results[0].shortAddress)
+        assertEquals("34A Skierniewicka, Warsaw, Poland", results[1].shortAddress)
+        assertEquals("Poland", results[2].shortAddress)
+    }
+
+    @Test
+    fun `a US city search reads city and state code`() = runBlocking {
+        val client = mockClient(
+            """
+            [{"display_name":"Boulder, Boulder County, Colorado, United States","lat":"40.01","lon":"-105.27",
+              "address":{"city":"Boulder","county":"Boulder County","state":"Colorado",
+                "ISO3166-2-lvl4":"US-CO","country":"United States","country_code":"us"}}]
+            """.trimIndent(),
+        )
+
+        assertEquals("Boulder, CO", NominatimApi(client, json).search("Boulder").single().shortAddress)
+    }
+
+    @Test
+    fun `no structured address leaves the short address null`() = runBlocking {
+        val client = mockClient("""[{"display_name":"Somewhere","lat":"1.0","lon":"2.0"}]""")
+
+        assertEquals(null, NominatimApi(client, json).search("Somewhere").single().shortAddress)
+    }
+
     @Test
     fun `reverse falls back through settlement granularities`() = runBlocking {
         val client = mockClient(

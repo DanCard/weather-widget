@@ -187,7 +187,7 @@
     <string name="longitude_hint">経度（例 -122.0841）</string>
     <string name="use_coordinates">座標を使用</string>
     <string name="save_location">位置を保存</string>
-    <string name="default_location_title">デフォルトの位置</string>
+    <string name="location_title">位置</string>
     <string name="location_saved_success">すべてのウィジェットの位置を更新しました</string>
     <string name="location_updated_from_gps">GPS から位置を更新しました</string>
     <string name="invalid_coordinates_range">有効な座標を入力してください（緯度 -90〜90、経度 -180〜180）</string>

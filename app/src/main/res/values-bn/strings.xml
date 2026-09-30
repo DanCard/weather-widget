@@ -187,7 +187,7 @@
     <string name="longitude_hint">দ্রাঘিমাংশ (যেমন -122.0841)</string>
     <string name="use_coordinates">স্থানাঙ্ক ব্যবহার করুন</string>
     <string name="save_location">অবস্থান সংরক্ষণ করুন</string>
-    <string name="default_location_title">ডিফল্ট অবস্থান</string>
+    <string name="location_title">অবস্থান</string>
     <string name="location_saved_success">সব উইজেটের জন্য অবস্থান আপডেট হয়েছে</string>
     <string name="location_updated_from_gps">GPS থেকে অবস্থান আপডেট হয়েছে</string>
     <string name="invalid_coordinates_range">অনুগ্রহ করে বৈধ স্থানাঙ্ক লিখুন (অক্ষাংশ -90 থেকে 90, দ্রাঘিমাংশ -180 থেকে 180)</string>

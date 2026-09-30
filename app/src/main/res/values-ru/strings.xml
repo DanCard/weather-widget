@@ -187,7 +187,7 @@
     <string name="longitude_hint">Долгота (напр. -122.0841)</string>
     <string name="use_coordinates">Использовать координаты</string>
     <string name="save_location">Сохранить местоположение</string>
-    <string name="default_location_title">Местоположение по умолчанию</string>
+    <string name="location_title">Местоположение</string>
     <string name="location_saved_success">Местоположение обновлено для всех виджетов</string>
     <string name="location_updated_from_gps">Местоположение обновлено по GPS</string>
     <string name="invalid_coordinates_range">Введите корректные координаты (широта от -90 до 90, долгота от -180 до 180)</string>

@@ -89,7 +89,6 @@ class WeatherObservationsActivity : AppCompatActivity() {
         weatherRepository.refreshCurrentTemperature(
             latitude,
             longitude,
-            "Stale Observations Screen",
             source = currentSource,
             reason = "stale_observations_screen",
             forceRefresh = true,
@@ -379,7 +378,6 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 weatherRepository.refreshCurrentTemperature(
                     location.first,
                     location.second,
-                    "Manual Refresh",
                     source = currentSource,
                     reason = "user_observations_screen",
                     forceRefresh = true
@@ -397,7 +395,6 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     weatherRepository.refreshCurrentTemperature(
                         location.first,
                         location.second,
-                        "Manual Refresh",
                         source = WeatherSource.fromId(providerId),
                         reason = "user_observations_screen_provider",
                         forceRefresh = true,
