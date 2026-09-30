@@ -526,8 +526,8 @@ class DesktopWeatherRepository(
             // fetch per location, then served from cache; never fails the main refresh.
             ensureClimateNormals()
 
-            // Cleanup old data (> 18 months / 547 days)
-            weatherDao.cleanup(now - (DB_RETENTION_DAYS * 24 * 3600 * 1000L))
+            // Same retention policy as Android (RetentionPolicy); the permanent backfill markers stay.
+            weatherDao.applyRetention(now, protectedLogTags = PERMANENT_LOG_MARKERS)
             pruneHistorySnapshotsIfDue(now)
 
             // Persistent pipeline-health summary
@@ -1310,10 +1310,12 @@ class DesktopWeatherRepository(
         private const val MAX_HISTORY_DAYS = 547
         private const val CHANCE_BACKFILL_LOOKBACK_DAYS = 547L
         private const val PRIOR_CLOUD_FETCH_INTERVAL_MS = 60 * 60 * 1000L
-        private const val DB_RETENTION_DAYS = 547L // 18 months (~547 days)
         private const val CHANCE_BACKFILL_DONE_TAG = "CHANCE_BACKFILL_DONE"
         private const val FROZEN_DISPLAY_BACKFILL_DONE_TAG = "FROZEN_DISPLAY_BACKFILL_DONE"
         private const val HISTORY_PRUNE_TAG = "HISTORY_PRUNE"
+
+        /** app_logs rows used as permanent "already done" state; exempt from the 72 h log window. */
+        private val PERMANENT_LOG_MARKERS = listOf(CHANCE_BACKFILL_DONE_TAG, FROZEN_DISPLAY_BACKFILL_DONE_TAG)
         private const val HISTORY_PRUNE_INTERVAL_MS = 24L * 3_600_000L
         private const val HISTORY_VACUUM_MIN_FREE_BYTES = 16L * 1024 * 1024
     }

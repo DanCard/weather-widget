@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.ObservationDao
+import com.weatherwidget.data.local.RetentionPolicy
 import com.weatherwidget.data.model.WeatherSource
 
 /**
@@ -19,21 +20,30 @@ internal class WeatherRetentionManager(
     private val observationDao: ObservationDao,
     private val dailyHistoryDao: DailyHistoryDao,
     private val appLogDao: AppLogDao,
+    /** Resolved lazily: the repository is constructed in unit tests with a mocked context. */
+    private val apiUsageDao: (() -> com.weatherwidget.data.local.ApiUsageDao)? = null,
     /** Daily snapshot prune (see [HistorySnapshotPruner]); gated and throttled by the caller. */
     private val historyPrune: (suspend () -> Unit)? = null,
 ) {
     suspend fun cleanOldData() {
         val now = System.currentTimeMillis()
-        val oneMonthAgoTimestamp = now - 1000L * 60 * 60 * 24 * 30
-        val thirteenMonthsAgoTimestamp = now - 1000L * 60 * 60 * 24 * 395
-        val tenDaysAgoTimestamp = now - 1000L * 60 * 60 * 24 * 10
-        val logsCutoffTimestamp = now - 1000L * 60 * 60 * 72
-        forecastDao.deleteOldForecasts(oneMonthAgoTimestamp)
+        // One policy for both platforms (RetentionPolicy): daily_history 18 months, the rest <= 1 month.
+        val defaultCutoff = RetentionPolicy.daysAgo(now, RetentionPolicy.DEFAULT_DAYS)
+        val logsCutoffTimestamp = RetentionPolicy.hoursAgo(now, RetentionPolicy.APP_LOG_HOURS)
+        forecastDao.deleteOldForecasts(defaultCutoff)
         forecastDao.deleteClimateNormalRows(WeatherSource.GENERIC_GAP.id)
-        hourlyForecastDao.deleteOldForecasts(oneMonthAgoTimestamp)
-        hourlyForecastHistoryDao.deleteOldHistory(oneMonthAgoTimestamp)
-        observationDao.deleteOldObservations(tenDaysAgoTimestamp)
-        dailyHistoryDao.deleteOldExtremes(thirteenMonthsAgoTimestamp)
+        hourlyForecastDao.deleteOldForecasts(defaultCutoff)
+        hourlyForecastHistoryDao.deleteOldHistory(defaultCutoff)
+        observationDao.deleteOldObservations(RetentionPolicy.daysAgo(now, RetentionPolicy.OBSERVATION_DAYS))
+        dailyHistoryDao.deleteOldExtremes(RetentionPolicy.daysAgo(now, RetentionPolicy.DAILY_HISTORY_DAYS))
+        // Best-effort: usage bookkeeping must never fail a sync.
+        try {
+            apiUsageDao?.invoke()?.deleteOlderThan(defaultCutoff)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("WeatherRetention", "api_usage_stats retention failed", e)
+        }
         appLogDao.deleteOldLogs(logsCutoffTimestamp)
         appLogDao.capUnprotectedToNewest(
             APP_LOG_MAX_ROWS,

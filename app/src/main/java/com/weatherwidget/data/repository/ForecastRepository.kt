@@ -130,6 +130,7 @@ class ForecastRepository
             observationDao = observationDao,
             dailyHistoryDao = dailyHistoryDao,
             appLogDao = appLogDao,
+            apiUsageDao = { com.weatherwidget.data.local.WeatherDatabase.getDatabase(context).apiUsageDao() },
             historyPrune = ::pruneHistorySnapshotsIfDue,
         )
 

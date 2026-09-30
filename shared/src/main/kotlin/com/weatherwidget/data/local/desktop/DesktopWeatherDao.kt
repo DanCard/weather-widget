@@ -555,16 +555,35 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
-    fun cleanup(beforeEpochMs: Long) {
+    /**
+     * Deletes rows past [com.weatherwidget.data.local.RetentionPolicy] — the same policy Android
+     * applies (daily_history 18 months, network_usage 90 days, everything else at most a month).
+     *
+     * [protectedLogTags] survive the app_logs window: desktop keeps a few permanent "done" markers
+     * in app_logs (one-time backfills), and losing them would re-run those backfills and stop the
+     * history prune, which is gated on them.
+     */
+    fun applyRetention(nowMs: Long, protectedLogTags: Collection<String> = emptyList()) {
+        val policy = com.weatherwidget.data.local.RetentionPolicy
+        val defaultCutoff = policy.daysAgo(nowMs, policy.DEFAULT_DAYS)
         db.getConnection().use { conn ->
             conn.createStatement().use { stmt ->
-                stmt.execute("DELETE FROM forecasts WHERE fetchedAt < $beforeEpochMs")
-                stmt.execute("DELETE FROM hourly_forecasts WHERE fetchedAt < $beforeEpochMs")
-                stmt.execute("DELETE FROM hourly_forecast_history WHERE fetchedAt < $beforeEpochMs")
-                stmt.execute("DELETE FROM observations WHERE fetchedAt < $beforeEpochMs")
-                stmt.execute("DELETE FROM daily_history WHERE updatedAt < $beforeEpochMs")
-                stmt.execute("DELETE FROM app_logs WHERE timestamp < $beforeEpochMs")
-                stmt.execute("DELETE FROM station_cache WHERE updatedAt < $beforeEpochMs")
+                stmt.execute("DELETE FROM forecasts WHERE fetchedAt < $defaultCutoff")
+                stmt.execute("DELETE FROM hourly_forecasts WHERE fetchedAt < $defaultCutoff")
+                stmt.execute("DELETE FROM hourly_forecast_history WHERE fetchedAt < $defaultCutoff")
+                stmt.execute("DELETE FROM observations WHERE fetchedAt < ${policy.daysAgo(nowMs, policy.OBSERVATION_DAYS)}")
+                stmt.execute("DELETE FROM daily_history WHERE updatedAt < ${policy.daysAgo(nowMs, policy.DAILY_HISTORY_DAYS)}")
+                stmt.execute("DELETE FROM station_cache WHERE updatedAt < $defaultCutoff")
+                stmt.execute("DELETE FROM current_status WHERE updatedAt < $defaultCutoff")
+                stmt.execute("DELETE FROM network_usage WHERE timestamp < ${policy.daysAgo(nowMs, policy.NETWORK_USAGE_DAYS)}")
+            }
+            conn.prepareStatement(
+                "DELETE FROM app_logs WHERE timestamp < ?" +
+                    if (protectedLogTags.isEmpty()) "" else " AND tag NOT IN (${protectedLogTags.joinToString(",") { "?" }})",
+            ).use { st ->
+                st.setLong(1, policy.hoursAgo(nowMs, policy.APP_LOG_HOURS))
+                protectedLogTags.forEachIndexed { i, tag -> st.setString(i + 2, tag) }
+                st.executeUpdate()
             }
         }
     }

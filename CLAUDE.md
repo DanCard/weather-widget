@@ -192,9 +192,19 @@ DIFFERENCE, NONE — were removed; there is no display-mode setting.)
 
 ## Data Retention
 
-- Retain historical weather data for 1 month (automatic cleanup)
-- Forecast snapshots also retained for 1 month
-- Widget navigation allows browsing up to 30 days of history
+One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decision 2026-09-30):
+
+| Table | Kept |
+|---|---|
+| `daily_history` | 18 months (the long record: accuracy stats, history) |
+| `network_usage` (desktop) | 90 days (the data-usage report's 90-day column; ~0.7 MB) |
+| `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `api_usage_stats`, `current_status`, `station_cache` | 30 days |
+| `observations` | 10 days |
+| `app_logs` | 72 h (desktop keeps its permanent `*_BACKFILL_DONE` markers) |
+| `climate_normals` | current location only |
+
+- `hourly_forecast_history` is also pruned daily to the snapshots something reads (below).
+- Widget navigation allows browsing up to 30 days of history.
 
 ## Database Schema
 

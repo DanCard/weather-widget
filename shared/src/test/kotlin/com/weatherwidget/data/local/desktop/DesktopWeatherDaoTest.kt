@@ -223,8 +223,8 @@ class DesktopWeatherDaoTest {
         assertEquals("WARN", recent[0].level)
         assertEquals("REFRESH", recent[1].tag)
 
-        // app_logs is pruned by cleanup like the other tables.
-        dao.cleanup(System.currentTimeMillis() + 10_000)
+        // app_logs is pruned by retention like the other tables.
+        dao.applyRetention(System.currentTimeMillis() + WIPE_EVERYTHING_MS)
         assertEquals(0, dao.getRecentLogs(10).size)
     }
 
@@ -320,7 +320,7 @@ class DesktopWeatherDaoTest {
         val hour = 1_780_682_400_000L
         for (case in com.weatherwidget.data.local.LocationMatchContract.CASES) {
             // Isolate each case so a prior row can't satisfy a later "should not match" query.
-            dao.cleanup(System.currentTimeMillis() + 1_000_000_000L)
+            dao.applyRetention(System.currentTimeMillis() + WIPE_EVERYTHING_MS)
             dao.upsertHourlyForecasts(
                 case.storedLat, case.storedLon, source,
                 listOf(HourlyForecast(hour, 61f, "Cloudy", cloudCover = 80)),
@@ -379,7 +379,7 @@ class DesktopWeatherDaoTest {
         assertEquals(1, dao.getDailyForecasts(lat, lon, source).size)
         
         // Cleanup with a future timestamp (should delete everything)
-        dao.cleanup(now + 10000)
+        dao.applyRetention(now + WIPE_EVERYTHING_MS)
         
         assertEquals(0, dao.getDailyForecasts(lat, lon, source).size)
     }
@@ -485,5 +485,10 @@ class DesktopWeatherDaoTest {
         assertEquals(5000L, report.past90Days.wifi.foregroundBytes)
         assertEquals(10000L, report.past90Days.wifi.backgroundBytes)
         assertEquals(500L, report.past90Days.cellular.totalBytes)
+    }
+
+    private companion object {
+        /** A "now" this far ahead puts every table's retention cutoff in the future. */
+        const val WIPE_EVERYTHING_MS = 1_000L * 24 * 3_600_000L
     }
 }

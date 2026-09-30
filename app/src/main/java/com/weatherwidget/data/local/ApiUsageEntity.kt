@@ -36,6 +36,10 @@ interface ApiUsageDao {
     @Query("SELECT * FROM api_usage_stats WHERE date = :date AND apiSource = :apiSource")
     suspend fun getUsage(date: Long, apiSource: String): ApiUsageEntity?
 
+    /** Retention: `date` is the day's epoch ms. See RetentionPolicy. */
+    @Query("DELETE FROM api_usage_stats WHERE date < :cutoffMs")
+    suspend fun deleteOlderThan(cutoffMs: Long)
+
     @Query("SELECT SUM(callCount) FROM api_usage_stats WHERE apiSource = :apiSource")
     suspend fun getTotalUsage(apiSource: String): Int?
 }
