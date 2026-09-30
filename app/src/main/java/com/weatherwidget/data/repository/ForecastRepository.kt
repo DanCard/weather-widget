@@ -130,7 +130,29 @@ class ForecastRepository
             observationDao = observationDao,
             dailyHistoryDao = dailyHistoryDao,
             appLogDao = appLogDao,
+            historyPrune = ::pruneHistorySnapshotsIfDue,
         )
+
+        /**
+         * Once a day, after the one-shot repairs that read every snapshot have run
+         * (performance/260929-hourly-history-snapshot-retention.md). Only ENQUEUES: this runs inside
+         * the fetch under syncMutex, and the prune itself (96 s on its first pass) must not.
+         */
+        private suspend fun pruneHistorySnapshotsIfDue() {
+            val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs")
+            val repairsDone = HISTORY_PRUNE_PREREQUISITE_FLAGS.all { prefs.getBoolean(it, false) }
+            val now = System.currentTimeMillis()
+            val lastMs = prefs.getLong(KEY_HISTORY_PRUNE_LAST_MS, 0L)
+            // Due check first, so a pending repair is logged once a day, not after every fetch.
+            if (!HistorySnapshotPruner.shouldPrune(now, lastMs, repairsDone = true)) return
+            prefs.edit().putLong(KEY_HISTORY_PRUNE_LAST_MS, now).apply()
+            if (!repairsDone) {
+                appLogDao.log("HISTORY_PRUNE", "skipped=repairs_pending", "INFO")
+                return
+            }
+            HistoryPruneWorker.enqueue(context)
+            appLogDao.log("HISTORY_PRUNE", "enqueued=true", "INFO")
+        }
         private val climateNormalsRepository = ClimateNormalsRepository(
             climateNormalDao = climateNormalDao,
             openMeteoApi = openMeteoApi,
@@ -554,6 +576,15 @@ class ForecastRepository
         }
 
         companion object {
+            private const val KEY_HISTORY_PRUNE_LAST_MS = "history_prune_last_ms"
+
+            /** One-shot repairs that read every snapshot; see DailyHistorySnapshotter. */
+            private val HISTORY_PRUNE_PREREQUISITE_FLAGS = listOf(
+                "rain_chance_backfill_done",
+                "rain_chance_site_repair_done_v1",
+                "frozen_display_backfill_done",
+            )
+
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L
 
             @VisibleForTesting

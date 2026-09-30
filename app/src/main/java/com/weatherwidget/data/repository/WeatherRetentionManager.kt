@@ -19,6 +19,8 @@ internal class WeatherRetentionManager(
     private val observationDao: ObservationDao,
     private val dailyHistoryDao: DailyHistoryDao,
     private val appLogDao: AppLogDao,
+    /** Daily snapshot prune (see [HistorySnapshotPruner]); gated and throttled by the caller. */
+    private val historyPrune: (suspend () -> Unit)? = null,
 ) {
     suspend fun cleanOldData() {
         val now = System.currentTimeMillis()
@@ -41,6 +43,14 @@ internal class WeatherRetentionManager(
             APP_LOG_PROTECTED_MAX_ROWS,
             APP_LOG_PROTECTED_TAGS,
         )
+        // Best-effort: a cleanup step must never fail a sync.
+        try {
+            historyPrune?.invoke()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("WeatherRetention", "history prune failed", e)
+        }
     }
 
     companion object {

@@ -202,6 +202,10 @@ DIFFERENCE, NONE — were removed; there is no display-mode setting.)
   this file goes stale fast; trust the code)
 - Main tables: `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `daily_history`,
   `observations`, `climate_normals`, `app_logs`, `api_usage_stats`
+- `hourly_forecast_history` is pruned daily to the snapshots something reads
+  (`HistorySnapshotRetention` in `:shared` is the rule; Android `HistoryPruneWorker`, never inside a
+  fetch; desktop from the refresh, plus VACUUM). Any new reader of older snapshots must be added to
+  that rule and its equivalence tests (`performance/260929-hourly-history-snapshot-retention.md`).
 - `forecasts.targetDate` is UTC midnight (query WITHOUT `'localtime'`);
   `app_logs.timestamp` is epoch millis (use `'localtime'`)
 - Coordinate-keyed tables quantize lat/lon on write and select via the shared `LocationMatch`

@@ -253,4 +253,19 @@ interface HourlyForecastHistoryDao {
 
     @Query("DELETE FROM hourly_forecast_history WHERE fetchedAt < :cutoffTime")
     suspend fun deleteOldHistory(cutoffTime: Long)
+
+    /** Every snapshot of every hour in [startDateTime, endDateTime), all sites and sources: the prune's day chunk. */
+    @Query("SELECT * FROM hourly_forecast_history WHERE dateTime >= :startDateTime AND dateTime < :endDateTime")
+    suspend fun getAllInDateTimeRange(startDateTime: Long, endDateTime: Long): List<HourlyForecastHistoryEntity>
+
+    /** Hour range of snapshots fetched at or after [sinceFetchedAt] (0 = every row). */
+    @Query("SELECT MIN(dateTime) FROM hourly_forecast_history WHERE fetchedAt >= :sinceFetchedAt")
+    suspend fun minDateTime(sinceFetchedAt: Long = 0L): Long?
+
+    @Query("SELECT MAX(dateTime) FROM hourly_forecast_history WHERE fetchedAt >= :sinceFetchedAt")
+    suspend fun maxDateTime(sinceFetchedAt: Long = 0L): Long?
+
+    /** Deletes by primary key (dateTime, source, locationLat, locationLon, timestampToGroupPredictions). */
+    @androidx.room.Delete
+    suspend fun deleteRows(rows: List<HourlyForecastHistoryEntity>)
 }

@@ -569,6 +569,123 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
+    /** Result of [pruneHourlyHistorySnapshots]. */
+    data class HistoryPruneResult(val days: Int, val scanned: Int, val deleted: Int, val elapsedMs: Long)
+
+    /**
+     * Deletes the `hourly_forecast_history` snapshots no reader uses — the shared
+     * [com.weatherwidget.data.local.HistorySnapshotRetention] rule, run one local day of hours at a
+     * time in its own transaction (the rule is about local calendar days, which SQL date math gets
+     * wrong across DST). Desktop keeps history for 18 months (not Android's 30 days), so this is
+     * where the saving is largest. See performance/260929-hourly-history-snapshot-retention.md.
+     */
+    fun pruneHourlyHistorySnapshots(zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): HistoryPruneResult {
+        val startNs = System.nanoTime()
+        var days = 0
+        var scanned = 0
+        var deleted = 0
+        db.getConnection().use { conn ->
+            val (min, max) = conn.createStatement().use { st ->
+                st.executeQuery("SELECT MIN(dateTime), MAX(dateTime) FROM hourly_forecast_history").use { rs ->
+                    if (!rs.next() || rs.getObject(1) == null) return HistoryPruneResult(0, 0, 0, 0)
+                    rs.getLong(1) to rs.getLong(2)
+                }
+            }
+            var day = java.time.Instant.ofEpochMilli(min).atZone(zone).toLocalDate()
+            val lastDay = java.time.Instant.ofEpochMilli(max).atZone(zone).toLocalDate()
+            val select = conn.prepareStatement(
+                "SELECT dateTime, source, locationLat, locationLon, timestampToGroupPredictions, fetchedAt, " +
+                    "cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipProbability, precipAmountMm " +
+                    "FROM hourly_forecast_history WHERE dateTime >= ? AND dateTime < ?",
+            )
+            val delete = conn.prepareStatement(
+                "DELETE FROM hourly_forecast_history WHERE dateTime = ? AND source = ? AND locationLat = ? " +
+                    "AND locationLon = ? AND timestampToGroupPredictions = ?",
+            )
+            try {
+                while (!day.isAfter(lastDay)) {
+                    select.setLong(1, day.atStartOfDay(zone).toInstant().toEpochMilli())
+                    select.setLong(2, day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli())
+                    val rows = mutableListOf<com.weatherwidget.data.local.HistorySnapshotRetention.Row>()
+                    select.executeQuery().use { rs ->
+                        fun int(col: String): Int? = rs.getInt(col).takeUnless { rs.wasNull() }
+                        while (rs.next()) {
+                            rows += com.weatherwidget.data.local.HistorySnapshotRetention.Row(
+                                source = rs.getString("source"),
+                                dateTime = rs.getLong("dateTime"),
+                                lat = rs.getDouble("locationLat"),
+                                lon = rs.getDouble("locationLon"),
+                                bucket = rs.getLong("timestampToGroupPredictions"),
+                                fetchedAt = rs.getLong("fetchedAt"),
+                                cloudCover = int("cloudCover"),
+                                cloudCoverLow = int("cloudCoverLow"),
+                                cloudCoverMid = int("cloudCoverMid"),
+                                cloudCoverHigh = int("cloudCoverHigh"),
+                                precipProbability = int("precipProbability"),
+                                precipAmountMm = rs.getFloat("precipAmountMm").takeUnless { rs.wasNull() },
+                            )
+                        }
+                    }
+                    if (rows.isNotEmpty()) {
+                        val keep = com.weatherwidget.data.local.HistorySnapshotRetention.keptKeys(rows, zone)
+                        val doomed = rows.filter { it.key !in keep }
+                        if (doomed.isNotEmpty()) {
+                            conn.autoCommit = false
+                            try {
+                                for (r in doomed) {
+                                    delete.setLong(1, r.dateTime)
+                                    delete.setString(2, r.source)
+                                    delete.setDouble(3, r.lat)
+                                    delete.setDouble(4, r.lon)
+                                    delete.setLong(5, r.bucket)
+                                    delete.addBatch()
+                                }
+                                delete.executeBatch()
+                                conn.commit()
+                            } catch (e: Exception) {
+                                conn.rollback()
+                                throw e
+                            } finally {
+                                conn.autoCommit = true
+                            }
+                        }
+                        scanned += rows.size
+                        deleted += doomed.size
+                    }
+                    days++
+                    day = day.plusDays(1)
+                }
+            } finally {
+                select.close()
+                delete.close()
+            }
+        }
+        val result = HistoryPruneResult(days, scanned, deleted, (System.nanoTime() - startNs) / 1_000_000)
+        log(
+            "HISTORY_PRUNE",
+            "days=${result.days} scanned=${result.scanned} deleted=${result.deleted} " +
+                "kept=${result.scanned - result.deleted} ms=${result.elapsedMs}",
+        )
+        return result
+    }
+
+    /** Bytes on SQLite's free list: space DELETE released but the file still holds. */
+    fun freelistBytes(): Long = db.getConnection().use { conn ->
+        conn.createStatement().use { st ->
+            val pages = st.executeQuery("PRAGMA freelist_count").use { rs -> if (rs.next()) rs.getLong(1) else 0L }
+            val size = st.executeQuery("PRAGMA page_size").use { rs -> if (rs.next()) rs.getLong(1) else 0L }
+            pages * size
+        }
+    }
+
+    /**
+     * Rewrites the file without its free pages. Needs an exclusive lock: the daemon and UI share this
+     * file, so a busy database throws — callers treat that as "try again next time".
+     */
+    fun vacuum() {
+        db.getConnection().use { conn -> conn.createStatement().use { it.execute("VACUUM") } }
+    }
+
     fun getCachedStations(cacheKey: String, maxAgeMs: Long): List<NwsApi.StationInfo>? {
         val minUpdatedAt = System.currentTimeMillis() - maxAgeMs
         db.getConnection().use { conn ->

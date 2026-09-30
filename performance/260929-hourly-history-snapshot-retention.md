@@ -63,3 +63,37 @@ site, more hours become long stacks and the saving grows.
 2. This retention (storage −40 % now, more once sites merge; render reads shrink with it).
 3. The newest-snapshot *read* plan: re-measure after 1–2. At ≤3–4 rows per hour it may no longer be
    worth its complexity.
+
+## Implementation and results (2026-09-29/30)
+
+**Rule** (`:shared` `HistorySnapshotRetention`, the spec): per (source, exact site, hour) keep the
+newest by bucket and by fetchedAt, the newest non-null row per coalesced field, the newest
+band-carrying row ≥24 h before the hour, and the newest captured on the hour's previous local day.
+Every rule is "newest within a window that never moves", so **future hours are safe to prune too**
+(the plan's "past hours only" caution was unnecessary), and the prune is idempotent.
+
+**Proof:**
+- Property tests run the real readers on generated stacks (300 seeds; multi-site, ties, nulls, live
+  overlap): `HourlyForecastStitcher.stitchBySource` and `PriorDayBandForecast.select` in `:shared`,
+  `RainAccuracyCalculator.latestSnapshotPrecipByHour` in `:app`. Each rule was mutation-checked:
+  dropping it makes its reader diverge.
+- The Android (Room) and desktop (JDBC) prunes leave exactly the spec's keep set on real databases.
+- Desktop real-data check: the three desktop readers (`getHourlyHistory`, `getHourlyWithHistory`,
+  `getPriorDayBandForecast`) on a copy of the live DB, original vs pruned, over 31 site/source pairs
+  × 161 week windows: **0 differences**.
+
+**Why not SQL:** the rain rule is about local calendar days; SQLite 'localtime' follows the process
+TZ and a fixed offset breaks across DST. The prune runs the Kotlin spec one local day at a time.
+
+**Desktop** (live DB, first prune after wake 2026-09-30 05:25): 535,490 → 34,579 rows (−94 %) in
+3.3 s; `VACUUM` freed 91.6 MB in 0.43 s: **183 MB → 82.6 MB**. Runs from the refresh, daily,
+gated on the `CHANCE_BACKFILL_DONE` / `FROZEN_DISPLAY_BACKFILL_DONE` markers; VACUUM only when
+≥16 MB is free.
+
+**Android** (Pixel, first prune 2026-09-30 00:07): 249,873 → 149,053 rows (−40 %, as estimated);
+free list 0 afterwards and the file shrank 95.9 → 81.4 MB with no VACUUM.
+**But it ran for 96 s inside `getWeatherData` under `syncMutex`:** that forced sync took 113 s
+(`weather=106318ms`), its paint came ~96 s late, and every other sync waited on the lock.
+Fixed the same day: retention only **enqueues** `HistoryPruneWorker` (unique, KEEP,
+battery-not-low), and the worker visits only days holding hours that received snapshots since its
+last pass (`touchedSinceFetchedAt`). The first pass is the only full scan.

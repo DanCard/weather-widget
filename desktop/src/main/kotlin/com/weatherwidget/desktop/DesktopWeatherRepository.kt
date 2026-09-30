@@ -528,6 +528,7 @@ class DesktopWeatherRepository(
 
             // Cleanup old data (> 18 months / 547 days)
             weatherDao.cleanup(now - (DB_RETENTION_DAYS * 24 * 3600 * 1000L))
+            pruneHistorySnapshotsIfDue(now)
 
             // Persistent pipeline-health summary
             weatherDao.log(
@@ -1113,6 +1114,41 @@ class DesktopWeatherRepository(
      * Best-effort: unfillable days keep nulls (no regression). Gated by a one-time app_logs marker
      * like the chance backfill.
      */
+    /**
+     * Once a day, after the one-shot backfills that read every snapshot have run
+     * (performance/260929-hourly-history-snapshot-retention.md). Best-effort: never fails a refresh.
+     */
+    internal fun pruneHistorySnapshotsIfDue(now: Long) {
+        try {
+            val last = weatherDao.getRecentLogsByTags(listOf(HISTORY_PRUNE_TAG), limit = 1).firstOrNull()?.timestamp ?: 0L
+            if (now - last < HISTORY_PRUNE_INTERVAL_MS) return
+            val backfillsDone = listOf(CHANCE_BACKFILL_DONE_TAG, FROZEN_DISPLAY_BACKFILL_DONE_TAG)
+                .all { weatherDao.getRecentLogsByTags(listOf(it), limit = 1).isNotEmpty() }
+            if (!backfillsDone) {
+                weatherDao.log(HISTORY_PRUNE_TAG, "skipped=backfills_pending")
+                return
+            }
+            weatherDao.pruneHourlyHistorySnapshots()
+            // DELETE leaves the file its size; the first prune freed ~100 MB on this machine
+            // (183 MB -> 82 MB, VACUUM 0.16 s on a copy). Only when there is real space to win.
+            val freeBytes = weatherDao.freelistBytes()
+            if (freeBytes >= HISTORY_VACUUM_MIN_FREE_BYTES) {
+                val startNs = System.nanoTime()
+                try {
+                    weatherDao.vacuum()
+                    weatherDao.log(
+                        HISTORY_PRUNE_TAG,
+                        "vacuum=done freedBytes=$freeBytes ms=${(System.nanoTime() - startNs) / 1_000_000}",
+                    )
+                } catch (e: Exception) {
+                    weatherDao.log(HISTORY_PRUNE_TAG, "vacuum=skipped reason=${e.javaClass.simpleName} freeBytes=$freeBytes")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "history prune failed: ${e.message}")
+        }
+    }
+
     internal fun backfillFrozenDisplayColumnsIfNeeded(now: Long) {
         if (weatherDao.getRecentLogsByTags(listOf(FROZEN_DISPLAY_BACKFILL_DONE_TAG), limit = 1).isNotEmpty()) return
         val zoneId = ZoneId.systemDefault()
@@ -1277,6 +1313,9 @@ class DesktopWeatherRepository(
         private const val DB_RETENTION_DAYS = 547L // 18 months (~547 days)
         private const val CHANCE_BACKFILL_DONE_TAG = "CHANCE_BACKFILL_DONE"
         private const val FROZEN_DISPLAY_BACKFILL_DONE_TAG = "FROZEN_DISPLAY_BACKFILL_DONE"
+        private const val HISTORY_PRUNE_TAG = "HISTORY_PRUNE"
+        private const val HISTORY_PRUNE_INTERVAL_MS = 24L * 3_600_000L
+        private const val HISTORY_VACUUM_MIN_FREE_BYTES = 16L * 1024 * 1024
     }
 
     /**
