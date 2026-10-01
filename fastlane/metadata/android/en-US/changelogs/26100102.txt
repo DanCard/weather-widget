@@ -1,0 +1,1 @@
+Release 26100102: Faster, smoother location updates with instant forecast reuse and transition progress; follow system timezone changes immediately; improved follow-device site stability; smarter Today snapshot bar staleness detection; database history retention optimizations.
