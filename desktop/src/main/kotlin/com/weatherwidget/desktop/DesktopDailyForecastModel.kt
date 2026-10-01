@@ -438,6 +438,7 @@ object DesktopDailyForecastModel {
             isToday = isToday,
             isPast = isPast,
             solidIsForecastFallback = solidIsForecastFallback,
+            // Desktop writes a row per fetch (no unchanged-skip), so fetchedAt is the last confirmation.
             snapshotIsStale = isToday && todaySnapshot != null &&
                 com.weatherwidget.shared.util.DailySnapshotSelector.isStale(todaySnapshot.fetchedAt, nowMillis),
             actualsFromOtherSite = isPast && !solidIsForecastFallback && actual?.isActualsBorrowed == true,

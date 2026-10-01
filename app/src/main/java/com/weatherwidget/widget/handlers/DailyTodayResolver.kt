@@ -128,7 +128,15 @@ internal object DailyTodayResolver {
             trueActualHigh = trueActualHigh,
             todayHasActualLow = todayHasActualLow,
             isTodayForecastFallback = isTodayForecastFallback,
-            snapshotIsStale = snapshot?.let { DailySnapshotSelector.isStale(it.fetchedAt, nowMillis) } ?: false,
+            snapshotIsStale = isSnapshotStale(snapshot, nowMillis),
         )
     }
+
+    /**
+     * Judged from [ForecastEntity.batchFetchedAt], the last fetch that returned these values:
+     * `ForecastSnapshotStore` skips writing an unchanged re-fetch and only re-stamps the existing
+     * row's batch, so [ForecastEntity.fetchedAt] is the first sighting.
+     */
+    fun isSnapshotStale(snapshot: ForecastEntity?, nowMillis: Long): Boolean =
+        snapshot != null && DailySnapshotSelector.isStale(snapshot.batchFetchedAt, nowMillis)
 }
