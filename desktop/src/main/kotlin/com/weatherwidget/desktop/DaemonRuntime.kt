@@ -45,6 +45,9 @@ internal class DaemonRuntime(
 ) {
     private var currentConfig: DesktopConfig? = initialConfig
     private var uiProcess: Process? = null
+    // Set while handing off for a timezone change: the successor's `.quit-<id>` also reaches the
+    // newer-instance paths below, which must then kill the UI too — it is running in the old zone.
+    @Volatile private var zoneRestartInProgress = false
     private var logindMonitor: Process? = null
     private var networkMonitor: Process? = null
     private var screensaverMonitor: Process? = null
@@ -66,9 +69,32 @@ internal class DaemonRuntime(
     )
     private val uiNotifyServer = UiNotifyServer(appDir).apply { start() }
 
-    /** Starts the daemon: state-flow sync, fetch loops (if configured), watchers, then idles. */
-    fun start() {
+    private fun spawnUi() {
+        uiProcess = runCatching { launchUiProcess() }.getOrElse { e ->
+            Log.e(TAG, "Failed to launch UI process: ${e.message}", e)
+            // Most likely the distributable was deleted out from under
+            // this daemon (it survives on a deleted inode but can't exec
+            // the missing launcher). Give the click immediate feedback —
+            // the panel ⚠ only refreshes on genmon's next poll.
+            notifyDesktop(
+                "Weather Widget can't open",
+                "App files are missing — rebuild and restart: scripts/buildStart.sh",
+                urgency = "critical",
+            )
+            null
+        }
+    }
+
+    /**
+     * Starts the daemon: state-flow sync, fetch loops (if configured), watchers, then idles.
+     * [reopenUi]: a predecessor that restarted for a timezone change had a UI open — bring it back.
+     */
+    fun start(reopenUi: Boolean = false) {
         uiNotifyServerRef = uiNotifyServer
+        if (reopenUi) {
+            Log.i(TAG, "Reopening the UI the predecessor daemon had open.")
+            spawnUi()
+        }
 
         // Sync the state flows with IPC server updates
         daemonScope.launch {
@@ -127,19 +153,7 @@ internal class DaemonRuntime(
                                         }
                                     } else {
                                         Log.i(TAG, "UI process is not alive. Spawning a new UI process...")
-                                        uiProcess = runCatching { launchUiProcess() }.getOrElse { e ->
-                                            Log.e(TAG, "Failed to launch UI process: ${e.message}", e)
-                                            // Most likely the distributable was deleted out from under
-                                            // this daemon (it survives on a deleted inode but can't exec
-                                            // the missing launcher). Give the click immediate feedback —
-                                            // the panel ⚠ only refreshes on genmon's next poll.
-                                            notifyDesktop(
-                                                "Weather Widget can't open",
-                                                "App files are missing — rebuild and restart: scripts/buildStart.sh",
-                                                urgency = "critical",
-                                            )
-                                            null
-                                        }
+                                        spawnUi()
                                     }
                                 }
                                 // Note: the daemon deliberately does NOT watch DATA_UPDATED_TRIGGER —
@@ -206,7 +220,7 @@ internal class DaemonRuntime(
                                         val suffix = name.substring(QUIT_PREFIX.length)
                                         if (suffix != appLaunchId) {
                                             Log.i(TAG, "Newer instance detected (launchId=$suffix, mine=$appLaunchId). Exiting.")
-                                            quit(killUi = false)
+                                            quit(killUi = zoneRestartInProgress)
                                         } else {
                                             Log.i(TAG, "Ignored quit trigger (launchId=$suffix, mine=$appLaunchId).")
                                         }
@@ -231,7 +245,7 @@ internal class DaemonRuntime(
                 delay(INSTANCE_RECHECK_INTERVAL_MS)
                 if (supersededByNewerInstance(appDir, appLaunchId)) {
                     Log.i(TAG, "Instance re-check: a newer instance is active (mine=$appLaunchId). Exiting.")
-                    quit(killUi = false)
+                    quit(killUi = zoneRestartInProgress)
                 }
             }
         }
@@ -316,8 +330,12 @@ internal class DaemonRuntime(
 
         // Fallback (universal): a wall-clock jump far larger than the heartbeat interval can only mean we
         // were suspended. Mirrors the time-jump heuristic in ~/bin/sys-logging.sh.
+        // The same tick also polls for a system timezone change (one readlink), which the JVM never
+        // picks up on its own — see SystemTimeZoneWatch.
         daemonScope.launch(Dispatchers.IO) {
             var expected = System.currentTimeMillis()
+            val watchZone = SystemTimeZoneWatch.isWatchable()
+            var zoneBaseline = if (watchZone) SystemTimeZoneWatch.readSystemZoneId() else null
             while (true) {
                 delay(HEARTBEAT_INTERVAL_MS)
                 val now = System.currentTimeMillis()
@@ -328,12 +346,58 @@ internal class DaemonRuntime(
                     kickResumeRefresh("heartbeat gap=${gapMs / 1000}s")
                 }
                 expected = now
+                if (watchZone) {
+                    val current = SystemTimeZoneWatch.readSystemZoneId()
+                    if (SystemTimeZoneWatch.shouldRestartForZoneChange(zoneBaseline, current, java.time.ZoneId.systemDefault())) {
+                        restartForZoneChange(from = java.time.ZoneId.systemDefault().id, to = current!!)
+                        // Only reached when the restart didn't happen: adopt the zone so a persistent
+                        // failure logs once instead of every tick.
+                        zoneBaseline = current
+                    }
+                }
             }
         }
 
         runBlocking {
             awaitCancellation()
         }
+    }
+
+    /**
+     * Relaunches the app so both processes pick up the new zone. A fresh JVM rather than
+     * TimeZone.setDefault: zone-derived state (memoized blend series, captured dates, formatters) lives
+     * in both processes and would otherwise survive. Returns only when the successor can't be
+     * spawned: stay up — a wrong zone beats no app.
+     */
+    private fun restartForZoneChange(from: String, to: String) {
+        val uiWasOpen = uiProcess?.isAlive == true
+        weatherDao.log("TIMEZONE_CHANGE", "action=restart from=$from to=$to uiWasOpen=$uiWasOpen", "INFO")
+        if (isUiLauncherMissing()) {
+            weatherDao.log("TIMEZONE_CHANGE", "action=restart_skipped reason=launcher_missing", "WARN")
+            return
+        }
+        zoneRestartInProgress = true
+        val successor = runCatching { launchSuccessorDaemon(reopenUi = uiWasOpen) }.getOrElse { e ->
+            zoneRestartInProgress = false
+            weatherDao.log("TIMEZONE_CHANGE", "action=restart_failed error=${e.message}", "WARN")
+            return
+        }
+        // Quit only once the successor has proven it is running: its runDaemon() writes its
+        // `.quit-<launchId>` token. Quitting on spawn alone left no app at all when the successor's
+        // JVM died at startup.
+        val deadline = System.currentTimeMillis() + SUCCESSOR_TAKEOVER_TIMEOUT_MS
+        while (System.currentTimeMillis() < deadline) {
+            if (supersededByNewerInstance(appDir, appLaunchId)) {
+                weatherDao.log("TIMEZONE_CHANGE", "action=handoff successorPid=${successor.pid()}", "INFO")
+                quit(killUi = true)
+            }
+            if (!successor.isAlive) break
+            Thread.sleep(250)
+        }
+        val reason = if (successor.isAlive) "takeover_timeout" else "successor_exited code=${successor.exitValue()}"
+        runCatching { successor.destroy() }
+        zoneRestartInProgress = false
+        weatherDao.log("TIMEZONE_CHANGE", "action=restart_failed reason=$reason", "WARN")
     }
 
     fun quit(killUi: Boolean = true) {

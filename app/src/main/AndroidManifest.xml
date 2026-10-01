@@ -104,6 +104,9 @@
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="android.intent.action.LOCALE_CHANGED" />
+                <!-- Exempt from the implicit-broadcast ban, like LOCALE_CHANGED. The framework resets
+                     this process's default zone itself; the widget just has to repaint. -->
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

@@ -357,6 +357,41 @@ fun launchUiProcess(): Process {
     return pb.inheritIO().start()
 }
 
+/** Daemon arg: the predecessor had a UI open, so spawn one at start instead of waiting for `.show`. */
+const val REOPEN_UI_ARG = "reopen-ui"
+
+internal const val JPACKAGE_LAUNCHER_ENV = "_JPACKAGE_LAUNCHER"
+
+/** How long a restarting daemon waits for its successor's `.quit-<launchId>` takeover signal. */
+const val SUCCESSOR_TAKEOVER_TIMEOUT_MS = 20_000L
+
+/**
+ * Starts a fresh daemon to replace this one (a system timezone change; see [SystemTimeZoneWatch]).
+ * Same executable as [launchUiProcess], but the FULL environment and no `ui` arg: it is a daemon,
+ * and the launcher's DISPLAY/XAUTHORITY resolution must carry over. It outlives this process — the
+ * JVM sets no parent-death signal — and inherits the autostart log via inheritIO.
+ */
+fun launchSuccessorDaemon(reopenUi: Boolean): Process {
+    val command = mutableListOf<String>()
+    if (isPackaged()) {
+        command.add(System.getProperty("jpackage.app-path") ?: throw IllegalStateException("jpackage.app-path not set in packaged mode"))
+    } else {
+        command.add(ProcessHandle.current().info().command().orElse("java"))
+        command.add("-cp")
+        command.add(System.getProperty("java.class.path") ?: "")
+        command.add("com.weatherwidget.desktop.MainKt")
+    }
+    if (reopenUi) command.add(REOPEN_UI_ARG)
+    Log.i("DesktopProcess", "Launching successor daemon: $command")
+    val pb = ProcessBuilder(command)
+    // The jpackage launcher marks its own environment with this before loading the JVM; a child that
+    // inherits it makes the launcher act as plain `java`, reading our args as JVM options/main class
+    // ("Unrecognized option: --reopen-ui", then "Could not find or load main class reopen-ui" — both
+    // timezone restarts on 2026-09-30). launchUiProcess avoids it only because it clears the env.
+    pb.environment().remove(JPACKAGE_LAUNCHER_ENV)
+    return pb.inheritIO().start()
+}
+
 /**
  * The absolute path [launchUiProcess] would exec (the command's first element), or null when it
  * cannot be determined. Used to detect that the running distributable was deleted out from under a

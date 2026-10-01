@@ -10,6 +10,8 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.work.WorkManager
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import kotlinx.coroutines.CoroutineScope
@@ -131,9 +133,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "onReceive: action=${intent.action}")
         com.weatherwidget.WeatherWidgetApp.logFirstTriggerOnce("onReceive:${intent.action}")
 
-        if (intent.action == Intent.ACTION_LOCALE_CHANGED) {
-            Log.d(TAG, "onReceive: Locale change broadcast received")
+        if (isCacheRepaintBroadcast(intent.action)) {
+            Log.d(TAG, "onReceive: ${intent.action} — repainting all widgets from cache")
             launchAsync(context) {
+                if (intent.action == Intent.ACTION_TIMEZONE_CHANGED) {
+                    WeatherDatabase.getDatabase(context).appLogDao().log(
+                        "TIMEZONE_CHANGE",
+                        "action=repaint zone=${java.time.ZoneId.systemDefault().id}",
+                        "INFO",
+                    )
+                }
                 WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
             }
         }
@@ -155,6 +164,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         )
 
     companion object {
+        /**
+         * Broadcasts whose only effect is that the same cached data must be drawn differently.
+         * TIMEZONE_CHANGED: without it "today", day columns and the NOW marker stayed in the old zone
+         * until the next scheduled repaint (up to an hour); desktop restarts for the same reason —
+         * `plans/260930-desktop-restart-on-system-timezone-change.md`.
+         */
+        internal fun isCacheRepaintBroadcast(action: String?): Boolean =
+            action == Intent.ACTION_LOCALE_CHANGED || action == Intent.ACTION_TIMEZONE_CHANGED
+
         private val lastUpdateByWidgetId = java.util.concurrent.ConcurrentHashMap<Int, Long>()
         private const val STARTUP_DEBOUNCE_MS = 500L
         private const val TAG = "WeatherWidgetProvider"

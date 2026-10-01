@@ -29,7 +29,7 @@ internal fun daemonFetchRestartReason(
     }
 }
 
-fun runDaemon() {
+fun runDaemon(reopenUi: Boolean = false) {
     // As the very first statement: java.awt.headless = true
     System.setProperty("java.awt.headless", "true")
 
@@ -87,5 +87,5 @@ fun runDaemon() {
         forecastState = forecastState,
         dataStatusState = dataStatusState,
         configState = configState,
-    ).start()
+    ).start(reopenUi)
 }

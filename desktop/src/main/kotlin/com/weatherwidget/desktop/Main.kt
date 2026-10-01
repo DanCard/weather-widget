@@ -39,7 +39,7 @@ fun main(args: Array<String>) {
         }
         runDesktopUiApplication()
     } else {
-        runDaemon()
+        runDaemon(reopenUi = args.contains(REOPEN_UI_ARG))
     }
 }
 
