@@ -19,6 +19,14 @@ internal object LabelCandidateCollector {
     private const val MAX_TEMP_LABEL_CANDIDATES = 6
     private val DENSE_TEMP_DIFF_THRESHOLDS = listOf(3, 4, 5)
 
+    // Labels that make a graph-center label redundant when drawn close to the midpoint.
+    private val EXTREMUM_ROLES = setOf(
+        TemperatureRole.HIGH, TemperatureRole.LOW,
+        TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW,
+        TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW,
+        TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW,
+    )
+
     // Minimum forecast-region length (in indices ≈ hours) before its bare middle is worth a label.
     // 3 means a region of ≥4 points (e.g. a 3-hour forecast on a tight zoom) still gets a midpoint;
     // smaller regions have no meaningful interior point distinct from the endpoints.
@@ -277,6 +285,7 @@ internal object LabelCandidateCollector {
             actualLabelTemps = actualLabelTemps,
             effectiveActualEndIndex = effectiveActualEndIndex,
             numColumns = numColumns,
+            widthPx = widthPx,
             useCelsius = useCelsius,
         )
 
@@ -288,6 +297,11 @@ internal object LabelCandidateCollector {
      * samples make the list midpoint drift away from the visual midpoint, so selection is based on
      * elapsed time. When the actual line covers that sample its value wins; otherwise the forecast
      * value is used. Any other candidate at the same sample is replaced so the center stays singular.
+     *
+     * Skipped when a high/low label is already drawn within [LabelGeometryResolver.REDUNDANT_PAIR_PX]
+     * of the midpoint: the middle is then already labelled, and because the center is placed first it
+     * would take the extremum's slot. On 2026-10-01 a 16:00 center "82" sat above the 15:00 high "83"
+     * and pushed it below the curve (plans/261001-center-label-yields-to-nearby-extremum.md).
      */
     private fun addCenterLabel(
         specialCandidates: MutableList<TempLabelCandidate>,
@@ -296,6 +310,7 @@ internal object LabelCandidateCollector {
         actualLabelTemps: List<Float>,
         effectiveActualEndIndex: Int,
         numColumns: Int,
+        widthPx: Int,
         useCelsius: Boolean,
     ) {
         if (numColumns < 5 || hours.size < 3) return
@@ -314,6 +329,22 @@ internal object LabelCandidateCollector {
                 !actualLabelTemps[mid].isNaN()
         val temps = if (actualAvailable) actualLabelTemps else labelTemps
         if (mid !in temps.indices || temps[mid].isNaN()) return
+
+        val nearbyExtremum = specialCandidates.firstOrNull { candidate ->
+            candidate.role in EXTREMUM_ROLES &&
+                LabelGeometryResolver.pixelGapByTime(
+                    hours, candidate.index, candidate.role, candidate.labelTemps,
+                    mid, TemperatureRole.CENTER, temps, widthPx,
+                ) < LabelGeometryResolver.REDUNDANT_PAIR_PX
+        }
+        if (nearbyExtremum != null) {
+            Log.v(
+                TAG,
+                "LabelSuppressed: role=CENTER idx=$mid reason=NEAR_EXTREMUM " +
+                    "extremum=${nearbyExtremum.role}@${nearbyExtremum.index}",
+            )
+            return
+        }
 
         val matchingExisting = specialCandidates.firstOrNull { candidate ->
             candidate.index == mid && candidate.forceForecastSeries == !actualAvailable

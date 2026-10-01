@@ -67,9 +67,49 @@ class TemperatureCenterLabelTest {
         assertEquals(TemperatureRole.CENTER, candidates.first().role)
     }
 
+    // Pixel 7 Pro 2026-10-01: 7a -> 1a window, 517 px wide, forecast peak 83 at 15:00 and the 16:00
+    // midpoint 82. The center label was placed first above the peak and pushed the 83 below the curve.
+    @Test
+    fun `center label is skipped when the high is drawn one hour from the midpoint`() {
+        val hours = forecastDay(peakHour = 15)
+
+        val candidates = candidates(hours, effectiveActualEndIndex = -1, widthPx = 517)
+
+        assertTrue(candidates.none { it.isCenter })
+        val high = candidates.single { it.role == TemperatureRole.HIGH }
+        assertEquals(15, hours[high.index].dateTime.hour)
+    }
+
+    @Test
+    fun `center label is kept when the high is far from the midpoint`() {
+        val hours = forecastDay(peakHour = 10)
+
+        val candidates = candidates(hours, effectiveActualEndIndex = -1, widthPx = 517)
+
+        val center = candidates.single { it.isCenter }
+        assertEquals(16, hours[center.index].dateTime.hour)
+    }
+
+    /** Hourly forecast 07:00 -> 01:00 next day peaking at [peakHour], lowest at 07:00. */
+    private fun forecastDay(peakHour: Int): List<HourData> {
+        val start = LocalDateTime.of(2026, 10, 1, 7, 0)
+        return (0L..18L).map { offset ->
+            val time = start.plusHours(offset)
+            val hoursFromPeak = kotlin.math.abs((time.hour.takeIf { it >= 7 } ?: (time.hour + 24)) - peakHour)
+            val temp = if (time.hour < peakHour && time.hour >= 7) 58f + 25f * offset / (peakHour - 7) else 83f - 2f * hoursFromPeak
+            HourData(
+                dateTime = time,
+                temperature = if (offset == 0L) 58f else temp.coerceAtLeast(60f),
+                label = time.toLocalTime().toString(),
+                isActual = false,
+            )
+        }
+    }
+
     private fun candidates(
         hours: List<HourData>,
         effectiveActualEndIndex: Int,
+        widthPx: Int = 800,
     ): List<TempLabelCandidate> {
         val extrema = TemperatureLabelResolver.computeExtremaIndices(
             hours = hours,
@@ -85,7 +125,7 @@ class TemperatureCenterLabelTest {
             transitionX = null,
             observedAt = null,
             numColumns = 5,
-            widthPx = 800,
+            widthPx = widthPx,
             useCelsius = false,
         )
     }
