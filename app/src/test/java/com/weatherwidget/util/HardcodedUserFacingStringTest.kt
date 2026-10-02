@@ -87,6 +87,8 @@ class HardcodedUserFacingStringTest {
                 "No blended points in range." to "BlendTableFormatter.renderText empty state",
                 " from forecast" to "ForecastDeltaLabel default suffix (desktop); Android passes a localized suffix",
                 "Tmrw: Recent History" to "TomorrowIoActuals station name",
+                "NWS Blended" to
+                    "NwsBlend stored stationName (was inlined on Android and desktop before moving to :shared); stations lists hide the blend row",
                 "Tmrw: 5-minute history" to
                     "TomorrowIoActuals desktop default; Android resolves R.string.station_name_tomorrow_five_minute_history",
                 "synoptic: no token configured" to "SynopticObservationFetcher error reason (diagnostic)",

@@ -16,7 +16,7 @@ import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.TemperatureInterpolator
-import com.weatherwidget.shared.util.SpatialInterpolator
+import com.weatherwidget.shared.observations.NwsBlend
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
@@ -481,7 +481,10 @@ class DesktopWeatherService(
             System.currentTimeMillis() - it.timestamp <= FRESH_OBSERVATION_MS
         }
 
-        val currentTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, allLatestReadings)
+        // The stored blend row is real-or-nothing (shared with Android). The header value may still
+        // fall back to the forecast, but that fallback never becomes an NWS_BLEND observation.
+        val blend = NwsBlend.build(allLatestReadings, latitude, longitude)
+        val currentTemp = blend?.temperature
             ?: TemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
             ?: hourlyRaw.firstOrNull()?.temperature
 
@@ -503,27 +506,10 @@ class DesktopWeatherService(
             }
         }
 
-        // Add NWS_BLEND synthetic reading if we successfully blended. Matches Android parity
-        // and ensures the graph and header use the same weighted truth.
-        // Timestamp anchored to freshLatestReadings so the header freshness gate works correctly.
+        // The NWS_BLEND row (when the blend produced one) keeps the graph and header on the same
+        // weighted truth; the header's observed-at anchors on the freshest readings.
         val latestReadings = freshLatestReadings.ifEmpty { allLatestReadings }
-        val observations = if (currentTemp != null && latestReadings.isNotEmpty()) {
-            val newestMs = latestReadings.maxOf { it.timestamp }
-            rawObservations + ObservationReading(
-                stationId = "NWS_BLEND",
-                stationName = "NWS Blended",
-                timestamp = newestMs,
-                temperature = currentTemp,
-                condition = currentCondition ?: "none",
-                locationLat = latitude,
-                locationLon = longitude,
-                distanceKm = 0f,
-                stationType = "VIRTUAL",
-                api = "NWS"
-            )
-        } else {
-            rawObservations
-        }
+        val observations = rawObservations + listOfNotNull(blend)
 
         return NwsObservationFetch(
             currentTemp = currentTemp,
@@ -974,7 +960,10 @@ class DesktopWeatherService(
             System.currentTimeMillis() - it.timestamp <= FRESH_OBSERVATION_MS
         }
 
-        val currentTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, allLatestReadings)
+        // Real-or-nothing blend row (shared with Android); the nearest-station fallback below is
+        // for the header value only and is never stored as NWS_BLEND.
+        val blend = NwsBlend.build(allLatestReadings, latitude, longitude)
+        val currentTemp = blend?.temperature
             ?: bundles.minByOrNull { com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(latitude, longitude, it.station.lat, it.station.lon) }?.latest?.let {
                 (it.temperatureCelsius * 1.8f) + 32f
             }
@@ -993,23 +982,7 @@ class DesktopWeatherService(
         }
 
         val latestReadings = freshLatestReadings.ifEmpty { allLatestReadings }
-        val observations = if (currentTemp != null && latestReadings.isNotEmpty()) {
-            val newestMs = latestReadings.maxOf { it.timestamp }
-            rawObservations + ObservationReading(
-                stationId = "NWS_BLEND",
-                stationName = "NWS Blended",
-                timestamp = newestMs,
-                temperature = currentTemp,
-                condition = currentCondition ?: "none",
-                locationLat = latitude,
-                locationLon = longitude,
-                distanceKm = 0f,
-                stationType = "VIRTUAL",
-                api = "NWS"
-            )
-        } else {
-            rawObservations
-        }
+        val observations = rawObservations + listOfNotNull(blend)
 
         RawFetch(
             providerCurrentTemp = currentTemp,

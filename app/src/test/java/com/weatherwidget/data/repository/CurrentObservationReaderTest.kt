@@ -1,6 +1,8 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.ObservationDao
+import com.weatherwidget.data.local.toReading
+import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.testutil.TestData
 import io.mockk.coEvery
@@ -19,9 +21,9 @@ class CurrentObservationReaderTest {
         val clean = TestData.observation(stationId = "KPAO", timestamp = 1_000L, temperature = 72f)
         val rejected = clean.copy(timestamp = 2_000L, temperature = 50f, qcFailed = true)
 
-        val result = latestUsableNwsObservationsByStation(listOf(rejected, clean))
+        val result = NwsBlend.latestUsableByStation(listOf(rejected, clean).map { it.toReading() })
 
-        assertEquals(listOf(clean), result)
+        assertEquals(listOf(clean.toReading()), result)
     }
 
     @Test
@@ -30,7 +32,7 @@ class CurrentObservationReaderTest {
         val stationA = TestData.observation(stationId = "KAAA", timestamp = 2_000L)
         val rejected = TestData.observation(stationId = "KFAIL", timestamp = 4_000L).copy(qcFailed = true)
 
-        val result = latestUsableNwsObservationsByStation(listOf(stationB, rejected, stationA))
+        val result = NwsBlend.latestUsableByStation(listOf(stationB, rejected, stationA).map { it.toReading() })
 
         assertEquals(listOf("KAAA", "KZZZ"), result.map { it.stationId })
         assertTrue(result.none { it.qcFailed })
