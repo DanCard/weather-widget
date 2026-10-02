@@ -7,7 +7,6 @@ import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
-import java.time.LocalTime
 
 /**
  * Resolves how many days of daily forecast rows actually need loading, from the real geometry and
@@ -34,7 +33,6 @@ internal object DailyLoadWindowResolver {
         appWidgetManager: AppWidgetManager = AppWidgetManager.getInstance(context),
         stateManager: WidgetStateManager = WidgetStateManager(context),
         today: LocalDate = LocalDate.now(),
-        now: LocalTime = LocalTime.now(),
     ): NavigationUtils.DailyLoadWindow {
         val ids: IntArray = runCatching {
             appWidgetManager.getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
@@ -50,7 +48,7 @@ internal object DailyLoadWindowResolver {
                     today = today,
                     dateOffset = offset,
                     numColumns = cols,
-                    skipYesterday = NavigationUtils.shouldSkipYesterday(now, cols),
+                    skipYesterday = NavigationUtils.shouldSkipYesterday(cols),
                 ),
             )
         }

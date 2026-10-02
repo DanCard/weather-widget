@@ -102,7 +102,7 @@ internal object DailyInteractionRenderer {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
-        val skipYesterday = NavigationUtils.shouldSkipYesterday(numColumns = numColumns)
+        val skipYesterday = NavigationUtils.shouldSkipYesterday(numColumns)
         val availableForecastDates =
             weatherList.map {
                 LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY)

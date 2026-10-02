@@ -165,7 +165,7 @@ object DailyViewHandler : WidgetViewHandler {
         val stateManager = stateManagerNullable ?: WidgetStateManager(context)
         val dateOffset = stateManager.getDateOffset(appWidgetId)
 
-        val skipYesterday = NavigationUtils.shouldSkipYesterday(now.toLocalTime(), numColumns)
+        val skipYesterday = NavigationUtils.shouldSkipYesterday(numColumns)
 
         // Single source of truth for time in this update cycle
         val today = now.toLocalDate()

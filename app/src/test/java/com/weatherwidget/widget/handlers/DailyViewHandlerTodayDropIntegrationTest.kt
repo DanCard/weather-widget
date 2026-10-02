@@ -233,8 +233,8 @@ class DailyViewHandlerTodayDropIntegrationTest {
         val root = FrameLayout(context)
         val applied = viewsSlot.captured.apply(context, root as ViewGroup)
         
-        // Day 2 is usually Today in 3-column text mode (Yesterday, Today, Tomorrow)
-        val todayHighText = applied.findViewById<TextView>(R.id.day2_high)?.text?.toString()
+        // Narrow widgets are today-first at every hour (Today, Tomorrow, …)
+        val todayHighText = applied.findViewById<TextView>(R.id.day1_high)?.text?.toString()
         
         // The label should show the maximum of (Current: 75, Forecast: 80, Actual: 82) -> 82
         assertEquals("Today text label should show the daily peak", "82°", todayHighText)

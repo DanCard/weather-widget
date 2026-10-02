@@ -15,7 +15,7 @@ object UIUpdateIntervalStrategy {
         nextUpdateTimeMillis: Long,
         nowMillis: Long,
         isCharging: Boolean,
-        timeUntilSkipYesterdayMillis: Long
+        timeUntilDayRolloverMillis: Long
     ): Long {
         var delayMillis = nextUpdateTimeMillis - nowMillis
 
@@ -26,11 +26,22 @@ object UIUpdateIntervalStrategy {
             }
         }
 
-        // Check if we need to schedule an update for the skip-yesterday window shift.
-        if (timeUntilSkipYesterdayMillis in 1..delayMillis) {
-            delayMillis = timeUntilSkipYesterdayMillis
+        // Repaint at the date rollover so the daily window shifts on time.
+        if (timeUntilDayRolloverMillis in 1..delayMillis) {
+            delayMillis = timeUntilDayRolloverMillis
         }
 
         return delayMillis.coerceAtLeast(MINIMUM_DELAY_MS)
+    }
+
+    /**
+     * Milliseconds until the next local midnight — the one moment the daily window changes (every
+     * date shifts one column left so the today column keeps its slot). Without this clamp the
+     * rollover waited for the next opportunistic update, up to an hour late. Zone-aware so a DST
+     * transition at midnight is measured in real elapsed time.
+     */
+    fun millisUntilNextMidnight(now: java.time.ZonedDateTime): Long {
+        val midnight = now.toLocalDate().plusDays(1).atStartOfDay(now.zone)
+        return java.time.Duration.between(now, midnight).toMillis()
     }
 }

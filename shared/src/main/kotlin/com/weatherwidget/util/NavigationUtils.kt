@@ -1,7 +1,6 @@
 package com.weatherwidget.util
 
 import java.time.LocalDate
-import java.time.LocalTime
 
 /**
  * Centrally manages the calculation of day offsets and navigation bounds
@@ -9,28 +8,21 @@ import java.time.LocalTime
  */
 object NavigationUtils {
     /**
-     * Hour at which narrow widgets (8 or fewer columns) drop yesterday from the
-     * day window and shift forward, gaining an extra forecast day. Wide widgets
-     * never shift early — they have room for yesterday plus a long forecast,
-     * and let the calendar date roll over naturally.
-     */
-    const val NARROW_SKIP_YESTERDAY_HOUR = 8
-
-    /**
-     * Column threshold at or below which the narrow skip-yesterday rule applies.
+     * Column threshold at or below which narrow widgets drop yesterday from the offset-0 window.
      */
     const val NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD = 8
 
     /**
      * Returns true when the widget should drop yesterday from its day window
      * (showing today + forecast instead of yesterday + today + forecast).
-     * Only narrow widgets shift early; wide widgets always include yesterday
-     * until the calendar date rolls over.
+     *
+     * Width-only, never time-of-day: the window must change only when the date does, so the today
+     * column keeps its slot across midnight (dates shift one column left). An 08:00 switch used to
+     * live here; it left the dates frozen at midnight, moved the today highlight one column right,
+     * then jumped back at 08:00 (plans/261002-today-column-fixed-position-across-midnight.md).
      */
-    fun shouldSkipYesterday(time: LocalTime = LocalTime.now(), numColumns: Int = Int.MAX_VALUE): Boolean {
-        if (numColumns > NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD) return false
-        return time.hour >= NARROW_SKIP_YESTERDAY_HOUR
-    }
+    fun shouldSkipYesterday(numColumns: Int): Boolean =
+        numColumns <= NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD
 
     /**
      * Returns whether history should be skipped at the given offset.

@@ -1768,7 +1768,7 @@ class DailyViewHandlerTest {
 
         val root = FrameLayout(context)
         val applied = viewsSlot.captured.apply(context, root as ViewGroup)
-        val todayImageView = applied.findViewById<ImageView>(R.id.day2_icon)
+        val todayImageView = applied.findViewById<ImageView>(R.id.day1_icon)  // narrow: today-first at every hour
 
         assertEquals(R.drawable.ic_weather_partly_cloudy, shadowOf(todayImageView.drawable).createdFromResId)
     }

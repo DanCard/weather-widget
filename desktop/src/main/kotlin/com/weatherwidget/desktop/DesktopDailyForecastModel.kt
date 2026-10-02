@@ -136,7 +136,7 @@ object DesktopDailyForecastModel {
         now: LocalDateTime = LocalDateTime.now(),
     ): DesktopDailyViewState {
         val today = now.toLocalDate()
-        val skipYesterday = NavigationUtils.shouldSkipYesterday(now.toLocalTime(), dimensions.cols)
+        val skipYesterday = NavigationUtils.shouldSkipYesterday(dimensions.cols)
         val overlayCandidateColumns = (dimensions.cols - 1).coerceAtLeast(1)
         // The eligibility window must be the window the user actually SEES. `getVisibleDateRange`
         // knows nothing about the zoom-out extra-history columns, which `historyOffsets` below

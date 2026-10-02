@@ -7,7 +7,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.time.LocalDate
-import java.time.LocalTime
 
 @Category(ShortDuration::class)
 class NavigationUtilsTest {
@@ -62,35 +61,43 @@ class NavigationUtilsTest {
     }
 
     @Test
-    fun `shouldSkipYesterday uses 8am threshold for narrow widgets`() {
-        val eightAm = LocalTime.of(8, 0)
-        val sevenFiftyNine = LocalTime.of(7, 59)
+    fun `shouldSkipYesterday is width-only`() {
+        assertTrue(NavigationUtils.shouldSkipYesterday(numColumns = 1))
+        assertTrue(NavigationUtils.shouldSkipYesterday(numColumns = 8))
+        assertFalse(NavigationUtils.shouldSkipYesterday(numColumns = 9))
+    }
 
-        assertTrue("8 cols at 8am should skip yesterday",
-            NavigationUtils.shouldSkipYesterday(eightAm, numColumns = 8))
-        assertFalse("8 cols at 7:59am should not skip yesterday",
-            NavigationUtils.shouldSkipYesterday(sevenFiftyNine, numColumns = 8))
-        assertTrue("1 col at 8am should skip yesterday",
-            NavigationUtils.shouldSkipYesterday(eightAm, numColumns = 1))
+    /**
+     * The today column keeps its slot across midnight, at every width and nav offset: one minute
+     * before and one minute after, today's index in the visible window is identical and every date
+     * has shifted exactly one column. The 08:00 narrow switch broke this — at midnight the dates
+     * froze and the highlight moved right (plans/261002-today-column-fixed-position-across-midnight.md).
+     */
+    @Test
+    fun `today column keeps its position across midnight`() {
+        val beforeMidnight = LocalDate.of(2026, 10, 2) // 23:59
+        val afterMidnight = beforeMidnight.plusDays(1) // 00:01
+        for (cols in listOf(3, 5, 8, 9, 10)) {
+            val skip = NavigationUtils.shouldSkipYesterday(cols)
+            for (offset in listOf(-3, 0, 3)) {
+                val (leftBefore, _) = NavigationUtils.getVisibleDateRange(beforeMidnight, offset, cols, skip)
+                val (leftAfter, _) = NavigationUtils.getVisibleDateRange(afterMidnight, offset, cols, skip)
+                val label = "cols=$cols offset=$offset"
+                assertEquals(
+                    "$label: today's column index",
+                    java.time.temporal.ChronoUnit.DAYS.between(leftBefore, beforeMidnight),
+                    java.time.temporal.ChronoUnit.DAYS.between(leftAfter, afterMidnight),
+                )
+                assertEquals("$label: dates shift one column", leftBefore.plusDays(1), leftAfter)
+            }
+        }
     }
 
     @Test
-    fun `shouldSkipYesterday wide widgets never skip yesterday early`() {
-        val nineAm = LocalTime.of(9, 0)
-        val fivePm = LocalTime.of(17, 0)
-        val sixPm = LocalTime.of(18, 0)
-        val elevenPm = LocalTime.of(23, 0)
-
-        assertFalse("9 cols at 9am should not skip yesterday",
-            NavigationUtils.shouldSkipYesterday(nineAm, numColumns = 9))
-        assertFalse("9 cols at 5pm should not skip yesterday",
-            NavigationUtils.shouldSkipYesterday(fivePm, numColumns = 9))
-        assertFalse("9 cols at 6pm should not skip yesterday",
-            NavigationUtils.shouldSkipYesterday(sixPm, numColumns = 9))
-        assertFalse("9 cols at 11pm should not skip yesterday",
-            NavigationUtils.shouldSkipYesterday(elevenPm, numColumns = 9))
-        assertFalse("Default numColumns at 6pm should not skip yesterday",
-            NavigationUtils.shouldSkipYesterday(sixPm))
+    fun `narrow widget shows today in the first column at offset 0`() {
+        val today = LocalDate.of(2026, 10, 2)
+        val (left, _) = NavigationUtils.getVisibleDateRange(today, 0, 5, NavigationUtils.shouldSkipYesterday(5))
+        assertEquals(today, left)
     }
 
     // --- isTodayOrYesterdayInRange: the observations-button gate ---

@@ -456,6 +456,46 @@ settings = DesktopSettings(weatherSource = "NWS"),
         return (0 until days).map { i -> DailyForecast(start.plusDays(i.toLong()).toString(), 80f, 60f, "Sunny") }
     }
 
+    /**
+     * Midnight rollover: one minute either side of midnight, the Today column sits at the same index
+     * and every column's date has advanced by exactly one day — across widths (narrow today-first and
+     * wide yesterday-first), nav offsets, and zoom-out history columns, which `getVisibleDateRange`
+     * knows nothing about. See plans/261002-today-column-fixed-position-across-midnight.md.
+     */
+    @Test
+    fun `today column keeps its position across midnight`() {
+        val before = LocalDateTime.parse("2026-10-02T23:59:00")
+        val after = LocalDateTime.parse("2026-10-03T00:01:00")
+        // Ample data both sides so neither offset clamping nor zoom clamping touches the window.
+        val forecast = snapshot(
+            daily = forecastRange("2026-09-12", 45),
+            dailyActuals = actualsRange("2026-09-12", 21),
+        )
+        for (widthDp in listOf(300, 420, 600, 800)) {
+            val dims = DesktopDailyForecastModel.dimensions(widthDp, 400)
+            for (offset in listOf(-3, 0, 3)) {
+                for (extraHistory in listOf(0, 3)) {
+                    val cfg = config.copy(dateOffset = offset, dailyExtraHistory = extraHistory)
+                    val a = DesktopDailyForecastModel.build(cfg, forecast, dims, before)
+                    val b = DesktopDailyForecastModel.build(cfg, forecast, dims, after)
+                    val label = "width=$widthDp cols=${dims.cols} offset=$offset extra=$extraHistory"
+                    assertEquals("$label: column count", a.days.size, b.days.size)
+                    assertEquals(
+                        "$label: Today column index",
+                        a.days.indexOfFirst { it.isToday },
+                        b.days.indexOfFirst { it.isToday },
+                    )
+                    assertEquals(
+                        "$label: every date advances one day",
+                        a.days.map { it.date.plusDays(1) },
+                        b.days.map { it.date },
+                    )
+                    assertEquals("$label: Today overlay", a.largeTodayOverlayEnabled, b.largeTodayOverlayEnabled)
+                }
+            }
+        }
+    }
+
     @Test
     fun `zoom-out prepends history days and anchors the right edge`() {
         val now = LocalDateTime.parse("2026-06-10T07:00:00")

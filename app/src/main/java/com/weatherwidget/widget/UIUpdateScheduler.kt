@@ -7,12 +7,12 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 /**
@@ -89,7 +89,7 @@ class UIUpdateScheduler(private val context: Context) {
                 nextUpdateTimeMillis = nextUpdateTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 nowMillis = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 isCharging = isCharging,
-                timeUntilSkipYesterdayMillis = getTimeUntilSkipYesterday()
+                timeUntilDayRolloverMillis = UIUpdateIntervalStrategy.millisUntilNextMidnight(ZonedDateTime.now())
             )
 
             Log.d(
@@ -158,19 +158,6 @@ class UIUpdateScheduler(private val context: Context) {
             it.cancel()
             Log.d(TAG, "Canceled scheduled UI updates")
         }
-    }
-
-    /**
-     * Calculates milliseconds until the narrow-widget skip-yesterday threshold.
-     * If the threshold has already passed today, returns the duration until tomorrow's threshold.
-     */
-    private fun getTimeUntilSkipYesterday(): Long {
-        val now = LocalDateTime.now()
-        val threshold = NavigationUtils.NARROW_SKIP_YESTERDAY_HOUR
-
-        val targetToday = now.withHour(threshold).withMinute(0).withSecond(0).withNano(0)
-        val target = if (now.hour >= threshold) targetToday.plusDays(1) else targetToday
-        return java.time.Duration.between(now, target).toMillis()
     }
 
     companion object {
