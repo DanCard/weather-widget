@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.PastDayForecastOverlay
 import android.util.Log
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
@@ -165,9 +166,13 @@ object DailyViewLogic {
                 val obsLow = row?.computedLowTemp
                 val pastForecast =
                     if (obsHigh == null && obsLow == null && (row?.forecastHighTemp == null || row.forecastLowTemp == null)) {
-                        forecastSnapshots?.get(date)
-                            ?.filter { it.source == displaySource.id && !it.isClimateNormal && it.highTemp != null && it.lowTemp != null }
-                            ?.maxByOrNull { it.fetchedAt }
+                        PastDayForecastOverlay.pick(
+                            forecastSnapshots?.get(date).orEmpty()
+                                .filter { it.source == displaySource.id && !it.isClimateNormal },
+                            { it.highTemp },
+                            { it.lowTemp },
+                            { it.fetchedAt },
+                        )
                     } else {
                         null
                     }

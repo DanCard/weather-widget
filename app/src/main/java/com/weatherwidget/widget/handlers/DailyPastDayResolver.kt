@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.DailyDayValueResolver
+import com.weatherwidget.shared.util.PastDayForecastOverlay
 import java.time.LocalDate
 
 internal object DailyPastDayResolver {
@@ -66,9 +67,13 @@ internal object DailyPastDayResolver {
             Log.v(TAG, "resolvePastDayOverlay: past day $date overlay from frozen daily_history high=$frozenHigh low=$frozenLow")
             return Pair(frozenHigh, frozenLow)
         }
-        val pastForecast = forecasts
-            .filter { it.source == displaySource.id && !it.isClimateNormal && it.highTemp != null && it.lowTemp != null }
-            .maxByOrNull { it.fetchedAt }
+        // Shared with desktop and the text-only path: a real range wins over a newer collapsed row.
+        val pastForecast = PastDayForecastOverlay.pick(
+            forecasts.filter { it.source == displaySource.id && !it.isClimateNormal },
+            { it.highTemp },
+            { it.lowTemp },
+            { it.fetchedAt },
+        )
         if (pastForecast == null) {
             Log.d(TAG, "resolvePastDayOverlay: past day $date has no usable forecast snapshot from ${displaySource.id}; skipping forecast overlay")
         }

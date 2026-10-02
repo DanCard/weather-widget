@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.util.PastDayForecastOverlay
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
@@ -278,10 +279,9 @@ object DesktopDailyForecastModel {
     ): DesktopDailyDay {
         val isToday = date == today
         val isPast = date.isBefore(today)
-        // Past-day overlay wants the most-recent snapshot (matches Android's past-day logic).
-        val snapshot = snapshots
-            .filter { it.highTemp != null && it.lowTemp != null && it.highTemp != it.lowTemp }
-            .maxByOrNull { it.fetchedAt }
+        // The past-day row (shared rule, PastDayForecastOverlay). A one-sided row still supplies the
+        // non-overlay fields (rain chance, condition); it never draws the overlay bar — see below.
+        val snapshot = PastDayForecastOverlay.pick(snapshots, { it.highTemp }, { it.lowTemp }, { it.fetchedAt })
             ?: snapshots
                 .filter { it.highTemp != null || it.lowTemp != null }
                 .maxByOrNull { it.fetchedAt }
@@ -314,8 +314,17 @@ object DesktopDailyForecastModel {
                     forecastHigh = actual.forecastHighTemp
                     forecastLow = actual.forecastLowTemp
                 } else {
-                    forecastHigh = snapshot?.highTemp ?: forecast?.highTemp
-                    forecastLow = snapshot?.lowTemp ?: forecast?.lowTemp
+                    // `snapshots` excludes the newest fetch batch; its row for this day is `forecast`.
+                    // Both are candidates, as on Android, and the newest batch ranks newest.
+                    val overlay = PastDayForecastOverlay.pick(
+                        snapshots.map { Triple(it.highTemp, it.lowTemp, it.fetchedAt) } +
+                            listOfNotNull(forecast?.let { Triple(it.highTemp, it.lowTemp, Long.MAX_VALUE) }),
+                        { it.first },
+                        { it.second },
+                        { it.third },
+                    )
+                    forecastHigh = overlay?.first
+                    forecastLow = overlay?.second
                 }
                 // A past day may have no daily_history actual row (forecast-only sources like
                 // Open-Meteo, or pre-tracking days for Tomorrow.io). Fall back to the forecast

@@ -102,6 +102,31 @@ settings = DesktopSettings(weatherSource = "NWS"),
         assertEquals(11, tuesday.nightPrecipProbability)
     }
 
+    /**
+     * A one-sided past-day row draws no overlay. Desktop used to fall back to it and draw half a bar;
+     * Android never did. The shared rule (PastDayForecastOverlay) now decides for both.
+     */
+    @Test
+    fun `past day with only a high-only snapshot draws no forecast overlay`() {
+        val state = DesktopDailyForecastModel.build(
+            config = config,
+            forecast = snapshot(
+                daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
+                dailyActuals = mapOf("2026-06-02" to extreme("2026-06-02", 78f, 57f, "Fair")),
+                dailySnapshots = mapOf(
+                    "2026-06-02" to listOf(DailyForecastSnapshot("2026-06-02", 76f, null, "Cloudy", fetchedAt = 1L)),
+                ),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = LocalDateTime.parse("2026-06-03T07:00:00"),
+        )
+
+        val jun2 = state.days.single { it.date == LocalDate.parse("2026-06-02") }
+        assertNull("a high-only row would draw half a bar", jun2.forecastHigh)
+        assertNull(jun2.forecastLow)
+        assertEquals("the actual still draws", 78f, jun2.solidHigh)
+    }
+
     @Test
     fun `build properly groups and maps daily data`() {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
