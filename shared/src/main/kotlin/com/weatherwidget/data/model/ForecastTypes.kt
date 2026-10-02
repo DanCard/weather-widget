@@ -41,8 +41,8 @@ data class HourlyForecast(
 
 data class DailyForecast(
     val date: String,
-    val highTemp: Float,
-    val lowTemp: Float,
+    val highTemp: Float?,
+    val lowTemp: Float?,
     val condition: String,
     val iconToken: String? = null,
     val precipProbability: Int? = null,

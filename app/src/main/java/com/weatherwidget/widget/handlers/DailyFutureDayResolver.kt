@@ -2,6 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.PartialForecastDays
 import java.time.LocalDate
 import java.time.MonthDay
 
@@ -21,20 +22,14 @@ internal object DailyFutureDayResolver {
         today: LocalDate,
         weatherByDate: Map<LocalDate, ForecastEntity>,
     ): Boolean {
-        if (weather?.source != WeatherSource.NWS.id) return false
-        if (!date.isAfter(today)) return false
-        if (weather.highTemp != null || weather.lowTemp == null) return false
-
-        val lastNwsFutureDate =
-            weatherByDate.entries
-                .asSequence()
-                .filter { (candidateDate, candidateWeather) ->
-                    candidateDate.isAfter(today) && candidateWeather.source == WeatherSource.NWS.id
-                }
-                .map { it.key }
-                .maxOrNull()
-
-        return date == lastNwsFutureDate
+        val lastNwsFutureDate = weatherByDate.entries
+            .filter { (candidateDate, candidateWeather) ->
+                candidateDate.isAfter(today) && candidateWeather.source == WeatherSource.NWS.id
+            }
+            .maxOfOrNull { it.key }
+        return PartialForecastDays.isTerminalLowOnlyNwsFutureDay(
+            weather?.source, weather?.highTemp, weather?.lowTemp, date, today, lastNwsFutureDate,
+        )
     }
 
     fun resolveFutureDayValues(
@@ -45,18 +40,17 @@ internal object DailyFutureDayResolver {
         climateNormals: Map<MonthDay, Pair<Float, Float>>,
         showComparison: Boolean = false,
     ): FutureDayValues {
-        var finalHigh: Float? = weather?.highTemp
-        var finalLow: Float? = weather?.lowTemp
-        var isClimateOverlay = false
-
-        if (weather != null && !isTerminalLowOnlyNwsFuture && (finalHigh == null || finalLow == null)) {
-            val normal = climateNormals[MonthDay.from(date)]
-            if (normal != null) {
-                finalHigh = normal.first
-                finalLow = normal.second
-                isClimateOverlay = true
-            }
+        // Shared with desktop. Only an existing partial row is filled; no row stays empty.
+        val filled = if (weather != null) {
+            PartialForecastDays.futureFromNormals(
+                weather.highTemp, weather.lowTemp, isTerminalLowOnlyNwsFuture, climateNormals[MonthDay.from(date)],
+            )
+        } else {
+            PartialForecastDays.FutureValues(null, null, isClimateOverlay = false)
         }
+        val finalHigh = filled.high
+        val finalLow = filled.low
+        val isClimateOverlay = filled.isClimateOverlay
 
         var fHigh: Float? = null
         var fLow: Float? = null

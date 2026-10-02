@@ -123,14 +123,14 @@ class WeatherApiTest {
             assertEquals(2, forecast.hourly.size)
 
             assertEquals("2026-02-24", forecast.daily[0].date)
-            assertEquals(71.4f, forecast.daily[0].highTemp, 0.001f)
-            assertEquals(50.1f, forecast.daily[0].lowTemp, 0.001f)
+            assertEquals(71.4f, forecast.daily[0].highTemp!!, 0.001f)
+            assertEquals(50.1f, forecast.daily[0].lowTemp!!, 0.001f)
             assertEquals("Partly cloudy", forecast.daily[0].condition)
             assertEquals(35, forecast.daily[0].precipProbability)
 
             assertEquals("2026-02-25", forecast.daily[1].date)
-            assertEquals(73.5f, forecast.daily[1].highTemp, 0.001f)
-            assertEquals(48.5f, forecast.daily[1].lowTemp, 0.001f)
+            assertEquals(73.5f, forecast.daily[1].highTemp!!, 0.001f)
+            assertEquals(48.5f, forecast.daily[1].lowTemp!!, 0.001f)
             assertEquals("Sunny", forecast.daily[1].condition)
             assertEquals(5, forecast.daily[1].precipProbability)
 

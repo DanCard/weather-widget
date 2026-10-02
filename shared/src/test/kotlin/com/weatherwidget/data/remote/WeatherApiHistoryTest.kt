@@ -53,7 +53,7 @@ class WeatherApiHistoryTest {
         assertNull(result.providerCurrentTemp)
         assertEquals(1, result.daily.size)
         assertEquals(2, result.hourly.size)
-        assertEquals(78.2f, result.daily.single().highTemp, 0.001f)
+        assertEquals(78.2f, result.daily.single().highTemp!!, 0.001f)
         assertEquals(0.8f, result.hourly[1].precipAmountMm!!, 0.001f)
         assertEquals(72, result.hourly[1].cloudCover)
     }

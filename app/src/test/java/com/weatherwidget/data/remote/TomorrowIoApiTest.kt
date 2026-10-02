@@ -120,8 +120,8 @@ class TomorrowIoApiTest {
         assertEquals(0.01f * 25.4f, result.hourly[0].precipAmountMm!!, 0.001f)
 
         assertEquals(1, result.daily.size)
-        assertEquals(70.0f, result.daily[0].highTemp, 0.1f)
-        assertEquals(55.0f, result.daily[0].lowTemp, 0.1f)
+        assertEquals(70.0f, result.daily[0].highTemp!!, 0.1f)
+        assertEquals(55.0f, result.daily[0].lowTemp!!, 0.1f)
         assertEquals("2026-04-14", result.daily[0].date)
         assertEquals(5, result.daily[0].precipProbability)
         assertEquals(0.2f * 25.4f, result.daily[0].precipAmountMm!!, 0.001f)

@@ -451,7 +451,41 @@ class DesktopWeatherRepositoryTest {
         assertTrue("expected a climate-normal row at $gapDay", byDate[gapDay]?.isClimateNormal == true)
         // ...and its value matches the expanded monthly normal for that calendar day.
         val expected = ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)[java.time.MonthDay.from(gapDay)]!!
-        assertEquals(expected.first, byDate[gapDay]!!.highTemp, 0.001f)
+        assertEquals(expected.first, byDate[gapDay]!!.highTemp!!, 0.001f)
+    }
+
+    /**
+     * A future day with only one value takes the climate normal (Android's DailyFutureDayResolver);
+     * NWS's last, low-only day is real data and stays. Desktop used to store such days as low = high
+     * or drop them, so it never needed this.
+     */
+    @Test
+    fun `loadCached fills partial future days from normals but keeps the terminal NWS low-only day`() = runTest {
+        val today = LocalDate.now()
+        dao.upsertForecasts(37.4220, -122.0841, "NWS", (0..4).map { offset ->
+            val d = today.plusDays(offset.toLong()).toString()
+            when (offset) {
+                2 -> DailyForecast(date = d, highTemp = null, lowTemp = 52f, condition = "Clear")
+                4 -> DailyForecast(date = d, highTemp = null, lowTemp = 54f, condition = "Clear")
+                else -> DailyForecast(date = d, highTemp = 70f + offset, lowTemp = 50f + offset, condition = "Clear")
+            }
+        })
+        val monthlyHigh = (1..12).associateWith { (it * 5 + 40).toFloat() }
+        val monthlyLow = (1..12).associateWith { (it * 5 + 20).toFloat() }
+        dao.upsertClimateNormals(ClimateNormals.locationKey(37.4220, -122.0841), monthlyHigh, monthlyLow)
+
+        val byDate = repository.loadCached()!!.raw.daily.associateBy { LocalDate.parse(it.date) }
+
+        val middle = byDate.getValue(today.plusDays(2))
+        val normal = ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)[java.time.MonthDay.from(today.plusDays(2))]!!
+        assertTrue("a partial middle day draws the climate normal", middle.isClimateNormal)
+        assertEquals(normal.first, middle.highTemp!!, 0.001f)
+        assertEquals(normal.second, middle.lowTemp!!, 0.001f)
+
+        val terminal = byDate.getValue(today.plusDays(4))
+        assertFalse("the terminal low-only NWS day is real data", terminal.isClimateNormal)
+        assertNull(terminal.highTemp)
+        assertEquals(54f, terminal.lowTemp!!, 0.001f)
     }
 
     @Test

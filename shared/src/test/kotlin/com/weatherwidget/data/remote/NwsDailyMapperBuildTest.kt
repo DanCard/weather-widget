@@ -44,9 +44,9 @@ class NwsDailyMapperBuildTest {
 
         val sunday = daily.firstOrNull { it.date == "2026-06-14" }
         assertNotNull("Sunday should be present", sunday)
-        assertEquals(84f, sunday!!.highTemp, 0.001f)
+        assertEquals(84f, sunday!!.highTemp!!, 0.001f)
         // The bug produced 84 here; the morning low of Sunday is the Saturday-night low.
-        assertEquals(57f, sunday.lowTemp, 0.001f)
+        assertEquals(57f, sunday.lowTemp!!, 0.001f)
     }
 
     @Test
@@ -64,7 +64,66 @@ class NwsDailyMapperBuildTest {
 
         val sunday = daily.firstOrNull { it.date == "2026-06-14" }
         assertNotNull(sunday)
-        assertEquals(84f, sunday!!.highTemp, 0.001f)
-        assertEquals(55f, sunday.lowTemp, 0.001f)
+        assertEquals(84f, sunday!!.highTemp!!, 0.001f)
+        assertEquals(55f, sunday.lowTemp!!, 0.001f)
+    }
+
+    // ---- One pipeline (NwsDailyMapper.assemble): desktop used to run its own order and rules. ----
+    // plans/261002-share-nws-daily-pipeline-and-partial-days.md
+
+    private val zone = java.time.ZoneOffset.ofHours(-7)
+
+    private fun hour(date: String, h: Int, temp: Float) = NwsApi.HourlyForecastPeriod(
+        startTime = java.time.LocalDateTime.parse("${date}T%02d:00".format(h)).atOffset(zone).toInstant().toEpochMilli(),
+        localDate = date,
+        localHour = h,
+        temperature = temp,
+        shortForecast = "Clear",
+    )
+
+    @Test
+    fun `evening drop leaves today's low null instead of copying the high`() {
+        // Evening: no period covers the rest of today; the gridpoints still have today's max only.
+        val extremes = NwsApi.DailyTemperatureExtremes(maxByDate = mapOf("2026-06-13" to 80f), minByDate = emptyMap())
+        val daily = NwsDailyMapper.buildDailyForecasts(emptyList(), extremes, LocalDate.parse("2026-06-13"))
+        val today = daily.single { it.date == "2026-06-13" }
+        assertEquals(80f, today.highTemp!!, 0f)
+        org.junit.Assert.assertNull("desktop stored low = high here (a flat bar)", today.lowTemp)
+    }
+
+    @Test
+    fun `gridpoint values win over period values`() {
+        val periods = listOf(day("Sunday", "2026-06-14T06:00:00-07:00", "2026-06-14T18:00:00-07:00", 84, true))
+        val extremes = NwsApi.DailyTemperatureExtremes(maxByDate = mapOf("2026-06-14" to 86f), minByDate = mapOf("2026-06-14" to 55f))
+        val sunday = NwsDailyMapper.buildDailyForecasts(periods, extremes, LocalDate.parse("2026-06-13")).single { it.date == "2026-06-14" }
+        assertEquals("Android merged the gridpoints first; desktop let the period win", 86f, sunday.highTemp!!, 0f)
+    }
+
+    @Test
+    fun `terminal low-only day is kept with a null high`() {
+        val periods = listOf(
+            day("Saturday", "2026-06-13T06:00:00-07:00", "2026-06-13T18:00:00-07:00", 80, true),
+            day("Saturday Night", "2026-06-13T18:00:00-07:00", "2026-06-14T06:00:00-07:00", 57, false),
+            day("Sunday", "2026-06-14T06:00:00-07:00", "2026-06-14T18:00:00-07:00", 84, true),
+            day("Sunday Night", "2026-06-14T18:00:00-07:00", "2026-06-15T06:00:00-07:00", 58, false),
+        )
+        val daily = NwsDailyMapper.buildDailyForecasts(periods, noExtremes, LocalDate.parse("2026-06-13"))
+        val monday = daily.single { it.date == "2026-06-15" }
+        org.junit.Assert.assertNull(monday.highTemp)
+        assertEquals("desktop dropped this day", 58f, monday.lowTemp!!, 0f)
+    }
+
+    @Test
+    fun `a low far from the hourly series is cleared and repaired from it`() {
+        val periods = listOf(
+            day("Saturday Night", "2026-06-13T18:00:00-07:00", "2026-06-14T06:00:00-07:00", 20, false),
+            day("Sunday", "2026-06-14T06:00:00-07:00", "2026-06-14T18:00:00-07:00", 84, true),
+        )
+        // The provider's own hourly series bottoms out at 57 that night.
+        val hourly = (18..23).map { hour("2026-06-13", it, 62f - (it - 18)) } +
+            (0..17).map { hour("2026-06-14", it, if (it < 7) 57f + it * 0.1f else 60f + (it - 7) * 2.4f) }
+        val sunday = NwsDailyMapper.buildDailyForecasts(periods, noExtremes, LocalDate.parse("2026-06-13"), hourly)
+            .single { it.date == "2026-06-14" }
+        assertEquals("desktop skipped the divergence check and kept 20", 57f, sunday.lowTemp!!, 1f)
     }
 }

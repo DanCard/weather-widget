@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.DailyDayValueResolver
 import com.weatherwidget.shared.util.DailySnapshotSelector
+import com.weatherwidget.shared.util.PartialForecastDays
 import com.weatherwidget.util.DailyActualsEstimator
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.widget.DailyActualMap
@@ -44,17 +45,15 @@ internal object DailyTodayResolver {
         incomplete: ForecastEntity,
         snapshots: List<ForecastEntity>,
     ): ForecastEntity? =
-        snapshots.filter {
-            it.source == incomplete.source &&
-                it.highTemp != null &&
-                it.lowTemp != null &&
-                LocationMatch.sameSite(
-                    incomplete.locationLat,
-                    incomplete.locationLon,
-                    it.locationLat,
-                    it.locationLon,
-                )
-        }.maxByOrNull { it.fetchedAt }
+        PartialForecastDays.completeReplacement(
+            snapshots.filter {
+                it.source == incomplete.source &&
+                    LocationMatch.sameSite(incomplete.locationLat, incomplete.locationLon, it.locationLat, it.locationLon)
+            },
+            { it.highTemp },
+            { it.lowTemp },
+            { it.fetchedAt },
+        )
 
     fun resolveTodayValues(
         date: LocalDate,

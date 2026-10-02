@@ -169,12 +169,12 @@ class OpenMeteoApiTest {
             assertEquals(65.5f, forecast.providerCurrentTemp!!, 0.001f)
 
             assertEquals("2026-01-27", forecast.daily[0].date)
-            assertEquals(70f, forecast.daily[0].highTemp, 0.001f)
-            assertEquals(45f, forecast.daily[0].lowTemp, 0.001f)
+            assertEquals(70f, forecast.daily[0].highTemp!!, 0.001f)
+            assertEquals(45f, forecast.daily[0].lowTemp!!, 0.001f)
 
             assertEquals("2026-01-28", forecast.daily[1].date)
-            assertEquals(72.5f, forecast.daily[1].highTemp, 0.001f)
-            assertEquals(48.5f, forecast.daily[1].lowTemp, 0.001f)
+            assertEquals(72.5f, forecast.daily[1].highTemp!!, 0.001f)
+            assertEquals(48.5f, forecast.daily[1].lowTemp!!, 0.001f)
         }
 
     @Test
@@ -202,7 +202,7 @@ class OpenMeteoApiTest {
             // Only the fully-populated first day survives; the two partial days are dropped.
             assertEquals(1, forecast.daily.size)
             assertEquals("2026-01-27", forecast.daily[0].date)
-            assertTrue(forecast.daily.all { it.highTemp.isFinite() && it.lowTemp.isFinite() })
+            assertTrue(forecast.daily.all { it.highTemp!!.isFinite() && it.lowTemp!!.isFinite() })
         }
 
     @Test

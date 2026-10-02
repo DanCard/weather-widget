@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.util.PartialForecastDays
 import com.weatherwidget.shared.util.PastDayForecastOverlay
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyForecast
@@ -342,11 +343,22 @@ object DesktopDailyForecastModel {
                 barTopHigh = solidHigh ?: forecastHigh
             }
             isToday -> {
+                // A partial today row (after the DAO's complete-row swap found nothing) falls back to
+                // the day's hourly max/min — shared with Android's DailyActualsEstimator.
+                val sourceId = WeatherSource.fromDisplaySource(displaySourceId).id
+                val zone = ZoneId.systemDefault()
+                val todayHourly = hourly.filter {
+                    Instant.ofEpochMilli(it.dateTime).atZone(zone).toLocalDate() == today &&
+                        (it.source == null || it.source == sourceId || it.source == WeatherSource.GENERIC_GAP.id)
+                }
+                val (todayForecastHigh, todayForecastLow) = PartialForecastDays.todayForecastRange(
+                    forecast?.highTemp, forecast?.lowTemp, todayHourly.map { it.temperature },
+                )
                 val todayValues = com.weatherwidget.shared.util.DailyDayValueResolver.resolveTodayLineValues(
                     actualHigh = actual?.computedHighTemp,
                     actualLow = actual?.computedLowTemp,
-                    forecastHigh = forecast?.highTemp,
-                    forecastLow = forecast?.lowTemp,
+                    forecastHigh = todayForecastHigh,
+                    forecastLow = todayForecastLow,
                     currentTemp = currentTemp,
                 )
                 solidHigh = todayValues.solidHigh

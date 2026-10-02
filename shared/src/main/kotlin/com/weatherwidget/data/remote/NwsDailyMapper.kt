@@ -165,15 +165,72 @@ object NwsDailyMapper {
         return preserved
     }
 
+    /** What [assemble] produced, plus what it did, for the caller's diagnostics. */
+    data class Assembly(
+        val acc: NwsDayAccumulator,
+        val gridMergedDates: Set<String>,
+        val todayForecastPeriods: List<NwsApi.ForecastPeriod>,
+        val divergedTemps: List<RejectedNwsTemperature>,
+        val rejectedTemps: List<RejectedNwsTemperature>,
+        val repairs: List<String>,
+        val preservedTerminalLowOnlyDay: Pair<String, Float>?,
+    )
+
     /**
-     * High-level convenience for callers (the desktop) that only need a plain [DailyForecast] list:
-     * folds the day/night periods with the calendar-day convention, fills gaps from the gridpoints
-     * [extremes], drops phantom future days, then projects each day into a [DailyForecast].
+     * The one NWS daily pipeline, shared by Android's `NwsForecastMapper` and desktop's
+     * [buildDailyForecasts]. Order matters, because each step only fills nulls:
      *
-     * Days whose high is still null after merging are skipped — the plain [DailyForecast] model has
-     * non-null temperatures and cannot render a high-less day. When a real low cannot be resolved it
-     * falls back to the high (only reachable beyond the gridpoints horizon), never to a fabricated
-     * value from an unrelated period.
+     * 1. hourly precip and midday conditions;
+     * 2. gridpoint min/max — primary for temperatures;
+     * 3. day/night forecast periods fill what the gridpoints left; today's condition is its daytime
+     *    period's text;
+     * 4. values far from the provider's own hourly series are cleared, then every rejected value is
+     *    repaired from the hourly series where possible;
+     * 5. phantom future days are dropped, keeping NWS's terminal low-only day.
+     *
+     * A day may end with a null high or low (NWS stops reporting today's low in the evening). That
+     * is left null — never filled with the other value. Desktop used to run steps 3 then 2, skip 4's
+     * divergence check, drop high-less days and set a missing low to the high, which stored flat
+     * days on 9 of 19 NWS days. See plans/261002-share-nws-daily-pipeline-and-partial-days.md.
+     */
+    fun assemble(
+        periods: List<NwsApi.ForecastPeriod>,
+        extremes: NwsApi.DailyTemperatureExtremes,
+        hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
+        today: LocalDate,
+    ): Assembly {
+        val acc = NwsDayAccumulator()
+        initPrecipFromHourly(hourlyPeriods, today, acc.precipProbabilityMap, acc.precipAmountMap)
+        initConditionsFromHourly(hourlyPeriods, today, acc.conditionMap, acc.conditionSourceMap)
+        val gridMergedDates = mergeGridpointTemperatures(
+            acc.temperatureMap, extremes, today,
+            highTempSourceMap = acc.highTempSourceMap,
+            lowTempSourceMap = acc.lowTempSourceMap,
+        )
+        val todayForecastPeriods = applyForecastPeriods(periods, today.toString(), acc)
+        // Today's condition is its daytime period's text, overriding the hourly midday pick.
+        todayForecastPeriods.firstOrNull { it.isDaytime }?.let { period ->
+            acc.conditionMap[today.toString()] = period.shortForecast
+            acc.conditionSourceMap[today.toString()] = "FCST_DAY:${period.name}@${period.startTime}"
+        }
+        // A value inside the absolute plausibility bounds can still be plainly wrong (a July low of
+        // 20°F); the provider's own hourly series can see that. Cleared before the repair, which only
+        // fills nulls.
+        val divergedTemps = detectHourlyDivergence(acc.temperatureMap, hourlyPeriods)
+        if (divergedTemps.isNotEmpty()) clearRejectedTemps(acc.temperatureMap, divergedTemps)
+        val rejectedTemps = extremes.rejected + acc.rejectedTemps + divergedTemps
+        val repairs = fillTemperatureGapsFromHourly(
+            acc.temperatureMap, rejectedTemps, hourlyPeriods,
+            highTempSourceMap = acc.highTempSourceMap,
+            lowTempSourceMap = acc.lowTempSourceMap,
+        )
+        val preserved = removePhantomFutureDays(acc.temperatureMap, today)
+        return Assembly(acc, gridMergedDates, todayForecastPeriods, divergedTemps, rejectedTemps, repairs, preserved)
+    }
+
+    /**
+     * [assemble] projected into plain [DailyForecast]s (desktop). Fields match Android's
+     * `ForecastEntity` mapping, and a missing high or low stays null.
      */
     fun buildDailyForecasts(
         periods: List<NwsApi.ForecastPeriod>,
@@ -181,37 +238,15 @@ object NwsDailyMapper {
         today: LocalDate,
         hourlyPeriods: List<NwsApi.HourlyForecastPeriod> = emptyList(),
     ): List<DailyForecast> {
-        val acc = NwsDayAccumulator()
-        applyForecastPeriods(periods, today.toString(), acc)
-        mergeGridpointTemperatures(acc.temperatureMap, extremes, today)
-        // Recover anything the plausibility gate dropped before phantom-day removal, so a day whose
-        // only defect was a sentinel low is repaired rather than discarded. Keeps desktop at parity
-        // with Android's NwsForecastMapper.
-        fillTemperatureGapsFromHourly(
-            acc.temperatureMap, extremes.rejected + acc.rejectedTemps, hourlyPeriods,
-            highTempSourceMap = acc.highTempSourceMap,
-            lowTempSourceMap = acc.lowTempSourceMap,
-        )
-        removePhantomFutureDays(acc.temperatureMap, today)
-
-        val periodsByDate = periods.groupBy { extractNwsForecastDate(it.startTime) }
-
-        return acc.temperatureMap.mapNotNull { (date, temps) ->
-            val high = temps.first ?: return@mapNotNull null
-            val low = temps.second ?: high
-            val dayPeriods = periodsByDate[date].orEmpty()
-            val condition = dayPeriods.firstOrNull { it.isDaytime }?.shortForecast
-                ?: dayPeriods.firstOrNull()?.shortForecast
-                ?: acc.conditionMap[date]
-                ?: ""
-            val precipProbability = dayPeriods.mapNotNull { it.precipProbability }.maxOrNull()
-                ?: acc.precipProbabilityMap[date]
+        val acc = assemble(periods, extremes, hourlyPeriods, today).acc
+        return acc.temperatureMap.map { (date, temps) ->
             DailyForecast(
                 date = date,
-                highTemp = high,
-                lowTemp = low,
-                condition = condition,
-                precipProbability = precipProbability,
+                highTemp = temps.first,
+                lowTemp = temps.second,
+                condition = acc.conditionMap[date] ?: "Unknown",
+                iconToken = acc.conditionMap[date],
+                precipProbability = acc.precipProbabilityMap[date],
                 precipAmountMm = acc.precipAmountMap[date],
                 // NWS's native 12-hour period chances — used by the daily rain label only as a
                 // fallback when hourly rows are missing, and by the past-day path (see
@@ -221,6 +256,67 @@ object NwsDailyMapper {
                 nighttimePrecipProbability = acc.nighttimePrecipProbabilityMap[date],
             )
         }.sortedBy { it.date }
+    }
+
+    /** Today's max hourly precip chance, and every day's summed hourly precip amount. */
+    fun initPrecipFromHourly(
+        hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
+        today: LocalDate,
+        precipProbabilityMap: MutableMap<String, Int>,
+        precipAmountMap: MutableMap<String, Float>,
+    ) {
+        hourlyPeriods.forEach { hour ->
+            val dateString = hour.localDate
+            if (dateString == today.toString()) {
+                val probability = hour.precipProbability ?: 0
+                if (probability > (precipProbabilityMap[dateString] ?: 0)) {
+                    precipProbabilityMap[dateString] = probability
+                }
+            }
+            hour.precipAmountMm?.let { amount ->
+                precipAmountMap[dateString] = (precipAmountMap[dateString] ?: 0f) + amount
+            }
+        }
+    }
+
+    /**
+     * A future day's condition from its midday hours (13, 14, 12, 15): morning fog clearing to sun
+     * reads "Fog then …", and a foggy midday yields to any sunny hour.
+     */
+    fun initConditionsFromHourly(
+        hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
+        today: LocalDate,
+        conditionMap: MutableMap<String, String>,
+        sourceMap: MutableMap<String, String>,
+    ) {
+        hourlyPeriods.groupBy { it.localDate }
+            .forEach { (dateString, periods) ->
+                if (!LocalDate.parse(dateString).isAfter(today)) return@forEach
+                val bestPeriod = listOf(13, 14, 12, 15)
+                    .firstNotNullOfOrNull { hour -> periods.find { it.localHour == hour } }
+                    ?: return@forEach
+                val midText = bestPeriod.shortForecast
+                val hasFog = periods.any {
+                    it.localHour in 5..10 && it.shortForecast.lowercase().contains("fog")
+                }
+                val isSunny = midText.lowercase().contains("sunny") || midText.lowercase().contains("clear")
+                if (hasFog && isSunny) {
+                    conditionMap[dateString] = "Fog then $midText"
+                    sourceMap[dateString] = "HOURLY_MIDDAY_TRANSITION:${bestPeriod.startTime}"
+                    return@forEach
+                }
+                if (midText.lowercase().contains("fog")) {
+                    periods.find {
+                        it.shortForecast.lowercase().contains("sunny") || it.shortForecast.lowercase().contains("clear")
+                    }?.let {
+                        conditionMap[dateString] = it.shortForecast
+                        sourceMap[dateString] = "HOURLY_MIDDAY_SUN_PRIORITY:${it.startTime}"
+                        return@forEach
+                    }
+                }
+                conditionMap[dateString] = midText
+                sourceMap[dateString] = "HOURLY_MIDDAY:${bestPeriod.startTime}"
+            }
     }
 
     data class NwsDayAccumulator(

@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.shared.util.PartialForecastDays
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
@@ -384,8 +385,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setLong(2, todayEpoch) // simplified for desktop Tier 1
                         stmt.setDouble(3, keyLat)
                         stmt.setDouble(4, keyLon)
-                        stmt.setFloat(5, highToStore)
-                        stmt.setFloat(6, lowToStore)
+                        // NULL is a real value: NWS drops today's low in the evening and ends on a
+                        // low-only day. Readers handle the gap (DailyPartialDayRepair).
+                        stmt.setNullableFloat(5, highToStore)
+                        stmt.setNullableFloat(6, lowToStore)
                         stmt.setString(7, d.condition)
                         stmt.setString(8, d.iconToken)
                         stmt.setInt(9, if (d.isClimateNormal) 1 else 0)
@@ -1256,8 +1259,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     val dateStr = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(targetDate), ZoneOffset.UTC).toString()
                     result.add(DailyForecast(
                         date = dateStr,
-                        highTemp = rs.getFloat("highTemp"),
-                        lowTemp = rs.getFloat("lowTemp"),
+                        highTemp = rs.getNullableFloat("highTemp"),
+                        lowTemp = rs.getNullableFloat("lowTemp"),
                         condition = rs.getString("condition"),
                         iconToken = rs.getString("nativeDailyIconToken"),
                         precipProbability = rs.getNullableInt("precipProbability"),
@@ -1270,46 +1273,49 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 }
             }
 
-            // Repair degenerate (high == low) days. Late in the day NWS stops reporting a low for
-            // today, so NwsDailyMapper collapses it to low = high (`temps.second ?: high`). That
-            // latest "forecast" is no longer a genuine range, so fall back to the most recent stored
-            // forecast for the same target day that still had a real high/low spread — the last
-            // genuine historical forecast. (Runs in a separate pass so the read ResultSet above is
-            // already closed before issuing these lookups on the same connection.)
-            for (i in result.indices) {
-                val day = result[i]
-                    if (day.highTemp != day.lowTemp) continue
+            // Today's partial row (NWS stops reporting today's low in the evening) is replaced by
+            // the newest stored row for today with both values — the same rule as Android's
+            // DailyTodayResolver (PartialForecastDays). Future partial days are left for the
+            // repository's climate-normal fill. This used to trigger on high == low, because the
+            // NWS mapper stored a missing low as the high.
+            val todayStr = LocalDate.now().toString()
+            val todayIndex = result.indexOfFirst {
+                it.date == todayStr && !it.isClimateNormal && (it.highTemp == null || it.lowTemp == null)
+            }
+            if (todayIndex >= 0) {
+                val day = result[todayIndex]
                 val targetEpoch = LocalDate.parse(day.date).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-                val genuineSql = """
+                val candidatesSql = """
                     SELECT highTemp, lowTemp, condition, nativeDailyIconToken,
-                           precipProbability, precipAmountMm, isClimateNormal
+                           precipProbability, precipAmountMm, isClimateNormal, fetchedAt
                     FROM forecasts
                     WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate = ?
-                        AND highTemp IS NOT NULL AND lowTemp IS NOT NULL AND highTemp <> lowTemp
-                    ORDER BY batchFetchedAt DESC, fetchedAt DESC
-                    LIMIT 1
+                        AND highTemp IS NOT NULL AND lowTemp IS NOT NULL
                 """.trimIndent()
-                val genuine = conn.prepareStatement(genuineSql).use { stmt ->
+                val candidates = conn.prepareStatement(candidatesSql).use { stmt ->
                     stmt.setDouble(1, locationLat)
                     stmt.setDouble(2, locationLon)
                     stmt.setString(3, source)
                     stmt.setLong(4, targetEpoch)
                     val rs = stmt.executeQuery()
-                    if (rs.next()) {
-                        day.copy(
-                        highTemp = rs.getFloat("highTemp"),
-                        lowTemp = rs.getFloat("lowTemp"),
-                            condition = rs.getString("condition"),
-                            iconToken = rs.getString("nativeDailyIconToken"),
-                            precipProbability = rs.getNullableInt("precipProbability"),
-                            precipAmountMm = rs.getNullableFloat("precipAmountMm"),
-                            isClimateNormal = rs.getInt("isClimateNormal") == 1,
-                        )
-                    } else {
-                        null
+                    buildList {
+                        while (rs.next()) {
+                            add(
+                                day.copy(
+                                    highTemp = rs.getNullableFloat("highTemp"),
+                                    lowTemp = rs.getNullableFloat("lowTemp"),
+                                    condition = rs.getString("condition"),
+                                    iconToken = rs.getString("nativeDailyIconToken"),
+                                    precipProbability = rs.getNullableInt("precipProbability"),
+                                    precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                                    isClimateNormal = rs.getInt("isClimateNormal") == 1,
+                                ) to rs.getLong("fetchedAt"),
+                            )
+                        }
                     }
                 }
-                if (genuine != null) result[i] = genuine
+                PartialForecastDays.completeReplacement(candidates, { it.first.highTemp }, { it.first.lowTemp }, { it.second })
+                    ?.let { result[todayIndex] = it.first }
             }
         }
         return result

@@ -1,5 +1,6 @@
 package com.weatherwidget.util
 
+import com.weatherwidget.shared.util.PartialForecastDays
 import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
@@ -76,8 +77,9 @@ object DailyActualsEstimator {
         val actual = dailyActuals[today]
         val hourlyMax = todayHourly.maxOfOrNull { it.temperature }
         val hourlyMin = todayHourly.minOfOrNull { it.temperature }
-        val dashedLineHigh = fallbackWeather?.highTemp ?: hourlyMax
-        val dashedLineLow = fallbackWeather?.lowTemp ?: hourlyMin
+        val (dashedLineHigh, dashedLineLow) = PartialForecastDays.todayForecastRange(
+            fallbackWeather?.highTemp, fallbackWeather?.lowTemp, todayHourly.map { it.temperature },
+        )
         val resolved = DailyDayValueResolver.resolveTodayLineValues(
             actualHigh = actual?.computedHighTemp,
             actualLow = actual?.computedLowTemp,

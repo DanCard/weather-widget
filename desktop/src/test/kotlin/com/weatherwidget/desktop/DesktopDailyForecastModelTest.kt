@@ -127,6 +127,29 @@ settings = DesktopSettings(weatherSource = "NWS"),
         assertEquals("the actual still draws", 78f, jun2.solidHigh)
     }
 
+    /** A today row missing its low (with no complete row to swap in) uses the day's hourly minimum, as on Android. */
+    @Test
+    fun `today with a missing low falls back to the hourly minimum`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = LocalDate.parse("2026-06-03")
+        val hourly = listOf(3 to 57f, 9 to 63f, 15 to 79f, 21 to 66f).map { (h, t) ->
+            HourlyForecast(date.atTime(h, 0).atZone(zone).toInstant().toEpochMilli(), t, "Clear", source = WeatherSource.NWS.id)
+        }
+        val state = DesktopDailyForecastModel.build(
+            config = config.copy(dateOffset = 0),
+            forecast = snapshot(
+                daily = listOf(DailyForecast("2026-06-03", 80f, null, "Sunny")),
+                hourly = hourly,
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = LocalDateTime.parse("2026-06-03T20:00:00"),
+        )
+
+        val today = state.days.single { it.date == date }
+        assertEquals(80f, today.forecastHigh)
+        assertEquals("missing low comes from the hourly series, not null", 57f, today.forecastLow)
+    }
+
     @Test
     fun `build properly groups and maps daily data`() {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")

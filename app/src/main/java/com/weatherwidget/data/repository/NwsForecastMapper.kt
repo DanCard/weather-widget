@@ -97,74 +97,50 @@ class NwsForecastMapper @Inject constructor(
         val todayDate = LocalDate.now()
         val todayDateString = todayDate.toString()
 
-        val acc = NwsDailyMapper.NwsDayAccumulator()
+        // The pipeline is shared with desktop (NwsDailyMapper.assemble); this only logs what it did.
+        val assembly = NwsDailyMapper.assemble(forecastPeriods, gridDailyTemps, hourlyPeriods, todayDate)
+        val acc = assembly.acc
 
-        initPrecipFromHourly(hourlyPeriods, todayDate, acc.precipProbabilityMap, acc.precipAmountMap)
-        initConditionsFromHourly(hourlyPeriods, acc.conditionMap, acc.conditionSourceMap)
-
-        val gridMergedDates = NwsDailyMapper.mergeGridpointTemperatures(
-            acc.temperatureMap, gridDailyTemps, todayDate,
-            highTempSourceMap = acc.highTempSourceMap,
-            lowTempSourceMap = acc.lowTempSourceMap,
-        )
-        if (gridMergedDates.isNotEmpty()) {
-            val detail = gridMergedDates.sorted().joinToString(",") { d ->
+        if (assembly.gridMergedDates.isNotEmpty()) {
+            val detail = assembly.gridMergedDates.sorted().joinToString(",") { d ->
                 val (h, l) = acc.temperatureMap[d] ?: (null to null)
                 "$d:h=${h}/l=${l}"
             }
-            appLogDao.log("NWS_GRID_TEMP_PRIMARY", "dates=${gridMergedDates.size} $detail")
+            appLogDao.log("NWS_GRID_TEMP_PRIMARY", "dates=${assembly.gridMergedDates.size} $detail")
         }
 
-        val todayForecastPeriods = NwsDailyMapper.applyForecastPeriods(
-            forecastPeriods, todayDateString, acc
-        )
         logTodayDiagnostics(
-            todayDateString, todayForecastPeriods, acc
+            todayDateString, assembly.todayForecastPeriods, acc
         )
 
-        // NWS can serve a -100°F missing-data sentinel on both the gridpoint and period paths (see
-        // NwsTemperaturePlausibility). Both were dropped at ingest; recover the real value from the
-        // hourly series, which does not carry the sentinel.
-        // Relative cross-check, on top of the absolute range gate above: a value can be inside
-        // NwsTemperaturePlausibility's bounds and still be plainly wrong (a July low of 20°F). The
-        // absolute gate cannot see that; the provider's own hourly series for the same day can.
-        // Diverging values must be cleared before the repair runs, because the repair only fills
-        // nulls — unlike the absolute gate's rejections, these were actually written.
-        val divergedTemps = NwsDailyMapper.detectHourlyDivergence(acc.temperatureMap, hourlyPeriods)
-        if (divergedTemps.isNotEmpty()) {
+        if (assembly.divergedTemps.isNotEmpty()) {
             appLogDao.log(
                 "NWS_TEMP_DIVERGED",
-                "count=${divergedTemps.size} tolerance=${NwsDailyMapper.HOURLY_DIVERGENCE_TOLERANCE_F}" +
-                    " ${divergedTemps.joinToString("; ") { it.describe() }}",
+                "count=${assembly.divergedTemps.size} tolerance=${NwsDailyMapper.HOURLY_DIVERGENCE_TOLERANCE_F}" +
+                    " ${assembly.divergedTemps.joinToString("; ") { it.describe() }}",
                 "WARN",
             )
-            NwsDailyMapper.clearRejectedTemps(acc.temperatureMap, divergedTemps)
         }
 
-        val rejectedTemps = gridDailyTemps.rejected + acc.rejectedTemps + divergedTemps
+        val rejectedTemps = assembly.rejectedTemps
         if (rejectedTemps.isNotEmpty()) {
             appLogDao.log(
                 "NWS_TEMP_REJECTED",
                 "count=${rejectedTemps.size} ${rejectedTemps.joinToString("; ") { it.describe() }}",
                 "WARN",
             )
-            val repairs = NwsDailyMapper.fillTemperatureGapsFromHourly(
-                acc.temperatureMap, rejectedTemps, hourlyPeriods,
-                highTempSourceMap = acc.highTempSourceMap,
-                lowTempSourceMap = acc.lowTempSourceMap,
-            )
             appLogDao.log(
                 "NWS_TEMP_REJECTED",
-                if (repairs.isEmpty()) {
+                if (assembly.repairs.isEmpty()) {
                     "no hourly repair available for ${rejectedTemps.size} rejected value(s)"
                 } else {
-                    "repaired=${repairs.size} ${repairs.joinToString("; ")}"
+                    "repaired=${assembly.repairs.size} ${assembly.repairs.joinToString("; ")}"
                 },
                 "WARN",
             )
         }
 
-        val preservedTerminalLowOnlyDay = NwsDailyMapper.removePhantomFutureDays(acc.temperatureMap, todayDate)
+        val preservedTerminalLowOnlyDay = assembly.preservedTerminalLowOnlyDay
         preservedTerminalLowOnlyDay?.let { (date, lowTemp) ->
             val source = acc.lowTempSourceMap[date]
             Log.i(
@@ -238,80 +214,13 @@ class NwsForecastMapper @Inject constructor(
         NwsFetchResult(forecastEntities, hourlyEntities, elapsedHourly)
     }
 
-    fun initPrecipFromHourly(
-        hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
-        todayDate: LocalDate,
-        precipProbabilityMap: MutableMap<String, Int>,
-        precipAmountMap: MutableMap<String, Float>,
-    ) {
-        hourlyPeriods.forEach { hour ->
-            val dateString = hour.localDate
-            if (dateString == todayDate.toString()) {
-                val probability = hour.precipProbability ?: 0
-                if (probability > (precipProbabilityMap[dateString] ?: 0)) {
-                    precipProbabilityMap[dateString] = probability
-                }
-            }
-            hour.precipAmountMm?.let { amount ->
-                precipAmountMap[dateString] = (precipAmountMap[dateString] ?: 0f) + amount
-            }
-        }
-    }
-
-    fun initConditionsFromHourly(
-        hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
-        conditionMap: MutableMap<String, String>,
-        sourceMap: MutableMap<String, String>,
-    ) {
-        val todayDate = LocalDate.now()
-        hourlyPeriods.groupBy { it.localDate }
-            .forEach { (dateString, periods) ->
-                if (LocalDate.parse(dateString).isAfter(todayDate)) {
-                    val targetHours = listOf(13, 14, 12, 15)
-                    var bestPeriod: NwsApi.HourlyForecastPeriod? = null
-                    for (hour in targetHours) {
-                        bestPeriod = periods.find { it.localHour == hour }
-                        if (bestPeriod != null) break
-                    }
-
-                    if (bestPeriod != null) {
-                        val midText = bestPeriod.shortForecast
-                        val hasFog = periods.any {
-                            it.localHour in 5..10 && it.shortForecast.lowercase().contains("fog")
-                        }
-                        val isSunny = midText.lowercase().contains("sunny") || midText.lowercase().contains("clear")
-
-                        if (hasFog && isSunny) {
-                            conditionMap[dateString] = "Fog then $midText"
-                            sourceMap[dateString] = "HOURLY_MIDDAY_TRANSITION:${bestPeriod.startTime}"
-                            return@forEach
-                        }
-
-                        if (midText.lowercase().contains("fog")) {
-                            periods.find { it.shortForecast.lowercase().contains("sunny") || it.shortForecast.lowercase().contains("clear") }?.let {
-                                conditionMap[dateString] = it.shortForecast
-                                sourceMap[dateString] = "HOURLY_MIDDAY_SUN_PRIORITY:${it.startTime}"
-                                return@forEach
-                            }
-                        }
-
-                        conditionMap[dateString] = midText
-                        sourceMap[dateString] = "HOURLY_MIDDAY:${bestPeriod.startTime}"
-                    }
-                }
-            }
-    }
-
     suspend fun logTodayDiagnostics(
         todayDateString: String,
         todayPeriods: List<NwsApi.ForecastPeriod>,
         acc: NwsDailyMapper.NwsDayAccumulator,
     ) {
-        todayPeriods.firstOrNull { it.isDaytime }?.let { period ->
-            acc.conditionMap[todayDateString] = period.shortForecast
-            acc.conditionSourceMap[todayDateString] = "FCST_DAY:${period.name}@${period.startTime}"
-        }
-
+        // Today's condition from its daytime period is set in NwsDailyMapper.assemble (it used to be
+        // set here, so desktop never got it).
         val todayTemps = acc.temperatureMap[todayDateString] ?: return
         appLogDao.log(
             "NWS_TODAY_SOURCE",

@@ -62,10 +62,10 @@ class DesktopWeatherDaoTest {
         val todayRow = rows.first { it.date == today }
         val futureRow = rows.first { it.date == future }
 
-        assertEquals(90.61f, todayRow.highTemp, 0.001f)
-        assertEquals(65.37f, todayRow.lowTemp, 0.001f)
-        assertEquals(91.0f, futureRow.highTemp, 0.001f)
-        assertEquals(65.0f, futureRow.lowTemp, 0.001f)
+        assertEquals(90.61f, todayRow.highTemp!!, 0.001f)
+        assertEquals(65.37f, todayRow.lowTemp!!, 0.001f)
+        assertEquals(91.0f, futureRow.highTemp!!, 0.001f)
+        assertEquals(65.0f, futureRow.lowTemp!!, 0.001f)
     }
 
     @Test
@@ -197,51 +197,67 @@ class DesktopWeatherDaoTest {
         assertNull(dao.getLastSuccessfulFetch("SILURIAN"))
     }
 
+    /**
+     * NWS stops reporting today's low in the evening; the mapper now stores it as null (it used to
+     * store low = high). Today is replaced by the newest stored row with both values, the same rule
+     * as Android's DailyTodayResolver (PartialForecastDays).
+     */
     @Test
-    fun `getDailyForecasts repairs degenerate today using last genuine forecast`() {
+    fun `getDailyForecasts replaces a partial today with the newest complete forecast`() {
         val lat = 37.0
         val lon = -122.0
         val source = "NWS"
-        val today = LocalDate.now(ZoneOffset.UTC).toString()
-        val tomorrow = LocalDate.now(ZoneOffset.UTC).plusDays(1).toString()
+        // Local date: the DAO decides "today" in local time, as the widget does.
+        val today = LocalDate.now().toString()
+        val tomorrow = LocalDate.now().plusDays(1).toString()
 
-        // An earlier, genuine forecast for today (real high/low spread) plus a future day.
         dao.upsertForecasts(lat, lon, source, listOf(
             DailyForecast(date = today, highTemp = 91f, lowTemp = 62f, condition = "Sunny"),
             DailyForecast(date = tomorrow, highTemp = 87f, lowTemp = 60f, condition = "Sunny"),
         ))
-        // Age that batch so the degenerate fetch below becomes the latest batch.
         setForecastBatchStamp(1000L)
 
-        // The latest fetch collapsed today's forecast to high == low (the NWS late-day bug).
+        // The evening fetch: today's low is gone.
         dao.upsertForecasts(lat, lon, source, listOf(
-            DailyForecast(date = today, highTemp = 92f, lowTemp = 92f, condition = "Sunny"),
+            DailyForecast(date = today, highTemp = 92f, lowTemp = null, condition = "Sunny"),
             DailyForecast(date = tomorrow, highTemp = 87f, lowTemp = 60f, condition = "Sunny"),
         ))
 
         val days = dao.getDailyForecasts(lat, lon, source).associateBy { it.date }
-        // Today is repaired to the last genuine historical forecast, not the degenerate latest.
         assertEquals(91f, days.getValue(today).highTemp)
         assertEquals(62f, days.getValue(today).lowTemp)
-        // The genuine future day is untouched.
         assertEquals(87f, days.getValue(tomorrow).highTemp)
         assertEquals(60f, days.getValue(tomorrow).lowTemp)
     }
 
     @Test
-    fun `getDailyForecasts keeps degenerate day when no genuine forecast exists`() {
+    fun `getDailyForecasts keeps a partial today when no complete forecast exists`() {
         val lat = 37.0
         val lon = -122.0
-        val source = "NWS"
-        val today = LocalDate.now(ZoneOffset.UTC).toString()
+        val today = LocalDate.now().toString()
 
-        dao.upsertForecasts(lat, lon, source, listOf(
-            DailyForecast(date = today, highTemp = 92f, lowTemp = 92f, condition = "Sunny"),
+        dao.upsertForecasts(lat, lon, "NWS", listOf(
+            DailyForecast(date = today, highTemp = 92f, lowTemp = null, condition = "Sunny"),
         ))
 
-        val day = dao.getDailyForecasts(lat, lon, source).single()
+        val day = dao.getDailyForecasts(lat, lon, "NWS").single()
         assertEquals(92f, day.highTemp)
-        assertEquals(92f, day.lowTemp)
+        assertNull("a missing low is stored and read as null, never 0 or the high", day.lowTemp)
+    }
+
+    /** Future partial days are left to the repository's climate-normal fill; the DAO keeps them. */
+    @Test
+    fun `getDailyForecasts leaves a partial future day alone`() {
+        val lat = 37.0
+        val lon = -122.0
+        val future = LocalDate.now().plusDays(6).toString()
+        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast(date = future, highTemp = 80f, lowTemp = 58f, condition = "Sunny")))
+        setForecastBatchStamp(1000L)
+        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast(date = future, highTemp = null, lowTemp = 57f, condition = "Clear")))
+
+        val day = dao.getDailyForecasts(lat, lon, "NWS").single()
+        assertNull(day.highTemp)
+        assertEquals(57f, day.lowTemp)
     }
 
     /** Force every stored forecast row to a fixed batch/fetched stamp so a later insert outranks it. */

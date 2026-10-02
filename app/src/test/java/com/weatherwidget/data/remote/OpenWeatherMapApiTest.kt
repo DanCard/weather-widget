@@ -124,8 +124,8 @@ class OpenWeatherMapApiTest {
 
             assertEquals(1, forecast.daily.size)
             assertEquals("2026-02-23", forecast.daily[0].date)
-            assertEquals(70.8f, forecast.daily[0].highTemp, 0.001f)
-            assertEquals(67.4f, forecast.daily[0].lowTemp, 0.001f)
+            assertEquals(70.8f, forecast.daily[0].highTemp!!, 0.001f)
+            assertEquals(67.4f, forecast.daily[0].lowTemp!!, 0.001f)
             assertEquals(30, forecast.daily[0].precipProbability)
             assertEquals(1.2f, forecast.daily[0].precipAmountMm!!, 0.001f)
 

@@ -42,8 +42,8 @@ object ClimateNormals {
         val monthlyHigh = mutableMapOf<Int, Float>()
         val monthlyLow = mutableMapOf<Int, Float>()
         for ((month, rows) in byMonth) {
-            val highs = rows.map { it.highTemp }.filter { !it.isNaN() }
-            val lows = rows.map { it.lowTemp }.filter { !it.isNaN() }
+            val highs = rows.mapNotNull { it.highTemp }.filter { !it.isNaN() }
+            val lows = rows.mapNotNull { it.lowTemp }.filter { !it.isNaN() }
             if (highs.isNotEmpty()) monthlyHigh[month] = roundToTenth(highs.average())
             if (lows.isNotEmpty()) monthlyLow[month] = roundToTenth(lows.average())
         }
