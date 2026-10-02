@@ -156,15 +156,16 @@ class DesktopWeatherRepositoryTest {
 
     /**
      * Silurian borrows measured actuals (Synoptic/METAR). Those blend rows live under
-     * `source=SILURIAN` with computedHighTemp/LowTemp and must load so today's thermostat
-     * ghost can rise to the day's high — desktop used to drop them via
-     * `!supportsTemperatureActuals`.
+     * `source=SILURIAN` with computedHighTemp/LowTemp and must load — desktop used to drop them via
+     * `!supportsTemperatureActuals`. The row is yesterday's: a persisted row for TODAY is never read
+     * (today is the live blend only, as on Android — see DailyActualsAssembler).
      */
     @Test
     fun `loadCached includes silurian borrowed actuals from daily_history`() = runTest {
         val now = (System.currentTimeMillis() / 3600_000L) * 3600_000L
         val today = LocalDate.now()
-        val todayMs = today.toEpochDay() * 86_400_000L
+        val yesterday = today.minusDays(1)
+        val yesterdayMs = yesterday.toEpochDay() * 86_400_000L
         val silurianService = DesktopWeatherService(37.4220, -122.0841, "SILURIAN")
         val silurianRepository = DesktopWeatherRepository(
             silurianService,
@@ -191,7 +192,7 @@ class DesktopWeatherRepositoryTest {
         dao.upsertDailyHistory(
             listOf(
                 com.weatherwidget.data.model.DailyHistory(
-                    date = todayMs,
+                    date = yesterdayMs,
                     source = WeatherSource.SILURIAN.id,
                     locationLat = 37.4220,
                     locationLon = -122.0841,
@@ -206,7 +207,7 @@ class DesktopWeatherRepositoryTest {
         val result = silurianRepository.loadCached(now)
 
         assertNotNull(result)
-        val actual = result!!.raw.dailyActuals[today.toString()]
+        val actual = result!!.raw.dailyActuals[yesterday.toString()]
         assertNotNull("borrowed Synoptic/METAR high must load for Silurian", actual)
         assertEquals(97.7f, actual!!.computedHighTemp!!, 0.01f)
         assertEquals(60.3f, actual.computedLowTemp!!, 0.01f)
@@ -216,16 +217,41 @@ class DesktopWeatherRepositoryTest {
     /**
      * Today's high must come from the configured actuals provider (Synoptic) live, not only
      * from a possibly stale daily_history row — Android DailyActualsLoader parity.
+     *
+     * `now` is pinned to 14:00 today so the coverage gate below is exercised the same way whatever
+     * hour the suite runs (relative stamps used to start at `now-3h`, which only covered the day's
+     * start just after midnight).
      */
     @Test
     fun `loadCached computes today high from live synoptic observations for silurian`() = runTest {
+        val actual = loadSilurianTodayFromSynoptic(firstReadingHour = 0)
+        assertEquals(69f, actual.computedHighTemp!!, 0.01f)
+        assertEquals(65f, actual.computedLowTemp!!, 0.01f)
+    }
+
+    /**
+     * Desktop used to lack Android's late-start gate: readings that begin at 11:00 made 65° (the
+     * 11:00 reading) today's observed low. The low is "lowest since we started watching" and must
+     * be null so the forecast low renders; the high still stands.
+     */
+    @Test
+    fun `loadCached nulls today's low when live observations start late`() = runTest {
+        val actual = loadSilurianTodayFromSynoptic(firstReadingHour = 11)
+        assertEquals(69f, actual.computedHighTemp!!, 0.01f)
+        assertNull("a late-starting day has no observed low", actual.computedLowTemp)
+        assertTrue(dao.getRecentLogs(50).any { it.tag == "TODAY_LOW_UNCOVERED" })
+    }
+
+    /** Three Synoptic readings today — 65° at [firstReadingHour], 67° at 12:00, 69° at 13:00. */
+    private suspend fun loadSilurianTodayFromSynoptic(firstReadingHour: Int): com.weatherwidget.data.model.DailyHistory {
         com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { source ->
             WeatherSource.SYNOPTIC.takeIf { source == WeatherSource.SILURIAN }
         }
         try {
-            val now = System.currentTimeMillis()
             val today = LocalDate.now()
             val zone = java.time.ZoneId.systemDefault()
+            val at = { hour: Int -> today.atTime(hour, 0).atZone(zone).toInstant().toEpochMilli() }
+            val now = at(14)
             val silurianService = DesktopWeatherService(37.4220, -122.0841, "SILURIAN")
             val silurianRepository = DesktopWeatherRepository(
                 silurianService,
@@ -247,19 +273,11 @@ class DesktopWeatherRepositoryTest {
                 "SILURIAN",
                 listOf(DailyForecast(today.toString(), 88f, 58f, "Sunny")),
             )
-            // Pin readings to today's local calendar day and inside the observation read window
-            // (`now-5h` can land on yesterday just after midnight).
-            val dayFloor = today.atStartOfDay(zone).toInstant().toEpochMilli()
-            val stamps = listOf(
-                maxOf(dayFloor, now - 3 * 3600_000L),
-                maxOf(dayFloor + 1_000L, now - 2 * 3600_000L),
-                maxOf(dayFloor + 2_000L, now - 1 * 3600_000L),
-            ).map { it.coerceAtMost(now) }
-            val synopticObs = stamps.mapIndexed { i, ts ->
+            val synopticObs = listOf(firstReadingHour, 12, 13).mapIndexed { i, hour ->
                 DesktopObservationEntity(
                     stationId = "G4110",
                     stationName = "Synoptic site",
-                    timestamp = ts,
+                    timestamp = at(hour),
                     temperature = 65f + i * 2f, // 65, 67, 69
                     condition = "Clear",
                     locationLat = 37.4220,
@@ -277,14 +295,11 @@ class DesktopWeatherRepositoryTest {
             assertNotNull(result)
             val actual = result!!.raw.dailyActuals[today.toString()]
             assertNotNull(
-                "today's actual must come from live Synoptic observations; keys=${result.raw.dailyActuals.keys} " +
-                    "storedObs=${dao.getObservationsInRange(now - 6 * 3600_000L, now + 1, 37.4220, -122.0841).size}",
+                "today's actual must come from live Synoptic observations; keys=${result.raw.dailyActuals.keys}",
                 actual,
             )
-            // Peak of the three readings is -1h → 69f.
-            assertEquals(69f, actual!!.computedHighTemp!!, 0.01f)
-            assertEquals(65f, actual.computedLowTemp!!, 0.01f)
             silurianService.close()
+            return actual!!
         } finally {
             com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
         }

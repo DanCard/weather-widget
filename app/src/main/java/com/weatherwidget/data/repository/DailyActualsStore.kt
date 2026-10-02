@@ -18,9 +18,9 @@ import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.ActualsAggregator
+import com.weatherwidget.shared.actuals.DailyActualsAssembler
 import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.shared.actuals.DailyHistoryWriter
-import com.weatherwidget.shared.actuals.TodayActualsCoverage
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetConstants
@@ -31,7 +31,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.weatherwidget.shared.actuals.PreviousSiteHistory
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 
 private const val TAG = "DailyActualsStore"
@@ -112,50 +111,43 @@ class DailyActualsStore @Inject constructor(
         hourlyForecasts: List<HourlyForecastEntity>,
         activeSourceList: List<String>,
     ): DailyActualsBySource {
-        val activeSources = activeSourceList
-            .map(WeatherSource::fromId)
-            .map { it.id }
-            .toSet()
-        if (activeSources.isEmpty()) return emptyMap()
-        // Today's live blend mixes stored OBSERVATIONS, so it stays gated on having a real feed —
-        // a source must never fabricate a "current actual" from its own forecast. A forecast-only
-        // source now qualifies by BORROWING one ([ActualsProviderResolver]), which is what gives
-        // Open-Meteo and Silurian a current actual for the first time; a source with neither its
-        // own observations nor a resolvable provider is still excluded.
-        val actualsCapableSources = activeSourceList
-            .map(WeatherSource::fromId)
-            .filter { ActualsProviderResolver.hasTemperatureActuals(it) }
-            .map { it.id }
-            .toSet()
-
-        /** The `observations.api` values that can feed [actualsCapableSources], borrowing included. */
-        val actualsObservationApis = actualsCapableSources +
-            actualsCapableSources.map { ActualsProviderResolver.providerIdFor(WeatherSource.fromId(it)) }
-
+        val sources = activeSourceList.map(WeatherSource::fromId)
+        if (sources.isEmpty()) return emptyMap()
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now()
         val startDate = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val endDate = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        // Past rows are included for every active source: forecast-only rows (null computed*)
-        // carry the frozen forecast the history columns label. Readers must use
-        // computedTemp ?: forecastTemp, never assume computed* is non-null.
-        val pastExtremes = dailyHistoryDao
-            .getExtremesInRange(startDate, endDate, latitude, longitude)
-            .filter { it.source in activeSources }
-        // Yesterday measured at a previous site fills a day this site never measured (display-only,
-        // drawn dashed). See PreviousSiteHistory.
-        val yesterdayDonors = dailyHistoryDao
-            .getMeasuredExtremesForDateAnySite(endDate)
-            .filter { it.source in activeSources }
-            .map { it.toDailyHistory() }
-        val pastActuals = PreviousSiteHistory.fill(
-            local = ObservationResolver.extremesToDailyActualsBySource(pastExtremes, latitude, longitude),
-            candidates = yesterdayDonors,
-            lat = latitude,
-            lon = longitude,
+        val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+
+        // Composition is shared with desktop (DailyActualsAssembler); this only reads and logs.
+        val result = DailyActualsAssembler.assemble(
+            activeSources = sources,
+            pastRows = dailyHistoryDao.getExtremesInRange(startDate, endDate, latitude, longitude)
+                .map { it.toDailyHistory() },
+            yesterdayDonors = dailyHistoryDao.getMeasuredExtremesForDateAnySite(endDate)
+                .map { it.toDailyHistory() },
+            observations = observationDao
+                .getObservationsInRange(
+                    todayStartMs - ActualsAggregator.DAILY_BLEND_CONTEXT_MS,
+                    tomorrowMs,
+                    latitude,
+                    longitude,
+                    // Unscoped: this pass indexes actuals for every configured source at once, which
+                    // is precisely the case the DAO's note says must NOT be narrowed.
+                    apis = null,
+                )
+                .map { it.toReading() },
+            hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
+            latitude = latitude,
+            longitude = longitude,
             today = today,
+            zone = zone,
+            nowMs = System.currentTimeMillis(),
+            personalStationWeight = personalStationWeightProvider.currentWeight(),
         )
-        pastActuals.forEach { (source, byDate) ->
+
+        result.bySource.forEach { (source, byDate) ->
             byDate.values.filter { it.isActualsBorrowed }.forEach {
                 Log.d(
                     TAG,
@@ -164,111 +156,31 @@ class DailyActualsStore @Inject constructor(
                 )
             }
         }
-
-        val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
-        val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val contextObs = observationDao
-            .getObservationsInRange(
-                todayStartMs - ActualsAggregator.DAILY_BLEND_CONTEXT_MS,
-                tomorrowMs,
-                latitude,
-                longitude,
-                // Unscoped: this pass indexes actuals for every configured source at once, which is
-                // precisely the case the DAO's note says must NOT be narrowed.
-                apis = null,
-            )
-            // Observations are filtered by PROVIDER api, not by source id. A borrowing source's
-            // actuals arrive under its provider's api (METAR), and METAR is not an active display
-            // source, so filtering on `actualsCapableSources` alone dropped exactly the rows the
-            // borrowing source needs before the aggregator ever saw them.
-            .filter { it.stationId != "NWS_BLEND" && it.api in actualsObservationApis }
-        // Hourly stays keyed on the SOURCE: the borrowed actuals are compared against the borrowing
-        // source's own forecast, which is the whole point — Open-Meteo's forecast, METAR's truth.
-        val activeHourly = hourlyForecasts.filter { it.source in actualsCapableSources }
-        val todayObs = contextObs.filter { it.timestamp in todayStartMs until tomorrowMs }
-
-        val todayBlendedActuals = ObservationResolver.aggregateObservationsToDailyBySource(
-            observations = contextObs,
-            hourlyForecasts = activeHourly,
-            locationLat = latitude,
-            locationLon = longitude,
-            personalStationWeight = personalStationWeightProvider.currentWeight(),
-        )
-
-        val obsSpanSummary =
-            if (todayObs.isEmpty()) {
-                "none"
-            } else {
-                val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
-                val firstLocal = Instant.ofEpochMilli(todayObs.minOf { it.timestamp })
-                    .atZone(zone)
-                    .toLocalDateTime()
-                    .format(formatter)
-                val lastLocal = Instant.ofEpochMilli(todayObs.maxOf { it.timestamp })
-                    .atZone(zone)
-                    .toLocalDateTime()
-                    .format(formatter)
-                "$firstLocal..$lastLocal"
-            }
-        val liveSummary = todayBlendedActuals
-            .toSortedMap()
-            .entries
-            .joinToString("; ") { (source, actualsByDate) ->
-                val actual = actualsByDate[today]
-                // Provider rows, as the coverage gate below counts them — a redirected source's
-                // own-api rows never reach its blend.
-                val providerId = ActualsProviderResolver.providerIdFor(WeatherSource.fromId(source))
-                val stationCount = todayObs.count { it.api == providerId }
-                "$source[blendedHigh=${actual?.computedHighTemp},blendedLow=${actual?.computedLowTemp},rows=$stationCount]"
-            }
+        val obsSpanSummary = result.todayObsSpan
+            ?.let { (first, last) -> "${DailyActualsAssembler.formatLocal(first, zone)}..${DailyActualsAssembler.formatLocal(last, zone)}" }
+            ?: "none"
+        val liveSummary = result.live
+            .joinToString("; ") { "${it.source}[blendedHigh=${it.high},blendedLow=${it.low},rows=${it.rows}]" }
             .ifEmpty { "none" }
         Log.d(
             TAG,
             "getDailyActualsWithLiveToday: date=$today lat=$latitude lon=$longitude " +
-                "todayObsRows=${todayObs.size} span=$obsSpanSummary live=[$liveSummary]",
+                "todayObsRows=${result.todayObsRows} span=$obsSpanSummary live=[$liveSummary]",
         )
-
-        // A day's minimum is only the day's LOW if the day was watched from its start. When today's
-        // rows for a source begin late — a promoted GPS site, a fresh install, a newly enabled
-        // source, a move — the surviving minimum is "lowest since we started watching" and must not
-        // render as a settled observed low. Nulling computedLowTemp here is the whole wiring:
-        // DailyViewLogic passes it as `actualLow`, and DailyDayValueResolver already falls back to
-        // the forecast low and drops the observed-red label (`isLowTrackingActual`).
-        //
-        // Samsung 2026-08-22: an excursion site's rows began at 12:00, so today's low rendered as
-        // 66.52° (the noon reading) instead of 57.03°. The gap-based self-heal could not see it —
-        // a noon-onward window has no gaps. See TodayActualsCoverage.
-        val todayGatedActuals = todayBlendedActuals.mapValues { (source, actualsByDate) ->
-            val todayActual = actualsByDate[today]
-            if (todayActual?.computedLowTemp == null) return@mapValues actualsByDate
-            // Coverage is judged against the PROVIDER's rows, not the source id. A borrowing
-            // source's observations arrive under its provider's api (METAR), so `it.api == source`
-            // matched nothing for Open-Meteo and Silurian, reported rows=0, and this gate then
-            // suppressed the very low the aggregator had just computed correctly from those rows.
-            // Non-borrowing sources are unaffected: providerIdFor returns their own id.
-            val providerId = ActualsProviderResolver.providerIdFor(WeatherSource.fromId(source))
-            val sourceTimestamps = todayObs.filter { it.api == providerId }.map { it.timestamp }
-            if (!TodayActualsCoverage.dayStartUncovered(sourceTimestamps, today, zone)) {
-                return@mapValues actualsByDate
-            }
+        result.suppressedTodayLows.forEach {
             Log.d(
                 TAG,
-                "TODAY_LOW_UNCOVERED source=$source span=$obsSpanSummary " +
-                    "suppressedLow=${todayActual.computedLowTemp} lat=$latitude lon=$longitude",
+                "TODAY_LOW_UNCOVERED source=${it.source} span=$obsSpanSummary " +
+                    "suppressedLow=${it.low} lat=$latitude lon=$longitude",
             )
             appLogDao.log(
                 "TODAY_LOW_UNCOVERED",
-                "source=$source span=$obsSpanSummary suppressedLow=${todayActual.computedLowTemp} " +
-                    "rows=${sourceTimestamps.size} at=$latitude,$longitude",
+                "source=${it.source} span=$obsSpanSummary suppressedLow=${it.low} " +
+                    "rows=${it.rows} at=$latitude,$longitude",
                 "DEBUG",
             )
-            actualsByDate + (today to todayActual.copy(computedLowTemp = null))
         }
-
-        return ObservationResolver.mergeDailyActualsBySource(
-            primary = pastActuals,
-            secondary = todayGatedActuals,
-        )
+        return result.bySource
     }
 
     internal suspend fun recomputeDailyExtremesFromStoredObservations(
