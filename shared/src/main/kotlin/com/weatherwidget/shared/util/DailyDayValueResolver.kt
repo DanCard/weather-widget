@@ -29,6 +29,15 @@ object DailyDayValueResolver {
         val forecastLow: Float?,
         /** The faint high-water mark (peak observed so far) — the ghost line reaches up to this. */
         val ghostHigh: Float?,
+        /**
+         * Bar-top high for the today thermostat (Android `DailyTodayResolver.finalHigh` /
+         * `DayData.solidLineHigh`): [solidHigh] ?: [forecastHigh].
+         *
+         * When neither a current reading nor an observed high exists, the bar still rises to the
+         * forecast high so the column shows today's high. Callers that need to know the value is a
+         * forecast stand-in (not an observation) compare against [solidHigh] == null.
+         */
+        val barTopHigh: Float? = solidHigh ?: forecastHigh,
     )
 
     data class PastLineValues(
@@ -81,13 +90,16 @@ object DailyDayValueResolver {
     /**
      * Resolves today's solid (observed) and dashed (forecast) line values.
      *
-     * Formula (mirrors Android DailyActualsEstimator):
-     * - solidHigh = currentTemp ?: actualHigh — shows real-time temp, falls back to peak
+     * Formula (shared by Android `DailyActualsEstimator` / `DailyTodayResolver` and desktop):
+     * - solidHigh = currentTemp ?: actualHigh — mercury level: real-time temp, falls back to peak
      * - solidLow = actualLow ?: forecastLow — the observed low when one exists, otherwise
      *   the forecast low stands in so the thermostat always spans a day range. currentTemp
      *   alone must never masquerade as an observed low (it colored the label red as a
      *   "settled actual" on forecast-only sources like Open-Meteo).
      * - ghostHigh = actualHigh — the high-water mark the ghost line reaches up to
+     * - barTopHigh = solidHigh ?: forecastHigh — what the drawn thermostat top uses
+     *   (Android `finalHigh`); when current and observed highs are both missing the bar
+     *   still rises to today's forecast high.
      *
      * @param actualHigh Observed daily high so far (from DailyHistory)
      * @param actualLow Observed daily low so far (from DailyHistory)
@@ -110,6 +122,7 @@ object DailyDayValueResolver {
             forecastHigh = forecastHigh,
             forecastLow = forecastLow,
             ghostHigh = actualHigh,
+            barTopHigh = solidHigh ?: forecastHigh,
         )
     }
 

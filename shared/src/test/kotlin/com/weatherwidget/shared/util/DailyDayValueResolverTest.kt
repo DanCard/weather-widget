@@ -308,4 +308,41 @@ class DailyDayValueResolverTest {
         assertEquals(52f, values.solidLow)
         assertEquals(57.5f, values.forecastLow)
     }
+
+    // ── barTopHigh (Android finalHigh = solidHigh ?: forecastHigh) ──────────
+
+    @Test
+    fun barTopHighUsesCurrentTempWhenPresent() {
+        val values = DailyDayValueResolver.resolveTodayLineValues(
+            actualHigh = 85f, actualLow = 60f,
+            forecastHigh = 88f, forecastLow = 58f,
+            currentTemp = 72f,
+        )
+        assertEquals(72f, values.solidHigh)
+        assertEquals(72f, values.barTopHigh)
+        assertEquals(85f, values.ghostHigh)
+    }
+
+    @Test
+    fun barTopHighFallsBackToObservedPeakWhenNoCurrentTemp() {
+        val values = DailyDayValueResolver.resolveTodayLineValues(
+            actualHigh = 85f, actualLow = 60f,
+            forecastHigh = 88f, forecastLow = 58f,
+            currentTemp = null,
+        )
+        assertEquals(85f, values.barTopHigh)
+    }
+
+    @Test
+    fun barTopHighFallsBackToForecastSoThermostatShowsTodaysHigh() {
+        // Silurian-style gap: no current reading and no borrowed actual yet — the middle
+        // bar must still rise to today's forecast high (Android DailyTodayResolver.finalHigh).
+        val values = DailyDayValueResolver.resolveTodayLineValues(
+            actualHigh = null, actualLow = null,
+            forecastHigh = 88f, forecastLow = 58f,
+            currentTemp = null,
+        )
+        assertNull(values.solidHigh)
+        assertEquals(88f, values.barTopHigh)
+    }
 }

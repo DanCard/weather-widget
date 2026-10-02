@@ -330,8 +330,56 @@ settings = DesktopSettings(weatherSource = "NWS"),
         assertTrue(today.isToday)
         // Mercury sits at the current temp...
         assertEquals(72.4f, today.solidHigh)
+        assertEquals(72.4f, today.barTopHigh)
         // ...while the ghost preserves the day's observed peak.
         assertEquals(97.7f, today.ghostHigh)
+    }
+
+    @Test
+    fun `today thermostat barTop rises to forecast high when no current or actual`() {
+        // Silurian before borrowed actuals land (or no current reading): the middle column
+        // must still rise to today's high (shared barTopHigh = solidHigh ?: forecastHigh).
+        val now = LocalDateTime.parse("2026-06-03T12:00:00")
+        val state = DesktopDailyForecastModel.build(
+            config = config,
+            forecast = snapshot(
+                currentTemp = null,
+                daily = listOf(DailyForecast("2026-06-03", 88f, 58f, "Sunny")),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = now,
+        )
+
+        val today = state.days.find { it.date == LocalDate.parse("2026-06-03") }!!
+        assertNull(today.solidHigh)
+        assertEquals(88f, today.barTopHigh)
+        assertNull(today.ghostHigh)
+    }
+
+    @Test
+    fun `today ghost and bar top use synoptic observed high`() {
+        // Silurian + Synoptic actuals: current temp is 72.4, Synoptic peak is 97.7 —
+        // the middle column must rise to 97.7 (today's high from the actuals provider).
+        val now = LocalDateTime.parse("2026-06-03T15:00:00")
+        val state = DesktopDailyForecastModel.build(
+            config = config,
+            forecast = snapshot(
+                currentTemp = 72.4f,
+                currentCondition = "Sunny",
+                daily = listOf(DailyForecast("2026-06-03", 97f, 60f, "Sunny")),
+                dailyActuals = mapOf(
+                    "2026-06-03" to extreme("2026-06-03", 97.7f, 60.3f, "Sunny"),
+                ),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = now,
+        )
+
+        val today = state.days.find { it.date == LocalDate.parse("2026-06-03") }!!
+        assertEquals(97.7f, today.ghostHigh)
+        // Drawn bar top reaches the observed high (max of mercury and peak).
+        val drawnBarTop = listOfNotNull(today.barTopHigh, today.ghostHigh).maxOrNull()
+        assertEquals(97.7f, drawnBarTop)
     }
 
     @Test

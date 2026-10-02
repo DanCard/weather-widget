@@ -41,6 +41,12 @@ data class DesktopDailyDay(
     val solidLow: Float?,
     val forecastHigh: Float?,
     val forecastLow: Float?,
+    /**
+     * Thermostat bar top (shared [com.weatherwidget.shared.util.DailyDayValueResolver.TodayLineValues.barTopHigh]):
+     * [solidHigh] ?: [forecastHigh]. Today's middle bar draws to this so it still rises to
+     * today's high when the current reading and observed peak are both missing.
+     */
+    val barTopHigh: Float?,
     /** Today-only faint high-water mark (peak observed so far); ghost line reaches up to this. */
     val ghostHigh: Float?,
     val snapshotHigh: Float?,
@@ -294,6 +300,7 @@ object DesktopDailyForecastModel {
         val forecastLow: Float?
         // Ghost (high-water mark) is a today-only affordance, matching Android.
         var ghostHigh: Float? = null
+        var barTopHigh: Float? = null
         var solidIsForecastFallback = false
 
         when {
@@ -323,6 +330,7 @@ object DesktopDailyForecastModel {
                 solidHigh = pastValues.solidHigh
                 solidLow = pastValues.solidLow
                 solidIsForecastFallback = pastValues.solidIsForecastFallback
+                barTopHigh = solidHigh ?: forecastHigh
             }
             isToday -> {
                 val todayValues = com.weatherwidget.shared.util.DailyDayValueResolver.resolveTodayLineValues(
@@ -337,12 +345,14 @@ object DesktopDailyForecastModel {
                 forecastHigh = todayValues.forecastHigh
                 forecastLow = todayValues.forecastLow
                 ghostHigh = todayValues.ghostHigh
+                barTopHigh = todayValues.barTopHigh
             }
             else -> {
                 solidHigh = forecast?.highTemp
                 solidLow = forecast?.lowTemp
                 forecastHigh = null
                 forecastLow = null
+                barTopHigh = solidHigh
             }
         }
 
@@ -430,6 +440,7 @@ object DesktopDailyForecastModel {
             solidLow = solidLow,
             forecastHigh = forecastHigh,
             forecastLow = forecastLow,
+            barTopHigh = barTopHigh,
             ghostHigh = ghostHigh,
             snapshotHigh = displaySnapshot?.highTemp,
             snapshotLow = displaySnapshot?.lowTemp,

@@ -124,7 +124,7 @@ class DailyActualsStore @Inject constructor(
         // own observations nor a resolvable provider is still excluded.
         val actualsCapableSources = activeSourceList
             .map(WeatherSource::fromId)
-            .filter { it.supportsTemperatureActuals || ActualsProviderResolver.borrows(it) }
+            .filter { ActualsProviderResolver.hasTemperatureActuals(it) }
             .map { it.id }
             .toSet()
 

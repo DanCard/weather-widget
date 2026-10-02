@@ -260,18 +260,22 @@ fun DailyForecastGraph(
                     snapshotColor, day.cloudCoverRatio, day.snapshot?.condition,
                     pathEffect = standInDash(compactTodayBarWidth).takeIf { day.snapshotIsStale },
                 )
-                // The thermostat: solid red "mercury" (current temp), a faint ghost reaching up to
+                // The thermostat: solid red "mercury", a faint ghost reaching up to
                 // the day's high-water mark, and a round bulb at the low end. Drawn last so the
                 // mercury and bulb sit on top of the forecast/snapshot bars.
-                val solidHigh = day.solidHigh
+                // Bar top reaches today's high: mercury/forecast fallback (barTopHigh) plus the
+                // observed peak (ghostHigh — Synoptic/METAR for Silurian) so the column shows
+                // today's high temperature.
+                val mercuryTop = day.barTopHigh ?: day.solidHigh
                 val ghostHigh = day.ghostHigh
-                if (ghostHigh != null && solidHigh != null && ghostHigh > solidHigh) {
-                    drawRangeLine(centerX, ghostHigh, solidHigh, ::yAt, COLOR_OBSERVED.copy(alpha = GHOST_BAR_ALPHA), compactTodayBarWidth)
+                val barTop = listOfNotNull(mercuryTop, ghostHigh).maxOrNull()
+                if (ghostHigh != null && mercuryTop != null && ghostHigh > mercuryTop) {
+                    drawRangeLine(centerX, ghostHigh, mercuryTop, ::yAt, COLOR_OBSERVED.copy(alpha = GHOST_BAR_ALPHA), compactTodayBarWidth)
                 }
                 // The bulb sits at the mercury's bottom, which is never warmer than its top
                 // (current temp) — see DailyDayValueResolver.mercuryBottom.
-                val mercuryLow = com.weatherwidget.shared.util.DailyDayValueResolver.mercuryBottom(day.solidHigh, day.solidLow)
-                drawRangeLine(centerX, day.solidHigh, mercuryLow, ::yAt, COLOR_OBSERVED, compactTodayBarWidth)
+                val mercuryLow = com.weatherwidget.shared.util.DailyDayValueResolver.mercuryBottom(barTop, day.solidLow)
+                drawRangeLine(centerX, barTop, mercuryLow, ::yAt, COLOR_OBSERVED, compactTodayBarWidth)
                 mercuryLow?.let { low ->
                     val bulbRadius = compactTodayBarWidth * BULB_RADIUS_SCALE
                     drawCircle(
@@ -280,7 +284,7 @@ fun DailyForecastGraph(
                         center = Offset(centerX, yAt(low) + bulbRadius * BULB_VERTICAL_CENTER_FRACTION),
                     )
                 }
-                val todayHighs = listOfNotNull(day.solidHigh, day.forecastHigh, day.snapshotHigh, day.ghostHigh)
+                val todayHighs = listOfNotNull(barTop, day.forecastHigh, day.snapshotHigh, day.ghostHigh)
                 val todayLows = listOfNotNull(mercuryLow, day.forecastLow, day.snapshotLow)
                 todayBarTop = todayHighs.maxOrNull()?.let(::yAt) ?: (top + graphHeight * 0.35f)
                 todayBarBottom =

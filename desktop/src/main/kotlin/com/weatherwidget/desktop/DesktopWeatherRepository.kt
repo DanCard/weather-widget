@@ -258,7 +258,7 @@ class DesktopWeatherRepository(
         val latestObs = newestObs?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
 
         val resolved = resolveForForecastResult(hourly, observations, now)
-        val actuals = loadDailyActuals(daily)
+        val actuals = loadDailyActuals(daily, hourly, observations, now)
         val snapshots = loadDailySnapshots(daily)
 
         if (hourly.isEmpty() && daily.isEmpty()) {
@@ -1214,25 +1214,52 @@ class DesktopWeatherRepository(
             nighttimePrecipProbability = nighttimePrecipProbability,
         )
 
-    private fun loadDailyActuals(daily: List<DailyForecast>): Map<String, DailyHistory> {
-        if (daily.isEmpty()) return emptyMap()
-        if (!displaySource.supportsTemperatureActuals) return emptyMap()
-        val dates = daily.map { LocalDate.parse(it.date) }
-        val start = dates.min().minusDays(ACTUALS_HISTORY_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        val end = dates.max().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        val local = weatherDao.getDailyActuals(start, end, latitude, longitude, weatherSource)
-        // Yesterday measured at a previous site fills a day this site never measured (display-only,
-        // drawn dashed). See PreviousSiteHistory.
+    private fun loadDailyActuals(
+        daily: List<DailyForecast>,
+        hourly: List<HourlyForecast>,
+        observations: List<ObservationReading>,
+        now: Long,
+    ): Map<String, DailyHistory> {
+        // Match Android's DailyActualsStore: a forecast-only source (Silurian) borrows measured
+        // actuals (METAR/Synoptic), and those computedHigh/Low rows must load so today's
+        // high-water mark can rise to the day's high.
+        if (!ActualsProviderResolver.hasTemperatureActuals(displaySource)) return emptyMap()
+        if (daily.isEmpty() && observations.isEmpty()) return emptyMap()
         val today = LocalDate.now()
-        val yesterdayMs = today.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        val filled = PreviousSiteHistory.fill(
-            local = mapOf(weatherSource to local.mapKeys { LocalDate.parse(it.key) }),
-            candidates = weatherDao.getMeasuredExtremesForDateAnySite(yesterdayMs, weatherSource),
-            lat = latitude,
-            lon = longitude,
-            today = today,
-        )
-        return filled[weatherSource].orEmpty().mapKeys { it.key.toString() }
+        val past: Map<String, DailyHistory> = if (daily.isEmpty()) {
+            emptyMap()
+        } else {
+            val dates = daily.map { LocalDate.parse(it.date) }
+            val start = dates.min().minusDays(ACTUALS_HISTORY_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+            val end = dates.max().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+            val local = weatherDao.getDailyActuals(start, end, latitude, longitude, weatherSource)
+            // Yesterday measured at a previous site fills a day this site never measured (display-only,
+            // drawn dashed). See PreviousSiteHistory.
+            val yesterdayMs = today.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+            PreviousSiteHistory.fill(
+                local = mapOf(weatherSource to local.mapKeys { LocalDate.parse(it.key) }),
+                candidates = weatherDao.getMeasuredExtremesForDateAnySite(yesterdayMs, weatherSource),
+                lat = latitude,
+                lon = longitude,
+                today = today,
+            )[weatherSource].orEmpty().mapKeys { it.key.toString() }
+        }
+        // Today's high/low come from the live time-aligned blender over stored observations
+        // (Synoptic/METAR for Silurian) — Android DailyActualsLoader parity. A persisted
+        // daily_history row for today can lag the observation window or use a different
+        // aggregation method and must not override the live peak.
+        val liveToday = ActualsAggregator.aggregate(
+            observations = observations.filter { it.stationId != "NWS_BLEND" },
+            hourlyForecasts = hourly,
+            locationLat = latitude,
+            locationLon = longitude,
+            updatedAtMs = now,
+            personalStationWeight = personalStationWeight,
+        ).firstOrNull {
+            it.source == weatherSource && LocalDate.ofEpochDay(it.date / 86_400_000L) == today
+        }
+        if (liveToday == null) return past
+        return past + (today.toString() to liveToday)
     }
 
     private fun loadDailySnapshots(daily: List<DailyForecast>): Map<String, List<DailyForecastSnapshot>> {

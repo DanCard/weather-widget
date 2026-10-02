@@ -148,8 +148,146 @@ class DesktopWeatherRepositoryTest {
         assertNull(result.resolved.appliedDelta)
         assertNull(result.resolved.currentObservedAt)
         assertEquals("Forecast clear", result.resolved.currentCondition)
+        // Silurian's own include_past rows are forecast output, never temperature actuals.
+        // Borrowed Synoptic/METAR highs land in daily_history and load — see the test below.
         assertTrue(result.raw.dailyActuals.isEmpty())
         silurianService.close()
+    }
+
+    /**
+     * Silurian borrows measured actuals (Synoptic/METAR). Those blend rows live under
+     * `source=SILURIAN` with computedHighTemp/LowTemp and must load so today's thermostat
+     * ghost can rise to the day's high — desktop used to drop them via
+     * `!supportsTemperatureActuals`.
+     */
+    @Test
+    fun `loadCached includes silurian borrowed actuals from daily_history`() = runTest {
+        val now = (System.currentTimeMillis() / 3600_000L) * 3600_000L
+        val today = LocalDate.now()
+        val todayMs = today.toEpochDay() * 86_400_000L
+        val silurianService = DesktopWeatherService(37.4220, -122.0841, "SILURIAN")
+        val silurianRepository = DesktopWeatherRepository(
+            silurianService,
+            dao,
+            37.4220,
+            -122.0841,
+            "SILURIAN",
+            currentTimeMillis = { now },
+        )
+        dao.upsertHourlyForecasts(
+            37.4220,
+            -122.0841,
+            "SILURIAN",
+            listOf(
+                HourlyForecast(now, 64f, "Forecast clear", source = WeatherSource.SILURIAN.id),
+            ),
+        )
+        dao.upsertForecasts(
+            37.4220,
+            -122.0841,
+            "SILURIAN",
+            listOf(DailyForecast(today.toString(), 88f, 58f, "Sunny")),
+        )
+        dao.upsertDailyHistory(
+            listOf(
+                com.weatherwidget.data.model.DailyHistory(
+                    date = todayMs,
+                    source = WeatherSource.SILURIAN.id,
+                    locationLat = 37.4220,
+                    locationLon = -122.0841,
+                    computedHighTemp = 97.7f,
+                    computedLowTemp = 60.3f,
+                    condition = "Sunny",
+                    updatedAt = now,
+                ),
+            ),
+        )
+
+        val result = silurianRepository.loadCached(now)
+
+        assertNotNull(result)
+        val actual = result!!.raw.dailyActuals[today.toString()]
+        assertNotNull("borrowed Synoptic/METAR high must load for Silurian", actual)
+        assertEquals(97.7f, actual!!.computedHighTemp!!, 0.01f)
+        assertEquals(60.3f, actual.computedLowTemp!!, 0.01f)
+        silurianService.close()
+    }
+
+    /**
+     * Today's high must come from the configured actuals provider (Synoptic) live, not only
+     * from a possibly stale daily_history row — Android DailyActualsLoader parity.
+     */
+    @Test
+    fun `loadCached computes today high from live synoptic observations for silurian`() = runTest {
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { source ->
+            WeatherSource.SYNOPTIC.takeIf { source == WeatherSource.SILURIAN }
+        }
+        try {
+            val now = System.currentTimeMillis()
+            val today = LocalDate.now()
+            val zone = java.time.ZoneId.systemDefault()
+            val silurianService = DesktopWeatherService(37.4220, -122.0841, "SILURIAN")
+            val silurianRepository = DesktopWeatherRepository(
+                silurianService,
+                dao,
+                37.4220,
+                -122.0841,
+                "SILURIAN",
+                currentTimeMillis = { now },
+            )
+            dao.upsertHourlyForecasts(
+                37.4220,
+                -122.0841,
+                "SILURIAN",
+                listOf(HourlyForecast(now - 3600_000L, 64f, "Clear", source = WeatherSource.SILURIAN.id)),
+            )
+            dao.upsertForecasts(
+                37.4220,
+                -122.0841,
+                "SILURIAN",
+                listOf(DailyForecast(today.toString(), 88f, 58f, "Sunny")),
+            )
+            // Pin readings to today's local calendar day and inside the observation read window
+            // (`now-5h` can land on yesterday just after midnight).
+            val dayFloor = today.atStartOfDay(zone).toInstant().toEpochMilli()
+            val stamps = listOf(
+                maxOf(dayFloor, now - 3 * 3600_000L),
+                maxOf(dayFloor + 1_000L, now - 2 * 3600_000L),
+                maxOf(dayFloor + 2_000L, now - 1 * 3600_000L),
+            ).map { it.coerceAtMost(now) }
+            val synopticObs = stamps.mapIndexed { i, ts ->
+                DesktopObservationEntity(
+                    stationId = "G4110",
+                    stationName = "Synoptic site",
+                    timestamp = ts,
+                    temperature = 65f + i * 2f, // 65, 67, 69
+                    condition = "Clear",
+                    locationLat = 37.4220,
+                    locationLon = -122.0841,
+                    distanceKm = 1.2f,
+                    stationType = "OFFICIAL",
+                    fetchedAt = now,
+                    api = WeatherSource.SYNOPTIC.id,
+                )
+            }
+            dao.upsertObservations(synopticObs)
+
+            val result = silurianRepository.loadCached(now)
+
+            assertNotNull(result)
+            val actual = result!!.raw.dailyActuals[today.toString()]
+            assertNotNull(
+                "today's actual must come from live Synoptic observations; keys=${result.raw.dailyActuals.keys} " +
+                    "storedObs=${dao.getObservationsInRange(now - 6 * 3600_000L, now + 1, 37.4220, -122.0841).size}",
+                actual,
+            )
+            // Peak of the three readings is -1h → 69f.
+            assertEquals(69f, actual!!.computedHighTemp!!, 0.01f)
+            assertEquals(65f, actual.computedLowTemp!!, 0.01f)
+            silurianService.close()
+        } finally {
+            com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
+        }
     }
 
     @Test

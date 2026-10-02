@@ -4,6 +4,7 @@ import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.DailyDayValueResolver
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -34,6 +35,8 @@ object DailyActualsEstimator {
         val snapshotLow: Float? = null,
         val ghostLineHigh: Float? = null,
         val snapshotIconRes: Int? = null,
+        /** Shared thermostat bar top ([DailyDayValueResolver.TodayLineValues.barTopHigh]). */
+        val barTopHigh: Float? = solidLineHigh ?: dashedLineHigh,
     )
 
     /**
@@ -67,28 +70,28 @@ object DailyActualsEstimator {
                 (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
         }
 
-        // 1. Observed so far (history/current)
+        // 1. Observed so far (history/current) and 2. full-day prediction — one shared formula
+        // with desktop (DailyDayValueResolver). Hourly max/min still backs the dashed line when
+        // the API daily row is missing.
         val actual = dailyActuals[today]
-        // solidLineHigh represents the current 'mercury level'. 
-        // It shows the real-time temp if available, otherwise falls back to the peak reached so far.
-        val solidLineHigh = currentTemp ?: actual?.computedHighTemp
-        
-        // ghostLineHigh represents the faint high-water mark peak reached so far today.
-        val ghostLineHigh = actual?.computedHighTemp
-
-        // 2. Full-day prediction (including both past and future hours)
         val hourlyMax = todayHourly.maxOfOrNull { it.temperature }
         val hourlyMin = todayHourly.minOfOrNull { it.temperature }
-
-        // Prefer the official daily high/low from the API for the dashed line.
         val dashedLineHigh = fallbackWeather?.highTemp ?: hourlyMax
         val dashedLineLow = fallbackWeather?.lowTemp ?: hourlyMin
-
-        // solidLineLow equals the observed low when one exists; otherwise it stands in
-        // with the forecast low so the thermostat always shows a day range. currentTemp
-        // alone must never masquerade as an observed low (it colored the label red as a
-        // "settled actual" on forecast-only sources like Open-Meteo).
-        val solidLineLow = actual?.computedLowTemp ?: dashedLineLow
+        val resolved = DailyDayValueResolver.resolveTodayLineValues(
+            actualHigh = actual?.computedHighTemp,
+            actualLow = actual?.computedLowTemp,
+            forecastHigh = dashedLineHigh,
+            forecastLow = dashedLineLow,
+            currentTemp = currentTemp,
+        )
+        // solidLineHigh is the mercury (currentTemp ?: observed peak) — NOT barTopHigh. Callers
+        // that draw the thermostat top use DailyTodayResolver.finalHigh / TodayLineValues.barTopHigh
+        // (= solidLineHigh ?: dashedLineHigh) so the bar still rises to today's forecast high when
+        // both the current reading and an observed peak are missing.
+        val solidLineHigh = resolved.solidHigh
+        val ghostLineHigh = resolved.ghostHigh
+        val solidLineLow = resolved.solidLow
         val solidLineHighSource =
             when {
                 currentTemp != null -> "current_temp"
@@ -119,6 +122,7 @@ object DailyActualsEstimator {
             snapshotLow = snapshotLow,
             ghostLineHigh = ghostLineHigh,
             snapshotIconRes = snapshotIconRes,
+            barTopHigh = resolved.barTopHigh,
         )
     }
 

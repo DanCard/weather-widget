@@ -50,10 +50,12 @@ class LocationUpdaterIntegrationTest : IsolatedIntegrationTest("location_updater
             assertEquals(30.2672f, widgetPrefs().getFloat("${ConfigActivity.KEY_LAT_PREFIX}$id", Float.NaN), 0.0001f)
             assertEquals(-97.7431f, widgetPrefs().getFloat("${ConfigActivity.KEY_LON_PREFIX}$id", Float.NaN), 0.0001f)
         }
-        assertEquals(
-            "Austin|30.2672|-97.7431",
-            weatherPrefs().getString("historical_pois", null),
-        )
+        // Race-safe: an opportunistic GPS resample can append another POI while this test runs
+        // (observed: emulator fix "South Van Ness Avenue, San Francisco"). Assert Austin was
+        // recorded and is the latest entry — not that it is the only entry.
+        val pois = weatherPrefs().getString("historical_pois", null).orEmpty().split(";").filter { it.isNotEmpty() }
+        assertTrue("expected at least the Austin POI, got $pois", pois.isNotEmpty())
+        assertEquals("Austin|30.2672|-97.7431", pois.last())
     }
 
     @Test

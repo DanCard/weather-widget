@@ -34,6 +34,7 @@ class DailyForecastGraphTapZoneTest {
         solidLow = low,
         forecastHigh = null,
         forecastLow = null,
+        barTopHigh = high,
         ghostHigh = null,
         snapshotHigh = null,
         snapshotLow = null,

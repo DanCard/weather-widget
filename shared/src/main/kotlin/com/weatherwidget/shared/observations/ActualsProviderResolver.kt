@@ -52,6 +52,18 @@ object ActualsProviderResolver {
     fun borrows(source: WeatherSource): Boolean =
         source != WeatherSource.METAR && !source.supportsTemperatureActuals
 
+    /**
+     * True when [source] may carry measured highs/lows in `daily_history` — either its own
+     * observation product, or a borrowed one via [providerIdFor].
+     *
+     * Shared by Android's `DailyActualsStore` and desktop's `loadDailyActuals` so a forecast-only
+     * source (Silurian) is never dropped from the actuals read just because
+     * [WeatherSource.supportsTemperatureActuals] is false: its computed highs/lows come from
+     * METAR/Synoptic, and skipping them blanked today's high-water mark (ghost) on desktop.
+     */
+    fun hasTemperatureActuals(source: WeatherSource): Boolean =
+        source.supportsTemperatureActuals || borrows(source)
+
     /** True when [source] allows configuring an alternative actuals provider. */
     fun allowsAlternativeProvider(source: WeatherSource): Boolean =
         source != WeatherSource.GENERIC_GAP && source != WeatherSource.METAR && source != WeatherSource.SYNOPTIC

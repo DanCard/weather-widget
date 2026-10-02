@@ -73,6 +73,22 @@ class ActualsProviderResolverTest {
         assertFalse(ActualsProviderResolver.borrows(WeatherSource.WEATHER_API))
     }
 
+    /**
+     * Shared load gate for Android DailyActualsStore and desktop loadDailyActuals. Silurian
+     * must pass: its highs/lows are borrowed (METAR/Synoptic), and skipping it blanked
+     * today's high-water mark on desktop.
+     */
+    @Test
+    fun `hasTemperatureActuals includes borrowers and own-product sources`() {
+        assertTrue(ActualsProviderResolver.hasTemperatureActuals(WeatherSource.SILURIAN))
+        assertTrue(ActualsProviderResolver.hasTemperatureActuals(WeatherSource.NWS))
+        assertTrue(ActualsProviderResolver.hasTemperatureActuals(WeatherSource.OPEN_METEO))
+        assertTrue(ActualsProviderResolver.hasTemperatureActuals(WeatherSource.TOMORROW_IO))
+        assertTrue(ActualsProviderResolver.hasTemperatureActuals(WeatherSource.WEATHER_API))
+        // METAR is the measured provider itself — it has actuals, and does not "borrow".
+        assertTrue(ActualsProviderResolver.hasTemperatureActuals(WeatherSource.METAR))
+    }
+
     /** METAR is the provider; it must never be treated as needing one. */
     @Test
     fun `metar does not borrow from itself`() {

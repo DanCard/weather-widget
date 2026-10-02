@@ -96,7 +96,9 @@ internal object DailyTodayResolver {
             snapshotIconRes = snapshotIconRes,
         )
 
-        val finalHigh = tripleValues.solidLineHigh ?: tripleValues.dashedLineHigh
+        // Bar top (Android DayData.solidLineHigh): mercury ?: dashed forecast high — shared
+        // TodayLineValues.barTopHigh so desktop draws the same thermostat top.
+        val finalHigh = tripleValues.barTopHigh
         val finalLow = tripleValues.solidLineLow ?: tripleValues.dashedLineLow
         val fHigh = tripleValues.dashedLineHigh
         val fLow = tripleValues.dashedLineLow

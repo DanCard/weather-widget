@@ -940,6 +940,7 @@ currentCondition = "Sunny"),
             )
         },
         solidHigh = null, solidLow = null, forecastHigh = null, forecastLow = null,
+        barTopHigh = null,
         ghostHigh = null, snapshotHigh = null, snapshotLow = null,
         iconCondition = null, iconName = iconName,
         isToday = true, isPast = false, cloudCoverRatio = null,
