@@ -125,3 +125,54 @@ is unchanged.
   `BATTERY_OBS_ALARM outcome=fetch_enqueued|loop_ended`.
 - **Tests:** `BatteryObservationAlarmTest`, `BatteryObservationAlarmReceiverTest`, plus alarm
   assertions in `CurrentTempUpdateSchedulerTest`.
+
+## Revision 2: Adaptive Battery Saver (approved 2026-10-03: "run anyway")
+
+**Ordinary alarms were deferred a year.** The `setWindow` alarm never fired off-charger:
+`dumpsys alarm` showed `battery_saver=+364d` on it and on every other background app's plain alarm.
+Pixel's **Adaptive Battery Saver** follows the charger on this phone: ADAPTIVE at 15:40:08 (two
+seconds after unplug), OFF at 16:04:20 (re-plug), 27 activations since boot. The Settings toggle
+stays off. Its policy includes `force_all_apps_standby=true`, which holds back background apps'
+plain alarms and jobs while the screen is on too; a home-screen widget does not make the app
+active. This very likely also explains the stalled delayed WorkManager run in revision 1.
+
+**Change:**
+- **Alarm:** `setAndAllowWhileIdle`, which is exempt. The system gives it a window of 75% of the
+  delay, so the trigger sits at (nominal + 5 min) / 1.75: a 20-minute loop is delivered about
+  14.3–25 min out.
+- **Fetch:** the receiver and the screen-on catch-up enqueue it as expedited (API 31+,
+  `RUN_AS_NON_EXPEDITED_WORK_REQUEST`), which Battery Saver does not defer.
+- **Bug fix:** a pending alarm counts until its window closes, not until its trigger time. A
+  heartbeat at 16:00:30 had replaced a 15:58 alarm whose window ran to 16:03.
+
+**Verified under ADAPTIVE:** the new alarm shows `battery_saver=-524ms` (not deferred) and a window
+of `+6m51s` (= 0.75 × 548 s).
+
+## Integration tests (approved 2026-10-03)
+
+Each bug found today sat between classes; the per-class tests pass with all of them present.
+
+1. **`BatteryScreenOnObservationLoopIntegrationTest` (Robolectric).**
+   - Setup: two simulated hours on battery at 75% with the screen on, on a fake clock, with
+     WorkManager captured.
+   - Drives the real `ScreenOnReceiver` → `CurrentTempUpdateScheduler` → `BatteryObservationAlarm`
+     → `BatteryObservationAlarmReceiver` → `WidgetLoopScheduler` post-run chain.
+   - Interleaves a `ui_update_alarm` heartbeat every 15 min.
+   - Asserts: fetches 14–25 min apart, each NWS-only and expedited, never postponed by a
+     heartbeat. Plugging in or < 70% ends the chain; screen-off cancels the alarm.
+   - Small test seams: an injectable clock on the two receivers (same pattern as their
+     `ioDispatcher`) and a `nowMs` parameter on `manageCurrentTempLoopAfterRun`.
+2. **`scripts/check-battery-saver-alarm.sh` (device check, emulator).** The planned instrumented
+   test could not work: instrumentation runs inside the app's process and keeps it "active", which
+   exempts every alarm. Its own control alarm, a plain `set()`, showed `battery_saver=-14ms`, so the
+   test was deleted.
+   - The script drives the installed app from the host: unplug at 75%, the app arms its alarm on
+     screen-on, wait until the app is inactive, then turn on full Battery Saver
+     (`cmd power set-mode 1`), which re-evaluates every alarm.
+   - The emulator's stock adaptive policy has `force_all_apps_standby=false`, so full mode stands in
+     for the Pixel's adaptive mode.
+   - It requires at least one other alarm to be deferred `+…d` (the control).
+   - Verified both ways: the real build PASSes (`battery_saver=-1m21s`); a `setWindow` build FAILs
+     (`battery_saver=+364d`).
+   - The Robolectric test (5 cases) fails with `got 1` fetches when the pending-window bug is put
+     back.

@@ -17,13 +17,14 @@ internal object WidgetLoopScheduler {
         appLogDao: AppLogDao,
         device: DeviceContext,
         ignoreRunningWorkId: UUID? = null,
+        nowMs: Long = System.currentTimeMillis(),
     ) {
         when (CurrentTempFetchPolicy.postRunLoopAction(device.isCharging, device.isScreenInteractive, device.batteryLevel)) {
             CurrentTempFetchPolicy.PostRunLoopAction.SCHEDULE_NEXT ->
                 CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
                     context = context,
                     workManager = WorkManager.getInstance(context),
-                    nowMs = System.currentTimeMillis(),
+                    nowMs = nowMs,
                     ignoreRunningWorkId = ignoreRunningWorkId,
                     isScreenInteractive = device.isScreenInteractive,
                 )

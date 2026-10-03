@@ -16,6 +16,7 @@ import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -282,9 +283,11 @@ class CurrentTempUpdateSchedulerTest {
         }
 
         verify(exactly = 0) { mockWorkManager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) }
-        // 10-minute window centred on the 20-minute mark: delivered 15-25 min out.
+        // Allow-while-idle (exempt from Adaptive Battery Saver), placed so the system's 75% window
+        // ends 25 min out: delivered ~14.3-25 min.
         val alarm = shadowOf(alarmManager()).scheduledAlarms.single()
-        assertEquals(NOW_MS + TimeUnit.MINUTES.toMillis(15), alarm.triggerAtTime)
+        assertEquals(timingFor(nominalMinutes = 20).triggerMs, alarm.triggerAtTime)
+        assertTrue(alarm.isAllowWhileIdle)
         assertEquals(android.app.AlarmManager.RTC, alarm.type)
     }
 
@@ -302,7 +305,7 @@ class CurrentTempUpdateSchedulerTest {
             )
         }
 
-        assertEquals(NOW_MS + TimeUnit.MINUTES.toMillis(2), shadowOf(alarmManager()).scheduledAlarms.single().triggerAtTime)
+        assertEquals(timingFor(nominalMinutes = 7).triggerMs, shadowOf(alarmManager()).scheduledAlarms.single().triggerAtTime)
     }
 
     /**
@@ -322,8 +325,11 @@ class CurrentTempUpdateSchedulerTest {
             )
         }
 
-        assertEquals(NOW_MS + TimeUnit.MINUTES.toMillis(15), shadowOf(alarmManager()).scheduledAlarms.single().triggerAtTime)
+        assertEquals(timingFor(nominalMinutes = 20).triggerMs, shadowOf(alarmManager()).scheduledAlarms.single().triggerAtTime)
     }
+
+    private fun timingFor(nominalMinutes: Long) =
+        BatteryObservationAlarm.timing(NOW_MS + TimeUnit.MINUTES.toMillis(nominalMinutes), NOW_MS)
 
     private fun alarmManager() = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
 

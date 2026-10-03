@@ -83,6 +83,9 @@ class ScreenOnReceiver : BroadcastReceiver() {
      */
     internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO
 
+    /** Wall clock; replaced in tests that simulate hours of the battery screen-on loop. */
+    internal var clock: () -> Long = System::currentTimeMillis
+
     /**
      * Resolved through Hilt at call time rather than field-injected, so this stays a plain
      * BroadcastReceiver that tests can construct directly. Overridable as a test seam.
@@ -248,7 +251,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
      */
     private fun startBatteryScreenOnLoop(context: Context) {
         val battery = getBatteryState(context)
-        val nowMs = System.currentTimeMillis()
+        val nowMs = clock()
         val lastFetchMs = FetchMetadata.getLastCurrentTempFetchTime(context)
         val decision = CurrentTempFetchPolicy.screenOnCatchUp(
             isCharging = battery.isCharging,
@@ -267,12 +270,14 @@ class ScreenOnReceiver : BroadcastReceiver() {
                     reason = "battery_screen_on_catchup",
                     opportunistic = false,
                     targetSourceId = WidgetStateManager(context.applicationContext).getPrimarySource().id,
+                    expedited = true,
                 )
             CurrentTempFetchPolicy.ScreenOnCatchUp.SCHEDULE ->
                 CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
                     context = context,
                     isScreenInteractive = true,
                     firstDelayMinutes = CurrentTempFetchPolicy.screenOnFirstDelayMinutes(lastFetchMs, nowMs),
+                    nowMs = nowMs,
                 )
             CurrentTempFetchPolicy.ScreenOnCatchUp.NONE -> Unit
         }

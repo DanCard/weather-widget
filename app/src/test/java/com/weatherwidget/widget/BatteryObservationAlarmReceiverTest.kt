@@ -38,7 +38,7 @@ class BatteryObservationAlarmReceiverTest {
         receiver = BatteryObservationAlarmReceiver().apply { ioDispatcher = UnconfinedTestDispatcher() }
         shadowOf(context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager).turnScreenOn(true)
         mockkObject(CurrentTempUpdateScheduler)
-        every { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any()) } just Runs
+        every { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any(), any()) } just Runs
         mockkObject(BatterySnapshotProvider)
     }
 
@@ -62,6 +62,7 @@ class BatteryObservationAlarmReceiverTest {
                 force = false,
                 targetSourceId = WidgetStateManager(context).getPrimarySource().id,
                 userInteraction = false,
+                expedited = true,
             )
         }
         assertEquals(1, shadowOf(alarmManager()).scheduledAlarms.size)
@@ -75,7 +76,7 @@ class BatteryObservationAlarmReceiverTest {
         every { BatterySnapshotProvider.snapshot(any()) } returns BatterySnapshot(isCharging = false, batteryLevel = 69)
         receiver.onReceive(context, Intent())
 
-        verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any(), any()) }
         assertEquals(0, shadowOf(alarmManager()).scheduledAlarms.size)
     }
 
@@ -86,7 +87,7 @@ class BatteryObservationAlarmReceiverTest {
 
         receiver.onReceive(context, Intent())
 
-        verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any(), any()) }
     }
 
     private fun alarmManager() = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager

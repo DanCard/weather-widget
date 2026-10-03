@@ -245,8 +245,8 @@ class ScreenOnReceiverTest {
         mockkObject(BatterySnapshotProvider)
         every { BatterySnapshotProvider.snapshot(any()) } returns BatterySnapshot(isCharging = charging, batteryLevel = level)
         mockkObject(CurrentTempUpdateScheduler)
-        every { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any()) } just Runs
-        every { CurrentTempUpdateScheduler.scheduleNextChargingUpdate(any<Context>(), any<Boolean>(), any<Long>()) } just Runs
+        every { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any(), any()) } just Runs
+        every { CurrentTempUpdateScheduler.scheduleNextChargingUpdate(any<Context>(), any<Boolean>(), any<Long>(), any<Long>()) } just Runs
         com.weatherwidget.data.repository.FetchMetadata.setLastCurrentTempFetchTime(context, lastFetchMs)
     }
 
@@ -264,9 +264,10 @@ class ScreenOnReceiverTest {
                 force = false,
                 targetSourceId = WidgetStateManager(context).getPrimarySource().id,
                 userInteraction = false,
+                expedited = true,
             )
         }
-        verify(exactly = 0) { CurrentTempUpdateScheduler.scheduleNextChargingUpdate(any<Context>(), any<Boolean>(), any<Long>()) }
+        verify(exactly = 0) { CurrentTempUpdateScheduler.scheduleNextChargingUpdate(any<Context>(), any<Boolean>(), any<Long>(), any<Long>()) }
     }
 
     @Test
@@ -275,12 +276,13 @@ class ScreenOnReceiverTest {
 
         receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
 
-        verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any(), any()) }
         verify {
             CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
                 context = any(),
                 isScreenInteractive = true,
                 firstDelayMinutes = match { it in 14L..15L },
+                nowMs = any(),
             )
         }
     }
@@ -293,8 +295,8 @@ class ScreenOnReceiverTest {
         every { BatterySnapshotProvider.snapshot(any()) } returns BatterySnapshot(isCharging = true, batteryLevel = 100)
         receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
 
-        verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any()) }
-        verify(exactly = 0) { CurrentTempUpdateScheduler.scheduleNextChargingUpdate(any<Context>(), any<Boolean>(), any<Long>()) }
+        verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { CurrentTempUpdateScheduler.scheduleNextChargingUpdate(any<Context>(), any<Boolean>(), any<Long>(), any<Long>()) }
     }
 
     @Test

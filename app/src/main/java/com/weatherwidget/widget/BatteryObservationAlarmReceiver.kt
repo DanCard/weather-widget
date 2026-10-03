@@ -22,6 +22,9 @@ import kotlinx.coroutines.launch
 class BatteryObservationAlarmReceiver : BroadcastReceiver() {
     internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO
 
+    /** Wall clock; replaced in tests that simulate hours of the loop. */
+    internal var clock: () -> Long = System::currentTimeMillis
+
     override fun onReceive(context: Context, intent: Intent) {
         BatteryObservationAlarm.markFired(context)
         val battery = BatterySnapshotProvider.snapshot(context)
@@ -35,12 +38,15 @@ class BatteryObservationAlarmReceiver : BroadcastReceiver() {
                 reason = CurrentTempFetchPolicy.loopReason(isCharging = false, overdue = false),
                 opportunistic = false,
                 targetSourceId = WidgetStateManager(context.applicationContext).getPrimarySource().id,
+                expedited = true,
             )
+            val nowMs = clock()
             BatteryObservationAlarm.arm(
                 context,
-                System.currentTimeMillis() + java.util.concurrent.TimeUnit.MINUTES.toMillis(
+                nowMs + java.util.concurrent.TimeUnit.MINUTES.toMillis(
                     CurrentTempFetchPolicy.BATTERY_SCREEN_ON_INTERVAL_MINUTES,
                 ),
+                nowMs,
             )
         }
         Log.d(TAG, "fired: runs=$runs charging=${battery.isCharging} battery=${battery.batteryLevel} interactive=$interactive")

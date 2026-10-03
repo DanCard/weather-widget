@@ -38,6 +38,7 @@ object CurrentTempUpdateScheduler {
         force: Boolean = false,
         targetSourceId: String? = null,
         userInteraction: Boolean = false,
+        expedited: Boolean = false,
     ) {
         runCatching {
             val constraints =
@@ -63,6 +64,15 @@ object CurrentTempUpdateScheduler {
                             .build(),
                     )
                     .setConstraints(constraints)
+                    .apply {
+                        // Expedited = an expedited job on API 31+, which Battery Saver does not
+                        // defer (the battery screen-on loop runs under Adaptive Battery Saver).
+                        // Below 31 WorkManager would need a foreground-service notification this
+                        // worker does not have — same rule as LocationUpdater.buildForceRefreshRequest.
+                        if (expedited && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                            setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                        }
+                    }
                     .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
@@ -78,7 +88,7 @@ object CurrentTempUpdateScheduler {
                 tag = "CURR_FETCH_WORK_ENQUEUED",
                 message =
                     "type=immediate reason=$reason opportunistic=$opportunistic force=$force target=${targetSourceId ?: "all_visible"} " +
-                        "userInteraction=$userInteraction " +
+                        "userInteraction=$userInteraction expedited=$expedited " +
                         "policyDelayMinutes=0 dueAt=${formatTime(System.currentTimeMillis())} " +
                         "workId=${workRequest.id}",
             )
@@ -96,13 +106,14 @@ object CurrentTempUpdateScheduler {
         context: Context,
         isScreenInteractive: Boolean = true,
         firstDelayMinutes: Long? = null,
+        nowMs: Long = System.currentTimeMillis(),
     ) {
         CoroutineScope(Dispatchers.IO).launch {
             runCatching {
                 scheduleNextChargingUpdate(
                     context = context,
                     workManager = WorkManager.getInstance(context),
-                    nowMs = System.currentTimeMillis(),
+                    nowMs = nowMs,
                     isScreenInteractive = isScreenInteractive,
                     firstDelayMinutes = firstDelayMinutes,
                 )
