@@ -281,8 +281,27 @@ object TemperatureExtrema {
 
         val hasTransition = transitionX != null
         val pastForecastIndices = if (hasTransition) (0..actualEndIndex).filter { it in labelTemps.indices && !labelTemps[it].isNaN() } else emptyList()
-        val pastForecastHighIndex = if (hasTransition) pastForecastIndices.maxByOrNull { labelTemps[it] } ?: -1 else -1
-        val pastForecastLowIndex = if (hasTransition) pastForecastIndices.minByOrNull { labelTemps[it] } ?: -1 else -1
+        // Same rule as the actual series: a window edge (left edge or NOW) is never an extreme, and an
+        // edge that is more extreme blocks any lesser interior substitute. So take the segment's
+        // ABSOLUTE max/min, then keep it only if its plateau turns inside the segment. Without this, a
+        // forecast still descending when NOW cuts it labelled the start of its flat run (e.g. "64°" at
+        // 02:00 while the forecast went on to 63° at 04:00).
+        fun turnsInsidePastSegment(i: Int, isLow: Boolean): Boolean {
+            val v = labelTemps[i]
+            fun confirmed(step: Int): Boolean {
+                var j = i + step
+                while (j in 0..actualEndIndex && labelTemps[j] == v) j += step
+                if (j !in 0..actualEndIndex || labelTemps[j].isNaN()) return false
+                return if (isLow) labelTemps[j] > v else labelTemps[j] < v
+            }
+            return confirmed(-1) && confirmed(+1)
+        }
+        val pastForecastHighIndex = if (hasTransition) {
+            pastForecastIndices.maxByOrNull { labelTemps[it] }?.takeIf { turnsInsidePastSegment(it, isLow = false) } ?: -1
+        } else -1
+        val pastForecastLowIndex = if (hasTransition) {
+            pastForecastIndices.minByOrNull { labelTemps[it] }?.takeIf { turnsInsidePastSegment(it, isLow = true) } ?: -1
+        } else -1
 
         if (forecastHighIndex >= 0 && forecastLowIndex >= 0) {
             val forecastDates = forecastIndices.map { hours[it].dateTime.toLocalDate() }.distinct()
