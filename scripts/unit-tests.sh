@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 GRADLEW="$ROOT_DIR/gradlew"
-RUN_MODE="Fresh"
+RUN_MODE=""
 STREAM_OUTPUT=false
 LOG_FILE=""
 INSTALL_MODE=false
@@ -59,6 +59,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# Default is cached (--cached): Gradle skips a bucket whose inputs are unchanged and the summary
+# says "cached". --fresh forces every :app bucket to run (user's call 2026-10-03: cached is fine).
 # Explicit bucket selection means "run only what I asked for": the parallel
 # :shared/:desktop run rides along only on default (no-args) full runs.
 DEFAULT_RUN=false
@@ -196,28 +198,44 @@ for xml_file in sorted(results_dir.glob("TEST-*.xml")):
 PY
 }
 
-emit_bucket_summary() {
-  local bucket=$1
-  local results_dir=$2
-  if [ ! -d "$results_dir" ]; then
+# One summary line for a test task's results. Tests are cached by default (2026-10-03): when Gradle
+# skips the task (UP-TO-DATE / FROM-CACHE) the XML on disk is from an earlier run, so say "cached"
+# instead of reporting that run's duration as this one's.
+#   $1 label   $2 results dir   $3 Gradle log that ran the task   $4 task path (e.g. :app:testLongDebugUnitTest)
+emit_results_summary() {
+  local label=$1 results_dir=$2 task_log=$3 task_path=$4
+  if [ ! -d "$results_dir" ] || ! compgen -G "$results_dir/TEST-*.xml" >/dev/null 2>&1; then
     return 1
   fi
-  if ! compgen -G "$results_dir/TEST-*.xml" >/dev/null; then
-    return 1
+  local test_count failures errors skipped duration
+  IFS='|' read -r test_count failures errors skipped duration <<<"$(bucket_result_summary "$results_dir")"
+  local result_failures=$((failures + errors))
+  local cached=false
+  if [ -n "$task_log" ] && grep -qE "^> Task ${task_path} (UP-TO-DATE|FROM-CACHE)" "$task_log" 2>/dev/null; then
+    cached=true
   fi
-
-  IFS='|' read -r test_count failures errors skipped bucket_duration <<<"$(bucket_result_summary "$results_dir")"
-  bucket_failures=$((failures + errors))
-  if [ "$bucket_failures" -gt 0 ]; then
-    log_and_echo "${test_count} ${bucket,,} tests: ${RED}${bucket_failures} failed.${NC}"
+  if [ "$result_failures" -gt 0 ]; then
+    log_and_echo "${test_count} ${label} tests: ${RED}${result_failures} failed.${NC}"
     list_failed_tests "$results_dir" | while IFS= read -r line; do
       log_and_echo "${RED}${line}${NC}"
     done
+  elif [ "$cached" = true ]; then
+    log_and_echo "${test_count} ${label} tests: cached (up to date; last ran $(date -r "$results_dir" +%H:%M 2>/dev/null || echo "?"))."
   elif [ "$skipped" -gt 0 ]; then
-    log_and_echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$bucket_duration")."
+    log_and_echo "${test_count} ${label} tests passed (${skipped} skipped) in $(format_seconds "${duration:-0}")."
   else
-    log_and_echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration").  "
+    log_and_echo "${test_count} ${label} tests passed in $(format_seconds "${duration:-0}")."
   fi
+}
+
+emit_bucket_summary() {
+  local bucket=$1 results_dir=$2 task_log=$3 task_name=$4
+  emit_results_summary "${bucket,,}" "$results_dir" "$task_log" ":app:${task_name}"
+}
+
+emit_module_summary() {
+  local module=$1
+  emit_results_summary "$module" "$ROOT_DIR/$module/build/test-results/test" "${shared_desktop_log:-}" ":${module}:test"
 }
 
 start_single_invocation_summary_monitor() {
@@ -254,22 +272,43 @@ start_single_invocation_summary_monitor() {
 
   (
     local pending=("${BUCKETS[@]}")
+    # :shared/:desktop run in their own background Gradle process; report them the moment it
+    # exits instead of after the (Long-bound) :app run, which made them look slow.
+    if [ -n "${SHARED_DESKTOP_PID:-}" ]; then
+      pending+=(shared desktop)
+    fi
     while [ "${#pending[@]}" -gt 0 ]; do
       local remaining=()
       for bucket in "${pending[@]:-}"; do
         [ -z "$bucket" ] && continue
+        if [ "$bucket" = shared ] || [ "$bucket" = desktop ]; then
+          if ! kill -0 "$SHARED_DESKTOP_PID" 2>/dev/null; then
+            # Exited: report what it left (no XML = it failed before running tests; the
+            # post-run block reports that with the Gradle log).
+            if emit_module_summary "$bucket"; then
+              touch "$SINGLE_INVOCATION_REPORTED_DIR/$bucket"
+            fi
+            continue
+          fi
+          remaining+=("$bucket")
+          continue
+        fi
         local task_name="test${bucket}DebugUnitTest${RUN_MODE}"
         local report_html="$ROOT_DIR/app/build/reports/tests/${task_name}/index.html"
         local results_dir="$ROOT_DIR/app/build/test-results/${task_name}"
-        if [ -f "$report_html" ]; then
+        # Done = a report written by THIS run, or Gradle said it skipped the task (a cached
+        # bucket never rewrites its report, so the mtime test alone would wait forever).
+        local done_now=false
+        if grep -qE "^> Task :app:${task_name} (UP-TO-DATE|FROM-CACHE)" "$gradle_log" 2>/dev/null; then
+          done_now=true
+        elif [ -f "$report_html" ]; then
           local mtime
           mtime=$(stat -c %Y "$report_html" 2>/dev/null || echo 0)
-          if [ "$mtime" -ge "$OVERALL_START" ]; then
-            if emit_bucket_summary "$bucket" "$results_dir"; then
-              touch "$SINGLE_INVOCATION_REPORTED_DIR/$bucket"
-              continue
-            fi
-          fi
+          [ "$mtime" -ge "$OVERALL_START" ] && done_now=true
+        fi
+        if [ "$done_now" = true ] && emit_bucket_summary "$bucket" "$results_dir" "$gradle_log" "$task_name"; then
+          touch "$SINGLE_INVOCATION_REPORTED_DIR/$bucket"
+          continue
         fi
         remaining+=("$bucket")
       done
@@ -386,15 +425,9 @@ for module in shared desktop; do
     total_tests=$((total_tests + test_count))
     module_failures=$((failures + errors))
     total_failures=$((total_failures + module_failures))
-    if [ "$module_failures" -gt 0 ]; then
-      log_and_echo "${test_count} ${module} tests: ${RED}${module_failures} failed.${NC}"
-      list_failed_tests "$results_dir" | while IFS= read -r line; do
-        log_and_echo "${RED}${line}${NC}"
-      done
-    elif [ "$skipped" -gt 0 ]; then
-      log_and_echo "${test_count} ${module} tests passed (${skipped} skipped) in $(format_seconds "${module_duration:-0}")."
-    else
-      log_and_echo "${test_count} ${module} tests passed in $(format_seconds "${module_duration:-0}")."
+    # Usually already printed live by the poller when the background run exited.
+    if [ -z "${SINGLE_INVOCATION_REPORTED_DIR:-}" ] || [ ! -f "$SINGLE_INVOCATION_REPORTED_DIR/$module" ]; then
+      emit_module_summary "$module"
     fi
   elif [ "$shared_desktop_status" -ne 0 ]; then
     log_and_echo "${RED}:${module} tests failed (exit $shared_desktop_status)${NC}"
@@ -419,16 +452,7 @@ for bucket in "${BUCKETS[@]}"; do
     bucket_failures=$((failures + errors))
     total_failures=$((total_failures + bucket_failures))
     if [ -z "${SINGLE_INVOCATION_REPORTED_DIR:-}" ] || [ ! -f "$SINGLE_INVOCATION_REPORTED_DIR/$bucket" ]; then
-      if [ "$bucket_failures" -gt 0 ]; then
-        log_and_echo "${test_count} ${bucket,,} tests: ${RED}${bucket_failures} failed.${NC}"
-        list_failed_tests "$results_dir" | while IFS= read -r line; do
-          log_and_echo "${RED}${line}${NC}"
-        done
-      elif [ "$skipped" -gt 0 ]; then
-        log_and_echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$bucket_duration")."
-      else
-        log_and_echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration")."
-      fi
+      emit_bucket_summary "$bucket" "$results_dir" "$gradle_log" "test${bucket}DebugUnitTest${RUN_MODE}"
     fi
   fi
 done
