@@ -298,12 +298,25 @@ class WeatherWidgetWorker
                 "id=$id reason=${input.currentTempReason} isPlugged=${device.isCharging} isInteractive=${device.isScreenInteractive} opportunistic=${input.opportunisticCurrentTemp}",
             )
 
-            val targetSource = input.targetSourceId?.let(WeatherSource::fromId)
             return try {
                 val isManual = input.forceRefresh ||
                     input.userInteraction ||
                     input.currentTempReason.contains("manual") ||
                     input.currentTempReason.contains("force")
+                // On battery a background run fetches the primary source only, whatever the request
+                // was built with: a charging-loop request enqueued while plugged in carries no target
+                // (= every visible source) and can run after the unplug, now that the screen-on
+                // battery loop lets it through (performance/261003-observations-every-20-min-on-battery-screen-on.md).
+                val targetSourceId = input.targetSourceId
+                    ?: if (!isManual) {
+                        CurrentTempFetchPolicy.opportunisticTargetSourceId(
+                            isCharging = device.isCharging,
+                            primarySourceId = widgetStateManager.getPrimarySource().id,
+                        )
+                    } else {
+                        null
+                    }
+                val targetSource = targetSourceId?.let(WeatherSource::fromId)
                 var resultMessage = "success"
                 var fetchDurationMs = 0L
                 var attemptedSourceCount = 0

@@ -92,7 +92,11 @@ object CurrentTempUpdateScheduler {
         }
     }
 
-    fun scheduleNextChargingUpdate(context: Context, isScreenInteractive: Boolean = true) {
+    fun scheduleNextChargingUpdate(
+        context: Context,
+        isScreenInteractive: Boolean = true,
+        firstDelayMinutes: Long? = null,
+    ) {
         CoroutineScope(Dispatchers.IO).launch {
             runCatching {
                 scheduleNextChargingUpdate(
@@ -100,6 +104,7 @@ object CurrentTempUpdateScheduler {
                     workManager = WorkManager.getInstance(context),
                     nowMs = System.currentTimeMillis(),
                     isScreenInteractive = isScreenInteractive,
+                    firstDelayMinutes = firstDelayMinutes,
                 )
             }.onFailure { e ->
                 Log.e(TAG, "scheduleNextChargingUpdate failed: ${e.message}", e)
@@ -119,11 +124,38 @@ object CurrentTempUpdateScheduler {
         nowMs: Long,
         ignoreRunningWorkId: UUID? = null,
         isScreenInteractive: Boolean = true,
+        firstDelayMinutes: Long? = null,
     ) {
-        val isCharging = BatterySnapshotProvider.snapshot(context).isCharging
-        Log.d(TAG, "scheduleNextChargingUpdate: isCharging=$isCharging isScreenInteractive=$isScreenInteractive ignoreRunningWorkId=$ignoreRunningWorkId")
+        val battery = BatterySnapshotProvider.snapshot(context)
+        val isCharging = battery.isCharging
+        Log.d(TAG, "scheduleNextChargingUpdate: isCharging=$isCharging battery=${battery.batteryLevel} isScreenInteractive=$isScreenInteractive ignoreRunningWorkId=$ignoreRunningWorkId")
 
-        val intervalMinutes = CurrentTempFetchPolicy.chargingIntervalMinutes(isScreenInteractive)
+        // Callers (the ui_update_alarm heartbeat among them) ask unconditionally; scheduling a run
+        // the policy will block on arrival only produces a `policy_blocked` no-op later.
+        val intervalMinutes =
+            CurrentTempFetchPolicy.loopIntervalMinutes(isCharging, isScreenInteractive, battery.batteryLevel)
+        if (intervalMinutes == null) {
+            Log.d(TAG, "scheduleNextChargingUpdate: loop not allowed, nothing scheduled")
+            return
+        }
+        val delayMinutes = firstDelayMinutes?.coerceAtMost(intervalMinutes) ?: intervalMinutes
+
+        // On battery the loop is timed by a non-wakeup alarm, not a delayed WorkManager request:
+        // JobScheduler held a ready 15-minute request for 13+ minutes past due on the Pixel
+        // (see BatteryObservationAlarm). The alarm enqueues an immediate request when it fires.
+        if (!isCharging) {
+            val triggerAtMs = nowMs + TimeUnit.MINUTES.toMillis(delayMinutes)
+            val armed = BatteryObservationAlarm.arm(context, triggerAtMs, nowMs)
+            logSchedulerEvent(
+                context = context,
+                tag = "CURR_FETCH_WORK_REQUESTED",
+                message =
+                    "type=battery_alarm reason=${CurrentTempFetchPolicy.loopReason(isCharging = false, overdue = false)} " +
+                        "decision=${if (armed) "armed" else "kept_earlier"} delayMinutes=$delayMinutes " +
+                        "requestedDueAt=${formatTime(triggerAtMs)}",
+            )
+            return
+        }
 
         val existingWork =
             withContext(Dispatchers.IO) {
@@ -150,8 +182,8 @@ object CurrentTempUpdateScheduler {
             ChargingLoopAction.REPLACE_IMMEDIATE,
             -> {
                 val immediate = decision.action == ChargingLoopAction.REPLACE_IMMEDIATE
-                val reason = if (immediate) "charging_loop_overdue" else "charging_loop"
-                val workRequest = buildCurrentTempRequest(reason = reason, delayMinutes = if (immediate) 0 else intervalMinutes)
+                val reason = CurrentTempFetchPolicy.loopReason(isCharging, overdue = immediate)
+                val workRequest = buildCurrentTempRequest(reason = reason, delayMinutes = if (immediate) 0 else delayMinutes)
                 val policy =
                     when (decision.action) {
                         ChargingLoopAction.ENQUEUE_DELAYED -> ExistingWorkPolicy.APPEND_OR_REPLACE
@@ -169,13 +201,13 @@ object CurrentTempUpdateScheduler {
                     workRequest,
                 )
                 val dueAtMs =
-                    nowMs + TimeUnit.MINUTES.toMillis(if (immediate) 0 else intervalMinutes)
+                    nowMs + TimeUnit.MINUTES.toMillis(if (immediate) 0 else delayMinutes)
                 logSchedulerEvent(
                     context = context,
                     tag = "CURR_FETCH_WORK_REQUESTED",
                     message =
                         "type=charging_loop reason=$reason decision=${decision.action.logValue} " +
-                            "policy=${policy.name.lowercase()} delayMinutes=${if (immediate) 0 else intervalMinutes} " +
+                            "policy=${policy.name.lowercase()} delayMinutes=${if (immediate) 0 else delayMinutes} " +
                             "requestedDueAt=${formatTime(dueAtMs)} workId=${workRequest.id}",
                 )
                 if (decision.action == ChargingLoopAction.REPLACE_DELAYED || decision.action == ChargingLoopAction.REPLACE_IMMEDIATE) {

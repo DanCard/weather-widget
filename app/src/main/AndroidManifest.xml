@@ -139,6 +139,10 @@
             android:name=".widget.UIUpdateReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".widget.BatteryObservationAlarmReceiver"
+            android:exported="false" />
+
         <service
             android:name=".widget.OpportunisticUpdateJobService"
             android:permission="android.permission.BIND_JOB_SERVICE"

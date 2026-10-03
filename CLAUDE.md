@@ -235,6 +235,7 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 |-------------|-----------|--------|---------|
 | Current Temp UI | 15-60 min (temp-based) | No (opportunistic) | Update interpolated temp from cache |
 | Data Fetch | 60-1440 min (battery-aware) | Yes (controlled) | Fetch from APIs |
+| Recent observations | Charging 10 min (screen off 16); **battery ≥70% + screen on ~20 min** (non-wakeup alarm, 10-min window ⇒ 15–25 min; screen-on fetches now if last ≥20 min; primary source only); else 45-min opportunistic job (>65%) | No (charging: WorkManager loop; battery: RTC alarm; 45-min: JobScheduler) | `CurrentTempFetchPolicy.loopIntervalMinutes` is the one rule; desktop mirrors it (`performance/261003-observations-every-20-min-on-battery-screen-on.md`) |
 | User Interaction | Immediate | N/A | Instant UI + conditional fetch |
 | Charger plug-in | Immediate | JobScheduler charging constraint | `PowerConnectedJobService`: refresh + location resample |
 | Screen Unlock | **Never fires** | N/A | `ScreenOnReceiver` declares `USER_PRESENT` in the manifest and measured zero deliveries over three days on two devices. `ACTION_SCREEN_ON` is not registered at all, and cannot be from a manifest (`FLAG_RECEIVER_REGISTERED_ONLY`; see `android/content/Intent.java`). Do not "fix" this by adding `SCREEN_ON` to the manifest — it will silently do nothing. |

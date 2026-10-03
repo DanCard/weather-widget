@@ -18,7 +18,7 @@ internal object WidgetLoopScheduler {
         device: DeviceContext,
         ignoreRunningWorkId: UUID? = null,
     ) {
-        when (CurrentTempFetchPolicy.postRunLoopAction(device.isCharging, device.isScreenInteractive)) {
+        when (CurrentTempFetchPolicy.postRunLoopAction(device.isCharging, device.isScreenInteractive, device.batteryLevel)) {
             CurrentTempFetchPolicy.PostRunLoopAction.SCHEDULE_NEXT ->
                 CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
                     context = context,
@@ -30,7 +30,8 @@ internal object WidgetLoopScheduler {
             CurrentTempFetchPolicy.PostRunLoopAction.NO_RESCHEDULE ->
                 appLogDao.log(
                     "CURR_FETCH_LOOP_STOP",
-                    "reason=policy_blocked plugged=${device.isCharging} interactive=${device.isScreenInteractive} action=no_reschedule",
+                    "reason=policy_blocked plugged=${device.isCharging} interactive=${device.isScreenInteractive} " +
+                        "battery=${device.batteryLevel} action=no_reschedule",
                     "INFO",
                 )
         }

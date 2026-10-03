@@ -52,6 +52,7 @@ internal object WidgetRefreshCoordinator {
             CurrentTempFetchPolicy.shouldScheduleChargingLoop(
                 isCharging,
                 powerManager.isInteractive,
+                snapshot.batteryLevel,
             )
         ) {
             CurrentTempUpdateScheduler.scheduleNextChargingUpdate(

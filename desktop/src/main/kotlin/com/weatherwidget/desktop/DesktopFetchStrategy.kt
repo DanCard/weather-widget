@@ -29,6 +29,12 @@ object DesktopFetchStrategy {
             return minutes * MS_PER_MINUTE
         }
 
+        // Same rule as Android's CurrentTempFetchPolicy.loopIntervalMinutes: on battery with the
+        // screen on at >= 70%, every 20 min (performance/261003-observations-every-20-min-on-battery-screen-on.md).
+        if (BatteryTier.screenOnObservationAllowed(batteryLevel, screenOn)) {
+            return BatteryTier.SCREEN_ON_OBSERVATION_INTERVAL_MINUTES * MS_PER_MINUTE
+        }
+
         return when {
             batteryLevel > BatteryTier.TIER_HIGH_THRESHOLD -> BatteryTier.INTERVAL_HIGH_MINUTES * MS_PER_MINUTE
             batteryLevel > BatteryTier.TIER_MEDIUM_THRESHOLD -> BatteryTier.INTERVAL_MEDIUM_MINUTES * MS_PER_MINUTE

@@ -239,6 +239,75 @@ class ScreenOnReceiverTest {
         assertTrue("Did not expect refresh broadcast on screen off", actionIntent == null)
     }
 
+    // --- Battery screen-on observation loop (performance/261003-observations-every-20-min-on-battery-screen-on.md)
+
+    private fun stubScreenOnLoop(level: Int, charging: Boolean, lastFetchMs: Long) {
+        mockkObject(BatterySnapshotProvider)
+        every { BatterySnapshotProvider.snapshot(any()) } returns BatterySnapshot(isCharging = charging, batteryLevel = level)
+        mockkObject(CurrentTempUpdateScheduler)
+        every { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any()) } just Runs
+        every { CurrentTempUpdateScheduler.scheduleNextChargingUpdate(any<Context>(), any<Boolean>(), any<Long>()) } just Runs
+        com.weatherwidget.data.repository.FetchMetadata.setLastCurrentTempFetchTime(context, lastFetchMs)
+    }
+
+    @Test
+    fun `SCREEN_ON on battery at 70 percent with a stale fetch fetches the primary source now`() {
+        stubScreenOnLoop(level = 70, charging = false, lastFetchMs = System.currentTimeMillis() - 25 * 60_000L)
+
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+
+        verify {
+            CurrentTempUpdateScheduler.enqueueImmediateUpdate(
+                context = any(),
+                reason = "battery_screen_on_catchup",
+                opportunistic = false,
+                force = false,
+                targetSourceId = WidgetStateManager(context).getPrimarySource().id,
+                userInteraction = false,
+            )
+        }
+        verify(exactly = 0) { CurrentTempUpdateScheduler.scheduleNextChargingUpdate(any<Context>(), any<Boolean>(), any<Long>()) }
+    }
+
+    @Test
+    fun `SCREEN_ON on battery with a recent fetch starts the loop for the rest of the interval`() {
+        stubScreenOnLoop(level = 90, charging = false, lastFetchMs = System.currentTimeMillis() - 5 * 60_000L)
+
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+
+        verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any()) }
+        verify {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = any(),
+                isScreenInteractive = true,
+                firstDelayMinutes = match { it in 14L..15L },
+            )
+        }
+    }
+
+    @Test
+    fun `SCREEN_ON below 70 percent or while charging leaves the loop alone`() {
+        stubScreenOnLoop(level = 69, charging = false, lastFetchMs = 0L)
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+
+        every { BatterySnapshotProvider.snapshot(any()) } returns BatterySnapshot(isCharging = true, batteryLevel = 100)
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+
+        verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { CurrentTempUpdateScheduler.scheduleNextChargingUpdate(any<Context>(), any<Boolean>(), any<Long>()) }
+    }
+
+    @Test
+    fun `SCREEN_ON loop decision writes SCREEN_ON_OBS_LOOP log`() = runTest {
+        stubScreenOnLoop(level = 80, charging = false, lastFetchMs = 0L)
+
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+
+        val logs = WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("SCREEN_ON_OBS_LOOP", 10)
+        assertEquals(1, logs.size)
+        assertTrue(logs.single().message, logs.single().message.startsWith("outcome=fetch_now battery=80 lastFetchAgeMin=never"))
+    }
+
     @Test
     fun `onReceive with SCREEN_OFF on battery cancels current-temp and non-primary loops`() {
         mockkObject(CurrentTempUpdateScheduler)

@@ -11,8 +11,10 @@ import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.di.RepositoryEntryPoint
 
 /**
@@ -205,8 +207,9 @@ class ScreenOnReceiver : BroadcastReceiver() {
      * and never met. See `plans/260902-repaint-on-screen-on-when-a-paint-is-owed.md`.
      *
      * `uiOnly = true` deliberately: the data is already stored — that a fetch succeeded is the whole
-     * premise of the debt — so this must repaint from cache. Letting screen-on reach the network
-     * would make it a fetch trigger and stop the battery cadence bounding fetch cost.
+     * premise of the debt — so this must repaint from cache. Letting the debt repaint reach the
+     * network would make it a fetch trigger and stop the battery cadence bounding fetch cost. The
+     * one screen-on fetch is [startBatteryScreenOnLoop], which is bounded by the 20-minute loop.
      *
      * No debounce here on purpose. The flag is self-limiting: only a screen-off paint skip sets it
      * and only a launched render clears it, so this cannot fire twice without an intervening fetch.
@@ -219,6 +222,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
     private fun handleScreenOn(context: Context) {
         Log.d(TAG, "Screen on - resampling location")
         resampleLocationAsync(context, trigger = "screen_on")
+        startBatteryScreenOnLoop(context)
 
         if (!WidgetStateManager(context.applicationContext).isPaintOwed()) return
 
@@ -230,6 +234,72 @@ class ScreenOnReceiver : BroadcastReceiver() {
             },
         )
         logPaintDebtRefresh(context)
+    }
+
+    /**
+     * On battery at >= 70%, screen-on starts the 20-minute observation loop
+     * (`performance/261003-observations-every-20-min-on-battery-screen-on.md`). If the last
+     * current-temp fetch is a full interval old it fetches now — otherwise a phone session shorter
+     * than 20 minutes, which is most of them, would never see a fetch. This is the one place
+     * screen-on reaches the network; the loop's interval still bounds how often.
+     *
+     * Charging is left alone: the charging loop is already running. Screen-off on battery cancels
+     * the loop ([handleScreenOff]).
+     */
+    private fun startBatteryScreenOnLoop(context: Context) {
+        val battery = getBatteryState(context)
+        val nowMs = System.currentTimeMillis()
+        val lastFetchMs = FetchMetadata.getLastCurrentTempFetchTime(context)
+        val decision = CurrentTempFetchPolicy.screenOnCatchUp(
+            isCharging = battery.isCharging,
+            batteryLevel = battery.batteryLevel,
+            lastFetchMs = lastFetchMs,
+            nowMs = nowMs,
+        )
+        if (decision == CurrentTempFetchPolicy.ScreenOnCatchUp.NONE) return
+
+        val ageMin = if (lastFetchMs > 0L) TimeUnit.MILLISECONDS.toMinutes(nowMs - lastFetchMs).toString() else "never"
+        when (decision) {
+            CurrentTempFetchPolicy.ScreenOnCatchUp.FETCH_NOW ->
+                // The run's post-run loop management schedules the next one 20 minutes out.
+                CurrentTempUpdateScheduler.enqueueImmediateUpdate(
+                    context = context,
+                    reason = "battery_screen_on_catchup",
+                    opportunistic = false,
+                    targetSourceId = WidgetStateManager(context.applicationContext).getPrimarySource().id,
+                )
+            CurrentTempFetchPolicy.ScreenOnCatchUp.SCHEDULE ->
+                CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                    context = context,
+                    isScreenInteractive = true,
+                    firstDelayMinutes = CurrentTempFetchPolicy.screenOnFirstDelayMinutes(lastFetchMs, nowMs),
+                )
+            CurrentTempFetchPolicy.ScreenOnCatchUp.NONE -> Unit
+        }
+        logScreenOnLoop(context, decision, battery.batteryLevel, ageMin)
+    }
+
+    private fun logScreenOnLoop(
+        context: Context,
+        decision: CurrentTempFetchPolicy.ScreenOnCatchUp,
+        batteryLevel: Int,
+        lastFetchAgeMin: String,
+    ) {
+        val pendingResult = goAsync()
+        CoroutineScope(ioDispatcher).launch {
+            try {
+                WeatherDatabase.getDatabase(context).appLogDao().log(
+                    "SCREEN_ON_OBS_LOOP",
+                    "outcome=${decision.name.lowercase()} battery=$batteryLevel lastFetchAgeMin=$lastFetchAgeMin " +
+                        "intervalMin=${CurrentTempFetchPolicy.BATTERY_SCREEN_ON_INTERVAL_MINUTES}",
+                    "INFO",
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to persist SCREEN_ON_OBS_LOOP log", e)
+            } finally {
+                pendingResult?.finish()
+            }
+        }
     }
 
     /**
@@ -262,6 +332,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
         } else {
             Log.d(TAG, "Screen turned off on battery - canceling current-temp loop")
             CurrentTempUpdateScheduler.cancel(context)
+            BatteryObservationAlarm.cancel(context)
             NonPrimaryObservationScheduler.cancel(context)
         }
     }

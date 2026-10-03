@@ -22,6 +22,7 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -243,6 +244,7 @@ class CurrentTempUpdateSchedulerTest {
         every { mockWorkInfo.nextScheduleTimeMillis } returns NOW_MS - 5_000L
 
         every { mockWorkManager.getWorkInfosForUniqueWork(any()) } returns com.google.common.util.concurrent.Futures.immediateFuture(listOf(mockWorkInfo))
+        setBattery(level = 50, charging = true)
 
         kotlinx.coroutines.test.runTest {
             CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
@@ -260,6 +262,126 @@ class CurrentTempUpdateSchedulerTest {
                 any<OneTimeWorkRequest>()
             )
         }
+    }
+
+    // 75%, not higher: at >= 78% a first discharging reading is inferred as a held charge
+    // (BatteryTier.HELD_CHARGE_MIN_LEVEL) and the snapshot reports charging.
+    @Test
+    fun `on battery at 75 percent with screen on the loop arms a 20-minute alarm, not a delayed WorkManager request`() {
+        every { mockWorkManager.getWorkInfosForUniqueWork(any()) } returns
+            com.google.common.util.concurrent.Futures.immediateFuture(emptyList())
+        setBattery(level = 75, charging = false)
+
+        kotlinx.coroutines.test.runTest {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = context,
+                workManager = mockWorkManager,
+                nowMs = NOW_MS,
+                isScreenInteractive = true,
+            )
+        }
+
+        verify(exactly = 0) { mockWorkManager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) }
+        // 10-minute window centred on the 20-minute mark: delivered 15-25 min out.
+        val alarm = shadowOf(alarmManager()).scheduledAlarms.single()
+        assertEquals(NOW_MS + TimeUnit.MINUTES.toMillis(15), alarm.triggerAtTime)
+        assertEquals(android.app.AlarmManager.RTC, alarm.type)
+    }
+
+    @Test
+    fun `screen-on first delay shortens the first battery alarm`() {
+        setBattery(level = 75, charging = false)
+
+        kotlinx.coroutines.test.runTest {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = context,
+                workManager = mockWorkManager,
+                nowMs = NOW_MS,
+                isScreenInteractive = true,
+                firstDelayMinutes = 7L,
+            )
+        }
+
+        assertEquals(NOW_MS + TimeUnit.MINUTES.toMillis(2), shadowOf(alarmManager()).scheduledAlarms.single().triggerAtTime)
+    }
+
+    /**
+     * The ui_update_alarm heartbeat asks for the loop every 15-60 min. If each ask re-armed at
+     * now + 20, a 15-minute heartbeat would postpone the fetch forever.
+     */
+    @Test
+    fun `a later request never postpones a pending battery alarm`() {
+        setBattery(level = 75, charging = false)
+        kotlinx.coroutines.test.runTest {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = context, workManager = mockWorkManager, nowMs = NOW_MS, isScreenInteractive = true,
+            )
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = context, workManager = mockWorkManager, nowMs = NOW_MS + TimeUnit.MINUTES.toMillis(15),
+                isScreenInteractive = true,
+            )
+        }
+
+        assertEquals(NOW_MS + TimeUnit.MINUTES.toMillis(15), shadowOf(alarmManager()).scheduledAlarms.single().triggerAtTime)
+    }
+
+    private fun alarmManager() = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+
+    @Test
+    fun `on battery below 70 percent or with screen off the loop schedules nothing`() {
+        every { mockWorkManager.getWorkInfosForUniqueWork(any()) } returns
+            com.google.common.util.concurrent.Futures.immediateFuture(emptyList())
+
+        setBattery(level = 69, charging = false)
+        kotlinx.coroutines.test.runTest {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = context, workManager = mockWorkManager, nowMs = NOW_MS, isScreenInteractive = true,
+            )
+        }
+        setBattery(level = 75, charging = false)
+        kotlinx.coroutines.test.runTest {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = context, workManager = mockWorkManager, nowMs = NOW_MS, isScreenInteractive = false,
+            )
+        }
+
+        verify(exactly = 0) { mockWorkManager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) }
+        assertEquals(0, shadowOf(alarmManager()).scheduledAlarms.size)
+    }
+
+    @Test
+    fun `charging loop keeps fetching every visible source`() {
+        every { mockWorkManager.getWorkInfosForUniqueWork(any()) } returns
+            com.google.common.util.concurrent.Futures.immediateFuture(emptyList())
+        setBattery(level = 50, charging = true)
+        val requestSlot = slot<OneTimeWorkRequest>()
+
+        kotlinx.coroutines.test.runTest {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = context, workManager = mockWorkManager, nowMs = NOW_MS, isScreenInteractive = true,
+            )
+        }
+
+        verify { mockWorkManager.enqueueUniqueWork(any(), any(), capture(requestSlot)) }
+        val spec = requestSlot.captured.workSpec
+        assertEquals(TimeUnit.MINUTES.toMillis(10), spec.initialDelay)
+        assertEquals("charging_loop", spec.input.getString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON))
+        assertEquals(null, spec.input.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE))
+    }
+
+    @Suppress("DEPRECATION")
+    private fun setBattery(level: Int, charging: Boolean) {
+        context.sendStickyBroadcast(
+            android.content.Intent(android.content.Intent.ACTION_BATTERY_CHANGED).apply {
+                putExtra(
+                    android.os.BatteryManager.EXTRA_STATUS,
+                    if (charging) android.os.BatteryManager.BATTERY_STATUS_CHARGING else android.os.BatteryManager.BATTERY_STATUS_DISCHARGING,
+                )
+                putExtra(android.os.BatteryManager.EXTRA_PLUGGED, if (charging) android.os.BatteryManager.BATTERY_PLUGGED_AC else 0)
+                putExtra(android.os.BatteryManager.EXTRA_LEVEL, level)
+                putExtra(android.os.BatteryManager.EXTRA_SCALE, 100)
+            },
+        )
     }
 
     private fun workInfo(

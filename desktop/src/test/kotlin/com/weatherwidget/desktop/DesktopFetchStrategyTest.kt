@@ -47,14 +47,25 @@ class DesktopFetchStrategyTest {
     }
 
     @Test
-    fun `getObservationRefreshDelayMs returns 4 hours when battery above 70`() {
-        assertEquals(240 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 71))
+    fun `getObservationRefreshDelayMs returns 4 hours on battery above 70 with screen off`() {
+        assertEquals(240 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 71, screenOn = false))
+    }
+
+    @Test
+    fun `getObservationRefreshDelayMs returns 20 min on battery at 70 or more with screen on`() {
+        assertEquals(20 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 70, screenOn = true))
+        assertEquals(20 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 100, screenOn = true))
+    }
+
+    @Test
+    fun `getObservationRefreshDelayMs keeps the battery tiers below 70 even with screen on`() {
+        assertEquals(480 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 69, screenOn = true))
     }
 
     @Test
     fun `getObservationRefreshDelayMs returns 8 hours when battery above 50`() {
         assertEquals(480 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 51))
-        assertEquals(480 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 70))
+        assertEquals(480 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 70, screenOn = false))
     }
 
     @Test

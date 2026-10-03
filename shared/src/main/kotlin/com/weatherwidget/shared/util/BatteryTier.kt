@@ -43,6 +43,21 @@ object BatteryTier {
     const val OPPORTUNISTIC_MIN_BATTERY_PERCENT = 65
 
     /**
+     * Battery level at/above which (inclusive) an unplugged device with the screen on refreshes
+     * recent observations every [SCREEN_ON_OBSERVATION_INTERVAL_MINUTES]. Separate from
+     * [OPPORTUNISTIC_MIN_BATTERY_PERCENT], which gates the screen-blind 45-min backstop.
+     * User's decision 2026-10-03 (`performance/261003-observations-every-20-min-on-battery-screen-on.md`).
+     */
+    const val SCREEN_ON_OBSERVATION_MIN_BATTERY_PERCENT = 70
+
+    /** Observation refresh interval on battery while the screen is on (Android and desktop). */
+    const val SCREEN_ON_OBSERVATION_INTERVAL_MINUTES = 20L
+
+    /** Whether an unplugged device may refresh observations at the screen-on cadence. */
+    fun screenOnObservationAllowed(batteryLevel: Int, isScreenOn: Boolean): Boolean =
+        isScreenOn && batteryLevel >= SCREEN_ON_OBSERVATION_MIN_BATTERY_PERCENT
+
+    /**
      * Whether an unplugged device's battery is high enough to be scheduled as if it were charging.
      * Used by forecast-fetch cadence decisions, never by the "is it physically charging" checks that
      * gate the current-temperature/non-primary loops.
