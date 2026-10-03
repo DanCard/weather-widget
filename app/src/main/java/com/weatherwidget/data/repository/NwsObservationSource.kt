@@ -82,7 +82,17 @@ class NwsObservationSource(
     suspend fun stationsForLocation(
         latitude: Double,
         longitude: Double,
-    ): List<NwsApi.StationInfo> {
+    ): List<NwsApi.StationInfo> = stationsForLocationOutcome(latitude, longitude).valueOrNull().orEmpty()
+
+    /**
+     * Like [stationsForLocation], but a lookup that never got an answer (gridpoint or station-list
+     * transport failure with no cached list) is [FetchOutcome.Failed], not an empty list. The
+     * hourly backfill retries on Failed; an empty answer is a real "no stations here".
+     */
+    suspend fun stationsForLocationOutcome(
+        latitude: Double,
+        longitude: Double,
+    ): FetchOutcome<List<NwsApi.StationInfo>> {
         val gridPoint = try {
             nwsApi.getGridPoint(latitude, longitude)
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -94,13 +104,16 @@ class NwsObservationSource(
                 "lat=$latitude lon=$longitude error=${e::class.simpleName}:${e.message}",
                 "WARN",
             )
-            return emptyList()
+            return FetchOutcome.failed(e)
         }
-        return stationsFromUrl(gridPoint.observationStationsUrl.orEmpty())
+        return stationsFromUrlOutcome(gridPoint.observationStationsUrl.orEmpty())
     }
 
-    internal suspend fun stationsFromUrl(stationsUrl: String): List<NwsApi.StationInfo> {
-        if (stationsUrl.isEmpty()) return emptyList()
+    internal suspend fun stationsFromUrl(stationsUrl: String): List<NwsApi.StationInfo> =
+        stationsFromUrlOutcome(stationsUrl).valueOrNull().orEmpty()
+
+    private suspend fun stationsFromUrlOutcome(stationsUrl: String): FetchOutcome<List<NwsApi.StationInfo>> {
+        if (stationsUrl.isEmpty()) return FetchOutcome.NoData
 
         // Cache keyed by the stations URL's hashCode: compact and stable for a single location's
         // gridpoint. Collision risk is negligible (a handful of URLs per install); a wrong hit
@@ -114,7 +127,7 @@ class NwsObservationSource(
             .orEmpty()
         val lastUpdateMs = prefs.getLong(timeKey, 0L)
         if (cachedString != null && System.currentTimeMillis() - lastUpdateMs < STATION_CACHE_MAX_AGE_MS) {
-            return cachedStations
+            return FetchOutcome.Success(cachedStations)
         }
 
         val fetched = try {
@@ -130,7 +143,7 @@ class NwsObservationSource(
                     "WARN",
                 )
                 Log.w(TAG, "Station refresh failed; using ${cachedStations.size} cached stations", e)
-                return cachedStations
+                return FetchOutcome.Success(cachedStations)
             }
             appLogDao.log(
                 "NWS_STATION_LIST_FAIL",
@@ -138,7 +151,7 @@ class NwsObservationSource(
                 "WARN",
             )
             Log.e(TAG, "Failed to fetch NWS station list", e)
-            return emptyList()
+            return FetchOutcome.failed(e)
         }
 
         if (fetched.isNotEmpty()) {
@@ -150,7 +163,7 @@ class NwsObservationSource(
                 .putLong(timeKey, System.currentTimeMillis())
                 .apply()
         }
-        return fetched
+        return FetchOutcome.Success(fetched)
     }
 
     internal suspend fun fetchLatest(

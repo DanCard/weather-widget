@@ -163,6 +163,43 @@ class NwsObservationSourceTest {
         )
     }
 
+    // The hourly backfill retries on Failed and not on an empty answer (emulator-5554 2026-10-03:
+    // a 30 s /points timeout became "no_stations" and sat out the 30-minute render cooldown).
+    @Test
+    fun `grid point transport failure is Failed, not an empty station list`() = runTest {
+        coEvery { nwsApi.getGridPoint(any(), any()) } throws IOException("Request timeout has expired")
+
+        val outcome = source.stationsForLocationOutcome(37.42, -122.08)
+
+        assertTrue("got $outcome", outcome is FetchOutcome.Failed)
+        assertEquals(emptyList<NwsApi.StationInfo>(), source.stationsForLocation(37.42, -122.08))
+    }
+
+    @Test
+    fun `station list failure with no cache is Failed`() = runTest {
+        coEvery { nwsApi.getGridPoint(any(), any()) } returns NwsApi.GridPointInfo(
+            gridId = "MTR", gridX = 93, gridY = 87, forecastUrl = "f",
+            observationStationsUrl = "https://example.test/stations",
+        )
+        coEvery { nwsApi.getObservationStations(any()) } throws IOException("offline")
+
+        assertTrue(source.stationsForLocationOutcome(37.42, -122.08) is FetchOutcome.Failed)
+    }
+
+    @Test
+    fun `answered empty station list is not Failed`() = runTest {
+        coEvery { nwsApi.getGridPoint(any(), any()) } returns NwsApi.GridPointInfo(
+            gridId = "MTR", gridX = 93, gridY = 87, forecastUrl = "f",
+            observationStationsUrl = "https://example.test/stations",
+        )
+        coEvery { nwsApi.getObservationStations(any()) } returns emptyList()
+
+        val outcome = source.stationsForLocationOutcome(37.42, -122.08)
+
+        assertFalse("got $outcome", outcome is FetchOutcome.Failed)
+        assertEquals(emptyList<NwsApi.StationInfo>(), outcome.valueOrNull().orEmpty())
+    }
+
     @Test
     fun `expired cached stations remain usable when refresh fails`() = runTest {
         val url = "https://example.test/stations"

@@ -21,6 +21,17 @@ internal data class RecentBackfillResult(
     val stationsTried: Int,
     val rowsFetched: Int,
     val affectedDates: Set<LocalDate>,
+    /**
+     * NWS never answered: the station lookup failed, or every station's fetch failed. Distinct from
+     * an answered-but-empty backfill, which is a real data limit and must not be retried quickly.
+     */
+    val unreachable: Boolean = false,
+)
+
+/** One station's backfill: the rows stored, and whether the fetch failed rather than came back empty. */
+private data class StationBackfill(
+    val entities: List<ObservationEntity>,
+    val failed: Boolean,
 )
 
 private data class DailyBackfillNeed(
@@ -75,7 +86,7 @@ class NwsObservationBackfiller @Inject constructor(
                 webWindowMinutes = WeatherConfig.NWS_BACKFILL_DAYS * 24 * 60L,
                 fallbackLogTag = "NWS_DAILY_SYNOPTIC_FALLBACK",
                 stationLogTag = "NWS_DAILY_BACKFILL_STATION",
-            )
+            ).entities
             if (entities.isEmpty()) continue
 
             val distinctDays = entities
@@ -180,22 +191,23 @@ class NwsObservationBackfiller @Inject constructor(
             "INFO",
         )
 
-        val stations = observationSource
-            .stationsForLocation(latitude, longitude)
-            .take(MAX_NWS_STATIONS)
+        val stationsOutcome = observationSource.stationsForLocationOutcome(latitude, longitude)
+        val stations = stationsOutcome.valueOrNull().orEmpty().take(MAX_NWS_STATIONS)
         if (stations.isEmpty()) {
+            val unreachable = stationsOutcome is com.weatherwidget.data.remote.FetchOutcome.Failed
             appLogDao.log(
                 "OBS_HOURLY_BACKFILL_FAIL",
-                "lat=$latitude lon=$longitude reason=no_stations",
+                "lat=$latitude lon=$longitude reason=${if (unreachable) "stations_unreachable" else "no_stations"}",
                 "WARN",
             )
-            return RecentBackfillResult(0, 0, emptySet())
+            return RecentBackfillResult(0, 0, emptySet(), unreachable = unreachable)
         }
 
         var totalRows = 0
+        var failedStations = 0
         val affectedDates = mutableSetOf<LocalDate>()
         for ((index, station) in stations.withIndex()) {
-            val entities = fetchAndStoreStation(
+            val fetch = fetchAndStoreStation(
                 station = station,
                 stationIndex = index,
                 latitude = latitude,
@@ -206,6 +218,8 @@ class NwsObservationBackfiller @Inject constructor(
                 fallbackLogTag = "OBS_HOURLY_SYNOPTIC_FALLBACK",
                 stationLogTag = "OBS_HOURLY_BACKFILL_STATION",
             )
+            if (fetch.failed) failedStations++
+            val entities = fetch.entities
             totalRows += entities.size
             affectedDates += entities.map {
                 java.time.Instant.ofEpochMilli(it.timestamp).atZone(localZone).toLocalDate()
@@ -225,11 +239,16 @@ class NwsObservationBackfiller @Inject constructor(
         }
         appLogDao.log(
             "OBS_HOURLY_BACKFILL_DONE",
-            "lat=$latitude lon=$longitude stations=${stations.size} rows=$totalRows " +
+            "lat=$latitude lon=$longitude stations=${stations.size} failedStations=$failedStations rows=$totalRows " +
                 "affectedDates=${affectedDates.sorted()}",
             "INFO",
         )
-        return RecentBackfillResult(stations.size, totalRows, affectedDates)
+        return RecentBackfillResult(
+            stationsTried = stations.size,
+            rowsFetched = totalRows,
+            affectedDates = affectedDates,
+            unreachable = failedStations == stations.size,
+        )
     }
 
     private suspend fun fetchAndStoreStation(
@@ -242,7 +261,7 @@ class NwsObservationBackfiller @Inject constructor(
         webWindowMinutes: Long,
         fallbackLogTag: String,
         stationLogTag: String,
-    ): List<ObservationEntity> {
+    ): StationBackfill {
         return try {
             val result = observationSource.fetchHistorical(
                 stationInfo = station,
@@ -264,7 +283,7 @@ class NwsObservationBackfiller @Inject constructor(
                 "INFO",
             )
             if (result.entities.isNotEmpty()) observationDao.insertAll(result.entities)
-            result.entities
+            StationBackfill(result.entities, failed = result.entities.isEmpty() && result.apiFailure != null)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -274,7 +293,7 @@ class NwsObservationBackfiller @Inject constructor(
                 "WARN",
             )
             Log.e(TAG, "Observation backfill failed for ${station.id}", e)
-            emptyList()
+            StationBackfill(emptyList(), failed = true)
         }
     }
 

@@ -254,6 +254,62 @@ object WidgetWorkScheduler {
         }
     }
 
+    private fun buildObservationBackfillRequest(
+        latitude: Double,
+        longitude: Double,
+        lookbackHours: Long,
+        reason: String,
+        attempt: Int,
+        initialDelayMs: Long,
+    ): OneTimeWorkRequest =
+        OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+            .setInputData(
+                Data.Builder()
+                    .putBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, true)
+                    .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LAT, latitude)
+                    .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, longitude)
+                    .putLong(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS, lookbackHours)
+                    .putString(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON, reason)
+                    .putInt(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ATTEMPT, attempt)
+                    .tagTestModeEnqueue()
+                    .build(),
+            )
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build(),
+            )
+            .setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
+            .build()
+
+    /**
+     * Retry of an observation backfill that never reached NWS, enqueued by that backfill's own run.
+     *
+     * APPEND_OR_REPLACE, deliberately unlike [enqueueRequiredObservationBackfill]'s KEEP: the caller
+     * is the RUNNING work under this unique name, so KEEP would drop the retry. Appending makes it
+     * start only after the current run finishes, never alongside it, and a repaint request in the
+     * meantime is still deduplicated by KEEP. The "no APPEND" rule below is about render bursts
+     * stacking identical fetches; here one finishing run appends exactly one successor, at most
+     * [ObservationBackfillRetryPolicy.RETRY_DELAYS_MS].size times.
+     */
+    internal fun enqueueObservationBackfillRetry(
+        context: Context,
+        latitude: Double,
+        longitude: Double,
+        lookbackHours: Long,
+        reason: String,
+        attempt: Int,
+        delayMs: Long,
+    ): OneTimeWorkRequest {
+        val request = buildObservationBackfillRequest(latitude, longitude, lookbackHours, reason, attempt, delayMs)
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WORK_NAME_OBSERVATION_BACKFILL,
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            request,
+        )
+        return request
+    }
+
     /**
      * Enqueues a required observation-history repair, yielding to an equivalent one already pending
      * unless that one has gone overdue — see [decideObservationBackfillEnqueue].
@@ -266,25 +322,7 @@ object WidgetWorkScheduler {
         reason: String,
         initialDelayMs: Long,
     ): ObservationBackfillEnqueue {
-        val request =
-            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                .setInputData(
-                    Data.Builder()
-                        .putBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, true)
-                        .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LAT, latitude)
-                        .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, longitude)
-                        .putLong(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS, lookbackHours)
-                        .putString(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON, reason)
-                        .tagTestModeEnqueue()
-                        .build(),
-                )
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build(),
-                )
-                .setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
-                .build()
+        val request = buildObservationBackfillRequest(latitude, longitude, lookbackHours, reason, attempt = 0, initialDelayMs)
 
         // KEEP, not APPEND_OR_REPLACE. APPEND makes a pending backfill a *prerequisite* of the next
         // one, so a burst becomes a serial queue of identical 5-station x 72-hour fetches — six of

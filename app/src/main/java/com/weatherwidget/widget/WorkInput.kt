@@ -18,6 +18,8 @@ internal data class WorkInput(
     val backfillLon: Double,
     val backfillHours: Long,
     val backfillReason: String,
+    /** See [WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ATTEMPT]. */
+    val backfillAttempt: Int = 0,
     val noHourlyWidgetId: Int,
     val noHourlyDate: String?,
     val noHourlyLat: Double,
@@ -65,6 +67,7 @@ internal data class WorkInput(
                 backfillLon = data.getDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, Double.NaN),
                 backfillHours = data.getLong(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS, WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS),
                 backfillReason = data.getString(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON) ?: "unspecified",
+                backfillAttempt = data.getInt(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ATTEMPT, 0),
                 noHourlyWidgetId = noHourlyWidgetId,
                 noHourlyDate = noHourlyDate,
                 noHourlyLat = data.getDouble(WeatherWidgetWorker.KEY_NO_HOURLY_LAT, 0.0),

@@ -263,9 +263,27 @@ class WeatherWidgetWorker
                 val result = weatherRepository.backfillRecentNwsObservations(input.backfillLat, input.backfillLon, input.backfillHours)
                 appLogDao.log(
                     "OBS_HOURLY_BACKFILL_RESULT",
-                    "reason=${input.backfillReason} stations=${result.stationsTried} rows=${result.rowsFetched} affectedDates=${result.affectedDates.sorted()}",
+                    "reason=${input.backfillReason} attempt=${input.backfillAttempt} stations=${result.stationsTried} " +
+                        "rows=${result.rowsFetched} unreachable=${result.unreachable} affectedDates=${result.affectedDates.sorted()}",
                     "INFO",
                 )
+                ObservationBackfillRetryPolicy.nextRetryDelayMs(result, input.backfillAttempt)?.let { delayMs ->
+                    val nextAttempt = input.backfillAttempt + 1
+                    WidgetWorkScheduler.enqueueObservationBackfillRetry(
+                        context = context,
+                        latitude = input.backfillLat,
+                        longitude = input.backfillLon,
+                        lookbackHours = input.backfillHours,
+                        reason = input.backfillReason,
+                        attempt = nextAttempt,
+                        delayMs = delayMs,
+                    )
+                    appLogDao.log(
+                        "OBS_HOURLY_BACKFILL_RETRY",
+                        "reason=${input.backfillReason} attempt=$nextAttempt delayMs=$delayMs",
+                        "INFO",
+                    )
+                }
                 painter.refreshWidgetsFromCache()
                 Result.success()
             }
@@ -566,6 +584,8 @@ class WeatherWidgetWorker
             const val KEY_OBSERVATION_BACKFILL_ONLY = "observation_backfill_only"
             const val KEY_OBSERVATION_BACKFILL_HOURS = "observation_backfill_hours"
             const val KEY_OBSERVATION_BACKFILL_REASON = "observation_backfill_reason"
+            /** Retry number of an observation backfill (0 = first run); see [ObservationBackfillRetryPolicy]. */
+            const val KEY_OBSERVATION_BACKFILL_ATTEMPT = "observation_backfill_attempt"
             const val KEY_BACKFILL_LAT = "backfill_lat"
             const val KEY_BACKFILL_LON = "backfill_lon"
             const val KEY_NO_HOURLY_WIDGET_ID = "no_hourly_widget_id"
