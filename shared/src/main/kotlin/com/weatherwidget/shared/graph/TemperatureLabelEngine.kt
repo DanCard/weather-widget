@@ -241,6 +241,7 @@ object TemperatureLabelEngine {
             observedAt = observedAt,
             numColumns = numColumns,
             widthPx = widthPx,
+            fetchDotX = fetchDotX,
             useCelsius = useCelsius,
         ).toMutableList()
 

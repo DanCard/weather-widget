@@ -92,6 +92,18 @@ internal object LabelGeometryResolver {
      * [Float.MAX_VALUE] when geometry is unknown (widthPx<=0) or the span is degenerate, so
      * geometry-less unit tests fall back to never-near.
      */
+    /**
+     * Horizontal position (px) of [idx] by elapsed time — the same linear time axis
+     * [pixelGapByTime] measures on. Null when geometry is unknown.
+     */
+    internal fun xByTime(hours: List<HourData>, idx: Int, widthPx: Int): Float? {
+        if (widthPx <= 0 || hours.getOrNull(idx) == null) return null
+        val spanMinutes = Duration.between(hours.first().dateTime, hours.last().dateTime).toMinutes()
+        if (spanMinutes <= 0L) return null
+        val minutes = Duration.between(hours.first().dateTime, hours[idx].dateTime).toMinutes()
+        return minutes / spanMinutes.toFloat() * widthPx
+    }
+
     internal fun pixelGapByTime(
         hours: List<HourData>,
         idxA: Int,

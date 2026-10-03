@@ -43,6 +43,9 @@ internal object LabelCandidateCollector {
         TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW,
     )
 
+    /** NOW within this fraction of the graph width of the midpoint suppresses the center label. */
+    internal const val NOW_NEAR_CENTER_WIDTH_FRACTION = 0.25f
+
     internal fun collect(
         hours: List<HourData>,
         extrema: TemperatureExtrema.ExtremaIndices,
@@ -51,6 +54,7 @@ internal object LabelCandidateCollector {
         observedAt: Long?,
         numColumns: Int = 0,
         widthPx: Int = 0,
+        fetchDotX: Float? = null,
         useCelsius: Boolean,
     ): List<TempLabelCandidate> {
         val labelTemps = extrema.labelTemps
@@ -286,6 +290,7 @@ internal object LabelCandidateCollector {
             effectiveActualEndIndex = effectiveActualEndIndex,
             numColumns = numColumns,
             widthPx = widthPx,
+            fetchDotX = fetchDotX,
             useCelsius = useCelsius,
         )
 
@@ -302,6 +307,13 @@ internal object LabelCandidateCollector {
      * of the midpoint: the middle is then already labelled, and because the center is placed first it
      * would take the extremum's slot. On 2026-10-01 a 16:00 center "82" sat above the 15:00 high "83"
      * and pushed it below the curve (plans/261001-center-label-yields-to-nearby-extremum.md).
+     *
+     * Also skipped when the NOW dot is near the middle — within [NOW_NEAR_CENTER_WIDTH_FRACTION] of
+     * the graph width (the middle half): its bold current-temperature label (drawn outside this
+     * pipeline) already labels the middle. On 2026-10-03 the desktop drew a 14:00 center "86.2" next
+     * to the NOW "87.7" (57 px) and later "88.1" (91 px); a pixel budget had a knife edge as NOW
+     * drifted, so the user set the rule as a width fraction
+     * (plans/261003-center-label-yields-to-now-dot-label.md).
      */
     private fun addCenterLabel(
         specialCandidates: MutableList<TempLabelCandidate>,
@@ -311,6 +323,7 @@ internal object LabelCandidateCollector {
         effectiveActualEndIndex: Int,
         numColumns: Int,
         widthPx: Int,
+        fetchDotX: Float?,
         useCelsius: Boolean,
     ) {
         if (numColumns < 5 || hours.size < 3) return
@@ -336,6 +349,17 @@ internal object LabelCandidateCollector {
                     hours, candidate.index, candidate.role, candidate.labelTemps,
                     mid, TemperatureRole.CENTER, temps, widthPx,
                 ) < LabelGeometryResolver.REDUNDANT_PAIR_PX
+        }
+        val centerX = LabelGeometryResolver.xByTime(hours, mid, widthPx)
+        if (fetchDotX != null && centerX != null &&
+            kotlin.math.abs(centerX - fetchDotX) < widthPx * NOW_NEAR_CENTER_WIDTH_FRACTION
+        ) {
+            Log.v(
+                TAG,
+                "LabelSuppressed: role=CENTER idx=$mid reason=NEAR_NOW_LABEL " +
+                    "centerX=${"%.1f".format(centerX)} fetchDotX=${"%.1f".format(fetchDotX)}",
+            )
+            return
         }
         if (nearbyExtremum != null) {
             Log.v(

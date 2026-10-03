@@ -90,6 +90,62 @@ class TemperatureCenterLabelTest {
         assertEquals(16, hours[center.index].dateTime.hour)
     }
 
+    // Desktop 2026-10-03 15:41: 05:00 -> 23:00 window, 1035 px wide (57.5 px/hour). The center
+    // landed at 14:00 (~517 px) and drew the actual "86.2" 57 px left of the 15:00 NOW dot's "87.7".
+    @Test
+    fun `center label is skipped when the NOW dot label is drawn an hour from the midpoint`() {
+        val hours = actualRisingToNow(nowHour = 15)
+
+        val candidates = candidates(hours, effectiveActualEndIndex = 10, widthPx = 1035, fetchDotX = 575f, now = hours[10].dateTime, nowX = 575f)
+
+        assertTrue(candidates.none { it.isCenter })
+    }
+
+    @Test
+    fun `center label is kept when the NOW dot is far from the midpoint`() {
+        val hours = actualRisingToNow(nowHour = 15)
+
+        // Same window and data; dot at 08:00 (172.5 px) is ~345 px (33%) from the 14:00 center.
+        val candidates = candidates(hours, effectiveActualEndIndex = 10, widthPx = 1035, fetchDotX = 172.5f, now = hours[10].dateTime, nowX = 575f)
+
+        val center = candidates.single { it.isCenter }
+        assertEquals(14, hours[center.index].dateTime.hour)
+    }
+
+    // The same desktop at 15:50: NOW 91 px from the 14:00 center (beyond the old 64 px budget) and
+    // "86.2" still sat beside "88.1". "Near" is the middle half of the graph, not a pixel budget.
+    @Test
+    fun `center label is skipped anywhere NOW is in the middle half of the graph`() {
+        val hours = actualRisingToNow(nowHour = 15)
+        // 517.5 = the 14:00 center; 25% of 1035 = 258.75 px either side.
+        for (dotX in listOf(608.5f, 517.5f + 258f, 517.5f - 258f)) {
+            val candidates = candidates(hours, effectiveActualEndIndex = 10, widthPx = 1035, fetchDotX = dotX, now = hours[10].dateTime, nowX = 575f)
+            assertTrue("dotX=$dotX", candidates.none { it.isCenter })
+        }
+        val outside = candidates(hours, effectiveActualEndIndex = 10, widthPx = 1035, fetchDotX = 517.5f + 260f, now = hours[10].dateTime, nowX = 575f)
+        assertEquals(1, outside.count { it.isCenter })
+    }
+
+    /**
+     * 05:00 -> 23:00. Actual rises monotonically to [nowHour] (an edge, never an extremum); the
+     * forecast peaks at 18:00, far enough from the 14:00 center that NEAR_EXTREMUM cannot fire.
+     */
+    private fun actualRisingToNow(nowHour: Int): List<HourData> {
+        val start = LocalDateTime.of(2026, 10, 3, 5, 0)
+        return (0L..18L).map { offset ->
+            val time = start.plusHours(offset)
+            val forecast = 92f - 3f * kotlin.math.abs(time.hour - 18)
+            val isActual = time.hour <= nowHour
+            HourData(
+                dateTime = time,
+                temperature = forecast,
+                label = time.toLocalTime().toString(),
+                isActual = isActual,
+                actualTemperature = if (isActual) 59f + 2.8f * offset else null,
+            )
+        }
+    }
+
     /** Hourly forecast 07:00 -> 01:00 next day peaking at [peakHour], lowest at 07:00. */
     private fun forecastDay(peakHour: Int): List<HourData> {
         val start = LocalDateTime.of(2026, 10, 1, 7, 0)
@@ -110,22 +166,28 @@ class TemperatureCenterLabelTest {
         hours: List<HourData>,
         effectiveActualEndIndex: Int,
         widthPx: Int = 800,
+        fetchDotX: Float? = null,
+        // Production passes the fetch time and NOW's x; with them today is an incomplete day and the
+        // actual line's right edge (NOW) is not an extremum, as in the 2026-10-03 desktop render.
+        now: LocalDateTime? = null,
+        nowX: Float? = null,
     ): List<TempLabelCandidate> {
         val extrema = TemperatureLabelResolver.computeExtremaIndices(
             hours = hours,
-            transitionX = null,
+            transitionX = nowX,
             effectiveActualEndIndex = effectiveActualEndIndex,
-            fetchTime = null,
+            fetchTime = now,
             useCelsius = false,
         )
         return TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,
             extrema = extrema,
             effectiveActualEndIndex = effectiveActualEndIndex,
-            transitionX = null,
+            transitionX = nowX,
             observedAt = null,
             numColumns = 5,
             widthPx = widthPx,
+            fetchDotX = fetchDotX,
             useCelsius = false,
         )
     }

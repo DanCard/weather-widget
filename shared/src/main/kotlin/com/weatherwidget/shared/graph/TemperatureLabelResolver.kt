@@ -128,6 +128,7 @@ object TemperatureLabelResolver {
         observedAt: Long?,
         numColumns: Int = 0,
         widthPx: Int = 0,
+        fetchDotX: Float? = null,
         useCelsius: Boolean,
     ): List<TempLabelCandidate> =
         LabelCandidateCollector.collect(
@@ -138,6 +139,7 @@ object TemperatureLabelResolver {
             observedAt = observedAt,
             numColumns = numColumns,
             widthPx = widthPx,
+            fetchDotX = fetchDotX,
             useCelsius = useCelsius,
         )
 
