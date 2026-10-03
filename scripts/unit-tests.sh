@@ -107,6 +107,16 @@ cleanup() {
 
 trap cleanup EXIT
 
+# Elapsed time since the script started, e.g. "45s" or "1m02s".
+format_elapsed() {
+  local seconds=$1
+  if [ "$seconds" -lt 60 ]; then
+    printf '%ss' "$seconds"
+  else
+    printf '%dm%02ds' $((seconds / 60)) $((seconds % 60))
+  fi
+}
+
 format_seconds() {
   local seconds=$1
   if [ "$seconds" -eq 1 ]; then
@@ -159,8 +169,11 @@ for xml_file in sorted(results_dir.glob("TEST-*.xml")):
 wall_duration = 0
 if min_start and max_end:
     wall_duration = int((max_end - min_start).total_seconds())
+# Epoch second the last test ended: lets the caller say when the group finished, independent of
+# when the summary line happens to be printed.
+end_epoch = int(max_end.timestamp()) if max_end else 0
 
-print(f"{test_count}|{failures}|{errors}|{skipped}|{wall_duration}")
+print(f"{test_count}|{failures}|{errors}|{skipped}|{wall_duration}|{end_epoch}")
 PY
 }
 
@@ -207,8 +220,14 @@ emit_results_summary() {
   if [ ! -d "$results_dir" ] || ! compgen -G "$results_dir/TEST-*.xml" >/dev/null 2>&1; then
     return 1
   fi
-  local test_count failures errors skipped duration
-  IFS='|' read -r test_count failures errors skipped duration <<<"$(bucket_result_summary "$results_dir")"
+  local test_count failures errors skipped duration end_epoch
+  IFS='|' read -r test_count failures errors skipped duration end_epoch <<<"$(bucket_result_summary "$results_dir")"
+  # "N seconds" is test execution only (first test start -> last test end); the build before it is
+  # not included, so also say when the group finished relative to the script's start.
+  local done_at=""
+  if [ "${end_epoch:-0}" -ge "$OVERALL_START" ]; then
+    done_at=" (done at $(format_elapsed $((end_epoch - OVERALL_START))))"
+  fi
   local result_failures=$((failures + errors))
   local cached=false
   if [ -n "$task_log" ] && grep -qE "^> Task ${task_path} (UP-TO-DATE|FROM-CACHE)" "$task_log" 2>/dev/null; then
@@ -222,9 +241,9 @@ emit_results_summary() {
   elif [ "$cached" = true ]; then
     log_and_echo "${test_count} ${label} tests: cached (up to date; last ran $(date -r "$results_dir" +%H:%M 2>/dev/null || echo "?"))."
   elif [ "$skipped" -gt 0 ]; then
-    log_and_echo "${test_count} ${label} tests passed (${skipped} skipped) in $(format_seconds "${duration:-0}")."
+    log_and_echo "${test_count} ${label} tests passed (${skipped} skipped) in $(format_seconds "${duration:-0}")${done_at}."
   else
-    log_and_echo "${test_count} ${label} tests passed in $(format_seconds "${duration:-0}")."
+    log_and_echo "${test_count} ${label} tests passed in $(format_seconds "${duration:-0}")${done_at}."
   fi
 }
 
@@ -357,6 +376,11 @@ if [ -z "$gradle_log" ]; then
   gradle_log=$(mktemp)
   is_temp_log=true
 fi
+# Empty it once here, then Gradle APPENDS. log_and_echo appends summary lines to this same file
+# while Gradle runs; a truncating `>` redirect kept Gradle writing from its own offset and
+# overwrote them (staggered-tests logs held only the last two summary lines). Emptying first keeps
+# the UP-TO-DATE/FROM-CACHE greps scoped to this run.
+: > "$gradle_log"
 
 # Run :shared and :desktop tests in parallel with the :app buckets below — but only on
 # default full runs; explicit bucket selection runs just those buckets.
@@ -380,12 +404,12 @@ if [ "$STREAM_OUTPUT" = true ]; then
   (
     cd "$ROOT_DIR"
     JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" $task_name --console=plain
-  ) | tee "$gradle_log" || overall_status=$?
+  ) | tee -a "$gradle_log" || overall_status=$?
 else
   (
     cd "$ROOT_DIR"
     JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" $task_name --console=plain
-  ) >"$gradle_log" 2>&1 || overall_status=$?
+  ) >>"$gradle_log" 2>&1 || overall_status=$?
 fi
 
 stop_pid_tree "$SINGLE_INVOCATION_MONITOR_PID"
@@ -421,7 +445,7 @@ if [ "$DEFAULT_RUN" = true ]; then
 for module in shared desktop; do
   results_dir="$ROOT_DIR/$module/build/test-results/test"
   if [ -d "$results_dir" ] && compgen -G "$results_dir/TEST-*.xml" >/dev/null 2>&1; then
-    IFS='|' read -r test_count failures errors skipped module_duration <<<"$(bucket_result_summary "$results_dir")"
+    IFS='|' read -r test_count failures errors skipped module_duration _ <<<"$(bucket_result_summary "$results_dir")"
     total_tests=$((total_tests + test_count))
     module_failures=$((failures + errors))
     total_failures=$((total_failures + module_failures))
@@ -447,7 +471,7 @@ fi
 for bucket in "${BUCKETS[@]}"; do
   results_dir="$ROOT_DIR/app/build/test-results/test${bucket}DebugUnitTest${RUN_MODE}"
   if [ -d "$results_dir" ]; then
-    IFS='|' read -r test_count failures errors skipped bucket_duration <<<"$(bucket_result_summary "$results_dir")"
+    IFS='|' read -r test_count failures errors skipped bucket_duration _ <<<"$(bucket_result_summary "$results_dir")"
     total_tests=$((total_tests + test_count))
     bucket_failures=$((failures + errors))
     total_failures=$((total_failures + bucket_failures))
