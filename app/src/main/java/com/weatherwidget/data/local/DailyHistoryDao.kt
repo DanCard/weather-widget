@@ -19,11 +19,40 @@ interface DailyHistoryDao {
      * writing `actualsSource`/`apiHighTemp`) can never have its provenance clobbered by a stale
      * recompute snapshot, and a conflicting write returns 0 so the caller can skip the row.
      */
+    /**
+     * Writes ONLY the settled forecast overlay (see ForecastOverlaySettle). Leaves `updatedAt`
+     * alone, so it never trips [updateBlendIfUnchanged]'s optimistic check and never clobbers a
+     * blend written concurrently.
+     */
+    @Query(
+        """
+        UPDATE daily_history SET
+            forecastHighTemp = :forecastHighTemp,
+            forecastLowTemp = :forecastLowTemp,
+            lastWriter = :lastWriter
+        WHERE date = :date
+          AND source = :source
+          AND locationLat = :locationLat
+          AND locationLon = :locationLon
+        """,
+    )
+    suspend fun updateForecastOverlay(
+        date: Long,
+        source: String,
+        locationLat: Double,
+        locationLon: Double,
+        forecastHighTemp: Float?,
+        forecastLowTemp: Float?,
+        lastWriter: String?,
+    ): Int
+
     @Query(
         """
         UPDATE daily_history SET
             computedHighTemp = :computedHighTemp,
             computedLowTemp = :computedLowTemp,
+            computedHighAt = :computedHighAt,
+            computedLowAt = :computedLowAt,
             condition = :condition,
             precipAmountMm = :precipAmountMm,
             precipDayMm = :precipDayMm,
@@ -44,6 +73,8 @@ interface DailyHistoryDao {
         locationLon: Double,
         computedHighTemp: Float?,
         computedLowTemp: Float?,
+        computedHighAt: Long?,
+        computedLowAt: Long?,
         condition: String,
         precipAmountMm: Float?,
         precipDayMm: Float?,

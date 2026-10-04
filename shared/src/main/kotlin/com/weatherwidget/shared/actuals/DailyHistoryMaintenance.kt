@@ -250,6 +250,34 @@ object DailyHistoryMaintenance {
         return SnapshotPlan(rows, traces, chanceChanges)
     }
 
+    /** Result of [planSettledForecastOverlays]: rows to write plus one log line per change. */
+    data class SettlePlan(val rows: List<DailyHistory>, val logs: List<String>)
+
+    /**
+     * Settles every past row's forecast overlay to the last forecast fetched before each extreme
+     * happened ([ForecastOverlaySettle]). Runs after every fetch over the forecast rows the platform
+     * already loads for [planForecastOnlyRows] (31 days), which also re-settles the retained past;
+     * idempotent, and re-settles if late observations move an extreme's time.
+     */
+    fun planSettledForecastOverlays(
+        forecastRows: List<ForecastHistoryRow>,
+        existing: List<DailyHistory>,
+        todayMs: Long,
+    ): SettlePlan {
+        val rows = mutableListOf<DailyHistory>()
+        val logs = mutableListOf<String>()
+        existing.forEach { history ->
+            val settled = ForecastOverlaySettle.settle(history, forecastRows, todayMs) ?: return@forEach
+            rows += settled.row
+            logs += "date=${LocalDate.ofEpochDay(history.date / 86_400_000L)} src=${history.source} " +
+                "high=${history.forecastHighTemp}->${settled.row.forecastHighTemp} " +
+                "(fetched=${settled.highFetchedAt} highAt=${history.computedHighAt}) " +
+                "low=${history.forecastLowTemp}->${settled.row.forecastLowTemp} " +
+                "(fetched=${settled.lowFetchedAt} lowAt=${history.computedLowAt})"
+        }
+        return SettlePlan(rows, logs)
+    }
+
     /**
      * One-time backfill of the day/night rain-chance snapshot columns from the as-predicted
      * hourly history archive. [historyFor] returns the retained snapshots for a (date, source)

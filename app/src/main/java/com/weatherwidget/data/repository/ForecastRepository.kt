@@ -331,6 +331,13 @@ class ForecastRepository
             )
         }
 
+        internal suspend fun settlePastForecastOverlays(
+            latitude: Double,
+            longitude: Double,
+        ) {
+            dailyHistorySnapshotter.settlePastForecastOverlays(latitude, longitude)
+        }
+
         internal suspend fun ensureForecastOnlyHistoryRows(
             latitude: Double,
             longitude: Double,

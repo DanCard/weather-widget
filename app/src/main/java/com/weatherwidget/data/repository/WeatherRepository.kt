@@ -172,6 +172,9 @@ class WeatherRepository
         suspend fun snapshotDisplayedRainChance(latitude: Double, longitude: Double) =
             forecastRepository.snapshotDisplayedRainChance(latitude, longitude)
 
+        suspend fun settlePastForecastOverlays(latitude: Double, longitude: Double) =
+            forecastRepository.settlePastForecastOverlays(latitude, longitude)
+
         suspend fun ensureForecastOnlyHistoryRows(latitude: Double, longitude: Double) =
             forecastRepository.ensureForecastOnlyHistoryRows(latitude, longitude)
 

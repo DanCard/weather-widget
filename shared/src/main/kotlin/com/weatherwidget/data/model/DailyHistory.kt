@@ -30,8 +30,10 @@ data class DailyHistory(
     val forecastNightPrecipChance: Int? = null,
     // Frozen forecast-overlay values (yellow accuracy bar) and noon cloud %, snapshotted while the
     // day was current so the daily bar view can render past days from this row alone — without the
-    // forecasts / hourly tables whose retention may be shorter (see DailyHistoryFreeze). High/low
-    // move as a unit (both null or both set). Null for rows written before this feature.
+    // forecasts / hourly tables whose retention may be shorter (see DailyHistoryFreeze). While the
+    // day is live high/low move as a unit; once it is over each is settled to the last forecast
+    // fetched before that extreme happened (ForecastOverlaySettle), so they may come from
+    // different fetches. Null for rows written before this feature.
     val forecastHighTemp: Float? = null,
     val forecastLowTemp: Float? = null,
     val forecastPrecipAmountMm: Float? = null,
@@ -46,6 +48,15 @@ data class DailyHistory(
     val actualsSource: String? = null,
     /** See `DailyHistoryWriter`; diagnostic only. */
     val lastWriter: String? = null,
+    /**
+     * When the blended actual line first came within
+     * [com.weatherwidget.shared.actuals.ForecastOverlaySettle.EXTREME_REACHED_TOLERANCE_F] of
+     * [computedHighTemp] / [computedLowTemp] (epoch ms). Moves with those values. A past day's
+     * forecast overlay is the last forecast fetched at or before these instants — see
+     * `ForecastOverlaySettle`. Null when unknown (forecast-only rows, rows written before v72).
+     */
+    val computedHighAt: Long? = null,
+    val computedLowAt: Long? = null,
     /**
      * Display-only, never persisted: when non-null, [computedHighTemp]/[computedLowTemp] were
      * measured at ANOTHER site this far away (km) because the current site has no measured row

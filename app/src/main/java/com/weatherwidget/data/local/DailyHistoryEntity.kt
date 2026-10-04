@@ -56,6 +56,11 @@ data class DailyHistoryEntity(
     val actualsSource: String? = null,
     // Which code path last wrote this row — see DailyHistoryWriter. Diagnostic only.
     val lastWriter: String? = null,
+    // When the blended high/low was reached (epoch ms); moves with computedHigh/LowTemp. A past
+    // day's forecast overlay is settled to the last forecast fetched before it — see
+    // ForecastOverlaySettle. Null for forecast-only rows and rows written before v72.
+    val computedHighAt: Long? = null,
+    val computedLowAt: Long? = null,
 )
 
 fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHistory(
@@ -82,6 +87,8 @@ fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHist
     apiStationDistanceKm = apiStationDistanceKm,
     actualsSource = actualsSource,
     lastWriter = lastWriter,
+    computedHighAt = computedHighAt,
+    computedLowAt = computedLowAt,
 )
 
 fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
@@ -108,4 +115,6 @@ fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     apiStationDistanceKm = apiStationDistanceKm,
     actualsSource = actualsSource,
     lastWriter = lastWriter,
+    computedHighAt = computedHighAt,
+    computedLowAt = computedLowAt,
 )

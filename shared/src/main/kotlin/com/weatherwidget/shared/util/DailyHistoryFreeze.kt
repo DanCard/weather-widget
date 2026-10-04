@@ -18,8 +18,9 @@ import java.time.ZoneId
 object DailyHistoryFreeze {
     /**
      * Forecast-overlay freeze window (forecastHighTemp/LowTemp/PrecipAmountMm): open until local
-     * midnight at the end of [date]. The past-day overlay means "the most recent complete forecast
-     * while the day was live", so nothing fetched after the day ends may alter it.
+     * midnight at the end of [date], keeping the live day's overlay current. Once the day is over,
+     * `ForecastOverlaySettle` replaces the high (low) with the last forecast fetched before that
+     * extreme was reached — fetches after it are hindcasts.
      */
     fun overlayWindowOpen(nowMs: Long, date: LocalDate, zoneId: ZoneId = ZoneId.systemDefault()): Boolean =
         nowMs < date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()

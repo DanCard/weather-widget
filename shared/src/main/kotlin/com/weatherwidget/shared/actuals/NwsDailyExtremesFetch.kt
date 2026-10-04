@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import java.time.Instant
@@ -62,6 +63,9 @@ object NwsDailyExtremesFetch {
         val blendHigh: Float,
         val blendLow: Float,
         val station: StationDailyExtremes.StationDailyExtreme?,
+        /** When the blend reached [blendHigh] / [blendLow]; backs `computedHighAt`/`computedLowAt`. */
+        val blendHighAt: Long? = null,
+        val blendLowAt: Long? = null,
     )
 
     /**
@@ -166,8 +170,10 @@ object NwsDailyExtremesFetch {
 
             result[epochMs] = DayOutcome.Resolved(
                 DailyActualsFromStations(
-                    blendHigh = blend.first,
-                    blendLow = blend.second,
+                    blendHigh = blend.computedHighTemp!!,
+                    blendLow = blend.computedLowTemp!!,
+                    blendHighAt = blend.computedHighAt,
+                    blendLowAt = blend.computedLowAt,
                     station = StationDailyExtremes.resolve(
                         observations = pool,
                         sourceId = "NWS",
@@ -218,7 +224,7 @@ object NwsDailyExtremesFetch {
         dateEpochDayMs: Long,
         zone: ZoneId,
         nowMs: Long,
-    ): Pair<Float, Float>? =
+    ): DailyHistory? =
         ActualsAggregator.aggregate(
             observations = pool,
             hourlyForecasts = hourly,
@@ -229,11 +235,7 @@ object NwsDailyExtremesFetch {
             personalStationWeight = personalStationWeight,
         )
             .firstOrNull { it.source == "NWS" && it.date == dateEpochDayMs }
-            ?.let { row ->
-                // A forecast-only aggregation row (no observations) has null extremes — that is
-                // not an actual, so yield no pair rather than a null-poisoned one.
-                val high = row.computedHighTemp
-                val low = row.computedLowTemp
-                if (high != null && low != null) high to low else null
-            }
+            // A forecast-only aggregation row (no observations) has null extremes — that is not an
+            // actual, so yield nothing rather than a null-poisoned row.
+            ?.takeIf { it.computedHighTemp != null && it.computedLowTemp != null }
 }

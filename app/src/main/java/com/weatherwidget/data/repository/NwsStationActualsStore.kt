@@ -106,6 +106,8 @@ class NwsStationActualsStore @Inject constructor(
                     // stored blend can't be replaced by a worse one.
                     computedHighTemp = actuals.blendHigh,
                     computedLowTemp = actuals.blendLow,
+                    computedHighAt = actuals.blendHighAt,
+                    computedLowAt = actuals.blendLowAt,
                     // A day can have a blend but no station extreme — personal stations feed the
                     // former and are barred from the latter. Keep whatever was stored in that case.
                     apiHighTemp = actuals.station?.high ?: row.apiHighTemp,

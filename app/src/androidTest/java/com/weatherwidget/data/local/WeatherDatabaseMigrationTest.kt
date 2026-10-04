@@ -641,4 +641,35 @@ class WeatherDatabaseMigrationTest {
             assertEquals(4, c.getInt(0))
         }
     }
+
+    /**
+     * v72 adds when the day's blended high/low was reached, for settling a past day's forecast
+     * overlay (plans/261004-forecast-overlay-frozen-at-extreme-time.md). Existing rows keep every
+     * value; the new columns start NULL (unknown), which leaves those rows unsettled.
+     */
+    @Test
+    fun migrate71To72_addsExtremeTimeColumnsAsNullAndKeepsRows() {
+        helper.createDatabase(testDb, 71).apply {
+            execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, computedHighTemp, " +
+                    "computedLowTemp, condition, updatedAt, forecastHighTemp, forecastLowTemp) VALUES " +
+                    "(1790985600000, 'OPEN_METEO', 37.417, -122.089, 91.6, 59.0, 'Clear', 5, 89.0, 58.0)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 72, true, WeatherDatabase.MIGRATION_71_72)
+
+        db.query(
+            "SELECT computedHighTemp, forecastHighTemp, forecastLowTemp, computedHighAt, computedLowAt " +
+                "FROM daily_history",
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(91.6, c.getDouble(0), 0.01)
+            assertEquals(89.0, c.getDouble(1), 0.01)
+            assertEquals(58.0, c.getDouble(2), 0.01)
+            assertTrue("computedHighAt must start NULL", c.isNull(3))
+            assertTrue("computedLowAt must start NULL", c.isNull(4))
+        }
+    }
 }

@@ -254,6 +254,7 @@ internal class FullSyncPipeline(
                         weatherRepository.backfillForecastChanceSnapshotsIfNeeded(location.first, location.second)
                         weatherRepository.backfillFrozenDisplayColumnsIfNeeded(location.first, location.second)
                         weatherRepository.repairFrozenRainChanceIfNeeded(location.first, location.second)
+                        weatherRepository.settlePastForecastOverlays(location.first, location.second)
                     }
                     val afterRepairsMs = SystemClock.elapsedRealtime()
 

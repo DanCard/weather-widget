@@ -277,7 +277,7 @@ object ActualsAggregator {
                         val windowEndMs = dayEndMs + DAILY_BLEND_CONTEXT_MS
                         val windowObs = obsList.filter { it.timestamp in windowStartMs until windowEndMs }
 
-                        val (computedHighTemp, computedLowTemp) = blendDailyExtremesViaSeries(
+                        val extremes = blendDailyExtremesViaSeries(
                             contextObs = windowObs,
                             hourlyForecasts = sourceHourly,
                             sourceId = sourceId,
@@ -308,17 +308,22 @@ object ActualsAggregator {
                             source = sourceId,
                             locationLat = locationLat,
                             locationLon = locationLon,
-                            computedHighTemp = computedHighTemp,
-                            computedLowTemp = computedLowTemp,
+                            computedHighTemp = extremes.high,
+                            computedLowTemp = extremes.low,
                             condition = mostCommonCondition,
                             updatedAt = updatedAtMs,
                             precipAmountMm = precip.total,
                             precipDayMm = precip.day,
                             precipNightMm = precip.night,
+                            computedHighAt = extremes.highAt,
+                            computedLowAt = extremes.lowAt,
                         )
                     }
             }
     }
+
+    /** A day's blended extremes and when the line first came within reach of each. */
+    private data class DayExtremes(val high: Float, val low: Float, val highAt: Long?, val lowAt: Long?)
 
     private fun blendDailyExtremesViaSeries(
         contextObs: List<ObservationReading>,
@@ -332,7 +337,7 @@ object ActualsAggregator {
         windowEndMs: Long,
         personalStationWeight: Double = 1.0,
         zoneId: ZoneId = ZoneId.systemDefault(),
-    ): Pair<Float, Float>? {
+    ): DayExtremes? {
         if (contextObs.isEmpty()) return null
 
         val result = ActualTemperatureSeriesBuilder.blendObservationSeries(
@@ -354,7 +359,14 @@ object ActualsAggregator {
         if (series.isEmpty()) return null
         val high = series.maxOf { it.temperature }
         val low = series.minOf { it.temperature }
-        return high to low
+        // When each extreme was reached: the past-day forecast overlay is settled to the last
+        // forecast fetched before it (ForecastOverlaySettle).
+        return DayExtremes(
+            high = high,
+            low = low,
+            highAt = ForecastOverlaySettle.firstReachedAt(series, { it.timestamp }, { it.temperature }, high, isHigh = true),
+            lowAt = ForecastOverlaySettle.firstReachedAt(series, { it.timestamp }, { it.temperature }, low, isHigh = false),
+        )
     }
 
     fun resolveDailyPrecip(

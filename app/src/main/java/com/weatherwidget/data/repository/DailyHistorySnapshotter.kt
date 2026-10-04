@@ -100,6 +100,49 @@ internal class DailyHistorySnapshotter(
         )
     }
 
+    /**
+     * Settles each past day's forecast overlay to the last forecast fetched before that day's high
+     * (low) was reached — every source, the retained ~30 days. The rule is shared with desktop
+     * ([DailyHistoryMaintenance.planSettledForecastOverlays]); this only loads and writes, with a
+     * field-limited UPDATE so a concurrent blend write is never clobbered.
+     */
+    suspend fun settlePastForecastOverlays(
+        latitude: Double,
+        longitude: Double,
+    ) {
+        val zoneId = ZoneId.systemDefault()
+        val today = LocalDate.now(zoneId)
+        val startMs = today.minusDays(DailyHistoryMaintenance.FORECAST_ONLY_LOOKBACK_DAYS)
+            .toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val todayMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val existing = dailyHistoryDao.getExtremesInRange(startMs, todayMs - 1, latitude, longitude)
+            .filter { it.computedHighAt != null || it.computedLowAt != null }
+            .map { it.toDailyHistory() }
+        if (existing.isEmpty()) return
+        // Every stored fetch, not getForecastsInRange: that returns only each day's newest batch,
+        // which is exactly the post-extreme hindcast this step exists to look past.
+        val forecastRows = forecastDao.getAllForecastsInRange(startMs, todayMs, latitude, longitude)
+        if (forecastRows.isEmpty()) return
+
+        val plan = DailyHistoryMaintenance.planSettledForecastOverlays(
+            forecastRows = forecastRows.map { it.toMaintenanceRow() },
+            existing = existing,
+            todayMs = todayMs,
+        )
+        plan.rows.forEach { row ->
+            dailyHistoryDao.updateForecastOverlay(
+                date = row.date,
+                source = row.source,
+                locationLat = row.locationLat,
+                locationLon = row.locationLon,
+                forecastHighTemp = row.forecastHighTemp,
+                forecastLowTemp = row.forecastLowTemp,
+                lastWriter = row.lastWriter,
+            )
+        }
+        plan.logs.forEach { appLogDao.log("FORECAST_OVERLAY_SETTLED", it, "INFO") }
+    }
+
     suspend fun snapshotDisplayedRainChance(
         latitude: Double,
         longitude: Double,

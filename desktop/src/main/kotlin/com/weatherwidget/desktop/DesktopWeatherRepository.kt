@@ -652,6 +652,7 @@ class DesktopWeatherRepository(
         snapshotDisplayedRainChance(now)
         backfillForecastChanceSnapshotsIfNeeded(now)
         backfillFrozenDisplayColumnsIfNeeded(now)
+        settlePastForecastOverlays(now)
         return extremesCount
     }
 
@@ -824,6 +825,7 @@ class DesktopWeatherRepository(
             snapshotDisplayedRainChance(now)
             backfillForecastChanceSnapshotsIfNeeded(now)
             backfillFrozenDisplayColumnsIfNeeded(now)
+            settlePastForecastOverlays(now)
             val cached = loadCached(now)
 
             weatherDao.log(
@@ -960,6 +962,11 @@ class DesktopWeatherRepository(
                 existing.copy(
                     computedHighTemp = if (freezeBlend) existing.computedHighTemp else new.computedHighTemp,
                     computedLowTemp = if (freezeBlend) existing.computedLowTemp else new.computedLowTemp,
+                    // The times move with the values they describe (ForecastOverlaySettle). A frozen
+                    // pull row written before v72/v25 has none; it adopts the recompute's, which
+                    // describe when the same day's high/low happened — so it can still be settled.
+                    computedHighAt = if (freezeBlend) existing.computedHighAt ?: new.computedHighAt else new.computedHighAt,
+                    computedLowAt = if (freezeBlend) existing.computedLowAt ?: new.computedLowAt else new.computedLowAt,
                     condition = new.condition,
                     precipAmountMm = new.precipAmountMm,
                     precipDayMm = new.precipDayMm,
@@ -1199,6 +1206,29 @@ class DesktopWeatherRepository(
         }
         if (rows.isNotEmpty()) weatherDao.upsertDailyHistory(rows)
         weatherDao.log(FROZEN_DISPLAY_BACKFILL_DONE_TAG, "backfilled=${rows.size} scanned=${rowsNeedingBackfill.size}")
+    }
+
+    /**
+     * Settles each past day's forecast overlay to the last forecast fetched before that day's high
+     * (low) was reached — every source, the retained ~30 days. The rule is shared with Android
+     * ([DailyHistoryMaintenance.planSettledForecastOverlays]); this only loads and writes.
+     */
+    internal fun settlePastForecastOverlays(now: Long) {
+        val zoneId = ZoneId.systemDefault()
+        val today = Instant.ofEpochMilli(now).atZone(zoneId).toLocalDate()
+        val startMs = today.minusDays(DailyHistoryMaintenance.FORECAST_ONLY_LOOKBACK_DAYS).toEpochDay() * 86_400_000L
+        val todayMs = today.toEpochDay() * 86_400_000L
+        val existing = weatherDao.getExtremesInRange(startMs, todayMs - 1, latitude, longitude)
+            .filter { it.computedHighAt != null || it.computedLowAt != null }
+        if (existing.isEmpty()) return
+        val forecastRows = existing.map { it.source }.distinct().flatMap { source ->
+            weatherDao.getForecastsInRangeBySource(startMs, todayMs, latitude, longitude, source)
+                .map { it.toMaintenanceRow() }
+        }
+        val plan = DailyHistoryMaintenance.planSettledForecastOverlays(forecastRows, existing, todayMs)
+        if (plan.rows.isEmpty()) return
+        weatherDao.upsertDailyHistory(plan.rows)
+        plan.logs.forEach { weatherDao.log("FORECAST_OVERLAY_SETTLED", it, "INFO") }
     }
 
     /** Flattens a desktop forecast row into the shared planner's row type. */
@@ -1485,6 +1515,8 @@ class DesktopWeatherRepository(
                     return@mapNotNull row.copy(
                         computedHighTemp = actuals.blendHigh,
                         computedLowTemp = actuals.blendLow,
+                        computedHighAt = actuals.blendHighAt,
+                        computedLowAt = actuals.blendLowAt,
                         apiHighTemp = actuals.station?.high ?: row.apiHighTemp,
                         apiLowTemp = actuals.station?.low ?: row.apiLowTemp,
                         apiStationId = actuals.station?.stationId ?: row.apiStationId,

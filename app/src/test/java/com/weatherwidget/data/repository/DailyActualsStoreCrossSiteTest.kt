@@ -267,4 +267,55 @@ class DailyActualsStoreCrossSiteTest : RobolectricTest() {
             .single { it.source == source }
         assertEquals("frozen station-pull blend must survive the site filter", 60.2f, row.computedLowTemp!!, 0.01f)
     }
+
+    /**
+     * The recompute's conditional UPDATE carries when the blended high and low were reached, so a
+     * past day can later be settled to the forecasts fetched before them
+     * (plans/261004-forecast-overlay-frozen-at-extreme-time.md).
+     */
+    @Test
+    fun `recompute stores when the high and low were reached`() = runTest {
+        seedHomeFullDay()
+        db.dailyHistoryDao().insertAll(listOf(historyRow(homeLat, homeLon, high = 1f, low = 1f)))
+
+        store.recomputeDailyExtremesForDay(homeLat, homeLon, today, emptyList())
+
+        val row = rowAt(homeLat, homeLon)!!
+        assertEquals(72.3f, row.computedHighTemp!!, 0.01f)
+        assertEquals("high reached at the 16:40 reading", at(16, 40), row.computedHighAt)
+        assertEquals("low reached at the 06:47 reading", at(6, 47), row.computedLowAt)
+    }
+
+    /**
+     * A day finalised by the NWS station pull before extreme times existed keeps its frozen values
+     * but adopts the recompute's times, so it can still be settled; a time it already has wins.
+     */
+    @Test
+    fun `a frozen station-pull row adopts missing extreme times but keeps its values`() = runTest {
+        val yesterday = today.minusDays(1)
+        val yStart = yesterday.atStartOfDay(zone)
+        fun yAt(h: Int) = yStart.plusHours(h.toLong()).toInstant().toEpochMilli()
+        db.observationDao().insertAll(
+            listOf(
+                obs(homeLat, homeLon, yAt(2), 55f),
+                obs(homeLat, homeLon, yAt(14), 70f),
+            ),
+        )
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                historyRow(homeLat, homeLon, high = 69.8f, low = 60.2f, actualsSource = DailyActualsSource.NWS_STATION_PULL.storedValue)
+                    .copy(date = dateMillis(yesterday), computedLowAt = yAt(3)),
+            ),
+        )
+
+        store.recomputeDailyExtremesForDay(homeLat, homeLon, yesterday, emptyList())
+
+        val row = db.dailyHistoryDao()
+            .getExtremesInRange(dateMillis(yesterday), dateMillis(yesterday), homeLat, homeLon)
+            .single { it.source == source }
+        assertEquals("frozen values stay", 69.8f, row.computedHighTemp!!, 0.01f)
+        assertEquals("frozen values stay", 60.2f, row.computedLowTemp!!, 0.01f)
+        assertEquals("missing high time adopted from the recompute", yAt(14), row.computedHighAt)
+        assertEquals("an existing time is kept", yAt(3), row.computedLowAt)
+    }
 }

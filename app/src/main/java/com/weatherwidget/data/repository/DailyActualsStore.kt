@@ -431,6 +431,11 @@ class DailyActualsStore @Inject constructor(
                 val merged = existing.copy(
                     computedHighTemp = if (freezeBlend) existing.computedHighTemp else new.computedHighTemp,
                     computedLowTemp = if (freezeBlend) existing.computedLowTemp else new.computedLowTemp,
+                    // The times move with the values they describe (ForecastOverlaySettle). A frozen
+                    // pull row written before v72/v25 has none; it adopts the recompute's, which
+                    // describe when the same day's high/low happened — so it can still be settled.
+                    computedHighAt = if (freezeBlend) existing.computedHighAt ?: new.computedHighAt else new.computedHighAt,
+                    computedLowAt = if (freezeBlend) existing.computedLowAt ?: new.computedLowAt else new.computedLowAt,
                     condition = new.condition,
                     precipAmountMm = new.precipAmountMm,
                     precipDayMm = new.precipDayMm,
@@ -482,6 +487,8 @@ class DailyActualsStore @Inject constructor(
             locationLon = merged.locationLon,
             computedHighTemp = merged.computedHighTemp,
             computedLowTemp = merged.computedLowTemp,
+            computedHighAt = merged.computedHighAt,
+            computedLowAt = merged.computedLowAt,
             condition = merged.condition,
             precipAmountMm = merged.precipAmountMm,
             precipDayMm = merged.precipDayMm,
