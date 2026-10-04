@@ -479,6 +479,27 @@ done
 
 **Lesson:** Device ID formats are unreliable for identification. Always verify with `getprop` before assuming which physical device corresponds to which ID.
 
+## Source Preference Toggles (runtime prefs, no code)
+
+Enable/disable a weather source by editing preferences only. Do **not** change `WeatherSource`, `ALL_CONFIGURABLE`, or defaults in code for a user preference request.
+
+| Platform | Store | Key |
+|---|---|---|
+| Android | SharedPreferences `widget_state_prefs` | `visible_sources_order` (CSV of `WeatherSource.id`) |
+| Desktop | `${XDG_CONFIG_HOME:-$HOME/.config}/weather-widget/config.json` | `settings.visibleSources` |
+
+Ids: `NWS`, `OPEN_METEO`, `SILURIAN`, `TOMORROW_IO`, `WEATHER_API` (UI label "WAPI"), `OPEN_WEATHER_MAP`.
+
+Procedure:
+1. **Force-stop the app first** — `adb -s <serial> shell am force-stop com.weatherwidget`, and stop `weather-widget-desktop` before editing `config.json`. Otherwise an in-memory save overwrites the edit.
+2. Edit the enabled list (Android via `run-as com.weatherwidget`, desktop as a normal file edit). Leave at least one source on.
+3. Wake Android (`am start -n com.weatherwidget/.ui.SettingsActivity`), restart desktop if needed.
+
+Notes:
+- `WeatherSourceOrdering.sanitizeVisibleIds` keeps only stored ids — a removed source is not re-added (an empty list falls back to `DEFAULT_VISIBLE_IDS`).
+- API keys (`api_key_*` / `settings.apiKeys`), `actuals_provider_*`, and `widget_display_source_<id>` are independent. Clear them only if you also want to drop keys or a widget is currently displaying the source being disabled.
+- This is prefs-only deactivation; the source remains user-selectable in Settings UI unless code changes.
+
 ## Testing the Widget
 
 - **Prefer pure-function extraction for testability.** mockk (1.13.9) is available and used where
