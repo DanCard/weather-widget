@@ -503,12 +503,14 @@ private fun loadHistory(
     val isPast = targetDate.isBefore(LocalDate.now())
 
     val rows = dao.getForecastEvolution(targetEpoch, lat, lon).filter { it.source == source.id }
-    val points = rows.map { row ->
+    val points = rows.mapNotNull { row ->
         val forecastDate = LocalDate.ofEpochDay(row.dateOfPrediction / MS_IN_A_DAY)
-        EvolutionPoint(
+        val daysAhead = java.time.temporal.ChronoUnit.DAYS.between(forecastDate, targetDate).toInt()
+        if (daysAhead < 0) null
+        else EvolutionPoint(
             forecastDate = forecastDate.toString(),
             fetchedAt = row.fetchedAt,
-            daysAhead = java.time.temporal.ChronoUnit.DAYS.between(forecastDate, targetDate).toInt(),
+            daysAhead = daysAhead,
             highTemp = row.highTemp,
             lowTemp = row.lowTemp,
             source = WeatherSource.fromId(row.source),
@@ -545,7 +547,7 @@ private fun loadHistory(
         appLow = appActual?.computedLowTemp
     }
 
-    val newestFetch = rows.maxByOrNull { it.fetchedAt }?.fetchedAt
+    val newestFetch = points.maxByOrNull { it.fetchedAt }?.fetchedAt
     val newestAge = newestFetch?.let { System.currentTimeMillis() - it }
 
     val calc = DesktopAccuracyCalculator(dao, orderedVisibleSources = visibleSources)
@@ -575,7 +577,7 @@ private fun loadHistory(
         apiHigh = apiHigh, apiLow = apiLow,
         appHigh = appHigh, appLow = appLow,
         isPast = isPast,
-        snapshotCount = rows.size,
+        snapshotCount = points.size,
         newestFetchAgeMs = newestAge,
         accuracySummary = summary,
     )

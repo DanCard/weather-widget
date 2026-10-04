@@ -102,6 +102,16 @@ class ForecastSnapshotDaoTest {
         assertEquals(dateEpoch("2026-02-20"), evolution[2].dateOfPrediction)
     }
 
+    @Test
+    fun `getForecastEvolution excludes forecasts whose prediction date is after target date`() = runTest {
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", dateOfPrediction = "2026-02-20", fetchedAt = 1000L))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", dateOfPrediction = "2026-02-22", fetchedAt = 2000L))
+
+        val evolution = dao.getForecastEvolution(dateEpoch("2026-02-21"), LAT, LON)
+        assertEquals(1, evolution.size)
+        assertEquals(dateEpoch("2026-02-20"), evolution.single().dateOfPrediction)
+    }
+
     // --- Regression tests for past-day forecast bar bug ---
     // These guard the deduped query (used to bound CursorWindow row count) and the
     // production fetch pattern that replaced the over-narrow today-1..today+7 range.

@@ -382,7 +382,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         val lowToStore = if (d.isClimateNormal) d.lowTemp
                             else ForecastTempRounding.forStorage(d.lowTemp, isToday) ?: d.lowTemp
                         stmt.setLong(1, targetDate)
-                        stmt.setLong(2, todayEpoch) // simplified for desktop Tier 1
+                        stmt.setLong(2, minOf(todayEpoch, targetDate)) // prediction date cannot exceed target date
                         stmt.setDouble(3, keyLat)
                         stmt.setDouble(4, keyLon)
                         // NULL is a real value: NWS drops today's low in the evening and ends on a
@@ -1707,13 +1707,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT targetDate, dateOfPrediction, source, highTemp, lowTemp, fetchedAt FROM forecasts
-                WHERE targetDate = ? AND ${LocationMatch.JDBC_WHERE}
+                WHERE targetDate = ? AND dateOfPrediction <= ? AND ${LocationMatch.JDBC_WHERE}
                 ORDER BY dateOfPrediction ASC, batchFetchedAt ASC, fetchedAt ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setLong(1, targetDate)
-                stmt.setDouble(2, locationLat)
-                stmt.setDouble(3, locationLon)
+                stmt.setLong(2, targetDate)
+                stmt.setDouble(3, locationLat)
+                stmt.setDouble(4, locationLon)
                 val rs = stmt.executeQuery()
                 while (rs.next()) {
                     result.add(DesktopForecastRow(

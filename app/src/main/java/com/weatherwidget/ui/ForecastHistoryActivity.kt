@@ -359,10 +359,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
         updateApiSourceButton()
 
         val evolutionPoints =
-            snapshots.map { snapshot ->
+            snapshots.mapNotNull { snapshot ->
                 val forecastDate = LocalDate.ofEpochDay(snapshot.dateOfPrediction / WidgetConstants.MS_IN_A_DAY)
                 val daysAhead = java.time.temporal.ChronoUnit.DAYS.between(forecastDate, date).toInt()
-                EvolutionPoint(
+                if (daysAhead < 0) null
+                else EvolutionPoint(
                     forecastDate = forecastDate.toString(),
                     fetchedAt = snapshot.fetchedAt,
                     daysAhead = daysAhead,

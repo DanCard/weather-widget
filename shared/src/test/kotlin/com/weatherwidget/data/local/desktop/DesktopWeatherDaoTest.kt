@@ -117,6 +117,39 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
+    fun `getForecastEvolution excludes forecasts whose prediction date is after target date`() {
+        val lat = 40.0
+        val lon = -75.0
+        val targetEpoch = java.time.LocalDate.parse("2026-06-20").toEpochDay() * 86_400_000L
+        val postTargetEpoch = java.time.LocalDate.parse("2026-06-21").toEpochDay() * 86_400_000L
+
+        dao.upsertForecasts(lat, lon, "OPEN_METEO", listOf(DailyForecast("2026-06-20", 80f, 60f, "Sunny")))
+
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, source, batchFetchedAt, fetchedAt) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ).use { stmt ->
+                stmt.setLong(1, targetEpoch)
+                stmt.setLong(2, postTargetEpoch)
+                stmt.setDouble(3, lat)
+                stmt.setDouble(4, lon)
+                stmt.setFloat(5, 75f)
+                stmt.setFloat(6, 55f)
+                stmt.setString(7, "Cloudy")
+                stmt.setString(8, "OPEN_METEO")
+                stmt.setLong(9, 2000L)
+                stmt.setLong(10, 2000L)
+                stmt.executeUpdate()
+            }
+        }
+
+        val evolution = dao.getForecastEvolution(targetEpoch, lat, lon)
+        assertEquals(1, evolution.size)
+        assertEquals(80f, evolution.single().highTemp)
+    }
+
+    @Test
     fun `touch latest fetchedAt updates only the target station's newest row`() {
         val lat = 40.0
         val lon = -75.0

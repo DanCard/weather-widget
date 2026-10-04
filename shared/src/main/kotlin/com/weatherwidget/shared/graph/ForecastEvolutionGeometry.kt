@@ -49,7 +49,7 @@ object ForecastEvolutionGeometry {
     ): List<EvolutionPoint> {
         val bucketMillis = SNAPSHOT_BUCKET_HOURS * MILLIS_PER_HOUR
         return points
-            .filter { tempFor(it) != null }
+            .filter { it.daysAhead >= 0 && tempFor(it) != null }
             .groupBy { it.fetchedAt / bucketMillis }
             .mapNotNull { (_, bucketPoints) -> bucketPoints.maxByOrNull { it.fetchedAt } }
     }
@@ -73,7 +73,7 @@ object ForecastEvolutionGeometry {
         tempFor: (EvolutionPoint) -> Float?,
         baseline: Float,
     ): List<ErrorSample> =
-        series.mapNotNull { point ->
+        series.filter { it.daysAhead >= 0 }.mapNotNull { point ->
             tempFor(point)?.let { temp ->
                 ErrorSample(error = temp - baseline, daysAhead = point.daysAhead, fetchedAt = point.fetchedAt, source = point.source)
             }

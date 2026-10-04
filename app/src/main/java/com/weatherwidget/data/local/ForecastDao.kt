@@ -450,6 +450,7 @@ interface ForecastDao {
         """
         SELECT * FROM forecasts
         WHERE targetDate = :targetDate
+        AND dateOfPrediction <= :targetDate
         AND ${LocationMatch.ROOM_WHERE}
         ORDER BY dateOfPrediction ASC, batchFetchedAt ASC, fetchedAt ASC
     """,

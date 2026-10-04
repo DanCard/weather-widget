@@ -606,7 +606,11 @@ class DesktopWeatherRepository(
         // observations and must not rewrite either live forecast storage or its snapshots.
         val forecastHours = result.hourly.filter { it.dateTime >= now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
         weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, forecastHours)
-        weatherDao.upsertForecasts(latitude, longitude, weatherSource, result.daily)
+        val today = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        val forecastDaily = result.daily.filter {
+            runCatching { java.time.LocalDate.parse(it.date) >= today }.getOrDefault(true)
+        }
+        weatherDao.upsertForecasts(latitude, longitude, weatherSource, forecastDaily)
 
         // NWS api actuals are NOT written here. The gridpoint maxTemperature/minTemperature
         // this used to store are the raw NDFD *forecast* grid, so every past day's "actual"
