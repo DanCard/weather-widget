@@ -126,4 +126,26 @@ class SynopticApiRadiusTest {
         assertEquals(0, requests)
         assertTrue(outcome is FetchOutcome.Failed)
     }
+
+    @Test
+    fun `network 1 is official, network 2 is RAWS, everything else is personal`() {
+        // Live 2026-10-03: MNET 2 is RAWS (LOAC1 Los Altos, LAHC1 La Honda …), not NWS/FAA.
+        fun station(id: String, mnet: String) = """
+            {"STID": "$id", "NAME": "$id", "LATITUDE": "37.4", "LONGITUDE": "-122.1", "ELEVATION": "100",
+             "DISTANCE": "4.0", "MNET_ID": "$mnet",
+             "OBSERVATIONS": {"date_time": ["2026-10-03T21:00:00Z"], "air_temp_set_1": [33.0]}}
+        """
+        val payload = """{"SUMMARY": {"RESPONSE_CODE": 1}, "STATION": [
+            ${station("KNUQ", "1")}, ${station("LOAC1", "2")}, ${station("AW020", "65")}]}"""
+        val types = (SynopticApi.parseRadiusTimeseries(json, payload) as FetchOutcome.Success).value
+            .associate { it.info.id to it.info.type }
+        assertEquals(
+            mapOf(
+                "KNUQ" to NwsApi.StationType.OFFICIAL,
+                "LOAC1" to NwsApi.StationType.RAWS,
+                "AW020" to NwsApi.StationType.PERSONAL,
+            ),
+            types,
+        )
+    }
 }

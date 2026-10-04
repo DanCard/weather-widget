@@ -73,6 +73,8 @@ object BlendTableFormatter {
     fun typeLabel(stationType: String): String = when (stationType) {
         "OFFICIAL" -> "O"
         "PERSONAL" -> "P"
+        // Not "R": the value column already uses R for "real reading".
+        "RAWS" -> "F"
         else -> stationType
     }
 
@@ -100,6 +102,7 @@ object BlendTableFormatter {
      */
     val LEGEND = listOf(
         "type:  O = official station   P = personal (backyard) station",
+        "       F = fire-weather (RAWS) station, weighted like personal",
         "value: R = real reading   E = extrapolated from forecast",
     )
 

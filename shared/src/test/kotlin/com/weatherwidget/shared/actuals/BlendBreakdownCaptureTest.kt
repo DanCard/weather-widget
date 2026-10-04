@@ -332,4 +332,10 @@ class BlendBreakdownCaptureTest {
     }
 
     private data class Quad(val raw: Float, val resolved: Float, val kind: String, val share: Double)
+
+    @Test
+    fun `RAWS has its own type letter, distinct from the value column's R`() {
+        assertEquals("F", BlendTableFormatter.typeLabel("RAWS"))
+        assertTrue(BlendTableFormatter.LEGEND.any { it.contains("F = fire-weather (RAWS)") })
+    }
 }

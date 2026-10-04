@@ -180,4 +180,12 @@ class StationDailyExtremesTest {
         assertEquals("KNUQ", result?.stationId)
         assertEquals(3.83f, result?.distanceKm)
     }
+
+    @Test
+    fun `a nearer RAWS station is ignored like a personal one`() {
+        val observations =
+            coveredStation("LOAC1", 6.7f, 62.0f, 92.0f, stationType = "RAWS") +
+                coveredStation("KSJC", 14.2f, 59.0f, 84.0f)
+        assertEquals("KSJC", resolve(observations)?.stationId)
+    }
 }

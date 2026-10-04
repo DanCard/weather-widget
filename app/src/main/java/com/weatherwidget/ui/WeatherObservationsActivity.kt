@@ -29,6 +29,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
+import com.weatherwidget.data.local.insertAllRetaggingStationTypes
 import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.LocationMatch
@@ -390,7 +391,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     if (rows.isNotEmpty()) observationDao.insertAll(rows)
                 } else if (providerId == WeatherSource.SYNOPTIC.id) {
                     val rows = synopticObservationSource.fetchObservations(location.first, location.second, hours = 24)
-                    if (rows.isNotEmpty()) observationDao.insertAll(rows)
+                    if (rows.isNotEmpty()) observationDao.insertAllRetaggingStationTypes(rows)
                 } else if (providerId != currentSource.id) {
                     weatherRepository.refreshCurrentTemperature(
                         location.first,

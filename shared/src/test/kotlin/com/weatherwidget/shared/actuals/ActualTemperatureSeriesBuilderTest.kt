@@ -450,10 +450,21 @@ class ActualTemperatureSeriesBuilderTest {
         assertEquals(75f, blended, 0.01f)
     }
 
-    private fun blendTwoStation(personalStationWeight: Double): Float {
+    @Test
+    fun `a RAWS station gets exactly the personal discount`() {
+        // LOAC1 ran ~6 F above nearby personal stations on 2026-10-03; it must not keep full weight
+        // while they are discounted. Same numbers as the half-weight personal case above.
+        val asPersonal = blendTwoStation(personalStationWeight = 0.5, discountedType = "PERSONAL")
+        val asRaws = blendTwoStation(personalStationWeight = 0.5, discountedType = "RAWS")
+        assertEquals(77.67f, asRaws, 0.05f)
+        assertEquals(asPersonal, asRaws, 0.0001f)
+        assertEquals(75f, blendTwoStation(personalStationWeight = 0.0, discountedType = "RAWS"), 0.01f)
+    }
+
+    private fun blendTwoStation(personalStationWeight: Double, discountedType: String = "PERSONAL"): Float {
         val peak = "2026-06-03T15:00:00"
         val obs = listOf(
-            observation("PWS", peak, 79f, distanceKm = 2f, stationType = "PERSONAL"),
+            observation("PWS", peak, 79f, distanceKm = 2f, stationType = discountedType),
             observation("OFFICIAL_1", peak, 75f, distanceKm = 4f, stationType = "OFFICIAL"),
         )
         val forecasts = forecasts("2026-06-03T00:00:00", 24)

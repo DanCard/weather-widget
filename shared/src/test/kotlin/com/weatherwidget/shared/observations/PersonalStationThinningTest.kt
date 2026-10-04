@@ -123,4 +123,12 @@ class PersonalStationThinningTest {
         assertEquals(6, kept.count { it.station == "KSJC" })
         assertTrue(kept.count { it.station == "G4110" } < 6)
     }
+
+    @Test
+    fun `a RAWS station is thinned exactly like a personal one`() {
+        val personal = thin((0..11).map { Row("G4110", "PERSONAL", base + it * 5 * min) }).map { it.ts }
+        val raws = thin((0..11).map { Row("LOAC1", "RAWS", base + it * 5 * min) }).map { it.ts }
+        assertEquals(personal, raws)
+        assertEquals(7, raws.size)
+    }
 }

@@ -411,6 +411,27 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
+    /**
+     * Sets [stationType] on every stored [api] row of [stationIds] that carries a different type —
+     * a station's type is a property of the station, not of the fetch. Same rule as Android's
+     * `insertAllRetaggingStationTypes`; see plans/261003-raws-station-type.md.
+     */
+    fun retagStationType(api: String, stationIds: Collection<String>, stationType: String): Int {
+        if (stationIds.isEmpty()) return 0
+        val placeholders = stationIds.joinToString(",") { "?" }
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "UPDATE observations SET stationType = ? WHERE api = ? AND stationId IN ($placeholders) AND stationType != ?",
+            ).use { stmt ->
+                stmt.setString(1, stationType)
+                stmt.setString(2, api)
+                stationIds.forEachIndexed { i, id -> stmt.setString(3 + i, id) }
+                stmt.setString(3 + stationIds.size, stationType)
+                return stmt.executeUpdate()
+            }
+        }
+    }
+
     fun upsertObservations(observations: List<DesktopObservationEntity>) {
         db.getConnection().use { conn ->
             conn.autoCommit = false

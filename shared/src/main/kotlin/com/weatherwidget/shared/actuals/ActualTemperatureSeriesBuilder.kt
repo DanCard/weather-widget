@@ -138,7 +138,6 @@ object ActualTemperatureSeriesBuilder {
     // Callers pass a `personalStationWeight` multiplier (0.0..1.0) applied to a PWS's IDW weight
     // relative to an official station at the same distance. 1.0 (the default) = no discount, equal
     // weight; 0.0 = ignore PWS entirely. The value originates from a user setting on each platform.
-    private const val PERSONAL_STATION_TYPE = "PERSONAL"
 
     fun build(
         hourlyForecasts: List<HourlyForecast>,
@@ -405,7 +404,8 @@ object ActualTemperatureSeriesBuilder {
                 val resolved = resolveStationValueAt(stationObs, targetTs, forecastSeries)
                 if (resolved != null) {
                     val ageMs = maxOf(0L, targetTs - resolved.anchorTs)
-                    val isPersonal = resolved.stationType == PERSONAL_STATION_TYPE
+                    // RAWS shares the personal discount; see StationTypes.
+                    val isPersonal = com.weatherwidget.shared.observations.StationTypes.isDiscounted(resolved.stationType)
                     val isSynthetic = ObservationSourceMatcher.isSyntheticBackfillStation(stationId, displaySourceId)
                     if (isSynthetic) syntheticStationIds.add(stationId)
                     candidates.add(DecayBlendInput(resolved.distanceKm, resolved.temperature, ageMs, isPersonal, isSynthetic))

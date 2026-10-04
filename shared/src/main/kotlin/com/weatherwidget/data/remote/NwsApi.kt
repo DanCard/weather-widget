@@ -304,6 +304,13 @@ class NwsApi
         enum class StationType {
             OFFICIAL,
             PERSONAL,
+
+            /**
+             * Remote Automated Weather Stations (Synoptic `MNET_ID` 2): fire-weather sites, passive
+             * radiation shields, often on ridges. Kept distinct for provenance, but discounted and
+             * thinned exactly like [PERSONAL] — see `StationTypes.isDiscounted`.
+             */
+            RAWS,
             UNKNOWN
         }
 

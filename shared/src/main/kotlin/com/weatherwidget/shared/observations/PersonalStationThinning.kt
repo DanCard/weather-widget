@@ -86,7 +86,7 @@ object PersonalStationThinning {
     }
 
     /** Null and unknown types are treated as official — never thin what you cannot identify. */
-    private fun isPersonal(stationType: String?): Boolean = stationType == PERSONAL
+    private fun isPersonal(stationType: String?): Boolean = StationTypes.isDiscounted(stationType)
 
     private fun bucketKey(station: String, timestampMs: Long): String =
         "$station|${Math.floorDiv(timestampMs, BUCKET_MS)}"

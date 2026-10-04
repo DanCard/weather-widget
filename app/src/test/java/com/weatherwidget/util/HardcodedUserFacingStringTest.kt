@@ -82,6 +82,8 @@ class HardcodedUserFacingStringTest {
                 "fed to blend" to "BlendTableFormatter column header",
                 "type:  O = official station   P = personal (backyard) station" to
                     "BlendTableFormatter legend",
+                "       F = fire-weather (RAWS) station, weighted like personal" to
+                    "BlendTableFormatter legend",
                 "value: R = real reading   E = extrapolated from forecast" to
                     "BlendTableFormatter legend",
                 "No blended points in range." to "BlendTableFormatter.renderText empty state",

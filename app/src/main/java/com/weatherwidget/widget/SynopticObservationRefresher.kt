@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.insertAllRetaggingStationTypes
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.remote.FetchOutcome
@@ -101,7 +102,7 @@ internal class SynopticObservationRefresher(
                 stationTypeOf = { it.stationType },
                 timestampOf = { it.timestamp },
             )
-            WeatherDatabase.getDatabase(context).observationDao().insertAll(rows)
+            WeatherDatabase.getDatabase(context).observationDao().insertAllRetaggingStationTypes(rows)
             appLogDao.log(
                 "SYNOPTIC_OBS_STORED",
                 "reason=$reason tier=${tier.name} recentMin=$recentMinutes rows=${rows.size} " +

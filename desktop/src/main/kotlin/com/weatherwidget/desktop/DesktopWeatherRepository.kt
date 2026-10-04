@@ -898,6 +898,11 @@ class DesktopWeatherRepository(
         }
 
         weatherDao.upsertObservations(readings.map { it.toEntity(now) })
+        // Bring earlier Synoptic rows of these stations onto the type just fetched, so a
+        // reclassification (RAWS, 2026-10-03) reaches stored history the gap window never re-fetches.
+        readings.filter { it.api == WeatherSource.SYNOPTIC.id }
+            .groupBy({ it.stationType }, { it.stationId })
+            .forEach { (type, ids) -> weatherDao.retagStationType(WeatherSource.SYNOPTIC.id, ids.toSet(), type) }
         val actualsProvider = ActualsProviderResolver.providerIdFor(displaySource)
         if (actualsProvider == WeatherSource.TOMORROW_IO.id) {
             weatherDao.log(

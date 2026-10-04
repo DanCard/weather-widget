@@ -190,10 +190,13 @@ class SynopticApi(
                             name = o["NAME"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: stid,
                             lat = lat,
                             lon = lon,
-                            // Mesonet 1 and 2 are the NWS/FAA networks; everything else in this feed
-                            // is a cooperative or personal station, which the blend discounts.
+                            // Mesonet 1 is NWS/FAA ASOS/AWOS. Mesonet 2 is RAWS, not NWS/FAA: on a
+                            // sunny afternoon its passive shields ran ~6 F above nearby personal
+                            // stations (plans/261003-raws-station-type.md), so it is discounted like
+                            // them. Everything else is a cooperative or personal station.
                             type = when (o["MNET_ID"]?.jsonPrimitive?.contentOrNull) {
-                                "1", "2" -> NwsApi.StationType.OFFICIAL
+                                "1" -> NwsApi.StationType.OFFICIAL
+                                "2" -> NwsApi.StationType.RAWS
                                 else -> NwsApi.StationType.PERSONAL
                             },
                         ),

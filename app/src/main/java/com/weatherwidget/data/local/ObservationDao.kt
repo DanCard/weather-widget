@@ -46,6 +46,19 @@ interface ObservationDao {
     fun observeLatestFetchedAt(): Flow<Long?>
 
     /**
+     * Sets [stationType] on every stored [api] row of [stationIds] that carries a different type.
+     * A station's type is a property of the station, not of the fetch; see
+     * [insertAllRetaggingStationTypes].
+     */
+    @Query(
+        """
+        UPDATE observations SET stationType = :stationType
+        WHERE api = :api AND stationId IN (:stationIds) AND stationType != :stationType
+    """,
+    )
+    suspend fun retagStationType(api: String, stationIds: List<String>, stationType: String): Int
+
+    /**
      * Timestamp of the newest stored reading for [api] at this site, or null when there is none.
      * Used by the Synoptic fetch window ([com.weatherwidget.shared.util.SynopticFetchWindow]) so a
      * routine refresh only requests the gap since the last store instead of the full 24 h.
@@ -443,4 +456,18 @@ class ObservationRangeRead(
     ) : this(rows, { diagnostics })
 
     val diagnostics: ObservationPoolDiagnostics.Summary by lazy(summarize)
+}
+
+/**
+ * [ObservationDao.insertAll], then brings earlier rows of the same stations onto the type just
+ * fetched. Without this a reclassification (RAWS moved from OFFICIAL to its own discounted type,
+ * 2026-10-03) would leave ~10 days of stored rows on the old type: the blend reads the stored type,
+ * and the gap-only fetch window never re-downloads them. See plans/261003-raws-station-type.md.
+ */
+suspend fun ObservationDao.insertAllRetaggingStationTypes(rows: List<ObservationEntity>): Int {
+    if (rows.isEmpty()) return 0
+    insertAll(rows)
+    return rows.groupBy({ it.api to it.stationType }, { it.stationId })
+        .entries
+        .sumOf { (key, ids) -> retagStationType(key.first, ids.distinct(), key.second) }
 }
