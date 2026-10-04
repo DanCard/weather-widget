@@ -11,12 +11,12 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.ForecastTempRounding
+import com.weatherwidget.shared.util.SameDayExtremeCutoff
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.ZonedDateTime
 
 /**
  * Owns daily forecast mapping, snapshot history, and coherent current-batch reads.
@@ -77,13 +77,14 @@ internal class ForecastSnapshotStore(
         longitude: Double,
         sourceId: String,
         batchFetchedAt: Long = System.currentTimeMillis(),
+        nowMs: Long = System.currentTimeMillis(),
     ) {
-        val todayDate = LocalDate.now()
+        val now = Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault())
+        val todayDate = now.toLocalDate()
         val todayEpoch = todayDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val now = ZonedDateTime.now()
         val keyLat = LocationMatch.quantize(latitude)
         val keyLon = LocationMatch.quantize(longitude)
-        val forecastsToSave = weatherForecasts.filter { forecast ->
+        val candidates = weatherForecasts.filter { forecast ->
             val date = LocalDate.ofEpochDay(forecast.targetDate / WidgetConstants.MS_IN_A_DAY)
             if (date.isBefore(todayDate) || forecast.isClimateNormal) return@filter false
             val periodEnd = forecast.periodEndTime?.let {
@@ -97,19 +98,56 @@ internal class ForecastSnapshotStore(
                 return@filter false
             }
             true
-        }.mapNotNull { forecast ->
+        }
+        if (candidates.isEmpty()) return
+
+        val existingForecasts = forecastDao.getForecastsInRangeBySource(
+            startDate = candidates.minOf { it.targetDate },
+            endDate = candidates.maxOf { it.targetDate },
+            lat = latitude,
+            lon = longitude,
+            source = sourceId,
+        )
+        val latestByDate = siteExactLatestForecastByDate(existingForecasts, keyLat, keyLon)
+        val nowMs = now.toInstant().toEpochMilli()
+        val zone = now.zone
+
+        val forecastsToSave = candidates.mapNotNull { forecast ->
+            val date = LocalDate.ofEpochDay(forecast.targetDate / WidgetConstants.MS_IN_A_DAY)
             val high = forecast.highTemp?.takeIf { it.isFinite() }
             val low = forecast.lowTemp?.takeIf { it.isFinite() }
             if (high == null && low == null) return@mapNotNull null
             val isToday = forecast.targetDate == todayEpoch
+
+            val filtered = SameDayExtremeCutoff.filter(
+                targetDate = date,
+                highTemp = ForecastTempRounding.forStorage(high, isToday),
+                lowTemp = ForecastTempRounding.forStorage(low, isToday),
+                nowMs = nowMs,
+                zone = zone,
+            )
+            // Keep the last real pre-cutoff prediction rather than nulling the field: a post-cutoff
+            // batch must not become the latest row with a hole where the forecast used to be.
+            val prior = latestByDate[forecast.targetDate]
+            val highToStore = if (filtered.frozeHigh) prior?.highTemp else filtered.highTemp
+            val lowToStore = if (filtered.frozeLow) prior?.lowTemp else filtered.lowTemp
+            if (filtered.frozeAny) {
+                appLogDao.log(
+                    "SNAPSHOT_SKIP_HINDCAST",
+                    "date=$date source=$sourceId " +
+                        "froze=${listOfNotNull("high".takeIf { filtered.frozeHigh }, "low".takeIf { filtered.frozeLow }).joinToString("+")} " +
+                        "prior_high=${prior?.highTemp} prior_low=${prior?.lowTemp}",
+                )
+            }
+            if (highToStore == null && lowToStore == null) return@mapNotNull null
 
             ForecastEntity(
                 targetDate = forecast.targetDate,
                 dateOfPrediction = todayEpoch,
                 locationLat = keyLat,
                 locationLon = keyLon,
-                highTemp = ForecastTempRounding.forStorage(high, isToday),
-                lowTemp = ForecastTempRounding.forStorage(low, isToday),
+                highTemp = highToStore,
+                lowTemp = lowToStore,
                 condition = forecast.condition,
                 nativeDailyIconToken = forecast.nativeDailyIconToken,
                 isClimateNormal = forecast.isClimateNormal,
@@ -124,15 +162,6 @@ internal class ForecastSnapshotStore(
         }
 
         if (forecastsToSave.isEmpty()) return
-
-        val existingForecasts = forecastDao.getForecastsInRangeBySource(
-            startDate = forecastsToSave.minOf { it.targetDate },
-            endDate = forecastsToSave.maxOf { it.targetDate },
-            lat = latitude,
-            lon = longitude,
-            source = sourceId,
-        )
-        val latestByDate = siteExactLatestForecastByDate(existingForecasts, keyLat, keyLon)
         val unchangedBatchRows = mutableListOf<ForecastEntity>()
         val changedForecasts = forecastsToSave.filter { newlyFetched ->
             val existing = latestByDate[newlyFetched.targetDate]

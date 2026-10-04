@@ -103,12 +103,13 @@ class WeatherRepository
 
         @androidx.annotation.VisibleForTesting
         internal suspend fun saveForecastSnapshot(
-            weatherForecasts: List<ForecastEntity>, 
-            latitude: Double, 
-            longitude: Double, 
+            weatherForecasts: List<ForecastEntity>,
+            latitude: Double,
+            longitude: Double,
             sourceId: String,
             batchFetchedAt: Long = System.currentTimeMillis(),
-        ) = forecastRepository.saveForecastSnapshot(weatherForecasts, latitude, longitude, sourceId, batchFetchedAt)
+            nowMs: Long = System.currentTimeMillis(),
+        ) = forecastRepository.saveForecastSnapshot(weatherForecasts, latitude, longitude, sourceId, batchFetchedAt, nowMs)
         
         @androidx.annotation.VisibleForTesting
         internal suspend fun fetchFromNws(latitude: Double, longitude: Double) = 

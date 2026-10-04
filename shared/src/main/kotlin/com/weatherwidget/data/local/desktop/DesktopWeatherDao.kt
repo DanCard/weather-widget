@@ -21,6 +21,7 @@ import com.weatherwidget.data.remote.orNullIfImplausibleTempF
 import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.actuals.RetiredProductCleanup
 import com.weatherwidget.shared.util.ForecastTempRounding
+import com.weatherwidget.shared.util.SameDayExtremeCutoff
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.NetworkUsageReport
 import com.weatherwidget.shared.util.NetworkUsageWindow
@@ -353,7 +354,43 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
-    fun upsertForecasts(locationLat: Double, locationLon: Double, source: String, daily: List<DailyForecast>) {
+    /**
+     * Newest stored high/low for one day at this site — the last real prediction to keep when a
+     * post-cutoff batch would otherwise overwrite it with a hindcast (see [SameDayExtremeCutoff]).
+     */
+    private fun latestForecastTemps(
+        conn: Connection,
+        keyLat: Double,
+        keyLon: Double,
+        source: String,
+        targetDate: Long,
+    ): Pair<Float?, Float?> {
+        val sql = """
+            SELECT highTemp, lowTemp FROM forecasts
+            WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate = ?
+            ORDER BY batchFetchedAt DESC, fetchedAt DESC
+            LIMIT 1
+        """.trimIndent()
+        return conn.prepareStatement(sql).use { stmt ->
+            stmt.setDouble(1, keyLat)
+            stmt.setDouble(2, keyLon)
+            stmt.setString(3, source)
+            stmt.setLong(4, targetDate)
+            val rs = stmt.executeQuery()
+            if (rs.next()) rs.getNullableFloat("highTemp") to rs.getNullableFloat("lowTemp")
+            else null to null
+        }
+    }
+
+    fun upsertForecasts(
+        locationLat: Double,
+        locationLon: Double,
+        source: String,
+        daily: List<DailyForecast>,
+        nowMs: Long = System.currentTimeMillis(),
+    ) {
+        // app_logs writes use their own connection; never call log() inside this transaction.
+        val pendingLogs = mutableListOf<Pair<String, String>>()
         db.getConnection().use { conn ->
             conn.autoCommit = false
             try {
@@ -365,7 +402,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
-                    val now = System.currentTimeMillis()
+                    val now = nowMs
                     val todayEpoch = LocalDate.now(ZoneOffset.UTC).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
                     // Quantize the storage key so coordinate jitter between fetches lands on the
                     // same PK instead of stranding a stale per-precision site (see LocationMatch.quantize).
@@ -377,10 +414,27 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         // round to integer. Climate normals are stored as-is. Shared rule keeps both
                         // platforms writing identical values for the same fetch.
                         val isToday = targetDate == todayEpoch
-                        val highToStore = if (d.isClimateNormal) d.highTemp
+                        var highToStore = if (d.isClimateNormal) d.highTemp
                             else ForecastTempRounding.forStorage(d.highTemp, isToday) ?: d.highTemp
-                        val lowToStore = if (d.isClimateNormal) d.lowTemp
+                        var lowToStore = if (d.isClimateNormal) d.lowTemp
                             else ForecastTempRounding.forStorage(d.lowTemp, isToday) ?: d.lowTemp
+                        if (!d.isClimateNormal) {
+                            val filtered = SameDayExtremeCutoff.filter(
+                                targetDate = LocalDate.parse(d.date),
+                                highTemp = highToStore,
+                                lowTemp = lowToStore,
+                                nowMs = now,
+                            )
+                            if (filtered.frozeAny) {
+                                val prior = latestForecastTemps(conn, keyLat, keyLon, source, targetDate)
+                                if (filtered.frozeHigh) highToStore = prior.first
+                                if (filtered.frozeLow) lowToStore = prior.second
+                                pendingLogs += "FORECAST_SKIP_HINDCAST" to
+                                    "date=${d.date} source=$source " +
+                                    "froze=${listOfNotNull("high".takeIf { filtered.frozeHigh }, "low".takeIf { filtered.frozeLow }).joinToString("+")} " +
+                                    "prior_high=${prior.first} prior_low=${prior.second}"
+                            }
+                        }
                         stmt.setLong(1, targetDate)
                         stmt.setLong(2, minOf(todayEpoch, targetDate)) // prediction date cannot exceed target date
                         stmt.setDouble(3, keyLat)
@@ -409,6 +463,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 throw e
             }
         }
+        pendingLogs.forEach { (tag, message) -> log(tag = tag, message = message, level = "INFO") }
     }
 
     /**

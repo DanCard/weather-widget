@@ -409,6 +409,7 @@ class ForecastRepository
             longitude: Double,
             sourceId: String,
             batchFetchedAt: Long = System.currentTimeMillis(),
+            nowMs: Long = System.currentTimeMillis(),
         ) {
             snapshotStore.saveForecastSnapshot(
                 weatherForecasts,
@@ -416,6 +417,7 @@ class ForecastRepository
                 longitude,
                 sourceId,
                 batchFetchedAt,
+                nowMs,
             )
         }
 
