@@ -35,6 +35,9 @@ data class QuickCurrentTemperature(
 object CurrentTemperatureResolver {
     private const val TAG = "CurrentTempResolver"
     private const val STALE_HOURLY_FETCH_THRESHOLD_MS = 2 * 60 * 60 * 1000L
+    private const val HOUR_MS = 60 * 60 * 1000L
+    /** Rows written by one fetch share a fetchedAt to within this. */
+    internal const val RUN_TOLERANCE_MS = 10 * 60 * 1000L
 
     // Decoupled logging callback for writing to AppLogDao on Android or logging on Desktop
     @Volatile
@@ -172,14 +175,16 @@ object CurrentTemperatureResolver {
             // outcome below stays DEBUG (persisted) — that's the one summary worth querying.
             level = "VERBOSE",
         )
-        val estimatedTemp =
+        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        var estimatedTemp =
             resolveStrictForecastTemperature(
                 hourlyForecasts = strictHourlyForecasts,
                 targetTime = now,
                 source = displaySource,
                 smoothedForecasts = smoothedForecasts,
             )
-        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        // Set below when both estimates are taken from the newest run instead; see [newestRunIfObservationBracketIsOlder].
+        var newestRun: List<HourlyForecast>? = null
         verboseLog("resolve:estimatedTemp=$estimatedTemp nowMs=$nowMs")
         val scopeMatch =
             storedDeltaState?.let {
@@ -223,13 +228,24 @@ object CurrentTemperatureResolver {
                 java.time.Instant.ofEpochMilli(observedAt),
                 ZoneId.systemDefault()
             )
-            val estimatedAtObsTime =
+            var estimatedAtObsTime =
                 resolveStrictForecastTemperature(
                     hourlyForecasts = strictHourlyForecasts,
                     targetTime = obsTime,
                     source = displaySource,
                     smoothedForecasts = smoothedForecasts,
                 )
+            // Both estimates must come from ONE forecast run when the observation sits on an older
+            // run that the newest run contradicts; otherwise the correction measures the old run's
+            // error and is added to an estimate that already includes the newer run.
+            val candidateRun = newestRunIfObservationBracketIsOlder(strictHourlyForecasts, displaySource.id, observedAt)
+            if (candidateRun != null &&
+                prefersNewestRun(lastObservedTemp, estimatedAtObsTime, estimateFromRun(candidateRun, observedAt))
+            ) {
+                newestRun = candidateRun
+                estimatedAtObsTime = estimateFromRun(candidateRun, observedAt)
+                estimatedTemp = estimateFromRun(candidateRun, nowMs)
+            }
             estimatedAtObservationTime = estimatedAtObsTime
 
             if (estimatedAtObsTime != null) {
@@ -269,7 +285,8 @@ object CurrentTemperatureResolver {
             "CURR_TEMP_RESULT",
             "resolve:final display=${formatTemp(displayTemp)} estimate=${formatTemp(estimatedTemp)} " +
                 "obs=${formatTemp(lastObservedTemp)} delta=${appliedDelta?.let { String.format("%.2f", it) } ?: "none"} " +
-                "estAtObs=${formatTemp(estimatedAtObservationTime)} stale=$isStaleEstimate",
+                "estAtObs=${formatTemp(estimatedAtObservationTime)} stale=$isStaleEstimate" +
+                (newestRun?.let { " run=newest_only runFetchedAt=${it.maxOf { row -> row.fetchedAt }}" } ?: ""),
             level = resultLogLevel,
         )
 
@@ -353,6 +370,61 @@ object CurrentTemperatureResolver {
                 "latestFetchMs=$latestFetchMs ageMs=${nowMs - latestFetchMs} thresholdMs=$STALE_HOURLY_FETCH_THRESHOLD_MS stale=$stale",
         )
         return stale
+    }
+
+    /**
+     * The display source's newest forecast run, when the rows bracketing the observation time come
+     * from an older one; null when they are already the newest (the usual case) or absent.
+     *
+     * Rows are picked newest-per-hour, but a provider that only forecasts future slots never
+     * refreshes an hour once it has passed. OWM's free `/2.5/forecast` (2026-10-03): 13:00-16:00
+     * from a 10:35 run that ran ~10° cool, 17:00+ from a 16:42 run. The correction
+     * `observed − estimate(15:47)` (+9.70) then measured the old run's error and was added to an
+     * estimate interpolating into the fresh 17:00 row — 100.4°F on desktop, 110°F on the emulator,
+     * against stations reading ~90-95. A run is the rows within [RUN_TOLERANCE_MS] of the newest
+     * `fetchedAt` (one fetch writes them together).
+     * Plan: plans/261003-current-temp-delta-same-forecast-run.md.
+     */
+    internal fun newestRunIfObservationBracketIsOlder(
+        hourlyForecasts: List<HourlyForecast>,
+        sourceId: String,
+        observedAt: Long?,
+    ): List<HourlyForecast>? {
+        if (observedAt == null) return null
+        val own = hourlyForecasts.filter { it.source == sourceId }
+        if (own.isEmpty()) return null
+        val runStartMs = own.maxOf { it.fetchedAt } - RUN_TOLERANCE_MS
+        val zoneId = ZoneId.systemDefault()
+        val obsHourMs = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(observedAt), zoneId)
+            .truncatedTo(ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+        val bracket = own.filter { it.dateTime == obsHourMs || it.dateTime == obsHourMs + HOUR_MS }
+            .groupBy { it.dateTime }
+            .values.map { rows -> rows.maxBy { it.fetchedAt } }
+        if (bracket.isEmpty() || bracket.all { it.fetchedAt >= runStartMs }) return null
+        val run = own.filter { it.fetchedAt >= runStartMs }
+            .groupBy { it.dateTime }
+            .values.map { rows -> rows.maxBy { it.fetchedAt } }
+            .sortedBy { it.dateTime }
+        return run.ifEmpty { null }
+    }
+
+    /**
+     * Use the newest run only when it explains the observation better than the per-hour estimate
+     * built on the older run. Fetch boundaries are routine (NWS refreshes each hour while it is
+     * current, so every past hour comes from a different fetch) and consecutive runs usually agree;
+     * replacing them would flatten a real trend. On 2026-10-03 the older OWM run missed the
+     * observation by 9.7 (desktop) and 18 (emulator), the newest by 4.3 and 0.7.
+     */
+    internal fun prefersNewestRun(observed: Float, olderRunEstimate: Float?, newestRunEstimate: Float): Boolean =
+        olderRunEstimate == null || kotlin.math.abs(observed - newestRunEstimate) < kotlin.math.abs(observed - olderRunEstimate)
+
+    /** Estimate from one run: interpolate between its slots; hold its first/last slot flat outside them. */
+    internal fun estimateFromRun(run: List<HourlyForecast>, targetMs: Long): Float {
+        if (targetMs <= run.first().dateTime) return run.first().temperature
+        if (targetMs >= run.last().dateTime) return run.last().temperature
+        val i = run.indexOfLast { it.dateTime <= targetMs }
+        return TemperatureInterpolator.getInterpolatedTemperature(listOf(run[i], run[i + 1]), targetMs)
+            ?: run[i].temperature
     }
 
     private fun resolveStrictForecastTemperature(
