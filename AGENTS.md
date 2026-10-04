@@ -208,6 +208,10 @@ situations where the agent might assume or infer state instead of observing it.
 - When implementing features or making changes that affect runtime behavior, verify the result on
   device/emulator before declaring the work done — don't assume the code works because it looks
   correct.
+- **A DB scrub is not a fix until the writer is redeployed.** Cleaning rows then restarting a
+  pre-change APK / `weather-widget-desktop` re-inserts the junk on the next fetch. After any
+  writer-policy change: `installDebug` / `:desktop:createDistributable` first, then scrub (or
+  re-scrub the gap). Symptom: "the scrub didn't work" with a post-scrub fetch timestamp on the row.
 
 ## Testing Guidelines
 
