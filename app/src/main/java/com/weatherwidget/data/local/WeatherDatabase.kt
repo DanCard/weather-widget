@@ -13,7 +13,7 @@ import com.weatherwidget.shared.observations.MetarPlausibility
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 70,
+    version = 71,
     exportSchema = true,
 )
 @TypeConverters(CloudVerticalKindConverters::class)
@@ -699,6 +699,37 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Data-only repair; the schema is unchanged. Rewrites historical `app_logs` messages that
+         * still embed API credentials (Ktor exception text carries the full request URL —
+         * `token=…`, `appid=…`, `key=…`). Same scrub desktop runs behind its one-time marker.
+         * See performance/261003-synoptic-fetch-cost-and-resilience.md.
+         */
+        val MIGRATION_70_71 = object : Migration(70, 71) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val rewrites = mutableListOf<Pair<Long, String>>()
+                val cursor = db.query(
+                    "SELECT `id`, `message` FROM `app_logs` " +
+                        "WHERE `message` LIKE '%token=%' OR `message` LIKE '%appid=%' " +
+                        "OR `message` LIKE '%api_key=%' OR `message` LIKE '%apikey=%' OR `message` LIKE '%key=%'",
+                )
+                cursor.use {
+                    while (it.moveToNext()) {
+                        val id = it.getLong(0)
+                        val message = it.getString(1) ?: continue
+                        val redacted = com.weatherwidget.data.remote.ApiKeyRedaction.redact(message)
+                        if (redacted != message) rewrites.add(id to redacted)
+                    }
+                }
+                rewrites.forEach { (id, redacted) ->
+                    db.execSQL(
+                        "UPDATE `app_logs` SET `message` = ? WHERE `id` = ?",
+                        arrayOf<Any>(redacted, id),
+                    )
+                }
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -761,7 +792,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

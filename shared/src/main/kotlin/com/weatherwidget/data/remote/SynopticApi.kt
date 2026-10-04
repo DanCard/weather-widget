@@ -134,6 +134,24 @@ class SynopticApi(
         private const val FEET_TO_METERS = 0.3048
 
         /**
+         * Only the variables [parseStationObservations] actually reads. A full timeseries response
+         * returns every variable every station reports (~31,700 observations to keep ~1,640);
+         * this list asks Synoptic to return just these. Verified live 2026-10-03: the derived
+         * `weather_summary_set_1d` / `weather_condition_set_1d` / `cloud_layer_N_set_1d` series and
+         * the `air_temp` QC block come back under the same names as in an unfiltered response
+         * (fixtures in `shared/src/test/resources/synoptic/`).
+         */
+        val PARSED_VARS = listOf(
+            "air_temp",
+            "metar",
+            "cloud_layer_1",
+            "cloud_layer_2",
+            "cloud_layer_3",
+            "weather_summary",
+            "weather_condition",
+        )
+
+        /**
          * Pure parse of a multi-station `stations/timeseries?radius=` response.
          *
          * `DISTANCE` comes back in miles and `ELEVATION` in feet, which is why both are converted
@@ -152,7 +170,7 @@ class SynopticApi(
                 // in app_logs for 17h straight on 2026-09-08); always carry the code so the failure
                 // class is queryable even when Synoptic sends no explanation.
                 val message = summaryObj?.get("RESPONSE_MESSAGE")?.jsonPrimitive?.contentOrNull
-                FetchOutcome.Failed(
+                FetchOutcome.Failed.of(
                     if (message.isNullOrBlank()) "synoptic: RESPONSE_CODE=$responseCode (no message)" else "synoptic: $message",
                 )
             } else {
@@ -219,8 +237,8 @@ class SynopticApi(
                 val responseCode = summaryObj?.get("RESPONSE_CODE")?.jsonPrimitive?.intOrNull
                 if (responseCode != 1) {
                     val message = summaryObj?.get("RESPONSE_MESSAGE")?.jsonPrimitive?.contentOrNull
-                    Log.w(TAG, "Synoptic request failed for $stationId: $message")
-                    return FetchOutcome.Failed("synoptic: $message")
+                    Log.w(TAG, "Synoptic request failed for $stationId: ${ApiKeyRedaction.redact(message ?: "")}")
+                    return FetchOutcome.Failed.of("synoptic: $message")
                 }
 
                 // A successful response without station/observation structures is Synoptic's way of
@@ -230,8 +248,8 @@ class SynopticApi(
                 val observationList = parseStationObservations(firstStation, stationNameFallback)
                 if (observationList.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(observationList)
             } catch (e: Exception) {
-                Log.w(TAG, "Synoptic parse for $stationId failed: $e")
-                FetchOutcome.Failed("parse: ${e.message}")
+                Log.w(TAG, "Synoptic parse for $stationId failed: ${ApiKeyRedaction.redact("$e")}")
+                FetchOutcome.Failed.of("parse: ${e.message}")
             }
         }
     }
@@ -270,7 +288,7 @@ class SynopticApi(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Synoptic fallback for $stationId fetch failed: $e")
+            Log.w(TAG, "Synoptic fallback for $stationId fetch failed: ${ApiKeyRedaction.redact("$e")}")
             return FetchOutcome.failed(e)
         }
         return parseSynopticTimeseries(json, response, stationId, stationNameFallback)
@@ -278,12 +296,19 @@ class SynopticApi(
 
     /**
      * Radius query for observations across multiple nearby stations.
+     *
+     * @param vars when non-null, the Synoptic `vars=` filter (defaults to [PARSED_VARS] — only
+     *   what the parser reads). Pass an empty list to request the full unfiltered response.
+     *
+     * No `limit=`: Synoptic's station limit is not nearest-first, so it would hand the proximity
+     * blend arbitrary far stations. Selection stays client-side in `SkyReportingStationSlots`.
      */
     suspend fun fetchRadiusTimeseries(
         latitude: Double,
         longitude: Double,
         radiusMiles: Double = 25.0,
         recentMinutes: Long = 120,
+        vars: List<String> = PARSED_VARS,
     ): FetchOutcome<List<RadiusStation>> {
         val token = tokenProvider()?.takeIf { it.isNotBlank() }
             ?: return FetchOutcome.Failed("synoptic: no token configured")
@@ -295,6 +320,9 @@ class SynopticApi(
                 parameter("recent", recentMinutes)
                 parameter("token", token)
                 parameter("obtimezone", "utc")
+                if (vars.isNotEmpty()) {
+                    parameter("vars", vars.joinToString(","))
+                }
                 parameter("qc", "on")
                 parameter("qc_checks", "all")
                 parameter("qc_flags", "on")
@@ -304,7 +332,7 @@ class SynopticApi(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Synoptic radius fetch for ($latitude, $longitude) failed: $e")
+            Log.w(TAG, "Synoptic radius fetch for ($latitude, $longitude) failed: ${ApiKeyRedaction.redact("$e")}")
             return FetchOutcome.failed(e)
         }
         return parseRadiusTimeseries(json, response)

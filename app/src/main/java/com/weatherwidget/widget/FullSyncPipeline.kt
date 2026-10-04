@@ -179,7 +179,6 @@ internal class FullSyncPipeline(
                             location.first,
                             location.second,
                             reason = "full_sync",
-                            hours = SynopticObservationRefresher.DEEP_HOURS,
                             // A backoff earned at the previous site must not blank the new one's
                             // actuals for 30 min after the user moved it.
                             userLocationChange = input.locationChangePlace != null,

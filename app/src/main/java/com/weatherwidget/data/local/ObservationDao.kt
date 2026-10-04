@@ -45,6 +45,24 @@ interface ObservationDao {
     @Query("SELECT MAX(fetchedAt) FROM observations")
     fun observeLatestFetchedAt(): Flow<Long?>
 
+    /**
+     * Timestamp of the newest stored reading for [api] at this site, or null when there is none.
+     * Used by the Synoptic fetch window ([com.weatherwidget.shared.util.SynopticFetchWindow]) so a
+     * routine refresh only requests the gap since the last store instead of the full 24 h.
+     */
+    @Query(
+        """
+        SELECT MAX(timestamp) FROM observations
+        WHERE api = :api
+          AND ${LocationMatch.ROOM_SAME_SITE_WHERE}
+    """,
+    )
+    suspend fun getNewestTimestampForApi(
+        api: String,
+        lat: Double,
+        lon: Double,
+    ): Long?
+
     // ORDER BY must be TOTAL: all four primary-key fields are included so the raw candidate order is
     // fully determined. `ORDER BY timestamp` alone does NOT — several stations report on the same
     // timestamps (AW020/KSJC both cover 23:05-03:25), and the same station/timestamp can now coexist

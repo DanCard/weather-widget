@@ -1,0 +1,521 @@
+{
+ "SUMMARY": {
+  "NUMBER_OF_OBJECTS": 309,
+  "RESPONSE_CODE": 1,
+  "RESPONSE_MESSAGE": "OK",
+  "METADATA_QUERY_TIME": "25.1 ms",
+  "METADATA_PARSE_TIME": "50.2 ms",
+  "TOTAL_METADATA_TIME": "75.3 ms",
+  "DATA_QUERY_TIME": "24.4 ms",
+  "QC_QUERY_TIME": "0.0 ms",
+  "DATA_PARSE_TIME": "114.6 ms",
+  "TOTAL_DATA_TIME": "139.0 ms",
+  "TOTAL_TIME": "214.3 ms",
+  "VERSION": "v2.39.7"
+ },
+ "STATION": [
+  {
+   "ID": "298",
+   "STID": "KNUQ",
+   "NAME": "Mountain View, Moffett Field",
+   "ELEVATION": "33.0",
+   "LATITUDE": "37.40583",
+   "LONGITUDE": "-122.04806",
+   "STATUS": "ACTIVE",
+   "MNET_ID": "1",
+   "STATE": "CA",
+   "COUNTRY": "US",
+   "TIMEZONE": "America/Los_Angeles",
+   "ELEV_DEM": "19.7",
+   "DISTANCE": 2.07,
+   "PERIOD_OF_RECORD": {
+    "start": "1997-04-12T00:00:00Z",
+    "end": "2026-10-04T05:15:00Z"
+   },
+   "UNITS": {
+    "position": "m",
+    "elevation": "ft"
+   },
+   "SENSOR_VARIABLES": {
+    "altimeter": {
+     "altimeter_set_1": {}
+    },
+    "air_temp": {
+     "air_temp_set_1": {}
+    },
+    "dew_point_temperature": {
+     "dew_point_temperature_set_1": {},
+     "dew_point_temperature_set_1d": {
+      "derived_from": [
+       "air_temp_set_1",
+       "relative_humidity_set_1"
+      ]
+     }
+    },
+    "relative_humidity": {
+     "relative_humidity_set_1": {}
+    },
+    "wind_speed": {
+     "wind_speed_set_1": {}
+    },
+    "wind_direction": {
+     "wind_direction_set_1": {}
+    },
+    "cloud_layer_1_code": {
+     "cloud_layer_1_code_set_1": {}
+    },
+    "visibility": {
+     "visibility_set_1": {}
+    },
+    "metar": {
+     "metar_set_1": {}
+    },
+    "pressure": {
+     "pressure_set_1d": {
+      "derived_from": [
+       "altimeter_set_1"
+      ]
+     }
+    },
+    "sea_level_pressure": {
+     "sea_level_pressure_set_1d": {
+      "derived_from": [
+       "pressure_set_1d",
+       "air_temp_set_1",
+       "relative_humidity_set_1"
+      ]
+     }
+    },
+    "wet_bulb_temp": {
+     "wet_bulb_temp_set_1d": {
+      "derived_from": [
+       "pressure_set_1d",
+       "air_temp_set_1",
+       "relative_humidity_set_1"
+      ]
+     }
+    },
+    "wind_cardinal_direction": {
+     "wind_cardinal_direction_set_1d": {
+      "derived_from": [
+       "wind_direction_set_1"
+      ]
+     }
+    },
+    "weather_summary": {
+     "weather_summary_set_1d": {
+      "derived_from": [
+       "cloud_layer_1_code_set_1"
+      ]
+     }
+    },
+    "cloud_layer_1": {
+     "cloud_layer_1_set_1d": {
+      "derived_from": [
+       "cloud_layer_1_code_set_1"
+      ]
+     }
+    }
+   },
+   "OBSERVATIONS": {
+    "date_time": [
+     "2026-10-04T04:35:00Z",
+     "2026-10-04T04:55:00Z",
+     "2026-10-04T05:15:00Z",
+     "2026-10-04T05:35:00Z",
+     "2026-10-04T05:55:00Z",
+     "2026-10-04T06:15:00Z"
+    ],
+    "altimeter_set_1": [
+     100982.06,
+     100982.06,
+     101015.924,
+     101015.924,
+     101015.924,
+     101049.788
+    ],
+    "air_temp_set_1": [
+     25.0,
+     24.0,
+     24.0,
+     24.0,
+     23.0,
+     23.0
+    ],
+    "dew_point_temperature_set_1": [
+     15.0,
+     15.0,
+     15.0,
+     15.0,
+     15.0,
+     14.0
+    ],
+    "relative_humidity_set_1": [
+     53.88,
+     57.2,
+     57.2,
+     57.2,
+     60.75,
+     56.95
+    ],
+    "wind_speed_set_1": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wind_direction_set_1": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "cloud_layer_1_code_set_1": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "visibility_set_1": [
+     9.0,
+     10.0,
+     9.0,
+     9.0,
+     10.0,
+     9.0
+    ],
+    "metar_set_1": [
+     "KNUQ 040435Z AUTO 00000KT 9SM CLR 25/15 A2982 RMK AO2",
+     "KNUQ 040455Z AUTO 00000KT 10SM CLR 24/15 A2982 RMK AO2",
+     "KNUQ 040515Z AUTO 00000KT 9SM CLR 24/15 A2983 RMK AO2",
+     "KNUQ 040535Z AUTO 00000KT 9SM CLR 24/15 A2983 RMK AO2 LTG DSNT  S",
+     "KNUQ 040555Z AUTO 00000KT 10SM CLR 23/15 A2983 RMK AO2",
+     "KNUQ 040615Z AUTO 00000KT 9SM CLR 23/14 A2984 RMK AO2"
+    ],
+    "pressure_set_1d": [
+     100861.63,
+     100861.63,
+     100895.45,
+     100895.45,
+     100895.45,
+     100929.27
+    ],
+    "sea_level_pressure_set_1d": [
+     100977.92,
+     100978.31,
+     101012.17,
+     101012.17,
+     101012.56,
+     101046.42
+    ],
+    "wet_bulb_temp_set_1d": [
+     18.52,
+     18.2,
+     18.2,
+     18.2,
+     17.86,
+     17.31
+    ],
+    "wind_cardinal_direction_set_1d": [
+     "N",
+     "N",
+     "N",
+     "N",
+     "N",
+     "N"
+    ],
+    "weather_summary_set_1d": [
+     "clear",
+     "clear",
+     "clear",
+     "clear",
+     "clear",
+     "clear"
+    ],
+    "cloud_layer_1_set_1d": [
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     },
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     },
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     },
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     },
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     },
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     }
+    ],
+    "dew_point_temperature_set_1d": [
+     14.99,
+     14.99,
+     14.99,
+     14.99,
+     14.98,
+     13.98
+    ]
+   },
+   "QC_FLAGGED": false,
+   "RESTRICTED": false,
+   "RESTRICTED_METADATA": false
+  },
+  {
+   "ID": "180552",
+   "STID": "AW020",
+   "NAME": "AE6EO MOUNTAIN VIEW",
+   "ELEVATION": "32.81",
+   "LATITUDE": "37.40150",
+   "LONGITUDE": "-122.10517",
+   "STATUS": "ACTIVE",
+   "MNET_ID": "65",
+   "STATE": "CA",
+   "COUNTRY": "US",
+   "TIMEZONE": "America/Los_Angeles",
+   "ELEV_DEM": "59.1",
+   "DISTANCE": 1.59,
+   "PERIOD_OF_RECORD": {
+    "start": "2022-11-23T01:04:00Z",
+    "end": "2026-10-04T05:30:00Z"
+   },
+   "UNITS": {
+    "position": "m",
+    "elevation": "ft"
+   },
+   "SENSOR_VARIABLES": {
+    "altimeter": {
+     "altimeter_set_1": {}
+    },
+    "air_temp": {
+     "air_temp_set_1": {}
+    },
+    "relative_humidity": {
+     "relative_humidity_set_1": {}
+    },
+    "wind_speed": {
+     "wind_speed_set_1": {}
+    },
+    "wind_gust": {
+     "wind_gust_set_1": {}
+    },
+    "precip_accum_24_hour": {
+     "precip_accum_24_hour_set_1": {}
+    },
+    "precip_accum_since_local_midnight": {
+     "precip_accum_since_local_midnight_set_1": {}
+    },
+    "pressure": {
+     "pressure_set_1d": {
+      "derived_from": [
+       "altimeter_set_1"
+      ]
+     }
+    },
+    "sea_level_pressure": {
+     "sea_level_pressure_set_1d": {
+      "derived_from": [
+       "pressure_set_1d",
+       "air_temp_set_1",
+       "relative_humidity_set_1"
+      ]
+     }
+    },
+    "wet_bulb_temp": {
+     "wet_bulb_temp_set_1d": {
+      "derived_from": [
+       "pressure_set_1d",
+       "air_temp_set_1",
+       "relative_humidity_set_1"
+      ]
+     }
+    },
+    "dew_point_temperature": {
+     "dew_point_temperature_set_1d": {
+      "derived_from": [
+       "air_temp_set_1",
+       "relative_humidity_set_1"
+      ]
+     }
+    }
+   },
+   "OBSERVATIONS": {
+    "date_time": [
+     "2026-10-04T04:40:00Z",
+     "2026-10-04T04:50:00Z",
+     "2026-10-04T05:00:00Z",
+     "2026-10-04T05:10:00Z",
+     "2026-10-04T05:20:00Z",
+     "2026-10-04T05:30:00Z",
+     "2026-10-04T05:40:00Z",
+     "2026-10-04T05:50:00Z",
+     "2026-10-04T06:00:00Z",
+     "2026-10-04T06:10:00Z",
+     "2026-10-04T06:20:00Z"
+    ],
+    "altimeter_set_1": [
+     101049.788,
+     101049.788,
+     101049.788,
+     101083.652,
+     101083.652,
+     101083.652,
+     101083.652,
+     101083.652,
+     101083.652,
+     101083.652,
+     101083.652
+    ],
+    "air_temp_set_1": [
+     22.778,
+     22.778,
+     22.778,
+     22.222,
+     22.222,
+     21.667,
+     21.667,
+     21.111,
+     21.111,
+     21.111,
+     20.556
+    ],
+    "relative_humidity_set_1": [
+     70.0,
+     70.0,
+     70.0,
+     71.0,
+     72.0,
+     73.0,
+     73.0,
+     73.0,
+     74.0,
+     74.0,
+     75.0
+    ],
+    "wind_speed_set_1": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "wind_gust_set_1": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "precip_accum_24_hour_set_1": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "precip_accum_since_local_midnight_set_1": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "pressure_set_1d": [
+     100929.97,
+     100929.97,
+     100929.97,
+     100963.79,
+     100963.79,
+     100963.79,
+     100963.79,
+     100963.79,
+     100963.79,
+     100963.79,
+     100963.79
+    ],
+    "sea_level_pressure_set_1d": [
+     101046.54,
+     101046.54,
+     101046.54,
+     101080.61,
+     101080.61,
+     101080.83,
+     101080.83,
+     101081.06,
+     101081.06,
+     101081.06,
+     101081.28
+    ],
+    "wet_bulb_temp_set_1d": [
+     18.97,
+     18.97,
+     18.97,
+     18.61,
+     18.74,
+     18.37,
+     18.37,
+     17.86,
+     17.99,
+     17.99,
+     17.6
+    ],
+    "dew_point_temperature_set_1d": [
+     17.0,
+     17.0,
+     17.0,
+     16.69,
+     16.91,
+     16.59,
+     16.59,
+     16.06,
+     16.27,
+     16.27,
+     15.95
+    ]
+   },
+   "QC_FLAGGED": false,
+   "RESTRICTED": false,
+   "RESTRICTED_METADATA": false
+  }
+ ]
+}

@@ -27,8 +27,9 @@ class SynopticObservationSource(
         radiusMiles: Double = SynopticObservationFetcher.DEFAULT_RADIUS_MILES,
         hours: Int = 2,
         limit: Int = SynopticObservationFetcher.DEFAULT_LIMIT,
+        recentMinutes: Long? = null,
     ): List<ObservationEntity> =
-        fetcher.fetchObservations(latitude, longitude, radiusMiles, hours, limit).map { it.toEntity() }
+        fetcher.fetchObservations(latitude, longitude, radiusMiles, hours, limit, recentMinutes).map { it.toEntity() }
 
     suspend fun fetchObservationsResult(
         latitude: Double,
@@ -36,8 +37,9 @@ class SynopticObservationSource(
         radiusMiles: Double = SynopticObservationFetcher.DEFAULT_RADIUS_MILES,
         hours: Int = 2,
         limit: Int = SynopticObservationFetcher.DEFAULT_LIMIT,
+        recentMinutes: Long? = null,
     ): FetchOutcome<List<ObservationEntity>> =
-        when (val outcome = fetcher.fetchObservationsResult(latitude, longitude, radiusMiles, hours, limit)) {
+        when (val outcome = fetcher.fetchObservationsResult(latitude, longitude, radiusMiles, hours, limit, recentMinutes)) {
             is FetchOutcome.Success -> FetchOutcome.Success(outcome.value.map { it.toEntity() })
             is FetchOutcome.NoData -> FetchOutcome.NoData
             is FetchOutcome.Failed -> outcome

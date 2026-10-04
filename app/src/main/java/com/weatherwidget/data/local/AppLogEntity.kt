@@ -7,6 +7,7 @@ import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.weatherwidget.data.remote.ApiKeyRedaction
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.time.ZoneId
@@ -151,13 +152,17 @@ private inline fun crashlytics(block: (FirebaseCrashlytics) -> Unit) {
 
 /** Log to the app_logs DB table, logcat, and Firebase Crashlytics in one call. */
 suspend fun AppLogDao.log(tag: String, message: String, level: String = "DEBUG") {
+    // Redacted here, where every row is written, rather than at each call site: Ktor exception
+    // text carries the request URL with `token=`/`appid=`/`key=`, and app_logs rides along in
+    // bug-report emails and Crashlytics breadcrumbs.
+    val safe = ApiKeyRedaction.redact(message)
     // VERBOSE is logcat-only and never persisted — matching the shared-module dbLogger boundary
     // (see CurrentTemperatureResolver.resultLogLevel). This lets high-frequency, per-paint/per-poll
     // diagnostics pass "VERBOSE" to stay out of app_logs, so they neither bloat the DB nor add an
     // indexed insert to the click critical path. Only this level is dropped; DEBUG+ still persist.
     if (level != "VERBOSE") {
         try {
-            insert(AppLogEntity(tag = tag, message = message, level = level))
+            insert(AppLogEntity(tag = tag, message = safe, level = level))
         } catch (e: Exception) {
             Log.e("AppLog", "Failed to log to DB: $e")
         }
@@ -167,41 +172,53 @@ suspend fun AppLogDao.log(tag: String, message: String, level: String = "DEBUG")
     // Crashlytics automatically captures ERROR and WARN as custom logs.
     // We only send significant levels to avoid overwhelming the log buffer.
     if (level == "ERROR" || level == "WARN" || level == "INFO") {
-        crashlytics { it.log("[$tag] $message") }
+        crashlytics { it.log("[$tag] $safe") }
     }
 
     when (level) {
-        "ERROR" -> Log.e(tag, message)
-        "WARN" -> Log.w(tag, message)
-        "INFO" -> Log.i(tag, message)
-        "DEBUG" -> Log.d(tag, message)
-        "VERBOSE" -> Log.v(tag, message)
-        else -> Log.d(tag, message)
+        "ERROR" -> Log.e(tag, safe)
+        "WARN" -> Log.w(tag, safe)
+        "INFO" -> Log.i(tag, safe)
+        "DEBUG" -> Log.d(tag, safe)
+        "VERBOSE" -> Log.v(tag, safe)
+        else -> Log.d(tag, safe)
     }
 }
 
 /** Log a non-fatal exception to both DB logs and Firebase Crashlytics. */
 suspend fun AppLogDao.logException(tag: String, message: String, throwable: Throwable) {
     log(tag, "$message: ${throwable.message}", "ERROR")
-    crashlytics { it.recordException(throwable) }
+    crashlytics { it.recordException(throwable.redactedForReport()) }
 }
 
 /** Global log function for standard Log calls to also hit Crashlytics if needed. */
 fun log(tag: String, message: String, level: String = "DEBUG") {
+    val safe = ApiKeyRedaction.redact(message)
     if (level == "ERROR" || level == "WARN" || level == "INFO") {
-        crashlytics { it.log("[$tag] $message") }
+        crashlytics { it.log("[$tag] $safe") }
     }
     when (level) {
-        "ERROR" -> Log.e(tag, message)
-        "WARN" -> Log.w(tag, message)
-        "INFO" -> Log.i(tag, message)
-        "DEBUG" -> Log.d(tag, message)
-        "VERBOSE" -> Log.v(tag, message)
-        else -> Log.d(tag, message)
+        "ERROR" -> Log.e(tag, safe)
+        "WARN" -> Log.w(tag, safe)
+        "INFO" -> Log.i(tag, safe)
+        "DEBUG" -> Log.d(tag, safe)
+        "VERBOSE" -> Log.v(tag, safe)
+        else -> Log.d(tag, safe)
     }
 }
 
 /** Global exception function. */
 fun logException(throwable: Throwable) {
-    crashlytics { it.recordException(throwable) }
+    crashlytics { it.recordException(throwable.redactedForReport()) }
+}
+
+/**
+ * The throwable itself when its message carries no credential; otherwise a stand-in with the
+ * redacted message and the same stack, so Crashlytics never receives a `token=` URL.
+ */
+private fun Throwable.redactedForReport(): Throwable {
+    val raw = message ?: return this
+    val redacted = ApiKeyRedaction.redact(raw)
+    if (redacted == raw) return this
+    return RuntimeException("${this::class.java.name}: $redacted").also { it.stackTrace = stackTrace }
 }

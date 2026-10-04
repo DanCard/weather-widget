@@ -209,7 +209,7 @@ class NwsApi
                     }
                     FetchOutcome.NoData
                 } catch (e: Exception) {
-                    FetchOutcome.Failed("parse: ${e.message}")
+                    FetchOutcome.Failed.of("parse: ${e.message}")
                 }
             }
         }
@@ -661,7 +661,7 @@ class NwsApi
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "getLatestObservationDetailedResult: query failed for $stationId: ${e.message}")
+                Log.e(TAG, "getLatestObservationDetailedResult: query failed for $stationId: ${ApiKeyRedaction.redact(e.message ?: "")}")
                 return FetchOutcome.failed(e)
             }
             val outcome = selectValidObservation(json, response, stationId)

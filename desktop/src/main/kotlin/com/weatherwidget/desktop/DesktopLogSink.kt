@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.shared.util.Log
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -29,7 +30,9 @@ object DesktopLogSink : Log.Sink {
     override fun log(priority: Log.Priority, tag: String, msg: String, tr: Throwable?) {
         if ((priority == Log.Priority.DEBUG || priority == Log.Priority.VERBOSE) && !debugEnabled) return
         val stream = if (priority == Log.Priority.WARN || priority == Log.Priority.ERROR) System.err else System.out
-        stream.println("${LocalTime.now().format(timeFmt)} ${priority.name.first()}/$tag: $msg")
-        tr?.printStackTrace(stream)
+        // stdout/stderr is the autostart log file under ~/.local/state/weather-widget/; redact so a
+        // Ktor exception's `token=` URL never lands there.
+        stream.println("${LocalTime.now().format(timeFmt)} ${priority.name.first()}/$tag: ${ApiKeyRedaction.redact(msg)}")
+        tr?.let { stream.println(ApiKeyRedaction.redact(it.stackTraceToString())) }
     }
 }

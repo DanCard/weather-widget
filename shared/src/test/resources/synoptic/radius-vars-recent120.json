@@ -1,0 +1,185 @@
+{
+ "SUMMARY": {
+  "NUMBER_OF_OBJECTS": 215,
+  "RESPONSE_CODE": 1,
+  "RESPONSE_MESSAGE": "OK",
+  "METADATA_QUERY_TIME": "194.4 ms",
+  "METADATA_PARSE_TIME": "36.8 ms",
+  "TOTAL_METADATA_TIME": "231.2 ms",
+  "DATA_QUERY_TIME": "67.7 ms",
+  "QC_QUERY_TIME": "0.0 ms",
+  "DATA_PARSE_TIME": "30.8 ms",
+  "TOTAL_DATA_TIME": "98.6 ms",
+  "TOTAL_TIME": "329.8 ms",
+  "VERSION": "v2.39.7"
+ },
+ "STATION": [
+  {
+   "ID": "298",
+   "STID": "KNUQ",
+   "NAME": "Mountain View, Moffett Field",
+   "ELEVATION": "33.0",
+   "LATITUDE": "37.40583",
+   "LONGITUDE": "-122.04806",
+   "STATUS": "ACTIVE",
+   "MNET_ID": "1",
+   "STATE": "CA",
+   "COUNTRY": "US",
+   "TIMEZONE": "America/Los_Angeles",
+   "ELEV_DEM": "19.7",
+   "DISTANCE": 2.07,
+   "PERIOD_OF_RECORD": {
+    "start": "1997-04-12T00:00:00Z",
+    "end": "2026-10-04T05:15:00Z"
+   },
+   "UNITS": {
+    "position": "m",
+    "elevation": "ft"
+   },
+   "SENSOR_VARIABLES": {
+    "air_temp": {
+     "air_temp_set_1": {}
+    },
+    "metar": {
+     "metar_set_1": {}
+    },
+    "weather_summary": {
+     "weather_summary_set_1d": {
+      "derived_from": [
+       "cloud_layer_1_code_set_1"
+      ]
+     }
+    },
+    "cloud_layer_1": {
+     "cloud_layer_1_set_1d": {
+      "derived_from": [
+       "cloud_layer_1_code_set_1"
+      ]
+     }
+    }
+   },
+   "OBSERVATIONS": {
+    "date_time": [
+     "2026-10-04T04:35:00Z",
+     "2026-10-04T04:55:00Z",
+     "2026-10-04T05:15:00Z",
+     "2026-10-04T05:35:00Z",
+     "2026-10-04T05:55:00Z",
+     "2026-10-04T06:15:00Z"
+    ],
+    "air_temp_set_1": [
+     25.0,
+     24.0,
+     24.0,
+     24.0,
+     23.0,
+     23.0
+    ],
+    "metar_set_1": [
+     "KNUQ 040435Z AUTO 00000KT 9SM CLR 25/15 A2982 RMK AO2",
+     "KNUQ 040455Z AUTO 00000KT 10SM CLR 24/15 A2982 RMK AO2",
+     "KNUQ 040515Z AUTO 00000KT 9SM CLR 24/15 A2983 RMK AO2",
+     "KNUQ 040535Z AUTO 00000KT 9SM CLR 24/15 A2983 RMK AO2 LTG DSNT  S",
+     "KNUQ 040555Z AUTO 00000KT 10SM CLR 23/15 A2983 RMK AO2",
+     "KNUQ 040615Z AUTO 00000KT 9SM CLR 23/14 A2984 RMK AO2"
+    ],
+    "weather_summary_set_1d": [
+     "clear",
+     "clear",
+     "clear",
+     "clear",
+     "clear",
+     "clear"
+    ],
+    "cloud_layer_1_set_1d": [
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     },
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     },
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     },
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     },
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     },
+     {
+      "sky_condition": "clear",
+      "height_agl": null
+     }
+    ]
+   },
+   "QC_FLAGGED": false,
+   "RESTRICTED": false,
+   "RESTRICTED_METADATA": false
+  },
+  {
+   "ID": "180552",
+   "STID": "AW020",
+   "NAME": "AE6EO MOUNTAIN VIEW",
+   "ELEVATION": "32.81",
+   "LATITUDE": "37.40150",
+   "LONGITUDE": "-122.10517",
+   "STATUS": "ACTIVE",
+   "MNET_ID": "65",
+   "STATE": "CA",
+   "COUNTRY": "US",
+   "TIMEZONE": "America/Los_Angeles",
+   "ELEV_DEM": "59.1",
+   "DISTANCE": 1.59,
+   "PERIOD_OF_RECORD": {
+    "start": "2022-11-23T01:04:00Z",
+    "end": "2026-10-04T05:30:00Z"
+   },
+   "UNITS": {
+    "position": "m",
+    "elevation": "ft"
+   },
+   "SENSOR_VARIABLES": {
+    "air_temp": {
+     "air_temp_set_1": {}
+    }
+   },
+   "OBSERVATIONS": {
+    "date_time": [
+     "2026-10-04T04:40:00Z",
+     "2026-10-04T04:50:00Z",
+     "2026-10-04T05:00:00Z",
+     "2026-10-04T05:10:00Z",
+     "2026-10-04T05:20:00Z",
+     "2026-10-04T05:30:00Z",
+     "2026-10-04T05:40:00Z",
+     "2026-10-04T05:50:00Z",
+     "2026-10-04T06:00:00Z",
+     "2026-10-04T06:10:00Z",
+     "2026-10-04T06:20:00Z"
+    ],
+    "air_temp_set_1": [
+     22.778,
+     22.778,
+     22.778,
+     22.222,
+     22.222,
+     21.667,
+     21.667,
+     21.111,
+     21.111,
+     21.111,
+     20.556
+    ]
+   },
+   "QC_FLAGGED": false,
+   "RESTRICTED": false,
+   "RESTRICTED_METADATA": false
+  }
+ ]
+}

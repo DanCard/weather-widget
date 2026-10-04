@@ -495,7 +495,9 @@ class DesktopWeatherRepository(
                 weatherDao.log(
                     tag = "BORROWED_${provider}_RECOVERY",
                     message = "source=${displaySource.id} " +
-                        "hours=${DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS} " +
+                        // Synoptic recovery asks for the gap since the newest stored row, not 24 h;
+                        // its window is in the BORROWED_SYNOPTIC_FETCH line.
+                        (if (provider == WeatherSource.METAR.id) "hours=${DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS} " else "") +
                         "rows=${borrowedRecovery.rawObservations.size} " +
                         "stored=${borrowedRecovery.rawObservations.size} " +
                         "stations=${borrowedRecovery.rawObservations.map { it.stationId }.distinct().size}",
@@ -529,6 +531,7 @@ class DesktopWeatherRepository(
 
             // Same retention policy as Android (RetentionPolicy); the permanent backfill markers stay.
             weatherDao.applyRetention(now, protectedLogTags = PERMANENT_LOG_MARKERS)
+            scrubApiKeysFromAppLogsIfNeeded()
             pruneHistorySnapshotsIfDue(now)
 
             // Persistent pipeline-health summary
@@ -1101,6 +1104,17 @@ class DesktopWeatherRepository(
     }
 
     /**
+     * One-time scrub of app_logs rows that still embed API credentials (Ktor exception text
+     * carries the full request URL). Gated by [APP_LOGS_KEY_SCRUB_DONE_TAG]; idempotent, so even a
+     * missed gate would only cost a cheap scan. See performance/261003-synoptic-fetch-cost-and-resilience.md.
+     */
+    internal fun scrubApiKeysFromAppLogsIfNeeded() {
+        if (weatherDao.getRecentLogsByTags(listOf(APP_LOGS_KEY_SCRUB_DONE_TAG), limit = 1).isNotEmpty()) return
+        val scrubbed = weatherDao.scrubCredentialsFromAppLogs()
+        weatherDao.log(APP_LOGS_KEY_SCRUB_DONE_TAG, "scrubbed=$scrubbed", "INFO")
+    }
+
+    /**
      * One-time backfill of the frozen display columns (forecastHighTemp/LowTemp/PrecipAmountMm +
      * noonCloudPercent, see [com.weatherwidget.shared.util.DailyHistoryFreeze]) for daily_history
      * rows from before the feature existed, while their source tables are still retained:
@@ -1372,9 +1386,11 @@ class DesktopWeatherRepository(
         private const val HISTORY_PRUNE_TAG = "HISTORY_PRUNE"
 
         /** app_logs rows used as permanent "already done" state; exempt from the 72 h log window. */
-        private val PERMANENT_LOG_MARKERS = listOf(CHANCE_BACKFILL_DONE_TAG, FROZEN_DISPLAY_BACKFILL_DONE_TAG)
+        private val PERMANENT_LOG_MARKERS =
+            listOf(CHANCE_BACKFILL_DONE_TAG, FROZEN_DISPLAY_BACKFILL_DONE_TAG, APP_LOGS_KEY_SCRUB_DONE_TAG)
         private const val HISTORY_PRUNE_INTERVAL_MS = 24L * 3_600_000L
         private const val HISTORY_VACUUM_MIN_FREE_BYTES = 16L * 1024 * 1024
+        private const val APP_LOGS_KEY_SCRUB_DONE_TAG = "APP_LOGS_KEY_SCRUB_DONE"
     }
 
     /**

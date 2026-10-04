@@ -897,13 +897,31 @@ class DesktopWeatherService(
             )
             return RawFetch(rawObservations = readings)
         } else if (provider == WeatherSource.SYNOPTIC.id) {
-            val hours = if (recentOnly) RECENT_BORROWED_METAR_HOURS else RECOVERY_BORROWED_METAR_HOURS
-            val readings = synopticGate.run("reason=borrowed_${if (recentOnly) "recent" else "recovery"}", userLocationChange) {
-                synopticFetcher.fetchObservationsResult(latitude, longitude, hours = hours)
+            // Gap window, not a fixed 24 h: observations are stored for days, so a routine refresh
+            // only needs the minutes since the newest stored SYNOPTIC row (plus a margin).
+            // First run / long gap falls back to the deep window. See SynopticFetchWindow.
+            val newestStored = weatherDao?.getNewestObservationTimestampForApi(
+                WeatherSource.SYNOPTIC.id,
+                latitude,
+                longitude,
+            )
+            val recentMinutes = com.weatherwidget.shared.util.SynopticFetchWindow
+                .recentMinutes(newestStored, System.currentTimeMillis())
+                .toLong()
+            val readings = synopticGate.run(
+                context = "reason=borrowed_${if (recentOnly) "recent" else "recovery"}",
+                userLocationChange = userLocationChange,
+                siteKey = com.weatherwidget.shared.util.SynopticFetchGate.siteKey(latitude, longitude),
+            ) {
+                synopticFetcher.fetchObservationsResult(
+                    latitude,
+                    longitude,
+                    recentMinutes = recentMinutes,
+                )
             }?.valueOrNull().orEmpty()
             Log.i(
                 TAG,
-                "BORROWED_SYNOPTIC_FETCH source=$weatherSource hours=$hours rows=${readings.size} " +
+                "BORROWED_SYNOPTIC_FETCH source=$weatherSource recentMin=$recentMinutes rows=${readings.size} " +
                     "stations=${readings.map { it.stationId }.distinct().size}",
             )
             return RawFetch(rawObservations = readings)

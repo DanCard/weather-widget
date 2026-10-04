@@ -69,4 +69,28 @@ class SynopticObservationFetcherTest {
         assertEquals(100, reading.cloudCoverLow)
         assertTrue(logs.any { it.startsWith("SYNOPTIC_FETCH") })
     }
+
+    @Test
+    fun `one radius request asks only for parsed vars and the given window`() {
+        // Not two `limit=` queries: Synoptic's limit is not nearest-first (live 2026-10-03, limit=10
+        // returned stations 8-22 mi out), so selection must see every candidate.
+        val requests = mutableListOf<io.ktor.client.request.HttpRequestData>()
+        val engine = MockEngine { request ->
+            requests += request
+            respond(
+                content = """{"SUMMARY": {"RESPONSE_CODE": 1}, "STATION": []}""",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+        val fetcher = SynopticObservationFetcher(SynopticApi(HttpClient(engine), json) { "mock-token" }) { _, _, _ -> }
+
+        runBlocking { fetcher.fetchObservationsResult(37.4, -122.0, recentMinutes = 185L) }
+
+        val params = requests.single().url.parameters
+        assertEquals(SynopticApi.PARSED_VARS.joinToString(","), params["vars"])
+        assertEquals("185", params["recent"])
+        assertEquals(null, params["limit"])
+        assertEquals(null, params["network"])
+    }
 }

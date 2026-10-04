@@ -12,13 +12,25 @@ sealed class FetchOutcome<out T> {
     /** The conversation with the source completed and it definitively has no usable data. */
     data object NoData : FetchOutcome<Nothing>()
 
-    /** Transport/HTTP/parse failure — nothing was learned about the source. */
-    data class Failed(val reason: String) : FetchOutcome<Nothing>()
+    /**
+     * Transport/HTTP/parse failure — nothing was learned about the source.
+     *
+     * Prefer [failed] (or [of]) when the text is dynamic: Ktor exception messages embed the full
+     * request URL (`token=…`, `appid=…`, `key=…`), and this string is what lands in `app_logs`
+     * and bug-report emails.
+     */
+    data class Failed(val reason: String) : FetchOutcome<Nothing>() {
+        companion object {
+            /** Credential-redacted construction of a failure reason. */
+            fun of(rawReason: String): Failed = Failed(ApiKeyRedaction.redact(rawReason))
+        }
+    }
 
     fun valueOrNull(): T? = (this as? Success)?.value
 
     companion object {
-        fun failed(e: Throwable): Failed = Failed("${e::class.simpleName}: ${e.message}")
+        fun failed(e: Throwable): Failed =
+            Failed.of("${e::class.simpleName}: ${e.message}")
     }
 }
 

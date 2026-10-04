@@ -12,6 +12,13 @@ object SynopticBackoff {
     const val BASE_BACKOFF_MS = 30 * 60 * 1000L
     const val MAX_BACKOFF_MS = 6 * 60 * 60 * 1000L
 
+    /**
+     * Fixed wait after a [FailureClass.TRANSPORT] failure. No escalation: a stall that lasted
+     * 30 s will still be a stall next time, and the next sync is the right probe. The doubling
+     * in [backoffFor] is for rejections that will not clear on their own.
+     */
+    const val TRANSPORT_BACKOFF_MS = 5 * 60 * 1000L
+
     /** Backoff to apply after [failStreak] consecutive failures; 0 when not failing. */
     fun backoffFor(failStreak: Int): Long {
         if (failStreak <= 0) return 0L

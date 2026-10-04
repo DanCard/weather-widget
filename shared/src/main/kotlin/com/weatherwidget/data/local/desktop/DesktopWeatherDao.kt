@@ -806,6 +806,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      * primary log path).
      */
     fun log(tag: String, message: String, level: String = "INFO") {
+        // Redacted at the write point so no caller can leak a `token=`/`appid=`/`key=` URL from
+        // exception text into app_logs. See ApiKeyRedaction.
+        val safe = com.weatherwidget.data.remote.ApiKeyRedaction.redact(message)
         try {
             db.getConnection().use { conn ->
                 conn.prepareStatement(
@@ -814,13 +817,49 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     stmt.setLong(1, System.currentTimeMillis())
                     stmt.setString(2, level)
                     stmt.setString(3, tag)
-                    stmt.setString(4, message)
+                    stmt.setString(4, safe)
                     stmt.executeUpdate()
                 }
             }
         } catch (e: Exception) {
             Log.w("DesktopWeatherDao", "app_logs write failed: $e")
         }
+    }
+
+    /**
+     * One-time scrub of historical app_logs rows that still embed API credentials in their message
+     * (Ktor exception text carries the full request URL — `token=…`, `appid=…`, `key=…`).
+     * Rewrites only rows whose message actually changes. Idempotent; callers gate on a marker so
+     * the scan is not repeated every refresh.
+     */
+    fun scrubCredentialsFromAppLogs(): Int {
+        var updated = 0
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT id, message FROM app_logs WHERE message LIKE '%token=%' OR message LIKE '%appid=%' " +
+                    "OR message LIKE '%api_key=%' OR message LIKE '%apikey=%' OR message LIKE '%key=%'",
+            ).use { stmt ->
+                val rs = stmt.executeQuery()
+                val rewrites = mutableListOf<Pair<Long, String>>()
+                while (rs.next()) {
+                    val id = rs.getLong(1)
+                    val message = rs.getString(2) ?: continue
+                    val redacted = com.weatherwidget.data.remote.ApiKeyRedaction.redact(message)
+                    if (redacted != message) rewrites.add(id to redacted)
+                }
+                if (rewrites.isNotEmpty()) {
+                    conn.prepareStatement("UPDATE app_logs SET message = ? WHERE id = ?").use { update ->
+                        for ((id, redacted) in rewrites) {
+                            update.setString(1, redacted)
+                            update.setLong(2, id)
+                            update.executeUpdate()
+                            updated++
+                        }
+                    }
+                }
+            }
+        }
+        return updated
     }
 
     fun getLatestLogByTagAndMessagePrefix(
@@ -892,6 +931,29 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 if (rs.next()) {
                     val ts = rs.getLong(1)
                     return if (ts > 0L) ts else null
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Timestamp of the newest stored observation row for [api] at this site, or null when there is
+     * none. Used by [com.weatherwidget.shared.util.SynopticFetchWindow] so a routine refresh only
+     * requests the gap since the last store instead of the full 24 h.
+     */
+    fun getNewestObservationTimestampForApi(api: String, latitude: Double, longitude: Double): Long? {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT MAX(timestamp) FROM observations WHERE api = ? AND ${LocationMatch.JDBC_SAME_SITE_WHERE}",
+            ).use { stmt ->
+                stmt.setString(1, api)
+                stmt.setDouble(2, latitude)
+                stmt.setDouble(3, longitude)
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    val ts = rs.getLong(1)
+                    return if (rs.wasNull()) null else ts
                 }
             }
         }

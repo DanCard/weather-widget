@@ -22,19 +22,31 @@ class SynopticObservationFetcher(
         radiusMiles: Double = DEFAULT_RADIUS_MILES,
         hours: Int = 2,
         limit: Int = DEFAULT_LIMIT,
+        recentMinutes: Long? = null,
     ): List<ObservationReading> =
-        fetchObservationsResult(latitude, longitude, radiusMiles, hours, limit).valueOrNull().orEmpty()
+        fetchObservationsResult(latitude, longitude, radiusMiles, hours, limit, recentMinutes).valueOrNull().orEmpty()
 
+    /**
+     * @param recentMinutes when non-null, the exact `recent=` window to request (see
+     *   [com.weatherwidget.shared.util.SynopticFetchWindow]); otherwise derived from [hours].
+     *
+     * One radius request, then [SkyReportingStationSlots.select] over every candidate. Do not split
+     * it into `limit=` queries: Synoptic's `limit` is not nearest-first (live, 2026-10-03:
+     * `limit=10` returned stations 8–22 mi out while the nearest 10 were all inside 4.5 mi), and
+     * `network=2` is RAWS, which never reports sky. The cost is cut by `vars=` and the gap window
+     * instead — see performance/261003-synoptic-fetch-review-fixes.md.
+     */
     suspend fun fetchObservationsResult(
         latitude: Double,
         longitude: Double,
         radiusMiles: Double = DEFAULT_RADIUS_MILES,
         hours: Int = 2,
         limit: Int = DEFAULT_LIMIT,
+        recentMinutes: Long? = null,
     ): FetchOutcome<List<ObservationReading>> {
         if (!api.isConfigured) return FetchOutcome.Failed("synoptic: no token configured")
-        val recentMinutes = (hours * 60L).coerceAtLeast(120L)
-        return when (val outcome = api.fetchRadiusTimeseries(latitude, longitude, radiusMiles, recentMinutes)) {
+        val recent = recentMinutes ?: (hours * 60L).coerceAtLeast(120L)
+        return when (val outcome = api.fetchRadiusTimeseries(latitude, longitude, radiusMiles, recent)) {
             is FetchOutcome.Success -> {
                 // Nearest-first for the temperature blend, plus reserved slots so stations that
                 // actually report sky condition are not crowded out by nearer personal weather
@@ -56,7 +68,8 @@ class SynopticObservationFetcher(
                 }
                 log(
                     "SYNOPTIC_FETCH",
-                    "lat=$latitude lon=$longitude stations=${stations.size} hours=$hours " +
+                    "lat=$latitude lon=$longitude stations=${stations.size} recentMin=$recent " +
+                        "candidates=${outcome.value.size} " +
                         "rows=${outcome.value.sumOf { it.observations.size }} stored=${readings.size} " +
                         "ids=${stations.joinToString(",") { it.info.id }} " +
                         // Which stations can answer the cloud question at all. A curve that breaks
@@ -81,5 +94,6 @@ class SynopticObservationFetcher(
     companion object {
         const val DEFAULT_RADIUS_MILES = 25.0
         const val DEFAULT_LIMIT = 10
+
     }
 }
