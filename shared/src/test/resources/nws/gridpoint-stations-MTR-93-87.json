@@ -1,0 +1,149 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "https://api.weather.gov/stations/AW020",
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.10517,
+     37.4015
+    ]
+   },
+   "properties": {
+    "@id": "https://api.weather.gov/stations/AW020",
+    "@type": "wx:ObservationStation",
+    "elevation": {
+     "unitCode": "wmoUnit:m",
+     "value": 10.000488
+    },
+    "stationIdentifier": "AW020",
+    "name": "AE6EO MOUNTAIN VIEW",
+    "timeZone": "America/Los_Angeles",
+    "provider": "APRSWXNET",
+    "subProvider": ""
+   }
+  },
+  {
+   "id": "https://api.weather.gov/stations/KNUQ",
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.04806,
+     37.40583
+    ]
+   },
+   "properties": {
+    "@id": "https://api.weather.gov/stations/KNUQ",
+    "@type": "wx:ObservationStation",
+    "elevation": {
+     "unitCode": "wmoUnit:m",
+     "value": 10.0584
+    },
+    "stationIdentifier": "KNUQ",
+    "name": "Mountain View, Moffett Field",
+    "timeZone": "America/Los_Angeles",
+    "provider": "ASOS",
+    "subProvider": ""
+   }
+  },
+  {
+   "id": "https://api.weather.gov/stations/KPAO",
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.11667,
+     37.46667
+    ]
+   },
+   "properties": {
+    "@id": "https://api.weather.gov/stations/KPAO",
+    "@type": "wx:ObservationStation",
+    "elevation": {
+     "unitCode": "wmoUnit:m",
+     "value": 2.1336
+    },
+    "stationIdentifier": "KPAO",
+    "name": "Palo Alto Airport",
+    "timeZone": "America/Los_Angeles",
+    "provider": "OTHER-MTR",
+    "subProvider": ""
+   }
+  },
+  {
+   "id": "https://api.weather.gov/stations/LOAC1",
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.14167,
+     37.35472
+    ]
+   },
+   "properties": {
+    "@id": "https://api.weather.gov/stations/LOAC1",
+    "@type": "wx:ObservationStation",
+    "elevation": {
+     "unitCode": "wmoUnit:m",
+     "value": 164.2872
+    },
+    "stationIdentifier": "LOAC1",
+    "name": "LOS ALTOS",
+    "timeZone": "America/Los_Angeles",
+    "provider": "RAWS",
+    "subProvider": ""
+   }
+  },
+  {
+   "id": "https://api.weather.gov/stations/KSJC",
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -121.92417,
+     37.35917
+    ]
+   },
+   "properties": {
+    "@id": "https://api.weather.gov/stations/KSJC",
+    "@type": "wx:ObservationStation",
+    "elevation": {
+     "unitCode": "wmoUnit:m",
+     "value": 17.9832
+    },
+    "stationIdentifier": "KSJC",
+    "name": "San Jose, San Jose International Airport",
+    "timeZone": "America/Los_Angeles",
+    "provider": "ASOS-HFM",
+    "subProvider": ""
+   }
+  },
+  {
+   "id": "https://api.weather.gov/stations/LAHC1",
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.25525,
+     37.30523
+    ]
+   },
+   "properties": {
+    "@id": "https://api.weather.gov/stations/LAHC1",
+    "@type": "wx:ObservationStation",
+    "elevation": {
+     "unitCode": "wmoUnit:m",
+     "value": 245.0592
+    },
+    "stationIdentifier": "LAHC1",
+    "name": "LA HONDA",
+    "timeZone": "America/Los_Angeles",
+    "provider": "RAWS",
+    "subProvider": ""
+   }
+  }
+ ]
+}

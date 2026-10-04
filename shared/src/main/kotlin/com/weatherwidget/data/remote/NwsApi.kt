@@ -41,7 +41,14 @@ class NwsApi
             private const val TAG = "NwsApi"
             private const val BASE_URL = "https://api.weather.gov"
 
-            fun classifyStationType(id: String): StationType {
+            /**
+             * [provider] is NWS's own network label from the station list (`ASOS`, `RAWS`,
+             * `APRSWXNET`, `OTHER-MTR` …). It is trusted only for RAWS: KPAO, an FAA airport, is
+             * `OTHER-MTR`, so a provider rule for OFFICIAL would demote it. Everything else keeps
+             * the id rule. See plans/261004-nws-raws-provider.md.
+             */
+            fun classifyStationType(id: String, provider: String? = null): StationType {
+                if (provider.equals("RAWS", ignoreCase = true)) return StationType.RAWS
                 return if (id.length == 4 && (id.startsWith("K") || id.startsWith("P") || id.startsWith("T"))) {
                     StationType.OFFICIAL
                 } else {
@@ -282,8 +289,9 @@ class NwsApi
                 val id = props["stationIdentifier"]?.jsonPrimitive?.content ?: return@mapNotNull null
                 val name = props["name"]?.jsonPrimitive?.content ?: id
                 
-                // Detection logic: Official METAR stations are 4-chars starting with K, P, or T.
-                val type = classifyStationType(id)
+                // Official METAR stations are 4-chars starting with K, P, or T; NWS's provider field
+                // identifies RAWS, which the id alone cannot.
+                val type = classifyStationType(id, props["provider"]?.jsonPrimitive?.contentOrNull)
 
                 val geometry = featObj["geometry"]?.jsonObject
                 val coords = geometry?.get("coordinates")?.jsonArray
