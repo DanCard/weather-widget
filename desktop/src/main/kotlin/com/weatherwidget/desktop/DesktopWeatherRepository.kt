@@ -700,6 +700,7 @@ class DesktopWeatherRepository(
         snapshotDisplayedRainChance(now)
         backfillForecastChanceSnapshotsIfNeeded(now)
         backfillFrozenDisplayColumnsIfNeeded(now)
+        repairUtcDatedPredictionsIfNeeded()
         settlePastForecastOverlays(now)
         return extremesCount
     }
@@ -1224,6 +1225,18 @@ class DesktopWeatherRepository(
         }
     }
 
+    /**
+     * Once per install: `forecasts.dateOfPrediction` written while the DAO used the UTC date
+     * ([DesktopWeatherDao.repairUtcDatedPredictions]). Table-wide, every site and source. Runs
+     * after this build's writer has stored at least one batch, so no old-writer row follows it
+     * (plans/261005-desktop-forecast-today-is-utc-date-after-5pm.md).
+     */
+    internal fun repairUtcDatedPredictionsIfNeeded() {
+        if (weatherDao.getRecentLogsByTags(listOf(UTC_PREDICTION_DATE_REPAIR_DONE_TAG), limit = 1).isNotEmpty()) return
+        val repaired = weatherDao.repairUtcDatedPredictions()
+        weatherDao.log(UTC_PREDICTION_DATE_REPAIR_DONE_TAG, "repaired=$repaired zone=${ZoneId.systemDefault()}")
+    }
+
     internal fun backfillFrozenDisplayColumnsIfNeeded(now: Long) {
         if (weatherDao.getRecentLogsByTags(listOf(FROZEN_DISPLAY_BACKFILL_DONE_TAG), limit = 1).isNotEmpty()) return
         val zoneId = ZoneId.systemDefault()
@@ -1466,11 +1479,17 @@ class DesktopWeatherRepository(
         private const val PRIOR_CLOUD_FETCH_INTERVAL_MS = 60 * 60 * 1000L
         private const val CHANCE_BACKFILL_DONE_TAG = "CHANCE_BACKFILL_DONE"
         private const val FROZEN_DISPLAY_BACKFILL_DONE_TAG = "FROZEN_DISPLAY_BACKFILL_DONE"
+        private const val UTC_PREDICTION_DATE_REPAIR_DONE_TAG = "UTC_PREDICTION_DATE_REPAIR_DONE"
         private const val HISTORY_PRUNE_TAG = "HISTORY_PRUNE"
 
         /** app_logs rows used as permanent "already done" state; exempt from the 72 h log window. */
         private val PERMANENT_LOG_MARKERS =
-            listOf(CHANCE_BACKFILL_DONE_TAG, FROZEN_DISPLAY_BACKFILL_DONE_TAG, APP_LOGS_KEY_SCRUB_DONE_TAG)
+            listOf(
+                CHANCE_BACKFILL_DONE_TAG,
+                FROZEN_DISPLAY_BACKFILL_DONE_TAG,
+                APP_LOGS_KEY_SCRUB_DONE_TAG,
+                UTC_PREDICTION_DATE_REPAIR_DONE_TAG,
+            )
         private const val HISTORY_PRUNE_INTERVAL_MS = 24L * 3_600_000L
         private const val HISTORY_VACUUM_MIN_FREE_BYTES = 16L * 1024 * 1024
         private const val APP_LOGS_KEY_SCRUB_DONE_TAG = "APP_LOGS_KEY_SCRUB_DONE"

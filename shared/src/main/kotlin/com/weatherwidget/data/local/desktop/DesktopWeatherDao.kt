@@ -1,6 +1,7 @@
 package com.weatherwidget.data.local.desktop
 
 import com.weatherwidget.shared.util.PartialForecastDays
+import com.weatherwidget.shared.util.PredictionDate
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
@@ -403,7 +404,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = nowMs
-                    val todayEpoch = LocalDate.now(ZoneOffset.UTC).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                    // The local date of this write (shared with Android), never the UTC date.
+                    val todayEpoch = PredictionDate.epochMs(now)
                     // Quantize the storage key so coordinate jitter between fetches lands on the
                     // same PK instead of stranding a stale per-precision site (see LocationMatch.quantize).
                     val keyLat = LocationMatch.quantize(locationLat)
@@ -464,6 +466,55 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
         pendingLogs.forEach { (tag, message) -> log(tag = tag, message = message, level = "INFO") }
+    }
+
+    /**
+     * One-time repair for rows written while [upsertForecasts] took "today" from the UTC date:
+     * a fetch made after local midnight UTC (17:00 PDT) carries `dateOfPrediction` one day late.
+     * Such a row is recognised by `dateOfPrediction` equal to the UTC date of its `fetchedAt`
+     * where that differs from the local date, and it is rewritten to
+     * `min(local date, targetDate)`, which is what the current writer stores.
+     * `fetchedAt` is in the primary key, so no rewrite can collide. [zone] judges every row,
+     * including ones fetched while travelling (user's call, 2026-10-05). Returns rows changed.
+     */
+    fun repairUtcDatedPredictions(zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Int {
+        val msPerDay = 86_400_000L
+        db.getConnection().use { conn ->
+            data class Fix(val rowid: Long, val dateOfPrediction: Long)
+            val fixes = conn.prepareStatement(
+                "SELECT rowid, targetDate, dateOfPrediction, fetchedAt FROM forecasts WHERE isClimateNormal = 0",
+            ).use { stmt ->
+                val rs = stmt.executeQuery()
+                buildList {
+                    while (rs.next()) {
+                        val fetchedAt = rs.getLong("fetchedAt")
+                        val utcDay = Math.floorDiv(fetchedAt, msPerDay) * msPerDay
+                        val localDay = PredictionDate.epochMs(fetchedAt, zone)
+                        val stored = rs.getLong("dateOfPrediction")
+                        if (stored != utcDay || utcDay == localDay) continue
+                        val repaired = minOf(localDay, rs.getLong("targetDate"))
+                        if (repaired != stored) add(Fix(rs.getLong("rowid"), repaired))
+                    }
+                }
+            }
+            if (fixes.isEmpty()) return 0
+            conn.autoCommit = false
+            try {
+                conn.prepareStatement("UPDATE forecasts SET dateOfPrediction = ? WHERE rowid = ?").use { stmt ->
+                    fixes.forEach { fix ->
+                        stmt.setLong(1, fix.dateOfPrediction)
+                        stmt.setLong(2, fix.rowid)
+                        stmt.addBatch()
+                    }
+                    stmt.executeBatch()
+                }
+                conn.commit()
+            } catch (e: Exception) {
+                conn.rollback()
+                throw e
+            }
+            return fixes.size
+        }
     }
 
     /**

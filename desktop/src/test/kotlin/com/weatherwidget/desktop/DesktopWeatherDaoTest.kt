@@ -22,7 +22,6 @@ import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.LocalDate
-import java.time.ZoneOffset
 import org.junit.experimental.categories.Category
 
 @Category(ShortDuration::class)
@@ -51,12 +50,14 @@ class DesktopWeatherDaoTest {
         // Silurian value that read 91 on Android but 90.1 on desktop before this rule was shared.
         val lat = 37.4168
         val lon = -122.0890
-        val today = LocalDate.now(ZoneOffset.UTC).toString()
-        val future = LocalDate.now(ZoneOffset.UTC).plusDays(2).toString()
+        // Local today, as the writer decides it (PredictionDate). This test once used the UTC
+        // date, matching the bug it should have caught: after 17:00 PDT local today was rounded.
+        val today = LocalDate.now().toString()
+        val future = LocalDate.now().plusDays(2).toString()
         dao.upsertForecasts(lat, lon, "SILURIAN", listOf(
             DailyForecast(date = today, highTemp = 90.61f, lowTemp = 65.37f, condition = "Clear"),
             DailyForecast(date = future, highTemp = 90.61f, lowTemp = 65.37f, condition = "Rain"),
-        ))
+        ), nowMs = earlyMorningMs())
 
         val rows = dao.getDailyForecasts(lat, lon, "SILURIAN")
         val todayRow = rows.first { it.date == today }
@@ -314,6 +315,80 @@ class DesktopWeatherDaoTest {
 
         // Absent, so the repository's climate-normal fill remains the last resort.
         assertEquals(listOf(tomorrow), dao.getDailyForecasts(lat, lon, "SILURIAN").map { it.date })
+    }
+
+    private val pacific = java.time.ZoneId.of("America/Los_Angeles")
+    private val dayMs = 86_400_000L
+    private fun pacificMs(local: String) =
+        java.time.LocalDateTime.parse(local).atZone(pacific).toInstant().toEpochMilli()
+    private fun dayEpoch(date: String) = LocalDate.parse(date).toEpochDay() * dayMs
+
+    /**
+     * An evening fetch is a prediction made TODAY (local). The writer used the UTC date, which
+     * from 17:00 PDT is tomorrow, so 1-day-ahead accuracy graded the last fetch before 17:00
+     * (plans/261005-desktop-forecast-today-is-utc-date-after-5pm.md). Uses the test JVM's
+     * zone, pinned to America/Los_Angeles in desktop/build.gradle.kts.
+     */
+    @Test
+    fun `upsertForecasts files an evening fetch under the local day, not the UTC day`() {
+        val nowMs = pacificMs("2026-10-04T20:00") // 2026-10-05T03:00Z
+        dao.upsertForecasts(37.417, -122.089, "SILURIAN", listOf(
+            DailyForecast(date = "2026-10-05", highTemp = 89f, lowTemp = 66f, condition = "Sunny"),
+            DailyForecast(date = "2026-10-06", highTemp = 92f, lowTemp = 65f, condition = "Sunny"),
+        ), nowMs = nowMs)
+
+        val rows = dao.getForecastsInRangeBySource(dayEpoch("2026-10-05"), dayEpoch("2026-10-06"), 37.417, -122.089, "SILURIAN")
+        assertEquals(2, rows.size)
+        rows.forEach { assertEquals("target ${it.targetDate}", dayEpoch("2026-10-04"), it.dateOfPrediction) }
+    }
+
+    private fun insertRawForecast(targetDate: String, dateOfPrediction: String, fetchedAt: Long, source: String = "NWS") {
+        database.getConnection().use { conn ->
+            conn.prepareStatement(
+                """INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp,
+                   condition, isClimateNormal, source, batchFetchedAt, fetchedAt)
+                   VALUES (?, ?, 37.417, -122.089, 80, 60, 'Sunny', 0, ?, ?, ?)""",
+            ).use { stmt ->
+                stmt.setLong(1, dayEpoch(targetDate))
+                stmt.setLong(2, dayEpoch(dateOfPrediction))
+                stmt.setString(3, source)
+                stmt.setLong(4, fetchedAt)
+                stmt.setLong(5, fetchedAt)
+                stmt.executeUpdate()
+            }
+        }
+    }
+
+    private fun storedPredictionDates(): Map<Pair<Long, Long>, Long> =
+        database.getConnection().use { conn ->
+            conn.createStatement().use { stmt ->
+                val rs = stmt.executeQuery("SELECT targetDate, fetchedAt, dateOfPrediction FROM forecasts")
+                buildMap { while (rs.next()) put(rs.getLong(1) to rs.getLong(2), rs.getLong(3)) }
+            }
+        }
+
+    @Test
+    fun `repairUtcDatedPredictions moves UTC-dated evening rows back to the local day, once`() {
+        val evening = pacificMs("2026-10-03T20:00") // UTC date 2026-10-04
+        val afternoon = pacificMs("2026-10-03T14:00") // UTC date 2026-10-03, same as local
+        // Old writer, evening: filed under the UTC date.
+        insertRawForecast("2026-10-05", "2026-10-04", evening)
+        // Old writer, evening, target = UTC date: min(utc, target) = 10-04, still one day late.
+        insertRawForecast("2026-10-04", "2026-10-04", evening, source = "SILURIAN")
+        // Old writer, evening, target before the UTC date: clamped to target, already right.
+        insertRawForecast("2026-10-03", "2026-10-03", evening, source = "OPEN_METEO")
+        // Afternoon: UTC and local agree, nothing to repair.
+        insertRawForecast("2026-10-05", "2026-10-03", afternoon)
+
+        assertEquals(2, dao.repairUtcDatedPredictions(pacific))
+
+        val stored = storedPredictionDates()
+        assertEquals(dayEpoch("2026-10-03"), stored.getValue(dayEpoch("2026-10-05") to evening))
+        assertEquals(dayEpoch("2026-10-03"), stored.getValue(dayEpoch("2026-10-04") to evening))
+        assertEquals(dayEpoch("2026-10-03"), stored.getValue(dayEpoch("2026-10-03") to evening))
+        assertEquals(dayEpoch("2026-10-03"), stored.getValue(dayEpoch("2026-10-05") to afternoon))
+        // What the fixed writer stores is never "UTC-dated", so a second pass finds nothing.
+        assertEquals(0, dao.repairUtcDatedPredictions(pacific))
     }
 
     /** Future partial days are left to the repository's climate-normal fill; the DAO keeps them. */

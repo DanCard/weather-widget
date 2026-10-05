@@ -11,6 +11,7 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.ForecastTempRounding
+import com.weatherwidget.shared.util.PredictionDate
 import com.weatherwidget.shared.util.SameDayExtremeCutoff
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateManager
@@ -29,6 +30,11 @@ internal class ForecastSnapshotStore(
     private val appLogDao: AppLogDao,
     private val widgetStateManager: WidgetStateManager,
     private val gapFiller: ClimateGapFiller,
+    /**
+     * Wall clock for [saveForecastSnapshot]'s defaults. The same-day cutoffs make what a write
+     * stores depend on the hour, so tests pin it rather than fail every evening.
+     */
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
     fun mapDailyForecast(
         day: DailyForecast,
@@ -76,12 +82,12 @@ internal class ForecastSnapshotStore(
         latitude: Double,
         longitude: Double,
         sourceId: String,
-        batchFetchedAt: Long = System.currentTimeMillis(),
-        nowMs: Long = System.currentTimeMillis(),
+        batchFetchedAt: Long = clock(),
+        nowMs: Long = clock(),
     ) {
         val now = Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault())
-        val todayDate = now.toLocalDate()
-        val todayEpoch = todayDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val todayDate = PredictionDate.of(nowMs)
+        val todayEpoch = PredictionDate.epochMs(nowMs)
         val keyLat = LocationMatch.quantize(latitude)
         val keyLon = LocationMatch.quantize(longitude)
         val candidates = weatherForecasts.filter { forecast ->

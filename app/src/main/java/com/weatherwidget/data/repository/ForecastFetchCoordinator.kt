@@ -48,6 +48,8 @@ internal class ForecastFetchCoordinator(
     private val weatherApiHistoryBackfiller: WeatherApiHistoryBackfiller,
     private val nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher?,
     private val hourlyForecastHistoryDao: com.weatherwidget.data.local.HourlyForecastHistoryDao? = null,
+    /** Snapshot-write clock; [ForecastRepository.clock] in production, pinned by tests. */
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
     /**
      * Fetches the day-ago cloud predictions backing the cloud graph's frozen forecast curve.
@@ -238,12 +240,14 @@ internal class ForecastFetchCoordinator(
 
         fetchedBySource.forEach { (source, forecasts) ->
             forecasts?.let {
+                val nowMs = clock()
                 snapshotStore.saveForecastSnapshot(
                     it,
                     latitude,
                     longitude,
                     source.id,
-                    System.currentTimeMillis(),
+                    batchFetchedAt = nowMs,
+                    nowMs = nowMs,
                 )
             }
         }

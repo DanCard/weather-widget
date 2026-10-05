@@ -58,6 +58,9 @@ class ForecastSnapshotDeduplicationTest {
             mockk(relaxed = true),
             mockk(relaxed = true)
         )
+        // Morning wall clock: after 16:00 the same-day cutoffs store no row for today, which failed
+        // this test every evening (plans/261005-desktop-forecast-today-is-utc-date-after-5pm.md).
+        forecastRepo.clock = { java.time.LocalDate.now().atTime(5, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() }
         val currentRepo = CurrentTempRepository(
             context,
             db.observationDao(),

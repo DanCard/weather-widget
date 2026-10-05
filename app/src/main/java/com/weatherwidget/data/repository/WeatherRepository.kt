@@ -107,8 +107,8 @@ class WeatherRepository
             latitude: Double,
             longitude: Double,
             sourceId: String,
-            batchFetchedAt: Long = System.currentTimeMillis(),
-            nowMs: Long = System.currentTimeMillis(),
+            batchFetchedAt: Long = forecastRepository.clock(),
+            nowMs: Long = forecastRepository.clock(),
         ) = forecastRepository.saveForecastSnapshot(weatherForecasts, latitude, longitude, sourceId, batchFetchedAt, nowMs)
         
         @androidx.annotation.VisibleForTesting

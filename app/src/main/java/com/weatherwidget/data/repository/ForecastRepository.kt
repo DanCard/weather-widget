@@ -80,11 +80,19 @@ class ForecastRepository
          */
         @Volatile
         private var lastCompletedFetch: ForcedRefreshSatisfaction.CompletedFetch? = null
+        /**
+         * Wall clock for forecast snapshot writes. Tests pin it, because the same-day cutoffs
+         * store nothing for today after 16:00 and a real clock fails them every evening.
+         */
+        @VisibleForTesting
+        internal var clock: () -> Long = System::currentTimeMillis
+
         private val snapshotStore = ForecastSnapshotStore(
             forecastDao = forecastDao,
             appLogDao = appLogDao,
             widgetStateManager = widgetStateManager,
             gapFiller = ClimateGapFiller(climateNormalDao),
+            clock = { clock() },
         )
         private val hourlyStore = HourlyForecastStore(
             hourlyForecastDao = hourlyForecastDao,
@@ -122,6 +130,7 @@ class ForecastRepository
             weatherApiHistoryBackfiller = weatherApiHistoryBackfiller,
             nwsApiDailyActualsFetcher = nwsApiDailyActualsFetcher,
             hourlyForecastHistoryDao = hourlyForecastHistoryDao,
+            clock = { clock() },
         )
         private val retentionManager = WeatherRetentionManager(
             forecastDao = forecastDao,
@@ -408,8 +417,8 @@ class ForecastRepository
             latitude: Double,
             longitude: Double,
             sourceId: String,
-            batchFetchedAt: Long = System.currentTimeMillis(),
-            nowMs: Long = System.currentTimeMillis(),
+            batchFetchedAt: Long = clock(),
+            nowMs: Long = clock(),
         ) {
             snapshotStore.saveForecastSnapshot(
                 weatherForecasts,

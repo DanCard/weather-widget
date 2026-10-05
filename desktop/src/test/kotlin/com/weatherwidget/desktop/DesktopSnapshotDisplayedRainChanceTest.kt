@@ -148,6 +148,9 @@ class DesktopSnapshotDisplayedRainChanceTest {
 
     @Test
     fun `snapshot freezes forecast overlay and noon cloud for today`() {
+        // Morning wall clock: after 16:00 the same-day cutoffs store no temps for today, which
+        // failed this test every evening (plans/261005-desktop-forecast-today-is-utc-date-after-5pm.md).
+        val morningMs = today.atTime(5, 0).atZone(zone).toInstant().toEpochMilli()
         dao.upsertForecasts(
             lat, lon, source,
             listOf(
@@ -156,6 +159,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
                     source = source, precipAmountMm = 1.5f,
                 ),
             ),
+            nowMs = morningMs,
         )
         dao.upsertHourlyForecasts(
             lat, lon, source,
@@ -174,7 +178,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             ),
         )
 
-        repository.snapshotDisplayedRainChance(System.currentTimeMillis())
+        repository.snapshotDisplayedRainChance(morningMs)
 
         val stored = dao.getExtremesInRange(today.toEpochDay() * 86_400_000L, today.toEpochDay() * 86_400_000L, lat, lon)
             .first { it.source == source }

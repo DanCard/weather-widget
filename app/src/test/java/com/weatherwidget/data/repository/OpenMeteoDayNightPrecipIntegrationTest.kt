@@ -90,7 +90,11 @@ class OpenMeteoDayNightPrecipIntegrationTest {
             tomorrowIoApi = mockk(relaxed = true),
             openWeatherMapApi = mockk(relaxed = true),
             nwsForecastMapper = mockk(relaxed = true),
-        )
+        ).apply {
+            // Morning wall clock: after 16:00 the same-day cutoffs store no row for today, which failed
+            // this test every evening (plans/261005-desktop-forecast-today-is-utc-date-after-5pm.md).
+            clock = { java.time.LocalDate.now().atTime(5, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() }
+        }
     }
 
     @Test
