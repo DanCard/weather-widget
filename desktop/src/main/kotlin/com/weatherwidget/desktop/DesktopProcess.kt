@@ -106,6 +106,10 @@ const val HEARTBEAT_INTERVAL_MS = 30_000L
 const val SUSPEND_JUMP_SLACK_MS = 60_000L
 const val RESUME_DEBOUNCE_MS = 2 * 60 * 1000L
 
+// How long a client replaced by startFetchLoops stays open for callers still holding it. Twice the
+// client's 30 s request timeout, so any request it accepted can finish or time out on its own.
+const val REPLACED_CLIENT_CLOSE_GRACE_MS = 60_000L
+
 // Hold-off before the resume kick's catch-up fetch. Right after wake the network stack is still
 // coming up (DNS fails with UnresolvedAddressException for the first ~10s), and every network
 // client on the machine re-fetches the instant the link returns — a weather refresh is low

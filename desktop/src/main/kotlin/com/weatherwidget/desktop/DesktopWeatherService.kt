@@ -169,9 +169,9 @@ class DesktopWeatherService(
      * path honours the number — the other sources return whatever their API provides, and days
      * past a source's real coverage render climate-normal filler by design.
      */
-    override suspend fun fetchForecast(): RawFetch = runCatching {
+    override suspend fun fetchForecast(recentObservationsOnly: Boolean): RawFetch = runCatching {
         when (weatherSource) {
-            "NWS" -> fetchNwsForecast()
+            "NWS" -> fetchNwsForecast(recentObservationsOnly)
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoForecastWithFiveMinuteHistory()
             WeatherSource.WEATHER_API.id -> withHistoricalActuals(weatherApi.getForecast(latitude, longitude), WeatherSource.WEATHER_API.id)
             WeatherSource.SILURIAN.id -> withHistoricalActuals(silurian.getForecast(latitude, longitude), WeatherSource.SILURIAN.id)
@@ -419,7 +419,7 @@ class DesktopWeatherService(
         return openMeteo.getHistoricalDailyTemps(latitude, longitude, startDate, endDate)
     }
 
-    private suspend fun fetchNwsForecast(): RawFetch = coroutineScope {
+    private suspend fun fetchNwsForecast(recentObservationsOnly: Boolean = false): RawFetch = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
 
         // Resolve candidate observation stations concurrently with the forecast fetch, then try
@@ -435,7 +435,11 @@ class DesktopWeatherService(
         // Preserves the previous bestEffort("gridpoints") diagnostic.
         bundle.gridpointsFailure?.let { Log.w(TAG, "gridpoints fetch failed: $it") }
 
-        val observations = fetchNwsObservations(stationsDeferred.await(), bundle.rawHourlyPeriods)
+        val observations = fetchNwsObservations(
+            stationsDeferred.await(),
+            bundle.rawHourlyPeriods,
+            recentOnly = recentObservationsOnly,
+        )
 
         RawFetch(
             providerCurrentTemp = observations.currentTemp,
@@ -598,7 +602,17 @@ class DesktopWeatherService(
                 // series is re-fetched identically by the full forecast pull, so a current-temp
                 // cycle should not re-download ~500 rows/station.
                 val historicalOutcome: FetchOutcome<List<NwsApi.Observation>> = try {
-                    val obs = nwsApi.getObservations(station.id, start.toString(), end.toString())
+                    val obs = withStallRetry(
+                        timeoutMs = OBSERVATION_WINDOW_TIMEOUT_MS,
+                        onRetry = { attempt, cause ->
+                            Log.w(TAG, "observations window ${station.id} attempt $attempt failed, retrying: $cause")
+                            weatherDao?.log(
+                                "OBS_WINDOW_RETRY",
+                                "station=${station.id} attempt=$attempt recentOnly=$recentOnly cause=${cause.javaClass.simpleName}",
+                                "INFO",
+                            )
+                        },
+                    ) { nwsApi.getObservations(station.id, start.toString(), end.toString()) }
                     Log.i(TAG, "observations window: station=${station.id} type=${station.type} recentOnly=$recentOnly count=${obs.size}")
                     if (obs.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(obs)
                 } catch (e: CancellationException) {
@@ -1031,6 +1045,13 @@ class DesktopWeatherService(
         // ~90 rows/cycle, against ~2500 for the 7-day window — the reduction from 2befc157 survives
         // without discarding readings.
         internal const val RECENT_OBSERVATION_WINDOW_MINUTES = 90L
+
+        /**
+         * Bound on one station's observation-window request, body included. A healthy 7-day pull
+         * is ~2 MB in 1–2.5 s; the client's own 30 s timeout is what a post-wake stall used to
+         * cost. 15 s still admits ~1 Mbps links. See [withStallRetry].
+         */
+        internal const val OBSERVATION_WINDOW_TIMEOUT_MS = 15_000L
         internal const val RECENT_BORROWED_METAR_HOURS = 2
         internal const val RECOVERY_BORROWED_METAR_HOURS = 24
 

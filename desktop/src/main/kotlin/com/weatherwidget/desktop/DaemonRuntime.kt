@@ -519,6 +519,7 @@ internal class DaemonRuntime(
                 level = "INFO"
             )
 
+            var observationWindowDeferred = false
             if (launchRefreshAction != LaunchRefreshAction.NONE) {
                 var attempt = 0
                 while (true) {
@@ -526,7 +527,9 @@ internal class DaemonRuntime(
                         val result = when (launchRefreshAction) {
                             LaunchRefreshAction.FULL_FORECAST -> {
                                 Log.i(TAG, "Refreshing full forecast from network...")
-                                activeRepo.refresh()
+                                // Publish first; the 7-day observation window follows below.
+                                activeRepo.refreshWithOutcome(deferObservationWindow = true).snapshot
+                                    .also { observationWindowDeferred = true }
                             }
                             LaunchRefreshAction.OBSERVATIONS -> {
                                 Log.i(TAG, "Refreshing current observations from network...")
@@ -574,6 +577,15 @@ internal class DaemonRuntime(
                         Log.i(TAG, "DataStatus updated to: ${dataStatusState.value}")
                         break
                     }
+                }
+            }
+
+            if (observationWindowDeferred) {
+                // Already published: a stalled or failed window costs history depth, never the
+                // forecast or the current reading. refreshObservationWindow logs its own outcome.
+                if (activeRepo.refreshObservationWindow() > 0) {
+                    activeRepo.loadCached()?.let { panelPublisher.publishForecastState(it) }
+                    notifyDataUpdated()
                 }
             }
 
@@ -627,7 +639,7 @@ internal class DaemonRuntime(
         catchUpRefreshJob?.cancel()
         catchUpRefreshJob = daemonScope.launch {
             delay(pauseMs)
-            runLaunchRefresh(activeRepo, activeConfig, "resume:$reason")
+            restartWithFreshClients("resume:$reason")
         }
     }
 
@@ -661,8 +673,22 @@ internal class DaemonRuntime(
         catchUpRefreshJob?.cancel()
         catchUpRefreshJob = daemonScope.launch {
             delay(pauseMs)
-            runLaunchRefresh(activeRepo, activeConfig, "network:restored")
+            restartWithFreshClients("network:restored")
         }
+    }
+
+    /**
+     * Wake / link-up catch-up: rebuild the HTTP client (and the service, repo and loops that
+     * capture it) before fetching, rather than reuse connections pooled before the suspend or
+     * outage. Those idle sockets are reaped on the monotonic clock, which is frozen in s2idle, so
+     * they come back looking fresh. Post-wake body stalls were the ~30 s in
+     * performance/261004-desktop-wake-refresh-stalls-on-7day-obs-window.md.
+     * [startFetchLoops] runs [runLaunchRefresh] itself. Restarting the loops costs no fetch,
+     * since each opens with a full delay, and it re-arms timers that were frozen in suspend.
+     */
+    private fun restartWithFreshClients(reason: String) {
+        weatherDao.log("WAKE_CLIENT_RESET", "reason=$reason", "INFO")
+        startFetchLoops(reason)
     }
 
     fun kickObservationCatchUp(reason: String) {
@@ -712,7 +738,15 @@ internal class DaemonRuntime(
 
     fun startFetchLoops(reason: String = "startup") {
         fetchJob?.cancel()
-        runCatching { weatherService?.close() }
+        // Close the replaced client after a grace, not now: a caller still holding the old repo
+        // (an observation catch-up, a non-loop refresh) would otherwise fail mid-request on
+        // "client closed" and surface a false error. New work goes to the new client either way.
+        weatherService?.let { old ->
+            daemonScope.launch {
+                delay(REPLACED_CLIENT_CLOSE_GRACE_MS)
+                runCatching { old.close() }
+            }
+        }
 
         val config = currentConfig ?: return
         val svc = DesktopWeatherService(config.lat, config.lon, config.displaySource, config.settings.apiKeys, weatherDao, synopticBackoffStore = DesktopSynopticBackoffStore.default())

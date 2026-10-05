@@ -12,7 +12,13 @@ import java.time.LocalDate
  * [DesktopWeatherService] with reflection to substitute API clients).
  */
 interface WeatherApiClient {
-    suspend fun fetchForecast(): RawFetch
+    /**
+     * [recentObservationsOnly] narrows NWS's station-observation pull to the recent window (as in
+     * [fetchObservationsOnly]) instead of the 7-day one, so a catch-up refresh can publish without
+     * waiting on ~2 MB-per-station history bodies; the caller then fills the window with
+     * [fetchObservationHistory]. Ignored by every other source.
+     */
+    suspend fun fetchForecast(recentObservationsOnly: Boolean = false): RawFetch
 
     /** Legacy Open-Meteo history backfill entry point; pinned as uncalled by a regression test. */
     suspend fun fetchHistory(historyDays: Int): RawFetch

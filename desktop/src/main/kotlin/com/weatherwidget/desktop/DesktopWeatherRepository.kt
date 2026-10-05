@@ -461,6 +461,13 @@ class DesktopWeatherRepository(
     suspend fun refreshWithOutcome(
         now: Long = currentTimeMillis(),
         userLocationChange: Boolean = false,
+        /**
+         * Publish first, then fill history: NWS pulls only the recent observation window here, and
+         * the caller is expected to follow with [refreshObservationWindow] after it has published.
+         * Used by the daemon's launch/wake catch-up, where the 7-day pull once held the forecast
+         * back ~30 s (performance/261004-desktop-wake-refresh-stalls-on-7day-obs-window.md).
+         */
+        deferObservationWindow: Boolean = false,
     ): RefreshOutcome = withContext(Dispatchers.IO) {
         Log.i(TAG, "refresh() started source=$weatherSource")
         // Entry marker. The terminal REFRESH row below only lands on success, so without this an
@@ -476,7 +483,7 @@ class DesktopWeatherRepository(
             // must come only from real accumulated NWS snapshots (a fresh install simply starts sparse and
             // fills in as it runs), so we never seed Open-Meteo decimals into the past.
             val (forecastResult, borrowedRecovery) = coroutineScope {
-                val forecast = async { weatherService.fetchForecast() }
+                val forecast = async { weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow) }
                 val recovery = async { fetchBorrowedRecovery(displaySource, userLocationChange) }
                 forecast.await() to recovery.await()
             }
@@ -538,7 +545,8 @@ class DesktopWeatherRepository(
             weatherDao.log(
                 tag = "REFRESH",
                 message = "source=$weatherSource hourly=${result.hourly.size} daily=${result.daily.size} " +
-                    "obs=${result.rawObservations.size} historyObs=$historyObsCount extremes=$extremesCount",
+                    "obs=${result.rawObservations.size} historyObs=$historyObsCount extremes=$extremesCount" +
+                    (if (deferObservationWindow && displaySource == WeatherSource.NWS) " obsWindow=deferred" else ""),
             )
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
@@ -562,6 +570,42 @@ class DesktopWeatherRepository(
                 weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(displaySource.id, e), "WARN")
             }
             throw e
+        }
+    }
+
+    /**
+     * Second half of a [refreshWithOutcome] run with `deferObservationWindow = true`: the NWS
+     * station-observation pull over [DesktopWeatherService.HISTORY_DAYS], stored the same way the
+     * full refresh stores it, then today's and past days' extremes recomputed from it. Best-effort:
+     * a failure logs and returns -1, because the forecast and current reading were already
+     * published. Returns the number of readings stored (0 for non-NWS sources, which have no
+     * deferred window).
+     */
+    suspend fun refreshObservationWindow(now: Long = currentTimeMillis()): Int = withContext(Dispatchers.IO) {
+        if (displaySource != WeatherSource.NWS) return@withContext 0
+        val startedAt = System.currentTimeMillis()
+        try {
+            val readings = weatherService.fetchObservationHistory(DesktopWeatherService.HISTORY_DAYS)
+            if (readings.isNotEmpty()) {
+                persistObservations(readings, now, tomorrowWindowHours = TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS)
+            }
+            val extremes = recomputeDailyExtremes(now)
+            weatherDao.log(
+                tag = "OBS_WINDOW_REFRESH",
+                message = "source=$weatherSource rows=${readings.size} extremes=$extremes " +
+                    "ms=${System.currentTimeMillis() - startedAt}",
+                level = "INFO",
+            )
+            readings.size
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            weatherDao.log(
+                tag = "OBS_WINDOW_REFRESH",
+                message = "source=$weatherSource failed ms=${System.currentTimeMillis() - startedAt}: $e",
+                level = "WARN",
+            )
+            -1
         }
     }
 
