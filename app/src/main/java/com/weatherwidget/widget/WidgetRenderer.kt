@@ -43,23 +43,29 @@ object WidgetRenderer {
     private const val TAG = "WidgetRenderer"
 
     /**
-     * Widget IDs that have had a full DAILY graph paint in the *current process*. The DAILY view skips
-     * the expensive rebuild on opportunistic UI-only repaints (see [shouldSkipDailyUiOnlyRepaint]); that
-     * skip is only safe once a real graph bitmap exists. After a force-stop / fresh process / app
-     * update the widget shows the "Loading…" placeholder and the first update is often UI-only —
-     * skipping then would strand it on "Loading…". Cleared implicitly when the process dies.
+     * For each widget with a full DAILY graph paint in the *current process*, the local date that
+     * paint was drawn for. The DAILY view skips the expensive rebuild on opportunistic UI-only
+     * repaints (see [shouldSkipDailyUiOnlyRepaint]); that skip is only safe while a real graph for
+     * TODAY is on screen. After a force-stop / fresh process / app update the widget shows the
+     * "Loading…" placeholder and the first update is often UI-only. Skipping then would strand it on
+     * "Loading…". Cleared implicitly when the process dies.
      */
-    private val fullyPaintedDailyWidgetIds: MutableSet<Int> =
-        java.util.concurrent.ConcurrentHashMap.newKeySet()
+    private val dailyPaintedForDate: MutableMap<Int, LocalDate> =
+        java.util.concurrent.ConcurrentHashMap()
 
     /**
-     * Whether a UI-only DAILY repaint may skip the rebuild. Safe to skip only when the widget already
-     * has a real graph painted this process; otherwise we must do a full paint or the widget stays on
-     * the "Loading…" placeholder. Pure so it is unit-testable without a Context/AppWidgetManager.
+     * Whether a UI-only DAILY repaint may skip the rebuild: only when the graph on screen was painted
+     * this process for [today]. No entry: the widget may be on "Loading…". An older date: the window
+     * has rolled over, and this repaint (the midnight one `UIUpdateIntervalStrategy` schedules) is
+     * the one that shifts the dates. Keying on the date rather than the alarm also rolls the window
+     * on the first UI tick after a screen-off midnight. Before this, the midnight repaint was skipped
+     * like any other and the dates stayed put until the next fetch
+     * (plans/261005-android-daily-view-skips-midnight-rollover-repaint.md). Pure so it is
+     * unit-testable without a Context/AppWidgetManager.
      */
     @androidx.annotation.VisibleForTesting
-    internal fun shouldSkipDailyUiOnlyRepaint(uiOnly: Boolean, alreadyPaintedThisProcess: Boolean): Boolean =
-        uiOnly && alreadyPaintedThisProcess
+    internal fun shouldSkipDailyUiOnlyRepaint(uiOnly: Boolean, paintedForDate: LocalDate?, today: LocalDate): Boolean =
+        uiOnly && paintedForDate == today
 
     /** Views that render from `sourceFilteredHourly`, so a missing display source empties them. */
     private val HOURLY_SOURCED_VIEW_MODES =
@@ -113,16 +119,19 @@ object WidgetRenderer {
 
     /** Test hook: reset the process-scoped paint tracker between cases. */
     @androidx.annotation.VisibleForTesting
-    internal fun resetPaintTrackingForTest() = fullyPaintedDailyWidgetIds.clear()
+    internal fun resetPaintTrackingForTest() = dailyPaintedForDate.clear()
 
     @androidx.annotation.VisibleForTesting
-    internal fun markDailyPaintedForTest(appWidgetId: Int) {
-        fullyPaintedDailyWidgetIds.add(appWidgetId)
+    internal fun markDailyPaintedForTest(appWidgetId: Int, date: LocalDate = LocalDate.now()) {
+        dailyPaintedForDate[appWidgetId] = date
     }
 
     @androidx.annotation.VisibleForTesting
     internal fun hasDailyPaintedForTest(appWidgetId: Int): Boolean =
-        fullyPaintedDailyWidgetIds.contains(appWidgetId)
+        dailyPaintedForDate.containsKey(appWidgetId)
+
+    @androidx.annotation.VisibleForTesting
+    internal fun dailyPaintedDateForTest(appWidgetId: Int): LocalDate? = dailyPaintedForDate[appWidgetId]
 
     /**
      * Header chrome for every full-push placeholder (Loading, No location, Tap to refresh,
@@ -579,7 +588,7 @@ object WidgetRenderer {
                 sourceMissingFromLoad = sourceMissingFromLoad,
                 dataWatermarkMs = dataWatermarkMs,
                 paintOwed = paintOwed,
-                fullyPaintedDailyWidgetIds = fullyPaintedDailyWidgetIds,
+                dailyPaintedForDate = dailyPaintedForDate,
             )
         )
 

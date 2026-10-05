@@ -49,7 +49,7 @@ object WidgetViewModeDispatcher {
         val sourceMissingFromLoad: Boolean,
         val dataWatermarkMs: Long?,
         val paintOwed: Boolean,
-        val fullyPaintedDailyWidgetIds: MutableSet<Int>,
+        val dailyPaintedForDate: MutableMap<Int, java.time.LocalDate>,
     )
 
     suspend fun dispatch(params: DispatchParams) {
@@ -123,16 +123,24 @@ object WidgetViewModeDispatcher {
                     params.appWidgetId,
                     WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS,
                 )
-                if (WidgetRenderer.shouldSkipDailyUiOnlyRepaint(
-                        params.uiOnly,
-                        params.fullyPaintedDailyWidgetIds.contains(params.appWidgetId),
-                    ) && !transientPending
+                val now = LocalDateTime.now()
+                val today = now.toLocalDate()
+                val paintedForDate = params.dailyPaintedForDate[params.appWidgetId]
+                if (WidgetRenderer.shouldSkipDailyUiOnlyRepaint(params.uiOnly, paintedForDate, today) &&
+                    !transientPending
                 ) {
                     WeatherDatabase.getDatabase(params.context).appLogDao().log(
                         com.weatherwidget.widget.WidgetPerfLogger.TAG_WIDGET_PAINT,
                         "widget=${params.appWidgetId} caller=DAILY origin=${params.origin.name} state=skipped_ui_only thread=${Thread.currentThread().name}",
                     )
                     return
+                }
+                if (params.uiOnly && paintedForDate != null && paintedForDate != today) {
+                    WeatherDatabase.getDatabase(params.context).appLogDao().log(
+                        com.weatherwidget.widget.WidgetPerfLogger.TAG_WIDGET_PAINT,
+                        "widget=${params.appWidgetId} caller=DAILY origin=${params.origin.name} state=date_rollover " +
+                            "paintedFor=$paintedForDate today=$today thread=${Thread.currentThread().name}",
+                    )
                 }
                 DailyViewHandler.updateWidget(
                     context = params.context,
@@ -150,14 +158,14 @@ object WidgetViewModeDispatcher {
                         observedAt = params.observation?.observedAt,
                         currentTempHourlyForecasts = params.nowCenteredHourlyForecasts,
                     ),
-                    now = LocalDateTime.now(),
+                    now = now,
                     startupToken = params.startupToken,
                     stateManagerNullable = params.stateManager,
                     repository = params.repository,
                     partialPush = params.partialPush,
                     origin = params.origin,
                 )
-                params.fullyPaintedDailyWidgetIds.add(params.appWidgetId)
+                params.dailyPaintedForDate[params.appWidgetId] = today
             }
         }
     }

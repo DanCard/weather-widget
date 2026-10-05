@@ -61,18 +61,30 @@ class WidgetRendererDailyUiOnlyRepaintTest {
 
     @Test
     fun `ui-only daily repaint is skipped only after a full paint this process`() {
+        val today = LocalDate.parse("2026-10-05")
         // The bug: a fresh process hadn't painted yet, but a UI-only tick skipped anyway.
         assertFalse(
             "must NOT skip before any full paint (would strand on Loading)",
-            WidgetRenderer.shouldSkipDailyUiOnlyRepaint(uiOnly = true, alreadyPaintedThisProcess = false),
+            WidgetRenderer.shouldSkipDailyUiOnlyRepaint(uiOnly = true, paintedForDate = null, today = today),
         )
-        // The optimization: once a real graph exists, opportunistic ticks may skip.
+        // The optimization: once a real graph for today exists, opportunistic ticks may skip.
         assertTrue(
-            WidgetRenderer.shouldSkipDailyUiOnlyRepaint(uiOnly = true, alreadyPaintedThisProcess = true),
+            WidgetRenderer.shouldSkipDailyUiOnlyRepaint(uiOnly = true, paintedForDate = today, today = today),
         )
         // A full (non-UI-only) render always paints, regardless of prior state.
-        assertFalse(WidgetRenderer.shouldSkipDailyUiOnlyRepaint(uiOnly = false, alreadyPaintedThisProcess = false))
-        assertFalse(WidgetRenderer.shouldSkipDailyUiOnlyRepaint(uiOnly = false, alreadyPaintedThisProcess = true))
+        assertFalse(WidgetRenderer.shouldSkipDailyUiOnlyRepaint(uiOnly = false, paintedForDate = null, today = today))
+        assertFalse(WidgetRenderer.shouldSkipDailyUiOnlyRepaint(uiOnly = false, paintedForDate = today, today = today))
+    }
+
+    @Test
+    fun `ui-only daily repaint after midnight rebuilds - the rollover must shift the dates`() {
+        // Emulator, 2026-10-05 00:01:03: the midnight repaint logged state=skipped_ui_only for both
+        // daily widgets and "Today" stayed on Sunday until an unrelated full paint.
+        val sunday = LocalDate.parse("2026-10-04")
+        val monday = sunday.plusDays(1)
+        assertFalse(WidgetRenderer.shouldSkipDailyUiOnlyRepaint(uiOnly = true, paintedForDate = sunday, today = monday))
+        // A clock set back (manual change, zone move west) is a different day too: repaint.
+        assertFalse(WidgetRenderer.shouldSkipDailyUiOnlyRepaint(uiOnly = true, paintedForDate = monday, today = sunday))
     }
 
     // ── Integration: drives the real updateWidgetWithData render path ──────────────────────────
@@ -122,6 +134,25 @@ class WidgetRendererDailyUiOnlyRepaintTest {
 
         // The optimization still holds: no expensive rebuild / push for an opportunistic tick.
         assertFalse("already-painted UI-only repaint should skip (no push)", viewsSlot.isCaptured)
+    }
+
+    @Test
+    fun `ui-only daily repaint for a widget painted yesterday repaints and records today`() = runBlocking {
+        val id = 9203
+        prepareDailyWidget(id)
+        WidgetRenderer.markDailyPaintedForTest(id, LocalDate.now().minusDays(1))
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = id, widthDp = 300, heightDp = 200)
+
+        WidgetRenderer.updateWidgetWithData(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = id,
+            weatherList = sampleWeather(),
+            uiOnly = true,
+        )
+
+        assertTrue("the rollover repaint must push the shifted daily view", viewsSlot.isCaptured)
+        assertEquals(LocalDate.now(), WidgetRenderer.dailyPaintedDateForTest(id))
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────────────────────
