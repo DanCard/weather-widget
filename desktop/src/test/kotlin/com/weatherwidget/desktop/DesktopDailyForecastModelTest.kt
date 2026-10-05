@@ -356,6 +356,78 @@ settings = DesktopSettings(weatherSource = "NWS"),
     }
 
     @Test
+    fun `left bar - today uses the 06 00 and 16 00 anchors, past days the frozen pair`() {
+        // plans/261005-past-days-triple-bar-prior-forecast-at-cutoffs.md
+        val now = LocalDateTime.parse("2026-06-03T20:00:00")
+        val zone = java.time.ZoneId.systemDefault()
+        fun ms(t: String) = LocalDateTime.parse(t).atZone(zone).toInstant().toEpochMilli()
+        val days = DesktopDailyForecastModel.build(
+            config = config,
+            forecast = snapshot(
+                currentTemp = 72.4f,
+                currentCondition = "Sunny",
+                daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
+                dailyActuals = mapOf(
+                    "2026-06-02" to extreme("2026-06-02", 77f, 56f, "Fair")
+                        .copy(priorForecastHighTemp = 75f, priorForecastLowTemp = 54f),
+                    "2026-06-01" to extreme("2026-06-01", 77f, 56f, "Fair")
+                        .copy(priorForecastHighTemp = 75f, priorForecastLowTemp = null),
+                ),
+                dailySnapshots = mapOf(
+                    "2026-06-03" to listOf(
+                        DailyForecastSnapshot("2026-06-03", 78f, 57f, "Sunny", fetchedAt = ms("2026-06-02T05:00:00")),
+                        DailyForecastSnapshot("2026-06-03", 79f, 59f, "Sunny", fetchedAt = ms("2026-06-02T15:00:00")),
+                        // After both anchors, and only 5h ago: the old "24h before now" rule would pick it.
+                        DailyForecastSnapshot("2026-06-03", 81f, 61f, "Sunny", fetchedAt = ms("2026-06-02T19:00:00")),
+                    ),
+                ),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = now,
+        ).days
+
+        val today = days.first { it.isToday }
+        assertEquals(79f, today.snapshotHigh)
+        assertEquals(57f, today.snapshotLow)
+        assertTrue(!today.snapshotIsStale)
+
+        val jun2 = days.first { it.date == LocalDate.parse("2026-06-02") }
+        assertEquals(75f, jun2.snapshotHigh)
+        assertEquals(54f, jun2.snapshotLow)
+
+        val jun1 = days.first { it.date == LocalDate.parse("2026-06-01") }
+        assertEquals("half a pair draws nothing", null, jun1.snapshotHigh)
+    }
+
+    @Test
+    fun `past day left bar is picked live from stored fetches before the freeze has run`() {
+        val now = LocalDateTime.parse("2026-06-03T20:00:00")
+        val zone = java.time.ZoneId.systemDefault()
+        fun ms(t: String) = LocalDateTime.parse(t).atZone(zone).toInstant().toEpochMilli()
+        val days = DesktopDailyForecastModel.build(
+            config = config,
+            forecast = snapshot(
+                currentTemp = 72.4f,
+                currentCondition = "Sunny",
+                daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
+                dailyActuals = mapOf("2026-06-02" to extreme("2026-06-02", 77f, 56f, "Fair")),
+                dailySnapshots = mapOf(
+                    "2026-06-02" to listOf(
+                        DailyForecastSnapshot("2026-06-02", 80f, 59f, "Sunny", fetchedAt = ms("2026-06-02T10:00:00")),
+                        DailyForecastSnapshot("2026-06-02", 75f, 53f, "Sunny", fetchedAt = ms("2026-06-01T15:00:00")),
+                        DailyForecastSnapshot("2026-06-02", 74f, 52f, "Sunny", fetchedAt = ms("2026-06-01T05:00:00")),
+                    ),
+                ),
+            ),
+            dimensions = DesktopDailyForecastModel.dimensions(600, 400),
+            now = now,
+        ).days
+        val jun2 = days.first { it.date == LocalDate.parse("2026-06-02") }
+        assertEquals(75f, jun2.snapshotHigh)
+        assertEquals(52f, jun2.snapshotLow)
+    }
+
+    @Test
     fun `today thermostat tracks high-water mark via ghostHigh`() {
         // Evening case: the day already peaked above the current reading, so the solid mercury
         // sits at the current temp while the ghost preserves the day's high.

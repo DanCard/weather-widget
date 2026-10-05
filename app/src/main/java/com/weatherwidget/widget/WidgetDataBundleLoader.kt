@@ -119,7 +119,11 @@ internal class WidgetDataBundleLoader(
 
             val pastSnapshots = weatherRepository.getLatestForecastsInRange(pastStart, pastEnd, lat, lon)
             val recentSnapshots = weatherRepository.getAllForecastsInRange(recentStart, recentEnd, lat, lon)
-            val grouped = (pastSnapshots + recentSnapshots).groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
+            // Appended after the newest rows, so each day's first row is still its newest.
+            val priorCandidates = WeatherDatabase.getDatabase(context).forecastDao()
+                .getPriorForecastCandidates(pastStart, pastEnd, lat, lon)
+            val grouped = (pastSnapshots + recentSnapshots + priorCandidates).distinct()
+                .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
 
             val gapFiller = ClimateGapFiller(WeatherDatabase.getDatabase(context).climateNormalDao())
             gapFiller.appendGapsToSnapshots(

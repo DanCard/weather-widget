@@ -1279,17 +1279,33 @@ class DesktopWeatherRepository(
         val today = Instant.ofEpochMilli(now).atZone(zoneId).toLocalDate()
         val startMs = today.minusDays(DailyHistoryMaintenance.FORECAST_ONLY_LOOKBACK_DAYS).toEpochDay() * 86_400_000L
         val todayMs = today.toEpochDay() * 86_400_000L
-        val existing = weatherDao.getExtremesInRange(startMs, todayMs - 1, latitude, longitude)
-            .filter { it.computedHighAt != null || it.computedLowAt != null }
-        if (existing.isEmpty()) return
-        val forecastRows = existing.map { it.source }.distinct().flatMap { source ->
+        // Through today: the "yesterday's forecast" freeze covers today's row too (its anchors are
+        // already past); the settle only ever touches days before today.
+        val rowsThroughToday = weatherDao.getExtremesInRange(startMs, todayMs, latitude, longitude)
+        if (rowsThroughToday.isEmpty()) return
+        val forecastRows = rowsThroughToday.map { it.source }.distinct().flatMap { source ->
             weatherDao.getForecastsInRangeBySource(startMs, todayMs, latitude, longitude, source)
                 .map { it.toMaintenanceRow() }
         }
+        val existing = rowsThroughToday
+            .filter { it.date < todayMs && (it.computedHighAt != null || it.computedLowAt != null) }
         val plan = DailyHistoryMaintenance.planSettledForecastOverlays(forecastRows, existing, todayMs)
-        if (plan.rows.isEmpty()) return
-        weatherDao.upsertDailyHistory(plan.rows)
+        // Full-row REPLACE: run the prior-forecast freeze over the settled rows so neither write
+        // drops the other's columns.
+        val settledByKey = plan.rows.associateBy { DailyHistoryKey(it) }
+        val afterSettle = rowsThroughToday.map { settledByKey[DailyHistoryKey(it)] ?: it }
+        val priorPlan = DailyHistoryMaintenance.planPriorForecasts(forecastRows, afterSettle, todayMs, zoneId)
+        val priorByKey = priorPlan.rows.associateBy { DailyHistoryKey(it) }
+        val toWrite = (settledByKey + priorByKey).values.toList()
+        if (toWrite.isEmpty()) return
+        weatherDao.upsertDailyHistory(toWrite)
         plan.logs.forEach { weatherDao.log("FORECAST_OVERLAY_SETTLED", it, "INFO") }
+        priorPlan.logs.forEach { weatherDao.log("PRIOR_FORECAST_FREEZE", it, "INFO") }
+    }
+
+    /** Primary key of a `daily_history` row. */
+    private data class DailyHistoryKey(val date: Long, val source: String, val lat: Double, val lon: Double) {
+        constructor(row: DailyHistory) : this(row.date, row.source, row.locationLat, row.locationLon)
     }
 
     /** Flattens a desktop forecast row into the shared planner's row type. */

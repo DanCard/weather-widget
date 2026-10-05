@@ -202,6 +202,71 @@ class DailyForecastGraphRendererRoboTest {
         )
     }
 
+    private fun pastAndToday(pastSnapshot: Boolean): List<DailyForecastGraphRenderer.DayData> {
+        val pastDate = LocalDate.of(2026, 2, 1)
+        return listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = pastDate, label = "Sun",
+                solidLineHigh = 65f, solidLineLow = 45f,
+                isPast = true,
+                dashedLineHigh = 67f, dashedLineLow = 44f,
+                snapshotHigh = if (pastSnapshot) 69f else null,
+                snapshotLow = if (pastSnapshot) 43f else null,
+            ),
+            DailyForecastGraphRenderer.DayData(
+                date = pastDate.plusDays(1), label = "Today",
+                isToday = true, solidLineHigh = 68f, solidLineLow = 48f,
+                dashedLineHigh = 70f, dashedLineLow = 47f,
+                snapshotHigh = 72f, snapshotLow = 46f,
+            ),
+        )
+    }
+
+    @Test
+    fun pastDay_drawsTripleBar_yesterdaysForecastLeft_actualCentre_settledRight() {
+        // plans/261005-past-days-triple-bar-prior-forecast-at-cutoffs.md
+        val pastDate = LocalDate.of(2026, 2, 1)
+        val pastBars = render(pastAndToday(pastSnapshot = true)).filter { it.date == pastDate }
+        val prior = pastBars.single { it.barType == "PAST_SNAPSHOT" }
+        val history = pastBars.single { it.barType == "HISTORY" }
+        val overlay = pastBars.single { it.barType == "FORECAST_OVERLAY" }
+
+        assertTrue("prior.x=${prior.centerX} history.x=${history.centerX}", prior.centerX < history.centerX)
+        assertTrue("overlay.x=${overlay.centerX} history.x=${history.centerX}", overlay.centerX > history.centerX)
+        assertEquals(
+            "Flanks are symmetric about the actual",
+            history.centerX - prior.centerX, overlay.centerX - history.centerX, 0.01f,
+        )
+        assertFalse("A past day's left bar is never dashed", prior.dashed)
+    }
+
+    @Test
+    fun pastDay_triplePitchIsEightyPercentOfToday() {
+        // Touching bars: pitch = average width, so the past pitch scales with the past width.
+        val bars = render(pastAndToday(pastSnapshot = true), widthPx = 600)
+        val pastDate = LocalDate.of(2026, 2, 1)
+        val pastPitch = bars.single { it.date == pastDate && it.barType == "FORECAST_OVERLAY" }.centerX -
+            bars.single { it.date == pastDate && it.barType == "HISTORY" }.centerX
+        val todayPitch = bars.single { it.barType == "TODAY_FORECAST" }.centerX -
+            bars.single { it.barType == "TODAY" }.centerX
+        assertEquals(DailyBarRenderer.PAST_TRIPLE_WIDTH_SCALE, pastPitch / todayPitch, 0.02f)
+    }
+
+    @Test
+    fun pastDay_withoutFrozenPrior_keepsTripleSlots() {
+        // No left bar, but the actual and settled forecast stay where they would be with one, so
+        // columns do not shift between days that have a frozen prior and days that do not.
+        val pastDate = LocalDate.of(2026, 2, 1)
+        val withPrior = render(pastAndToday(pastSnapshot = true)).filter { it.date == pastDate }
+        val without = render(pastAndToday(pastSnapshot = false)).filter { it.date == pastDate }
+        assertTrue(without.none { it.barType == "PAST_SNAPSHOT" })
+        assertEquals(
+            withPrior.single { it.barType == "FORECAST_OVERLAY" }.centerX,
+            without.single { it.barType == "FORECAST_OVERLAY" }.centerX,
+            0.01f,
+        )
+    }
+
     @Test
     fun renderGraph_todayShowsBarTypeTODAY() {
         val feb02 = LocalDate.of(2026, 2, 2)

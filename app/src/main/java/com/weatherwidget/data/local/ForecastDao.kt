@@ -306,6 +306,40 @@ interface ForecastDao {
     ): List<ForecastEntity> =
         getLatestForecastsInRangeAllSitesRaw(startDate, endDate, lat, lon).withPlausibleTemps()
 
+    /**
+     * Rows that can be a past day's "yesterday's forecast" (PriorDayForecast): fetched in the window
+     * around that day's anchors (06:00 / 16:00 local the day before). The render's past-day snapshots
+     * hold only each day's NEWEST row, which is always after the anchors, so a day whose frozen
+     * `daily_history.priorForecast*` columns are not filled yet needs these to draw its left bar.
+     * targetDate is UTC midnight: [−72h, +5h] covers the anchors in every zone from UTC+14 to UTC−12.
+     */
+    @Query(
+        """
+        SELECT * FROM forecasts
+        WHERE ${LocationMatch.ROOM_WHERE}
+        AND targetDate >= :startDate
+        AND targetDate <= :endDate
+        AND isClimateNormal = 0
+        AND fetchedAt >= targetDate - 259200000
+        AND fetchedAt < targetDate + 18000000
+        ORDER BY targetDate ASC, fetchedAt DESC
+    """,
+    )
+    suspend fun getPriorForecastCandidatesRaw(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+    ): List<ForecastEntity>
+
+    suspend fun getPriorForecastCandidates(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+    ): List<ForecastEntity> =
+        getPriorForecastCandidatesRaw(startDate, endDate, lat, lon).withPlausibleTemps()
+
     @Query(
         """
         SELECT * FROM forecasts f1

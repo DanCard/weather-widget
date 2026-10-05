@@ -61,6 +61,11 @@ data class DailyHistoryEntity(
     // ForecastOverlaySettle. Null for forecast-only rows and rows written before v72.
     val computedHighAt: Long? = null,
     val computedLowAt: Long? = null,
+    // Frozen "yesterday's forecast" (left bar of a past day's triple bar): low from the newest fetch
+    // before 06:00 the previous day, high from the newest before 16:00 — see PriorDayForecast.
+    // Null when no fetch preceded the cutoff, and for rows written before v73.
+    val priorForecastHighTemp: Float? = null,
+    val priorForecastLowTemp: Float? = null,
 )
 
 fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHistory(
@@ -89,6 +94,8 @@ fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHist
     lastWriter = lastWriter,
     computedHighAt = computedHighAt,
     computedLowAt = computedLowAt,
+    priorForecastHighTemp = priorForecastHighTemp,
+    priorForecastLowTemp = priorForecastLowTemp,
 )
 
 fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
@@ -117,4 +124,6 @@ fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     lastWriter = lastWriter,
     computedHighAt = computedHighAt,
     computedLowAt = computedLowAt,
+    priorForecastHighTemp = priorForecastHighTemp,
+    priorForecastLowTemp = priorForecastLowTemp,
 )

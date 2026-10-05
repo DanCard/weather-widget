@@ -33,6 +33,8 @@ internal data class DailyGraphLayoutInfo(
     val tempLabelMaxWidthPx: Float,
     val horizontalPadding: Float,
     val tripleBarOffset: Float,
+    /** Centre-to-flank distance of a past day's (thinner) triple bar. */
+    val pastTripleBarOffset: Float,
     val forecastBarOffset: Float,
     val iconSize: Int,
     val dayLabelHeight: Float,
@@ -212,6 +214,15 @@ internal object DailyGraphLayoutResolver {
                 columnEdgeMarginPx = COLUMN_EDGE_MARGIN_DP.dp(density),
             )
 
+        val pastTripleBarWidth = tripleBarWidth * DailyBarRenderer.PAST_TRIPLE_WIDTH_SCALE
+        val pastTripleBarOffset =
+            TodayColumnHighlight.tripleBarSpacing(
+                centerBarWidthPx = pastTripleBarWidth,
+                flankBarWidthPx = pastTripleBarWidth,
+                dayWidthPx = dayWidth,
+                columnEdgeMarginPx = COLUMN_EDGE_MARGIN_DP.dp(density),
+            )
+
         if (dayLabelLayout.scale < 0.999f || dayLabelLayout.shortenedLabels) {
             Log.v(
                 TAG,
@@ -245,6 +256,7 @@ internal object DailyGraphLayoutResolver {
                 dayWidth + (TEMP_LABEL_OVERLAP_ALLOWANCE_DP * labelScale).dp(density),
             horizontalPadding = horizontalPadding,
             tripleBarOffset = tripleBarOffset,
+            pastTripleBarOffset = pastTripleBarOffset,
             forecastBarOffset = barWidth * DailyBarRenderer.FORECAST_BAR_OFFSET_SCALE,
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,

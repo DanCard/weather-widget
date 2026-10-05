@@ -7,8 +7,8 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.DailyDayValueResolver
-import com.weatherwidget.shared.util.DailySnapshotSelector
 import com.weatherwidget.shared.util.PartialForecastDays
+import com.weatherwidget.shared.util.PriorDayForecast
 import com.weatherwidget.util.DailyActualsEstimator
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.widget.DailyActualMap
@@ -32,7 +32,7 @@ internal object DailyTodayResolver {
         val trueActualHigh: Float?,
         val todayHasActualLow: Boolean,
         val isTodayForecastFallback: Boolean,
-        /** The snapshot was fetched more than [DailySnapshotSelector.STALE_AFTER_HOURS] ago — draw it dashed. */
+        /** A side was last confirmed more than [PriorDayForecast.STALE_SLACK_HOURS] before its anchor — draw it dashed. */
         val snapshotIsStale: Boolean = false,
     )
 
@@ -71,13 +71,19 @@ internal object DailyTodayResolver {
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemp: Float?,
     ): TodayValues {
-        val snapshotCandidates = forecasts
-            .filter { it.source == displaySource.id }
-            .filter { it.highTemp != null && it.lowTemp != null }
-        val nowMillis = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val snapshot = DailySnapshotSelector.selectPriorDaySnapshot(
-            snapshotCandidates, nowMillis, { it.fetchedAt },
+        // "Yesterday's forecast" (left bar): low from the newest fetch before 06:00 yesterday, high
+        // from the newest before 16:00 yesterday — shared with desktop and the history freeze.
+        val zone = ZoneId.systemDefault()
+        val snapshotCandidates = forecasts.filter {
+            it.source == displaySource.id && !it.isClimateNormal && it.source != WeatherSource.GENERIC_GAP.id
+        }
+        val pick = PriorDayForecast.select(
+            snapshotCandidates, date, zone,
+            fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
+            fallbackToEarliest = true,
         )
+        // The bar's condition colour and icon describe the daytime, so they follow the high's row.
+        val snapshot = pick.highRow ?: pick.lowRow
 
         val snapshotIconRes = snapshot?.let { w ->
             DailyForecastIconResolver.resolveIcon(
@@ -94,8 +100,8 @@ internal object DailyTodayResolver {
         val tripleValues = DailyActualsEstimator.calculateTodayTripleLineValues(
             hourlyForecasts, today, now, displaySource, weather, dailyActuals,
             currentTemp = currentTemp,
-            snapshotHigh = snapshot?.highTemp,
-            snapshotLow = snapshot?.lowTemp,
+            snapshotHigh = pick.highRow?.highTemp,
+            snapshotLow = pick.lowRow?.lowTemp,
             snapshotIconRes = snapshotIconRes,
         )
 
@@ -133,7 +139,7 @@ internal object DailyTodayResolver {
             trueActualHigh = trueActualHigh,
             todayHasActualLow = todayHasActualLow,
             isTodayForecastFallback = isTodayForecastFallback,
-            snapshotIsStale = isSnapshotStale(snapshot, nowMillis),
+            snapshotIsStale = isSnapshotStale(pick, date, zone),
         )
     }
 
@@ -142,6 +148,12 @@ internal object DailyTodayResolver {
      * `ForecastSnapshotStore` skips writing an unchanged re-fetch and only re-stamps the existing
      * row's batch, so [ForecastEntity.fetchedAt] is the first sighting.
      */
-    fun isSnapshotStale(snapshot: ForecastEntity?, nowMillis: Long): Boolean =
-        snapshot != null && DailySnapshotSelector.isStale(snapshot.batchFetchedAt, nowMillis)
+    /**
+     * Dashed when either side's row was last confirmed more than a day before its anchor. Judged
+     * from `batchFetchedAt`, which the dedup skip path re-stamps — `fetchedAt` is when a value was
+     * first seen and would age an unchanging forecast into "stale" while it is being re-confirmed.
+     */
+    fun isSnapshotStale(pick: PriorDayForecast.Pick<ForecastEntity>, date: LocalDate, zone: ZoneId): Boolean =
+        pick.highRow?.let { PriorDayForecast.isStale(it.batchFetchedAt, PriorDayForecast.highCutoffMs(date, zone)) } == true ||
+            pick.lowRow?.let { PriorDayForecast.isStale(it.batchFetchedAt, PriorDayForecast.lowCutoffMs(date, zone)) } == true
 }

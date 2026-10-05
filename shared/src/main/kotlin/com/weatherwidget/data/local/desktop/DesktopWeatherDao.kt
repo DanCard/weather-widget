@@ -645,8 +645,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO daily_history
-                    (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp, apiStationId, apiStationDistanceKm, actualsSource, lastWriter, computedHighAt, computedLowAt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp, apiStationId, apiStationDistanceKm, actualsSource, lastWriter, computedHighAt, computedLowAt, priorForecastHighTemp, priorForecastLowTemp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     for (ex in extremes) {
@@ -675,6 +675,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setString(23, ex.lastWriter)
                         stmt.setNullableLong(24, ex.computedHighAt)
                         stmt.setNullableLong(25, ex.computedLowAt)
+                        stmt.setNullableFloat(26, ex.priorForecastHighTemp)
+                        stmt.setNullableFloat(27, ex.priorForecastLowTemp)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -1790,6 +1792,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             lastWriter = rs.getString("lastWriter"),
             computedHighAt = rs.getNullableLong("computedHighAt"),
             computedLowAt = rs.getNullableLong("computedLowAt"),
+            priorForecastHighTemp = rs.getNullableFloat("priorForecastHighTemp"),
+            priorForecastLowTemp = rs.getNullableFloat("priorForecastLowTemp"),
         )
 
     fun getDailyActuals(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): Map<String, DailyHistory> {

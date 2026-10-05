@@ -16,6 +16,8 @@ internal class DailyGraphPaintSet(
     val todayForecastBluePaint: Paint,
     val historyBarPaint: Paint,
     val forecastBarPaint: Paint,
+    /** Template for a past day's triple bar at [DailyBarRenderer.PAST_TRIPLE_WIDTH_SCALE] of today's width. */
+    val pastTripleBarPaint: Paint,
     val climateOverlayBarPaint: Paint,
     val gapFallbackBarPaint: Paint,
     val textPaint: Paint,
@@ -30,6 +32,7 @@ internal class DailyGraphPaintSet(
     private val forecastByColor = ConcurrentHashMap<Int, Paint>()
     private val climateOverlayByColor = ConcurrentHashMap<Int, Paint>()
     private val todayForecastByColor = ConcurrentHashMap<Int, Paint>()
+    private val pastTripleByColor = ConcurrentHashMap<Int, Paint>()
 
     fun barForColor(color: Int): Paint =
         barByColor.getOrPut(color) {
@@ -52,6 +55,12 @@ internal class DailyGraphPaintSet(
     fun todayForecastForColor(color: Int): Paint =
         todayForecastByColor.getOrPut(color) {
             Paint(todayForecastBluePaint).apply { this.color = color }
+        }
+
+    /** A past day's "yesterday's forecast" bar, or its centre bar when that is a promoted forecast. */
+    fun pastTripleForColor(color: Int): Paint =
+        pastTripleByColor.getOrPut(color) {
+            Paint(pastTripleBarPaint).apply { this.color = color }
         }
 }
 
@@ -109,6 +118,8 @@ internal object DailyGraphPaintCache {
                 layout.bitmapScale,
                 compact = layout.useCompactTodayBars,
             )
+        // Past days draw the same triple bar, thinner, so today's column stays the focal one.
+        val pastTripleBarWidth = tripleBarWidth * DailyBarRenderer.PAST_TRIPLE_WIDTH_SCALE
         val shadowRadius = (LABEL_SHADOW_RADIUS_DP * labelScale).dp(layout.density)
         val shadowDy = (LABEL_SHADOW_DY_DP * labelScale).dp(layout.density)
 
@@ -131,15 +142,12 @@ internal object DailyGraphPaintCache {
                 todayForecastBluePaint =
                     createBarPaint(DailyBarRenderer.COLOR_FORECAST, tripleBarWidth),
                 historyBarPaint =
-                    createBarPaint(
-                        DailyBarRenderer.COLOR_OBSERVED_RED,
-                        barWidth * DailyBarRenderer.HISTORY_BAR_WIDTH_SCALE,
-                    ),
+                    createBarPaint(DailyBarRenderer.COLOR_OBSERVED_RED, pastTripleBarWidth),
+                // The settled-forecast overlay only exists on past days (future days never compare).
                 forecastBarPaint =
-                    createBarPaint(
-                        DailyBarRenderer.COLOR_FORECAST,
-                        barWidth * DailyBarRenderer.FORECAST_OVERLAY_WIDTH_SCALE,
-                    ),
+                    createBarPaint(DailyBarRenderer.COLOR_FORECAST, pastTripleBarWidth),
+                pastTripleBarPaint =
+                    createBarPaint(DailyBarRenderer.COLOR_TODAY_HIGHLIGHT, pastTripleBarWidth),
                 climateOverlayBarPaint =
                     createBarPaint(
                         DailyBarRenderer.COLOR_FORECAST,

@@ -159,14 +159,13 @@ fun DailyForecastGraph(
         val iconFloorTop = size.height - dayLabelBand - iconSize
         val graphHeight = (bottom - top).coerceAtLeast(1f)
         val barWidth = (7.dp.toPx() * scale).coerceAtMost(dayWidth * 0.22f)
-        val thinWidth = barWidth * 0.65f
         val compactTodayBarWidth = (6.dp.toPx() * scale).coerceAtMost(dayWidth * 0.22f)
-        // Touching triple bars, shared with Android. Desktop's flanking bars are thinner (thinWidth)
-        // than the centre thermostat (barWidth), so the touching offset is their average — the shared
-        // formula handles the unequal widths.
-        val tripleOffset = TodayColumnHighlight.tripleBarSpacing(
-            centerBarWidthPx = barWidth,
-            flankBarWidthPx = thinWidth,
+        // Past columns draw today's triple bar (yesterday's forecast | actual | settled forecast)
+        // thinner, touching like today's — shared width scale and spacing with Android.
+        val pastTripleWidth = compactTodayBarWidth * TodayColumnHighlight.PAST_TRIPLE_WIDTH_SCALE
+        val pastTripleOffset = TodayColumnHighlight.tripleBarSpacing(
+            centerBarWidthPx = pastTripleWidth,
+            flankBarWidthPx = pastTripleWidth,
             dayWidthPx = dayWidth,
             columnEdgeMarginPx = 2.dp.toPx(),
         )
@@ -291,23 +290,33 @@ fun DailyForecastGraph(
                     (todayLows.minOrNull()?.let(::yAt)?.plus(compactTodayBarWidth * BULB_RADIUS_SCALE * 1.5f)
                         ?: (bottom - graphHeight * 0.25f)).coerceAtMost(bottom)
             } else if (day.isPast) {
-                // Forecast overlay carries the cloud/rain split (matches Android's past-day overlay);
-                // the observed actual bar stays solid. A forecast-promoted past day (no actuals) has
-                // no observation to paint red — its solid line reads as a forecast instead.
+                // Past triple bar, matching Android: left = the frozen "yesterday's forecast"
+                // (PriorDayForecast; absent → slot left empty, the others keep their places), centre =
+                // the actual (no bulb), right = the settled forecast. Both forecasts carry the
+                // cloud/rain split; the observed actual stays solid. A forecast-promoted past day (no
+                // actuals) has no observation to paint red — its solid line reads as a forecast.
+                val priorFlags = WeatherIcon.getConditionFlags(day.iconCondition)
+                val priorColor = com.weatherwidget.shared.util.WeatherColors
+                    .snapshotBarOverrideArgb(priorFlags.isRainy)
+                    ?.let { Color(it) } ?: Color.Yellow
                 drawAdaptiveBar(
-                    centerX = centerX + tripleOffset,
+                    centerX - pastTripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, pastTripleWidth,
+                    priorColor, day.cloudCoverRatio, day.iconCondition,
+                )
+                drawAdaptiveBar(
+                    centerX = centerX + pastTripleOffset,
                     high = day.forecastHigh,
                     low = day.forecastLow,
                     yAt = ::yAt,
-                    width = thinWidth,
+                    width = pastTripleWidth,
                     baseColor = forecastColor(day),
                     cloudCoverRatio = day.cloudCoverRatio,
                     iconCondition = day.iconCondition,
                 )
                 val solidBarColor = if (day.solidIsForecastFallback) forecastColor(day) else COLOR_OBSERVED
                 drawRangeLine(
-                    centerX, day.solidHigh, day.solidLow, ::yAt, solidBarColor, barWidth * 0.72f,
-                    pathEffect = standInDash(barWidth * 0.72f).takeIf { day.actualsFromOtherSite },
+                    centerX, day.solidHigh, day.solidLow, ::yAt, solidBarColor, pastTripleWidth,
+                    pathEffect = standInDash(pastTripleWidth).takeIf { day.actualsFromOtherSite },
                 )
             } else {
                 val high = day.solidHigh
@@ -338,9 +347,9 @@ fun DailyForecastGraph(
             // when they differ enough and there's room (DualHighLabel); otherwise fall through to the
             // single high label below. Today's actual is the observed peak (max of solid/ghost).
             // Horizontal anchor (matches Android): today centers BOTH high labels on the column
-            // (centerX, like its single-high label) — its forecast bar sits a full +tripleOffset right
+            // (centerX, like its single-high label) — its forecast bar sits a full triple offset right
             // of the thermostat, so labeling over it would stagger the two stacked numbers; color marks
-            // forecast vs actual. History keeps +tripleOffset (its overlay sits right beside the bar).
+            // forecast vs actual. History keeps +pastTripleOffset (its overlay sits right beside the bar).
             val highForLabel = listOfNotNull(day.solidHigh, day.forecastHigh, day.ghostHigh, day.snapshotHigh).maxOrNull()
             val todayHighSettled = com.weatherwidget.shared.util.DailyDayValueResolver.isHighTrackingActual(
                 isToday = day.isToday,
@@ -376,8 +385,8 @@ fun DailyForecastGraph(
             // Round caps extend a bar's ink half its stroke width ABOVE the geometric endpoint, so a
             // label pinned to the bare endpoint would overlap the cap. Pinned dualTop calls subtract
             // the matching bar's ink radius so the label bottom touches the visible ink top.
-            val actualInkRadiusPx = if (day.isPast) barWidth * 0.72f / 2f else compactTodayBarWidth / 2f
-            val forecastInkRadiusPx = if (day.isToday) compactTodayBarWidth / 2f else thinWidth / 2f
+            val actualInkRadiusPx = if (day.isPast) pastTripleWidth / 2f else compactTodayBarWidth / 2f
+            val forecastInkRadiusPx = if (day.isToday) compactTodayBarWidth / 2f else pastTripleWidth / 2f
             val forecastPinnedInkRadiusPx =
                 if (dualOffsets != null && dualOffsets.forecastDp == 0f) forecastInkRadiusPx else 0f
             // pushPx raises the label further (Y grows downward); the header clamp still wins, so a
@@ -441,7 +450,7 @@ fun DailyForecastGraph(
                     if (dualActualIsUpper) 0f else dualExtraPush,
                     forecastPinnedInkRadiusPx,
                 )
-                val fLabelX = if (day.isToday) centerX else centerX + tripleOffset
+                val fLabelX = if (day.isToday) centerX else centerX + pastTripleOffset
                 val fX = fLabelX - fLayout.size.width / 2f
                 drawOutlinedText(textMeasurer, fLayout, Offset(fX, fY))
                 recordTodayObstacle(fX, fY, fX + fLayout.size.width, fY + fLayout.size.height)
@@ -486,7 +495,7 @@ fun DailyForecastGraph(
                     // visible top instead of inside it.
                     val pinnedSingle = day.isPast && !day.solidIsForecastFallback
                     val singleGapScale = if (pinnedSingle) 0f else 3f
-                    val singleInkRadiusPx = if (pinnedSingle) barWidth * 0.72f / 2f else 0f
+                    val singleInkRadiusPx = if (pinnedSingle) pastTripleWidth / 2f else 0f
                     val highLabelY = (yAt(singleHigh) - highText.size.height - singleGapScale * scale - singleInkRadiusPx).coerceAtLeast(-headerBleed)
                     highLabelTopAtCenter = highLabelY
                     val highTopLeft = Offset(centerX - highText.size.width / 2f, highLabelY)
@@ -575,8 +584,9 @@ fun DailyForecastGraph(
                 // Anchor to the high label's actual rendered top (shared rule: rain bottom = high top -
                 // gap; negative gap = slight overlap). If Today has a prior-day snapshot bar that reaches
                 // higher than the high label, anchor to the snapshot bar top so the two never collide.
-                val snapshotBarTop = if (day.isToday && day.snapshotHigh != null) {
-                    yAt(day.snapshotHigh) - compactTodayBarWidth / 2f
+                // Past columns have the same (thinner) left bar.
+                val snapshotBarTop = if ((day.isToday || day.isPast) && day.snapshotHigh != null && day.snapshotLow != null) {
+                    yAt(day.snapshotHigh) - (if (day.isToday) compactTodayBarWidth else pastTripleWidth) / 2f
                 } else null
                 val anchorTop = DailyRainLabelPlanner.resolveDayRainAnchorTop(
                     highLabelTop = highLabelTopAtCenter,

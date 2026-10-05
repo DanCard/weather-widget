@@ -176,8 +176,12 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 - Percent of days within ±3°F
 - Accuracy score (0-5 scale, 5 = perfect)
 
-**Display:** past days always render the forecast overlay (yellow bar) alongside the actual range
-for accuracy comparison. (The old configurable display modes — ACCURACY_DOT, SIDE_BY_SIDE,
+**Display:** past days render today's **triple bar**, thinner (`TodayColumnHighlight.PAST_TRIPLE_WIDTH_SCALE`
+= 0.8, no bulb, no panel): left = "yesterday's forecast", centre = actual, right = the settled
+forecast (`ForecastOverlaySettle`). The left bar on every column (today included) is
+`PriorDayForecast`: low from the newest fetch before 06:00 the previous day, high from the newest
+before 16:00 the previous day; frozen for history into `daily_history.priorForecastHigh/LowTemp`
+(Room v73 / desktop v26). See `plans/261005-past-days-triple-bar-prior-forecast-at-cutoffs.md`. (The old configurable display modes — ACCURACY_DOT, SIDE_BY_SIDE,
 DIFFERENCE, NONE — were removed; there is no display-mode setting.)
 
 **Key Files:**

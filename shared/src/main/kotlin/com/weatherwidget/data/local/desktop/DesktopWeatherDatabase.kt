@@ -227,6 +227,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     // are added here. Never on an existing database before migrate(): the v19
                     // rebuild copies daily_history with a positional SELECT *.
                     addDailyHistoryExtremeTimeColumns(stmt)
+                    addDailyHistoryPriorForecastColumns(stmt)
                     stmt.execute("PRAGMA user_version = $SCHEMA_VERSION")
                 } else {
                     migrate(conn, currentVersion, SCHEMA_VERSION)
@@ -585,6 +586,11 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 25) {
                 addDailyHistoryExtremeTimeColumns(stmt)
             }
+            // v26: the frozen "yesterday's forecast" (left bar of a past day's triple bar), picked at
+            // 24h before the low/high cutoffs (PriorDayForecast). Moves with Room MIGRATION_72_73.
+            if (from < 26) {
+                addDailyHistoryPriorForecastColumns(stmt)
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -598,6 +604,10 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
 
     private fun addDailyHistoryExtremeTimeColumns(stmt: java.sql.Statement) {
         DAILY_HISTORY_EXTREME_TIME_COLUMNS.forEach { addColumnIfMissing(stmt, "daily_history", it, "INTEGER") }
+    }
+
+    private fun addDailyHistoryPriorForecastColumns(stmt: java.sql.Statement) {
+        DAILY_HISTORY_PRIOR_FORECAST_COLUMNS.forEach { addColumnIfMissing(stmt, "daily_history", it, "REAL") }
     }
 
     private fun addColumnIfMissing(stmt: java.sql.Statement, table: String, column: String, type: String) {
@@ -640,7 +650,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 25
+        const val SCHEMA_VERSION = 26
 
         /**
          * `daily_history` columns added after [DAILY_HISTORY_NULLABLE_COMPUTED_DDL] (which the v19
@@ -648,6 +658,12 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * shared by desktop v25 and Room MIGRATION_71_72.
          */
         val DAILY_HISTORY_EXTREME_TIME_COLUMNS = listOf("computedHighAt", "computedLowAt")
+
+        /**
+         * The frozen "yesterday's forecast" for a day (PriorDayForecast), nullable REAL °F. Shared by
+         * desktop v26 and Room MIGRATION_72_73.
+         */
+        val DAILY_HISTORY_PRIOR_FORECAST_COLUMNS = listOf("priorForecastHighTemp", "priorForecastLowTemp")
 
         /**
          * Column list shared by the desktop `daily_history` CREATE TABLE and the v19 rebuild (and by

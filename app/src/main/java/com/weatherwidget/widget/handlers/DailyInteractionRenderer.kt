@@ -209,9 +209,13 @@ internal object DailyInteractionRenderer {
                 lat,
                 lon,
             )
+        // Past days' "yesterday's forecast" candidates, after the newest rows so each day's first
+        // row is still its newest.
+        val priorCandidates =
+            forecastDao.getPriorForecastCandidates(range.historyStart, range.pastSnapshotEnd, lat, lon)
         val forecastSnapshots =
             gapFiller.appendGapsToSnapshots(
-                (pastSnapshots + recentSnapshots)
+                (pastSnapshots + recentSnapshots + priorCandidates).distinct()
                     .groupBy {
                         LocalDate.ofEpochDay(
                             it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY,

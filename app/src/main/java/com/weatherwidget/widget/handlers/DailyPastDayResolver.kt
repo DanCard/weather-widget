@@ -2,11 +2,14 @@ package com.weatherwidget.widget.handlers
 
 import android.util.Log
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.DailyDayValueResolver
 import com.weatherwidget.shared.util.PastDayForecastOverlay
+import com.weatherwidget.shared.util.PriorDayForecast
 import java.time.LocalDate
+import java.time.ZoneId
 
 internal object DailyPastDayResolver {
     private const val TAG = "DailyPastDayResolver"
@@ -53,6 +56,31 @@ internal object DailyPastDayResolver {
             fLow = pastValues.forecastLow,
             solidIsForecastFallback = pastValues.solidIsForecastFallback,
         )
+    }
+
+    /**
+     * The past day's "yesterday's forecast" pair, shared rule [PriorDayForecast.resolvePast]: frozen
+     * columns first, else a live pick from [forecasts] (display source, the frozen row's site).
+     */
+    fun resolvePriorForecast(
+        actual: DailyHistory?,
+        forecasts: List<ForecastEntity>,
+        displaySource: WeatherSource,
+        date: LocalDate,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Pair<Float, Float>? {
+        val candidates = forecasts.filter {
+            it.source == displaySource.id && !it.isClimateNormal &&
+                (actual == null || LocationMatch.sameSite(it.locationLat, it.locationLon, actual.locationLat, actual.locationLon))
+        }
+        val resolved = PriorDayForecast.resolvePast(
+            actual?.priorForecastHighTemp, actual?.priorForecastLowTemp, candidates, date, zone,
+            fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
+        )
+        if (resolved != null && (actual?.priorForecastHighTemp == null || actual.priorForecastLowTemp == null)) {
+            Log.v(TAG, "resolvePriorForecast: past day $date left bar picked live (not frozen yet) $resolved")
+        }
+        return resolved
     }
 
     fun resolvePastDayOverlay(

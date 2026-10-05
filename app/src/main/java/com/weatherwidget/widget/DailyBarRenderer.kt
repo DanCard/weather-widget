@@ -37,11 +37,9 @@ internal object DailyBarRenderer {
     internal const val BULB_RADIUS_SCALE = 1.2f
     private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
 
-    // These scales are independently tunable. They currently share 0.7 because that value happens
-    // to suit history width, forecast-overlay width, and forecast offset; changing one need not move
-    // the other two.
-    internal const val HISTORY_BAR_WIDTH_SCALE = 0.7f
-    internal const val FORECAST_OVERLAY_WIDTH_SCALE = 0.7f
+    internal const val PAST_TRIPLE_WIDTH_SCALE = TodayColumnHighlight.PAST_TRIPLE_WIDTH_SCALE
+
+    /** Offset of a non-past day's comparison overlay (none is drawn today; kept for the layout field). */
     internal const val FORECAST_BAR_OFFSET_SCALE = 0.7f
     internal const val CLIMATE_OVERLAY_WIDTH_SCALE = 0.8f
 
@@ -109,6 +107,20 @@ internal object DailyBarRenderer {
                 ?.let { layout.tempToY(it) }
             drawTodayTripleBar(canvas, day, centerX, highY, mercuryLowY, layout, paints, onBarDrawn)
         } else if (highY != null || lowY != null) {
+            // Past triple bar, left slot: the frozen "yesterday's forecast". Drawn first so the
+            // actual sits over it, as on today's column. No bulb on past days.
+            if (day.isPast) {
+                drawSnapshotBar(
+                    canvas = canvas,
+                    day = day,
+                    snapshotX = centerX - layout.pastTripleBarOffset,
+                    layout = layout,
+                    paintForColor = paints::pastTripleForColor,
+                    defaultColor = paints.pastTripleBarPaint.color,
+                    barType = "PAST_SNAPSHOT",
+                    onBarDrawn = onBarDrawn,
+                )
+            }
             val endpoints = resolveBarEndpoints(highY, lowY, layout.minBarHeightPx)
             if (endpoints == null) {
                 Log.w(
@@ -127,6 +139,7 @@ internal object DailyBarRenderer {
                 val paint = when {
                     day.isPast && !day.solidIsForecastFallback -> paints.historyBarPaint
                     day.isSourceGapFallback -> paints.gapFallbackBarPaint
+                    day.isPast -> paints.pastTripleForColor(condColor)
                     else -> paints.barForColor(condColor)
                 }
 
@@ -170,7 +183,7 @@ internal object DailyBarRenderer {
             val fLowY = layout.tempToY(day.dashedLineLow)
             val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
 
-            val forecastX = centerX + layout.forecastBarOffset
+            val forecastX = centerX + comparisonOffset(day, layout)
             val condColor = WeatherConditionColors.forecastColor(
                 day.isSunny,
                 day.isRainy,
@@ -249,7 +262,7 @@ internal object DailyBarRenderer {
             )
             // Today centers both labels on the column; past forecast labels follow their overlay.
             val forecastLabelX =
-                if (day.isToday) centerX else centerX + layout.forecastBarOffset
+                if (day.isToday) centerX else centerX + comparisonOffset(day, layout)
             val actualBounds = DailyTemperatureLabelRenderer.draw(
                 canvas = canvas,
                 text = DailyTemperatureLabelRenderer.format(
@@ -313,6 +326,74 @@ internal object DailyBarRenderer {
         ))
     }
 
+    /** Right-hand comparison slot: a past day's settled forecast sits in its triple-bar slot. */
+    private fun comparisonOffset(day: DayData, layout: DailyGraphLayoutInfo): Float =
+        if (day.isPast) layout.pastTripleBarOffset else layout.forecastBarOffset
+
+    /**
+     * The triple bar's left slot: "yesterday's forecast" ([DayData.snapshotHigh]/[DayData.snapshotLow],
+     * see PriorDayForecast). Shared by today's column and past columns, which differ only in width
+     * (paint), offset, and debug tag. Nothing is drawn unless both ends are known.
+     */
+    private fun drawSnapshotBar(
+        canvas: Canvas,
+        day: DayData,
+        snapshotX: Float,
+        layout: DailyGraphLayoutInfo,
+        paintForColor: (Int) -> Paint,
+        defaultColor: Int,
+        barType: String,
+        onBarDrawn: ((BarDrawnDebug) -> Unit)?,
+    ) {
+        val sHigh = day.snapshotHigh ?: return
+        val sLow = day.snapshotLow ?: return
+        val sHighY = layout.tempToY(sHigh)
+        val sLowY = layout.tempToY(sLow)
+        val effectiveSLowY = clampMinBarHeight(sHighY, sLowY, layout.minBarHeightPx)
+
+        val sIsSunny = day.snapshotIconRes?.let { WeatherIconMapper.isSunny(it) } ?: false
+        val sIsRainy = day.snapshotIconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false
+        val sIsMixed = day.snapshotIconRes?.let { WeatherIconMapper.isMixed(it) } ?: false
+
+        val sCondColor =
+            com.weatherwidget.shared.util.WeatherColors.snapshotBarOverrideArgb(sIsRainy) ?: defaultColor
+        val sPaint = paintForColor(sCondColor)
+
+        // Yesterday's forecast for the day carries the day's resolved cloud-cover ratio.
+        val snapshotDay = day.copy(
+            iconRes = day.snapshotIconRes,
+            isSunny = sIsSunny,
+            isRainy = sIsRainy,
+            isMixed = sIsMixed,
+            cloudCoverRatioOverride = day.cloudCoverRatioOverride
+                ?: day.snapshotIconRes?.let { WeatherConditionColors.cloudRatio(it) },
+        )
+
+        drawWeatherAdaptiveBar(
+            canvas = canvas,
+            centerX = snapshotX,
+            topY = sHighY,
+            bottomY = effectiveSLowY,
+            paint = sPaint,
+            day = snapshotDay,
+            logPrefix = barType.lowercase(),
+            allowAdaptiveSegments = true,
+            dashed = day.snapshotIsStale,
+        )
+        onBarDrawn?.invoke(
+            BarDrawnDebug(
+                day.date,
+                barType,
+                sHighY,
+                effectiveSLowY,
+                snapshotX,
+                sPaint.color,
+                adaptiveSegments = true,
+                dashed = day.snapshotIsStale,
+            ),
+        )
+    }
+
     private fun drawTodayTripleBar(
         canvas: Canvas,
         day: DayData,
@@ -326,61 +407,16 @@ internal object DailyBarRenderer {
         val (obsHighY, effectiveObsLowY) =
             resolveBarEndpoints(highY, lowY, layout.minBarHeightPx) ?: return
 
-        day.snapshotHigh?.let { sHigh ->
-            day.snapshotLow?.let { sLow ->
-                val sHighY = layout.tempToY(sHigh)
-                val sLowY = layout.tempToY(sLow)
-                val effectiveSLowY =
-                    clampMinBarHeight(sHighY, sLowY, layout.minBarHeightPx)
-                val snapshotX = centerX - layout.tripleBarOffset
-
-                val sIsSunny =
-                    day.snapshotIconRes?.let { WeatherIconMapper.isSunny(it) } ?: false
-                val sIsRainy =
-                    day.snapshotIconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false
-                val sIsMixed =
-                    day.snapshotIconRes?.let { WeatherIconMapper.isMixed(it) } ?: false
-
-                val sCondColor =
-                    com.weatherwidget.shared.util.WeatherColors.snapshotBarOverrideArgb(sIsRainy)
-                        ?: paints.todaySnapshotYellowPaint.color
-                val sPaint = paints.todayForecastForColor(sCondColor)
-
-                // Yesterday's forecast for today carries today's resolved cloud-cover ratio.
-                val snapshotDay = day.copy(
-                    iconRes = day.snapshotIconRes,
-                    isSunny = sIsSunny,
-                    isRainy = sIsRainy,
-                    isMixed = sIsMixed,
-                    cloudCoverRatioOverride = day.cloudCoverRatioOverride
-                        ?: day.snapshotIconRes?.let { WeatherConditionColors.cloudRatio(it) },
-                )
-
-                drawWeatherAdaptiveBar(
-                    canvas = canvas,
-                    centerX = snapshotX,
-                    topY = sHighY,
-                    bottomY = effectiveSLowY,
-                    paint = sPaint,
-                    day = snapshotDay,
-                    logPrefix = "today_snapshot",
-                    allowAdaptiveSegments = true,
-                    dashed = day.snapshotIsStale,
-                )
-                onBarDrawn?.invoke(
-                    BarDrawnDebug(
-                        day.date,
-                        "TODAY_SNAPSHOT",
-                        sHighY,
-                        effectiveSLowY,
-                        snapshotX,
-                        sPaint.color,
-                        adaptiveSegments = true,
-                        dashed = day.snapshotIsStale,
-                    ),
-                )
-            }
-        }
+        drawSnapshotBar(
+            canvas = canvas,
+            day = day,
+            snapshotX = centerX - layout.tripleBarOffset,
+            layout = layout,
+            paintForColor = paints::todayForecastForColor,
+            defaultColor = paints.todaySnapshotYellowPaint.color,
+            barType = "TODAY_SNAPSHOT",
+            onBarDrawn = onBarDrawn,
+        )
 
         val fHigh = day.dashedLineHigh ?: day.solidLineHigh ?: return
         val fLow = day.dashedLineLow ?: day.solidLineLow ?: return

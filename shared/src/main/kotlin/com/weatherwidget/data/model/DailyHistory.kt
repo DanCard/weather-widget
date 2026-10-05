@@ -58,6 +58,14 @@ data class DailyHistory(
     val computedHighAt: Long? = null,
     val computedLowAt: Long? = null,
     /**
+     * Frozen "yesterday's forecast" for this day — the left bar of the daily triple bar: the low
+     * from the newest forecast fetched before 06:00 the previous day, the high from the newest
+     * before 16:00 the previous day (`PriorDayForecast`). The two may come from different fetches.
+     * Null when no fetch preceded its cutoff, and for rows written before Room v73 / desktop v26.
+     */
+    val priorForecastHighTemp: Float? = null,
+    val priorForecastLowTemp: Float? = null,
+    /**
      * Display-only, never persisted: when non-null, [computedHighTemp]/[computedLowTemp] were
      * measured at ANOTHER site this far away (km) because the current site has no measured row
      * for this day — see `PreviousSiteHistory`. Renderers draw such a day's actual bar dashed.

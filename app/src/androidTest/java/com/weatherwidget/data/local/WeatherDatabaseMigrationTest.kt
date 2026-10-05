@@ -672,4 +672,30 @@ class WeatherDatabaseMigrationTest {
             assertTrue("computedLowAt must start NULL", c.isNull(4))
         }
     }
+
+    @Test
+    fun migrate72To73_addsPriorForecastColumnsAsNullAndKeepsRows() {
+        helper.createDatabase(testDb, 72).apply {
+            execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, computedHighTemp, " +
+                    "computedLowTemp, condition, updatedAt, forecastHighTemp, forecastLowTemp, computedHighAt) VALUES " +
+                    "(1790985600000, 'NWS', 37.417, -122.089, 91.6, 59.0, 'Clear', 5, 89.0, 58.0, 1791036000000)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 73, true, WeatherDatabase.MIGRATION_72_73)
+
+        db.query(
+            "SELECT computedHighTemp, forecastHighTemp, computedHighAt, priorForecastHighTemp, priorForecastLowTemp " +
+                "FROM daily_history",
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(91.6, c.getDouble(0), 0.01)
+            assertEquals(89.0, c.getDouble(1), 0.01)
+            assertEquals(1791036000000L, c.getLong(2))
+            assertTrue("priorForecastHighTemp must start NULL", c.isNull(3))
+            assertTrue("priorForecastLowTemp must start NULL", c.isNull(4))
+        }
+    }
 }

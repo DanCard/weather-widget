@@ -46,6 +46,32 @@ interface DailyHistoryDao {
         lastWriter: String?,
     ): Int
 
+    /**
+     * Writes ONLY the frozen "yesterday's forecast" (see PriorDayForecast). Leaves `updatedAt`
+     * alone for the same reason as [updateForecastOverlay].
+     */
+    @Query(
+        """
+        UPDATE daily_history SET
+            priorForecastHighTemp = :priorForecastHighTemp,
+            priorForecastLowTemp = :priorForecastLowTemp,
+            lastWriter = :lastWriter
+        WHERE date = :date
+          AND source = :source
+          AND locationLat = :locationLat
+          AND locationLon = :locationLon
+        """,
+    )
+    suspend fun updatePriorForecast(
+        date: Long,
+        source: String,
+        locationLat: Double,
+        locationLon: Double,
+        priorForecastHighTemp: Float?,
+        priorForecastLowTemp: Float?,
+        lastWriter: String?,
+    ): Int
+
     @Query(
         """
         UPDATE daily_history SET

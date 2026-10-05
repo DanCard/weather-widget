@@ -1,11 +1,14 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.HourlyForecastStitcher
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.DailyHistoryFreeze
 import com.weatherwidget.shared.util.DailyNoonCloudCover
 import com.weatherwidget.shared.util.DailyRainLabels
+import com.weatherwidget.shared.util.PriorDayForecast
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -274,6 +277,58 @@ object DailyHistoryMaintenance {
                 "(fetched=${settled.highFetchedAt} highAt=${history.computedHighAt}) " +
                 "low=${history.forecastLowTemp}->${settled.row.forecastLowTemp} " +
                 "(fetched=${settled.lowFetchedAt} lowAt=${history.computedLowAt})"
+        }
+        return SettlePlan(rows, logs)
+    }
+
+    /**
+     * Freezes each row's "yesterday's forecast" ([PriorDayForecast]: the low from the newest fetch
+     * before 06:00 the previous day, the high from the newest before 16:00) into
+     * `priorForecastHighTemp/LowTemp` — the left bar of a past day's triple bar. Both anchors are
+     * already past for any day up to and including today, so today's row is frozen too.
+     *
+     * Same inputs and cadence as [planSettledForecastOverlays]; idempotent, so it also backfills
+     * every retained past row. Monotone: a side with no pre-cutoff fetch keeps its value (no
+     * fallback — a forecast fetched after its anchor is not "yesterday's").
+     */
+    fun planPriorForecasts(
+        forecastRows: List<ForecastHistoryRow>,
+        existing: List<DailyHistory>,
+        todayMs: Long,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): SettlePlan {
+        val rows = mutableListOf<DailyHistory>()
+        val logs = mutableListOf<String>()
+        val byDateSource = forecastRows
+            .filter { !it.isClimateNormal && it.source != WeatherSource.GENERIC_GAP.id }
+            .groupBy { it.dateMs to it.source }
+        existing.forEach { history ->
+            if (history.date > todayMs) return@forEach
+            val candidates = byDateSource[history.date to history.source].orEmpty().filter {
+                LocationMatch.sameSite(it.locationLat, it.locationLon, history.locationLat, history.locationLon)
+            }
+            if (candidates.isEmpty()) return@forEach
+            val date = LocalDate.ofEpochDay(history.date / 86_400_000L)
+            val pick = PriorDayForecast.select(
+                candidates, date, zoneId,
+                fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
+                fallbackToEarliest = false,
+            )
+            val updated = history.copy(
+                priorForecastHighTemp = pick.highRow?.highTemp ?: history.priorForecastHighTemp,
+                priorForecastLowTemp = pick.lowRow?.lowTemp ?: history.priorForecastLowTemp,
+            )
+            if (updated.priorForecastHighTemp == history.priorForecastHighTemp &&
+                updated.priorForecastLowTemp == history.priorForecastLowTemp
+            ) {
+                return@forEach
+            }
+            rows += updated.copy(lastWriter = DailyHistoryWriter.FORECAST_FREEZE.storedValue)
+            logs += "date=$date src=${history.source} " +
+                "high=${history.priorForecastHighTemp}->${updated.priorForecastHighTemp} " +
+                "(fetched=${pick.highRow?.fetchedAt}) " +
+                "low=${history.priorForecastLowTemp}->${updated.priorForecastLowTemp} " +
+                "(fetched=${pick.lowRow?.fetchedAt})"
         }
         return SettlePlan(rows, logs)
     }

@@ -110,4 +110,73 @@ class SettlePastForecastOverlaysTest : RobolectricTest() {
         assertEquals(DailyHistoryWriter.FORECAST_FREEZE.storedValue, row.lastWriter)
         assertEquals(1, db.appLogDao().getLogsByTag("FORECAST_OVERLAY_SETTLED", 10).size)
     }
+
+    /** Epoch ms at [hour] local, [daysBefore] days before yesterday. */
+    private fun before(daysBefore: Long, hour: Int, minute: Int = 0) =
+        yesterday.minusDays(daysBefore).atTime(hour, minute).atZone(zone).toInstant().toEpochMilli()
+
+    private fun fetchFor(date: LocalDate, fetchedAt: Long, high: Float?, low: Float?) =
+        fetch(fetchedAt, high ?: 0f, low ?: 0f).copy(
+            targetDate = date.toEpochDay() * 86_400_000L,
+            dateOfPrediction = date.toEpochDay() * 86_400_000L,
+            highTemp = high,
+            lowTemp = low,
+        )
+
+    private fun historyRow(date: LocalDate) = DailyHistoryEntity(
+        date = date.toEpochDay() * 86_400_000L,
+        source = WeatherSource.OPEN_METEO.id,
+        locationLat = lat,
+        locationLon = lon,
+        computedHighTemp = null, // a forecast-only row: no extreme times, still gets a prior forecast
+        computedLowTemp = null,
+        condition = "Clear",
+        updatedAt = 777L,
+        forecastHighTemp = 70f,
+        forecastLowTemp = 50f,
+    )
+
+    @Test
+    fun `freezes yesterday's forecast at the 06 00 and 16 00 anchors for past days and today`() = runTest {
+        val today = yesterday.plusDays(1)
+        db.forecastDao().insertAll(
+            listOf(
+                // For yesterday: anchors are the day before yesterday at 06:00 / 16:00.
+                fetchFor(yesterday, before(1, 5, 30), 80f, 51f), // low anchor
+                fetchFor(yesterday, before(1, 15, 30), 82f, 53f), // high anchor
+                fetchFor(yesterday, before(1, 20), 85f, 55f), // after both
+                // For today: anchors are yesterday at 06:00 / 16:00.
+                fetchFor(today, before(0, 5), 75f, 49f),
+                fetchFor(today, before(0, 12), 77f, null),
+            ),
+        )
+        db.dailyHistoryDao().insertAll(listOf(historyRow(yesterday), historyRow(today)))
+
+        snapshotter.settlePastForecastOverlays(lat, lon)
+
+        val y = db.dailyHistoryDao().getExtremesInRange(dateMs, dateMs, lat, lon).single()
+        assertEquals(82f, y.priorForecastHighTemp)
+        assertEquals(51f, y.priorForecastLowTemp)
+        assertEquals("other columns untouched", 70f, y.forecastHighTemp)
+        assertEquals("field-limited write keeps updatedAt", 777L, y.updatedAt)
+
+        val todayMs = today.toEpochDay() * 86_400_000L
+        val t = db.dailyHistoryDao().getExtremesInRange(todayMs, todayMs, lat, lon).single()
+        assertEquals(77f, t.priorForecastHighTemp)
+        assertEquals(49f, t.priorForecastLowTemp)
+        assertEquals(2, db.appLogDao().getLogsByTag("PRIOR_FORECAST_FREEZE", 10).size)
+    }
+
+    @Test
+    fun `prior-forecast candidates are only the fetches around each day's anchors`() = runTest {
+        db.forecastDao().insertAll(
+            listOf(
+                fetchFor(yesterday, before(1, 5, 30), 80f, 51f), // inside the window
+                fetchFor(yesterday, before(5, 12), 70f, 45f), // 5 days early: outside
+                fetchFor(yesterday, at(22), 85f, 55f), // the evening of the day: outside
+            ),
+        )
+        val rows = db.forecastDao().getPriorForecastCandidates(dateMs, dateMs, lat, lon)
+        assertEquals(listOf(80f), rows.map { it.highTemp })
+    }
 }

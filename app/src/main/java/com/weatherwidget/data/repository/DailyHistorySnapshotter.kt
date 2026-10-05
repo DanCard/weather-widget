@@ -104,7 +104,8 @@ internal class DailyHistorySnapshotter(
      * Settles each past day's forecast overlay to the last forecast fetched before that day's high
      * (low) was reached — every source, the retained ~30 days. The rule is shared with desktop
      * ([DailyHistoryMaintenance.planSettledForecastOverlays]); this only loads and writes, with a
-     * field-limited UPDATE so a concurrent blend write is never clobbered.
+     * field-limited UPDATE so a concurrent blend write is never clobbered. Also freezes each day's
+     * "yesterday's forecast" ([DailyHistoryMaintenance.planPriorForecasts]) from the same rows.
      */
     suspend fun settlePastForecastOverlays(
         latitude: Double,
@@ -115,17 +116,40 @@ internal class DailyHistorySnapshotter(
         val startMs = today.minusDays(DailyHistoryMaintenance.FORECAST_ONLY_LOOKBACK_DAYS)
             .toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val todayMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val existing = dailyHistoryDao.getExtremesInRange(startMs, todayMs - 1, latitude, longitude)
-            .filter { it.computedHighAt != null || it.computedLowAt != null }
+        // Through today: the "yesterday's forecast" freeze covers today's row too (its anchors are
+        // already past); the settle below only ever touches days before today.
+        val rowsThroughToday = dailyHistoryDao.getExtremesInRange(startMs, todayMs, latitude, longitude)
             .map { it.toDailyHistory() }
-        if (existing.isEmpty()) return
+        if (rowsThroughToday.isEmpty()) return
+        val existing = rowsThroughToday
+            .filter { it.date < todayMs && (it.computedHighAt != null || it.computedLowAt != null) }
         // Every stored fetch, not getForecastsInRange: that returns only each day's newest batch,
         // which is exactly the post-extreme hindcast this step exists to look past.
         val forecastRows = forecastDao.getAllForecastsInRange(startMs, todayMs, latitude, longitude)
         if (forecastRows.isEmpty()) return
+        val maintenanceRows = forecastRows.map { it.toMaintenanceRow() }
+
+        val priorPlan = DailyHistoryMaintenance.planPriorForecasts(
+            forecastRows = maintenanceRows,
+            existing = rowsThroughToday,
+            todayMs = todayMs,
+            zoneId = zoneId,
+        )
+        priorPlan.rows.forEach { row ->
+            dailyHistoryDao.updatePriorForecast(
+                date = row.date,
+                source = row.source,
+                locationLat = row.locationLat,
+                locationLon = row.locationLon,
+                priorForecastHighTemp = row.priorForecastHighTemp,
+                priorForecastLowTemp = row.priorForecastLowTemp,
+                lastWriter = row.lastWriter,
+            )
+        }
+        priorPlan.logs.forEach { appLogDao.log("PRIOR_FORECAST_FREEZE", it, "INFO") }
 
         val plan = DailyHistoryMaintenance.planSettledForecastOverlays(
-            forecastRows = forecastRows.map { it.toMaintenanceRow() },
+            forecastRows = maintenanceRows,
             existing = existing,
             todayMs = todayMs,
         )

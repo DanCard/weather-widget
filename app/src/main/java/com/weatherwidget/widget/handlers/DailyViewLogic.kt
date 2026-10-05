@@ -470,6 +470,13 @@ object DailyViewLogic {
                 fHigh = pastValues.fHigh
                 fLow = pastValues.fLow
                 solidIsForecastFallback = pastValues.solidIsForecastFallback
+                // Left bar of the past triple bar: "yesterday's forecast" (PriorDayForecast) —
+                // frozen when the freeze has run, else picked live from the loaded rows. Drawn
+                // only as a pair, like today's.
+                DailyPastDayResolver.resolvePriorForecast(actual, forecasts, displaySource, date)?.let { (h, l) ->
+                    snapshotHigh = h
+                    snapshotLow = l
+                }
                 isClimateOverlay = false
                 isTodayForecastFallback = false
                 todayHasActualLow = false
@@ -657,7 +664,9 @@ object DailyViewLogic {
                         todayHasActualLow = todayHasActualLow,
                         snapshotHigh = snapshotHigh,
                         snapshotLow = snapshotLow,
-                        snapshotIconRes = snapshotIconRes,
+                        // A past day archives no snapshot icon; its left bar takes the day's condition,
+                        // as its right (settled-forecast) bar does.
+                        snapshotIconRes = snapshotIconRes ?: iconRes.takeIf { isPastDate && snapshotHigh != null },
                         snapshotIsStale = snapshotIsStale,
                         actualsFromOtherSite = isPastDate && !solidIsForecastFallback &&
                             actual?.isActualsBorrowed == true,

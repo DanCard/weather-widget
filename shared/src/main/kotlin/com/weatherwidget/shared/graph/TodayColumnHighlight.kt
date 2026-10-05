@@ -5,8 +5,9 @@ package com.weatherwidget.shared.graph
  * no platform graphics — so Android ([DailyForecastGraphRenderer]) and desktop ([DailyForecastGraph])
  * produce the same look and can't drift.
  *
- * The today column is a "triple bar": a centre thermostat bar flanked by a 24h-prior snapshot bar on
- * the left and the live-forecast bar on the right. This object owns two decisions:
+ * The today column is a "triple bar": a centre thermostat bar flanked by "yesterday's forecast"
+ * (`PriorDayForecast`) on the left and the live-forecast bar on the right. Past columns draw the same
+ * three slots, thinner ([PAST_TRIPLE_WIDTH_SCALE]). This object owns two decisions:
  *  1. [tripleBarSpacing] — the centre-to-centre distance from the thermostat to each flanking bar.
  *  2. [panelBounds] — the frosted-glass focal panel drawn *behind* the three bars.
  *
@@ -14,6 +15,14 @@ package com.weatherwidget.shared.graph
  * `DrawScope.drawRoundRect`); only the numbers live here.
  */
 object TodayColumnHighlight {
+
+    /**
+     * Past days draw the same triple bar (yesterday's forecast | actual | settled forecast) at this
+     * fraction of today's triple-bar width, so the today column stays the focal one. No panel and no
+     * bulb on past days. User's call, 2026-10-05 ("try 80% first") —
+     * plans/261005-past-days-triple-bar-prior-forecast-at-cutoffs.md.
+     */
+    const val PAST_TRIPLE_WIDTH_SCALE = 0.8f
 
     /**
      * Centre-to-centre spacing between the today column's thermostat bar and each flanking bar,

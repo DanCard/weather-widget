@@ -153,8 +153,12 @@ internal object DailyForecastRainLabelRenderer {
         val highScale = DailyHighLabelPlanner.resolveHighLabelDrawScale(day, layout, paints)
         val fullHighMetrics = textMetrics(tempPaint)
         val drawnHighMetrics = TextMetrics(fullHighMetrics.ascent * highScale, fullHighMetrics.descent * highScale)
-        val snapshotBarTop = if (day.isToday && day.snapshotHigh != null) {
-            layout.tempToY(day.snapshotHigh) - paints.todaySnapshotYellowPaint.strokeWidth / 2f
+        // The triple bar's left slot (today's, or a past day's thinner one) can rise above the
+        // high label; the rain % must clear its cap. Drawn only as a pair.
+        val snapshotBarTop = if ((day.isToday || day.isPast) && day.snapshotHigh != null && day.snapshotLow != null) {
+            val capRadius =
+                (if (day.isToday) paints.todaySnapshotYellowPaint else paints.pastTripleBarPaint).strokeWidth / 2f
+            layout.tempToY(day.snapshotHigh) - capRadius
         } else null
         val placement = resolveRainAboveHighPlacement(
             highBaseline = highBaseline,

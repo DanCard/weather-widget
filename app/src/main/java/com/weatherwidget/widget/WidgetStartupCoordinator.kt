@@ -297,7 +297,16 @@ internal class WidgetStartupCoordinator(
                             latestWeather.locationLon,
                             activeSourceList,
                         )
-                    past + recent
+                    // Past days' "yesterday's forecast" candidates, after the newest rows so each
+                    // day's first row is still its newest.
+                    val priorCandidates =
+                        forecastDao.getPriorForecastCandidates(
+                            pastSnapshotStart,
+                            pastSnapshotEnd,
+                            latestWeather.locationLat,
+                            latestWeather.locationLon,
+                        ).filter { it.source in activeSourceList }
+                    (past + recent + priorCandidates).distinct()
                 }
             }
         val hourlyDeferred =

@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.shared.util.PartialForecastDays
 import com.weatherwidget.shared.util.PastDayForecastOverlay
+import com.weatherwidget.shared.util.PriorDayForecast
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
@@ -77,7 +78,7 @@ data class DesktopDailyDay(
     val isClimateNormal: Boolean,
     /** Local hour-of-day (0–23) for the today column's actual-tracking cutoffs; null = legacy. */
     val nowHour: Int? = null,
-    /** Today's snapshot bar is older than 48h — drawn dashed (StandInBarStyle). Mirrors Android. */
+    /** Today's left bar was last confirmed more than a day before its anchor — drawn dashed (StandInBarStyle). Mirrors Android. */
     val snapshotIsStale: Boolean = false,
     /** This past day's actuals were measured at a previous site (PreviousSiteHistory) — drawn dashed. */
     val actualsFromOtherSite: Boolean = false,
@@ -287,13 +288,27 @@ object DesktopDailyForecastModel {
                 .filter { it.highTemp != null || it.lowTemp != null }
                 .maxByOrNull { it.fetchedAt }
 
-        // Today's left bar wants the forecast "as of ~24h ago" — shared with Android.
-        val nowMillis = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val todaySnapshot = com.weatherwidget.shared.util.DailySnapshotSelector.selectPriorDaySnapshot(
-            snapshots.filter { it.highTemp != null && it.lowTemp != null },
-            nowMillis, { it.fetchedAt },
+        // Today's left bar: "yesterday's forecast" — low from the newest fetch before 06:00 yesterday,
+        // high from the newest before 16:00 yesterday (PriorDayForecast, shared with Android and the
+        // history freeze). Its condition follows the high's row.
+        val zone = ZoneId.systemDefault()
+        val todayPick = PriorDayForecast.select(
+            snapshots, date, zone,
+            fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
+            fallbackToEarliest = true,
         )
+        val todaySnapshot = todayPick.highRow ?: todayPick.lowRow
         val displaySnapshot = if (isToday) todaySnapshot else snapshot
+        // A past day's left bar: the pair frozen into daily_history (planPriorForecasts), else picked
+        // live from the stored fetches until the freeze has run. Drawn only when both ends are known.
+        val pastPrior = if (isPast) {
+            PriorDayForecast.resolvePast(
+                actual?.priorForecastHighTemp, actual?.priorForecastLowTemp, snapshots, date, zone,
+                fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
+            )
+        } else {
+            null
+        }
 
         val solidHigh: Float?
         val solidLow: Float?
@@ -463,16 +478,26 @@ object DesktopDailyForecastModel {
             forecastLow = forecastLow,
             barTopHigh = barTopHigh,
             ghostHigh = ghostHigh,
-            snapshotHigh = displaySnapshot?.highTemp,
-            snapshotLow = displaySnapshot?.lowTemp,
+            snapshotHigh = when {
+                isToday -> todayPick.highRow?.highTemp
+                isPast -> pastPrior?.first
+                else -> displaySnapshot?.highTemp
+            },
+            snapshotLow = when {
+                isToday -> todayPick.lowRow?.lowTemp
+                isPast -> pastPrior?.second
+                else -> displaySnapshot?.lowTemp
+            },
             iconCondition = rawCondition,
             iconName = gatedIconName,
             isToday = isToday,
             isPast = isPast,
             solidIsForecastFallback = solidIsForecastFallback,
             // Desktop writes a row per fetch (no unchanged-skip), so fetchedAt is the last confirmation.
-            snapshotIsStale = isToday && todaySnapshot != null &&
-                com.weatherwidget.shared.util.DailySnapshotSelector.isStale(todaySnapshot.fetchedAt, nowMillis),
+            snapshotIsStale = isToday && (
+                todayPick.highRow?.let { PriorDayForecast.isStale(it.fetchedAt, PriorDayForecast.highCutoffMs(date, zone)) } == true ||
+                    todayPick.lowRow?.let { PriorDayForecast.isStale(it.fetchedAt, PriorDayForecast.lowCutoffMs(date, zone)) } == true
+                ),
             actualsFromOtherSite = isPast && !solidIsForecastFallback && actual?.isActualsBorrowed == true,
             cloudCoverRatio = noonCloudPercentForBar / 100f,
             dailyRainLabelText = dailyRainLabelText,
