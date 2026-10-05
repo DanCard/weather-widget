@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.weatherwidget.testutil.IsolatedIntegrationTest
+import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WeatherWidgetWorker
 import org.junit.After
@@ -28,7 +29,13 @@ class LocationUpdaterIntegrationTest : IsolatedIntegrationTest("location_updater
     @Before
     fun clearPrefs() {
         widgetPrefs().edit().clear().commit()
-        weatherPrefs().edit().clear().commit()
+        // Clearing weather_prefs also resets location_mode to its default, follow_device. Then the
+        // app's own sampling paths (paint / opportunistic, same process, same test-mode prefs) can
+        // apply the emulator's real fix mid-test and append a POI after Austin. Seen on
+        // emulator-5556, 2026-10-05: "1950 Cambridge Drive, Mountain View" landed last. FIXED makes
+        // both paths skip (GPS_RESAMPLE outcome=skipped_pinned). Written with commit(), not
+        // LocationMode.set's apply(), so it is in place before the test body runs.
+        weatherPrefs().edit().clear().putString("location_mode", LocationMode.FIXED).commit()
     }
 
     @After
@@ -50,12 +57,11 @@ class LocationUpdaterIntegrationTest : IsolatedIntegrationTest("location_updater
             assertEquals(30.2672f, widgetPrefs().getFloat("${ConfigActivity.KEY_LAT_PREFIX}$id", Float.NaN), 0.0001f)
             assertEquals(-97.7431f, widgetPrefs().getFloat("${ConfigActivity.KEY_LON_PREFIX}$id", Float.NaN), 0.0001f)
         }
-        // Race-safe: an opportunistic GPS resample can append another POI while this test runs
-        // (observed: emulator fix "South Van Ness Avenue, San Francisco"). Assert Austin was
-        // recorded and is the latest entry — not that it is the only entry.
+        // Recorded, not necessarily last. FIXED mode (see clearPrefs) stops the GPS resample that
+        // appended "South Van Ness Avenue, San Francisco" and later "1950 Cambridge Drive, Mountain
+        // View" after it. Ordering and the cap are pinned by the dedupe test below.
         val pois = weatherPrefs().getString("historical_pois", null).orEmpty().split(";").filter { it.isNotEmpty() }
-        assertTrue("expected at least the Austin POI, got $pois", pois.isNotEmpty())
-        assertEquals("Austin|30.2672|-97.7431", pois.last())
+        assertTrue("expected the Austin POI, got $pois", "Austin|30.2672|-97.7431" in pois)
     }
 
     @Test
