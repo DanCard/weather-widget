@@ -37,18 +37,22 @@ internal object DailyTodayResolver {
     )
 
     /**
-     * Today's freshest batch is often high-only (the NWS evening drop: once the daytime period has
-     * passed, the grid returns a low-less period). [incomplete] is that row; this finds the most
-     * recent COMPLETE row to stand in for it.
+     * Today's daily row, by the rule desktop shares ([PartialForecastDays.todayRow]). [batchRow]
+     * is today's entry in `weatherByDate` (newest fetch, display source), or null when that
+     * fetch has none (Silurian's evening batches start at tomorrow). [snapshots] are every stored
+     * row for today. Only the display source's rows compete, at [batchRow]'s site when there is
+     * one; GENERIC_GAP filler never stands in for today.
      */
-    fun completeSameSiteReplacement(
-        incomplete: ForecastEntity,
+    fun resolveTodayRow(
+        batchRow: ForecastEntity?,
         snapshots: List<ForecastEntity>,
+        displaySourceId: String,
     ): ForecastEntity? =
-        PartialForecastDays.completeReplacement(
+        PartialForecastDays.todayRow(
+            batchRow,
             snapshots.filter {
-                it.source == incomplete.source &&
-                    LocationMatch.sameSite(incomplete.locationLat, incomplete.locationLon, it.locationLat, it.locationLon)
+                it.source == displaySourceId &&
+                    (batchRow == null || LocationMatch.sameSite(batchRow.locationLat, batchRow.locationLon, it.locationLat, it.locationLon))
             },
             { it.highTemp },
             { it.lowTemp },

@@ -1413,26 +1413,27 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 }
             }
 
-            // Today's partial row (NWS stops reporting today's low in the evening) is replaced by
-            // the newest stored row for today with both values — the same rule as Android's
-            // DailyTodayResolver (PartialForecastDays). Future partial days are left for the
-            // repository's climate-normal fill. This used to trigger on high == low, because the
-            // NWS mapper stored a missing low as the high.
-            val todayStr = LocalDate.now().toString()
-            val todayIndex = result.indexOfFirst {
-                it.date == todayStr && !it.isClimateNormal && (it.highTemp == null || it.lowTemp == null)
-            }
-            if (todayIndex >= 0) {
-                val day = result[todayIndex]
-                val targetEpoch = LocalDate.parse(day.date).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+            // Today's row follows the shared rule (PartialForecastDays.todayRow, same as Android's
+            // DailyViewLogic): a complete batch row stands; a partial one (NWS / Open-Meteo stop
+            // reporting today's low in the evening) or a missing one (Silurian's evening batches
+            // start at tomorrow, its days being UTC dates) is replaced from the stored rows for
+            // today. Missing used to fall through to the repository's climate-normal fill
+            // (plans/261004-desktop-today-column-climate-normal-when-batch-lacks-today.md).
+            val today = LocalDate.now()
+            val todayStr = today.toString()
+            val batchIndex = result.indexOfFirst { it.date == todayStr && !it.isClimateNormal }
+            val batchRow = result.getOrNull(batchIndex)
+            if (batchRow == null || batchRow.highTemp == null || batchRow.lowTemp == null) {
+                val targetEpoch = today.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
                 val candidatesSql = """
                     SELECT highTemp, lowTemp, condition, nativeDailyIconToken,
-                           precipProbability, precipAmountMm, isClimateNormal, fetchedAt
+                           precipProbability, precipAmountMm, isClimateNormal, fetchedAt,
+                           daytimePrecipProbability, nighttimePrecipProbability
                     FROM forecasts
                     WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate = ?
-                        AND highTemp IS NOT NULL AND lowTemp IS NOT NULL
+                        AND (highTemp IS NOT NULL OR lowTemp IS NOT NULL)
                 """.trimIndent()
-                val candidates = conn.prepareStatement(candidatesSql).use { stmt ->
+                val stored = conn.prepareStatement(candidatesSql).use { stmt ->
                     stmt.setDouble(1, locationLat)
                     stmt.setDouble(2, locationLon)
                     stmt.setString(3, source)
@@ -1440,22 +1441,49 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     val rs = stmt.executeQuery()
                     buildList {
                         while (rs.next()) {
-                            add(
-                                day.copy(
-                                    highTemp = rs.getNullableFloat("highTemp"),
-                                    lowTemp = rs.getNullableFloat("lowTemp"),
-                                    condition = rs.getString("condition"),
-                                    iconToken = rs.getString("nativeDailyIconToken"),
-                                    precipProbability = rs.getNullableInt("precipProbability"),
-                                    precipAmountMm = rs.getNullableFloat("precipAmountMm"),
-                                    isClimateNormal = rs.getInt("isClimateNormal") == 1,
-                                ) to rs.getLong("fetchedAt"),
+                            val row = DailyForecast(
+                                date = todayStr,
+                                highTemp = rs.getNullableFloat("highTemp"),
+                                lowTemp = rs.getNullableFloat("lowTemp"),
+                                condition = rs.getString("condition"),
+                                iconToken = rs.getString("nativeDailyIconToken"),
+                                precipProbability = rs.getNullableInt("precipProbability"),
+                                precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                                isClimateNormal = rs.getInt("isClimateNormal") == 1,
+                                source = source,
+                                daytimePrecipProbability = rs.getNullableInt("daytimePrecipProbability"),
+                                nighttimePrecipProbability = rs.getNullableInt("nighttimePrecipProbability"),
                             )
+                            add(row to rs.getLong("fetchedAt"))
                         }
                     }
                 }
-                PartialForecastDays.completeReplacement(candidates, { it.first.highTemp }, { it.first.lowTemp }, { it.second })
-                    ?.let { result[todayIndex] = it.first }
+                // The batch row ranks newest: it came from the batch every stored row predates.
+                val chosen = PartialForecastDays.todayRow(
+                    batchRow?.let { it to Long.MAX_VALUE },
+                    stored,
+                    { it.first.highTemp },
+                    { it.first.lowTemp },
+                    { it.second },
+                )?.first
+                when {
+                    chosen == null || chosen === batchRow -> Unit
+                    // As before this rule was shared: the stored row lends its temperatures and
+                    // condition; the batch row keeps its newer day/night rain chances.
+                    batchRow != null -> result[batchIndex] = batchRow.copy(
+                        highTemp = chosen.highTemp,
+                        lowTemp = chosen.lowTemp,
+                        condition = chosen.condition,
+                        iconToken = chosen.iconToken,
+                        precipProbability = chosen.precipProbability,
+                        precipAmountMm = chosen.precipAmountMm,
+                        isClimateNormal = chosen.isClimateNormal,
+                    )
+                    else -> {
+                        val insertAt = result.indexOfFirst { it.date > todayStr }.let { if (it < 0) result.size else it }
+                        result.add(insertAt, chosen)
+                    }
+                }
             }
         }
         return result

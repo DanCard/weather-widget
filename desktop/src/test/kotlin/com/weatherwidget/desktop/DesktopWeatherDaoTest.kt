@@ -214,14 +214,14 @@ class DesktopWeatherDaoTest {
         dao.upsertForecasts(lat, lon, source, listOf(
             DailyForecast(date = today, highTemp = 91f, lowTemp = 62f, condition = "Sunny"),
             DailyForecast(date = tomorrow, highTemp = 87f, lowTemp = 60f, condition = "Sunny"),
-        ))
+        ), nowMs = earlyMorningMs())
         setForecastBatchStamp(1000L)
 
         // The evening fetch: today's low is gone.
         dao.upsertForecasts(lat, lon, source, listOf(
             DailyForecast(date = today, highTemp = 92f, lowTemp = null, condition = "Sunny"),
             DailyForecast(date = tomorrow, highTemp = 87f, lowTemp = 60f, condition = "Sunny"),
-        ))
+        ), nowMs = earlyMorningMs() + 60_000L)
 
         val days = dao.getDailyForecasts(lat, lon, source).associateBy { it.date }
         assertEquals(91f, days.getValue(today).highTemp)
@@ -238,11 +238,82 @@ class DesktopWeatherDaoTest {
 
         dao.upsertForecasts(lat, lon, "NWS", listOf(
             DailyForecast(date = today, highTemp = 92f, lowTemp = null, condition = "Sunny"),
-        ))
+        ), nowMs = earlyMorningMs())
 
         val day = dao.getDailyForecasts(lat, lon, "NWS").single()
         assertEquals(92f, day.highTemp)
         assertNull("a missing low is stored and read as null, never 0 or the high", day.lowTemp)
+    }
+
+    /** Before 06:00 local, so the same-day cutoffs (SameDayExtremeCutoff) store both values. */
+    private fun earlyMorningMs(): Long =
+        LocalDate.now().atTime(5, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    /**
+     * Silurian's evening batches start at tomorrow (its days are UTC dates), so the newest batch
+     * has NO row for today. Today must come from the stored rows (shared
+     * PartialForecastDays.todayRow), not be left absent for the climate-normal fill, which drew
+     * 76.2/56.8 in place of 90.1/67.4 on 2026-10-04.
+     */
+    @Test
+    fun `getDailyForecasts restores today from stored rows when the newest batch has none`() {
+        val lat = 37.417
+        val lon = -122.089
+        val today = LocalDate.now().toString()
+        val tomorrow = LocalDate.now().plusDays(1).toString()
+
+        dao.upsertForecasts(lat, lon, "SILURIAN", listOf(
+            DailyForecast(date = today, highTemp = 90f, lowTemp = 67f, condition = "Sunny"),
+            DailyForecast(date = tomorrow, highTemp = 89f, lowTemp = 66f, condition = "Sunny"),
+        ), nowMs = earlyMorningMs())
+        setForecastBatchStamp(1000L)
+        // The evening batch: tomorrow onward only.
+        dao.upsertForecasts(lat, lon, "SILURIAN", listOf(
+            DailyForecast(date = tomorrow, highTemp = 88f, lowTemp = 65f, condition = "Sunny"),
+        ))
+
+        val days = dao.getDailyForecasts(lat, lon, "SILURIAN")
+        assertEquals(listOf(today, tomorrow), days.map { it.date })
+        val todayRow = days.first()
+        assertEquals(90f, todayRow.highTemp)
+        assertEquals(67f, todayRow.lowTemp)
+        assertTrue(!todayRow.isClimateNormal)
+        assertEquals(88f, days[1].highTemp)
+    }
+
+    @Test
+    fun `getDailyForecasts restores a one-sided today when no complete row was ever stored`() {
+        val lat = 37.417
+        val lon = -122.089
+        val today = LocalDate.now().toString()
+        val tomorrow = LocalDate.now().plusDays(1).toString()
+
+        dao.upsertForecasts(lat, lon, "SILURIAN", listOf(
+            DailyForecast(date = today, highTemp = 89f, lowTemp = null, condition = "Sunny"),
+        ), nowMs = earlyMorningMs())
+        setForecastBatchStamp(1000L)
+        dao.upsertForecasts(lat, lon, "SILURIAN", listOf(
+            DailyForecast(date = tomorrow, highTemp = 89f, lowTemp = 66f, condition = "Sunny"),
+        ))
+
+        val todayRow = dao.getDailyForecasts(lat, lon, "SILURIAN").first()
+        assertEquals(today, todayRow.date)
+        assertEquals(89f, todayRow.highTemp)
+        assertNull(todayRow.lowTemp)
+    }
+
+    @Test
+    fun `getDailyForecasts leaves today absent when nothing was stored for it`() {
+        val lat = 37.417
+        val lon = -122.089
+        val tomorrow = LocalDate.now().plusDays(1).toString()
+
+        dao.upsertForecasts(lat, lon, "SILURIAN", listOf(
+            DailyForecast(date = tomorrow, highTemp = 89f, lowTemp = 66f, condition = "Sunny"),
+        ))
+
+        // Absent, so the repository's climate-normal fill remains the last resort.
+        assertEquals(listOf(tomorrow), dao.getDailyForecasts(lat, lon, "SILURIAN").map { it.date })
     }
 
     /** Future partial days are left to the repository's climate-normal fill; the DAO keeps them. */

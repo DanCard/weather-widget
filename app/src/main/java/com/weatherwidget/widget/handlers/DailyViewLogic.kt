@@ -27,6 +27,24 @@ import java.util.Locale
 object DailyViewLogic {
     private const val TAG = "DailyViewLogic"
 
+    /** Today's row for both paths, via the rule shared with desktop ([DailyTodayResolver.resolveTodayRow]). */
+    private fun resolveTodayWeather(
+        caller: String,
+        batchRow: ForecastEntity?,
+        snapshots: List<ForecastEntity>?,
+        displaySource: WeatherSource,
+    ): ForecastEntity? {
+        val chosen = DailyTodayResolver.resolveTodayRow(batchRow, snapshots.orEmpty(), displaySource.id)
+        if (chosen != null && chosen !== batchRow) {
+            Log.d(
+                TAG,
+                "$caller: today weather ${if (batchRow == null) "missing" else "incomplete (high=${batchRow.highTemp} low=${batchRow.lowTemp})"}, " +
+                    "using stored row from ${Instant.ofEpochMilli(chosen.fetchedAt)} (high=${chosen.highTemp} low=${chosen.lowTemp})",
+            )
+        }
+        return chosen
+    }
+
     internal fun entityRainSummary(
         hourly: List<HourlyForecastEntity>,
         date: LocalDate,
@@ -88,11 +106,12 @@ object DailyViewLogic {
 
         val effectiveCenter = if (skipHistory && numColumns >= 3) centerDate.plusDays(1) else centerDate
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayWeather = resolveTodayWeather("prepareTextDays", weatherByDate[today], forecastSnapshots?.get(today), displaySource)
 
         val daySlots = listOf(-1, 0, 1, 2, 3, 4, 5, 6).mapIndexed { index, offset ->
             val date = effectiveCenter.plusDays(offset.toLong())
-            val weather = weatherByDate[date]
             val isToday = date == today
+            val weather = if (isToday) todayWeather else weatherByDate[date]
             val isPast = date.isBefore(today)
             val isTerminalLowOnlyNwsFuture = DailyFutureDayResolver.isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
 
@@ -139,16 +158,8 @@ object DailyViewLogic {
 
         return daySlots.mapIndexed { index, (dayIndex, date, isVisible) ->
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-            var weather = weatherByDate[date]
             val isToday = date == today
-            if (isToday && weather != null && (weather.highTemp == null || weather.lowTemp == null)) {
-                val completeSnapshot =
-                    DailyTodayResolver.completeSameSiteReplacement(weather, forecastSnapshots?.get(date) ?: emptyList())
-                if (completeSnapshot != null) {
-                    Log.d(TAG, "prepareTextDays: today weather incomplete (high=${weather.highTemp} low=${weather.lowTemp}), using complete snapshot from ${Instant.ofEpochMilli(completeSnapshot.fetchedAt)}")
-                    weather = completeSnapshot
-                }
-            }
+            val weather = if (isToday) todayWeather else weatherByDate[date]
             val isPast = date.isBefore(today)
             val isTerminalLowOnlyNwsFuture = DailyFutureDayResolver.isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
             val precip = if (isToday) todayPrecipProbability else weather?.precipProbability
@@ -408,15 +419,11 @@ object DailyViewLogic {
             val isToday = date == today
 
             val allowGapFallback = date.isAfter(today.plusDays(2))
-            var weather = weatherByDate[date]
-                ?: forecastSnapshots[date]?.firstOrNull { allowGapFallback || it.source != WeatherSource.GENERIC_GAP.id }
-            if (isToday && weather != null && (weather.highTemp == null || weather.lowTemp == null)) {
-                val completeSnapshot =
-                    DailyTodayResolver.completeSameSiteReplacement(weather, forecastSnapshots[date] ?: emptyList())
-                if (completeSnapshot != null) {
-                    Log.d(TAG, "prepareGraphDays: today weather incomplete (high=${weather.highTemp} low=${weather.lowTemp}), using complete snapshot from ${Instant.ofEpochMilli(completeSnapshot.fetchedAt)}")
-                    weather = completeSnapshot
-                }
+            val weather = if (isToday) {
+                resolveTodayWeather("prepareGraphDays", weatherByDate[date], forecastSnapshots[date], displaySource)
+            } else {
+                weatherByDate[date]
+                    ?: forecastSnapshots[date]?.firstOrNull { allowGapFallback || it.source != WeatherSource.GENERIC_GAP.id }
             }
             val actual = dailyActuals[date]
             val forecasts = forecastSnapshots[date] ?: emptyList()

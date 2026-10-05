@@ -21,6 +21,32 @@ object PartialForecastDays {
         fetchedAt: (T) -> Long,
     ): T? = candidates.filter { high(it) != null && low(it) != null }.maxByOrNull(fetchedAt)
 
+    /**
+     * The row that stands for today's forecast, shared by Android (`DailyViewLogic`) and desktop
+     * (`DesktopWeatherDao.getDailyForecasts`). [batchRow] is today's row in the newest fetch, or
+     * null when that fetch has none. Silurian's daily output starts at the current UTC date, so
+     * its evening batches skip local today. [storedRows] are the display source's stored rows for
+     * today at this site. In order:
+     * 1. [batchRow] when it has both values;
+     * 2. the newest stored row with both (NWS stops reporting today's low in the evening);
+     * 3. the newest one-sided row, [batchRow] first (the column fills the other side from hourly);
+     * 4. null, so the climate normal stays the last resort.
+     * Desktop once read only the newest batch and drew the normal for Silurian's today
+     * (plans/261004-desktop-today-column-climate-normal-when-batch-lacks-today.md).
+     */
+    fun <T> todayRow(
+        batchRow: T?,
+        storedRows: List<T>,
+        high: (T) -> Float?,
+        low: (T) -> Float?,
+        fetchedAt: (T) -> Long,
+    ): T? {
+        if (batchRow != null && high(batchRow) != null && low(batchRow) != null) return batchRow
+        return completeReplacement(storedRows, high, low, fetchedAt)
+            ?: batchRow
+            ?: storedRows.filter { high(it) != null || low(it) != null }.maxByOrNull(fetchedAt)
+    }
+
     /** Today's forecast range: the daily value, else the day's hourly max / min. */
     fun todayForecastRange(
         dailyHigh: Float?,

@@ -24,6 +24,44 @@ class PartialForecastDaysTest {
         assertNull(PartialForecastDays.completeReplacement(listOf(Row(92f, null, 3)), { it.high }, { it.low }, { it.fetchedAt }))
     }
 
+    private fun todayRow(batch: Row?, stored: List<Row>) =
+        PartialForecastDays.todayRow(batch, stored, { it.high }, { it.low }, { it.fetchedAt })
+
+    @Test
+    fun `today row - a complete batch row wins over any stored row`() {
+        assertEquals(Row(92f, 68f, 5), todayRow(Row(92f, 68f, 5), listOf(Row(91f, 67f, 9))))
+    }
+
+    @Test
+    fun `today row - a partial batch row yields to the newest complete stored row`() {
+        // NWS / Open-Meteo in the evening: the batch keeps today's high but has no low.
+        assertEquals(
+            Row(90f, 67f, 4),
+            todayRow(Row(92f, null, 9), listOf(Row(91f, 68f, 2), Row(90f, 67f, 4), Row(89f, null, 8))),
+        )
+    }
+
+    @Test
+    fun `today row - a batch with no row for today still finds the stored complete row`() {
+        // Silurian after 17:00 PDT: the batch starts at tomorrow. Desktop drew the climate normal here.
+        assertEquals(
+            Row(90.1f, 67.4f, 437),
+            todayRow(null, listOf(Row(90.1f, 67.4f, 437), Row(89.6f, null, 1408), Row(91f, 68.2f, 2250 - 2400))),
+        )
+    }
+
+    @Test
+    fun `today row - with no complete row the newest one-sided row stands, batch row first`() {
+        assertEquals(Row(92f, null, 3), todayRow(Row(92f, null, 3), listOf(Row(89f, null, 7))))
+        assertEquals(Row(89f, null, 7), todayRow(null, listOf(Row(88f, null, 2), Row(89f, null, 7), Row(null, null, 9))))
+    }
+
+    @Test
+    fun `today row - nothing stored leaves today empty for the climate normal`() {
+        assertNull(todayRow(null, emptyList()))
+        assertNull(todayRow(null, listOf(Row(null, null, 1))))
+    }
+
     @Test
     fun `today range falls back to the hourly extremes only for the missing side`() {
         assertEquals(92f to 58f, PartialForecastDays.todayForecastRange(92f, null, listOf(60f, 58f, 90f)))
