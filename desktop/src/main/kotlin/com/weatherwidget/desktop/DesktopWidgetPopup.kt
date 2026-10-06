@@ -8,6 +8,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.draw.alpha
+import com.weatherwidget.shared.util.FailureBannerStage
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -281,7 +283,38 @@ internal fun WidgetPopup(
                                 val borderColor = if (currentTempFetchIsWarmup) Color(0xFF64B5F6) else Color(0xFFE57373)
                                 val titleColor = if (currentTempFetchIsWarmup) Color(0xFFBBDEFB) else Color(0xFFFFCDD2)
                                 val bodyColor = if (currentTempFetchIsWarmup) Color(0xFF90CAF9) else Color(0xFFEF9A9A)
-                                Surface(
+                                // A real failure shrinks to its title at 8 s and fades at 24 s
+                                // (FailureBannerStage, shared with the widget). Keyed on the title so
+                                // a repeat of the same failure stays quiet while a new one is shown
+                                // in full; clicking the small chip expands it again.
+                                val bannerTitle = msg.substringBefore('\n')
+                                var bannerShownAtMs by remember(bannerTitle) { mutableStateOf(System.currentTimeMillis()) }
+                                var bannerStage by remember(bannerTitle) { mutableStateOf(FailureBannerStage.FULL) }
+                                LaunchedEffect(bannerTitle, bannerShownAtMs, currentTempFetchIsWarmup) {
+                                    bannerStage = FailureBannerStage.FULL
+                                    if (currentTempFetchIsWarmup) return@LaunchedEffect
+                                    for (boundaryMs in FailureBannerStage.STAGE_CHANGE_DELAYS_MS) {
+                                        kotlinx.coroutines.delay(bannerShownAtMs + boundaryMs - System.currentTimeMillis())
+                                        bannerStage = FailureBannerStage.at(System.currentTimeMillis() - bannerShownAtMs)
+                                    }
+                                }
+                                if (bannerStage != FailureBannerStage.FULL) {
+                                    Surface(
+                                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp)
+                                            .alpha(if (bannerStage == FailureBannerStage.FADED) FailureBannerStage.FADED_ALPHA else 1f)
+                                            .clickable { bannerShownAtMs = System.currentTimeMillis() },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = surfaceColor.copy(alpha = 0.95f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+                                    ) {
+                                        Text(
+                                            text = "⚠ $bannerTitle",
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                            color = titleColor,
+                                            fontSize = (10f * uiScale).sp,
+                                        )
+                                    }
+                                } else Surface(
                                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp),
                                     shape = RoundedCornerShape(12.dp),
                                     color = surfaceColor.copy(alpha = 0.95f),

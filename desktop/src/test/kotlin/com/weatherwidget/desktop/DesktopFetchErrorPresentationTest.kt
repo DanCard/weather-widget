@@ -51,4 +51,30 @@ class DesktopFetchErrorPresentationTest {
         assertEquals(detail, result.bodyLines.first())
         assertFalse(result.bodyLines.first().endsWith("charact"))
     }
+
+    private val dailyQuotaBody = """{"error":{"code":429,"details":[{"metadata":{"quota_unit": "1/d/{project}"}}]}}"""
+
+    @Test
+    fun `a daily quota 429 says when it resets instead of promising the next refresh`() {
+        for (className in listOf("ApiAccessException", "GoogleDailyQuotaException")) {
+            val result = desktopFetchErrorPresentation(
+                sourceDisplayName = "Google Weather",
+                className = className,
+                detail = "Google Weather fetch failed (/forecast/hours:lookup): status 429. Detail: $dailyQuotaBody",
+            )
+            assertEquals(className, "GOOGLE WEATHER DAILY QUOTA USED", result.title)
+            assertTrue(result.bodyLines.any { it.startsWith("HTTP 429 — resets at ") })
+            assertEquals("Updates resume automatically after the reset.", result.retryLine)
+        }
+    }
+
+    @Test
+    fun `a per-minute 429 stays a request-limit banner`() {
+        val result = desktopFetchErrorPresentation(
+            sourceDisplayName = "Google Weather",
+            className = "ApiAccessException",
+            detail = "status 429. Detail: " + dailyQuotaBody.replace("1/d/", "1/min/"),
+        )
+        assertEquals("GOOGLE WEATHER REQUEST LIMIT REACHED", result.title)
+    }
 }

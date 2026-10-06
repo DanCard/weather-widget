@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 नहीं मिला</string>
     <string name="watermark_http_422">422 प्रक्रिया योग्य नहीं</string>
     <string name="watermark_http_429">429 दर सीमित</string>
+    <string name="updates_paused">अपडेट रुके</string>
+    <string name="watermark_quota_daily">दैनिक कोटा समाप्त · %1$s पर रीसेट</string>
+    <string name="watermark_quota_daily_short">दैनिक कोटा समाप्त</string>
     <string name="watermark_access_error">पहुंच त्रुटि</string>
     <string name="watermark_dns_error">DNS त्रुटि</string>
     <string name="watermark_conn_refused">कनेक्शन अस्वीकृत</string>

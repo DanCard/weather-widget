@@ -110,7 +110,7 @@ class DailyViewHandlerMidnightRolloverIntegrationTest {
         every {
             DailyForecastGraphRenderer.renderGraph(
                 any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any(), useCelsius = false,
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), useCelsius = false,
             )
         } answers {
             @Suppress("UNCHECKED_CAST")
@@ -118,7 +118,7 @@ class DailyViewHandlerMidnightRolloverIntegrationTest {
             captured = Paint(
                 dates = days.map { it.date },
                 todayIndex = days.indexOfFirst { it.isToday },
-                largeTodayOverlay = args[16] as Boolean,
+                largeTodayOverlay = args[17] as Boolean,
             )
             DailyForecastGraphRenderer.DailyGraphRenderResult(
                 bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888),

@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 Không tìm thấy</string>
     <string name="watermark_http_422">422 Không thể xử lý</string>
     <string name="watermark_http_429">429 Giới hạn yêu cầu</string>
+    <string name="updates_paused">CẬP NHẬT TẠM DỪNG</string>
+    <string name="watermark_quota_daily">Hết hạn mức ngày · đặt lại lúc %1$s</string>
+    <string name="watermark_quota_daily_short">Hết hạn mức ngày</string>
     <string name="watermark_access_error">Lỗi truy cập</string>
     <string name="watermark_dns_error">Lỗi DNS</string>
     <string name="watermark_conn_refused">Kết nối bị từ chối</string>

@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 Не найдено</string>
     <string name="watermark_http_422">422 Необрабатываемый</string>
     <string name="watermark_http_429">429 Превышен лимит</string>
+    <string name="updates_paused">ОБНОВЛЕНИЯ ПРИОСТАНОВЛЕНЫ</string>
+    <string name="watermark_quota_daily">Дневной лимит исчерпан · сброс в %1$s</string>
+    <string name="watermark_quota_daily_short">Дневной лимит исчерпан</string>
     <string name="watermark_access_error">Ошибка доступа</string>
     <string name="watermark_dns_error">Ошибка DNS</string>
     <string name="watermark_conn_refused">Соединение отклонено</string>

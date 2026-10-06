@@ -164,6 +164,7 @@ object CloudCoverGraphRenderer {
         errorSourceLabel = request.errorSourceLabel,
         errorCode = request.errorCode,
         errorFailureTimeMs = request.errorFailureTimeMs,
+        errorBannerSinceMs = request.errorBannerSinceMs,
         dominantStationLabel = request.dominantStationLabel,
         onDominantStationPlaced = request.onDominantStationPlaced,
         onLayerGlyphsPlaced = request.onLayerGlyphsPlaced,
@@ -193,6 +194,7 @@ object CloudCoverGraphRenderer {
         errorSourceLabel: String? = null,
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
+        errorBannerSinceMs: Long? = null,
         dominantStationLabel: DominantStationLabel.LabelText? = null,
         onDominantStationPlaced: ((DominantStationLabel.Placement?) -> Unit)? = null,
         onLayerGlyphsPlaced: ((List<GraphRect>) -> Unit)? = null,
@@ -213,11 +215,9 @@ object CloudCoverGraphRenderer {
             }
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphFailureWatermarkRenderer.draw(
-                    canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                    errorSourceLabel, errorCode, errorFailureTimeMs,
-                    failingText = context.getString(R.string.updates_failing),
-                    errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+                GraphFailureWatermarkRenderer.drawLocalized(
+                    context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
                 )
             }
             return bitmap
@@ -650,12 +650,10 @@ object CloudCoverGraphRenderer {
 
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphFailureWatermarkRenderer.draw(
-                canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                errorSourceLabel, errorCode, errorFailureTimeMs,
-                failingText = context.getString(R.string.updates_failing),
-                errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
-            )
+            GraphFailureWatermarkRenderer.drawLocalized(
+                    context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
+                )
         }
 
         return bitmap

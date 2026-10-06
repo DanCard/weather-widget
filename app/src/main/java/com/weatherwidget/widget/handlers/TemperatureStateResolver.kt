@@ -450,6 +450,7 @@ internal object TemperatureStateResolver {
                     errorSourceLabel = displaySource.displayName,
                     errorCode = stateManager.getSourceLastErrorCode(displaySource),
                     errorFailureTimeMs = stateManager.getSourceLastFailureTime(displaySource),
+                    errorBannerSinceMs = stateManager.getSourceBannerSince(displaySource),
                     useCelsius = useCelsius,
                     dominantStationLabel = dominantStationLabel,
                     actualsSourceLabel = actualsSourceLabel,

@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 未找到</string>
     <string name="watermark_http_422">422 无法处理</string>
     <string name="watermark_http_429">429 请求受限</string>
+    <string name="updates_paused">更新已暂停</string>
+    <string name="watermark_quota_daily">每日配额已用完 · %1$s重置</string>
+    <string name="watermark_quota_daily_short">每日配额已用完</string>
     <string name="watermark_access_error">访问错误</string>
     <string name="watermark_dns_error">DNS 错误</string>
     <string name="watermark_conn_refused">连接被拒绝</string>

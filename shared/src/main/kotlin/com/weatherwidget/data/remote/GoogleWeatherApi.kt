@@ -63,15 +63,6 @@ class GoogleWeatherApi(
 
         private const val INCHES_TO_MM = 25.4f
 
-        /**
-         * Google's quotas reset at midnight Pacific. `history/hours` allows only
-         * a small `HistoryHoursQueriesPerDay` per *project* — default 10, raised to 20 in Cloud Console
-         * on 2026-10-06; every device, build and probe sharing the key draws on the same pool, and the
-         * value is the project's setting, not ours, so nothing here depends on it. It is called only when it adds something
-         * ([needsHistory]) and not again that day after a 429.
-         */
-        private val QUOTA_ZONE: java.time.ZoneId = java.time.ZoneId.of("America/Los_Angeles")
-
         /** The elapsed part of the last 24 h — what one `history/hours` call can fill. */
         fun historyWindow(nowMs: Long): LongRange = (nowMs - HISTORY_HOURS * 3_600_000L) until (nowMs - 3_600_000L)
 
@@ -85,14 +76,31 @@ class GoogleWeatherApi(
             return coveredHours.none { it in window }
         }
 
-        internal fun nextQuotaResetMs(nowMs: Long): Long =
-            java.time.Instant.ofEpochMilli(nowMs).atZone(QUOTA_ZONE).toLocalDate().plusDays(1)
-                .atStartOfDay(QUOTA_ZONE).toInstant().toEpochMilli()
+        internal fun nextQuotaResetMs(nowMs: Long): Long = GoogleQuota.nextResetMs(nowMs)
     }
 
-    /** After a history 429, skip history until the quota resets (in this process). */
+    /**
+     * After a history 429, skip history until the quota resets (in this process). Google's quotas
+     * reset at midnight Pacific ([GoogleQuota]). `history/hours` allows only a small
+     * `HistoryHoursQueriesPerDay` per *project* — default 10, raised to 20 in Cloud Console on
+     * 2026-10-06; every device, build and probe sharing the key draws on the same pool, and the value
+     * is the project's setting, not ours, so nothing here depends on it. It is called only when it
+     * adds something ([needsHistory]) and not again that day after a 429.
+     */
     @Volatile
     private var historyBlockedUntilMs = 0L
+
+    /**
+     * After a *daily*-quota 429 on `forecast/hours` (`ForecastHoursQueriesPerDay`, 60/day per project
+     * on 2026-10-06), skip the whole forecast until the quota resets (in this process). The hours
+     * are not optional, so no fetch can succeed before then; current and days would be spent for
+     * nothing. A per-minute 429 does not block. [getCurrent] has its own quota and is untouched.
+     */
+    @Volatile
+    private var forecastBlockedUntilMs = 0L
+
+    @Volatile
+    private var forecastBlockDetail = ""
 
     /**
      * [includeHistory]: the caller's [needsHistory] answer. History is best-effort either way — its
@@ -106,6 +114,11 @@ class GoogleWeatherApi(
         val apiKey = apiKeyProvider()
         if (apiKey.isNullOrBlank()) {
             throw IllegalStateException("GOOGLE_WEATHER_API_KEY is missing.")
+        }
+        val blockedUntil = forecastBlockedUntilMs
+        if (nowMs() < blockedUntil) {
+            Log.d(TAG, "forecast skipped: daily quota exhausted until $blockedUntil")
+            throw GoogleDailyQuotaException(blockedUntil, forecastBlockDetail)
         }
 
         val currentDeferred = async { fetchJson(apiKey, "/currentConditions:lookup", lat, lon) }
@@ -164,10 +177,19 @@ class GoogleWeatherApi(
         var pageToken: String? = null
         var pages = 0
         do {
-            val page = fetchJson(apiKey, "/forecast/hours:lookup", lat, lon) {
-                parameter("hours", FORECAST_HOURS)
-                parameter("pageSize", PAGE_SIZE)
-                pageToken?.let { parameter("pageToken", it) }
+            val page = try {
+                fetchJson(apiKey, "/forecast/hours:lookup", lat, lon) {
+                    parameter("hours", FORECAST_HOURS)
+                    parameter("pageSize", PAGE_SIZE)
+                    pageToken?.let { parameter("pageToken", it) }
+                }
+            } catch (e: ApiAccessException) {
+                if (GoogleQuota.isDailyQuotaExhausted(e)) {
+                    forecastBlockDetail = e.detail
+                    forecastBlockedUntilMs = GoogleQuota.nextResetMs(nowMs())
+                    Log.w(TAG, "forecast/hours daily quota exhausted; forecast skipped until $forecastBlockedUntilMs")
+                }
+                throw e
             }
             pages++
             page["forecastHours"]?.jsonArray?.mapTo(hours) { it.jsonObject }

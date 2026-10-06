@@ -447,7 +447,7 @@ class WidgetStateManager internal constructor(
     }
 
     fun recordSourceFetchFailure(source: WeatherSource, errorCode: String? = null) {
-        fetchStateStore.recordSourceFetchFailure(source, errorCode)
+        fetchStateStore.recordSourceFetchFailure(source, errorCode, SOURCE_FAILURE_WATERMARK_THRESHOLD)
     }
 
     fun getSourceLastErrorCode(source: WeatherSource): String? =
@@ -455,6 +455,9 @@ class WidgetStateManager internal constructor(
 
     fun getSourceLastFailureTime(source: WeatherSource): Long? =
         fetchStateStore.sourceLastFailureTime(source)
+
+    fun getSourceBannerSince(source: WeatherSource): Long? =
+        fetchStateStore.sourceBannerSince(source)
 
     fun clearWidgetState(widgetId: Int) {
         val editor = prefs.edit()

@@ -1,5 +1,10 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.remote.GoogleQuota
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
 internal data class DesktopFetchErrorPresentation(
     val title: String,
     val bodyLines: List<String>,
@@ -11,8 +16,9 @@ internal fun desktopFetchErrorPresentation(
     sourceDisplayName: String,
     className: String,
     detail: String,
+    nowMs: Long = System.currentTimeMillis(),
 ): DesktopFetchErrorPresentation {
-    val statusCode = if (className == "ApiAccessException") {
+    val statusCode = if (className == "ApiAccessException" || className == "GoogleDailyQuotaException") {
         Regex("""\bstatus\s+(\d{3})\b""", RegexOption.IGNORE_CASE)
             .find(detail)
             ?.groupValues
@@ -22,6 +28,21 @@ internal fun desktopFetchErrorPresentation(
         null
     }
     val titleName = sourceDisplayName.uppercase()
+
+    if (statusCode == 429 && GoogleQuota.isDailyQuotaExhausted(statusCode, detail)) {
+        val resetAt = DateTimeFormatter.ofPattern("h a").withZone(ZoneId.systemDefault())
+            .format(Instant.ofEpochMilli(GoogleQuota.nextResetMs(nowMs)))
+        return DesktopFetchErrorPresentation(
+            title = "$titleName DAILY QUOTA USED",
+            bodyLines = listOf(
+                "$sourceDisplayName's daily request quota for this API key is used up.",
+                "HTTP 429 — resets at $resetAt",
+                "Cached $sourceDisplayName weather is still being displayed.",
+                "No other weather provider was substituted.",
+            ),
+            retryLine = "Updates resume automatically after the reset.",
+        )
+    }
 
     return when (statusCode) {
         429 -> DesktopFetchErrorPresentation(

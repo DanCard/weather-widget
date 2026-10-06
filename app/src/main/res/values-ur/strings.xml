@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 نہیں ملا</string>
     <string name="watermark_http_422">422 ناقابل عمل</string>
     <string name="watermark_http_429">429 شرح محدود</string>
+    <string name="updates_paused">اپ ڈیٹ موقوف</string>
+    <string name="watermark_quota_daily">یومیہ کوٹا ختم · %1$s پر دوبارہ</string>
+    <string name="watermark_quota_daily_short">یومیہ کوٹا ختم</string>
     <string name="watermark_access_error">رسائی کی خرابی</string>
     <string name="watermark_dns_error">DNS خرابی</string>
     <string name="watermark_conn_refused">کنکشن مسترد</string>

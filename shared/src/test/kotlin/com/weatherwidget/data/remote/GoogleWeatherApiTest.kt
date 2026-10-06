@@ -31,6 +31,7 @@ class GoogleWeatherApiTest {
     // Synchronized: the client issues its requests concurrently, and a plain list lost one.
     private val requests: MutableList<HttpRequestData> = java.util.Collections.synchronizedList(mutableListOf())
     private var historyStatus = HttpStatusCode.OK
+    private var hoursErrorBody: String? = null
     private var clockMs = java.time.Instant.parse("2026-10-06T18:00:00Z").toEpochMilli()
 
     private fun fixture(name: String): String =
@@ -48,6 +49,8 @@ class GoogleWeatherApiTest {
                 } else {
                     return respond("""{"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}""", historyStatus)
                 }
+            path.endsWith("forecast/hours:lookup") && hoursErrorBody != null ->
+                return respond(hoursErrorBody!!, HttpStatusCode.TooManyRequests)
             path.endsWith("forecast/hours:lookup") -> {
                 // Pages 1-3 per fetch: page 1 has no token, 2 and 3 chain from the recorded tokens.
                 val n = requests.count { it.url.encodedPath.endsWith("forecast/hours:lookup") }
@@ -189,5 +192,66 @@ class GoogleWeatherApiTest {
         assertTrue(GoogleWeatherApi.needsHistory(emptyList(), now))
         assertTrue("hours older than a day do not count", GoogleWeatherApi.needsHistory(listOf(now - 30 * 3_600_000L), now))
         assertFalse(GoogleWeatherApi.needsHistory(listOf(now - 5 * 3_600_000L), now))
+    }
+
+    // forecast/hours has a per-project daily quota (60 on 2026-10-06). The hours are not optional, so
+    // after a daily 429 nothing can succeed until midnight Pacific.
+
+    private fun quota429(unit: String) = """
+        {"error":{"code":429,"status":"RESOURCE_EXHAUSTED","details":[{
+          "@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"RATE_LIMIT_EXCEEDED",
+          "metadata":{"quota_unit":"$unit","quota_limit":"ForecastHoursQueriesPerDay",
+                      "quota_metric":"weather.googleapis.com/forecast/hours"}}]}}
+    """.trimIndent()
+
+    @Test
+    fun `a daily-quota 429 on hours skips every request until the quota resets`() = runBlocking {
+        hoursErrorBody = quota429("1/d/{project}")
+        val api = api()
+
+        val first = runCatching { api.getForecast(37.422, -122.084) }.exceptionOrNull()
+        assertTrue("the real 429 surfaces: $first", first is ApiAccessException && first.statusCode == 429)
+        assertTrue(GoogleQuota.isDailyQuotaExhausted(first))
+        val afterFirst = requests.size
+
+        val second = runCatching { api.getForecast(37.422, -122.084) }.exceptionOrNull()
+        assertTrue("skipped without a request: $second", second is GoogleDailyQuotaException)
+        assertEquals("no request into an exhausted daily quota", afterFirst, requests.size)
+        assertEquals(java.time.Instant.parse("2026-10-07T07:00:00Z").toEpochMilli(), (second as GoogleDailyQuotaException).resetAtMs)
+        assertTrue("carries the original body for classification", GoogleQuota.isDailyQuotaExhausted(second))
+
+        // Current conditions has its own quota and keeps working.
+        api.getCurrent(37.422, -122.084)
+        assertEquals(afterFirst + 1, requests.size)
+
+        // Midnight Pacific resets it.
+        clockMs = java.time.Instant.parse("2026-10-07T07:00:01Z").toEpochMilli()
+        hoursErrorBody = null
+        requests.clear() // the mock picks hour pages by counting prior hour requests
+        assertEquals(72, api.getForecast(37.422, -122.084, includeHistory = false).hourly.size)
+    }
+
+    @Test
+    fun `a per-minute 429 on hours does not block the next fetch`() = runBlocking {
+        hoursErrorBody = quota429("1/min/{project}")
+        val api = api()
+        val first = runCatching { api.getForecast(37.422, -122.084) }.exceptionOrNull()
+        assertTrue(first is ApiAccessException)
+        assertFalse(GoogleQuota.isDailyQuotaExhausted(first))
+
+        hoursErrorBody = null
+        requests.clear() // the mock picks hour pages by counting prior hour requests
+        assertEquals(72, api.getForecast(37.422, -122.084, includeHistory = false).hourly.size)
+    }
+
+    @Test
+    fun `daily quota detection reads the ErrorInfo quota unit`() {
+        assertTrue(GoogleQuota.isDailyQuotaExhausted(429, quota429("1/d/{project}")))
+        assertFalse(GoogleQuota.isDailyQuotaExhausted(429, quota429("1/min/{project}")))
+        assertFalse("status must be 429", GoogleQuota.isDailyQuotaExhausted(403, quota429("1/d/{project}")))
+        assertFalse(GoogleQuota.isDailyQuotaExhausted(429, "No error body"))
+        assertFalse(GoogleQuota.isDailyQuotaExhausted(429, null))
+        // The literal Fold body shape: pretty-printed with spaces after the colon.
+        assertTrue(GoogleQuota.isDailyQuotaExhausted(429, """ "quota_unit": "1/d/{project}", """))
     }
 }

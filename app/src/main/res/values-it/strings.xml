@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 Non trovato</string>
     <string name="watermark_http_422">422 Non elaborabile</string>
     <string name="watermark_http_429">429 Limite raggiunto</string>
+    <string name="updates_paused">AGGIORNAMENTI IN PAUSA</string>
+    <string name="watermark_quota_daily">Quota giornaliera esaurita · si azzera alle %1$s</string>
+    <string name="watermark_quota_daily_short">Quota giornaliera esaurita</string>
     <string name="watermark_access_error">Errore di accesso</string>
     <string name="watermark_dns_error">Errore DNS</string>
     <string name="watermark_conn_refused">Connessione rifiutata</string>

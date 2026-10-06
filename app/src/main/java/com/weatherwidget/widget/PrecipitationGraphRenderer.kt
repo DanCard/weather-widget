@@ -516,6 +516,7 @@ object PrecipitationGraphRenderer {
         errorSourceLabel: String? = null,
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
+        errorBannerSinceMs: Long? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -525,11 +526,9 @@ object PrecipitationGraphRenderer {
             Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphFailureWatermarkRenderer.draw(
-                    canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                    errorSourceLabel, errorCode, errorFailureTimeMs,
-                    failingText = context.getString(R.string.updates_failing),
-                    errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+                GraphFailureWatermarkRenderer.drawLocalized(
+                    context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
                 )
             }
             return bitmap
@@ -711,12 +710,10 @@ object PrecipitationGraphRenderer {
         }
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphFailureWatermarkRenderer.draw(
-                canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                errorSourceLabel, errorCode, errorFailureTimeMs,
-                failingText = context.getString(R.string.updates_failing),
-                errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
-            )
+            GraphFailureWatermarkRenderer.drawLocalized(
+                    context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
+                )
         }
         return bitmap
     }

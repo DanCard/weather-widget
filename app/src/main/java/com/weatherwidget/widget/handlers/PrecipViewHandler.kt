@@ -390,6 +390,7 @@ object PrecipViewHandler {
                 errorSourceLabel = displaySource.displayName,
                 errorCode = stateManager.getSourceLastErrorCode(displaySource),
                 errorFailureTimeMs = stateManager.getSourceLastFailureTime(displaySource),
+                errorBannerSinceMs = stateManager.getSourceBannerSince(displaySource),
             )
             renderLogs.forEach { appLogDao.log("PrecipGraph", it) }
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
@@ -413,6 +414,7 @@ object PrecipViewHandler {
                 appWidgetId = appWidgetId,
                 showErrorWatermark = stateManager.isSourceErrored(displaySource),
                 errorCode = stateManager.getSourceLastErrorCode(displaySource),
+                bannerSinceMs = stateManager.getSourceBannerSince(displaySource),
             )
         } else {
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)

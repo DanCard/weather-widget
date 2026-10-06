@@ -518,6 +518,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     errorSourceLabel = effectiveDisplaySource.displayName,
                     errorCode = stateManager.getSourceLastErrorCode(effectiveDisplaySource),
                     errorFailureTimeMs = stateManager.getSourceLastFailureTime(effectiveDisplaySource),
+                    errorBannerSinceMs = stateManager.getSourceBannerSince(effectiveDisplaySource),
                     dominantStationLabel = dominantStationLabel,
                 ),
             )
@@ -543,6 +544,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 appWidgetId = appWidgetId,
                 showErrorWatermark = stateManager.isSourceErrored(effectiveDisplaySource),
                 errorCode = stateManager.getSourceLastErrorCode(effectiveDisplaySource),
+                bannerSinceMs = stateManager.getSourceBannerSince(effectiveDisplaySource),
             )
         } else {
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)

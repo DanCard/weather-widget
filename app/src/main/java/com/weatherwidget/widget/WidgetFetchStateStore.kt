@@ -50,17 +50,28 @@ internal class WidgetFetchStateStore(
             .putInt("$KEY_SOURCE_FAILURE_COUNT_PREFIX${source.id}", 0)
             .remove("$KEY_SOURCE_FAILURE_CODE_PREFIX${source.id}")
             .remove("$KEY_SOURCE_FAILURE_TIME_PREFIX${source.id}")
+            .remove("$KEY_SOURCE_BANNER_SINCE_PREFIX${source.id}")
             .apply()
     }
 
+    /**
+     * [bannerThreshold]: the failure count at which the banner appears. Its staging anchor
+     * ([sourceBannerSince]) is set when the count reaches it, and again when the error code changes
+     * (new news gets the full pill) — never on a repeat of the same failure, or every scheduled retry
+     * would pop it back to full size.
+     */
     @Synchronized
-    fun recordSourceFetchFailure(source: WeatherSource, errorCode: String?) {
+    fun recordSourceFetchFailure(source: WeatherSource, errorCode: String?, bannerThreshold: Int) {
+        val count = sourceFailureCount(source) + 1
+        val now = clock.millis()
         val editor = prefs.edit()
-            .putInt(
-                "$KEY_SOURCE_FAILURE_COUNT_PREFIX${source.id}",
-                sourceFailureCount(source) + 1,
-            )
-            .putLong("$KEY_SOURCE_FAILURE_TIME_PREFIX${source.id}", clock.millis())
+            .putInt("$KEY_SOURCE_FAILURE_COUNT_PREFIX${source.id}", count)
+            .putLong("$KEY_SOURCE_FAILURE_TIME_PREFIX${source.id}", now)
+        val anchored = prefs.contains("$KEY_SOURCE_BANNER_SINCE_PREFIX${source.id}")
+        val codeChanged = errorCode != sourceLastErrorCode(source)
+        if (count == bannerThreshold || (count > bannerThreshold && (codeChanged || !anchored))) {
+            editor.putLong("$KEY_SOURCE_BANNER_SINCE_PREFIX${source.id}", now)
+        }
         if (errorCode == null) {
             editor.remove("$KEY_SOURCE_FAILURE_CODE_PREFIX${source.id}")
         } else {
@@ -74,6 +85,10 @@ internal class WidgetFetchStateStore(
 
     fun sourceLastFailureTime(source: WeatherSource): Long? =
         prefs.getLong("$KEY_SOURCE_FAILURE_TIME_PREFIX${source.id}", -1L).takeIf { it > 0L }
+
+    /** When the banner for the current failure streak first showed (see [recordSourceFetchFailure]). */
+    fun sourceBannerSince(source: WeatherSource): Long? =
+        prefs.getLong("$KEY_SOURCE_BANNER_SINCE_PREFIX${source.id}", -1L).takeIf { it > 0L }
 
     fun clearWidget(widgetId: Int, editor: SharedPreferences.Editor) {
         val prefix = "$KEY_MISSING_DATA_REFRESH_PREFIX${widgetId}_"
@@ -97,5 +112,6 @@ internal class WidgetFetchStateStore(
         const val KEY_SOURCE_FAILURE_COUNT_PREFIX = "source_fail_count_"
         const val KEY_SOURCE_FAILURE_CODE_PREFIX = "source_fail_code_"
         const val KEY_SOURCE_FAILURE_TIME_PREFIX = "source_fail_time_"
+        const val KEY_SOURCE_BANNER_SINCE_PREFIX = "source_fail_banner_since_"
     }
 }

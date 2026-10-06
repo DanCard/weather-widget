@@ -338,6 +338,9 @@
     <string name="watermark_http_404">404 Introuvable</string>
     <string name="watermark_http_422">422 Non traitable</string>
     <string name="watermark_http_429">429 Limite atteinte</string>
+    <string name="updates_paused">MISES À JOUR EN PAUSE</string>
+    <string name="watermark_quota_daily">Quota quotidien épuisé · réinitialisé à %1$s</string>
+    <string name="watermark_quota_daily_short">Quota quotidien épuisé</string>
     <string name="watermark_access_error">Erreur d\'accès</string>
     <string name="watermark_dns_error">Erreur DNS</string>
     <string name="watermark_conn_refused">Connexion refusée</string>

@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 Tidak ditemukan</string>
     <string name="watermark_http_422">422 Tidak dapat diproses</string>
     <string name="watermark_http_429">429 Batas tercapai</string>
+    <string name="updates_paused">PEMBARUAN DIJEDA</string>
+    <string name="watermark_quota_daily">Kuota harian habis · reset pukul %1$s</string>
+    <string name="watermark_quota_daily_short">Kuota harian habis</string>
     <string name="watermark_access_error">Kesalahan akses</string>
     <string name="watermark_dns_error">Kesalahan DNS</string>
     <string name="watermark_conn_refused">Koneksi ditolak</string>

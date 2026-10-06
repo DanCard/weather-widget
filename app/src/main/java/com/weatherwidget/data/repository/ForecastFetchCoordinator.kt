@@ -13,6 +13,7 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
+import com.weatherwidget.data.remote.GoogleQuota
 import com.weatherwidget.data.remote.NwsPointUnavailableException
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.OpenWeatherMapApi
@@ -520,8 +521,13 @@ internal class ForecastFetchCoordinator(
         // NWS 404 InvalidPoint: the site is outside its (US-only) coverage, not a transient
         // failure — the watermark should say so rather than "404 Not Found".
         is NwsPointUnavailableException -> "NO_COVERAGE"
+        // A daily quota cannot recover before its reset; the watermark says when that is.
         is ApiAccessException ->
-            exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
+            if (GoogleQuota.isDailyQuotaExhausted(exception)) {
+                GoogleQuota.ERROR_CODE_DAILY
+            } else {
+                exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
+            }
         is ClientRequestException -> "HTTP_${exception.response.status.value}"
         else -> {
             val name = exception.javaClass.simpleName

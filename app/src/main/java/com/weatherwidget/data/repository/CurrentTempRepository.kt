@@ -20,6 +20,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.ApiAccessException
+import com.weatherwidget.data.remote.GoogleQuota
 import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
@@ -502,7 +503,12 @@ class CurrentTempRepository
             )
 
         private fun extractCurrentErrorCode(exception: Exception): String = when (exception) {
-            is ApiAccessException -> exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
+            is ApiAccessException ->
+                if (GoogleQuota.isDailyQuotaExhausted(exception)) {
+                    GoogleQuota.ERROR_CODE_DAILY
+                } else {
+                    exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
+                }
             is ClientRequestException -> "HTTP_${exception.response.status.value}"
             else -> {
                 val name = exception.javaClass.simpleName

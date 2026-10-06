@@ -281,6 +281,7 @@ internal object DailyGraphRenderer {
             errorSourceLabel = ctx.displaySource.displayName,
             errorCode = ctx.stateManager.getSourceLastErrorCode(ctx.displaySource),
             errorFailureTimeMs = ctx.stateManager.getSourceLastFailureTime(ctx.displaySource),
+            errorBannerSinceMs = ctx.stateManager.getSourceBannerSince(ctx.displaySource),
             useLargeTodayOverlay = ctx.largeTodayOverlayEnabled,
             todayOverlayData = todayOverlayData,
             useCelsius = ctx.stateManager.useCelsius(),
@@ -397,6 +398,7 @@ internal object DailyGraphRenderer {
             appWidgetId = ctx.appWidgetId,
             showErrorWatermark = ctx.stateManager.isSourceErrored(ctx.displaySource),
             errorCode = ctx.stateManager.getSourceLastErrorCode(ctx.displaySource),
+            bannerSinceMs = ctx.stateManager.getSourceBannerSince(ctx.displaySource),
         )
 
         return RenderMetrics(prepareMs, renderMs)

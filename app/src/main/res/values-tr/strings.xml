@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 Bulunamadı</string>
     <string name="watermark_http_422">422 İşlenemez</string>
     <string name="watermark_http_429">429 İstek sınırı</string>
+    <string name="updates_paused">GÜNCELLEMELER DURAKLATILDI</string>
+    <string name="watermark_quota_daily">Günlük kota doldu · %1$s sıfırlanır</string>
+    <string name="watermark_quota_daily_short">Günlük kota doldu</string>
     <string name="watermark_access_error">Erişim hatası</string>
     <string name="watermark_dns_error">DNS hatası</string>
     <string name="watermark_conn_refused">Bağlantı reddedildi</string>

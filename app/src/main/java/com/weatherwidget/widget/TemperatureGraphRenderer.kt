@@ -111,6 +111,7 @@ object TemperatureGraphRenderer {
         errorSourceLabel: String? = null,
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
+        errorBannerSinceMs: Long? = null,
         useCelsius: Boolean,
         /** Pre-formatted `knuq 73.4° @ 5:15 pm` (with segments for mixed sizing); null suppresses the annotation entirely. */
         dominantStationLabel: DominantStationLabel.LabelText? = null,
@@ -138,8 +139,9 @@ object TemperatureGraphRenderer {
             Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphFailureWatermarkRenderer.draw(
-                    canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs, failingText = context.getString(R.string.updates_failing), errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+                GraphFailureWatermarkRenderer.drawLocalized(
+                    context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
                 )
             }
             return bitmap
@@ -357,9 +359,10 @@ object TemperatureGraphRenderer {
 
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphFailureWatermarkRenderer.draw(
-                canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity, errorSourceLabel, errorCode, errorFailureTimeMs, failingText = context.getString(R.string.updates_failing), errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
-            )
+            GraphFailureWatermarkRenderer.drawLocalized(
+                    context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
+                )
         }
 
         return bitmap

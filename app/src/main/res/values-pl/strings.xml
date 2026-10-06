@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 Nie znaleziono</string>
     <string name="watermark_http_422">422 Nieprzetwarzalne</string>
     <string name="watermark_http_429">429 Limit osiągnięty</string>
+    <string name="updates_paused">AKTUALIZACJE WSTRZYMANE</string>
+    <string name="watermark_quota_daily">Dzienny limit wyczerpany · reset o %1$s</string>
+    <string name="watermark_quota_daily_short">Dzienny limit wyczerpany</string>
     <string name="watermark_access_error">Błąd dostępu</string>
     <string name="watermark_dns_error">Błąd DNS</string>
     <string name="watermark_conn_refused">Połączenie odrzucone</string>

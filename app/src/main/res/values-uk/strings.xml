@@ -338,6 +338,9 @@
     <string name="watermark_http_404">404 Не знайдено</string>
     <string name="watermark_http_422">422 Неможливо обробити</string>
     <string name="watermark_http_429">429 Ліміт запитів</string>
+    <string name="updates_paused">ОНОВЛЕННЯ ПРИЗУПИНЕНО</string>
+    <string name="watermark_quota_daily">Денний ліміт вичерпано · скидання о %1$s</string>
+    <string name="watermark_quota_daily_short">Денний ліміт вичерпано</string>
     <string name="watermark_access_error">Помилка доступу</string>
     <string name="watermark_dns_error">Помилка DNS</string>
     <string name="watermark_conn_refused">З\'єднання відхилено</string>

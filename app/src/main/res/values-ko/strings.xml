@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 찾을 수 없음</string>
     <string name="watermark_http_422">422 처리할 수 없음</string>
     <string name="watermark_http_429">429 요청 한도</string>
+    <string name="updates_paused">업데이트 일시 중지</string>
+    <string name="watermark_quota_daily">일일 할당량 소진 · %1$s 초기화</string>
+    <string name="watermark_quota_daily_short">일일 할당량 소진</string>
     <string name="watermark_access_error">접근 오류</string>
     <string name="watermark_dns_error">DNS 오류</string>
     <string name="watermark_conn_refused">연결 거부됨</string>

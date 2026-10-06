@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 ไม่พบ</string>
     <string name="watermark_http_422">422 ไม่สามารถประมวลผล</string>
     <string name="watermark_http_429">429 เกินขีดจำกัด</string>
+    <string name="updates_paused">หยุดอัปเดตชั่วคราว</string>
+    <string name="watermark_quota_daily">ใช้โควตารายวันหมดแล้ว · รีเซ็ต %1$s</string>
+    <string name="watermark_quota_daily_short">ใช้โควตารายวันหมดแล้ว</string>
     <string name="watermark_access_error">ข้อผิดพลาดการเข้าถึง</string>
     <string name="watermark_dns_error">ข้อผิดพลาด DNS</string>
     <string name="watermark_conn_refused">การเชื่อมต่อถูกปฏิเสธ</string>

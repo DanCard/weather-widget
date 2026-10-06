@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 পাওয়া যায়নি</string>
     <string name="watermark_http_422">422 প্রক্রিয়াযোগ্য নয়</string>
     <string name="watermark_http_429">429 হার সীমিত</string>
+    <string name="updates_paused">আপডেট বিরতিতে</string>
+    <string name="watermark_quota_daily">দৈনিক কোটা শেষ · %1$s-এ রিসেট</string>
+    <string name="watermark_quota_daily_short">দৈনিক কোটা শেষ</string>
     <string name="watermark_access_error">অ্যাক্সেস ত্রুটি</string>
     <string name="watermark_dns_error">DNS ত্রুটি</string>
     <string name="watermark_conn_refused">সংযোগ প্রত্যাখ্যাত</string>

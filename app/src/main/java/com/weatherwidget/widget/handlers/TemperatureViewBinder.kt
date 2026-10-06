@@ -218,6 +218,7 @@ HeaderRemoteViewsBinder.applyDisclosure(
                 appWidgetId = appWidgetId,
                 showErrorWatermark = stateManager.isSourceErrored(state.displaySource),
                 errorCode = stateManager.getSourceLastErrorCode(state.displaySource),
+                bannerSinceMs = stateManager.getSourceBannerSince(state.displaySource),
             )
         } else if (state.graph.showTextMode) {
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)

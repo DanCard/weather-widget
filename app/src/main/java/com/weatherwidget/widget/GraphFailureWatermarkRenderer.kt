@@ -7,6 +7,8 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import com.weatherwidget.R
+import com.weatherwidget.data.remote.GoogleQuota
+import com.weatherwidget.shared.util.FailureBannerStage
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -21,6 +23,8 @@ internal data class FailureWatermarkLayout(
     val detailText: String?,
     val detailTextSize: Float?,
     val detailBaselineY: Float?,
+    /** 1 except in [FailureBannerStage.FADED]. */
+    val alpha: Float = 1f,
 )
 
 /** Failure-watermark formatting, width fitting, and Android drawing. */
@@ -33,8 +37,19 @@ internal object GraphFailureWatermarkRenderer {
     private const val VERTICAL_PADDING_DP = 6f
     private const val DETAIL_GAP_DP = 2f
     private const val CANVAS_EDGE_INSET_DP = 4f
-    private const val PILL_TOP_DP = 8f
+    /**
+     * Below the header row: the header's touch zones (home, graph selector, stations, …) reach about
+     * 37 dp into the graph, and a pill over them — with its touch target on top — ate their taps.
+     * [com.weatherwidget.R.id.error_pill_touch_zone]'s marginTop must match.
+     */
+    internal const val PILL_TOP_DP = 40f
     private const val ELLIPSIS = "…"
+
+    // The [FailureBannerStage.TINY]/[FailureBannerStage.FADED] pill: one line, no header.
+    private const val TINY_TEXT_SIZE_DP = 10f
+    private const val TINY_MIN_TEXT_SIZE_DP = 8f
+    private const val TINY_HORIZONTAL_PADDING_DP = 8f
+    private const val TINY_VERTICAL_PADDING_DP = 3f
 
     fun draw(
         canvas: Canvas,
@@ -46,7 +61,12 @@ internal object GraphFailureWatermarkRenderer {
         failureTimeMs: Long? = null,
         failingText: String,
         errorCodeText: (String) -> String,
+        bannerSinceMs: Long? = null,
+        pausedText: String = "UPDATES PAUSED",
+        quotaDailyText: (String) -> String = ::defaultQuotaDailyText,
+        nowMs: Long = System.currentTimeMillis(),
     ) {
+        val stage = stageFor(bannerSinceMs, nowMs)
         val mainPaint = createMainPaint()
         val detailPaint = createDetailPaint()
         val layout = calculateLayout(
@@ -56,8 +76,12 @@ internal object GraphFailureWatermarkRenderer {
             sourceLabel = sourceLabel,
             errorCode = errorCode,
             failureTimeMs = failureTimeMs,
+            nowMs = nowMs,
             failingText = failingText,
             errorCodeText = errorCodeText,
+            stage = stage,
+            pausedText = pausedText,
+            quotaDailyText = quotaDailyText,
             measureMain = { text, textSize ->
                 mainPaint.textSize = textSize
                 mainPaint.measureText(text)
@@ -78,12 +102,12 @@ internal object GraphFailureWatermarkRenderer {
 
         val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#E61A0E0E")
-        }
+        }.fade(layout.alpha)
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = density
             color = Color.parseColor("#66FF5A5A")
-        }
+        }.fade(layout.alpha)
         canvas.drawRoundRect(
             layout.pillBounds,
             layout.cornerRadius,
@@ -98,6 +122,8 @@ internal object GraphFailureWatermarkRenderer {
         )
 
         val centerX = layout.pillBounds.centerX()
+        mainPaint.fade(layout.alpha)
+        detailPaint.fade(layout.alpha)
         mainPaint.textSize = layout.mainTextSize
         canvas.drawText(layout.mainText, centerX, layout.mainBaselineY, mainPaint)
         if (
@@ -115,6 +141,26 @@ internal object GraphFailureWatermarkRenderer {
         }
     }
 
+    /** [draw] with the Android strings — what every graph renderer calls. */
+    fun drawLocalized(
+        context: Context,
+        canvas: Canvas,
+        width: Float,
+        height: Float,
+        density: Float,
+        sourceLabel: String?,
+        errorCode: String?,
+        failureTimeMs: Long?,
+        bannerSinceMs: Long?,
+    ) = draw(
+        canvas, width, height, density, sourceLabel, errorCode, failureTimeMs,
+        failingText = context.getString(R.string.updates_failing),
+        errorCodeText = { code -> localizedErrorCodeText(context, code) },
+        bannerSinceMs = bannerSinceMs,
+        pausedText = context.getString(R.string.updates_paused),
+        quotaDailyText = { resetTime -> context.getString(R.string.watermark_quota_daily, resetTime) },
+    )
+
     @androidx.annotation.VisibleForTesting
     internal fun calculateLayout(
         width: Float,
@@ -128,43 +174,55 @@ internal object GraphFailureWatermarkRenderer {
         zoneId: ZoneId = ZoneId.systemDefault(),
         failingText: String = "UPDATES FAILING",
         errorCodeText: (String) -> String = ::humanReadableErrorCode,
+        stage: FailureBannerStage = FailureBannerStage.FULL,
+        pausedText: String = "UPDATES PAUSED",
+        quotaDailyText: (String) -> String = ::defaultQuotaDailyText,
         measureMain: (String, Float) -> Float,
         measureDetail: (String, Float) -> Float,
         mainMetrics: (Float) -> Pair<Float, Float>,
         detailMetrics: (Float) -> Pair<Float, Float>,
     ): FailureWatermarkLayout? {
         if (width <= 0f || height <= 0f || density <= 0f) return null
-        val horizontalPadding = HORIZONTAL_PADDING_DP * density
-        val verticalPadding = VERTICAL_PADDING_DP * density
+        val tiny = stage != FailureBannerStage.FULL
+        val horizontalPadding = (if (tiny) TINY_HORIZONTAL_PADDING_DP else HORIZONTAL_PADDING_DP) * density
+        val verticalPadding = (if (tiny) TINY_VERTICAL_PADDING_DP else VERTICAL_PADDING_DP) * density
         val maxPillWidth = width - CANVAS_EDGE_INSET_DP * density * 2f
         val availableTextWidth = maxPillWidth - horizontalPadding * 2f
         if (maxPillWidth <= 0f || availableTextWidth <= 0f) return null
 
+        val quota = errorCode == GoogleQuota.ERROR_CODE_DAILY
+        val headline = if (quota) pausedText else failingText
         val source =
             sourceLabel
                 ?.takeIf { it.isNotBlank() }
                 ?.uppercase(locale)
-                ?.let { "$it $failingText" }
-                ?: failingText
-        val rawMainText = "⚠ $source"
+                ?.let { "$it $headline" }
+                ?: headline
         val detailText =
-            buildDetailText(
-                errorCode = errorCode,
-                failureTimeMs = failureTimeMs,
-                nowMs = nowMs,
-                locale = locale,
-                zoneId = zoneId,
-                errorCodeText = errorCodeText,
-            )
+            if (quota && failureTimeMs != null) {
+                quotaDailyText(formatResetTime(GoogleQuota.nextResetMs(failureTimeMs), locale, zoneId))
+            } else {
+                buildDetailText(
+                    errorCode = errorCode,
+                    failureTimeMs = failureTimeMs,
+                    nowMs = nowMs,
+                    locale = locale,
+                    zoneId = zoneId,
+                    errorCodeText = errorCodeText,
+                )
+            }
+        // Tiny: the detail alone ("⚠ 429 Rate Limited · 2:37 PM") — the source is already named
+        // in the widget's header, and the full pill said the rest for its first seconds.
+        val rawMainText = if (tiny && detailText != null) "⚠ $detailText" else "⚠ $source"
         val mainFit = fitLine(
             text = rawMainText,
-            preferredSize = MAIN_TEXT_SIZE_DP * density,
-            minimumSize = MAIN_MIN_TEXT_SIZE_DP * density,
+            preferredSize = (if (tiny) TINY_TEXT_SIZE_DP else MAIN_TEXT_SIZE_DP) * density,
+            minimumSize = (if (tiny) TINY_MIN_TEXT_SIZE_DP else MAIN_MIN_TEXT_SIZE_DP) * density,
             availableWidth = availableTextWidth,
             measure = measureMain,
         )
         val detailFit =
-            detailText?.let {
+            detailText?.takeUnless { tiny }?.let {
                 fitLine(
                     text = it,
                     preferredSize = DETAIL_TEXT_SIZE_DP * density,
@@ -211,7 +269,26 @@ internal object GraphFailureWatermarkRenderer {
             detailText = detailFit?.text,
             detailTextSize = detailFit?.textSize,
             detailBaselineY = detailBaseline,
+            alpha = if (stage == FailureBannerStage.FADED) FailureBannerStage.FADED_ALPHA else 1f,
         )
+    }
+
+    /** No anchor = a caller that does not stage the banner: the full pill, as before stages existed. */
+    internal fun stageFor(bannerSinceMs: Long?, nowMs: Long): FailureBannerStage =
+        bannerSinceMs?.let { FailureBannerStage.at(nowMs - it) } ?: FailureBannerStage.FULL
+
+    internal fun defaultQuotaDailyText(resetTime: String): String = "Daily quota used · resets $resetTime"
+
+    /** "12 AM" on the hour, else "12:30 AM" — the reset is always a whole hour in practice. */
+    @androidx.annotation.VisibleForTesting
+    internal fun formatResetTime(epochMs: Long, locale: Locale, zoneId: ZoneId): String {
+        val reset = Instant.ofEpochMilli(epochMs).atZone(zoneId)
+        val pattern = if (reset.minute == 0) "h a" else "h:mm a"
+        return DateTimeFormatter.ofPattern(pattern, locale).format(reset)
+    }
+
+    private fun Paint.fade(alpha: Float): Paint = apply {
+        if (alpha < 1f) this.alpha = (this.alpha * alpha).toInt()
     }
 
     @androidx.annotation.VisibleForTesting
@@ -223,6 +300,7 @@ internal object GraphFailureWatermarkRenderer {
             "HTTP_404" -> "404 Not Found"
             "HTTP_422" -> "422 Unprocessable"
             "HTTP_429" -> "429 Rate Limited"
+            GoogleQuota.ERROR_CODE_DAILY -> "Daily quota used"
             "ACCESS_ERROR" -> "Access Error"
             "DNS_ERROR" -> "DNS Error"
             "CONN_REFUSED" -> "Connection Refused"
@@ -253,6 +331,7 @@ internal object GraphFailureWatermarkRenderer {
             "HTTP_404" -> context.getString(R.string.watermark_http_404)
             "HTTP_422" -> context.getString(R.string.watermark_http_422)
             "HTTP_429" -> context.getString(R.string.watermark_http_429)
+            GoogleQuota.ERROR_CODE_DAILY -> context.getString(R.string.watermark_quota_daily_short)
             "ACCESS_ERROR" -> context.getString(R.string.watermark_access_error)
             "DNS_ERROR" -> context.getString(R.string.watermark_dns_error)
             "CONN_REFUSED" -> context.getString(R.string.watermark_conn_refused)

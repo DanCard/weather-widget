@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 Não encontrado</string>
     <string name="watermark_http_422">422 Não processável</string>
     <string name="watermark_http_429">429 Limite de requisições</string>
+    <string name="updates_paused">ATUALIZAÇÕES PAUSADAS</string>
+    <string name="watermark_quota_daily">Cota diária esgotada · reinicia às %1$s</string>
+    <string name="watermark_quota_daily_short">Cota diária esgotada</string>
     <string name="watermark_access_error">Erro de acesso</string>
     <string name="watermark_dns_error">Erro de DNS</string>
     <string name="watermark_conn_refused">Conexão recusada</string>

@@ -215,6 +215,7 @@ object DailyForecastGraphRenderer {
         errorSourceLabel: String? = null,
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
+        errorBannerSinceMs: Long? = null,
         onHeaderDrawn: ((HeaderDrawnDebug) -> Unit)? = null,
         useLargeTodayOverlay: Boolean = false,
         todayOverlayData: TodayOverlayRenderData? = null,
@@ -228,11 +229,9 @@ object DailyForecastGraphRenderer {
             Log.w(TAG, "renderGraph: empty days list, returning blank bitmap (${widthPx}x${heightPx})")
             if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphFailureWatermarkRenderer.draw(
-                    canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                    errorSourceLabel, errorCode, errorFailureTimeMs,
-                    failingText = context.getString(R.string.updates_failing),
-                    errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
+                GraphFailureWatermarkRenderer.drawLocalized(
+                    context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
                 )
             }
             return DailyGraphRenderResult(bitmap, emptyList())
@@ -398,12 +397,10 @@ object DailyForecastGraphRenderer {
 
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphFailureWatermarkRenderer.draw(
-                canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                errorSourceLabel, errorCode, errorFailureTimeMs,
-                failingText = context.getString(R.string.updates_failing),
-                errorCodeText = { code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, code) },
-            )
+            GraphFailureWatermarkRenderer.drawLocalized(
+                    context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
+                )
         }
 
         return DailyGraphRenderResult(

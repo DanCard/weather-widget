@@ -126,8 +126,15 @@ object WidgetViewModeDispatcher {
                 val now = LocalDateTime.now()
                 val today = now.toLocalDate()
                 val paintedForDate = params.dailyPaintedForDate[params.appWidgetId]
+                // The failure banner's 8 s / 24 s stage repaints are UI-only; without this the
+                // daily view swallowed them and the banner never shrank.
+                val bannerStagePending = com.weatherwidget.widget.handlers.FailureBannerRepaint.stageChangeMayBePending(
+                    bannerSinceMs = params.stateManager.getSourceBannerSince(params.displaySource)
+                        .takeIf { params.stateManager.isSourceErrored(params.displaySource) },
+                    nowMs = System.currentTimeMillis(),
+                )
                 if (WidgetRenderer.shouldSkipDailyUiOnlyRepaint(params.uiOnly, paintedForDate, today) &&
-                    !transientPending
+                    !transientPending && !bannerStagePending
                 ) {
                     WeatherDatabase.getDatabase(params.context).appLogDao().log(
                         com.weatherwidget.widget.WidgetPerfLogger.TAG_WIDGET_PAINT,

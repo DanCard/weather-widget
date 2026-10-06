@@ -353,6 +353,9 @@
     <string name="watermark_http_404">404 غير موجود</string>
     <string name="watermark_http_422">422 غير قابل للمعالجة</string>
     <string name="watermark_http_429">429 تجاوز الحد</string>
+    <string name="updates_paused">التحديثات متوقفة مؤقتًا</string>
+    <string name="watermark_quota_daily">نفدت الحصة اليومية · تُعاد في %1$s</string>
+    <string name="watermark_quota_daily_short">نفدت الحصة اليومية</string>
     <string name="watermark_access_error">خطأ في الوصول</string>
     <string name="watermark_dns_error">خطأ DNS</string>
     <string name="watermark_conn_refused">تم رفض الاتصال</string>

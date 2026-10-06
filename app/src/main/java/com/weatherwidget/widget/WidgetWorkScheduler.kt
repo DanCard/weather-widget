@@ -45,6 +45,7 @@ object WidgetWorkScheduler {
     const val WORK_NAME_OBSERVATION_BACKFILL = "weather_widget_observation_backfill"
     const val WORK_NAME_UI = "weather_widget_one_time_ui"
     private const val WORK_NAME_UI_DELAYED_PREFIX = "weather_widget_one_time_ui_delayed_"
+    private const val WORK_NAME_FAILURE_BANNER_STAGE_PREFIX = "weather_widget_failure_banner_stage_"
 
     fun schedulePeriodicSync(context: Context) {
         val snapshot = BatterySnapshotProvider.snapshot(context)
@@ -402,6 +403,22 @@ object WidgetWorkScheduler {
                 "delayMs=$initialDelayMs id=${request.id}",
         )
         return request
+    }
+
+    /**
+     * Repaint when a failure banner should change stage ([com.weatherwidget.shared.util.FailureBannerStage]).
+     * Its own unique name so it never cancels or queues behind other delayed repaints; APPEND_OR_REPLACE
+     * because the paint that schedules the next stage is often this very work, still running.
+     */
+    fun enqueueFailureBannerStageRepaint(context: Context, appWidgetId: Int, initialDelayMs: Long) {
+        require(appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID)
+        val request = buildUiRequest("failure_banner_stage", initialDelayMs.coerceAtLeast(1L))
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "$WORK_NAME_FAILURE_BANNER_STAGE_PREFIX$appWidgetId",
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            request,
+        )
+        Log.d(TAG, "Failure banner stage repaint enqueued widget=$appWidgetId delayMs=$initialDelayMs id=${request.id}")
     }
 
     internal fun delayedUiWorkName(appWidgetId: Int): String =
