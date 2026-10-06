@@ -51,6 +51,7 @@ internal class WidgetFetchStateStore(
             .remove("$KEY_SOURCE_FAILURE_CODE_PREFIX${source.id}")
             .remove("$KEY_SOURCE_FAILURE_TIME_PREFIX${source.id}")
             .remove("$KEY_SOURCE_BANNER_SINCE_PREFIX${source.id}")
+            .remove("$KEY_SOURCE_FAILURE_DETAIL_PREFIX${source.id}")
             .apply()
     }
 
@@ -61,7 +62,12 @@ internal class WidgetFetchStateStore(
      * would pop it back to full size.
      */
     @Synchronized
-    fun recordSourceFetchFailure(source: WeatherSource, errorCode: String?, bannerThreshold: Int) {
+    fun recordSourceFetchFailure(
+        source: WeatherSource,
+        errorCode: String?,
+        bannerThreshold: Int,
+        detail: String? = null,
+    ) {
         val count = sourceFailureCount(source) + 1
         val now = clock.millis()
         val editor = prefs.edit()
@@ -69,6 +75,12 @@ internal class WidgetFetchStateStore(
             .putLong("$KEY_SOURCE_FAILURE_TIME_PREFIX${source.id}", now)
         val anchored = prefs.contains("$KEY_SOURCE_BANNER_SINCE_PREFIX${source.id}")
         val codeChanged = errorCode != sourceLastErrorCode(source)
+        // What the error page shows; credentials are redacted by the caller.
+        if (detail.isNullOrBlank()) {
+            editor.remove("$KEY_SOURCE_FAILURE_DETAIL_PREFIX${source.id}")
+        } else {
+            editor.putString("$KEY_SOURCE_FAILURE_DETAIL_PREFIX${source.id}", detail.take(MAX_DETAIL_CHARS))
+        }
         if (count == bannerThreshold || (count > bannerThreshold && (codeChanged || !anchored))) {
             editor.putLong("$KEY_SOURCE_BANNER_SINCE_PREFIX${source.id}", now)
         }
@@ -85,6 +97,10 @@ internal class WidgetFetchStateStore(
 
     fun sourceLastFailureTime(source: WeatherSource): Long? =
         prefs.getLong("$KEY_SOURCE_FAILURE_TIME_PREFIX${source.id}", -1L).takeIf { it > 0L }
+
+    /** The last failure's message (endpoint, status, response body), for the error-details page. */
+    fun sourceLastFailureDetail(source: WeatherSource): String? =
+        prefs.getString("$KEY_SOURCE_FAILURE_DETAIL_PREFIX${source.id}", null)
 
     /** When the banner for the current failure streak first showed (see [recordSourceFetchFailure]). */
     fun sourceBannerSince(source: WeatherSource): Long? =
@@ -113,5 +129,7 @@ internal class WidgetFetchStateStore(
         const val KEY_SOURCE_FAILURE_CODE_PREFIX = "source_fail_code_"
         const val KEY_SOURCE_FAILURE_TIME_PREFIX = "source_fail_time_"
         const val KEY_SOURCE_BANNER_SINCE_PREFIX = "source_fail_banner_since_"
+        const val KEY_SOURCE_FAILURE_DETAIL_PREFIX = "source_fail_detail_"
+        const val MAX_DETAIL_CHARS = 8_000
     }
 }

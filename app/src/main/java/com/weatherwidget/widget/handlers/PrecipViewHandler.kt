@@ -415,6 +415,7 @@ object PrecipViewHandler {
                 showErrorWatermark = stateManager.isSourceErrored(displaySource),
                 errorCode = stateManager.getSourceLastErrorCode(displaySource),
                 bannerSinceMs = stateManager.getSourceBannerSince(displaySource),
+                sourceId = displaySource.id,
             )
         } else {
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)

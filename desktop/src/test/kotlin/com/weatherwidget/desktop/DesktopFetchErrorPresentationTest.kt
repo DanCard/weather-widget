@@ -52,7 +52,8 @@ class DesktopFetchErrorPresentationTest {
         assertFalse(result.bodyLines.first().endsWith("charact"))
     }
 
-    private val dailyQuotaBody = """{"error":{"code":429,"details":[{"metadata":{"quota_unit": "1/d/{project}"}}]}}"""
+    private val dailyQuotaBody = """{"error":{"code":429,"details":[{"metadata":{"quota_unit": "1/d/{project}",""" +
+        """"quota_limit":"ForecastHoursQueriesPerDay","quota_limit_value":"60"}}]}}"""
 
     @Test
     fun `a daily quota 429 says when it resets instead of promising the next refresh`() {
@@ -64,6 +65,8 @@ class DesktopFetchErrorPresentationTest {
             )
             assertEquals(className, "GOOGLE WEATHER DAILY QUOTA USED", result.title)
             assertTrue(result.bodyLines.any { it.startsWith("HTTP 429 — resets at ") })
+            assertTrue(result.bodyLines.contains("Quota: ForecastHoursQueriesPerDay — 60 per day, shared by every device using this key"))
+            assertTrue(result.bodyLines.contains("Request: /forecast/hours:lookup"))
             assertEquals("Updates resume automatically after the reset.", result.retryLine)
         }
     }

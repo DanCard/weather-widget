@@ -20,6 +20,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.ApiAccessException
+import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.data.remote.GoogleQuota
 import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.WeatherApi
@@ -185,13 +186,21 @@ class CurrentTempRepository
                             throw e
                         } catch (exception: ApiAccessException) {
                             val sourceDurationMs = SystemClock.elapsedRealtime() - sourceStartMs
-                            widgetStateManager.recordSourceFetchFailure(targetSource, extractCurrentErrorCode(exception))
+                            widgetStateManager.recordSourceFetchFailure(
+                                targetSource,
+                                extractCurrentErrorCode(exception),
+                                ApiKeyRedaction.redact(exception.message ?: exception.javaClass.simpleName),
+                            )
                             logCurrentFetchFailure(targetSource, exception)
                             logCurrentSourceResult(reason, targetSource, null, exception, durationMs = sourceDurationMs)
                         } catch (exception: Exception) {
                             val sourceDurationMs = SystemClock.elapsedRealtime() - sourceStartMs
                             val errorCode = extractCurrentErrorCode(exception)
-                            widgetStateManager.recordSourceFetchFailure(targetSource, errorCode)
+                            widgetStateManager.recordSourceFetchFailure(
+                                targetSource,
+                                errorCode,
+                                ApiKeyRedaction.redact(exception.message ?: exception.javaClass.simpleName),
+                            )
                             logCurrentFetchFailure(targetSource, exception)
                             logCurrentSourceResult(reason, targetSource, null, exception, durationMs = sourceDurationMs)
                         }

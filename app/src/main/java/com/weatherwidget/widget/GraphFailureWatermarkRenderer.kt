@@ -280,7 +280,6 @@ internal object GraphFailureWatermarkRenderer {
     internal fun defaultQuotaDailyText(resetTime: String): String = "Daily quota used · resets $resetTime"
 
     /** "12 AM" on the hour, else "12:30 AM" — the reset is always a whole hour in practice. */
-    @androidx.annotation.VisibleForTesting
     internal fun formatResetTime(epochMs: Long, locale: Locale, zoneId: ZoneId): String {
         val reset = Instant.ofEpochMilli(epochMs).atZone(zoneId)
         val pattern = if (reset.minute == 0) "h a" else "h:mm a"
@@ -352,7 +351,6 @@ internal object GraphFailureWatermarkRenderer {
                 }
         }
 
-    @androidx.annotation.VisibleForTesting
     internal fun formatFailureTime(
         epochMs: Long,
         nowMs: Long = System.currentTimeMillis(),

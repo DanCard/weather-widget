@@ -96,7 +96,14 @@
         <activity
             android:name=".ui.BackgroundDataResolutionActivity"
             android:exported="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+            android:theme="@style/Theme.WeatherWidget.Translucent" />
+
+        <activity
+            android:name=".ui.SourceErrorDetailsActivity"
+            android:exported="false"
+            android:label="@string/error_details_title"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
 
         <receiver
             android:name=".widget.WeatherWidgetProvider"

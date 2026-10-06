@@ -545,6 +545,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 showErrorWatermark = stateManager.isSourceErrored(effectiveDisplaySource),
                 errorCode = stateManager.getSourceLastErrorCode(effectiveDisplaySource),
                 bannerSinceMs = stateManager.getSourceBannerSince(effectiveDisplaySource),
+                sourceId = effectiveDisplaySource.id,
             )
         } else {
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)

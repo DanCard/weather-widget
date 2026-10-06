@@ -13,6 +13,7 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
+import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.data.remote.GoogleQuota
 import com.weatherwidget.data.remote.NwsPointUnavailableException
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -474,6 +475,7 @@ internal class ForecastFetchCoordinator(
         widgetStateManager.recordSourceFetchFailure(
             source,
             errorCode = extractErrorCode(exception),
+            detail = ApiKeyRedaction.redact(exception.message ?: exception.javaClass.simpleName),
         )
         logFetchFailure(tag, source, exception)
         null

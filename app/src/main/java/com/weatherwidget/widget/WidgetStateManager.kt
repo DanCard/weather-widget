@@ -446,8 +446,8 @@ class WidgetStateManager internal constructor(
         fetchStateStore.recordSourceFetchSuccess(source)
     }
 
-    fun recordSourceFetchFailure(source: WeatherSource, errorCode: String? = null) {
-        fetchStateStore.recordSourceFetchFailure(source, errorCode, SOURCE_FAILURE_WATERMARK_THRESHOLD)
+    fun recordSourceFetchFailure(source: WeatherSource, errorCode: String? = null, detail: String? = null) {
+        fetchStateStore.recordSourceFetchFailure(source, errorCode, SOURCE_FAILURE_WATERMARK_THRESHOLD, detail)
     }
 
     fun getSourceLastErrorCode(source: WeatherSource): String? =
@@ -455,6 +455,9 @@ class WidgetStateManager internal constructor(
 
     fun getSourceLastFailureTime(source: WeatherSource): Long? =
         fetchStateStore.sourceLastFailureTime(source)
+
+    fun getSourceLastFailureDetail(source: WeatherSource): String? =
+        fetchStateStore.sourceLastFailureDetail(source)
 
     fun getSourceBannerSince(source: WeatherSource): Long? =
         fetchStateStore.sourceBannerSince(source)

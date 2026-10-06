@@ -5,4 +5,15 @@
         <item name="colorPrimaryDark">@color/primary_dark</item>
         <item name="colorAccent">@color/accent</item>
     </style>
+
+    <!-- Invisible trampoline activities that are AppCompatActivity. A platform theme
+         (@android:style/Theme.Translucent.*) crashes them in onPostCreate ("You need to use a
+         Theme.AppCompat theme"), and repeated crashes get the process blocked as bad. -->
+    <style name="Theme.WeatherWidget.Translucent" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>

@@ -10,8 +10,7 @@ import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.shared.util.FailureBannerStage
 import com.weatherwidget.widget.GraphFailureWatermarkRenderer
-import com.weatherwidget.ui.BackgroundDataResolutionActivity
-import com.weatherwidget.ui.SettingsActivity
+import com.weatherwidget.ui.SourceErrorDetailsActivity
 
 internal object ErrorPillTouchTargetHelper {
     private const val FULL_TOUCH_HEIGHT_DP = 50f
@@ -24,6 +23,7 @@ internal object ErrorPillTouchTargetHelper {
         showErrorWatermark: Boolean,
         errorCode: String? = null,
         bannerSinceMs: Long? = null,
+        sourceId: String? = null,
     ) {
         if (!showErrorWatermark) {
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
@@ -40,15 +40,9 @@ internal object ErrorPillTouchTargetHelper {
             views.setViewLayoutHeight(R.id.error_pill_touch_zone, heightDp, TypedValue.COMPLEX_UNIT_DIP)
         }
 
-        val targetIntent = if (errorCode == "HTTP_401" || errorCode == "HTTP_403" || errorCode == "ACCESS_ERROR") {
-            Intent(context, SettingsActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        } else {
-            Intent(context, BackgroundDataResolutionActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        }
+        // Every failure opens its details page; the page offers Settings or the background-data
+        // screen when that is the fix (it used to jump straight there, for a 429 too).
+        val targetIntent = SourceErrorDetailsActivity.intent(context, sourceId)
 
         val pendingIntent = PendingIntent.getActivity(
             context,

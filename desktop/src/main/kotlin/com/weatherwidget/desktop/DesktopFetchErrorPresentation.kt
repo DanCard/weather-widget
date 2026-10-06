@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.remote.GoogleQuota
+import com.weatherwidget.data.remote.ProviderErrorDetails
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -32,10 +33,16 @@ internal fun desktopFetchErrorPresentation(
     if (statusCode == 429 && GoogleQuota.isDailyQuotaExhausted(statusCode, detail)) {
         val resetAt = DateTimeFormatter.ofPattern("h a").withZone(ZoneId.systemDefault())
             .format(Instant.ofEpochMilli(GoogleQuota.nextResetMs(nowMs)))
+        val provider = ProviderErrorDetails.parse(detail)
+        val quotaLine = provider?.quotaName?.let { name ->
+            "Quota: $name" + (provider.quotaLimit?.let { " — $it per day, shared by every device using this key" } ?: "")
+        }
         return DesktopFetchErrorPresentation(
             title = "$titleName DAILY QUOTA USED",
-            bodyLines = listOf(
+            bodyLines = listOfNotNull(
                 "$sourceDisplayName's daily request quota for this API key is used up.",
+                quotaLine,
+                provider?.request?.let { "Request: $it" },
                 "HTTP 429 — resets at $resetAt",
                 "Cached $sourceDisplayName weather is still being displayed.",
                 "No other weather provider was substituted.",

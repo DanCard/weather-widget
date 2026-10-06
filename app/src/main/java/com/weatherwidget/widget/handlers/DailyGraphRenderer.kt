@@ -399,6 +399,7 @@ internal object DailyGraphRenderer {
             showErrorWatermark = ctx.stateManager.isSourceErrored(ctx.displaySource),
             errorCode = ctx.stateManager.getSourceLastErrorCode(ctx.displaySource),
             bannerSinceMs = ctx.stateManager.getSourceBannerSince(ctx.displaySource),
+            sourceId = ctx.displaySource.id,
         )
 
         return RenderMetrics(prepareMs, renderMs)
