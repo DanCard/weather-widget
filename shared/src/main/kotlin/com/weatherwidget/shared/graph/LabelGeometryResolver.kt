@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.shared.util.Log
 import java.time.Duration
 import kotlin.math.abs
 import kotlin.math.min
@@ -12,6 +13,17 @@ import kotlin.math.roundToInt
  * so the resolver stays a thin facade over the candidate/suppression/geometry pipelines.
  */
 internal object LabelGeometryResolver {
+
+    private const val TAG = "TempLabelResolver"
+
+    // An observed-series label (ACTUAL_HIGH/LOW/END) beside the NOW dot repeats the dot's own value
+    // label when the two readings differ by less than this (°F): the same observed line, minutes
+    // apart, at the same x — 84.5 over a dot reading 84.4 is one plateau labeled twice. Forecast
+    // labels keep the exact-text rule: they are a different series, compared against the dot.
+    internal const val FETCH_DOT_SAME_READING_DEGREES = 1f
+    private val ACTUAL_SERIES_ROLES = setOf(
+        TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_END,
+    )
 
     // Two same-ish-valued labels read as a redundant pair only when they sit close together ON
     // SCREEN. Index distance is a poor proxy because pixels-per-hour changes with zoom: 3 hours is
@@ -206,7 +218,16 @@ internal object LabelGeometryResolver {
         if (fetchDotX != null && lastObservedTemp != null && candidate.role !in setOf(TemperatureRole.START, TemperatureRole.END)) {
             val fetchDotLabel = TemperatureLabelResolver.formatTemp(lastObservedTemp, useCelsius) + "°"
             val dist = abs(clampedX - fetchDotX)
-            if (label == fetchDotLabel && dist < 12f * density) {
+            val sameReading = candidate.role in ACTUAL_SERIES_ROLES &&
+                abs(temps[idx] - lastObservedTemp) < FETCH_DOT_SAME_READING_DEGREES
+            if ((label == fetchDotLabel || sameReading) && dist < 12f * density) {
+                if (label != fetchDotLabel) {
+                    Log.v(
+                        TAG,
+                        "LabelSuppressed: role=${candidate.role} idx=$idx reason=FETCH_DOT_SAME_READING " +
+                            "label=$label dot=$fetchDotLabel distPx=${"%.1f".format(dist)}",
+                    )
+                }
                 return null
             }
         }
