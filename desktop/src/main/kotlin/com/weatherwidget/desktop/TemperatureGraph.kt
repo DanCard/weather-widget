@@ -1154,6 +1154,8 @@ fun TemperatureGraph(
 
 private fun formatHourLabel(hour: Int): String = DesktopGraphUtils.formatHourLabel(hour)
 
+private const val MIN_PRECIP_TICK_SIGNAL = 0.5f
+
 private fun DrawScope.drawCloudAndPrecipOverlays(points: List<HourlyForecast>, scale: Float, xAt: (Int) -> Float) {
     if (points.isEmpty()) return
     val bandBottom = size.height - 44f * scale
@@ -1174,7 +1176,9 @@ private fun DrawScope.drawCloudAndPrecipOverlays(points: List<HourlyForecast>, s
             p.precipProbability?.toFloat()?.div(100f) ?: 0f,
             p.precipAmountMm?.let { (it / 6f).coerceIn(0f, 1f) } ?: 0f,
         )
-        if (precipSignal > 0f) {
+        // Below 50% the tick is noise: NWS files dry hours at 1-2%, which drew a row of floor-height
+        // dots under the curve. Rain chance has its own graph; this only flags likely rain.
+        if (precipSignal >= MIN_PRECIP_TICK_SIGNAL) {
             val barHeight = (precipSignal * 18f * scale).coerceAtLeast(2f * scale)
             drawLine(
                 color = Color(0xFF4FC3F7).copy(alpha = 0.35f + 0.45f * precipSignal),
