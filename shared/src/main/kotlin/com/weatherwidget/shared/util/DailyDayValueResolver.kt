@@ -184,6 +184,28 @@ object DailyDayValueResolver {
     }
 
     /**
+     * Whether today's printed high ([printedHigh], the value [effectiveHighForLabel] returned) **is**
+     * the observed actual `max(solidHigh, ghostHigh)` — the rule that recolors the high label to the
+     * thermostat (observed) color. Mirror of [isLowLabelActual]: asks where the number came from,
+     * not what time it is. Before the 5pm cutoff the label prints `max(observed, forecast, ghost)`,
+     * and on a day already hotter than forecast that maximum is the actual and must read as one.
+     *
+     * Color only: whether the forecast high is ALSO labeled (dual label) stays on the time-gated
+     * [isHighTrackingActual]. Exact `==` is safe because [effectiveHighForLabel] returns one of its
+     * inputs unchanged; a tie with the forecast counts as actual.
+     */
+    fun isHighLabelActual(
+        isToday: Boolean,
+        printedHigh: Float?,
+        solidHigh: Float?,
+        ghostHigh: Float?,
+    ): Boolean {
+        if (!isToday || printedHigh == null) return false
+        val actualHigh = listOfNotNull(solidHigh, ghostHigh).maxOrNull() ?: return false
+        return printedHigh == actualHigh
+    }
+
+    /**
      * The "headline" low used for the today column's single low number. Mirror of
      * [effectiveHighForLabel].
      *

@@ -462,11 +462,17 @@ fun DailyForecastGraph(
                 if (singleHigh != null) {
                     val highLabelText = formatTemp(singleHigh)
                     val highSize = tempFontSize(highLabelText, DESKTOP_TEMP_LABEL_BASE_SP * scale)
-                    // Once today's high is settled (past 5pm) the single number tracks the observed
-                    // actual — recolor it the thermostat (observed) color so it reads as a real
-                    // reading, not a forecast. Mirrors the dual-label gate above (and Android).
+                    // Thermostat (observed) color whenever the printed number IS today's observed
+                    // high — before 5pm too, when the day already ran hotter than forecast (shared
+                    // rule, matches Android). The dual label above stays on the 5pm gate.
+                    val todayHighIsActual = com.weatherwidget.shared.util.DailyDayValueResolver.isHighLabelActual(
+                        isToday = day.isToday,
+                        printedHigh = singleHigh,
+                        solidHigh = day.solidHigh,
+                        ghostHigh = day.ghostHigh,
+                    )
                     val highColor = when {
-                        todayHighSettled -> COLOR_OBSERVED
+                        todayHighIsActual -> COLOR_OBSERVED
                         day.isToday -> Color.Yellow
                         day.isPast && !day.solidIsForecastFallback -> COLOR_OBSERVED
                         else -> Color.White

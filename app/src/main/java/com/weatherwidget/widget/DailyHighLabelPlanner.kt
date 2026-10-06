@@ -48,6 +48,12 @@ internal object DailyHighLabelPlanner {
     internal data class HighLabelPlan(
         val showBoth: Boolean,
         val todayHighSettled: Boolean,
+        /**
+         * Today's printed (single) high IS the observed actual — thermostat color. Unlike
+         * [todayHighSettled] this is not time-gated: a day hotter than forecast reads as actual
+         * before 5pm too. Color only; the dual label stays on [todayHighSettled].
+         */
+        val todayHighIsActual: Boolean,
         /** Observed-actual (or headline) high, drawn at column center. */
         val actualHigh: Float,
         /** Forecast high, drawn offset to the side — only when [showBoth]. */
@@ -86,6 +92,12 @@ internal object DailyHighLabelPlanner {
             solidHigh = day.solidLineHigh,
             ghostHigh = day.ghostLineHigh,
             nowHour = day.nowHour,
+        )
+        val todayHighIsActual = com.weatherwidget.shared.util.DailyDayValueResolver.isHighLabelActual(
+            isToday = day.isToday,
+            printedHigh = effective,
+            solidHigh = day.solidLineHigh,
+            ghostHigh = day.ghostLineHigh,
         )
         // actualHigh == effective in every case (past: solid == effective; today: actual IS effective),
         // so the actual label baseline is always the headline (effective) baseline.
@@ -202,6 +214,7 @@ internal object DailyHighLabelPlanner {
         return HighLabelPlan(
             showBoth = showBoth,
             todayHighSettled = todayHighSettled,
+            todayHighIsActual = todayHighIsActual,
             actualHigh = actualHigh,
             forecastHigh = forecastHigh,
             actualBaseline = actualBaseline,

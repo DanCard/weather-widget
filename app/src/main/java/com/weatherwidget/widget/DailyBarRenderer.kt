@@ -312,8 +312,10 @@ internal object DailyBarRenderer {
                     layout.density
             (highY ?: layout.graphTop) - labelOffset
         }
+        // Thermostat color whenever the printed number IS today's observed high — before 5pm too,
+        // when the day already ran hotter than forecast.
         val highColorOverride =
-            if (plan?.todayHighSettled == true) COLOR_OBSERVED_RED else null
+            if (plan?.todayHighIsActual == true) COLOR_OBSERVED_RED else null
         return listOf(DailyTemperatureLabelRenderer.draw(
             canvas = canvas,
             text = highLabel,

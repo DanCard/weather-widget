@@ -139,6 +139,57 @@ class DailyDayValueResolverTest {
         )
     }
 
+    // ── isHighLabelActual (drives the high label's thermostat color) ────────
+    // Thermostat color iff the printed number IS the observed actual max(solid, ghost). Each case
+    // runs the real printed value through effectiveHighForLabel so color and value can't disagree.
+
+    private fun todayHighIsActual(solidHigh: Float?, forecastHigh: Float?, ghostHigh: Float?, nowHour: Int): Boolean {
+        val printed = DailyDayValueResolver.effectiveHighForLabel(
+            isToday = true, solidHigh = solidHigh, forecastHigh = forecastHigh, ghostHigh = ghostHigh, nowHour = nowHour,
+        )
+        return DailyDayValueResolver.isHighLabelActual(
+            isToday = true, printedHigh = printed, solidHigh = solidHigh, ghostHigh = ghostHigh,
+        )
+    }
+
+    @Test
+    fun highLabelActualBeforeCutoffWhenObservedHotterThanForecast() {
+        // The 2026-10-06 report: 4pm, current 84.22, observed peak 84.52, forecast 81.2 — the label
+        // prints 84.52, the actual. The 5pm-gated rule drew it in the forecast color.
+        assertEquals(true, todayHighIsActual(solidHigh = 84.22f, forecastHigh = 81.2f, ghostHigh = 84.52f, nowHour = 16))
+    }
+
+    @Test
+    fun highLabelNotActualBeforeCutoffWhenForecastHotter() {
+        // Noon: forecast 80 still beats the observed-so-far 76 — the printed number is a prediction.
+        assertEquals(false, todayHighIsActual(solidHigh = 74f, forecastHigh = 80f, ghostHigh = 76f, nowHour = 12))
+    }
+
+    @Test
+    fun highLabelActualAfterCutoffEvenWhenForecastHotter() {
+        // 6pm: settled — prints the observed 76 although the forecast said 80.
+        assertEquals(true, todayHighIsActual(solidHigh = 74f, forecastHigh = 80f, ghostHigh = 76f, nowHour = 18))
+    }
+
+    @Test
+    fun highLabelActualOnTieWithForecast() {
+        assertEquals(true, todayHighIsActual(solidHigh = 74f, forecastHigh = 80f, ghostHigh = 80f, nowHour = 14))
+    }
+
+    @Test
+    fun highLabelNeverActualWithoutObservations() {
+        assertEquals(false, todayHighIsActual(solidHigh = null, forecastHigh = 80f, ghostHigh = null, nowHour = 14))
+        assertEquals(false, todayHighIsActual(solidHigh = null, forecastHigh = 80f, ghostHigh = null, nowHour = 18))
+    }
+
+    @Test
+    fun highLabelActualFalseForNonToday() {
+        assertEquals(
+            false,
+            DailyDayValueResolver.isHighLabelActual(isToday = false, printedHigh = 76f, solidHigh = 76f, ghostHigh = null),
+        )
+    }
+
     // ── Low cutoff (9am) ───────────────────────────────────────────────────
 
     @Test
