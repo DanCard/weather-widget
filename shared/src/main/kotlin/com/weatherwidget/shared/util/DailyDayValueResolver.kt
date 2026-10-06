@@ -194,6 +194,11 @@ object DailyDayValueResolver {
      *
      * Only used for today — non-today rows use their observed low directly.
      *
+     * [forecastLow] is the **live** forecast low only. The 24h-prior snapshot ("yesterday's
+     * forecast") is a comparison bar, not a headline candidate — the same rule as
+     * [effectiveHighForLabel]. Desktop folded it into the min until 2026-10-06, so the two
+     * platforms printed different numbers before 9am.
+     *
      * Settled (post-cutoff, observed-low branch) additionally requires [actualLow] to be
      * non-null: without a genuine observation the low keeps the forecast-inclusive blend,
      * since a forecast stand-in `solidLow` is not a settled actual.
@@ -214,30 +219,25 @@ object DailyDayValueResolver {
     }
 
     /**
-     * Whether today's headline low is currently tracking the **observed actual** rather than the
-     * forecast-inclusive blend — i.e. the exact case where [effectiveLowForLabel] returns
-     * the observed low and drops the forecast. Mirror of [isHighTrackingActual].
+     * Whether today's printed low ([printedLow], the value [effectiveLowForLabel] returned) **is**
+     * the observed actual — the rule that recolors the low label to the thermostat (observed)
+     * color. Asks where the number came from, not what time it is: before the 9am cutoff the
+     * label prints `min(observed, forecast)`, and when the night has already gone colder than
+     * forecast that minimum is the actual and must read as one.
      *
-     * True only for today, once the local time is past [ACTUAL_LOW_CUTOFF_HOUR] (9am) AND a
-     * genuine observed low exists ([actualLow] non-null). A [solidLow] that is merely a
-     * forecast stand-in (forecast-only sources like Open-Meteo) or a bare current-temp
-     * reading must not count as "settled" — callers use this to recolor the low label to
-     * the thermostat (observed) color, which would wrongly paint a prediction red.
-     * Mirrors the branch in [effectiveLowForLabel] so the color and the value never disagree.
+     * Requires a genuinely observed [actualLow]: a [solidLow][TodayLineValues.solidLow] that is a
+     * forecast stand-in (forecast-only sources like Open-Meteo) is never an actual. Exact `==` is
+     * safe because [effectiveLowForLabel] returns its input unchanged (directly or via `min`); a
+     * tie with the forecast counts as actual.
      *
-     * @param nowHour Local hour-of-day (0–23); null disables the cutoff (legacy behavior).
+     * Only for today — past-day colors follow
+     * [PastLineValues.solidIsForecastFallback][PastLineValues.solidIsForecastFallback].
      */
-    fun isLowTrackingActual(
+    fun isLowLabelActual(
         isToday: Boolean,
-        solidLow: Float?,
-        nowHour: Int? = null,
-        actualLow: Float? = null,
-    ): Boolean {
-        if (!isToday) return false
-        if (actualLow == null) return false
-        val lowSettled = nowHour != null && nowHour >= ACTUAL_LOW_CUTOFF_HOUR
-        return lowSettled && solidLow != null
-    }
+        printedLow: Float?,
+        actualLow: Float?,
+    ): Boolean = isToday && actualLow != null && printedLow == actualLow
 
     /**
      * The vertical anchor for the weather icon + low label: the **lowest drawn bar bottom**

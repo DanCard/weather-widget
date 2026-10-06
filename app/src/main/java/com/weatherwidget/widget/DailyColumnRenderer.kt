@@ -100,18 +100,19 @@ internal object DailyColumnRenderer {
                         day.isPast && !day.solidIsForecastFallback -> paints.pastTempTextPaint
                         else -> paints.tempTextPaint
                     }
-                val todayLowSettled =
-                    DailyDayValueResolver.isLowTrackingActual(
+                // Thermostat color whenever the printed number IS today's observed low —
+                // before 9am too, when the night already went colder than forecast.
+                val todayLowIsActual =
+                    DailyDayValueResolver.isLowLabelActual(
                         isToday = day.isToday,
-                        solidLow = day.solidLineLow,
-                        nowHour = day.nowHour,
+                        printedLow = displayLow,
                         // A forecast stand-in low (forecast-only sources) must never read
-                        // as a settled actual — keep the label white unless an actual low
+                        // as an actual — keep the label white unless an actual low
                         // was genuinely observed.
                         actualLow = if (day.todayHasActualLow) day.solidLineLow else null,
                     )
                 val lowColorOverride =
-                    if (todayLowSettled) DailyBarRenderer.COLOR_OBSERVED_RED else null
+                    if (todayLowIsActual) DailyBarRenderer.COLOR_OBSERVED_RED else null
                 DailyTemperatureLabelRenderer.draw(
                     canvas = canvas,
                     text = lowLabelText,

@@ -193,13 +193,7 @@ fun DailyForecastGraph(
 
         fun resolveLowLabelY(idx: Int): Float? {
             val d = displayDays.getOrNull(idx) ?: return null
-            val lowVal = com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
-                isToday = d.isToday,
-                solidLow = d.solidLow,
-                forecastLow = listOfNotNull(d.forecastLow, d.snapshotLow).minOrNull(),
-                nowHour = d.nowHour,
-                actualLow = d.actual?.computedLowTemp,
-            ) ?: return null
+            val lowVal = d.lowForLabel() ?: return null
 
             val lowLabelText = formatTemp(lowVal)
             val lowSize = tempFontSize(lowLabelText, DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale)
@@ -328,19 +322,13 @@ fun DailyForecastGraph(
             }
 
             // All columns funnel through the shared resolver (matches Android exactly):
-            //   today  -> cutoff rule: after 9am the low tracks the observed actual and drops the
-            //             forecast/snapshot comparison lows (folded together so the pre-cutoff value
-            //             is unchanged), falling back to them only when no actual exists yet.
+            //   today  -> cutoff rule: before 9am min(observed, live forecast); after, the observed
+            //             actual, falling back to the forecast only when no actual exists yet. The
+            //             24h-prior snapshot is a comparison bar and never the printed number.
             //   past   -> returns solidLow (the observed actual) — the forecast low is bar-only and
             //             must never win the printed number, even when it predicted colder.
             //   future -> returns solidLow (which IS the forecast for future days).
-            val lowForLabel = com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
-                isToday = day.isToday,
-                solidLow = day.solidLow,
-                forecastLow = listOfNotNull(day.forecastLow, day.snapshotLow).minOrNull(),
-                nowHour = day.nowHour,
-                actualLow = day.actual?.computedLowTemp,
-            )
+            val lowForLabel = day.lowForLabel()
 
             // History — and today once its high is settled (past the 5pm cutoff) — label BOTH the
             // actual high (thermostat pink) and the forecast high (yellow, matching the forecast bar)
@@ -514,18 +502,16 @@ fun DailyForecastGraph(
             if (lowForLabel != null) {
                 val lowLabelText = formatTemp(lowForLabel)
                 val lowSize = tempFontSize(lowLabelText, DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale)
-                // Matches the single-high recolor above: a past day's low is an actual reading, and
-                // so is today's once the overnight low is settled (past the 9am cutoff) — both read
-                // as the thermostat/observed color rather than plain white.
-                val todayLowSettled = com.weatherwidget.shared.util.DailyDayValueResolver.isLowTrackingActual(
+                // Thermostat (observed) color whenever the printed number IS the actual: a past day's
+                // observed low, and today's once the observed low is what prints (the shared rule —
+                // before 9am too, when the night already went colder than forecast). A forecast
+                // stand-in never qualifies.
+                val todayLowIsActual = com.weatherwidget.shared.util.DailyDayValueResolver.isLowLabelActual(
                     isToday = day.isToday,
-                    solidLow = day.solidLow,
-                    nowHour = day.nowHour,
-                    // A forecast stand-in low (forecast-only sources) must never read as a
-                    // settled actual — keep the label white unless an actual low exists.
+                    printedLow = lowForLabel,
                     actualLow = day.actual?.computedLowTemp,
                 )
-                val lowColor = if ((day.isPast && !day.solidIsForecastFallback) || todayLowSettled) COLOR_OBSERVED else Color.White.copy(alpha = 0.78f)
+                val lowColor = if ((day.isPast && !day.solidIsForecastFallback) || todayLowIsActual) COLOR_OBSERVED else Color.White.copy(alpha = 0.78f)
                 val lowText = textMeasurer.measure(
                     lowLabelText,
                     TextStyle(fontSize = lowSize.sp, color = lowColor)
@@ -1081,13 +1067,7 @@ internal fun computeDailyGraphTapLayout(
     fun yAt(temp: Float): Float = top + graphHeight * (1f - (temp - minTemp) / range)
 
     val iconTops = days.map { day ->
-        val lowForLabel = com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
-            isToday = day.isToday,
-            solidLow = day.solidLow,
-            forecastLow = listOfNotNull(day.forecastLow, day.snapshotLow).minOrNull(),
-            nowHour = day.nowHour,
-            actualLow = day.actual?.computedLowTemp,
-        ) ?: return@map null
+        val lowForLabel = day.lowForLabel() ?: return@map null
         val lowLabelText = formatTemp(lowForLabel, useCelsius)
         val lowTextHeight = measureLowLabelHeight(lowLabelText, DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale)
         val anchorLow = com.weatherwidget.shared.util.DailyDayValueResolver.iconAnchorLow(
@@ -1138,6 +1118,16 @@ private fun labelSizeFor(dayWidth: Float): Float =
 // Show the tenth for any non-integer value (".0" suppressed by TempUtils.formatTemp), for
 // forecasts/future and actuals alike — matches the Android daily view. NWS integer forecasts
 // stay clean; climate normals and decimal sources reveal their tenth.
+/** The printed low for a column — one call so the label, its Y and the tap layout agree. */
+private fun DesktopDailyDay.lowForLabel(): Float? =
+    com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
+        isToday = isToday,
+        solidLow = solidLow,
+        forecastLow = forecastLow,
+        nowHour = nowHour,
+        actualLow = actual?.computedLowTemp,
+    )
+
 private fun formatTemp(v: Float?, useCelsius: Boolean): String {
     if (v == null) return ""
     return com.weatherwidget.shared.util.TempUtils.formatTemp(v, useCelsius) ?: ""
