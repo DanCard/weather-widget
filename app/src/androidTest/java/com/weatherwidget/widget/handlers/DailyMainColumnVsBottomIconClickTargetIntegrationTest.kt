@@ -46,6 +46,8 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
         super.setup()
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
+        // Seeded rows are NWS; debug builds default to Google Weather as primary (2026-10-06).
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
         stateManager.setViewMode(testWidgetId, ViewMode.DAILY)
         
         runBlocking {

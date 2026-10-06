@@ -61,6 +61,7 @@
     <string name="api_source_silurian_desc">Silurian.ai — hiển thị là Silur (phủ sóng toàn cầu)</string>
     <string name="api_source_nws_desc">Cơ quan Thời tiết Quốc gia (chỉ Hoa Kỳ)</string>
     <string name="api_source_tomorrowio_desc">Tomorrow.io — hiển thị là Tmrw (phủ sóng toàn cầu)</string>
+    <string name="api_source_google_desc">Google Weather — hiển thị là Google (phủ sóng toàn cầu)</string>
     <string name="api_source_visualcrossing_desc">Visual Crossing — hiển thị là VisCr (phủ sóng toàn cầu)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — hiển thị là Meteo (phủ sóng toàn cầu)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — hiển thị là WAPI (phủ sóng toàn cầu)</string>
@@ -240,6 +241,7 @@
     <string name="header_delta_from_yesterday">so hôm qua</string>
     <string name="widget_loading">Đang tải...</string>
     <string name="widget_fetching_location">Đang lấy thời tiết cho %1$s…</string>
+    <string name="widget_fetching_source">Đang lấy thời tiết từ %1$s…</string>
     <string name="widget_tap_to_refresh">Nhấn để làm mới</string>
     <string name="widget_no_location">Không có vị trí — chạm để đặt</string>
     <string name="current_stations_desc">Trạm hiện tại</string>

@@ -61,6 +61,7 @@
     <string name="api_source_silurian_desc">Silurian.ai — 显示为 Silur（全球覆盖）</string>
     <string name="api_source_nws_desc">美国国家气象局（仅限美国）</string>
     <string name="api_source_tomorrowio_desc">Tomorrow.io — 显示为 Tmrw（全球覆盖）</string>
+    <string name="api_source_google_desc">Google Weather — 显示为 Google（全球覆盖）</string>
     <string name="api_source_visualcrossing_desc">Visual Crossing — 显示为 VisCr（全球覆盖）</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — 显示为 Meteo（全球覆盖）</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — 显示为 WAPI（全球覆盖）</string>
@@ -240,6 +241,7 @@
     <string name="header_delta_from_yesterday">较昨日</string>
     <string name="widget_loading">加载中...</string>
     <string name="widget_fetching_location">正在获取 %1$s 的天气…</string>
+    <string name="widget_fetching_source">正在从 %1$s 获取天气…</string>
     <string name="widget_tap_to_refresh">点按以刷新</string>
     <string name="widget_no_location">无位置 — 点按设置</string>
     <string name="current_stations_desc">当前气象站</string>

@@ -61,6 +61,7 @@
     <string name="api_source_silurian_desc">Silurian.ai — Silur کے نام سے دکھتا ہے (عالمی کوریج)</string>
     <string name="api_source_nws_desc">قومی موسمی سروس (صرف امریکہ)</string>
     <string name="api_source_tomorrowio_desc">Tomorrow.io — Tmrw کے نام سے دکھتا ہے (عالمی کوریج)</string>
+    <string name="api_source_google_desc">Google Weather — Google کے نام سے دکھتا ہے (عالمی کوریج)</string>
     <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr کے نام سے دکھتا ہے (عالمی کوریج)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — Meteo کے نام سے دکھتا ہے (عالمی کوریج)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — WAPI کے نام سے دکھتا ہے (عالمی کوریج)</string>
@@ -240,6 +241,7 @@
     <string name="header_delta_from_yesterday">کل سے</string>
     <string name="widget_loading">لوڈ ہو رہا ہے...</string>
     <string name="widget_fetching_location">%1$s کے لیے موسم حاصل کیا جا رہا ہے…</string>
+    <string name="widget_fetching_source">%1$s سے موسم حاصل کیا جا رہا ہے…</string>
     <string name="widget_tap_to_refresh">ریفریش کے لیے ٹیپ کریں</string>
     <string name="widget_no_location">کوئی مقام نہیں — مقرر کرنے کے لیے ٹیپ کریں</string>
     <string name="current_stations_desc">موجودہ اسٹیشن</string>

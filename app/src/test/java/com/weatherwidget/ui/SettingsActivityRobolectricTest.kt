@@ -117,7 +117,7 @@ class SettingsActivityRobolectricTest {
             val container = activity.findViewById<LinearLayout>(R.id.api_sources_container)
             val checked = (0 until container.childCount)
                 .map { container.getChildAt(it).findViewById<CheckBox>(R.id.source_checkbox).isChecked }
-            assertEquals(listOf(true, true, true, false, false, false), checked)
+            assertEquals(listOf(true, true, true, false, false, false, false), checked)
         }
         scenario.close()
     }

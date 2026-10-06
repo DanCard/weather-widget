@@ -657,6 +657,12 @@ class WeatherWidgetWorker
              * 2026-09-29) and goes straight to its unforced refresh.
              */
             const val KEY_LOCATION_CACHE_ADOPTED = "location_cache_adopted"
+
+            /**
+             * Set on the sync a source's becoming primary enqueued (see [SourceSwitchFetch]). When
+             * that showed its "Getting weather from {source}…" banner, the run clears it at every exit.
+             */
+            const val KEY_SOURCE_SWITCH_ID = "source_switch_id"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
             const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
         }

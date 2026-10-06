@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.RawFetch
@@ -7,6 +8,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.shared.observations.MetarSkyCover
@@ -112,6 +114,7 @@ class DesktopWeatherService(
     private val weatherApi = WeatherApi(httpClient, json) { effectiveKeys[WeatherSource.WEATHER_API.id] }
     private val silurian = SilurianApi(httpClient, json) { effectiveKeys[WeatherSource.SILURIAN.id] }
     private val openWeatherMap = OpenWeatherMapApi(httpClient, json) { effectiveKeys[WeatherSource.OPEN_WEATHER_MAP.id] }
+    private val googleWeather = GoogleWeatherApi(httpClient, json) { effectiveKeys[WeatherSource.GOOGLE_WEATHER.id] }
     // "SYNOPTIC" is not a WeatherSource id — it is the NWS web-fallback transport, keyed by a token
     // minted from the API key. It rides the same baked-keys map purely for the plumbing.
     private val synopticApi = injectedSynopticApi
@@ -175,6 +178,12 @@ class DesktopWeatherService(
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoForecastWithFiveMinuteHistory()
             WeatherSource.WEATHER_API.id -> withHistoricalActuals(weatherApi.getForecast(latitude, longitude), WeatherSource.WEATHER_API.id)
             WeatherSource.SILURIAN.id -> withHistoricalActuals(silurian.getForecast(latitude, longitude), WeatherSource.SILURIAN.id)
+            // Forecast-only like Silurian: withHistoricalActuals files nothing for it (the builder
+            // rejects sources without a historical-actuals contract); actuals are borrowed.
+            WeatherSource.GOOGLE_WEATHER.id -> withHistoricalActuals(
+                googleWeather.getForecast(latitude, longitude, includeHistory = googleNeedsHistory()),
+                WeatherSource.GOOGLE_WEATHER.id,
+            )
             WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapForecastWithCurrent()
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoForecast()
             else -> throw IllegalArgumentException("Unsupported weather source: $weatherSource")
@@ -235,6 +244,21 @@ class DesktopWeatherService(
                 nowMs = System.currentTimeMillis(),
             ),
         )
+
+    /** See `GoogleWeatherApi.needsHistory`: `history/hours` has a small per-project daily quota (Cloud Console setting). */
+    private fun googleNeedsHistory(): Boolean {
+        val dao = weatherDao ?: return true
+        val now = System.currentTimeMillis()
+        val window = GoogleWeatherApi.historyWindow(now)
+        val covered = dao.getHourlyHistoryCoveredHours(
+            LocationMatch.quantize(latitude),
+            LocationMatch.quantize(longitude),
+            WeatherSource.GOOGLE_WEATHER.id,
+            window.first,
+            window.last + 1,
+        )
+        return GoogleWeatherApi.needsHistory(covered, now)
+    }
 
     private suspend fun fetchTomorrowIoForecastWithFiveMinuteHistory(): RawFetch = coroutineScope {
         val forecastDeferred = async { tomorrowIo.getForecast(latitude, longitude) }
@@ -844,7 +868,7 @@ class DesktopWeatherService(
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
             WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapObservationsOnly()
             WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
-            WeatherSource.SILURIAN.id -> fetchBorrowedObservationsOnly(recentOnly, userLocationChange)
+            WeatherSource.SILURIAN.id, WeatherSource.GOOGLE_WEATHER.id -> fetchBorrowedObservationsOnly(recentOnly, userLocationChange)
             WeatherSource.WEATHER_API.id -> {
                 Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path is defined")
                 RawFetch()

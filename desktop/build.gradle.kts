@@ -33,6 +33,9 @@ run {
         "OPEN_WEATHER_MAP" to "OPEN_WEATHER_MAP_API_KEY",
         "VISUAL_CROSSING" to "VISUAL_CROSSING_API_KEY",
         "TOMORROW_IO" to "TOMORROW_IO_API_KEY",
+        // Billed per request. Public apt builds (-PpublicBuild) bake none; the source is not
+        // default-visible on desktop — the developer enables it in their own config.json.
+        "GOOGLE_WEATHER" to "GOOGLE_WEATHER_API_KEY",
         // Not a WeatherSource id: Synoptic is the NWS web-fallback transport, and this is a TOKEN
         // minted from its API key rather than a key. It shares this map only for the plumbing.
         "SYNOPTIC" to "SYNOPTIC_API_TOKEN",
@@ -65,6 +68,8 @@ run {
         }
     }
     kotlin.sourceSets.named("main") { kotlin.srcDir(generatedDir) }
+    // Recorded provider responses shared with :shared and :app tests (e.g. google-weather/).
+    kotlin.sourceSets.named("test") { resources.srcDir(rootProject.file("shared/src/test/resources")) }
     tasks.named("compileKotlin") { dependsOn(generateApiKeys) }
 }
 

@@ -51,6 +51,10 @@ class WidgetStateManagerMigrationInstrumentedTest {
             .putBoolean("api_pref_migrated", true)
             .putBoolean("silurian_migration_done_v2", true)
             .putBoolean("hide_deprecated_sources_migration_done_v6", true)
+            // Tests the legacy-boolean decode, which is positional; the debug-only Google migration
+            // (2026-10-06) would prepend Google and shift the index. On a device it also rewrites
+            // every bound widget to an explicit id, so the shift only reaches unbound test ids.
+            .putBoolean("google_weather_debug_enabled_migration_done_v1", true)
             .putString("visible_sources_order", "NWS,OPEN_METEO")
             .putBoolean("widget_display_source_$widgetId", true)
             .commit()

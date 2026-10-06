@@ -32,6 +32,7 @@ class WeatherSourceOrderingTest {
             WeatherSource.SILURIAN,
             WeatherSource.TOMORROW_IO,
             WeatherSource.WEATHER_API,
+            WeatherSource.GOOGLE_WEATHER,
         ).forEach {
             assertTrue("$it must be configurable", it in WeatherSourceOrdering.ALL_CONFIGURABLE)
         }
@@ -50,6 +51,7 @@ class WeatherSourceOrderingTest {
             listOf(
                 WeatherSource.OPEN_METEO,
                 WeatherSource.NWS,
+                WeatherSource.GOOGLE_WEATHER,
                 WeatherSource.TOMORROW_IO,
                 WeatherSource.SILURIAN,
                 WeatherSource.WEATHER_API,
@@ -68,6 +70,7 @@ class WeatherSourceOrderingTest {
             listOf(
                 WeatherSource.NWS,
                 WeatherSource.OPEN_METEO,
+                WeatherSource.GOOGLE_WEATHER,
                 WeatherSource.TOMORROW_IO,
                 WeatherSource.SILURIAN,
                 WeatherSource.WEATHER_API,
@@ -84,6 +87,7 @@ class WeatherSourceOrderingTest {
                 WeatherSource.NWS,
                 WeatherSource.OPEN_METEO,
                 WeatherSource.SILURIAN,
+                WeatherSource.GOOGLE_WEATHER,
                 WeatherSource.TOMORROW_IO,
                 WeatherSource.WEATHER_API,
                 WeatherSource.OPEN_WEATHER_MAP,
@@ -219,5 +223,55 @@ class WeatherSourceOrderingTest {
         WeatherSourceOrdering.toggle(original, WeatherSource.SILURIAN, makeVisible = true)
 
         assertEquals("input list not mutated", listOf("NWS", "OPEN_METEO"), original)
+    }
+
+    @Test
+    fun `enabling Google makes it primary`() {
+        val result = WeatherSourceOrdering.toggle(listOf("NWS", "OPEN_METEO"), WeatherSource.GOOGLE_WEATHER, makeVisible = true)
+        assertEquals(listOf("GOOGLE_WEATHER", "NWS", "OPEN_METEO"), result)
+    }
+
+    @Test
+    fun `enabling OWM appends it last, and it can then be moved up`() {
+        val enabled = WeatherSourceOrdering.toggle(listOf("NWS", "OPEN_METEO"), WeatherSource.OPEN_WEATHER_MAP, makeVisible = true)!!
+        assertEquals(listOf("NWS", "OPEN_METEO", "OPEN_WEATHER_MAP"), enabled)
+        assertEquals(
+            listOf("NWS", "OPEN_WEATHER_MAP", "OPEN_METEO"),
+            WeatherSourceOrdering.moveUp(enabled, WeatherSource.OPEN_WEATHER_MAP),
+        )
+    }
+
+    @Test
+    fun `Google placement is a starting position, not a pin`() {
+        val ids = listOf("GOOGLE_WEATHER", "NWS")
+        assertEquals(listOf("NWS", "GOOGLE_WEATHER"), WeatherSourceOrdering.moveDown(ids, WeatherSource.GOOGLE_WEATHER))
+        // Re-enabling an already-enabled source leaves the user's order alone.
+        assertEquals(listOf("NWS", "GOOGLE_WEATHER"), WeatherSourceOrdering.withEnabled(listOf("NWS", "GOOGLE_WEATHER"), WeatherSource.GOOGLE_WEATHER))
+    }
+
+    @Test
+    fun `a newly enabled primary-on-enable source takes over the display`() {
+        assertEquals(
+            "GOOGLE_WEATHER",
+            WeatherSourceOrdering.selectionAfterChange(listOf("NWS", "OPEN_METEO"), listOf("GOOGLE_WEATHER", "NWS", "OPEN_METEO"), "OPEN_METEO"),
+        )
+    }
+
+    @Test
+    fun `any other change keeps the display's own choice, or falls back to the new primary`() {
+        assertEquals("OPEN_METEO", WeatherSourceOrdering.selectionAfterChange(listOf("NWS", "OPEN_METEO"), listOf("NWS", "OPEN_METEO", "OPEN_WEATHER_MAP"), "OPEN_METEO"))
+        // Reordering Google back to the front is not "enabling" it.
+        assertEquals("NWS", WeatherSourceOrdering.selectionAfterChange(listOf("NWS", "GOOGLE_WEATHER"), listOf("GOOGLE_WEATHER", "NWS"), "NWS"))
+        assertEquals("NWS", WeatherSourceOrdering.selectionAfterChange(listOf("NWS", "SILURIAN"), listOf("NWS"), "SILURIAN"))
+    }
+
+    @Test
+    fun `newlyPrimary names only a primary-on-enable source just enabled at the front`() {
+        assertEquals(WeatherSource.GOOGLE_WEATHER, WeatherSourceOrdering.newlyPrimary(listOf("NWS"), listOf("GOOGLE_WEATHER", "NWS")))
+        // Reordering an enabled Google to the front is not "becoming primary on enable".
+        assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS", "GOOGLE_WEATHER"), listOf("GOOGLE_WEATHER", "NWS")))
+        // Other sources are appended, never primary-on-enable.
+        assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS"), listOf("NWS", "OPEN_WEATHER_MAP")))
+        assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS", "SILURIAN"), listOf("SILURIAN")))
     }
 }

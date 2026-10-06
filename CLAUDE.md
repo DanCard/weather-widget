@@ -34,10 +34,16 @@ Also desktop Linux app that is intended to be the same as Android weather widget
 - **Open-Meteo** API (free, no API key required)
 - Both APIs fetched and stored equally (composite keys allow comparison)
 - Widget toggles between sources via tap on API indicator
-- Additional key-based sources (Silurian, Tomorrow.io, WeatherAPI, Visual Crossing, OpenWeatherMap);
-  users may enter their own keys in Settings. Release builds deliberately ship with keys baked from
-  `local.properties` (decision 2026-07-08: out-of-the-box premium sources over quota-theft risk;
-  usage is tracked in `api_usage_stats`).
+- Additional key-based sources (Silurian, Tomorrow.io, WeatherAPI, Visual Crossing, OpenWeatherMap,
+  Google Weather); users may enter their own keys in Settings. Release builds deliberately ship with
+  keys baked from `local.properties` (decision 2026-07-08: out-of-the-box premium sources over
+  quota-theft risk; usage is tracked in `api_usage_stats`) — **except Google Weather**, billed per
+  request, whose key is baked into debug builds only (release `BuildConfig` field is `""`).
+  Google is forecast-only (borrows METAR actuals); one full fetch = 6 requests, current temp = 1.
+  See `plans/261006-add-google-weather-source.md`.
+- **Enabling a source places it:** Google Weather goes first (becomes primary, and every widget /
+  the desktop popup switches to it); any other source is appended. A starting position, not a pin —
+  OWM is no longer forced last. Rule: `WeatherSourceOrdering.withEnabled` / `selectionAfterChange`.
 - Settings → "Weather Data Sources" enables/disables and **orders** sources. "Primary" = the
   displayed source (`getActiveDisplaySourceIds()`); non-selected APIs are throttled. The old
   Alternate/NWS-Primary/Open-Meteo-Primary preference no longer exists.

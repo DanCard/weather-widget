@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.remote.GoogleWeatherApi
 import android.content.Context
 import android.location.Location
 import android.os.SystemClock
@@ -66,6 +67,7 @@ class CurrentTempRepository
         private val observationRepository: ObservationRepository,
         private val tomorrowIoApi: TomorrowIoApi? = null,
         private val openWeatherMapApi: OpenWeatherMapApi? = null,
+        private val googleWeatherApi: GoogleWeatherApi? = null,
     ) {
         private val syncMutex = Mutex()
         companion object {
@@ -215,6 +217,7 @@ class CurrentTempRepository
                 WeatherSource.NWS -> observationRepository.fetchNwsCurrent(latitude, longitude)
                 WeatherSource.SILURIAN -> fetchSilurianCurrent(latitude, longitude)
                 WeatherSource.TOMORROW_IO -> fetchTomorrowIoCurrent(latitude, longitude)
+                WeatherSource.GOOGLE_WEATHER -> fetchGoogleWeatherCurrent(latitude, longitude)
                 else -> null
             }
 
@@ -338,6 +341,37 @@ class CurrentTempRepository
                     reading.observedAt,
                 )
             }
+        }
+
+        /**
+         * Centre point only, via the one-request current endpoint. Not [fetchForecastCurrent]: that
+         * runs a full forecast at five points, which for a per-request-billed source would cost 30
+         * calls every refresh. Google borrows actuals, so the offset POIs would feed nothing anyway.
+         */
+        private suspend fun fetchGoogleWeatherCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? {
+            val api = googleWeatherApi ?: return null
+            val result = api.getCurrent(latitude, longitude)
+            val currentTemp = result.providerCurrentTemp ?: return null
+            insertCurrentObservation(
+                ObservationEntity(
+                    "GOOGLE_WEATHER_MAIN",
+                    "Google: Current",
+                    result.providerCurrentObservedAt ?: System.currentTimeMillis(),
+                    currentTemp,
+                    result.providerCurrentCondition ?: "Unknown",
+                    latitude,
+                    longitude,
+                    0f,
+                    "OFFICIAL",
+                    api = WeatherSource.GOOGLE_WEATHER.id,
+                ),
+            )
+            return CurrentReadingPayload(
+                WeatherSource.GOOGLE_WEATHER,
+                currentTemp,
+                result.providerCurrentCondition,
+                result.providerCurrentObservedAt,
+            )
         }
 
         private suspend fun fetchSilurianCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {

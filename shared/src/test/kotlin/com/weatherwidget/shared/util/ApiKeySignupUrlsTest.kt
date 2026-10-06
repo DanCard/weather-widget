@@ -35,6 +35,7 @@ class ApiKeySignupUrlsTest {
             WeatherSource.OPEN_WEATHER_MAP,
             WeatherSource.SILURIAN,
             WeatherSource.WEATHER_API,
+            WeatherSource.GOOGLE_WEATHER,
         )
         assertEquals(expected, ApiKeySignupUrls.sourcesRequiringKeys.toSet())
     }

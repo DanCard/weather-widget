@@ -147,8 +147,10 @@ label = "Test",
     }
 
     @Test
-    fun `load moves open weather map to the bottom of visibleSources`() {
-        val configPath = Files.createTempDirectory("desktop-config-owm-bottom").resolve("config.json")
+    // Until 2026-10-06 every load forced OWM last. It is now appended on enable and the user may
+    // move it (user's call), so a load must keep the order the user chose.
+    fun `load keeps open weather map where the user placed it`() {
+        val configPath = Files.createTempDirectory("desktop-config-owm-position").resolve("config.json")
         configPath.writeText(
             """
             {
@@ -167,7 +169,7 @@ label = "Test",
 
         requireNotNull(loaded)
         assertEquals(
-            listOf("NWS", "OPEN_METEO", "SILURIAN", "OPEN_WEATHER_MAP"),
+            listOf("NWS", "OPEN_WEATHER_MAP", "OPEN_METEO", "SILURIAN"),
             loaded.settings.visibleSources,
         )
     }

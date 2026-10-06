@@ -168,6 +168,7 @@ internal class WeatherSourcePreferences(
         migrateSilurianIfNeeded()
         migrateOpenWeatherMapPositionIfNeeded()
         migrateNwsReenabledIfNeeded()
+        migrateGoogleWeatherEnabledIfNeeded()
 
         val fallback = defaultVisibleSources.map { it.id }
         val raw = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
@@ -195,10 +196,13 @@ internal class WeatherSourcePreferences(
         if (new == old) return false
 
         val selected = widgetIds.distinct().associateWith(::storedDisplaySource)
+        val oldIds = old.map { it.id }
         val editor = prefs.edit().putString(KEY_VISIBLE_SOURCES_ORDER, newIds.joinToString(","))
         selected.forEach { (widgetId, oldSource) ->
-            val survivor = oldSource.takeIf { it in new } ?: new.first()
-            editor.putString(displaySourceKey(widgetId), survivor.id)
+            editor.putString(
+                displaySourceKey(widgetId),
+                WeatherSourceOrdering.selectionAfterChange(oldIds, newIds, oldSource.id),
+            )
         }
         editor.apply()
 
@@ -322,6 +326,43 @@ internal class WeatherSourcePreferences(
         eventLogger("NWS_ENABLED_MIGRATION", "outcome=$outcome")
     }
 
+    /**
+     * One-time, for builds whose defaults include Google (debug only — the only builds with a baked
+     * key): enable it on an install that already has a stored list, as primary, and switch every
+     * widget to it. Flag-gated like the Silurian migration, so a later untick sticks.
+     */
+    private fun migrateGoogleWeatherEnabledIfNeeded() {
+        if (WeatherSource.GOOGLE_WEATHER !in defaultVisibleSources) return
+        if (prefs.getBoolean(KEY_GOOGLE_WEATHER_ENABLED_MIGRATION_DONE, false)) return
+        val current = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
+        val editor = prefs.edit().putBoolean(KEY_GOOGLE_WEATHER_ENABLED_MIGRATION_DONE, true)
+        val ids = current?.split(",")?.map(String::trim)?.filter { it.isNotEmpty() }
+        val outcome = if (ids != null && WeatherSource.GOOGLE_WEATHER.id !in ids) {
+            editor.putString(
+                KEY_VISIBLE_SOURCES_ORDER,
+                WeatherSourceOrdering.withEnabled(ids, WeatherSource.GOOGLE_WEATHER).joinToString(","),
+            )
+            activeWidgetIds().forEach { editor.putString(displaySourceKey(it), WeatherSource.GOOGLE_WEATHER.id) }
+            // The widgets now show a source with no data. This runs inside a prefs read (any thread,
+            // possibly a worker), so it only marks the switch; the startup paint starts the fetch
+            // and banner (SourceSwitchFetch via WidgetStartupCoordinator).
+            editor.putString(KEY_PENDING_SOURCE_SWITCH, WeatherSource.GOOGLE_WEATHER.id)
+            "enabled_primary"
+        } else {
+            "unchanged"
+        }
+        editor.apply()
+        Log.d(TAG, "Google Weather debug enable migration: outcome=$outcome")
+        eventLogger(TAG, "Google Weather debug enable migration: outcome=$outcome")
+    }
+
+    /** A source switch the debug migration made and nobody has fetched for yet; cleared on read. */
+    fun consumePendingSourceSwitch(): WeatherSource? {
+        val id = prefs.getString(KEY_PENDING_SOURCE_SWITCH, null) ?: return null
+        prefs.edit().remove(KEY_PENDING_SOURCE_SWITCH).apply()
+        return WeatherSource.entries.firstOrNull { it.id == id }
+    }
+
     private fun activeWidgetIds(): IntArray {
         val manager = AppWidgetManager.getInstance(context)
         return manager.getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
@@ -343,6 +384,8 @@ internal class WeatherSourcePreferences(
         const val KEY_SILURIAN_MIGRATION_DONE = "silurian_migration_done_v2"
         const val KEY_DEPRECATED_SOURCE_MIGRATION_DONE = "hide_deprecated_sources_migration_done_v6"
         const val KEY_OPEN_WEATHER_MAP_POSITION_MIGRATION_DONE = "owm_position_bottom_migration_done_v1"
+        const val KEY_GOOGLE_WEATHER_ENABLED_MIGRATION_DONE = "google_weather_debug_enabled_migration_done_v1"
+        const val KEY_PENDING_SOURCE_SWITCH = "pending_source_switch_fetch"
         const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
         const val KEY_API_KEY_PREFIX = "api_key_"
         const val KEY_ACTUALS_PROVIDER_PREFIX = "actuals_provider_"

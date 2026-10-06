@@ -61,6 +61,7 @@
     <string name="api_source_silurian_desc">Silurian.ai — Silur olarak gösterilir (küresel kapsama)</string>
     <string name="api_source_nws_desc">Ulusal Hava Servisi (yalnızca ABD)</string>
     <string name="api_source_tomorrowio_desc">Tomorrow.io — Tmrw olarak gösterilir (küresel kapsama)</string>
+    <string name="api_source_google_desc">Google Weather — Google olarak gösterilir (küresel kapsama)</string>
     <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr olarak gösterilir (küresel kapsama)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — Meteo olarak gösterilir (küresel kapsama)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — WAPI olarak gösterilir (küresel kapsama)</string>
@@ -240,6 +241,7 @@
     <string name="header_delta_from_yesterday">düne göre</string>
     <string name="widget_loading">Yükleniyor...</string>
     <string name="widget_fetching_location">%1$s için hava durumu alınıyor…</string>
+    <string name="widget_fetching_source">Hava durumu %1$s kaynağından alınıyor…</string>
     <string name="widget_tap_to_refresh">Yenilemek için dokunun</string>
     <string name="widget_no_location">Konum yok — ayarlamak için dokunun</string>
     <string name="current_stations_desc">Mevcut istasyonlar</string>

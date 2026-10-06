@@ -149,13 +149,7 @@ class BugReportActivity : AppCompatActivity() {
                 val sourcesOrder = widgetStateManager.getVisibleSourcesOrder().joinToString(", ") { it.name }
                 append("Sources order: $sourcesOrder\n")
                 append("API Keys Configured:\n")
-                val keySources = listOf(
-                    WeatherSource.TOMORROW_IO,
-                    WeatherSource.SILURIAN,
-                    WeatherSource.WEATHER_API,
-                    WeatherSource.VISUAL_CROSSING,
-                    WeatherSource.OPEN_WEATHER_MAP
-                )
+                val keySources = WeatherSource.entries.filter { it.requiresApiKey }
                 for (src in keySources) {
                     val key = widgetStateManager.getApiKey(src)
                     val status = if (!key.isNullOrBlank()) "Configured" else "Missing"

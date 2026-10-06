@@ -61,6 +61,7 @@
     <string name="api_source_silurian_desc">Silurian.ai — angezeigt als Silur (weltweite Abdeckung)</string>
     <string name="api_source_nws_desc">National Weather Service (nur USA)</string>
     <string name="api_source_tomorrowio_desc">Tomorrow.io — angezeigt als Tmrw (weltweite Abdeckung)</string>
+    <string name="api_source_google_desc">Google Weather — angezeigt als Google (weltweite Abdeckung)</string>
     <string name="api_source_visualcrossing_desc">Visual Crossing — angezeigt als VisCr (weltweite Abdeckung)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — angezeigt als Meteo (weltweite Abdeckung)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — angezeigt als WAPI (weltweite Abdeckung)</string>
@@ -240,6 +241,7 @@
     <string name="header_delta_from_yesterday">vs. gestern</string>
     <string name="widget_loading">Lädt...</string>
     <string name="widget_fetching_location">Wetter für %1$s wird abgerufen…</string>
+    <string name="widget_fetching_source">Wetter wird von %1$s geladen…</string>
     <string name="widget_tap_to_refresh">Zum Aktualisieren tippen</string>
     <string name="widget_no_location">Kein Standort – zum Festlegen tippen</string>
     <string name="current_stations_desc">Aktuelle Stationen</string>

@@ -336,7 +336,7 @@ class WidgetStateManagerTest {
     @Test
     fun `getVisibleSourcesOrder uses tomorrow io default order on fresh install (debug build)`() {
         // Unit tests run against the debug variant (BuildConfig.DEBUG = true), where Tomorrow.io
-        // IS in the default set. Release builds default to "NWS,OPEN_METEO,SILURIAN" (Tomorrow.io
+        // and Google Weather (first, as primary) ARE in the default set. Release builds default to "NWS,OPEN_METEO,SILURIAN" (Tomorrow.io
         // off by default to spare its tight free-plan quota) — see DEFAULT_VISIBLE_SOURCES.
         val context = ApplicationProvider.getApplicationContext<Context>()
         val freshPrefs = context.getSharedPreferences("fresh_test_prefs", Context.MODE_PRIVATE)
@@ -348,6 +348,8 @@ class WidgetStateManagerTest {
 
         assertEquals(
             listOf(
+                // Debug defaults: Google Weather first, as primary (2026-10-06).
+                WeatherSource.GOOGLE_WEATHER,
                 WeatherSource.NWS,
                 WeatherSource.OPEN_METEO,
                 WeatherSource.SILURIAN,
@@ -533,6 +535,8 @@ class WidgetStateManagerTest {
         migrationPrefs.edit()
             .putBoolean("api_pref_migrated", true)
             .putBoolean("silurian_migration_done_v2", false)
+            // Tests a different migration; the debug-only Google one (2026-10-06) has already run.
+            .putBoolean("google_weather_debug_enabled_migration_done_v1", true)
             .putString("visible_sources_order", "NWS,OPEN_METEO")
             .apply()
 
@@ -561,6 +565,8 @@ class WidgetStateManagerTest {
             .putBoolean("api_pref_migrated", true)
             .putBoolean("silurian_migration_done_v2", true)
             .putBoolean("hide_deprecated_sources_migration_done_v6", false)
+            // Tests a different migration; the debug-only Google one (2026-10-06) has already run.
+            .putBoolean("google_weather_debug_enabled_migration_done_v1", true)
             .putString("visible_sources_order", "NWS,VISUAL_CROSSING,OPEN_METEO,SILURIAN")
             .apply()
 
@@ -590,6 +596,8 @@ class WidgetStateManagerTest {
             .putBoolean("silurian_migration_done_v2", true)
             .putBoolean("hide_deprecated_sources_migration_done_v6", true)
             .putBoolean("owm_position_bottom_migration_done_v1", false)
+            // Tests a different migration; the debug-only Google one (2026-10-06) has already run.
+            .putBoolean("google_weather_debug_enabled_migration_done_v1", true)
             .putString("visible_sources_order", "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN")
             .apply()
 
@@ -621,6 +629,8 @@ class WidgetStateManagerTest {
 
         assertEquals(
             listOf(
+                // Debug defaults: Google Weather first, as primary (2026-10-06).
+                WeatherSource.GOOGLE_WEATHER,
                 WeatherSource.NWS,
                 WeatherSource.OPEN_METEO,
                 WeatherSource.SILURIAN,
@@ -720,6 +730,8 @@ class WidgetStateManagerTest {
         migrationPrefs.edit()
             .putBoolean("api_pref_migrated", true)
             .putBoolean("silurian_migration_done_v2", true)
+            // Tests a different migration; the debug-only Google one (2026-10-06) has already run.
+            .putBoolean("google_weather_debug_enabled_migration_done_v1", true)
             .putString("visible_sources_order", "VISUAL_CROSSING,NWS,OPEN_METEO")
             .putString("widget_display_source_$testWidgetId", WeatherSource.VISUAL_CROSSING.id)
             .commit()

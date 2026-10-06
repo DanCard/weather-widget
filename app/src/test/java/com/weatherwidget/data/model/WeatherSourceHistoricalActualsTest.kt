@@ -20,6 +20,7 @@ class WeatherSourceHistoricalActualsTest {
             WeatherSource.OPEN_METEO to HistoricalDataKind.RECENT_ANALYSIS,
             WeatherSource.WEATHER_API to HistoricalDataKind.ARCHIVED_PROVIDER_HISTORY,
             WeatherSource.SILURIAN to HistoricalDataKind.NONE,
+            WeatherSource.GOOGLE_WEATHER to HistoricalDataKind.NONE,
             WeatherSource.TOMORROW_IO to HistoricalDataKind.RECENT_ANALYSIS,
             WeatherSource.VISUAL_CROSSING to HistoricalDataKind.NONE,
             WeatherSource.OPEN_WEATHER_MAP to HistoricalDataKind.NONE,

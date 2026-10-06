@@ -78,6 +78,9 @@ class WeatherObservationsActivityRobolectricTest {
         refreshedLocations.clear()
 
         stateManager = WidgetStateManager(context)
+        // Pin the premise: debug builds default to Google Weather as primary (2026-10-06), and this
+        // test is about NWS mode.
+        WidgetStateManager(context).setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
         WeatherObservationsActivity.autoRefreshDebounceMs = 0L
 
         val widgetPrefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)

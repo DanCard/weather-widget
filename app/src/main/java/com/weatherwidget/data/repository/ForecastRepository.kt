@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.remote.GoogleWeatherApi
 import android.content.Context
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.AppLogDao
@@ -69,6 +70,7 @@ class ForecastRepository
         // Null only in unit tests that never exercise a network fetch; production DI always
         // supplies it (see AppModule.provideForecastRepository).
         nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher? = null,
+        googleWeatherApi: GoogleWeatherApi? = null,
     ) {
         private val syncMutex = Mutex()
 
@@ -124,6 +126,7 @@ class ForecastRepository
             widgetStateManager = widgetStateManager,
             tomorrowIoApi = tomorrowIoApi,
             openWeatherMapApi = openWeatherMapApi,
+            googleWeatherApi = googleWeatherApi,
             nwsForecastMapper = nwsForecastMapper,
             snapshotStore = snapshotStore,
             hourlyStore = hourlyStore,

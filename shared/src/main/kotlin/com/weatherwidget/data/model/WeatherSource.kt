@@ -188,6 +188,24 @@ enum class WeatherSource(
         signupUrl = "https://app.tomorrow.io/signup",
         requiresApiKey = true,
     ),
+    /**
+     * Google Maps Platform Weather API (`weather.googleapis.com/v1`). Forecast-only: its
+     * `history/hours` product is Google's own hourly weather history, not station observations, so
+     * it fills the elapsed part of today's forecast curve and never drives actuals — those are
+     * borrowed (METAR by default), as for [SILURIAN]. Billed per request; see
+     * plans/261006-add-google-weather-source.md.
+     */
+    GOOGLE_WEATHER(
+        id = "GOOGLE_WEATHER",
+        displayName = "Google Weather",
+        shortDisplayName = "Google",
+        description = "Google Weather — shown as Google (global coverage)",
+        historicalDataKind = HistoricalDataKind.NONE,
+        supportsTemperatureActuals = false,
+        supportsCloudActuals = false,
+        signupUrl = "https://developers.google.com/maps/documentation/weather/get-api-key",
+        requiresApiKey = true,
+    ),
     ;
 
     companion object {
@@ -204,6 +222,7 @@ enum class WeatherSource(
                 "WeatherAPI", "WEATHER_API" -> WEATHER_API
                 "Silurian", "SILURIAN" -> SILURIAN
                 "Tomorrow.io", "TOMORROW_IO" -> TOMORROW_IO
+                "Google Weather", "GOOGLE_WEATHER" -> GOOGLE_WEATHER
                 "METAR" -> METAR
                 "SYNOPTIC" -> SYNOPTIC
                 else -> null

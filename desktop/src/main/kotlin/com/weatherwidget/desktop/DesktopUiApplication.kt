@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.util.WeatherSourceOrdering
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -177,6 +178,9 @@ internal fun runDesktopUiApplication() = application {
         // "Getting weather for {place}…" over the cached graph while a picker save's fetch runs;
         // takes precedence over historyFetchToast in the popup's single banner slot.
         var locationBanner by remember { mutableStateOf<LocationBanner?>(null) }
+        // A Settings save that made a source primary (WeatherSourceOrdering.newlyPrimary); its fetch
+        // and banner run in the effect keyed on it below. Android: SourceSwitchFetch.
+        var pendingSourceSwitch by remember { mutableStateOf<WeatherSource?>(null) }
         // While a picker save's fetch runs, a cache reload for the new site that can't draw today
         // (nothing cached, or two-week-old rows) must not replace the previous site's graph under
         // the banner with an empty one. Every reload path goes through this.
@@ -296,6 +300,10 @@ internal fun runDesktopUiApplication() = application {
                 config = effective
                 DesktopLocationChangeFeedback.pendingPlaceName(source, prev, effective)?.let { place ->
                     pendingLocationLabel = place
+                }
+                if (prev != null) {
+                    WeatherSourceOrdering.newlyPrimary(prev.settings.visibleSources, effective.settings.visibleSources)
+                        ?.let { pendingSourceSwitch = it }
                 }
                 runCatching {
                     val trigger = appDataDir().resolve(CONFIG_CHANGED_TRIGGER)
@@ -505,6 +513,53 @@ internal fun runDesktopUiApplication() = application {
                 throw e
             } finally {
                 if (pendingLocationLabel == label) pendingLocationLabel = null
+            }
+        }
+
+        // A source just became primary (Settings enable). Without its own data the popup would show
+        // its empty graph until the daemon's gated refresh ran; fetch it now, and say so while it
+        // loads unless its cache is already drawable (shared rule with Android's SourceSwitchFetch).
+        LaunchedEffect(repository, pendingSourceSwitch) {
+            val switched = pendingSourceSwitch ?: return@LaunchedEffect
+            val repo = repository ?: return@LaunchedEffect
+            // Stale repository from before the rebuild for the new source; the keyed rerun handles it.
+            if (currentConfig?.displaySource != switched.id) return@LaunchedEffect
+            val token = Any()
+            fun ownsBanner() = locationBanner?.token === token
+            try {
+                val cached = runCatching { repo.loadCached() }.getOrNull()
+                if (DesktopSourceSwitchFeedback.hasDrawableCache(cached, LocalDate.now())) {
+                    weatherDao.log("SOURCE_SWITCH_FETCH", "source=${switched.id} trigger=settings_enable cache=true banner=false", "INFO")
+                    return@LaunchedEffect
+                }
+                weatherDao.log("SOURCE_SWITCH_FETCH", "source=${switched.id} trigger=settings_enable cache=false banner=true", "INFO")
+                locationBanner = LocationBanner(token, DesktopSourceSwitchFeedback.fetchingMessage(switched))
+                refreshInFlight = true
+                try {
+                    forecast = repo.refresh()
+                    dataStatus = DataStatus.Live(System.currentTimeMillis())
+                    dataUpdateCount++
+                    weatherDao.log("SOURCE_SWITCH_FETCH", "action=banner_cleared source=${switched.id}", "INFO")
+                    if (ownsBanner()) locationBanner = null
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    weatherDao.log(
+                        "SOURCE_SWITCH_FETCH",
+                        "action=banner_failed source=${switched.id} ${e::class.simpleName}: ${e.message}",
+                        "WARN",
+                    )
+                    if (ownsBanner()) {
+                        locationBanner = LocationBanner(token, DesktopSourceSwitchFeedback.failedMessage(switched), failed = true)
+                    }
+                } finally {
+                    refreshInFlight = false
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                if (ownsBanner()) locationBanner = null
+                throw e
+            } finally {
+                if (pendingSourceSwitch == switched) pendingSourceSwitch = null
             }
         }
 

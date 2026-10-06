@@ -100,6 +100,8 @@ class WidgetStateManagerApiRotationRoboTest {
         // The 2026-09-29 phone: NWS absent from the stored list with no reliable marker saying why.
         val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "widget_state_prefs")
         prefs.edit()
+            // Tests a different migration; the debug-only Google one (2026-10-06) has already run.
+            .putBoolean("google_weather_debug_enabled_migration_done_v1", true)
             .putString("visible_sources_order", "OPEN_METEO,SILURIAN")
             .putBoolean("nws_auto_retired", true)
             .remove("nws_reenabled_migration_done_v1")

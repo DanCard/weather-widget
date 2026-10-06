@@ -91,6 +91,11 @@ internal class WidgetStartupCoordinator(
             validWidgetIds
                 .map { stateManager.getCurrentDisplaySource(it).id }
                 .toSet() + WeatherSource.GENERIC_GAP.id
+        // Reading the display sources above runs any pending source migration; if it switched the
+        // widgets to a source with no data, fetch it and say so (debug Google migration, 2026-10-06).
+        stateManager.consumePendingSourceSwitch()?.let { switched ->
+            SourceSwitchFetch.start(context, switched, trigger = "migration")
+        }
         val widgetViewModes =
             validWidgetIds.associateWith { stateManager.getViewMode(it) }
         val needsDailyData = widgetViewModes.values.any { it == ViewMode.DAILY }

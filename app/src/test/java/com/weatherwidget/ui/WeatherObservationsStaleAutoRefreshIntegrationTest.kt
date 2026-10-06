@@ -1,5 +1,7 @@
 package com.weatherwidget.ui
 
+import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.data.model.WeatherSource
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
@@ -55,6 +57,9 @@ class WeatherObservationsStaleAutoRefreshIntegrationTest {
 
         clearPrefs("weather_widget_prefs")
         clearPrefs("widget_state_prefs")
+        // Pin the premise: debug builds default to Google Weather as primary (2026-10-06), and this
+        // test is about NWS mode.
+        WidgetStateManager(context).setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
         WeatherObservationsActivity.autoRefreshDebounceMs = 0L
 
         now = System.currentTimeMillis()

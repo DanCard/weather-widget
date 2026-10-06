@@ -60,7 +60,9 @@ internal class StartupCooldown(
 
     companion object {
         /** Fixed cooldown from process start. Chosen by the user 2026-09-10 (30 over 45/60). */
-        const val COOLDOWN_MS = 30_000L
+        // 30 s until 2026-10-06; lowered to 16 s (user's call) so a source that becomes primary at
+        // install time (the debug Google migration) fetches sooner. Its banner covers the wait.
+        const val COOLDOWN_MS = 16_000L
 
         /** Once the fixed part has elapsed, this much quiet after the last interaction. */
         const val INTERACTION_QUIET_MS = 10_000L

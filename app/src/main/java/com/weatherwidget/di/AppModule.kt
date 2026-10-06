@@ -1,5 +1,6 @@
 package com.weatherwidget.di
 
+import com.weatherwidget.data.remote.GoogleWeatherApi
 import android.content.Context
 import com.weatherwidget.data.local.ApiUsageDao
 import com.weatherwidget.data.local.AppLogDao
@@ -142,6 +143,7 @@ object AppModule {
                     host.contains("open-meteo.com") -> "OPEN_METEO"
                     host.contains("openweathermap.org") -> "OPEN_WEATHER_MAP"
                     host.contains("weatherapi.com") -> "WEATHER_API"
+                    host == "weather.googleapis.com" -> "GOOGLE_WEATHER"
                     else -> "UNKNOWN"
                 }
                 if (source != "UNKNOWN") {
@@ -280,11 +282,13 @@ object AppModule {
         observationRepository: ObservationRepository,
         tomorrowIoApi: TomorrowIoApi,
         openWeatherMapApi: OpenWeatherMapApi,
+        googleWeatherApi: GoogleWeatherApi,
         nwsForecastMapper: NwsForecastMapper,
         nwsApiDailyActualsFetcher: NwsApiDailyActualsFetcher,
     ): ForecastRepository = ForecastRepository(
         context, forecastDao, hourlyForecastDao, hourlyForecastHistoryDao, appLogDao,
-        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper, nwsApiDailyActualsFetcher
+        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper, nwsApiDailyActualsFetcher,
+        googleWeatherApi = googleWeatherApi,
     )
 
     @Provides
@@ -303,9 +307,11 @@ object AppModule {
         observationRepository: ObservationRepository,
         tomorrowIoApi: TomorrowIoApi,
         openWeatherMapApi: OpenWeatherMapApi,
+        googleWeatherApi: GoogleWeatherApi,
     ): CurrentTempRepository = CurrentTempRepository(
         context, observationDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi
+        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi,
+        googleWeatherApi = googleWeatherApi,
     )
 
     @Provides
@@ -388,6 +394,16 @@ object AppModule {
         widgetStateManager: WidgetStateManager,
     ): TomorrowIoApi = TomorrowIoApi(httpClient, json) { 
         BuiltInApiKeys.effectiveKey(WeatherSource.TOMORROW_IO, widgetStateManager)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGoogleWeatherApi(
+        httpClient: HttpClient,
+        json: Json,
+        widgetStateManager: WidgetStateManager,
+    ): GoogleWeatherApi = GoogleWeatherApi(httpClient, json) {
+        BuiltInApiKeys.effectiveKey(WeatherSource.GOOGLE_WEATHER, widgetStateManager)
     }
 
     @Provides

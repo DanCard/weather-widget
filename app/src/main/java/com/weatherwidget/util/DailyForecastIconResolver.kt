@@ -193,6 +193,15 @@ object DailyForecastIconResolver {
             WeatherSource.OPEN_WEATHER_MAP -> openWeatherMapIcon(nativeToken)
             WeatherSource.WEATHER_API -> weatherApiIcon(nativeToken)
             WeatherSource.SILURIAN -> silurianIcon(nativeToken, targetDate, now, latitude, longitude, weather.precipProbability, cloudCover)
+            WeatherSource.GOOGLE_WEATHER -> {
+                val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
+                WeatherIconMapper.getIconResource(
+                    condition = WeatherCodeMapper.googleConditionToCondition(nativeToken),
+                    isNight = isNight,
+                    cloudCover = cloudCover,
+                    precipProbability = weather.precipProbability,
+                )
+            }
             WeatherSource.TOMORROW_IO -> nativeToken.toIntOrNull()?.let { code ->
                 val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
                 WeatherIconMapper.getIconResource(

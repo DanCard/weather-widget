@@ -1,5 +1,7 @@
 package com.weatherwidget.shared.stats
 
+import com.weatherwidget.data.model.WeatherSource
+
 /**
  * Cross-platform accuracy display models. Android's Statistics screen and the desktop statistics
  * window read the same types so per-source scoring and provenance never drift between platforms.
@@ -7,17 +9,18 @@ package com.weatherwidget.shared.stats
 
 /**
  * Comparison of accuracy statistics between all API sources.
+ *
+ * Keyed by source rather than one named field per source, so a new
+ * [com.weatherwidget.shared.util.WeatherSourceOrdering.ALL_CONFIGURABLE] entry is scored and shown
+ * without editing this type or the screens that read it.
  */
 data class ComparisonStatistics(
-    val nwsStats: AccuracyPure.AccuracyStatistics?,
-    val openWeatherMapStats: AccuracyPure.AccuracyStatistics?,
-    val meteoStats: AccuracyPure.AccuracyStatistics?,
-    val weatherApiStats: AccuracyPure.AccuracyStatistics?,
-    val tomorrowIoStats: AccuracyPure.AccuracyStatistics? = null,
-    val silurianStats: AccuracyPure.AccuracyStatistics? = null,
+    val bySource: Map<WeatherSource, AccuracyPure.AccuracyStatistics?>,
     val periodStart: String,
     val periodEnd: String,
-)
+) {
+    fun statsFor(source: WeatherSource): AccuracyPure.AccuracyStatistics? = bySource[source]
+}
 
 /**
  * Day-by-day predicted-vs-actual rainfall, split into clock-based day (8a-8p) and night (8p-8a)

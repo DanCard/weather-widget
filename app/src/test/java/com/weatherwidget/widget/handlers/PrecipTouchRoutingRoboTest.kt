@@ -198,6 +198,8 @@ class PrecipTouchRoutingRoboTest {
         configureState: (WidgetStateManager) -> Unit,
     ): RemoteViews {
         val stateManager = WidgetStateManager(context)
+        // Debug builds default to Google Weather as primary (2026-10-06); routing here is about NWS icons.
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
         configureState(stateManager)
 
         val appWidgetManager = mockk<AppWidgetManager>()

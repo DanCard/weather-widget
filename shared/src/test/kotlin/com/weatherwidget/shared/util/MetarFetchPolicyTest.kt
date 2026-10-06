@@ -74,7 +74,7 @@ class MetarFetchPolicyTest {
     @Test
     fun `consumers are the configurable sources that resolve to METAR`() {
         val consumers = MetarFetchPolicy.consumers(WeatherSourceOrdering.ALL_CONFIGURABLE)
-        assertEquals(setOf(WeatherSource.SILURIAN), consumers.toSet())
+        assertEquals(setOf(WeatherSource.SILURIAN, WeatherSource.GOOGLE_WEATHER), consumers.toSet())
     }
 
     /**

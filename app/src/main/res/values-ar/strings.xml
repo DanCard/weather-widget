@@ -61,6 +61,7 @@
     <string name="api_source_silurian_desc">Silurian.ai — يظهر باسم Silur (تغطية عالمية)</string>
     <string name="api_source_nws_desc">خدمة الطقس الوطنية (الولايات المتحدة فقط)</string>
     <string name="api_source_tomorrowio_desc">Tomorrow.io — يظهر باسم Tmrw (تغطية عالمية)</string>
+    <string name="api_source_google_desc">Google Weather — يظهر باسم Google (تغطية عالمية)</string>
     <string name="api_source_visualcrossing_desc">Visual Crossing — يظهر باسم VisCr (تغطية عالمية)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — يظهر باسم Meteo (تغطية عالمية)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — يظهر باسم WAPI (تغطية عالمية)</string>
@@ -240,6 +241,7 @@
     <string name="header_delta_from_yesterday">من أمس</string>
     <string name="widget_loading">جارٍ التحميل...</string>
     <string name="widget_fetching_location">جارٍ جلب الطقس لـ %1$s…</string>
+    <string name="widget_fetching_source">جارٍ جلب الطقس من %1$s…</string>
     <string name="widget_tap_to_refresh">انقر للتحديث</string>
     <string name="widget_no_location">لا يوجد موقع — انقر للتعيين</string>
     <string name="current_stations_desc">المحطات الحالية</string>

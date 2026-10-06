@@ -27,12 +27,51 @@ object WeatherSourceOrdering {
      */
     val ALL_CONFIGURABLE: List<WeatherSource> = listOf(
         WeatherSource.NWS,
+        WeatherSource.GOOGLE_WEATHER,
         WeatherSource.TOMORROW_IO,
         WeatherSource.OPEN_METEO,
         WeatherSource.SILURIAN,
         WeatherSource.WEATHER_API,
         WeatherSource.OPEN_WEATHER_MAP,
     )
+
+    /**
+     * Sources that become primary (first) when the user enables them. Every other source is
+     * appended. A starting position, not a pin: the user can reorder afterwards. (User's call
+     * 2026-10-06; OWM, once pinned last, is now simply appended.)
+     */
+    val PRIMARY_ON_ENABLE: Set<WeatherSource> = setOf(WeatherSource.GOOGLE_WEATHER)
+
+    /** Inserts [source] where enabling it places it: front for [PRIMARY_ON_ENABLE], else the end. */
+    fun withEnabled(ids: List<String>, source: WeatherSource): List<String> {
+        if (source.id in ids) return ids
+        return if (source in PRIMARY_ON_ENABLE) listOf(source.id) + ids else ids + source.id
+    }
+
+    /**
+     * What a display (an Android widget, the desktop popup) shows after the enabled list changes
+     * from [oldIds] to [newIds]: a [PRIMARY_ON_ENABLE] source that was just enabled at the front
+     * takes over; otherwise the display keeps [selectedId] if still enabled, else the new primary.
+     */
+    fun selectionAfterChange(oldIds: List<String>, newIds: List<String>, selectedId: String?): String {
+        val first = newIds.first()
+        return when {
+            newlyPrimary(oldIds, newIds) != null -> first
+            selectedId != null && selectedId in newIds -> selectedId
+            else -> first
+        }
+    }
+
+    /**
+     * The [PRIMARY_ON_ENABLE] source that the change from [oldIds] to [newIds] just enabled at the
+     * front, or null. That is the change that switches every display to it — and so the one that
+     * owes the user an immediate fetch and a "getting weather" banner.
+     */
+    fun newlyPrimary(oldIds: List<String>, newIds: List<String>): WeatherSource? {
+        val first = newIds.firstOrNull() ?: return null
+        if (first in oldIds) return null
+        return PRIMARY_ON_ENABLE.firstOrNull { it.id == first }
+    }
 
     /** The default visible-source list on a fresh install (mirrors both platforms' defaults). */
     val DEFAULT_VISIBLE_IDS: List<String> = listOf(
@@ -81,17 +120,14 @@ object WeatherSourceOrdering {
      * empty the list (the "must keep at least one source" case). Callers should show the
      * platform's "keep one" message (toast/snackbar) when this returns null.
      *
-     * - [makeVisible] = true: adds [source] if not already present.
+     * - [makeVisible] = true: adds [source] if not already present, placed by [withEnabled].
      * - [makeVisible] = false: removes [source] unless that would leave an empty list.
      */
     fun toggle(visibleIds: List<String>, source: WeatherSource, makeVisible: Boolean): List<String>? {
         if (source !in ALL_CONFIGURABLE) return sanitizeVisibleIds(visibleIds)
         val current = sanitizeVisibleIds(visibleIds).toMutableList()
         return when (makeVisible) {
-            true -> {
-                if (source.id !in current) current.add(source.id)
-                current
-            }
+            true -> withEnabled(current, source)
             false -> {
                 if (current.size <= 1) return null
                 current.remove(source.id)

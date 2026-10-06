@@ -11,6 +11,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.SourceFetchLogTags
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 
@@ -203,13 +204,7 @@ object ApiSourceWarningHelper {
         views.setOnClickPendingIntent(R.id.widget_warning_container, null)
     }
 
-    private fun sourceFailureTag(source: WeatherSource): String? =
-        when (source) {
-            WeatherSource.OPEN_WEATHER_MAP -> "FETCH_OWM_FAIL"
-            WeatherSource.WEATHER_API -> "FETCH_WAPI_FAIL"
-            WeatherSource.SILURIAN -> "FETCH_SILURIAN_FAIL"
-            else -> null
-        }
+    private fun sourceFailureTag(source: WeatherSource): String? = SourceFetchLogTags.failureTag(source)
 
 
     private fun extractDetail(message: String): String {

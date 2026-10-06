@@ -476,6 +476,8 @@ object WidgetWorkScheduler {
             data.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE) ?: "",
             data.getInt(WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID, -1),
             data.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE) ?: "",
+            // A source switch's run owns its banner; folding it into another run would pin it.
+            data.getString(WeatherWidgetWorker.KEY_SOURCE_SWITCH_ID) ?: "",
         ).joinToString(":")
 
     /**

@@ -39,6 +39,7 @@ class WeatherSourceCloudActualsTest {
             WeatherSource.OPEN_WEATHER_MAP,
             WeatherSource.GENERIC_GAP,
             WeatherSource.SILURIAN,
+            WeatherSource.GOOGLE_WEATHER,
         )
         assertEquals(expected, WeatherSource.entries.filterNot { it.supportsCloudActuals }.toSet())
     }

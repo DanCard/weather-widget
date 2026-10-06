@@ -165,6 +165,41 @@ class FullSyncPipelineLocationChangeCacheTest {
         assertEquals(true, force.captured)
     }
 
+    // Source switch (plans/261006-source-becomes-primary-fetch-and-banner.md): the run clears its
+    // "Getting weather from {source}…" banner at every exit, success or failure.
+    private fun sourceSwitchInput() = bannerInput().copy(
+        locationChangePlace = null,
+        locationChangeBanner = false,
+        targetSourceId = WeatherSource.GOOGLE_WEATHER.id,
+        sourceSwitchId = WeatherSource.GOOGLE_WEATHER.id,
+    )
+
+    @Test
+    fun `a source switch's successful sync clears its banner`() = runBlocking {
+        pipeline().run(sourceSwitchInput(), device(), stopReason = 0)
+
+        coVerify(exactly = 1) { painter.finishSourceSwitchBanner(WeatherSource.GOOGLE_WEATHER.id, succeeded = true, reason = "sync_success") }
+        coVerify(exactly = 0) { painter.finishLocationChangeBanner(any(), any(), any()) }
+    }
+
+    @Test
+    fun `a source switch's failed sync still clears its banner`() = runBlocking {
+        coEvery {
+            weatherRepository.getWeatherData(any(), any(), any(), any(), any(), any(), any())
+        } returns Result.failure(java.io.IOException("offline"))
+
+        pipeline().run(sourceSwitchInput(), device(), stopReason = 0)
+
+        coVerify(exactly = 1) { painter.finishSourceSwitchBanner(WeatherSource.GOOGLE_WEATHER.id, succeeded = false, reason = "sync_failure") }
+    }
+
+    @Test
+    fun `an ordinary sync touches no source-switch banner`() = runBlocking {
+        pipeline().run(sourceSwitchInput().copy(sourceSwitchId = null), device(), stopReason = 0)
+
+        coVerify(exactly = 0) { painter.finishSourceSwitchBanner(any(), any(), any()) }
+    }
+
     private fun forecastRow() = ForecastEntity(
         targetDate = System.currentTimeMillis(),
         dateOfPrediction = System.currentTimeMillis(),

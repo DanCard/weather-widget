@@ -3,6 +3,7 @@
  */
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.DailyColumnSource
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
@@ -298,7 +299,7 @@ object DailyViewHandler : WidgetViewHandler {
                 .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
                 .mapNotNull { (date, items) ->
                     val preferred = items.find { it.source == displaySource.id }
-                    val allowGapFallback = date.isAfter(today.plusDays(2))
+                    val allowGapFallback = DailyColumnSource.allowsClimateNormal(date, today)
 
                     val chosen = if (allowGapFallback) {
                         // Long-term future: fall back to climate normals when the preferred source is

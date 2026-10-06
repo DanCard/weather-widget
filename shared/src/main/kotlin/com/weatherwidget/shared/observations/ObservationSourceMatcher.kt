@@ -51,6 +51,7 @@ object ObservationSourceMatcher {
             WeatherSource.WEATHER_API,
             WeatherSource.SILURIAN,
             WeatherSource.TOMORROW_IO,
+            WeatherSource.GOOGLE_WEATHER,
         ).associateWith { "${it.id}_" }
 
     /**

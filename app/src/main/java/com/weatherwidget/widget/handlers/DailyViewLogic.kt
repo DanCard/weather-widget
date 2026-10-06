@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.DailyColumnSource
 import com.weatherwidget.shared.util.PastDayForecastOverlay
 import android.util.Log
 import com.weatherwidget.data.local.ForecastEntity
@@ -418,12 +419,14 @@ object DailyViewLogic {
             val date = centerDate.plusDays(offset)
             val isToday = date == today
 
-            val allowGapFallback = date.isAfter(today.plusDays(2))
             val weather = if (isToday) {
                 resolveTodayWeather("prepareGraphDays", weatherByDate[date], forecastSnapshots[date], displaySource)
             } else {
+                // Display source (or long-term climate filler) only — never another provider's row.
                 weatherByDate[date]
-                    ?: forecastSnapshots[date]?.firstOrNull { allowGapFallback || it.source != WeatherSource.GENERIC_GAP.id }
+                    ?: forecastSnapshots[date]?.firstOrNull {
+                        DailyColumnSource.mayDraw(it.source, displaySource.id, date, today)
+                    }
             }
             val actual = dailyActuals[date]
             val forecasts = forecastSnapshots[date] ?: emptyList()

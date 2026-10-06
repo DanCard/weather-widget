@@ -61,6 +61,7 @@
     <string name="api_source_silurian_desc">Silurian.ai — Silur হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
     <string name="api_source_nws_desc">জাতীয় আবহাওয়া পরিষেবা (শুধু যুক্তরাষ্ট্র)</string>
     <string name="api_source_tomorrowio_desc">Tomorrow.io — Tmrw হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
+    <string name="api_source_google_desc">Google Weather — Google হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
     <string name="api_source_visualcrossing_desc">Visual Crossing — VisCr হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — Meteo হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — WAPI হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
@@ -240,6 +241,7 @@
     <string name="header_delta_from_yesterday">গতকাল থেকে</string>
     <string name="widget_loading">লোড হচ্ছে...</string>
     <string name="widget_fetching_location">%1$s-এর আবহাওয়া আনা হচ্ছে…</string>
+    <string name="widget_fetching_source">%1$s থেকে আবহাওয়া আনা হচ্ছে…</string>
     <string name="widget_tap_to_refresh">রিফ্রেশ করতে ট্যাপ করুন</string>
     <string name="widget_no_location">কোনো অবস্থান নেই — সেট করতে ট্যাপ করুন</string>
     <string name="current_stations_desc">বর্তমান স্টেশন</string>

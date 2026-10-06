@@ -8,6 +8,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.shared.actuals.DailyHistoryMaintenance
 import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
+import com.weatherwidget.shared.util.DailyColumnSource
 import com.weatherwidget.shared.util.DailyHistoryFreeze
 import com.weatherwidget.shared.util.DailyNoonCloudCover
 import com.weatherwidget.shared.util.DailyRainLabels
@@ -1425,7 +1426,9 @@ class DesktopWeatherRepository(
 
     /**
      * Appends climate-normal gap rows (isClimateNormal=true) for future dates not already covered by
-     * a real forecast, out to [GAP_HORIZON_DAYS]. Read-only (cached normals); no network. The daily
+     * a real forecast, out to [GAP_HORIZON_DAYS] — only where the shared [DailyColumnSource] rule
+     * allows climate filler (after today+2), as on Android. Today, +1 and +2 without a real row render
+     * missing until the fetch lands, rather than as climate averages. Read-only (cached normals); no network. The daily
      * model already renders such rows as a green fallback bar, so no model/graph change is needed.
      */
     private fun appendClimateNormalGaps(daily: List<DailyForecast>, now: Long): List<DailyForecast> {
@@ -1436,15 +1439,17 @@ class DesktopWeatherRepository(
         val today = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
         val filled = fillPartialFutureDays(daily, normals, today)
         val existing = filled.map { LocalDate.parse(it.date) }.toSet()
-        val gaps = ClimateNormals.fillGaps(existing, normals, today, GAP_HORIZON_DAYS).map { gap ->
-            DailyForecast(
-                date = gap.date.toString(),
-                highTemp = gap.highTemp,
-                lowTemp = gap.lowTemp,
-                condition = "Historical Avg",
-                isClimateNormal = true,
-            )
-        }
+        val gaps = ClimateNormals.fillGaps(existing, normals, today, GAP_HORIZON_DAYS)
+            .filter { DailyColumnSource.allowsClimateNormal(it.date, today) }
+            .map { gap ->
+                DailyForecast(
+                    date = gap.date.toString(),
+                    highTemp = gap.highTemp,
+                    lowTemp = gap.lowTemp,
+                    condition = "Historical Avg",
+                    isClimateNormal = true,
+                )
+            }
         return if (gaps.isEmpty()) filled else filled + gaps
     }
 

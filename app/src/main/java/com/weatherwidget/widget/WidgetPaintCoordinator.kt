@@ -110,6 +110,24 @@ internal class WidgetPaintCoordinator(
     }
 
     /**
+     * End of the sync [SourceSwitchFetch] enqueued. Always clears its banner — on failure too: the
+     * source's own warning path (`ApiSourceWarningHelper`) already explains a failing source, and a
+     * banner promising data that is not coming would be worse than an empty graph.
+     */
+    suspend fun finishSourceSwitchBanner(sourceId: String, succeeded: Boolean, reason: String) {
+        val appWidgetIds = AppWidgetManager.getInstance(context)
+            .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
+        val text = SourceSwitchFetch.message(context, com.weatherwidget.data.model.WeatherSource.fromId(sourceId))
+        val cleared = FetchBanner.clear(context, text, appWidgetIds)
+        appLogDao.log(
+            "SOURCE_SWITCH_FETCH",
+            "action=${if (succeeded) "banner_cleared" else "banner_failed"} reason=$reason source=$sourceId " +
+                "widgets=${appWidgetIds.size} cleared=$cleared",
+            if (succeeded) "INFO" else "WARN",
+        )
+    }
+
+    /**
      * Start of the forced sync a setup-screen location change enqueued. Paints the interstitial
      * only while the change is still the pending one (a later save supersedes it) and the new site
      * has no forecast row for today; a site with a row clears the wait instead — the ordinary cache

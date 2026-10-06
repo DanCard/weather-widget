@@ -341,7 +341,20 @@ internal fun SettingsWindow(
                                 unavailableHere = currentConfig.settings.visibleSources.toSet() - currentConfig.effectiveSources.toSet(),
                                 apiKeys = currentConfig.settings.apiKeys,
                                 onChanged = { newSources ->
-                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(visibleSources = newSources)))
+                                    val settings = currentConfig.settings
+                                    updateConfig(
+                                        currentConfig.copy(
+                                            settings = settings.copy(
+                                                visibleSources = newSources,
+                                                // Enabling Google makes it primary and the popup follows (shared rule).
+                                                weatherSource = WeatherSourceOrdering.selectionAfterChange(
+                                                    settings.visibleSources,
+                                                    newSources,
+                                                    settings.weatherSource,
+                                                ),
+                                            ),
+                                        ),
+                                    )
                                 },
                                 onMustKeepOne = {
                                     // Phase 4 item 3: Android shows a toast; Snackbar is the

@@ -160,6 +160,7 @@ internal fun evaluateHourlyBackfillNeed(
             when (displaySource) {
                 WeatherSource.OPEN_METEO,
                 WeatherSource.SILURIAN,
+                WeatherSource.GOOGLE_WEATHER,
                 WeatherSource.TOMORROW_IO -> "provider_history_in_forecast"
                 else -> "provider_history_unsupported"
             }

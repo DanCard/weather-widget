@@ -61,6 +61,7 @@
     <string name="api_source_silurian_desc">Silurian.ai — แสดงเป็น Silur (ครอบคลุมทั่วโลก)</string>
     <string name="api_source_nws_desc">กรมอุตุนิยมวิทยาแห่งชาติสหรัฐฯ (เฉพาะสหรัฐฯ)</string>
     <string name="api_source_tomorrowio_desc">Tomorrow.io — แสดงเป็น Tmrw (ครอบคลุมทั่วโลก)</string>
+    <string name="api_source_google_desc">Google Weather — แสดงเป็น Google (ครอบคลุมทั่วโลก)</string>
     <string name="api_source_visualcrossing_desc">Visual Crossing — แสดงเป็น VisCr (ครอบคลุมทั่วโลก)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — แสดงเป็น Meteo (ครอบคลุมทั่วโลก)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — แสดงเป็น WAPI (ครอบคลุมทั่วโลก)</string>
@@ -240,6 +241,7 @@
     <string name="header_delta_from_yesterday">เทียบเมื่อวาน</string>
     <string name="widget_loading">กำลังโหลด...</string>
     <string name="widget_fetching_location">กำลังดึงข้อมูลสภาพอากาศสำหรับ %1$s…</string>
+    <string name="widget_fetching_source">กำลังดึงสภาพอากาศจาก %1$s…</string>
     <string name="widget_tap_to_refresh">แตะเพื่อรีเฟรช</string>
     <string name="widget_no_location">ไม่มีตำแหน่ง — แตะเพื่อตั้งค่า</string>
     <string name="current_stations_desc">สถานีปัจจุบัน</string>

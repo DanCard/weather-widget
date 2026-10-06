@@ -1,5 +1,7 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.shared.util.WeatherSourceOrdering
+import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.shared.util.SourceCoverage
 import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
@@ -42,6 +44,7 @@ internal class ForecastFetchCoordinator(
     private val widgetStateManager: WidgetStateManager,
     private val tomorrowIoApi: TomorrowIoApi?,
     private val openWeatherMapApi: OpenWeatherMapApi?,
+    private val googleWeatherApi: GoogleWeatherApi? = null,
     private val nwsForecastMapper: NwsForecastMapper,
     private val snapshotStore: ForecastSnapshotStore,
     private val hourlyStore: HourlyForecastStore,
@@ -142,10 +145,12 @@ internal class ForecastFetchCoordinator(
         targetSourceId != null &&
             widgetStateManager.getVisibleSourcesOrder().none { it.id == targetSourceId }
 
-    private data class SourceFetchEntry(
-        val tag: String,
+    private class SourceFetchEntry(
+        source: WeatherSource,
         val fetch: suspend (Double, Double) -> List<ForecastEntity>?,
-    )
+    ) {
+        val tag: String = requireNotNull(SourceFetchLogTags.failureTag(source)) { "no failure tag for ${source.id}" }
+    }
 
     /**
      * Per-source fetch configuration. Sources whose API client is null (debug-only providers not
@@ -153,17 +158,17 @@ internal class ForecastFetchCoordinator(
      * `if` guards did.
      */
     private fun buildFetchRegistry(): Map<WeatherSource, SourceFetchEntry> = buildMap {
-        put(WeatherSource.NWS, SourceFetchEntry("FETCH_NWS_FAIL") { lat, lon ->
+        put(WeatherSource.NWS, SourceFetchEntry(WeatherSource.NWS) { lat, lon ->
             fetchFromNws(lat, lon)
         })
         openWeatherMapApi?.let { api ->
-            put(WeatherSource.OPEN_WEATHER_MAP, SourceFetchEntry("FETCH_OWM_FAIL") { lat, lon ->
+            put(WeatherSource.OPEN_WEATHER_MAP, SourceFetchEntry(WeatherSource.OPEN_WEATHER_MAP) { lat, lon ->
                 fetchAndSaveSharedForecast(lat, lon, WeatherSource.OPEN_WEATHER_MAP) {
                     api.getForecast(lat, lon)
                 }
             })
         }
-        put(WeatherSource.OPEN_METEO, SourceFetchEntry("FETCH_METEO_FAIL") { lat, lon ->
+        put(WeatherSource.OPEN_METEO, SourceFetchEntry(WeatherSource.OPEN_METEO) { lat, lon ->
             fetchAndSaveSharedForecast(lat, lon, WeatherSource.OPEN_METEO) {
                 openMeteoApi.getForecast(lat, lon, historyDays = 7)
             }.also {
@@ -172,18 +177,25 @@ internal class ForecastFetchCoordinator(
                 fetchPriorDayCloudForecast(lat, lon)
             }
         })
-        put(WeatherSource.WEATHER_API, SourceFetchEntry("FETCH_WAPI_FAIL") { lat, lon ->
+        put(WeatherSource.WEATHER_API, SourceFetchEntry(WeatherSource.WEATHER_API) { lat, lon ->
             val forecasts = fetchAndSaveSharedForecast(lat, lon, WeatherSource.WEATHER_API) {
                 weatherApi.getForecast(lat, lon)
             }
             weatherApiHistoryBackfiller.backfillIfNeeded(lat, lon)
             forecasts
         })
-        put(WeatherSource.SILURIAN, SourceFetchEntry("FETCH_SILURIAN_FAIL") { lat, lon ->
+        put(WeatherSource.SILURIAN, SourceFetchEntry(WeatherSource.SILURIAN) { lat, lon ->
             fetchFromSilurian(lat, lon)
         })
+        googleWeatherApi?.let { api ->
+            put(WeatherSource.GOOGLE_WEATHER, SourceFetchEntry(WeatherSource.GOOGLE_WEATHER) { lat, lon ->
+                fetchAndSaveSharedForecast(lat, lon, WeatherSource.GOOGLE_WEATHER) {
+                    api.getForecast(lat, lon, includeHistory = googleNeedsHistory(lat, lon))
+                }
+            })
+        }
         tomorrowIoApi?.let { api ->
-            put(WeatherSource.TOMORROW_IO, SourceFetchEntry("FETCH_TMRW_FAIL") { lat, lon ->
+            put(WeatherSource.TOMORROW_IO, SourceFetchEntry(WeatherSource.TOMORROW_IO) { lat, lon ->
                 fetchAndSaveSharedForecast(lat, lon, WeatherSource.TOMORROW_IO) {
                     coroutineScope {
                         val forecastDeferred = async { api.getForecast(lat, lon) }
@@ -303,6 +315,30 @@ internal class ForecastFetchCoordinator(
                 "offered=${summary.offered} covered=${summary.covered} stored=${summary.stored}",
             if (summary.stored > 0) "INFO" else "VERBOSE",
         )
+    }
+
+    /**
+     * Google's `history/hours` has a small per-project daily quota (Cloud Console setting), so it is requested only for a site with
+     * no Google history hours in the last day (`GoogleWeatherApi.needsHistory`) — read through the
+     * same site match the elapsed backfill uses.
+     */
+    private suspend fun googleNeedsHistory(latitude: Double, longitude: Double): Boolean {
+        val dao = hourlyForecastHistoryDao ?: return true
+        val nowMs = clock()
+        val window = GoogleWeatherApi.historyWindow(nowMs)
+        val keyLat = LocationMatch.quantize(latitude)
+        val keyLon = LocationMatch.quantize(longitude)
+        val covered = dao.getHistoryInRangeForBucketWindow(
+            startDateTime = window.first,
+            endDateTime = window.last + 1,
+            bucketStart = Long.MIN_VALUE,
+            bucketEnd = Long.MAX_VALUE,
+            lat = keyLat,
+            lon = keyLon,
+            source = WeatherSource.GOOGLE_WEATHER.id,
+        ).filter { LocationMatch.sameSite(keyLat, keyLon, it.locationLat, it.locationLon) }
+            .map { it.dateTime }
+        return GoogleWeatherApi.needsHistory(covered, nowMs)
     }
 
     private suspend fun fetchFromSilurian(
@@ -526,13 +562,7 @@ internal class ForecastFetchCoordinator(
         /** Covers the widget's 30-day pan; `_previous_day1` is populated across the whole span. */
         private const val PRIOR_CLOUD_PAST_DAYS = 31
 
-        private val SOURCES_TO_CHECK = listOf(
-            WeatherSource.NWS,
-            WeatherSource.OPEN_WEATHER_MAP,
-            WeatherSource.SILURIAN,
-            WeatherSource.WEATHER_API,
-            WeatherSource.OPEN_METEO,
-            WeatherSource.TOMORROW_IO,
-        )
+        /** Every user-selectable source; a hand-kept list here once left new sources never "stale". */
+        private val SOURCES_TO_CHECK = WeatherSourceOrdering.ALL_CONFIGURABLE
     }
 }

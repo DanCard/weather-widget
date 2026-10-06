@@ -71,6 +71,15 @@ val tomorrowIoApiKey =
             ?: System.getenv("TOMORROW_IO_API_KEY")
             ?: ""
     )
+// Baked into DEBUG builds only (user's call 2026-10-06): Google bills per request, and a key in a
+// Play build would let any user who enables the source spend the developer's quota. Release builds
+// get "" so the key is not in the APK at all; release users enter their own in Settings.
+val googleWeatherApiKey =
+    (
+        localProperties.getProperty("GOOGLE_WEATHER_API_KEY")
+            ?: System.getenv("GOOGLE_WEATHER_API_KEY")
+            ?: ""
+    )
 
 // Release signing secrets are read from gradle.properties (global or local), local.properties,
 // or the environment (never committed). They are empty for debug-only builds;
@@ -151,8 +160,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            buildConfigField("String", "GOOGLE_WEATHER_API_KEY", "\"\"")
         }
         debug {
+            buildConfigField("String", "GOOGLE_WEATHER_API_KEY", "\"$googleWeatherApiKey\"")
             // Pseudolocales for manual overflow/RTL QA (see
             // notes/260709-localization-testplan.md Tier 3): Settings > System > Languages
             // > App languages > Weather Widget offers "English (Accented, XA)" (~30% longer,
@@ -198,6 +209,8 @@ android {
 
     sourceSets {
         getByName("androidTest").assets.directories.add("$projectDir/schemas")
+        // Recorded provider responses shared with :shared and :desktop tests (e.g. google-weather/).
+        getByName("test").resources.directories.add("${rootProject.projectDir}/shared/src/test/resources")
     }
 
     testOptions {

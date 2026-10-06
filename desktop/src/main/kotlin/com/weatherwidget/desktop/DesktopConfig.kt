@@ -367,10 +367,9 @@ class DesktopConfigStore(
             } else {
                 decodedRaw.copy(settings = decodedRaw.settings.copy(useCelsius = missingUnitDefault()))
             }
+            // OWM is no longer pinned last on every load (user's call 2026-10-06): enabling appends
+            // it, and the user may move it. See WeatherSourceOrdering.withEnabled.
             var normalizedVisible = WeatherSourceOrdering.sanitizeVisibleIds(decoded.settings.visibleSources)
-            if (WeatherSource.OPEN_WEATHER_MAP.id in normalizedVisible && normalizedVisible.last() != WeatherSource.OPEN_WEATHER_MAP.id) {
-                normalizedVisible = normalizedVisible.filter { it != WeatherSource.OPEN_WEATHER_MAP.id } + WeatherSource.OPEN_WEATHER_MAP.id
-            }
             val healed = decoded.settings.copy(visibleSources = normalizedVisible).withNwsReenabledOnce()
             normalizedVisible = healed.visibleSources
             val normalizedSource = decoded.settings.weatherSource.takeIf { it in normalizedVisible }
@@ -389,10 +388,7 @@ class DesktopConfigStore(
     }
 
     fun save(config: DesktopConfig) {
-        var normalizedVisible = WeatherSourceOrdering.sanitizeVisibleIds(config.settings.visibleSources)
-        if (WeatherSource.OPEN_WEATHER_MAP.id in normalizedVisible && normalizedVisible.last() != WeatherSource.OPEN_WEATHER_MAP.id) {
-            normalizedVisible = normalizedVisible.filter { it != WeatherSource.OPEN_WEATHER_MAP.id } + WeatherSource.OPEN_WEATHER_MAP.id
-        }
+        val normalizedVisible = WeatherSourceOrdering.sanitizeVisibleIds(config.settings.visibleSources)
         val normalized = config.copy(
             settings = config.settings.copy(
                 weatherSource = config.settings.weatherSource.takeIf { it in normalizedVisible }

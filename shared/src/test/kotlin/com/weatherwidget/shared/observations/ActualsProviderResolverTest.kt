@@ -306,4 +306,12 @@ class ActualsProviderResolverTest {
             ),
         )
     }
+
+    @Test
+    fun `Google Weather borrows actuals and is never offered as a provider`() {
+        assertTrue(ActualsProviderResolver.borrows(WeatherSource.GOOGLE_WEATHER))
+        assertTrue(ActualsProviderResolver.hasTemperatureActuals(WeatherSource.GOOGLE_WEATHER))
+        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.GOOGLE_WEATHER))
+        assertTrue(WeatherSource.GOOGLE_WEATHER !in ActualsProviderResolver.candidates())
+    }
 }

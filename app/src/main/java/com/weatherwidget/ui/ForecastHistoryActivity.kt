@@ -1,5 +1,6 @@
 package com.weatherwidget.ui
 
+import com.weatherwidget.shared.util.WeatherSourceOrdering
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.os.Bundle
@@ -563,59 +564,41 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 val comparison = accuracyCalculator.calculateComparison(lat, lon, 30)
                 val enabledSources = widgetStateManager.getVisibleSourcesOrder().toSet()
 
-                val hasAnyData =
-                    WeatherSource.entries.any { source ->
-                        enabledSources.contains(source) && when (source) {
-                            WeatherSource.NWS -> (comparison.nwsStats?.totalForecasts ?: 0) > 0
-                            WeatherSource.OPEN_WEATHER_MAP -> (comparison.openWeatherMapStats?.totalForecasts ?: 0) > 0
-                            WeatherSource.OPEN_METEO -> (comparison.meteoStats?.totalForecasts ?: 0) > 0
-                            WeatherSource.WEATHER_API -> (comparison.weatherApiStats?.totalForecasts ?: 0) > 0
-                            WeatherSource.TOMORROW_IO -> (comparison.tomorrowIoStats?.totalForecasts ?: 0) > 0
-                            WeatherSource.SILURIAN -> (comparison.silurianStats?.totalForecasts ?: 0) > 0
-                            else -> false
-                        }
-                    }
+                val sourcesToShow = WeatherSourceOrdering.ALL_CONFIGURABLE
+                    .filter { it in enabledSources }
+                    .map { it to comparison.statsFor(it) }
+                val hasAnyData = sourcesToShow.any { (_, stats) -> (stats?.totalForecasts ?: 0) > 0 }
 
                 val summary =
                     if (!hasAnyData) {
                         getString(R.string.forecast_history_no_history_yet)
                     } else {
                         buildString {
-                            val sourcesToShow = listOf(
-                                WeatherSource.NWS to comparison.nwsStats,
-                                WeatherSource.OPEN_WEATHER_MAP to comparison.openWeatherMapStats,
-                                WeatherSource.OPEN_METEO to comparison.meteoStats,
-                                WeatherSource.WEATHER_API to comparison.weatherApiStats,
-                                WeatherSource.TOMORROW_IO to comparison.tomorrowIoStats,
-                                WeatherSource.SILURIAN to comparison.silurianStats,
-                            )
 
                             val useCelsius = widgetStateManager.useCelsius()
                             sourcesToShow.forEachIndexed { index, (source, stats) ->
-                                if (enabledSources.contains(source)) {
-                                    if (stats != null && stats.totalForecasts > 0) {
-                                        append("${source.displayName}\n")
-                                        val highErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgHighError, useCelsius)
-                                        val lowErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgLowError, useCelsius)
-                                        append(getString(
-                                            R.string.accuracy_high_low_line,
-                                            "%.1f°".format(highErr) + formatBias(stats.highBias, useCelsius),
-                                            "%.1f°".format(lowErr) + formatBias(stats.lowBias, useCelsius),
-                                        ))
-                                        append("\n")
-                                        val limitDeg = if (useCelsius) 1.7 else 3.0
-                                        append(getString(
-                                            R.string.accuracy_within_line,
-                                            "%.1f°".format(limitDeg),
-                                            "%.0f%%".format(stats.percentWithin3Degrees),
-                                            stats.totalForecasts,
-                                        ))
-                                    } else {
-                                        append(getString(R.string.stats_source_no_data, source.displayName))
-                                    }
-                                    if (index < sourcesToShow.size - 1) {
-                                        append("\n\n")
-                                    }
+                                if (stats != null && stats.totalForecasts > 0) {
+                                    append("${source.displayName}\n")
+                                    val highErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgHighError, useCelsius)
+                                    val lowErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgLowError, useCelsius)
+                                    append(getString(
+                                        R.string.accuracy_high_low_line,
+                                        "%.1f°".format(highErr) + formatBias(stats.highBias, useCelsius),
+                                        "%.1f°".format(lowErr) + formatBias(stats.lowBias, useCelsius),
+                                    ))
+                                    append("\n")
+                                    val limitDeg = if (useCelsius) 1.7 else 3.0
+                                    append(getString(
+                                        R.string.accuracy_within_line,
+                                        "%.1f°".format(limitDeg),
+                                        "%.0f%%".format(stats.percentWithin3Degrees),
+                                        stats.totalForecasts,
+                                    ))
+                                } else {
+                                    append(getString(R.string.stats_source_no_data, source.displayName))
+                                }
+                                if (index < sourcesToShow.size - 1) {
+                                    append("\n\n")
                                 }
                             }
                         }

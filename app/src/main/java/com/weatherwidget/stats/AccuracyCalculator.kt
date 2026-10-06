@@ -7,6 +7,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.stats.AccuracyBreakdown
 import com.weatherwidget.shared.stats.AccuracyPure
 import com.weatherwidget.shared.stats.ComparisonStatistics
+import com.weatherwidget.shared.util.WeatherSourceOrdering
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -43,20 +44,10 @@ class AccuracyCalculator
             val endDate = LocalDate.now().minusDays(1)
             val startDate = endDate.minusDays(days.toLong() - 1)
 
-            val nwsStats = calculateAccuracy(WeatherSource.NWS, lat, lon, days)
-            val openWeatherMapStats = calculateAccuracy(WeatherSource.OPEN_WEATHER_MAP, lat, lon, days)
-            val meteoStats = calculateAccuracy(WeatherSource.OPEN_METEO, lat, lon, days)
-            val weatherApiStats = calculateAccuracy(WeatherSource.WEATHER_API, lat, lon, days)
-            val tomorrowIoStats = calculateAccuracy(WeatherSource.TOMORROW_IO, lat, lon, days)
-            val silurianStats = calculateAccuracy(WeatherSource.SILURIAN, lat, lon, days)
-
             return ComparisonStatistics(
-                nwsStats = nwsStats,
-                openWeatherMapStats = openWeatherMapStats,
-                meteoStats = meteoStats,
-                weatherApiStats = weatherApiStats,
-                tomorrowIoStats = tomorrowIoStats,
-                silurianStats = silurianStats,
+                bySource = WeatherSourceOrdering.ALL_CONFIGURABLE.associateWith { source ->
+                    calculateAccuracy(source, lat, lon, days)
+                },
                 periodStart = startDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 periodEnd = endDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
             )

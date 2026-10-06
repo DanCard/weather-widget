@@ -358,4 +358,45 @@ class AccuracyCalculatorIntegrationTest {
         assertEquals(2.0 / 3.0 * 100.0, stats.percentWithin3Degrees, 0.01)
         assertEquals(3, stats.totalForecasts)
     }
+
+    @Test
+    fun `calculateComparison scores every configurable source and keys stats by source`() = runTest {
+        val target = dateStr(2)
+        insertExtreme(target, WeatherSource.OPEN_METEO, computedHighTemp = 70f, computedLowTemp = 50f)
+        insertForecastSnapshot(target, dateStr(3), WeatherSource.OPEN_METEO, highTemp = 73f, lowTemp = 49f)
+
+        val comparison = calculator.calculateComparison(lat, lon, 30)
+
+        // A source added to ALL_CONFIGURABLE must reach the stats screens without editing them.
+        assertEquals(
+            com.weatherwidget.shared.util.WeatherSourceOrdering.ALL_CONFIGURABLE.toSet(),
+            comparison.bySource.keys,
+        )
+        val meteo = comparison.statsFor(WeatherSource.OPEN_METEO)
+        assertNotNull(meteo)
+        assertEquals(calculator.calculateAccuracy(WeatherSource.OPEN_METEO, lat, lon, 30), meteo)
+        assertEquals(1, meteo!!.totalForecasts)
+    }
+
+    /**
+     * Google is forecast-only ([com.weatherwidget.data.model.HistoricalDataKind.NONE]), so — like
+     * Silurian — it is never graded against its own `daily_history` row; [ActualsBaselineResolver]
+     * picks the best measured source instead, and the comparison reaches it with no screen listing it.
+     */
+    @Test
+    fun `Google Weather is scored in the comparison against a measured baseline`() = runTest {
+        val target = dateStr(1)
+        insertExtreme(target, WeatherSource.NWS, computedHighTemp = 74f, computedLowTemp = 55f)
+        // Its own row would be circular and must be ignored: a wildly wrong value proves it is.
+        insertExtreme(target, WeatherSource.GOOGLE_WEATHER, computedHighTemp = 99f, computedLowTemp = 99f)
+        insertForecastSnapshot(target, dateStr(2), WeatherSource.GOOGLE_WEATHER, highTemp = 76f, lowTemp = 54f)
+
+        val stats = calculator.calculateComparison(lat, lon, 30).statsFor(WeatherSource.GOOGLE_WEATHER)
+        val day = calculator.getDailyAccuracyBreakdown(WeatherSource.GOOGLE_WEATHER, lat, lon, 30).single()
+
+        assertNotNull("Google must appear in the comparison without any screen listing it", stats)
+        assertEquals(1, stats!!.totalForecasts)
+        assertEquals(WeatherSource.NWS.id, day.baselineSourceId)
+        assertEquals(-2, day.highError) // actual − forecast, as elsewhere in this file
+    }
 }

@@ -78,10 +78,7 @@ class HistoryActivitySyncRoboTest {
         activity.dailyHistoryDao = mockk(relaxed = true)
         activity.accuracyCalculator = mockk<AccuracyCalculator>().also { calculator ->
             coEvery { calculator.calculateComparison(any(), any(), any()) } returns ComparisonStatistics(
-                nwsStats = null,
-                openWeatherMapStats = null,
-                meteoStats = null,
-                weatherApiStats = null,
+                bySource = emptyMap(),
                 periodStart = "2025-01-01",
                 periodEnd = "2025-01-30",
             )
@@ -134,10 +131,7 @@ class HistoryActivitySyncRoboTest {
         activity.dailyHistoryDao = mockk(relaxed = true)
         activity.accuracyCalculator = mockk<AccuracyCalculator>().also { calculator ->
             coEvery { calculator.calculateComparison(any(), any(), any()) } returns ComparisonStatistics(
-                nwsStats = null,
-                openWeatherMapStats = null,
-                meteoStats = null,
-                weatherApiStats = null,
+                bySource = emptyMap(),
                 periodStart = "2025-01-01",
                 periodEnd = "2025-01-30",
             )

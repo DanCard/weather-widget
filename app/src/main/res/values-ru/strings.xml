@@ -61,6 +61,7 @@
     <string name="api_source_silurian_desc">Silurian.ai — отображается как Silur (глобальное покрытие)</string>
     <string name="api_source_nws_desc">Национальная метеослужба (только США)</string>
     <string name="api_source_tomorrowio_desc">Tomorrow.io — отображается как Tmrw (глобальное покрытие)</string>
+    <string name="api_source_google_desc">Google Weather — отображается как Google (глобальное покрытие)</string>
     <string name="api_source_visualcrossing_desc">Visual Crossing — отображается как VisCr (глобальное покрытие)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — отображается как Meteo (глобальное покрытие)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — отображается как WAPI (глобальное покрытие)</string>
@@ -240,6 +241,7 @@
     <string name="header_delta_from_yesterday">vs вчера</string>
     <string name="widget_loading">Загрузка...</string>
     <string name="widget_fetching_location">Получение погоды для %1$s…</string>
+    <string name="widget_fetching_source">Загрузка погоды из %1$s…</string>
     <string name="widget_tap_to_refresh">Нажмите для обновления</string>
     <string name="widget_no_location">Нет местоположения — нажмите, чтобы задать</string>
     <string name="current_stations_desc">Текущие станции</string>

@@ -455,6 +455,31 @@ class DesktopWeatherRepositoryTest {
     }
 
     /**
+     * Shared `DailyColumnSource` rule, as on Android: climate filler only after today+2. A source with
+     * no rows yet (just enabled) shows today..+2 missing until its fetch lands, not climate averages.
+     * plans/261006-daily-future-column-cross-source-snapshot-fallback.md.
+     */
+    @Test
+    fun `loadCached never fills today through plus two with climate normals`() = runTest {
+        val today = LocalDate.now()
+        val monthlyHigh = (1..12).associateWith { (it * 5 + 40).toFloat() }
+        val monthlyLow = (1..12).associateWith { (it * 5 + 20).toFloat() }
+        dao.upsertClimateNormals(ClimateNormals.locationKey(37.4220, -122.0841), monthlyHigh, monthlyLow)
+        // Only a far-future real row, so today..+2 are uncovered.
+        dao.upsertForecasts(
+            37.4220, -122.0841, "NWS",
+            listOf(DailyForecast(date = today.plusDays(5).toString(), highTemp = 70f, lowTemp = 50f, condition = "Clear")),
+        )
+
+        val byDate = repository.loadCached()!!.raw.daily.associateBy { LocalDate.parse(it.date) }
+
+        (0L..2L).forEach { d ->
+            assertTrue("no climate filler at today+$d", byDate[today.plusDays(d)]?.isClimateNormal != true)
+        }
+        assertTrue("climate filler resumes after today+2", byDate[today.plusDays(3)]?.isClimateNormal == true)
+    }
+
+    /**
      * A future day with only one value takes the climate normal (Android's DailyFutureDayResolver);
      * NWS's last, low-only day is real data and stays. Desktop used to store such days as low = high
      * or drop them, so it never needed this.

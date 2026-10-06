@@ -1,5 +1,6 @@
 package com.weatherwidget.ui
 
+import com.weatherwidget.shared.util.WeatherSourceOrdering
 import android.os.Bundle
 import android.widget.RadioGroup
 import android.widget.TextView
@@ -128,21 +129,12 @@ class StatisticsActivity : AppCompatActivity() {
 
                 // Get daily breakdown for enabled sources and combine
                 val allDaily = mutableListOf<DailyResult>()
-                val sourcesToQuery = listOf(
-                    WeatherSource.NWS,
-                    WeatherSource.OPEN_WEATHER_MAP,
-                    WeatherSource.OPEN_METEO,
-                    WeatherSource.WEATHER_API,
-                    WeatherSource.TOMORROW_IO,
-                    WeatherSource.SILURIAN,
-                )
+                val sourcesToQuery = WeatherSourceOrdering.ALL_CONFIGURABLE.filter { it in enabledSources }
 
                 val allRainDaily = mutableListOf<DailyRainAccuracy>()
                 sourcesToQuery.forEach { source ->
-                    if (enabledSources.contains(source)) {
-                        allDaily.addAll(accuracyCalculator.getDailyAccuracyBreakdown(source, lat, lon, 30))
-                        allRainDaily.addAll(rainAccuracyCalculator.getDailyRainAccuracy(source, lat, lon, 30))
-                    }
+                    allDaily.addAll(accuracyCalculator.getDailyAccuracyBreakdown(source, lat, lon, 30))
+                    allRainDaily.addAll(rainAccuracyCalculator.getDailyRainAccuracy(source, lat, lon, 30))
                 }
                 allDaily.sortByDescending { it.date }
                 allRainDaily.sortByDescending { it.date }
@@ -156,35 +148,26 @@ class StatisticsActivity : AppCompatActivity() {
                         getString(R.string.stats_no_history_yet)
                     } else {
                         buildString {
-                            val sourcesToStats = listOf(
-                                WeatherSource.NWS to comparison.nwsStats,
-                                WeatherSource.OPEN_WEATHER_MAP to comparison.openWeatherMapStats,
-                                WeatherSource.OPEN_METEO to comparison.meteoStats,
-                                WeatherSource.WEATHER_API to comparison.weatherApiStats,
-                                WeatherSource.TOMORROW_IO to comparison.tomorrowIoStats,
-                                WeatherSource.SILURIAN to comparison.silurianStats,
-                            )
+                            val sourcesToStats = sourcesToQuery.map { it to comparison.statsFor(it) }
 
                             val useCelsius = widgetStateManager.useCelsius()
                             sourcesToStats.forEachIndexed { index, (source, stats) ->
-                                if (enabledSources.contains(source)) {
-                                    if (stats != null && stats.totalForecasts > 0) {
-                                        val highErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgHighError, useCelsius)
-                                        val lowErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgLowError, useCelsius)
-                                        append(
-                                            getString(
-                                                R.string.stats_source_line,
-                                                source.displayName,
-                                                "%.1f°".format(highErr) + formatBias(stats.highBias, useCelsius),
-                                                "%.1f°".format(lowErr) + formatBias(stats.lowBias, useCelsius),
-                                            ),
-                                        )
-                                    } else {
-                                        append(getString(R.string.stats_source_no_data, source.displayName))
-                                    }
-                                    if (index < sourcesToStats.size - 1) {
-                                        append("\n")
-                                    }
+                                if (stats != null && stats.totalForecasts > 0) {
+                                    val highErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgHighError, useCelsius)
+                                    val lowErr = com.weatherwidget.shared.util.TempUtils.displayDelta(stats.avgLowError, useCelsius)
+                                    append(
+                                        getString(
+                                            R.string.stats_source_line,
+                                            source.displayName,
+                                            "%.1f°".format(highErr) + formatBias(stats.highBias, useCelsius),
+                                            "%.1f°".format(lowErr) + formatBias(stats.lowBias, useCelsius),
+                                        ),
+                                    )
+                                } else {
+                                    append(getString(R.string.stats_source_no_data, source.displayName))
+                                }
+                                if (index < sourcesToStats.size - 1) {
+                                    append("\n")
                                 }
                             }
                         }

@@ -61,6 +61,7 @@
     <string name="api_source_silurian_desc">Silurian.ai — ditampilkan sebagai Silur (cakupan global)</string>
     <string name="api_source_nws_desc">National Weather Service (hanya AS)</string>
     <string name="api_source_tomorrowio_desc">Tomorrow.io — ditampilkan sebagai Tmrw (cakupan global)</string>
+    <string name="api_source_google_desc">Google Weather — ditampilkan sebagai Google (cakupan global)</string>
     <string name="api_source_visualcrossing_desc">Visual Crossing — ditampilkan sebagai VisCr (cakupan global)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — ditampilkan sebagai Meteo (cakupan global)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — ditampilkan sebagai WAPI (cakupan global)</string>
@@ -240,6 +241,7 @@
     <string name="header_delta_from_yesterday">dari kemarin</string>
     <string name="widget_loading">Memuat...</string>
     <string name="widget_fetching_location">Mengambil cuaca untuk %1$s…</string>
+    <string name="widget_fetching_source">Mengambil cuaca dari %1$s…</string>
     <string name="widget_tap_to_refresh">Ketuk untuk menyegarkan</string>
     <string name="widget_no_location">Tidak ada lokasi — ketuk untuk mengatur</string>
     <string name="current_stations_desc">Stasiun saat ini</string>

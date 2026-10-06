@@ -181,6 +181,9 @@ class WidgetStateManager internal constructor(
 
     fun getActiveDisplaySourceIds(): Set<String> = sourcePreferences.activeDisplaySourceIds()
 
+    /** See [WeatherSourcePreferences.consumePendingSourceSwitch]. */
+    fun consumePendingSourceSwitch(): WeatherSource? = sourcePreferences.consumePendingSourceSwitch()
+
     fun getEffectiveVisibleSourcesOrder(widgetId: Int): List<WeatherSource> =
         getVisibleSourcesOrder()
 
@@ -504,7 +507,10 @@ class WidgetStateManager internal constructor(
 
         private val DEFAULT_VISIBLE_SOURCES =
             if (BuildConfig.DEBUG) {
+                // Google first: enabling it makes it primary (user's call 2026-10-06). Debug-only
+                // because only debug builds carry a baked Google key.
                 listOf(
+                    WeatherSource.GOOGLE_WEATHER,
                     WeatherSource.NWS,
                     WeatherSource.OPEN_METEO,
                     WeatherSource.SILURIAN,

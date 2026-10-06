@@ -366,6 +366,7 @@ class SettingsActivity : AppCompatActivity() {
         WeatherSource.OPEN_METEO -> getString(R.string.api_source_openmeteo_desc)
         WeatherSource.WEATHER_API -> getString(R.string.api_source_weatherapi_desc)
         WeatherSource.OPEN_WEATHER_MAP -> getString(R.string.api_source_openweathermap_desc)
+        WeatherSource.GOOGLE_WEATHER -> getString(R.string.api_source_google_desc)
         else -> ""
     }
 
@@ -469,6 +470,14 @@ class SettingsActivity : AppCompatActivity() {
                 Log.d("SOURCE_ORDER", summary)
                 eventLogger.log("SOURCE_ORDER", summary)
                 widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
+                // Enabling Google makes it primary and every widget switches to it: fetch it now and
+                // say so, rather than show its empty graph until some unrelated sync runs.
+                WeatherSourceOrdering.newlyPrimary(currentIds, updatedIds)?.let { newPrimary ->
+                    val appContext = applicationContext
+                    lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        com.weatherwidget.widget.SourceSwitchFetch.start(appContext, newPrimary, trigger = "settings_enable")
+                    }
+                }
                 rebuildSourceRows(container)
             }
 

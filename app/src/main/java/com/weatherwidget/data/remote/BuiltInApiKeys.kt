@@ -21,6 +21,8 @@ object BuiltInApiKeys {
         WeatherSource.TOMORROW_IO -> BuildConfig.TOMORROW_IO_API_KEY
         WeatherSource.WEATHER_API -> BuildConfig.WEATHER_API_KEY
         WeatherSource.VISUAL_CROSSING -> BuildConfig.VISUAL_CROSSING_API_KEY
+        // Blank in release builds by design (app/build.gradle.kts): release users bring their own.
+        WeatherSource.GOOGLE_WEATHER -> BuildConfig.GOOGLE_WEATHER_API_KEY
         else -> null
     }?.takeIf { it.isNotBlank() }
 

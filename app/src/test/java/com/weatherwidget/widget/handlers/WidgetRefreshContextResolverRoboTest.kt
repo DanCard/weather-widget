@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.widget.WidgetStateManager
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.ForecastDao
@@ -39,6 +40,9 @@ class WidgetRefreshContextResolverRoboTest : RobolectricTest() {
             .putFloat("${ConfigActivity.KEY_LON_PREFIX}$targetWidgetId", targetLon.toFloat())
             .commit()
         ActiveLocationResolver.persist(context, targetLat, targetLon)
+        // Pin the premise: debug builds default to Google Weather as primary (2026-10-06), and this
+        // test is about NWS mode.
+        WidgetStateManager(context).setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
 
         val forecastDao = mockk<ForecastDao>()
         val targetRow = forecast(targetLat, targetLon, fetchedAt = 1_000L)
