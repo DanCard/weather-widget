@@ -39,6 +39,9 @@ The forecast high **82.3°** (Google hourly, 15:00) was drawn *below* its peak w
 On the Fold: `PlaceAccept: role=HIGH lifted=18.4 above=true leader=true (cleared hard bound by ink)`;
 82.3° sits above the peak with a short tick; pill in the middle of the graph.
 
-## Follow-up
+## Follow-up (done)
 
-- A focused unit test for "two highs near the top → lift, not flip".
+- `TemperatureHighLiftOverHardBoundTest` (`:shared`): control (no obstacle → plain "above"); head-on
+  overlap inside the descent band → 1 dp lift, no leader; 12 px overlap → 7 px lift (not 30), leader
+  peak→baseline. The obstacle's x-span must cover the label's centre as on the Fold — a side-only
+  overlap within 30% of the label height takes the existing minor-overlap allowance instead.

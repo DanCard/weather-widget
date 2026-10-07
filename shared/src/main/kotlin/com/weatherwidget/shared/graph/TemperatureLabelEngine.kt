@@ -441,7 +441,8 @@ object TemperatureLabelEngine {
                         verticalPlacement.bottom
                     )
 
-                    // EXPERIMENT: a high placed above may run off the top of the graph (clipped).
+                    // A high placed above may run off the top of the graph (clipped) while part of it
+                    // stays visible, rather than flipping below its own peak.
                     val mayRunOffTop = placeAbove && candidate.role in TemperatureLabelResolver.FORECAST_HIGH_ROLES
                     val onScreen = (bounds.top >= 0f || (mayRunOffTop && bounds.bottom > 0f)) && bounds.bottom <= heightPx
                     if (!onScreen) continue
