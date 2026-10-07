@@ -462,21 +462,24 @@ object DailyViewLogic {
             val todayHasActualLow: Boolean
 
             if (isPastDate) {
+                // Every stored hour of the day for the display source (the loader stitches history).
+                val dayHourly = hourlyForecasts.filter {
+                    it.source == displaySource.id &&
+                        java.time.Instant.ofEpochMilli(it.dateTime).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == date
+                }
                 val pastValues = DailyPastDayResolver.resolvePastDayValues(
                     actual = actual,
                     forecasts = forecasts,
                     displaySource = displaySource,
                     date = date,
                     showComparison = showComparison,
-                    // Last step of the right bar's fallback: the day's hourly forecast range, as the
-                    // live column drew it (DailyActualsEstimator / todayForecastRange).
+                    // Last steps of the right bar's fallback: the day's hourly forecast range, as the
+                    // live column drew it (DailyActualsEstimator / todayForecastRange), then every
+                    // stored hour (hindcast) — what the day's hourly view draws.
                     hourlyTemps = com.weatherwidget.shared.util.PastDayForecastOverlay.forecastHourlyTemps(
-                        hourlyForecasts.filter {
-                            it.source == displaySource.id &&
-                                java.time.Instant.ofEpochMilli(it.dateTime).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == date
-                        },
-                        { it.dateTime }, { it.fetchedAt }, { it.temperature },
+                        dayHourly, { it.dateTime }, { it.fetchedAt }, { it.temperature },
                     ),
+                    hourlyHindcastTemps = dayHourly.map { it.temperature },
                 )
                 forecastIsFallback = pastValues.forecastIsFallback
                 finalHigh = pastValues.finalHigh

@@ -31,13 +31,14 @@ internal object DailyPastDayResolver {
         date: LocalDate,
         showComparison: Boolean = true,
         hourlyTemps: List<Float> = emptyList(),
+        hourlyHindcastTemps: List<Float> = emptyList(),
     ): PastDayValues {
         var fHigh: Float? = null
         var fLow: Float? = null
         var forecastIsFallback = false
 
         if (showComparison) {
-            resolvePastDayOverlay(actual, forecasts, displaySource, date, hourlyTemps)?.let {
+            resolvePastDayOverlay(actual, forecasts, displaySource, date, hourlyTemps, hourlyHindcastTemps)?.let {
                 fHigh = it.high
                 fLow = it.low
                 forecastIsFallback = it.isFallback
@@ -98,6 +99,7 @@ internal object DailyPastDayResolver {
         displaySource: WeatherSource,
         date: LocalDate,
         hourlyTemps: List<Float> = emptyList(),
+        hourlyHindcastTemps: List<Float> = emptyList(),
     ): PastDayForecastOverlay.Resolved? {
         val resolved = PastDayForecastOverlay.resolve(
             frozenHigh = actual?.forecastHighTemp,
@@ -109,6 +111,7 @@ internal object DailyPastDayResolver {
             hindcastHigh = { it.hindcastHighTemp },
             hindcastLow = { it.hindcastLowTemp },
             hourlyTemps = hourlyTemps,
+            hourlyHindcastTemps = hourlyHindcastTemps,
         )
         when {
             resolved == null ->

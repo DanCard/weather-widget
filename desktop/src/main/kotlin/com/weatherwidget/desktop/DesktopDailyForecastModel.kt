@@ -331,7 +331,8 @@ object DesktopDailyForecastModel {
                 // mixing a frozen value with a snapshot one. Pre-feature rows fall back to the
                 // snapshot table.
                 // Shared chain with Android (PastDayForecastOverlay.resolve): frozen, newest pair,
-                // per-side stored value, then the dashed fallbacks — post-cutoff value, hourly range.
+                // per-side stored value, then the dashed fallbacks — post-cutoff value, hourly forecast
+                // range, hourly hindcast range.
                 // `snapshots` excludes the newest fetch batch; its row for this day is `forecast`,
                 // which ranks newest.
                 val pastSourceId = WeatherSource.fromDisplaySource(displaySourceId).id
@@ -359,6 +360,7 @@ object DesktopDailyForecastModel {
                     hourlyTemps = PastDayForecastOverlay.forecastHourlyTemps(
                         dayHourly, { it.dateTime }, { it.fetchedAt }, { it.temperature },
                     ),
+                    hourlyHindcastTemps = dayHourly.map { it.temperature },
                 )
                 forecastHigh = overlay?.high
                 forecastLow = overlay?.low

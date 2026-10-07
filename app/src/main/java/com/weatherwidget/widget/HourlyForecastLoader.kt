@@ -87,13 +87,7 @@ internal class HourlyForecastLoader(
             // against the raw centre, so neither row order nor centre form can decide the outcome.
             // See plans/260806-today-column-stale-fragment-delta-opus.md.
             val afterHistoryMs = android.os.SystemClock.elapsedRealtime()
-            val stitched = HourlyForecastStitcher.stitchBySource(
-                current = current.map { it.toHourlyForecast() },
-                history = history.map { it.toHourlyForecast() },
-                nowMs = now.atZone(zoneId).toInstant().toEpochMilli(),
-                centerLat = lat,
-                centerLon = lon,
-            ).map { it.toEntity(lat, lon) }
+            val stitched = stitch(current, history, now.atZone(zoneId).toInstant().toEpochMilli(), lat, lon)
             val afterStitchMs = android.os.SystemClock.elapsedRealtime()
             // `sources` is the SQL scope, snapshotted from the widgets' CURRENT display sources
             // before the caller's fetch. Log it: a later repaint that filters to a source absent
@@ -129,6 +123,52 @@ internal class HourlyForecastLoader(
 
     companion object {
         private const val TAG = "HourlyForecastLoader"
+
+        private fun stitch(
+            current: List<HourlyForecastEntity>,
+            history: List<com.weatherwidget.data.local.HourlyForecastHistoryEntity>,
+            nowMs: Long,
+            lat: Double,
+            lon: Double,
+        ): List<HourlyForecastEntity> =
+            HourlyForecastStitcher.stitchBySource(
+                current = current.map { it.toHourlyForecast() },
+                history = history.map { it.toHourlyForecast() },
+                nowMs = nowMs,
+                centerLat = lat,
+                centerLon = lon,
+            ).map { it.toEntity(lat, lon) }
+
+        /**
+         * [current] (`hourly_forecasts`, already queried by the caller over [startMs]..[endMs])
+         * stitched with `hourly_forecast_history` over the same window — what [load] returns. For the
+         * startup and tap paints, which query `hourly_forecasts` alone and otherwise lack the hours
+         * only the history table holds (a source first fetched after a day ended has nothing else for
+         * it; that day's forecast bar falls back to them —
+         * plans/261007-past-day-forecast-bar-hourly-hindcast-fallback.md). No HOURLY_LOAD row: these
+         * paths are latency-bound.
+         */
+        suspend fun withHistory(
+            database: WeatherDatabase,
+            current: List<HourlyForecastEntity>,
+            startMs: Long,
+            endMs: Long,
+            lat: Double,
+            lon: Double,
+            sources: List<String>,
+            nowMs: Long = System.currentTimeMillis(),
+        ): List<HourlyForecastEntity> {
+            val history = database.hourlyForecastHistoryDao().getHistoryInRangeForBucketWindowForSources(
+                startDateTime = startMs,
+                endDateTime = endMs,
+                bucketStart = Long.MIN_VALUE,
+                bucketEnd = Long.MAX_VALUE,
+                lat = lat,
+                lon = lon,
+                sources = sources,
+            )
+            return if (history.isEmpty()) current else stitch(current, history, nowMs, lat, lon)
+        }
 
         /**
          * Display sources that are on screen NOW but were not in the scope the rows were loaded

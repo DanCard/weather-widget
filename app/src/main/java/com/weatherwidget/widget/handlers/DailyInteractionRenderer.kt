@@ -230,17 +230,27 @@ internal object DailyInteractionRenderer {
 
         stageStartMs = SystemClock.elapsedRealtime()
         val hourlyForecasts =
-            GraphDataLoader.unifyToNearestSite(
-                hourlyDao.getHourlyForecastsForSources(
-                    timeBounds.hourlyStartMs,
-                    timeBounds.hourlyEndMs,
-                    lat,
-                    lon,
-                    hourlySourceIds(context),
-                ),
-                lat,
-                lon,
-            )
+            hourlySourceIds(context).let { sources ->
+                com.weatherwidget.widget.HourlyForecastLoader.withHistory(
+                    database = database,
+                    current = GraphDataLoader.unifyToNearestSite(
+                        hourlyDao.getHourlyForecastsForSources(
+                            timeBounds.hourlyStartMs,
+                            timeBounds.hourlyEndMs,
+                            lat,
+                            lon,
+                            sources,
+                        ),
+                        lat,
+                        lon,
+                    ),
+                    startMs = timeBounds.hourlyStartMs,
+                    endMs = timeBounds.hourlyEndMs,
+                    lat = lat,
+                    lon = lon,
+                    sources = sources,
+                )
+            }
         val hourlyMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
         val currentTemps =

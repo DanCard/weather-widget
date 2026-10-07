@@ -51,11 +51,16 @@ class PastDayForecastOverlayTest {
         val hindcastLow: Float? = null,
     )
 
-    private fun resolve(frozenHigh: Float?, frozenLow: Float?, rows: List<HRow>, hourly: List<Float> = emptyList()) =
-        PastDayForecastOverlay.resolve(
-            frozenHigh, frozenLow, rows, { it.high }, { it.low }, { it.fetchedAt },
-            { it.hindcastHigh }, { it.hindcastLow }, hourly,
-        )
+    private fun resolve(
+        frozenHigh: Float?,
+        frozenLow: Float?,
+        rows: List<HRow>,
+        hourly: List<Float> = emptyList(),
+        hourlyHindcast: List<Float> = emptyList(),
+    ) = PastDayForecastOverlay.resolve(
+        frozenHigh, frozenLow, rows, { it.high }, { it.low }, { it.fetchedAt },
+        { it.hindcastHigh }, { it.hindcastLow }, hourly, hourlyHindcast,
+    )
 
     private fun real(h: Float, l: Float) = PastDayForecastOverlay.Resolved(h, l, isFallback = false)
     private fun fallback(h: Float, l: Float) = PastDayForecastOverlay.Resolved(h, l, isFallback = true)
@@ -100,5 +105,18 @@ class PastDayForecastOverlayTest {
             { it.dateTime }, { it.fetchedAt }, { it.temp },
         )
         assertEquals(listOf(64f), temps)
+    }
+
+    @Test
+    fun `hourly hindcast is the last resort, after hourly forecasts`() {
+        // emulator-5556, Oct 6: Google first fetched at 01:50 on Oct 7 — only its history hours.
+        assertEquals(fallback(84f, 61.7f), resolve(null, null, emptyList(), hourlyHindcast = listOf(61.9f, 84f, 61.7f)))
+        // A forecast hour beats every hindcast hour.
+        assertEquals(
+            fallback(80f, 64.8f),
+            resolve(null, null, emptyList(), hourly = listOf(64.8f, 80f), hourlyHindcast = listOf(61.7f, 84f, 64.8f, 80f)),
+        )
+        // A real stored side still wins; the hindcast only fills the missing one.
+        assertEquals(fallback(83.8f, 61.7f), resolve(83.8f, null, emptyList(), hourlyHindcast = listOf(61.7f, 84f)))
     }
 }

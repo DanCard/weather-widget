@@ -25,8 +25,11 @@ object PastDayForecastOverlay {
      * 3. per side: the frozen value, else the newest row carrying that side (both real), else the
      *    **earliest** [hindcastHigh]/[hindcastLow] (what the source sent after its
      *    [SameDayExtremeCutoff] cutoff; the earliest is closest to a forecast), else the day's hourly
-     *    forecast max/min ([hourlyTemps]) — the value the live column drew that day. The last two are
-     *    fallbacks.
+     *    forecast max/min ([hourlyTemps]) — the value the live column drew that day — else the day's
+     *    hourly **hindcast** max/min ([hourlyHindcastTemps]: every stored hour, whatever its fetch
+     *    time; what that day's hourly view draws as its forecast line). The last three are fallbacks.
+     *    The hindcast step is the user's call (2026-10-07): a device first fetched after the day
+     *    ended has only the source's history hours for it.
      *
      * Null unless both sides resolve (half a bar is never drawn). User's call, 2026-10-07: a source
      * first fetched mid-day had no low for that day, and its past column lost the bar it showed live.
@@ -57,18 +60,26 @@ object PastDayForecastOverlay {
         hindcastHigh: (T) -> Float? = { null },
         hindcastLow: (T) -> Float? = { null },
         hourlyTemps: List<Float> = emptyList(),
+        hourlyHindcastTemps: List<Float> = emptyList(),
     ): Resolved? {
         if (frozenHigh != null && frozenLow != null) return Resolved(frozenHigh, frozenLow, isFallback = false)
         pick(candidates, high, low, fetchedAt)?.let { return Resolved(high(it)!!, low(it)!!, isFallback = false) }
 
-        fun side(frozen: Float?, main: (T) -> Float?, hindcast: (T) -> Float?, hourly: Float?): Pair<Float, Boolean>? =
+        fun side(
+            frozen: Float?,
+            main: (T) -> Float?,
+            hindcast: (T) -> Float?,
+            hourly: Float?,
+            hourlyHindcast: Float?,
+        ): Pair<Float, Boolean>? =
             frozen?.let { it to false }
                 ?: candidates.filter { main(it) != null }.maxByOrNull(fetchedAt)?.let { main(it)!! to false }
                 ?: candidates.filter { hindcast(it) != null }.minByOrNull(fetchedAt)?.let { hindcast(it)!! to true }
                 ?: hourly?.let { it to true }
+                ?: hourlyHindcast?.let { it to true }
 
-        val h = side(frozenHigh, high, hindcastHigh, hourlyTemps.maxOrNull()) ?: return null
-        val l = side(frozenLow, low, hindcastLow, hourlyTemps.minOrNull()) ?: return null
+        val h = side(frozenHigh, high, hindcastHigh, hourlyTemps.maxOrNull(), hourlyHindcastTemps.maxOrNull()) ?: return null
+        val l = side(frozenLow, low, hindcastLow, hourlyTemps.minOrNull(), hourlyHindcastTemps.minOrNull()) ?: return null
         return Resolved(h.first, l.first, isFallback = h.second || l.second)
     }
 

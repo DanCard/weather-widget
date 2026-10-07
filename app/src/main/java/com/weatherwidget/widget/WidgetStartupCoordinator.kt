@@ -156,6 +156,7 @@ internal class WidgetStartupCoordinator(
                 if (unpaintedIds.isNotEmpty()) {
                     queryResult =
                         loadStartupData(
+                            database = database,
                             forecastDao = forecastDao,
                             hourlyDao = hourlyDao,
                             latestWeather = latestWeather,
@@ -236,6 +237,7 @@ internal class WidgetStartupCoordinator(
     }
 
     private suspend fun loadStartupData(
+        database: WeatherDatabase,
         forecastDao: ForecastDao,
         hourlyDao: HourlyForecastDao,
         latestWeather: ForecastEntity,
@@ -319,12 +321,20 @@ internal class WidgetStartupCoordinator(
                 // Same source restriction the daily query above already uses: activeSourceList is
                 // every widget's display source plus GENERIC_GAP. Unfiltered this returned every
                 // source ever fetched, for consumers that filter to the display source anyway.
-                hourlyDao.getHourlyForecastsForSources(
-                    hourlyStart,
-                    hourlyEnd,
-                    latestWeather.locationLat,
-                    latestWeather.locationLon,
-                    activeSourceList,
+                HourlyForecastLoader.withHistory(
+                    database = database,
+                    current = hourlyDao.getHourlyForecastsForSources(
+                        hourlyStart,
+                        hourlyEnd,
+                        latestWeather.locationLat,
+                        latestWeather.locationLon,
+                        activeSourceList,
+                    ),
+                    startMs = hourlyStart,
+                    endMs = hourlyEnd,
+                    lat = latestWeather.locationLat,
+                    lon = latestWeather.locationLon,
+                    sources = activeSourceList,
                 )
             }
         val currentTempsDeferred =
