@@ -15,6 +15,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.GoogleQuota
+import com.weatherwidget.data.remote.QuotaNotice
 import com.weatherwidget.data.remote.ProviderErrorDetails
 import com.weatherwidget.widget.GraphFailureWatermarkRenderer
 import com.weatherwidget.widget.WidgetStateManager
@@ -156,11 +157,12 @@ internal data class SourceErrorDetailsContent(
             }
             val code = productBlock?.let { GoogleQuota.errorCodeFor(it.first) } ?: state.getSourceLastErrorCode(source)
             val failedAt = productBlock?.second?.sinceMs ?: state.getSourceLastFailureTime(source)
-            val details = ProviderErrorDetails.parse(productBlock?.second?.detail ?: state.getSourceLastFailureDetail(source))
-            val quota = code in GoogleQuota.QUOTA_CODES
-            val resetText = failedAt?.takeIf { quota }?.let {
-                GraphFailureWatermarkRenderer.formatResetTime(GoogleQuota.nextResetMs(it), locale, zone)
-            }
+            val detail = productBlock?.second?.detail ?: state.getSourceLastFailureDetail(source)
+            val details = ProviderErrorDetails.parse(detail)
+            val quota = productBlock
+                ?.let { (product, block) -> QuotaNotice.forProductBlock(product, block.untilMs, detail) }
+                ?: QuotaNotice.forSourceFailure(code, failedAt, detail)
+            val resetText = quota?.let { GraphFailureWatermarkRenderer.formatResetTime(it.resetAtMs, locale, zone) }
             val codeText = code?.let { GraphFailureWatermarkRenderer.localizedErrorCodeText(context, it) }
 
             val explanation = when {
@@ -200,15 +202,12 @@ internal data class SourceErrorDetailsContent(
             }
 
             val headline = "${source.displayName.uppercase(locale)} " +
-                context.getString(if (quota) R.string.updates_paused else R.string.updates_failing)
+                context.getString(if (quota != null) R.string.updates_paused else R.string.updates_failing)
             return SourceErrorDetailsContent(
                 headline = headline,
                 summary = when {
-                    quota && resetText != null -> when (code) {
-                        GoogleQuota.ERROR_CODE_HOURLY_FORECAST -> context.getString(R.string.watermark_quota_hourly_forecast, resetText)
-                        GoogleQuota.ERROR_CODE_DAILY_FORECAST -> context.getString(R.string.watermark_quota_daily_forecast, resetText)
-                        else -> context.getString(R.string.watermark_quota_daily, resetText)
-                    }
+                    quota != null && resetText != null ->
+                        GraphFailureWatermarkRenderer.localizedQuotaText(context, quota.scope, resetText)
                     else -> codeText ?: context.getString(R.string.updates_failing)
                 },
                 explanation = explanation,

@@ -50,6 +50,8 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
+import com.weatherwidget.data.local.desktop.ProductQuotaLog
+import com.weatherwidget.data.remote.QuotaNotice
 import com.weatherwidget.data.remote.IpGeolocationApi
 import com.weatherwidget.data.remote.NominatimApi
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
@@ -589,17 +591,34 @@ internal fun runDesktopUiApplication() = application {
                 }
             }
             
+            // A forecast product's quota block on the view that draws it ([QuotaNotice.productOf], the
+            // rule the widget uses): hourly graphs the hourly forecast, the daily view the daily one.
+            fun productQuotaBanner(src: String): Pair<Long, String>? {
+                val product = QuotaNotice.productOf(activeConfig.viewMode)
+                val (loggedAt, msg) = weatherDao.getLatestProductQuota(src, product)
+                    ?.takeIf { (loggedAt, msg) ->
+                        loggedAt > dismissedErrorTimestamp &&
+                            ProductQuotaLog.parseUntilMs(msg) > System.currentTimeMillis()
+                    } ?: return null
+                val notice = QuotaNotice.forProductBlock(product, ProductQuotaLog.parseUntilMs(msg), ProductQuotaLog.parseDetail(msg))
+                val presentation = desktopQuotaPresentation(WeatherSource.fromId(src).displayName, notice)
+                return loggedAt to (listOf(presentation.title) + presentation.bodyLines + listOf("", presentation.retryLine))
+                    .joinToString("\n")
+            }
+
             fun updateStatus() {
                 val isHourly = activeConfig.viewMode.isHourly
-                if (!isHourly) {
-                    currentTempFetchError = null
-                    currentTempFetchIsWarmup = false
-                    return
-                }
-                
                 val src = WeatherSource.fromDisplaySource(activeConfig.displaySource).id
                 val status = weatherDao.getLatestCurrentTempStatus(src)
-                if (status != null && !status.ok && status.timestamp > dismissedErrorTimestamp) {
+                // The daily view shows a source-wide failure only when it is a quota (it says when
+                // updates resume); other current-temp failures stay on the hourly graphs.
+                val sourceFailure = status?.takeIf { !it.ok && it.timestamp > dismissedErrorTimestamp }?.takeIf {
+                    isHourly || desktopFetchErrorPresentation(
+                        "", CurrentTempStatusLog.parseFailureClassName(it.message),
+                        CurrentTempStatusLog.parseFailureDetail(it.message), it.timestamp,
+                    ).quota
+                }
+                if (status != null && sourceFailure != null) {
                     val timeFmt = DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault())
                     val attemptFmt = DateTimeFormatter.ofPattern("H:mm:ss").withZone(ZoneId.systemDefault())
                     val now = System.currentTimeMillis()
@@ -635,7 +654,7 @@ internal fun runDesktopUiApplication() = application {
                     }
                     currentTempFetchIsWarmup = false
 
-                    val presentation = desktopFetchErrorPresentation(displayName, className, detail)
+                    val presentation = desktopFetchErrorPresentation(displayName, className, detail, status.timestamp)
                     val lastSuccessfulUpdateMs = weatherDao.getLastSuccessfulFetch(src)
                     val lastSuccessfulLine = if (lastSuccessfulUpdateMs != null) {
                         val timeStr = timeFmt.format(Instant.ofEpochMilli(lastSuccessfulUpdateMs))
@@ -657,23 +676,12 @@ internal fun runDesktopUiApplication() = application {
                     currentTempFetchTimestamp = status.timestamp
                 } else {
                     currentTempFetchIsWarmup = false
-                    // No source-wide failure. The hourly view (the only one this banner draws on)
-                    // still names an hourly-forecast quota block: the daily forecast keeps updating,
-                    // so the refresh succeeded, but these hours are not (user, 2026-10-07).
-                    val hourlyQuota = weatherDao.getLatestProductQuota(src, com.weatherwidget.data.model.ForecastProduct.HOURLY)
-                        ?.takeIf { (loggedAt, msg) ->
-                            loggedAt > dismissedErrorTimestamp &&
-                                com.weatherwidget.data.local.desktop.ProductQuotaLog.parseUntilMs(msg) > System.currentTimeMillis()
-                        }
-                    currentTempFetchError = hourlyQuota?.let { (_, msg) ->
-                        val presentation = desktopHourlyQuotaPresentation(
-                            WeatherSource.fromId(src).displayName,
-                            com.weatherwidget.data.local.desktop.ProductQuotaLog.parseUntilMs(msg),
-                            com.weatherwidget.data.local.desktop.ProductQuotaLog.parseDetail(msg),
-                        )
-                        (listOf(presentation.title) + presentation.bodyLines + listOf("", presentation.retryLine)).joinToString("\n")
-                    }
-                    hourlyQuota?.let { currentTempFetchTimestamp = it.first }
+                    // No source-wide failure: this view's forecast product may still be refused while
+                    // the other keeps updating, so the refresh succeeded but these days/hours are not
+                    // (user, 2026-10-07).
+                    val productQuota = productQuotaBanner(src)
+                    currentTempFetchError = productQuota?.second
+                    productQuota?.let { currentTempFetchTimestamp = it.first }
                 }
             }
 

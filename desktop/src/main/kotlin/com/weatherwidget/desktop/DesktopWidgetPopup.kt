@@ -275,92 +275,7 @@ internal fun WidgetPopup(
                                 }
                             }
 
-                            // Persistent current temp fetch failure warning label. Warm-up
-                            // (post-wake offline grace window) renders informational blue; a real
-                            // failure renders the red error treatment.
-                            currentTempFetchError?.let { msg ->
-                                val surfaceColor = if (currentTempFetchIsWarmup) Color(0xFF1B2A3A) else Color(0xFF3E1C1C)
-                                val borderColor = if (currentTempFetchIsWarmup) Color(0xFF64B5F6) else Color(0xFFE57373)
-                                val titleColor = if (currentTempFetchIsWarmup) Color(0xFFBBDEFB) else Color(0xFFFFCDD2)
-                                val bodyColor = if (currentTempFetchIsWarmup) Color(0xFF90CAF9) else Color(0xFFEF9A9A)
-                                // A real failure shrinks to its title at 8 s and fades at 24 s
-                                // (FailureBannerStage, shared with the widget). Keyed on the title so
-                                // a repeat of the same failure stays quiet while a new one is shown
-                                // in full; clicking the small chip expands it again.
-                                val bannerTitle = msg.substringBefore('\n')
-                                var bannerShownAtMs by remember(bannerTitle) { mutableStateOf(System.currentTimeMillis()) }
-                                var bannerStage by remember(bannerTitle) { mutableStateOf(FailureBannerStage.FULL) }
-                                LaunchedEffect(bannerTitle, bannerShownAtMs, currentTempFetchIsWarmup) {
-                                    bannerStage = FailureBannerStage.FULL
-                                    if (currentTempFetchIsWarmup) return@LaunchedEffect
-                                    for (boundaryMs in FailureBannerStage.STAGE_CHANGE_DELAYS_MS) {
-                                        kotlinx.coroutines.delay(bannerShownAtMs + boundaryMs - System.currentTimeMillis())
-                                        bannerStage = FailureBannerStage.at(System.currentTimeMillis() - bannerShownAtMs)
-                                    }
-                                }
-                                if (bannerStage != FailureBannerStage.FULL) {
-                                    Surface(
-                                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp)
-                                            .alpha(if (bannerStage == FailureBannerStage.FADED) FailureBannerStage.FADED_ALPHA else 1f)
-                                            .clickable { bannerShownAtMs = System.currentTimeMillis() },
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = surfaceColor.copy(alpha = 0.95f),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
-                                    ) {
-                                        Text(
-                                            text = "⚠ $bannerTitle",
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                            color = titleColor,
-                                            fontSize = (10f * uiScale).sp,
-                                        )
-                                    }
-                                } else Surface(
-                                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = surfaceColor.copy(alpha = 0.95f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                                        verticalAlignment = Alignment.Top,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            val lines = msg.split("\n")
-                                            if (lines.isNotEmpty()) {
-                                                Text(
-                                                    text = lines[0],
-                                                    color = titleColor,
-                                                    fontSize = (14f * uiScale).sp,
-                                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                                )
-                                                lines.drop(1).forEach { line ->
-                                                    Text(
-                                                        text = line,
-                                                        color = bodyColor,
-                                                        fontSize = (12f * uiScale).sp,
-                                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                                        modifier = Modifier.padding(top = 2.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Spacer(Modifier.width(16.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size((24f * uiScale).dp)
-                                                .clickable { onDismissCurrentTempError() },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "×",
-                                                color = bodyColor,
-                                                fontSize = (18f * uiScale).sp,
-                                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                            currentTempFetchError?.let { FetchFailureBanner(it, currentTempFetchIsWarmup, uiScale, onDismissCurrentTempError) }
                         }
                     } else {
                         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).testTag("daily_forecast_surface")) {
@@ -532,12 +447,110 @@ internal fun WidgetPopup(
                                     )
                                 }
                             }
+
+                            // The daily view's banner is a quota notice only (whole source, or the
+                            // daily forecast's own quota); see DesktopUiApplication.updateStatus.
+                            currentTempFetchError?.let { FetchFailureBanner(it, currentTempFetchIsWarmup, uiScale, onDismissCurrentTempError) }
                         }
                     }
                 }
             }
         }
       }
+    }
+}
+
+/**
+ * The persistent fetch-failure banner over a graph. Warm-up (post-wake offline grace window) renders
+ * informational blue; a real failure renders the red error treatment. [msg]'s first line is the title.
+ */
+@Composable
+private fun BoxScope.FetchFailureBanner(
+    msg: String,
+    isWarmup: Boolean,
+    uiScale: Float,
+    onDismiss: () -> Unit,
+) {
+    val surfaceColor = if (isWarmup) Color(0xFF1B2A3A) else Color(0xFF3E1C1C)
+    val borderColor = if (isWarmup) Color(0xFF64B5F6) else Color(0xFFE57373)
+    val titleColor = if (isWarmup) Color(0xFFBBDEFB) else Color(0xFFFFCDD2)
+    val bodyColor = if (isWarmup) Color(0xFF90CAF9) else Color(0xFFEF9A9A)
+    // A real failure shrinks to its title at 8 s and fades at 24 s
+    // (FailureBannerStage, shared with the widget). Keyed on the title so
+    // a repeat of the same failure stays quiet while a new one is shown
+    // in full; clicking the small chip expands it again.
+    val bannerTitle = msg.substringBefore('\n')
+    var bannerShownAtMs by remember(bannerTitle) { mutableStateOf(System.currentTimeMillis()) }
+    var bannerStage by remember(bannerTitle) { mutableStateOf(FailureBannerStage.FULL) }
+    LaunchedEffect(bannerTitle, bannerShownAtMs, isWarmup) {
+        bannerStage = FailureBannerStage.FULL
+        if (isWarmup) return@LaunchedEffect
+        for (boundaryMs in FailureBannerStage.STAGE_CHANGE_DELAYS_MS) {
+            kotlinx.coroutines.delay(bannerShownAtMs + boundaryMs - System.currentTimeMillis())
+            bannerStage = FailureBannerStage.at(System.currentTimeMillis() - bannerShownAtMs)
+        }
+    }
+    if (bannerStage != FailureBannerStage.FULL) {
+        Surface(
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp)
+                .alpha(if (bannerStage == FailureBannerStage.FADED) FailureBannerStage.FADED_ALPHA else 1f)
+                .clickable { bannerShownAtMs = System.currentTimeMillis() },
+            shape = RoundedCornerShape(8.dp),
+            color = surfaceColor.copy(alpha = 0.95f),
+            border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        ) {
+            Text(
+                text = "⚠ $bannerTitle",
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                color = titleColor,
+                fontSize = (10f * uiScale).sp,
+            )
+        }
+    } else Surface(
+        modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = surfaceColor.copy(alpha = 0.95f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                val lines = msg.split("\n")
+                if (lines.isNotEmpty()) {
+                    Text(
+                        text = lines[0],
+                        color = titleColor,
+                        fontSize = (14f * uiScale).sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                    lines.drop(1).forEach { line ->
+                        Text(
+                            text = line,
+                            color = bodyColor,
+                            fontSize = (12f * uiScale).sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(16.dp))
+            Box(
+                modifier = Modifier
+                    .size((24f * uiScale).dp)
+                    .clickable { onDismiss() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "×",
+                    color = bodyColor,
+                    fontSize = (18f * uiScale).sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+            }
+        }
     }
 }
 

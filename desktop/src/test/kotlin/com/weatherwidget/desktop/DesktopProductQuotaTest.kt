@@ -4,6 +4,8 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.ProductQuotaLog
 import com.weatherwidget.data.model.ForecastProduct
+import com.weatherwidget.data.remote.QuotaNotice
+import com.weatherwidget.data.remote.QuotaNoticeText
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -16,7 +18,7 @@ import java.io.File
 
 /**
  * Google's forecast/hours quota spent while forecast/days still answers: the daemon records an
- * hourly-only block and the popup's hourly view names it (user, 2026-10-07).
+ * hourly-only block and the popup's hourly view names it (the daily view, a daily-only block) (user, 2026-10-07).
  */
 @Category(ShortDuration::class)
 class DesktopProductQuotaTest {
@@ -53,10 +55,16 @@ class DesktopProductQuotaTest {
     }
 
     @Test
-    fun `hourly quota banner names the hourly forecast, the reset and that daily still updates`() {
-        val p = desktopHourlyQuotaPresentation("Google Weather", 1_791_442_800_000L, body)
-        assertEquals("GOOGLE WEATHER HOURLY FORECAST QUOTA USED", p.title)
-        assertTrue(p.bodyLines.any { it.startsWith("HTTP 429 — resets at ") })
-        assertTrue(p.bodyLines.any { it.contains("daily forecast is still updating") })
+    fun `a product quota banner names that product and its reset, worded like the widget`() {
+        for ((product, line) in listOf(
+            ForecastProduct.HOURLY to "Hourly forecast quota used",
+            ForecastProduct.DAILY to "Daily forecast quota used",
+        )) {
+            val p = desktopQuotaPresentation("Google Weather", QuotaNotice.forProductBlock(product, 1_791_442_800_000L, body))
+            assertEquals("GOOGLE WEATHER UPDATES PAUSED", p.title)
+            assertEquals("$line · resets ${QuotaNoticeText.formatResetTime(1_791_442_800_000L)}", p.bodyLines.first())
+            assertTrue(p.bodyLines.contains("Quota: ForecastHoursQueriesPerDay — 90 per day, shared by every device using this key"))
+            assertTrue(p.quota)
+        }
     }
 }

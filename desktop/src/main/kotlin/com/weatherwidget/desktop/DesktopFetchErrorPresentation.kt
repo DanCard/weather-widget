@@ -1,15 +1,14 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.remote.GoogleQuota
-import com.weatherwidget.data.remote.ProviderErrorDetails
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.weatherwidget.data.remote.QuotaNotice
+import com.weatherwidget.data.remote.QuotaNoticeText
 
 internal data class DesktopFetchErrorPresentation(
     val title: String,
     val bodyLines: List<String>,
     val retryLine: String,
+    /** A daily-quota refusal ([desktopQuotaPresentation]): the daily view shows these, and only these. */
+    val quota: Boolean = false,
 )
 
 /** Converts persisted fetch-failure details into honest, user-facing desktop banner copy. */
@@ -17,7 +16,8 @@ internal fun desktopFetchErrorPresentation(
     sourceDisplayName: String,
     className: String,
     detail: String,
-    nowMs: Long = System.currentTimeMillis(),
+    /** When the failure was recorded: a quota resets at the midnight Pacific after it, not after now. */
+    failureMs: Long,
 ): DesktopFetchErrorPresentation {
     val statusCode = if (className == "ApiAccessException" || className == "GoogleDailyQuotaException") {
         Regex("""\bstatus\s+(\d{3})\b""", RegexOption.IGNORE_CASE)
@@ -30,25 +30,8 @@ internal fun desktopFetchErrorPresentation(
     }
     val titleName = sourceDisplayName.uppercase()
 
-    if (statusCode == 429 && GoogleQuota.isDailyQuotaExhausted(statusCode, detail)) {
-        val resetAt = DateTimeFormatter.ofPattern("h a").withZone(ZoneId.systemDefault())
-            .format(Instant.ofEpochMilli(GoogleQuota.nextResetMs(nowMs)))
-        val provider = ProviderErrorDetails.parse(detail)
-        val quotaLine = provider?.quotaName?.let { name ->
-            "Quota: $name" + (provider.quotaLimit?.let { " — $it per day, shared by every device using this key" } ?: "")
-        }
-        return DesktopFetchErrorPresentation(
-            title = "$titleName DAILY QUOTA USED",
-            bodyLines = listOfNotNull(
-                "$sourceDisplayName's daily request quota for this API key is used up.",
-                quotaLine,
-                provider?.request?.let { "Request: $it" },
-                "HTTP 429 — resets at $resetAt",
-                "Cached $sourceDisplayName weather is still being displayed.",
-                "No other weather provider was substituted.",
-            ),
-            retryLine = "Updates resume automatically after the reset.",
-        )
+    QuotaNotice.forSourceFailure(statusCode, failureMs, detail)?.let {
+        return desktopQuotaPresentation(sourceDisplayName, it)
     }
 
     return when (statusCode) {
@@ -117,28 +100,20 @@ internal fun desktopFetchErrorPresentation(
 }
 
 /**
- * The hourly view's banner when only the hourly forecast product is refused (Google's separate
- * `forecast/hours` daily quota) while the daily forecast keeps updating (user, 2026-10-07).
+ * A daily-quota refusal, worded like the Android widget pill and error page (shared [QuotaNoticeText]):
+ * "<SOURCE> UPDATES PAUSED", "<which> quota used · resets <time>", the quota's name and limit, and the
+ * explanation. Covers the whole source and a single forecast product alike.
  */
-internal fun desktopHourlyQuotaPresentation(
+internal fun desktopQuotaPresentation(
     sourceDisplayName: String,
-    untilMs: Long,
-    detail: String,
+    notice: QuotaNotice,
 ): DesktopFetchErrorPresentation {
-    val resetAt = DateTimeFormatter.ofPattern("h a").withZone(ZoneId.systemDefault())
-        .format(Instant.ofEpochMilli(untilMs))
-    val provider = ProviderErrorDetails.parse(detail)
+    val resetTime = QuotaNoticeText.formatResetTime(notice.resetAtMs)
     return DesktopFetchErrorPresentation(
-        title = "${sourceDisplayName.uppercase()} HOURLY FORECAST QUOTA USED",
-        bodyLines = listOfNotNull(
-            "$sourceDisplayName's hourly-forecast quota for this API key is used up.",
-            provider?.quotaName?.let { name ->
-                "Quota: $name" + (provider.quotaLimit?.let { " — $it per day, shared by every device using this key" } ?: "")
-            },
-            "HTTP 429 — resets at $resetAt",
-            "The daily forecast is still updating; cached hourly data is shown.",
-        ),
-        retryLine = "Hourly updates resume automatically after the reset.",
+        title = QuotaNoticeText.headline(sourceDisplayName),
+        bodyLines = listOf(QuotaNoticeText.summary(notice.scope, resetTime)) +
+            QuotaNoticeText.detailLines(notice.provider),
+        retryLine = QuotaNoticeText.explanation(resetTime),
+        quota = true,
     )
 }
-

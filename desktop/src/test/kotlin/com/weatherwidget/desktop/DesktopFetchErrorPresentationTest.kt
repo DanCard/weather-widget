@@ -1,5 +1,7 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.remote.GoogleQuota
+import com.weatherwidget.data.remote.QuotaNoticeText
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -16,6 +18,7 @@ class DesktopFetchErrorPresentationTest {
             sourceDisplayName = "Tomorrow.io",
             className = "ApiAccessException",
             detail = "Tomorrow.io hourly fetch failed: status 429. Detail: Too Many Calls",
+            failureMs = FAILURE_MS,
         )
 
         assertEquals("TOMORROW.IO REQUEST LIMIT REACHED", result.title)
@@ -31,6 +34,7 @@ class DesktopFetchErrorPresentationTest {
             sourceDisplayName = "Tomorrow.io",
             className = "ApiAccessException",
             detail = "Tomorrow.io realtime fetch failed: status 401.",
+            failureMs = FAILURE_MS,
         )
 
         assertEquals("TOMORROW.IO AUTHORIZATION FAILED", result.title)
@@ -45,6 +49,7 @@ class DesktopFetchErrorPresentationTest {
             sourceDisplayName = "Silurian",
             className = "IllegalStateException",
             detail = detail,
+            failureMs = FAILURE_MS,
         )
 
         assertEquals("SILURIAN WEATHER UPDATE FAILED", result.title)
@@ -56,18 +61,21 @@ class DesktopFetchErrorPresentationTest {
         """"quota_limit":"ForecastHoursQueriesPerDay","quota_limit_value":"60"}}]}}"""
 
     @Test
-    fun `a daily quota 429 says when it resets instead of promising the next refresh`() {
+    fun `a daily quota 429 reads like the widget and resets after the failure, not after now`() {
         for (className in listOf("ApiAccessException", "GoogleDailyQuotaException")) {
             val result = desktopFetchErrorPresentation(
                 sourceDisplayName = "Google Weather",
                 className = className,
                 detail = "Google Weather fetch failed (/forecast/hours:lookup): status 429. Detail: $dailyQuotaBody",
+                failureMs = FAILURE_MS,
             )
-            assertEquals(className, "GOOGLE WEATHER DAILY QUOTA USED", result.title)
-            assertTrue(result.bodyLines.any { it.startsWith("HTTP 429 — resets at ") })
+            val reset = QuotaNoticeText.formatResetTime(GoogleQuota.nextResetMs(FAILURE_MS))
+            assertTrue(className, result.quota)
+            assertEquals(className, "GOOGLE WEATHER UPDATES PAUSED", result.title)
+            assertEquals("Daily quota used · resets $reset", result.bodyLines.first())
             assertTrue(result.bodyLines.contains("Quota: ForecastHoursQueriesPerDay — 60 per day, shared by every device using this key"))
             assertTrue(result.bodyLines.contains("Request: /forecast/hours:lookup"))
-            assertEquals("Updates resume automatically after the reset.", result.retryLine)
+            assertEquals(QuotaNoticeText.explanation(reset), result.retryLine)
         }
     }
 
@@ -77,7 +85,14 @@ class DesktopFetchErrorPresentationTest {
             sourceDisplayName = "Google Weather",
             className = "ApiAccessException",
             detail = "status 429. Detail: " + dailyQuotaBody.replace("1/d/", "1/min/"),
+            failureMs = FAILURE_MS,
         )
         assertEquals("GOOGLE WEATHER REQUEST LIMIT REACHED", result.title)
+        assertFalse(result.quota)
+    }
+
+    private companion object {
+        /** 2026-10-07 23:30 PDT: the quota resets 30 minutes later, whatever the clock says now. */
+        const val FAILURE_MS = 1_791_441_000_000L
     }
 }

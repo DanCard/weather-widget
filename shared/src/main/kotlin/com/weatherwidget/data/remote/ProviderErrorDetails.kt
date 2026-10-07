@@ -41,8 +41,10 @@ data class ProviderErrorDetails(
 
         fun parse(failureMessage: String?): ProviderErrorDetails? {
             val message = failureMessage?.takeIf { it.isNotBlank() } ?: return null
-            val head = message.substringBefore(BODY_MARKER)
-            val body = message.substringAfter(BODY_MARKER, "").trim().takeIf { it.isNotEmpty() }
+            // A per-product quota block stores the bare 429 body (`QuotaRefusal.detail`), no marker.
+            val bareBody = BODY_MARKER !in message && message.trimStart().startsWith("{")
+            val head = if (bareBody) "" else message.substringBefore(BODY_MARKER)
+            val body = (if (bareBody) message else message.substringAfter(BODY_MARKER, "")).trim().takeIf { it.isNotEmpty() }
             val parsed = body?.let { runCatching { Json.parseToJsonElement(it) }.getOrNull() }
             val error = (parsed as? JsonObject)?.get("error") as? JsonObject
             val metadata = error?.get("details")

@@ -7,7 +7,9 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import com.weatherwidget.R
-import com.weatherwidget.data.remote.GoogleQuota
+import com.weatherwidget.data.remote.QuotaNotice
+import com.weatherwidget.data.remote.QuotaNoticeText
+import com.weatherwidget.data.remote.QuotaScope
 import com.weatherwidget.shared.util.FailureBannerStage
 import java.time.Instant
 import java.time.ZoneId
@@ -63,7 +65,7 @@ internal object GraphFailureWatermarkRenderer {
         errorCodeText: (String) -> String,
         bannerSinceMs: Long? = null,
         pausedText: String = "UPDATES PAUSED",
-        quotaText: (String, String) -> String = ::defaultQuotaText,
+        quotaText: (QuotaScope, String) -> String = QuotaNoticeText::summary,
         nowMs: Long = System.currentTimeMillis(),
     ) {
         val stage = stageFor(bannerSinceMs, nowMs)
@@ -176,7 +178,7 @@ internal object GraphFailureWatermarkRenderer {
         errorCodeText: (String) -> String = ::humanReadableErrorCode,
         stage: FailureBannerStage = FailureBannerStage.FULL,
         pausedText: String = "UPDATES PAUSED",
-        quotaText: (String, String) -> String = ::defaultQuotaText,
+        quotaText: (QuotaScope, String) -> String = QuotaNoticeText::summary,
         measureMain: (String, Float) -> Float,
         measureDetail: (String, Float) -> Float,
         mainMetrics: (Float) -> Pair<Float, Float>,
@@ -190,8 +192,8 @@ internal object GraphFailureWatermarkRenderer {
         val availableTextWidth = maxPillWidth - horizontalPadding * 2f
         if (maxPillWidth <= 0f || availableTextWidth <= 0f) return null
 
-        val quota = errorCode in GoogleQuota.QUOTA_CODES
-        val headline = if (quota) pausedText else failingText
+        val quota = QuotaNotice.forSourceFailure(errorCode, failureTimeMs, detail = null)
+        val headline = if (quota != null) pausedText else failingText
         val source =
             sourceLabel
                 ?.takeIf { it.isNotBlank() }
@@ -199,8 +201,8 @@ internal object GraphFailureWatermarkRenderer {
                 ?.let { "$it $headline" }
                 ?: headline
         val detailText =
-            if (quota && failureTimeMs != null) {
-                quotaText(errorCode!!, formatResetTime(GoogleQuota.nextResetMs(failureTimeMs), locale, zoneId))
+            if (quota != null) {
+                quotaText(quota.scope, formatResetTime(quota.resetAtMs, locale, zoneId))
             } else {
                 buildDetailText(
                     errorCode = errorCode,
@@ -277,25 +279,15 @@ internal object GraphFailureWatermarkRenderer {
     internal fun stageFor(bannerSinceMs: Long?, nowMs: Long): FailureBannerStage =
         bannerSinceMs?.let { FailureBannerStage.at(nowMs - it) } ?: FailureBannerStage.FULL
 
-    /** "<which> quota used · resets <time>": the whole source, or only the hourly / daily forecast. */
-    internal fun defaultQuotaText(code: String, resetTime: String): String = when (code) {
-        GoogleQuota.ERROR_CODE_HOURLY_FORECAST -> "Hourly forecast quota used · resets $resetTime"
-        GoogleQuota.ERROR_CODE_DAILY_FORECAST -> "Daily forecast quota used · resets $resetTime"
-        else -> "Daily quota used · resets $resetTime"
+    /** The localized [QuotaNoticeText.summary]: "<which> quota used · resets <time>". */
+    internal fun localizedQuotaText(context: Context, scope: QuotaScope, resetTime: String): String = when (scope) {
+        QuotaScope.SOURCE -> context.getString(R.string.watermark_quota_daily, resetTime)
+        QuotaScope.HOURLY_FORECAST -> context.getString(R.string.watermark_quota_hourly_forecast, resetTime)
+        QuotaScope.DAILY_FORECAST -> context.getString(R.string.watermark_quota_daily_forecast, resetTime)
     }
 
-    private fun localizedQuotaText(context: Context, code: String, resetTime: String): String = when (code) {
-        GoogleQuota.ERROR_CODE_HOURLY_FORECAST -> context.getString(R.string.watermark_quota_hourly_forecast, resetTime)
-        GoogleQuota.ERROR_CODE_DAILY_FORECAST -> context.getString(R.string.watermark_quota_daily_forecast, resetTime)
-        else -> context.getString(R.string.watermark_quota_daily, resetTime)
-    }
-
-    /** "12 AM" on the hour, else "12:30 AM" — the reset is always a whole hour in practice. */
-    internal fun formatResetTime(epochMs: Long, locale: Locale, zoneId: ZoneId): String {
-        val reset = Instant.ofEpochMilli(epochMs).atZone(zoneId)
-        val pattern = if (reset.minute == 0) "h a" else "h:mm a"
-        return DateTimeFormatter.ofPattern(pattern, locale).format(reset)
-    }
+    internal fun formatResetTime(epochMs: Long, locale: Locale, zoneId: ZoneId): String =
+        QuotaNoticeText.formatResetTime(epochMs, locale, zoneId)
 
     private fun Paint.fade(alpha: Float): Paint = apply {
         if (alpha < 1f) this.alpha = (this.alpha * alpha).toInt()
@@ -303,16 +295,13 @@ internal object GraphFailureWatermarkRenderer {
 
     @androidx.annotation.VisibleForTesting
     internal fun humanReadableErrorCode(code: String): String =
-        when (code) {
+        QuotaScope.ofErrorCode(code)?.let(QuotaNoticeText::short) ?: when (code) {
             "HTTP_400" -> "400 Bad Request"
             "HTTP_401" -> "401 Unauthorized"
             "HTTP_403" -> "403 Forbidden"
             "HTTP_404" -> "404 Not Found"
             "HTTP_422" -> "422 Unprocessable"
             "HTTP_429" -> "429 Rate Limited"
-            GoogleQuota.ERROR_CODE_DAILY -> "Daily quota used"
-            GoogleQuota.ERROR_CODE_HOURLY_FORECAST -> "Hourly forecast quota used"
-            GoogleQuota.ERROR_CODE_DAILY_FORECAST -> "Daily forecast quota used"
             "ACCESS_ERROR" -> "Access Error"
             "DNS_ERROR" -> "DNS Error"
             "CONN_REFUSED" -> "Connection Refused"
@@ -333,19 +322,23 @@ internal object GraphFailureWatermarkRenderer {
                 }
         }
 
+    /** The localized [QuotaNoticeText.short]. */
+    internal fun localizedQuotaShort(context: Context, scope: QuotaScope): String = when (scope) {
+        QuotaScope.SOURCE -> context.getString(R.string.watermark_quota_daily_short)
+        QuotaScope.HOURLY_FORECAST -> context.getString(R.string.watermark_quota_hourly_forecast_short)
+        QuotaScope.DAILY_FORECAST -> context.getString(R.string.watermark_quota_daily_forecast_short)
+    }
+
     /** Localized error-code phrases for the watermark detail line (Android side). */
     @androidx.annotation.VisibleForTesting
     internal fun localizedErrorCodeText(context: Context, code: String): String =
-        when (code) {
+        QuotaScope.ofErrorCode(code)?.let { localizedQuotaShort(context, it) } ?: when (code) {
             "HTTP_400" -> context.getString(R.string.watermark_http_400)
             "HTTP_401" -> context.getString(R.string.watermark_http_401)
             "HTTP_403" -> context.getString(R.string.watermark_http_403)
             "HTTP_404" -> context.getString(R.string.watermark_http_404)
             "HTTP_422" -> context.getString(R.string.watermark_http_422)
             "HTTP_429" -> context.getString(R.string.watermark_http_429)
-            GoogleQuota.ERROR_CODE_DAILY -> context.getString(R.string.watermark_quota_daily_short)
-            GoogleQuota.ERROR_CODE_HOURLY_FORECAST -> context.getString(R.string.watermark_quota_hourly_forecast_short)
-            GoogleQuota.ERROR_CODE_DAILY_FORECAST -> context.getString(R.string.watermark_quota_daily_forecast_short)
             "ACCESS_ERROR" -> context.getString(R.string.watermark_access_error)
             "DNS_ERROR" -> context.getString(R.string.watermark_dns_error)
             "CONN_REFUSED" -> context.getString(R.string.watermark_conn_refused)
