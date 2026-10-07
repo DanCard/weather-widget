@@ -247,6 +247,7 @@ internal fun PopupWindowHost(
     onDayClickAudit: (String) -> Unit,
     transientMessage: String?,
     currentTempFetchError: String?,
+    currentTempFetchPill: DesktopFailurePill?,
     currentTempFetchIsWarmup: Boolean,
     onDismissCurrentTempError: () -> Unit,
 ) {
@@ -324,6 +325,7 @@ internal fun PopupWindowHost(
             onDayClickAudit = onDayClickAudit,
             transientMessage = transientMessage,
             currentTempFetchError = currentTempFetchError,
+            currentTempFetchPill = currentTempFetchPill,
             currentTempFetchIsWarmup = currentTempFetchIsWarmup,
             onDismissCurrentTempError = onDismissCurrentTempError,
         )

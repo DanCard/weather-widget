@@ -16,6 +16,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.em
+import com.weatherwidget.shared.graph.FailureBannerLayout
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.DataStatus
@@ -54,6 +67,7 @@ internal fun WidgetPopup(
     onDayClickAudit: (String) -> Unit = {},
     transientMessage: String? = null,
     currentTempFetchError: String? = null,
+    currentTempFetchPill: DesktopFailurePill? = null,
     currentTempFetchIsWarmup: Boolean = false,
     onDismissCurrentTempError: () -> Unit = {},
 ) {
@@ -275,7 +289,7 @@ internal fun WidgetPopup(
                                 }
                             }
 
-                            currentTempFetchError?.let { FetchFailureBanner(it, currentTempFetchIsWarmup, uiScale, onDismissCurrentTempError) }
+                            currentTempFetchError?.let { FetchFailureBanner(it, currentTempFetchPill, currentTempFetchIsWarmup, uiScale, onDismissCurrentTempError) }
                         }
                     } else {
                         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).testTag("daily_forecast_surface")) {
@@ -450,7 +464,7 @@ internal fun WidgetPopup(
 
                             // The daily view's banner is a quota notice only (whole source, or the
                             // daily forecast's own quota); see DesktopUiApplication.updateStatus.
-                            currentTempFetchError?.let { FetchFailureBanner(it, currentTempFetchIsWarmup, uiScale, onDismissCurrentTempError) }
+                            currentTempFetchError?.let { FetchFailureBanner(it, currentTempFetchPill, currentTempFetchIsWarmup, uiScale, onDismissCurrentTempError) }
                         }
                     }
                 }
@@ -461,28 +475,26 @@ internal fun WidgetPopup(
 }
 
 /**
- * The persistent fetch-failure banner over a graph. Warm-up (post-wake offline grace window) renders
- * informational blue; a real failure renders the red error treatment. [msg]'s first line is the title.
+ * The fetch-failure banner over a graph: the widget's pill, laid out by the shared
+ * [FailureBannerLayout] (wording, size, centring, stage) and only drawn here. Clicking it opens
+ * [FailureDetailsCard] — [msg], whose first line is the title — as the widget's pill opens its error
+ * page. The warm-up notice (post-wake offline grace window) has no pill and shows its card directly.
  */
 @Composable
 private fun BoxScope.FetchFailureBanner(
     msg: String,
+    pill: DesktopFailurePill?,
     isWarmup: Boolean,
     uiScale: Float,
     onDismiss: () -> Unit,
 ) {
-    val surfaceColor = if (isWarmup) Color(0xFF1B2A3A) else Color(0xFF3E1C1C)
-    val borderColor = if (isWarmup) Color(0xFF64B5F6) else Color(0xFFE57373)
-    val titleColor = if (isWarmup) Color(0xFFBBDEFB) else Color(0xFFFFCDD2)
-    val bodyColor = if (isWarmup) Color(0xFF90CAF9) else Color(0xFFEF9A9A)
-    // A real failure shrinks to its title at 8 s and fades at 24 s
-    // (FailureBannerStage, shared with the widget). Keyed on the title so
-    // a repeat of the same failure stays quiet while a new one is shown
-    // in full; clicking the small chip expands it again.
+    // The pill shrinks at 8 s and fades at 24 s (FailureBannerStage, shared with the widget). Keyed
+    // on the title so a repeat of the same failure stays quiet while a new one is shown in full.
     val bannerTitle = msg.substringBefore('\n')
-    var bannerShownAtMs by remember(bannerTitle) { mutableStateOf(System.currentTimeMillis()) }
+    val bannerShownAtMs = remember(bannerTitle) { System.currentTimeMillis() }
     var bannerStage by remember(bannerTitle) { mutableStateOf(FailureBannerStage.FULL) }
-    LaunchedEffect(bannerTitle, bannerShownAtMs, isWarmup) {
+    var showDetails by remember(bannerTitle) { mutableStateOf(false) }
+    LaunchedEffect(bannerTitle, isWarmup) {
         bannerStage = FailureBannerStage.FULL
         if (isWarmup) return@LaunchedEffect
         for (boundaryMs in FailureBannerStage.STAGE_CHANGE_DELAYS_MS) {
@@ -490,24 +502,94 @@ private fun BoxScope.FetchFailureBanner(
             bannerStage = FailureBannerStage.at(System.currentTimeMillis() - bannerShownAtMs)
         }
     }
-    if (bannerStage != FailureBannerStage.FULL) {
-        Surface(
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp)
-                .alpha(if (bannerStage == FailureBannerStage.FADED) FailureBannerStage.FADED_ALPHA else 1f)
-                .clickable { bannerShownAtMs = System.currentTimeMillis() },
-            shape = RoundedCornerShape(8.dp),
-            color = surfaceColor.copy(alpha = 0.95f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
-        ) {
-            Text(
-                text = "⚠ $bannerTitle",
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                color = titleColor,
-                fontSize = (10f * uiScale).sp,
-            )
+    if (isWarmup || pill == null || showDetails) {
+        FailureDetailsCard(msg, isWarmup, uiScale, onClose = { showDetails = false }, onDismiss = onDismiss)
+        return
+    }
+    BoxWithConstraints(modifier = Modifier.matchParentSize()) {
+        val density = LocalDensity.current
+        val textMeasurer = rememberTextMeasurer()
+        val pxPerDp = density.density * uiScale
+        fun style(main: Boolean, sizePx: Float) = TextStyle(
+            fontSize = with(density) { sizePx.toSp() },
+            fontWeight = if (main) FontWeight.Bold else FontWeight.Normal,
+            letterSpacing = if (main) FailureBannerLayout.MAIN_LETTER_SPACING_EM.em else TextUnit.Unspecified,
+        )
+        fun measure(main: Boolean, text: String, sizePx: Float) =
+            textMeasurer.measure(AnnotatedString(text), style(main, sizePx), softWrap = false, maxLines = 1)
+        fun metrics(main: Boolean, sizePx: Float): Pair<Float, Float> {
+            val m = measure(main, "Ag", sizePx)
+            return -m.firstBaseline to (m.size.height - m.firstBaseline)
         }
-    } else Surface(
-        modifier = Modifier.align(Alignment.TopCenter).padding(top = 6.dp),
+        val layout = FailureBannerLayout.calculate(
+            width = constraints.maxWidth.toFloat(),
+            height = constraints.maxHeight.toFloat(),
+            density = pxPerDp,
+            sourceLabel = pill.sourceLabel,
+            errorCode = pill.errorCode,
+            failureTimeMs = pill.failureTimeMs,
+            stage = bannerStage,
+            measureMain = { text, size -> measure(true, text, size).size.width.toFloat() },
+            measureDetail = { text, size -> measure(false, text, size).size.width.toFloat() },
+            mainMetrics = { size -> metrics(true, size) },
+            detailMetrics = { size -> metrics(false, size) },
+        ) ?: return@BoxWithConstraints
+        val b = layout.bounds
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(b.left.roundToInt(), b.top.roundToInt()) }
+                .size(with(density) { (b.right - b.left).toDp() }, with(density) { (b.bottom - b.top).toDp() })
+                .clickable { showDetails = true }
+                .testTag("failure_pill")
+                .drawBehind {
+                    val radius = CornerRadius(layout.cornerRadius)
+                    drawRoundRect(Color(FailureBannerLayout.BACKGROUND_ARGB), cornerRadius = radius, alpha = layout.alpha)
+                    drawRoundRect(
+                        Color(FailureBannerLayout.BORDER_ARGB),
+                        cornerRadius = radius,
+                        style = Stroke(width = FailureBannerLayout.BORDER_WIDTH_DP * pxPerDp),
+                        alpha = layout.alpha,
+                    )
+                    fun line(main: Boolean, text: String, sizePx: Float, baselineY: Float, argb: Int) {
+                        val m = measure(main, text, sizePx)
+                        drawText(
+                            m,
+                            color = Color(argb),
+                            topLeft = Offset(layout.centerX - b.left - m.size.width / 2f, baselineY - b.top - m.firstBaseline),
+                            alpha = layout.alpha,
+                        )
+                    }
+                    line(true, layout.mainText, layout.mainTextSize, layout.mainBaselineY, FailureBannerLayout.MAIN_TEXT_ARGB)
+                    val detail = layout.detailText
+                    val detailSize = layout.detailTextSize
+                    val detailBaseline = layout.detailBaselineY
+                    if (detail != null && detailSize != null && detailBaseline != null) {
+                        line(false, detail, detailSize, detailBaseline, FailureBannerLayout.DETAIL_TEXT_ARGB)
+                    }
+                },
+        )
+    }
+}
+
+/**
+ * The failure's full text: [msg]'s first line is the title, the rest the body. Clicking the card
+ * closes it back to the pill; × dismisses the failure until a newer one. Warm-up renders
+ * informational blue, a real failure red.
+ */
+@Composable
+private fun BoxScope.FailureDetailsCard(
+    msg: String,
+    isWarmup: Boolean,
+    uiScale: Float,
+    onClose: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val surfaceColor = if (isWarmup) Color(0xFF1B2A3A) else Color(0xFF3E1C1C)
+    val borderColor = if (isWarmup) Color(0xFF64B5F6) else Color(0xFFE57373)
+    val titleColor = if (isWarmup) Color(0xFFBBDEFB) else Color(0xFFFFCDD2)
+    val bodyColor = if (isWarmup) Color(0xFF90CAF9) else Color(0xFFEF9A9A)
+    Surface(
+        modifier = Modifier.align(Alignment.Center).clickable(enabled = !isWarmup) { onClose() },
         shape = RoundedCornerShape(12.dp),
         color = surfaceColor.copy(alpha = 0.95f),
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
@@ -523,7 +605,7 @@ private fun BoxScope.FetchFailureBanner(
                         text = lines[0],
                         color = titleColor,
                         fontSize = (14f * uiScale).sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        fontWeight = FontWeight.Bold
                     )
                     lines.drop(1).forEach { line ->
                         Text(
@@ -547,7 +629,7 @@ private fun BoxScope.FetchFailureBanner(
                     text = "×",
                     color = bodyColor,
                     fontSize = (18f * uiScale).sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

@@ -3,6 +3,13 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.remote.QuotaNotice
 import com.weatherwidget.data.remote.QuotaNoticeText
 
+/** What the shared failure pill ([com.weatherwidget.shared.graph.FailureBannerLayout]) is worded from. */
+internal data class DesktopFailurePill(
+    val sourceLabel: String,
+    val errorCode: String?,
+    val failureTimeMs: Long,
+)
+
 internal data class DesktopFetchErrorPresentation(
     val title: String,
     val bodyLines: List<String>,

@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.remote.FetchErrorCode
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import android.content.Context
 import android.location.Location
@@ -512,30 +513,8 @@ class CurrentTempRepository
                 Triple(latitude, longitude - POI_LON_OFFSET_DEGREES, "West"),
             )
 
-        private fun extractCurrentErrorCode(exception: Exception): String = when (exception) {
-            is ApiAccessException ->
-                if (GoogleQuota.isDailyQuotaExhausted(exception)) {
-                    GoogleQuota.ERROR_CODE_DAILY
-                } else {
-                    exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
-                }
-            is ClientRequestException -> "HTTP_${exception.response.status.value}"
-            else -> {
-                val name = exception.javaClass.simpleName
-                when {
-                    name.contains("UnknownHost") || name.contains("UnresolvedAddress") -> "DNS_ERROR"
-                    name.contains("ConnectException") || name.contains("ConnectionRefused") -> {
-                        if (NetworkRestrictionHelper.isBackgroundDataRestricted(context)) "DATA_RESTRICTED" else "CONN_REFUSED"
-                    }
-                    name.contains("Timeout") || name.contains("SocketTimeout") -> "TIMEOUT"
-                    name.contains("SSL") || name.contains("TLS") -> "SSL_ERROR"
-                    name.contains("SocketException") -> {
-                        if (NetworkRestrictionHelper.isBackgroundDataRestricted(context)) "DATA_RESTRICTED" else "SOCKET_ERROR"
-                    }
-                    else -> name.take(20).ifBlank { "ERROR" }
-                }
-            }
-        }
+        private fun extractCurrentErrorCode(exception: Exception): String =
+            FetchErrorCode.of(exception) { NetworkRestrictionHelper.isBackgroundDataRestricted(context) }
 
         private suspend fun logCurrentFetchFailure(source: WeatherSource, exception: Exception) {
             when (exception) {

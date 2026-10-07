@@ -16,6 +16,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.shared.util.DailyPrecipPeriods
 import com.weatherwidget.data.remote.ApiAccessException
+import com.weatherwidget.data.remote.FetchErrorCode
 import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.data.remote.GoogleQuota
 import com.weatherwidget.data.remote.NwsPointUnavailableException
@@ -587,37 +588,8 @@ internal class ForecastFetchCoordinator(
         }
     }
 
-    private fun extractErrorCode(exception: Exception): String = when (exception) {
-        // NWS 404 InvalidPoint: the site is outside its (US-only) coverage, not a transient
-        // failure — the watermark should say so rather than "404 Not Found".
-        is NwsPointUnavailableException -> "NO_COVERAGE"
-        // A daily quota cannot recover before its reset; the watermark says when that is.
-        is ApiAccessException ->
-            if (GoogleQuota.isDailyQuotaExhausted(exception)) {
-                GoogleQuota.ERROR_CODE_DAILY
-            } else {
-                exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
-            }
-        is ClientRequestException -> "HTTP_${exception.response.status.value}"
-        else -> {
-            val name = exception.javaClass.simpleName
-            when {
-                name.contains("UnknownHost") ||
-                    name.contains("UnresolvedAddress") -> "DNS_ERROR"
-                name.contains("ConnectException") ||
-                    name.contains("ConnectionRefused") -> {
-                    if (NetworkRestrictionHelper.isBackgroundDataRestricted(context)) "DATA_RESTRICTED" else "CONN_REFUSED"
-                }
-                name.contains("Timeout") ||
-                    name.contains("SocketTimeout") -> "TIMEOUT"
-                name.contains("SSL") || name.contains("TLS") -> "SSL_ERROR"
-                name.contains("SocketException") -> {
-                    if (NetworkRestrictionHelper.isBackgroundDataRestricted(context)) "DATA_RESTRICTED" else "SOCKET_ERROR"
-                }
-                else -> name.take(20).ifBlank { "ERROR" }
-            }
-        }
-    }
+    private fun extractErrorCode(exception: Exception): String =
+        FetchErrorCode.of(exception) { NetworkRestrictionHelper.isBackgroundDataRestricted(context) }
 
     private fun extractHttpErrorDetail(
         body: String?,

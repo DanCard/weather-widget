@@ -52,6 +52,8 @@ import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
 import com.weatherwidget.data.local.desktop.ProductQuotaLog
 import com.weatherwidget.data.remote.QuotaNotice
+import com.weatherwidget.data.remote.FetchErrorCode
+import com.weatherwidget.data.remote.GoogleQuota
 import com.weatherwidget.data.remote.IpGeolocationApi
 import com.weatherwidget.data.remote.NominatimApi
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
@@ -190,6 +192,9 @@ internal fun runDesktopUiApplication() = application {
             (pendingLocationLabel != null || locationBanner != null) &&
                 !LocationChangePaintPolicy.hasTodayRow(snapshot.raw.daily, LocalDate.now())
         var currentTempFetchError by remember { mutableStateOf<String?>(null) }
+        // The shared pill drawn over the graph for [currentTempFetchError] (its text is the details
+        // card the pill opens). Null for the warm-up notice, which has no pill.
+        var currentTempFetchPill by remember { mutableStateOf<DesktopFailurePill?>(null) }
         // True when the failure is offline-classified during the post-wake grace window: the banner
         // renders as a calm "waiting for network" notice instead of a hard error.
         var currentTempFetchIsWarmup by remember { mutableStateOf(false) }
@@ -639,6 +644,7 @@ internal fun runDesktopUiApplication() = application {
                         isNetworkWarmupWindow(wakeEventMs, now)
                     ) {
                         currentTempFetchError = "${displayName.uppercase()} WEATHER UPDATE\nWaiting for network to warm up…"
+                        currentTempFetchPill = null
                         currentTempFetchIsWarmup = true
                         currentTempFetchTimestamp = status.timestamp
                         
@@ -665,6 +671,11 @@ internal fun runDesktopUiApplication() = application {
                     }
 
                     val attemptTimeStr = attemptFmt.format(Instant.ofEpochMilli(status.timestamp))
+                    currentTempFetchPill = DesktopFailurePill(
+                        sourceLabel = displayName,
+                        errorCode = FetchErrorCode.fromLogged(className, detail),
+                        failureTimeMs = status.timestamp,
+                    )
                     currentTempFetchError = buildList {
                         add(presentation.title)
                         addAll(presentation.bodyLines)
@@ -681,6 +692,13 @@ internal fun runDesktopUiApplication() = application {
                     // (user, 2026-10-07).
                     val productQuota = productQuotaBanner(src)
                     currentTempFetchError = productQuota?.second
+                    currentTempFetchPill = productQuota?.let { (loggedAt, _) ->
+                        DesktopFailurePill(
+                            sourceLabel = WeatherSource.fromId(src).displayName,
+                            errorCode = GoogleQuota.errorCodeFor(QuotaNotice.productOf(activeConfig.viewMode)),
+                            failureTimeMs = loggedAt,
+                        )
+                    }
                     productQuota?.let { currentTempFetchTimestamp = it.first }
                 }
             }
@@ -947,10 +965,12 @@ internal fun runDesktopUiApplication() = application {
                 },
                 transientMessage = locationBanner?.text ?: historyFetchToast,
                 currentTempFetchError = currentTempFetchError,
+                currentTempFetchPill = currentTempFetchPill,
                 currentTempFetchIsWarmup = currentTempFetchIsWarmup,
                 onDismissCurrentTempError = {
                     dismissedErrorTimestamp = currentTempFetchTimestamp
                     currentTempFetchError = null
+                    currentTempFetchPill = null
                 },
             )
         }
