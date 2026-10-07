@@ -35,7 +35,7 @@ object ActualsFeedPolicy {
         longitude: Double,
         actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
     ): WeatherSource? {
-        val feed = WeatherSource.fromId(ActualsProviderResolver.providerIdFor(source, actualsPreference))
+        val feed = WeatherSource.fromId(ActualsProviderResolver.providerIdAt(source, latitude, longitude, actualsPreference))
         if (feed == WeatherSource.NWS && !NwsCoverage.covers(latitude, longitude)) return null
         return feed
     }

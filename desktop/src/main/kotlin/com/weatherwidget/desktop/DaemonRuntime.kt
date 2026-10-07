@@ -188,7 +188,7 @@ internal class DaemonRuntime(
                                     if (newConfig == null) {
                                         Log.w(TAG, "Config loaded was null. Stopping loops.")
                                         fetchJob?.cancel()
-                                        DesktopActualsPreference.update(null)
+                                        DesktopActualsPreference.publish(null)
                                         currentConfig = null
                                         configState.value = null
                                         forecastState.value = null
@@ -199,7 +199,7 @@ internal class DaemonRuntime(
                                         // Publish every settings reload before any refresh decision. The
                                         // resolver is process-local; updating only currentConfig left the
                                         // daemon using the provider choice captured at startup.
-                                        DesktopActualsPreference.update(newConfig.settings)
+                                        DesktopActualsPreference.publish(newConfig)
                                         currentConfig = newConfig
                                         configState.value = newConfig
 

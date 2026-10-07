@@ -852,7 +852,20 @@ class DesktopWeatherService(
 
     override suspend fun fetchObservationsOnly(recentOnly: Boolean, userLocationChange: Boolean): RawFetch {
         // The feed decision is shared with Android (ActualsFeedPolicy); this only performs the fetch.
-        val feed = ActualsFeedPolicy.feedFor(WeatherSource.fromId(weatherSource), latitude, longitude)
+        val source = WeatherSource.fromId(weatherSource)
+        val feed = ActualsFeedPolicy.feedFor(source, latitude, longitude)
+        val fetched = fetchFeedObservations(feed, recentOnly, userLocationChange)
+        // A borrowed feed contributes its rows only. Its own current-temperature product (NWS's
+        // blend, Open-Meteo's current) must not become the borrower's header value: the METAR path
+        // never set one, and the header then comes from the shared blend of the rows.
+        return if (feed != null && feed != source) RawFetch(rawObservations = fetched.rawObservations) else fetched
+    }
+
+    private suspend fun fetchFeedObservations(
+        feed: WeatherSource?,
+        recentOnly: Boolean,
+        userLocationChange: Boolean,
+    ): RawFetch {
         return when (feed) {
             null -> {
                 Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no actuals feed serves this location")

@@ -85,6 +85,8 @@ class DesktopBorrowedMetarObservationsTest {
             weatherSource = WeatherSource.SILURIAN.id,
             injectedHttpClient = HttpClient(engine(requestedHours)),
         )
+        // In NWS coverage the default is NWS now; this exercises the METAR path, so choose it.
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { WeatherSource.METAR }
         try {
             val result = service.fetchObservationsOnly(recentOnly = false)
 
@@ -92,6 +94,7 @@ class DesktopBorrowedMetarObservationsTest {
             assertEquals(listOf(DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS), requestedHours)
             assertTrue(result.rawObservations.all { it.api == WeatherSource.METAR.id })
         } finally {
+            com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
             service.close()
         }
     }
@@ -104,9 +107,12 @@ class DesktopBorrowedMetarObservationsTest {
             weatherSource = WeatherSource.SILURIAN.id,
             injectedHttpClient = HttpClient(engine()),
         )
+        // In NWS coverage the default is NWS now; this exercises the METAR path, so choose it.
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { WeatherSource.METAR }
         try {
             assertTrue(service.fetchObservationsOnly(recentOnly = true).rawObservations.isNotEmpty())
         } finally {
+            com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
             service.close()
         }
     }

@@ -42,6 +42,12 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
         com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { source ->
             com.weatherwidget.widget.WidgetStateManager(this).getActualsProvider(source)
         }
+        // The default provider of a forecast-only source depends on where the user is (NWS inside
+        // its coverage, METAR elsewhere), so the resolver needs the active location too. Also
+        // SharedPreferences only.
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installLocationSource {
+            com.weatherwidget.widget.ActiveLocationResolver.current(this)
+        }
         installCrashLogger()
         processStartElapsedRealtime = SystemClock.elapsedRealtime()
         // Cold-start trace anchor. This line's logcat timestamp is process birth (wall-clock); the

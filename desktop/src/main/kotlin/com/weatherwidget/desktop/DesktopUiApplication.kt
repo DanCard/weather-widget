@@ -103,8 +103,8 @@ internal fun runDesktopUiApplication() = application {
             DesktopActualsPreference.install()
             onDispose { }
         }
-        LaunchedEffect(config?.settings) {
-            DesktopActualsPreference.update(config?.settings)
+        LaunchedEffect(config) {
+            DesktopActualsPreference.publish(config)
         }
 
         // Persistence layer

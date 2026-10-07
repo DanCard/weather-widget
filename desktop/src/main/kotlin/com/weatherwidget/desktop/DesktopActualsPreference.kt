@@ -25,14 +25,25 @@ object DesktopActualsPreference {
     @Volatile
     private var settings: DesktopSettings? = null
 
+    /** The configured location: a borrowing source's default provider depends on it. */
+    @Volatile
+    private var location: Pair<Double, Double>? = null
+
     /** Wire the shared resolver to this holder. Idempotent; safe to call from either process. */
     fun install() {
         ActualsProviderResolver.installPreferenceSource { source -> lookup(source) }
+        ActualsProviderResolver.installLocationSource { location }
     }
 
-    /** Publish the latest settings. Call on load and after every save. */
+    /** Publish the latest settings. Call after a settings-only save. */
     fun update(latest: DesktopSettings?) {
         settings = latest
+    }
+
+    /** Publish settings and location together. Call on load and on every config reload. */
+    fun publish(config: DesktopConfig?) {
+        settings = config?.settings
+        location = config?.let { c -> (c.lat to c.lon).takeIf { c.lat.isFinite() && c.lon.isFinite() } }
     }
 
     /**

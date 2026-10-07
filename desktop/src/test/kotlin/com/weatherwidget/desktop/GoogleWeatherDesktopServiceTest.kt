@@ -79,10 +79,13 @@ class GoogleWeatherDesktopServiceTest {
     @Test
     fun `observations-only refresh makes zero Google requests`() = runTest {
         val service = service()
+        // Pin the METAR feed: the mock engine serves no NWS endpoints, and the feed is not the point.
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { WeatherSource.METAR }
         try {
             service.fetchObservationsOnly(recentOnly = true, userLocationChange = false)
             assertEquals(0, googleRequests().size)
         } finally {
+            com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
             service.close()
         }
     }

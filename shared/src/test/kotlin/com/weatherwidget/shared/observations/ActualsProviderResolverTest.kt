@@ -13,7 +13,10 @@ import org.junit.experimental.categories.Category
 class ActualsProviderResolverTest {
 
     @org.junit.After
-    fun tearDown() = ActualsProviderResolver.resetPreferenceSource()
+    fun tearDown() {
+        ActualsProviderResolver.resetPreferenceSource()
+        ActualsProviderResolver.resetLocationSource()
+    }
 
     // ---- the installed preference seam (what the Settings picker writes through) ----
 
@@ -313,5 +316,64 @@ class ActualsProviderResolverTest {
         assertTrue(ActualsProviderResolver.hasTemperatureActuals(WeatherSource.GOOGLE_WEATHER))
         assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.GOOGLE_WEATHER))
         assertTrue(WeatherSource.GOOGLE_WEATHER !in ActualsProviderResolver.candidates())
+    }
+
+    // --- Location-aware default (plans/261007-borrowers-default-to-nws-actuals-inside-coverage.md) ---
+
+    private val mountainView = 37.417 to -122.089
+    private val kyiv = 50.45 to 30.524
+
+    @Test
+    fun `borrowers default to NWS inside NWS coverage`() {
+        ActualsProviderResolver.installLocationSource { mountainView }
+        assertEquals(WeatherSource.NWS.id, ActualsProviderResolver.providerIdFor(WeatherSource.GOOGLE_WEATHER))
+        assertEquals(WeatherSource.NWS.id, ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN))
+        assertEquals(WeatherSource.NWS, ActualsProviderResolver.defaultProviderFor(WeatherSource.GOOGLE_WEATHER))
+    }
+
+    @Test
+    fun `borrowers default to METAR outside coverage and with no location`() {
+        assertEquals(WeatherSource.METAR.id, ActualsProviderResolver.providerIdFor(WeatherSource.GOOGLE_WEATHER))
+        ActualsProviderResolver.installLocationSource { kyiv }
+        assertEquals(WeatherSource.METAR.id, ActualsProviderResolver.providerIdFor(WeatherSource.GOOGLE_WEATHER))
+    }
+
+    @Test
+    fun `an explicit choice wins over the location default`() {
+        ActualsProviderResolver.installLocationSource { mountainView }
+        ActualsProviderResolver.installPreferenceSource { WeatherSource.METAR }
+        assertEquals(WeatherSource.METAR.id, ActualsProviderResolver.providerIdFor(WeatherSource.GOOGLE_WEATHER))
+    }
+
+    @Test
+    fun `sources with their own actuals ignore the location`() {
+        ActualsProviderResolver.installLocationSource { mountainView }
+        for (source in listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.TOMORROW_IO, WeatherSource.WEATHER_API)) {
+            assertEquals(source.id, ActualsProviderResolver.providerIdFor(source))
+        }
+    }
+
+    @Test
+    fun `explicit location overrides the installed one`() {
+        ActualsProviderResolver.installLocationSource { kyiv }
+        assertEquals(
+            WeatherSource.NWS.id,
+            ActualsProviderResolver.providerIdAt(WeatherSource.GOOGLE_WEATHER, mountainView.first, mountainView.second),
+        )
+    }
+
+    @Test
+    fun `the picker lists the location default first`() {
+        ActualsProviderResolver.installLocationSource { mountainView }
+        assertEquals(WeatherSource.NWS, ActualsProviderResolver.candidates().first())
+        ActualsProviderResolver.installLocationSource { kyiv }
+        assertEquals(WeatherSource.METAR, ActualsProviderResolver.candidates().first())
+    }
+
+    @Test
+    fun `a US user with default borrowers no longer pays for METAR`() {
+        ActualsProviderResolver.installLocationSource { mountainView }
+        val visible = listOf(WeatherSource.GOOGLE_WEATHER, WeatherSource.NWS, WeatherSource.SILURIAN)
+        assertEquals(emptyList<WeatherSource>(), com.weatherwidget.shared.util.MetarFetchPolicy.consumers(visible))
     }
 }

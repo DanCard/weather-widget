@@ -433,9 +433,10 @@ class WeatherObservationsActivity : AppCompatActivity() {
             return
         }
         row.visibility = android.view.View.VISIBLE
-        val activeId = ActualsProviderResolver.providerIdFor(currentSource) {
-            widgetStateManager.getActualsProvider(it)
-        }
+        val activeId = ActualsProviderResolver.providerIdFor(
+            currentSource,
+            preference = { widgetStateManager.getActualsProvider(it) },
+        )
         findViewById<TextView>(R.id.actuals_source_value).text =
             WeatherSource.fromId(activeId).displayName
         row.setOnClickListener { showActualsSourceChooser(activeId) }

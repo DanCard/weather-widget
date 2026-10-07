@@ -190,6 +190,16 @@ class WeatherRepositoryTest {
             coVerify(exactly = 0) { nwsApi.getGridPoint(any(), any()) }
         }
 
+    private fun assertSilurianNotTargeted() {
+        coVerify {
+            appLogDao.insert(
+                match<com.weatherwidget.data.local.AppLogEntity> {
+                    it.tag == "CURR_FETCH_START" && !it.message.contains("SILURIAN")
+                },
+            )
+        }
+    }
+
     @Test
     fun `refreshCurrentTemperature does not fetch Silurian model current as an observation`() =
         runTest {
@@ -198,7 +208,8 @@ class WeatherRepositoryTest {
             every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
             val result = repository.refreshCurrentTemperature(testLat, testLon, source = WeatherSource.SILURIAN)
             assertTrue(result.isSuccess)
-            assertEquals(0, result.getOrNull())
+            // Silurian itself is never a target. Inside NWS coverage its borrowed feed (NWS) may be.
+            assertSilurianNotTargeted()
             verify { openMeteoApi wasNot Called }
             coVerify(exactly = 0) { observationDao.insertAll(any()) }
         }
@@ -213,7 +224,7 @@ class WeatherRepositoryTest {
             val result = repository.refreshCurrentTemperature(testLat, testLon)
 
             assertTrue(result.isSuccess)
-            assertEquals(0, result.getOrNull())
+            assertSilurianNotTargeted()
             verify { openMeteoApi wasNot Called }
             coVerify(exactly = 0) { observationDao.insertAll(any()) }
         }

@@ -2,22 +2,29 @@ package com.weatherwidget.shared.observations
 
 import com.weatherwidget.data.model.HistoricalDataKind
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.NwsCoverage
 
 /**
  * Answers "where do THIS source's actuals come from?".
  *
  * Most sources default to themselves when unconfigured: NWS observations drive NWS actuals,
  * WeatherAPI's archived history drives WeatherAPI's, Open-Meteo's analysis drives Open-Meteo's.
- * A forecast-only provider without observation products (e.g. Silurian) **borrows** actuals from a
- * measured feed by default ([WeatherSource.METAR] — raw airport reports, independently measured and
- * available worldwide).
+ * A forecast-only provider without observation products (Silurian, Google Weather) **borrows**
+ * actuals from a measured feed by default: [WeatherSource.NWS] inside NWS coverage, where it is
+ * denser and is also the feed NWS's own forecast is scored against, and [WeatherSource.METAR] (raw
+ * airport reports, independently measured, available worldwide) everywhere else. The default is
+ * derived from the active location on every read and never stored
+ * (plans/261007-borrowers-default-to-nws-actuals-inside-coverage.md).
  *
  * Any configurable forecast source allows the user to select an alternate actuals provider (e.g.
  * METAR, Synoptic, NWS, Open-Meteo, Tomorrow.io, WeatherAPI) across both Android and Desktop.
  */
 object ActualsProviderResolver {
 
-    /** Used when a borrowing source has no explicit preference. Worldwide, keyless, measured. */
+    /**
+     * A borrowing source's default outside NWS coverage, or when no location is known. Worldwide,
+     * keyless, measured. Inside coverage the default is [WeatherSource.NWS]; see [borrowerDefault].
+     */
     val DEFAULT_PROVIDER: WeatherSource = WeatherSource.METAR
 
     /**
@@ -48,6 +55,38 @@ object ActualsProviderResolver {
     /** The currently installed lookup, for callers that need to pass it on explicitly. */
     fun preferenceSource(): (WeatherSource) -> WeatherSource? = installedPreference
 
+    /**
+     * The platform's active location, installed once at startup, for the same reason as
+     * [installPreferenceSource]: the default provider depends on it, and many of the callers are
+     * pure blend code. Null means no location is known, and the default is then [DEFAULT_PROVIDER].
+     */
+    @Volatile
+    private var installedLocation: () -> Pair<Double, Double>? = { null }
+
+    /** Install the platform's active-location lookup. Call once, early. */
+    fun installLocationSource(lookup: () -> Pair<Double, Double>?) {
+        installedLocation = lookup
+    }
+
+    /** Restore the no-location default. For tests. */
+    fun resetLocationSource() {
+        installedLocation = { null }
+    }
+
+    /** The currently installed location lookup. */
+    fun locationSource(): () -> Pair<Double, Double>? = installedLocation
+
+    /**
+     * The feed a borrowing source uses when the user has not chosen one: NWS inside NWS coverage,
+     * [DEFAULT_PROVIDER] (METAR) elsewhere or when no location is known.
+     */
+    fun borrowerDefault(location: Pair<Double, Double>? = installedLocation()): WeatherSource =
+        if (location != null && NwsCoverage.covers(location.first, location.second)) {
+            WeatherSource.NWS
+        } else {
+            DEFAULT_PROVIDER
+        }
+
     /** True when [source] has no observation product of its own and must borrow one. */
     fun borrows(source: WeatherSource): Boolean =
         source != WeatherSource.METAR && !source.supportsTemperatureActuals
@@ -68,9 +107,12 @@ object ActualsProviderResolver {
     fun allowsAlternativeProvider(source: WeatherSource): Boolean =
         source != WeatherSource.GENERIC_GAP && source != WeatherSource.METAR && source != WeatherSource.SYNOPTIC
 
-    /** The default provider for [source]. */
-    fun defaultProviderFor(source: WeatherSource): WeatherSource =
-        if (borrows(source)) DEFAULT_PROVIDER else source
+    /** The default provider for [source] at [location] (the active location unless given). */
+    fun defaultProviderFor(
+        source: WeatherSource,
+        location: Pair<Double, Double>? = installedLocation(),
+    ): WeatherSource =
+        if (borrows(source)) borrowerDefault(location) else source
 
     /**
      * How trustworthy a candidate's "actuals" really are. The picker should show these as separate
@@ -125,16 +167,18 @@ object ActualsProviderResolver {
      *
      * Exposed for the picker so the option list cannot drift from what the resolver accepts.
      */
-    fun candidates(): List<WeatherSource> =
-        WeatherSource.entries
+    fun candidates(): List<WeatherSource> {
+        val default = borrowerDefault()
+        return WeatherSource.entries
             .filter(::canProvide)
             .sortedWith(
                 compareBy(
-                    { if (it == DEFAULT_PROVIDER) 0 else 1 },
+                    { if (it == default) 0 else 1 },
                     { if (tierOf(it) == Tier.MEASURED) 0 else 1 },
                     { it.id },
                 ),
             )
+    }
 
     /**
      * The `observations.api` value that supplies [source]'s actuals.
@@ -146,11 +190,26 @@ object ActualsProviderResolver {
     fun providerIdFor(
         source: WeatherSource,
         preference: (WeatherSource) -> WeatherSource? = installedPreference,
+    ): String = resolve(source, preference, installedLocation)
+
+    /** [providerIdFor] at an explicit location instead of the installed active one. */
+    fun providerIdAt(
+        source: WeatherSource,
+        latitude: Double,
+        longitude: Double,
+        preference: (WeatherSource) -> WeatherSource? = installedPreference,
+    ): String = resolve(source, preference) { latitude to longitude }
+
+    private fun resolve(
+        source: WeatherSource,
+        preference: (WeatherSource) -> WeatherSource?,
+        // Read only for a borrowing source with no usable preference.
+        location: () -> Pair<Double, Double>?,
     ): String {
         if (!allowsAlternativeProvider(source)) return source.id
         val chosen = preference(source)?.takeIf { canProvide(it) && it != source }
         if (chosen != null) return chosen.id
         if (!borrows(source)) return source.id
-        return DEFAULT_PROVIDER.id
+        return borrowerDefault(location()).id
     }
 }

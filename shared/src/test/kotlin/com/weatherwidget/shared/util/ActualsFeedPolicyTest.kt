@@ -31,14 +31,22 @@ class ActualsFeedPolicyTest {
     }
 
     private val googleNws = prefs(WeatherSource.GOOGLE_WEATHER to WeatherSource.NWS)
+    private val googleMetar = prefs(WeatherSource.GOOGLE_WEATHER to WeatherSource.METAR)
 
     // --- feedFor ---
 
     @Test
     fun `feed is the resolved provider`() {
         assertEquals(WeatherSource.NWS, ActualsFeedPolicy.feedFor(WeatherSource.GOOGLE_WEATHER, usLat, usLon, googleNws))
-        assertEquals(WeatherSource.METAR, ActualsFeedPolicy.feedFor(WeatherSource.GOOGLE_WEATHER, usLat, usLon, prefs()))
+        assertEquals(WeatherSource.METAR, ActualsFeedPolicy.feedFor(WeatherSource.GOOGLE_WEATHER, usLat, usLon, googleMetar))
         assertEquals(WeatherSource.NWS, ActualsFeedPolicy.feedFor(WeatherSource.NWS, usLat, usLon, prefs()))
+    }
+
+    @Test
+    fun `borrower default is NWS inside coverage and METAR outside`() {
+        assertEquals(WeatherSource.NWS, ActualsFeedPolicy.feedFor(WeatherSource.GOOGLE_WEATHER, usLat, usLon, prefs()))
+        assertEquals(WeatherSource.NWS, ActualsFeedPolicy.feedFor(WeatherSource.SILURIAN, usLat, usLon, prefs()))
+        assertEquals(WeatherSource.METAR, ActualsFeedPolicy.feedFor(WeatherSource.GOOGLE_WEATHER, kyivLat, kyivLon, prefs()))
     }
 
     @Test
@@ -103,7 +111,7 @@ class ActualsFeedPolicyTest {
     @Test
     fun `METAR recovery is never narrowed`() {
         val plan = ActualsFeedPolicy.fullRefreshFetch(
-            WeatherSource.GOOGLE_WEATHER, usLat, usLon, true, now, now, prefs(),
+            WeatherSource.GOOGLE_WEATHER, usLat, usLon, true, now, now, googleMetar,
         )
         assertEquals(ActualsFeedPolicy.ObservationFetch(WeatherSource.METAR, recentOnly = false), plan)
     }
@@ -117,7 +125,9 @@ class ActualsFeedPolicyTest {
     fun `deferred history window follows the feed, not the displayed source`() {
         assertTrue(ActualsFeedPolicy.hasDeferredHistoryWindow(WeatherSource.NWS, usLat, usLon, prefs()))
         assertTrue(ActualsFeedPolicy.hasDeferredHistoryWindow(WeatherSource.GOOGLE_WEATHER, usLat, usLon, googleNws))
-        assertFalse(ActualsFeedPolicy.hasDeferredHistoryWindow(WeatherSource.GOOGLE_WEATHER, usLat, usLon, prefs()))
+        assertTrue(ActualsFeedPolicy.hasDeferredHistoryWindow(WeatherSource.GOOGLE_WEATHER, usLat, usLon, prefs()))
+        assertFalse(ActualsFeedPolicy.hasDeferredHistoryWindow(WeatherSource.GOOGLE_WEATHER, usLat, usLon, googleMetar))
+        assertFalse(ActualsFeedPolicy.hasDeferredHistoryWindow(WeatherSource.GOOGLE_WEATHER, kyivLat, kyivLon, prefs()))
         assertFalse(ActualsFeedPolicy.hasDeferredHistoryWindow(WeatherSource.OPEN_METEO, usLat, usLon, prefs()))
     }
 
@@ -142,9 +152,9 @@ class ActualsFeedPolicyTest {
         val feeds = ActualsFeedPolicy.currentTempFeeds(
             listOf(WeatherSource.NWS, WeatherSource.GOOGLE_WEATHER, WeatherSource.SILURIAN, WeatherSource.TOMORROW_IO),
             usLat, usLon,
-            prefs(WeatherSource.GOOGLE_WEATHER to WeatherSource.NWS),
+            prefs(WeatherSource.SILURIAN to WeatherSource.METAR),
         )
-        // Silurian borrows METAR by default: METAR has its own refresher.
+        // Silurian is pinned to METAR here, which has its own refresher; Google takes the US default.
         assertEquals(listOf(WeatherSource.NWS, WeatherSource.TOMORROW_IO), feeds.keys.toList())
         assertEquals(listOf(WeatherSource.NWS, WeatherSource.GOOGLE_WEATHER), feeds[WeatherSource.NWS])
     }
@@ -155,7 +165,8 @@ class ActualsFeedPolicyTest {
     fun `NWS history is required by NWS and by its borrowers only`() {
         assertTrue(ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, listOf(WeatherSource.NWS), usLat, usLon, prefs()))
         assertTrue(ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, listOf(WeatherSource.GOOGLE_WEATHER), usLat, usLon, googleNws))
-        assertFalse(ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, listOf(WeatherSource.GOOGLE_WEATHER), usLat, usLon, prefs()))
+        assertFalse(ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, listOf(WeatherSource.GOOGLE_WEATHER), usLat, usLon, googleMetar))
+        assertFalse(ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, listOf(WeatherSource.GOOGLE_WEATHER), kyivLat, kyivLon, prefs()))
     }
 
     @Test

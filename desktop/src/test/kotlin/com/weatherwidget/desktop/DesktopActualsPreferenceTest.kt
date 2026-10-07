@@ -22,7 +22,8 @@ class DesktopActualsPreferenceTest {
     fun tearDown() {
         // The seam is process-global; leaving a stub installed would leak into other desktop tests.
         ActualsProviderResolver.resetPreferenceSource()
-        DesktopActualsPreference.update(null)
+        ActualsProviderResolver.resetLocationSource()
+        DesktopActualsPreference.publish(null)
     }
 
     @Test
