@@ -143,7 +143,7 @@ internal object DailyForecastHeaderRenderer {
                 cursorX += (HeaderConstants.DELTA_LABEL_MARGIN_START_DP * labelScale).dp(layout.density)
                 val labelBaseline =
                     tempCenterY - (headerPaints.deltaLabelPaint.ascent() + headerPaints.deltaLabelPaint.descent()) / 2f
-                canvas.drawText(deltaLabelText!!, cursorX, labelBaseline, headerPaints.deltaLabelPaint)
+                canvas.drawText(deltaLabelText, cursorX, labelBaseline, headerPaints.deltaLabelPaint)
                 cursorX += headerPaints.deltaLabelPaint.measureText(deltaLabelText)
             }
         }

@@ -189,7 +189,7 @@ internal object DailyHighLabelPlanner {
                 TAG,
                 "dualHigh date=${day.date} actual=$actualHigh forecast=$forecastHigh " +
                     "gap=${abs(pushedActualBaseline - pushedForecastBaseline)} " +
-                    "(prePush=${abs(nudgedActualBaseline - (forecastBaseline ?: 0f))} push=$extraUpperPush) " +
+                    "(prePush=${abs(nudgedActualBaseline - forecastBaseline)} push=$extraUpperPush) " +
                     "labelH=$twoLabelHeight (full=$fullFontHeight) " +
                     "needGap=${twoLabelHeight * (1f - DualHighLabel.MAX_OVERLAP_FRACTION)} showBoth=$showBoth",
             )
@@ -198,14 +198,14 @@ internal object DailyHighLabelPlanner {
         // collide before that shrink; a well-separated (or upper) forecast keeps the normal
         // dual-label font. Baselines are the labels' bottom edges (digits have no descenders) and
         // don't move with font size (bottom-pinned), so no re-measure is needed here.
-        val forecastFontScale = if (showBoth && pushedForecastBaseline != null)
+        val forecastFontScale = if (pushedForecastBaseline != null && showBoth)
             DualHighLabel.forecastFontScale(pushedActualBaseline, pushedForecastBaseline, twoLabelHeight)
         else 1f
         // The nudge (and the extra push) only apply when two labels actually render; a lone high
         // label keeps its own position — pinned to the bar for a past actual, floating otherwise.
         val actualBaseline = if (showBoth) pushedActualBaseline else singleBaseline
         val forecastLabelBaseline = if (showBoth) pushedForecastBaseline else forecastBaseline
-        val anchorHigh = if (showBoth && forecastHigh != null) maxOf(actualHigh, forecastHigh) else effective
+        val anchorHigh = if (forecastHigh != null && showBoth) maxOf(actualHigh, forecastHigh) else effective
         val anchorBaseline = if (showBoth && forecastLabelBaseline != null) {
             minOf(actualBaseline, forecastLabelBaseline)
         } else {

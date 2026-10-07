@@ -210,7 +210,7 @@ internal object DailyHeaderResolver {
         // formattedTemp (which also uses stateManager.useCelsius() at the same point in
         // time) so resolve and bind share one unit snapshot. Avoids re-instantiating
         // WidgetStateManager (SharedPreferences hit) inside the per-render bind path.
-        val deltaText = if (deltaVisible && deltaFromYesterday != null) {
+        val deltaText = if (deltaFromYesterday != null && deltaVisible) {
             val displayDelta = if (stateManager.useCelsius()) deltaFromYesterday / 1.8f else deltaFromYesterday
             String.format("%+.1f", displayDelta)
         } else null

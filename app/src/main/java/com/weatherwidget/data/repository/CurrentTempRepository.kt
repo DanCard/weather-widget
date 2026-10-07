@@ -190,7 +190,7 @@ class CurrentTempRepository
                             widgetStateManager.recordSourceFetchFailure(
                                 targetSource,
                                 extractCurrentErrorCode(exception),
-                                ApiKeyRedaction.redact(exception.message ?: exception.javaClass.simpleName),
+                                ApiKeyRedaction.redact(exception.message),
                             )
                             logCurrentFetchFailure(targetSource, exception)
                             logCurrentSourceResult(reason, targetSource, null, exception, durationMs = sourceDurationMs)

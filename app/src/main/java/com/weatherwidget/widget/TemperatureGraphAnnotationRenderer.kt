@@ -817,17 +817,17 @@ internal object TemperatureGraphAnnotationRenderer {
         val ys = mutableListOf<Float>()
         // The forecast line spans the whole window.
         if (input.series.forecastPoints.isNotEmpty()) {
-            TemperatureGraphSeriesResolver.interpolateYAtX(input.series.forecastPoints, x)?.let(ys::add)
+            ys.add(TemperatureGraphSeriesResolver.interpolateYAtX(input.series.forecastPoints, x))
         }
         // The observed line stops at the transition (the fetch dot).
         val transitionX = input.series.transitionX
         if (transitionX != null && x <= transitionX && input.series.actualVisiblePoints.isNotEmpty()) {
-            TemperatureGraphSeriesResolver.interpolateYAtX(input.series.actualVisiblePoints, x)?.let(ys::add)
+            ys.add(TemperatureGraphSeriesResolver.interpolateYAtX(input.series.actualVisiblePoints, x))
         }
         // The ghost (expected) line starts at the fetch dot and runs to the right edge.
         val fetchDotX = input.series.fetchDotX
         if (ghostVisible && fetchDotX != null && x >= fetchDotX && input.series.expectedPoints.isNotEmpty()) {
-            TemperatureGraphSeriesResolver.interpolateYAtX(input.series.expectedPoints, x)?.let(ys::add)
+            ys.add(TemperatureGraphSeriesResolver.interpolateYAtX(input.series.expectedPoints, x))
         }
         return ys
     }

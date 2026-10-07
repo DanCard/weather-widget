@@ -39,7 +39,7 @@ class SourceErrorDetailsActivity : AppCompatActivity() {
         val source = intent.getStringExtra(EXTRA_SOURCE_ID)
             ?.let { id -> WeatherSource.entries.firstOrNull { it.id == id } }
             ?: WidgetStateManager(this).getPrimarySource()
-        val content = source?.let { SourceErrorDetailsContent.build(this, it, WidgetStateManager(this)) }
+        val content = SourceErrorDetailsContent.build(this, source, WidgetStateManager(this))
 
         findViewById<View>(R.id.back_button).setOnClickListener { finish() }
         // Always shown; Back from Android's screen returns here.
@@ -47,7 +47,7 @@ class SourceErrorDetailsActivity : AppCompatActivity() {
             startActivity(Intent(this, BackgroundDataResolutionActivity::class.java))
         }
         findViewById<Button>(R.id.error_details_close).setOnClickListener { finish() }
-        findViewById<TextView>(R.id.error_details_source).text = source?.displayName.orEmpty()
+        findViewById<TextView>(R.id.error_details_source).text = source.displayName.orEmpty()
 
         val headline = findViewById<TextView>(R.id.error_details_headline)
         val summary = findViewById<TextView>(R.id.error_details_summary)
