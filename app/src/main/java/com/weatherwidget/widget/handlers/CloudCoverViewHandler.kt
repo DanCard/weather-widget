@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.model.ForecastProduct
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
@@ -514,11 +515,11 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     missingDescription = missingDescription,
                     missingReason = missingReason,
                     job = coroutineContext[Job],
-                    showErrorWatermark = stateManager.isSourceErrored(effectiveDisplaySource),
+                    showErrorWatermark = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).show,
                     errorSourceLabel = effectiveDisplaySource.displayName,
-                    errorCode = stateManager.getSourceLastErrorCode(effectiveDisplaySource),
-                    errorFailureTimeMs = stateManager.getSourceLastFailureTime(effectiveDisplaySource),
-                    errorBannerSinceMs = stateManager.getSourceBannerSince(effectiveDisplaySource),
+                    errorCode = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).errorCode,
+                    errorFailureTimeMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).failureTimeMs,
+                    errorBannerSinceMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).bannerSinceMs,
                     dominantStationLabel = dominantStationLabel,
                 ),
             )
@@ -542,9 +543,9 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 context = context,
                 views = views,
                 appWidgetId = appWidgetId,
-                showErrorWatermark = stateManager.isSourceErrored(effectiveDisplaySource),
-                errorCode = stateManager.getSourceLastErrorCode(effectiveDisplaySource),
-                bannerSinceMs = stateManager.getSourceBannerSince(effectiveDisplaySource),
+                showErrorWatermark = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).show,
+                errorCode = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).errorCode,
+                bannerSinceMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).bannerSinceMs,
                 sourceId = effectiveDisplaySource.id,
             )
         } else {

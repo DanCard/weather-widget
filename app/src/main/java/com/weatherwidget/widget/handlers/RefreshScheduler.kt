@@ -131,7 +131,7 @@ object RefreshScheduler {
         val staleReason = "stale_on_$reason"
         // A source refused until a known time stays stale until then; retrying it on every tap only
         // re-fetched everything else (2026-10-07: five sources, four times in 28 minutes).
-        targetSourceId?.let { SourceQuotaBlocks.blockedUntil(it, nowMs) }?.let { until ->
+        targetSourceId?.let { SourceQuotaBlocks.fullyBlockedUntil(it, nowMs) }?.let { until ->
             appLogDao?.log(
                 "STALE_REFRESH_SKIP",
                 "reason=$staleReason skip=quota_blocked source=$targetSourceId until=$until",

@@ -356,6 +356,10 @@
     <string name="updates_paused">업데이트 일시 중지</string>
     <string name="watermark_quota_daily">일일 할당량 소진 · %1$s 초기화</string>
     <string name="watermark_quota_daily_short">일일 할당량 소진</string>
+    <string name="watermark_quota_hourly_forecast">시간별 예보 할당량 소진 · %1$s 초기화</string>
+    <string name="watermark_quota_hourly_forecast_short">시간별 예보 할당량 소진</string>
+    <string name="watermark_quota_daily_forecast">일별 예보 할당량 소진 · %1$s 초기화</string>
+    <string name="watermark_quota_daily_forecast_short">일별 예보 할당량 소진</string>
     <string name="error_details_title">업데이트 문제</string>
     <string name="error_details_explain_quota">이 API 키의 일일 할당량을 모두 사용했습니다. 저장된 날씨가 계속 표시되며, 할당량이 %1$s에 초기화되면 업데이트가 재개됩니다.</string>
     <string name="error_details_explain_rate_limit">제공업체가 이 앱의 데이터 요청 빈도를 제한하고 있습니다. 저장된 날씨가 계속 표시되며, 다음 예약 업데이트에서 다시 시도합니다.</string>

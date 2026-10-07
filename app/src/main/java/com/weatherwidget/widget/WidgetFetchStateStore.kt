@@ -1,6 +1,7 @@
 package com.weatherwidget.widget
 
 import android.content.SharedPreferences
+import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
 import java.time.Clock
 
@@ -106,6 +107,40 @@ internal class WidgetFetchStateStore(
     fun sourceBannerSince(source: WeatherSource): Long? =
         prefs.getLong("$KEY_SOURCE_BANNER_SINCE_PREFIX${source.id}", -1L).takeIf { it > 0L }
 
+    /**
+     * One forecast product of [source] refused until [untilMs] (a per-product daily quota) while the
+     * source as a whole still updates. Kept apart from the source failure streak: an hours-only 429
+     * must not put a banner on the daily view (user, 2026-10-07). The first record of a streak
+     * anchors the banner staging; repeats keep it.
+     */
+    @Synchronized
+    fun recordProductQuota(source: WeatherSource, product: ForecastProduct, untilMs: Long, detail: String?) {
+        val key = productKey(source, product)
+        val editor = prefs.edit().putLong("$key$UNTIL", untilMs)
+        if (productQuota(source, product, clock.millis()) == null) editor.putLong("$key$SINCE", clock.millis())
+        if (detail.isNullOrBlank()) editor.remove("$key$DETAIL") else editor.putString("$key$DETAIL", detail.take(MAX_DETAIL_CHARS))
+        editor.apply()
+    }
+
+    @Synchronized
+    fun clearProductQuota(source: WeatherSource, product: ForecastProduct) {
+        val key = productKey(source, product)
+        if (!prefs.contains("$key$UNTIL")) return
+        prefs.edit().remove("$key$UNTIL").remove("$key$SINCE").remove("$key$DETAIL").apply()
+    }
+
+    data class ProductQuota(val untilMs: Long, val sinceMs: Long, val detail: String?)
+
+    /** [source]'s [product] block, or null when none is in force at [nowMs]. */
+    fun productQuota(source: WeatherSource, product: ForecastProduct, nowMs: Long): ProductQuota? {
+        val key = productKey(source, product)
+        val until = prefs.getLong("$key$UNTIL", 0L).takeIf { it > nowMs } ?: return null
+        return ProductQuota(until, prefs.getLong("$key$SINCE", nowMs), prefs.getString("$key$DETAIL", null))
+    }
+
+    private fun productKey(source: WeatherSource, product: ForecastProduct) =
+        "$KEY_PRODUCT_QUOTA_PREFIX${source.id}_${product.name}_"
+
     fun clearWidget(widgetId: Int, editor: SharedPreferences.Editor) {
         val prefix = "$KEY_MISSING_DATA_REFRESH_PREFIX${widgetId}_"
         prefs.all.keys
@@ -131,5 +166,9 @@ internal class WidgetFetchStateStore(
         const val KEY_SOURCE_BANNER_SINCE_PREFIX = "source_fail_banner_since_"
         const val KEY_SOURCE_FAILURE_DETAIL_PREFIX = "source_fail_detail_"
         const val MAX_DETAIL_CHARS = 8_000
+        const val KEY_PRODUCT_QUOTA_PREFIX = "source_quota_"
+        const val UNTIL = "until"
+        const val SINCE = "since"
+        const val DETAIL = "detail"
     }
 }

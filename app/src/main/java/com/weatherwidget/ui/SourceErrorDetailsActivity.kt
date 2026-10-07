@@ -12,6 +12,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.weatherwidget.R
+import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.GoogleQuota
 import com.weatherwidget.data.remote.ProviderErrorDetails
@@ -144,11 +145,19 @@ internal data class SourceErrorDetailsContent(
             zone: ZoneId = ZoneId.systemDefault(),
         ): SourceErrorDetailsContent? {
             val count = state.getSourceFailureCount(source)
-            if (count <= 0) return null
-            val code = state.getSourceLastErrorCode(source)
-            val failedAt = state.getSourceLastFailureTime(source)
-            val details = ProviderErrorDetails.parse(state.getSourceLastFailureDetail(source))
-            val quota = code == GoogleQuota.ERROR_CODE_DAILY
+            // No source-wide failure: the pill may be one product's quota block (hourly views or the
+            // daily view), recorded apart from the failure streak.
+            val productBlock = if (count > 0) {
+                null
+            } else {
+                ForecastProduct.entries.firstNotNullOfOrNull { product ->
+                    state.getProductQuota(source, product, nowMs)?.let { product to it }
+                } ?: return null
+            }
+            val code = productBlock?.let { GoogleQuota.errorCodeFor(it.first) } ?: state.getSourceLastErrorCode(source)
+            val failedAt = productBlock?.second?.sinceMs ?: state.getSourceLastFailureTime(source)
+            val details = ProviderErrorDetails.parse(productBlock?.second?.detail ?: state.getSourceLastFailureDetail(source))
+            val quota = code in GoogleQuota.QUOTA_CODES
             val resetText = failedAt?.takeIf { quota }?.let {
                 GraphFailureWatermarkRenderer.formatResetTime(GoogleQuota.nextResetMs(it), locale, zone)
             }
@@ -181,7 +190,7 @@ internal data class SourceErrorDetailsContent(
                     add(context.getString(R.string.error_details_label_window) to formatDateTime(it, locale, zone))
                 }
                 resetText?.let { add(context.getString(R.string.error_details_label_resets) to it) }
-                add(context.getString(R.string.error_details_label_failures) to count.toString())
+                if (count > 0) add(context.getString(R.string.error_details_label_failures) to count.toString())
                 failedAt?.let {
                     add(
                         context.getString(R.string.error_details_label_last_attempt) to
@@ -195,7 +204,11 @@ internal data class SourceErrorDetailsContent(
             return SourceErrorDetailsContent(
                 headline = headline,
                 summary = when {
-                    quota && resetText != null -> context.getString(R.string.watermark_quota_daily, resetText)
+                    quota && resetText != null -> when (code) {
+                        GoogleQuota.ERROR_CODE_HOURLY_FORECAST -> context.getString(R.string.watermark_quota_hourly_forecast, resetText)
+                        GoogleQuota.ERROR_CODE_DAILY_FORECAST -> context.getString(R.string.watermark_quota_daily_forecast, resetText)
+                        else -> context.getString(R.string.watermark_quota_daily, resetText)
+                    }
                     else -> codeText ?: context.getString(R.string.updates_failing)
                 },
                 explanation = explanation,

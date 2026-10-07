@@ -63,7 +63,7 @@ internal object GraphFailureWatermarkRenderer {
         errorCodeText: (String) -> String,
         bannerSinceMs: Long? = null,
         pausedText: String = "UPDATES PAUSED",
-        quotaDailyText: (String) -> String = ::defaultQuotaDailyText,
+        quotaText: (String, String) -> String = ::defaultQuotaText,
         nowMs: Long = System.currentTimeMillis(),
     ) {
         val stage = stageFor(bannerSinceMs, nowMs)
@@ -81,7 +81,7 @@ internal object GraphFailureWatermarkRenderer {
             errorCodeText = errorCodeText,
             stage = stage,
             pausedText = pausedText,
-            quotaDailyText = quotaDailyText,
+            quotaText = quotaText,
             measureMain = { text, textSize ->
                 mainPaint.textSize = textSize
                 mainPaint.measureText(text)
@@ -158,7 +158,7 @@ internal object GraphFailureWatermarkRenderer {
         errorCodeText = { code -> localizedErrorCodeText(context, code) },
         bannerSinceMs = bannerSinceMs,
         pausedText = context.getString(R.string.updates_paused),
-        quotaDailyText = { resetTime -> context.getString(R.string.watermark_quota_daily, resetTime) },
+        quotaText = { code, resetTime -> localizedQuotaText(context, code, resetTime) },
     )
 
     @androidx.annotation.VisibleForTesting
@@ -176,7 +176,7 @@ internal object GraphFailureWatermarkRenderer {
         errorCodeText: (String) -> String = ::humanReadableErrorCode,
         stage: FailureBannerStage = FailureBannerStage.FULL,
         pausedText: String = "UPDATES PAUSED",
-        quotaDailyText: (String) -> String = ::defaultQuotaDailyText,
+        quotaText: (String, String) -> String = ::defaultQuotaText,
         measureMain: (String, Float) -> Float,
         measureDetail: (String, Float) -> Float,
         mainMetrics: (Float) -> Pair<Float, Float>,
@@ -190,7 +190,7 @@ internal object GraphFailureWatermarkRenderer {
         val availableTextWidth = maxPillWidth - horizontalPadding * 2f
         if (maxPillWidth <= 0f || availableTextWidth <= 0f) return null
 
-        val quota = errorCode == GoogleQuota.ERROR_CODE_DAILY
+        val quota = errorCode in GoogleQuota.QUOTA_CODES
         val headline = if (quota) pausedText else failingText
         val source =
             sourceLabel
@@ -200,7 +200,7 @@ internal object GraphFailureWatermarkRenderer {
                 ?: headline
         val detailText =
             if (quota && failureTimeMs != null) {
-                quotaDailyText(formatResetTime(GoogleQuota.nextResetMs(failureTimeMs), locale, zoneId))
+                quotaText(errorCode!!, formatResetTime(GoogleQuota.nextResetMs(failureTimeMs), locale, zoneId))
             } else {
                 buildDetailText(
                     errorCode = errorCode,
@@ -277,7 +277,18 @@ internal object GraphFailureWatermarkRenderer {
     internal fun stageFor(bannerSinceMs: Long?, nowMs: Long): FailureBannerStage =
         bannerSinceMs?.let { FailureBannerStage.at(nowMs - it) } ?: FailureBannerStage.FULL
 
-    internal fun defaultQuotaDailyText(resetTime: String): String = "Daily quota used · resets $resetTime"
+    /** "<which> quota used · resets <time>": the whole source, or only the hourly / daily forecast. */
+    internal fun defaultQuotaText(code: String, resetTime: String): String = when (code) {
+        GoogleQuota.ERROR_CODE_HOURLY_FORECAST -> "Hourly forecast quota used · resets $resetTime"
+        GoogleQuota.ERROR_CODE_DAILY_FORECAST -> "Daily forecast quota used · resets $resetTime"
+        else -> "Daily quota used · resets $resetTime"
+    }
+
+    private fun localizedQuotaText(context: Context, code: String, resetTime: String): String = when (code) {
+        GoogleQuota.ERROR_CODE_HOURLY_FORECAST -> context.getString(R.string.watermark_quota_hourly_forecast, resetTime)
+        GoogleQuota.ERROR_CODE_DAILY_FORECAST -> context.getString(R.string.watermark_quota_daily_forecast, resetTime)
+        else -> context.getString(R.string.watermark_quota_daily, resetTime)
+    }
 
     /** "12 AM" on the hour, else "12:30 AM" — the reset is always a whole hour in practice. */
     internal fun formatResetTime(epochMs: Long, locale: Locale, zoneId: ZoneId): String {
@@ -300,6 +311,8 @@ internal object GraphFailureWatermarkRenderer {
             "HTTP_422" -> "422 Unprocessable"
             "HTTP_429" -> "429 Rate Limited"
             GoogleQuota.ERROR_CODE_DAILY -> "Daily quota used"
+            GoogleQuota.ERROR_CODE_HOURLY_FORECAST -> "Hourly forecast quota used"
+            GoogleQuota.ERROR_CODE_DAILY_FORECAST -> "Daily forecast quota used"
             "ACCESS_ERROR" -> "Access Error"
             "DNS_ERROR" -> "DNS Error"
             "CONN_REFUSED" -> "Connection Refused"
@@ -331,6 +344,8 @@ internal object GraphFailureWatermarkRenderer {
             "HTTP_422" -> context.getString(R.string.watermark_http_422)
             "HTTP_429" -> context.getString(R.string.watermark_http_429)
             GoogleQuota.ERROR_CODE_DAILY -> context.getString(R.string.watermark_quota_daily_short)
+            GoogleQuota.ERROR_CODE_HOURLY_FORECAST -> context.getString(R.string.watermark_quota_hourly_forecast_short)
+            GoogleQuota.ERROR_CODE_DAILY_FORECAST -> context.getString(R.string.watermark_quota_daily_forecast_short)
             "ACCESS_ERROR" -> context.getString(R.string.watermark_access_error)
             "DNS_ERROR" -> context.getString(R.string.watermark_dns_error)
             "CONN_REFUSED" -> context.getString(R.string.watermark_conn_refused)

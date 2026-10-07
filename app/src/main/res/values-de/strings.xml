@@ -356,6 +356,10 @@
     <string name="updates_paused">AKTUALISIERUNGEN PAUSIERT</string>
     <string name="watermark_quota_daily">Tageskontingent aufgebraucht · zurückgesetzt um %1$s</string>
     <string name="watermark_quota_daily_short">Tageskontingent aufgebraucht</string>
+    <string name="watermark_quota_hourly_forecast">Kontingent für Stundenprognose aufgebraucht · zurückgesetzt um %1$s</string>
+    <string name="watermark_quota_hourly_forecast_short">Kontingent für Stundenprognose aufgebraucht</string>
+    <string name="watermark_quota_daily_forecast">Kontingent für Tagesprognose aufgebraucht · zurückgesetzt um %1$s</string>
+    <string name="watermark_quota_daily_forecast_short">Kontingent für Tagesprognose aufgebraucht</string>
     <string name="error_details_title">Aktualisierungsproblem</string>
     <string name="error_details_explain_quota">Das Tageskontingent für diesen API-Schlüssel ist aufgebraucht. Zwischengespeichertes Wetter wird weiter angezeigt; Aktualisierungen laufen wieder, wenn das Kontingent um %1$s zurückgesetzt wird.</string>
     <string name="error_details_explain_rate_limit">Der Anbieter begrenzt, wie oft diese App Daten abfragen darf. Zwischengespeichertes Wetter wird weiter angezeigt; die nächste geplante Aktualisierung versucht es erneut.</string>

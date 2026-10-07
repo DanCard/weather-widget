@@ -356,6 +356,10 @@
     <string name="updates_paused">التحديثات متوقفة مؤقتًا</string>
     <string name="watermark_quota_daily">نفدت الحصة اليومية · تُعاد في %1$s</string>
     <string name="watermark_quota_daily_short">نفدت الحصة اليومية</string>
+    <string name="watermark_quota_hourly_forecast">نفدت حصة التوقعات بالساعة · تُعاد في %1$s</string>
+    <string name="watermark_quota_hourly_forecast_short">نفدت حصة التوقعات بالساعة</string>
+    <string name="watermark_quota_daily_forecast">نفدت حصة التوقعات اليومية · تُعاد في %1$s</string>
+    <string name="watermark_quota_daily_forecast_short">نفدت حصة التوقعات اليومية</string>
     <string name="error_details_title">مشكلة في التحديث</string>
     <string name="error_details_explain_quota">استُنفدت الحصة اليومية لمفتاح API هذا. لا يزال الطقس المخزن معروضًا؛ تُستأنف التحديثات بعد إعادة ضبط الحصة في %1$s.</string>
     <string name="error_details_explain_rate_limit">يحد المزود من عدد مرات طلب هذا التطبيق للبيانات. لا يزال الطقس المخزن معروضًا؛ سيعيد التحديث المجدول التالي المحاولة.</string>

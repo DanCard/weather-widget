@@ -356,6 +356,10 @@
     <string name="updates_paused">ОБНОВЛЕНИЯ ПРИОСТАНОВЛЕНЫ</string>
     <string name="watermark_quota_daily">Дневной лимит исчерпан · сброс в %1$s</string>
     <string name="watermark_quota_daily_short">Дневной лимит исчерпан</string>
+    <string name="watermark_quota_hourly_forecast">Лимит почасового прогноза исчерпан · сброс в %1$s</string>
+    <string name="watermark_quota_hourly_forecast_short">Лимит почасового прогноза исчерпан</string>
+    <string name="watermark_quota_daily_forecast">Лимит дневного прогноза исчерпан · сброс в %1$s</string>
+    <string name="watermark_quota_daily_forecast_short">Лимит дневного прогноза исчерпан</string>
     <string name="error_details_title">Проблема с обновлением</string>
     <string name="error_details_explain_quota">Дневная квота этого API-ключа исчерпана. Показывается сохранённая погода; обновления возобновятся после сброса квоты в %1$s.</string>
     <string name="error_details_explain_rate_limit">Поставщик ограничивает частоту запросов этого приложения. Показывается сохранённая погода; следующее плановое обновление повторит попытку.</string>

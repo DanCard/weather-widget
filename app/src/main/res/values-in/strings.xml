@@ -356,6 +356,10 @@
     <string name="updates_paused">PEMBARUAN DIJEDA</string>
     <string name="watermark_quota_daily">Kuota harian habis · reset pukul %1$s</string>
     <string name="watermark_quota_daily_short">Kuota harian habis</string>
+    <string name="watermark_quota_hourly_forecast">Kuota prakiraan per jam habis · reset pukul %1$s</string>
+    <string name="watermark_quota_hourly_forecast_short">Kuota prakiraan per jam habis</string>
+    <string name="watermark_quota_daily_forecast">Kuota prakiraan harian habis · reset pukul %1$s</string>
+    <string name="watermark_quota_daily_forecast_short">Kuota prakiraan harian habis</string>
     <string name="error_details_title">Masalah pembaruan</string>
     <string name="error_details_explain_quota">Kuota harian kunci API ini sudah habis. Cuaca tersimpan tetap ditampilkan; pembaruan berlanjut setelah kuota direset pukul %1$s.</string>
     <string name="error_details_explain_rate_limit">Penyedia membatasi seberapa sering aplikasi ini boleh meminta data. Cuaca tersimpan tetap ditampilkan; pembaruan terjadwal berikutnya akan mencoba lagi.</string>

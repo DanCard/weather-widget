@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.model.ForecastProduct
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.util.Log
@@ -216,9 +217,9 @@ HeaderRemoteViewsBinder.applyDisclosure(
                 context = context,
                 views = views,
                 appWidgetId = appWidgetId,
-                showErrorWatermark = stateManager.isSourceErrored(state.displaySource),
-                errorCode = stateManager.getSourceLastErrorCode(state.displaySource),
-                bannerSinceMs = stateManager.getSourceBannerSince(state.displaySource),
+                showErrorWatermark = stateManager.viewWatermark(state.displaySource, ForecastProduct.HOURLY).show,
+                errorCode = stateManager.viewWatermark(state.displaySource, ForecastProduct.HOURLY).errorCode,
+                bannerSinceMs = stateManager.viewWatermark(state.displaySource, ForecastProduct.HOURLY).bannerSinceMs,
                 sourceId = state.displaySource.id,
             )
         } else if (state.graph.showTextMode) {

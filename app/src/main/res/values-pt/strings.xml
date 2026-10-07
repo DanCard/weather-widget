@@ -356,6 +356,10 @@
     <string name="updates_paused">ATUALIZAÇÕES PAUSADAS</string>
     <string name="watermark_quota_daily">Cota diária esgotada · reinicia às %1$s</string>
     <string name="watermark_quota_daily_short">Cota diária esgotada</string>
+    <string name="watermark_quota_hourly_forecast">Cota da previsão por hora esgotada · reinicia às %1$s</string>
+    <string name="watermark_quota_hourly_forecast_short">Cota da previsão por hora esgotada</string>
+    <string name="watermark_quota_daily_forecast">Cota da previsão diária esgotada · reinicia às %1$s</string>
+    <string name="watermark_quota_daily_forecast_short">Cota da previsão diária esgotada</string>
     <string name="error_details_title">Problema de atualização</string>
     <string name="error_details_explain_quota">A cota diária desta chave de API se esgotou. O clima em cache continua visível; as atualizações voltam quando a cota reiniciar às %1$s.</string>
     <string name="error_details_explain_rate_limit">O provedor está limitando a frequência com que este app pode pedir dados. O clima em cache continua visível; a próxima atualização agendada tentará de novo.</string>

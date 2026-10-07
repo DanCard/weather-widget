@@ -129,8 +129,9 @@ object WidgetViewModeDispatcher {
                 // The failure banner's 8 s / 24 s stage repaints are UI-only; without this the
                 // daily view swallowed them and the banner never shrank.
                 val bannerStagePending = com.weatherwidget.widget.handlers.FailureBannerRepaint.stageChangeMayBePending(
-                    bannerSinceMs = params.stateManager.getSourceBannerSince(params.displaySource)
-                        .takeIf { params.stateManager.isSourceErrored(params.displaySource) },
+                    bannerSinceMs = params.stateManager
+                        .viewWatermark(params.displaySource, com.weatherwidget.data.model.ForecastProduct.DAILY)
+                        .let { if (it.show) it.bannerSinceMs else null },
                     nowMs = System.currentTimeMillis(),
                 )
                 if (WidgetRenderer.shouldSkipDailyUiOnlyRepaint(params.uiOnly, paintedForDate, today) &&

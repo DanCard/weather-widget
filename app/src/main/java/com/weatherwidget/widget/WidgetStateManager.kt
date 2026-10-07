@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.weatherwidget.BuildConfig
 import com.weatherwidget.data.model.RecentLocation
+import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.RecentLocationsHelper
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -461,6 +462,53 @@ class WidgetStateManager internal constructor(
 
     fun getSourceBannerSince(source: WeatherSource): Long? =
         fetchStateStore.sourceBannerSince(source)
+
+    fun recordProductQuota(source: WeatherSource, product: ForecastProduct, untilMs: Long, detail: String?) =
+        fetchStateStore.recordProductQuota(source, product, untilMs, detail)
+
+    fun clearProductQuota(source: WeatherSource, product: ForecastProduct) =
+        fetchStateStore.clearProductQuota(source, product)
+
+    internal fun getProductQuota(source: WeatherSource, product: ForecastProduct, nowMs: Long = System.currentTimeMillis()) =
+        fetchStateStore.productQuota(source, product, nowMs)
+
+    /**
+     * The failure pill a view of [product] draws for [source]: a source-wide failure streak first
+     * (it affects every view), else that product's own quota block. An hourly-only quota block
+     * therefore leaves the daily view clean (user, 2026-10-07).
+     */
+    fun viewWatermark(
+        source: WeatherSource,
+        product: ForecastProduct,
+        nowMs: Long = System.currentTimeMillis(),
+    ): ViewWatermark {
+        if (isSourceErrored(source)) {
+            return ViewWatermark(
+                show = true,
+                errorCode = getSourceLastErrorCode(source),
+                failureTimeMs = getSourceLastFailureTime(source),
+                bannerSinceMs = getSourceBannerSince(source),
+            )
+        }
+        val quota = getProductQuota(source, product, nowMs) ?: return ViewWatermark.NONE
+        return ViewWatermark(
+            show = true,
+            errorCode = com.weatherwidget.data.remote.GoogleQuota.errorCodeFor(product),
+            failureTimeMs = quota.sinceMs,
+            bannerSinceMs = quota.sinceMs,
+        )
+    }
+
+    data class ViewWatermark(
+        val show: Boolean,
+        val errorCode: String?,
+        val failureTimeMs: Long?,
+        val bannerSinceMs: Long?,
+    ) {
+        companion object {
+            val NONE = ViewWatermark(false, null, null, null)
+        }
+    }
 
     fun clearWidgetState(widgetId: Int) {
         val editor = prefs.edit()

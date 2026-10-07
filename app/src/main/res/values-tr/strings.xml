@@ -356,6 +356,10 @@
     <string name="updates_paused">GÜNCELLEMELER DURAKLATILDI</string>
     <string name="watermark_quota_daily">Günlük kota doldu · %1$s sıfırlanır</string>
     <string name="watermark_quota_daily_short">Günlük kota doldu</string>
+    <string name="watermark_quota_hourly_forecast">Saatlik tahmin kotası doldu · %1$s sıfırlanır</string>
+    <string name="watermark_quota_hourly_forecast_short">Saatlik tahmin kotası doldu</string>
+    <string name="watermark_quota_daily_forecast">Günlük tahmin kotası doldu · %1$s sıfırlanır</string>
+    <string name="watermark_quota_daily_forecast_short">Günlük tahmin kotası doldu</string>
     <string name="error_details_title">Güncelleme sorunu</string>
     <string name="error_details_explain_quota">Bu API anahtarının günlük kotası doldu. Önbellekteki hava durumu gösterilmeye devam ediyor; kota %1$s saatinde sıfırlanınca güncellemeler sürer.</string>
     <string name="error_details_explain_rate_limit">Sağlayıcı bu uygulamanın veri isteme sıklığını sınırlıyor. Önbellekteki hava durumu gösterilmeye devam ediyor; bir sonraki planlı güncelleme yeniden deneyecek.</string>

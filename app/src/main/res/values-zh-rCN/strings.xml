@@ -356,6 +356,10 @@
     <string name="updates_paused">更新已暂停</string>
     <string name="watermark_quota_daily">每日配额已用完 · %1$s重置</string>
     <string name="watermark_quota_daily_short">每日配额已用完</string>
+    <string name="watermark_quota_hourly_forecast">逐小时预报配额已用完 · %1$s重置</string>
+    <string name="watermark_quota_hourly_forecast_short">逐小时预报配额已用完</string>
+    <string name="watermark_quota_daily_forecast">每日预报配额已用完 · %1$s重置</string>
+    <string name="watermark_quota_daily_forecast_short">每日预报配额已用完</string>
     <string name="error_details_title">更新问题</string>
     <string name="error_details_explain_quota">此 API 密钥的每日配额已用完。仍显示缓存的天气;配额在 %1$s 重置后恢复更新。</string>
     <string name="error_details_explain_rate_limit">提供方正在限制此应用请求数据的频率。仍显示缓存的天气;下一次计划更新会重试。</string>

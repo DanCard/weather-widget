@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.model.ForecastProduct
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
@@ -277,11 +278,11 @@ internal object DailyGraphRenderer {
             displayDays.size,
             job = coroutineContext[Job],
             headerData = headerRenderData,
-            showErrorWatermark = ctx.stateManager.isSourceErrored(ctx.displaySource),
+            showErrorWatermark = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).show,
             errorSourceLabel = ctx.displaySource.displayName,
-            errorCode = ctx.stateManager.getSourceLastErrorCode(ctx.displaySource),
-            errorFailureTimeMs = ctx.stateManager.getSourceLastFailureTime(ctx.displaySource),
-            errorBannerSinceMs = ctx.stateManager.getSourceBannerSince(ctx.displaySource),
+            errorCode = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).errorCode,
+            errorFailureTimeMs = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).failureTimeMs,
+            errorBannerSinceMs = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).bannerSinceMs,
             useLargeTodayOverlay = ctx.largeTodayOverlayEnabled,
             todayOverlayData = todayOverlayData,
             useCelsius = ctx.stateManager.useCelsius(),
@@ -396,9 +397,9 @@ internal object DailyGraphRenderer {
             context = ctx.context,
             views = ctx.views,
             appWidgetId = ctx.appWidgetId,
-            showErrorWatermark = ctx.stateManager.isSourceErrored(ctx.displaySource),
-            errorCode = ctx.stateManager.getSourceLastErrorCode(ctx.displaySource),
-            bannerSinceMs = ctx.stateManager.getSourceBannerSince(ctx.displaySource),
+            showErrorWatermark = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).show,
+            errorCode = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).errorCode,
+            bannerSinceMs = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).bannerSinceMs,
             sourceId = ctx.displaySource.id,
         )
 

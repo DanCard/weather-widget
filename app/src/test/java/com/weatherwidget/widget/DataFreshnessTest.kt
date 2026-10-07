@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.SourceQuotaBlocks
 import com.weatherwidget.test.category.ShortDuration
@@ -55,8 +56,14 @@ class DataFreshnessTest {
     fun `a quota-blocked source is not stale however old`() {
         val now = System.currentTimeMillis()
         val google = WeatherSource.GOOGLE_WEATHER
-        SourceQuotaBlocks.block(google.id, now + 3_600_000L)
         val context = chargingScreenOn.copy(activeSourceIds = setOf(google.id))
+        val ages = mapOf(google.id to now - 7 * 3_600_000L, WeatherSource.NWS.id to now - 10 * 60_000L)
+
+        // Only the hourly product refused: the daily one still answers, so the source is due.
+        SourceQuotaBlocks.block(google.id, ForecastProduct.HOURLY, now + 3_600_000L)
+        assertTrue(DataFreshness.isStaleForSources(listOf(google, WeatherSource.NWS), ages, now, context))
+
+        SourceQuotaBlocks.block(google.id, ForecastProduct.DAILY, now + 3_600_000L)
         assertFalse(
             DataFreshness.isStaleForSources(
                 listOf(google, WeatherSource.NWS),

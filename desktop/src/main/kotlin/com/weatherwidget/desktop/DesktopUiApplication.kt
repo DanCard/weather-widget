@@ -656,8 +656,24 @@ internal fun runDesktopUiApplication() = application {
                     }.joinToString("\n")
                     currentTempFetchTimestamp = status.timestamp
                 } else {
-                    currentTempFetchError = null
                     currentTempFetchIsWarmup = false
+                    // No source-wide failure. The hourly view (the only one this banner draws on)
+                    // still names an hourly-forecast quota block: the daily forecast keeps updating,
+                    // so the refresh succeeded, but these hours are not (user, 2026-10-07).
+                    val hourlyQuota = weatherDao.getLatestProductQuota(src, com.weatherwidget.data.model.ForecastProduct.HOURLY)
+                        ?.takeIf { (loggedAt, msg) ->
+                            loggedAt > dismissedErrorTimestamp &&
+                                com.weatherwidget.data.local.desktop.ProductQuotaLog.parseUntilMs(msg) > System.currentTimeMillis()
+                        }
+                    currentTempFetchError = hourlyQuota?.let { (_, msg) ->
+                        val presentation = desktopHourlyQuotaPresentation(
+                            WeatherSource.fromId(src).displayName,
+                            com.weatherwidget.data.local.desktop.ProductQuotaLog.parseUntilMs(msg),
+                            com.weatherwidget.data.local.desktop.ProductQuotaLog.parseDetail(msg),
+                        )
+                        (listOf(presentation.title) + presentation.bodyLines + listOf("", presentation.retryLine)).joinToString("\n")
+                    }
+                    hourlyQuota?.let { currentTempFetchTimestamp = it.first }
                 }
             }
 

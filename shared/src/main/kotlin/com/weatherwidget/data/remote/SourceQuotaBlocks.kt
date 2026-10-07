@@ -1,30 +1,39 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.ForecastProduct
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Sources whose provider refused us until a known time (a daily quota), in this process.
+ * Forecast products a source's provider refused until a known time (a per-product daily quota), in
+ * this process.
  *
- * Read by the refresh triggers so a blocked source's staleness does not start a sync: on 2026-10-07
- * Google stayed stale behind a `forecast/hours` 429, and every widget tap forced a fetch of all five
- * sources, four times in 28 minutes. The API client that saw the refusal records it here
- * ([GoogleWeatherApi] on a daily-quota 429); nothing provider-specific lives in the readers.
+ * Per product, not per source (user, 2026-10-07): Google's `forecast/hours` and `forecast/days` have
+ * separate quotas, and blocking the source as a whole stopped the daily forecast and put "quota used"
+ * on the daily view when only the hourly quota was spent. Refresh triggers treat a source as blocked
+ * only when **every** forecast product is: with one left, a fetch still has something to get. The API
+ * client that saw the refusal records it here ([GoogleWeatherApi]).
  *
- * In-process only. After a restart the first fetch meets the refusal again (no network cost beyond
- * that one call) and re-records it.
+ * In-process only. After a restart the first fetch meets the refusal again (one request) and
+ * re-records it.
  */
 object SourceQuotaBlocks {
-    private val blockedUntilMs = ConcurrentHashMap<String, Long>()
+    private val blockedUntilMs = ConcurrentHashMap<Pair<String, ForecastProduct>, Long>()
 
-    fun block(sourceId: String, untilMs: Long) {
-        blockedUntilMs.merge(sourceId, untilMs, ::maxOf)
+    fun block(sourceId: String, product: ForecastProduct, untilMs: Long) {
+        blockedUntilMs.merge(sourceId to product, untilMs, ::maxOf)
     }
 
-    /** The end of [sourceId]'s block, or null when it is not blocked at [nowMs]. */
-    fun blockedUntil(sourceId: String, nowMs: Long): Long? =
-        blockedUntilMs[sourceId]?.takeIf { it > nowMs }
+    /** The end of [sourceId]'s [product] block, or null when it is not blocked at [nowMs]. */
+    fun blockedUntil(sourceId: String, product: ForecastProduct, nowMs: Long): Long? =
+        blockedUntilMs[sourceId to product]?.takeIf { it > nowMs }
 
-    fun isBlocked(sourceId: String, nowMs: Long): Boolean = blockedUntil(sourceId, nowMs) != null
+    /** When every forecast product of [sourceId] is blocked, the earliest of their ends; else null. */
+    fun fullyBlockedUntil(sourceId: String, nowMs: Long): Long? {
+        val ends = ForecastProduct.entries.map { blockedUntil(sourceId, it, nowMs) ?: return null }
+        return ends.min()
+    }
+
+    fun isFullyBlocked(sourceId: String, nowMs: Long): Boolean = fullyBlockedUntil(sourceId, nowMs) != null
 
     /** For tests. */
     fun reset() = blockedUntilMs.clear()

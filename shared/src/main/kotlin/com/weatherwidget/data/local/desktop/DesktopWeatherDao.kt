@@ -1176,6 +1176,20 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
+    /** The newest [ProductQuotaLog] row for [source]'s [product]: (timestamp, message), or null. */
+    fun getLatestProductQuota(source: String, product: com.weatherwidget.data.model.ForecastProduct): Pair<Long, String>? {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT timestamp, message FROM app_logs WHERE tag = '${ProductQuotaLog.TAG}' AND message LIKE ? ORDER BY timestamp DESC LIMIT 1"
+            ).use { stmt ->
+                stmt.setString(1, "source=$source product=${product.name} %")
+                val rs = stmt.executeQuery()
+                if (rs.next()) return rs.getLong("timestamp") to rs.getString("message")
+            }
+        }
+        return null
+    }
+
     fun getRecentLogs(limit: Int = 200): List<DesktopLogEntity> {
         val result = mutableListOf<DesktopLogEntity>()
         db.getConnection().use { conn ->

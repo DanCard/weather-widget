@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.model.ForecastProduct
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
@@ -386,11 +387,11 @@ object PrecipViewHandler {
                 numColumns = numColumns,
                 job = coroutineContext[Job],
                 onDebugLog = { renderLogs.add(it) },
-                showErrorWatermark = stateManager.isSourceErrored(displaySource),
+                showErrorWatermark = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).show,
                 errorSourceLabel = displaySource.displayName,
-                errorCode = stateManager.getSourceLastErrorCode(displaySource),
-                errorFailureTimeMs = stateManager.getSourceLastFailureTime(displaySource),
-                errorBannerSinceMs = stateManager.getSourceBannerSince(displaySource),
+                errorCode = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).errorCode,
+                errorFailureTimeMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).failureTimeMs,
+                errorBannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
             )
             renderLogs.forEach { appLogDao.log("PrecipGraph", it) }
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
@@ -412,9 +413,9 @@ object PrecipViewHandler {
                 context = context,
                 views = views,
                 appWidgetId = appWidgetId,
-                showErrorWatermark = stateManager.isSourceErrored(displaySource),
-                errorCode = stateManager.getSourceLastErrorCode(displaySource),
-                bannerSinceMs = stateManager.getSourceBannerSince(displaySource),
+                showErrorWatermark = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).show,
+                errorCode = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).errorCode,
+                bannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
                 sourceId = displaySource.id,
             )
         } else {

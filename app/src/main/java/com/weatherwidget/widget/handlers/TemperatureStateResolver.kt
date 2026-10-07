@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.model.ForecastProduct
 import android.content.Context
 import android.graphics.Color
 import android.util.Log
@@ -446,11 +447,11 @@ internal object TemperatureStateResolver {
                     numColumns = dimensions.cols,
                     job = coroutineContext[Job],
                     onFetchDotResolved = onFetchDotResolved,
-                    showErrorWatermark = stateManager.isSourceErrored(displaySource),
+                    showErrorWatermark = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).show,
                     errorSourceLabel = displaySource.displayName,
-                    errorCode = stateManager.getSourceLastErrorCode(displaySource),
-                    errorFailureTimeMs = stateManager.getSourceLastFailureTime(displaySource),
-                    errorBannerSinceMs = stateManager.getSourceBannerSince(displaySource),
+                    errorCode = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).errorCode,
+                    errorFailureTimeMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).failureTimeMs,
+                    errorBannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
                     useCelsius = useCelsius,
                     dominantStationLabel = dominantStationLabel,
                     actualsSourceLabel = actualsSourceLabel,

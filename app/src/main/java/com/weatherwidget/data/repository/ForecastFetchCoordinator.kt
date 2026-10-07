@@ -10,6 +10,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WidgetConstants
@@ -290,6 +291,29 @@ internal class ForecastFetchCoordinator(
     }
 
     /**
+     * Per-product quota state for the views: a product the provider refused is recorded (the hourly
+     * views or the daily view show it), one that answered is cleared. The fetch itself is a success
+     * for the source — the other product was saved — so no source failure is counted (user,
+     * 2026-10-07: an hours-only 429 put "quota used" on the daily view).
+     */
+    private suspend fun recordProductQuotas(source: WeatherSource, result: RawFetch) {
+        for (product in ForecastProduct.entries) {
+            val refusal = result.quotaRefused[product]
+            if (refusal == null) {
+                widgetStateManager.clearProductQuota(source, product)
+            } else {
+                widgetStateManager.recordProductQuota(
+                    source,
+                    product,
+                    refusal.untilMs,
+                    detail = ApiKeyRedaction.redact(refusal.detail),
+                )
+                appLogDao.log("FETCH_PRODUCT_QUOTA", "source=${source.id} product=$product until=${refusal.untilMs}", "WARN")
+            }
+        }
+    }
+
+    /**
      * Day/night precip for each daily row by the shared rule ([DailyPrecipPeriods], same as desktop):
      * the provider's own value carried on the row, else the max over the source's hourly rows as
      * stored now — every fetch saves its hourly rows before returning its daily ones, and a Google
@@ -458,6 +482,7 @@ internal class ForecastFetchCoordinator(
         fetch: suspend () -> RawFetch?,
     ): List<ForecastEntity>? {
         val result = fetch() ?: return null
+        recordProductQuotas(source, result)
         val actualsWrite = if (result.hourly.isNotEmpty()) {
             hourlyStore.saveHourlyEntitiesFromShared(
                 result.hourly,

@@ -46,3 +46,26 @@ object CurrentTempStatusLog {
     fun parseFailureDetail(message: String): String =
         message.substringAfter("detail=", "")
 }
+
+/**
+ * The PRODUCT_QUOTA message format — one forecast product of a source refused until a known time
+ * (a per-product daily quota) while the source as a whole still updates. Written by the desktop daemon
+ * when the state changes; read by the popup (a separate process) for the hourly view's banner. Readers
+ * depend on the `source=<id> product=<HOURLY|DAILY> ` prefix ([DesktopWeatherDao.getLatestProductQuota]'s
+ * LIKE filter), `until=<epoch ms>` (0 = cleared) and the trailing `detail=` (the 429 body).
+ */
+object ProductQuotaLog {
+    const val TAG = "PRODUCT_QUOTA"
+
+    fun blocked(sourceId: String, product: com.weatherwidget.data.model.ForecastProduct, untilMs: Long, detail: String): String =
+        "source=$sourceId product=${product.name} until=$untilMs detail=$detail"
+
+    fun cleared(sourceId: String, product: com.weatherwidget.data.model.ForecastProduct): String =
+        "source=$sourceId product=${product.name} until=0"
+
+    fun parseUntilMs(message: String): Long =
+        message.substringAfter("until=", "0").substringBefore(' ').toLongOrNull() ?: 0L
+
+    fun parseDetail(message: String): String = message.substringAfter("detail=", "")
+}
+

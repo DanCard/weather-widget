@@ -192,7 +192,22 @@ data class RawFetch(
     val providerCurrentCloudCoverLow: Int? = null,
     val providerCurrentCloudCoverMid: Int? = null,
     val providerCurrentCloudCoverHigh: Int? = null,
+    /**
+     * Forecast products the provider refused until a known time (a per-product daily quota), mapped
+     * to that time. The fetch still succeeded for the rest: e.g. Google's `forecast/hours` quota
+     * spent while `forecast/days` still answers. Views show only their own product's block.
+     */
+    val quotaRefused: Map<ForecastProduct, QuotaRefusal> = emptyMap(),
 )
+
+/** A product refused until [untilMs]; [detail] is the provider's 429 body, for the error page. */
+data class QuotaRefusal(val untilMs: Long, val detail: String)
+
+/**
+ * The two forecast products a provider can refuse separately, named by the view that shows them.
+ * Provider-neutral so renderers never name a provider.
+ */
+enum class ForecastProduct { HOURLY, DAILY }
 
 /**
  * What to display now, produced by the resolver. The five fields this holds are the only display

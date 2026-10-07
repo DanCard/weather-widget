@@ -42,7 +42,7 @@ object DataFreshness {
         nowMs: Long,
         fetchContext: ForecastFetchContext,
     ): DueState {
-        if (SourceQuotaBlocks.isBlocked(source.id, nowMs)) return DueState.BLOCKED
+        if (SourceQuotaBlocks.isFullyBlocked(source.id, nowMs)) return DueState.BLOCKED
         if (batchFetchedAt == null) return DueState.DUE
         val interval = intervalMinutes(source, fetchContext) ?: return DueState.SUSPENDED
         return if (ForecastFetchPolicy.isDue(batchFetchedAt, interval, nowMs)) DueState.DUE else DueState.FRESH

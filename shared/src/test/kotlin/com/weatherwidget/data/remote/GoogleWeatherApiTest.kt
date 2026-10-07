@@ -32,6 +32,7 @@ class GoogleWeatherApiTest {
     private val requests: MutableList<HttpRequestData> = java.util.Collections.synchronizedList(mutableListOf())
     private var historyStatus = HttpStatusCode.OK
     private var hoursErrorBody: String? = null
+    private var daysErrorBody: String? = null
     private var clockMs = java.time.Instant.parse("2026-10-06T18:00:00Z").toEpochMilli()
 
     private fun fixture(name: String): String =
@@ -42,6 +43,8 @@ class GoogleWeatherApiTest {
         val path = request.url.encodedPath
         val body = when {
             path.endsWith("currentConditions:lookup") -> fixture("current")
+            path.endsWith("forecast/days:lookup") && daysErrorBody != null ->
+                return respond(daysErrorBody!!, HttpStatusCode.TooManyRequests)
             path.endsWith("forecast/days:lookup") -> fixture("days")
             path.endsWith("history/hours:lookup") ->
                 if (historyStatus == HttpStatusCode.OK) {
@@ -242,43 +245,94 @@ class GoogleWeatherApiTest {
     // forecast/hours has a per-project daily quota (60 on 2026-10-06). The hours are not optional, so
     // after a daily 429 nothing can succeed until midnight Pacific.
 
-    private fun quota429(unit: String) = """
+    private fun quota429(unit: String, metric: String = "forecast/hours") = """
         {"error":{"code":429,"status":"RESOURCE_EXHAUSTED","details":[{
           "@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"RATE_LIMIT_EXCEEDED",
-          "metadata":{"quota_unit":"$unit","quota_limit":"ForecastHoursQueriesPerDay",
-                      "quota_metric":"weather.googleapis.com/forecast/hours"}}]}}
+          "metadata":{"quota_unit":"$unit","quota_limit":"QueriesPerDay",
+                      "quota_metric":"weather.googleapis.com/$metric"}}]}}
     """.trimIndent()
 
+    // forecast/hours and forecast/days each have their own per-project daily quota. Refusing one must
+    // not cost the other (user, 2026-10-07: the daily view said "quota used" when only hours was).
+
+    private fun hoursCalls() = requests.count { it.url.encodedPath.endsWith("forecast/hours:lookup") }
+    private fun daysCalls() = requests.count { it.url.encodedPath.endsWith("forecast/days:lookup") }
+    private val resetMs = java.time.Instant.parse("2026-10-07T07:00:00Z").toEpochMilli()
+
     @Test
-    fun `a daily-quota 429 on hours skips every request until the quota resets`() = runBlocking {
-        hoursErrorBody = quota429("1/d/{project}")
+    fun `an hours daily-quota 429 still returns the daily forecast and blocks only hours`() = runBlocking {
+        hoursErrorBody = quota429("1/d/{project}", "forecast/hours")
         val api = api()
 
-        val first = runCatching { api.getForecast(37.422, -122.084) }.exceptionOrNull()
-        assertTrue("the real 429 surfaces: $first", first is ApiAccessException && first.statusCode == 429)
-        assertTrue(GoogleQuota.isDailyQuotaExhausted(first))
-        val afterFirst = requests.size
+        val first = api.getForecast(37.422, -122.084, includeHistory = false)
+        assertEquals(10, first.daily.size)
+        assertTrue(first.hourly.isEmpty())
+        assertEquals(mapOf(com.weatherwidget.data.model.ForecastProduct.HOURLY to resetMs), first.quotaRefused.mapValues { it.value.untilMs })
+        assertTrue("carries the 429 body for the error page", GoogleQuota.isDailyQuotaExhausted(429, first.quotaRefused.values.single().detail))
+        assertEquals(resetMs, SourceQuotaBlocks.blockedUntil(WeatherSource.GOOGLE_WEATHER.id, com.weatherwidget.data.model.ForecastProduct.HOURLY, clockMs))
+        assertFalse("days still answer, so the source is not fully blocked", SourceQuotaBlocks.isFullyBlocked(WeatherSource.GOOGLE_WEATHER.id, clockMs))
 
-        val second = runCatching { api.getForecast(37.422, -122.084) }.exceptionOrNull()
-        assertTrue("skipped without a request: $second", second is GoogleDailyQuotaException)
-        assertEquals("no request into an exhausted daily quota", afterFirst, requests.size)
-        assertEquals(java.time.Instant.parse("2026-10-07T07:00:00Z").toEpochMilli(), (second as GoogleDailyQuotaException).resetAtMs)
+        val hoursBefore = hoursCalls()
+        val daysBefore = daysCalls()
+        val second = api.getForecast(37.422, -122.084, includeHistory = false)
+        assertEquals("no request into the exhausted hours quota", hoursBefore, hoursCalls())
+        assertEquals("days keep being fetched", daysBefore + 1, daysCalls())
+        assertEquals(10, second.daily.size)
+        assertEquals(setOf(com.weatherwidget.data.model.ForecastProduct.HOURLY), second.quotaRefused.keys)
+
+        // Midnight Pacific resets it.
+        clockMs = resetMs + 1_000L
+        hoursErrorBody = null
+        requests.clear() // the mock picks hour pages by counting prior hour requests
+        val reset = api.getForecast(37.422, -122.084, includeHistory = false)
+        assertEquals(72, reset.hourly.size)
+        assertTrue(reset.quotaRefused.isEmpty())
+    }
+
+    @Test
+    fun `a days daily-quota 429 still returns the hourly forecast and blocks only days`() = runBlocking {
+        daysErrorBody = quota429("1/d/{project}", "forecast/days")
+        val api = api()
+
+        val result = api.getForecast(37.422, -122.084, includeHistory = false)
+        assertEquals(72, result.hourly.size)
+        assertTrue(result.daily.isEmpty())
+        assertEquals(setOf(com.weatherwidget.data.model.ForecastProduct.DAILY), result.quotaRefused.keys)
+    }
+
+    @Test
+    fun `both quotas refused fails the fetch, then skips it without a request`() = runBlocking {
+        hoursErrorBody = quota429("1/d/{project}", "forecast/hours")
+        daysErrorBody = quota429("1/d/{project}", "forecast/days")
+        val api = api()
+
+        val first = runCatching { api.getForecast(37.422, -122.084, includeHistory = false) }.exceptionOrNull()
+        assertTrue("$first", first is GoogleDailyQuotaException)
+        assertTrue(SourceQuotaBlocks.isFullyBlocked(WeatherSource.GOOGLE_WEATHER.id, clockMs))
+        val before = requests.size
+
+        val second = runCatching { api.getForecast(37.422, -122.084, includeHistory = false) }.exceptionOrNull()
+        assertTrue("$second", second is GoogleDailyQuotaException)
+        assertEquals("no request while both are exhausted", before, requests.size)
+        assertEquals(resetMs, (second as GoogleDailyQuotaException).resetAtMs)
         assertTrue("carries the original body for classification", GoogleQuota.isDailyQuotaExhausted(second))
-        // Recorded for the refresh triggers, which must not treat a refused source as stale.
-        assertEquals(
-            second.resetAtMs,
-            SourceQuotaBlocks.blockedUntil(WeatherSource.GOOGLE_WEATHER.id, clockMs),
-        )
 
         // Current conditions has its own quota and keeps working.
         api.getCurrent(37.422, -122.084)
-        assertEquals(afterFirst + 1, requests.size)
+        assertEquals(before + 1, requests.size)
+    }
 
-        // Midnight Pacific resets it.
-        clockMs = java.time.Instant.parse("2026-10-07T07:00:01Z").toEpochMilli()
-        hoursErrorBody = null
-        requests.clear() // the mock picks hour pages by counting prior hour requests
-        assertEquals(72, api.getForecast(37.422, -122.084, includeHistory = false).hourly.size)
+    @Test
+    fun `quota product comes from the 429's quota metric`() {
+        assertEquals(com.weatherwidget.data.model.ForecastProduct.HOURLY, GoogleQuota.forecastProductOf(quota429("1/d/{project}", "forecast/hours")))
+        assertEquals(com.weatherwidget.data.model.ForecastProduct.DAILY, GoogleQuota.forecastProductOf(quota429("1/d/{project}", "forecast/days")))
+        assertEquals(null, GoogleQuota.forecastProductOf(quota429("1/d/{project}", "history/hours")))
+        assertEquals(null, GoogleQuota.forecastProductOf("no body"))
+        // The real 2026-10-06 days body, pretty-printed.
+        assertEquals(
+            com.weatherwidget.data.model.ForecastProduct.DAILY,
+            GoogleQuota.forecastProductOf(""" "quota_metric": "weather.googleapis.com/forecast/days", """),
+        )
     }
 
     @Test

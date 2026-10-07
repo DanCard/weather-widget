@@ -356,6 +356,10 @@
     <string name="updates_paused">CẬP NHẬT TẠM DỪNG</string>
     <string name="watermark_quota_daily">Hết hạn mức ngày · đặt lại lúc %1$s</string>
     <string name="watermark_quota_daily_short">Hết hạn mức ngày</string>
+    <string name="watermark_quota_hourly_forecast">Hết hạn mức dự báo theo giờ · đặt lại lúc %1$s</string>
+    <string name="watermark_quota_hourly_forecast_short">Hết hạn mức dự báo theo giờ</string>
+    <string name="watermark_quota_daily_forecast">Hết hạn mức dự báo theo ngày · đặt lại lúc %1$s</string>
+    <string name="watermark_quota_daily_forecast_short">Hết hạn mức dự báo theo ngày</string>
     <string name="error_details_title">Sự cố cập nhật</string>
     <string name="error_details_explain_quota">Hạn mức hằng ngày của khóa API này đã hết. Thời tiết đã lưu vẫn được hiển thị; cập nhật sẽ tiếp tục khi hạn mức đặt lại lúc %1$s.</string>
     <string name="error_details_explain_rate_limit">Nhà cung cấp đang giới hạn tần suất ứng dụng này yêu cầu dữ liệu. Thời tiết đã lưu vẫn được hiển thị; lần cập nhật theo lịch tiếp theo sẽ thử lại.</string>

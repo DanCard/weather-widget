@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.shared.util.DailyPrecipPeriods
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.*
@@ -656,6 +657,32 @@ class DesktopWeatherRepository(
     }
 
     /**
+     * Records which forecast products the provider refused (a per-product daily quota) for the
+     * popup's hourly-view banner; a product that answered clears its block. Logged only on change.
+     * The fetch is otherwise a success: an hours-only refusal must not fail the refresh or touch the
+     * daily view (user, 2026-10-07).
+     */
+    private fun recordProductQuotas(result: RawFetch, now: Long) {
+        for (product in ForecastProduct.entries) {
+            val refusal = result.quotaRefused[product]
+            val latestUntil = weatherDao.getLatestProductQuota(weatherSource, product)
+                ?.let { ProductQuotaLog.parseUntilMs(it.second) } ?: 0L
+            when {
+                refusal != null && refusal.untilMs != latestUntil -> weatherDao.log(
+                    ProductQuotaLog.TAG,
+                    ProductQuotaLog.blocked(weatherSource, product, refusal.untilMs, ApiKeyRedaction.redact(refusal.detail)),
+                    "WARN",
+                )
+                refusal == null && latestUntil > now -> weatherDao.log(
+                    ProductQuotaLog.TAG,
+                    ProductQuotaLog.cleared(weatherSource, product),
+                    "INFO",
+                )
+            }
+        }
+    }
+
+    /**
      * Day/night precip for each daily row by the shared rule ([DailyPrecipPeriods], same as Android):
      * the provider's own value, else the max over this source's hourly rows as stored now (just
      * upserted, plus hours a Google one-page fetch left in place).
@@ -690,6 +717,7 @@ class DesktopWeatherRepository(
      * reuse it for the hourly-history snapshot.
      */
     private suspend fun persistForecastResult(result: RawFetch, now: Long): List<HourlyForecast> {
+        recordProductQuotas(result, now)
         // Preserve the forecast that was actually shown for elapsed hours. Tomorrow's Timeline
         // response also contains a revised six-hour lookback; that slice belongs only in
         // observations and must not rewrite either live forecast storage or its snapshots.

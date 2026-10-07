@@ -51,11 +51,17 @@ class GoogleWeatherFetchIntegrationTest {
     @After
     fun tearDown() = db.close()
 
+    private var hoursErrorBody: String? = null
+    private lateinit var widgetStateManager: WidgetStateManager
+
     private fun repository(): ForecastRepository {
-        val google = GoogleWeatherApi(HttpClient(GoogleWeatherFixtures.engine(requests)), Json { ignoreUnknownKeys = true }) { "test-key" }
+        val google = GoogleWeatherApi(
+            HttpClient(GoogleWeatherFixtures.engine(requests, hoursErrorBody = hoursErrorBody)),
+            Json { ignoreUnknownKeys = true },
+        ) { "test-key" }
         val nwsApi = mockk<NwsApi>()
         coEvery { nwsApi.getGridPoint(any(), any()) } throws Exception("NWS not under test")
-        val widgetStateManager = mockk<WidgetStateManager>(relaxed = true)
+        widgetStateManager = mockk<WidgetStateManager>(relaxed = true)
         every { widgetStateManager.isSourceVisible(any()) } answers { firstArg<WeatherSource>() == WeatherSource.GOOGLE_WEATHER }
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.GOOGLE_WEATHER)
         every { widgetStateManager.getPrimarySource() } returns WeatherSource.GOOGLE_WEATHER
@@ -166,5 +172,26 @@ class GoogleWeatherFetchIntegrationTest {
         val hourlyCovered = afterFull.filterValues { (d, n) -> d != null || n != null }.keys
         assertTrue("fixture should give several days hourly-derived periods", hourlyCovered.size >= 3)
         hourlyCovered.forEach { date -> assertEquals("date=$date", afterFull[date], afterOnePage[date]) }
+    }
+
+    /**
+     * forecast/hours has its own daily quota. Spending it must not cost the daily forecast or put a
+     * source failure on every view (user, 2026-10-07): the daily rows are saved, only the hourly
+     * product is recorded as blocked.
+     */
+    @Test
+    fun `an hours-only quota 429 still saves the daily forecast and blocks only hourly`() = runTest {
+        hoursErrorBody = """{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","details":[{"metadata":{""" +
+            """"quota_unit":"1/d/{project}","quota_limit":"ForecastHoursQueriesPerDay",""" +
+            """"quota_metric":"weather.googleapis.com/forecast/hours"}}]}}"""
+        com.weatherwidget.data.remote.SourceQuotaBlocks.reset()
+        repository().getWeatherData(lat, lon, forceRefresh = true)
+
+        assertTrue("daily rows saved", count("SELECT COUNT(DISTINCT targetDate) FROM forecasts WHERE source = ?", source) >= 7)
+        assertEquals("no hourly rows from a refused product", 0L, count("SELECT COUNT(*) FROM hourly_forecasts WHERE source = ?", source))
+        io.mockk.verify(exactly = 0) { widgetStateManager.recordSourceFetchFailure(WeatherSource.GOOGLE_WEATHER, any(), any()) }
+        io.mockk.verify { widgetStateManager.recordProductQuota(WeatherSource.GOOGLE_WEATHER, com.weatherwidget.data.model.ForecastProduct.HOURLY, any(), any()) }
+        io.mockk.verify { widgetStateManager.clearProductQuota(WeatherSource.GOOGLE_WEATHER, com.weatherwidget.data.model.ForecastProduct.DAILY) }
+        com.weatherwidget.data.remote.SourceQuotaBlocks.reset()
     }
 }

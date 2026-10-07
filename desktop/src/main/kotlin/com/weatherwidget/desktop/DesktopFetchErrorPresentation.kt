@@ -115,3 +115,30 @@ internal fun desktopFetchErrorPresentation(
         }
     }
 }
+
+/**
+ * The hourly view's banner when only the hourly forecast product is refused (Google's separate
+ * `forecast/hours` daily quota) while the daily forecast keeps updating (user, 2026-10-07).
+ */
+internal fun desktopHourlyQuotaPresentation(
+    sourceDisplayName: String,
+    untilMs: Long,
+    detail: String,
+): DesktopFetchErrorPresentation {
+    val resetAt = DateTimeFormatter.ofPattern("h a").withZone(ZoneId.systemDefault())
+        .format(Instant.ofEpochMilli(untilMs))
+    val provider = ProviderErrorDetails.parse(detail)
+    return DesktopFetchErrorPresentation(
+        title = "${sourceDisplayName.uppercase()} HOURLY FORECAST QUOTA USED",
+        bodyLines = listOfNotNull(
+            "$sourceDisplayName's hourly-forecast quota for this API key is used up.",
+            provider?.quotaName?.let { name ->
+                "Quota: $name" + (provider.quotaLimit?.let { " — $it per day, shared by every device using this key" } ?: "")
+            },
+            "HTTP 429 — resets at $resetAt",
+            "The daily forecast is still updating; cached hourly data is shown.",
+        ),
+        retryLine = "Hourly updates resume automatically after the reset.",
+    )
+}
+

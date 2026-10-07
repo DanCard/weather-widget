@@ -31,11 +31,19 @@ object GoogleWeatherFixtures {
     val RECORDED_HOUR: Instant = Instant.parse("2026-10-06T17:00:00Z")
     private val ISO_INSTANT = Regex("""^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$""")
 
-    fun engine(requests: MutableList<HttpRequestData>, now: Instant = Instant.now()): MockEngine {
+    /** [hoursErrorBody]: when set, `forecast/hours` answers 429 with it (a spent per-product quota). */
+    fun engine(
+        requests: MutableList<HttpRequestData>,
+        now: Instant = Instant.now(),
+        hoursErrorBody: String? = null,
+    ): MockEngine {
         val shift = shiftFor(now)
         return MockEngine { request ->
             requests += request
             val path = request.url.encodedPath
+            if (hoursErrorBody != null && path.endsWith("forecast/hours:lookup")) {
+                return@MockEngine respond(hoursErrorBody, HttpStatusCode.TooManyRequests)
+            }
             val name = when {
                 path.endsWith("currentConditions:lookup") -> "current"
                 path.endsWith("forecast/days:lookup") -> "days"

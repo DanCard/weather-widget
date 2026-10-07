@@ -1,6 +1,8 @@
 package com.weatherwidget.data.remote
 
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastProduct
+import com.weatherwidget.data.model.QuotaRefusal
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
@@ -91,16 +93,35 @@ class GoogleWeatherApi(
     private var historyBlockedUntilMs = 0L
 
     /**
-     * After a *daily*-quota 429 on `forecast/hours` (`ForecastHoursQueriesPerDay`, 60/day per project
-     * on 2026-10-06), skip the whole forecast until the quota resets (in this process). The hours
-     * are not optional, so no fetch can succeed before then; current and days would be spent for
-     * nothing. A per-minute 429 does not block. [getCurrent] has its own quota and is untouched.
+     * Per-product daily-quota blocks: after a *daily*-quota 429 on `forecast/hours`
+     * (`ForecastHoursQueriesPerDay`) or `forecast/days` (`ForecastDaysQueriesPerDay`), that product is
+     * not requested again until the quota resets at midnight PT (in this process). Each has its own
+     * quota, so the other keeps being fetched (user, 2026-10-07: the old single block stopped the
+     * daily forecast and put "quota used" on the daily view when only the hourly quota was spent).
+     * A per-minute 429 does not block. [getCurrent] has its own quota and is untouched.
      */
-    @Volatile
-    private var forecastBlockedUntilMs = 0L
+    private data class ProductBlock(val untilMs: Long, val detail: String)
 
-    @Volatile
-    private var forecastBlockDetail = ""
+    private val productBlocks = java.util.concurrent.ConcurrentHashMap<ForecastProduct, ProductBlock>()
+
+    private fun activeBlock(product: ForecastProduct, nowMs: Long): ProductBlock? =
+        productBlocks[product]?.takeIf { nowMs < it.untilMs }
+
+    /**
+     * Runs one product's request. A daily-quota 429 blocks that product until the reset and returns
+     * null (the rest of the forecast proceeds); any other failure propagates as before.
+     */
+    private suspend fun <T> fetchProduct(product: ForecastProduct, request: suspend () -> T): T? =
+        try {
+            request()
+        } catch (e: ApiAccessException) {
+            if (!GoogleQuota.isDailyQuotaExhausted(e)) throw e
+            val until = GoogleQuota.nextResetMs(nowMs())
+            productBlocks[product] = ProductBlock(until, e.detail)
+            SourceQuotaBlocks.block(WeatherSource.GOOGLE_WEATHER.id, product, until)
+            Log.w(TAG, "$product daily quota exhausted; that product skipped until $until")
+            null
+        }
 
     /**
      * The last [getForecast]'s `forecast/hours` paging, e.g. `pages=1 reason=unchanged …`, for the
@@ -127,20 +148,39 @@ class GoogleWeatherApi(
         if (apiKey.isNullOrBlank()) {
             throw IllegalStateException("GOOGLE_WEATHER_API_KEY is missing.")
         }
-        val blockedUntil = forecastBlockedUntilMs
-        if (nowMs() < blockedUntil) {
-            Log.d(TAG, "forecast skipped: daily quota exhausted until $blockedUntil")
-            throw GoogleDailyQuotaException(blockedUntil, forecastBlockDetail)
+        val startMs = nowMs()
+        val hoursBlock = activeBlock(ForecastProduct.HOURLY, startMs)
+        val daysBlock = activeBlock(ForecastProduct.DAILY, startMs)
+        if (hoursBlock != null && daysBlock != null) {
+            Log.d(TAG, "forecast skipped: hourly and daily quotas exhausted")
+            throw GoogleDailyQuotaException(minOf(hoursBlock.untilMs, daysBlock.untilMs), hoursBlock.detail)
         }
 
-        val currentDeferred = async { fetchJson(apiKey, "/currentConditions:lookup", lat, lon) }
-        val daysDeferred = async {
-            fetchJson(apiKey, "/forecast/days:lookup", lat, lon) {
-                parameter("days", FORECAST_DAYS)
-                parameter("pageSize", FORECAST_DAYS)
+        // Current conditions ride along for the header; their own quota refusing must not cost the
+        // forecast, so a daily-quota 429 there just leaves the current fields empty.
+        val currentDeferred = async {
+            try {
+                fetchJson(apiKey, "/currentConditions:lookup", lat, lon)
+            } catch (e: ApiAccessException) {
+                if (!GoogleQuota.isDailyQuotaExhausted(e)) throw e
+                null
             }
         }
-        val hoursDeferred = async { fetchForecastHours(apiKey, lat, lon, storedHours) }
+        val daysDeferred = async {
+            if (daysBlock != null) {
+                null
+            } else {
+                fetchProduct(ForecastProduct.DAILY) {
+                    fetchJson(apiKey, "/forecast/days:lookup", lat, lon) {
+                        parameter("days", FORECAST_DAYS)
+                        parameter("pageSize", FORECAST_DAYS)
+                    }
+                }
+            }
+        }
+        val hoursDeferred = async {
+            if (hoursBlock != null) null else fetchProduct(ForecastProduct.HOURLY) { fetchForecastHours(apiKey, lat, lon, storedHours) }
+        }
         val requestHistory = includeHistory && nowMs() >= historyBlockedUntilMs
         val historyDeferred = if (requestHistory) async { fetchHistoryOrNull(apiKey, lat, lon) } else null
 
@@ -152,7 +192,23 @@ class GoogleWeatherApi(
             Log.d(TAG, "history skipped included=$includeHistory blockedUntil=$historyBlockedUntilMs")
         }
 
-        parse(current, days, forecastHours, history?.get("historyHours")?.jsonArray.orEmpty())
+        val refused = ForecastProduct.entries
+            .mapNotNull { product -> activeBlock(product, nowMs())?.let { product to it } }
+            .toMap()
+        if (days == null && forecastHours == null) {
+            // Both refused (one now, one earlier, or both now): nothing to return.
+            val first = refused.values.minBy { it.untilMs }
+            throw GoogleDailyQuotaException(first.untilMs, first.detail)
+        }
+        if (forecastHours == null) lastHoursPaging = "pages=0 reason=quota_blocked"
+
+        parse(
+            current,
+            days,
+            forecastHours.orEmpty(),
+            // Elapsed hours only make sense beside a forecast-hours payload.
+            if (forecastHours == null) emptyList() else history?.get("historyHours")?.jsonArray.orEmpty(),
+        ).copy(quotaRefused = refused.mapValues { QuotaRefusal(it.value.untilMs, it.value.detail) })
     }
 
     private suspend fun fetchHistoryOrNull(apiKey: String, lat: Double, lon: Double): JsonObject? =
@@ -196,20 +252,10 @@ class GoogleWeatherApi(
         var pageToken: String? = null
         var pages = 0
         do {
-            val page = try {
-                fetchJson(apiKey, "/forecast/hours:lookup", lat, lon) {
-                    parameter("hours", FORECAST_HOURS)
-                    parameter("pageSize", PAGE_SIZE)
-                    pageToken?.let { parameter("pageToken", it) }
-                }
-            } catch (e: ApiAccessException) {
-                if (GoogleQuota.isDailyQuotaExhausted(e)) {
-                    forecastBlockDetail = e.detail
-                    forecastBlockedUntilMs = GoogleQuota.nextResetMs(nowMs())
-                    SourceQuotaBlocks.block(WeatherSource.GOOGLE_WEATHER.id, forecastBlockedUntilMs)
-                    Log.w(TAG, "forecast/hours daily quota exhausted; forecast skipped until $forecastBlockedUntilMs")
-                }
-                throw e
+            val page = fetchJson(apiKey, "/forecast/hours:lookup", lat, lon) {
+                parameter("hours", FORECAST_HOURS)
+                parameter("pageSize", PAGE_SIZE)
+                pageToken?.let { parameter("pageToken", it) }
             }
             pages++
             page["forecastHours"]?.jsonArray?.mapTo(hours) { it.jsonObject }
@@ -231,8 +277,8 @@ class GoogleWeatherApi(
     }
 
     internal fun parse(
-        current: JsonObject,
-        days: JsonObject,
+        current: JsonObject?,
+        days: JsonObject?,
         forecastHours: List<JsonObject>,
         historyHours: List<kotlinx.serialization.json.JsonElement>,
     ): RawFetch {
@@ -245,14 +291,14 @@ class GoogleWeatherApi(
             .filter { it.dateTime < firstForecastMs }
         val hourly = (elapsed + forecast).distinctBy { it.dateTime }.sortedBy { it.dateTime }
 
-        val daily = days["forecastDays"]?.jsonArray.orEmpty().mapNotNull { parseDay(it.jsonObject) }
+        val daily = days?.get("forecastDays")?.jsonArray.orEmpty().mapNotNull { parseDay(it.jsonObject) }
 
         Log.d(
             TAG,
             "parsed daily=${daily.size} hourly=${hourly.size} elapsed=${elapsed.size} " +
-                "currentTemp=${current.degrees("temperature")}",
+                "currentTemp=${current?.degrees("temperature")}",
         )
-        return parseCurrent(current).copy(daily = daily, hourly = hourly)
+        return (current?.let(::parseCurrent) ?: RawFetch()).copy(daily = daily, hourly = hourly)
     }
 
     private fun parseCurrent(current: JsonObject): RawFetch =
