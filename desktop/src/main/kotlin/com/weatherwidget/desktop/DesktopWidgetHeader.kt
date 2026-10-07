@@ -219,7 +219,7 @@ internal fun WidgetHeader(
                         // 0xAAFFFFFF) instead of the 🌡️ emoji, so it no longer collides with the graph
                         // selector's HOURLY (🌡️) cycle hint.
                         Icon(
-                            painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
+                            painter = painterResource("drawable/ic_thermometer.xml"),
                             contentDescription = "Weather station observations",
                             tint = Color.White.copy(alpha = 0.67f),
                             modifier = Modifier.size((15 * scale).dp).clickable {
@@ -229,7 +229,7 @@ internal fun WidgetHeader(
                         // Home/Daily view mode — ports Android's ic_home line icon
                         // (drawable/ic_home.xml) instead of the 🏠 emoji for parity.
                         Icon(
-                            painter = androidx.compose.ui.res.painterResource("drawable/ic_home.xml"),
+                            painter = painterResource("drawable/ic_home.xml"),
                             contentDescription = "Daily view",
                             tint = Color.White.copy(alpha = 0.6f),
                             modifier = Modifier.size((15 * scale).dp).clickable {
@@ -242,7 +242,7 @@ internal fun WidgetHeader(
                         // window's center date (Android: centerTime.toLocalDate()), so panning
                         // back to Wednesday and tapping opens Wednesday, not today.
                         Icon(
-                            painter = androidx.compose.ui.res.painterResource("drawable/ic_forecast_history_line.xml"),
+                            painter = painterResource("drawable/ic_forecast_history_line.xml"),
                             contentDescription = "Forecast history",
                             tint = Color.White.copy(alpha = 0.6f),
                             modifier = Modifier.size((15 * scale).dp).clickable {
@@ -294,7 +294,7 @@ internal fun WidgetHeader(
                             // AND yesterday are panned off screen — matching Android's daily header.
                             if (observationsInView) {
                                 Icon(
-                                    painter = androidx.compose.ui.res.painterResource("drawable/ic_thermometer.xml"),
+                                    painter = painterResource("drawable/ic_thermometer.xml"),
                                     contentDescription = "Weather station observations",
                                     tint = Color.White.copy(alpha = 0.67f),
                                     modifier = Modifier.size(iconSizeDp.dp).clickable {
@@ -304,7 +304,7 @@ internal fun WidgetHeader(
                             }
                             if (showHomeButton) {
                                 Icon(
-                                    painter = androidx.compose.ui.res.painterResource("drawable/ic_home.xml"),
+                                    painter = painterResource("drawable/ic_home.xml"),
                                     contentDescription = "Back to the preferred weather source",
                                     tint = Color.White.copy(alpha = 0.6f),
                                     modifier = Modifier.size(iconSizeDp.dp).clickable {
@@ -322,7 +322,7 @@ internal fun WidgetHeader(
                             }
                             // Opens today while today is on screen, otherwise the viewed date.
                             Icon(
-                                painter = androidx.compose.ui.res.painterResource("drawable/ic_forecast_history_line.xml"),
+                                painter = painterResource("drawable/ic_forecast_history_line.xml"),
                                 contentDescription = "Forecast history",
                                 tint = Color.White.copy(alpha = 0.6f),
                                 modifier = Modifier.size(iconSizeDp.dp).clickable {
@@ -376,7 +376,7 @@ internal fun WidgetHeader(
                     )
                 }
                 Icon(
-                    painter = androidx.compose.ui.res.painterResource("drawable/ic_settings_gear.xml"),
+                    painter = painterResource("drawable/ic_settings_gear.xml"),
                     contentDescription = "Settings",
                     modifier = Modifier.size((14 * scale).dp).clickable { onOpenSettings() },
                     tint = Color.White.copy(alpha = 0.7f)

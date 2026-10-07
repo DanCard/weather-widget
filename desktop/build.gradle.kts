@@ -79,6 +79,7 @@ dependencies {
 
     // Compose for Desktop (Skia-backed UI).
     implementation(compose.desktop.currentOs)
+    implementation(compose.components.resources)
     implementation("org.jetbrains.compose.material3:material3:1.7.3")
     implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
 

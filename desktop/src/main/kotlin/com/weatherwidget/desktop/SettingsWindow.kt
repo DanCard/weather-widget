@@ -878,7 +878,7 @@ internal fun IconGallery(iconSize: Dp = 32.dp, cellWidth: Dp = 80.dp) {
                 modifier = Modifier.width(cellWidth)
             ) {
                 androidx.compose.foundation.Image(
-                    painter = androidx.compose.ui.res.painterResource(res),
+                    painter = painterResource(res),
                     contentDescription = name,
                     modifier = Modifier.size(iconSize)
                 )
