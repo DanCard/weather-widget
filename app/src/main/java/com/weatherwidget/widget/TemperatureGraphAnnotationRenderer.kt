@@ -19,7 +19,7 @@ import com.weatherwidget.shared.graph.TemperatureLabelEngine
 import com.weatherwidget.shared.graph.TemperatureRole
 import com.weatherwidget.shared.graph.ForecastDeltaLabel
 import com.weatherwidget.shared.util.TempUtils
-import com.weatherwidget.util.WeatherConditionColors
+import com.weatherwidget.shared.graph.TemperatureLabelColors
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -152,29 +152,16 @@ internal object TemperatureGraphAnnotationRenderer {
             )
 
         placements.forEach { placement ->
+            // Colours are the shared rule (desktop draws the same); the paints carry size and shadow.
+            val hour = hours[placement.index.coerceAtMost(hours.lastIndex)]
+            val labelArgb = TemperatureLabelColors.labelArgb(placement.isFuture, TemperatureLabelColors.conditionOf(hour))
             val labelPaint =
-                if (placement.isFuture) {
-                    val hour = hours[placement.index.coerceAtMost(hours.lastIndex)]
-                    Paint(input.paints.forecastTempLabelTextPaint).also {
-                        it.color =
-                            WeatherConditionColors.forecastColor(
-                                hour.isSunny,
-                                hour.isRainy,
-                                hour.isMixed,
-                                hour.isNight,
-                                hour.isTwilight,
-                            )
-                    }
-                } else {
-                    input.paints.actualTempLabelTextPaint
-                }
+                Paint(
+                    if (placement.isFuture) input.paints.forecastTempLabelTextPaint else input.paints.actualTempLabelTextPaint,
+                ).also { it.color = labelArgb }
             val leaderLinePaint =
-                if (placement.isFuture) {
-                    Paint(input.paints.forecastLeaderLinePaint).also {
-                        it.color = TemperatureGraphStyle.withAlpha(labelPaint.color, 80)
-                    }
-                } else {
-                    input.paints.actualLeaderLinePaint
+                Paint(input.paints.forecastLeaderLinePaint).also {
+                    it.color = TemperatureLabelColors.leaderArgb(labelArgb)
                 }
             if (placement.drawLeaderLine) {
                 input.canvas.drawLine(

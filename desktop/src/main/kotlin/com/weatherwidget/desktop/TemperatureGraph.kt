@@ -39,6 +39,8 @@ import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.graph.GraphEmptySpaceFinder
 import com.weatherwidget.shared.graph.HourDataAssembler
+import com.weatherwidget.shared.graph.TemperatureLabelColors
+import com.weatherwidget.shared.util.WeatherConditionResolver
 import com.weatherwidget.shared.graph.*
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.util.Log
@@ -62,6 +64,15 @@ import kotlin.math.roundToInt
  * is drawn solid.
  */
 private val COLOR_ACTUAL = Color(com.weatherwidget.shared.util.WeatherColors.OBSERVED)
+
+/** An hour's weather condition — icon plus sun position — for its forecast colour (curve and labels). */
+private fun conditionFlagsOf(p: HourlyForecast, latitude: Double, longitude: Double): WeatherConditionResolver.ConditionFlags {
+    val localDateTime = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
+    val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localDateTime, latitude, longitude)
+    return WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
+        isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT,
+    )
+}
 
 // Floors for the actual-line blend context window. The effective window scales with the visible
 // back/forward span (see the build() call) so the pink actual line reaches the left edge at any
@@ -387,13 +398,7 @@ fun TemperatureGraph(
         if (coords.size >= 2) {
             val tangents = computeTangents(coords)
             for (i in 0 until coords.size - 1) {
-                val p = points[i + 1]
-                val localZdt = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
-                val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localZdt, latitude, longitude)
-                val flags = WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
-                    isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT
-                )
-                val segmentColor = forecastColor(flags)
+                val segmentColor = forecastColor(conditionFlagsOf(points[i + 1], latitude, longitude))
                 val segmentPath = Path().apply {
                     moveTo(coords[i].x, coords[i].y)
                     val cp1x = coords[i].x + tangents[i].x / 3f
@@ -723,15 +728,14 @@ fun TemperatureGraph(
             }
         }
         for (label in placements) {
-            val color = when (label.role) {
-                TemperatureRole.HIGH, TemperatureRole.LOW -> Color.White
-                TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW -> Color.White
-                TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW -> Color.White
-                TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_END -> COLOR_ACTUAL
-                TemperatureRole.LOCAL -> Color.White
-                TemperatureRole.CENTER -> if (label.isFuture) Color.White else COLOR_ACTUAL
-                TemperatureRole.START, TemperatureRole.END -> Color.White.copy(alpha = 0.6f)
-            }
+            // The shared rule (the widget draws the same): a forecast label wears its hour's
+            // weather colour — the dashed segment's — and an actual label the observed rose.
+            val labelTimeMs = msOf(hourDataList[label.index.coerceIn(0, hourDataList.lastIndex)].dateTime)
+            val labelPoint = points.minByOrNull { kotlin.math.abs(it.dateTime - labelTimeMs) }
+            val condition = labelPoint?.let { conditionFlagsOf(it, latitude, longitude) }
+                ?: WeatherConditionResolver.ConditionFlags(isSunny = false, isRainy = false, isMixed = false)
+            val labelArgb = TemperatureLabelColors.labelArgb(label.isFuture, condition)
+            val color = Color(labelArgb)
             val textLayout = textMeasurer.measure(label.text, TextStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp, color = color))
             val textWidth = textLayout.size.width.toFloat()
             val textHeight = textLayout.size.height.toFloat()
@@ -747,10 +751,10 @@ fun TemperatureGraph(
 
             if (label.drawLeaderLine) {
                 drawLine(
-                    color = Color.White.copy(alpha = 0.35f),
+                    color = Color(TemperatureLabelColors.leaderArgb(labelArgb)),
                     start = Offset(label.x, label.leaderFromY),
                     end = Offset(label.x, label.leaderToY),
-                    strokeWidth = 0.5.dp.toPx() * scale
+                    strokeWidth = TemperatureLabelColors.LEADER_STROKE_DP.dp.toPx() * scale
                 )
             }
         }
