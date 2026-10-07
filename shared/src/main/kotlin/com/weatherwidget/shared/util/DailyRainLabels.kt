@@ -175,30 +175,33 @@ object DailyRainLabels {
         fallbackSourceId: String = WeatherSource.GENERIC_GAP.id,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): DayNightPrecip {
-        // Daytime: 8:00 AM to 8:00 PM on the target date.
-        val dayStartMs = targetDate.atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
-        val dayEndMs = targetDate.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
-        // Nighttime: 8:00 PM on target date to 8:00 AM next day.
-        val nightStartMs = dayEndMs
-        val nightEndMs = targetDate.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
-
         val sourceForecasts = hourly.filter { it.source == displaySourceId }
         val candidates = if (sourceForecasts.isNotEmpty()) {
             sourceForecasts
         } else {
             hourly.filter { it.source == fallbackSourceId }
         }
+        return periodMaxima(candidates, targetDate, zoneId)
+    }
 
-        val dayMax = candidates
-            .filter { it.dateTime in dayStartMs until dayEndMs }
+    /**
+     * Max precip probability over the daytime (8am–8pm) and nighttime (8pm–8am next day) windows of
+     * [targetDate], over [rows] as given (no source selection). The one window definition, used by
+     * the display ([calculateDayNightPrecipProbabilities]) and by storage ([DailyPrecipPeriods]).
+     */
+    fun periodMaxima(
+        rows: List<HourlyForecast>,
+        targetDate: LocalDate,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): DayNightPrecip {
+        val dayStartMs = targetDate.atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+        val dayEndMs = targetDate.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
+        val nightEndMs = targetDate.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+        fun maxIn(start: Long, end: Long) = rows
+            .filter { it.dateTime in start until end }
             .mapNotNull { it.precipProbability }
             .maxOrNull()
-        val nightMax = candidates
-            .filter { it.dateTime in nightStartMs until nightEndMs }
-            .mapNotNull { it.precipProbability }
-            .maxOrNull()
-
-        return DayNightPrecip(dayMax = dayMax, nightMax = nightMax)
+        return DayNightPrecip(dayMax = maxIn(dayStartMs, dayEndMs), nightMax = maxIn(dayEndMs, nightEndMs))
     }
 
     /** The day/night precip % chosen for the daily label + icon (see [resolveDailyLabelPrecip]). */

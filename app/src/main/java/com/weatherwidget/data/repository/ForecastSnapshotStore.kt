@@ -36,28 +36,18 @@ internal class ForecastSnapshotStore(
      */
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
+    /**
+     * Maps a provider's daily row. Day/night precip are the provider's own values here; the stored
+     * values are resolved once at save time from the stored hourly rows ([DailyPrecipPeriods], shared
+     * with desktop) — see [ForecastFetchCoordinator.withStoredPrecipPeriods].
+     */
     fun mapDailyForecast(
         day: DailyForecast,
         latitude: Double,
         longitude: Double,
         sourceId: String,
-        hourlyForecasts: List<HourlyForecast> = emptyList(),
     ): ForecastEntity {
         val targetDate = LocalDate.parse(day.date)
-        val zone = ZoneId.systemDefault()
-        val dayStart = targetDate.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
-        val dayEnd = targetDate.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
-        val nightStart = dayEnd
-        val nightEnd = targetDate.plusDays(1).atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
-
-        val calcDaytime = hourlyForecasts
-            .filter { it.dateTime >= dayStart && it.dateTime < dayEnd }
-            .mapNotNull { it.precipProbability }
-            .maxOrNull()
-        val calcNighttime = hourlyForecasts
-            .filter { it.dateTime >= nightStart && it.dateTime < nightEnd }
-            .mapNotNull { it.precipProbability }
-            .maxOrNull()
 
         return ForecastEntity(
             targetDate = targetDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
@@ -71,8 +61,8 @@ internal class ForecastSnapshotStore(
             isClimateNormal = false,
             source = sourceId,
             precipProbability = day.precipProbability,
-            daytimePrecipProbability = calcDaytime,
-            nighttimePrecipProbability = calcNighttime,
+            daytimePrecipProbability = day.daytimePrecipProbability,
+            nighttimePrecipProbability = day.nighttimePrecipProbability,
             precipAmountMm = day.precipAmountMm,
         )
     }

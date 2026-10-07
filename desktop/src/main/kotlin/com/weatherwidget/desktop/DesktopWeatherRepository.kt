@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.util.DailyPrecipPeriods
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.*
@@ -655,6 +656,34 @@ class DesktopWeatherRepository(
     }
 
     /**
+     * Day/night precip for each daily row by the shared rule ([DailyPrecipPeriods], same as Android):
+     * the provider's own value, else the max over this source's hourly rows as stored now (just
+     * upserted, plus hours a Google one-page fetch left in place).
+     */
+    private fun withStoredPrecipPeriods(daily: List<DailyForecast>): List<DailyForecast> {
+        val dated = daily.mapNotNull { day -> runCatching { java.time.LocalDate.parse(day.date) }.getOrNull()?.let { day to it } }
+        if (dated.isEmpty()) return daily
+        val stored = DailyPrecipPeriods.atSite(
+            weatherDao.getHourlyForecasts(
+                LocationMatch.quantize(latitude),
+                LocationMatch.quantize(longitude),
+                weatherSource,
+                DailyPrecipPeriods.readStartMs(dated.minOf { it.second }),
+                DailyPrecipPeriods.readEndMs(dated.maxOf { it.second }),
+            ),
+            latitude,
+            longitude,
+        )
+        val byDate = dated.associate { (day, date) ->
+            day.date to DailyPrecipPeriods.resolve(date, stored, day.daytimePrecipProbability, day.nighttimePrecipProbability)
+        }
+        return daily.map { day ->
+            val periods = byDate[day.date] ?: return@map day
+            day.copy(daytimePrecipProbability = periods.day, nighttimePrecipProbability = periods.night)
+        }
+    }
+
+    /**
      * Persists the just-fetched [result]: the elapsed-hour forecast rows, the daily forecast, and
      * any observations (with the `BACKFILL_CLOUD` diagnostic that separates "backfill produced no
      * cloud" from "the write dropped it"). Returns the filtered [forecastHours] so [refresh] can
@@ -667,9 +696,11 @@ class DesktopWeatherRepository(
         val forecastHours = result.hourly.filter { it.dateTime >= now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
         weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, forecastHours)
         val today = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-        val forecastDaily = result.daily.filter {
-            runCatching { java.time.LocalDate.parse(it.date) >= today }.getOrDefault(true)
-        }
+        val forecastDaily = withStoredPrecipPeriods(
+            result.daily.filter {
+                runCatching { java.time.LocalDate.parse(it.date) >= today }.getOrDefault(true)
+            },
+        )
         weatherDao.upsertForecasts(latitude, longitude, weatherSource, forecastDaily)
 
         // NWS api actuals are NOT written here. The gridpoint maxTemperature/minTemperature

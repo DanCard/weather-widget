@@ -398,23 +398,6 @@ class ForecastRepository
         }
 
         @VisibleForTesting
-        internal fun mapDailyForecast(
-            day: DailyForecast,
-            latitude: Double,
-            longitude: Double,
-            sourceId: String,
-            hourlyForecasts: List<HourlyForecast> = emptyList(),
-        ): ForecastEntity {
-            return snapshotStore.mapDailyForecast(
-                day,
-                latitude,
-                longitude,
-                sourceId,
-                hourlyForecasts,
-            )
-        }
-
-        @VisibleForTesting
         internal suspend fun saveForecastSnapshot(
             weatherForecasts: List<ForecastEntity>,
             latitude: Double,

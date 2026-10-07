@@ -130,4 +130,41 @@ class GoogleWeatherFetchIntegrationTest {
         assertEquals("3 pages, then 1 for an unchanged first page", 4, hourPages)
         assertEquals(9, requests.count { it.url.host == "weather.googleapis.com" })
     }
+
+    /** targetDate -> (day, night) precip on the newest batch of Google daily rows. */
+    private fun storedPeriods(): Map<Long, Pair<Int?, Int?>> =
+        db.openHelper.readableDatabase.query(
+            "SELECT targetDate, daytimePrecipProbability, nighttimePrecipProbability FROM forecasts " +
+                "WHERE source = ? AND batchFetchedAt = (SELECT MAX(batchFetchedAt) FROM forecasts WHERE source = ?)",
+            arrayOf(source, source),
+        ).use { c ->
+            buildMap {
+                while (c.moveToNext()) {
+                    put(c.getLong(0), (if (c.isNull(1)) null else c.getInt(1)) to (if (c.isNull(2)) null else c.getInt(2)))
+                }
+            }
+        }
+
+    /**
+     * A one-page fetch returns 24 h. Day/night precip are resolved from the hourly rows as stored
+     * (shared DailyPrecipPeriods), so days 2–3 keep the values the full fetch gave them instead of
+     * dropping to the provider-only value or null.
+     */
+    @Test
+    fun `a one-page fetch keeps days 2-3 day and night precip from the stored hours`() = runTest {
+        val repo = repository()
+        repo.getWeatherData(lat, lon, forceRefresh = true)
+        val afterFull = storedPeriods()
+        repo.getWeatherData(lat, lon, forceRefresh = true)
+        assertEquals(
+            "second fetch must be the one-page path",
+            4,
+            requests.count { it.url.encodedPath.endsWith("forecast/hours:lookup") },
+        )
+        val afterOnePage = storedPeriods()
+
+        val hourlyCovered = afterFull.filterValues { (d, n) -> d != null || n != null }.keys
+        assertTrue("fixture should give several days hourly-derived periods", hourlyCovered.size >= 3)
+        hourlyCovered.forEach { date -> assertEquals("date=$date", afterFull[date], afterOnePage[date]) }
+    }
 }
