@@ -39,7 +39,9 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   keys baked from `local.properties` (decision 2026-07-08: out-of-the-box premium sources over
   quota-theft risk; usage is tracked in `api_usage_stats`) — **except Google Weather**, billed per
   request, whose key is baked into debug builds only (release `BuildConfig` field is `""`).
-  Google is forecast-only (borrows actuals); one full fetch = 6 requests, current temp = 1.
+  Google is forecast-only (borrows actuals); one full fetch = 4–6 requests (`forecast/hours` page 1, then
+  pages 2–3 only if page 1 changed — `GoogleHourPaging`), current temp = 1. Its quotas are per project,
+  per Pacific calendar day (429 `window_start_time` = PT midnight, verified 2026-10-07).
   See `plans/261006-add-google-weather-source.md`.
 - **Borrowed actuals default by location:** a forecast-only source (Google, Silurian) with no
   explicit provider uses **NWS inside `NwsCoverage`, METAR elsewhere**. The default is derived on
@@ -254,7 +256,7 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 | Update Type | Frequency | Wakeup | Purpose |
 |-------------|-----------|--------|---------|
 | Current Temp UI | 15-60 min (temp-based) | No (opportunistic) | Update interpolated temp from cache |
-| Data Fetch | 60-1440 min (battery-aware) | Yes (controlled) | Fetch from APIs |
+| Data Fetch | 240-1440 min (battery-aware) | Yes (controlled) | Fetch from APIs |
 | Recent observations | Charging 10 min (screen off 16); **battery ≥70% + screen on ~20 min** (non-wakeup `setAndAllowWhileIdle` alarm ⇒ ~14–25 min + expedited fetch, so it runs under Pixel Adaptive Battery Saver, which is on whenever unplugged; screen-on fetches now if last ≥20 min; primary source only); else 45-min opportunistic job (>65%) | No (charging: WorkManager loop; battery: RTC alarm; 45-min: JobScheduler) | `CurrentTempFetchPolicy.loopIntervalMinutes` is the one rule; desktop mirrors it (`performance/261003-observations-every-20-min-on-battery-screen-on.md`) |
 | User Interaction | Immediate | N/A | Instant UI + conditional fetch |
 | Charger plug-in | Immediate | JobScheduler charging constraint | `PowerConnectedJobService`: refresh + location resample |
@@ -265,9 +267,9 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 
 | Condition | Interval | Constant |
 |-----------|----------|----------|
-| Charging | 60 min | `ForecastFetchPolicy.CHARGING_SCREEN_ON_ACTIVE_MINUTES` |
-| Battery > 70% | 240 min | `BatteryTier.INTERVAL_HIGH_MINUTES` |
-| Battery 50-70% | 480 min | `BatteryTier.INTERVAL_MEDIUM_MINUTES` |
+| Charging (or ≥80%) | displayed 240 / 360 min, others 480 / 720 (screen on / off) | `ForecastCadence` (`:shared`, both platforms) |
+| Battery > 70% | 240 min (others ×2) | `BatteryTier.INTERVAL_HIGH_MINUTES` |
+| Battery 50-70% | 480 min (others ×2) | `BatteryTier.INTERVAL_MEDIUM_MINUTES` |
 | Battery ≤ 50% | 1440 min | `computeFetchInterval` returns null → `OFF_CHARGER_LOW_BATTERY_TICK_MINUTES` |
 
 This table read 60/120/240/480 until 2026-08-28 — wrong in the flattering direction, and off by up

@@ -66,6 +66,51 @@ class GoogleWeatherApiTest {
 
     private fun historyCalls() = requests.count { it.url.encodedPath.endsWith("history/hours:lookup") }
 
+    private fun hourPageCalls() = requests.count { it.url.encodedPath.endsWith("forecast/hours:lookup") }
+
+    @org.junit.After
+    fun clearQuotaBlocks() = SourceQuotaBlocks.reset()
+
+    /** The 72 forecast hours of one full fetch, as they would sit in the DB an hour later. */
+    private suspend fun storedAfterFullFetch(): List<com.weatherwidget.data.model.HourlyForecast> {
+        val first = api().getForecast(37.422, -122.084, includeHistory = false)
+        return first.hourly.map { it.copy(fetchedAt = clockMs - 3_600_000L) }
+    }
+
+    @Test
+    fun `unchanged first page costs one hour call, not three`() = runBlocking {
+        val stored = storedAfterFullFetch()
+        requests.clear()
+        val google = api()
+
+        val result = google.getForecast(37.422, -122.084, includeHistory = false, storedHours = stored)
+
+        assertEquals(1, hourPageCalls())
+        assertEquals(24, result.hourly.size)
+        assertTrue(google.lastHoursPaging!!, google.lastHoursPaging!!.startsWith("pages=1 reason=unchanged"))
+    }
+
+    @Test
+    fun `a changed first page fetches the remaining pages`() = runBlocking {
+        val stored = storedAfterFullFetch().map { it.copy(temperature = it.temperature + 2f) }
+        requests.clear()
+        val google = api()
+
+        val result = google.getForecast(37.422, -122.084, includeHistory = false, storedHours = stored)
+
+        assertEquals(3, hourPageCalls())
+        assertEquals(72, result.hourly.size)
+        assertTrue(google.lastHoursPaging!!, google.lastHoursPaging!!.startsWith("pages=3 reason=changed"))
+    }
+
+    @Test
+    fun `without stored hours every page is fetched`() = runBlocking {
+        val google = api()
+        google.getForecast(37.422, -122.084, includeHistory = false)
+        assertEquals(3, hourPageCalls())
+        assertEquals("pages=3 reason=no_stored_hours_given", google.lastHoursPaging)
+    }
+
     @Test
     fun `parses ten daily rows in fahrenheit with day and night rain chance`() = runBlocking {
         val result = api().getForecast(37.422, -122.084)
@@ -219,6 +264,11 @@ class GoogleWeatherApiTest {
         assertEquals("no request into an exhausted daily quota", afterFirst, requests.size)
         assertEquals(java.time.Instant.parse("2026-10-07T07:00:00Z").toEpochMilli(), (second as GoogleDailyQuotaException).resetAtMs)
         assertTrue("carries the original body for classification", GoogleQuota.isDailyQuotaExhausted(second))
+        // Recorded for the refresh triggers, which must not treat a refused source as stale.
+        assertEquals(
+            second.resetAtMs,
+            SourceQuotaBlocks.blockedUntil(WeatherSource.GOOGLE_WEATHER.id, clockMs),
+        )
 
         // Current conditions has its own quota and keeps working.
         api.getCurrent(37.422, -122.084)

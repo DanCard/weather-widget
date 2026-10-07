@@ -191,8 +191,26 @@ internal class ForecastFetchCoordinator(
         })
         googleWeatherApi?.let { api ->
             put(WeatherSource.GOOGLE_WEATHER, SourceFetchEntry(WeatherSource.GOOGLE_WEATHER) { lat, lon ->
-                fetchAndSaveSharedForecast(lat, lon, WeatherSource.GOOGLE_WEATHER) {
-                    api.getForecast(lat, lon, includeHistory = googleNeedsHistory(lat, lon))
+                val nowMs = clock()
+                val storedHours = hourlyStore.storedHourlyForSite(
+                    lat,
+                    lon,
+                    WeatherSource.GOOGLE_WEATHER.id,
+                    startMs = nowMs - 3_600_000L,
+                    endMs = nowMs + (GoogleWeatherApi.FORECAST_HOURS + 2) * 3_600_000L,
+                )
+                fetchAndSaveSharedForecast(
+                    lat,
+                    lon,
+                    WeatherSource.GOOGLE_WEATHER,
+                    storedHourlyForDaily = storedHours,
+                ) {
+                    api.getForecast(
+                        lat,
+                        lon,
+                        includeHistory = googleNeedsHistory(lat, lon),
+                        storedHours = storedHours,
+                    ).also { appLogDao.log("GOOGLE_HOURS_PAGES", api.lastHoursPaging.orEmpty(), "INFO") }
                 }
             })
         }
@@ -406,6 +424,10 @@ internal class ForecastFetchCoordinator(
         latitude: Double,
         longitude: Double,
         source: WeatherSource,
+        // Stored hours past the end of the payload. A Google one-page fetch returns 24 h; the daily
+        // rows' day/night precip chances are computed from hourly rows, so without these days 2–3
+        // would be written with nulls. Read-only: re-saving them would stamp them fresh.
+        storedHourlyForDaily: List<HourlyForecast> = emptyList(),
         fetch: suspend () -> RawFetch?,
     ): List<ForecastEntity>? {
         val result = fetch() ?: return null
@@ -437,13 +459,15 @@ internal class ForecastFetchCoordinator(
                 "INFO",
             )
         }
+        val payloadEnd = result.hourly.maxOfOrNull { it.dateTime } ?: Long.MIN_VALUE
+        val hourlyForDaily = result.hourly + storedHourlyForDaily.filter { it.dateTime > payloadEnd }
         return result.daily.map { day ->
             snapshotStore.mapDailyForecast(
                 day,
                 latitude,
                 longitude,
                 source.id,
-                result.hourly,
+                hourlyForDaily,
             )
         }
     }

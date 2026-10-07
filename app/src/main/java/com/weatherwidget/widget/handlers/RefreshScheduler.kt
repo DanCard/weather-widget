@@ -1,5 +1,7 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.remote.SourceQuotaBlocks
+
 import android.content.Context
 import android.util.Log
 import androidx.annotation.VisibleForTesting
@@ -120,12 +122,22 @@ object RefreshScheduler {
         latestSuccessfulOrContentAtMs: Long?,
         reason: String,
         appLogDao: AppLogDao? = null,
+        targetSourceId: String? = null,
     ) {
         if (isRefreshDisabledForTesting) {
             return
         }
         val nowMs = System.currentTimeMillis()
         val staleReason = "stale_on_$reason"
+        // A source refused until a known time stays stale until then; retrying it on every tap only
+        // re-fetched everything else (2026-10-07: five sources, four times in 28 minutes).
+        targetSourceId?.let { SourceQuotaBlocks.blockedUntil(it, nowMs) }?.let { until ->
+            appLogDao?.log(
+                "STALE_REFRESH_SKIP",
+                "reason=$staleReason skip=quota_blocked source=$targetSourceId until=$until",
+            )
+            return
+        }
         val prefs = context.getSharedPreferences("widget_refresh", Context.MODE_PRIVATE)
         val lastEnqueueMs = prefs.getLong("last_enqueue_$staleReason", -1L).takeIf { it >= 0L }
         val decision = buildRefreshScheduleDecision(
@@ -145,7 +157,12 @@ object RefreshScheduler {
         }
         val ageMin = (nowMs - (latestSuccessfulOrContentAtMs ?: 0L)) / 1000 / 60
         prefs.edit().putLong("last_enqueue_${decision.reason}", nowMs).apply()
-        enqueueForcedRefresh(context, reason = decision.reason, policy = decision.policy)
+        enqueueForcedRefresh(
+            context,
+            reason = decision.reason,
+            policy = decision.policy,
+            targetSourceId = targetSourceId,
+        )
         // The full sync above fetches weather/hourly, not current observations. The user is looking
         // at the widget, so also refresh the current temperature immediately and bypass the battery
         // gate — a stale location/observation is exactly what this interaction surfaced.
@@ -158,7 +175,7 @@ object RefreshScheduler {
         appLogDao?.let {
             it.log(
                 "STALE_REFRESH_ENQUEUE",
-                "reason=${decision.reason} policy=${decision.policy.name} ageMin=$ageMin",
+                "reason=${decision.reason} policy=${decision.policy.name} ageMin=$ageMin target=${targetSourceId ?: "all"}",
             )
         }
     }

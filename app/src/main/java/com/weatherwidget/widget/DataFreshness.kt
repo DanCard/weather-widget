@@ -1,9 +1,11 @@
 package com.weatherwidget.widget
 
 import android.content.Context
+import android.os.PowerManager
 import android.util.Log
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.SourceQuotaBlocks
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -15,28 +17,61 @@ import java.time.temporal.ChronoUnit
 object DataFreshness {
     private const val TAG = "DataFreshness"
 
+    /**
+     * True when any visible source is due under the fetch cadence ([ForecastFetchPolicy], the same
+     * rule the sync itself uses) and is not refused until a known time ([SourceQuotaBlocks]).
+     *
+     * This used rank thresholds (60/90/120 min by list position) that disagreed with the cadence, and
+     * counted a quota-blocked source as stale — so on 2026-10-07 every refresh action forced a fetch
+     * of all five sources behind Google's 429.
+     */
     fun isStaleForSources(
         visibleSources: List<WeatherSource>,
         batchFetchedAtBySource: Map<String, Long>,
         nowMs: Long,
-    ): Boolean {
-        if (visibleSources.isEmpty()) return false
+        fetchContext: ForecastFetchContext,
+    ): Boolean = visibleSources.any { source ->
+        dueState(source, batchFetchedAtBySource[source.id], nowMs, fetchContext) == DueState.DUE
+    }
 
-        for ((index, source) in visibleSources.withIndex()) {
-            val batchFetchedAt = batchFetchedAtBySource[source.id]
-            if (batchFetchedAt == null) return true
-            val ageMs = nowMs - batchFetchedAt
-            val thresholdMs = ForecastStalenessPolicy.getStalenessThresholdMs(index)
-            if (ageMs > thresholdMs) return true
-        }
-        return false
+    internal enum class DueState { DUE, FRESH, BLOCKED, SUSPENDED }
+
+    internal fun dueState(
+        source: WeatherSource,
+        batchFetchedAt: Long?,
+        nowMs: Long,
+        fetchContext: ForecastFetchContext,
+    ): DueState {
+        if (SourceQuotaBlocks.isBlocked(source.id, nowMs)) return DueState.BLOCKED
+        if (batchFetchedAt == null) return DueState.DUE
+        val interval = intervalMinutes(source, fetchContext) ?: return DueState.SUSPENDED
+        return if (ForecastFetchPolicy.isDue(batchFetchedAt, interval, nowMs)) DueState.DUE else DueState.FRESH
+    }
+
+    private fun intervalMinutes(source: WeatherSource, fetchContext: ForecastFetchContext): Long? =
+        ForecastFetchPolicy.intervalMinutes(
+            isCharging = fetchContext.isCharging,
+            isScreenInteractive = fetchContext.isScreenInteractive,
+            isActiveSource = source.id in fetchContext.activeSourceIds,
+            batteryLevel = fetchContext.batteryLevel,
+        )
+
+    private fun deviceFetchContext(context: Context, stateManager: WidgetStateManager): ForecastFetchContext {
+        val snapshot = BatterySnapshotProvider.snapshot(context)
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        return ForecastFetchContext(
+            isCharging = snapshot.isCharging,
+            isScreenInteractive = powerManager.isInteractive,
+            batteryLevel = snapshot.batteryLevel,
+            activeSourceIds = stateManager.getActiveDisplaySourceIds(),
+        )
     }
 
     /**
      * Check if the weather data is stale and needs refreshing.
      *
      * @param context Application context
-     * @return true if any visible source is older than its ForecastStalenessPolicy threshold
+     * @return true if any visible source is due under [ForecastFetchPolicy] and not quota-blocked
      */
     suspend fun isDataStale(context: Context): Boolean {
         return try {
@@ -61,7 +96,12 @@ object DataFreshness {
                 batchFetchedAtBySource[source.id] = latestForSource.batchFetchedAt
             }
 
-            val result = isStaleForSources(visibleSources, batchFetchedAtBySource, nowMs)
+            val result = isStaleForSources(
+                visibleSources,
+                batchFetchedAtBySource,
+                nowMs,
+                deviceFetchContext(context, stateManager),
+            )
             if (result) {
                 Log.d(TAG, "At least one visible source is stale")
             } else {
@@ -88,16 +128,17 @@ object DataFreshness {
             }
 
             val nowMs = System.currentTimeMillis()
-            visibleSources.mapIndexed { index, source ->
+            val fetchContext = deviceFetchContext(context, stateManager)
+            visibleSources.map { source ->
                 val latestForSource = forecastDao.getLatestWeatherBySource(source.id)
                 if (latestForSource == null) {
                     "${source.id}:missing"
                 } else {
                     val ageMinutes = (nowMs - latestForSource.batchFetchedAt) / 60000L
-                    val thresholdMinutes =
-                        ForecastStalenessPolicy.getStalenessThresholdMs(index) / 60000L
-                    val state = if (ageMinutes > thresholdMinutes) "stale" else "fresh"
-                    "${source.id}:${ageMinutes}m/${thresholdMinutes}m:$state"
+                    val interval = intervalMinutes(source, fetchContext)?.let { "${it}m" } ?: "off"
+                    val state = dueState(source, latestForSource.batchFetchedAt, nowMs, fetchContext)
+                        .name.lowercase()
+                    "${source.id}:${ageMinutes}m/$interval:$state"
                 }
             }.joinToString(
                 prefix = "visibleSources=",

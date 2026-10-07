@@ -35,9 +35,11 @@ internal object WidgetRefreshCoordinator {
             "Direct cache repaint target=${requestedWidgetId ?: "all"} uiOnly=$uiOnly stale=$isDataStale",
         )
         if (WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
+            // Not forced: "stale" now means some source is due under the cadence, and a normal sync
+            // fetches exactly the due sources. Forcing refetched every source, fresh or not.
             WidgetWorkScheduler.enqueueRedundantImmediateSync(
                 context = context,
-                forceRefresh = true,
+                forceRefresh = false,
                 reason = "refresh_action_stale",
             )
         }

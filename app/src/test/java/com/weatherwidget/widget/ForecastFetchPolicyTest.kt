@@ -11,87 +11,35 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class ForecastFetchPolicyTest {
 
+    // Charger values from ForecastCadence (user, 2026-10-07): displayed 4 h / 6 h, others 8 h / 12 h
+    // (screen on / off). Was 60 / 120 and 360 / 480; the displayed source's hourly refetch spent a
+    // provider's per-project daily quota by 03:16.
+
     @Test
-    fun `charging + screen on + active source is 60 minutes`() {
-        val interval = ForecastFetchPolicy.intervalMinutes(
-            isCharging = true,
-            isScreenInteractive = true,
-            isActiveSource = true,
-            batteryLevel = 100,
-        )
-        assertEquals(ForecastFetchPolicy.CHARGING_SCREEN_ON_ACTIVE_MINUTES, interval)
-        assertEquals(60L, interval)
+    fun `charging + screen on + displayed source is 4 hours`() {
+        assertEquals(240L, ForecastFetchPolicy.intervalMinutes(true, isScreenInteractive = true, isActiveSource = true, batteryLevel = 100))
     }
 
     @Test
-    fun `charging + screen on + non-active source is 360 minutes`() {
-        val interval = ForecastFetchPolicy.intervalMinutes(
-            isCharging = true,
-            isScreenInteractive = true,
-            isActiveSource = false,
-            batteryLevel = 100,
-        )
-        assertEquals(ForecastFetchPolicy.CHARGING_SCREEN_ON_NONACTIVE_MINUTES, interval)
-        assertEquals(360L, interval)
+    fun `charging + screen off + displayed source is 6 hours`() {
+        assertEquals(360L, ForecastFetchPolicy.intervalMinutes(true, isScreenInteractive = false, isActiveSource = true, batteryLevel = 100))
     }
 
     @Test
-    fun `charging + screen off + active source is 120 minutes`() {
-        val interval = ForecastFetchPolicy.intervalMinutes(
-            isCharging = true,
-            isScreenInteractive = false,
-            isActiveSource = true,
-            batteryLevel = 100,
-        )
-        assertEquals(ForecastFetchPolicy.CHARGING_SCREEN_OFF_ACTIVE_MINUTES, interval)
-        assertEquals(120L, interval)
+    fun `charging + screen on + other source is 8 hours`() {
+        assertEquals(480L, ForecastFetchPolicy.intervalMinutes(true, isScreenInteractive = true, isActiveSource = false, batteryLevel = 100))
     }
 
     @Test
-    fun `charging + screen off + non-active source is 480 minutes`() {
-        val interval = ForecastFetchPolicy.intervalMinutes(
-            isCharging = true,
-            isScreenInteractive = false,
-            isActiveSource = false,
-            batteryLevel = 100,
-        )
-        assertEquals(ForecastFetchPolicy.CHARGING_SCREEN_OFF_NONACTIVE_MINUTES, interval)
-        assertEquals(480L, interval)
+    fun `charging + screen off + other source is 12 hours`() {
+        assertEquals(720L, ForecastFetchPolicy.intervalMinutes(true, isScreenInteractive = false, isActiveSource = false, batteryLevel = 100))
     }
 
     @Test
-    fun `off-charger above 80 percent is treated as charging equivalent`() {
-        val interval = ForecastFetchPolicy.intervalMinutes(
-            isCharging = false,
-            isScreenInteractive = true,
-            isActiveSource = true,
-            batteryLevel = 80,
-        )
-        // Should use charging matrix (60 min) rather than BatteryFetchStrategy tiers (240 min)
-        assertEquals(ForecastFetchPolicy.CHARGING_SCREEN_ON_ACTIVE_MINUTES, interval)
-        assertEquals(60L, interval)
-    }
-
-    @Test
-    fun `off-charger at 80 percent uses charging-equivalent non-active cadence`() {
-        assertEquals(
-            360L,
-            ForecastFetchPolicy.intervalMinutes(
-                isCharging = false,
-                isScreenInteractive = true,
-                isActiveSource = false,
-                batteryLevel = 80,
-            ),
-        )
-        assertEquals(
-            480L,
-            ForecastFetchPolicy.intervalMinutes(
-                isCharging = false,
-                isScreenInteractive = false,
-                isActiveSource = false,
-                batteryLevel = 80,
-            ),
-        )
+    fun `off-charger at 80 percent uses the charger values`() {
+        assertEquals(240L, ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = true, batteryLevel = 80))
+        assertEquals(480L, ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = false, batteryLevel = 80))
+        assertEquals(720L, ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = false, isActiveSource = false, batteryLevel = 80))
     }
 
     @Test
@@ -139,12 +87,12 @@ class ForecastFetchPolicyTest {
     fun `off-charger non-active source doubles the battery-tier interval`() {
         // 240-tier -> 480 for a background (not currently-displayed) source.
         assertEquals(
-            240L * ForecastFetchPolicy.OFF_CHARGER_NONACTIVE_MULTIPLIER,
+            240L * com.weatherwidget.shared.util.ForecastCadence.OFF_CHARGER_OTHER_MULTIPLIER,
             ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = false, batteryLevel = 75),
         )
         // 480-tier -> 960.
         assertEquals(
-            480L * ForecastFetchPolicy.OFF_CHARGER_NONACTIVE_MULTIPLIER,
+            480L * com.weatherwidget.shared.util.ForecastCadence.OFF_CHARGER_OTHER_MULTIPLIER,
             ForecastFetchPolicy.intervalMinutes(false, isScreenInteractive = true, isActiveSource = false, batteryLevel = 60),
         )
     }

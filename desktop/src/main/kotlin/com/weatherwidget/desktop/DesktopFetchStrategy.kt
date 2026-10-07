@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.shared.util.BatteryTier
+import com.weatherwidget.shared.util.ForecastCadence
 import com.weatherwidget.shared.util.NonPrimaryObservationPolicy
 
 /**
@@ -14,8 +15,6 @@ object DesktopFetchStrategy {
     // AC Power Intervals
     const val AC_OBSERVATION_SCREEN_ON_MINUTES = 10L
     const val AC_OBSERVATION_SCREEN_OFF_MINUTES = 30L
-    const val AC_ACTIVE_FORECAST_MINUTES = 60L
-    const val AC_INACTIVE_FORECAST_MINUTES = 120L
 
     const val CATCH_UP_STALENESS_THRESHOLD_MINUTES = 10L
 
@@ -55,21 +54,20 @@ object DesktopFetchStrategy {
     }
 
     /**
-     * Returns the delay in MS for the next forecast fetch.
-     * Returns null if fetches should be suspended.
+     * Returns the delay in MS for the next forecast fetch, or null if fetches should be suspended.
+     * Same rule as Android: [ForecastCadence] (displayed vs. other source, screen on vs. off).
      */
-    fun getForecastRefreshDelayMs(isCharging: Boolean, batteryLevel: Int, isActiveSource: Boolean): Long? {
-        if (isCharging) {
-            val minutes = if (isActiveSource) AC_ACTIVE_FORECAST_MINUTES else AC_INACTIVE_FORECAST_MINUTES
-            return minutes * MS_PER_MINUTE
-        }
-
-        return when {
-            batteryLevel > BatteryTier.TIER_HIGH_THRESHOLD -> BatteryTier.INTERVAL_HIGH_MINUTES * MS_PER_MINUTE
-            batteryLevel > BatteryTier.TIER_MEDIUM_THRESHOLD -> BatteryTier.INTERVAL_MEDIUM_MINUTES * MS_PER_MINUTE
-            else -> null
-        }
-    }
+    fun getForecastRefreshDelayMs(
+        isCharging: Boolean,
+        batteryLevel: Int,
+        isActiveSource: Boolean,
+        screenOn: Boolean = true,
+    ): Long? = ForecastCadence.intervalMinutes(
+        isCharging = isCharging,
+        isScreenOn = screenOn,
+        isDisplayedSource = isActiveSource,
+        batteryLevel = batteryLevel,
+    )?.times(MS_PER_MINUTE)
 
     /**
      * Returns the delay in MS for the next non-primary (non-displayed) source actuals fetch, or

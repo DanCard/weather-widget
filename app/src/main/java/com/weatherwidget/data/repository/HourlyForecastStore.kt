@@ -1,5 +1,7 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.local.toHourlyForecast
+
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
@@ -90,6 +92,27 @@ internal class HourlyForecastStore(
         if (historyRows.isNotEmpty()) {
             hourlyForecastHistoryDao.insertAll(historyRows)
         }
+    }
+
+    /**
+     * [sourceId]'s stored hourly rows at this exact site (write-quantized key) in [startMs]..[endMs].
+     * Read by Google's one-page fetch ([com.weatherwidget.data.remote.GoogleHourPaging]) to tell
+     * whether page 1 changed, and by the daily mapping for the hours a one-page fetch did not return.
+     */
+    suspend fun storedHourlyForSite(
+        latitude: Double,
+        longitude: Double,
+        sourceId: String,
+        startMs: Long,
+        endMs: Long,
+    ): List<com.weatherwidget.data.model.HourlyForecast> {
+        val lat = LocationMatch.quantize(latitude)
+        val lon = LocationMatch.quantize(longitude)
+        return siteExactExistingByDateTime(
+            hourlyForecastDao.getHourlyForecastsBySource(startMs, endMs, lat, lon, sourceId),
+            lat,
+            lon,
+        ).values.sortedBy { it.dateTime }.map { it.toHourlyForecast() }
     }
 
     suspend fun saveHourlyEntitiesFromShared(

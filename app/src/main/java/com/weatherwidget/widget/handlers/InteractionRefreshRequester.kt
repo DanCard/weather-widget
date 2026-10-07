@@ -13,9 +13,9 @@ import kotlinx.coroutines.CancellationException
  */
 internal class InteractionRefreshRequester(
     private val staleRequest:
-        suspend (Context, Long?, String, AppLogDao?) -> Unit =
-        { context, freshnessAtMs, reason, appLogDao ->
-            RefreshScheduler.refreshIfStale(context, freshnessAtMs, reason, appLogDao)
+        suspend (Context, Long?, String, AppLogDao?, String?) -> Unit =
+        { context, freshnessAtMs, reason, appLogDao, targetSourceId ->
+            RefreshScheduler.refreshIfStale(context, freshnessAtMs, reason, appLogDao, targetSourceId)
         },
     private val forcedRequest:
         (Context, String, ExistingWorkPolicy, Long, String?) -> Unit =
@@ -32,6 +32,9 @@ internal class InteractionRefreshRequester(
                 refreshContext.latestSuccessfulOrContentAtMs,
                 reason,
                 refreshContext.database.appLogDao(),
+                // Only the displayed source is known to be stale here; the sync still fetches any
+                // other source its cadence says is due, but does not force them.
+                refreshContext.displaySource.id,
             )
         } catch (e: CancellationException) {
             throw e

@@ -32,7 +32,7 @@ private const val TAG = "GoogleWeatherApi"
  *
  * Limits probed 2026-10-06: `forecast/days` serves at most 10 days, `forecast/hours` returns 24 hours
  * per page (follow `nextPageToken`), `history/hours` reaches back at most 24 h. Every request is
- * billed, so one full fetch is current + days + [FORECAST_HOURS]/24 hour pages + history.
+ * billed, so one full fetch is current + days + 1–3 hour pages ([GoogleHourPaging]) + history.
  *
  * The key goes in the `X-Goog-Api-Key` header, never the URL, so it cannot ride along in an
  * exception message into `app_logs` or a bug report.
@@ -103,13 +103,25 @@ class GoogleWeatherApi(
     private var forecastBlockDetail = ""
 
     /**
+     * The last [getForecast]'s `forecast/hours` paging, e.g. `pages=1 reason=unchanged …`, for the
+     * caller's persisted log (this module has no DB). Null before the first fetch.
+     */
+    @Volatile
+    var lastHoursPaging: String? = null
+        private set
+
+    /**
      * [includeHistory]: the caller's [needsHistory] answer. History is best-effort either way — its
      * failure (a 429 above all) drops only the elapsed hours, never the forecast.
+     *
+     * [storedHours]: this source's stored hourly rows at the site. When given, page 1 is compared
+     * with them and pages 2–3 are fetched only on change ([GoogleHourPaging]); null fetches all.
      */
     suspend fun getForecast(
         lat: Double,
         lon: Double,
         includeHistory: Boolean = true,
+        storedHours: List<HourlyForecast>? = null,
     ): RawFetch = coroutineScope {
         val apiKey = apiKeyProvider()
         if (apiKey.isNullOrBlank()) {
@@ -128,7 +140,7 @@ class GoogleWeatherApi(
                 parameter("pageSize", FORECAST_DAYS)
             }
         }
-        val hoursDeferred = async { fetchForecastHours(apiKey, lat, lon) }
+        val hoursDeferred = async { fetchForecastHours(apiKey, lat, lon, storedHours) }
         val requestHistory = includeHistory && nowMs() >= historyBlockedUntilMs
         val historyDeferred = if (requestHistory) async { fetchHistoryOrNull(apiKey, lat, lon) } else null
 
@@ -172,8 +184,15 @@ class GoogleWeatherApi(
         return parseCurrent(fetchJson(apiKey, "/currentConditions:lookup", lat, lon))
     }
 
-    private suspend fun fetchForecastHours(apiKey: String, lat: Double, lon: Double): List<JsonObject> {
+    private suspend fun fetchForecastHours(
+        apiKey: String,
+        lat: Double,
+        lon: Double,
+        storedHours: List<HourlyForecast>?,
+    ): List<JsonObject> {
         val hours = mutableListOf<JsonObject>()
+        val startMs = nowMs()
+        var pagingReason = if (storedHours == null) "no_stored_hours_given" else "single_page"
         var pageToken: String? = null
         var pages = 0
         do {
@@ -187,6 +206,7 @@ class GoogleWeatherApi(
                 if (GoogleQuota.isDailyQuotaExhausted(e)) {
                     forecastBlockDetail = e.detail
                     forecastBlockedUntilMs = GoogleQuota.nextResetMs(nowMs())
+                    SourceQuotaBlocks.block(WeatherSource.GOOGLE_WEATHER.id, forecastBlockedUntilMs)
                     Log.w(TAG, "forecast/hours daily quota exhausted; forecast skipped until $forecastBlockedUntilMs")
                 }
                 throw e
@@ -194,7 +214,19 @@ class GoogleWeatherApi(
             pages++
             page["forecastHours"]?.jsonArray?.mapTo(hours) { it.jsonObject }
             pageToken = page["nextPageToken"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+            if (pages == 1 && pageToken != null && storedHours != null) {
+                val decision = GoogleHourPaging.decide(
+                    page1 = hours.mapNotNull(::parseHour),
+                    stored = storedHours,
+                    nowMs = startMs,
+                    horizonEndMs = startMs + FORECAST_HOURS * 3_600_000L,
+                )
+                pagingReason = decision.reason
+                if (!decision.fetchRest) break
+            }
         } while (pageToken != null && pages < MAX_HOUR_PAGES)
+        lastHoursPaging = "pages=$pages reason=$pagingReason"
+        Log.i(TAG, "forecast/hours $lastHoursPaging")
         return hours
     }
 

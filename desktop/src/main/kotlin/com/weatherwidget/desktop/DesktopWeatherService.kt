@@ -181,7 +181,12 @@ class DesktopWeatherService(
             // Forecast-only like Silurian: withHistoricalActuals files nothing for it (the builder
             // rejects sources without a historical-actuals contract); actuals are borrowed.
             WeatherSource.GOOGLE_WEATHER.id -> withHistoricalActuals(
-                googleWeather.getForecast(latitude, longitude, includeHistory = googleNeedsHistory()),
+                googleWeather.getForecast(
+                    latitude,
+                    longitude,
+                    includeHistory = googleNeedsHistory(),
+                    storedHours = googleStoredHours(),
+                ).also { weatherDao?.log("GOOGLE_HOURS_PAGES", googleWeather.lastHoursPaging.orEmpty(), "INFO") },
                 WeatherSource.GOOGLE_WEATHER.id,
             )
             WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapForecastWithCurrent()
@@ -244,6 +249,28 @@ class DesktopWeatherService(
                 nowMs = System.currentTimeMillis(),
             ),
         )
+
+    /**
+     * Google's stored hours at this site, for the one-page `forecast/hours` check
+     * ([com.weatherwidget.data.remote.GoogleHourPaging]). Null without a DB, which fetches all pages.
+     */
+    private fun googleStoredHours(): List<com.weatherwidget.data.model.HourlyForecast>? {
+        val dao = weatherDao ?: return null
+        val now = System.currentTimeMillis()
+        val lat = LocationMatch.quantize(latitude)
+        val lon = LocationMatch.quantize(longitude)
+        return dao.getHourlyForecasts(
+            lat,
+            lon,
+            WeatherSource.GOOGLE_WEATHER.id,
+            now - 3_600_000L,
+            now + (GoogleWeatherApi.FORECAST_HOURS + 2) * 3_600_000L,
+        ).filter { row ->
+            val rowLat = row.locationLat
+            val rowLon = row.locationLon
+            rowLat == null || rowLon == null || LocationMatch.sameSite(lat, lon, rowLat, rowLon)
+        }
+    }
 
     /** See `GoogleWeatherApi.needsHistory`: `history/hours` has a small per-project daily quota (Cloud Console setting). */
     private fun googleNeedsHistory(): Boolean {

@@ -863,7 +863,9 @@ internal class DaemonRuntime(
             launch {
                 while (true) {
                     val (isCharging, level) = PowerDetector.getPowerState()
-                    val delayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging, level, isActiveSource = true)
+                    val delayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(
+                        isCharging, level, isActiveSource = true, screenOn = ScreenStateDetector.isScreenOn(),
+                    )
 
                     if (delayMs == null) {
                         Log.i(TAG, "Forecast loop: background fetch suspended due to low battery ($level%). Re-checking in 5 min.")
@@ -906,7 +908,9 @@ internal class DaemonRuntime(
                     for (otherSource in nonActiveSources) {
                         try {
                             val lastOtherFetch = weatherDao.getLastSuccessfulFetch(otherSource)
-                            val otherDelayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging, level, isActiveSource = false)
+                            val otherDelayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(
+                                isCharging, level, isActiveSource = false, screenOn = ScreenStateDetector.isScreenOn(),
+                            )
                                 ?: continue
 
                             val isDue = lastOtherFetch == null ||

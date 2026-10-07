@@ -100,14 +100,16 @@ internal class FullSyncPipeline(
             )
 
             val activeSourceList = hourlyForecastLoader.currentDisplaySourceIds()
-            val fetchContext = if (!forceFetch && !input.uiOnlyRefresh) {
-                ForecastFetchContext(
-                    isCharging = device.isCharging,
-                    isScreenInteractive = device.isScreenInteractive,
-                    batteryLevel = device.batteryLevel,
-                    activeSourceIds = activeSourceList.toSet(),
-                )
-            } else null
+            // Always the cadence context, forced or not: a forced sync forces only its target (or
+            // everything when untargeted), and every other source must be judged by the same cadence
+            // a scheduled sync uses. Without a context the coordinator fell back to rank thresholds
+            // (60/90/120 min) and a Google-targeted force refetched NWS after 90 minutes.
+            val fetchContext = ForecastFetchContext(
+                isCharging = device.isCharging,
+                isScreenInteractive = device.isScreenInteractive,
+                batteryLevel = device.batteryLevel,
+                activeSourceIds = activeSourceList.toSet(),
+            )
 
             val result = weatherRepository.getWeatherData(
                 latitude = location.first,

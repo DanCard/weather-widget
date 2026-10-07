@@ -124,6 +124,10 @@ class GoogleWeatherFetchIntegrationTest {
 
         val historyCalls = requests.count { it.url.encodedPath.endsWith("history/hours:lookup") }
         assertEquals("history only for the first fetch at a site", 1, historyCalls)
-        assertEquals(11, requests.count { it.url.host == "weather.googleapis.com" })
+        // First fetch: current + days + 3 hour pages + history = 6. Second: page 1 matches the stored
+        // hours, so pages 2–3 are skipped (GoogleHourPaging) = current + days + 1 hour page = 3.
+        val hourPages = requests.count { it.url.encodedPath.endsWith("forecast/hours:lookup") }
+        assertEquals("3 pages, then 1 for an unchanged first page", 4, hourPages)
+        assertEquals(9, requests.count { it.url.host == "weather.googleapis.com" })
     }
 }
