@@ -108,7 +108,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     }
 
     @Test
-    fun `peak falls back below when above placement would leave the screen`() {
+    fun `peak stays above and may run off the top of the graph`() {
         val placements = mutableListOf<LabelPlacementDebug>()
 
         runBlocking {
@@ -116,19 +116,18 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 context = context,
                 hours = buildHours(listOf(0f, 50f, 98f, 50f, 0f)),
                 widthPx = 700,
-                heightPx = 24, // Keep small to force Above off-screen
+                heightPx = 24, // Small enough that an above slot's top is off-screen
                 currentTime = LocalDateTime.of(2026, 3, 19, 12, 0),
                 onLabelPlaced = { placements.add(it) }, useCelsius = false,
             )
         }
 
+        // A high placed above may be clipped by the top edge rather than flipping below its peak,
+        // as long as part of it stays inside the graph.
         val highPlacement = placements.find { it.role == TemperatureRole.HIGH }
-        if (highPlacement != null) {
-            assertFalse(
-                "Expected constrained HIGH label to avoid above-placement when it would be off-screen. placement=$highPlacement",
-                highPlacement.placedAbove,
-            )
-        }
+        assertNotNull("Expected the HIGH label to be placed. placements=$placements", highPlacement)
+        assertTrue("Expected HIGH above its peak even though it runs off the top. placement=$highPlacement", highPlacement!!.placedAbove)
+        assertTrue("Expected part of the HIGH label to stay on the graph. placement=$highPlacement", highPlacement.y > 0f)
     }
 
     @Test

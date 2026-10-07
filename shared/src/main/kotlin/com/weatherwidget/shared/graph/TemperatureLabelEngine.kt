@@ -25,6 +25,7 @@ data class PlacedLabel(
 object TemperatureLabelEngine {
     private const val TAG = "TempLabelEngine"
     private const val MAX_LEADER_DISPLACEMENT_STEPS = 3
+    private const val HARD_BOUND_CLEARANCE_DP = 1f
 
 
     private val LOGGED_ROLES: Set<TemperatureRole> = setOf(
@@ -440,7 +441,9 @@ object TemperatureLabelEngine {
                         verticalPlacement.bottom
                     )
 
-                    val onScreen = bounds.top >= 0f && bounds.bottom <= heightPx
+                    // EXPERIMENT: a high placed above may run off the top of the graph (clipped).
+                    val mayRunOffTop = placeAbove && candidate.role in TemperatureLabelResolver.FORECAST_HIGH_ROLES
+                    val onScreen = (bounds.top >= 0f || (mayRunOffTop && bounds.bottom > 0f)) && bounds.bottom <= heightPx
                     if (!onScreen) continue
 
                     val obstacles = CollisionTester.obstacles(
@@ -473,6 +476,70 @@ object TemperatureLabelEngine {
                             "icon=${obstacles.overlapsIcon}/${String.format("%.1f", obstacles.iconOverlapPx)}(minorOK=${obstacles.allowMinorIconOverlap}) " +
                             "hard=${obstacles.overlapsHard}/${String.format("%.1f", obstacles.hardOverlapPx)}(minorOK=${obstacles.allowMinorHardOverlap}) " +
                             "curve=${curveResult.curveBlocked} depth=${String.format("%.2f", curveDepth)}] bounds=(${String.format("%.1f", bounds.top)},${String.format("%.1f", bounds.bottom)})")
+                    }
+
+                    // A high blocked above only by a reserved hard bound (the fetch-dot label) is lifted
+                    // by just enough to clear it, rather than a whole label height: a full step left a
+                    // ~40 px leader to clear a 7 px overlap. The overlap is measured from the label's ink:
+                    // temperature text has no descenders, so the font box's descent band is blank and may
+                    // sit over the blocker. A lift smaller than that band needs no leader.
+                    if (hasCollision && placeAbove && step == 0 &&
+                        candidate.role in TemperatureLabelResolver.FORECAST_HIGH_ROLES &&
+                        obstacles.overlapsHard && !obstacles.overlapsLabel && !obstacles.overlapsIcon &&
+                        !curveResult.curveBlocked
+                    ) {
+                        val liftPx = (obstacles.hardOverlapPx - labelDescent).coerceAtLeast(0f) +
+                            HARD_BOUND_CLEARANCE_DP * density
+                        if (liftPx < labelHeight) {
+                            val lifted = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
+                                pointY = geometry.sy,
+                                placeAbove = true,
+                                gapPx = currentGapPx + liftPx,
+                                textAscent = labelAscent,
+                                textDescent = labelDescent
+                            )
+                            val liftedBounds = GraphRect(bounds.left, lifted.top, bounds.right, lifted.bottom)
+                            val liftedInk = GraphRect(bounds.left, lifted.top, bounds.right, lifted.baselineY)
+                            val liftedLeader = liftPx >= labelDescent
+                            val liftedOnScreen = (liftedBounds.top >= 0f || (mayRunOffTop && liftedBounds.bottom > 0f))
+                            val liftedClear = liftedOnScreen &&
+                                !CollisionTester.obstacles(
+                                    role = candidate.role, bounds = liftedInk, isValley = geometry.isValley,
+                                    placeAbove = true, drawnLabelMetas = drawnLabelMetas,
+                                    drawnIconBounds = drawnIconBounds, reservedHardBounds = reservedHardBounds,
+                                    labelHeight = labelHeight,
+                                ).anyBlocked &&
+                                !CollisionTester.curve(
+                                    role = candidate.role, bounds = liftedInk, placeAbove = true,
+                                    avoidanceActualPoints = avoidanceActualPointsFor(true),
+                                    forecastPoints = forecastPoints, allowedDipPx = allowedCurveDipPxFor(true),
+                                    isCurveAvoidanceExempt = isCurveAvoidanceExempt, flipDecided = flipDecided,
+                                ).curveBlocked
+                            if (liftedClear) {
+                                Log.d(TAG, "PlaceAccept: role=${candidate.role} idx=$idx lifted=${String.format("%.1f", liftPx)} above=true leader=$liftedLeader (cleared hard bound by ink)")
+                                resultPlacements.add(
+                                    PlacedLabel(
+                                        index = idx,
+                                        role = candidate.role,
+                                        text = geometry.label,
+                                        x = geometry.clampedX,
+                                        baselineY = lifted.baselineY,
+                                        placedAbove = true,
+                                        drawLeaderLine = liftedLeader,
+                                        leaderFromY = geometry.sy,
+                                        leaderToY = lifted.baselineY,
+                                        isFuture = geometry.isFuture,
+                                        rawTemperature = candidate.rawTemperature,
+                                        displayTemperature = temps[idx],
+                                        reason = "above+lift",
+                                        displacementSteps = 1,
+                                    )
+                                )
+                                drawnLabelMetas.add(PlacedLabelMeta(liftedBounds, isValleyBelow = false, role = candidate.role, temperature = temps[idx]))
+                                placed = true
+                                break@outer
+                            }
+                        }
                     }
 
                     if (hasCollision && !placeAbove && geometry.isValley && step == 0 && !flipDecided) {

@@ -1792,14 +1792,13 @@
         android:visibility="gone" />
 
     <!-- Error watermark pill touch target — overlays the failure watermark pill drawn on the graph.
-         Starts below the header row (GraphFailureWatermarkRenderer.PILL_TOP_DP) so it never covers the
+         Vertically centred like the pill (GraphFailureWatermarkRenderer.calculateLayout), clear of the
          header icons' touch zones; its height follows the pill's stage (ErrorPillTouchTargetHelper). -->
     <FrameLayout
         android:id="@+id/error_pill_touch_zone"
         android:layout_width="match_parent"
         android:layout_height="50dp"
-        android:layout_gravity="top"
-        android:layout_marginTop="40dp"
+        android:layout_gravity="center_vertical"
         android:layout_marginStart="70dp"
         android:layout_marginEnd="90dp"
         android:background="@android:color/transparent"

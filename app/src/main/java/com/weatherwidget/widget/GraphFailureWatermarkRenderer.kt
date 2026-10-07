@@ -39,12 +39,6 @@ internal object GraphFailureWatermarkRenderer {
     private const val VERTICAL_PADDING_DP = 6f
     private const val DETAIL_GAP_DP = 2f
     private const val CANVAS_EDGE_INSET_DP = 4f
-    /**
-     * Below the header row: the header's touch zones (home, graph selector, stations, …) reach about
-     * 37 dp into the graph, and a pill over them — with its touch target on top — ate their taps.
-     * [com.weatherwidget.R.id.error_pill_touch_zone]'s marginTop must match.
-     */
-    internal const val PILL_TOP_DP = 40f
     private const val ELLIPSIS = "…"
 
     // The [FailureBannerStage.TINY]/[FailureBannerStage.FADED] pill: one line, no header.
@@ -247,7 +241,9 @@ internal object GraphFailureWatermarkRenderer {
         val contentWidth = maxOf(mainFit.width, detailFit?.width ?: 0f)
         val pillWidth = (contentWidth + horizontalPadding * 2f).coerceAtMost(maxPillWidth)
         val centerX = width / 2f
-        val pillTop = (PILL_TOP_DP * density).coerceAtMost(height - pillHeight).coerceAtLeast(0f)
+        // Vertically centred on the graph, well clear of the header's touch zones (which reach about
+        // 37 dp down). [com.weatherwidget.R.id.error_pill_touch_zone] is centred to match.
+        val pillTop = ((height - pillHeight) / 2f).coerceAtLeast(0f)
         val pillBounds =
             RectF(
                 centerX - pillWidth / 2f,
