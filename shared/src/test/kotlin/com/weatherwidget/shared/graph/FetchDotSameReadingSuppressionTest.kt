@@ -62,6 +62,49 @@ class FetchDotSameReadingSuppressionTest {
         assertNotNull(resolve(TemperatureRole.ACTUAL_HIGH, peak = 84.52f, dotTemp = 84.4f, dotX = 380f))
     }
 
+    // 2026-10-07 desktop: ACTUAL_LOW "60.6°" at 05:55, the dot reading 60.9° at 07:10, ~118px apart.
+    private fun resolveLowAt(temps: List<Float>, lowIdx: Int, dotIdx: Int): ResolvedLabelGeometry? {
+        val xs = temps.indices.map { it * 8f }
+        val points = xs.zip(temps.map { 300f - it })
+        return LabelGeometryResolver.resolve(
+            candidate = TempLabelCandidate(lowIdx, TemperatureRole.ACTUAL_LOW, temps, temps[lowIdx], forceForecastSeries = false),
+            originalPoints = points,
+            forecastPoints = points,
+            transitionX = xs[dotIdx],
+            widthPx = 2000,
+            density = 1f,
+            fetchDotX = xs[dotIdx],
+            lastObservedTemp = temps[dotIdx],
+            tempToY = { 300f - it },
+            metrics = Metrics,
+            useCelsius = false,
+        )
+    }
+
+    @Test
+    fun `observed low on a plateau running into the dot is dropped however far away`() {
+        val temps = MutableList(160) { 66f - it * 0.04f }
+        for (i in 130..145) temps[i] = 60.65f + (i - 130) * 0.017f // 60.65 → 60.9, flat into NOW
+        for (i in 146..159) temps[i] = 61f + (i - 146) * 0.5f
+        assertNull(resolveLowAt(temps, lowIdx = 130, dotIdx = 145))
+    }
+
+    @Test
+    fun `observed low that recovered and came back keeps its label`() {
+        val temps = MutableList(160) { 66f }
+        temps[100] = 60.6f
+        for (i in 101..144) temps[i] = 64f
+        temps[145] = 60.9f
+        assertNotNull(resolveLowAt(temps, lowIdx = 100, dotIdx = 145))
+    }
+
+    @Test
+    fun `observed low more than a degree under the dot keeps its label`() {
+        val temps = MutableList(160) { 66f }
+        for (i in 130..145) temps[i] = 59.5f + (i - 130) * 0.09f
+        assertNotNull(resolveLowAt(temps, lowIdx = 130, dotIdx = 145))
+    }
+
     @Test
     fun `forecast high beside the dot keeps the exact-text rule`() {
         // Different series: only an identical printed number duplicates the dot.

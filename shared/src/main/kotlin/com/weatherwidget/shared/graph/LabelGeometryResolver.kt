@@ -166,6 +166,29 @@ internal object LabelGeometryResolver {
         else -> 2 // START, END
     }
 
+    /**
+     * Largest |temp − temps[idx]| over the observed samples from [idx] to the last one at or before
+     * [fetchDotX], or null when [idx] is not on the observed side of the dot or the span holds a
+     * non-finite sample (a gap is not a plateau).
+     */
+    private fun plateauDeviationIntoDot(
+        idx: Int,
+        temps: List<Float>,
+        originalPoints: List<Pair<Float, Float>>,
+        fetchDotX: Float,
+    ): Float? {
+        val startX = originalPoints.getOrNull(idx)?.first ?: return null
+        if (startX > fetchDotX) return null
+        var maxDev = 0f
+        for (i in idx..minOf(temps.lastIndex, originalPoints.lastIndex)) {
+            if (originalPoints[i].first > fetchDotX) break
+            val t = temps[i]
+            if (!t.isFinite()) return null
+            maxDev = maxOf(maxDev, abs(t - temps[idx]))
+        }
+        return maxDev
+    }
+
     private fun findPrevDifferent(temps: List<Float>, idx: Int): Float {
         val target = temps[idx]
         for (i in idx - 1 downTo 0) {
@@ -220,6 +243,22 @@ internal object LabelGeometryResolver {
             val dist = abs(clampedX - fetchDotX)
             val sameReading = candidate.role in ACTUAL_SERIES_ROLES &&
                 abs(temps[idx] - lastObservedTemp) < FETCH_DOT_SAME_READING_DEGREES
+            // Further than 12dp, the same reading is still one value labeled twice when the observed
+            // line runs flat from the extremum into the dot: 60.6° at 05:55 beside a dot reading
+            // 60.9° at 07:10, the curve never leaving that band (desktop 2026-10-07). A dip that
+            // recovered and came back to the same value is a separate event and keeps its label.
+            if (sameReading && dist >= 12f * density) {
+                val maxDev = plateauDeviationIntoDot(idx, temps, originalPoints, fetchDotX)
+                if (maxDev != null && maxDev < FETCH_DOT_SAME_READING_DEGREES) {
+                    Log.v(
+                        TAG,
+                        "LabelSuppressed: role=${candidate.role} idx=$idx reason=FETCH_DOT_PLATEAU " +
+                            "label=$label dot=$fetchDotLabel distPx=${"%.1f".format(dist)} " +
+                            "maxDev=${"%.2f".format(maxDev)}",
+                    )
+                    return null
+                }
+            }
             if ((label == fetchDotLabel || sameReading) && dist < 12f * density) {
                 if (label != fetchDotLabel) {
                     Log.v(

@@ -225,7 +225,9 @@ class TemperatureLabelCollisionOrderTest {
         // (edge) flanks and carry no actual label themselves.
         actual[24] = 54f
         actual[25] = 53.2f
-        actual[26] = 54f
+        // The NOW dot sits on this last sample; >1° from the low so the plateau-into-dot rule
+        // (FETCH_DOT_PLATEAU) does not drop the low as a repeat of the dot's reading.
+        actual[26] = 55f
 
         val observedAt = LocalDateTime.of(2026, 4, 9, 2, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val placements = runEngineTest(
@@ -269,7 +271,8 @@ class TemperatureLabelCollisionOrderTest {
         // Observed valley with neighbours so idx 25 is a genuine turning point.
         actual[24] = 50f
         actual[25] = 49.8f
-        actual[26] = 50f
+        // >1° above the low: see the FETCH_DOT_PLATEAU note in the test above.
+        actual[26] = 51f
 
         val observedAt = LocalDateTime.of(2026, 4, 9, 2, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val placements = runEngineTest(
