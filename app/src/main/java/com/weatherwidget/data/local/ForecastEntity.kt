@@ -30,4 +30,8 @@ data class ForecastEntity(
     val precipAmountMm: Float? = null, // Daily precipitation amount in millimeters
     val batchFetchedAt: Long = System.currentTimeMillis(), // Shared across all rows from one provider fetch batch
     val fetchedAt: Long = System.currentTimeMillis(),
+    // Same-day high/low the source sent after its SameDayExtremeCutoff: kept, never read as a
+    // forecast (highTemp/lowTemp hold the last pre-cutoff value). Past-day dashed fallback only.
+    val hindcastHighTemp: Float? = null,
+    val hindcastLowTemp: Float? = null,
 )

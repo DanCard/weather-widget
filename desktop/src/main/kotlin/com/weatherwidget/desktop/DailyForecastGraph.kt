@@ -296,6 +296,7 @@ fun DailyForecastGraph(
                 drawAdaptiveBar(
                     centerX - pastTripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, pastTripleWidth,
                     priorColor, day.cloudCoverRatio, day.iconCondition,
+                    pathEffect = standInDash(pastTripleWidth).takeIf { day.snapshotIsStale },
                 )
                 drawAdaptiveBar(
                     centerX = centerX + pastTripleOffset,
@@ -306,6 +307,7 @@ fun DailyForecastGraph(
                     baseColor = forecastColor(day),
                     cloudCoverRatio = day.cloudCoverRatio,
                     iconCondition = day.iconCondition,
+                    pathEffect = standInDash(pastTripleWidth).takeIf { day.forecastIsFallback },
                 )
                 val solidBarColor = if (day.solidIsForecastFallback) forecastColor(day) else COLOR_OBSERVED
                 drawRangeLine(

@@ -453,6 +453,7 @@ object DailyViewLogic {
             var snapshotLow: Float? = null
             var snapshotIconRes: Int? = null
             var snapshotIsStale = false
+            var forecastIsFallback = false
             val isClimateOverlay: Boolean
             val isTodayForecastFallback: Boolean
             var trueActualHigh: Float? = null
@@ -467,7 +468,17 @@ object DailyViewLogic {
                     displaySource = displaySource,
                     date = date,
                     showComparison = showComparison,
+                    // Last step of the right bar's fallback: the day's hourly forecast range, as the
+                    // live column drew it (DailyActualsEstimator / todayForecastRange).
+                    hourlyTemps = com.weatherwidget.shared.util.PastDayForecastOverlay.forecastHourlyTemps(
+                        hourlyForecasts.filter {
+                            it.source == displaySource.id &&
+                                java.time.Instant.ofEpochMilli(it.dateTime).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == date
+                        },
+                        { it.dateTime }, { it.fetchedAt }, { it.temperature },
+                    ),
                 )
+                forecastIsFallback = pastValues.forecastIsFallback
                 finalHigh = pastValues.finalHigh
                 finalLow = pastValues.finalLow
                 fHigh = pastValues.fHigh
@@ -476,9 +487,10 @@ object DailyViewLogic {
                 // Left bar of the past triple bar: "yesterday's forecast" (PriorDayForecast) —
                 // frozen when the freeze has run, else picked live from the loaded rows. Drawn
                 // only as a pair, like today's.
-                DailyPastDayResolver.resolvePriorForecast(actual, forecasts, displaySource, date)?.let { (h, l) ->
-                    snapshotHigh = h
-                    snapshotLow = l
+                DailyPastDayResolver.resolvePriorForecast(actual, forecasts, displaySource, date)?.let {
+                    snapshotHigh = it.high
+                    snapshotLow = it.low
+                    snapshotIsStale = it.isFallback
                 }
                 isClimateOverlay = false
                 isTodayForecastFallback = false
@@ -671,6 +683,7 @@ object DailyViewLogic {
                         // as its right (settled-forecast) bar does.
                         snapshotIconRes = snapshotIconRes ?: iconRes.takeIf { isPastDate && snapshotHigh != null },
                         snapshotIsStale = snapshotIsStale,
+                        forecastIsFallback = forecastIsFallback,
                         actualsFromOtherSite = isPastDate && !solidIsForecastFallback &&
                             actual?.isActualsBorrowed == true,
                         ghostLineHigh = trueActualHigh,

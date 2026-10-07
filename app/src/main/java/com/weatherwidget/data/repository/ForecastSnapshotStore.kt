@@ -137,6 +137,10 @@ internal class ForecastSnapshotStore(
             val prior = latestByDate[forecast.targetDate]
             val highToStore = if (filtered.frozeHigh) prior?.highTemp else filtered.highTemp
             val lowToStore = if (filtered.frozeLow) prior?.lowTemp else filtered.lowTemp
+            // The frozen side's raw value is kept, not dropped: readers ignore hindcast*, and a past
+            // day with no pre-cutoff forecast draws it as a dashed fallback (PastDayForecastOverlay).
+            val hindcastHigh = if (filtered.frozeHigh) ForecastTempRounding.forStorage(high, isToday) else null
+            val hindcastLow = if (filtered.frozeLow) ForecastTempRounding.forStorage(low, isToday) else null
             if (filtered.frozeAny) {
                 appLogDao.log(
                     "SNAPSHOT_SKIP_HINDCAST",
@@ -145,7 +149,9 @@ internal class ForecastSnapshotStore(
                         "prior_high=${prior?.highTemp} prior_low=${prior?.lowTemp}",
                 )
             }
-            if (highToStore == null && lowToStore == null) return@mapNotNull null
+            if (highToStore == null && lowToStore == null && hindcastHigh == null && hindcastLow == null) {
+                return@mapNotNull null
+            }
 
             ForecastEntity(
                 targetDate = forecast.targetDate,
@@ -164,6 +170,8 @@ internal class ForecastSnapshotStore(
                 precipAmountMm = forecast.precipAmountMm,
                 batchFetchedAt = batchFetchedAt,
                 fetchedAt = System.currentTimeMillis(),
+                hindcastHighTemp = hindcastHigh,
+                hindcastLowTemp = hindcastLow,
             )
         }
 
@@ -179,7 +187,9 @@ internal class ForecastSnapshotStore(
                 existing.precipProbability == newlyFetched.precipProbability &&
                 existing.daytimePrecipProbability == newlyFetched.daytimePrecipProbability &&
                 existing.nighttimePrecipProbability == newlyFetched.nighttimePrecipProbability &&
-                existing.precipAmountMm == newlyFetched.precipAmountMm
+                existing.precipAmountMm == newlyFetched.precipAmountMm &&
+                existing.hindcastHighTemp == newlyFetched.hindcastHighTemp &&
+                existing.hindcastLowTemp == newlyFetched.hindcastLowTemp
             val newDataIsStrictlyBetter = existing != null &&
                 (
                     (existing.highTemp == null && newlyFetched.highTemp != null) ||

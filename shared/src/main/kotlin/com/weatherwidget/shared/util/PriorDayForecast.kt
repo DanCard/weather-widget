@@ -74,13 +74,20 @@ object PriorDayForecast {
         )
     }
 
+    /** A past day's left bar. [isFallback]: a side was fetched after its anchor — drawn dashed. */
+    data class Past(val high: Float, val low: Float, val isFallback: Boolean)
+
     /**
      * A past day's left bar as rendered: each side's frozen `daily_history.priorForecast*` value
      * when present, else picked live from [candidates] by [select] with no fallback (the frozen
      * history's own rule). The live pick covers the time before the freeze has run — the first
      * paints after an upgrade, and every paint until the next full sync, which on battery can be
-     * hours away. The frozen value outlives the `forecasts` table's 30-day retention. Null unless
-     * both ends are known (half a bar is never drawn).
+     * hours away. The frozen value outlives the `forecasts` table's 30-day retention.
+     *
+     * When neither finds a side, the earliest row carrying it stands in (today's own fallback), then
+     * the earliest post-cutoff [hindcastHigh]/[hindcastLow]; either makes the bar a dashed fallback
+     * (user's call, 2026-10-07 — a source added mid-day otherwise shows no left bar for two days).
+     * Null unless both ends are known (half a bar is never drawn).
      */
     fun <T> resolvePast(
         frozenHigh: Float?,
@@ -91,15 +98,23 @@ object PriorDayForecast {
         fetchedAt: (T) -> Long,
         high: (T) -> Float?,
         low: (T) -> Float?,
-    ): Pair<Float, Float>? {
+        hindcastHigh: (T) -> Float? = { null },
+        hindcastLow: (T) -> Float? = { null },
+    ): Past? {
         val pick = if (frozenHigh != null && frozenLow != null) {
             null
         } else {
             select(candidates, date, zone, fetchedAt, high, low, fallbackToEarliest = false)
         }
-        val h = frozenHigh ?: pick?.highRow?.let(high) ?: return null
-        val l = frozenLow ?: pick?.lowRow?.let(low) ?: return null
-        return h to l
+        val late by lazy { select(candidates, date, zone, fetchedAt, high, low, fallbackToEarliest = true) }
+        fun side(frozen: Float?, picked: T?, valueOf: (T) -> Float?, lateRow: () -> T?, hindcast: (T) -> Float?): Pair<Float, Boolean>? =
+            frozen?.let { it to false }
+                ?: picked?.let(valueOf)?.let { it to false }
+                ?: lateRow()?.let(valueOf)?.let { it to true }
+                ?: candidates.filter { hindcast(it) != null }.minByOrNull(fetchedAt)?.let { hindcast(it)!! to true }
+        val h = side(frozenHigh, pick?.highRow, high, { late.highRow }, hindcastHigh) ?: return null
+        val l = side(frozenLow, pick?.lowRow, low, { late.lowRow }, hindcastLow) ?: return null
+        return Past(h.first, l.first, isFallback = h.second || l.second)
     }
 
     /**

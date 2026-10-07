@@ -312,6 +312,8 @@ interface ForecastDao {
      * hold only each day's NEWEST row, which is always after the anchors, so a day whose frozen
      * `daily_history.priorForecast*` columns are not filled yet needs these to draw its left bar.
      * targetDate is UTC midnight: [−72h, +5h] covers the anchors in every zone from UTC+14 to UTC−12.
+     * Rows carrying a post-cutoff `hindcast*` value come too, whenever fetched: they are the past
+     * day's dashed fallback (PastDayForecastOverlay.resolve) when nothing was fetched in time.
      */
     @Query(
         """
@@ -320,8 +322,11 @@ interface ForecastDao {
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         AND isClimateNormal = 0
-        AND fetchedAt >= targetDate - 259200000
-        AND fetchedAt < targetDate + 18000000
+        AND (
+            (fetchedAt >= targetDate - 259200000 AND fetchedAt < targetDate + 18000000)
+            OR hindcastHighTemp IS NOT NULL
+            OR hindcastLowTemp IS NOT NULL
+        )
         ORDER BY targetDate ASC, fetchedAt DESC
     """,
     )
@@ -515,15 +520,18 @@ private const val SANITIZE_TAG = "ForecastDao"
 internal fun ForecastEntity.withPlausibleTemps(): ForecastEntity {
     val high = highTemp.orNullIfImplausibleTempF()
     val low = lowTemp.orNullIfImplausibleTempF()
-    if (high == highTemp && low == lowTemp) return this
+    val hindcastHigh = hindcastHighTemp.orNullIfImplausibleTempF()
+    val hindcastLow = hindcastLowTemp.orNullIfImplausibleTempF()
+    if (high == highTemp && low == lowTemp && hindcastHigh == hindcastHighTemp && hindcastLow == hindcastLowTemp) return this
     // Rare by construction (only genuinely poisoned rows), so this stays a permanent breadcrumb
     // rather than log spam — the next occurrence should be one logcat query away.
     Log.w(
         SANITIZE_TAG,
         "withPlausibleTemps: rejected stored temp targetDate=$targetDate source=$source" +
-            " high=$highTemp->$high low=$lowTemp->$low fetchedAt=$fetchedAt",
+            " high=$highTemp->$high low=$lowTemp->$low" +
+            " hindcastHigh=$hindcastHighTemp->$hindcastHigh hindcastLow=$hindcastLowTemp->$hindcastLow fetchedAt=$fetchedAt",
     )
-    return copy(highTemp = high, lowTemp = low)
+    return copy(highTemp = high, lowTemp = low, hindcastHighTemp = hindcastHigh, hindcastLowTemp = hindcastLow)
 }
 
 internal fun List<ForecastEntity>.withPlausibleTemps(): List<ForecastEntity> =

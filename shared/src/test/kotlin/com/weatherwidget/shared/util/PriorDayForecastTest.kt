@@ -122,25 +122,52 @@ class PriorDayForecastTest {
         assertFalse(PriorDayForecast.isStale(cutoff + 5 * hour, cutoff))
     }
 
+    private data class HRow(val fetchedAt: Long, val high: Float?, val low: Float?, val hHigh: Float? = null, val hLow: Float? = null)
+
     private fun resolve(frozenHigh: Float?, frozenLow: Float?, rows: List<Row>) =
         PriorDayForecast.resolvePast(frozenHigh, frozenLow, rows, day, zone, { it.fetchedAt }, { it.high }, { it.low })
+
+    private fun real(h: Float, l: Float) = PriorDayForecast.Past(h, l, isFallback = false)
+    private fun fallback(h: Float, l: Float) = PriorDayForecast.Past(h, l, isFallback = true)
 
     private val anchored = listOf(Row(prev(5), 81f, 56f), Row(prev(15), 83f, 58f), Row(prev(20), 90f, 60f))
 
     @Test
     fun `resolvePast prefers the frozen pair`() {
-        assertEquals(70f to 50f, resolve(70f, 50f, anchored))
+        assertEquals(real(70f, 50f), resolve(70f, 50f, anchored))
     }
 
     @Test
-    fun `resolvePast picks live before the freeze has run, without fallback`() {
-        assertEquals(83f to 56f, resolve(null, null, anchored))
-        assertNull(resolve(null, null, listOf(Row(prev(20), 90f, 60f))))
+    fun `resolvePast picks live before the freeze has run`() {
+        assertEquals(real(83f, 56f), resolve(null, null, anchored))
     }
 
     @Test
-    fun `resolvePast fills only the missing side and never draws half a bar`() {
-        assertEquals(70f to 56f, resolve(70f, null, anchored))
-        assertNull(resolve(70f, null, listOf(Row(prev(20), 90f, 60f))))
+    fun `resolvePast fills only the missing side`() {
+        assertEquals(real(70f, 56f), resolve(70f, null, anchored))
+    }
+
+    @Test
+    fun `a side fetched after its anchor is a dashed fallback from the earliest such row`() {
+        // Source first fetched at 11:16 on D-1 (Google, 2026-10-06): the high anchor (16:00) is met,
+        // the low anchor (06:00) is not — the earliest row stands in for the low.
+        val rows = listOf(Row(prev(11, 16), 82f, 59f), Row(prev(14, 45), 84f, 58f), Row(prev(20), 84f, 58f))
+        assertEquals(fallback(84f, 59f), resolve(null, null, rows))
+        // Frozen high + late low: still a fallback.
+        assertEquals(fallback(70f, 60f), resolve(70f, null, listOf(Row(prev(20), 90f, 60f))))
+    }
+
+    @Test
+    fun `the earliest post-cutoff value is the last resort, and nothing still draws nothing`() {
+        val rows = listOf(
+            HRow(prev(9, plusDays = 1), 83f, null, hLow = 61f),
+            HRow(prev(12, plusDays = 1), 83f, null, hLow = 60f),
+        )
+        val past = PriorDayForecast.resolvePast(
+            null, null, rows, day, zone, { it.fetchedAt }, { it.high }, { it.low }, { it.hHigh }, { it.hLow },
+        )
+        assertEquals(fallback(83f, 61f), past)
+        assertNull(resolve(null, null, emptyList()))
+        assertNull(resolve(null, null, listOf(Row(prev(20), 90f, null))))
     }
 }

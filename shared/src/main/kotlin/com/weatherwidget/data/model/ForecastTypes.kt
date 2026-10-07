@@ -71,6 +71,9 @@ data class DailyForecastSnapshot(
     // days, since the live `DailyForecast` list holds only today + future).
     val daytimePrecipProbability: Int? = null,
     val nighttimePrecipProbability: Int? = null,
+    /** Same-day high/low the source sent after its cutoff (`forecasts.hindcast*`); past-day fallback only. */
+    val hindcastHighTemp: Float? = null,
+    val hindcastLowTemp: Float? = null,
 )
 
 data class DailyActual(

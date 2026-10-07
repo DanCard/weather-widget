@@ -20,8 +20,15 @@ class DailyPastDayResolverOverlayTest {
     private fun row(high: Float?, low: Float?, fetchedAt: Long, source: String = "NWS") =
         TestData.forecast(targetDate = "2026-09-02", source = source, highTemp = high, lowTemp = low, fetchedAt = fetchedAt)
 
-    private fun overlay(vararg rows: com.weatherwidget.data.local.ForecastEntity) =
-        DailyPastDayResolver.resolvePastDayOverlay(actual = null, forecasts = rows.toList(), displaySource = WeatherSource.NWS, date = date)
+    private fun overlay(vararg rows: com.weatherwidget.data.local.ForecastEntity, hourly: List<Float> = emptyList()) =
+        DailyPastDayResolver.resolvePastDayOverlay(
+            actual = null, forecasts = rows.toList(), displaySource = WeatherSource.NWS, date = date, hourlyTemps = hourly,
+        )?.let { it.high to it.low }
+
+    private fun resolved(vararg rows: com.weatherwidget.data.local.ForecastEntity, hourly: List<Float> = emptyList()) =
+        DailyPastDayResolver.resolvePastDayOverlay(
+            actual = null, forecasts = rows.toList(), displaySource = WeatherSource.NWS, date = date, hourlyTemps = hourly,
+        )
 
     @Test
     fun `an older real range beats a newer collapsed row`() {
@@ -34,9 +41,19 @@ class DailyPastDayResolverOverlayTest {
     }
 
     @Test
-    fun `a one-sided row draws no overlay`() {
-        val (high, low) = overlay(row(74f, null, 1))
-        assertNull(high)
-        assertNull(low)
+    fun `a one-sided row draws no overlay without a fallback`() {
+        assertNull(overlay(row(74f, null, 1)))
     }
+
+    @Test
+    fun `a missing low falls back to the post-cutoff value, then the hourly low, dashed`() {
+        val withHindcast = row(74f, null, 1).copy(hindcastLowTemp = 58f)
+        assertEquals(DailyPastDayResolverResult(74f, 58f, true), resolved(withHindcast, hourly = listOf(60f, 75f)).asResult())
+        assertEquals(DailyPastDayResolverResult(74f, 60f, true), resolved(row(74f, null, 1), hourly = listOf(60f, 75f)).asResult())
+    }
+
+    private data class DailyPastDayResolverResult(val high: Float, val low: Float, val isFallback: Boolean)
+
+    private fun com.weatherwidget.shared.util.PastDayForecastOverlay.Resolved?.asResult() =
+        this?.let { DailyPastDayResolverResult(it.high, it.low, it.isFallback) }
 }

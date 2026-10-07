@@ -114,6 +114,30 @@ class DesktopPriorForecastFreezeTest {
         val version = db.getConnection().use { c ->
             c.createStatement().use { st -> st.executeQuery("PRAGMA user_version").use { it.next(); it.getInt(1) } }
         }
-        assertEquals(26, version)
+        assertEquals(DesktopWeatherDatabase.SCHEMA_VERSION, version)
+    }
+
+    @Test
+    fun `a v26 database gains the forecasts hindcast columns on upgrade and keeps its rows`() {
+        exec("PRAGMA user_version = 26")
+        exec("ALTER TABLE forecasts DROP COLUMN hindcastHighTemp")
+        exec("ALTER TABLE forecasts DROP COLUMN hindcastLowTemp")
+        exec(
+            "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, " +
+                "source, batchFetchedAt, fetchedAt) VALUES ($dateMs, $dateMs, $lat, $lon, 80, 60, 'Clear', 'NWS', 1, 1)",
+        )
+
+        DesktopWeatherDatabase(path).initialize()
+
+        db.getConnection().use { c ->
+            c.createStatement().use { st ->
+                st.executeQuery("SELECT highTemp, hindcastLowTemp FROM forecasts").use {
+                    assertTrue(it.next())
+                    assertEquals(80f, it.getFloat("highTemp"))
+                    assertNull(it.getObject("hindcastLowTemp"))
+                }
+                st.executeQuery("PRAGMA user_version").use { it.next(); assertEquals(27, it.getInt(1)) }
+            }
+        }
     }
 }

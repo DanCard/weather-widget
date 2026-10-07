@@ -246,6 +246,47 @@ class DesktopWeatherDaoTest {
         assertNull("a missing low is stored and read as null, never 0 or the high", day.lowTemp)
     }
 
+    /**
+     * A source first fetched after 06:00 (Google, 2026-10-06): the low is still frozen out of
+     * `lowTemp`, but the raw value is kept in `hindcastLowTemp` for the past-day dashed fallback.
+     */
+    @Test
+    fun `upsertForecasts keeps a frozen same-day value as hindcast, not as the forecast`() {
+        val lat = 37.4168
+        val lon = -122.0890
+        val today = LocalDate.now()
+        val at1116 = today.atTime(11, 16).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        dao.upsertForecasts(lat, lon, "GOOGLE_WEATHER", listOf(
+            DailyForecast(date = today.toString(), highTemp = 81.9f, lowTemp = 60.4f, condition = "Clear"),
+        ), nowMs = at1116)
+
+        val stored = database.getConnection().use { conn ->
+            conn.createStatement().executeQuery(
+                "SELECT highTemp, lowTemp, hindcastHighTemp, hindcastLowTemp FROM forecasts WHERE source = 'GOOGLE_WEATHER'",
+            ).use { rs ->
+                assertTrue(rs.next())
+                listOf(rs.getObject("highTemp"), rs.getObject("lowTemp"), rs.getObject("hindcastHighTemp"), rs.getObject("hindcastLowTemp"))
+            }
+        }
+        assertEquals(81.9, (stored[0] as Number).toDouble(), 0.01)
+        assertNull("a post-cutoff low never becomes the forecast", stored[1])
+        assertNull("the high was not frozen, so nothing is hindcast", stored[2])
+        assertEquals(60.4, (stored[3] as Number).toDouble(), 0.01)
+
+        // A later batch makes the first one a snapshot, which carries the hindcast to the renderer.
+        setForecastBatchStamp(1000L)
+        dao.upsertForecasts(lat, lon, "GOOGLE_WEATHER", listOf(
+            DailyForecast(date = today.plusDays(1).toString(), highTemp = 80f, lowTemp = 59f, condition = "Clear"),
+        ))
+        val snapshot = dao.getDailyForecastSnapshots(
+            today.minusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli(),
+            today.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli(),
+            lat, lon, "GOOGLE_WEATHER",
+        )[today.toString()]!!.single()
+        assertNull(snapshot.lowTemp)
+        assertEquals(60.4f, snapshot.hindcastLowTemp!!, 0.01f)
+    }
+
     /** Before 06:00 local, so the same-day cutoffs (SameDayExtremeCutoff) store both values. */
     private fun earlyMorningMs(): Long =
         LocalDate.now().atTime(5, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()

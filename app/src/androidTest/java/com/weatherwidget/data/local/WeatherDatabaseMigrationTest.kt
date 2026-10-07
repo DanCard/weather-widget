@@ -698,4 +698,26 @@ class WeatherDatabaseMigrationTest {
             assertTrue("priorForecastLowTemp must start NULL", c.isNull(4))
         }
     }
+
+    @Test
+    fun migrate73To74_addsForecastHindcastColumnsAsNullAndKeepsRows() {
+        helper.createDatabase(testDb, 73).apply {
+            execSQL(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
+                    "condition, isClimateNormal, source, batchFetchedAt, fetchedAt) VALUES " +
+                    "(1791244800000, 1791244800000, 37.417, -122.089, 83.8, NULL, 'Clear', 0, 'GOOGLE_WEATHER', 5, 5)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 74, true, WeatherDatabase.MIGRATION_73_74)
+
+        db.query("SELECT highTemp, lowTemp, hindcastHighTemp, hindcastLowTemp FROM forecasts").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(83.8, c.getDouble(0), 0.01)
+            assertTrue(c.isNull(1))
+            assertTrue("hindcastHighTemp must start NULL", c.isNull(2))
+            assertTrue("hindcastLowTemp must start NULL", c.isNull(3))
+        }
+    }
 }

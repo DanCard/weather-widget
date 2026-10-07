@@ -142,13 +142,46 @@ class ForecastSnapshotHindcastCutoffTest {
     }
 
     @Test
-    fun `first write after both cutoffs stores neither high nor low`() = runTest {
+    fun `first write after both cutoffs stores neither as a forecast, but keeps both as hindcast`() = runTest {
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = todayStr, highTemp = 90f, lowTemp = 52f)),
             LAT, LON, "NWS",
             nowMs = at(17, 0),
         )
-        assertNull("no junk row", db.forecastDao().getLatestForecastBySource("NWS", LAT, LON))
+        val row = latest()
+        assertNull(row.highTemp)
+        assertNull(row.lowTemp)
+        assertEquals(90f, row.hindcastHighTemp)
+        assertEquals(52f, row.hindcastLowTemp)
+    }
+
+    /**
+     * Google 2026-10-06: first fetched at 11:16, so the same-day low was frozen with no prior to
+     * keep and was dropped. It is now kept as hindcast (plans/261007-…), and a changed hindcast is
+     * not deduplicated away as "unchanged".
+     */
+    @Test
+    fun `a source first fetched mid-day keeps its raw low as hindcast, and a changed hindcast is stored`() = runTest {
+        repository.saveForecastSnapshot(
+            listOf(TestData.forecast(targetDate = todayStr, highTemp = 81.9f, lowTemp = 60.4f)),
+            LAT, LON, "NWS",
+            nowMs = at(11, 16),
+        )
+        val first = latest()
+        assertEquals(81.9f, first.highTemp)
+        assertNull("a post-cutoff low never becomes the forecast", first.lowTemp)
+        assertNull(first.hindcastHighTemp)
+        assertEquals(60.4f, first.hindcastLowTemp)
+
+        Thread.sleep(5) // fetchedAt (wall clock) is part of the primary key
+        repository.saveForecastSnapshot(
+            listOf(TestData.forecast(targetDate = todayStr, highTemp = 81.9f, lowTemp = 59.8f)),
+            LAT, LON, "NWS",
+            nowMs = at(11, 35),
+        )
+        // Not skipped as unchanged (highTemp/lowTemp are identical); the history bucket then keeps
+        // the newer row, as for any changed forecast inside one bucket.
+        assertEquals(59.8f, latest().hindcastLowTemp)
     }
 
     @Test

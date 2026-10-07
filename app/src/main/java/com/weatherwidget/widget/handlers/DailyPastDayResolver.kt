@@ -20,6 +20,8 @@ internal object DailyPastDayResolver {
         val fHigh: Float?,
         val fLow: Float?,
         val solidIsForecastFallback: Boolean,
+        /** The right bar has a fallback side (post-cutoff or hourly value) — drawn dashed. */
+        val forecastIsFallback: Boolean = false,
     )
 
     fun resolvePastDayValues(
@@ -28,14 +30,18 @@ internal object DailyPastDayResolver {
         displaySource: WeatherSource,
         date: LocalDate,
         showComparison: Boolean = true,
+        hourlyTemps: List<Float> = emptyList(),
     ): PastDayValues {
         var fHigh: Float? = null
         var fLow: Float? = null
+        var forecastIsFallback = false
 
         if (showComparison) {
-            val (overlayHigh, overlayLow) = resolvePastDayOverlay(actual, forecasts, displaySource, date)
-            fHigh = overlayHigh
-            fLow = overlayLow
+            resolvePastDayOverlay(actual, forecasts, displaySource, date, hourlyTemps)?.let {
+                fHigh = it.high
+                fLow = it.low
+                forecastIsFallback = it.isFallback
+            }
         }
 
         // A past day may have no daily_history actual row (forecast-only sources like
@@ -55,6 +61,7 @@ internal object DailyPastDayResolver {
             fHigh = pastValues.forecastHigh,
             fLow = pastValues.forecastLow,
             solidIsForecastFallback = pastValues.solidIsForecastFallback,
+            forecastIsFallback = forecastIsFallback,
         )
     }
 
@@ -68,7 +75,7 @@ internal object DailyPastDayResolver {
         displaySource: WeatherSource,
         date: LocalDate,
         zone: ZoneId = ZoneId.systemDefault(),
-    ): Pair<Float, Float>? {
+    ): PriorDayForecast.Past? {
         val candidates = forecasts.filter {
             it.source == displaySource.id && !it.isClimateNormal &&
                 (actual == null || LocationMatch.sameSite(it.locationLat, it.locationLon, actual.locationLat, actual.locationLon))
@@ -76,6 +83,7 @@ internal object DailyPastDayResolver {
         val resolved = PriorDayForecast.resolvePast(
             actual?.priorForecastHighTemp, actual?.priorForecastLowTemp, candidates, date, zone,
             fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
+            hindcastHigh = { it.hindcastHighTemp }, hindcastLow = { it.hindcastLowTemp },
         )
         if (resolved != null && (actual?.priorForecastHighTemp == null || actual.priorForecastLowTemp == null)) {
             Log.v(TAG, "resolvePriorForecast: past day $date left bar picked live (not frozen yet) $resolved")
@@ -83,28 +91,31 @@ internal object DailyPastDayResolver {
         return resolved
     }
 
+    /** The right bar, shared rule [PastDayForecastOverlay.resolve] (display source only). */
     fun resolvePastDayOverlay(
         actual: DailyHistory?,
         forecasts: List<ForecastEntity>,
         displaySource: WeatherSource,
         date: LocalDate,
-    ): Pair<Float?, Float?> {
-        val frozenHigh = actual?.forecastHighTemp
-        val frozenLow = actual?.forecastLowTemp
-        if (frozenHigh != null && frozenLow != null) {
-            Log.v(TAG, "resolvePastDayOverlay: past day $date overlay from frozen daily_history high=$frozenHigh low=$frozenLow")
-            return Pair(frozenHigh, frozenLow)
-        }
-        // Shared with desktop and the text-only path: a real range wins over a newer collapsed row.
-        val pastForecast = PastDayForecastOverlay.pick(
-            forecasts.filter { it.source == displaySource.id && !it.isClimateNormal },
-            { it.highTemp },
-            { it.lowTemp },
-            { it.fetchedAt },
+        hourlyTemps: List<Float> = emptyList(),
+    ): PastDayForecastOverlay.Resolved? {
+        val resolved = PastDayForecastOverlay.resolve(
+            frozenHigh = actual?.forecastHighTemp,
+            frozenLow = actual?.forecastLowTemp,
+            candidates = forecasts.filter { it.source == displaySource.id && !it.isClimateNormal },
+            high = { it.highTemp },
+            low = { it.lowTemp },
+            fetchedAt = { it.fetchedAt },
+            hindcastHigh = { it.hindcastHighTemp },
+            hindcastLow = { it.hindcastLowTemp },
+            hourlyTemps = hourlyTemps,
         )
-        if (pastForecast == null) {
-            Log.d(TAG, "resolvePastDayOverlay: past day $date has no usable forecast snapshot from ${displaySource.id}; skipping forecast overlay")
+        when {
+            resolved == null ->
+                Log.d(TAG, "resolvePastDayOverlay: past day $date has no usable forecast from ${displaySource.id}; skipping forecast overlay")
+            resolved.isFallback ->
+                Log.d(TAG, "resolvePastDayOverlay: past day $date overlay is a fallback (dashed) $resolved")
         }
-        return Pair(pastForecast?.highTemp, pastForecast?.lowTemp)
+        return resolved
     }
 }

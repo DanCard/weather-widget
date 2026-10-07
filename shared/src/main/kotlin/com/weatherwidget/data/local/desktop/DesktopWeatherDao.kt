@@ -399,8 +399,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     INSERT OR REPLACE INTO forecasts
                     (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition,
                      nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm,
-                     daytimePrecipProbability, nighttimePrecipProbability, batchFetchedAt, fetchedAt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     daytimePrecipProbability, nighttimePrecipProbability, batchFetchedAt, fetchedAt,
+                     hindcastHighTemp, hindcastLowTemp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = nowMs
@@ -420,6 +421,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             else ForecastTempRounding.forStorage(d.highTemp, isToday) ?: d.highTemp
                         var lowToStore = if (d.isClimateNormal) d.lowTemp
                             else ForecastTempRounding.forStorage(d.lowTemp, isToday) ?: d.lowTemp
+                        // The frozen side's raw value, kept for the past-day dashed fallback; no
+                        // reader takes hindcast* as a forecast.
+                        var hindcastHigh: Float? = null
+                        var hindcastLow: Float? = null
                         if (!d.isClimateNormal) {
                             val filtered = SameDayExtremeCutoff.filter(
                                 targetDate = LocalDate.parse(d.date),
@@ -429,8 +434,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             )
                             if (filtered.frozeAny) {
                                 val prior = latestForecastTemps(conn, keyLat, keyLon, source, targetDate)
-                                if (filtered.frozeHigh) highToStore = prior.first
-                                if (filtered.frozeLow) lowToStore = prior.second
+                                if (filtered.frozeHigh) {
+                                    hindcastHigh = highToStore
+                                    highToStore = prior.first
+                                }
+                                if (filtered.frozeLow) {
+                                    hindcastLow = lowToStore
+                                    lowToStore = prior.second
+                                }
                                 pendingLogs += "FORECAST_SKIP_HINDCAST" to
                                     "date=${d.date} source=$source " +
                                     "froze=${listOfNotNull("high".takeIf { filtered.frozeHigh }, "low".takeIf { filtered.frozeLow }).joinToString("+")} " +
@@ -455,6 +466,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableInt(14, d.nighttimePrecipProbability)
                         stmt.setLong(15, now)
                         stmt.setLong(16, now)
+                        stmt.setNullableFloat(17, hindcastHigh)
+                        stmt.setNullableFloat(18, hindcastLow)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -1566,7 +1579,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             val sql = """
                 SELECT targetDate, highTemp, lowTemp, condition, nativeDailyIconToken,
                     precipProbability, daytimePrecipProbability, nighttimePrecipProbability,
-                    precipAmountMm, fetchedAt, batchFetchedAt
+                    precipAmountMm, fetchedAt, batchFetchedAt, hindcastHighTemp, hindcastLowTemp
                 FROM forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
                     AND targetDate >= ? AND targetDate <= ?
@@ -1597,6 +1610,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             fetchedAt = rs.getLong("fetchedAt"),
                             daytimePrecipProbability = rs.getNullableInt("daytimePrecipProbability"),
                             nighttimePrecipProbability = rs.getNullableInt("nighttimePrecipProbability"),
+                            hindcastHighTemp = rs.getNullableFloat("hindcastHighTemp").orNullIfImplausibleTempF(),
+                            hindcastLowTemp = rs.getNullableFloat("hindcastLowTemp").orNullIfImplausibleTempF(),
                         )
                     )
                 }

@@ -228,6 +228,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     // rebuild copies daily_history with a positional SELECT *.
                     addDailyHistoryExtremeTimeColumns(stmt)
                     addDailyHistoryPriorForecastColumns(stmt)
+                    addForecastHindcastColumns(stmt)
                     stmt.execute("PRAGMA user_version = $SCHEMA_VERSION")
                 } else {
                     migrate(conn, currentVersion, SCHEMA_VERSION)
@@ -591,6 +592,12 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 26) {
                 addDailyHistoryPriorForecastColumns(stmt)
             }
+            // v27: the raw same-day extreme a source sent after its cutoff, kept beside the forecast
+            // columns (which still ignore it) for the past-day dashed fallback. Moves with Room
+            // MIGRATION_73_74.
+            if (from < 27) {
+                addForecastHindcastColumns(stmt)
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -608,6 +615,10 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
 
     private fun addDailyHistoryPriorForecastColumns(stmt: java.sql.Statement) {
         DAILY_HISTORY_PRIOR_FORECAST_COLUMNS.forEach { addColumnIfMissing(stmt, "daily_history", it, "REAL") }
+    }
+
+    private fun addForecastHindcastColumns(stmt: java.sql.Statement) {
+        FORECAST_HINDCAST_COLUMNS.forEach { addColumnIfMissing(stmt, "forecasts", it, "REAL") }
     }
 
     private fun addColumnIfMissing(stmt: java.sql.Statement, table: String, column: String, type: String) {
@@ -650,7 +661,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 26
+        const val SCHEMA_VERSION = 27
 
         /**
          * `daily_history` columns added after [DAILY_HISTORY_NULLABLE_COMPUTED_DDL] (which the v19
@@ -664,6 +675,14 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * desktop v26 and Room MIGRATION_72_73.
          */
         val DAILY_HISTORY_PRIOR_FORECAST_COLUMNS = listOf("priorForecastHighTemp", "priorForecastLowTemp")
+
+        /**
+         * `forecasts` columns holding the same-day high/low a source sent **after** its
+         * [com.weatherwidget.shared.util.SameDayExtremeCutoff] cutoff: kept, never read as a forecast
+         * (`highTemp`/`lowTemp` still hold the last pre-cutoff value or null). Nullable REAL °F.
+         * Shared by desktop v27 and Room MIGRATION_73_74.
+         */
+        val FORECAST_HINDCAST_COLUMNS = listOf("hindcastHighTemp", "hindcastLowTemp")
 
         /**
          * Column list shared by the desktop `daily_history` CREATE TABLE and the v19 rebuild (and by

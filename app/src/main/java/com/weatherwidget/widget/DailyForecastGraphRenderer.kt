@@ -193,8 +193,13 @@ object DailyForecastGraphRenderer {
         override val daysFromToday: Int = 0,
         /** Local hour-of-day (0–23) for the today column's actual-tracking cutoffs; null = legacy. */
         val nowHour: Int? = null,
-        /** Today's snapshot bar is older than 48h — drawn dashed (StandInBarStyle). */
+        /**
+         * The left ("yesterday's forecast") bar is a stand-in — drawn dashed (StandInBarStyle): today's
+         * pick last confirmed over a day before its anchor, or a past day's side fetched after it.
+         */
         val snapshotIsStale: Boolean = false,
+        /** A past day's right (settled forecast) bar has a fallback side (PastDayForecastOverlay) — dashed. */
+        val forecastIsFallback: Boolean = false,
         /** This past day's actuals were measured at a previous site (PreviousSiteHistory) — drawn dashed. */
         val actualsFromOtherSite: Boolean = false,
     ) : CloudCoverDiagnosticRow

@@ -212,6 +212,7 @@ internal object DailyBarRenderer {
                 paint = overlayPaint,
                 day = day,
                 logPrefix = "overlay",
+                dashed = day.isPast && day.forecastIsFallback,
             )
             onBarDrawn?.invoke(
                 BarDrawnDebug(
@@ -221,6 +222,7 @@ internal object DailyBarRenderer {
                     effectiveFLowY,
                     forecastX,
                     overlayPaint.color,
+                    dashed = day.isPast && day.forecastIsFallback,
                 ),
             )
         }

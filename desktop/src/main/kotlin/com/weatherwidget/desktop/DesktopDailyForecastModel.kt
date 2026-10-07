@@ -82,6 +82,8 @@ data class DesktopDailyDay(
     val snapshotIsStale: Boolean = false,
     /** This past day's actuals were measured at a previous site (PreviousSiteHistory) — drawn dashed. */
     val actualsFromOtherSite: Boolean = false,
+    /** A past day's right (settled forecast) bar has a fallback side (PastDayForecastOverlay) — dashed. */
+    val forecastIsFallback: Boolean = false,
 )
 
 data class DesktopDailyViewState(
@@ -305,6 +307,7 @@ object DesktopDailyForecastModel {
             PriorDayForecast.resolvePast(
                 actual?.priorForecastHighTemp, actual?.priorForecastLowTemp, snapshots, date, zone,
                 fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
+                hindcastHigh = { it.hindcastHighTemp }, hindcastLow = { it.hindcastLowTemp },
             )
         } else {
             null
@@ -318,6 +321,7 @@ object DesktopDailyForecastModel {
         var ghostHigh: Float? = null
         var barTopHigh: Float? = null
         var solidIsForecastFallback = false
+        var forecastIsFallback = false
 
         when {
             isPast -> {
@@ -326,22 +330,39 @@ object DesktopDailyForecastModel {
                 // hindcast-drift. High/low are written as a unit, so checking both guards against
                 // mixing a frozen value with a snapshot one. Pre-feature rows fall back to the
                 // snapshot table.
-                if (actual?.forecastHighTemp != null && actual.forecastLowTemp != null) {
-                    forecastHigh = actual.forecastHighTemp
-                    forecastLow = actual.forecastLowTemp
-                } else {
-                    // `snapshots` excludes the newest fetch batch; its row for this day is `forecast`.
-                    // Both are candidates, as on Android, and the newest batch ranks newest.
-                    val overlay = PastDayForecastOverlay.pick(
-                        snapshots.map { Triple(it.highTemp, it.lowTemp, it.fetchedAt) } +
-                            listOfNotNull(forecast?.let { Triple(it.highTemp, it.lowTemp, Long.MAX_VALUE) }),
-                        { it.first },
-                        { it.second },
-                        { it.third },
-                    )
-                    forecastHigh = overlay?.first
-                    forecastLow = overlay?.second
+                // Shared chain with Android (PastDayForecastOverlay.resolve): frozen, newest pair,
+                // per-side stored value, then the dashed fallbacks — post-cutoff value, hourly range.
+                // `snapshots` excludes the newest fetch batch; its row for this day is `forecast`,
+                // which ranks newest.
+                val pastSourceId = WeatherSource.fromDisplaySource(displaySourceId).id
+                val dayHourly = hourly.filter {
+                    Instant.ofEpochMilli(it.dateTime).atZone(zone).toLocalDate() == date &&
+                        (it.source == null || it.source == pastSourceId)
                 }
+                val overlay = PastDayForecastOverlay.resolve(
+                    frozenHigh = actual?.forecastHighTemp,
+                    frozenLow = actual?.forecastLowTemp,
+                    candidates = snapshots +
+                        listOfNotNull(
+                            forecast?.let {
+                                DailyForecastSnapshot(
+                                    date = it.date, highTemp = it.highTemp, lowTemp = it.lowTemp,
+                                    condition = it.condition, fetchedAt = Long.MAX_VALUE,
+                                )
+                            },
+                        ),
+                    high = { it.highTemp },
+                    low = { it.lowTemp },
+                    fetchedAt = { it.fetchedAt },
+                    hindcastHigh = { it.hindcastHighTemp },
+                    hindcastLow = { it.hindcastLowTemp },
+                    hourlyTemps = PastDayForecastOverlay.forecastHourlyTemps(
+                        dayHourly, { it.dateTime }, { it.fetchedAt }, { it.temperature },
+                    ),
+                )
+                forecastHigh = overlay?.high
+                forecastLow = overlay?.low
+                forecastIsFallback = overlay?.isFallback == true
                 // A past day may have no daily_history actual row (forecast-only sources like
                 // Open-Meteo, or pre-tracking days for Tomorrow.io). Fall back to the forecast
                 // values so the column still labels its high/low (parity with Android; see
@@ -480,12 +501,12 @@ object DesktopDailyForecastModel {
             ghostHigh = ghostHigh,
             snapshotHigh = when {
                 isToday -> todayPick.highRow?.highTemp
-                isPast -> pastPrior?.first
+                isPast -> pastPrior?.high
                 else -> displaySnapshot?.highTemp
             },
             snapshotLow = when {
                 isToday -> todayPick.lowRow?.lowTemp
-                isPast -> pastPrior?.second
+                isPast -> pastPrior?.low
                 else -> displaySnapshot?.lowTemp
             },
             iconCondition = rawCondition,
@@ -494,10 +515,11 @@ object DesktopDailyForecastModel {
             isPast = isPast,
             solidIsForecastFallback = solidIsForecastFallback,
             // Desktop writes a row per fetch (no unchanged-skip), so fetchedAt is the last confirmation.
-            snapshotIsStale = isToday && (
+            snapshotIsStale = (isPast && pastPrior?.isFallback == true) || isToday && (
                 todayPick.highRow?.let { PriorDayForecast.isStale(it.fetchedAt, PriorDayForecast.highCutoffMs(date, zone)) } == true ||
                     todayPick.lowRow?.let { PriorDayForecast.isStale(it.fetchedAt, PriorDayForecast.lowCutoffMs(date, zone)) } == true
                 ),
+            forecastIsFallback = forecastIsFallback,
             actualsFromOtherSite = isPast && !solidIsForecastFallback && actual?.isActualsBorrowed == true,
             cloudCoverRatio = noonCloudPercentForBar / 100f,
             dailyRainLabelText = dailyRainLabelText,
