@@ -9,6 +9,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.TodayActualsCoverage
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.graph.CloudActualSeries
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -114,6 +115,10 @@ internal fun backfillSiteMismatchReason(
         "observations=$observationsLat,$observationsLon"
 }
 
+/**
+ * [displaySource] here is the source whose observations draw the actual line — the caller passes
+ * [backfillActualsSource], so a borrowing source arrives as its provider (Google → NWS).
+ */
 @androidx.annotation.VisibleForTesting
 internal fun evaluateHourlyBackfillNeed(
     displaySource: WeatherSource,
@@ -332,6 +337,24 @@ internal fun metarCloudGapReason(sourceObservations: List<ObservationEntity>): S
 }
 
 /**
+ * The source whose observations draw [displaySource]'s actual line at the fetch site — the source
+ * the backfill decision must be about.
+ *
+ * Keyed on the provider, not the display source: a forecast-only source (Google Weather, Silurian)
+ * borrows NWS observations inside NWS coverage, and judging it as itself returned
+ * `provider_history_in_forecast`, so a 3.5 h hole in the borrowed NWS series after a host suspend
+ * was never repaired (emulator 2026-10-07). Same class as [[redirected_actuals_provider_not_borrower]].
+ */
+@androidx.annotation.VisibleForTesting
+internal fun backfillActualsSource(
+    displaySource: WeatherSource,
+    lat: Double,
+    lon: Double,
+    preference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
+): WeatherSource =
+    WeatherSource.fromId(ActualsProviderResolver.providerIdAt(displaySource, lat, lon, preference))
+
+/**
  * Cooldown key for the hourly-observation backfill, scoped to **source and site**.
  *
  * The site component is why this is not just the source id. A move is exactly when a backfill is
@@ -366,7 +389,7 @@ internal suspend fun hourlyBackfillCoolingDown(
     lon: Double,
 ): Boolean = !stateManager.shouldRefreshMissingActuals(
     appWidgetId,
-    hourlyBackfillSourceKey(displaySource, lat, lon),
+    hourlyBackfillSourceKey(backfillActualsSource(displaySource, lat, lon), lat, lon),
     HOURLY_BACKFILL_COOLDOWN_MS,
 )
 
@@ -408,6 +431,14 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     }
     val lat = fetchLocation.lat
     val lon = fetchLocation.lon
+    // Every decision below is about the series the actual line is drawn from, which for a
+    // borrowing source is another source's observations.
+    val actualsSource = backfillActualsSource(displaySource, lat, lon)
+    val sourceLog = if (actualsSource == displaySource) {
+        "source=${displaySource.id}"
+    } else {
+        "source=${displaySource.id} actuals=${actualsSource.id}"
+    }
 
     // Before trusting the coverage decision, check it is even about this site.
     backfillSiteMismatchReason(fetchLocation, observationsLat, observationsLon)?.let { reason ->
@@ -419,28 +450,28 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
         return
     }
 
-    val decision = evaluateHourlyBackfillNeed(displaySource, graphStart, graphEnd, observations)
+    val decision = evaluateHourlyBackfillNeed(actualsSource, graphStart, graphEnd, observations)
     if (!decision.shouldRequest) {
         database.appLogDao().log(
             "OBS_HOURLY_BACKFILL_SKIP",
-            "widget=$appWidgetId source=${displaySource.id} reason=${decision.reason}",
+            "widget=$appWidgetId $sourceLog reason=${decision.reason}",
             "INFO",
         )
         return
     }
 
-    val sourceKey = hourlyBackfillSourceKey(displaySource, lat, lon)
+    val sourceKey = hourlyBackfillSourceKey(actualsSource, lat, lon)
     if (!stateManager.shouldRefreshMissingActuals(appWidgetId, sourceKey, HOURLY_BACKFILL_COOLDOWN_MS)) {
         database.appLogDao().log(
             "OBS_HOURLY_BACKFILL_SKIP",
-            "widget=$appWidgetId source=${displaySource.id} reason=cooldown ${decision.reason}",
+            "widget=$appWidgetId $sourceLog reason=cooldown ${decision.reason}",
             "INFO",
         )
         return
     }
 
     val delayMs = com.weatherwidget.widget.StartupFetchPolicy.historyRepairDelayMs()
-    if (displaySource == WeatherSource.WEATHER_API) {
+    if (actualsSource == WeatherSource.WEATHER_API) {
         RefreshScheduler.enqueueForcedRefresh(
             context = context,
             reason = "weatherapi_history_sparse widget=$appWidgetId",
@@ -451,7 +482,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
         stateManager.markMissingActualsRefreshRequested(appWidgetId, sourceKey)
         database.appLogDao().log(
             "OBS_HOURLY_BACKFILL_REQ",
-            "widget=$appWidgetId source=${displaySource.id} mode=provider_history " +
+            "widget=$appWidgetId $sourceLog mode=provider_history " +
                 "reason=${decision.reason} graphStart=$graphStart graphEnd=$graphEnd delayMs=$delayMs",
             "INFO",
         )
@@ -485,7 +516,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     // healthy one for a full day of 30-minute retries.
     database.appLogDao().log(
         "OBS_HOURLY_BACKFILL_REQ",
-        "widget=$appWidgetId source=${displaySource.id} reason=${decision.reason} " +
+        "widget=$appWidgetId $sourceLog reason=${decision.reason} " +
             "graphStart=$graphStart graphEnd=$graphEnd delayMs=$delayMs " +
             "outcome=${enqueue.outcome.logValue} (${enqueue.detail}) requestId=${enqueue.request.id}",
         "INFO",
