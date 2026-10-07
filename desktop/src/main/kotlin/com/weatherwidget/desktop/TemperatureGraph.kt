@@ -429,7 +429,7 @@ fun TemperatureGraph(
                 nowIndicatorVisible = nowInWindow,
                 hoursFromNowToWindowStart = hoursFromNowToWindowStart,
             )
-        if (ghostLineDrawn && transitionX != null) {
+        if (transitionX != null && ghostLineDrawn) {
             clipRect(left = transitionX, top = 0f, right = w, bottom = footer.graphBottom(h, scale)) {
                 val expectedPath = buildCurve(expectedCoords)
                 drawPath(
@@ -661,7 +661,7 @@ fun TemperatureGraph(
             if (transitionX == null || x <= transitionX) {
                 interpolate(actualVisiblePointsList)?.let(ys::add)
             }
-            if (ghostLineDrawn && transitionX != null && x >= transitionX) {
+            if (transitionX != null && ghostLineDrawn && x >= transitionX) {
                 interpolate(expectedCoords.map { it.x to it.y })?.let(ys::add)
             }
             return ys

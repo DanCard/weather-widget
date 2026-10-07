@@ -180,7 +180,6 @@ class NwsApi
                     val base = obj["base"] as? JsonObject
                     val rawValue = (base?.get("value") as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content
                     val unitCode = (base?.get("unitCode") as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content
-                    if (amount == null) return@mapNotNull null
                     val baseMeters = when (unitCode) {
                         null, "", "wmoUnit:m" -> rawValue?.toDoubleOrNull()
                         "wmoUnit:ft" -> rawValue?.toDoubleOrNull()?.times(0.3048)

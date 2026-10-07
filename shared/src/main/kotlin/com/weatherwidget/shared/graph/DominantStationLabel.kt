@@ -198,7 +198,7 @@ object DominantStationLabel {
         if (contribution == null || contribution.isSynthetic) return null
         return formatCloudLabelText(
             stationId = contribution.stationId,
-            rawCloudPercent = contribution.rawTemp?.let { kotlin.math.round(it).toInt() },
+            rawCloudPercent = kotlin.math.round(contribution.rawTemp).toInt(),
             lastReadingMs = contribution.lastReadingMs,
             zoneId = zoneId,
         )

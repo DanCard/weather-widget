@@ -23,7 +23,7 @@ object CloudHourBucket {
     const val TOLERANCE_MS = HOUR_MS / 2
 
     /** The hour-bucket index of [tsMs]: `indexOf(13:47) == indexOf(14:00)`. */
-    fun indexOf(tsMs: Long): Long = Math.round(tsMs / HOUR_MS.toDouble()).toLong()
+    fun indexOf(tsMs: Long): Long = Math.round(tsMs / HOUR_MS.toDouble())
 
     /** The epoch-ms start of the hour bucket [tsMs] rounds into. */
     fun startMsOf(tsMs: Long): Long = indexOf(tsMs) * HOUR_MS
