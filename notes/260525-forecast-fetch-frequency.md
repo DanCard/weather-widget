@@ -1,5 +1,10 @@
 # Weather Forecast Fetch Intervals
 
+> **Superseded (charger values):** the 60/120 min charging intervals below are outdated as of
+> 2026-10-07. Current forecast/hourly refetch cadence is in
+> [261007-hourly-forecast-update-cadence.md](261007-hourly-forecast-update-cadence.md)
+> (`ForecastCadence`: 4/6/8/12 h). Opportunistic/UI-update sections below may still be useful.
+
 The widget uses an adaptive, state-aware update system that scales fetch frequency based on battery levels, charging state, and user activity.
 
 ## Standard Forecast Fetches (WorkManager)
