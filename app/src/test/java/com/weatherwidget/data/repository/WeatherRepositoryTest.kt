@@ -237,6 +237,32 @@ class WeatherRepositoryTest {
             verify(exactly = 0) { editor.putString("historical_pois", any()) }
         }
 
+    /**
+     * Google Weather borrowing NWS used to fetch nothing here: the loop fetched only visible
+     * sources that file their own actuals. The feed now comes from the shared ActualsFeedPolicy
+     * (plans/261007-desktop-borrowed-nws-actuals-not-fetched-on-full-refresh.md).
+     */
+    @Test
+    fun `refreshCurrentTemperature fetches the NWS feed for Google borrowing NWS`() =
+        runTest {
+            val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+            every { sharedPrefs.edit() } returns editor
+            every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
+            every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.GOOGLE_WEATHER)
+            com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource {
+                if (it == WeatherSource.GOOGLE_WEATHER) WeatherSource.NWS else null
+            }
+            try {
+                val result = repository.refreshCurrentTemperature(testLat, testLon, source = WeatherSource.GOOGLE_WEATHER)
+
+                assertTrue(result.isSuccess)
+                assertEquals(1, result.getOrNull())
+                coVerify { appLogDao.insert(match<com.weatherwidget.data.local.AppLogEntity> { it.tag == "CURR_FETCH_START" && it.message.contains("targets=NWS") }) }
+            } finally {
+                com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
+            }
+        }
+
     @Test
     fun `refreshCurrentTemperature skips disabled explicit source`() =
         runTest {

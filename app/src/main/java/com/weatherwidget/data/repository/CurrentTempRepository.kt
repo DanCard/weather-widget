@@ -26,6 +26,7 @@ import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
+import com.weatherwidget.shared.util.ActualsFeedPolicy
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
@@ -131,27 +132,27 @@ class CurrentTempRepository
                     // An explicit single-source request (user toggled to it) or a forced refresh
                     // bypasses the low-priority throttle so the displayed source stays fresh.
                     val bypassThrottle = forceRefresh || source != null
-                    val candidateSources = (source?.let { requested ->
+                    val requestedSources = source?.let { requested ->
                         if (requested in enabledSources) listOf(requested) else emptyList()
-                    } ?: enabledSources)
-                        // This loop is specifically for observations that may correct the header.
-                        // Forecast-only providers (Open-Meteo and Silurian) are refreshed by the
-                        // normal forecast cycle and must never drive an observation correction.
-                        // NOT relaxed for borrowing sources. This gate governs which sources may
-                        // WRITE observations, and a forecast-only source must never file its own
-                        // model current as one — that is the circular actuals problem borrowing
-                        // exists to replace, guarded by WeatherRepositoryTest. Borrowing happens
-                        // purely on the READ side, via ObservationSourceMatcher.matchesActualSource.
-                        .filter { it.supportsTemperatureActuals }
-                        .distinct()
+                    } ?: enabledSources
+                    // Which observation feeds to fetch is shared with desktop (ActualsFeedPolicy).
+                    // A forecast-only source is never fetched as its own feed: it must never file
+                    // its model current as an observation, the circular-actuals problem borrowing
+                    // exists to replace (guarded by WeatherRepositoryTest). What it gets instead is
+                    // its provider's feed, here even when that feed is not itself visible: Google
+                    // Weather borrowing NWS used to fetch nothing here.
+                    val feedConsumers = ActualsFeedPolicy.currentTempFeeds(requestedSources, latitude, longitude)
+                    val candidateSources = feedConsumers.keys.toList()
 
                     // Sources currently displayed on a widget are never throttled — "priority" means
                     // the source the user is actually viewing, not just the global first-in-order one.
+                    // A feed inherits the priority of the best-placed source it serves.
                     val activeSourceIds = widgetStateManager.getActiveDisplaySourceIds()
                     val targetSources = candidateSources.filter { src ->
-                        val rank = rankBySource[src] ?: 0
+                        val consumers = feedConsumers.getValue(src)
+                        val rank = consumers.minOf { rankBySource[it] ?: 0 }
                         val throttled = !bypassThrottle &&
-                            src.id !in activeSourceIds &&
+                            consumers.none { it.id in activeSourceIds } &&
                             rank >= LOW_PRIORITY_RANK_THRESHOLD &&
                             !widgetStateManager.shouldFetchCurrentTempForSource(src.id, LOW_PRIORITY_CURRENT_TEMP_INTERVAL_MS)
                         !throttled
@@ -160,7 +161,7 @@ class CurrentTempRepository
                     if (skipped.isNotEmpty()) {
                         appLogDao.log(
                             "CURR_FETCH_THROTTLE_SKIP",
-                            "reason=$reason throttled=${skipped.joinToString { "${it.id}@rank${rankBySource[it]}" }} intervalMs=$LOW_PRIORITY_CURRENT_TEMP_INTERVAL_MS",
+                            "reason=$reason throttled=${skipped.joinToString { "${it.id}@rank${feedConsumers.getValue(it).minOf { c -> rankBySource[c] ?: 0 }}" }} intervalMs=$LOW_PRIORITY_CURRENT_TEMP_INTERVAL_MS",
                             "INFO",
                         )
                     }

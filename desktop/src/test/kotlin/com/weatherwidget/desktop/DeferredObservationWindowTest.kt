@@ -132,4 +132,61 @@ class DeferredObservationWindowTest {
         assertEquals(0, repo(source = "OPEN_METEO").refreshObservationWindow(now))
         coVerify(exactly = 0) { weatherService.fetchObservationHistory(any()) }
     }
+
+    // --- Borrowed NWS (plans/261007-desktop-borrowed-nws-actuals-not-fetched-on-full-refresh.md) ---
+
+    private fun withGoogleBorrowingNws(block: suspend () -> Unit) = runTest {
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource {
+            if (it == com.weatherwidget.data.model.WeatherSource.GOOGLE_WEATHER) com.weatherwidget.data.model.WeatherSource.NWS else null
+        }
+        try {
+            block()
+        } finally {
+            com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
+        }
+    }
+
+    @Test
+    fun `google borrowing NWS - refresh fetches NWS observations, reusing fresh stored rows`() = withGoogleBorrowingNws {
+        dao.upsertObservations(
+            listOf(
+                com.weatherwidget.data.local.desktop.DesktopObservationEntity(
+                    stationId = "KNUQ", stationName = "KNUQ", timestamp = now - 35 * 60_000L,
+                    temperature = 66.2f, condition = "Clear", locationLat = lat, locationLon = lon,
+                    fetchedAt = now - 30 * 60_000L, api = "NWS",
+                ),
+            ),
+        )
+        coEvery { weatherService.fetchForecast(false) } returns RawFetch(hourly = listOf(HourlyForecast(now, 64f, "Clear")))
+        coEvery { weatherService.fetchObservationsOnly(true, any()) } returns RawFetch(
+            rawObservations = listOf(reading("KNUQ", now - 15 * 60_000L, 64.4f)),
+        )
+
+        val outcome = repo(source = "GOOGLE_WEATHER").refreshWithOutcome(now)
+
+        assertTrue("the refresh supplied NWS observations", outcome.suppliedObservations)
+        coVerify(exactly = 1) { weatherService.fetchObservationsOnly(true, any()) }
+        coVerify(exactly = 0) { weatherService.fetchObservationsOnly(false, any()) }
+        val newest = dao.getNewestObservationTimestampForApi("NWS", lat, lon)
+        assertEquals(now - 15 * 60_000L, newest)
+        assertNotNull(dao.getLatestLogByTagAndMessagePrefix("BORROWED_NWS_RECOVERY", "source=GOOGLE_WEATHER recentOnly=true rows=1"))
+    }
+
+    @Test
+    fun `google borrowing NWS - no stored rows takes the full pull`() = withGoogleBorrowingNws {
+        coEvery { weatherService.fetchForecast(false) } returns RawFetch(hourly = listOf(HourlyForecast(now, 64f, "Clear")))
+        coEvery { weatherService.fetchObservationsOnly(false, any()) } returns RawFetch()
+
+        repo(source = "GOOGLE_WEATHER").refreshWithOutcome(now)
+
+        coVerify(exactly = 1) { weatherService.fetchObservationsOnly(false, any()) }
+    }
+
+    @Test
+    fun `google borrowing NWS - deferred window applies`() = withGoogleBorrowingNws {
+        coEvery { weatherService.fetchObservationHistory(DesktopWeatherService.HISTORY_DAYS) } returns
+            listOf(reading("KSJC", now - 3600_000L, 60f))
+
+        assertEquals(1, repo(source = "GOOGLE_WEATHER").refreshObservationWindow(now))
+    }
 }

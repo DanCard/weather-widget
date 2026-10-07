@@ -43,11 +43,7 @@ object MetarFetchPolicy {
     fun consumers(
         visibleSources: List<WeatherSource>,
         actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
-    ): List<WeatherSource> =
-        visibleSources.filter { source ->
-            source != WeatherSource.METAR &&
-                ActualsProviderResolver.providerIdFor(source, actualsPreference) == WeatherSource.METAR.id
-        }
+    ): List<WeatherSource> = ActualsFeedPolicy.borrowers(WeatherSource.METAR, visibleSources, actualsPreference)
 
     fun tierFor(
         visibleSources: List<WeatherSource>,

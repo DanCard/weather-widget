@@ -146,8 +146,15 @@ internal class FullSyncPipeline(
                     val afterHourlyMs = SystemClock.elapsedRealtime()
                     logStage("hourly_fetched count=${hourlyForecasts.size}")
 
-                    if (!input.uiOnlyRefresh && (input.targetSourceId == WeatherSource.NWS.id ||
-                            (input.targetSourceId == null && weatherList.any { it.source == WeatherSource.NWS.id }))
+                    // NWS station history is wanted by NWS itself AND by any source whose actuals
+                    // come from NWS (Google Weather with the NWS provider got none before). The
+                    // decision is shared with desktop: ActualsFeedPolicy.
+                    val sourcesServed = input.targetSourceId?.let { listOf(WeatherSource.fromId(it)) }
+                        ?: (widgetStateManager.getVisibleSourcesOrder() +
+                            weatherList.map { WeatherSource.fromId(it.source) })
+                    if (!input.uiOnlyRefresh && com.weatherwidget.shared.util.ActualsFeedPolicy.requiresFeed(
+                            WeatherSource.NWS, sourcesServed, location.first, location.second,
+                        )
                     ) {
                         Log.d(TAG, "doWork: Triggering NWS backfill check")
                         weatherRepository.backfillNwsObservationsIfNeeded(location.first, location.second)

@@ -38,7 +38,7 @@ import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import kotlin.math.*
-import com.weatherwidget.shared.observations.ActualsProviderResolver
+import com.weatherwidget.shared.util.ActualsFeedPolicy
 import com.weatherwidget.shared.observations.MetarObservationFetcher
 import com.weatherwidget.shared.observations.SynopticObservationFetcher
 import com.weatherwidget.shared.observations.MetarRawSkyParser
@@ -851,29 +851,22 @@ class DesktopWeatherService(
     )
 
     override suspend fun fetchObservationsOnly(recentOnly: Boolean, userLocationChange: Boolean): RawFetch {
-        val source = WeatherSource.fromId(weatherSource)
-        val provider = ActualsProviderResolver.providerIdFor(source)
-        if (provider != source.id) {
-            return when (provider) {
-                WeatherSource.METAR.id, WeatherSource.SYNOPTIC.id -> fetchBorrowedObservationsOnly(recentOnly, userLocationChange)
-                WeatherSource.NWS.id -> fetchNwsObservationsOnly(recentOnly)
-                WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
-                WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
-                WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapObservationsOnly()
-                else -> fetchBorrowedObservationsOnly(recentOnly, userLocationChange)
-            }
-        }
-        return when (weatherSource) {
-            "NWS" -> fetchNwsObservationsOnly(recentOnly)
-            WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoObservationsOnly()
-            WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapObservationsOnly()
-            WeatherSource.OPEN_METEO.id -> fetchOpenMeteoObservationsOnly()
-            WeatherSource.SILURIAN.id, WeatherSource.GOOGLE_WEATHER.id -> fetchBorrowedObservationsOnly(recentOnly, userLocationChange)
-            WeatherSource.WEATHER_API.id -> {
-                Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path is defined")
+        // The feed decision is shared with Android (ActualsFeedPolicy); this only performs the fetch.
+        val feed = ActualsFeedPolicy.feedFor(WeatherSource.fromId(weatherSource), latitude, longitude)
+        return when (feed) {
+            null -> {
+                Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no actuals feed serves this location")
                 RawFetch()
             }
-            else -> RawFetch()
+            WeatherSource.NWS -> fetchNwsObservationsOnly(recentOnly)
+            WeatherSource.METAR, WeatherSource.SYNOPTIC -> fetchStationNetworkObservations(feed, recentOnly, userLocationChange)
+            WeatherSource.TOMORROW_IO -> fetchTomorrowIoObservationsOnly()
+            WeatherSource.OPEN_METEO -> fetchOpenMeteoObservationsOnly()
+            WeatherSource.OPEN_WEATHER_MAP -> fetchOpenWeatherMapObservationsOnly()
+            else -> {
+                Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path for feed ${feed.id}")
+                RawFetch()
+            }
         }
     }
 
@@ -910,22 +903,16 @@ class DesktopWeatherService(
     }
 
     /**
-     * Actuals for a forecast-only source, from the feed it borrows.
-     *
-     * This branch used to return an empty [RawFetch] with "no current-only desktop path is defined",
-     * which was true when Open-Meteo and Silurian had no actuals at all. Once they began borrowing a
-     * measured feed it became the reason desktop drew no mercury line for them: Android fetches METAR
-     * from its worker regardless of the displayed source, desktop fetched nothing.
-     *
-     * Only METAR is wired here. NWS as a borrowed provider would mean running the full station-pull
-     * under a non-NWS display source, which is a larger change; a user who picks it gets whatever the
-     * NWS path already stored rather than a fresh pull, and never a silently substituted feed
-     * (`no_cross_source_fallback`).
+     * Readings from a station network ([ActualsFeedPolicy.STATION_NETWORK_FEEDS]) for a source whose
+     * actuals come from it. Which feed to use is decided by [ActualsFeedPolicy.feedFor], shared
+     * with Android; NWS, Tomorrow.io, Open-Meteo and OpenWeatherMap feeds have their own fetchers.
      */
-    private suspend fun fetchBorrowedObservationsOnly(recentOnly: Boolean, userLocationChange: Boolean = false): RawFetch {
-        val source = WeatherSource.fromId(weatherSource)
-        val provider = ActualsProviderResolver.providerIdFor(source)
-        if (provider == WeatherSource.METAR.id) {
+    private suspend fun fetchStationNetworkObservations(
+        feed: WeatherSource,
+        recentOnly: Boolean,
+        userLocationChange: Boolean,
+    ): RawFetch {
+        if (feed == WeatherSource.METAR) {
             val hours = if (recentOnly) RECENT_BORROWED_METAR_HOURS else RECOVERY_BORROWED_METAR_HOURS
             val readings = metarFetcher.fetchObservations(latitude, longitude, hours = hours)
             Log.i(
@@ -934,7 +921,7 @@ class DesktopWeatherService(
                     "stations=${readings.map { it.stationId }.distinct().size}",
             )
             return RawFetch(rawObservations = readings)
-        } else if (provider == WeatherSource.SYNOPTIC.id) {
+        } else if (feed == WeatherSource.SYNOPTIC) {
             // Gap window, not a fixed 24 h: observations are stored for days, so a routine refresh
             // only needs the minutes since the newest stored SYNOPTIC row (plus a margin).
             // First run / long gap falls back to the deep window. See SynopticFetchWindow.
@@ -964,7 +951,7 @@ class DesktopWeatherService(
             )
             return RawFetch(rawObservations = readings)
         } else {
-            Log.i(TAG, "Observations-only refresh for $weatherSource borrows $provider; no desktop fetch path for it")
+            Log.i(TAG, "Observations-only refresh for $weatherSource: ${feed.id} is not a station network")
             return RawFetch()
         }
     }

@@ -383,23 +383,25 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     reason = "user_observations_screen",
                     forceRefresh = true
                 )
-                val providerId = com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(currentSource) {
-                    widgetStateManager.getActualsProvider(it)
-                }
-                if (providerId == WeatherSource.METAR.id) {
-                    val rows = metarObservationSource.fetchObservations(location.first, location.second, hours = 24)
-                    if (rows.isNotEmpty()) observationDao.insertAll(rows)
-                } else if (providerId == WeatherSource.SYNOPTIC.id) {
-                    val rows = synopticObservationSource.fetchObservations(location.first, location.second, hours = 24)
-                    if (rows.isNotEmpty()) observationDao.insertAllRetaggingStationTypes(rows)
-                } else if (providerId != currentSource.id) {
-                    weatherRepository.refreshCurrentTemperature(
-                        location.first,
-                        location.second,
-                        source = WeatherSource.fromId(providerId),
-                        reason = "user_observations_screen_provider",
-                        forceRefresh = true,
-                    )
+                // Every other feed (NWS, Tomorrow.io, ...) was already fetched by the call above:
+                // ActualsFeedPolicy.currentTempFeeds reaches a borrowed feed even when it is not
+                // visible. The station networks have their own fetchers. This used to call
+                // refreshCurrentTemperature(source = provider), which dropped any provider that
+                // was not itself visible, so Google borrowing NWS fetched nothing here.
+                when (
+                    com.weatherwidget.shared.util.ActualsFeedPolicy.feedFor(currentSource, location.first, location.second) {
+                        widgetStateManager.getActualsProvider(it)
+                    }
+                ) {
+                    WeatherSource.METAR -> {
+                        val rows = metarObservationSource.fetchObservations(location.first, location.second, hours = 24)
+                        if (rows.isNotEmpty()) observationDao.insertAll(rows)
+                    }
+                    WeatherSource.SYNOPTIC -> {
+                        val rows = synopticObservationSource.fetchObservations(location.first, location.second, hours = 24)
+                        if (rows.isNotEmpty()) observationDao.insertAllRetaggingStationTypes(rows)
+                    }
+                    else -> Unit
                 }
             }
             widgetContentChanged = true

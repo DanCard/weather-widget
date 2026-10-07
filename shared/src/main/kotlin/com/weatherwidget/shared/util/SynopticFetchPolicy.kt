@@ -25,11 +25,7 @@ object SynopticFetchPolicy {
     fun consumers(
         visibleSources: List<WeatherSource>,
         actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
-    ): List<WeatherSource> =
-        visibleSources.filter { source ->
-            source != WeatherSource.SYNOPTIC &&
-                ActualsProviderResolver.providerIdFor(source, actualsPreference) == WeatherSource.SYNOPTIC.id
-        }
+    ): List<WeatherSource> = ActualsFeedPolicy.borrowers(WeatherSource.SYNOPTIC, visibleSources, actualsPreference)
 
     fun tierFor(
         visibleSources: List<WeatherSource>,

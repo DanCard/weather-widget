@@ -8,6 +8,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.shared.actuals.DailyHistoryMaintenance
 import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
+import com.weatherwidget.shared.util.ActualsFeedPolicy
 import com.weatherwidget.shared.util.DailyColumnSource
 import com.weatherwidget.shared.util.DailyHistoryFreeze
 import com.weatherwidget.shared.util.DailyNoonCloudCover
@@ -429,22 +430,24 @@ class DesktopWeatherRepository(
     }
 
     /**
-     * A forecast-only source's solid actual curve borrows a measured feed. The frequent
-     * observations loop fetches only two hours; a full refresh also pulls a bounded 24-hour METAR
-     * window so a suspend/restart gap does not stay permanently visible after the upstream reports
-     * are available again. Failures are best-effort and leave the cached gap intact.
+     * The observation pull a full refresh makes for a source whose actuals come from another feed
+     * (a borrowing source, or one redirected by the user's actuals-provider choice). Which feed, and
+     * whether to narrow it to the recent window, is [ActualsFeedPolicy.fullRefreshFetch], shared
+     * with Android. The frequent observations loop fetches only the recent window; this bounded
+     * recovery pull makes sure a suspend/restart gap, or a provider switch, doesn't stay visible once
+     * the upstream reports are available. Failures are best-effort and leave the cached gap intact.
      */
-    private suspend fun fetchBorrowedRecovery(displaySource: WeatherSource, userLocationChange: Boolean): RawFetch {
-        val provider = ActualsProviderResolver.providerIdFor(displaySource)
-        val borrowsActuals = provider != displaySource.id &&
-            (provider == WeatherSource.METAR.id || provider == WeatherSource.SYNOPTIC.id)
-        if (!borrowsActuals) return RawFetch()
+    private suspend fun fetchBorrowedRecovery(
+        plan: ActualsFeedPolicy.ObservationFetch?,
+        userLocationChange: Boolean,
+    ): RawFetch {
+        if (plan == null) return RawFetch()
         return try {
-            weatherService.fetchObservationsOnly(recentOnly = false, userLocationChange = userLocationChange)
+            weatherService.fetchObservationsOnly(recentOnly = plan.recentOnly, userLocationChange = userLocationChange)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "BORROWED_${provider}_RECOVERY failed source=${displaySource.id}: $e")
+            Log.w(TAG, "BORROWED_${plan.feed.id}_RECOVERY failed source=${displaySource.id}: $e")
             RawFetch()
         }
     }
@@ -483,9 +486,19 @@ class DesktopWeatherRepository(
             // NOTE: no Open-Meteo history backfill here. GENERIC_GAP is future-only; past forecast history
             // must come only from real accumulated NWS snapshots (a fresh install simply starts sparse and
             // fills in as it runs), so we never seed Open-Meteo decimals into the past.
+            val borrowedPlan = ActualsFeedPolicy.fullRefreshFetch(
+                displaySource = displaySource,
+                latitude = latitude,
+                longitude = longitude,
+                deferObservationWindow = deferObservationWindow,
+                // Stored rows are per site, not per displayed source: reuse what is already here.
+                newestStoredFeedMs = ActualsFeedPolicy.feedFor(displaySource, latitude, longitude)
+                    ?.let { weatherDao.getNewestObservationTimestampForApi(it.id, latitude, longitude) },
+                nowMs = now,
+            )
             val (forecastResult, borrowedRecovery) = coroutineScope {
                 val forecast = async { weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow) }
-                val recovery = async { fetchBorrowedRecovery(displaySource, userLocationChange) }
+                val recovery = async { fetchBorrowedRecovery(borrowedPlan, userLocationChange) }
                 forecast.await() to recovery.await()
             }
             val result = if (borrowedRecovery.rawObservations.isEmpty()) {
@@ -498,14 +511,15 @@ class DesktopWeatherRepository(
 
             val forecastHours = persistForecastResult(result, now)
 
-            val provider = ActualsProviderResolver.providerIdFor(displaySource)
-            if (provider != displaySource.id && (provider == WeatherSource.METAR.id || provider == WeatherSource.SYNOPTIC.id)) {
+            if (borrowedPlan != null) {
+                val feedId = borrowedPlan.feed.id
                 weatherDao.log(
-                    tag = "BORROWED_${provider}_RECOVERY",
+                    tag = "BORROWED_${feedId}_RECOVERY",
                     message = "source=${displaySource.id} " +
                         // Synoptic recovery asks for the gap since the newest stored row, not 24 h;
                         // its window is in the BORROWED_SYNOPTIC_FETCH line.
-                        (if (provider == WeatherSource.METAR.id) "hours=${DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS} " else "") +
+                        (if (feedId == WeatherSource.METAR.id) "hours=${DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS} " else "") +
+                        "recentOnly=${borrowedPlan.recentOnly} " +
                         "rows=${borrowedRecovery.rawObservations.size} " +
                         "stored=${borrowedRecovery.rawObservations.size} " +
                         "stations=${borrowedRecovery.rawObservations.map { it.stationId }.distinct().size}",
@@ -547,7 +561,7 @@ class DesktopWeatherRepository(
                 tag = "REFRESH",
                 message = "source=$weatherSource hourly=${result.hourly.size} daily=${result.daily.size} " +
                     "obs=${result.rawObservations.size} historyObs=$historyObsCount extremes=$extremesCount" +
-                    (if (deferObservationWindow && displaySource == WeatherSource.NWS) " obsWindow=deferred" else ""),
+                    (if (deferObservationWindow && ActualsFeedPolicy.hasDeferredHistoryWindow(displaySource, latitude, longitude)) " obsWindow=deferred" else ""),
             )
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
 
@@ -579,11 +593,12 @@ class DesktopWeatherRepository(
      * station-observation pull over [DesktopWeatherService.HISTORY_DAYS], stored the same way the
      * full refresh stores it, then today's and past days' extremes recomputed from it. Best-effort:
      * a failure logs and returns -1, because the forecast and current reading were already
-     * published. Returns the number of readings stored (0 for non-NWS sources, which have no
-     * deferred window).
+     * published. Returns the number of readings stored (0 when the source's actuals do not come
+     * from NWS, the only feed with a deferred window).
      */
     suspend fun refreshObservationWindow(now: Long = currentTimeMillis()): Int = withContext(Dispatchers.IO) {
-        if (displaySource != WeatherSource.NWS) return@withContext 0
+        // Any source whose actuals come from NWS, not only NWS itself (ActualsFeedPolicy).
+        if (!ActualsFeedPolicy.hasDeferredHistoryWindow(displaySource, latitude, longitude)) return@withContext 0
         val startedAt = System.currentTimeMillis()
         try {
             val readings = weatherService.fetchObservationHistory(DesktopWeatherService.HISTORY_DAYS)
