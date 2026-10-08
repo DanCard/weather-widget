@@ -11,6 +11,16 @@ Two counts per platform:
          and failures included). Google rows are filed by Pacific day
          (`ApiUsageClassifier.usageDayMs`); builds before 2026-10-08 filed by the device's day.
 
+Estimated forecast/hours: per platform, the largest of three lower bounds — the summed
+`GOOGLE_HOURS_PAGES pages=N` lines (one per Google fetch, every build since 2026-10-07; the paging
+loop is the only caller of forecast/hours; a fetch that throws logs none), the forecast/hours
+`GOOGLE_REQUEST` rows, and the forecast/hours table row (builds from 2026-10-08 only).
+
+Estimated forecast/days: the same, with the fetch count (number of `GOOGLE_HOURS_PAGES` lines) as
+the first bound. Every fetch that returns makes exactly one forecast/days call, hourly-limited
+ones included, except when the daily quota was already refused (it is then skipped, which the
+line does not show; this undercounts a fetch that threw).
+
 Usage: scripts/google_usage_today.py [--date YYYY-MM-DD] [--no-devices] [--no-desktop]
 """
 import argparse
@@ -66,8 +76,10 @@ def window_ms(day):
 
 
 def query(db_path, day):
-    """{endpoint: [log_ok, log_err, table_calls, table_errs, table_429]} for one database."""
+    """({endpoint: [log_ok, log_err, table_calls, table_errs, table_429]}, hours pages, fetches) for one database."""
     rows = defaultdict(lambda: [0, 0, 0, 0, 0])
+    pages = 0
+    fetches = 0
     start, end = window_ms(day)
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
@@ -78,6 +90,13 @@ def query(db_path, day):
             fields = dict(p.split("=", 1) for p in msg.split() if "=" in p)
             status = int(fields.get("status", "0") or 0)
             rows[fields.get("endpoint", "?")][0 if status < 400 else 1] += 1
+        for msg, in conn.execute(
+            "SELECT message FROM app_logs WHERE tag = 'GOOGLE_HOURS_PAGES' AND timestamp >= ? AND timestamp < ?",
+            (start, end),
+        ):
+            fields = dict(p.split("=", 1) for p in msg.split() if "=" in p)
+            pages += int(fields.get("pages", "0") or 0)
+            fetches += 1
         # The day key is that day's UTC-midnight epoch ms (LocalDate.toEpochDay() * 86_400_000).
         key = (day - date(1970, 1, 1)).days * 86_400_000
         try:
@@ -94,7 +113,19 @@ def query(db_path, day):
             pass  # older desktop schema without api_usage_stats
     finally:
         conn.close()
-    return rows
+    return rows, pages, fetches
+
+
+def estimate(rows, endpoint, fetch_bound):
+    """(estimate, fetch-log bound, request-log count, table count) for one endpoint."""
+    r = rows.get(endpoint, [0, 0, 0, 0, 0])
+    log, table = r[0] + r[1], r[2]
+    return max(fetch_bound, log, table), fetch_bound, log, table
+
+
+def estimates_for(rows, pages, fetches):
+    return {"forecast/hours": estimate(rows, "forecast/hours", pages),
+            "forecast/days": estimate(rows, "forecast/days", fetches)}
 
 
 def print_platform(label, rows, totals):
@@ -124,9 +155,12 @@ def main():
           f"{datetime.fromtimestamp(end / 1000, timezone.utc):%Y-%m-%d %H:%M}Z)")
 
     totals = defaultdict(lambda: [0, 0, 0, 0, 0])
+    estimates = []
     if not args.no_desktop:
         if os.path.exists(DESKTOP_DB):
-            print_platform("desktop", query(DESKTOP_DB, day), totals)
+            rows, pages, fetches = query(DESKTOP_DB, day)
+            print_platform("desktop", rows, totals)
+            estimates.append(("desktop", estimates_for(rows, pages, fetches)))
         else:
             print(f"\n== desktop: {DESKTOP_DB} not found")
     if not args.no_devices:
@@ -136,9 +170,20 @@ def main():
                 if db is None:
                     print(f"\n== {serial}: could not read database (not a debug build?)")
                     continue
-                print_platform(device_label(serial), query(db, day), totals)
+                label = device_label(serial)
+                rows, pages, fetches = query(db, day)
+                print_platform(label, rows, totals)
+                estimates.append((label, estimates_for(rows, pages, fetches)))
 
     print_platform("TOTAL", dict(totals), defaultdict(lambda: [0, 0, 0, 0, 0]))
+    for endpoint, bound in (("forecast/hours", "pages log"), ("forecast/days", "fetches log")):
+        print(f"\nEstimated {endpoint} requests, Pacific day {day}:")
+        print(f"   {'platform':<38}{'estimate':>9}   ({bound} / request log / table)")
+        for label, by_endpoint in estimates:
+            est, fetch_bound, log, table = by_endpoint[endpoint]
+            print(f"   {label:<38}{est:>9}   ({fetch_bound} / {log} / {table})")
+        print(f"   {'TOTAL':<38}{sum(e[endpoint][0] for _, e in estimates):>9}")
+
     print("\nlog = GOOGLE_REQUEST rows in the PT window (responses only).  "
           "table = api_usage_stats (every send, incl. retries/failures).")
     print("Devices that are offline or not attached (e.g. a stopped emulator) are not counted.")
