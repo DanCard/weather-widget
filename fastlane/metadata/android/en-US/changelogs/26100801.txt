@@ -1,0 +1,1 @@
+Release 26100801: Added Google Weather source with quota tracking; API usage statistics by source in Settings; hourly graph label and thermostat-color optimizations; refined battery-aware background observation updates; shared UI error pill handling; desktop and Android parity fixes.
