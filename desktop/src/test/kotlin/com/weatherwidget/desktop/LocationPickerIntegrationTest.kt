@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
@@ -171,6 +172,11 @@ class LocationPickerIntegrationTest {
         searchNode.performTextInput("lviv")
         searchNode.performKeyInput {
             pressKey(androidx.compose.ui.input.key.Key.Enter)
+        }
+
+        // The search runs on Dispatchers.IO, which the compose clock does not track: wait for it.
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithText("One match — confirm it:").fetchSemanticsNodes().isNotEmpty()
         }
 
         // Verify search results are displayed
