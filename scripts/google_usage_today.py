@@ -5,16 +5,16 @@ Google's quotas (and the Cloud Console's "today") run per Pacific calendar day, 
 device is in, so the window here is America/Los_Angeles midnight to midnight.
 
 Two counts per platform:
-  log    `GOOGLE_REQUEST` rows in app_logs inside the PT window (one per response; a send that
-         threw, or a transport retry underneath, leaves no row).
-  table  `api_usage_stats` GOOGLE_WEATHER rows filed under that day (counts every send, retries
-         and failures included). Google rows are filed by Pacific day
-         (`ApiUsageClassifier.usageDayMs`); builds before 2026-10-08 filed by the device's day.
+  logged   `GOOGLE_REQUEST` rows in app_logs inside the PT window (one per response; a send that
+           threw, or a transport retry underneath, leaves no row).
+  counted  `api_usage_stats` GOOGLE_WEATHER rows filed under that day (counts every send, retries
+           and failures included). Google rows are filed by Pacific day
+           (`ApiUsageClassifier.usageDayMs`); builds before 2026-10-08 filed by the device's day.
 
 Estimated forecast/hours: per platform, the largest of three lower bounds — the summed
 `GOOGLE_HOURS_PAGES pages=N` lines (one per Google fetch, every build since 2026-10-07; the paging
 loop is the only caller of forecast/hours; a fetch that throws logs none), the forecast/hours
-`GOOGLE_REQUEST` rows, and the forecast/hours table row (builds from 2026-10-08 only).
+`GOOGLE_REQUEST` rows (logged), and the forecast/hours api_usage_stats row (counted; builds from 2026-10-08).
 
 Estimated forecast/days: the same, with the fetch count (number of `GOOGLE_HOURS_PAGES` lines) as
 the first bound. Every fetch that returns makes exactly one forecast/days call, hourly-limited
@@ -128,15 +128,34 @@ def estimates_for(rows, pages, fetches):
             "forecast/days": estimate(rows, "forecast/days", fetches)}
 
 
+FOOTER = """
+Columns
+  logged ok     GOOGLE_REQUEST lines in app_logs inside the Pacific day, status < 400.
+  logged err    The same lines with status >= 400. One line per response: a send that got no
+                response, or a transport retry underneath, leaves none.
+  counted       api_usage_stats.callCount for the day: every request sent, retries and failures
+                included. The closest to what Google counts.
+  counted err   Of those, HTTP >= 400 or a send that failed (api_usage_stats.errorCount).
+  counted 429   Of those, quota refusals (api_usage_stats.quotaRefusedCount).
+  Logged and counted differ when counting started later than logging (builds before
+  2026-10-08), or when a request was retried or failed without a response.
+
+Estimates
+  estimate      The largest of the bracketed lower bounds: the GOOGLE_HOURS_PAGES lines (pages
+                summed for forecast/hours, fetches counted for forecast/days), logged, counted.
+
+Devices that are offline or not attached (e.g. a stopped emulator) are not included."""
+
+
 def print_platform(label, rows, totals):
     print(f"\n== {label}")
     if not rows:
         print("   (no Google requests)")
         return
-    print(f"   {'endpoint':<22}{'log ok':>8}{'log err':>9}{'table':>8}{'t.err':>7}{'t.429':>7}")
+    print(f"   {'endpoint':<22}{'logged ok':>11}{'logged err':>12}{'counted':>9}{'counted err':>13}{'counted 429':>13}")
     for endpoint in sorted(rows):
         r = rows[endpoint]
-        print(f"   {endpoint:<22}{r[0]:>8}{r[1]:>9}{r[2]:>8}{r[3]:>7}{r[4]:>7}")
+        print(f"   {endpoint:<22}{r[0]:>11}{r[1]:>12}{r[2]:>9}{r[3]:>13}{r[4]:>13}")
         for i, v in enumerate(r):
             totals[endpoint][i] += v
 
@@ -178,15 +197,13 @@ def main():
     print_platform("TOTAL", dict(totals), defaultdict(lambda: [0, 0, 0, 0, 0]))
     for endpoint, bound in (("forecast/hours", "pages log"), ("forecast/days", "fetches log")):
         print(f"\nEstimated {endpoint} requests, Pacific day {day}:")
-        print(f"   {'platform':<38}{'estimate':>9}   ({bound} / request log / table)")
+        print(f"   {'platform':<38}{'estimate':>9}   ({bound} / logged / counted)")
         for label, by_endpoint in estimates:
             est, fetch_bound, log, table = by_endpoint[endpoint]
             print(f"   {label:<38}{est:>9}   ({fetch_bound} / {log} / {table})")
         print(f"   {'TOTAL':<38}{sum(e[endpoint][0] for _, e in estimates):>9}")
 
-    print("\nlog = GOOGLE_REQUEST rows in the PT window (responses only).  "
-          "table = api_usage_stats (every send, incl. retries/failures).")
-    print("Devices that are offline or not attached (e.g. a stopped emulator) are not counted.")
+    print(FOOTER)
 
 
 if __name__ == "__main__":
