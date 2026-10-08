@@ -5,7 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.shared.util.CloudViewingRefreshPolicy
+import com.weatherwidget.shared.util.ViewingRefreshPolicy
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.mockk
@@ -23,15 +23,16 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Pins the cloud-while-viewing watchdog: rendering the CLOUD view must enqueue a targeted refresh
- * of the active source when that source's cloud data is stale, and stay quiet otherwise (fresh,
- * missing rows, or no repository). The actual WorkManager enqueue is suppressed via
- * [RefreshScheduler.setIsRefreshDisabledForTesting] and observed through `lastForcedRefreshForTesting`.
+ * Pins the while-viewing watchdog (user's rule, 2026-10-08): rendering the CLOUD view refreshes the
+ * viewed source's current temp/actuals when older than 15 min, and its forecast only when due by the
+ * normal cadence — then as a targeted, hourly-limited forced refresh. The forced-refresh enqueue is
+ * suppressed via [RefreshScheduler.setIsRefreshDisabledForTesting] and observed through
+ * `lastForcedRefreshForTesting`; the decision is the function's return value.
  */
 @Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
-class CloudViewingRefreshRoboTest {
+class ViewingRefreshRoboTest {
 
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
@@ -67,69 +68,73 @@ class CloudViewingRefreshRoboTest {
         cloudCoverLow = 100,
     )
 
+    private val cadence = 4 * 3_600_000L
+    private val now = System.currentTimeMillis()
+    private val staleActuals = now - ViewingRefreshPolicy.ACTUALS_STALE_WHILE_VIEWING_MS - 60_000L
+
+    private suspend fun run(
+        forecastAt: Long,
+        actualsAt: Long = staleActuals,
+        repo: WeatherRepository? = repository,
+        rows: List<HourlyForecastEntity> = listOf(cloudRow(forecastAt)),
+    ) = CloudCoverViewHandler.maybeRefreshWhileViewing(
+        context, stateManager, widgetId, source, repo, rows,
+        nowMs = now, lastActualsAtMs = actualsAt, forecastIntervalMs = cadence,
+    )
+
     @Test
-    fun `stale cloud enqueues a targeted refresh of the active source`() = runBlocking {
-        val staleAt = System.currentTimeMillis() - CloudViewingRefreshPolicy.CLOUD_STALE_WHILE_VIEWING_MS - 60_000L
+    fun `forecast 30 min old refreshes only actuals, no forecast fetch`() = runBlocking {
+        val decision = run(forecastAt = now - 30 * 60_000L)
 
-        CloudCoverViewHandler.maybeRefreshCloudWhileViewing(
-            context, stateManager, widgetId, source, repository, listOf(cloudRow(staleAt)),
-        )
-
-        val request = RefreshScheduler.lastForcedRefreshForTesting
-        assertEquals("cloud_while_viewing", request?.reason)
-        assertEquals(source.id, request?.targetSourceId)
+        assertEquals(ViewingRefreshPolicy.Decision(refreshActuals = true, refreshForecast = false), decision)
+        assertNull(RefreshScheduler.lastForcedRefreshForTesting)
     }
 
     @Test
-    fun `fresh cloud does not enqueue`() = runBlocking {
-        val freshAt = System.currentTimeMillis()
+    fun `forecast due by the cadence gets a targeted hourly-limited refresh`() = runBlocking {
+        run(forecastAt = now - cadence - 60_000L)
 
-        CloudCoverViewHandler.maybeRefreshCloudWhileViewing(
-            context, stateManager, widgetId, source, repository, listOf(cloudRow(freshAt)),
-        )
+        val request = RefreshScheduler.lastForcedRefreshForTesting
+        assertEquals("viewing_forecast_due", request?.reason)
+        assertEquals(source.id, request?.targetSourceId)
+        assertTrue(request!!.hourlyLimited)
+    }
 
+    @Test
+    fun `fresh actuals and forecast do nothing`() = runBlocking {
+        val decision = run(forecastAt = now, actualsAt = now)
+
+        assertFalse(decision!!.any)
         assertNull(RefreshScheduler.lastForcedRefreshForTesting)
     }
 
     @Test
     fun `null repository does not enqueue`() = runBlocking {
-        val staleAt = System.currentTimeMillis() - CloudViewingRefreshPolicy.CLOUD_STALE_WHILE_VIEWING_MS - 60_000L
-
-        CloudCoverViewHandler.maybeRefreshCloudWhileViewing(
-            context, stateManager, widgetId, source, null, listOf(cloudRow(staleAt)),
-        )
-
+        assertNull(run(forecastAt = now - cadence - 60_000L, repo = null))
         assertNull(RefreshScheduler.lastForcedRefreshForTesting)
     }
 
     @Test
-    fun `rows missing for the active source do not enqueue`() = runBlocking {
-        // Rows exist but belong to a different source, so there is no freshness signal for the
-        // active source — this must not be treated as stale (missing ≠ stale).
-        val staleAt = System.currentTimeMillis() - CloudViewingRefreshPolicy.CLOUD_STALE_WHILE_VIEWING_MS - 60_000L
-        val otherSourceRow = cloudRow(staleAt).copy(source = WeatherSource.NWS.id)
-
-        CloudCoverViewHandler.maybeRefreshCloudWhileViewing(
-            context, stateManager, widgetId, source, repository, listOf(otherSourceRow),
-        )
-
+    fun `rows missing for the viewed source do not enqueue`() = runBlocking {
+        // Rows exist but belong to a different source: no freshness signal, and missing is not stale.
+        val other = cloudRow(now - cadence - 60_000L).copy(source = WeatherSource.NWS.id)
+        assertNull(run(forecastAt = 0L, rows = listOf(other)))
         assertNull(RefreshScheduler.lastForcedRefreshForTesting)
     }
 
     @Test
     fun `enqueue marks the per-widget-source cooldown`() = runBlocking {
-        val staleAt = System.currentTimeMillis() - CloudViewingRefreshPolicy.CLOUD_STALE_WHILE_VIEWING_MS - 60_000L
-
-        CloudCoverViewHandler.maybeRefreshCloudWhileViewing(
-            context, stateManager, widgetId, source, repository, listOf(cloudRow(staleAt)),
-        )
+        run(forecastAt = now - cadence - 60_000L)
 
         val stillCoolingDown = !stateManager.shouldRefreshMissingData(
             widgetId,
             source.id,
             "cloud_viewing",
-            CloudViewingRefreshPolicy.CLOUD_STALE_WHILE_VIEWING_MS,
+            ViewingRefreshPolicy.ACTUALS_STALE_WHILE_VIEWING_MS,
         )
         assertTrue("a successful enqueue must mark the cooldown so a repaint storm can't stampede", stillCoolingDown)
+        RefreshScheduler.lastForcedRefreshForTesting = null
+        run(forecastAt = now - cadence - 60_000L)
+        assertNull("cooling down: no second enqueue", RefreshScheduler.lastForcedRefreshForTesting)
     }
 }

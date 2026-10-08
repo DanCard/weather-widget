@@ -60,6 +60,25 @@ class DesktopApiUsageAndRefreshGateTest {
     }
 
     @Test
+    fun `wake and network restore refetch the forecast only when due by the cadence`() {
+        val cadence = 4 * 3_600_000L
+        val staleAfter = launchForecastStaleAfterMs("network:restored") { cadence }
+        assertEquals(cadence, staleAfter)
+        // 01:51 on 2026-10-08: a 100-minute-old forecast was refetched on network restore. Now only
+        // the observations catch up.
+        val action = determineLaunchRefreshAction(
+            cachePresent = true,
+            lastObservationFetchMs = 0L,
+            lastForecastFetchMs = 0L,
+            nowMs = 100 * 60_000L,
+            forecastStaleAfterMs = staleAfter,
+        )
+        assertEquals(LaunchRefreshAction.OBSERVATIONS, action)
+        assertEquals(Long.MAX_VALUE, launchForecastStaleAfterMs("resume:logind") { null })
+        assertEquals(FORECAST_FRESHNESS_THRESHOLD_MS, launchForecastStaleAfterMs("startup") { cadence })
+    }
+
+    @Test
     fun `source cycling limits hourly only in the daily view`() {
         assertTrue(launchHourlyLimited(SOURCE_CYCLE_REASON, ViewMode.DAILY))
         assertFalse(launchHourlyLimited(SOURCE_CYCLE_REASON, ViewMode.TEMPERATURE))

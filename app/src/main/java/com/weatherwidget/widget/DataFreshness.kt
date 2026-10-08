@@ -56,7 +56,7 @@ object DataFreshness {
             batteryLevel = fetchContext.batteryLevel,
         )
 
-    private fun deviceFetchContext(context: Context, stateManager: WidgetStateManager): ForecastFetchContext {
+    internal fun deviceFetchContext(context: Context, stateManager: WidgetStateManager): ForecastFetchContext {
         val snapshot = BatterySnapshotProvider.snapshot(context)
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         return ForecastFetchContext(

@@ -13,7 +13,7 @@ import com.weatherwidget.data.local.desktop.WakeEventLog
 import com.weatherwidget.shared.notify.DominantTempWatch
 import com.weatherwidget.shared.notify.DominantTempWatchDecision
 import com.weatherwidget.shared.observations.ActualsProviderResolver
-import com.weatherwidget.shared.util.CloudViewingRefreshPolicy
+import com.weatherwidget.shared.util.ViewingRefreshPolicy
 import com.weatherwidget.shared.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -475,6 +475,14 @@ internal class DaemonRuntime(
     // then fetch exactly what is stale. Forecast freshness belongs to the displayed source; actual
     // temperature freshness belongs to that source's resolved provider at this location.
     // [reason] is for log provenance only.
+    /** The displayed source's normal forecast cadence now; null when low battery suspends it. */
+    private fun activeForecastCadenceMs(): Long? {
+        val (isCharging, level) = PowerDetector.getPowerState()
+        return DesktopFetchStrategy.getForecastRefreshDelayMs(
+            isCharging, level, isActiveSource = true, screenOn = ScreenStateDetector.isScreenOn(),
+        )
+    }
+
     suspend fun runLaunchRefresh(activeRepo: DesktopWeatherRepository, config: DesktopConfig, reason: String) {
         try {
             Log.i(TAG, "[$reason] Loading cached data...")
@@ -497,11 +505,13 @@ internal class DaemonRuntime(
                 providerId = actualsProvider,
             )
             val hourlyLimited = launchHourlyLimited(reason, config.viewMode)
+            val forecastStaleAfterMs = launchForecastStaleAfterMs(reason) { activeForecastCadenceMs() }
             val launchRefreshAction = determineLaunchRefreshAction(
                 cachePresent = cached != null,
                 lastObservationFetchMs = lastObservationFetch,
                 lastForecastFetchMs = lastForecastFetch,
                 nowMs = now,
+                forecastStaleAfterMs = forecastStaleAfterMs,
             )
 
             Log.i(
@@ -516,7 +526,7 @@ internal class DaemonRuntime(
                 message = "reason=$reason source=${displaySource.id} actualsProvider=$actualsProvider " +
                     "cachePresent=${cached != null} action=$launchRefreshAction " +
                     "lastForecastFetch=$lastForecastFetch forecastAgeMs=${lastForecastFetch?.let { now - it }} " +
-                    "hourlyLimited=$hourlyLimited " +
+                    "hourlyLimited=$hourlyLimited forecastStaleAfterMs=$forecastStaleAfterMs " +
                     "lastObservationFetch=$lastObservationFetch observationAgeMs=${lastObservationFetch?.let { now - it }}",
                 level = "INFO"
             )
@@ -805,25 +815,24 @@ internal class DaemonRuntime(
 
                     delay(delayMs)
 
-                    // Cloud-while-viewing: the screen is on, so the user is looking at the app. If the
-                    // active source's forecast is stale beyond the viewing threshold, refresh it now
-                    // instead of waiting for the forecast loop — hourly-limited (user, 2026-10-08): the
-                    // screen being on refreshes daily, current and actuals, not the hourly forecast
-                    // unless it is itself due (HourlyFetchGate; 3 billed Google pages per fetch).
+                    // Screen on: this loop refreshes the viewed source's current temp and actuals below.
+                    // The forecast only when it is due by the normal cadence — never sooner because the
+                    // screen is on (ViewingRefreshPolicy; user, 2026-10-08). Covers a forecast loop
+                    // whose timer froze in suspend.
                     var fullRefreshSuppliedObservations = false
                     if (screenOn) {
                         val lastForecast = weatherDao.getLastSuccessfulFetch(config.displaySource)
-                        if (CloudViewingRefreshPolicy.isStale(lastForecast, System.currentTimeMillis())) {
+                        if (ViewingRefreshPolicy.forecastDue(lastForecast, activeForecastCadenceMs(), System.currentTimeMillis())) {
                             try {
-                                Log.i(TAG, "Cloud-while-viewing: forecast stale for ${config.displaySource}; refreshing now.")
-                                val outcome = newRepo.refreshWithOutcome(reason = "cloud_while_viewing", hourlyLimited = true)
+                                Log.i(TAG, "Viewing: forecast due by cadence for ${config.displaySource}; refreshing now.")
+                                val outcome = newRepo.refreshWithOutcome(reason = "viewing_forecast_due", hourlyLimited = true)
                                 fullRefreshSuppliedObservations = outcome.suppliedObservations
                                 panelPublisher.publishForecastState(outcome.snapshot)
                                 notifyDataUpdated()
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {
-                                Log.i(TAG, "Cloud-while-viewing refresh failed: ${e.message}")
+                                Log.i(TAG, "Viewing forecast refresh failed: ${e.message}")
                             }
                         }
                     }

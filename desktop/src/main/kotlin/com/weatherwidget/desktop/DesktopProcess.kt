@@ -1,6 +1,5 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.shared.util.CloudViewingRefreshPolicy
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.shared.util.Log
 import java.nio.file.Files
@@ -66,7 +65,11 @@ const val FRESHNESS_THRESHOLD_MS = 10 * 60 * 1000L
 // describes how often to fetch when NOBODY is looking. Measured 2026-08-21 11:30:58, switching the
 // display to Open-Meteo logged `action=NONE forecastAgeMs=2740065` — the source the user had just
 // asked to look at was 45.7 minutes stale and the switch refreshed nothing, because 45.7 < 60.
-const val FORECAST_FRESHNESS_THRESHOLD_MS = CloudViewingRefreshPolicy.CLOUD_STALE_WHILE_VIEWING_MS
+//
+// Wake and network restore are not user-present moments in this sense: they refetch the forecast
+// only when it is due by the normal cadence (ViewingRefreshPolicy; user, 2026-10-08), via
+// [determineLaunchRefreshAction]'s forecastStaleAfterMs.
+const val FORECAST_FRESHNESS_THRESHOLD_MS = 15 * 60 * 1000L
 // UI-process safety-net cache reload. The `.data-updated` trigger is the primary (interrupt-driven)
 // update path; this slow poll only exists so a missed watch event or a dead watcher loop degrades
 // to "up to 10 minutes stale" instead of "stale forever".
@@ -129,8 +132,18 @@ const val RESUME_KICK_JITTER_MS = 10_000L
  * Startup, location change, settings changes and a source cycle in an hourly view fetch everything.
  */
 fun launchHourlyLimited(reason: String, viewMode: com.weatherwidget.widget.ViewMode): Boolean =
-    reason.startsWith("resume:") || reason.startsWith("network:") ||
-        (reason == SOURCE_CYCLE_REASON && !viewMode.isGraphMode)
+    isAutomaticCatchUp(reason) || (reason == SOURCE_CYCLE_REASON && !viewMode.isGraphMode)
+
+/** Wake / link-up catch-ups (`resume:*`, `network:*`): screen on, nobody asked for a forecast. */
+fun isAutomaticCatchUp(reason: String): Boolean = reason.startsWith("resume:") || reason.startsWith("network:")
+
+/**
+ * How old the forecast may be before a launch catch-up refetches it: the normal cadence
+ * ([cadenceMs]; null = suspended → never) for an automatic catch-up, else the user-present
+ * [FORECAST_FRESHNESS_THRESHOLD_MS].
+ */
+fun launchForecastStaleAfterMs(reason: String, cadenceMs: () -> Long?): Long =
+    if (isAutomaticCatchUp(reason)) cadenceMs() ?: Long.MAX_VALUE else FORECAST_FRESHNESS_THRESHOLD_MS
 
 enum class LaunchRefreshAction {
     FULL_FORECAST,
@@ -143,12 +156,14 @@ fun determineLaunchRefreshAction(
     lastObservationFetchMs: Long?,
     lastForecastFetchMs: Long?,
     nowMs: Long = System.currentTimeMillis(),
+    /** [FORECAST_FRESHNESS_THRESHOLD_MS] when the user is present; the cadence on wake / link-up. */
+    forecastStaleAfterMs: Long = FORECAST_FRESHNESS_THRESHOLD_MS,
 ): LaunchRefreshAction {
     if (!cachePresent) return LaunchRefreshAction.FULL_FORECAST
     // A stale forecast takes priority: a full forecast fetch also refreshes observations, so it
     // supersedes an observations-only refresh.
     val forecastIsStale = lastForecastFetchMs == null ||
-        (nowMs - lastForecastFetchMs) >= FORECAST_FRESHNESS_THRESHOLD_MS
+        (nowMs - lastForecastFetchMs) >= forecastStaleAfterMs
     if (forecastIsStale) return LaunchRefreshAction.FULL_FORECAST
     val observationsAreFresh = lastObservationFetchMs != null &&
         (nowMs - lastObservationFetchMs) < FRESHNESS_THRESHOLD_MS

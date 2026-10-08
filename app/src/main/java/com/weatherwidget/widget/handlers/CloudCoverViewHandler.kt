@@ -28,7 +28,10 @@ import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.graph.CloudActualSeries
 import com.weatherwidget.shared.graph.CloudSeriesBuilder
 import com.weatherwidget.shared.graph.DominantStationLabel
-import com.weatherwidget.shared.util.CloudViewingRefreshPolicy
+import com.weatherwidget.shared.util.ViewingRefreshPolicy
+import com.weatherwidget.data.repository.FetchMetadata
+import com.weatherwidget.widget.DataFreshness
+import com.weatherwidget.widget.ForecastFetchPolicy
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
@@ -376,16 +379,18 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             val priorBands = cloudData.priorBands
             val retroActual = cloudData.retroActual
 
-            // Cloud-while-viewing watchdog: this view is literally being drawn, so if the active
-            // source's cloud data is stale, fetch it now instead of waiting for the slow full-forecast
-            // loop. Debounced per widget/source so a repaint storm can't stampede the network.
-            maybeRefreshCloudWhileViewing(
+            // While-viewing watchdog: this view is literally being drawn, so the user is looking.
+            // Refreshes the viewed source's current temp/actuals when stale, and its forecast only when
+            // due by the normal cadence (ViewingRefreshPolicy). Debounced per widget/source.
+            maybeRefreshWhileViewing(
                 context = context,
                 stateManager = stateManager,
                 appWidgetId = appWidgetId,
                 displaySource = effectiveDisplaySource,
                 repository = repository,
                 hourlyForecasts = hourlyForecasts,
+                siteLat = siteLat,
+                siteLon = siteLon,
             )
 
             // Repair probe for the actual cloud series. The coverage decision lives in the
@@ -608,52 +613,94 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
     }
 
     /**
-     * Cloud-while-viewing watchdog. The CLOUD view is rendering right now, so "the user is looking
-     * at the cloud graph" is true by construction. If the active source's hourly forecast is stale
-     * beyond [CloudViewingRefreshPolicy.CLOUD_STALE_WHILE_VIEWING_MS], enqueue a targeted refresh of
-     * that source (which also re-files its cloud actuals) instead of waiting for the slow
-     * full-forecast loop. Debounced per widget + source with the same store the backfill probe uses.
+     * While-viewing watchdog ([ViewingRefreshPolicy], user's rule 2026-10-08). The CLOUD view is
+     * rendering, so the user is looking at it. For the viewed source only:
+     * - current temp / actuals older than 15 min → a current-temp refresh (`viewing_actuals`);
+     * - forecast due by the normal cadence → a targeted forced refresh, hourly-limited
+     *   (`viewing_forecast_due`). Never sooner: the screen being on is not a reason to refetch it.
+     * Debounced per widget + source with the store the backfill probe uses.
+     *
+     * [lastActualsAtMs] / [forecastIntervalMs] default to the device's own state; tests pass them.
      */
     @androidx.annotation.VisibleForTesting
-    internal suspend fun maybeRefreshCloudWhileViewing(
+    internal suspend fun maybeRefreshWhileViewing(
         context: Context,
         stateManager: WidgetStateManager,
         appWidgetId: Int,
         displaySource: WeatherSource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
         hourlyForecasts: List<HourlyForecastEntity>,
-    ) {
-        if (repository == null) return
-        val latestFetchedAt = hourlyForecasts
+        siteLat: Double? = null,
+        siteLon: Double? = null,
+        nowMs: Long = System.currentTimeMillis(),
+        lastActualsAtMs: Long? = null,
+        forecastIntervalMs: Long? = null,
+    ): ViewingRefreshPolicy.Decision? {
+        if (repository == null) return null
+        val hourlyFetchedAt = hourlyForecasts
             .filter { it.source == displaySource.id }
             .maxOfOrNull { it.fetchedAt }
-            ?: return
-        val nowMs = System.currentTimeMillis()
-        if (!CloudViewingRefreshPolicy.isStale(latestFetchedAt, nowMs)) return
+            ?: return null
+        // Android skips rewriting unchanged hourly rows, so the provider's last success is the better
+        // "last forecast fetch"; the rows are the fallback when the site is unknown.
+        val lastForecastAtMs = if (siteLat != null && siteLon != null) {
+            maxOf(
+                hourlyFetchedAt,
+                FetchMetadata.getLastForecastSourceSuccessTime(context, displaySource.id, siteLat, siteLon),
+            )
+        } else {
+            hourlyFetchedAt
+        }
+        val actualsAtMs = lastActualsAtMs ?: if (siteLat != null && siteLon != null) {
+            FetchMetadata.getLastCurrentTempFetchTime(context, siteLat, siteLon)
+        } else {
+            FetchMetadata.getLastCurrentTempFetchTime(context)
+        }.takeIf { it > 0L }
+        val intervalMs = forecastIntervalMs ?: DataFreshness.deviceFetchContext(context, stateManager).let {
+            ForecastFetchPolicy.intervalMinutes(
+                isCharging = it.isCharging,
+                isScreenInteractive = it.isScreenInteractive,
+                isActiveSource = true,
+                batteryLevel = it.batteryLevel,
+            )?.times(60_000L)
+        }
+        val decision = ViewingRefreshPolicy.decide(actualsAtMs, lastForecastAtMs, intervalMs, nowMs)
+        if (!decision.any) return decision
         if (!stateManager.shouldRefreshMissingData(
                 appWidgetId,
                 displaySource.id,
-                "cloud_viewing",
-                CloudViewingRefreshPolicy.CLOUD_STALE_WHILE_VIEWING_MS,
+                VIEWING_COOLDOWN_KEY,
+                ViewingRefreshPolicy.ACTUALS_STALE_WHILE_VIEWING_MS,
             )
         ) {
-            return
+            return ViewingRefreshPolicy.Decision(refreshActuals = false, refreshForecast = false)
         }
-        stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, "cloud_viewing")
+        stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, VIEWING_COOLDOWN_KEY)
         Log.i(
             TAG,
-            "CLOUD_VIEWING_STALE source=${displaySource.id} ageMin=${(nowMs - latestFetchedAt) / 60_000L} " +
-                "enqueueing targeted cloud refresh",
+            "VIEWING_REFRESH source=${displaySource.id} actuals=${decision.refreshActuals} " +
+                "forecast=${decision.refreshForecast} forecastAgeMin=${(nowMs - lastForecastAtMs) / 60_000L}",
         )
-        RefreshScheduler.enqueueForcedRefresh(
-            context = context,
-            reason = "cloud_while_viewing",
-            targetSourceId = displaySource.id,
-            // Automatic while the screen is on: daily, current and actuals, not the hourly forecast
-            // unless it is itself due (user, 2026-10-08; HourlyFetchGate).
-            hourlyLimited = true,
-        )
+        if (decision.refreshForecast) {
+            RefreshScheduler.enqueueForcedRefresh(
+                context = context,
+                reason = "viewing_forecast_due",
+                targetSourceId = displaySource.id,
+                hourlyLimited = true,
+            )
+        }
+        if (decision.refreshActuals) {
+            com.weatherwidget.widget.CurrentTempUpdateScheduler.enqueueImmediateUpdate(
+                context = context,
+                reason = "viewing_actuals",
+                opportunistic = false,
+                targetSourceId = displaySource.id,
+            )
+        }
+        return decision
     }
+
+    private const val VIEWING_COOLDOWN_KEY = "cloud_viewing"
 
     @androidx.annotation.VisibleForTesting
     internal fun buildCloudHourDataList(
