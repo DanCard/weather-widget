@@ -419,4 +419,21 @@
     <string name="data_usage_past_90d">Son 90 Gün</string>
     <string name="data_usage_loading">Veri kullanımı yükleniyor…</string>
     <string name="data_usage_unavailable">Veri kullanımı ayrıntıları mevcut değil</string>
+
+    <!-- Settings → Usage stats (UsageStatsActivity) -->
+    <string name="usage_stats_settings_description">Bu cihazın kullandığı ağ verileri ve API çağrıları.</string>
+    <string name="usage_stats_button">Kullanım istatistikleri…</string>
+    <string name="usage_stats_title">Kullanım istatistikleri</string>
+    <string name="usage_stats_network">Ağ verileri</string>
+    <string name="usage_stats_api_calls">API çağrıları</string>
+    <string name="usage_stats_col_today">Bugün</string>
+    <string name="usage_stats_col_this_month">Bu ay</string>
+    <string name="usage_stats_col_last_month">Geçen ay</string>
+    <string name="usage_stats_col_90_days">90 gün</string>
+    <string name="usage_stats_errors_format">Hatalar: %1$s · Kota retleri (429): %2$s</string>
+    <string name="usage_stats_not_broken_down">Önceki (ayrıntısız)</string>
+    <string name="usage_stats_pacific_note">Google\'ın günleri ve ayları, Cloud Console\'da olduğu gibi Pasifik saatine göredir.</string>
+    <string name="usage_stats_footer_format">Bu cihazın gönderdiği her isteği, yeniden denemeler ve hatalar dahil sayar. %1$d gün saklanır.</string>
+    <string name="usage_stats_empty">Henüz kayıtlı API çağrısı yok.</string>
+    <string name="usage_stats_loading">Yükleniyor…</string>
 </resources>

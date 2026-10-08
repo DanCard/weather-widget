@@ -436,4 +436,21 @@
     <string name="data_usage_unavailable">Data usage details unavailable</string>
     <string name="data_usage_fg_bg_format" translatable="false">%1$s (FG: %2$s • BG: %3$s)</string>
     <string name="data_usage_entry_format" translatable="false">%1$s: %2$s (FG: %3$s • BG: %4$s)</string>
+
+    <!-- Settings → Usage stats (UsageStatsActivity) -->
+    <string name="usage_stats_settings_description">Network data and API calls used by this device.</string>
+    <string name="usage_stats_button">Usage stats…</string>
+    <string name="usage_stats_title">Usage stats</string>
+    <string name="usage_stats_network">Network data</string>
+    <string name="usage_stats_api_calls">API calls</string>
+    <string name="usage_stats_col_today">Today</string>
+    <string name="usage_stats_col_this_month">This month</string>
+    <string name="usage_stats_col_last_month">Last month</string>
+    <string name="usage_stats_col_90_days">90 days</string>
+    <string name="usage_stats_errors_format">Errors: %1$s · Quota refusals (429): %2$s</string>
+    <string name="usage_stats_not_broken_down">Earlier (not broken down)</string>
+    <string name="usage_stats_pacific_note">Google\'s days and months run on Pacific time, as in its Cloud Console.</string>
+    <string name="usage_stats_footer_format">Counts every request this device sent, including retries and failures. Kept %1$d days.</string>
+    <string name="usage_stats_empty">No API calls recorded yet.</string>
+    <string name="usage_stats_loading">Loading…</string>
 </resources>

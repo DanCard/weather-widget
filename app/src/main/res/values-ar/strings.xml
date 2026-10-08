@@ -419,4 +419,21 @@
     <string name="data_usage_past_90d">آخر 90 يوماً</string>
     <string name="data_usage_loading">جارٍ تحميل استخدام البيانات…</string>
     <string name="data_usage_unavailable">تفاصيل استخدام البيانات غير متوفرة</string>
+
+    <!-- Settings → Usage stats (UsageStatsActivity) -->
+    <string name="usage_stats_settings_description">بيانات الشبكة واستدعاءات API التي استخدمها هذا الجهاز.</string>
+    <string name="usage_stats_button">إحصاءات الاستخدام…</string>
+    <string name="usage_stats_title">إحصاءات الاستخدام</string>
+    <string name="usage_stats_network">بيانات الشبكة</string>
+    <string name="usage_stats_api_calls">استدعاءات API</string>
+    <string name="usage_stats_col_today">اليوم</string>
+    <string name="usage_stats_col_this_month">هذا الشهر</string>
+    <string name="usage_stats_col_last_month">الشهر الماضي</string>
+    <string name="usage_stats_col_90_days">90 يومًا</string>
+    <string name="usage_stats_errors_format">الأخطاء: %1$s · الرفض بسبب الحصة (429): %2$s</string>
+    <string name="usage_stats_not_broken_down">سابقة (غير مفصّلة)</string>
+    <string name="usage_stats_pacific_note">تُحسب أيام Google وأشهرها بتوقيت المحيط الهادئ، كما في Cloud Console.</string>
+    <string name="usage_stats_footer_format">يحسب كل طلب أرسله هذا الجهاز، بما في ذلك إعادة المحاولات والإخفاقات. يُحتفظ به %1$d يومًا.</string>
+    <string name="usage_stats_empty">لا توجد استدعاءات API مسجلة بعد.</string>
+    <string name="usage_stats_loading">جارٍ التحميل…</string>
 </resources>

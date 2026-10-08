@@ -419,4 +419,21 @@
     <string name="data_usage_past_90d">پچھلے 90 دن</string>
     <string name="data_usage_loading">ڈیٹا کا استعمال لوڈ ہو رہا ہے…</string>
     <string name="data_usage_unavailable">ڈیٹا کے استعمال کی تفصیلات دستیاب نہیں ہیں</string>
+
+    <!-- Settings → Usage stats (UsageStatsActivity) -->
+    <string name="usage_stats_settings_description">اس آلے کا استعمال کردہ نیٹ ورک ڈیٹا اور API کالز۔</string>
+    <string name="usage_stats_button">استعمال کے اعداد و شمار…</string>
+    <string name="usage_stats_title">استعمال کے اعداد و شمار</string>
+    <string name="usage_stats_network">نیٹ ورک ڈیٹا</string>
+    <string name="usage_stats_api_calls">API کالز</string>
+    <string name="usage_stats_col_today">آج</string>
+    <string name="usage_stats_col_this_month">اس مہینے</string>
+    <string name="usage_stats_col_last_month">پچھلے مہینے</string>
+    <string name="usage_stats_col_90_days">90 دن</string>
+    <string name="usage_stats_errors_format">خرابیاں: %1$s · کوٹہ کی وجہ سے انکار (429): %2$s</string>
+    <string name="usage_stats_not_broken_down">پہلے کی (تفصیل کے بغیر)</string>
+    <string name="usage_stats_pacific_note">Google کے دن اور مہینے Cloud Console کی طرح بحرالکاہل کے وقت کے مطابق ہیں۔</string>
+    <string name="usage_stats_footer_format">اس آلے سے بھیجی گئی ہر درخواست شمار ہوتی ہے، بشمول دوبارہ کوششیں اور ناکامیاں۔ %1$d دن تک رکھی جاتی ہے۔</string>
+    <string name="usage_stats_empty">ابھی تک کوئی API کال درج نہیں ہوئی۔</string>
+    <string name="usage_stats_loading">لوڈ ہو رہا ہے…</string>
 </resources>

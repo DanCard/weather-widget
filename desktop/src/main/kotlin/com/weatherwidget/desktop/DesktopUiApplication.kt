@@ -150,6 +150,8 @@ internal fun runDesktopUiApplication() = application {
         var appLogsShowRequestId by remember { mutableStateOf(0) }
         var iconGalleryVisible by remember { mutableStateOf(false) }
         var iconGalleryShowRequestId by remember { mutableStateOf(0) }
+        var usageStatsVisible by remember { mutableStateOf(false) }
+        var usageStatsShowRequestId by remember { mutableStateOf(0) }
         // Owned here rather than in either child window: full refresh work runs on uiScope and
         // survives closing Settings or Stations/Observations.
         var refreshInFlight by remember { mutableStateOf(false) }
@@ -873,6 +875,15 @@ internal fun runDesktopUiApplication() = application {
             )
         }
 
+        if (usageStatsVisible) {
+            UsageStatsWindowHost(
+                icon = appIcon,
+                weatherDao = weatherDao,
+                showRequestId = usageStatsShowRequestId,
+                onClose = { usageStatsVisible = false },
+            )
+        }
+
         if (appLogsVisible) {
             AppLogsWindow(
                 weatherDao = weatherDao,
@@ -916,6 +927,10 @@ internal fun runDesktopUiApplication() = application {
                 onOpenIconGallery = {
                     iconGalleryVisible = true
                     iconGalleryShowRequestId++
+                },
+                onOpenUsageStats = {
+                    usageStatsVisible = true
+                    usageStatsShowRequestId++
                 },
                 onRefreshData = { requestFullRefresh("settings") },
                 onViewAppLogs = {

@@ -419,4 +419,21 @@
     <string name="data_usage_past_90d">पिछले 90 दिन</string>
     <string name="data_usage_loading">डेटा उपयोग लोड हो रहा है…</string>
     <string name="data_usage_unavailable">डेटा उपयोग विवरण अनुपलब्ध</string>
+
+    <!-- Settings → Usage stats (UsageStatsActivity) -->
+    <string name="usage_stats_settings_description">इस डिवाइस द्वारा उपयोग किया गया नेटवर्क डेटा और API कॉल।</string>
+    <string name="usage_stats_button">उपयोग आँकड़े…</string>
+    <string name="usage_stats_title">उपयोग आँकड़े</string>
+    <string name="usage_stats_network">नेटवर्क डेटा</string>
+    <string name="usage_stats_api_calls">API कॉल</string>
+    <string name="usage_stats_col_today">आज</string>
+    <string name="usage_stats_col_this_month">इस महीने</string>
+    <string name="usage_stats_col_last_month">पिछले महीने</string>
+    <string name="usage_stats_col_90_days">90 दिन</string>
+    <string name="usage_stats_errors_format">त्रुटियाँ: %1$s · कोटा अस्वीकृतियाँ (429): %2$s</string>
+    <string name="usage_stats_not_broken_down">पहले के (विभाजित नहीं)</string>
+    <string name="usage_stats_pacific_note">Google के दिन और महीने Cloud Console की तरह प्रशांत समय के अनुसार चलते हैं।</string>
+    <string name="usage_stats_footer_format">इस डिवाइस से भेजे गए हर अनुरोध की गिनती, पुनः प्रयास और विफलताओं सहित। %1$d दिन तक रखा जाता है।</string>
+    <string name="usage_stats_empty">अभी तक कोई API कॉल दर्ज नहीं हुई।</string>
+    <string name="usage_stats_loading">लोड हो रहा है…</string>
 </resources>

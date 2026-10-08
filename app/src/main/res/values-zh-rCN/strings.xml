@@ -419,4 +419,21 @@
     <string name="data_usage_past_90d">过去90天</string>
     <string name="data_usage_loading">正在加载数据使用量…</string>
     <string name="data_usage_unavailable">数据使用详情不可用</string>
+
+    <!-- Settings → Usage stats (UsageStatsActivity) -->
+    <string name="usage_stats_settings_description">此设备使用的网络数据和 API 调用。</string>
+    <string name="usage_stats_button">使用统计…</string>
+    <string name="usage_stats_title">使用统计</string>
+    <string name="usage_stats_network">网络数据</string>
+    <string name="usage_stats_api_calls">API 调用</string>
+    <string name="usage_stats_col_today">今天</string>
+    <string name="usage_stats_col_this_month">本月</string>
+    <string name="usage_stats_col_last_month">上月</string>
+    <string name="usage_stats_col_90_days">90 天</string>
+    <string name="usage_stats_errors_format">错误：%1$s · 配额拒绝 (429)：%2$s</string>
+    <string name="usage_stats_not_broken_down">更早（未细分）</string>
+    <string name="usage_stats_pacific_note">Google 的日和月按太平洋时间计算，与其 Cloud Console 一致。</string>
+    <string name="usage_stats_footer_format">统计此设备发出的每个请求，包括重试和失败。保留 %1$d 天。</string>
+    <string name="usage_stats_empty">尚无 API 调用记录。</string>
+    <string name="usage_stats_loading">正在加载…</string>
 </resources>

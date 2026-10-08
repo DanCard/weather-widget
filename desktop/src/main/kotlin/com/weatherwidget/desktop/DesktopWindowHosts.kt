@@ -150,6 +150,7 @@ internal fun SettingsWindowHost(
     onExit: () -> Unit,
     onUpdateLocation: () -> Unit,
     onOpenIconGallery: () -> Unit,
+    onOpenUsageStats: () -> Unit,
     onRefreshData: () -> Unit,
     onViewAppLogs: () -> Unit,
 ) {
@@ -216,13 +217,13 @@ internal fun SettingsWindowHost(
             onExit = onExit,
             onUpdateLocation = onUpdateLocation,
             onOpenIconGallery = onOpenIconGallery,
+            onOpenUsageStats = onOpenUsageStats,
             isRefreshing = isRefreshing,
             onRefreshBreadcrumb = { message -> weatherDao.log("REFRESH_CLICK", message, "INFO") },
             onRefreshData = onRefreshData,
             onViewAppLogs = onViewAppLogs,
             locationResolver = locationResolver,
             onSubmitBugReport = { openInBrowser(buildBugReportMailto(latestConfig.value)) },
-            dataUsageProvider = { weatherDao.queryNetworkUsageReport() },
         )
     }
 }

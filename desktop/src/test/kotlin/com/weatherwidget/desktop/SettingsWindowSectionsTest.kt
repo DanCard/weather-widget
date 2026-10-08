@@ -136,7 +136,8 @@ label = "Test Location",
         composeTestRule.onNodeWithText("Widget Location: Test Location", substring = true).assertExists()
         composeTestRule.onNodeWithText("View Icon Gallery").assertExists()
         composeTestRule.onNodeWithText("Submit Bug Report").assertExists()
-        composeTestRule.onNodeWithText("Past 24 Hours").assertExists()
+        // Data Usage holds only the door to the Usage stats window (its numbers moved there).
+        composeTestRule.onNodeWithText("Usage stats…").assertExists()
     }
 
     @Test

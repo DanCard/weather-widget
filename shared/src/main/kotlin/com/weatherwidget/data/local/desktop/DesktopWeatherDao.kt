@@ -704,7 +704,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     /**
      * Deletes rows past [com.weatherwidget.data.local.RetentionPolicy] — the same policy Android
-     * applies (daily_history 18 months, network_usage 90 days, everything else at most a month).
+     * applies (daily_history 18 months, network_usage and api_usage_stats 90 days, everything else at most a month).
      *
      * [protectedLogTags] survive the app_logs window: desktop keeps a few permanent "done" markers
      * in app_logs (one-time backfills), and losing them would re-run those backfills and stop the
@@ -722,8 +722,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.execute("DELETE FROM daily_history WHERE updatedAt < ${policy.daysAgo(nowMs, policy.DAILY_HISTORY_DAYS)}")
                 stmt.execute("DELETE FROM station_cache WHERE updatedAt < $defaultCutoff")
                 stmt.execute("DELETE FROM current_status WHERE updatedAt < $defaultCutoff")
-                stmt.execute("DELETE FROM network_usage WHERE timestamp < ${policy.daysAgo(nowMs, policy.NETWORK_USAGE_DAYS)}")
-                stmt.execute("DELETE FROM api_usage_stats WHERE date < $defaultCutoff")
+                stmt.execute("DELETE FROM network_usage WHERE timestamp < ${policy.daysAgo(nowMs, policy.USAGE_DAYS)}")
+                stmt.execute("DELETE FROM api_usage_stats WHERE date < ${policy.daysAgo(nowMs, policy.USAGE_DAYS)}")
             }
             conn.prepareStatement(
                 "DELETE FROM app_logs WHERE timestamp < ?" +
@@ -1980,6 +1980,33 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
     }
+
+    /** `api_usage_stats` rows with a day key at or after [sinceDateMs], for Settings → Usage stats. */
+    fun apiUsageSince(sinceDateMs: Long): List<com.weatherwidget.data.remote.ApiUsageRow> =
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT date, apiSource, endpoint, callCount, errorCount, quotaRefusedCount " +
+                    "FROM api_usage_stats WHERE date >= ?",
+            ).use { stmt ->
+                stmt.setLong(1, sinceDateMs)
+                stmt.executeQuery().use { rs ->
+                    buildList {
+                        while (rs.next()) {
+                            add(
+                                com.weatherwidget.data.remote.ApiUsageRow(
+                                    dateMs = rs.getLong(1),
+                                    apiSource = rs.getString(2),
+                                    endpoint = rs.getString(3),
+                                    callCount = rs.getInt(4),
+                                    errorCount = rs.getInt(5),
+                                    quotaRefusedCount = rs.getInt(6),
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
     fun recordNetworkUsage(
         bytes: Long,

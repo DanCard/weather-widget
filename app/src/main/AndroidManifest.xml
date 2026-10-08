@@ -61,6 +61,11 @@
             android:label="@string/statistics" />
 
         <activity
+            android:name=".ui.UsageStatsActivity"
+            android:exported="false"
+            android:label="@string/usage_stats_title" />
+
+        <activity
             android:name=".ui.AppLogsActivity"
             android:exported="false"
             android:label="@string/app_logs"

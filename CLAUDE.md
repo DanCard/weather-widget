@@ -58,6 +58,9 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   filed by the **Pacific** day (`ApiUsageClassifier.usageDayMs`), others by the local day.
   `scripts/google_usage_today.py` totals one PT day across desktop and attached devices. See
   `plans/261008-google-hourly-quota-hourly-limited-refreshes-and-api-usage-endpoints.md`.
+  Settings → Data Usage → **Usage stats…** shows the same table per source / endpoint (Today · This
+  month · Last month · 90 days), `:shared` `ApiUsageSummary`
+  (`plans/261008-settings-usage-stats-screen-api-calls-per-source.md`).
 - **Borrowed actuals default by location:** a forecast-only source (Google, Silurian) with no
   explicit provider uses **NWS inside `NwsCoverage`, METAR elsewhere**. The default is derived on
   every read and never stored (`ActualsProviderResolver.borrowerDefault`, location via
@@ -234,8 +237,8 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 | Table | Kept |
 |---|---|
 | `daily_history` | 18 months (the long record: accuracy stats, history) |
-| `network_usage` (desktop) | 90 days (the data-usage report's 90-day column; ~0.7 MB) |
-| `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `api_usage_stats`, `current_status`, `station_cache` | 30 days |
+| `network_usage` (desktop), `api_usage_stats` | 90 days (Usage stats: 90-day and calendar-month columns; user, 2026-10-08) |
+| `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `current_status`, `station_cache` | 30 days |
 | `observations` | 10 days |
 | `app_logs` | 72 h (desktop keeps its permanent `*_BACKFILL_DONE` markers) |
 | `climate_normals` | current location only |

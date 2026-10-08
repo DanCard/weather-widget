@@ -87,4 +87,18 @@ class ApiUsageDaoTest {
         assertEquals(listOf("currentConditions", "forecast/hours"), dao.getUsageByEndpoint(day, "GOOGLE_WEATHER").map { it.endpoint })
         assertEquals(4, dao.getTotalUsage("GOOGLE_WEATHER"))
     }
+
+    @Test
+    fun getSince_returnsRowsFromTheCutoffDay() = runTest {
+        val old = dateEpoch("2026-07-01")
+        val start = dateEpoch("2026-07-10")
+        val today = dateEpoch("2026-10-08")
+        dao.logCall(old, "NWS", "points/{id}")
+        dao.logCall(start, "NWS", "points/{id}")
+        dao.logCall(today, "GOOGLE_WEATHER", "forecast/hours", isQuotaRefusal = true, isError = true)
+
+        val rows = dao.getSince(start).map { it.toRow() }.sortedBy { it.dateMs }
+        assertEquals(listOf(start, today), rows.map { it.dateMs })
+        assertEquals(1, rows.last().quotaRefusedCount)
+    }
 }

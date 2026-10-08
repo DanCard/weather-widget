@@ -28,7 +28,9 @@ data class ApiUsageEntity(
     val errorCount: Int = 0,
     @ColumnInfo(defaultValue = "0")
     val quotaRefusedCount: Int = 0,
-)
+) {
+    fun toRow() = com.weatherwidget.data.remote.ApiUsageRow(date, apiSource, endpoint, callCount, errorCount, quotaRefusedCount)
+}
 
 @Dao
 interface ApiUsageDao {
@@ -63,6 +65,10 @@ interface ApiUsageDao {
 
     @Query("SELECT * FROM api_usage_stats WHERE date = :date AND apiSource = :apiSource ORDER BY endpoint")
     suspend fun getUsageByEndpoint(date: Long, apiSource: String): List<ApiUsageEntity>
+
+    /** Settings → Usage stats: every row with a day key at or after [sinceDateMs]. */
+    @Query("SELECT * FROM api_usage_stats WHERE date >= :sinceDateMs")
+    suspend fun getSince(sinceDateMs: Long): List<ApiUsageEntity>
 
     /** Retention: `date` is the day's epoch ms. See RetentionPolicy. */
     @Query("DELETE FROM api_usage_stats WHERE date < :cutoffMs")

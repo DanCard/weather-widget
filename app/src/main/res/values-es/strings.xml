@@ -404,4 +404,21 @@
     <string name="data_usage_past_90d">Últimos 90 días</string>
     <string name="data_usage_loading">Cargando uso de datos…</string>
     <string name="data_usage_unavailable">Detalles de uso de datos no disponibles</string>
+
+    <!-- Settings → Usage stats (UsageStatsActivity) -->
+    <string name="usage_stats_settings_description">Datos de red y llamadas a la API de este dispositivo.</string>
+    <string name="usage_stats_button">Estadísticas de uso…</string>
+    <string name="usage_stats_title">Estadísticas de uso</string>
+    <string name="usage_stats_network">Datos de red</string>
+    <string name="usage_stats_api_calls">Llamadas a la API</string>
+    <string name="usage_stats_col_today">Hoy</string>
+    <string name="usage_stats_col_this_month">Este mes</string>
+    <string name="usage_stats_col_last_month">Mes pasado</string>
+    <string name="usage_stats_col_90_days">90 días</string>
+    <string name="usage_stats_errors_format">Errores: %1$s · Rechazos por cuota (429): %2$s</string>
+    <string name="usage_stats_not_broken_down">Anteriores (sin desglose)</string>
+    <string name="usage_stats_pacific_note">Los días y meses de Google usan la hora del Pacífico, como en su Cloud Console.</string>
+    <string name="usage_stats_footer_format">Cuenta cada solicitud que envió este dispositivo, incluidos reintentos y fallos. Se guardan %1$d días.</string>
+    <string name="usage_stats_empty">Aún no hay llamadas a la API registradas.</string>
+    <string name="usage_stats_loading">Cargando…</string>
 </resources>

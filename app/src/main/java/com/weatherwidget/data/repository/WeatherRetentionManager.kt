@@ -27,7 +27,7 @@ internal class WeatherRetentionManager(
 ) {
     suspend fun cleanOldData() {
         val now = System.currentTimeMillis()
-        // One policy for both platforms (RetentionPolicy): daily_history 18 months, the rest <= 1 month.
+        // One policy for both platforms (RetentionPolicy): daily_history 18 months, usage 90 days, the rest <= 1 month.
         val defaultCutoff = RetentionPolicy.daysAgo(now, RetentionPolicy.DEFAULT_DAYS)
         val logsCutoffTimestamp = RetentionPolicy.hoursAgo(now, RetentionPolicy.APP_LOG_HOURS)
         forecastDao.deleteOldForecasts(defaultCutoff)
@@ -38,7 +38,7 @@ internal class WeatherRetentionManager(
         dailyHistoryDao.deleteOldExtremes(RetentionPolicy.daysAgo(now, RetentionPolicy.DAILY_HISTORY_DAYS))
         // Best-effort: usage bookkeeping must never fail a sync.
         try {
-            apiUsageDao?.invoke()?.deleteOlderThan(defaultCutoff)
+            apiUsageDao?.invoke()?.deleteOlderThan(RetentionPolicy.daysAgo(now, RetentionPolicy.USAGE_DAYS))
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
