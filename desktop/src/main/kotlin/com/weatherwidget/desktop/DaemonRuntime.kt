@@ -752,7 +752,7 @@ internal class DaemonRuntime(
         }
     }
 
-    fun startFetchLoops(reason: String = "startup") {
+    fun startFetchLoops(reason: String = STARTUP_REASON) {
         fetchJob?.cancel()
         // Close the replaced client after a grace, not now: a caller still holding the old repo
         // (an observation catch-up, a non-loop refresh) would otherwise fail mid-request on

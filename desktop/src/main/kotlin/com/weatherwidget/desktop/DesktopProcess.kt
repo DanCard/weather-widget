@@ -137,15 +137,21 @@ fun launchHourlyLimited(reason: String, viewMode: com.weatherwidget.widget.ViewM
 /** Wake / link-up catch-ups (`resume:*`, `network:*`): screen on, nobody asked for a forecast. */
 fun isAutomaticCatchUp(reason: String): Boolean = reason.startsWith("resume:") || reason.startsWith("network:")
 
+/** The daemon's own launch (login autostart, a rebuild/restart, the time-zone relaunch). */
+const val STARTUP_REASON = "startup"
+
 /**
  * How old the forecast may be before a launch catch-up refetches it:
- * - automatic catch-up: the normal cadence ([cadenceMs]; null = suspended → never);
+ * - automatic catch-up and [STARTUP_REASON]: the normal cadence ([cadenceMs]; null = suspended →
+ *   never). A launch is not a request for a forecast: it used to refetch anything 15 min old, ~3
+ *   Google requests per restart (plans/261008-desktop-startup-respects-forecast-cadence.md). A launch
+ *   with no cache still fetches (`cachePresent`), and observations still catch up;
  * - cycling the displayed source ([SOURCE_CYCLE_REASON]): [SourceToggleRefreshPolicy.STALE_MS], 4 h,
  *   in the daily and hourly views alike (a source with no cache still fetches: `cachePresent`);
  * - otherwise the user-present [FORECAST_FRESHNESS_THRESHOLD_MS].
  */
 fun launchForecastStaleAfterMs(reason: String, cadenceMs: () -> Long?): Long = when {
-    isAutomaticCatchUp(reason) -> cadenceMs() ?: Long.MAX_VALUE
+    isAutomaticCatchUp(reason) || reason == STARTUP_REASON -> cadenceMs() ?: Long.MAX_VALUE
     reason == SOURCE_CYCLE_REASON -> com.weatherwidget.shared.util.SourceToggleRefreshPolicy.STALE_MS
     else -> FORECAST_FRESHNESS_THRESHOLD_MS
 }
@@ -161,7 +167,7 @@ fun determineLaunchRefreshAction(
     lastObservationFetchMs: Long?,
     lastForecastFetchMs: Long?,
     nowMs: Long = System.currentTimeMillis(),
-    /** [FORECAST_FRESHNESS_THRESHOLD_MS] when the user is present; the cadence on wake / link-up. */
+    /** [launchForecastStaleAfterMs]: the cadence on startup / wake / link-up, else the user-present 15 min. */
     forecastStaleAfterMs: Long = FORECAST_FRESHNESS_THRESHOLD_MS,
 ): LaunchRefreshAction {
     if (!cachePresent) return LaunchRefreshAction.FULL_FORECAST

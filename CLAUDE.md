@@ -45,7 +45,9 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   See `plans/261006-add-google-weather-source.md`.
   **Screen on refreshes current temp / actuals (viewed source, 15 min), not the forecast** — the
   forecast only once due by the normal cadence (`:shared` `ViewingRefreshPolicy`; desktop wake /
-  network restore too). See `plans/261008-screen-on-refreshes-actuals-not-forecast.md`.
+  network restore and **desktop startup** too — a restart refetched anything 15 min old,
+  `plans/261008-desktop-startup-respects-forecast-cadence.md`; Android startup/install/boot
+  syncs are unforced and already cadence-judged). See `plans/261008-screen-on-refreshes-actuals-not-forecast.md`.
   **Toggling sources refreshes the new source only when > 4 h old** (or it has no data), daily and
   hourly views alike (`:shared` `SourceToggleRefreshPolicy`; was 15 min). See
   `plans/261008-source-toggle-refreshes-only-past-four-hours.md`.

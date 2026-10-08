@@ -75,6 +75,29 @@ class DesktopApiUsageAndRefreshGateTest {
     }
 
     @Test
+    fun `startup refetches the forecast only when due by the cadence`() {
+        val cadence = 4 * 3_600_000L
+        val staleAfter = launchForecastStaleAfterMs(STARTUP_REASON) { cadence }
+        assertEquals(cadence, staleAfter)
+        assertEquals(Long.MAX_VALUE, launchForecastStaleAfterMs(STARTUP_REASON) { null })
+
+        fun atStartup(forecastAgeMin: Long?, cachePresent: Boolean = true) = determineLaunchRefreshAction(
+            cachePresent = cachePresent,
+            lastObservationFetchMs = 0L,
+            lastForecastFetchMs = forecastAgeMin?.let { 1_000L * 60_000L - it * 60_000L },
+            nowMs = 1_000L * 60_000L,
+            forecastStaleAfterMs = staleAfter,
+        )
+        // 09:11 on 2026-10-08: a rebuild-and-restart refetched a 40-minute-old Google forecast.
+        assertEquals(LaunchRefreshAction.OBSERVATIONS, atStartup(forecastAgeMin = 40))
+        assertEquals(LaunchRefreshAction.FULL_FORECAST, atStartup(forecastAgeMin = 7 * 60))
+        assertEquals(LaunchRefreshAction.FULL_FORECAST, atStartup(forecastAgeMin = 40, cachePresent = false))
+        assertEquals(LaunchRefreshAction.FULL_FORECAST, atStartup(forecastAgeMin = null))
+        // Not hourly-limited: when the cadence says due, startup fetches the whole forecast.
+        assertFalse(launchHourlyLimited(STARTUP_REASON, ViewMode.DAILY))
+    }
+
+    @Test
     fun `wake and network restore refresh daily but not hourly`() {
         assertTrue(launchHourlyLimited("network:restored", ViewMode.TEMPERATURE))
         assertTrue(launchHourlyLimited("resume:logind", ViewMode.DAILY))
@@ -96,7 +119,8 @@ class DesktopApiUsageAndRefreshGateTest {
         )
         assertEquals(LaunchRefreshAction.OBSERVATIONS, action)
         assertEquals(Long.MAX_VALUE, launchForecastStaleAfterMs("resume:logind") { null })
-        assertEquals(FORECAST_FRESHNESS_THRESHOLD_MS, launchForecastStaleAfterMs("startup") { cadence })
+        // A source or location the user just picked still refetches past the user-present 15 min.
+        assertEquals(FORECAST_FRESHNESS_THRESHOLD_MS, launchForecastStaleAfterMs("source_or_location_change") { cadence })
     }
 
     @Test
