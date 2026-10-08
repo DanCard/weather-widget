@@ -44,7 +44,6 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.AppLogWidgetStateEventLogger
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.GpsResampler
-import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateEventLogger
 import com.weatherwidget.data.repository.NwsApiDailyActualsFetcher
 import com.weatherwidget.widget.WidgetStateManager
@@ -63,7 +62,6 @@ import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
-import java.time.LocalDate
 import javax.inject.Singleton
 import dagger.hilt.EntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -138,7 +136,7 @@ object AppModule {
             plugin(HttpSend).intercept { request ->
                 val key = ApiUsageClassifier.classify(request.url.host, request.url.build().encodedPath)
                     ?: return@intercept execute(request)
-                val date = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val date = ApiUsageClassifier.usageDayMs(key.source, java.time.Instant.now(), java.time.ZoneId.systemDefault())
                 val call = try {
                     execute(request)
                 } catch (e: Throwable) {

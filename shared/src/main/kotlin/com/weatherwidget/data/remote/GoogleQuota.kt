@@ -29,7 +29,8 @@ object GoogleQuota {
         ForecastProduct.DAILY -> ERROR_CODE_DAILY_FORECAST
     }
 
-    private val ZONE: ZoneId = ZoneId.of("America/Los_Angeles")
+    /** Google's quota day: midnight to midnight Pacific (429 `window_start_time`, verified 2026-10-07). */
+    val ZONE: ZoneId = ZoneId.of("America/Los_Angeles")
     private val DAILY_UNIT = Regex(""""quota_unit"\s*:\s*"1/d/""")
 
     fun isDailyQuotaExhausted(statusCode: Int?, detail: String?): Boolean =

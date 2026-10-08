@@ -9,7 +9,8 @@ import androidx.room.Query
 import androidx.room.Transaction
 
 /**
- * Requests per local day, source and endpoint (`ApiUsageClassifier` in `:shared`). Desktop keeps
+ * Requests per day, source and endpoint (`ApiUsageClassifier` in `:shared`). The day is the
+ * provider's quota day (`ApiUsageClassifier.usageDayMs`: Pacific for Google, else local). Desktop keeps
  * the same table (`DesktopWeatherDatabase.API_USAGE_STATS_DDL`). [errorCount] counts HTTP >= 400
  * and failed sends; [quotaRefusedCount] the 429s among them.
  */

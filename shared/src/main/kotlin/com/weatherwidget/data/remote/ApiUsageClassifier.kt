@@ -1,5 +1,8 @@
 package com.weatherwidget.data.remote
 
+import java.time.Instant
+import java.time.ZoneId
+
 /**
  * Which `api_usage_stats` row an HTTP request counts against: the source by host, the endpoint by
  * path. One rule for Android's `HttpSend` interceptor and desktop's `ResponseObserver`.
@@ -10,6 +13,9 @@ package com.weatherwidget.data.remote
  * dropped, a `:method` suffix is cut (`forecast/hours:lookup` → `forecast/hours`), and any segment
  * holding a digit — coordinates, grid points, station ids — becomes `{id}`. Coordinates must never
  * reach the table.
+ *
+ * The row's day is the provider's quota day ([usageDayMs]), so a day's count lines up with the
+ * provider's console wherever the device is.
  */
 object ApiUsageClassifier {
     data class Key(val source: String, val endpoint: String)
@@ -40,6 +46,16 @@ object ApiUsageClassifier {
 
     fun classify(host: String, path: String): Key? =
         sourceForHost(host)?.let { Key(it, endpointForPath(path)) }
+
+    /** The zone whose midnight starts [source]'s quota day; null when the provider publishes none. */
+    fun quotaZone(source: String): ZoneId? = if (source == "GOOGLE_WEATHER") GoogleQuota.ZONE else null
+
+    /**
+     * The `date` key for a request to [source] at [now]: that day's UTC-midnight epoch ms, the day
+     * taken in the provider's quota zone (Pacific for Google), else in [localZone].
+     */
+    fun usageDayMs(source: String, now: Instant, localZone: ZoneId): Long =
+        now.atZone(quotaZone(source) ?: localZone).toLocalDate().toEpochDay() * 86_400_000L
 
     /** HTTP 429: the provider refused for quota or rate. Counted apart from other errors. */
     fun isQuotaRefusal(status: Int): Boolean = status == 429

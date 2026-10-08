@@ -52,7 +52,9 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   **Hourly-limited refreshes** (user, 2026-10-08): those screen-on forecast refreshes and source
   cycling in the daily view refresh daily and current but skip `forecast/hours` unless the stored
   hourly is due by cadence (`:shared` `HourlyFetchGate`). Every billed request logs
-  `GOOGLE_REQUEST`; `api_usage_stats` is per (date, source, endpoint) on both platforms. See
+  `GOOGLE_REQUEST`; `api_usage_stats` is per (date, source, endpoint) on both platforms, Google rows
+  filed by the **Pacific** day (`ApiUsageClassifier.usageDayMs`), others by the local day.
+  `scripts/google_usage_today.py` totals one PT day across desktop and attached devices. See
   `plans/261008-google-hourly-quota-hourly-limited-refreshes-and-api-usage-endpoints.md`.
 - **Borrowed actuals default by location:** a forecast-only source (Google, Silurian) with no
   explicit provider uses **NWS inside `NwsCoverage`, METAR elsewhere**. The default is derived on

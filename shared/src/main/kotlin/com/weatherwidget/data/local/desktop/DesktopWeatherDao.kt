@@ -1960,7 +1960,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
-    /** One request into `api_usage_stats`; [date] is the local day's epoch ms (as on Android). */
+    /** One request into `api_usage_stats`; [date] is `ApiUsageClassifier.usageDayMs` (as on Android). */
     fun logApiCall(date: Long, apiSource: String, endpoint: String, status: Int) {
         val error = if (com.weatherwidget.data.remote.ApiUsageClassifier.isError(status)) 1 else 0
         val refused = if (com.weatherwidget.data.remote.ApiUsageClassifier.isQuotaRefusal(status)) 1 else 0

@@ -54,6 +54,27 @@ class DesktopApiUsageAndRefreshGateTest {
     }
 
     @Test
+    fun `a google request late in the Pacific evening is filed on the console's day from any zone`() {
+        val db = DesktopWeatherDatabase(tempDir.resolve("weather.db"))
+        db.initialize()
+        val dao = DesktopWeatherDao(db)
+        // 23:30 PDT Oct 8 = 09:30 Oct 9 in Kyiv.
+        val now = java.time.Instant.parse("2026-10-09T06:30:00Z")
+        val kyiv = java.time.ZoneId.of("Europe/Kyiv")
+        for ((host, path) in listOf("weather.googleapis.com" to "/v1/forecast/hours:lookup", "api.weather.gov" to "/points/50.45,30.52")) {
+            val key = com.weatherwidget.data.remote.ApiUsageClassifier.classify(host, path)!!
+            dao.logApiCall(com.weatherwidget.data.remote.ApiUsageClassifier.usageDayMs(key.source, now, kyiv), key.source, key.endpoint, 200)
+        }
+
+        val rows = db.getConnection().use { conn ->
+            conn.createStatement().executeQuery("SELECT apiSource, date FROM api_usage_stats ORDER BY apiSource").use { rs ->
+                buildList { while (rs.next()) add(rs.getString(1) to java.time.LocalDate.ofEpochDay(rs.getLong(2) / 86_400_000L).toString()) }
+            }
+        }
+        assertEquals(listOf("GOOGLE_WEATHER" to "2026-10-08", "NWS" to "2026-10-09"), rows)
+    }
+
+    @Test
     fun `wake and network restore refresh daily but not hourly`() {
         assertTrue(launchHourlyLimited("network:restored", ViewMode.TEMPERATURE))
         assertTrue(launchHourlyLimited("resume:logind", ViewMode.DAILY))

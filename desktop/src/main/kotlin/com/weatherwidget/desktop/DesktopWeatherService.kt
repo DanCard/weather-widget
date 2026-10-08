@@ -97,7 +97,7 @@ class DesktopWeatherService(
                     weatherDao.recordNetworkUsage(totalBytes, isForeground)
                     val url = response.call.request.url
                     ApiUsageClassifier.classify(url.host, url.encodedPath)?.let { key ->
-                        val day = java.time.LocalDate.now().toEpochDay() * 86_400_000L
+                        val day = ApiUsageClassifier.usageDayMs(key.source, java.time.Instant.now(), java.time.ZoneId.systemDefault())
                         runCatching { weatherDao.logApiCall(day, key.source, key.endpoint, response.status.value) }
                     }
                 }
