@@ -46,6 +46,9 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   **Screen on refreshes current temp / actuals (viewed source, 15 min), not the forecast** — the
   forecast only once due by the normal cadence (`:shared` `ViewingRefreshPolicy`; desktop wake /
   network restore too). See `plans/261008-screen-on-refreshes-actuals-not-forecast.md`.
+  **Toggling sources refreshes the new source only when > 4 h old** (or it has no data), daily and
+  hourly views alike (`:shared` `SourceToggleRefreshPolicy`; was 15 min). See
+  `plans/261008-source-toggle-refreshes-only-past-four-hours.md`.
   **Hourly-limited refreshes** (user, 2026-10-08): those screen-on forecast refreshes and source
   cycling in the daily view refresh daily and current but skip `forecast/hours` unless the stored
   hourly is due by cadence (`:shared` `HourlyFetchGate`). Every billed request logs

@@ -79,6 +79,26 @@ class DesktopApiUsageAndRefreshGateTest {
     }
 
     @Test
+    fun `cycling the source refetches only past four hours`() {
+        val staleAfter = launchForecastStaleAfterMs(SOURCE_CYCLE_REASON) { 1L }
+        assertEquals(4 * 3_600_000L, staleAfter)
+        fun actionAt(ageMs: Long) = determineLaunchRefreshAction(
+            cachePresent = true,
+            lastObservationFetchMs = 1_000_000_000L,
+            lastForecastFetchMs = 1_000_000_000L - ageMs,
+            nowMs = 1_000_000_000L,
+            forecastStaleAfterMs = staleAfter,
+        )
+        assertEquals(LaunchRefreshAction.NONE, actionAt(40 * 60_000L))
+        assertEquals(LaunchRefreshAction.FULL_FORECAST, actionAt(4 * 3_600_000L))
+        // A source with nothing cached still fetches at once.
+        assertEquals(
+            LaunchRefreshAction.FULL_FORECAST,
+            determineLaunchRefreshAction(false, null, null, 1_000_000_000L, staleAfter),
+        )
+    }
+
+    @Test
     fun `source cycling limits hourly only in the daily view`() {
         assertTrue(launchHourlyLimited(SOURCE_CYCLE_REASON, ViewMode.DAILY))
         assertFalse(launchHourlyLimited(SOURCE_CYCLE_REASON, ViewMode.TEMPERATURE))

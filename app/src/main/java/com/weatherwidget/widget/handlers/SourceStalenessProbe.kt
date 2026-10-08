@@ -49,10 +49,11 @@ object SourceStalenessProbe {
 
     /**
      * Switching to a source whose cached data is older than this forces a targeted network fetch.
-     * Also acts as the per-source cooldown for repeated toggling.
+     * Also acts as the per-source cooldown for repeated toggling. [SourceToggleRefreshPolicy]: 4 h,
+     * daily and hourly views alike (was 15 min).
      */
     @VisibleForTesting
-    internal const val TOGGLE_REFRESH_STALE_MS = 15 * 60 * 1000L
+    internal const val TOGGLE_REFRESH_STALE_MS = com.weatherwidget.shared.util.SourceToggleRefreshPolicy.STALE_MS
 
     /**
      * Snapshot of what one source has cached for the currently-displayed window. Split from the

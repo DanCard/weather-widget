@@ -138,12 +138,17 @@ fun launchHourlyLimited(reason: String, viewMode: com.weatherwidget.widget.ViewM
 fun isAutomaticCatchUp(reason: String): Boolean = reason.startsWith("resume:") || reason.startsWith("network:")
 
 /**
- * How old the forecast may be before a launch catch-up refetches it: the normal cadence
- * ([cadenceMs]; null = suspended → never) for an automatic catch-up, else the user-present
- * [FORECAST_FRESHNESS_THRESHOLD_MS].
+ * How old the forecast may be before a launch catch-up refetches it:
+ * - automatic catch-up: the normal cadence ([cadenceMs]; null = suspended → never);
+ * - cycling the displayed source ([SOURCE_CYCLE_REASON]): [SourceToggleRefreshPolicy.STALE_MS], 4 h,
+ *   in the daily and hourly views alike (a source with no cache still fetches: `cachePresent`);
+ * - otherwise the user-present [FORECAST_FRESHNESS_THRESHOLD_MS].
  */
-fun launchForecastStaleAfterMs(reason: String, cadenceMs: () -> Long?): Long =
-    if (isAutomaticCatchUp(reason)) cadenceMs() ?: Long.MAX_VALUE else FORECAST_FRESHNESS_THRESHOLD_MS
+fun launchForecastStaleAfterMs(reason: String, cadenceMs: () -> Long?): Long = when {
+    isAutomaticCatchUp(reason) -> cadenceMs() ?: Long.MAX_VALUE
+    reason == SOURCE_CYCLE_REASON -> com.weatherwidget.shared.util.SourceToggleRefreshPolicy.STALE_MS
+    else -> FORECAST_FRESHNESS_THRESHOLD_MS
+}
 
 enum class LaunchRefreshAction {
     FULL_FORECAST,

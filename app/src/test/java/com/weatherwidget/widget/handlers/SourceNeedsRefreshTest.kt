@@ -32,14 +32,20 @@ class SourceNeedsRefreshTest {
 
     @Test
     fun justUnderStaleThreshold_doesNotRefresh() {
-        val fourteenMinutesAgo = now - SourceStalenessProbe.TOGGLE_REFRESH_STALE_MS + 60_000L
-        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(complete(fourteenMinutesAgo), now))
+        val justUnder = now - SourceStalenessProbe.TOGGLE_REFRESH_STALE_MS + 60_000L
+        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(complete(justUnder), now))
     }
 
     @Test
     fun atStaleThreshold_refreshes() {
-        val exactlyFifteenMinutesAgo = now - SourceStalenessProbe.TOGGLE_REFRESH_STALE_MS
-        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(complete(exactlyFifteenMinutesAgo), now))
+        val exactlyAtThreshold = now - SourceStalenessProbe.TOGGLE_REFRESH_STALE_MS
+        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(complete(exactlyAtThreshold), now))
+    }
+
+    /** 2026-10-08: toggling back to a source fetched 40 minutes ago refetched Google (3 pages). */
+    @Test
+    fun fortyMinutesOld_doesNotRefreshOnToggle() {
+        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(complete(now - 40 * 60_000L), now))
     }
 
     @Test
