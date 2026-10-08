@@ -49,7 +49,7 @@ class WidgetRefreshPolicyTest {
         every { database.appLogDao() } returns appLogDao
         val requester =
             InteractionRefreshRequester(
-                staleRequest = { _, _, _, _, _ -> error("scheduler unavailable") },
+                staleRequest = { _, _, _, _, _, _ -> error("scheduler unavailable") },
             )
         var rendererInvoked = false
 
@@ -77,7 +77,7 @@ class WidgetRefreshPolicyTest {
         var policy: ExistingWorkPolicy? = null
         val requester =
             InteractionRefreshRequester(
-                forcedRequest = { _, _, requestedPolicy, _, _ ->
+                forcedRequest = { _, _, requestedPolicy, _, _, _ ->
                     policy = requestedPolicy
                     error("scheduler unavailable")
                 },
@@ -100,7 +100,7 @@ class WidgetRefreshPolicyTest {
     fun `scheduling cancellation remains terminal`() = runTest {
         val requester =
             InteractionRefreshRequester(
-                staleRequest = { _, _, _, _, _ -> throw CancellationException("scope gone") },
+                staleRequest = { _, _, _, _, _, _ -> throw CancellationException("scope gone") },
             )
 
         try {

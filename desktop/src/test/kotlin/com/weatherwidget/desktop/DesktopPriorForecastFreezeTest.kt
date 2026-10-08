@@ -136,7 +136,7 @@ class DesktopPriorForecastFreezeTest {
                     assertEquals(80f, it.getFloat("highTemp"))
                     assertNull(it.getObject("hindcastLowTemp"))
                 }
-                st.executeQuery("PRAGMA user_version").use { it.next(); assertEquals(27, it.getInt(1)) }
+                st.executeQuery("PRAGMA user_version").use { it.next(); assertEquals(DesktopWeatherDatabase.SCHEMA_VERSION, it.getInt(1)) }
             }
         }
     }

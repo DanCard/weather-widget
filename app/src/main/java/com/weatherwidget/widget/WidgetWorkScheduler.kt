@@ -119,6 +119,7 @@ object WidgetWorkScheduler {
         policy: ExistingWorkPolicy,
         initialDelayMs: Long = 0L,
         targetSourceId: String? = null,
+        hourlyLimited: Boolean = false,
     ): OneTimeWorkRequest {
         require(policy != ExistingWorkPolicy.REPLACE) {
             "Running-capable widget work must never use REPLACE"
@@ -131,6 +132,11 @@ object WidgetWorkScheduler {
             reason = reason,
             initialDelayMs = initialDelayMs,
             targetSourceId = targetSourceId,
+            extraInput = if (hourlyLimited) {
+                { putBoolean(WeatherWidgetWorker.KEY_HOURLY_LIMITED, true) }
+            } else {
+                null
+            },
         )
     }
 
@@ -495,6 +501,7 @@ object WidgetWorkScheduler {
             data.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE) ?: "",
             // A source switch's run owns its banner; folding it into another run would pin it.
             data.getString(WeatherWidgetWorker.KEY_SOURCE_SWITCH_ID) ?: "",
+            data.getBoolean(WeatherWidgetWorker.KEY_HOURLY_LIMITED, false),
         ).joinToString(":")
 
     /**

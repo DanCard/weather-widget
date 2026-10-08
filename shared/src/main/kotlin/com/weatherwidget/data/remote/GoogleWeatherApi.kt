@@ -46,6 +46,12 @@ class GoogleWeatherApi(
     private val httpClient: HttpClient,
     private val json: Json,
     private val nowMs: () -> Long = System::currentTimeMillis,
+    /**
+     * Called once per billed request with a `GOOGLE_REQUEST` message, for the caller's persisted log
+     * (this module has no DB). Every quota in Cloud Console counts requests per endpoint per project,
+     * so these rows, summed across devices since midnight PT, are what the console should show.
+     */
+    private val onRequest: suspend (message: String) -> Unit = {},
     private val apiKeyProvider: () -> String?,
 ) {
     companion object {
@@ -137,12 +143,17 @@ class GoogleWeatherApi(
      *
      * [storedHours]: this source's stored hourly rows at the site. When given, page 1 is compared
      * with them and pages 2–3 are fetched only on change ([GoogleHourPaging]); null fetches all.
+     *
+     * [includeHours]: false skips `forecast/hours` and `history/hours` (an hourly-limited fetch,
+     * [HourlyFetchGate]); daily and current conditions are fetched as usual, and the result has no
+     * hourly rows, so the stored hours stand.
      */
     suspend fun getForecast(
         lat: Double,
         lon: Double,
         includeHistory: Boolean = true,
         storedHours: List<HourlyForecast>? = null,
+        includeHours: Boolean = true,
     ): RawFetch = coroutineScope {
         val apiKey = apiKeyProvider()
         if (apiKey.isNullOrBlank()) {
@@ -179,9 +190,13 @@ class GoogleWeatherApi(
             }
         }
         val hoursDeferred = async {
-            if (hoursBlock != null) null else fetchProduct(ForecastProduct.HOURLY) { fetchForecastHours(apiKey, lat, lon, storedHours) }
+            when {
+                !includeHours -> null
+                hoursBlock != null -> null
+                else -> fetchProduct(ForecastProduct.HOURLY) { fetchForecastHours(apiKey, lat, lon, storedHours) }
+            }
         }
-        val requestHistory = includeHistory && nowMs() >= historyBlockedUntilMs
+        val requestHistory = includeHours && includeHistory && nowMs() >= historyBlockedUntilMs
         val historyDeferred = if (requestHistory) async { fetchHistoryOrNull(apiKey, lat, lon) } else null
 
         val current = currentDeferred.await()
@@ -195,12 +210,18 @@ class GoogleWeatherApi(
         val refused = ForecastProduct.entries
             .mapNotNull { product -> activeBlock(product, nowMs())?.let { product to it } }
             .toMap()
-        if (days == null && forecastHours == null) {
+        if (!includeHours) {
+            lastHoursPaging = "pages=0 reason=hourly_limited"
+            if (days == null) {
+                val block = refused[ForecastProduct.DAILY] ?: throw IllegalStateException("Google daily forecast missing")
+                throw GoogleDailyQuotaException(block.untilMs, block.detail)
+            }
+        } else if (days == null && forecastHours == null) {
             // Both refused (one now, one earlier, or both now): nothing to return.
             val first = refused.values.minBy { it.untilMs }
             throw GoogleDailyQuotaException(first.untilMs, first.detail)
         }
-        if (forecastHours == null) lastHoursPaging = "pages=0 reason=quota_blocked"
+        if (includeHours && forecastHours == null) lastHoursPaging = "pages=0 reason=quota_blocked"
 
         parse(
             current,
@@ -366,6 +387,8 @@ class GoogleWeatherApi(
             parameter("unitsSystem", "IMPERIAL")
             extra()
         }
+        val endpoint = path.removePrefix("/").substringBefore(':')
+        onRequest("endpoint=$endpoint status=${response.status.value}")
         response.require2xx(WeatherSource.GOOGLE_WEATHER, "Google Weather fetch failed ($path)")
         return json.parseToJsonElement(response.bodyAsText()).jsonObject
     }

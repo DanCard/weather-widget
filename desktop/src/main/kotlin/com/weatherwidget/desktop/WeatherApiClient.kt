@@ -20,6 +20,13 @@ interface WeatherApiClient {
      */
     suspend fun fetchForecast(recentObservationsOnly: Boolean = false): RawFetch
 
+    /**
+     * [hourlyLimited]: refresh daily and current, not the hourly forecast where the provider bills it
+     * apart ([com.weatherwidget.data.remote.HourlyFetchGate]). Clients without such a product ignore it.
+     */
+    suspend fun fetchForecast(recentObservationsOnly: Boolean, hourlyLimited: Boolean): RawFetch =
+        fetchForecast(recentObservationsOnly)
+
     /** Legacy Open-Meteo history backfill entry point; pinned as uncalled by a regression test. */
     suspend fun fetchHistory(historyDays: Int): RawFetch
 

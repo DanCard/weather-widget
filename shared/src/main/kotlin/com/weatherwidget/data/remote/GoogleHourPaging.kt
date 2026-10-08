@@ -23,8 +23,13 @@ object GoogleHourPaging {
     /** Hours 25–72 are refetched at least this often even when page 1 keeps matching. */
     const val MAX_TAIL_AGE_MS = 12 * 3_600_000L
 
-    /** The tail must reach this close to the requested horizon to count as covering it. */
-    private const val HORIZON_SLACK_MS = 2 * 3_600_000L
+    /**
+     * The tail must reach this close to the requested horizon to count as covering it. The stored tail
+     * ends 72 h after the *previous* fetch, so it is short by exactly the time since then; at 2 h every
+     * fetch on the 4 h+ cadence paid all 3 pages (`tail_short` on 13 of 14 fetches, 2026-10-08). The
+     * same 12 h as [MAX_TAIL_AGE_MS]: a tail that is not too old is never more than that short.
+     */
+    private const val HORIZON_SLACK_MS = MAX_TAIL_AGE_MS
 
     data class Decision(val fetchRest: Boolean, val reason: String)
 

@@ -12,17 +12,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 private const val TAG = "DaemonProcess"
 
+internal const val SOURCE_CYCLE_REASON = "source_change"
+
 internal fun daemonFetchRestartReason(
     previous: DesktopConfig?,
     updated: DesktopConfig,
 ): String? {
-    val locationSourceOrVisibilityChanged = previous == null ||
+    val locationOrVisibilityChanged = previous == null ||
         updated.lat != previous.lat ||
         updated.lon != previous.lon ||
-        updated.settings.weatherSource != previous.settings.weatherSource ||
         updated.settings.visibleSources != previous.settings.visibleSources
     return when {
-        locationSourceOrVisibilityChanged -> "source_or_location_change"
+        locationOrVisibilityChanged -> "source_or_location_change"
+        // Cycling the displayed source alone: see [isSourceCycle].
+        updated.settings.weatherSource != previous.settings.weatherSource -> SOURCE_CYCLE_REASON
         previous.settings.actualsProviders != updated.settings.actualsProviders ->
             "actuals_provider_change"
         else -> null

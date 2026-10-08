@@ -67,4 +67,24 @@ class ApiUsageDaoTest {
         assertEquals(1, dao.getTotalUsage("NWS"))
         assertEquals(null, dao.getTotalUsage("WEATHER_API"))
     }
+
+    @Test
+    fun logCall_countsPerEndpointWithErrorsAndQuotaRefusals() = runTest {
+        val day = dateEpoch("2026-10-08")
+        dao.logCall(day, "GOOGLE_WEATHER", "forecast/hours")
+        dao.logCall(day, "GOOGLE_WEATHER", "forecast/hours")
+        dao.logCall(day, "GOOGLE_WEATHER", "forecast/hours", isError = true, isQuotaRefusal = true)
+        dao.logCall(day, "GOOGLE_WEATHER", "currentConditions", isError = true)
+
+        val hours = dao.getUsage(day, "GOOGLE_WEATHER", "forecast/hours")!!
+        assertEquals(3, hours.callCount)
+        assertEquals(1, hours.errorCount)
+        assertEquals(1, hours.quotaRefusedCount)
+        val current = dao.getUsage(day, "GOOGLE_WEATHER", "currentConditions")!!
+        assertEquals(1, current.callCount)
+        assertEquals(1, current.errorCount)
+        assertEquals(0, current.quotaRefusedCount)
+        assertEquals(listOf("currentConditions", "forecast/hours"), dao.getUsageByEndpoint(day, "GOOGLE_WEATHER").map { it.endpoint })
+        assertEquals(4, dao.getTotalUsage("GOOGLE_WEATHER"))
+    }
 }

@@ -663,6 +663,9 @@ class WeatherWidgetWorker
              * that showed its "Getting weather from {source}…" banner, the run clears it at every exit.
              */
             const val KEY_SOURCE_SWITCH_ID = "source_switch_id"
+
+            /** An hourly-limited forced sync ([com.weatherwidget.data.remote.HourlyFetchGate]). */
+            const val KEY_HOURLY_LIMITED = "hourly_limited"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
             const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
         }

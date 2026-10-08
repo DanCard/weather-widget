@@ -13,6 +13,8 @@ data class ForecastFetchContext(
     val isScreenInteractive: Boolean,
     val batteryLevel: Int,
     val activeSourceIds: Set<String>,
+    /** See [com.weatherwidget.data.remote.HourlyFetchGate]: refresh daily/current, not hourly. */
+    val hourlyLimited: Boolean = false,
 )
 
 /**

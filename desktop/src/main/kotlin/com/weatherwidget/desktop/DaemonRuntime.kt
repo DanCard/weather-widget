@@ -496,6 +496,7 @@ internal class DaemonRuntime(
                 locationLon = config.lon,
                 providerId = actualsProvider,
             )
+            val hourlyLimited = launchHourlyLimited(reason, config.viewMode)
             val launchRefreshAction = determineLaunchRefreshAction(
                 cachePresent = cached != null,
                 lastObservationFetchMs = lastObservationFetch,
@@ -515,6 +516,7 @@ internal class DaemonRuntime(
                 message = "reason=$reason source=${displaySource.id} actualsProvider=$actualsProvider " +
                     "cachePresent=${cached != null} action=$launchRefreshAction " +
                     "lastForecastFetch=$lastForecastFetch forecastAgeMs=${lastForecastFetch?.let { now - it }} " +
+                    "hourlyLimited=$hourlyLimited " +
                     "lastObservationFetch=$lastObservationFetch observationAgeMs=${lastObservationFetch?.let { now - it }}",
                 level = "INFO"
             )
@@ -528,7 +530,11 @@ internal class DaemonRuntime(
                             LaunchRefreshAction.FULL_FORECAST -> {
                                 Log.i(TAG, "Refreshing full forecast from network...")
                                 // Publish first; the 7-day observation window follows below.
-                                activeRepo.refreshWithOutcome(deferObservationWindow = true).snapshot
+                                activeRepo.refreshWithOutcome(
+                                    deferObservationWindow = true,
+                                    reason = "launch:$reason",
+                                    hourlyLimited = hourlyLimited,
+                                ).snapshot
                                     .also { observationWindowDeferred = true }
                             }
                             LaunchRefreshAction.OBSERVATIONS -> {
@@ -800,15 +806,17 @@ internal class DaemonRuntime(
                     delay(delayMs)
 
                     // Cloud-while-viewing: the screen is on, so the user is looking at the app. If the
-                    // active source's forecast (which carries the cloud graph) is stale beyond the
-                    // viewing threshold, refresh it now instead of waiting for the 60-min forecast loop.
+                    // active source's forecast is stale beyond the viewing threshold, refresh it now
+                    // instead of waiting for the forecast loop — hourly-limited (user, 2026-10-08): the
+                    // screen being on refreshes daily, current and actuals, not the hourly forecast
+                    // unless it is itself due (HourlyFetchGate; 3 billed Google pages per fetch).
                     var fullRefreshSuppliedObservations = false
                     if (screenOn) {
                         val lastForecast = weatherDao.getLastSuccessfulFetch(config.displaySource)
                         if (CloudViewingRefreshPolicy.isStale(lastForecast, System.currentTimeMillis())) {
                             try {
                                 Log.i(TAG, "Cloud-while-viewing: forecast stale for ${config.displaySource}; refreshing now.")
-                                val outcome = newRepo.refreshWithOutcome()
+                                val outcome = newRepo.refreshWithOutcome(reason = "cloud_while_viewing", hourlyLimited = true)
                                 fullRefreshSuppliedObservations = outcome.suppliedObservations
                                 panelPublisher.publishForecastState(outcome.snapshot)
                                 notifyDataUpdated()
@@ -880,7 +888,7 @@ internal class DaemonRuntime(
 
                     try {
                         Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource (charging=$isCharging, level=$level%)...")
-                        val result = newRepo.refresh()
+                        val result = newRepo.refresh(reason = "forecast_loop")
                         panelPublisher.publishForecastState(result)
                         dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
                         notifyDataUpdated()
@@ -934,7 +942,7 @@ internal class DaemonRuntime(
                                     otherSource,
                                     config.personalStationWeight()
                                 )
-                                otherRepo.refresh()
+                                otherRepo.refresh(reason = "forecast_loop_other")
                                 otherService.close()
                                 Log.i(TAG, "Non-active source $otherSource forecast refresh successful.")
                                 notifyDataUpdated()

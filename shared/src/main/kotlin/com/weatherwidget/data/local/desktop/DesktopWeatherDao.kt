@@ -723,6 +723,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.execute("DELETE FROM station_cache WHERE updatedAt < $defaultCutoff")
                 stmt.execute("DELETE FROM current_status WHERE updatedAt < $defaultCutoff")
                 stmt.execute("DELETE FROM network_usage WHERE timestamp < ${policy.daysAgo(nowMs, policy.NETWORK_USAGE_DAYS)}")
+                stmt.execute("DELETE FROM api_usage_stats WHERE date < $defaultCutoff")
             }
             conn.prepareStatement(
                 "DELETE FROM app_logs WHERE timestamp < ?" +
@@ -1957,6 +1958,27 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
         return null
+    }
+
+    /** One request into `api_usage_stats`; [date] is the local day's epoch ms (as on Android). */
+    fun logApiCall(date: Long, apiSource: String, endpoint: String, status: Int) {
+        val error = if (com.weatherwidget.data.remote.ApiUsageClassifier.isError(status)) 1 else 0
+        val refused = if (com.weatherwidget.data.remote.ApiUsageClassifier.isQuotaRefusal(status)) 1 else 0
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO api_usage_stats (date, apiSource, endpoint, callCount, errorCount, quotaRefusedCount) " +
+                    "VALUES (?, ?, ?, 1, ?, ?) ON CONFLICT(date, apiSource, endpoint) DO UPDATE SET " +
+                    "callCount = callCount + 1, errorCount = errorCount + excluded.errorCount, " +
+                    "quotaRefusedCount = quotaRefusedCount + excluded.quotaRefusedCount",
+            ).use { stmt ->
+                stmt.setLong(1, date)
+                stmt.setString(2, apiSource)
+                stmt.setString(3, endpoint)
+                stmt.setInt(4, error)
+                stmt.setInt(5, refused)
+                stmt.executeUpdate()
+            }
+        }
     }
 
     fun recordNetworkUsage(

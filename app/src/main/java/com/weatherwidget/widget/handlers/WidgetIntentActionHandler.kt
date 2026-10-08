@@ -152,7 +152,11 @@ internal object WidgetIntentActionHandler {
         val stateManager = WidgetStateManager(context)
         val newSource = stateManager.toggleDisplaySource(appWidgetId)
         val viewMode = stateManager.getViewMode(appWidgetId)
-        val refreshContext = prepareContext(context, appWidgetId, "toggle_api") ?: return
+        // Cycling sources is browsing (user, 2026-10-08): in the daily view a stale source refreshes
+        // its daily forecast and current conditions but not the hourly forecast; only while an
+        // hourly view is showing does a stale source refetch everything. HourlyFetchGate.
+        val hourlyLimited = !viewMode.isGraphMode
+        val refreshContext = prepareContext(context, appWidgetId, "toggle_api", hourlyLimited = hourlyLimited) ?: return
         val now = LocalDateTime.now()
         if (
             GraphInteractionRenderer.selectedSourceNeedsRefresh(
@@ -169,6 +173,7 @@ internal object WidgetIntentActionHandler {
                 refreshContext.database.appLogDao(),
                 reason = "toggle_api_stale",
                 targetSourceId = newSource.id,
+                hourlyLimited = hourlyLimited,
             )
         }
         InteractionRenderDispatcher.render(
@@ -419,6 +424,8 @@ internal object WidgetIntentActionHandler {
         context: Context,
         appWidgetId: Int,
         reason: String,
+        /** Passed to the stale-data refresh: see [com.weatherwidget.data.remote.HourlyFetchGate]. */
+        hourlyLimited: Boolean = false,
     ): WidgetRefreshContextResolver.Resolved? {
         // The largest untimed span on the click path as of 2026-09-06: this runs
         // ActiveLocationResolver and forecastDao.getLatestForecastBySource before
@@ -437,7 +444,7 @@ internal object WidgetIntentActionHandler {
             )
             return null
         }
-        refreshRequester.requestIfStale(context, resolved, reason)
+        refreshRequester.requestIfStale(context, resolved, reason, hourlyLimited)
         val endMs = SystemClock.elapsedRealtime()
         if (endMs - prepareStartMs >= PREPARE_SLOW_MS) {
             Log.i(

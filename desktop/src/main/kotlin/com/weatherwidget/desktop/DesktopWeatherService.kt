@@ -95,6 +95,11 @@ class DesktopWeatherService(
                     }.getOrDefault(0L)
                     val totalBytes = bodyBytes + 500L
                     weatherDao.recordNetworkUsage(totalBytes, isForeground)
+                    val url = response.call.request.url
+                    ApiUsageClassifier.classify(url.host, url.encodedPath)?.let { key ->
+                        val day = java.time.LocalDate.now().toEpochDay() * 86_400_000L
+                        runCatching { weatherDao.logApiCall(day, key.source, key.endpoint, response.status.value) }
+                    }
                 }
             }
         }
@@ -114,7 +119,11 @@ class DesktopWeatherService(
     private val weatherApi = WeatherApi(httpClient, json) { effectiveKeys[WeatherSource.WEATHER_API.id] }
     private val silurian = SilurianApi(httpClient, json) { effectiveKeys[WeatherSource.SILURIAN.id] }
     private val openWeatherMap = OpenWeatherMapApi(httpClient, json) { effectiveKeys[WeatherSource.OPEN_WEATHER_MAP.id] }
-    private val googleWeather = GoogleWeatherApi(httpClient, json) { effectiveKeys[WeatherSource.GOOGLE_WEATHER.id] }
+    private val googleWeather = GoogleWeatherApi(
+        httpClient,
+        json,
+        onRequest = { weatherDao?.log("GOOGLE_REQUEST", it, "INFO") },
+    ) { effectiveKeys[WeatherSource.GOOGLE_WEATHER.id] }
     // "SYNOPTIC" is not a WeatherSource id — it is the NWS web-fallback transport, keyed by a token
     // minted from the API key. It rides the same baked-keys map purely for the plumbing.
     private val synopticApi = injectedSynopticApi
@@ -172,7 +181,10 @@ class DesktopWeatherService(
      * path honours the number — the other sources return whatever their API provides, and days
      * past a source's real coverage render climate-normal filler by design.
      */
-    override suspend fun fetchForecast(recentObservationsOnly: Boolean): RawFetch = runCatching {
+    override suspend fun fetchForecast(recentObservationsOnly: Boolean): RawFetch =
+        fetchForecast(recentObservationsOnly, hourlyLimited = false)
+
+    override suspend fun fetchForecast(recentObservationsOnly: Boolean, hourlyLimited: Boolean): RawFetch = runCatching {
         when (weatherSource) {
             "NWS" -> fetchNwsForecast(recentObservationsOnly)
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoForecastWithFiveMinuteHistory()
@@ -186,6 +198,7 @@ class DesktopWeatherService(
                     longitude,
                     includeHistory = googleNeedsHistory(),
                     storedHours = googleStoredHours(),
+                    includeHours = googleIncludeHours(hourlyLimited),
                 ).also { weatherDao?.log("GOOGLE_HOURS_PAGES", googleWeather.lastHoursPaging.orEmpty(), "INFO") },
                 WeatherSource.GOOGLE_WEATHER.id,
             )
@@ -270,6 +283,20 @@ class DesktopWeatherService(
             val rowLon = row.locationLon
             rowLat == null || rowLon == null || LocationMatch.sameSite(lat, lon, rowLat, rowLon)
         }
+    }
+
+    /** [HourlyFetchGate] against the desktop's background forecast cadence. */
+    private fun googleIncludeHours(hourlyLimited: Boolean): Boolean {
+        if (!hourlyLimited) return true
+        val (isCharging, level) = PowerDetector.getPowerState()
+        return HourlyFetchGate.includeHours(
+            hourlyLimited = true,
+            newestHourlyFetchedAtMs = googleStoredHours()?.maxOfOrNull { it.fetchedAt },
+            cadenceMs = DesktopFetchStrategy.getForecastRefreshDelayMs(
+                isCharging, level, isActiveSource = true, screenOn = ScreenStateDetector.isScreenOn(),
+            ),
+            nowMs = System.currentTimeMillis(),
+        )
     }
 
     /** See `GoogleWeatherApi.needsHistory`: `history/hours` has a small per-project daily quota (Cloud Console setting). */

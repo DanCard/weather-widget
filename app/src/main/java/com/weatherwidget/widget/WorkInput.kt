@@ -37,6 +37,8 @@ internal data class WorkInput(
     val locationCacheAdopted: Boolean = false,
     /** See [WeatherWidgetWorker.KEY_SOURCE_SWITCH_ID]; null on every other run. */
     val sourceSwitchId: String? = null,
+    /** See [WeatherWidgetWorker.KEY_HOURLY_LIMITED]. */
+    val hourlyLimited: Boolean = false,
 ) {
     companion object {
         fun from(data: Data): WorkInput {
@@ -81,6 +83,7 @@ internal data class WorkInput(
                 locationChangeBanner = data.getBoolean(WeatherWidgetWorker.KEY_LOCATION_CHANGE_BANNER, false),
                 locationCacheAdopted = data.getBoolean(WeatherWidgetWorker.KEY_LOCATION_CACHE_ADOPTED, false),
                 sourceSwitchId = data.getString(WeatherWidgetWorker.KEY_SOURCE_SWITCH_ID),
+                hourlyLimited = data.getBoolean(WeatherWidgetWorker.KEY_HOURLY_LIMITED, false),
             )
         }
     }

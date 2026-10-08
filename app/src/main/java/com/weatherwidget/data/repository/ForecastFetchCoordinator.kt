@@ -2,6 +2,7 @@ package com.weatherwidget.data.repository
 
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import com.weatherwidget.data.remote.GoogleWeatherApi
+import com.weatherwidget.data.remote.HourlyFetchGate
 import com.weatherwidget.shared.util.SourceCoverage
 import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
@@ -163,7 +164,7 @@ internal class ForecastFetchCoordinator(
      * provisioned in this build) are absent — the fetch loop skips them just as the old per-source
      * `if` guards did.
      */
-    private fun buildFetchRegistry(): Map<WeatherSource, SourceFetchEntry> = buildMap {
+    private fun buildFetchRegistry(fetchContext: ForecastFetchContext?): Map<WeatherSource, SourceFetchEntry> = buildMap {
         put(WeatherSource.NWS, SourceFetchEntry(WeatherSource.NWS) { lat, lon ->
             fetchFromNws(lat, lon)
         })
@@ -203,12 +204,26 @@ internal class ForecastFetchCoordinator(
                     startMs = nowMs - 3_600_000L,
                     endMs = nowMs + (GoogleWeatherApi.FORECAST_HOURS + 2) * 3_600_000L,
                 )
+                val includeHours = HourlyFetchGate.includeHours(
+                    hourlyLimited = fetchContext?.hourlyLimited == true,
+                    newestHourlyFetchedAtMs = storedHours.maxOfOrNull { it.fetchedAt },
+                    cadenceMs = fetchContext?.let {
+                        ForecastFetchPolicy.intervalMinutes(
+                            isCharging = it.isCharging,
+                            isScreenInteractive = it.isScreenInteractive,
+                            isActiveSource = WeatherSource.GOOGLE_WEATHER.id in it.activeSourceIds,
+                            batteryLevel = it.batteryLevel,
+                        )?.times(60_000L)
+                    },
+                    nowMs = nowMs,
+                )
                 fetchAndSaveSharedForecast(lat, lon, WeatherSource.GOOGLE_WEATHER) {
                     api.getForecast(
                         lat,
                         lon,
                         includeHistory = googleNeedsHistory(lat, lon),
                         storedHours = storedHours,
+                        includeHours = includeHours,
                     ).also { appLogDao.log("GOOGLE_HOURS_PAGES", api.lastHoursPaging.orEmpty(), "INFO") }
                 }
             })
@@ -253,8 +268,9 @@ internal class ForecastFetchCoordinator(
         latitude: Double,
         longitude: Double,
         sourcesToFetch: Set<WeatherSource>,
+        fetchContext: ForecastFetchContext? = null,
     ) = coroutineScope {
-        val registry = buildFetchRegistry()
+        val registry = buildFetchRegistry(fetchContext)
         // The network choke point. `visibleSources()` already drops sources that cannot serve the
         // *stored* active location; this re-checks against the coordinates actually being fetched,
         // so no caller can send NWS a point outside its coverage (a guaranteed 404 InvalidPoint).

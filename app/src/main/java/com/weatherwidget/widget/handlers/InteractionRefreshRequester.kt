@@ -13,18 +13,19 @@ import kotlinx.coroutines.CancellationException
  */
 internal class InteractionRefreshRequester(
     private val staleRequest:
-        suspend (Context, Long?, String, AppLogDao?, String?) -> Unit =
-        { context, freshnessAtMs, reason, appLogDao, targetSourceId ->
-            RefreshScheduler.refreshIfStale(context, freshnessAtMs, reason, appLogDao, targetSourceId)
+        suspend (Context, Long?, String, AppLogDao?, String?, Boolean) -> Unit =
+        { context, freshnessAtMs, reason, appLogDao, targetSourceId, hourlyLimited ->
+            RefreshScheduler.refreshIfStale(context, freshnessAtMs, reason, appLogDao, targetSourceId, hourlyLimited)
         },
     private val forcedRequest:
-        (Context, String, ExistingWorkPolicy, Long, String?) -> Unit =
+        (Context, String, ExistingWorkPolicy, Long, String?, Boolean) -> Unit =
         RefreshScheduler::enqueueForcedRefresh,
 ) {
     suspend fun requestIfStale(
         context: Context,
         refreshContext: WidgetRefreshContextResolver.Resolved,
         reason: String,
+        hourlyLimited: Boolean = false,
     ) {
         try {
             staleRequest(
@@ -35,6 +36,7 @@ internal class InteractionRefreshRequester(
                 // Only the displayed source is known to be stale here; the sync still fetches any
                 // other source its cadence says is due, but does not force them.
                 refreshContext.displaySource.id,
+                hourlyLimited,
             )
         } catch (e: CancellationException) {
             throw e
@@ -53,9 +55,10 @@ internal class InteractionRefreshRequester(
         appLogDao: AppLogDao,
         reason: String,
         targetSourceId: String?,
+        hourlyLimited: Boolean = false,
     ) {
         try {
-            forcedRequest(context, reason, ExistingWorkPolicy.KEEP, 0L, targetSourceId)
+            forcedRequest(context, reason, ExistingWorkPolicy.KEEP, 0L, targetSourceId, hourlyLimited)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

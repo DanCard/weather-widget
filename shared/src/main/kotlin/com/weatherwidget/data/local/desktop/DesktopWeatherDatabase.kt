@@ -218,6 +218,9 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 """.trimIndent())
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_network_usage_timestamp ON network_usage(timestamp)")
 
+                // Requests per day, source and endpoint — same table as Android's (Room v75).
+                stmt.execute(API_USAGE_STATS_DDL)
+
                 // Migration / Versioning
                 val rs = stmt.executeQuery("PRAGMA user_version")
                 val currentVersion = if (rs.next()) rs.getInt(1) else 0
@@ -598,6 +601,8 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 27) {
                 addForecastHindcastColumns(stmt)
             }
+            // v28: api_usage_stats (requests per day/source/endpoint). Created by initialize()'s
+            // CREATE TABLE IF NOT EXISTS before migrate() runs; nothing to move. Room MIGRATION_74_75.
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -661,7 +666,18 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 27
+        const val SCHEMA_VERSION = 28
+
+        /**
+         * Requests per local day, source and endpoint ([com.weatherwidget.data.remote.ApiUsageClassifier]).
+         * Android's Room `ApiUsageEntity` declares the same columns; its MIGRATION_74_75 rebuilds the
+         * old (date, apiSource) table into this one. Backticks and defaults match what Room expects.
+         */
+        const val API_USAGE_STATS_DDL =
+            "CREATE TABLE IF NOT EXISTS `api_usage_stats` (`date` INTEGER NOT NULL, `apiSource` TEXT NOT NULL, " +
+                "`endpoint` TEXT NOT NULL DEFAULT '', `callCount` INTEGER NOT NULL, " +
+                "`errorCount` INTEGER NOT NULL DEFAULT 0, `quotaRefusedCount` INTEGER NOT NULL DEFAULT 0, " +
+                "PRIMARY KEY(`date`, `apiSource`, `endpoint`))"
 
         /**
          * `daily_history` columns added after [DAILY_HISTORY_NULLABLE_COMPUTED_DDL] (which the v19

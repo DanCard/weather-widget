@@ -43,6 +43,11 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   pages 2–3 only if page 1 changed — `GoogleHourPaging`), current temp = 1. Its quotas are per project,
   per Pacific calendar day (429 `window_start_time` = PT midnight, verified 2026-10-07).
   See `plans/261006-add-google-weather-source.md`.
+  **Hourly-limited refreshes** (user, 2026-10-08): screen-on / wake / network-restore / cloud-while-viewing
+  and source cycling in the daily view refresh daily, current and actuals but skip `forecast/hours`
+  unless the stored hourly is due by cadence (`:shared` `HourlyFetchGate`). Every billed request logs
+  `GOOGLE_REQUEST`; `api_usage_stats` is per (date, source, endpoint) on both platforms. See
+  `plans/261008-google-hourly-quota-hourly-limited-refreshes-and-api-usage-endpoints.md`.
 - **Borrowed actuals default by location:** a forecast-only source (Google, Silurian) with no
   explicit provider uses **NWS inside `NwsCoverage`, METAR elsewhere**. The default is derived on
   every read and never stored (`ActualsProviderResolver.borrowerDefault`, location via

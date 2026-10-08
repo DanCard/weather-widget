@@ -720,4 +720,32 @@ class WeatherDatabaseMigrationTest {
             assertTrue("hindcastLowTemp must start NULL", c.isNull(3))
         }
     }
+
+    @Test
+    fun migrate74To75_rebuildsApiUsageWithEndpointKeyAndKeepsTotals() {
+        helper.createDatabase(testDb, 74).apply {
+            execSQL("INSERT INTO api_usage_stats (date, apiSource, callCount) VALUES (1791417600000, 'GOOGLE_WEATHER', 18)")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 75, true, WeatherDatabase.MIGRATION_74_75)
+
+        db.query("SELECT apiSource, endpoint, callCount, errorCount, quotaRefusedCount FROM api_usage_stats").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("GOOGLE_WEATHER", c.getString(0))
+            assertEquals("", c.getString(1))
+            assertEquals(18, c.getInt(2))
+            assertEquals(0, c.getInt(3))
+            assertEquals(0, c.getInt(4))
+        }
+        // The endpoint is part of the key now: a second endpoint on the same day is its own row.
+        db.execSQL(
+            "INSERT INTO api_usage_stats (date, apiSource, endpoint, callCount) " +
+                "VALUES (1791417600000, 'GOOGLE_WEATHER', 'forecast/hours', 3)",
+        )
+        db.query("SELECT COUNT(*) FROM api_usage_stats").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(2, c.getInt(0))
+        }
+    }
 }

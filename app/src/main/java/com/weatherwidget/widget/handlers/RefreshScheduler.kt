@@ -36,6 +36,7 @@ object RefreshScheduler {
     internal data class ForcedRefreshRequest(
         val reason: String,
         val targetSourceId: String?,
+        val hourlyLimited: Boolean = false,
     )
 
     @Volatile
@@ -101,10 +102,12 @@ object RefreshScheduler {
         // When null the repository forces every enabled source; set this to confine the forced
         // fetch to one provider (avoids burning quota on the key-based sources).
         targetSourceId: String? = null,
+        // Refresh daily and current, not the hourly forecast (HourlyFetchGate).
+        hourlyLimited: Boolean = false,
     ) {
         if (isRefreshDisabledForTesting) {
             Log.d(TAG, "Skipping forced refresh in test mode (reason=$reason, target=$targetSourceId)")
-            lastForcedRefreshForTesting = ForcedRefreshRequest(reason, targetSourceId)
+            lastForcedRefreshForTesting = ForcedRefreshRequest(reason, targetSourceId, hourlyLimited)
             return
         }
 
@@ -114,6 +117,7 @@ object RefreshScheduler {
             policy = policy,
             initialDelayMs = initialDelayMs,
             targetSourceId = targetSourceId,
+            hourlyLimited = hourlyLimited,
         )
     }
 
@@ -123,6 +127,7 @@ object RefreshScheduler {
         reason: String,
         appLogDao: AppLogDao? = null,
         targetSourceId: String? = null,
+        hourlyLimited: Boolean = false,
     ) {
         if (isRefreshDisabledForTesting) {
             return
@@ -162,6 +167,7 @@ object RefreshScheduler {
             reason = decision.reason,
             policy = decision.policy,
             targetSourceId = targetSourceId,
+            hourlyLimited = hourlyLimited,
         )
         // The full sync above fetches weather/hourly, not current observations. The user is looking
         // at the widget, so also refresh the current temperature immediately and bypass the battery
@@ -175,7 +181,8 @@ object RefreshScheduler {
         appLogDao?.let {
             it.log(
                 "STALE_REFRESH_ENQUEUE",
-                "reason=${decision.reason} policy=${decision.policy.name} ageMin=$ageMin target=${targetSourceId ?: "all"}",
+                "reason=${decision.reason} policy=${decision.policy.name} ageMin=$ageMin target=${targetSourceId ?: "all"} " +
+                    "hourlyLimited=$hourlyLimited",
             )
         }
     }

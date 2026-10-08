@@ -115,6 +115,36 @@ class GoogleWeatherApiTest {
     }
 
     @Test
+    fun `an hourly-limited fetch makes no hour or history call and keeps the daily forecast`() = runBlocking {
+        val google = api()
+        val result = google.getForecast(37.422, -122.084, includeHistory = true, includeHours = false)
+
+        assertEquals(0, hourPageCalls())
+        assertEquals(0, historyCalls())
+        assertEquals(10, result.daily.size)
+        assertTrue(result.hourly.isEmpty())
+        assertEquals("pages=0 reason=hourly_limited", google.lastHoursPaging)
+    }
+
+    @Test
+    fun `every billed request is reported once with its endpoint and status`() = runBlocking {
+        val reported = mutableListOf<String>()
+        val google = GoogleWeatherApi(
+            HttpClient(MockEngine { route(it) }),
+            Json { ignoreUnknownKeys = true },
+            nowMs = { clockMs },
+            onRequest = { reported += it },
+        ) { "test-key" }
+
+        google.getForecast(37.422, -122.084, includeHistory = false)
+
+        assertEquals(requests.size, reported.size)
+        assertEquals(3, reported.count { it == "endpoint=forecast/hours status=200" })
+        assertEquals(1, reported.count { it == "endpoint=forecast/days status=200" })
+        assertEquals(1, reported.count { it == "endpoint=currentConditions status=200" })
+    }
+
+    @Test
     fun `parses ten daily rows in fahrenheit with day and night rain chance`() = runBlocking {
         val result = api().getForecast(37.422, -122.084)
 

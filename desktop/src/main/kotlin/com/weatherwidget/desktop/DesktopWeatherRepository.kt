@@ -458,7 +458,11 @@ class DesktopWeatherRepository(
         now: Long = currentTimeMillis(),
         /** The UI's picker-save refresh; see [WeatherApiClient.fetchObservationsOnly]. */
         userLocationChange: Boolean = false,
-    ): ForecastSnapshot = refreshWithOutcome(now, userLocationChange).snapshot
+        /** Why this refresh runs, for `REFRESH_ENTER` (each full Google refresh spends quota). */
+        reason: String = "unspecified",
+        /** Refresh daily and current, not the hourly forecast: [com.weatherwidget.data.remote.HourlyFetchGate]. */
+        hourlyLimited: Boolean = false,
+    ): ForecastSnapshot = refreshWithOutcome(now, userLocationChange, reason = reason, hourlyLimited = hourlyLimited).snapshot
 
     /**
      * Runs a full refresh and reports whether it already supplied observation data. Schedulers can
@@ -474,6 +478,8 @@ class DesktopWeatherRepository(
          * back ~30 s (performance/261004-desktop-wake-refresh-stalls-on-7day-obs-window.md).
          */
         deferObservationWindow: Boolean = false,
+        reason: String = "unspecified",
+        hourlyLimited: Boolean = false,
     ): RefreshOutcome = withContext(Dispatchers.IO) {
         Log.i(TAG, "refresh() started source=$weatherSource")
         // Entry marker. The terminal REFRESH row below only lands on success, so without this an
@@ -481,7 +487,7 @@ class DesktopWeatherRepository(
         // cancellation leaves no trace at all.
         weatherDao.log(
             tag = "REFRESH_ENTER",
-            message = "source=$weatherSource lat=$latitude lon=$longitude",
+            message = "reason=$reason hourlyLimited=$hourlyLimited source=$weatherSource lat=$latitude lon=$longitude",
             level = "INFO",
         )
         try {
@@ -499,7 +505,11 @@ class DesktopWeatherRepository(
                 nowMs = now,
             )
             val (forecastResult, borrowedRecovery) = coroutineScope {
-                val forecast = async { weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow) }
+                val forecast = async { if (hourlyLimited) {
+                        weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow, hourlyLimited = true)
+                    } else {
+                        weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow)
+                    } }
                 val recovery = async { fetchBorrowedRecovery(borrowedPlan, userLocationChange) }
                 forecast.await() to recovery.await()
             }
@@ -580,7 +590,7 @@ class DesktopWeatherRepository(
                 // that never happened.
                 weatherDao.log(
                     tag = "REFRESH_CANCELLED",
-                    message = "source=$weatherSource lat=$latitude lon=$longitude",
+                    message = "reason=$reason source=$weatherSource lat=$latitude lon=$longitude",
                     level = "WARN",
                 )
             } else {

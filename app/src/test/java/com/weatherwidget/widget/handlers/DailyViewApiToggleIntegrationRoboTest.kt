@@ -10,6 +10,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -80,13 +82,28 @@ class DailyViewApiToggleIntegrationRoboTest {
     }
 
     /**
-     * The test DB has no rows for any source, so every toggle trips the "missing data" arm of
-     * sourceNeedsRefresh. What matters here is that the resulting forced refresh is scoped to the
-     * source just switched to — an untargeted refresh force-fetches every enabled provider and
-     * burns quota on the key-based ones. The staleness arm is covered by SourceNeedsRefreshTest.
+     * Cycling sources in the daily view still refreshes a stale source, but hourly-limited (user,
+     * 2026-10-08): daily and current conditions, not the hourly forecast (3 billed Google pages).
      */
     @Test
-    fun apiToggle_forcedRefreshTargetsOnlyTheNewlySelectedSource() = runBlocking {
+    fun dailyView_apiToggle_refreshIsHourlyLimited() = runBlocking {
+        RefreshScheduler.lastForcedRefreshForTesting = null
+        try { WidgetIntentRouter.handleToggleApi(context, testWidgetId) } catch (_: Exception) {}
+        val request = RefreshScheduler.lastForcedRefreshForTesting
+        assertNotNull("Daily-view toggle should still refresh a source with no data", request)
+        assertTrue("Daily-view toggle must not refresh the hourly forecast", request!!.hourlyLimited)
+    }
+
+    /**
+     * In an hourly view the toggle may fetch when the new source is stale. The test DB has no rows
+     * for any source, so every toggle trips the "missing data" arm of sourceNeedsRefresh. What
+     * matters here is that the resulting forced refresh is scoped to the source just switched to —
+     * an untargeted refresh force-fetches every enabled provider and burns quota on the key-based
+     * ones. The staleness arm is covered by SourceNeedsRefreshTest.
+     */
+    @Test
+    fun hourlyView_apiToggle_forcedRefreshTargetsOnlyTheNewlySelectedSource() = runBlocking {
+        stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
         val expectedAfterEachToggle = listOf(WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API, WeatherSource.NWS)
 
         expectedAfterEachToggle.forEachIndexed { index, expectedSource ->
@@ -101,6 +118,7 @@ class DailyViewApiToggleIntegrationRoboTest {
                 request!!.targetSourceId,
             )
             assertEquals("Toggle ${index + 1} should be attributed to the toggle path", "toggle_api_stale", request.reason)
+            assertFalse("Hourly-view toggle fetches the hourly forecast too", request.hourlyLimited)
         }
     }
 }

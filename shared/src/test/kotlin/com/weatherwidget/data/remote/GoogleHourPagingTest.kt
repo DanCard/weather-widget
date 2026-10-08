@@ -77,6 +77,14 @@ class GoogleHourPagingTest {
         assertTrue(d.reason, d.fetchRest && d.reason.startsWith("tail_short"))
     }
 
+    /** The 2026-10-08 case: a fetch 4 h after the last finds the tail 4 h short of the new horizon. */
+    @Test
+    fun `a tail short by the time since the last fetch stops when unchanged`() {
+        val d = GoogleHourPaging.decide(page1, hours(0, 68), now, horizonEnd)
+        assertFalse(d.reason, d.fetchRest)
+        assertTrue(d.reason, d.reason.startsWith("unchanged"))
+    }
+
     @Test
     fun `a tail older than twelve hours continues`() {
         val d = GoogleHourPaging.decide(page1, hours(0, 72, fetchedAt = now - 13 * hour), now, horizonEnd)

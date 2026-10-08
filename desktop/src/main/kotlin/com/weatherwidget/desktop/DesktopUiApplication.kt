@@ -490,7 +490,7 @@ internal fun runDesktopUiApplication() = application {
                 refreshInFlight = true
                 try {
                     // A Synoptic backoff earned at the previous site must not blank this one's actuals.
-                    forecast = repo.refresh(userLocationChange = true)
+                    forecast = repo.refresh(userLocationChange = true, reason = "location_change")
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
                     dataUpdateCount++
                     weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=cleared", "INFO")
@@ -543,7 +543,7 @@ internal fun runDesktopUiApplication() = application {
                 locationBanner = LocationBanner(token, DesktopSourceSwitchFeedback.fetchingMessage(switched))
                 refreshInFlight = true
                 try {
-                    forecast = repo.refresh()
+                    forecast = repo.refresh(reason = "source_enabled")
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
                     dataUpdateCount++
                     weatherDao.log("SOURCE_SWITCH_FETCH", "action=banner_cleared source=${switched.id}", "INFO")
@@ -794,7 +794,7 @@ internal fun runDesktopUiApplication() = application {
             // the fetch or discard its result.
             uiScope.launch {
                 try {
-                    forecast = repo.refresh()
+                    forecast = repo.refresh(reason = "user_refresh:$origin")
                     // A Refresh is the way out the location-change error message points at.
                     if (dataStatus is DataStatus.FetchingLocation || dataStatus is DataStatus.Error) {
                         dataStatus = DataStatus.Live(System.currentTimeMillis())

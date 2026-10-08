@@ -3,6 +3,7 @@ package com.weatherwidget.di
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import android.content.Context
 import com.weatherwidget.data.local.ApiUsageDao
+import com.weatherwidget.data.remote.ApiUsageClassifier
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.DailyHistoryDao
@@ -135,22 +136,24 @@ object AppModule {
             }
         }.apply {
             plugin(HttpSend).intercept { request ->
-                val host = request.url.host
-                val source = when {
-                    host.contains("silurian.ai") -> "SILURIAN"
-                    host.contains("tomorrow.io") -> "TOMORROW_IO"
-                    host.contains("weather.gov") -> "NWS"
-                    host.contains("open-meteo.com") -> "OPEN_METEO"
-                    host.contains("openweathermap.org") -> "OPEN_WEATHER_MAP"
-                    host.contains("weatherapi.com") -> "WEATHER_API"
-                    host == "weather.googleapis.com" -> "GOOGLE_WEATHER"
-                    else -> "UNKNOWN"
+                val key = ApiUsageClassifier.classify(request.url.host, request.url.build().encodedPath)
+                    ?: return@intercept execute(request)
+                val date = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val call = try {
+                    execute(request)
+                } catch (e: Throwable) {
+                    apiUsageDao.logCall(date, key.source, key.endpoint, isError = true)
+                    throw e
                 }
-                if (source != "UNKNOWN") {
-                    val date = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                    apiUsageDao.logCall(date, source)
-                }
-                execute(request)
+                val status = call.response.status.value
+                apiUsageDao.logCall(
+                    date,
+                    key.source,
+                    key.endpoint,
+                    isError = ApiUsageClassifier.isError(status),
+                    isQuotaRefusal = ApiUsageClassifier.isQuotaRefusal(status),
+                )
+                call
             }
         }
     }
@@ -402,7 +405,12 @@ object AppModule {
         httpClient: HttpClient,
         json: Json,
         widgetStateManager: WidgetStateManager,
-    ): GoogleWeatherApi = GoogleWeatherApi(httpClient, json) {
+        appLogDao: AppLogDao,
+    ): GoogleWeatherApi = GoogleWeatherApi(
+        httpClient,
+        json,
+        onRequest = { appLogDao.log("GOOGLE_REQUEST", it, "INFO") },
+    ) {
         BuiltInApiKeys.effectiveKey(WeatherSource.GOOGLE_WEATHER, widgetStateManager)
     }
 

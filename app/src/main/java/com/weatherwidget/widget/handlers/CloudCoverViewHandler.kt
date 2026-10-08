@@ -649,6 +649,9 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             context = context,
             reason = "cloud_while_viewing",
             targetSourceId = displaySource.id,
+            // Automatic while the screen is on: daily, current and actuals, not the hourly forecast
+            // unless it is itself due (user, 2026-10-08; HourlyFetchGate).
+            hourlyLimited = true,
         )
     }
 

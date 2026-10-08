@@ -280,6 +280,7 @@ class ForecastRepository
                         latitude,
                         longitude,
                         sourcesToFetch,
+                        fetchContext,
                     )
                     // Retire any source's replaced observation products at this site (shared with
                     // desktop; only ever deletes old data — see RetiredProductCleanup).
