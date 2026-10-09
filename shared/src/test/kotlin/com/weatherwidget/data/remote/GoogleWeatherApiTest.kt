@@ -130,29 +130,6 @@ class GoogleWeatherApiTest {
     }
 
     @Test
-    fun `getForecastHours costs only its hour pages`() = runBlocking {
-        val hours = api().getForecastHours(37.422, -122.084, hoursAhead = 72)
-
-        assertEquals("only forecast/hours", 3, requests.size)
-        assertEquals(3, hourPageCalls())
-        assertEquals(72, hours.size)
-        assertEquals(hours.map { it.dateTime }.sorted(), hours.map { it.dateTime })
-        assertTrue(hours.all { it.source == WeatherSource.GOOGLE_WEATHER.id })
-    }
-
-    @Test
-    fun `getForecastHours makes no request while the hours quota is exhausted`() = runBlocking {
-        hoursErrorBody = quota429("1/d/{project}", "forecast/hours")
-        val google = api()
-        assertTrue(google.getForecastHours(37.422, -122.084, hoursAhead = 96).isEmpty())
-        val before = requests.size
-
-        assertTrue(google.getForecastHours(37.422, -122.084, hoursAhead = 96).isEmpty())
-        assertEquals(before, requests.size)
-        assertEquals("pages=0 reason=quota_blocked", google.lastHoursPaging)
-    }
-
-    @Test
     fun `an hourly-limited fetch makes no hour or history call and keeps the daily forecast`() = runBlocking {
         val google = api()
         val result = google.getForecast(37.422, -122.084, includeHistory = true, includeHours = false)
@@ -177,9 +154,9 @@ class GoogleWeatherApiTest {
         google.getForecast(37.422, -122.084, includeHistory = false)
 
         assertEquals(requests.size, reported.size)
-        assertEquals(3, reported.count { it == "endpoint=forecast/hours status=200" })
-        assertEquals(1, reported.count { it == "endpoint=forecast/days status=200" })
-        assertEquals(1, reported.count { it == "endpoint=currentConditions status=200" })
+        assertEquals(3, reported.count { it.startsWith("endpoint=forecast/hours status=200 ms=") })
+        assertEquals(1, reported.count { it.startsWith("endpoint=forecast/days status=200 ms=") })
+        assertEquals(1, reported.count { it.startsWith("endpoint=currentConditions status=200 ms=") })
     }
 
     @Test

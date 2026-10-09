@@ -118,10 +118,18 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
         // THEN: a transient "no hourly forecast" message is set (the missing-data branch ran).
         val message = waitForTransientMessage()
         assertNotNull("A transient message should be displayed for the missing-hourly day", message)
-        assertTrue(
-            "Phase 1 should say the day's hourly forecast is being fetched: $message",
-            message!!.contains("Fetching hourly forecast for", ignoreCase = true),
-        )
+        // Whether today+7 can be fetched depends on the widget's display source and the hour (NWS
+        // reaches 156 h, Google 240 h): HourlyOnDemand decides, for whatever the widget shows
+        // (plans/261009-on-demand-hourly-shared-single-source-fetch.md).
+        val fetchable = com.weatherwidget.data.remote.HourlyOnDemand.hoursToCover(
+            stateManager.getCurrentDisplaySource(testWidgetId).id,
+            targetDay,
+            java.time.ZoneId.systemDefault(),
+            System.currentTimeMillis(),
+            emptyList(),
+        ) != null
+        val expected = if (fetchable) "Fetching hourly forecast for" else "No hourly forecast for"
+        assertTrue("Expected \"$expected…\": $message", message!!.startsWith(expected))
         assertTrue(
             "Phase 1 should not yet show refresh results: $message",
             !message.contains("Result of refresh"),

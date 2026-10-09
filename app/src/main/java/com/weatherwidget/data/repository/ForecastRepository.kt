@@ -398,6 +398,31 @@ class ForecastRepository
             return fetchCoordinator.fetchFromNws(latitude, longitude)
         }
 
+        /**
+         * A tapped or panned-to day's hourly, from its source alone
+         * ([ForecastFetchCoordinator.fetchSingleSource]). Not under [syncMutex]: the user is watching
+         * the banner, and a full sync can hold the lock for 30–40 s; every write here is an upsert, so
+         * running beside one is safe.
+         */
+        suspend fun fetchSourceOnDemand(
+            latitude: Double,
+            longitude: Double,
+            source: WeatherSource,
+            request: com.weatherwidget.data.remote.HourlyOnDemand.Request?,
+        ): Boolean = fetchCoordinator.fetchSingleSource(
+            latitude,
+            longitude,
+            source,
+            // Battery state only matters to an hourly-limited fetch, which this is not.
+            ForecastFetchContext(
+                isCharging = false,
+                isScreenInteractive = true,
+                batteryLevel = 100,
+                activeSourceIds = setOf(source.id),
+                hourlyAhead = request,
+            ),
+        )
+
         @VisibleForTesting
         internal suspend fun saveForecastSnapshot(
             weatherForecasts: List<ForecastEntity>,

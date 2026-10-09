@@ -154,32 +154,6 @@ object WidgetWorkScheduler {
             initialDelayMs = initialDelayMs,
         )
 
-    fun enqueueRequiredNoHourlyFollowUp(
-        context: Context,
-        appWidgetId: Int,
-        date: String,
-        lat: Double,
-        lon: Double,
-        targetSourceId: String,
-        /** Pan: a per-widget name, REPLACE and a settle delay, so a run of ‹ › ends in one fetch. */
-        settleAfterPan: Boolean = false,
-    ): OneTimeWorkRequest =
-        enqueueFullSync(
-            context = context,
-            uniqueName = if (settleAfterPan) "no_hourly_pan_$appWidgetId" else WORK_NAME_ONE_TIME,
-            policy = if (settleAfterPan) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.APPEND_OR_REPLACE,
-            forceRefresh = true,
-            reason = if (settleAfterPan) "hourly_pan_no_hourly" else "day_click_no_hourly",
-            initialDelayMs = if (settleAfterPan) com.weatherwidget.data.remote.HourlyOnDemand.PAN_SETTLE_MS else 0L,
-            targetSourceId = targetSourceId,
-            extraInput = {
-                putInt(WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID, appWidgetId)
-                putString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE, date)
-                putDouble(WeatherWidgetWorker.KEY_NO_HOURLY_LAT, lat)
-                putDouble(WeatherWidgetWorker.KEY_NO_HOURLY_LON, lon)
-            },
-        )
-
     /**
      * How long past its own scheduled run time a pending backfill may sit before it is treated as
      * wedged rather than merely waiting.
@@ -500,8 +474,6 @@ object WidgetWorkScheduler {
             data.getBoolean(WeatherWidgetWorker.KEY_NONPRIMARY_CURRENT_TEMP_ONLY, false),
             data.getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, false),
             data.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE) ?: "",
-            data.getInt(WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID, -1),
-            data.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE) ?: "",
             // A source switch's run owns its banner; folding it into another run would pin it.
             data.getString(WeatherWidgetWorker.KEY_SOURCE_SWITCH_ID) ?: "",
             data.getBoolean(WeatherWidgetWorker.KEY_HOURLY_LIMITED, false),

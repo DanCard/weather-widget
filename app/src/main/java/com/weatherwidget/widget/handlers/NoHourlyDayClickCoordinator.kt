@@ -95,8 +95,8 @@ object NoHourlyDayClickCoordinator {
     }
 
     /**
-     * The `forecast/hours` horizon that would cover [dateStr] for this widget's display source
-     * ([HourlyOnDemand]: Google past its routine 72 h), or null when nothing needs fetching.
+     * The horizon that would cover [dateStr] for this widget's display source ([HourlyOnDemand]: a day
+     * its stored hourly does not cover, any source), or null when nothing needs fetching.
      */
     suspend fun onDemandHours(
         database: WeatherDatabase,
@@ -110,7 +110,6 @@ object NoHourlyDayClickCoordinator {
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return null
         val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return null
         val sourceId = stateManager.getCurrentDisplaySource(appWidgetId).id
-        if (!HourlyOnDemand.extendsHourly(sourceId)) return null
         val latestWeather = database.forecastDao().getLatestWeather()
         val effectiveLat = if (lat != 0.0) lat else latestWeather?.locationLat ?: return null
         val effectiveLon = if (lon != 0.0) lon else latestWeather?.locationLon ?: return null

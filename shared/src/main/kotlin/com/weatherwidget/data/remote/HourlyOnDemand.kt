@@ -1,20 +1,20 @@
 package com.weatherwidget.data.remote
 
 import com.weatherwidget.data.model.HourlyForecast
-import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.math.ceil
 
 /**
- * Hourly forecast past the routine horizon, fetched when a day is tapped.
+ * Hourly forecast for a day the hourly view shows but the store does not cover — fetched when that
+ * day is tapped or panned onto. One rule for every source; how far each reaches is data
+ * ([HourlyHorizons]), never a source check here
+ * (`plans/261009-on-demand-hourly-shared-single-source-fetch.md`).
  *
- * User's rule, 2026-10-09: Google fetches hourly [GoogleWeatherApi.FORECAST_HOURS] (72 h) ahead
- * routinely — the daily icon's noon cloud shading reads those hours — and a tapped day past that on
- * demand. Every `forecast/hours` page (24 h) is a billed request against a per-project daily quota,
- * so the later hours are fetched only when someone opens that day's hourly graph. Every other source
- * returns its whole hourly horizon in one free call and keeps it
- * (`plans/261009-google-hourly-on-demand-past-72h.md`).
+ * Google stores 72 h routinely (`GoogleWeatherApi.FORECAST_HOURS`; the daily icon's noon cloud reads
+ * those hours) and serves 240 h at a billed page per 24 h, so its later hours are fetched only when
+ * someone opens that day. Every other source stores its whole horizon on each fetch; for it a fetch
+ * helps only when its stored rows are stale or missing at this site.
  *
  * Google pages by token from the current hour, so reaching day N costs every page before it: next
  * week's Thursday is about 7 requests (the first 3 every routine fetch pays anyway).
@@ -32,34 +32,37 @@ object HourlyOnDemand {
     const val REACH_HOURS = 240
 
     /**
-     * Hours past the routine window ([extensionStartMs]) count as covering a tapped day only this long
-     * after their fetch: routine fetches never refresh them. Older ones stay stored (the daily view
-     * reads them) and a tap refetches.
+     * How long a fetch vouches for what it stored. Hours past a source's routine window
+     * ([extensionStartMs]) count as covering a day only this long after their fetch, since routine
+     * fetches never refresh them. And a source fetched this recently that still does not reach a day
+     * cannot be helped by fetching again.
      */
     const val MAX_EXTENSION_AGE_MS = 12 * HOUR_MS
 
-    fun extendsHourly(sourceId: String): Boolean = sourceId == WeatherSource.GOOGLE_WEATHER.id
-
-    /** A sync's deeper Google horizon for a tapped day past 72 h; null on every other sync. */
+    /** A fetch's deeper horizon for a tapped day's source; null on every other fetch. */
     data class Request(val sourceId: String, val hours: Int)
 
-    /** The `forecast/hours` horizon a fetch of [sourceId] asks for: [request]'s, else the routine one. */
+    /** The horizon a fetch of [sourceId] asks for: [request]'s, else what the source stores routinely. */
     fun hoursAhead(sourceId: String, request: Request?): Int =
-        request?.takeIf { it.sourceId == sourceId }?.hours ?: GoogleWeatherApi.FORECAST_HOURS
+        request?.takeIf { it.sourceId == sourceId }?.hours ?: HourlyHorizons.of(sourceId).routineHours
 
     /**
      * First instant past [sourceId]'s routine window — where on-demand hours begin — or null for a
-     * source that keeps its whole horizon.
+     * source that stores its whole horizon on every fetch.
      */
-    fun extensionStartMs(sourceId: String, nowMs: Long): Long? =
-        if (extendsHourly(sourceId)) currentHourMs(nowMs) + GoogleWeatherApi.FORECAST_HOURS * HOUR_MS else null
+    fun extensionStartMs(sourceId: String, nowMs: Long): Long? {
+        val horizon = HourlyHorizons.of(sourceId)
+        return if (horizon.hasOnDemandRange) currentHourMs(nowMs) + horizon.routineHours * HOUR_MS else null
+    }
 
     /**
-     * The `forecast/hours` horizon that covers [date] to its last hour, or null when no fetch is
-     * needed or none can help: a source that does not extend, a day already covered by
-     * [storedHourly] (this source's rows at the site — a row at or past the day's last wanted hour,
-     * fetched within [MAX_EXTENSION_AGE_MS] when it lies past the routine window), a past day, or a
-     * day starting past [REACH_HOURS].
+     * The horizon that covers [date] to its last hour, or null when no fetch is needed or none can
+     * help:
+     * - a past day, or one starting past the source's [HourlyHorizon.maxHours];
+     * - a day [storedHourly] covers (this source's rows at the site: a row at or past the day's last
+     *   wanted hour, fetched within [MAX_EXTENSION_AGE_MS] when it lies past the routine window);
+     * - a day inside the routine window when the source was fetched within [MAX_EXTENSION_AGE_MS]: its
+     *   fresh data simply ends sooner, and fetching again would not change that.
      */
     fun hoursToCover(
         sourceId: String,
@@ -68,36 +71,30 @@ object HourlyOnDemand {
         nowMs: Long,
         storedHourly: List<HourlyForecast>,
     ): Int? {
-        val extensionStart = extensionStartMs(sourceId, nowMs) ?: return null
+        val horizon = HourlyHorizons.of(sourceId)
+        val currentHour = currentHourMs(nowMs)
         val dayStartMs = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
         val dayEndMs = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-        val reachEndMs = nowMs + REACH_HOURS * HOUR_MS
-        if (dayEndMs <= nowMs || dayStartMs >= reachEndMs) return null
-        // The last hour that must be stored: the day's final hour, or the reach's.
-        val lastWantedMs = minOf(dayEndMs, reachEndMs) - HOUR_MS
+        val maxEndMs = currentHour + horizon.maxHours * HOUR_MS
+        if (dayEndMs <= nowMs || dayStartMs >= maxEndMs) return null
+        // The last hour that must be stored: the day's final hour, or the source's last.
+        val lastWantedMs = minOf(dayEndMs, maxEndMs) - HOUR_MS
+        val routineEndMs = currentHour + horizon.routineHours * HOUR_MS
         val covered = storedHourly.any { row ->
             row.dateTime >= lastWantedMs &&
-                (row.dateTime < extensionStart || nowMs - row.fetchedAt <= MAX_EXTENSION_AGE_MS)
+                (row.dateTime < routineEndMs || nowMs - row.fetchedAt <= MAX_EXTENSION_AGE_MS)
         }
         if (covered) return null
-        val hours = ceil((lastWantedMs - currentHourMs(nowMs)).toDouble() / HOUR_MS).toInt() + 1
-        return hours.coerceIn(GoogleWeatherApi.FORECAST_HOURS, REACH_HOURS)
-    }
-
-    /**
-     * The deeper horizon a tapped day's forced sync asks for (Android's no-hourly follow-up carries
-     * the tapped date and the widget's display source): null for no date, an unparseable one, a
-     * source that does not extend, or a day no fetch can help.
-     */
-    fun requestFor(sourceId: String?, dateStr: String?, zoneId: ZoneId, nowMs: Long): Request? {
-        if (sourceId == null || dateStr == null) return null
-        val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return null
-        return hoursToCover(sourceId, date, zoneId, nowMs, storedHourly = emptyList())?.let { Request(sourceId, it) }
+        val newestFetchMs = storedHourly.maxOfOrNull { it.fetchedAt }
+        val fetchedRecently = newestFetchMs != null && nowMs - newestFetchMs <= MAX_EXTENSION_AGE_MS
+        if (lastWantedMs < routineEndMs && fetchedRecently) return null
+        val hours = ceil((lastWantedMs - currentHour).toDouble() / HOUR_MS).toInt() + 1
+        return hours.coerceIn(horizon.routineHours, horizon.maxHours)
     }
 
     /** What to do for the window the hourly view has settled on ([panAction]). */
     sealed interface PanAction {
-        /** Fetch [hours] of hourly forecast (Google), which covers through [date], under the "Fetching…" banner. */
+        /** Fetch [date]'s source ([hours] deep where the source takes a horizon) under the "Fetching…" banner. */
         data class Fetch(val date: LocalDate, val hours: Int) : PanAction
 
         /** [date] is a future day in view with no hourly that no fetch can help: say where the data ends. */

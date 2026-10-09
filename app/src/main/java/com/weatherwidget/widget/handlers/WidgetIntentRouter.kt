@@ -225,21 +225,6 @@ object WidgetIntentRouter {
         }
     }
 
-    /** Serializes the two-phase no-hourly follow-up (sets the post-refresh transient message). */
-    suspend fun handleRefreshComplete(
-        context: Context,
-        intent: Intent,
-    ) {
-        val appWidgetId =
-            intent.getIntExtra(
-                AppWidgetManager.EXTRA_APPWIDGET_ID,
-                AppWidgetManager.INVALID_APPWIDGET_ID,
-            )
-        runInteraction(context, appWidgetId, "NO_HOURLY_COMPLETE") {
-            WidgetDayClickCoordinator.handleRefreshComplete(context, intent)
-        }
-    }
-
     suspend fun handleResize(
         context: Context,
         appWidgetId: Int,

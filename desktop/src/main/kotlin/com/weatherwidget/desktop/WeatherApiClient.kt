@@ -29,10 +29,11 @@ interface WeatherApiClient {
         fetchForecast(recentObservationsOnly)
 
     /**
-     * The displayed source's hourly forecast [hoursAhead] deep, alone: a tapped day past the routine
-     * horizon ([com.weatherwidget.data.remote.HourlyOnDemand]). Empty for sources that do not extend.
+     * The displayed source's forecast for a tapped or panned-to day
+     * ([com.weatherwidget.data.remote.HourlyOnDemand]): its normal fetch, [hoursAhead] deep where the
+     * source takes a horizon (Google), without the observation window.
      */
-    suspend fun fetchHourlyAhead(hoursAhead: Int): List<HourlyForecast> = emptyList()
+    suspend fun fetchForecastAhead(hoursAhead: Int): RawFetch = fetchForecast(recentObservationsOnly = true)
 
     /** Legacy Open-Meteo history backfill entry point; pinned as uncalled by a regression test. */
     suspend fun fetchHistory(historyDays: Int): RawFetch

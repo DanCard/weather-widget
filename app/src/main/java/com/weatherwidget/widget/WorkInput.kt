@@ -20,11 +20,6 @@ internal data class WorkInput(
     val backfillReason: String,
     /** See [WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ATTEMPT]. */
     val backfillAttempt: Int = 0,
-    val noHourlyWidgetId: Int,
-    val noHourlyDate: String?,
-    val noHourlyLat: Double,
-    val noHourlyLon: Double,
-    val shouldBroadcastNoHourlyComplete: Boolean,
     /** See [WeatherWidgetWorker.KEY_REQUESTED_AT_MS]; 0 when the enqueue path did not stamp it. */
     val requestedAtMs: Long = 0L,
     /** See [WeatherWidgetWorker.KEY_STARTUP_DEFERRED]. */
@@ -47,12 +42,6 @@ internal data class WorkInput(
             val currentTempOnly = data.getBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_ONLY, false)
             val nonPrimaryCurrentTempOnly = data.getBoolean(WeatherWidgetWorker.KEY_NONPRIMARY_CURRENT_TEMP_ONLY, false)
             val observationBackfillMode = data.getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, false)
-            val noHourlyWidgetId = data.getInt(WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-            val noHourlyDate = data.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE)
-            val shouldBroadcastNoHourlyComplete =
-                !uiOnlyRefresh &&
-                    noHourlyWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID &&
-                    !noHourlyDate.isNullOrBlank()
 
             return WorkInput(
                 uiOnlyRefresh = uiOnlyRefresh,
@@ -72,11 +61,6 @@ internal data class WorkInput(
                 backfillHours = data.getLong(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS, WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS),
                 backfillReason = data.getString(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON) ?: "unspecified",
                 backfillAttempt = data.getInt(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ATTEMPT, 0),
-                noHourlyWidgetId = noHourlyWidgetId,
-                noHourlyDate = noHourlyDate,
-                noHourlyLat = data.getDouble(WeatherWidgetWorker.KEY_NO_HOURLY_LAT, 0.0),
-                noHourlyLon = data.getDouble(WeatherWidgetWorker.KEY_NO_HOURLY_LON, 0.0),
-                shouldBroadcastNoHourlyComplete = shouldBroadcastNoHourlyComplete,
                 requestedAtMs = data.getLong(WeatherWidgetWorker.KEY_REQUESTED_AT_MS, 0L),
                 startupDeferred = data.getBoolean(WeatherWidgetWorker.KEY_STARTUP_DEFERRED, false),
                 locationChangePlace = data.getString(WeatherWidgetWorker.KEY_LOCATION_CHANGE_PLACE),

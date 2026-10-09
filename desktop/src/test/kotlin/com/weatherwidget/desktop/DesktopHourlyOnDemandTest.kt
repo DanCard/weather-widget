@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import io.mockk.coEvery
@@ -49,13 +50,13 @@ class DesktopHourlyOnDemandTest {
     }
 
     @Test
-    fun `fetches the tapped day once, stores it, then has nothing left to fetch`() = runTest {
+    fun `Google fetches the tapped day once, stores it, then has nothing left to fetch`() = runTest {
         val google = WeatherSource.GOOGLE_WEATHER.id
         dao.upsertHourlyForecasts(lat, lon, google, hours(now, 72))
         val requested = mutableListOf<Int>()
-        coEvery { service.fetchHourlyAhead(any()) } answers {
+        coEvery { service.fetchForecastAhead(any()) } answers {
             requested += firstArg<Int>()
-            hours(now, firstArg())
+            RawFetch(hourly = hours(now, firstArg()))
         }
 
         assertTrue(repo(google).extendHourlyFor(target, now))
@@ -71,14 +72,30 @@ class DesktopHourlyOnDemandTest {
     }
 
     @Test
-    fun `a source that holds its whole horizon never fetches`() = runTest {
-        assertFalse(repo(WeatherSource.NWS.id).extendHourlyFor(target, now))
-        coVerify(exactly = 0) { service.fetchHourlyAhead(any()) }
+    fun `any source with nothing stored for the day fetches it through its normal call`() = runTest {
+        val nws = WeatherSource.NWS.id
+        coEvery { service.fetchForecastAhead(any()) } returns RawFetch(hourly = hours(now, 156, nws))
+
+        assertTrue(repo(nws).extendHourlyFor(target, now))
+
+        coVerify(exactly = 1) { service.fetchForecastAhead(any()) }
+        val dayEnd = target.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        assertTrue(dao.getHourlyForecasts(lat, lon, nws, now, dayEnd).any { it.dateTime >= dayEnd - hour })
+    }
+
+    @Test
+    fun `a source fetched recently whose data ends sooner is not fetched again`() = runTest {
+        val nws = WeatherSource.NWS.id
+        // Fresh rows to now + 100 h: target (today + 5) is past them but inside NWS's 156 h.
+        dao.upsertHourlyForecasts(lat, lon, nws, hours(now, 100, nws))
+
+        assertFalse(repo(nws).extendHourlyFor(target, now))
+        coVerify(exactly = 0) { service.fetchForecastAhead(any()) }
     }
 
     @Test
     fun `an empty fetch stores nothing and reports false`() = runTest {
-        coEvery { service.fetchHourlyAhead(any()) } returns emptyList()
+        coEvery { service.fetchForecastAhead(any()) } returns RawFetch()
         assertFalse(repo(WeatherSource.GOOGLE_WEATHER.id).extendHourlyFor(target, now))
     }
 }

@@ -13,7 +13,6 @@ import com.weatherwidget.shared.util.MetarFetchPolicy
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
-import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import kotlinx.coroutines.CancellationException
@@ -111,14 +110,6 @@ internal class FullSyncPipeline(
                 batteryLevel = device.batteryLevel,
                 activeSourceIds = activeSourceList.toSet(),
                 hourlyLimited = input.hourlyLimited,
-                // A tapped day past Google's routine 72 h: fetch hours through that day
-                // (HourlyOnDemand); null for every other sync and source.
-                hourlyAhead = HourlyOnDemand.requestFor(
-                    input.targetSourceId,
-                    input.noHourlyDate,
-                    java.time.ZoneId.systemDefault(),
-                    System.currentTimeMillis(),
-                ),
             )
 
             val result = weatherRepository.getWeatherData(
@@ -402,33 +393,7 @@ internal class FullSyncPipeline(
                 runCatching { painter.finishSourceSwitchBanner(it, succeeded = false, reason = "sync_exception") }
             }
             return ListenableWorker.Result.retry()
-        } finally {
-            if (input.shouldBroadcastNoHourlyComplete) {
-                broadcastNoHourlyRefreshComplete(
-                    widgetId = input.noHourlyWidgetId,
-                    dateStr = input.noHourlyDate!!,
-                    lat = input.noHourlyLat,
-                    lon = input.noHourlyLon,
-                )
-            }
         }
-    }
-
-    private fun broadcastNoHourlyRefreshComplete(
-        widgetId: Int,
-        dateStr: String,
-        lat: Double,
-        lon: Double,
-    ) {
-        val completeIntent = Intent(context, WidgetActionReceiver::class.java).apply {
-            action = WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-            putExtra("date", dateStr)
-            putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LAT, lat)
-            putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LON, lon)
-        }
-        context.sendBroadcast(completeIntent)
-        Log.d(TAG, "broadcastNoHourlyRefreshComplete: widget=$widgetId date=$dateStr")
     }
 
     private suspend fun logStage(stage: String) {

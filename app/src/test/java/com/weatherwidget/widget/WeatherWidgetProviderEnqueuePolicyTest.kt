@@ -21,6 +21,7 @@ import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -138,34 +139,40 @@ class WeatherWidgetProviderEnqueuePolicyTest {
     }
 
     @Test
-    fun `required no-hourly follow-up is appended instead of discarded`() {
+    fun `an on-demand hourly fetch replaces the widget's pending one`() {
         val requestSlot = slot<OneTimeWorkRequest>()
 
-        WidgetWorkScheduler.enqueueRequiredNoHourlyFollowUp(
+        HourlyOnDemandWorker.enqueue(
             context = context,
-            appWidgetId = 17,
+            widgetId = 17,
             date = "2026-07-30",
+            sourceId = "GOOGLE_WEATHER",
             lat = 37.42,
             lon = -122.08,
-            targetSourceId = "NWS",
+            hours = 120,
+            afterPan = true,
         )
 
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
-                eq(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
-                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
+                eq(HourlyOnDemandWorker.uniqueName(17)),
+                eq(ExistingWorkPolicy.REPLACE),
                 capture(requestSlot),
             )
         }
-        assertEquals(
-            17,
-            requestSlot.captured.workSpec.input.getInt(
-                WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID,
-                -1,
-            ),
-        )
-        assertFalse(requestSlot.captured.workSpec.expedited)
+        assertEquals("2026-07-30", HourlyOnDemandWorker.dateOf(requestSlot.captured))
+        assertEquals(120, HourlyOnDemandWorker.hoursOf(requestSlot.captured))
+        // Expedited work cannot be delayed: a pan settles inside the work instead.
         assertEquals(0L, requestSlot.captured.workSpec.initialDelay)
+        assertEquals(com.weatherwidget.data.remote.HourlyOnDemand.PAN_SETTLE_MS, HourlyOnDemandWorker.settleMsOf(requestSlot.captured))
+    }
+
+    @Test
+    fun `an on-demand hourly fetch is expedited only on API 31+`() {
+        fun req(sdk: Int) = HourlyOnDemandWorker.request(17, "2026-07-30", "NWS", 37.42, -122.08, 0, afterPan = false, sdkInt = sdk)
+        assertTrue(req(31).workSpec.expedited)
+        assertFalse(req(30).workSpec.expedited)
+        assertEquals(0L, HourlyOnDemandWorker.settleMsOf(req(31)))
     }
 
     /**

@@ -234,11 +234,6 @@ class FullSyncPipelineLocationChangeCacheTest {
         backfillLon = Double.NaN,
         backfillHours = 0L,
         backfillReason = "",
-        noHourlyWidgetId = 0,
-        noHourlyDate = null,
-        noHourlyLat = 0.0,
-        noHourlyLon = 0.0,
-        shouldBroadcastNoHourlyComplete = false,
         locationChangePlace = "Mountain View",
         locationChangeBanner = true,
     )

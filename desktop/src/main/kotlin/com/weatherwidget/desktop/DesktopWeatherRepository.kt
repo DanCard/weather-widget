@@ -382,14 +382,14 @@ class DesktopWeatherRepository(
     private val hourlyExtendMutex = Mutex()
 
     /**
-     * A tapped day past the displayed source's stored hourly ([HourlyOnDemand]: Google keeps 72 h):
-     * fetches `forecast/hours` deep enough to cover [date] and stores it as a refresh would (live
-     * rows plus this 4 h bucket's history snapshot). Serialized and re-checked under the lock, so a
-     * second tap on the same day waits for the first and then fetches nothing. Returns true when it
-     * stored hours.
+     * A tapped or panned-to day the displayed source's stored hourly does not cover
+     * ([HourlyOnDemand], any source): its normal fetch — deep enough for Google — saved as a refresh
+     * saves it (live rows, daily rows, this 4 h bucket's history snapshot), without the rest of a
+     * refresh (`plans/261009-on-demand-hourly-shared-single-source-fetch.md`). Serialized and
+     * re-checked under the lock, so a second tap on the same day waits for the first and then fetches
+     * nothing. Returns true when it stored hours.
      */
     suspend fun extendHourlyFor(date: LocalDate, now: Long = currentTimeMillis()): Boolean = withContext(Dispatchers.IO) {
-        if (!HourlyOnDemand.extendsHourly(weatherSource)) return@withContext false
         hourlyExtendMutex.withLock {
             val stored = weatherDao.getHourlyForecasts(
                 LocationMatch.quantize(latitude),
@@ -400,18 +400,19 @@ class DesktopWeatherRepository(
             )
             val hours = HourlyOnDemand.hoursToCover(weatherSource, date, ZoneId.systemDefault(), now, stored)
                 ?: return@withLock false
-            val fetched = weatherService.fetchHourlyAhead(hours)
-                .filter { it.dateTime >= now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
+            val fetchStart = System.nanoTime()
+            val result = weatherService.fetchForecastAhead(hours)
+            val fetchMs = (System.nanoTime() - fetchStart) / 1_000_000
+            val forecastHours = persistForecastResult(result, now)
+            val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
+            weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, forecastHours)
             weatherDao.log(
                 tag = "HOURLY_ON_DEMAND",
-                message = "source=$weatherSource date=$date hours=$hours storedLast=${stored.maxOfOrNull { it.dateTime }} rows=${fetched.size}",
+                message = "source=$weatherSource date=$date hours=$hours storedLast=${stored.maxOfOrNull { it.dateTime }} " +
+                    "rows=${forecastHours.size} fetchMs=$fetchMs",
                 level = "INFO",
             )
-            if (fetched.isEmpty()) return@withLock false
-            weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, fetched)
-            val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
-            weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, fetched)
-            true
+            forecastHours.isNotEmpty()
         }
     }
 

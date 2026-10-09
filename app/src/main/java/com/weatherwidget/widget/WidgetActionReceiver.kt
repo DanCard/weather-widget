@@ -78,15 +78,6 @@ class WidgetActionReceiver : BroadcastReceiver() {
                 }
             }
         },
-        WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE to { context, intent, receivedAtElapsedMs ->
-            if (!WidgetDayClickCoordinator.isValid(intent)) {
-                logRejected(intent, "invalid_no_hourly_complete")
-            } else {
-                launchForWidget(context, intent, receivedAtElapsedMs) {
-                    WidgetIntentRouter.handleRefreshComplete(context, intent)
-                }
-            }
-        },
         WidgetActions.ACTION_NAV_LEFT to { context, intent, receivedAtElapsedMs ->
             handleNav(context, intent, receivedAtElapsedMs, isLeft = true)
         },

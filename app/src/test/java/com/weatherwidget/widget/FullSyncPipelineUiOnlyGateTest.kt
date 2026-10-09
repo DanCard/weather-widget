@@ -272,10 +272,5 @@ class FullSyncPipelineUiOnlyGateTest {
         backfillLon = 0.0,
         backfillHours = 0L,
         backfillReason = "",
-        noHourlyWidgetId = 0,
-        noHourlyDate = null,
-        noHourlyLat = 0.0,
-        noHourlyLon = 0.0,
-        shouldBroadcastNoHourlyComplete = false,
     )
 }

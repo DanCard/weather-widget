@@ -285,11 +285,16 @@ class DesktopWeatherService(
         }
     }
 
-    override suspend fun fetchHourlyAhead(hoursAhead: Int): List<com.weatherwidget.data.model.HourlyForecast> {
-        if (weatherSource != WeatherSource.GOOGLE_WEATHER.id) return emptyList()
-        return googleWeather.getForecastHours(latitude, longitude, hoursAhead)
-            .also { weatherDao?.log("GOOGLE_HOURS_PAGES", "${googleWeather.lastHoursPaging.orEmpty()} trigger=on_demand_day", "INFO") }
-    }
+    override suspend fun fetchForecastAhead(hoursAhead: Int): RawFetch =
+        if (weatherSource == WeatherSource.GOOGLE_WEATHER.id) {
+            withHistoricalActuals(
+                googleWeather.getForecast(latitude, longitude, includeHistory = false, hoursAhead = hoursAhead)
+                    .also { weatherDao?.log("GOOGLE_HOURS_PAGES", "${googleWeather.lastHoursPaging.orEmpty()} trigger=on_demand_day", "INFO") },
+                WeatherSource.GOOGLE_WEATHER.id,
+            )
+        } else {
+            fetchForecast(recentObservationsOnly = true)
+        }
 
     /** [HourlyFetchGate] against the desktop's background forecast cadence. */
     private fun googleIncludeHours(hourlyLimited: Boolean): Boolean {

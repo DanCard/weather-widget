@@ -235,25 +235,6 @@ class GoogleWeatherApi(
         ).copy(quotaRefused = refused.mapValues { QuotaRefusal(it.value.untilMs, it.value.detail) })
     }
 
-    /**
-     * `forecast/hours` alone, [hoursAhead] deep: a tapped day past the routine horizon
-     * ([HourlyOnDemand]). One billed request per 24 h and nothing else; empty while the hourly quota
-     * is exhausted.
-     */
-    suspend fun getForecastHours(lat: Double, lon: Double, hoursAhead: Int): List<HourlyForecast> {
-        val apiKey = apiKeyProvider()
-        if (apiKey.isNullOrBlank()) {
-            throw IllegalStateException("GOOGLE_WEATHER_API_KEY is missing.")
-        }
-        if (activeBlock(ForecastProduct.HOURLY, nowMs()) != null) {
-            lastHoursPaging = "pages=0 reason=quota_blocked"
-            return emptyList()
-        }
-        val hours = fetchProduct(ForecastProduct.HOURLY) { fetchForecastHours(apiKey, lat, lon, null, hoursAhead) }
-            ?: return emptyList()
-        return hours.mapNotNull(::parseHour).sortedBy { it.dateTime }
-    }
-
     private suspend fun fetchHistoryOrNull(apiKey: String, lat: Double, lon: Double): JsonObject? =
         try {
             fetchJson(apiKey, "/history/hours:lookup", lat, lon) {
@@ -405,6 +386,7 @@ class GoogleWeatherApi(
         lon: Double,
         extra: HttpRequestBuilder.() -> Unit = {},
     ): JsonObject {
+        val startNs = System.nanoTime()
         val response = httpClient.get("$BASE_URL$path") {
             header("X-Goog-Api-Key", apiKey)
             parameter("location.latitude", lat)
@@ -413,7 +395,8 @@ class GoogleWeatherApi(
             extra()
         }
         val endpoint = path.removePrefix("/").substringBefore(':')
-        onRequest("endpoint=$endpoint status=${response.status.value}")
+        // ms: request duration — a slow first reply (17.7 s once on the Pixel) shows here.
+        onRequest("endpoint=$endpoint status=${response.status.value} ms=${(System.nanoTime() - startNs) / 1_000_000}")
         response.require2xx(WeatherSource.GOOGLE_WEATHER, "Google Weather fetch failed ($path)")
         return json.parseToJsonElement(response.bodyAsText()).jsonObject
     }

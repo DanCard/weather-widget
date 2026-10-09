@@ -601,10 +601,6 @@ class WeatherWidgetWorker
             const val KEY_OBSERVATION_BACKFILL_ATTEMPT = "observation_backfill_attempt"
             const val KEY_BACKFILL_LAT = "backfill_lat"
             const val KEY_BACKFILL_LON = "backfill_lon"
-            const val KEY_NO_HOURLY_WIDGET_ID = "no_hourly_widget_id"
-            const val KEY_NO_HOURLY_DATE = "no_hourly_date"
-            const val KEY_NO_HOURLY_LAT = "no_hourly_lat"
-            const val KEY_NO_HOURLY_LON = "no_hourly_lon"
 
             /**
              * Set at ENQUEUE time when [com.weatherwidget.data.local.WeatherDatabase.isTestingMode]

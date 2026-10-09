@@ -40,33 +40,12 @@ class WidgetWorkSchedulerCollisionTest {
     }
 
     @Test
-    fun `required callback and urgent refresh survive existing and delayed work`() {
+    fun `urgent refresh survives existing and delayed work`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         WidgetWorkScheduler.enqueueRedundantImmediateSync(
             context,
             reason = "existing",
         )
-        val followUp =
-            WidgetWorkScheduler.enqueueRequiredNoHourlyFollowUp(
-                context = context,
-                appWidgetId = 82,
-                date = "2026-07-30",
-                lat = 37.42,
-                lon = -122.08,
-                targetSourceId = WeatherSource.NWS.id,
-            )
-
-        val oneTimeIds =
-            WorkManager.getInstance(context)
-                .getWorkInfosForUniqueWork(WidgetWorkScheduler.WORK_NAME_ONE_TIME)
-                .get(5, TimeUnit.SECONDS)
-                .map { it.id }
-        assertTrue(oneTimeIds.contains(followUp.id))
-        assertEquals(
-            82,
-            followUp.workSpec.input.getInt(WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID, -1),
-        )
-
         val delayed =
             WidgetWorkScheduler.enqueueDelayedStartupSync(
                 context = context,

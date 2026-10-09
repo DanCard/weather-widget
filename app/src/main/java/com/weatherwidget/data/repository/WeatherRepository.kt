@@ -111,6 +111,14 @@ class WeatherRepository
             nowMs: Long = forecastRepository.clock(),
         ) = forecastRepository.saveForecastSnapshot(weatherForecasts, latitude, longitude, sourceId, batchFetchedAt, nowMs)
         
+        /** See [ForecastRepository.fetchSourceOnDemand]. */
+        suspend fun fetchSourceOnDemand(
+            latitude: Double,
+            longitude: Double,
+            source: WeatherSource,
+            request: com.weatherwidget.data.remote.HourlyOnDemand.Request?,
+        ): Boolean = forecastRepository.fetchSourceOnDemand(latitude, longitude, source, request)
+
         @androidx.annotation.VisibleForTesting
         internal suspend fun fetchFromNws(latitude: Double, longitude: Double) = 
             forecastRepository.fetchFromNws(latitude, longitude)

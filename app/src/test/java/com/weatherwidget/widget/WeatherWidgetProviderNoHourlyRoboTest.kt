@@ -83,124 +83,77 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         unmockkAll()
     }
 
-    @Test
-    fun `day click when no hourly data opens the hourly view under a fetching banner and enqueues scoped refresh`() = runTest {
-        val testDispatcher = StandardTestDispatcher(testScheduler)
-        receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
-
-        val targetDay = LocalDate.now().plusDays(7)
-        seedMissingHourlyScenario(targetDay)
-
-        val workSlot = slot<OneTimeWorkRequest>()
-        every {
-            mockWorkManager.enqueueUniqueWork(
-                eq(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
-                any<ExistingWorkPolicy>(),
-                capture(workSlot),
-            )
-        } returns mockk()
-
-        receiver.onReceive(context, dayClickIntent(targetDay))
-        advanceUntilIdle()
-
-        val message = stateManager.getActiveTransientMessage(widgetId)
-        assertNotNull("Active transient message should not be null", message)
-        assertTrue("Message should say it is fetching: $message", message!!.contains("Fetching hourly forecast for"))
-        assertTrue("Message should contain target day", message.contains(NoHourlyDayClickCoordinator.formatDayLabel(targetDay.toString())))
-        assertTrue("Pending message should not be framed as refresh result yet", !message.contains("Result of refresh"))
-        assertEquals("the day's hourly view opens at once, empty", ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
-
-        val input = workSlot.captured.workSpec.input
-        assertEquals(true, input.getBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, false))
-        assertEquals(source.id, input.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE))
-        assertEquals(widgetId, input.getInt(WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID, -1))
-        assertEquals(targetDay.toString(), input.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE))
-        assertEquals(lat, input.getDouble(WeatherWidgetWorker.KEY_NO_HOURLY_LAT, 0.0), 0.001)
-        assertEquals(lon, input.getDouble(WeatherWidgetWorker.KEY_NO_HOURLY_LON, 0.0), 0.001)
-
-        verify(exactly = 1) {
-            mockWorkManager.enqueueUniqueWork(
-                eq(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
-                any<ExistingWorkPolicy>(),
-                any<OneTimeWorkRequest>(),
-            )
-        }
-    }
-
-    @Test
-    fun `refresh complete still missing posts result message`() = runTest {
-        val testDispatcher = StandardTestDispatcher(testScheduler)
-        receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
-
-        val targetDay = LocalDate.now().plusDays(7)
-        seedMissingHourlyScenario(targetDay)
-
-        receiver.onReceive(context, dayClickIntent(targetDay))
-        advanceUntilIdle()
-
-        receiver.onReceive(context, refreshCompleteIntent(targetDay))
-        advanceUntilIdle()
-
-        val message = stateManager.getActiveTransientMessage(widgetId)
-        assertNotNull(message)
-        assertTrue("Result should be framed as refresh outcome", message!!.contains("Result of refresh"))
-        assertTrue(
-            "Result should say no new hourly data retrieved",
-            message.contains("No new hourly temperature data was able to be retrieved", ignoreCase = true),
+    private fun googleRowsFor(day: LocalDate) = runBlocking {
+        db.hourlyForecastDao().insertAll(
+            listOf(0, 12, 23).map { h ->
+                HourlyForecastEntity(
+                    dateTime = day.atTime(h, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    locationLat = lat,
+                    locationLon = lon,
+                    temperature = 70f,
+                    condition = "Sunny",
+                    source = WeatherSource.GOOGLE_WEATHER.id,
+                    fetchedAt = System.currentTimeMillis(),
+                )
+            },
         )
-        assertTrue(message.contains(NoHourlyDayClickCoordinator.formatDayLabel(targetDay.toString())))
-        assertTrue(message.contains("Data ends") || message.contains("at"))
-        assertEquals("stays on the day's (empty) hourly view", ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
     }
 
     @Test
-    fun `refresh complete with new hourly clears the fetching banner`() = runTest {
-        val testDispatcher = StandardTestDispatcher(testScheduler)
-        receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
-
+    fun `NWS tap on a day past its fresh data says where it ends, with no fetch`() = runTest {
+        receiver.scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
         val targetDay = LocalDate.now().plusDays(7)
-        seedMissingHourlyScenario(targetDay)
+        seedMissingHourlyScenario(targetDay) // NWS, fresh, data ends today+6 17:00
+
         receiver.onReceive(context, dayClickIntent(targetDay))
         advanceUntilIdle()
-        assertNotNull("fetching banner up", stateManager.getActiveTransientMessage(widgetId))
 
-        runBlocking {
-            val noon = targetDay.atTime(12, 0)
-            val noonMs = noon.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            db.hourlyForecastDao().insertAll(
-                listOf(
-                    HourlyForecastEntity(
-                        dateTime = noonMs,
-                        locationLat = lat,
-                        locationLon = lon,
-                        temperature = 72.0f,
-                        condition = "Sunny",
-                        source = source.id,
-                        fetchedAt = System.currentTimeMillis(),
-                    ),
-                ),
-            )
-        }
+        val message = stateManager.getActiveTransientMessage(widgetId)
+        assertTrue("$message", message!!.startsWith("No hourly forecast for"))
+        assertTrue(message.contains(NoHourlyDayClickCoordinator.formatDayLabel(targetDay.toString())))
+        assertTrue(message.contains("data ends"))
+        assertEquals("the day's hourly view opens anyway", ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
+        assertTrue(onDemandRequests().isEmpty())
+    }
 
-        receiver.onReceive(context, refreshCompleteIntent(targetDay))
+    @Test
+    fun `Google tap past its stored hours fetches that source alone, and its hours clear the banner`() = runTest {
+        receiver.scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val targetDay = LocalDate.now().plusDays(5)
+        seedGoogleRoutine(targetDay)
+
+        receiver.onReceive(context, dayClickIntent(targetDay))
         advanceUntilIdle()
+
+        val message = stateManager.getActiveTransientMessage(widgetId)
+        assertTrue("$message", message!!.contains("Fetching hourly forecast for"))
+        assertEquals(ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
+        val (name, request) = onDemandRequests().single()
+        assertEquals(HourlyOnDemandWorker.uniqueName(widgetId), name)
+        assertEquals(targetDay.toString(), HourlyOnDemandWorker.dateOf(request))
+        assertEquals(WeatherSource.GOOGLE_WEATHER.id, HourlyOnDemandWorker.sourceOf(request))
+        assertTrue(HourlyOnDemandWorker.hoursOf(request) > 72)
+        assertEquals("a tap does not settle", 0L, HourlyOnDemandWorker.settleMsOf(request))
+
+        googleRowsFor(targetDay)
+        WidgetDayClickCoordinator.completeOnDemand(context, widgetId, targetDay.toString(), lat, lon)
 
         assertNull("the graph has its data; the banner goes", stateManager.getActiveTransientMessage(widgetId))
-        assertEquals(ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
     }
 
     @Test
-    fun `result message expires after display duration`() = runTest {
-        val testDispatcher = StandardTestDispatcher(testScheduler)
-        receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
-
-        val targetDay = LocalDate.now().plusDays(7)
-        seedMissingHourlyScenario(targetDay)
-
-        receiver.onReceive(context, refreshCompleteIntent(targetDay))
+    fun `a fetch that brings nothing says where the data ends, then expires`() = runTest {
+        receiver.scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val targetDay = LocalDate.now().plusDays(5)
+        seedGoogleRoutine(targetDay)
+        receiver.onReceive(context, dayClickIntent(targetDay))
         advanceUntilIdle()
-        assertNotNull(stateManager.getActiveTransientMessage(widgetId))
 
+        WidgetDayClickCoordinator.completeOnDemand(context, widgetId, targetDay.toString(), lat, lon)
+
+        val message = stateManager.getActiveTransientMessage(widgetId)
+        assertTrue("$message", message!!.startsWith("No hourly forecast for"))
+        assertTrue(message.contains(NoHourlyDayClickCoordinator.formatDayLabel(targetDay.toString())))
         val afterExpiry =
             System.currentTimeMillis() +
                 WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS +
@@ -210,30 +163,27 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     }
 
     @Test
-    fun `refresh result returns promptly and leaves a durable per-widget clear`() = runTest {
-        val testDispatcher = StandardTestDispatcher(testScheduler)
-        receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
-        val targetDay = LocalDate.now().plusDays(7)
-        seedMissingHourlyScenario(targetDay)
-        val delayedClear = slot<OneTimeWorkRequest>()
+    fun `the end-of-data result leaves a durable per-widget clear`() = runTest {
+        receiver.scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val targetDay = LocalDate.now().plusDays(5)
+        seedGoogleRoutine(targetDay)
+        receiver.onReceive(context, dayClickIntent(targetDay))
+        advanceUntilIdle()
+        val delayedClear = mutableListOf<OneTimeWorkRequest>()
         every {
             mockWorkManager.enqueueUniqueWork(
                 eq(WidgetWorkScheduler.delayedUiWorkName(widgetId)),
-                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
+                any<ExistingWorkPolicy>(),
                 capture(delayedClear),
             )
         } returns mockk()
 
-        receiver.onReceive(context, refreshCompleteIntent(targetDay))
-        advanceUntilIdle()
+        WidgetDayClickCoordinator.completeOnDemand(context, widgetId, targetDay.toString(), lat, lon)
 
         assertEquals(
             WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS +
                 WidgetTransientMessagePolicy.CLEAR_BUFFER_MS,
-            delayedClear.captured.workSpec.initialDelay,
-        )
-        assertTrue(
-            db.appLogDao().getLogsByTag("CLICK_WATCHDOG", 10).isEmpty(),
+            delayedClear.last().workSpec.initialDelay,
         )
     }
 
@@ -263,12 +213,13 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         }
     }
 
-    private fun noHourlyFollowUps(): List<OneTimeWorkRequest> {
+    private fun onDemandRequests(): List<Pair<String, OneTimeWorkRequest>> {
+        val names = mutableListOf<String>()
         val requests = mutableListOf<OneTimeWorkRequest>()
         verify(atLeast = 0) {
-            mockWorkManager.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), capture(requests))
+            mockWorkManager.enqueueUniqueWork(capture(names), any<ExistingWorkPolicy>(), capture(requests))
         }
-        return requests.filter { it.workSpec.input.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE) != null }
+        return names.zip(requests).filter { it.first.startsWith("hourly_on_demand_") }
     }
 
     @Test
@@ -284,9 +235,9 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         val message = stateManager.getActiveTransientMessage(widgetId)
         assertTrue("$message", message!!.contains("Fetching hourly forecast for"))
         assertEquals(ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
-        val followUp = noHourlyFollowUps().single()
-        assertEquals(targetDay.toString(), followUp.workSpec.input.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE))
-        assertEquals(WeatherSource.GOOGLE_WEATHER.id, followUp.workSpec.input.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE))
+        val (_, request) = onDemandRequests().single()
+        assertEquals(targetDay.toString(), HourlyOnDemandWorker.dateOf(request))
+        assertEquals(WeatherSource.GOOGLE_WEATHER.id, HourlyOnDemandWorker.sourceOf(request))
     }
 
     @Test
@@ -299,7 +250,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         advanceUntilIdle()
 
         assertNull(stateManager.getActiveTransientMessage(widgetId))
-        assertTrue(noHourlyFollowUps().isEmpty())
+        assertTrue(onDemandRequests().isEmpty())
         assertEquals(ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
     }
 
@@ -313,15 +264,6 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         )
     }
 
-    private fun panFollowUps(): List<Pair<String, OneTimeWorkRequest>> {
-        val names = mutableListOf<String>()
-        val requests = mutableListOf<OneTimeWorkRequest>()
-        verify(atLeast = 0) {
-            mockWorkManager.enqueueUniqueWork(capture(names), any<ExistingWorkPolicy>(), capture(requests))
-        }
-        return names.zip(requests).filter { it.first.startsWith("no_hourly_pan_") }
-    }
-
     @Test
     fun `panning onto a Google day past its stored hours fetches it after the settle`() = runTest {
         val targetDay = LocalDate.now().plusDays(5)
@@ -332,11 +274,11 @@ class WeatherWidgetProviderNoHourlyRoboTest {
 
         val message = stateManager.getActiveTransientMessage(widgetId)
         assertTrue("$message", message!!.contains("Fetching hourly forecast for"))
-        val (name, request) = panFollowUps().single()
-        assertEquals("no_hourly_pan_$widgetId", name)
-        assertEquals(com.weatherwidget.data.remote.HourlyOnDemand.PAN_SETTLE_MS, request.workSpec.initialDelay)
-        assertEquals(targetDay.toString(), request.workSpec.input.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE))
-        assertEquals(WeatherSource.GOOGLE_WEATHER.id, request.workSpec.input.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE))
+        val (name, request) = onDemandRequests().single()
+        assertEquals(HourlyOnDemandWorker.uniqueName(widgetId), name)
+        assertEquals(com.weatherwidget.data.remote.HourlyOnDemand.PAN_SETTLE_MS, HourlyOnDemandWorker.settleMsOf(request))
+        assertEquals(targetDay.toString(), HourlyOnDemandWorker.dateOf(request))
+        assertEquals(WeatherSource.GOOGLE_WEATHER.id, HourlyOnDemandWorker.sourceOf(request))
     }
 
     @Test
@@ -355,7 +297,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
 
         val message = stateManager.getActiveTransientMessage(widgetId)
         assertTrue("$message", message!!.contains(NoHourlyDayClickCoordinator.formatDayLabel(nextDay.toString())))
-        assertEquals(nextDay.toString(), panFollowUps().single().second.workSpec.input.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE))
+        assertEquals(nextDay.toString(), HourlyOnDemandWorker.dateOf(onDemandRequests().single().second))
     }
 
     @Test
@@ -367,7 +309,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         WidgetDayClickCoordinator.afterHourlyNavigate(context, widgetId)
 
         assertNull(stateManager.getActiveTransientMessage(widgetId))
-        assertTrue(panFollowUps().isEmpty())
+        assertTrue(onDemandRequests().isEmpty())
     }
 
     @Test
@@ -381,7 +323,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         val message = stateManager.getActiveTransientMessage(widgetId)
         assertTrue("$message", message!!.startsWith("No hourly forecast for"))
         assertTrue("$message", message.contains("data ends"))
-        assertTrue(panFollowUps().isEmpty())
+        assertTrue(onDemandRequests().isEmpty())
     }
 
     @Test
@@ -394,8 +336,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         WidgetDayClickCoordinator.afterHourlyNavigate(context, widgetId)
         val banner = stateManager.getActiveTransientMessage(widgetId)
 
-        receiver.onReceive(context, refreshCompleteIntent(olderDay))
-        advanceUntilIdle()
+        WidgetDayClickCoordinator.completeOnDemand(context, widgetId, olderDay.toString(), lat, lon)
 
         assertEquals(banner, stateManager.getActiveTransientMessage(widgetId))
     }
@@ -456,12 +397,4 @@ class WeatherWidgetProviderNoHourlyRoboTest {
             putExtra(ForecastHistoryActivity.EXTRA_SOURCE, source.displayName)
         }
 
-    private fun refreshCompleteIntent(targetDay: LocalDate): Intent =
-        Intent(context, WidgetActionReceiver::class.java).apply {
-            action = WidgetActions.ACTION_NO_HOURLY_REFRESH_COMPLETE
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-            putExtra("date", targetDay.toString())
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-        }
 }

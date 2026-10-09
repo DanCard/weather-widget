@@ -154,6 +154,29 @@ class GoogleWeatherFetchIntegrationTest {
         assertTrue(hourPages.all { it.url.parameters["hours"] == "120" })
     }
 
+    /**
+     * A tapped or panned-to day (plans/261009-on-demand-hourly-shared-single-source-fetch.md): the
+     * source's own fetch-and-save, nothing else — its hours stored live, its daily rows saved, no
+     * history call, no other source.
+     */
+    @Test
+    fun `an on-demand fetch runs that source alone, asks the day's horizon, and stores it`() = runTest {
+        val answered = repository().fetchSourceOnDemand(
+            lat,
+            lon,
+            WeatherSource.GOOGLE_WEATHER,
+            com.weatherwidget.data.remote.HourlyOnDemand.Request(source, 120),
+        )
+
+        assertTrue(answered)
+        assertTrue("only Google", requests.all { it.url.host == "weather.googleapis.com" })
+        assertEquals("no history call on demand", 0, requests.count { it.url.encodedPath.endsWith("history/hours:lookup") })
+        val hourPages = requests.filter { it.url.encodedPath.endsWith("forecast/hours:lookup") }
+        assertTrue(hourPages.isNotEmpty() && hourPages.all { it.url.parameters["hours"] == "120" })
+        assertTrue("hours stored live", count("SELECT COUNT(*) FROM hourly_forecasts WHERE source = ?", source) >= 60)
+        assertTrue("daily rows saved", count("SELECT COUNT(DISTINCT targetDate) FROM forecasts WHERE source = ?", source) >= 7)
+    }
+
     /** targetDate -> (day, night) precip on the newest batch of Google daily rows. */
     private fun storedPeriods(): Map<Long, Pair<Int?, Int?>> =
         db.openHelper.readableDatabase.query(

@@ -32,13 +32,48 @@ class HourlyOnDemandTest {
     private val routine = (0 until 72).map { row(now - Math.floorMod(now, hour) + it * hour) }
     private val monday = today.plusDays(3)
 
-    @Test
-    fun `only Google extends on demand`() {
-        assertTrue(HourlyOnDemand.extendsHourly(google))
-        WeatherSource.entries.filter { it != WeatherSource.GOOGLE_WEATHER }.forEach {
-            assertFalse(it.id, HourlyOnDemand.extendsHourly(it.id))
+    private val nws = WeatherSource.NWS.id
+
+    private fun nwsRows(throughHoursAhead: Int, fetchedAt: Long = now) =
+        (0..throughHoursAhead).map {
+            HourlyForecast(now - Math.floorMod(now, hour) + it * hour, 60f, "Clear", source = nws, fetchedAt = fetchedAt)
         }
-        assertNull(HourlyOnDemand.hoursToCover(WeatherSource.NWS.id, today.plusDays(6), zone, now, emptyList()))
+
+    @Test
+    fun `the horizon table, not a source check, says who has an on-demand range`() {
+        val horizon = HourlyHorizons.of(google)
+        assertEquals(72, horizon.routineHours)
+        assertEquals(HourlyOnDemand.REACH_HOURS, horizon.maxHours)
+        assertTrue(horizon.costsPerExtraDay && horizon.hasOnDemandRange)
+        WeatherSource.entries.filter { it != WeatherSource.GOOGLE_WEATHER }.forEach {
+            val h = HourlyHorizons.of(it.id)
+            assertFalse(it.id, h.hasOnDemandRange || h.costsPerExtraDay)
+            assertTrue(it.id, h.maxHours <= HourlyOnDemand.REACH_HOURS)
+        }
+        assertEquals(156, HourlyHorizons.of(nws).maxHours)
+    }
+
+    @Test
+    fun `any source fetches a day it has nothing stored for`() {
+        // Thu Oct 15 starts 140.6 h out, inside NWS's 156 h.
+        assertEquals(156, HourlyOnDemand.hoursToCover(nws, today.plusDays(6), zone, now, emptyList()))
+    }
+
+    @Test
+    fun `a source fetched recently whose data simply ends sooner is not fetched again`() {
+        // Stored to 150 h, fresh: the day's wanted end (the 156 h edge) is not covered, but another
+        // fetch would bring the same thing.
+        assertNull(HourlyOnDemand.hoursToCover(nws, today.plusDays(6), zone, now, nwsRows(150)))
+        assertEquals(
+            "13 h old: refetch",
+            156,
+            HourlyOnDemand.hoursToCover(nws, today.plusDays(6), zone, now, nwsRows(150, fetchedAt = now - 13 * hour)),
+        )
+    }
+
+    @Test
+    fun `a day starting past the source's own horizon fetches nothing`() {
+        assertNull("Fri Oct 16 starts 164.6 h out, past NWS's 156 h", HourlyOnDemand.hoursToCover(nws, today.plusDays(7), zone, now, emptyList()))
     }
 
     @Test
@@ -47,7 +82,8 @@ class HourlyOnDemandTest {
         assertNull(HourlyOnDemand.extensionStartMs(WeatherSource.OPEN_METEO.id, now))
         assertEquals(72, HourlyOnDemand.hoursAhead(google, null))
         assertEquals(120, HourlyOnDemand.hoursAhead(google, HourlyOnDemand.Request(google, 120)))
-        assertEquals(72, HourlyOnDemand.hoursAhead(google, HourlyOnDemand.Request(WeatherSource.NWS.id, 120)))
+        assertEquals(72, HourlyOnDemand.hoursAhead(google, HourlyOnDemand.Request(nws, 120)))
+        assertEquals("NWS stores its whole horizon", 156, HourlyOnDemand.hoursAhead(nws, null))
     }
 
     @Test
@@ -113,19 +149,6 @@ class HourlyOnDemandTest {
         assertEquals(HourlyOnDemand.REACH_HOURS, HourlyOnDemand.hoursToCover(google, today.plusDays(10), zone, now, routine))
     }
 
-    @Test
-    fun `a tapped date's forced sync asks Google for that day, nothing else`() {
-        assertEquals(
-            HourlyOnDemand.Request(google, 165),
-            HourlyOnDemand.requestFor(google, "2026-10-15", zone, now),
-        )
-        assertNull("other sources keep their whole horizon", HourlyOnDemand.requestFor(WeatherSource.NWS.id, "2026-10-15", zone, now))
-        assertNull("no tapped date", HourlyOnDemand.requestFor(google, null, zone, now))
-        assertNull("no target source", HourlyOnDemand.requestFor(null, "2026-10-15", zone, now))
-        assertNull("garbage date", HourlyOnDemand.requestFor(google, "next thursday", zone, now))
-        assertNull("past day", HourlyOnDemand.requestFor(google, "2026-10-08", zone, now))
-    }
-
     private fun window(fromDay: LocalDate, fromHour: Int, toDay: LocalDate, toHour: Int) =
         ms(fromDay, fromHour) to ms(toDay, toHour)
 
@@ -165,10 +188,18 @@ class HourlyOnDemandTest {
     }
 
     @Test
-    fun `NWS past its horizon says where it ends, for the first empty day in view`() {
+    fun `NWS whose fresh data ends before a day in view says where it ends`() {
         val wednesday = today.plusDays(5)
-        val action = pan(WeatherSource.NWS.id, window(wednesday, 15, wednesday.plusDays(1), 7), emptyList()) { it != wednesday.plusDays(1) }
-        assertEquals(HourlyOnDemand.PanAction.NoDataMessage(wednesday.plusDays(1)), action)
+        val thursday = wednesday.plusDays(1)
+        val action = pan(nws, window(wednesday, 15, thursday, 7), nwsRows(140)) { it != thursday }
+        assertEquals(HourlyOnDemand.PanAction.NoDataMessage(thursday), action)
+    }
+
+    @Test
+    fun `NWS with nothing stored for a day in view fetches it`() {
+        val wednesday = today.plusDays(5)
+        val action = pan(nws, window(wednesday, 15, wednesday.plusDays(1), 7), emptyList()) { false }
+        assertEquals(HourlyOnDemand.PanAction.Fetch(wednesday.plusDays(1), 156), action)
     }
 
     @Test

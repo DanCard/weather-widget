@@ -44,7 +44,9 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   past the stored hourly opens its hourly view at once (empty) under "Fetching hourly forecast for
   {day}…"; for Google past 72 h that tap fetches `forecast/hours` deep enough to cover the day (one
   billed page per 24 h; next week ≈ 7; reach 240 h, which is also how far both platforms load hourly),
-  fresh for 12 h — `:shared` `HourlyOnDemand`. Hourly stays 72 h
+  fresh for 12 h — `:shared` `HourlyOnDemand`. Any source whose stored hourly misses a tapped/panned-to
+  day is fetched the same way, alone (per-source reach in `HourlyHorizons`; Android `HourlyOnDemandWorker`,
+  not the full sync — `plans/261009-on-demand-hourly-shared-single-source-fetch.md`). Hourly stays 72 h
   routinely because day/night rain % and the daily icon's noon cloud read it
   (`plans/261009-google-hourly-on-demand-past-72h.md`). Its quotas are per project,
   per Pacific calendar day (429 `window_start_time` = PT midnight, verified 2026-10-07).

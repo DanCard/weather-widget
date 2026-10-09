@@ -222,7 +222,8 @@ internal class ForecastFetchCoordinator(
                     api.getForecast(
                         lat,
                         lon,
-                        includeHistory = googleNeedsHistory(lat, lon),
+                        // An on-demand day needs no elapsed hours; history/hours has a 20/day quota.
+                        includeHistory = fetchContext?.hourlyAhead == null && googleNeedsHistory(lat, lon),
                         storedHours = storedHours,
                         includeHours = includeHours,
                         hoursAhead = HourlyOnDemand.hoursAhead(WeatherSource.GOOGLE_WEATHER.id, fetchContext?.hourlyAhead),
@@ -288,17 +289,7 @@ internal class ForecastFetchCoordinator(
         }.awaitAll()
 
         fetchedBySource.forEach { (source, forecasts) ->
-            forecasts?.let {
-                val nowMs = clock()
-                snapshotStore.saveForecastSnapshot(
-                    withStoredPrecipPeriods(it, latitude, longitude, source.id),
-                    latitude,
-                    longitude,
-                    source.id,
-                    batchFetchedAt = nowMs,
-                    nowMs = nowMs,
-                )
-            }
+            forecasts?.let { saveDailyBatch(it, latitude, longitude, source) }
         }
 
         // NWS daily actuals from a dedicated /stations/{id}/observations pull. Idempotent: only
@@ -307,6 +298,44 @@ internal class ForecastFetchCoordinator(
             runCatching { nwsApiDailyActualsFetcher?.fillMissingIfNeeded(latitude, longitude) }
                 .onFailure { if (it is CancellationException) throw it }
         }
+    }
+
+    /**
+     * One source only: a tapped or panned-to day's on-demand hourly
+     * (`plans/261009-on-demand-hourly-shared-single-source-fetch.md`). The same per-source
+     * fetch-and-save the full sync runs — [fetchContext]'s `hourlyAhead` deepens Google's hours; every
+     * other source's single call returns its whole horizon anyway — and nothing else: no other
+     * source, actuals recompute, repairs or widget paint. True when the source answered.
+     */
+    suspend fun fetchSingleSource(
+        latitude: Double,
+        longitude: Double,
+        source: WeatherSource,
+        fetchContext: ForecastFetchContext,
+    ): Boolean {
+        if (!SourceCoverage.supports(source.id, latitude, longitude)) return false
+        val entry = buildFetchRegistry(fetchContext)[source] ?: return false
+        val forecasts = safeFetch(entry.tag, source, latitude, longitude) { entry.fetch(latitude, longitude) }
+            ?: return false
+        saveDailyBatch(forecasts, latitude, longitude, source)
+        return true
+    }
+
+    private suspend fun saveDailyBatch(
+        forecasts: List<ForecastEntity>,
+        latitude: Double,
+        longitude: Double,
+        source: WeatherSource,
+    ) {
+        val nowMs = clock()
+        snapshotStore.saveForecastSnapshot(
+            withStoredPrecipPeriods(forecasts, latitude, longitude, source.id),
+            latitude,
+            longitude,
+            source.id,
+            batchFetchedAt = nowMs,
+            nowMs = nowMs,
+        )
     }
 
     /**
