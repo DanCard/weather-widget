@@ -77,6 +77,24 @@ class PriorDayForecastTest {
     }
 
     @Test
+    fun `a fetch more than 48h before the cutoff is no pick, and today's fallback skips it too`() {
+        // Pixel 2026-10-09: an Oct 2 fetch (90/74) stood as Oct 9's yesterday's forecast.
+        val weekOld = Row(prev(11) - 6 * 24 * hour, 90f, 74f)
+        val late = Row(prev(20), 69.5f, 56f)
+        assertTrue(select(listOf(weekOld, late)).isEmpty)
+        val today = select(listOf(weekOld, late), fallback = true)
+        assertEquals(69.5f, today.highRow!!.high)
+        assertEquals(56f, today.lowRow!!.low)
+        assertTrue(select(listOf(weekOld), fallback = true).isEmpty)
+    }
+
+    @Test
+    fun `a fetch just inside 48h before the cutoff still counts`() {
+        val row = Row(prev(16) - 47 * hour, 88f, 60f)
+        assertEquals(88f, select(listOf(row)).highRow!!.high)
+    }
+
+    @Test
     fun `fallback is per side`() {
         // Low has a pre-06:00 row; high's only candidates before 16:00 lack a high.
         val rows = listOf(Row(prev(5), null, 55f), Row(prev(20), 82f, 57f))

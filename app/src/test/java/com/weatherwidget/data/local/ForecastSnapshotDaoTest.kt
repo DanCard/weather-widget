@@ -150,27 +150,28 @@ class ForecastSnapshotDaoTest {
     }
 
     @Test
-    fun `getLatestForecastsInRangeForSources skips latest batch with null lowTemp and returns older usable batch`() = runTest {
-        // Regression guard: NWS evening forecast batches drop lowTemp after the day's low
-        // has passed. The deduped query must skip null-pair rows so callers receive a
-        // usable row (rather than the most-recent-but-unusable one). On Samsung this bug
-        // caused past Wed/Thu yellow forecast bars to silently fall back to climate normals.
+    fun `getLatestForecastsInRangeForSources returns the newest batch even when its lowTemp is null`() = runTest {
+        // NWS / Open-Meteo drop today's low once it has passed. Skipping that row (2026-05-09) let a
+        // complete row of any age win: a week-old 90/74 drew over the day's 69.5 (2026-10-09).
+        // Today's column completes a partial row via PartialForecastDays.todayRow (age-bounded).
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
             batchFetchedAt = 2000L, fetchedAt = 2000L, highTemp = 72f, lowTemp = null))
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
-            batchFetchedAt = 1000L, fetchedAt = 1000L, highTemp = 72f, lowTemp = 53f))
+            batchFetchedAt = 1000L, fetchedAt = 1000L, highTemp = 90f, lowTemp = 74f))
 
         val rows = dao.getLatestForecastsInRangeForSources(
             dateEpoch("2026-05-06"), dateEpoch("2026-05-06"),
             LAT, LON, listOf("NWS"))
 
         assertEquals(1, rows.size)
-        assertEquals("Must skip null-low latest batch and return older usable batch",
-            53f, rows[0].lowTemp)
+        assertEquals(72f, rows[0].highTemp)
+        assertEquals(null, rows[0].lowTemp)
     }
 
     @Test
-    fun `getLatestForecastsInRange skips latest batch with null highTemp or lowTemp`() = runTest {
+    fun `getLatestForecastsInRange returns the newest one-sided batch and skips rows with no temps`() = runTest {
+        dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
+            batchFetchedAt = 3000L, fetchedAt = 3000L, highTemp = null, lowTemp = null))
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
             batchFetchedAt = 2000L, fetchedAt = 2000L, highTemp = null, lowTemp = 53f))
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
@@ -180,7 +181,7 @@ class ForecastSnapshotDaoTest {
             dateEpoch("2026-05-06"), dateEpoch("2026-05-06"), LAT, LON)
 
         assertEquals(1, rows.size)
-        assertEquals(72f, rows[0].highTemp)
+        assertEquals(2000L, rows[0].batchFetchedAt)
     }
 
     @Test

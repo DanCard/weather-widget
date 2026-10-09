@@ -289,7 +289,9 @@ object DailyHistoryMaintenance {
      *
      * Same inputs and cadence as [planSettledForecastOverlays]; idempotent, so it also backfills
      * every retained past row. Monotone: a side with no pre-cutoff fetch keeps its value (no
-     * fallback — a forecast fetched after its anchor is not "yesterday's").
+     * fallback — a forecast fetched after its anchor is not "yesterday's"), except a value that
+     * matches a still-retained fetch older than [PriorDayForecast.MAX_PICK_AGE_HOURS] before its
+     * anchor: that was frozen before the age bound existed and is cleared (2026-10-09).
      */
     fun planPriorForecasts(
         forecastRows: List<ForecastHistoryRow>,
@@ -314,9 +316,19 @@ object DailyHistoryMaintenance {
                 fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
                 fallbackToEarliest = false,
             )
+            fun tooOldFrozen(frozen: Float?, cutoffMs: Long, valueOf: (ForecastHistoryRow) -> Float?): Boolean =
+                frozen != null && candidates.any {
+                    valueOf(it) == frozen && PriorDayForecast.isTooOld(it.fetchedAt, cutoffMs)
+                }
             val updated = history.copy(
-                priorForecastHighTemp = pick.highRow?.highTemp ?: history.priorForecastHighTemp,
-                priorForecastLowTemp = pick.lowRow?.lowTemp ?: history.priorForecastLowTemp,
+                priorForecastHighTemp = pick.highRow?.highTemp
+                    ?: history.priorForecastHighTemp.takeUnless {
+                        tooOldFrozen(it, PriorDayForecast.highCutoffMs(date, zoneId)) { r -> r.highTemp }
+                    },
+                priorForecastLowTemp = pick.lowRow?.lowTemp
+                    ?: history.priorForecastLowTemp.takeUnless {
+                        tooOldFrozen(it, PriorDayForecast.lowCutoffMs(date, zoneId)) { r -> r.lowTemp }
+                    },
             )
             if (updated.priorForecastHighTemp == history.priorForecastHighTemp &&
                 updated.priorForecastLowTemp == history.priorForecastLowTemp

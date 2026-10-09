@@ -220,8 +220,9 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 = 0.8, no bulb, no panel): left = "yesterday's forecast", centre = actual, right = the settled
 forecast (`ForecastOverlaySettle`). The left bar on every column (today included) is
 `PriorDayForecast`: low from the newest fetch before 06:00 the previous day, high from the newest
-before 16:00 the previous day; frozen for history into `daily_history.priorForecastHigh/LowTemp`
-(Room v73 / desktop v26). See `plans/261005-past-days-triple-bar-prior-forecast-at-cutoffs.md`. When a past day
+before 16:00 the previous day, and no more than 48 h before that anchor
+(`PriorDayForecast.MAX_PICK_AGE_HOURS`; a week-old fetch had stood in); frozen for history into
+`daily_history.priorForecastHigh/LowTemp` (Room v73 / desktop v26). See `plans/261005-past-days-triple-bar-prior-forecast-at-cutoffs.md`. When a past day
 has no real value for a side, the bar draws **dashed** from a fallback: left = the earliest row fetched
 after the anchor; right = the source's post-cutoff value (`forecasts.hindcastHigh/LowTemp`, Room v74 /
 desktop v27, never read as a forecast), then the day's hourly-forecast range. Display-only; not frozen

@@ -42,6 +42,20 @@ class PartialForecastDaysTest {
     }
 
     @Test
+    fun `today row - a complete stored row more than a day older than the newest does not replace it`() {
+        // 2026-10-09 Pixel: the site's only complete Open-Meteo row for Oct 9 was fetched Oct 2
+        // (90/74); that day's fetch said 69.5 with no low. The week-old row drew as today's forecast.
+        val day = 86_400_000L
+        val oct2 = Row(90f, 74f, 0)
+        val oct9 = Row(69.5f, null, 7 * day)
+        assertEquals(oct9, todayRow(oct9, listOf(oct2, oct9)))
+        assertEquals(oct9, todayRow(null, listOf(oct2, oct9)))
+        // Within the window the morning's complete row still fills the evening's missing low.
+        val morning = Row(70f, 56f, 7 * day - 10 * 3_600_000L)
+        assertEquals(morning, todayRow(oct9, listOf(oct2, morning, oct9)))
+    }
+
+    @Test
     fun `today row - a batch with no row for today still finds the stored complete row`() {
         // Silurian after 17:00 PDT: the batch starts at tomorrow. Desktop drew the climate normal here.
         assertEquals(

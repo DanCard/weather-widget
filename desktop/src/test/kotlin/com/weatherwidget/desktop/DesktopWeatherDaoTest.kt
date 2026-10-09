@@ -216,7 +216,8 @@ class DesktopWeatherDaoTest {
             DailyForecast(date = today, highTemp = 91f, lowTemp = 62f, condition = "Sunny"),
             DailyForecast(date = tomorrow, highTemp = 87f, lowTemp = 60f, condition = "Sunny"),
         ), nowMs = earlyMorningMs())
-        setForecastBatchStamp(1000L)
+        // Same morning: within PartialForecastDays.COMPLETE_REPLACEMENT_MAX_AGE_MS of the evening fetch.
+        setForecastBatchStamp(earlyMorningMs())
 
         // The evening fetch: today's low is gone.
         dao.upsertForecasts(lat, lon, source, listOf(
@@ -229,6 +230,32 @@ class DesktopWeatherDaoTest {
         assertEquals(62f, days.getValue(today).lowTemp)
         assertEquals(87f, days.getValue(tomorrow).highTemp)
         assertEquals(60f, days.getValue(tomorrow).lowTemp)
+    }
+
+    /**
+     * 2026-10-09 Pixel: the only complete row for today at the site was a week old (90/74) and
+     * replaced that day's 69.5. A complete row more than a day older than the newest is no
+     * stand-in; the fresh partial row stays and the column fills its low from hourly.
+     */
+    @Test
+    fun `getDailyForecasts keeps a partial today over a week-old complete forecast`() {
+        val lat = 37.0
+        val lon = -122.0
+        val source = "OPEN_METEO"
+        val today = LocalDate.now().toString()
+
+        dao.upsertForecasts(lat, lon, source, listOf(
+            DailyForecast(date = today, highTemp = 90f, lowTemp = 74f, condition = "Sunny"),
+        ), nowMs = earlyMorningMs() - 7 * 86_400_000L)
+        setForecastBatchStamp(earlyMorningMs() - 7 * 86_400_000L)
+
+        dao.upsertForecasts(lat, lon, source, listOf(
+            DailyForecast(date = today, highTemp = 69.5f, lowTemp = null, condition = "Overcast"),
+        ), nowMs = earlyMorningMs() + 60_000L)
+
+        val day = dao.getDailyForecasts(lat, lon, source).associateBy { it.date }.getValue(today)
+        assertEquals(69.5f, day.highTemp)
+        assertNull(day.lowTemp)
     }
 
     @Test

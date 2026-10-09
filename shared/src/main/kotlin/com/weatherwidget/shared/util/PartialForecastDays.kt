@@ -13,13 +13,30 @@ import java.time.LocalDate
  */
 object PartialForecastDays {
 
-    /** Today's partial row is replaced by the newest stored row for the day that has both values. */
+    /**
+     * How far behind the newest stored row a complete row may be and still stand in for today's
+     * partial one. NWS drops today's low in the evening, so that morning's complete row (hours old)
+     * is the replacement meant here. Without a bound a week-old row won: a site first fetched on
+     * Oct 2 drew that fetch's 90/74 for Oct 9 over the 69.5 fetched that day (2026-10-09).
+     */
+    const val COMPLETE_REPLACEMENT_MAX_AGE_MS = 24L * 3_600_000L
+
+    /**
+     * Today's partial row is replaced by the newest stored row for the day that has both values,
+     * when that row is no more than [COMPLETE_REPLACEMENT_MAX_AGE_MS] older than the newest stored row.
+     */
     fun <T> completeReplacement(
         candidates: List<T>,
         high: (T) -> Float?,
         low: (T) -> Float?,
         fetchedAt: (T) -> Long,
-    ): T? = candidates.filter { high(it) != null && low(it) != null }.maxByOrNull(fetchedAt)
+    ): T? {
+        val newestMs = candidates.maxOfOrNull(fetchedAt) ?: return null
+        return candidates
+            .filter { high(it) != null && low(it) != null }
+            .filter { newestMs - fetchedAt(it) <= COMPLETE_REPLACEMENT_MAX_AGE_MS }
+            .maxByOrNull(fetchedAt)
+    }
 
     /**
      * The row that stands for today's forecast, shared by Android (`DailyViewLogic`) and desktop
@@ -28,7 +45,8 @@ object PartialForecastDays {
      * its evening batches skip local today. [storedRows] are the display source's stored rows for
      * today at this site. In order:
      * 1. [batchRow] when it has both values;
-     * 2. the newest stored row with both (NWS stops reporting today's low in the evening);
+     * 2. the newest stored row with both (NWS stops reporting today's low in the evening), when
+     *    fetched within [COMPLETE_REPLACEMENT_MAX_AGE_MS] of the newest stored row;
      * 3. the newest one-sided row, [batchRow] first (the column fills the other side from hourly);
      * 4. null, so the climate normal stays the last resort.
      * Desktop once read only the newest batch and drew the normal for Silurian's today

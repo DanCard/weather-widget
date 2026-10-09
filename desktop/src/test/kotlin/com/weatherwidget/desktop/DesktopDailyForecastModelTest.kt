@@ -346,9 +346,13 @@ settings = DesktopSettings(weatherSource = "NWS"),
             now = now,
         ).days
 
-        val flagged = build(snapshotAgeHours = 150, borrowedKm = 460.0)
+        // 50 h before 07:00 = 35 h before the 16:00 anchor: past STALE_SLACK_HOURS, inside MAX_PICK_AGE_HOURS.
+        val flagged = build(snapshotAgeHours = 50, borrowedKm = 460.0)
         assertTrue(flagged.first { it.date == LocalDate.parse("2026-06-02") }.actualsFromOtherSite)
         assertTrue(flagged.first { it.isToday }.snapshotIsStale)
+
+        // A week-old fetch is no "yesterday's forecast" at all (2026-10-09: an Oct 2 90/74 drew for Oct 9).
+        assertEquals(null, build(snapshotAgeHours = 150, borrowedKm = null).first { it.isToday }.snapshotHigh)
 
         val plain = build(snapshotAgeHours = 30, borrowedKm = null)
         assertTrue(!plain.first { it.date == LocalDate.parse("2026-06-02") }.actualsFromOtherSite)

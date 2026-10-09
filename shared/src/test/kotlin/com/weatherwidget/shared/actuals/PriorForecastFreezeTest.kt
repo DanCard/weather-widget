@@ -84,6 +84,25 @@ class PriorForecastFreezeTest {
     }
 
     @Test
+    fun `a week-old fetch is not frozen, and a value frozen from one is cleared`() {
+        // Pixel 2026-10-09: the site's only pre-anchor Open-Meteo fetch for Oct 9 was from Oct 2.
+        val weekOld = fc(prev(11) - 6 * 86_400_000L, 90f, 74f)
+        val sameDay = fc(prev(20), 69.5f, null)
+        assertTrue(plan(listOf(weekOld, sameDay), listOf(history())).rows.isEmpty())
+
+        val row = plan(listOf(weekOld, sameDay), listOf(history(priorHigh = 90f, priorLow = 74f))).rows.single()
+        assertEquals(null, row.priorForecastHighTemp)
+        assertEquals(null, row.priorForecastLowTemp)
+    }
+
+    @Test
+    fun `a frozen value that matches no too-old fetch is kept`() {
+        val weekOld = fc(prev(11) - 6 * 86_400_000L, 90f, 74f)
+        val result = plan(listOf(weekOld), listOf(history(priorHigh = 92f, priorLow = 56f)))
+        assertTrue(result.rows.isEmpty())
+    }
+
+    @Test
     fun `never erases a frozen value when no fetch precedes the anchor`() {
         // Only post-anchor fetches remain (e.g. the earlier rows aged out).
         val result = plan(listOf(fc(prev(20), 95f, 61f)), listOf(history(priorHigh = 92f, priorLow = 56f)))

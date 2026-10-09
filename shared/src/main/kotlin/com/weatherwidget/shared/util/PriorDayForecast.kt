@@ -26,6 +26,18 @@ object PriorDayForecast {
      */
     const val STALE_SLACK_HOURS = 24L
 
+    /**
+     * How long before its cutoff a fetch may have been made and still count as "yesterday's
+     * forecast". Between [STALE_SLACK_HOURS] and this the pick stands but draws dashed; older is no
+     * pick at all. Unbounded, a site first fetched a week earlier froze that week-old 90/74 as
+     * Oct 9's prior forecast (Pixel, 2026-10-09).
+     */
+    const val MAX_PICK_AGE_HOURS = 48L
+
+    /** True when a fetch made at [fetchedAtMs] is too old to stand for the anchor at [cutoffMs]. */
+    fun isTooOld(fetchedAtMs: Long, cutoffMs: Long): Boolean =
+        cutoffMs - fetchedAtMs > MAX_PICK_AGE_HOURS * 3_600_000L
+
     fun lowCutoffMs(date: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Long =
         date.minusDays(1).atTime(SameDayExtremeCutoff.LOW_CUTOFF).atZone(zone).toInstant().toEpochMilli()
 
@@ -44,10 +56,12 @@ object PriorDayForecast {
      * A row is usable for a side when that side is present and the row is not collapsed
      * (high == low, a degenerate row that would draw a zero-height bar).
      *
-     * @param fallbackToEarliest when no usable row precedes a cutoff, take the earliest usable row
-     *   instead. Today's live column does (the user chose showing an old or late row over hiding
-     *   it, 2026-09-25); the frozen history does not — a "yesterday's forecast" fetched after its
-     *   cutoff is not one.
+     * Only rows fetched within [MAX_PICK_AGE_HOURS] before a cutoff compete for it.
+     *
+     * @param fallbackToEarliest when no usable row qualifies for a cutoff, take the earliest usable
+     *   row fetched after it instead. Today's live column does (the user chose showing a late row
+     *   over hiding it, 2026-09-25); the frozen history does not — a "yesterday's forecast" fetched
+     *   after its cutoff is not one. Rows too old to qualify never stand in.
      */
     fun <T> select(
         candidates: List<T>,
@@ -65,8 +79,13 @@ object PriorDayForecast {
         }
         fun side(cutoffMs: Long, valueOf: (T) -> Float?): T? {
             val withValue = usable.filter { valueOf(it) != null }
-            return withValue.filter { fetchedAt(it) < cutoffMs }.maxByOrNull(fetchedAt)
-                ?: if (fallbackToEarliest) withValue.minByOrNull(fetchedAt) else null
+            return withValue.filter { fetchedAt(it) < cutoffMs && !isTooOld(fetchedAt(it), cutoffMs) }
+                .maxByOrNull(fetchedAt)
+                ?: if (fallbackToEarliest) {
+                    withValue.filter { fetchedAt(it) >= cutoffMs }.minByOrNull(fetchedAt)
+                } else {
+                    null
+                }
         }
         return Pick(
             highRow = side(highCutoffMs(date, zone), high),

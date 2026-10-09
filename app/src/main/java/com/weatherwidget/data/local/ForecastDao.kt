@@ -233,6 +233,13 @@ interface ForecastDao {
     ): List<ForecastEntity> =
         getLatestForecastsInRangeBySourceAllSitesRaw(startDate, endDate, lat, lon, source).withPlausibleTemps()
 
+    /**
+     * Newest batch per (date, source, site) with at least one temperature. A one-sided row (NWS /
+     * Open-Meteo drop today's low once it has passed) is still the newest forecast: requiring both
+     * values (2026-05-09) let a complete row of any age win, and a week-old 90/74 drew over that
+     * day's 69.5 on every repaint (2026-10-09). Today's column completes a partial row through
+     * PartialForecastDays.todayRow, which bounds the replacement's age.
+     */
     @Query(
         """
         SELECT * FROM forecasts f1
@@ -240,16 +247,14 @@ interface ForecastDao {
         AND ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
-        AND highTemp IS NOT NULL
-        AND lowTemp IS NOT NULL
+        AND (highTemp IS NOT NULL OR lowTemp IS NOT NULL)
         AND batchFetchedAt = (
             SELECT MAX(batchFetchedAt) FROM forecasts f2
             WHERE f2.targetDate = f1.targetDate
             AND f2.source = f1.source
             AND f2.locationLat = f1.locationLat
             AND f2.locationLon = f1.locationLon
-            AND f2.highTemp IS NOT NULL
-            AND f2.lowTemp IS NOT NULL
+            AND (f2.highTemp IS NOT NULL OR f2.lowTemp IS NOT NULL)
         )
         ORDER BY targetDate ASC
     """,
@@ -277,16 +282,14 @@ interface ForecastDao {
         WHERE ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
-        AND highTemp IS NOT NULL
-        AND lowTemp IS NOT NULL
+        AND (highTemp IS NOT NULL OR lowTemp IS NOT NULL)
         AND batchFetchedAt = (
             SELECT MAX(batchFetchedAt) FROM forecasts f2
             WHERE f2.targetDate = f1.targetDate
             AND f2.source = f1.source
             AND f2.locationLat = f1.locationLat
             AND f2.locationLon = f1.locationLon
-            AND f2.highTemp IS NOT NULL
-            AND f2.lowTemp IS NOT NULL
+            AND (f2.highTemp IS NOT NULL OR f2.lowTemp IS NOT NULL)
         )
         ORDER BY targetDate ASC
     """,
