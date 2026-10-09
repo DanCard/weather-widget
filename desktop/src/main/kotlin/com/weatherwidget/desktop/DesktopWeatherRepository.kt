@@ -399,7 +399,15 @@ class DesktopWeatherRepository(
                 now + HourlyOnDemand.REACH_HOURS * 3_600_000L,
             )
             val hours = HourlyOnDemand.hoursToCover(weatherSource, date, ZoneId.systemDefault(), now, stored)
-                ?: return@withLock false
+            if (hours == null) {
+                weatherDao.log(
+                    tag = "HOURLY_ON_DEMAND",
+                    message = "source=$weatherSource date=$date outcome=covered_no_fetch storedRows=${stored.size} " +
+                        "storedLast=${stored.maxOfOrNull { it.dateTime }}",
+                    level = "INFO",
+                )
+                return@withLock false
+            }
             val fetchStart = System.nanoTime()
             val result = weatherService.fetchForecastAhead(hours)
             val fetchMs = (System.nanoTime() - fetchStart) / 1_000_000

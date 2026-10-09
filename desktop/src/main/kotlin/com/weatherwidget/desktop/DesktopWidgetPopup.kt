@@ -66,6 +66,7 @@ internal fun WidgetPopup(
     onNeedHistory: (Int) -> Unit = {},
     onNeedHourlyRefresh: (date: LocalDate, onComplete: (List<HourlyForecast>) -> Unit) -> Unit = { _, _ -> },
     onDayClickAudit: (String) -> Unit = {},
+    onHourlyAudit: (tag: String, message: String) -> Unit = { _, _ -> },
     transientMessage: String? = null,
     currentTempFetchError: String? = null,
     currentTempFetchPill: DesktopFailurePill? = null,
@@ -134,12 +135,24 @@ internal fun WidgetPopup(
                     // A day tap or a pan settling on a day Google has not covered: fetch that day
                     // under the "Fetching…" banner (HourlyOnDemand); the banner clears when its hours
                     // arrive, else says where the data ends.
-                    val startHourlyFetch: (LocalDate) -> Unit = { date ->
+                    val startHourlyFetch: (LocalDate, String) -> Unit = { date, trigger ->
                         val dayLabel = NoHourlyChecker.formatDayLabel(date)
                         noHourlyMessage = NoHourlyChecker.buildPendingMessage(dayLabel)
                         noHourlyFetching = true
+                        val shownAt = System.currentTimeMillis()
+                        onHourlyAudit(
+                            "HOURLY_FETCH_BANNER",
+                            "action=shown date=$date trigger=$trigger source=${config.displaySource}",
+                        )
                         onNeedHourlyRefresh(date) { newHourly ->
-                            noHourlyMessage = if (NoHourlyChecker.hasHourlyForDay(newHourly, date, hourlySourceIds)) {
+                            val hasDay = NoHourlyChecker.hasHourlyForDay(newHourly, date, hourlySourceIds)
+                            onHourlyAudit(
+                                "HOURLY_FETCH_BANNER",
+                                "action=${if (hasDay) "cleared" else "no_data"} date=$date trigger=$trigger " +
+                                    "source=${config.displaySource} shownMs=${System.currentTimeMillis() - shownAt} " +
+                                    "rowsBySource=${newHourly.groupingBy { it.source }.eachCount()}",
+                            )
+                            noHourlyMessage = if (hasDay) {
                                 null
                             } else {
                                 NoHourlyChecker.buildResultMessage(
@@ -243,8 +256,18 @@ internal fun WidgetPopup(
                                     System.currentTimeMillis(),
                                     hourly.filter { it.source == null || it.source == config.displaySource },
                                 ) { day -> NoHourlyChecker.hasHourlyForDay(hourly, day, hourlySourceIds) }
+                                if (action != HourlyOnDemand.PanAction.Nothing) {
+                                    // Which source's rows the decision saw: right after a source switch the
+                                    // snapshot can still hold the previous source's hourly.
+                                    onHourlyAudit(
+                                        "HOURLY_PAN_CHECK",
+                                        "action=$action displaySource=${config.displaySource} " +
+                                            "days=$panFirstDay..$panLastDay rowsTotal=${hourly.size} " +
+                                            "rowsBySource=${hourly.groupingBy { it.source }.eachCount()}",
+                                    )
+                                }
                                 when (action) {
-                                    is HourlyOnDemand.PanAction.Fetch -> startHourlyFetch(action.date)
+                                    is HourlyOnDemand.PanAction.Fetch -> startHourlyFetch(action.date, "pan")
                                     is HourlyOnDemand.PanAction.NoDataMessage -> showNoHourlyData(action.date, hourly)
                                     HourlyOnDemand.PanAction.Nothing -> Unit
                                 }
@@ -471,7 +494,7 @@ internal fun WidgetPopup(
                                 // The day's hourly view opens either way, empty where data is missing.
                                 onUpdateConfig(nextConfig)
                                 when {
-                                    onDemandHours != null -> startHourlyFetch(clickedDate)
+                                    onDemandHours != null -> startHourlyFetch(clickedDate, "day_tap")
                                     !hasHourly -> showNoHourlyData(clickedDate, snapshot.raw.hourly)
                                     else -> noHourlyMessage = null
                                 }

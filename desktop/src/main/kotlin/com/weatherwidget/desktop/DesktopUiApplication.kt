@@ -336,6 +336,12 @@ internal fun runDesktopUiApplication() = application {
                 historyFetchInFlight = true
                 val oldestBefore = forecast?.let { oldestLoadedMs(it) }
                 historyFetchToast = "Fetching older data…"
+                val shownAt = System.currentTimeMillis()
+                weatherDao.log(
+                    "HISTORY_FETCH_TOAST",
+                    "action=shown neededBackHours=$neededBackHours source=${currentConfig?.displaySource}",
+                    "INFO",
+                )
                 uiScope.launch {
                     try {
                         val fetched = repo.ensureHistory(neededBackHours)
@@ -347,9 +353,16 @@ internal fun runDesktopUiApplication() = application {
                         val oldestAfter = forecast?.let { oldestLoadedMs(it) }
                         val extended = oldestAfter != null && oldestBefore != null && oldestAfter < oldestBefore
                         historyFetchToast = if (extended) null else "Reached end of stored history"
+                        weatherDao.log(
+                            "HISTORY_FETCH_TOAST",
+                            "action=${if (extended) "cleared" else "end_of_history"} fetched=$fetched " +
+                                "neededBackHours=$neededBackHours shownMs=${System.currentTimeMillis() - shownAt}",
+                            "INFO",
+                        )
                     } catch (e: Exception) {
                         Log.e(TAG, "On-demand history fetch failed: ${e.message}")
                         historyFetchToast = "Couldn't load older data"
+                        weatherDao.log("HISTORY_FETCH_TOAST", "action=failed neededBackHours=$neededBackHours ${e.message}", "WARN")
                     } finally {
                         historyFetchInFlight = false
                     }
@@ -1044,6 +1057,7 @@ internal fun runDesktopUiApplication() = application {
                     Log.d("CLICK_DAILY", message)
                     weatherDao.log("CLICK_DAILY", message, "DEBUG")
                 },
+                onHourlyAudit = { tag, message -> weatherDao.log(tag, message, "INFO") },
                 transientMessage = locationBanner?.text ?: historyFetchToast,
                 currentTempFetchError = currentTempFetchError,
                 currentTempFetchPill = currentTempFetchPill,
