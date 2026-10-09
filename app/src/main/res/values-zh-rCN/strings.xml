@@ -217,6 +217,8 @@
     <string name="bug_report_collecting_diagnostics">正在收集诊断数据...</string>
     <string name="view_icon_gallery">查看图标库</string>
     <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_data_ends">没有 %1$s 的逐小时预报 — 数据截至 %2$s</string>
+    <string name="widget_no_hourly_data">没有 %1$s 的逐小时预报</string>
     <string name="widget_no_hourly_pending">正在获取 %1$s 的逐小时预报…</string>
     <string name="widget_no_hourly_result_still_missing">刷新结果：未能获取 %1$s 的新逐小时温度数据。数据截至 %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">刷新结果：未能获取 %1$s 的新逐小时温度数据。</string>

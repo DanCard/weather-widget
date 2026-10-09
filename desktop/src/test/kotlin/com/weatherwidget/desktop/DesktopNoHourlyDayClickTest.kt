@@ -78,8 +78,8 @@ class DesktopNoHourlyDayClickTest {
     private var fetchedDate: LocalDate? = null
     private var completeFetch: ((List<HourlyForecast>) -> Unit)? = null
 
-    private fun render(source: WeatherSource, stored: List<HourlyForecast>) {
-        shownConfig = config(source)
+    private fun render(source: WeatherSource, stored: List<HourlyForecast>, tap: Boolean = true, initial: DesktopConfig? = null) {
+        shownConfig = initial ?: config(source)
         composeTestRule.setContent {
             // 600dp wide → 9 day columns (offsets -1..+7); short height → text mode (no graph),
             // so each day renders as a clickable semantic node tagged "day_tab_<date>".
@@ -102,8 +102,52 @@ class DesktopNoHourlyDayClickTest {
                 )
             }
         }
-        composeTestRule.onNodeWithTag("day_tab_$targetDate").performClick()
+        if (tap) {
+            composeTestRule.onNodeWithTag("day_tab_$targetDate").performClick()
+            composeTestRule.waitForIdle()
+        }
+    }
+
+    /** The hourly view resting on [date]'s noon, reached by ‹ ›, a drag or reopening — no tap. */
+    private fun renderHourlyAt(source: WeatherSource, stored: List<HourlyForecast>, date: LocalDate) {
+        val hoursToNoon = java.time.Duration.between(java.time.LocalDateTime.now(), date.atTime(12, 0)).toHours().toInt()
+        render(source, stored, tap = false, initial = config(source).copy(viewMode = ViewMode.TEMPERATURE, hourlyOffset = hoursToNoon))
+    }
+
+    private fun settle() {
+        composeTestRule.mainClock.advanceTimeBy(HourlyOnDemandPanSettleMs + 200)
         composeTestRule.waitForIdle()
+    }
+
+    private val HourlyOnDemandPanSettleMs = com.weatherwidget.data.remote.HourlyOnDemand.PAN_SETTLE_MS
+
+    @Test
+    fun panningOntoAnUncoveredGoogleDayFetchesItOnceSettled() {
+        renderHourlyAt(google, googleToday, targetDate)
+        assertNull("nothing before the view has settled", fetchedDate)
+
+        settle()
+
+        assertEquals(targetDate, fetchedDate)
+        composeTestRule.onNodeWithText("Fetching hourly forecast for", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun panningOntoACoveredDayDoesNothing() {
+        renderHourlyAt(google, googleToday + hourly(google, targetDate to 0, targetDate to 12, targetDate to 23), targetDate)
+        settle()
+
+        assertNull(fetchedDate)
+        composeTestRule.onNodeWithTag("no_hourly_message").assertDoesNotExist()
+    }
+
+    @Test
+    fun panningOntoAnNwsDayPastItsDataSaysWhereItEnds() {
+        renderHourlyAt(WeatherSource.NWS, hourly(WeatherSource.NWS, today to 9, today to 12), targetDate)
+        settle()
+
+        assertNull(fetchedDate)
+        composeTestRule.onNodeWithText("No hourly forecast for", substring = true).assertIsDisplayed()
     }
 
     @Test

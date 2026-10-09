@@ -213,6 +213,8 @@
     <string name="bug_report_error_empty_description">Rédigez une brève description du problème avant d\'envoyer.</string>
     <string name="bug_report_collecting_diagnostics">Collecte des données de diagnostic...</string>
     <string name="view_icon_gallery">Voir la galerie d\'icônes</string>
+    <string name="widget_no_hourly_data_ends">Aucune prévision horaire pour %1$s — les données s\'arrêtent %2$s</string>
+    <string name="widget_no_hourly_data">Aucune prévision horaire pour %1$s</string>
     <string name="widget_no_hourly_pending">Récupération des prévisions horaires pour %1$s…</string>
     <string name="widget_no_hourly_result_still_missing">Résultat de l\'actualisation : aucune nouvelle donnée horaire de température pour %1$s. Les données s\'arrêtent %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Résultat de l\'actualisation : aucune nouvelle donnée horaire de température pour %1$s.</string>

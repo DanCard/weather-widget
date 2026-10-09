@@ -106,6 +106,8 @@ internal object WidgetIntentActionHandler {
                 InteractionRenderDispatcher.graphRequest(request),
                 isLeft,
             )
+            // After the paint: a day with no hourly fetches or says so (HourlyOnDemand.panAction).
+            com.weatherwidget.widget.WidgetDayClickCoordinator.afterHourlyNavigate(context, appWidgetId)
         } else {
             DailyInteractionRenderer.navigate(
                 InteractionRenderDispatcher.dailyRequest(request),

@@ -95,5 +95,38 @@ object HourlyOnDemand {
         return hoursToCover(sourceId, date, zoneId, nowMs, storedHourly = emptyList())?.let { Request(sourceId, it) }
     }
 
+    /** What to do for the day the hourly view has settled on ([panAction]). */
+    sealed interface PanAction {
+        /** Fetch [hours] of hourly forecast (Google) under the "Fetching…" banner. */
+        data class Fetch(val hours: Int) : PanAction
+
+        /** A future day with no hourly that no fetch can help: say where the data ends. */
+        data object NoDataMessage : PanAction
+
+        data object Nothing : PanAction
+    }
+
+    /**
+     * The hourly view settled on [date] (the window centre's day) by ‹ ›, a drag or reopening, not a
+     * day tap (`plans/261009-hourly-pan-into-empty-day-fetches.md`). [storedHourly]: the display
+     * source's rows at the site; [hasHourlyForDay]: whether the day has any hourly to draw
+     * (`NoHourlyChecker.hasHourlyForDay`).
+     */
+    fun panAction(
+        sourceId: String,
+        date: LocalDate,
+        zoneId: ZoneId,
+        nowMs: Long,
+        storedHourly: List<HourlyForecast>,
+        hasHourlyForDay: Boolean,
+    ): PanAction {
+        if (date.isBefore(java.time.Instant.ofEpochMilli(nowMs).atZone(zoneId).toLocalDate())) return PanAction.Nothing
+        hoursToCover(sourceId, date, zoneId, nowMs, storedHourly)?.let { return PanAction.Fetch(it) }
+        return if (hasHourlyForDay) PanAction.Nothing else PanAction.NoDataMessage
+    }
+
+    /** A drag or quick ‹ › run ends in one fetch, for where the view comes to rest. */
+    const val PAN_SETTLE_MS = 1_000L
+
     private fun currentHourMs(nowMs: Long): Long = nowMs - Math.floorMod(nowMs, HOUR_MS)
 }

@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.widget.handlers.NoHourlyDayClickCoordinator
@@ -80,6 +81,12 @@ internal object WidgetDayClickCoordinator {
         val database = WeatherDatabase.getDatabase(context)
         val stateManager = WidgetStateManager(context)
         val dayLabel = NoHourlyDayClickCoordinator.formatDayLabel(date)
+        // A banner for a later day (the user panned on) is not this result's to replace or clear.
+        val active = stateManager.getActiveTransientMessage(appWidgetId)
+        if (active != null && active != NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel)) {
+            database.appLogDao().log("CLICK_DAILY_NO_HOURLY", "phase=result date=$date superseded")
+            return
+        }
         val hasHourly =
             NoHourlyDayClickCoordinator.hasHourlyForTappedDay(
                 database = database,
@@ -136,6 +143,81 @@ internal object WidgetDayClickCoordinator {
                 WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS +
                     WidgetTransientMessagePolicy.CLEAR_BUFFER_MS,
         )
+    }
+
+    /**
+     * The hourly view settled on a day by ‹ › rather than a day tap: the same fetch under the
+     * "Fetching…" banner for a day Google has not covered, or "No hourly forecast for {day} — data
+     * ends …" for a future day no fetch can help ([HourlyOnDemand.panAction];
+     * plans/261009-hourly-pan-into-empty-day-fetches.md). The follow-up settles first, so a run of
+     * taps ends in one fetch.
+     */
+    suspend fun afterHourlyNavigate(context: Context, appWidgetId: Int, nowMs: Long = System.currentTimeMillis()) {
+        val stateManager = WidgetStateManager(context)
+        if (!stateManager.getViewMode(appWidgetId).isGraphMode) return
+        val zone = java.time.ZoneId.systemDefault()
+        val date = java.time.Instant
+            .ofEpochMilli(nowMs + stateManager.getHourlyOffset(appWidgetId) * 3_600_000L)
+            .atZone(zone)
+            .toLocalDate()
+        val dateStr = date.toString()
+        val dayLabel = NoHourlyDayClickCoordinator.formatDayLabel(dateStr)
+        val pendingMessage = NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel)
+        if (stateManager.getActiveTransientMessage(appWidgetId) == pendingMessage) return // already fetching it
+        val database = WeatherDatabase.getDatabase(context)
+        val sourceId = stateManager.getCurrentDisplaySource(appWidgetId).id
+        val latest = database.forecastDao().getLatestWeather() ?: return
+        val stored = NoHourlyDayClickCoordinator.storedHourlyForSource(
+            database, sourceId, latest.locationLat, latest.locationLon, nowMs,
+        )
+        val hasHourly = NoHourlyDayClickCoordinator.hasHourlyForTappedDay(
+            database, stateManager, appWidgetId, dateStr, latest.locationLat, latest.locationLon,
+        )
+        val action = HourlyOnDemand.panAction(sourceId, date, zone, nowMs, stored, hasHourly)
+        database.appLogDao().log("HOURLY_PAN", "widget=$appWidgetId date=$dateStr source=$sourceId action=$action")
+        when (action) {
+            is HourlyOnDemand.PanAction.Fetch -> {
+                stateManager.setTransientMessage(
+                    appWidgetId,
+                    pendingMessage,
+                    nowMs + NoHourlyDayClickCoordinator.PENDING_MESSAGE_MAX_AGE_MS,
+                )
+                WidgetWorkScheduler.enqueueRequiredNoHourlyFollowUp(
+                    context = context,
+                    appWidgetId = appWidgetId,
+                    date = dateStr,
+                    lat = latest.locationLat,
+                    lon = latest.locationLon,
+                    targetSourceId = sourceId,
+                    settleAfterPan = true,
+                )
+                WidgetWorkScheduler.enqueueUiRepaint(context, "show_hourly_pan_pending")
+            }
+            HourlyOnDemand.PanAction.NoDataMessage -> {
+                val message = NoHourlyDayClickCoordinator.buildNoDataMessage(
+                    context,
+                    dayLabel,
+                    NoHourlyDayClickCoordinator.lastHourlyEndLabelForSource(
+                        database, stateManager, appWidgetId, latest.locationLat, latest.locationLon,
+                    ),
+                )
+                stateManager.setTransientMessage(
+                    appWidgetId,
+                    message,
+                    nowMs + WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS,
+                )
+                WidgetWorkScheduler.enqueueUiRepaint(context, "show_hourly_pan_no_data")
+                WidgetWorkScheduler.enqueueDelayedUiRepaint(
+                    context = context,
+                    appWidgetId = appWidgetId,
+                    reason = "clear_hourly_pan_no_data",
+                    initialDelayMs =
+                        WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS +
+                            WidgetTransientMessagePolicy.CLEAR_BUFFER_MS,
+                )
+            }
+            HourlyOnDemand.PanAction.Nothing -> Unit
+        }
     }
 
     fun isValid(intent: Intent): Boolean {

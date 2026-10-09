@@ -161,13 +161,16 @@ object WidgetWorkScheduler {
         lat: Double,
         lon: Double,
         targetSourceId: String,
+        /** Pan: a per-widget name, REPLACE and a settle delay, so a run of ‹ › ends in one fetch. */
+        settleAfterPan: Boolean = false,
     ): OneTimeWorkRequest =
         enqueueFullSync(
             context = context,
-            uniqueName = WORK_NAME_ONE_TIME,
-            policy = ExistingWorkPolicy.APPEND_OR_REPLACE,
+            uniqueName = if (settleAfterPan) "no_hourly_pan_$appWidgetId" else WORK_NAME_ONE_TIME,
+            policy = if (settleAfterPan) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.APPEND_OR_REPLACE,
             forceRefresh = true,
-            reason = "day_click_no_hourly",
+            reason = if (settleAfterPan) "hourly_pan_no_hourly" else "day_click_no_hourly",
+            initialDelayMs = if (settleAfterPan) com.weatherwidget.data.remote.HourlyOnDemand.PAN_SETTLE_MS else 0L,
             targetSourceId = targetSourceId,
             extraInput = {
                 putInt(WeatherWidgetWorker.KEY_NO_HOURLY_WIDGET_ID, appWidgetId)

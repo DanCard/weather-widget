@@ -130,6 +130,35 @@ internal fun WidgetPopup(
                             noHourlyMessage = null
                         }
                     }
+                    val hourlySourceIds = config.effectiveSources.toSet()
+                    // A day tap or a pan settling on a day Google has not covered: fetch that day
+                    // under the "Fetching…" banner (HourlyOnDemand); the banner clears when its hours
+                    // arrive, else says where the data ends.
+                    val startHourlyFetch: (LocalDate) -> Unit = { date ->
+                        val dayLabel = NoHourlyChecker.formatDayLabel(date)
+                        noHourlyMessage = NoHourlyChecker.buildPendingMessage(dayLabel)
+                        noHourlyFetching = true
+                        onNeedHourlyRefresh(date) { newHourly ->
+                            noHourlyMessage = if (NoHourlyChecker.hasHourlyForDay(newHourly, date, hourlySourceIds)) {
+                                null
+                            } else {
+                                NoHourlyChecker.buildResultMessage(
+                                    dayLabel,
+                                    false,
+                                    NoHourlyChecker.lastHourlyEndLabel(newHourly, hourlySourceIds),
+                                )
+                            }
+                            noHourlyFetching = false
+                        }
+                    }
+                    // Nothing can be fetched for this day (the source's whole horizon is stored).
+                    val showNoHourlyData: (LocalDate, List<HourlyForecast>) -> Unit = { date, hourly ->
+                        noHourlyFetching = false
+                        noHourlyMessage = NoHourlyChecker.buildMessage(
+                            NoHourlyChecker.formatDayLabel(date),
+                            NoHourlyChecker.lastHourlyEndLabel(hourly, hourlySourceIds),
+                        )
+                    }
 
                     val isHourly = config.viewMode.isHourly
                     if (isHourly) {
@@ -190,6 +219,33 @@ internal fun WidgetPopup(
                             // Whenever zoom or pan changes, ask for deeper history if the left edge of the
                             // visible window now reaches further back than what's cached. The offset is
                             // negative when panned into the past, so subtracting it extends the reach.
+                            // The view settling on a day by ‹ ›, a drag or reopening, not a day tap: the
+                            // same fetch or message as a tap, once it has rested PAN_SETTLE_MS (a drag
+                            // ends in one fetch). Not keyed on the hourly data, so a fetch that failed is
+                            // not retried on every cache reload (plans/261009-hourly-pan-into-empty-day-fetches.md).
+                            val settledDate = java.time.Instant
+                                .ofEpochMilli(System.currentTimeMillis() + config.hourlyOffset * 3_600_000L)
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                            val latestHourly by rememberUpdatedState(snapshot.raw.hourly)
+                            LaunchedEffect(settledDate, config.displaySource) {
+                                kotlinx.coroutines.delay(HourlyOnDemand.PAN_SETTLE_MS)
+                                if (noHourlyFetching) return@LaunchedEffect
+                                val hourly = latestHourly
+                                val action = HourlyOnDemand.panAction(
+                                    config.displaySource,
+                                    settledDate,
+                                    ZoneId.systemDefault(),
+                                    System.currentTimeMillis(),
+                                    hourly.filter { it.source == null || it.source == config.displaySource },
+                                    NoHourlyChecker.hasHourlyForDay(hourly, settledDate, hourlySourceIds),
+                                )
+                                when (action) {
+                                    is HourlyOnDemand.PanAction.Fetch -> startHourlyFetch(settledDate)
+                                    HourlyOnDemand.PanAction.NoDataMessage -> showNoHourlyData(settledDate, hourly)
+                                    HourlyOnDemand.PanAction.Nothing -> Unit
+                                }
+                            }
                             LaunchedEffect(config.zoomFactor, config.hourlyOffset) {
                                 val earliestVisibleHoursBack =
                                     DesktopGraphUtils.backHoursFor(config.zoomFactor) - config.hourlyOffset
@@ -411,32 +467,10 @@ internal fun WidgetPopup(
                                 )
                                 // The day's hourly view opens either way, empty where data is missing.
                                 onUpdateConfig(nextConfig)
-                                val dayLabel = NoHourlyChecker.formatDayLabel(clickedDate)
-                                if (onDemandHours != null) {
-                                    noHourlyMessage = NoHourlyChecker.buildPendingMessage(dayLabel)
-                                    noHourlyFetching = true
-                                    onNeedHourlyRefresh(clickedDate) { newHourly ->
-                                        val hasData = NoHourlyChecker.hasHourlyForDay(newHourly, clickedDate, visibleSourceIds)
-                                        noHourlyMessage = if (hasData) {
-                                            null
-                                        } else {
-                                            NoHourlyChecker.buildResultMessage(
-                                                dayLabel,
-                                                false,
-                                                NoHourlyChecker.lastHourlyEndLabel(newHourly, visibleSourceIds),
-                                            )
-                                        }
-                                        noHourlyFetching = false
-                                    }
-                                } else if (!hasHourly) {
-                                    // Nothing to fetch: the source's whole horizon is already stored.
-                                    noHourlyFetching = false
-                                    noHourlyMessage = NoHourlyChecker.buildMessage(
-                                        dayLabel,
-                                        NoHourlyChecker.lastHourlyEndLabel(snapshot.raw.hourly, visibleSourceIds),
-                                    )
-                                } else {
-                                    noHourlyMessage = null
+                                when {
+                                    onDemandHours != null -> startHourlyFetch(clickedDate)
+                                    !hasHourly -> showNoHourlyData(clickedDate, snapshot.raw.hourly)
+                                    else -> noHourlyMessage = null
                                 }
                             }
 

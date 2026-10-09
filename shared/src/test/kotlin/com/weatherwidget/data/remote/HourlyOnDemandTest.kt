@@ -125,4 +125,33 @@ class HourlyOnDemandTest {
         assertNull("garbage date", HourlyOnDemand.requestFor(google, "next thursday", zone, now))
         assertNull("past day", HourlyOnDemand.requestFor(google, "2026-10-08", zone, now))
     }
+
+    @Test
+    fun `panning onto a day fetches, says where data ends, or does nothing`() {
+        val thursday = LocalDate.of(2026, 10, 15)
+        assertEquals(
+            HourlyOnDemand.PanAction.Fetch(165),
+            HourlyOnDemand.panAction(google, thursday, zone, now, routine, hasHourlyForDay = false),
+        )
+        assertEquals(
+            "a covered day",
+            HourlyOnDemand.PanAction.Nothing,
+            HourlyOnDemand.panAction(google, today.plusDays(1), zone, now, routine, hasHourlyForDay = true),
+        )
+        assertEquals(
+            "NWS past its horizon: nothing to fetch, so say so",
+            HourlyOnDemand.PanAction.NoDataMessage,
+            HourlyOnDemand.panAction(WeatherSource.NWS.id, thursday, zone, now, emptyList(), hasHourlyForDay = false),
+        )
+        assertEquals(
+            "Google past the 240 h reach",
+            HourlyOnDemand.PanAction.NoDataMessage,
+            HourlyOnDemand.panAction(google, today.plusDays(12), zone, now, routine, hasHourlyForDay = false),
+        )
+        assertEquals(
+            "history is not nagged about",
+            HourlyOnDemand.PanAction.Nothing,
+            HourlyOnDemand.panAction(google, today.minusDays(3), zone, now, routine, hasHourlyForDay = false),
+        )
+    }
 }

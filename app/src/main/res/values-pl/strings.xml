@@ -217,6 +217,8 @@
     <string name="bug_report_collecting_diagnostics">Zbieranie danych diagnostycznych...</string>
     <string name="view_icon_gallery">Pokaż galerię ikon</string>
     <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_data_ends">Brak prognozy godzinowej na %1$s — dane kończą się %2$s</string>
+    <string name="widget_no_hourly_data">Brak prognozy godzinowej na %1$s</string>
     <string name="widget_no_hourly_pending">Pobieranie prognozy godzinowej na %1$s…</string>
     <string name="widget_no_hourly_result_still_missing">Wynik odświeżania: nie udało się pobrać nowych godzinowych danych temperatury dla %1$s. Dane kończą się %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Wynik odświeżania: nie udało się pobrać nowych godzinowych danych temperatury dla %1$s.</string>

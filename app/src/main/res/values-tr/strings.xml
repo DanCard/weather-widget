@@ -217,6 +217,8 @@
     <string name="bug_report_collecting_diagnostics">Tanılama verileri toplanıyor...</string>
     <string name="view_icon_gallery">Simge galerisini görüntüle</string>
     <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_data_ends">%1$s için saatlik tahmin yok — veriler %2$s tarihinde bitiyor</string>
+    <string name="widget_no_hourly_data">%1$s için saatlik tahmin yok</string>
     <string name="widget_no_hourly_pending">%1$s için saatlik tahmin alınıyor…</string>
     <string name="widget_no_hourly_result_still_missing">Yenileme sonucu: %1$s için yeni saatlik sıcaklık verisi alınamadı. Veriler %2$s tarihinde bitiyor</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Yenileme sonucu: %1$s için yeni saatlik sıcaklık verisi alınamadı.</string>

@@ -114,16 +114,34 @@ object NoHourlyDayClickCoordinator {
         val latestWeather = database.forecastDao().getLatestWeather()
         val effectiveLat = if (lat != 0.0) lat else latestWeather?.locationLat ?: return null
         val effectiveLon = if (lon != 0.0) lon else latestWeather?.locationLon ?: return null
-        val stored = database.hourlyForecastDao()
+        val stored = storedHourlyForSource(database, sourceId, effectiveLat, effectiveLon, nowMs)
+        return HourlyOnDemand.hoursToCover(sourceId, date, ZoneId.systemDefault(), nowMs, stored)
+    }
+
+    /** [sourceId]'s hourly rows at the site from the current hour through [HourlyOnDemand.REACH_HOURS]. */
+    suspend fun storedHourlyForSource(
+        database: WeatherDatabase,
+        sourceId: String,
+        lat: Double,
+        lon: Double,
+        nowMs: Long,
+    ): List<com.weatherwidget.data.model.HourlyForecast> =
+        database.hourlyForecastDao()
             .getHourlyForecastsBySource(
                 nowMs - TimeUnit.HOURS.toMillis(1),
                 nowMs + TimeUnit.HOURS.toMillis(HourlyOnDemand.REACH_HOURS.toLong()),
-                effectiveLat,
-                effectiveLon,
+                lat,
+                lon,
                 sourceId,
             ).map { it.toHourlyForecast() }
-        return HourlyOnDemand.hoursToCover(sourceId, date, ZoneId.systemDefault(), nowMs, stored)
-    }
+
+    /** "No hourly forecast for {day} — data ends {end}": a day no fetch can help ([HourlyOnDemand.PanAction.NoDataMessage]). */
+    fun buildNoDataMessage(context: Context, dayLabel: String, endLabel: String?): String =
+        if (endLabel != null) {
+            context.getString(R.string.widget_no_hourly_data_ends, dayLabel, endLabel)
+        } else {
+            context.getString(R.string.widget_no_hourly_data, dayLabel)
+        }
 
     suspend fun lastHourlyEndLabelForSource(
         database: WeatherDatabase,

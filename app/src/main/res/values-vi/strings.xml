@@ -217,6 +217,8 @@
     <string name="bug_report_collecting_diagnostics">Đang thu thập dữ liệu chẩn đoán...</string>
     <string name="view_icon_gallery">Xem thư viện biểu tượng</string>
     <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_data_ends">Không có dự báo theo giờ cho %1$s — dữ liệu kết thúc %2$s</string>
+    <string name="widget_no_hourly_data">Không có dự báo theo giờ cho %1$s</string>
     <string name="widget_no_hourly_pending">Đang tải dự báo theo giờ cho %1$s…</string>
     <string name="widget_no_hourly_result_still_missing">Kết quả làm mới: Không lấy được dữ liệu nhiệt độ theo giờ mới cho %1$s. Dữ liệu kết thúc %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Kết quả làm mới: Không lấy được dữ liệu nhiệt độ theo giờ mới cho %1$s.</string>

@@ -304,6 +304,83 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     }
 
     /** [withFarHourlyRow]: one row at today+6 17:00, the "data ends" point of the NWS cases. */
+    /** The hourly view resting on [day]'s noon, as ‹ › leaves it. */
+    private fun restHourlyOn(day: LocalDate) {
+        stateManager.setViewMode(widgetId, ViewMode.TEMPERATURE)
+        stateManager.setHourlyOffset(
+            widgetId,
+            java.time.Duration.between(LocalDateTime.now(), day.atTime(12, 0)).toHours().toInt(),
+        )
+    }
+
+    private fun panFollowUps(): List<Pair<String, OneTimeWorkRequest>> {
+        val names = mutableListOf<String>()
+        val requests = mutableListOf<OneTimeWorkRequest>()
+        verify(atLeast = 0) {
+            mockWorkManager.enqueueUniqueWork(capture(names), any<ExistingWorkPolicy>(), capture(requests))
+        }
+        return names.zip(requests).filter { it.first.startsWith("no_hourly_pan_") }
+    }
+
+    @Test
+    fun `panning onto a Google day past its stored hours fetches it after the settle`() = runTest {
+        val targetDay = LocalDate.now().plusDays(5)
+        seedGoogleRoutine(targetDay)
+        restHourlyOn(targetDay)
+
+        WidgetDayClickCoordinator.afterHourlyNavigate(context, widgetId)
+
+        val message = stateManager.getActiveTransientMessage(widgetId)
+        assertTrue("$message", message!!.contains("Fetching hourly forecast for"))
+        val (name, request) = panFollowUps().single()
+        assertEquals("no_hourly_pan_$widgetId", name)
+        assertEquals(com.weatherwidget.data.remote.HourlyOnDemand.PAN_SETTLE_MS, request.workSpec.initialDelay)
+        assertEquals(targetDay.toString(), request.workSpec.input.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE))
+        assertEquals(WeatherSource.GOOGLE_WEATHER.id, request.workSpec.input.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE))
+    }
+
+    @Test
+    fun `panning onto a covered day does nothing`() = runTest {
+        val targetDay = LocalDate.now().plusDays(1)
+        seedGoogleRoutine(targetDay)
+        restHourlyOn(targetDay)
+
+        WidgetDayClickCoordinator.afterHourlyNavigate(context, widgetId)
+
+        assertNull(stateManager.getActiveTransientMessage(widgetId))
+        assertTrue(panFollowUps().isEmpty())
+    }
+
+    @Test
+    fun `panning onto an NWS day past its data says where it ends, without fetching`() = runTest {
+        val targetDay = LocalDate.now().plusDays(7)
+        seedMissingHourlyScenario(targetDay) // NWS, data ends today+6 17:00
+        restHourlyOn(targetDay)
+
+        WidgetDayClickCoordinator.afterHourlyNavigate(context, widgetId)
+
+        val message = stateManager.getActiveTransientMessage(widgetId)
+        assertTrue("$message", message!!.startsWith("No hourly forecast for"))
+        assertTrue("$message", message.contains("data ends"))
+        assertTrue(panFollowUps().isEmpty())
+    }
+
+    @Test
+    fun `an older day's fetch result never replaces a newer day's banner`() = runTest {
+        receiver.scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val olderDay = LocalDate.now().plusDays(4)
+        val newerDay = LocalDate.now().plusDays(5)
+        seedGoogleRoutine(newerDay)
+        restHourlyOn(newerDay)
+        WidgetDayClickCoordinator.afterHourlyNavigate(context, widgetId)
+        val banner = stateManager.getActiveTransientMessage(widgetId)
+
+        receiver.onReceive(context, refreshCompleteIntent(olderDay))
+        advanceUntilIdle()
+
+        assertEquals(banner, stateManager.getActiveTransientMessage(widgetId))
+    }
+
     private fun seedMissingHourlyScenario(targetDay: LocalDate, withFarHourlyRow: Boolean = true) {
         stateManager.setViewMode(widgetId, ViewMode.DAILY)
         stateManager.setCurrentDisplaySource(widgetId, source)

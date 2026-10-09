@@ -217,6 +217,8 @@
     <string name="bug_report_collecting_diagnostics">جارٍ جمع بيانات التشخيص...</string>
     <string name="view_icon_gallery">عرض معرض الرموز</string>
     <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
+    <string name="widget_no_hourly_data_ends">لا توجد توقعات بالساعة لـ %1$s — تنتهي البيانات %2$s</string>
+    <string name="widget_no_hourly_data">لا توجد توقعات بالساعة لـ %1$s</string>
     <string name="widget_no_hourly_pending">جارٍ جلب التوقعات بالساعة لـ %1$s…</string>
     <string name="widget_no_hourly_result_still_missing">نتيجة التحديث: تعذر جلب بيانات جديدة لدرجة الحرارة بالساعة لـ %1$s. تنتهي البيانات %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">نتيجة التحديث: تعذر جلب بيانات جديدة لدرجة الحرارة بالساعة لـ %1$s.</string>
