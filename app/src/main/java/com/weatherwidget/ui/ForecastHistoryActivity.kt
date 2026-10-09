@@ -4,6 +4,7 @@ import com.weatherwidget.shared.util.WeatherSourceOrdering
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.os.Bundle
+import com.weatherwidget.shared.graph.ForecastEvolutionCutoff
 import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
@@ -357,8 +358,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
         cachedRequestedSource = requestedSource
         updateApiSourceButton()
 
-        val evolutionPoints =
-            snapshots.mapNotNull { snapshot ->
+        // Hindcasts (fetched after the extreme was reached) are not forecasts: drop them per side.
+        // Today's extreme times are only the running max/min, so today uses the fixed cutoffs alone.
+        val settledActual = appActual.takeIf { date.isBefore(LocalDate.now()) }
+        val evolutionPoints = ForecastEvolutionCutoff.apply(
+            points = snapshots.mapNotNull { snapshot ->
                 val forecastDate = LocalDate.ofEpochDay(snapshot.dateOfPrediction / WidgetConstants.MS_IN_A_DAY)
                 val daysAhead = java.time.temporal.ChronoUnit.DAYS.between(forecastDate, date).toInt()
                 if (daysAhead < 0) null
@@ -370,7 +374,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     lowTemp = snapshot.lowTemp,
                     source = WeatherSource.fromId(snapshot.source),
                 )
-            }
+            },
+            targetDate = date,
+            highReachedAt = settledActual?.computedHighAt,
+            lowReachedAt = settledActual?.computedLowAt,
+        )
 
         val snapshotSummaryView = findViewById<TextView>(R.id.snapshot_summary_text)
         // The view always shows a single selected API at a time (snapshots are pre-filtered to the

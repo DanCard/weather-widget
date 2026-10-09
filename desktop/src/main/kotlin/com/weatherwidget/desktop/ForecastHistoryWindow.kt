@@ -35,6 +35,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.graph.AxisScale
+import com.weatherwidget.shared.graph.ForecastEvolutionCutoff
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.ErrorSample
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.EvolutionPoint
@@ -503,7 +504,9 @@ private fun loadHistory(
     val isPast = targetDate.isBefore(LocalDate.now())
 
     val rows = dao.getForecastEvolution(targetEpoch, lat, lon).filter { it.source == source.id }
-    val points = rows.mapNotNull { row ->
+    val historyRows = if (isPast) dao.getExtremesInRange(targetEpoch, targetEpoch, lat, lon) else emptyList()
+    val sourceHistory = historyRows.firstOrNull { it.source == source.id }
+    val rawPoints = rows.mapNotNull { row ->
         val forecastDate = LocalDate.ofEpochDay(row.dateOfPrediction / MS_IN_A_DAY)
         val daysAhead = java.time.temporal.ChronoUnit.DAYS.between(forecastDate, targetDate).toInt()
         if (daysAhead < 0) null
@@ -516,6 +519,14 @@ private fun loadHistory(
             source = WeatherSource.fromId(row.source),
         )
     }
+    // Hindcasts (fetched after the extreme was reached) are not forecasts: drop them per side.
+    // Today's extreme times are only the running max/min (not loaded), so today uses the fixed cutoffs.
+    val points = ForecastEvolutionCutoff.apply(
+        points = rawPoints,
+        targetDate = targetDate,
+        highReachedAt = sourceHistory?.computedHighAt,
+        lowReachedAt = sourceHistory?.computedLowAt,
+    )
     // `points` is already filtered to the single selected source (line above) and drawn as one
     // forecast series in one color.
 
@@ -525,12 +536,11 @@ private fun loadHistory(
     var appHigh: Float? = null
     var appLow: Float? = null
     if (isPast) {
-        val allRows = dao.getExtremesInRange(targetEpoch, targetEpoch, lat, lon)
         // Same nearest-fragment-with-a-complete-pair rule Android uses. A bare `find` took whatever
         // row the DAO happened to return first, so two same-site fragments holding different
         // actuals resolved arbitrarily — and differently from Android for the same date.
         val apiRow = ApiActualPicker.pickNearestComplete(
-            rows = allRows,
+            rows = historyRows,
             lat = lat,
             lon = lon,
             sourceId = source.id,
@@ -542,7 +552,7 @@ private fun loadHistory(
         )
         apiHigh = apiRow?.apiHighTemp
         apiLow = apiRow?.apiLowTemp
-        val appActual = allRows.firstOrNull { it.source == source.id }
+        val appActual = sourceHistory
         appHigh = appActual?.computedHighTemp
         appLow = appActual?.computedLowTemp
     }
