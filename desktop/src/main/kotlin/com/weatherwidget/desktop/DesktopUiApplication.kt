@@ -909,6 +909,10 @@ internal fun runDesktopUiApplication() = application {
                 dataUpdateCount = dataUpdateCount,
                 isRefreshing = refreshInFlight,
                 onRefreshSource = { source -> requestSourceRefresh(source, "history") },
+                onOpenSettings = {
+                    settingsVisible = true
+                    settingsShowRequestId++
+                },
             )
         }
 

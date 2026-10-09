@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.os.Bundle
 import com.weatherwidget.shared.graph.ForecastEvolutionCutoff
+import com.weatherwidget.shared.graph.ForecastHistoryHeader
 import android.os.SystemClock
 import android.util.Log
 import android.widget.Toast
@@ -44,8 +45,6 @@ import com.weatherwidget.widget.handlers.DayClickHelper
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.format.TextStyle
-import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -69,7 +68,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
         const val EXTRA_SOURCE = "source"
         private const val TAG = "ForecastHistoryActivity"
 
-        private const val MAX_HISTORY_DAYS_BACK = 395L // 13 months
 
         /**
          * Determines whether clicking the mode button should launch hourly view
@@ -248,18 +246,14 @@ class ForecastHistoryActivity : AppCompatActivity() {
     }
 
     private fun updateTitle() {
-        val dateText =
-            targetLocalDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
-                ", " + targetLocalDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
-                " " + targetLocalDate.dayOfMonth
+        val dateText = ForecastHistoryHeader.dateLabel(targetLocalDate)
         findViewById<TextView>(R.id.title).text =
             getString(R.string.forecast_history_title_format, dateText)
     }
 
     private fun updatePrevButtonEnabled() {
-        val earliest = LocalDate.now().minusDays(MAX_HISTORY_DAYS_BACK)
         val prevButton = findViewById<ImageButton>(R.id.prev_day_button)
-        val canGoBack = targetLocalDate.isAfter(earliest)
+        val canGoBack = ForecastHistoryHeader.canGoBack(targetLocalDate)
         prevButton.isEnabled = canGoBack
         prevButton.alpha = if (canGoBack) 1.0f else 0.3f
     }

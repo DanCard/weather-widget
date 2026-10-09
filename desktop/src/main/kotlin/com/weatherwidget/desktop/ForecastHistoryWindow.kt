@@ -4,6 +4,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,6 +46,7 @@ import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.ErrorSample
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.EvolutionPoint
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.TimeAxis
 import com.weatherwidget.shared.graph.ForecastEvolutionStyle
+import com.weatherwidget.shared.graph.ForecastHistoryHeader
 import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
 import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.GraphMode
 import com.weatherwidget.shared.graph.NiceAxisScale
@@ -49,8 +55,6 @@ import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
-import java.time.format.TextStyle as JavaTextStyle
-import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.ceil
 
@@ -89,6 +93,7 @@ internal fun ForecastHistoryWindow(
     isRefreshing: Boolean = false,
     /** Refetch the viewed source only; run by the caller's application scope (see [ObservationRefreshButton]). */
     onRefreshSource: (WeatherSource) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     val state = rememberSanitizedWindowState(
         savedX = config.historyWindowX,
@@ -165,8 +170,8 @@ internal fun ForecastHistoryWindow(
                     targetDate = targetDate,
                     source = source,
                     graphMode = graphMode,
-                    canGoBack = targetDate.isAfter(LocalDate.now().minusDays(ForecastHistoryViewLogic.MAX_HISTORY_DAYS_BACK)),
-                    canGoForward = targetDate.isBefore(LocalDate.now().plusDays(7)),
+                    canGoBack = ForecastHistoryHeader.canGoBack(targetDate),
+                    onBack = onClose,
                     onPrev = { targetDate = targetDate.minusDays(1) },
                     onNext = { targetDate = targetDate.plusDays(1) },
                     onCycleSource = {
@@ -175,6 +180,7 @@ internal fun ForecastHistoryWindow(
                     },
                     isRefreshing = isRefreshing,
                     onRefresh = { onRefreshSource(source) },
+                    onOpenSettings = onOpenSettings,
                     onToggleMode = {
                         graphMode = if (graphMode == GraphMode.EVOLUTION) GraphMode.ERROR else GraphMode.EVOLUTION
                     },
@@ -194,8 +200,9 @@ internal fun ForecastHistoryWindow(
 }
 
 /**
- * Date navigation on the left; source, refresh and mode on the right — the Android header's order
- * (`activity_forecast_history.xml`), styled like the Observations window.
+ * `[←] [‹] date [›] … [source] [⟳] [⚙]` — the Android header's order (`activity_forecast_history.xml`),
+ * with its rules from [ForecastHistoryHeader]; styled like the Observations window. ← closes the
+ * window, as Android's back finishes the screen.
  */
 @Composable
 private fun Header(
@@ -203,24 +210,33 @@ private fun Header(
     source: WeatherSource,
     graphMode: GraphMode,
     canGoBack: Boolean,
-    canGoForward: Boolean,
+    onBack: () -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onCycleSource: () -> Unit,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
+    onOpenSettings: () -> Unit,
     onToggleMode: () -> Unit,
 ) {
-    val dateText = "${targetDate.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())}, " +
-        "${targetDate.month.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())} ${targetDate.dayOfMonth}"
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onPrev, enabled = canGoBack) { Text("◀") }
-            Text(dateText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            TextButton(onClick = onNext, enabled = canGoForward) { Text("▶") }
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+            IconButton(onClick = onPrev, enabled = canGoBack) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous day")
+            }
+            Text(ForecastHistoryHeader.dateLabel(targetDate), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            IconButton(onClick = onNext) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next day")
+            }
             Spacer(Modifier.weight(1f))
             SourceCycleButton(source.shortDisplayName, onCycleSource)
             ObservationRefreshButton(isRefreshing = isRefreshing, onRefreshData = onRefresh)
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Default.Settings, contentDescription = "Settings")
+            }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
