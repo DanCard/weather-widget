@@ -24,17 +24,25 @@ object FetchBanner {
     /** Safety cap: a sync that never reports back (process killed, work cancelled) can't pin the banner. */
     const val MAX_SHOW_MS = 120_000L
 
-    fun show(context: Context, text: String, ids: IntArray, reason: String, nowMs: Long = System.currentTimeMillis()) {
+    fun show(
+        context: Context,
+        text: String,
+        ids: IntArray,
+        reason: String,
+        nowMs: Long = System.currentTimeMillis(),
+        /** How long it may show; the default is the safety cap for a sync that owes a clear. */
+        showMs: Long = MAX_SHOW_MS,
+    ) {
         val stateManager = WidgetStateManager(context)
         val appWidgetManager = AppWidgetManager.getInstance(context)
         ids.forEach { id ->
-            stateManager.setTransientMessage(id, text, nowMs + MAX_SHOW_MS)
+            stateManager.setTransientMessage(id, text, nowMs + showMs)
             push(context, appWidgetManager, id, text)
             WidgetWorkScheduler.enqueueDelayedUiRepaint(
                 context = context,
                 appWidgetId = id,
                 reason = reason,
-                initialDelayMs = MAX_SHOW_MS + WidgetTransientMessagePolicy.CLEAR_BUFFER_MS,
+                initialDelayMs = showMs + WidgetTransientMessagePolicy.CLEAR_BUFFER_MS,
             )
         }
         Log.d(TAG, "show text=$text widgets=${ids.size}")

@@ -126,32 +126,62 @@ class HourlyOnDemandTest {
         assertNull("past day", HourlyOnDemand.requestFor(google, "2026-10-08", zone, now))
     }
 
+    private fun window(fromDay: LocalDate, fromHour: Int, toDay: LocalDate, toHour: Int) =
+        ms(fromDay, fromHour) to ms(toDay, toHour)
+
+    private fun pan(source: String, w: Pair<Long, Long>, stored: List<HourlyForecast>, hasDay: (LocalDate) -> Boolean) =
+        HourlyOnDemand.panAction(source, w.first, w.second, zone, now, stored, hasDay)
+
     @Test
-    fun `panning onto a day fetches, says where data ends, or does nothing`() {
+    fun `a window resting on an uncovered Google day fetches it`() {
         val thursday = LocalDate.of(2026, 10, 15)
         assertEquals(
-            HourlyOnDemand.PanAction.Fetch(165),
-            HourlyOnDemand.panAction(google, thursday, zone, now, routine, hasHourlyForDay = false),
+            HourlyOnDemand.PanAction.Fetch(thursday, 165),
+            pan(google, window(thursday, 3, thursday, 21), routine) { false },
         )
-        assertEquals(
-            "a covered day",
-            HourlyOnDemand.PanAction.Nothing,
-            HourlyOnDemand.panAction(google, today.plusDays(1), zone, now, routine, hasHourlyForDay = true),
-        )
-        assertEquals(
-            "NWS past its horizon: nothing to fetch, so say so",
-            HourlyOnDemand.PanAction.NoDataMessage,
-            HourlyOnDemand.panAction(WeatherSource.NWS.id, thursday, zone, now, emptyList(), hasHourlyForDay = false),
-        )
-        assertEquals(
-            "Google past the 240 h reach",
-            HourlyOnDemand.PanAction.NoDataMessage,
-            HourlyOnDemand.panAction(google, today.plusDays(12), zone, now, routine, hasHourlyForDay = false),
-        )
-        assertEquals(
-            "history is not nagged about",
-            HourlyOnDemand.PanAction.Nothing,
-            HourlyOnDemand.panAction(google, today.minusDays(3), zone, now, routine, hasHourlyForDay = false),
-        )
+    }
+
+    @Test
+    fun `a window straddling into an uncovered day fetches that day, not just its centre`() {
+        // The Pixel case: Mon 3 PM .. Tue 7 AM, centred on Monday 11 PM.
+        val monday = today.plusDays(3)
+        val tuesday = today.plusDays(4)
+        val mondayCovered = routine + (0..23).map { row(ms(monday, it)) }
+        val action = pan(google, window(monday, 15, tuesday, 7), mondayCovered) { it == monday }
+        assertEquals(HourlyOnDemand.PanAction.Fetch(tuesday, 117), action)
+    }
+
+    @Test
+    fun `two uncovered days in view cost one fetch, to the later one`() {
+        val monday = today.plusDays(3)
+        val tuesday = today.plusDays(4)
+        val action = pan(google, window(monday, 15, tuesday, 7), routine) { false }
+        assertEquals(HourlyOnDemand.PanAction.Fetch(tuesday, 117), action)
+    }
+
+    @Test
+    fun `a covered window does nothing`() {
+        assertEquals(HourlyOnDemand.PanAction.Nothing, pan(google, window(today, 9, today.plusDays(1), 9), routine) { true })
+    }
+
+    @Test
+    fun `NWS past its horizon says where it ends, for the first empty day in view`() {
+        val wednesday = today.plusDays(5)
+        val action = pan(WeatherSource.NWS.id, window(wednesday, 15, wednesday.plusDays(1), 7), emptyList()) { it != wednesday.plusDays(1) }
+        assertEquals(HourlyOnDemand.PanAction.NoDataMessage(wednesday.plusDays(1)), action)
+    }
+
+    @Test
+    fun `past the 240 h reach says so instead of fetching`() {
+        val far = today.plusDays(12)
+        assertEquals(HourlyOnDemand.PanAction.NoDataMessage(far), pan(google, window(far, 3, far, 21), routine) { false })
+    }
+
+    @Test
+    fun `history is never nagged about`() {
+        val past = today.minusDays(3)
+        assertEquals(HourlyOnDemand.PanAction.Nothing, pan(google, window(past, 3, past, 21), routine) { false })
+        // A window from yesterday into a covered today: only today counts.
+        assertEquals(HourlyOnDemand.PanAction.Nothing, pan(google, window(today.minusDays(1), 12, today, 12), routine) { it == today })
     }
 }

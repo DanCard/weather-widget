@@ -219,30 +219,33 @@ internal fun WidgetPopup(
                             // Whenever zoom or pan changes, ask for deeper history if the left edge of the
                             // visible window now reaches further back than what's cached. The offset is
                             // negative when panned into the past, so subtracting it extends the reach.
-                            // The view settling on a day by ‹ ›, a drag or reopening, not a day tap: the
-                            // same fetch or message as a tap, once it has rested PAN_SETTLE_MS (a drag
-                            // ends in one fetch). Not keyed on the hourly data, so a fetch that failed is
-                            // not retried on every cache reload (plans/261009-hourly-pan-into-empty-day-fetches.md).
-                            val settledDate = java.time.Instant
-                                .ofEpochMilli(System.currentTimeMillis() + config.hourlyOffset * 3_600_000L)
-                                .atZone(ZoneId.systemDefault())
-                                .toLocalDate()
+                            // The view settling on a window by ‹ ›, a drag or reopening, not a day tap:
+                            // any day it shows that Google has not covered is fetched, or a future day
+                            // with no hourly says where data ends, once the view has rested
+                            // PAN_SETTLE_MS (a drag ends in one fetch). Keyed on the days in view, not
+                            // the hourly data, so a failed fetch is not retried on every cache reload
+                            // (plans/261009-hourly-pan-into-empty-day-fetches.md).
+                            val panCenterMs = System.currentTimeMillis() + config.hourlyOffset * 3_600_000L
+                            val panStartMs = panCenterMs - DesktopGraphUtils.backHoursFor(config.zoomFactor) * 3_600_000L
+                            val panEndMs = panCenterMs + DesktopGraphUtils.forwardHoursFor(config.zoomFactor) * 3_600_000L
+                            val panFirstDay = java.time.Instant.ofEpochMilli(panStartMs).atZone(ZoneId.systemDefault()).toLocalDate()
+                            val panLastDay = java.time.Instant.ofEpochMilli(panEndMs).atZone(ZoneId.systemDefault()).toLocalDate()
                             val latestHourly by rememberUpdatedState(snapshot.raw.hourly)
-                            LaunchedEffect(settledDate, config.displaySource) {
+                            LaunchedEffect(panFirstDay, panLastDay, config.displaySource) {
                                 kotlinx.coroutines.delay(HourlyOnDemand.PAN_SETTLE_MS)
                                 if (noHourlyFetching) return@LaunchedEffect
                                 val hourly = latestHourly
                                 val action = HourlyOnDemand.panAction(
                                     config.displaySource,
-                                    settledDate,
+                                    panStartMs,
+                                    panEndMs,
                                     ZoneId.systemDefault(),
                                     System.currentTimeMillis(),
                                     hourly.filter { it.source == null || it.source == config.displaySource },
-                                    NoHourlyChecker.hasHourlyForDay(hourly, settledDate, hourlySourceIds),
-                                )
+                                ) { day -> NoHourlyChecker.hasHourlyForDay(hourly, day, hourlySourceIds) }
                                 when (action) {
-                                    is HourlyOnDemand.PanAction.Fetch -> startHourlyFetch(settledDate)
-                                    HourlyOnDemand.PanAction.NoDataMessage -> showNoHourlyData(settledDate, hourly)
+                                    is HourlyOnDemand.PanAction.Fetch -> startHourlyFetch(action.date)
+                                    is HourlyOnDemand.PanAction.NoDataMessage -> showNoHourlyData(action.date, hourly)
                                     HourlyOnDemand.PanAction.Nothing -> Unit
                                 }
                             }

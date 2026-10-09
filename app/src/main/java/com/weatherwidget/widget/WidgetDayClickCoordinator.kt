@@ -156,32 +156,42 @@ internal object WidgetDayClickCoordinator {
         val stateManager = WidgetStateManager(context)
         if (!stateManager.getViewMode(appWidgetId).isGraphMode) return
         val zone = java.time.ZoneId.systemDefault()
-        val date = java.time.Instant
-            .ofEpochMilli(nowMs + stateManager.getHourlyOffset(appWidgetId) * 3_600_000L)
-            .atZone(zone)
-            .toLocalDate()
-        val dateStr = date.toString()
-        val dayLabel = NoHourlyDayClickCoordinator.formatDayLabel(dateStr)
-        val pendingMessage = NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel)
-        if (stateManager.getActiveTransientMessage(appWidgetId) == pendingMessage) return // already fetching it
+        val zoom = stateManager.getZoomWindow(appWidgetId)
+        val centerMs = nowMs + stateManager.getHourlyOffset(appWidgetId) * 3_600_000L
+        val windowStartMs = centerMs - zoom.backHours * 3_600_000L
+        val windowEndMs = centerMs + zoom.forwardHours * 3_600_000L
         val database = WeatherDatabase.getDatabase(context)
         val sourceId = stateManager.getCurrentDisplaySource(appWidgetId).id
         val latest = database.forecastDao().getLatestWeather() ?: return
         val stored = NoHourlyDayClickCoordinator.storedHourlyForSource(
             database, sourceId, latest.locationLat, latest.locationLon, nowMs,
         )
-        val hasHourly = NoHourlyDayClickCoordinator.hasHourlyForTappedDay(
-            database, stateManager, appWidgetId, dateStr, latest.locationLat, latest.locationLon,
+        // Every day the window shows, not only its centre's (HourlyOnDemand.panAction).
+        val daysInView = generateSequence(java.time.Instant.ofEpochMilli(windowStartMs).atZone(zone).toLocalDate()) { it.plusDays(1) }
+            .takeWhile { !it.isAfter(java.time.Instant.ofEpochMilli(windowEndMs).atZone(zone).toLocalDate()) }
+            .toList()
+        val hasHourlyByDay = daysInView.associateWith { day ->
+            NoHourlyDayClickCoordinator.hasHourlyForTappedDay(
+                database, stateManager, appWidgetId, day.toString(), latest.locationLat, latest.locationLon,
+            )
+        }
+        val action = HourlyOnDemand.panAction(sourceId, windowStartMs, windowEndMs, zone, nowMs, stored) { hasHourlyByDay[it] ?: false }
+        val date = when (action) {
+            is HourlyOnDemand.PanAction.Fetch -> action.date
+            is HourlyOnDemand.PanAction.NoDataMessage -> action.date
+            HourlyOnDemand.PanAction.Nothing -> null
+        }
+        database.appLogDao().log(
+            "HOURLY_PAN",
+            "widget=$appWidgetId window=${daysInView.first()}..${daysInView.last()} source=$sourceId action=$action",
         )
-        val action = HourlyOnDemand.panAction(sourceId, date, zone, nowMs, stored, hasHourly)
-        database.appLogDao().log("HOURLY_PAN", "widget=$appWidgetId date=$dateStr source=$sourceId action=$action")
+        if (date == null) return
+        val dateStr = date.toString()
+        val dayLabel = NoHourlyDayClickCoordinator.formatDayLabel(dateStr)
+        val pendingMessage = NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel)
+        if (stateManager.getActiveTransientMessage(appWidgetId) == pendingMessage) return // already fetching it
         when (action) {
             is HourlyOnDemand.PanAction.Fetch -> {
-                stateManager.setTransientMessage(
-                    appWidgetId,
-                    pendingMessage,
-                    nowMs + NoHourlyDayClickCoordinator.PENDING_MESSAGE_MAX_AGE_MS,
-                )
                 WidgetWorkScheduler.enqueueRequiredNoHourlyFollowUp(
                     context = context,
                     appWidgetId = appWidgetId,
@@ -191,9 +201,14 @@ internal object WidgetDayClickCoordinator {
                     targetSourceId = sourceId,
                     settleAfterPan = true,
                 )
-                WidgetWorkScheduler.enqueueUiRepaint(context, "show_hourly_pan_pending")
+                // Pushed straight onto the widget: a UI-only repaint of the hourly view can be
+                // header-only, and RemoteViews visibility is sticky — the banner never showed (Pixel).
+                FetchBanner.show(
+                    context, pendingMessage, intArrayOf(appWidgetId), "hourly_pan_pending", nowMs,
+                    showMs = NoHourlyDayClickCoordinator.PENDING_MESSAGE_MAX_AGE_MS,
+                )
             }
-            HourlyOnDemand.PanAction.NoDataMessage -> {
+            is HourlyOnDemand.PanAction.NoDataMessage -> {
                 val message = NoHourlyDayClickCoordinator.buildNoDataMessage(
                     context,
                     dayLabel,
@@ -201,19 +216,9 @@ internal object WidgetDayClickCoordinator {
                         database, stateManager, appWidgetId, latest.locationLat, latest.locationLon,
                     ),
                 )
-                stateManager.setTransientMessage(
-                    appWidgetId,
-                    message,
-                    nowMs + WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS,
-                )
-                WidgetWorkScheduler.enqueueUiRepaint(context, "show_hourly_pan_no_data")
-                WidgetWorkScheduler.enqueueDelayedUiRepaint(
-                    context = context,
-                    appWidgetId = appWidgetId,
-                    reason = "clear_hourly_pan_no_data",
-                    initialDelayMs =
-                        WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS +
-                            WidgetTransientMessagePolicy.CLEAR_BUFFER_MS,
+                FetchBanner.show(
+                    context, message, intArrayOf(appWidgetId), "hourly_pan_no_data", nowMs,
+                    showMs = WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS,
                 )
             }
             HourlyOnDemand.PanAction.Nothing -> Unit

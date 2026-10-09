@@ -340,6 +340,25 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     }
 
     @Test
+    fun `a window centred on a covered day but reaching into an uncovered one fetches that one`() = runTest {
+        // The Pixel case: Wed 3 PM .. Thu 7 AM centred on covered Wednesday left Thursday blank.
+        val coveredDay = LocalDate.now().plusDays(2) // the routine 72 h runs past its 23:00
+        val nextDay = coveredDay.plusDays(1)
+        seedGoogleRoutine(nextDay)
+        stateManager.setViewMode(widgetId, ViewMode.TEMPERATURE)
+        stateManager.setHourlyOffset(
+            widgetId,
+            java.time.Duration.between(LocalDateTime.now(), coveredDay.atTime(22, 0)).toHours().toInt(),
+        )
+
+        WidgetDayClickCoordinator.afterHourlyNavigate(context, widgetId)
+
+        val message = stateManager.getActiveTransientMessage(widgetId)
+        assertTrue("$message", message!!.contains(NoHourlyDayClickCoordinator.formatDayLabel(nextDay.toString())))
+        assertEquals(nextDay.toString(), panFollowUps().single().second.workSpec.input.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE))
+    }
+
+    @Test
     fun `panning onto a covered day does nothing`() = runTest {
         val targetDay = LocalDate.now().plusDays(1)
         seedGoogleRoutine(targetDay)

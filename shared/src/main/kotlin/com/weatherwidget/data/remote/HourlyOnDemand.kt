@@ -95,34 +95,49 @@ object HourlyOnDemand {
         return hoursToCover(sourceId, date, zoneId, nowMs, storedHourly = emptyList())?.let { Request(sourceId, it) }
     }
 
-    /** What to do for the day the hourly view has settled on ([panAction]). */
+    /** What to do for the window the hourly view has settled on ([panAction]). */
     sealed interface PanAction {
-        /** Fetch [hours] of hourly forecast (Google) under the "Fetching…" banner. */
-        data class Fetch(val hours: Int) : PanAction
+        /** Fetch [hours] of hourly forecast (Google), which covers through [date], under the "Fetching…" banner. */
+        data class Fetch(val date: LocalDate, val hours: Int) : PanAction
 
-        /** A future day with no hourly that no fetch can help: say where the data ends. */
-        data object NoDataMessage : PanAction
+        /** [date] is a future day in view with no hourly that no fetch can help: say where the data ends. */
+        data class NoDataMessage(val date: LocalDate) : PanAction
 
         data object Nothing : PanAction
     }
 
     /**
-     * The hourly view settled on [date] (the window centre's day) by ‹ ›, a drag or reopening, not a
-     * day tap (`plans/261009-hourly-pan-into-empty-day-fetches.md`). [storedHourly]: the display
-     * source's rows at the site; [hasHourlyForDay]: whether the day has any hourly to draw
-     * (`NoHourlyChecker.hasHourlyForDay`).
+     * The hourly view settled on [windowStartMs]..[windowEndMs] by ‹ ›, a drag or reopening, not a
+     * day tap (`plans/261009-hourly-pan-into-empty-day-fetches.md`). Every day the window shows
+     * counts, not only its centre: a window from Wed 3 PM to Thu 7 AM centred on covered Wednesday
+     * left Thursday's half blank with no word (Pixel, 2026-10-09).
+     *
+     * - **Fetch** for the *latest* future day in view that fresh stored hours do not cover (one fetch
+     *   from now reaches every earlier day too).
+     * - Else **NoDataMessage** for the earliest future day in view with no hourly at all.
+     * - Else **Nothing**. Past days never trigger either.
+     *
+     * [storedHourly]: the display source's rows at the site. [hasHourlyForDay]:
+     * `NoHourlyChecker.hasHourlyForDay` over what the view draws.
      */
     fun panAction(
         sourceId: String,
-        date: LocalDate,
+        windowStartMs: Long,
+        windowEndMs: Long,
         zoneId: ZoneId,
         nowMs: Long,
         storedHourly: List<HourlyForecast>,
-        hasHourlyForDay: Boolean,
+        hasHourlyForDay: (LocalDate) -> Boolean,
     ): PanAction {
-        if (date.isBefore(java.time.Instant.ofEpochMilli(nowMs).atZone(zoneId).toLocalDate())) return PanAction.Nothing
-        hoursToCover(sourceId, date, zoneId, nowMs, storedHourly)?.let { return PanAction.Fetch(it) }
-        return if (hasHourlyForDay) PanAction.Nothing else PanAction.NoDataMessage
+        val today = java.time.Instant.ofEpochMilli(nowMs).atZone(zoneId).toLocalDate()
+        val first = maxOf(java.time.Instant.ofEpochMilli(windowStartMs).atZone(zoneId).toLocalDate(), today)
+        val last = java.time.Instant.ofEpochMilli(windowEndMs).atZone(zoneId).toLocalDate()
+        if (last.isBefore(first)) return PanAction.Nothing
+        val days = generateSequence(first) { it.plusDays(1) }.takeWhile { !it.isAfter(last) }.toList()
+        days.asReversed().firstNotNullOfOrNull { day ->
+            hoursToCover(sourceId, day, zoneId, nowMs, storedHourly)?.let { PanAction.Fetch(day, it) }
+        }?.let { return it }
+        return days.firstOrNull { !hasHourlyForDay(it) }?.let { PanAction.NoDataMessage(it) } ?: PanAction.Nothing
     }
 
     /** A drag or quick ‹ › run ends in one fetch, for where the view comes to rest. */
