@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">새로고침 정책: 4시간마다 (배터리 %1$d%%)</string>
     <string name="refresh_policy_battery_mid">새로고침 정책: 8시간마다 (배터리 %1$d%%)</string>
     <string name="refresh_policy_battery_low">새로고침 정책: 일시중지 (배터리 %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">예보 가져오기: 충전 중 1시간마다 (기본 API)</string>
-    <string name="forecast_policy_charging_90m">예보 가져오기: 충전 중 90분마다 (보조 API)</string>
-    <string name="forecast_policy_charging_2h">예보 가져오기: 충전 중 2시간마다 (3번째 이상 API)</string>
-    <string name="forecast_policy_battery_high">예보 가져오기: 4시간마다 (배터리 %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">예보 가져오기: 8시간마다 (배터리 %1$d%%)</string>
-    <string name="forecast_policy_battery_low">예보 가져오기: 일시중지 (배터리 %1$d%%)</string>
     <string name="freshness_just_now">방금 전</string>
     <string name="forecast_history">"예보 기록: "</string>
     <string name="forecast_history_summary_single">%2$s 예보 스냅샷 %1$d개</string>

@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">Yenileme: Her 4 sa (pil %1$d%%)</string>
     <string name="refresh_policy_battery_mid">Yenileme: Her 8 sa (pil %1$d%%)</string>
     <string name="refresh_policy_battery_low">Yenileme: Duraklatıldı (pil %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">Tahmin indirme: Şarjda her 1 sa (birincil API)</string>
-    <string name="forecast_policy_charging_90m">Tahmin indirme: Şarjda her 90 dk (ikincil API)</string>
-    <string name="forecast_policy_charging_2h">Tahmin indirme: Şarjda her 2 sa (3.+ API)</string>
-    <string name="forecast_policy_battery_high">Tahmin indirme: Her 4 sa (pil %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">Tahmin indirme: Her 8 sa (pil %1$d%%)</string>
-    <string name="forecast_policy_battery_low">Tahmin indirme: Duraklatıldı (pil %1$d%%)</string>
     <string name="freshness_just_now">az önce</string>
     <string name="forecast_history">"Tahmin geçmişi: "</string>
     <string name="forecast_history_summary_single">%1$d %2$s tahmin anlık görüntüsü</string>

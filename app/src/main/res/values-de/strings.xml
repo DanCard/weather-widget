@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">Aktualisierung: Alle 4 Std. (Akku %1$d%%)</string>
     <string name="refresh_policy_battery_mid">Aktualisierung: Alle 8 Std. (Akku %1$d%%)</string>
     <string name="refresh_policy_battery_low">Aktualisierung: Pausiert (Akku %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">Vorhersage-Abruf: Stündlich beim Laden (primäre API)</string>
-    <string name="forecast_policy_charging_90m">Vorhersage-Abruf: Alle 90 Min. beim Laden (sekundäre API)</string>
-    <string name="forecast_policy_charging_2h">Vorhersage-Abruf: Alle 2 Std. beim Laden (3.+ API)</string>
-    <string name="forecast_policy_battery_high">Vorhersage-Abruf: Alle 4 Std. (Akku %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">Vorhersage-Abruf: Alle 8 Std. (Akku %1$d%%)</string>
-    <string name="forecast_policy_battery_low">Vorhersage-Abruf: Pausiert (Akku %1$d%%)</string>
     <string name="freshness_just_now">gerade eben</string>
     <string name="forecast_history">"Vorhersageverlauf für "</string>
     <string name="forecast_history_summary_single">%1$d %2$s-Vorhersage-Schnappschüsse</string>

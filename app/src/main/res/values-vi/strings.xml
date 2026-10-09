@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">Chính sách làm mới: Mỗi 4 giờ (pin %1$d%%)</string>
     <string name="refresh_policy_battery_mid">Chính sách làm mới: Mỗi 8 giờ (pin %1$d%%)</string>
     <string name="refresh_policy_battery_low">Chính sách làm mới: Tạm dừng (pin %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">Tải dự báo: Mỗi 1 giờ khi sạc (API chính)</string>
-    <string name="forecast_policy_charging_90m">Tải dự báo: Mỗi 90 phút khi sạc (API phụ)</string>
-    <string name="forecast_policy_charging_2h">Tải dự báo: Mỗi 2 giờ khi sạc (API thứ 3+)</string>
-    <string name="forecast_policy_battery_high">Tải dự báo: Mỗi 4 giờ (pin %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">Tải dự báo: Mỗi 8 giờ (pin %1$d%%)</string>
-    <string name="forecast_policy_battery_low">Tải dự báo: Tạm dừng (pin %1$d%%)</string>
     <string name="freshness_just_now">vừa xong</string>
     <string name="forecast_history">"Lịch sử dự báo cho "</string>
     <string name="forecast_history_summary_single">%1$d ảnh chụp dự báo %2$s</string>

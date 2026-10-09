@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">ریفریش پالیسی: ہر 4 گھنٹے (بیٹری %1$d%%)</string>
     <string name="refresh_policy_battery_mid">ریفریش پالیسی: ہر 8 گھنٹے (بیٹری %1$d%%)</string>
     <string name="refresh_policy_battery_low">ریفریش پالیسی: موقوف (بیٹری %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">پیشن گوئی ڈاؤن لوڈ: چارجنگ میں ہر 1 گھنٹے (بنیادی API)</string>
-    <string name="forecast_policy_charging_90m">پیشن گوئی ڈاؤن لوڈ: چارجنگ میں ہر 90 منٹ (ثانوی API)</string>
-    <string name="forecast_policy_charging_2h">پیشن گوئی ڈاؤن لوڈ: چارجنگ میں ہر 2 گھنٹے (تیسرا+ API)</string>
-    <string name="forecast_policy_battery_high">پیشن گوئی ڈاؤن لوڈ: ہر 4 گھنٹے (بیٹری %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">پیشن گوئی ڈاؤن لوڈ: ہر 8 گھنٹے (بیٹری %1$d%%)</string>
-    <string name="forecast_policy_battery_low">پیشن گوئی ڈاؤن لوڈ: موقوف (بیٹری %1$d%%)</string>
     <string name="freshness_just_now">ابھی ابھی</string>
     <string name="forecast_history">"پیشن گوئیوں کی تاریخ: "</string>
     <string name="forecast_history_summary_single">%1$d %2$s پیشن گوئی سنیپ شاٹس</string>

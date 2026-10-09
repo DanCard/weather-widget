@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">রিফ্রেশ নীতি: প্রতি ৪ ঘণ্টায় (ব্যাটারি %1$d%%)</string>
     <string name="refresh_policy_battery_mid">রিফ্রেশ নীতি: প্রতি ৮ ঘণ্টায় (ব্যাটারি %1$d%%)</string>
     <string name="refresh_policy_battery_low">রিফ্রেশ নীতি: স্থগিত (ব্যাটারি %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">পূর্বাভাস আনা: চার্জিংয়ে প্রতি ১ ঘণ্টায় (প্রাথমিক API)</string>
-    <string name="forecast_policy_charging_90m">পূর্বাভাস আনা: চার্জিংয়ে প্রতি ৯০ মিনিটে (দ্বিতীয় API)</string>
-    <string name="forecast_policy_charging_2h">পূর্বাভাস আনা: চার্জিংয়ে প্রতি ২ ঘণ্টায় (৩য়+ API)</string>
-    <string name="forecast_policy_battery_high">পূর্বাভাস আনা: প্রতি ৪ ঘণ্টায় (ব্যাটারি %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">পূর্বাভাস আনা: প্রতি ৮ ঘণ্টায় (ব্যাটারি %1$d%%)</string>
-    <string name="forecast_policy_battery_low">পূর্বাভাস আনা: স্থগিত (ব্যাটারি %1$d%%)</string>
     <string name="freshness_just_now">এইমাত্র</string>
     <string name="forecast_history">"পূর্বাভাসের ইতিহাস: "</string>
     <string name="forecast_history_summary_single">%1$dটি %2$s পূর্বাভাস স্ন্যাপশট</string>

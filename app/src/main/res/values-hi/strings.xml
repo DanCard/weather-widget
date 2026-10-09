@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">रीफ़्रेश नीति: हर 4 घंटे (बैटरी %1$d%%)</string>
     <string name="refresh_policy_battery_mid">रीफ़्रेश नीति: हर 8 घंटे (बैटरी %1$d%%)</string>
     <string name="refresh_policy_battery_low">रीफ़्रेश नीति: रुकी हुई (बैटरी %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">पूर्वानुमान फ़ेच: चार्जिंग के दौरान हर 1 घंटे (प्राथमिक API)</string>
-    <string name="forecast_policy_charging_90m">पूर्वानुमान फ़ेच: चार्जिंग के दौरान हर 90 मिनट (द्वितीयक API)</string>
-    <string name="forecast_policy_charging_2h">पूर्वानुमान फ़ेच: चार्जिंग के दौरान हर 2 घंटे (तीसरा+ API)</string>
-    <string name="forecast_policy_battery_high">पूर्वानुमान फ़ेच: हर 4 घंटे (बैटरी %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">पूर्वानुमान फ़ेच: हर 8 घंटे (बैटरी %1$d%%)</string>
-    <string name="forecast_policy_battery_low">पूर्वानुमान फ़ेच: रुका हुआ (बैटरी %1$d%%)</string>
     <string name="freshness_just_now">अभी-अभी</string>
     <string name="forecast_history">"पूर्वानुमान इतिहास: "</string>
     <string name="forecast_history_summary_single">%1$d %2$s पूर्वानुमान स्नैपशॉट</string>

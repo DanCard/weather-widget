@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">Kebijakan penyegaran: Setiap 4 jam (baterai %1$d%%)</string>
     <string name="refresh_policy_battery_mid">Kebijakan penyegaran: Setiap 8 jam (baterai %1$d%%)</string>
     <string name="refresh_policy_battery_low">Kebijakan penyegaran: Dijeda (baterai %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">Pengambilan prakiraan: Setiap 1 jam saat mengisi daya (API utama)</string>
-    <string name="forecast_policy_charging_90m">Pengambilan prakiraan: Setiap 90 mnt saat mengisi daya (API sekunder)</string>
-    <string name="forecast_policy_charging_2h">Pengambilan prakiraan: Setiap 2 jam saat mengisi daya (API ke-3+)</string>
-    <string name="forecast_policy_battery_high">Pengambilan prakiraan: Setiap 4 jam (baterai %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">Pengambilan prakiraan: Setiap 8 jam (baterai %1$d%%)</string>
-    <string name="forecast_policy_battery_low">Pengambilan prakiraan: Dijeda (baterai %1$d%%)</string>
     <string name="freshness_just_now">baru saja</string>
     <string name="forecast_history">"Riwayat prakiraan untuk "</string>
     <string name="forecast_history_summary_single">%1$d snapshot prakiraan %2$s</string>

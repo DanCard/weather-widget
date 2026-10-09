@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">刷新策略：每 4 小时（电量 %1$d%%）</string>
     <string name="refresh_policy_battery_mid">刷新策略：每 8 小时（电量 %1$d%%）</string>
     <string name="refresh_policy_battery_low">刷新策略：已暂停（电量 %1$d%%）</string>
-    <string name="forecast_policy_charging_1h">预报获取：充电时每 1 小时（主 API）</string>
-    <string name="forecast_policy_charging_90m">预报获取：充电时每 90 分钟（次 API）</string>
-    <string name="forecast_policy_charging_2h">预报获取：充电时每 2 小时（第 3+ API）</string>
-    <string name="forecast_policy_battery_high">预报获取：每 4 小时（电量 %1$d%%）</string>
-    <string name="forecast_policy_battery_mid">预报获取：每 8 小时（电量 %1$d%%）</string>
-    <string name="forecast_policy_battery_low">预报获取：已暂停（电量 %1$d%%）</string>
     <string name="freshness_just_now">刚刚</string>
     <string name="forecast_history">"预报历史："</string>
     <string name="forecast_history_summary_single">%1$d 个 %2$s 预报快照</string>

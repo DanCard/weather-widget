@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">更新ポリシー：4 時間ごと（バッテリー %1$d%%）</string>
     <string name="refresh_policy_battery_mid">更新ポリシー：8 時間ごと（バッテリー %1$d%%）</string>
     <string name="refresh_policy_battery_low">更新ポリシー：一時停止（バッテリー %1$d%%）</string>
-    <string name="forecast_policy_charging_1h">予報取得：充電中は 1 時間ごと（プライマリ API）</string>
-    <string name="forecast_policy_charging_90m">予報取得：充電中は 90 分ごと（セカンダリ API）</string>
-    <string name="forecast_policy_charging_2h">予報取得：充電中は 2 時間ごと（3 番目以降の API）</string>
-    <string name="forecast_policy_battery_high">予報取得：4 時間ごと（バッテリー %1$d%%）</string>
-    <string name="forecast_policy_battery_mid">予報取得：8 時間ごと（バッテリー %1$d%%）</string>
-    <string name="forecast_policy_battery_low">予報取得：一時停止（バッテリー %1$d%%）</string>
     <string name="freshness_just_now">たった今</string>
     <string name="forecast_history">"予報履歴："</string>
     <string name="forecast_history_summary_single">%1$d 件の %2$s 予報スナップショット</string>

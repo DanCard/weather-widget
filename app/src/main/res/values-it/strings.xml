@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">Aggiornamento: ogni 4 h (batteria %1$d%%)</string>
     <string name="refresh_policy_battery_mid">Aggiornamento: ogni 8 h (batteria %1$d%%)</string>
     <string name="refresh_policy_battery_low">Aggiornamento: in pausa (batteria %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">Recupero previsioni: ogni ora in carica (API primaria)</string>
-    <string name="forecast_policy_charging_90m">Recupero previsioni: ogni 90 min in carica (API secondaria)</string>
-    <string name="forecast_policy_charging_2h">Recupero previsioni: ogni 2 h in carica (3ª+ API)</string>
-    <string name="forecast_policy_battery_high">Recupero previsioni: ogni 4 h (batteria %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">Recupero previsioni: ogni 8 h (batteria %1$d%%)</string>
-    <string name="forecast_policy_battery_low">Recupero previsioni: in pausa (batteria %1$d%%)</string>
     <string name="freshness_just_now">proprio ora</string>
     <string name="forecast_history">"Cronologia delle previsioni per "</string>
     <string name="forecast_history_summary_single">%1$d istantanee di previsione %2$s</string>

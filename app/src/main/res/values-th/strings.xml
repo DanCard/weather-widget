@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">นโยบายรีเฟรช: ทุก 4 ชม. (แบตเตอรี่ %1$d%%)</string>
     <string name="refresh_policy_battery_mid">นโยบายรีเฟรช: ทุก 8 ชม. (แบตเตอรี่ %1$d%%)</string>
     <string name="refresh_policy_battery_low">นโยบายรีเฟรช: หยุดชั่วคราว (แบตเตอรี่ %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">ดึงพยากรณ์: ทุก 1 ชม. ขณะชาร์จ (API หลัก)</string>
-    <string name="forecast_policy_charging_90m">ดึงพยากรณ์: ทุก 90 นาที ขณะชาร์จ (API รอง)</string>
-    <string name="forecast_policy_charging_2h">ดึงพยากรณ์: ทุก 2 ชม. ขณะชาร์จ (API ที่ 3+)</string>
-    <string name="forecast_policy_battery_high">ดึงพยากรณ์: ทุก 4 ชม. (แบตเตอรี่ %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">ดึงพยากรณ์: ทุก 8 ชม. (แบตเตอรี่ %1$d%%)</string>
-    <string name="forecast_policy_battery_low">ดึงพยากรณ์: หยุดชั่วคราว (แบตเตอรี่ %1$d%%)</string>
     <string name="freshness_just_now">เมื่อสักครู่</string>
     <string name="forecast_history">"ประวัติพยากรณ์ของ "</string>
     <string name="forecast_history_summary_single">สแนปช็อตพยากรณ์ %2$s จำนวน %1$d รายการ</string>

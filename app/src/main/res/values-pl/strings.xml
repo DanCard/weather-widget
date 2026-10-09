@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">Odświeżanie: co 4 godz. (bateria %1$d%%)</string>
     <string name="refresh_policy_battery_mid">Odświeżanie: co 8 godz. (bateria %1$d%%)</string>
     <string name="refresh_policy_battery_low">Odświeżanie: wstrzymane (bateria %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">Pobieranie prognozy: co 1 godz. podczas ładowania (główne API)</string>
-    <string name="forecast_policy_charging_90m">Pobieranie prognozy: co 90 min podczas ładowania (drugie API)</string>
-    <string name="forecast_policy_charging_2h">Pobieranie prognozy: co 2 godz. podczas ładowania (3.+ API)</string>
-    <string name="forecast_policy_battery_high">Pobieranie prognozy: co 4 godz. (bateria %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">Pobieranie prognozy: co 8 godz. (bateria %1$d%%)</string>
-    <string name="forecast_policy_battery_low">Pobieranie prognozy: wstrzymane (bateria %1$d%%)</string>
     <string name="freshness_just_now">przed chwilą</string>
     <string name="forecast_history">"Historia prognoz dla "</string>
     <string name="forecast_history_summary_single">%1$d migawek prognoz %2$s</string>

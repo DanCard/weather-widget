@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">Оновлення: кожні 4 год (батарея %1$d%%)</string>
     <string name="refresh_policy_battery_mid">Оновлення: кожні 8 год (батарея %1$d%%)</string>
     <string name="refresh_policy_battery_low">Оновлення: призупинено (батарея %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">Оновлення прогнозу: щогодини під час заряджання (основний API)</string>
-    <string name="forecast_policy_charging_90m">Оновлення прогнозу: кожні 90 хв під час заряджання (другорядний API)</string>
-    <string name="forecast_policy_charging_2h">Оновлення прогнозу: кожні 2 год під час заряджання (3-й API і далі)</string>
-    <string name="forecast_policy_battery_high">Оновлення прогнозу: кожні 4 год (батарея %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">Оновлення прогнозу: кожні 8 год (батарея %1$d%%)</string>
-    <string name="forecast_policy_battery_low">Оновлення прогнозу: призупинено (батарея %1$d%%)</string>
     <string name="freshness_just_now">щойно</string>
     <string name="forecast_history">"Історія прогнозів для "</string>
     <string name="forecast_history_summary_single">%1$d знімків прогнозу %2$s</string>

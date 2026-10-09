@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">Обновление: каждые 4 ч (батарея %1$d%%)</string>
     <string name="refresh_policy_battery_mid">Обновление: каждые 8 ч (батарея %1$d%%)</string>
     <string name="refresh_policy_battery_low">Обновление: приостановлено (батарея %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">Загрузка прогноза: каждый час при зарядке (основной API)</string>
-    <string name="forecast_policy_charging_90m">Загрузка прогноза: каждые 90 мин при зарядке (второй API)</string>
-    <string name="forecast_policy_charging_2h">Загрузка прогноза: каждые 2 ч при зарядке (3-й+ API)</string>
-    <string name="forecast_policy_battery_high">Загрузка прогноза: каждые 4 ч (батарея %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">Загрузка прогноза: каждые 8 ч (батарея %1$d%%)</string>
-    <string name="forecast_policy_battery_low">Загрузка прогноза: приостановлена (батарея %1$d%%)</string>
     <string name="freshness_just_now">только что</string>
     <string name="forecast_history">"История прогнозов для "</string>
     <string name="forecast_history_summary_single">%1$d снимков прогноза %2$s</string>

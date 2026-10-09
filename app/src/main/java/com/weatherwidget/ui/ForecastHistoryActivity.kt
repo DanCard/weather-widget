@@ -45,8 +45,6 @@ import java.time.LocalDateTime
 import java.time.format.TextStyle
 import java.util.Locale
 import javax.inject.Inject
-import android.content.Context
-import android.os.BatteryManager
 
 @AndroidEntryPoint
 class ForecastHistoryActivity : AppCompatActivity() {
@@ -730,7 +728,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private fun updateFreshnessCard() {
         val forecastFetchView = findViewById<TextView>(R.id.freshness_forecast_fetch)
         val displayedDataView = findViewById<TextView>(R.id.freshness_displayed_data)
-        val nextUpdateView = findViewById<TextView>(R.id.freshness_next_update)
 
         val nowMs = System.currentTimeMillis()
         val lastFullFetchMs = FetchMetadata.getLastFullFetchTime(this)
@@ -757,28 +754,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
         } else {
             displayedDataView.visibility = View.GONE
         }
-
-        // Next update estimate
-        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-        val batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-        val isCharging = batteryManager.isCharging
-        // Forecast staleness policy for current battery state
-        val policyText = when {
-            isCharging -> {
-                val visibleSources = effectiveVisibleSources()
-                val apiIndex = visibleSources.indexOf(cachedRequestedSource ?: visibleSources.firstOrNull())
-                when (apiIndex) {
-                    0 -> getString(R.string.forecast_policy_charging_1h)
-                    1 -> getString(R.string.forecast_policy_charging_90m)
-                    else -> getString(R.string.forecast_policy_charging_2h)
-                }
-            }
-            batteryLevel > 70 -> getString(R.string.forecast_policy_battery_high, batteryLevel)
-            batteryLevel > 50 -> getString(R.string.forecast_policy_battery_mid, batteryLevel)
-            else -> getString(R.string.forecast_policy_battery_low, batteryLevel)
-        }
-        // Displayed at the very bottom of the activity.
-        nextUpdateView.text = policyText
     }
 
     private fun formatRelativeTime(durationMs: Long): String {

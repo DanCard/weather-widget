@@ -425,13 +425,6 @@
                     android:textColor="@color/widget_text_secondary"
                     android:textSize="12sp" />
 
-                <TextView
-                    android:id="@+id/freshness_next_update"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:textColor="@color/widget_text_secondary"
-                    android:textSize="12sp" />
 
 
             </LinearLayout>

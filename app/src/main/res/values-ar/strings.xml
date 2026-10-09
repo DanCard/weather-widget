@@ -78,12 +78,6 @@
     <string name="refresh_policy_battery_high">سياسة التحديث: كل 4 ساعات (البطارية %1$d%%)</string>
     <string name="refresh_policy_battery_mid">سياسة التحديث: كل 8 ساعات (البطارية %1$d%%)</string>
     <string name="refresh_policy_battery_low">سياسة التحديث: متوقفة مؤقتًا (البطارية %1$d%%)</string>
-    <string name="forecast_policy_charging_1h">جلب التوقعات: كل ساعة أثناء الشحن (الواجهة الأساسية)</string>
-    <string name="forecast_policy_charging_90m">جلب التوقعات: كل 90 دقيقة أثناء الشحن (الواجهة الثانوية)</string>
-    <string name="forecast_policy_charging_2h">جلب التوقعات: كل ساعتين أثناء الشحن (الواجهة الثالثة+)</string>
-    <string name="forecast_policy_battery_high">جلب التوقعات: كل 4 ساعات (البطارية %1$d%%)</string>
-    <string name="forecast_policy_battery_mid">جلب التوقعات: كل 8 ساعات (البطارية %1$d%%)</string>
-    <string name="forecast_policy_battery_low">جلب التوقعات: متوقف مؤقتًا (البطارية %1$d%%)</string>
     <string name="freshness_just_now">للتو</string>
     <string name="forecast_history">"سجل التوقعات لـ "</string>
     <string name="forecast_history_summary_single">%1$d لقطة توقعات %2$s</string>
