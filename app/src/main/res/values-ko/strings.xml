@@ -217,7 +217,7 @@
     <string name="bug_report_collecting_diagnostics">진단 데이터 수집 중...</string>
     <string name="view_icon_gallery">아이콘 갤러리 보기</string>
     <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
-    <string name="widget_no_hourly_pending">%1$s의 시간별 기온 데이터가 없습니다. 새로고침이 실행됩니다.</string>
+    <string name="widget_no_hourly_pending">%1$s의 시간별 예보를 가져오는 중…</string>
     <string name="widget_no_hourly_result_still_missing">새로고침 결과: %1$s의 새로운 시간별 기온 데이터를 가져오지 못했습니다. 데이터는 %2$s에 끝납니다</string>
     <string name="widget_no_hourly_result_still_missing_unknown">새로고침 결과: %1$s의 새로운 시간별 기온 데이터를 가져오지 못했습니다.</string>
     <string name="widget_no_hourly_result_available">새로고침 결과:\n%1$s의 시간별 데이터를 이제 사용할 수 있습니다</string>

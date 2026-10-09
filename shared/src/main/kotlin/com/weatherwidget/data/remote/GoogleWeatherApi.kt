@@ -34,7 +34,8 @@ private const val TAG = "GoogleWeatherApi"
  *
  * Limits probed 2026-10-06: `forecast/days` serves at most 10 days, `forecast/hours` returns 24 hours
  * per page (follow `nextPageToken`), `history/hours` reaches back at most 24 h. Every request is
- * billed, so one full fetch is current + days + 1–3 hour pages ([GoogleHourPaging]) + history.
+ * billed, so one full fetch is current + days + 1–3 hour pages ([GoogleHourPaging]) + history; hours
+ * past 72 are fetched only for a tapped day ([HourlyOnDemand]).
  *
  * The key goes in the `X-Goog-Api-Key` header, never the URL, so it cannot ride along in an
  * exception message into `app_logs` or a bug report.
@@ -66,8 +67,6 @@ class GoogleWeatherApi(
         const val HISTORY_HOURS = 24
         private const val PAGE_SIZE = 24
 
-        /** Guards a misbehaving token chain; 72 h needs 3 pages. */
-        private const val MAX_HOUR_PAGES = (FORECAST_HOURS + PAGE_SIZE - 1) / PAGE_SIZE
 
         private const val INCHES_TO_MM = 25.4f
 
@@ -144,6 +143,9 @@ class GoogleWeatherApi(
      * [storedHours]: this source's stored hourly rows at the site. When given, page 1 is compared
      * with them and pages 2–3 are fetched only on change ([GoogleHourPaging]); null fetches all.
      *
+     * [hoursAhead]: the `forecast/hours` horizon — [FORECAST_HOURS] routinely, more for a tapped day
+     * past it ([HourlyOnDemand]); a deeper fetch takes every page, without the page-1 check.
+     *
      * [includeHours]: false skips `forecast/hours` and `history/hours` (an hourly-limited fetch,
      * [HourlyFetchGate]); daily and current conditions are fetched as usual, and the result has no
      * hourly rows, so the stored hours stand.
@@ -154,6 +156,7 @@ class GoogleWeatherApi(
         includeHistory: Boolean = true,
         storedHours: List<HourlyForecast>? = null,
         includeHours: Boolean = true,
+        hoursAhead: Int = FORECAST_HOURS,
     ): RawFetch = coroutineScope {
         val apiKey = apiKeyProvider()
         if (apiKey.isNullOrBlank()) {
@@ -193,7 +196,7 @@ class GoogleWeatherApi(
             when {
                 !includeHours -> null
                 hoursBlock != null -> null
-                else -> fetchProduct(ForecastProduct.HOURLY) { fetchForecastHours(apiKey, lat, lon, storedHours) }
+                else -> fetchProduct(ForecastProduct.HOURLY) { fetchForecastHours(apiKey, lat, lon, storedHours.takeIf { hoursAhead == FORECAST_HOURS }, hoursAhead) }
             }
         }
         val requestHistory = includeHours && includeHistory && nowMs() >= historyBlockedUntilMs
@@ -232,6 +235,25 @@ class GoogleWeatherApi(
         ).copy(quotaRefused = refused.mapValues { QuotaRefusal(it.value.untilMs, it.value.detail) })
     }
 
+    /**
+     * `forecast/hours` alone, [hoursAhead] deep: a tapped day past the routine horizon
+     * ([HourlyOnDemand]). One billed request per 24 h and nothing else; empty while the hourly quota
+     * is exhausted.
+     */
+    suspend fun getForecastHours(lat: Double, lon: Double, hoursAhead: Int): List<HourlyForecast> {
+        val apiKey = apiKeyProvider()
+        if (apiKey.isNullOrBlank()) {
+            throw IllegalStateException("GOOGLE_WEATHER_API_KEY is missing.")
+        }
+        if (activeBlock(ForecastProduct.HOURLY, nowMs()) != null) {
+            lastHoursPaging = "pages=0 reason=quota_blocked"
+            return emptyList()
+        }
+        val hours = fetchProduct(ForecastProduct.HOURLY) { fetchForecastHours(apiKey, lat, lon, null, hoursAhead) }
+            ?: return emptyList()
+        return hours.mapNotNull(::parseHour).sortedBy { it.dateTime }
+    }
+
     private suspend fun fetchHistoryOrNull(apiKey: String, lat: Double, lon: Double): JsonObject? =
         try {
             fetchJson(apiKey, "/history/hours:lookup", lat, lon) {
@@ -266,15 +288,18 @@ class GoogleWeatherApi(
         lat: Double,
         lon: Double,
         storedHours: List<HourlyForecast>?,
+        hoursAhead: Int,
     ): List<JsonObject> {
         val hours = mutableListOf<JsonObject>()
+        // Guards a misbehaving token chain: one page per 24 h asked for (72 h = 3).
+        val maxPages = (hoursAhead + PAGE_SIZE - 1) / PAGE_SIZE
         val startMs = nowMs()
         var pagingReason = if (storedHours == null) "no_stored_hours_given" else "single_page"
         var pageToken: String? = null
         var pages = 0
         do {
             val page = fetchJson(apiKey, "/forecast/hours:lookup", lat, lon) {
-                parameter("hours", FORECAST_HOURS)
+                parameter("hours", hoursAhead)
                 parameter("pageSize", PAGE_SIZE)
                 pageToken?.let { parameter("pageToken", it) }
             }
@@ -291,8 +316,8 @@ class GoogleWeatherApi(
                 pagingReason = decision.reason
                 if (!decision.fetchRest) break
             }
-        } while (pageToken != null && pages < MAX_HOUR_PAGES)
-        lastHoursPaging = "pages=$pages reason=$pagingReason"
+        } while (pageToken != null && pages < maxPages)
+        lastHoursPaging = "pages=$pages reason=$pagingReason" + if (hoursAhead != FORECAST_HOURS) " hours=$hoursAhead" else ""
         Log.i(TAG, "forecast/hours $lastHoursPaging")
         return hours
     }

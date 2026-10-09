@@ -40,6 +40,7 @@ import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.NoHourlyChecker
 import com.weatherwidget.util.NavigationUtils
+import com.weatherwidget.data.remote.HourlyOnDemand
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -63,7 +64,7 @@ internal fun WidgetPopup(
     onOpenHistory: (viewedDate: LocalDate) -> Unit = {},
     onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
     onNeedHistory: (Int) -> Unit = {},
-    onNeedHourlyRefresh: (onComplete: (List<HourlyForecast>) -> Unit) -> Unit = { _ -> },
+    onNeedHourlyRefresh: (date: LocalDate, onComplete: (List<HourlyForecast>) -> Unit) -> Unit = { _, _ -> },
     onDayClickAudit: (String) -> Unit = {},
     transientMessage: String? = null,
     currentTempFetchError: String? = null,
@@ -117,10 +118,18 @@ internal fun WidgetPopup(
 
                     Spacer(Modifier.height(4.dp))
 
-                    // Transient banner for day-taps that have no hourly data (e.g. NWS horizon ends
-                    // mid-week). Declared unconditionally (Compose hook ordering) and consumed only
-                    // inside the daily-view branch below.
+                    // Banner for a day-tap whose hourly data is missing: "Fetching…" over the day's
+                    // empty hourly graph while its on-demand fetch runs (held until it completes),
+                    // then the result if the data is still missing (auto-dismissed). Declared above
+                    // both branches: the tap starts in the daily view and lands in the hourly one.
                     var noHourlyMessage by remember { mutableStateOf<String?>(null) }
+                    var noHourlyFetching by remember { mutableStateOf(false) }
+                    LaunchedEffect(noHourlyMessage, noHourlyFetching) {
+                        if (noHourlyMessage != null && !noHourlyFetching) {
+                            kotlinx.coroutines.delay(NoHourlyChecker.MESSAGE_DURATION_MS)
+                            noHourlyMessage = null
+                        }
+                    }
 
                     val isHourly = config.viewMode.isHourly
                     if (isHourly) {
@@ -271,7 +280,7 @@ internal fun WidgetPopup(
                             // Transient banner: a location-picker save's first fetch ("Getting weather
                             // for {place}…") or an on-demand deep-history pull, in flight or briefly on
                             // failure. Drawn last so it floats over the graph + arrows.
-                            transientMessage?.let { msg ->
+                            (noHourlyMessage ?: transientMessage)?.let { msg ->
                                 Surface(
                                     modifier = Modifier
                                         .align(Alignment.TopCenter)
@@ -282,7 +291,9 @@ internal fun WidgetPopup(
                                 ) {
                                     Text(
                                         text = msg,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        modifier = Modifier
+                                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                                            .then(if (msg == noHourlyMessage) Modifier.testTag("no_hourly_message") else Modifier),
                                         color = Color.White,
                                         fontSize = (12f * uiScale).sp,
                                     )
@@ -385,28 +396,47 @@ internal fun WidgetPopup(
                                         "icon=${clickedDay?.iconName} precipGate=${routingPrecip.auditText()} " +
                                         "clickSource=$clickSource",
                                 )
-                                if (NoHourlyChecker.hasHourlyForDay(snapshot.raw.hourly, clickedDate, visibleSourceIds)) {
-                                    noHourlyMessage = null
-                                    onUpdateConfig(
-                                        dayClickConfig(
-                                            config, clickedDate, dailyState.days, zone, clickNow,
-                                            snapshot.raw.hourly,
-                                        ),
+                                val nextConfig = dayClickConfig(
+                                    config, clickedDate, dailyState.days, zone, clickNow,
+                                    snapshot.raw.hourly,
+                                )
+                                val hasHourly = NoHourlyChecker.hasHourlyForDay(snapshot.raw.hourly, clickedDate, visibleSourceIds)
+                                // Google keeps 72 h of hourly; a later day is fetched now (HourlyOnDemand).
+                                val onDemandHours = HourlyOnDemand.hoursToCover(
+                                    config.displaySource,
+                                    clickedDate,
+                                    ZoneId.systemDefault(),
+                                    System.currentTimeMillis(),
+                                    snapshot.raw.hourly.filter { it.source == null || it.source == config.displaySource },
+                                )
+                                // The day's hourly view opens either way, empty where data is missing.
+                                onUpdateConfig(nextConfig)
+                                val dayLabel = NoHourlyChecker.formatDayLabel(clickedDate)
+                                if (onDemandHours != null) {
+                                    noHourlyMessage = NoHourlyChecker.buildPendingMessage(dayLabel)
+                                    noHourlyFetching = true
+                                    onNeedHourlyRefresh(clickedDate) { newHourly ->
+                                        val hasData = NoHourlyChecker.hasHourlyForDay(newHourly, clickedDate, visibleSourceIds)
+                                        noHourlyMessage = if (hasData) {
+                                            null
+                                        } else {
+                                            NoHourlyChecker.buildResultMessage(
+                                                dayLabel,
+                                                false,
+                                                NoHourlyChecker.lastHourlyEndLabel(newHourly, visibleSourceIds),
+                                            )
+                                        }
+                                        noHourlyFetching = false
+                                    }
+                                } else if (!hasHourly) {
+                                    // Nothing to fetch: the source's whole horizon is already stored.
+                                    noHourlyFetching = false
+                                    noHourlyMessage = NoHourlyChecker.buildMessage(
+                                        dayLabel,
+                                        NoHourlyChecker.lastHourlyEndLabel(snapshot.raw.hourly, visibleSourceIds),
                                     )
                                 } else {
-                                    // Two-phase flow mirroring Android: show a pending banner, resolve
-                                    // against the freshest in-memory hourly data, then replace it with a
-                                    // result banner (data present, or genuinely missing — fetches already
-                                    // request the maximum horizon, so there is nothing wider to pull).
-                                    val dayLabel = NoHourlyChecker.formatDayLabel(clickedDate)
-                                    noHourlyMessage = NoHourlyChecker.buildPendingMessage(dayLabel)
-                                    onNeedHourlyRefresh { newHourly ->
-                                        val hasData = NoHourlyChecker.hasHourlyForDay(newHourly, clickedDate, visibleSourceIds)
-                                        val endLabel =
-                                            if (!hasData) NoHourlyChecker.lastHourlyEndLabel(newHourly, visibleSourceIds)
-                                            else null
-                                        noHourlyMessage = NoHourlyChecker.buildResultMessage(dayLabel, hasData, endLabel)
-                                    }
+                                    noHourlyMessage = null
                                 }
                             }
 
@@ -443,10 +473,6 @@ internal fun WidgetPopup(
                             }
 
                             noHourlyMessage?.let { msg ->
-                                LaunchedEffect(msg) {
-                                    kotlinx.coroutines.delay(NoHourlyChecker.MESSAGE_DURATION_MS)
-                                    noHourlyMessage = null
-                                }
                                 Box(
                                     modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
                                     contentAlignment = Alignment.Center,

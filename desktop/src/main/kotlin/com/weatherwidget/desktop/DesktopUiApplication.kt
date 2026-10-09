@@ -356,13 +356,28 @@ internal fun runDesktopUiApplication() = application {
                 }
             }
         }
-        // Daily-view tap on a day that has no hourly data. Every fetch already requests the maximum
-        // forecast horizon, so there is nothing wider to fetch on tap — the two-phase pending→result
-        // banner resolves immediately from the in-memory forecast. The completion callback always
-        // fires so the UI never strands on the pending banner.
-        val onNeedHourlyRefresh: ((List<HourlyForecast>) -> Unit) -> Unit = remember(repository) {
-            { onComplete: (List<HourlyForecast>) -> Unit ->
-                onComplete(forecast?.raw?.hourly ?: emptyList())
+        // Daily-view tap on a day whose hourly the displayed source has not stored. Google keeps
+        // 72 h and fetches a later day here (HourlyOnDemand); every other source already holds its
+        // whole horizon, so there is nothing to fetch and this resolves from memory. The completion
+        // callback always fires so the popup never strands on its "Fetching…" banner.
+        val onNeedHourlyRefresh: (LocalDate, (List<HourlyForecast>) -> Unit) -> Unit = remember(repository) {
+            { date: LocalDate, onComplete: (List<HourlyForecast>) -> Unit ->
+                val repo = repository
+                if (repo == null) {
+                    onComplete(forecast?.raw?.hourly ?: emptyList())
+                } else {
+                    uiScope.launch {
+                        try {
+                            if (repo.extendHourlyFor(date)) repo.loadCached()?.let { forecast = it }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.e(TAG, "On-demand hourly fetch failed: ${e.message}")
+                        } finally {
+                            onComplete(forecast?.raw?.hourly ?: emptyList())
+                        }
+                    }
+                }
             }
         }
 

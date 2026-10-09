@@ -137,6 +137,23 @@ class GoogleWeatherFetchIntegrationTest {
         assertEquals(9, requests.count { it.url.host == "weather.googleapis.com" })
     }
 
+    /** A tapped day's forced sync (HourlyOnDemand) asks Google for that day's horizon, every page. */
+    @Test
+    fun `a sync with an on-demand horizon asks for it`() = runTest {
+        val context = com.weatherwidget.widget.ForecastFetchContext(
+            isCharging = true,
+            isScreenInteractive = true,
+            batteryLevel = 100,
+            activeSourceIds = setOf(source),
+            hourlyAhead = com.weatherwidget.data.remote.HourlyOnDemand.Request(source, 120),
+        )
+        repository().getWeatherData(lat, lon, forceRefresh = true, fetchContext = context)
+
+        val hourPages = requests.filter { it.url.encodedPath.endsWith("forecast/hours:lookup") }
+        assertTrue(hourPages.isNotEmpty())
+        assertTrue(hourPages.all { it.url.parameters["hours"] == "120" })
+    }
+
     /** targetDate -> (day, night) precip on the newest batch of Google daily rows. */
     private fun storedPeriods(): Map<Long, Pair<Int?, Int?>> =
         db.openHelper.readableDatabase.query(

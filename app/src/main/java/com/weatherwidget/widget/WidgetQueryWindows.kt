@@ -8,8 +8,8 @@ object WidgetQueryWindows {
     /** Covers current interactive graph observation context. */
     const val HOURLY_LOOKAHEAD_HOURS = 60L
 
-    /** Covers the full seven-day hourly graph horizon. */
-    const val HOURLY_GRAPH_LOOKAHEAD_HOURS = 168L
+    /** The hourly graph's horizon: every future daily column can open a full day (HourlyOnDemand). */
+    const val HOURLY_GRAPH_LOOKAHEAD_HOURS = com.weatherwidget.data.remote.HourlyOnDemand.REACH_HOURS.toLong()
 
     /**
      * Future horizon for daily forecast rows AND for the `ClimateGapFiller` gap-row fill, shared by

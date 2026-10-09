@@ -244,7 +244,7 @@ internal fun PopupWindowHost(
     onOpenObservations: () -> Unit,
     onOpenHistory: (LocalDate) -> Unit,
     onNeedHistory: (Int) -> Unit,
-    onNeedHourlyRefresh: ((List<HourlyForecast>) -> Unit) -> Unit,
+    onNeedHourlyRefresh: (LocalDate, (List<HourlyForecast>) -> Unit) -> Unit,
     onDayClickAudit: (String) -> Unit,
     transientMessage: String?,
     currentTempFetchError: String?,

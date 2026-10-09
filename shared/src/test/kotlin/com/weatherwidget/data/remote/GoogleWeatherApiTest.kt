@@ -115,6 +115,44 @@ class GoogleWeatherApiTest {
     }
 
     @Test
+    fun `a deeper on-demand horizon asks for it and skips the page-1 check`() = runBlocking {
+        val stored = storedAfterFullFetch()
+        requests.clear()
+        val google = api()
+
+        // Unchanged page 1 would stop a routine fetch at one page; a tapped day needs the rest.
+        google.getForecast(37.422, -122.084, includeHistory = false, storedHours = stored, hoursAhead = 96)
+
+        val pages = requests.filter { it.url.encodedPath.endsWith("forecast/hours:lookup") }
+        assertTrue(pages.all { it.url.parameters["hours"] == "96" })
+        assertEquals("the recording's token chain ends at page 3", 3, pages.size)
+        assertEquals("pages=3 reason=no_stored_hours_given hours=96", google.lastHoursPaging)
+    }
+
+    @Test
+    fun `getForecastHours costs only its hour pages`() = runBlocking {
+        val hours = api().getForecastHours(37.422, -122.084, hoursAhead = 72)
+
+        assertEquals("only forecast/hours", 3, requests.size)
+        assertEquals(3, hourPageCalls())
+        assertEquals(72, hours.size)
+        assertEquals(hours.map { it.dateTime }.sorted(), hours.map { it.dateTime })
+        assertTrue(hours.all { it.source == WeatherSource.GOOGLE_WEATHER.id })
+    }
+
+    @Test
+    fun `getForecastHours makes no request while the hours quota is exhausted`() = runBlocking {
+        hoursErrorBody = quota429("1/d/{project}", "forecast/hours")
+        val google = api()
+        assertTrue(google.getForecastHours(37.422, -122.084, hoursAhead = 96).isEmpty())
+        val before = requests.size
+
+        assertTrue(google.getForecastHours(37.422, -122.084, hoursAhead = 96).isEmpty())
+        assertEquals(before, requests.size)
+        assertEquals("pages=0 reason=quota_blocked", google.lastHoursPaging)
+    }
+
+    @Test
     fun `an hourly-limited fetch makes no hour or history call and keeps the daily forecast`() = runBlocking {
         val google = api()
         val result = google.getForecast(37.422, -122.084, includeHistory = true, includeHours = false)

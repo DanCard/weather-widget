@@ -217,7 +217,7 @@
     <string name="bug_report_collecting_diagnostics">निदान डेटा एकत्र किया जा रहा है...</string>
     <string name="view_icon_gallery">आइकन गैलरी देखें</string>
     <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
-    <string name="widget_no_hourly_pending">%1$s के लिए प्रति घंटा तापमान डेटा गायब है। रीफ़्रेश शुरू किया जाएगा।</string>
+    <string name="widget_no_hourly_pending">%1$s के लिए प्रति घंटा पूर्वानुमान लाया जा रहा है…</string>
     <string name="widget_no_hourly_result_still_missing">रीफ़्रेश का परिणाम: %1$s के लिए नया प्रति घंटा तापमान डेटा नहीं मिल सका। डेटा %2$s पर समाप्त होता है</string>
     <string name="widget_no_hourly_result_still_missing_unknown">रीफ़्रेश का परिणाम: %1$s के लिए नया प्रति घंटा तापमान डेटा नहीं मिल सका।</string>
     <string name="widget_no_hourly_result_available">रीफ़्रेश के परिणाम:\n%1$s के लिए प्रति घंटा डेटा अब उपलब्ध है</string>

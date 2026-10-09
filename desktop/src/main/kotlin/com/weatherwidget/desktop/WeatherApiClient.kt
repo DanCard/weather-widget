@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.remote.NwsApi
@@ -26,6 +27,12 @@ interface WeatherApiClient {
      */
     suspend fun fetchForecast(recentObservationsOnly: Boolean, hourlyLimited: Boolean): RawFetch =
         fetchForecast(recentObservationsOnly)
+
+    /**
+     * The displayed source's hourly forecast [hoursAhead] deep, alone: a tapped day past the routine
+     * horizon ([com.weatherwidget.data.remote.HourlyOnDemand]). Empty for sources that do not extend.
+     */
+    suspend fun fetchHourlyAhead(hoursAhead: Int): List<HourlyForecast> = emptyList()
 
     /** Legacy Open-Meteo history backfill entry point; pinned as uncalled by a regression test. */
     suspend fun fetchHistory(historyDays: Int): RawFetch

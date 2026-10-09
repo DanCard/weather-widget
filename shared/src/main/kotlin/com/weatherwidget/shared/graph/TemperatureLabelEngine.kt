@@ -233,6 +233,9 @@ object TemperatureLabelEngine {
         reservedHardBounds: List<GraphRect> = emptyList(),
         useCelsius: Boolean,
     ): List<PlacedLabel> {
+        // A window with no hours (a tapped day whose hourly is still being fetched) has nothing to
+        // label; the extrema pass would anchor START/END at index 0 of an empty list.
+        if (hours.isEmpty()) return emptyList()
         val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, transitionX, effectiveActualEndIndex, fetchTime, useCelsius)
         val candidates = TemperatureLabelResolver.collectLabelCandidates(
             hours = hours,

@@ -84,7 +84,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     }
 
     @Test
-    fun `day click when no hourly data sets pending message and enqueues scoped refresh`() = runTest {
+    fun `day click when no hourly data opens the hourly view under a fetching banner and enqueues scoped refresh`() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
         receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
 
@@ -105,9 +105,10 @@ class WeatherWidgetProviderNoHourlyRoboTest {
 
         val message = stateManager.getActiveTransientMessage(widgetId)
         assertNotNull("Active transient message should not be null", message)
-        assertTrue("Message should be pending", message!!.contains("refresh will be triggered"))
+        assertTrue("Message should say it is fetching: $message", message!!.contains("Fetching hourly forecast for"))
         assertTrue("Message should contain target day", message.contains(NoHourlyDayClickCoordinator.formatDayLabel(targetDay.toString())))
         assertTrue("Pending message should not be framed as refresh result yet", !message.contains("Result of refresh"))
+        assertEquals("the day's hourly view opens at once, empty", ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
 
         val input = workSlot.captured.workSpec.input
         assertEquals(true, input.getBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, false))
@@ -149,16 +150,19 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         )
         assertTrue(message.contains(NoHourlyDayClickCoordinator.formatDayLabel(targetDay.toString())))
         assertTrue(message.contains("Data ends") || message.contains("at"))
-        assertEquals(ViewMode.DAILY, stateManager.getViewMode(widgetId))
+        assertEquals("stays on the day's (empty) hourly view", ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
     }
 
     @Test
-    fun `refresh complete with new hourly posts available message`() = runTest {
+    fun `refresh complete with new hourly clears the fetching banner`() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
         receiver.scope = CoroutineScope(SupervisorJob() + testDispatcher)
 
         val targetDay = LocalDate.now().plusDays(7)
         seedMissingHourlyScenario(targetDay)
+        receiver.onReceive(context, dayClickIntent(targetDay))
+        advanceUntilIdle()
+        assertNotNull("fetching banner up", stateManager.getActiveTransientMessage(widgetId))
 
         runBlocking {
             val noon = targetDay.atTime(12, 0)
@@ -181,11 +185,8 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         receiver.onReceive(context, refreshCompleteIntent(targetDay))
         advanceUntilIdle()
 
-        val message = stateManager.getActiveTransientMessage(widgetId)
-        assertNotNull(message)
-        assertTrue(message!!.contains("Results of refresh"))
-        assertTrue(message.contains("now available", ignoreCase = true))
-        assertEquals(ViewMode.DAILY, stateManager.getViewMode(widgetId))
+        assertNull("the graph has its data; the banner goes", stateManager.getActiveTransientMessage(widgetId))
+        assertEquals(ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
     }
 
     @Test

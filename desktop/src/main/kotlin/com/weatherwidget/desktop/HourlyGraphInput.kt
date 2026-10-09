@@ -150,9 +150,10 @@ internal fun rememberHourlyGraphSetup(
     val cutoff = center + forwardHours * 3_600_000L
 
     val points = remember(hourly, start, cutoff) {
+        // No fallback for an empty window: it once drew the earliest stored hours under this
+        // window's axis — another day's curve labelled as the tapped day.
         hourly.filter { it.dateTime >= (start - 3_600_000L) && it.dateTime < cutoff }
             .sortedBy { it.dateTime }
-            .ifEmpty { hourly.sortedBy { it.dateTime }.take(backHours + forwardHours + 1) }
     }
 
     val painters: List<Painter> = points.map { painterResource(WeatherIcon.getIconResource(it.condition)) }

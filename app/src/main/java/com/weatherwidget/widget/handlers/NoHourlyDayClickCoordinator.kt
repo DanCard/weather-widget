@@ -4,7 +4,9 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import com.weatherwidget.R
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.shared.util.NoHourlyChecker
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
@@ -12,8 +14,9 @@ import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 /**
- * Pure and DB-backed logic for the two-phase missing-hourly day tap flow: pending message,
- * scoped refresh, then post-refresh result message.
+ * Pure and DB-backed logic for the two-phase missing-hourly day tap flow: the tapped day's hourly
+ * view (empty) under a "Fetching…" banner, a scoped refresh, then the banner cleared or replaced by
+ * the result.
  */
 object NoHourlyDayClickCoordinator {
 
@@ -89,6 +92,37 @@ object NoHourlyDayClickCoordinator {
         }
 
         return false
+    }
+
+    /**
+     * The `forecast/hours` horizon that would cover [dateStr] for this widget's display source
+     * ([HourlyOnDemand]: Google past its routine 72 h), or null when nothing needs fetching.
+     */
+    suspend fun onDemandHours(
+        database: WeatherDatabase,
+        stateManager: WidgetStateManager,
+        appWidgetId: Int,
+        dateStr: String,
+        lat: Double,
+        lon: Double,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Int? {
+        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return null
+        val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return null
+        val sourceId = stateManager.getCurrentDisplaySource(appWidgetId).id
+        if (!HourlyOnDemand.extendsHourly(sourceId)) return null
+        val latestWeather = database.forecastDao().getLatestWeather()
+        val effectiveLat = if (lat != 0.0) lat else latestWeather?.locationLat ?: return null
+        val effectiveLon = if (lon != 0.0) lon else latestWeather?.locationLon ?: return null
+        val stored = database.hourlyForecastDao()
+            .getHourlyForecastsBySource(
+                nowMs - TimeUnit.HOURS.toMillis(1),
+                nowMs + TimeUnit.HOURS.toMillis(HourlyOnDemand.REACH_HOURS.toLong()),
+                effectiveLat,
+                effectiveLon,
+                sourceId,
+            ).map { it.toHourlyForecast() }
+        return HourlyOnDemand.hoursToCover(sourceId, date, ZoneId.systemDefault(), nowMs, stored)
     }
 
     suspend fun lastHourlyEndLabelForSource(

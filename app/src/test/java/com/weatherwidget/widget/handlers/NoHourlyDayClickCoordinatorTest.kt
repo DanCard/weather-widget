@@ -25,13 +25,11 @@ class NoHourlyDayClickCoordinatorTest {
     }
 
     @Test
-    fun `buildPendingMessage mentions refresh will be triggered`() {
+    fun `buildPendingMessage says the day's hourly forecast is being fetched`() {
         val dayLabel = NoHourlyDayClickCoordinator.formatDayLabel("2026-07-07")
         val message = NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel)
 
-        assertTrue(message.contains(dayLabel))
-        assertTrue(message.contains("refresh will be triggered", ignoreCase = true))
-        assertTrue(message.contains("Hourly temperature data missing", ignoreCase = true))
+        assertEquals("Fetching hourly forecast for $dayLabel…", message)
     }
 
     @Test

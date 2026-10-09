@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.*
 import com.weatherwidget.data.remote.ApiAccessException
+import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.shared.actuals.DailyHistoryMaintenance
@@ -216,7 +217,7 @@ class DesktopWeatherRepository(
         val maxAgeMs = 24 * 60 * 60 * 1000L // 24 hours for cache
         // Cover the widest zoom-out (6 days back) so the continuous-zoom graph never truncates history.
         val stitchedStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)
-        val hourly = weatherDao.getHourlyWithHistory(latitude, longitude, weatherSource, stitchedStart, now + (168 * 3600 * 1000L), maxAgeMs)
+        val hourly = weatherDao.getHourlyWithHistory(latitude, longitude, weatherSource, stitchedStart, now + HourlyOnDemand.REACH_HOURS * 3_600_000L, maxAgeMs)
         val daily = weatherDao.getDailyForecasts(latitude, longitude, weatherSource)
         // Same window as the hourly read so the frozen forecast curve reaches as far back as the
         // curve it annotates; empty for every source but Open-Meteo, which is the only one with a
@@ -367,6 +368,42 @@ class DesktopWeatherRepository(
             } else {
                 false
             }
+        }
+    }
+
+    private val hourlyExtendMutex = Mutex()
+
+    /**
+     * A tapped day past the displayed source's stored hourly ([HourlyOnDemand]: Google keeps 72 h):
+     * fetches `forecast/hours` deep enough to cover [date] and stores it as a refresh would (live
+     * rows plus this 4 h bucket's history snapshot). Serialized and re-checked under the lock, so a
+     * second tap on the same day waits for the first and then fetches nothing. Returns true when it
+     * stored hours.
+     */
+    suspend fun extendHourlyFor(date: LocalDate, now: Long = currentTimeMillis()): Boolean = withContext(Dispatchers.IO) {
+        if (!HourlyOnDemand.extendsHourly(weatherSource)) return@withContext false
+        hourlyExtendMutex.withLock {
+            val stored = weatherDao.getHourlyForecasts(
+                LocationMatch.quantize(latitude),
+                LocationMatch.quantize(longitude),
+                weatherSource,
+                now - 3_600_000L,
+                now + HourlyOnDemand.REACH_HOURS * 3_600_000L,
+            )
+            val hours = HourlyOnDemand.hoursToCover(weatherSource, date, ZoneId.systemDefault(), now, stored)
+                ?: return@withLock false
+            val fetched = weatherService.fetchHourlyAhead(hours)
+                .filter { it.dateTime >= now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
+            weatherDao.log(
+                tag = "HOURLY_ON_DEMAND",
+                message = "source=$weatherSource date=$date hours=$hours storedLast=${stored.maxOfOrNull { it.dateTime }} rows=${fetched.size}",
+                level = "INFO",
+            )
+            if (fetched.isEmpty()) return@withLock false
+            weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, fetched)
+            val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
+            weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, fetched)
+            true
         }
     }
 
@@ -1279,6 +1316,19 @@ class DesktopWeatherRepository(
      * Once a day, after the one-shot backfills that read every snapshot have run
      * (performance/260929-hourly-history-snapshot-retention.md). Best-effort: never fails a refresh.
      */
+    /**
+     * Google's on-demand hours (past its routine 72 h) that no fetch has refreshed for
+     * [HourlyOnDemand.MAX_EXTENSION_AGE_MS]: routine fetches never refresh them. Other sources keep
+     * their whole horizon. Android: `HistoryPruneWorker`.
+     */
+    internal fun pruneHourlyBeyondWindow(now: Long) {
+        val deleted = WeatherSource.entries.sumOf { source ->
+            val fromMs = HourlyOnDemand.extensionStartMs(source.id, now) ?: return@sumOf 0
+            weatherDao.deleteStaleHourlyBeyondWindow(source.id, fromMs, HourlyOnDemand.pruneFetchedBefore(now))
+        }
+        weatherDao.log("HOURLY_WINDOW_PRUNE", "deleted=$deleted", "INFO")
+    }
+
     internal fun pruneHistorySnapshotsIfDue(now: Long) {
         try {
             val last = weatherDao.getRecentLogsByTags(listOf(HISTORY_PRUNE_TAG), limit = 1).firstOrNull()?.timestamp ?: 0L
@@ -1290,6 +1340,7 @@ class DesktopWeatherRepository(
                 return
             }
             weatherDao.pruneHourlyHistorySnapshots()
+            pruneHourlyBeyondWindow(now)
             // DELETE leaves the file its size; the first prune freed ~100 MB on this machine
             // (183 MB -> 82 MB, VACUUM 0.16 s on a copy). Only when there is real space to win.
             val freeBytes = weatherDao.freelistBytes()

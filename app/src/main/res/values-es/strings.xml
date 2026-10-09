@@ -213,7 +213,7 @@
     <string name="bug_report_error_empty_description">Escribe una breve descripción del problema antes de enviar.</string>
     <string name="bug_report_collecting_diagnostics">Recopilando datos de diagnóstico...</string>
     <string name="view_icon_gallery">Ver galería de iconos</string>
-    <string name="widget_no_hourly_pending">Faltan datos de temperatura por horas para %1$s. Se iniciará una actualización.</string>
+    <string name="widget_no_hourly_pending">Obteniendo el pronóstico por horas para %1$s…</string>
     <string name="widget_no_hourly_result_still_missing">Resultado de la actualización: no se pudieron obtener nuevos datos de temperatura por horas para %1$s. Los datos terminan %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Resultado de la actualización: no se pudieron obtener nuevos datos de temperatura por horas para %1$s.</string>
     <string name="widget_no_hourly_result_available">Resultado de la actualización:\nYa hay datos por horas para %1$s</string>

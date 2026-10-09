@@ -96,7 +96,9 @@ def query(db_path, day):
         ):
             fields = dict(p.split("=", 1) for p in msg.split() if "=" in p)
             pages += int(fields.get("pages", "0") or 0)
-            fetches += 1
+            # An on-demand day fetch is forecast/hours alone; only full fetches call forecast/days.
+            if fields.get("trigger") != "on_demand_day":
+                fetches += 1
         # The day key is that day's UTC-midnight epoch ms (LocalDate.toEpochDay() * 86_400_000).
         key = (day - date(1970, 1, 1)).days * 86_400_000
         try:

@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.toHourlyForecast
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.HourlyForecastHistoryEntity
 import com.weatherwidget.data.local.LocationMatch
@@ -60,8 +61,12 @@ internal class HourlyForecastStore(
             )
         }
         val prioritySourceIds = widgetStateManager.getActiveDisplaySourceIds()
+        // Google's on-demand hours (past its routine 72 h) are always rewritten: their fetchedAt is
+        // what keeps them counted as fresh (HourlyOnDemand) and spares them the daily prune.
+        val extensionStartMs = HourlyOnDemand.extensionStartMs(sample.source, System.currentTimeMillis())
         val changedEntities = mergedEntities.filter { merged ->
-            hasMeaningfulHourlyChange(existingByDateTime[merged.dateTime], merged)
+            (extensionStartMs != null && merged.dateTime >= extensionStartMs) ||
+                hasMeaningfulHourlyChange(existingByDateTime[merged.dateTime], merged)
         }
         if (changedEntities.isNotEmpty()) {
             hourlyForecastDao.insertAll(changedEntities)

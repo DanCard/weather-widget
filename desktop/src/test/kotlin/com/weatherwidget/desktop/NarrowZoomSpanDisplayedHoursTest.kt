@@ -115,7 +115,6 @@ settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours),
             hourlySeries(centerMs),
             window.startMs,
             window.endMs,
-            backHours + forwardHours,
         )
         return (points.last().dateTime - points.first().dateTime) / 3_600_000L
     }
@@ -148,7 +147,6 @@ settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours),
                 hourlySeries(centerMs, hoursEitherSide = backHours + forwardHours + 24),
                 window.startMs,
                 window.endMs,
-                backHours + forwardHours,
             )
             val drawn = (points.last().dateTime - points.first().dateTime) / 3_600_000L
             assertEquals(
@@ -166,10 +164,18 @@ settings = DesktopSettings(narrowZoomSpanHours = narrowZoomSpanHours),
         val backHours = 3
         val forwardHours = 3
         val window = temperatureGraphHourWindow(centerMs, backHours, forwardHours, ZoneId.of("UTC"))
-        val points = hourlyPointsInWindow(hourlySeries(centerMs), window.startMs, window.endMs, 6)
+        val points = hourlyPointsInWindow(hourlySeries(centerMs), window.startMs, window.endMs)
         assertEquals("first point must be the window start", window.startMs, points.first().dateTime)
         assertEquals("last point must be the window end", window.endMs, points.last().dateTime)
         assertEquals("a 6h window on hourly data is 7 points", 7, points.size)
+    }
+
+    @Test
+    fun `a window past the stored hours is empty, never another day's hours`() {
+        // A tapped day past the stored hourly drew the earliest stored hours under its own axis
+        // while its on-demand fetch ran (plans/261009-google-hourly-on-demand-past-72h.md).
+        val window = temperatureGraphHourWindow(centerMs + 6 * 24 * 3_600_000L, 3, 3, ZoneId.of("UTC"))
+        assertEquals(emptyList<Any>(), hourlyPointsInWindow(hourlySeries(centerMs), window.startMs, window.endMs))
     }
 
     @Test

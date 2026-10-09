@@ -17,6 +17,11 @@ import com.weatherwidget.data.model.ResolvedView
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.MediumDuration
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
@@ -24,14 +29,16 @@ import java.time.ZoneId
 import org.junit.experimental.categories.Category
 
 /**
- * Verifies the two-phase "no hourly data" day-tap flow on the desktop daily view:
- *   1. Tapping a future day with no hourly data shows a "refresh will be triggered" banner and
- *      triggers a refresh (instead of switching to a black hourly graph).
- *   2. When the refresh returns data, a "now available" result banner replaces the pending one.
- *   3. When the refresh returns nothing, a "no hourly data" result banner replaces it.
+ * The desktop day-tap on a day whose hourly data is missing
+ * (`plans/261009-google-hourly-on-demand-past-72h.md`):
+ *   - Google (72 h of hourly stored): the day's hourly view opens at once, empty, under a
+ *     "Fetching hourly forecast for …" banner while `onNeedHourlyRefresh` fetches that day; the banner
+ *     clears when the hours arrive, or turns into the "no hourly data" result when they don't.
+ *   - A source that does not extend (NWS): the hourly view opens with the "no hourly forecast"
+ *     message and nothing is fetched.
  *
- * The refresh is driven through [WidgetPopup]'s `onNeedHourlyRefresh` callback, which the test
- * captures and invokes manually to simulate completion — no real network or DB.
+ * The fetch is [WidgetPopup]'s `onNeedHourlyRefresh` callback, captured and completed by hand — no
+ * real network or DB.
  */
 @Category(MediumDuration::class)
 class DesktopNoHourlyDayClickTest {
@@ -39,9 +46,9 @@ class DesktopNoHourlyDayClickTest {
     val composeTestRule = createComposeRule()
 
     private val today: LocalDate = LocalDate.now()
-    // today+7 is reliably within a 9-column daily window (offsets -1..+7) and far past the near-term
-    // hourly coverage in the stub, so it always reads as "no hourly data for this day".
-    private val targetDate: LocalDate = today.plusDays(7)
+    // Within a 9-column daily window (offsets -1..+7) and the 240 h on-demand reach, and past the
+    // today's hourly in the stub.
+    private val targetDate: LocalDate = today.plusDays(5)
 
     private fun epochMs(date: LocalDate, hour: Int): Long =
         date.atTime(hour, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -52,108 +59,111 @@ class DesktopNoHourlyDayClickTest {
         DailyForecast(d.toString(), 75f + offset, 55f + offset, "Sunny", precipProbability = 0)
     }
 
-    /** Hourly data ONLY for today — so today+7 has none. */
-    private val nearTermHourly: List<HourlyForecast> = listOf(
-        HourlyForecast(epochMs(today, 9), 70f, "Sunny", source = WeatherSource.NWS.id),
-        HourlyForecast(epochMs(today, 12), 74f, "Sunny", source = WeatherSource.NWS.id),
+    private fun hourly(source: WeatherSource, vararg at: Pair<LocalDate, Int>): List<HourlyForecast> =
+        at.map { (date, hour) ->
+            HourlyForecast(epochMs(date, hour), 70f + hour / 4f, "Sunny", source = source.id, fetchedAt = System.currentTimeMillis())
+        }
+
+    private fun config(source: WeatherSource) = DesktopConfig(
+        lat = 37.4220,
+        lon = -122.0841,
+        label = "Mountain View",
+        settings = DesktopSettings(visibleSources = listOf(source.id), weatherSource = source.id),
     )
 
-    private val stubForecast = ForecastSnapshot(
-raw = RawFetch(daily = dailyEntries,
-hourly = nearTermHourly),
-resolved = ResolvedView(currentTemp = 72f,
-currentCondition = "Sunny"),
-)
+    private val google = WeatherSource.GOOGLE_WEATHER
+    private val googleToday = hourly(google, today to 9, today to 12)
 
-    private val stubConfig = DesktopConfig(
-lat = 37.4220,
-lon = -122.0841,
-label = "Mountain View",
-settings = DesktopSettings(visibleSources = listOf("NWS")),
-)
+    private var shownConfig by mutableStateOf<DesktopConfig?>(null)
+    private var fetchedDate: LocalDate? = null
+    private var completeFetch: ((List<HourlyForecast>) -> Unit)? = null
 
-    /** Hourly data that a successful refresh would return for the target day (≥2 NWS points). */
-    private val refreshedHourly: List<HourlyForecast> = nearTermHourly + listOf(
-        HourlyForecast(epochMs(targetDate, 9), 68f, "Sunny", source = WeatherSource.NWS.id),
-        HourlyForecast(epochMs(targetDate, 15), 73f, "Sunny", source = WeatherSource.NWS.id),
-    )
-
-    private fun renderTextModeDaily(
-        onUpdateConfig: (DesktopConfig) -> Unit = {},
-        onNeedHourlyRefresh: ((List<HourlyForecast>) -> Unit) -> Unit = { _ -> },
-    ) {
+    private fun render(source: WeatherSource, stored: List<HourlyForecast>) {
+        shownConfig = config(source)
         composeTestRule.setContent {
             // 600dp wide → 9 day columns (offsets -1..+7); short height → text mode (no graph),
             // so each day renders as a clickable semantic node tagged "day_tab_<date>".
             Box(Modifier.size(600.dp, 110.dp)) {
                 WidgetPopup(
-                    config = stubConfig,
-                    forecast = stubForecast,
+                    config = shownConfig!!,
+                    forecast = ForecastSnapshot(
+                        raw = RawFetch(daily = dailyEntries, hourly = stored),
+                        resolved = ResolvedView(currentTemp = 72f, currentCondition = "Sunny"),
+                    ),
                     dataStatus = DataStatus.Live(System.currentTimeMillis()),
                     onUpdateLocation = {},
-                    onUpdateConfig = onUpdateConfig,
+                    onUpdateConfig = { shownConfig = it },
                     onOpenSettings = {},
                     onOpenObservations = {},
-                    onNeedHourlyRefresh = onNeedHourlyRefresh,
+                    onNeedHourlyRefresh = { date, onComplete ->
+                        fetchedDate = date
+                        completeFetch = onComplete
+                    },
                 )
             }
+        }
+        composeTestRule.onNodeWithTag("day_tab_$targetDate").performClick()
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun googleDayPastStoredHoursOpensEmptyHourlyViewAndFetchesIt() {
+        render(google, googleToday)
+
+        assert(shownConfig!!.viewMode.isHourly) { "expected the hourly view, got ${shownConfig!!.viewMode}" }
+        composeTestRule.onNodeWithTag("hourly_temperature_surface").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("no_hourly_message").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Fetching hourly forecast for", substring = true).assertIsDisplayed()
+        assertEquals(targetDate, fetchedDate)
+    }
+
+    @Test
+    fun fetchingBannerClearsWhenTheDaysHoursArrive() {
+        render(google, googleToday)
+
+        composeTestRule.runOnIdle { completeFetch!!(googleToday + hourly(google, targetDate to 9, targetDate to 15)) }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag("no_hourly_message").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("hourly_temperature_surface").assertIsDisplayed()
+    }
+
+    @Test
+    fun fetchThatBringsNothingShowsTheResult() {
+        render(google, googleToday)
+
+        composeTestRule.runOnIdle { completeFetch!!(googleToday) }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("No hourly data", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun googleDayAlreadyStoredToItsLastHourFetchesNothing() {
+        render(google, googleToday + hourly(google, targetDate to 0, targetDate to 12, targetDate to 23))
+
+        assert(shownConfig!!.viewMode.isHourly)
+        assertNull(fetchedDate)
+        composeTestRule.onNodeWithTag("no_hourly_message").assertDoesNotExist()
+    }
+
+    @Test
+    fun everyHourlyGraphRendersAnEmptyWindow() {
+        render(google, googleToday)
+        val hoursToTargetNoon = java.time.Duration.between(java.time.LocalDateTime.now(), targetDate.atTime(12, 0)).toHours().toInt()
+        for (mode in listOf(ViewMode.TEMPERATURE, ViewMode.PRECIPITATION, ViewMode.CLOUD_COVER)) {
+            shownConfig = config(google).copy(viewMode = mode, hourlyOffset = hoursToTargetNoon)
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag("hourly_temperature_surface").assertIsDisplayed()
         }
     }
 
     @Test
-    fun pendingMessageShownAndRefreshTriggeredOnNoHourlyDayClick() {
-        var capturedComplete: ((List<HourlyForecast>) -> Unit)? = null
-        var pushedConfig: DesktopConfig? = null
-        renderTextModeDaily(
-            onUpdateConfig = { pushedConfig = it },
-            onNeedHourlyRefresh = { onComplete -> capturedComplete = onComplete },
-        )
+    fun nwsDayWithNoHourlyOpensHourlyViewWithoutFetching() {
+        render(WeatherSource.NWS, hourly(WeatherSource.NWS, today to 9, today to 12))
 
-        composeTestRule.onNodeWithTag("day_tab_$targetDate").performClick()
-        composeTestRule.waitForIdle()
-
-        // Phase 1: pending banner shown, refresh registered, view stayed on daily (no HOURLY switch).
-        composeTestRule.onNodeWithText("Hourly data missing", substring = true).assertIsDisplayed()
-        assert(capturedComplete != null) { "expected a refresh to be triggered" }
-        assert(pushedConfig?.viewMode != ViewMode.TEMPERATURE) { "should not switch to hourly view" }
-        composeTestRule.onNodeWithTag("day_tab_$targetDate").assertIsDisplayed()
-    }
-
-    @Test
-    fun resultMessageShownWhenRefreshReturnsData() {
-        var capturedComplete: ((List<HourlyForecast>) -> Unit)? = null
-        renderTextModeDaily(
-            onNeedHourlyRefresh = { onComplete -> capturedComplete = onComplete },
-        )
-
-        composeTestRule.onNodeWithTag("day_tab_$targetDate").performClick()
-        composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Hourly data missing", substring = true).assertIsDisplayed()
-
-        // Phase 2 (data arrived): result banner replaces the pending one.
-        composeTestRule.runOnIdle { capturedComplete!!(refreshedHourly) }
-        composeTestRule.waitForIdle()
-
-        composeTestRule.onNodeWithText("Results of refresh", substring = true).assertIsDisplayed()
-        composeTestRule.onNodeWithText("now available", substring = true).assertIsDisplayed()
-    }
-
-    @Test
-    fun resultMessageShownWhenRefreshReturnsNoData() {
-        var capturedComplete: ((List<HourlyForecast>) -> Unit)? = null
-        renderTextModeDaily(
-            onNeedHourlyRefresh = { onComplete -> capturedComplete = onComplete },
-        )
-
-        composeTestRule.onNodeWithTag("day_tab_$targetDate").performClick()
-        composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Hourly data missing", substring = true).assertIsDisplayed()
-
-        // Phase 2 (still nothing): refresh returns the same near-term hourly with no target-day points.
-        composeTestRule.runOnIdle { capturedComplete!!(nearTermHourly) }
-        composeTestRule.waitForIdle()
-
-        composeTestRule.onNodeWithText("Results of refresh", substring = true).assertIsDisplayed()
-        composeTestRule.onNodeWithText("No hourly data", substring = true).assertIsDisplayed()
+        assert(shownConfig!!.viewMode.isHourly)
+        assertNull("NWS holds its whole horizon; nothing to fetch", fetchedDate)
+        composeTestRule.onNodeWithText("No hourly forecast for", substring = true).assertIsDisplayed()
     }
 }

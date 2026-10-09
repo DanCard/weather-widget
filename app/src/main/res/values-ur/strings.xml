@@ -217,7 +217,7 @@
     <string name="bug_report_collecting_diagnostics">تشخیصی ڈیٹا جمع کیا جا رہا ہے...</string>
     <string name="view_icon_gallery">آئیکن گیلری دیکھیں</string>
     <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
-    <string name="widget_no_hourly_pending">%1$s کے لیے گھنٹہ وار درجہ حرارت کا ڈیٹا موجود نہیں۔ ریفریش شروع کیا جائے گا۔</string>
+    <string name="widget_no_hourly_pending">%1$s کے لیے گھنٹہ وار پیشگوئی حاصل کی جا رہی ہے…</string>
     <string name="widget_no_hourly_result_still_missing">ریفریش کا نتیجہ: %1$s کے لیے نیا گھنٹہ وار درجہ حرارت ڈیٹا حاصل نہیں ہو سکا۔ ڈیٹا %2$s پر ختم ہوتا ہے</string>
     <string name="widget_no_hourly_result_still_missing_unknown">ریفریش کا نتیجہ: %1$s کے لیے نیا گھنٹہ وار درجہ حرارت ڈیٹا حاصل نہیں ہو سکا۔</string>
     <string name="widget_no_hourly_result_available">ریفریش کے نتائج:\n%1$s کے لیے گھنٹہ وار ڈیٹا اب دستیاب ہے</string>

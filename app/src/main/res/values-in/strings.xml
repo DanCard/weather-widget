@@ -217,7 +217,7 @@
     <string name="bug_report_collecting_diagnostics">Mengumpulkan data diagnostik...</string>
     <string name="view_icon_gallery">Lihat galeri ikon</string>
     <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
-    <string name="widget_no_hourly_pending">Data suhu per jam untuk %1$s tidak ada. Penyegaran akan dijalankan.</string>
+    <string name="widget_no_hourly_pending">Mengambil prakiraan per jam untuk %1$s…</string>
     <string name="widget_no_hourly_result_still_missing">Hasil penyegaran: Tidak ada data suhu per jam baru yang dapat diambil untuk %1$s. Data berakhir %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">Hasil penyegaran: Tidak ada data suhu per jam baru yang dapat diambil untuk %1$s.</string>
     <string name="widget_no_hourly_result_available">Hasil penyegaran:\nData per jam kini tersedia untuk %1$s</string>

@@ -89,23 +89,30 @@ internal object WidgetDayClickCoordinator {
                 lat = lat,
                 lon = lon,
             )
-        val endLabel =
-            if (hasHourly) {
-                null
-            } else {
-                NoHourlyDayClickCoordinator.lastHourlyEndLabelForSource(
-                    database = database,
-                    stateManager = stateManager,
-                    appWidgetId = appWidgetId,
-                    lat = lat,
-                    lon = lon,
-                )
+        if (hasHourly) {
+            // The graph under the banner has its data now; drop the "Fetching…" banner (only if it
+            // is still the active message — a notice raised meanwhile is not ours to clear).
+            val pendingMessage = NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel)
+            if (stateManager.getActiveTransientMessage(appWidgetId) == pendingMessage) {
+                stateManager.clearTransientMessage(appWidgetId)
             }
+            database.appLogDao().log("CLICK_DAILY_NO_HOURLY", "phase=result date=$date hasHourly=true -> cleared")
+            WidgetWorkScheduler.enqueueUiRepaint(context, "no_hourly_fetched")
+            return
+        }
+        val endLabel =
+            NoHourlyDayClickCoordinator.lastHourlyEndLabelForSource(
+                database = database,
+                stateManager = stateManager,
+                appWidgetId = appWidgetId,
+                lat = lat,
+                lon = lon,
+            )
         val message =
             NoHourlyDayClickCoordinator.buildResultMessage(
                 context = context,
                 dayLabel = dayLabel,
-                hasHourlyAfterRefresh = hasHourly,
+                hasHourlyAfterRefresh = false,
                 endLabel = endLabel,
             )
         stateManager.setTransientMessage(
@@ -115,7 +122,7 @@ internal object WidgetDayClickCoordinator {
         )
         database.appLogDao().log(
             "CLICK_DAILY_NO_HOURLY",
-            "phase=result date=$date hasHourly=$hasHourly -> \"$message\"",
+            "phase=result date=$date hasHourly=false -> \"$message\"",
         )
         WidgetWorkScheduler.enqueueUiRepaint(context, "show_no_hourly_result")
         WidgetWorkScheduler.enqueueDelayedUiRepaint(
@@ -216,7 +223,16 @@ internal object WidgetDayClickCoordinator {
             targetMode == ViewMode.PRECIPITATION ||
                 targetMode == ViewMode.TEMPERATURE ||
                 targetMode == ViewMode.CLOUD_COVER
-        if (!hasHourly && requiresHourly) {
+        // Google keeps 72 h of hourly; a later day is fetched now (HourlyOnDemand).
+        val onDemandHours =
+            if (requiresHourly) {
+                NoHourlyDayClickCoordinator.onDemandHours(database, stateManager, appWidgetId, date, lat, lon)
+            } else {
+                null
+            }
+        if (requiresHourly && (!hasHourly || onDemandHours != null)) {
+            // Open the day's hourly view straight away, empty where data is missing, under a
+            // "Fetching…" banner that the follow-up sync clears (handleRefreshComplete).
             val dayLabel = NoHourlyDayClickCoordinator.formatDayLabel(date)
             val pendingMessage =
                 NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel)
@@ -227,9 +243,10 @@ internal object WidgetDayClickCoordinator {
             )
             database.appLogDao().log(
                 "CLICK_DAILY_NO_HOURLY",
-                "phase=pending date=$date mode=$targetMode -> \"$pendingMessage\"",
+                "phase=pending date=$date mode=$targetMode hasHourly=$hasHourly " +
+                    "onDemandHours=$onDemandHours -> \"$pendingMessage\"",
             )
-            WidgetWorkScheduler.enqueueUiRepaint(context, "show_no_hourly_pending")
+            // The fetch first: a paint that fails must not cost the data it is waiting for.
             WidgetWorkScheduler.enqueueRequiredNoHourlyFollowUp(
                 context = context,
                 appWidgetId = appWidgetId,
@@ -238,6 +255,8 @@ internal object WidgetDayClickCoordinator {
                 lon = lon,
                 targetSourceId = stateManager.getCurrentDisplaySource(appWidgetId).id,
             )
+            WidgetIntentActionHandler.setView(context, appWidgetId, targetMode, targetOffset, repository)
+            logTiming(database, appWidgetId, "hourly_fetching", date, receiveTimeMs)
             return
         }
 

@@ -3,6 +3,7 @@ package com.weatherwidget.data.repository
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.HourlyFetchGate
+import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.shared.util.SourceCoverage
 import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
@@ -224,6 +225,7 @@ internal class ForecastFetchCoordinator(
                         includeHistory = googleNeedsHistory(lat, lon),
                         storedHours = storedHours,
                         includeHours = includeHours,
+                        hoursAhead = HourlyOnDemand.hoursAhead(WeatherSource.GOOGLE_WEATHER.id, fetchContext?.hourlyAhead),
                     ).also { appLogDao.log("GOOGLE_HOURS_PAGES", api.lastHoursPaging.orEmpty(), "INFO") }
                 }
             })

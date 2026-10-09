@@ -32,7 +32,7 @@ import com.weatherwidget.widget.TestLocations
 /**
  * Reproduces the reported bug: tapping a future day (e.g. "Tuesday of next week") whose active
  * source has no hourly data routed the user to Settings. Correct behavior: never open Settings —
- * show a brief on-widget "no hourly data — refreshing" message, kick a refresh, and stay put.
+ * open the tapped day's (empty) hourly view under a "Fetching hourly forecast for …" banner and kick a refresh.
  *
  * The target day (today + 7) has a daily forecast (so the column renders) but NO hourly forecast
  * rows, which makes the day-click coordinator's hourly availability check return false — the exact
@@ -119,12 +119,8 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
         val message = waitForTransientMessage()
         assertNotNull("A transient message should be displayed for the missing-hourly day", message)
         assertTrue(
-            "Message should explain data is missing and a refresh will run: $message",
-            message!!.contains("Hourly temperature data missing", ignoreCase = true),
-        )
-        assertTrue(
-            "Phase 1 should be pending, not a refresh result: $message",
-            message.contains("refresh will be triggered", ignoreCase = true),
+            "Phase 1 should say the day's hourly forecast is being fetched: $message",
+            message!!.contains("Fetching hourly forecast for", ignoreCase = true),
         )
         assertTrue(
             "Phase 1 should not yet show refresh results: $message",
@@ -135,18 +131,18 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
         assertEquals("Settings must not be launched on a day tap", 0, settingsMonitor.hits)
         instrumentation.removeMonitor(settingsMonitor)
 
-        // AND: the view did not navigate away from DAILY.
-        assertEquals(
-            "Should remain on DAILY view (no navigation on missing hourly data)",
-            ViewMode.DAILY,
-            stateManager.getViewMode(testWidgetId),
+        // AND: the day's hourly view opened at once, empty under the banner
+        // (plans/261009-google-hourly-on-demand-past-72h.md).
+        assertTrue(
+            "Should open the hourly view for the tapped day, got ${stateManager.getViewMode(testWidgetId)}",
+            stateManager.getViewMode(testWidgetId) != ViewMode.DAILY,
         )
 
         // AND: the missing-hourly branch logged its decision.
         val logged = db.appLogDao().getLogsByTag("CLICK_DAILY_NO_HOURLY", 5)
         assertTrue("Expected a CLICK_DAILY_NO_HOURLY log entry", logged.isNotEmpty())
 
-        // AND: a daily render shows the message banner (the bind path the UI repaint runs).
+        // AND: a render shows the message banner (the bind path every view's repaint runs).
         val bannerViews = RemoteViews(context.packageName, R.layout.widget_weather)
         DailyViewHandler.bindTransientMessage(bannerViews, stateManager, testWidgetId, callerTag = "DAILY")
         val bannerRoot = applyToRoot(bannerViews)

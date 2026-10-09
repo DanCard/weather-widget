@@ -81,9 +81,8 @@ object NoHourlyChecker {
         if (endLabel != null) "No hourly forecast for $dayLabel — data ends $endLabel"
         else "No hourly forecast for $dayLabel"
 
-    /** Phase-1 banner: shown immediately on tap before the refresh result is known. */
-    fun buildPendingMessage(dayLabel: String): String =
-        "Hourly data missing for $dayLabel\nA refresh will be triggered"
+    /** Phase-1 banner over the tapped day's (empty) hourly graph while its fetch runs. */
+    fun buildPendingMessage(dayLabel: String): String = "Fetching hourly forecast for $dayLabel…"
 
     /** Phase-2 banner: shown after the refresh completes, reporting whether data arrived. */
     fun buildResultMessage(dayLabel: String, hasHourly: Boolean, endLabel: String?): String =

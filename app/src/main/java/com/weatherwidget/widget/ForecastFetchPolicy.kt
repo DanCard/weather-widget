@@ -15,6 +15,11 @@ data class ForecastFetchContext(
     val activeSourceIds: Set<String>,
     /** See [com.weatherwidget.data.remote.HourlyFetchGate]: refresh daily/current, not hourly. */
     val hourlyLimited: Boolean = false,
+    /**
+     * A tapped day past Google's routine 72 h: the deeper `forecast/hours` horizon that reaches it
+     * ([com.weatherwidget.data.remote.HourlyOnDemand]); null on every other sync.
+     */
+    val hourlyAhead: com.weatherwidget.data.remote.HourlyOnDemand.Request? = null,
 )
 
 /**

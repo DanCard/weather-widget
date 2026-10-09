@@ -217,7 +217,7 @@
     <string name="bug_report_collecting_diagnostics">ডায়াগনস্টিক ডেটা সংগ্রহ হচ্ছে...</string>
     <string name="view_icon_gallery">আইকন গ্যালারি দেখুন</string>
     <!-- Two-phase transient messages when a day tap finds no hourly data for the active source. -->
-    <string name="widget_no_hourly_pending">%1$s-এর ঘণ্টাভিত্তিক তাপমাত্রার ডেটা নেই। একটি রিফ্রেশ চালু হবে।</string>
+    <string name="widget_no_hourly_pending">%1$s-এর ঘণ্টাভিত্তিক পূর্বাভাস আনা হচ্ছে…</string>
     <string name="widget_no_hourly_result_still_missing">রিফ্রেশের ফলাফল: %1$s-এর জন্য নতুন ঘণ্টাভিত্তিক তাপমাত্রার ডেটা আনা যায়নি। ডেটা শেষ হয় %2$s</string>
     <string name="widget_no_hourly_result_still_missing_unknown">রিফ্রেশের ফলাফল: %1$s-এর জন্য নতুন ঘণ্টাভিত্তিক তাপমাত্রার ডেটা আনা যায়নি।</string>
     <string name="widget_no_hourly_result_available">রিফ্রেশের ফলাফল:\n%1$s-এর ঘণ্টাভিত্তিক ডেটা এখন উপলব্ধ</string>

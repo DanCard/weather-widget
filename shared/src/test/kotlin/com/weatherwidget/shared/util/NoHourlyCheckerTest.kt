@@ -147,10 +147,8 @@ class NoHourlyCheckerTest {
     // ── buildPendingMessage ───────────────────────────────────────────────────
 
     @Test
-    fun `buildPendingMessage contains day label and refresh intent`() {
-        val msg = NoHourlyChecker.buildPendingMessage("Tue Jul 7")
-        assertTrue(msg.contains("Tue Jul 7"))
-        assertTrue(msg.contains("refresh", ignoreCase = true))
+    fun `buildPendingMessage says the day's hourly forecast is being fetched`() {
+        assertEquals("Fetching hourly forecast for Tue Jul 7…", NoHourlyChecker.buildPendingMessage("Tue Jul 7"))
     }
 
     // ── buildResultMessage ────────────────────────────────────────────────────

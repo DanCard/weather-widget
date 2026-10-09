@@ -13,6 +13,7 @@ import com.weatherwidget.shared.util.MetarFetchPolicy
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
+import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import kotlinx.coroutines.CancellationException
@@ -110,6 +111,20 @@ internal class FullSyncPipeline(
                 batteryLevel = device.batteryLevel,
                 activeSourceIds = activeSourceList.toSet(),
                 hourlyLimited = input.hourlyLimited,
+                // A tapped day past Google's routine 72 h: fetch hours through that day
+                // (HourlyOnDemand); null for every other sync and source.
+                hourlyAhead = input.noHourlyDate
+                    ?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+                    ?.let { date ->
+                        val sourceId = input.targetSourceId ?: return@let null
+                        HourlyOnDemand.hoursToCover(
+                            sourceId = sourceId,
+                            date = date,
+                            zoneId = java.time.ZoneId.systemDefault(),
+                            nowMs = System.currentTimeMillis(),
+                            storedHourly = emptyList(),
+                        )?.let { HourlyOnDemand.Request(sourceId, it) }
+                    },
             )
 
             val result = weatherRepository.getWeatherData(

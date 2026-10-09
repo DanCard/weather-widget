@@ -142,8 +142,9 @@ internal fun temperatureGraphHourWindow(
 }
 
 /**
- * The hourly points the temperature graph draws for a window, sorted, with a fallback for an
- * out-of-range window.
+ * The hourly points the temperature graph draws for a window, sorted. An empty window stays empty
+ * (nothing is drawn): the fallback it once had drew the earliest stored hours under this window's
+ * axis — another day's curve labelled as a tapped day with no hourly yet.
  *
  * The end is **inclusive**. [temperatureGraphHourWindow] builds `endMs` as
  * `alignedCenter.plusHours(forwardHours)` — an hour mark that is part of the view, not one past it —
@@ -160,11 +161,9 @@ internal fun hourlyPointsInWindow(
     hourly: List<HourlyForecast>,
     startMs: Long,
     endMs: Long,
-    fallbackCount: Int,
 ): List<HourlyForecast> =
     hourly.filter { it.dateTime in startMs..endMs }
         .sortedBy { it.dateTime }
-        .ifEmpty { hourly.sortedBy { it.dateTime }.take(fallbackCount) }
 
 // Delegates to the shared [TemperatureColorModel] (integer-RGB blend) so desktop produces the same
 // pixels as the Android widget for any temperature. Previously blended via Compose lerp().
@@ -217,7 +216,7 @@ fun TemperatureGraph(
     val cutoff = window.endMs
 
     val points = remember(hourly, start, cutoff, backHours, forwardHours) {
-        hourlyPointsInWindow(hourly, start, cutoff, backHours + forwardHours)
+        hourlyPointsInWindow(hourly, start, cutoff)
     }
 
     // One painter per point. Icon spacing is decided by the hour-label filter in the bottom strip
