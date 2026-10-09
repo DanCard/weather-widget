@@ -77,17 +77,138 @@ object HeaderWidthChecker {
      */
     fun inlineNavRowWidthDp(widthDp: Int, showStations: Boolean = true): Float {
         if (widthDp >= INLINE_NAV_MAX_WIDTH_DP) return 0f
-        val zoneWidthDp = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+        val zoneCount = if (showStations) 4 else 3
+        return nominalInlineZoneWidthDp(widthDp) * zoneCount + INLINE_NAV_FIRST_ZONE_MARGIN_DP
+    }
+
+    /** The inline nav touch zone's width before any compression ([HourlyHeaderFit]). */
+    fun nominalInlineZoneWidthDp(widthDp: Int): Float =
+        if (canResizeInlineZones()) {
             when {
-                widthDp < 350 -> 32
-                widthDp < 400 -> 40
-                else -> 48
+                widthDp < 350 -> 32f
+                widthDp < 400 -> 40f
+                else -> 48f
             }
         } else {
-            INLINE_NAV_ZONE_XML_WIDTH_DP
+            INLINE_NAV_ZONE_XML_WIDTH_DP.toFloat()
+        }
+
+    /** RemoteViews.setViewLayoutWidth exists from API 31; below it the XML width stands. */
+    private fun canResizeInlineZones(): Boolean =
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+
+    /**
+     * What the hourly header shows and at what size. [inlineZoneWidthDp] is null when there is no
+     * inline nav row (wide widgets) — [positionCenterIcons] then keeps its own widths.
+     */
+    data class HourlyHeaderLayout(
+        val disclosure: HeaderDisclosureLevel,
+        val inlineZoneWidthDp: Float?,
+        val textScale: Float,
+        val showDeltaLabel: Boolean,
+    )
+
+    /**
+     * Fits the hourly header's left cluster — weather icon, current temperature, delta and its
+     * "from yest" caption, rain %, and on narrow widgets the inline nav row — before the API label.
+     * Narrow widgets compress before dropping ([HourlyHeaderFit]); at each [HeaderDisclosureLevel]
+     * the zones narrow, then the icon and temperature shrink, and only then the next level is
+     * tried. The caption is the first thing dropped: shown only when it fits without narrowing the
+     * zones or shrinking the temperature, and never beside a rain chance.
+     */
+    fun fitHourlyHeader(
+        context: Context,
+        widthDp: Int,
+        apiSourceText: String,
+        apiTextSizeDp: Float,
+        currentTempText: String?,
+        deltaText: String?,
+        deltaLabelText: String?,
+        precipText: String?,
+        precipTextSizeDp: Float?,
+        showStations: Boolean,
+        currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
+    ): HourlyHeaderLayout {
+        if (widthDp >= INLINE_NAV_MAX_WIDTH_DP) {
+            val disclosure = resolveHeaderDisclosure(
+                context, widthDp, apiSourceText, apiTextSizeDp, currentTempText, deltaText,
+                precipText, precipTextSizeDp, currentTempSizeDp,
+            )
+            val label = deltaText != null && deltaLabelText != null && disclosure.showsDelta() &&
+                deltaLabelFitsInHeader(
+                    context = context,
+                    widthDp = widthDp,
+                    apiSourceText = apiSourceText,
+                    apiTextSizeDp = apiTextSizeDp,
+                    currentTempText = currentTempText,
+                    deltaText = deltaText,
+                    deltaLabelText = deltaLabelText,
+                    precipText = if (disclosure.showsPrecip()) precipText else null,
+                    precipTextSizeDp = precipTextSizeDp,
+                    includeIcon = disclosure.showsIcon(),
+                    currentTempSizeDp = currentTempSizeDp,
+                )
+            return HourlyHeaderLayout(disclosure, null, 1f, label)
+        }
+
+        val widthPx = dpToPx(context, widthDp.toFloat())
+        val availablePx = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp) -
+            dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
+        val nominalZonePx = dpToPx(context, nominalInlineZoneWidthDp(widthDp))
+        val minZonePx = if (canResizeInlineZones()) {
+            dpToPx(context, HourlyHeaderFit.MIN_ZONE_DP).coerceAtMost(nominalZonePx)
+        } else {
+            nominalZonePx
         }
         val zoneCount = if (showStations) 4 else 3
-        return (zoneWidthDp * zoneCount + INLINE_NAV_FIRST_ZONE_MARGIN_DP).toFloat()
+        val iconPx = dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP)
+        val tempPx = if (currentTempText.isNullOrBlank()) 0f else currentTempTextWidthPx(context, currentTempText, currentTempSizeDp)
+        val deltaPx = if (deltaText.isNullOrBlank()) 0f else
+            dpToPx(context, HeaderConstants.DELTA_MARGIN_START_DP) + textWidthPx(context, deltaText, HeaderConstants.DELTA_TEXT_SIZE_DP)
+        val labelPx = if (deltaLabelText.isNullOrBlank()) 0f else
+            dpToPx(context, HeaderConstants.DELTA_LABEL_MARGIN_START_DP) + textWidthPx(context, deltaLabelText, HeaderConstants.DELTA_LABEL_TEXT_SIZE_DP)
+        val precipPx = if (precipText.isNullOrBlank() || precipTextSizeDp == null) 0f else
+            dpToPx(context, HeaderConstants.PRECIP_MARGIN_START_DP) + textWidthPx(context, precipText, precipTextSizeDp)
+        val firstZoneMarginPx = dpToPx(context, INLINE_NAV_FIRST_ZONE_MARGIN_DP.toFloat())
+
+        fun plan(icon: Boolean, delta: Boolean, label: Boolean, precip: Boolean) = HourlyHeaderFit.plan(
+            HourlyHeaderFit.Input(
+                availablePx = availablePx,
+                scalablePx = (if (icon) iconPx else 0f) + tempPx,
+                fixedPx = (if (delta) deltaPx else 0f) + (if (label) labelPx else 0f) +
+                    (if (precip) precipPx else 0f) + firstZoneMarginPx,
+                zoneCount = zoneCount,
+                nominalZonePx = nominalZonePx,
+                minZonePx = minZonePx,
+            ),
+        )
+
+        val levels = listOf(
+            HeaderDisclosureLevel.FULL,
+            HeaderDisclosureLevel.NO_ICON,
+            HeaderDisclosureLevel.NO_ICON_NO_DELTA,
+            HeaderDisclosureLevel.MINIMAL,
+        )
+        for (level in levels) {
+            val delta = deltaPx > 0f && level.showsDelta()
+            val precip = precipPx > 0f && level.showsPrecip()
+            val base = plan(level.showsIcon(), delta, label = false, precip = precip)
+            if (!base.fits) continue
+            // The caption is the first thing dropped (user, 2026-10-09): only where there is room
+            // for it as laid out — it never narrows the nav zones or shrinks the temperature, and
+            // never sits beside a rain chance.
+            val withLabel = if (delta && labelPx > 0f && !precip) plan(level.showsIcon(), true, label = true, precip = false) else null
+            val chosen = withLabel?.takeIf {
+                it.fits && it.textScale >= 1f && it.zoneWidthPx >= base.zoneWidthPx - 0.01f
+            } ?: base
+            return HourlyHeaderLayout(
+                disclosure = level,
+                inlineZoneWidthDp = chosen.zoneWidthPx / context.resources.displayMetrics.density,
+                textScale = chosen.textScale,
+                showDeltaLabel = chosen === withLabel,
+            )
+        }
+        return HourlyHeaderLayout(HeaderDisclosureLevel.NONE, null, 1f, showDeltaLabel = false)
     }
 
     /**

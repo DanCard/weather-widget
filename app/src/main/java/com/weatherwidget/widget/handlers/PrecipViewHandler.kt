@@ -241,6 +241,9 @@ object PrecipViewHandler {
         val isPrecipVisible = headerPrecipProbability != null
         val precipTextSizeDp = if (headerPrecipProbability != null) HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability) else null
 
+        val today = LocalDateTime.now().toLocalDate()
+        val isToday = centerTime.toLocalDate() == today
+
         val headerResult = HourlyHeaderBinder.bindHourlyHeader(
             context = context,
             views = views,
@@ -252,12 +255,10 @@ object PrecipViewHandler {
             widthDp = dimensions.widthDp,
             numRows = numRows,
             sourceIndicator = sourceIndicator,
+            showStations = isToday,
         )
         val headerScale = headerResult.headerScale
         val disclosure = headerResult.disclosure
-
-        val today = LocalDateTime.now().toLocalDate()
-        val isToday = centerTime.toLocalDate() == today
 
         setupHomeShortcut(context, views, appWidgetId, scale = headerScale)
         if (!isIconWidth) {
@@ -281,7 +282,7 @@ object PrecipViewHandler {
             setupApiToggle(context, views, appWidgetId, numRows, scale = headerScale)
         }
 
-        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && disclosure.showsPrecip(), isToday)
+        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && disclosure.showsPrecip(), isToday, headerResult.inlineZoneWidthDp)
 
 // Use graph mode for 2+ rows, text mode for 1 row
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP

@@ -311,6 +311,9 @@ object CloudCoverViewHandler {
         val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(headerPrecipProbability)
         val precipTextSizeDp = if (headerPrecipProbability != null) HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability) else null
 
+        val today = LocalDateTime.now().toLocalDate()
+        val isToday = centerTime.toLocalDate() == today
+
         val headerResult = HourlyHeaderBinder.bindHourlyHeader(
             context = context,
             views = views,
@@ -322,12 +325,10 @@ object CloudCoverViewHandler {
             widthDp = dimensions.widthDp,
             numRows = numRows,
             sourceIndicator = sourceIndicator,
+            showStations = isToday,
         )
         val headerScale = headerResult.headerScale
         val disclosure = headerResult.disclosure
-
-        val today = LocalDateTime.now().toLocalDate()
-        val isToday = centerTime.toLocalDate() == today
 
         setupHomeShortcut(context, views, appWidgetId, scale = headerScale)
         if (!isIconWidth) {
@@ -351,7 +352,7 @@ object CloudCoverViewHandler {
             setupApiToggle(context, views, appWidgetId, numRows, scale = headerScale)
         }
 
-        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && disclosure.showsPrecip(), isToday)
+        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && disclosure.showsPrecip(), isToday, headerResult.inlineZoneWidthDp)
 
 val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f

@@ -55,17 +55,38 @@ internal object TemperatureViewBinder {
             precipText = header.precipProbability,
             precipTextSizeDp = header.precipTextSizeDp,
         )
-        // Progressive disclosure for narrow widgets (pure measurement; hoisted so the
-        // "from yest" caption fit check below can use it).
-        val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
+        // The stations zone in the inline nav row shows only for today, so the header fit needs
+        // isToday first (also reused by positionCenterIcons below).
+        val today = LocalDateTime.now().toLocalDate()
+        val firstHour = state.graph.hourData.firstOrNull()?.dateTime
+        val lastHour = state.graph.hourData.lastOrNull()?.dateTime
+        val isToday = firstHour?.toLocalDate() == today ||
+                lastHour?.minusHours(1)?.toLocalDate() == today ||
+                (state.graph.hourData.isEmpty() && centerTime.toLocalDate() == today)
+
+        Log.d("TemperatureViewBinder", "isToday check: today=$today firstHour=$firstHour lastHour=$lastHour centerTime=$centerTime -> isToday=$isToday")
+
+        // Narrow widgets compress the inline nav row, then the icon and temperature, before
+        // anything is dropped (HourlyHeaderFit); the "from yest" caption only when it fits.
+        val deltaLabelText = context.getString(R.string.header_delta_from_yesterday)
+        val fit = HeaderWidthChecker.fitHourlyHeader(
             context = context,
             widthDp = state.widthDp,
             apiSourceText = header.sourceIndicator,
             apiTextSizeDp = HeaderConstants.apiTextSizeDp(state.numRows),
             currentTempText = header.currentTemp,
-            deltaText = header.deltaText,
-            precipText = header.precipProbability,
+            deltaText = if (header.isDeltaVisible) header.deltaText else null,
+            deltaLabelText = deltaLabelText,
+            precipText = if (header.isPrecipVisible) header.precipProbability else null,
             precipTextSizeDp = header.precipTextSizeDp,
+            showStations = isToday,
+            currentTempSizeDp = header.currentTempSizeDp,
+        )
+        val disclosure = fit.disclosure
+        Log.d(
+            "TemperatureViewBinder",
+            "HEADER_FIT widthDp=${state.widthDp} disclosure=$disclosure zoneDp=${fit.inlineZoneWidthDp} " +
+                "textScale=${fit.textScale} deltaLabel=${fit.showDeltaLabel}",
         )
 
         // Explicitly set VISIBLE because DailyViewHandler sets these to INVISIBLE
@@ -95,7 +116,7 @@ internal object TemperatureViewBinder {
             viewId = R.id.weather_icon,
             iconRes = header.iconRes,
             sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
-            scale = headerScale,
+            scale = headerScale * fit.textScale,
         )
         
         HeaderRemoteViewsBinder.bindCurrentTemp(
@@ -103,7 +124,7 @@ internal object TemperatureViewBinder {
             views = views,
             formattedTemp = header.currentTemp,
             textSizeDp = header.currentTempSizeDp,
-            scale = headerScale,
+            scale = headerScale * fit.textScale,
         )
 
         HeaderRemoteViewsBinder.bindDelta(
@@ -114,34 +135,7 @@ internal object TemperatureViewBinder {
             scale = headerScale,
         )
 
-        // "from yest" caption after the delta: opportunistic, only when it fits.
-        // isToday is hoisted here (reused by positionCenterIcons below) because the inline
-        // nav icon row — part of the same header LinearLayout on narrow widgets — must be
-        // counted in the caption's fit check, and its stations zone shows only for today.
-        val today = LocalDateTime.now().toLocalDate()
-        val firstHour = state.graph.hourData.firstOrNull()?.dateTime
-        val lastHour = state.graph.hourData.lastOrNull()?.dateTime
-        val isToday = firstHour?.toLocalDate() == today ||
-                lastHour?.minusHours(1)?.toLocalDate() == today ||
-                (state.graph.hourData.isEmpty() && centerTime.toLocalDate() == today)
-
-        Log.d("TemperatureViewBinder", "isToday check: today=$today firstHour=$firstHour lastHour=$lastHour centerTime=$centerTime -> isToday=$isToday")
-
-        val deltaLabelText = context.getString(R.string.header_delta_from_yesterday)
-        val isDeltaLabelVisible = header.isDeltaVisible && disclosure.showsDelta() &&
-            HeaderWidthChecker.deltaLabelFitsInHeader(
-                context = context,
-                widthDp = state.widthDp,
-                apiSourceText = header.sourceIndicator,
-                apiTextSizeDp = HeaderConstants.apiTextSizeDp(state.numRows),
-                currentTempText = header.currentTemp,
-                deltaText = header.deltaText,
-                deltaLabelText = deltaLabelText,
-                precipText = if (header.isPrecipVisible && disclosure.showsPrecip()) header.precipProbability else null,
-                precipTextSizeDp = header.precipTextSizeDp,
-                includeIcon = disclosure.showsIcon(),
-                inlineNavWidthDp = HeaderWidthChecker.inlineNavRowWidthDp(state.widthDp, showStations = isToday),
-            )
+        val isDeltaLabelVisible = header.isDeltaVisible && fit.showDeltaLabel
         HeaderRemoteViewsBinder.bindDeltaLabel(
             context = context,
             views = views,
@@ -168,7 +162,7 @@ HeaderRemoteViewsBinder.applyDisclosure(
     isDeltaLabelVisible = isDeltaLabelVisible,
 )
 
-// 3. Center Icons & Navigation (isToday computed above, before the header binds)
+// 3. Center Icons & Navigation (isToday computed above, before the header fit)
 
         // 4. Setup Intent Listeners
         setupZoomTapZones(
@@ -191,7 +185,10 @@ HeaderRemoteViewsBinder.applyDisclosure(
             scale = headerScale,
         )
 
-        positionCenterIcons(views, state.widthDp, context.resources.displayMetrics.density, header.isPrecipVisible && disclosure.showsPrecip(), isToday)
+        positionCenterIcons(
+            views, state.widthDp, context.resources.displayMetrics.density,
+            header.isPrecipVisible && disclosure.showsPrecip(), isToday, fit.inlineZoneWidthDp,
+        )
 
         
         HeaderTapTargetHelper.bindToggleTemperatureHeader(context, views, appWidgetId)

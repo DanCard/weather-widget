@@ -10,6 +10,8 @@ internal object HourlyHeaderBinder {
         val disclosure: HeaderDisclosureLevel,
         val isPrecipVisible: Boolean,
         val headerScale: Float,
+        /** Fitted inline nav zone width for [positionCenterIcons]; null on wide widgets. */
+        val inlineZoneWidthDp: Float?,
     )
 
     fun bindHourlyHeader(
@@ -23,6 +25,8 @@ internal object HourlyHeaderBinder {
         widthDp: Int,
         numRows: Int,
         sourceIndicator: String?,
+        /** Whether the inline nav row includes the stations zone (today only). */
+        showStations: Boolean,
     ): HeaderResult {
         val safeSourceIndicator = sourceIndicator ?: ""
         val headerScale = HeaderWidthChecker.computeHeaderScale(
@@ -35,6 +39,23 @@ internal object HourlyHeaderBinder {
             precipText = if (isPrecipVisible && headerPrecipProbability != null) "$headerPrecipProbability%" else null,
             precipTextSizeDp = precipTextSizeDp,
         )
+
+        val precipText = if (isPrecipVisible && headerPrecipProbability != null) "$headerPrecipProbability%" else null
+        // Narrow widgets compress the inline nav row, then the icon and temperature, before
+        // anything is dropped (HourlyHeaderFit).
+        val fit = HeaderWidthChecker.fitHourlyHeader(
+            context = context,
+            widthDp = widthDp,
+            apiSourceText = safeSourceIndicator,
+            apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
+            currentTempText = formattedTemp,
+            deltaText = null,
+            deltaLabelText = null,
+            precipText = precipText,
+            precipTextSizeDp = precipTextSizeDp,
+            showStations = showStations,
+        )
+        val disclosure = fit.disclosure
 
         HeaderRemoteViewsBinder.bindApiSource(
             context = context,
@@ -61,14 +82,14 @@ internal object HourlyHeaderBinder {
             viewId = R.id.weather_icon,
             iconRes = iconRes,
             sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
-            scale = headerScale,
+            scale = headerScale * fit.textScale,
         )
 
         HeaderRemoteViewsBinder.bindCurrentTemp(
             context = context,
             views = views,
             formattedTemp = formattedTemp,
-            scale = headerScale,
+            scale = headerScale * fit.textScale,
         )
 
         HeaderRemoteViewsBinder.bindPrecipProbability(
@@ -80,22 +101,13 @@ internal object HourlyHeaderBinder {
         )
         HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
-        val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
-            context = context,
-            widthDp = widthDp,
-            apiSourceText = safeSourceIndicator,
-            apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
-            currentTempText = formattedTemp,
-            deltaText = null,
-            precipText = if (isPrecipVisible && headerPrecipProbability != null) "$headerPrecipProbability%" else null,
-            precipTextSizeDp = precipTextSizeDp,
-        )
         HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isPrecipVisible)
 
         return HeaderResult(
             disclosure = disclosure,
             isPrecipVisible = isPrecipVisible,
             headerScale = headerScale,
+            inlineZoneWidthDp = fit.inlineZoneWidthDp,
         )
     }
 }

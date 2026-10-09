@@ -430,6 +430,8 @@ internal fun positionCenterIcons(
     density: Float,
     isPrecipVisible: Boolean,
     isToday: Boolean = true,
+    /** The fitted inline zone width ([HeaderWidthChecker.fitHourlyHeader]); null = the nominal width. */
+    inlineZoneWidthDp: Float? = null,
 ) {
     val useInline = widthDp < 420
     val floatingVis = if (useInline) View.GONE else View.VISIBLE
@@ -443,11 +445,7 @@ internal fun positionCenterIcons(
     }
 
     if (inlineVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val touchWidthDp = when {
-            widthDp < 350 -> 32
-            widthDp < 400 -> 40
-            else -> 48
-        }
+        val touchWidthDp = inlineZoneWidthDp ?: HeaderWidthChecker.nominalInlineZoneWidthDp(widthDp)
         val touchWidthPx = (touchWidthDp * density).toInt()
         for (id in listOf(R.id.graph_selector_touch_zone_inline, R.id.weather_stations_touch_zone_inline, R.id.home_touch_zone_inline, R.id.forecast_history_activity_touch_zone_inline)) {
             views.setViewLayoutWidth(id, touchWidthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)
