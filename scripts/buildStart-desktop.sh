@@ -37,7 +37,19 @@ nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 & disown
 sleep 1   # No hup message prints late.  Add sleep so messages come out in expected order.
 printf "\t Started launcher pid $!. Logs: $LOG_FILE\n"
 
-# Touch .show to ensure the window is surfaced immediately on restart
+# Touch .show to surface the window once the new instance is watching for it. The watcher deletes
+# the file when it acts on it; a touch before it registers is never seen (startup can take ~10 s,
+# a fixed 3 s sleep missed it). Re-touch until consumed, up to 30 s.
 SHOW_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/weather-widget/.show"
-sleep 3
-touch "$SHOW_FILE"
+for _ in $(seq 1 30); do
+  sleep 1
+  if [[ -e "$SHOW_FILE" ]]; then rm -f "$SHOW_FILE"; fi
+  touch "$SHOW_FILE"
+  sleep 0.5
+  if [[ ! -e "$SHOW_FILE" ]]; then
+    printf "\t Window shown.\n"
+    exit 0
+  fi
+done
+rm -f "$SHOW_FILE"
+printf "\t Window not shown after 30 s; the app may still be starting. Check: $LOG_FILE\n"
