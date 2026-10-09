@@ -24,6 +24,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 import com.weatherwidget.R
+import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.ForecastDao
@@ -60,6 +62,12 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
     @Inject
     lateinit var weatherRepository: WeatherRepository
+
+    @Inject
+    lateinit var appLogDao: AppLogDao
+
+    /** A refresh is running; further taps are logged and ignored rather than swallowed unseen. */
+    private var refreshInFlight = false
 
     companion object {
         const val EXTRA_TARGET_DATE = "target_date"
@@ -689,11 +697,20 @@ class ForecastHistoryActivity : AppCompatActivity() {
      * path a day tap uses, then reloads the graphs and repaints the widget that opened this screen.
      */
     private fun refreshViewedSource() {
-        val source = cachedRequestedSource ?: return
+        val source = cachedRequestedSource
+        val tapContext = "source=${source?.id} date=$targetLocalDate lat=$targetLat lon=$targetLon"
+        if (source == null || refreshInFlight) {
+            val outcome = if (source == null) "ignored_no_source" else "ignored_in_flight"
+            lifecycleScope.launch { appLogDao.log("HISTORY_REFRESH_TAP", "outcome=$outcome $tapContext", "INFO") }
+            return
+        }
+        refreshInFlight = true
         val refreshButton = findViewById<View>(R.id.refresh_button)
-        refreshButton.isEnabled = false
+        // Stays enabled (dimmed) so a second tap reaches the listener and is logged as ignored.
         refreshButton.alpha = 0.5f
         lifecycleScope.launch {
+            appLogDao.log("HISTORY_REFRESH_TAP", "outcome=fetch_started $tapContext", "INFO")
+            val startMs = android.os.SystemClock.elapsedRealtime()
             val ok = try {
                 withContext(Dispatchers.IO) {
                     weatherRepository.fetchSourceOnDemand(targetLat, targetLon, source, request = null)
@@ -704,8 +721,13 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 Log.e(TAG, "History refresh failed for ${source.id}", e)
                 false
             }
-            refreshButton.isEnabled = true
+            refreshInFlight = false
             refreshButton.alpha = 1.0f
+            appLogDao.log(
+                "HISTORY_REFRESH_DONE",
+                "ok=$ok $tapContext ms=${android.os.SystemClock.elapsedRealtime() - startMs}",
+                if (ok) "INFO" else "WARN",
+            )
             val message = if (ok) R.string.obs_refreshed_source else R.string.forecast_history_refresh_failed
             Toast.makeText(this@ForecastHistoryActivity, getString(message, source.shortDisplayName), Toast.LENGTH_SHORT).show()
             if (!ok) return@launch
