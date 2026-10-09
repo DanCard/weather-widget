@@ -32,8 +32,9 @@ object HourlyOnDemand {
     const val REACH_HOURS = 240
 
     /**
-     * Hours past the routine window count as covering a day only this long after their fetch, and
-     * are pruned once older ([extensionStartMs]): routine fetches never refresh them.
+     * Hours past the routine window ([extensionStartMs]) count as covering a tapped day only this long
+     * after their fetch: routine fetches never refresh them. Older ones stay stored (the daily view
+     * reads them) and a tap refetches.
      */
     const val MAX_EXTENSION_AGE_MS = 12 * HOUR_MS
 
@@ -52,9 +53,6 @@ object HourlyOnDemand {
      */
     fun extensionStartMs(sourceId: String, nowMs: Long): Long? =
         if (extendsHourly(sourceId)) currentHourMs(nowMs) + GoogleWeatherApi.FORECAST_HOURS * HOUR_MS else null
-
-    /** On-demand hours fetched before this are stale; the daily prune deletes them. */
-    fun pruneFetchedBefore(nowMs: Long): Long = nowMs - MAX_EXTENSION_AGE_MS
 
     /**
      * The `forecast/hours` horizon that covers [date] to its last hour, or null when no fetch is

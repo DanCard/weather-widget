@@ -77,27 +77,6 @@ class DesktopHourlyOnDemandTest {
     }
 
     @Test
-    fun `the prune drops stale Google hours past 72 h and leaves other sources whole`() {
-        val google = WeatherSource.GOOGLE_WEATHER.id
-        val nws = WeatherSource.NWS.id
-        dao.upsertHourlyForecasts(lat, lon, google, hours(now, 72) + hours(now + 96 * hour, 2))
-        dao.upsertHourlyForecasts(lat, lon, nws, hours(now, 120, nws))
-        // The save stamps fetchedAt itself; age everything 13 h, then add fresh on-demand hours.
-        database.getConnection().use { it.createStatement().executeUpdate("UPDATE hourly_forecasts SET fetchedAt = ${now - 13 * hour}") }
-        dao.upsertHourlyForecasts(lat, lon, google, hours(now + 120 * hour, 2))
-
-        repo(google).pruneHourlyBeyondWindow(now)
-
-        val googleLeft = dao.getHourlyForecasts(lat, lon, google, now, now + 168 * hour).map { it.dateTime }
-        assertEquals(
-            "routine 72 h stay however old; stale on-demand hours go; fresh ones stay",
-            hours(now, 72).map { it.dateTime } + hours(now + 120 * hour, 2).map { it.dateTime },
-            googleLeft,
-        )
-        assertEquals(120, dao.getHourlyForecasts(lat, lon, nws, now, now + 168 * hour).size)
-    }
-
-    @Test
     fun `an empty fetch stores nothing and reports false`() = runTest {
         coEvery { service.fetchHourlyAhead(any()) } returns emptyList()
         assertFalse(repo(WeatherSource.GOOGLE_WEATHER.id).extendHourlyFor(target, now))

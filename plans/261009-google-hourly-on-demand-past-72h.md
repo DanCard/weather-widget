@@ -80,9 +80,14 @@ hourly data was not available. Wanted: a "fetching" message and an empty hourly 
   "Fetching…" banner). The fallback dates from the desktop scaffold (`ce33401c`); removed. Android
   has no such fallback.
 
-## Open question
+## Prune (user, 2026-10-09)
 
-- **Prune** (user, 2026-10-09: "why prune?"). The 12 h freshness check already makes taps refetch.
-  On-demand rows also give days past 72 h their noon cloud shading in the daily view, so pruning them
-  makes that shading come and go. The space involved is tiny. Recommendation: drop the prune and keep
-  the freshness check — awaiting the user's answer.
+- **Removed** the on-demand-hours prune. The 12 h freshness check already makes a tap refetch, and
+  the rows also give days past 72 h their noon cloud shading in the daily view, so deleting them made
+  that shading come and go. Nothing deletes them now except the 30-day retention.
+- The history-snapshot prune (`HistorySnapshotRetention`; it changes no reader's result) runs **only
+  while charging with the screen off**:
+  - Android `HistoryPruneWorker`: constraints charging + device idle (was "battery not low");
+  - desktop `pruneHistorySnapshotsIfDue`: AC (no battery counts as AC) and screen off via
+    `ScreenStateDetector`. An undetectable screen counts as on, so the prune waits; this machine
+    reports DPMS through `xset`.

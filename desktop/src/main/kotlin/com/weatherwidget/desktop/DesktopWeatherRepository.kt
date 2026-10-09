@@ -65,6 +65,14 @@ class DesktopWeatherRepository(
     private val weatherSource: String,
     private val personalStationWeight: Double = 1.0,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
+    /**
+     * Whether housekeeping may run now: on AC power with the screen off (user, 2026-10-09; Android's
+     * `HistoryPruneWorker` waits for charging + device idle). A machine without a battery counts as
+     * on AC; an undetectable screen state counts as on, so the prune waits.
+     */
+    private val housekeepingAllowed: () -> Boolean = {
+        PowerDetector.getPowerState().isCharging && !ScreenStateDetector.isScreenOn()
+    },
 ) {
     data class RefreshOutcome(
         val snapshot: ForecastSnapshot,
@@ -1316,19 +1324,6 @@ class DesktopWeatherRepository(
      * Once a day, after the one-shot backfills that read every snapshot have run
      * (performance/260929-hourly-history-snapshot-retention.md). Best-effort: never fails a refresh.
      */
-    /**
-     * Google's on-demand hours (past its routine 72 h) that no fetch has refreshed for
-     * [HourlyOnDemand.MAX_EXTENSION_AGE_MS]: routine fetches never refresh them. Other sources keep
-     * their whole horizon. Android: `HistoryPruneWorker`.
-     */
-    internal fun pruneHourlyBeyondWindow(now: Long) {
-        val deleted = WeatherSource.entries.sumOf { source ->
-            val fromMs = HourlyOnDemand.extensionStartMs(source.id, now) ?: return@sumOf 0
-            weatherDao.deleteStaleHourlyBeyondWindow(source.id, fromMs, HourlyOnDemand.pruneFetchedBefore(now))
-        }
-        weatherDao.log("HOURLY_WINDOW_PRUNE", "deleted=$deleted", "INFO")
-    }
-
     internal fun pruneHistorySnapshotsIfDue(now: Long) {
         try {
             val last = weatherDao.getRecentLogsByTags(listOf(HISTORY_PRUNE_TAG), limit = 1).firstOrNull()?.timestamp ?: 0L
@@ -1339,8 +1334,10 @@ class DesktopWeatherRepository(
                 weatherDao.log(HISTORY_PRUNE_TAG, "skipped=backfills_pending")
                 return
             }
+            // Due, but only on AC with the screen off; the next refresh asks again (no log row, so
+            // the due check above stays keyed on the last real pass).
+            if (!housekeepingAllowed()) return
             weatherDao.pruneHourlyHistorySnapshots()
-            pruneHourlyBeyondWindow(now)
             // DELETE leaves the file its size; the first prune freed ~100 MB on this machine
             // (183 MB -> 82 MB, VACUUM 0.16 s on a copy). Only when there is real space to win.
             val freeBytes = weatherDao.freelistBytes()

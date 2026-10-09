@@ -62,7 +62,7 @@ internal class HourlyForecastStore(
         }
         val prioritySourceIds = widgetStateManager.getActiveDisplaySourceIds()
         // Google's on-demand hours (past its routine 72 h) are always rewritten: their fetchedAt is
-        // what keeps them counted as fresh (HourlyOnDemand) and spares them the daily prune.
+        // what keeps them counted as fresh for a tapped day (HourlyOnDemand.MAX_EXTENSION_AGE_MS).
         val extensionStartMs = HourlyOnDemand.extensionStartMs(sample.source, System.currentTimeMillis())
         val changedEntities = mergedEntities.filter { merged ->
             (extensionStartMs != null && merged.dateTime >= extensionStartMs) ||

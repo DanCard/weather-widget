@@ -8,9 +8,6 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.local.log
-import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.util.SharedPreferencesUtil
 
 /**
@@ -38,23 +35,9 @@ class HistoryPruneWorker(
                 pages * size
             },
         ).prune(touchedSinceFetchedAt = since)
-        pruneHourlyBeyondWindow(db, startedAt)
         // The start, not the end: rows fetched while this pass ran belong to the next one.
         prefs.edit().putLong(KEY_LAST_COMPLETED_START_MS, startedAt).apply()
         return Result.success()
-    }
-
-    /**
-     * Google's on-demand hours (past its routine 72 h) that no fetch has refreshed for
-     * [HourlyOnDemand.MAX_EXTENSION_AGE_MS]: routine fetches never refresh them. Other sources keep
-     * their whole horizon.
-     */
-    private suspend fun pruneHourlyBeyondWindow(db: WeatherDatabase, nowMs: Long) {
-        val deleted = WeatherSource.entries.sumOf { source ->
-            val fromMs = HourlyOnDemand.extensionStartMs(source.id, nowMs) ?: return@sumOf 0
-            db.hourlyForecastDao().deleteStaleBeyondWindow(source.id, fromMs, HourlyOnDemand.pruneFetchedBefore(nowMs))
-        }
-        db.appLogDao().log("HOURLY_WINDOW_PRUNE", "deleted=$deleted", "INFO")
     }
 
     companion object {
@@ -64,10 +47,16 @@ class HistoryPruneWorker(
 
         /** Unique (KEEP): a pending or running prune absorbs any further request. */
         fun enqueue(context: Context) {
-            val request = OneTimeWorkRequestBuilder<HistoryPruneWorker>()
-                .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build())
-                .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, request)
+            WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, request())
         }
+
+        /**
+         * Only while charging with the device idle (screen off and unused for a while) — user,
+         * 2026-10-09: pruning is housekeeping, never worth battery or a busy phone. The first pass
+         * took 96 s on the Pixel.
+         */
+        internal fun request() = OneTimeWorkRequestBuilder<HistoryPruneWorker>()
+            .setConstraints(Constraints.Builder().setRequiresCharging(true).setRequiresDeviceIdle(true).build())
+            .build()
     }
 }

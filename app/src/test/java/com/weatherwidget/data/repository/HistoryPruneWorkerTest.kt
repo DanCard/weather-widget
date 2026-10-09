@@ -27,6 +27,13 @@ class HistoryPruneWorkerTest : RobolectricTest() {
     }
 
     @Test
+    fun `the prune waits for charging with the device idle`() {
+        val constraints = HistoryPruneWorker.request().workSpec.constraints
+        assertTrue(constraints.requiresCharging())
+        assertTrue(constraints.requiresDeviceIdle())
+    }
+
+    @Test
     fun `worker prunes a deep stack and records its start time`() = runBlocking {
         val dao = WeatherDatabase.getDatabase(context).hourlyForecastHistoryDao()
         val hour = 1_790_640_000_000L

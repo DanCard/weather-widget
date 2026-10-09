@@ -740,22 +740,6 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     data class HistoryPruneResult(val days: Int, val scanned: Int, val deleted: Int, val elapsedMs: Long)
 
     /**
-     * [com.weatherwidget.data.remote.HourlyOnDemand.pruneFromMs]: [source]'s live hourly rows at or
-     * past [fromMs] (its routine window's end) fetched before [fetchedBefore]. Returns rows deleted.
-     */
-    fun deleteStaleHourlyBeyondWindow(source: String, fromMs: Long, fetchedBefore: Long): Int =
-        db.getConnection().use { conn ->
-            conn.prepareStatement(
-                "DELETE FROM hourly_forecasts WHERE source = ? AND dateTime >= ? AND fetchedAt < ?",
-            ).use { stmt ->
-                stmt.setString(1, source)
-                stmt.setLong(2, fromMs)
-                stmt.setLong(3, fetchedBefore)
-                stmt.executeUpdate()
-            }
-        }
-
-    /**
      * Deletes the `hourly_forecast_history` snapshots no reader uses — the shared
      * [com.weatherwidget.data.local.HistorySnapshotRetention] rule, run one local day of hours at a
      * time in its own transaction (the rule is about local calendar days, which SQL date math gets

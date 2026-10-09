@@ -71,10 +71,6 @@ interface HourlyForecastDao {
     @Query("DELETE FROM hourly_forecasts WHERE fetchedAt < :cutoffTime")
     suspend fun deleteOldForecasts(cutoffTime: Long)
 
-    /** [com.weatherwidget.data.remote.HourlyOnDemand.extensionStartMs]: stale on-demand hours past a source's routine window. */
-    @Query("DELETE FROM hourly_forecasts WHERE source = :source AND dateTime >= :fromMs AND fetchedAt < :fetchedBefore")
-    suspend fun deleteStaleBeyondWindow(source: String, fromMs: Long, fetchedBefore: Long): Int
-
     @Query("DELETE FROM hourly_forecasts WHERE fetchedAt < :cutoffTime AND source = :source")
     suspend fun deleteOldForecastsBySource(cutoffTime: Long, source: String)
 }

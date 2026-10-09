@@ -260,7 +260,9 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
   `observations`, `climate_normals`, `app_logs`, `api_usage_stats`
 - `hourly_forecast_history` is pruned daily to the snapshots something reads
   (`HistorySnapshotRetention` in `:shared` is the rule; Android `HistoryPruneWorker`, never inside a
-  fetch; desktop from the refresh, plus VACUUM). Any new reader of older snapshots must be added to
+  fetch; desktop from the refresh, plus VACUUM). **Only while charging with the screen off** (user,
+  2026-10-09): Android job constraints charging + device idle; desktop AC + screen off
+  (`housekeepingAllowed`), else it waits for a later refresh. Overview: [arch/data-pruning.md](arch/data-pruning.md). Any new reader of older snapshots must be added to
   that rule and its equivalence tests (`performance/260929-hourly-history-snapshot-retention.md`).
 - `forecasts.targetDate` is UTC midnight (query WITHOUT `'localtime'`);
   `app_logs.timestamp` is epoch millis (use `'localtime'`)
