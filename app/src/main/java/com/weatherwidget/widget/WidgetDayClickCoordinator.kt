@@ -92,10 +92,13 @@ internal object WidgetDayClickCoordinator {
         if (hasHourly) {
             // The graph under the banner has its data now; drop the "Fetching…" banner (only if it
             // is still the active message — a notice raised meanwhile is not ours to clear).
-            val pendingMessage = NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel)
-            if (stateManager.getActiveTransientMessage(appWidgetId) == pendingMessage) {
-                stateManager.clearTransientMessage(appWidgetId)
-            }
+            // FetchBanner.clear also pushes the banner GONE: RemoteViews visibility is sticky, and
+            // the repaint below may be header-only, which left the banner up on the Pixel.
+            FetchBanner.clear(
+                context,
+                NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel),
+                intArrayOf(appWidgetId),
+            )
             database.appLogDao().log("CLICK_DAILY_NO_HOURLY", "phase=result date=$date hasHourly=true -> cleared")
             WidgetWorkScheduler.enqueueUiRepaint(context, "no_hourly_fetched")
             return

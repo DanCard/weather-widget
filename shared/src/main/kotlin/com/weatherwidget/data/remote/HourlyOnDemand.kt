@@ -84,5 +84,16 @@ object HourlyOnDemand {
         return hours.coerceIn(GoogleWeatherApi.FORECAST_HOURS, REACH_HOURS)
     }
 
+    /**
+     * The deeper horizon a tapped day's forced sync asks for (Android's no-hourly follow-up carries
+     * the tapped date and the widget's display source): null for no date, an unparseable one, a
+     * source that does not extend, or a day no fetch can help.
+     */
+    fun requestFor(sourceId: String?, dateStr: String?, zoneId: ZoneId, nowMs: Long): Request? {
+        if (sourceId == null || dateStr == null) return null
+        val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return null
+        return hoursToCover(sourceId, date, zoneId, nowMs, storedHourly = emptyList())?.let { Request(sourceId, it) }
+    }
+
     private fun currentHourMs(nowMs: Long): Long = nowMs - Math.floorMod(nowMs, HOUR_MS)
 }

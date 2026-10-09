@@ -113,18 +113,12 @@ internal class FullSyncPipeline(
                 hourlyLimited = input.hourlyLimited,
                 // A tapped day past Google's routine 72 h: fetch hours through that day
                 // (HourlyOnDemand); null for every other sync and source.
-                hourlyAhead = input.noHourlyDate
-                    ?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
-                    ?.let { date ->
-                        val sourceId = input.targetSourceId ?: return@let null
-                        HourlyOnDemand.hoursToCover(
-                            sourceId = sourceId,
-                            date = date,
-                            zoneId = java.time.ZoneId.systemDefault(),
-                            nowMs = System.currentTimeMillis(),
-                            storedHourly = emptyList(),
-                        )?.let { HourlyOnDemand.Request(sourceId, it) }
-                    },
+                hourlyAhead = HourlyOnDemand.requestFor(
+                    input.targetSourceId,
+                    input.noHourlyDate,
+                    java.time.ZoneId.systemDefault(),
+                    System.currentTimeMillis(),
+                ),
             )
 
             val result = weatherRepository.getWeatherData(

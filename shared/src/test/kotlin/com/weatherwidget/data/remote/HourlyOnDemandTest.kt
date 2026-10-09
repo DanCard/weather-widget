@@ -112,4 +112,17 @@ class HourlyOnDemandTest {
         // Mon Oct 19 starts 236.6 h out; the reach ends at 03:24 that morning.
         assertEquals(HourlyOnDemand.REACH_HOURS, HourlyOnDemand.hoursToCover(google, today.plusDays(10), zone, now, routine))
     }
+
+    @Test
+    fun `a tapped date's forced sync asks Google for that day, nothing else`() {
+        assertEquals(
+            HourlyOnDemand.Request(google, 165),
+            HourlyOnDemand.requestFor(google, "2026-10-15", zone, now),
+        )
+        assertNull("other sources keep their whole horizon", HourlyOnDemand.requestFor(WeatherSource.NWS.id, "2026-10-15", zone, now))
+        assertNull("no tapped date", HourlyOnDemand.requestFor(google, null, zone, now))
+        assertNull("no target source", HourlyOnDemand.requestFor(null, "2026-10-15", zone, now))
+        assertNull("garbage date", HourlyOnDemand.requestFor(google, "next thursday", zone, now))
+        assertNull("past day", HourlyOnDemand.requestFor(google, "2026-10-08", zone, now))
+    }
 }

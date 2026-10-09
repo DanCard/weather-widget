@@ -55,7 +55,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     private val widgetId = 9112
     private val lat = 37.42
     private val lon = -122.08
-    private val source = WeatherSource.NWS
+    private var source = WeatherSource.NWS
 
     @Before
     fun setUp() {
@@ -237,7 +237,74 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         )
     }
 
-    private fun seedMissingHourlyScenario(targetDay: LocalDate) {
+    /** Google as stored by a routine fetch: every hour from now to now + 72 h. */
+    private fun seedGoogleRoutine(targetDay: LocalDate) {
+        source = WeatherSource.GOOGLE_WEATHER
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.GOOGLE_WEATHER, WeatherSource.NWS))
+        seedMissingHourlyScenario(targetDay, withFarHourlyRow = false)
+        assertEquals("precondition", WeatherSource.GOOGLE_WEATHER, stateManager.getCurrentDisplaySource(widgetId))
+        val nowMs = System.currentTimeMillis()
+        val hourMs = 3_600_000L
+        val currentHour = nowMs - nowMs % hourMs
+        runBlocking {
+            db.hourlyForecastDao().insertAll(
+                (0 until 72).map { h ->
+                    HourlyForecastEntity(
+                        dateTime = currentHour + h * hourMs,
+                        locationLat = lat,
+                        locationLon = lon,
+                        temperature = 60f + h % 12,
+                        condition = "Clear",
+                        source = source.id,
+                        fetchedAt = nowMs,
+                    )
+                },
+            )
+        }
+    }
+
+    private fun noHourlyFollowUps(): List<OneTimeWorkRequest> {
+        val requests = mutableListOf<OneTimeWorkRequest>()
+        verify(atLeast = 0) {
+            mockWorkManager.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), capture(requests))
+        }
+        return requests.filter { it.workSpec.input.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE) != null }
+    }
+
+    @Test
+    fun `Google day partly past its stored 72 h opens the hourly view under the fetching banner`() = runTest {
+        receiver.scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        // The routine 72 h ends in this day's morning: it has hours, but not through its end.
+        val targetDay = LocalDate.now().plusDays(3)
+        seedGoogleRoutine(targetDay)
+
+        receiver.onReceive(context, dayClickIntent(targetDay))
+        advanceUntilIdle()
+
+        val message = stateManager.getActiveTransientMessage(widgetId)
+        assertTrue("$message", message!!.contains("Fetching hourly forecast for"))
+        assertEquals(ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
+        val followUp = noHourlyFollowUps().single()
+        assertEquals(targetDay.toString(), followUp.workSpec.input.getString(WeatherWidgetWorker.KEY_NO_HOURLY_DATE))
+        assertEquals(WeatherSource.GOOGLE_WEATHER.id, followUp.workSpec.input.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE))
+    }
+
+    @Test
+    fun `Google day inside its stored 72 h opens the hourly view with no fetch and no banner`() = runTest {
+        receiver.scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val targetDay = LocalDate.now().plusDays(1)
+        seedGoogleRoutine(targetDay)
+
+        receiver.onReceive(context, dayClickIntent(targetDay))
+        advanceUntilIdle()
+
+        assertNull(stateManager.getActiveTransientMessage(widgetId))
+        assertTrue(noHourlyFollowUps().isEmpty())
+        assertEquals(ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
+    }
+
+    /** [withFarHourlyRow]: one row at today+6 17:00, the "data ends" point of the NWS cases. */
+    private fun seedMissingHourlyScenario(targetDay: LocalDate, withFarHourlyRow: Boolean = true) {
         stateManager.setViewMode(widgetId, ViewMode.DAILY)
         stateManager.setCurrentDisplaySource(widgetId, source)
 
@@ -259,6 +326,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
                 ),
             )
 
+            if (!withFarHourlyRow) return@runBlocking
             val lastHourlyTime = LocalDateTime.now().plusDays(6).withHour(17).withMinute(0)
             val lastHourlyEpochMs = lastHourlyTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             db.hourlyForecastDao().insertAll(
