@@ -253,6 +253,7 @@
     <string name="obs_subtitle_stale">Aucune observation récente pour %1$s — affichage de la dernière, il y a %2$s.</string>
     <string name="obs_no_location_to_refresh">Aucune position à actualiser</string>
     <string name="obs_refreshed_source">%1$s actualisé</string>
+    <string name="forecast_history_refresh_failed">Impossible d\'actualiser %1$s</string>
     <string name="obs_reported_prefix">"Relevé "</string>
     <string name="obs_fetched_separator">" • Récupéré "</string>
     <string name="station_origin_web">Web</string>

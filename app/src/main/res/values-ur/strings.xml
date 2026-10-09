@@ -261,6 +261,7 @@
     <string name="obs_subtitle_stale">%1$s کے لیے کوئی حالیہ مشاہدات نہیں — %2$s پہلے کا تازہ ترین دکھایا جا رہا ہے۔</string>
     <string name="obs_no_location_to_refresh">ریفریش کے لیے کوئی مقام دستیاب نہیں</string>
     <string name="obs_refreshed_source">%1$s ریفریش ہو گیا</string>
+    <string name="forecast_history_refresh_failed">%1$s ریفریش نہیں ہو سکا</string>
     <string name="obs_reported_prefix">"رپورٹ شدہ "</string>
     <string name="obs_fetched_separator">" • حاصل شدہ "</string>
     <string name="station_origin_web">ویب</string>

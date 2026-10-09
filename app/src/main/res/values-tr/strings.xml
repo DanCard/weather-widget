@@ -261,6 +261,7 @@
     <string name="obs_subtitle_stale">%1$s için yeni gözlem yok — en son veri gösteriliyor, %2$s önce.</string>
     <string name="obs_no_location_to_refresh">Yenilenecek konum yok</string>
     <string name="obs_refreshed_source">%1$s yenilendi</string>
+    <string name="forecast_history_refresh_failed">%1$s yenilenemedi</string>
     <string name="obs_reported_prefix">"Bildirildi "</string>
     <string name="obs_fetched_separator">" • Alındı "</string>
     <string name="station_origin_web">Web</string>

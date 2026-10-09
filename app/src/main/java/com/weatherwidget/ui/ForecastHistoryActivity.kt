@@ -7,6 +7,7 @@ import android.os.Bundle
 import com.weatherwidget.shared.graph.ForecastEvolutionCutoff
 import android.os.SystemClock
 import android.util.Log
+import android.widget.Toast
 import android.util.TypedValue
 import android.view.View
 import android.widget.Button
@@ -186,9 +187,13 @@ class ForecastHistoryActivity : AppCompatActivity() {
         findViewById<View>(R.id.api_source_button).setOnClickListener {
             cycleApiSource()
         }
+        findViewById<View>(R.id.refresh_button).setOnClickListener {
+            refreshViewedSource()
+        }
         findViewById<View>(R.id.settings_button).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+        applyDataScreenStyle()
         findViewById<Button>(R.id.detailed_stats_button).setOnClickListener {
             startActivity(Intent(this, StatisticsActivity::class.java))
         }
@@ -361,19 +366,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
         // Hindcasts (fetched after the extreme was reached) are not forecasts: drop them per side.
         // Today's extreme times are only the running max/min, so today uses the fixed cutoffs alone.
         val settledActual = appActual.takeIf { date.isBefore(LocalDate.now()) }
-        val evolutionPoints = ForecastEvolutionCutoff.apply(
-            points = snapshots.mapNotNull { snapshot ->
-                val forecastDate = LocalDate.ofEpochDay(snapshot.dateOfPrediction / WidgetConstants.MS_IN_A_DAY)
-                val daysAhead = java.time.temporal.ChronoUnit.DAYS.between(forecastDate, date).toInt()
-                if (daysAhead < 0) null
-                else EvolutionPoint(
-                    forecastDate = forecastDate.toString(),
-                    fetchedAt = snapshot.fetchedAt,
-                    daysAhead = daysAhead,
-                    highTemp = snapshot.highTemp,
-                    lowTemp = snapshot.lowTemp,
-                    source = WeatherSource.fromId(snapshot.source),
-                )
+        val evolutionPoints = ForecastEvolutionCutoff.points(
+            rows = snapshots.map {
+                ForecastEvolutionCutoff.Row(it.dateOfPrediction, it.fetchedAt, it.highTemp, it.lowTemp, it.source)
             },
             targetDate = date,
             highReachedAt = settledActual?.computedHighAt,
@@ -677,6 +672,61 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
     private fun dpToPx(dp: Int): Int {
         return (dp * resources.displayMetrics.density).toInt()
+    }
+
+    /** The Current Observations look, from the palette desktop shares ([DataScreenStyler]). */
+    private fun applyDataScreenStyle() {
+        DataScreenStyler.background(findViewById(R.id.history_root))
+        listOf(
+            R.id.summary_card,
+            R.id.no_data_text,
+            R.id.high_graph_card,
+            R.id.low_graph_card,
+            R.id.actuals_legend_card,
+            R.id.accuracy_card,
+            R.id.freshness_card,
+        ).forEach { DataScreenStyler.card(findViewById(it)) }
+        listOf(R.id.api_source_button, R.id.graph_mode_button, R.id.detailed_stats_button)
+            .forEach { DataScreenStyler.pillButton(findViewById(it)) }
+    }
+
+    /**
+     * Refetches the viewed source's forecast only (user, 2026-10-09), through the same single-source
+     * path a day tap uses, then reloads the graphs and repaints the widget that opened this screen.
+     */
+    private fun refreshViewedSource() {
+        val source = cachedRequestedSource ?: return
+        val refreshButton = findViewById<View>(R.id.refresh_button)
+        refreshButton.isEnabled = false
+        refreshButton.alpha = 0.5f
+        lifecycleScope.launch {
+            val ok = try {
+                withContext(Dispatchers.IO) {
+                    weatherRepository.fetchSourceOnDemand(targetLat, targetLon, source, request = null)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "History refresh failed for ${source.id}", e)
+                false
+            }
+            refreshButton.isEnabled = true
+            refreshButton.alpha = 1.0f
+            val message = if (ok) R.string.obs_refreshed_source else R.string.forecast_history_refresh_failed
+            Toast.makeText(this@ForecastHistoryActivity, getString(message, source.shortDisplayName), Toast.LENGTH_SHORT).show()
+            if (!ok) return@launch
+            loadData(targetDate, targetLat, targetLon, targetLocalDate, source)
+            val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+            if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                sendBroadcast(
+                    Intent(this@ForecastHistoryActivity, WidgetActionReceiver::class.java).apply {
+                        action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
+                    },
+                )
+            }
+        }
     }
 
     private fun cycleApiSource() {

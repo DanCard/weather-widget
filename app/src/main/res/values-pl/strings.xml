@@ -261,6 +261,7 @@
     <string name="obs_subtitle_stale">Brak aktualnych obserwacji dla %1$s — pokazano najnowszą sprzed %2$s.</string>
     <string name="obs_no_location_to_refresh">Brak lokalizacji do odświeżenia</string>
     <string name="obs_refreshed_source">Odświeżono %1$s</string>
+    <string name="forecast_history_refresh_failed">Nie udało się odświeżyć %1$s</string>
     <string name="obs_reported_prefix">"Zgłoszono "</string>
     <string name="obs_fetched_separator">" • Pobrano "</string>
     <string name="station_origin_web">Web</string>

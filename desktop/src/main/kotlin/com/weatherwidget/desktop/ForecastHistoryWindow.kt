@@ -84,6 +84,11 @@ internal fun ForecastHistoryWindow(
     initialDate: LocalDate = LocalDate.now(),
     onClose: () -> Unit,
     onConfigUpdate: (DesktopConfig) -> Unit = {},
+    /** Bumped when stored data changes (a refresh landed); the window reloads on it. */
+    dataUpdateCount: Int = 0,
+    isRefreshing: Boolean = false,
+    /** Refetch the viewed source only; run by the caller's application scope (see [ObservationRefreshButton]). */
+    onRefreshSource: (WeatherSource) -> Unit = {},
 ) {
     val state = rememberSanitizedWindowState(
         savedX = config.historyWindowX,
@@ -145,7 +150,7 @@ internal fun ForecastHistoryWindow(
         var loading by remember { mutableStateOf(true) }
         var data by remember { mutableStateOf<HistoryData?>(null) }
 
-        LaunchedEffect(targetDate, source, config.lat, config.lon) {
+        LaunchedEffect(targetDate, source, config.lat, config.lon, dataUpdateCount) {
             loading = true
             data = withContext(Dispatchers.IO) {
                 loadHistory(weatherDao, config, targetDate, source, visibleSources)
@@ -154,7 +159,7 @@ internal fun ForecastHistoryWindow(
         }
 
         MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
-            Surface(color = MaterialTheme.colorScheme.background) {
+            Surface(color = ObsStyle.background, contentColor = Color.White) {
                 Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
                 Header(
                     targetDate = targetDate,
@@ -168,6 +173,8 @@ internal fun ForecastHistoryWindow(
                         val idx = visibleSources.indexOf(source)
                         source = visibleSources[(idx + 1) % visibleSources.size]
                     },
+                    isRefreshing = isRefreshing,
+                    onRefresh = { onRefreshSource(source) },
                     onToggleMode = {
                         graphMode = if (graphMode == GraphMode.EVOLUTION) GraphMode.ERROR else GraphMode.EVOLUTION
                     },
@@ -176,8 +183,8 @@ internal fun ForecastHistoryWindow(
 
                 val d = data
                 when {
-                    loading -> Text("Loading…", color = Color.Gray)
-                    d == null -> Text("No data.", color = Color.Gray)
+                    loading -> Text("Loading…", color = ObsStyle.textSecondary)
+                    d == null -> Text("No data.", color = ObsStyle.textSecondary)
                     else -> Content(d, graphMode, source, config.settings.useCelsius)
                 }
             }
@@ -186,6 +193,10 @@ internal fun ForecastHistoryWindow(
     }
 }
 
+/**
+ * Date navigation on the left; source, refresh and mode on the right — the Android header's order
+ * (`activity_forecast_history.xml`), styled like the Observations window.
+ */
 @Composable
 private fun Header(
     targetDate: LocalDate,
@@ -196,22 +207,30 @@ private fun Header(
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onCycleSource: () -> Unit,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
     onToggleMode: () -> Unit,
 ) {
     val dateText = "${targetDate.dayOfWeek.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())}, " +
         "${targetDate.month.getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())} ${targetDate.dayOfMonth}"
     Column {
-        Text("Forecast History", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onPrev, enabled = canGoBack) { Text("◀") }
-            Text(dateText, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Text(dateText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             TextButton(onClick = onNext, enabled = canGoForward) { Text("▶") }
+            Spacer(Modifier.weight(1f))
+            SourceCycleButton(source.shortDisplayName, onCycleSource)
+            ObservationRefreshButton(isRefreshing = isRefreshing, onRefreshData = onRefresh)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onCycleSource) { Text(source.shortDisplayName) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "History of Forecasts",
+                fontSize = 20.sp,
+                color = ObsStyle.textSecondary,
+                modifier = Modifier.weight(1f).padding(start = 8.dp),
+            )
             OutlinedButton(onClick = onToggleMode) {
-                Text(if (graphMode == GraphMode.EVOLUTION) "Evolution" else "Error")
+                Text(if (graphMode == GraphMode.EVOLUTION) "Mode: Evolution" else "Mode: Error", color = ObsStyle.accent)
             }
         }
     }
@@ -224,10 +243,10 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource,
     val hasPoints = d.points.isNotEmpty()
 
     if (!hasPoints) {
-        Text("No forecast snapshots for ${source.displayName} on this day.", color = Color.Gray, fontSize = 13.sp)
+        Text("No forecast snapshots for ${source.displayName} on this day.", color = ObsStyle.textSecondary, fontSize = 13.sp)
         Spacer(Modifier.height(12.dp))
     } else if (isError && (d.apiHigh == null || d.apiLow == null) && (d.appHigh == null || d.appLow == null)) {
-        Text("Error view needs actuals — pick a past day.", color = Color.Gray, fontSize = 13.sp)
+        Text("Error view needs actuals — pick a past day.", color = ObsStyle.textSecondary, fontSize = 13.sp)
         Spacer(Modifier.height(12.dp))
     } else {
         GraphCard(if (isError) "High forecast error" else "High forecast evolution") {
@@ -244,15 +263,15 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource,
     Spacer(Modifier.height(8.dp))
 
     if (d.isPast && ((d.apiHigh != null && d.apiLow != null) || (d.appHigh != null && d.appLow != null))) {
-        Card(Modifier.fillMaxWidth()) {
+        DataCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
                 if (d.apiHigh != null && d.apiLow != null) {
                     Text("${source.displayName} actual: ${fmt(d.apiHigh, useCelsius)} / ${fmt(d.apiLow, useCelsius)}",
-                        color = parseColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), fontSize = 13.sp)
+                        color = parseHexColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), fontSize = 13.sp)
                 }
                 if (d.appHigh != null && d.appLow != null) {
                     Text("Location actual: ${fmt(d.appHigh, useCelsius)} / ${fmt(d.appLow, useCelsius)}",
-                        color = parseColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        color = parseHexColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -264,21 +283,20 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource,
         append("${d.snapshotCount} snapshot${if (d.snapshotCount == 1) "" else "s"}")
         d.newestFetchAgeMs?.let { append(" · newest ${formatAge(it)} ago") }
     }
-    Text(freshness, color = Color.Gray, fontSize = 11.sp)
+    Text(freshness, color = ObsStyle.textSecondary, fontSize = 11.sp)
     Spacer(Modifier.height(12.dp))
 
     Text("Accuracy (last 30 days)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
     Spacer(Modifier.height(4.dp))
-    Text(d.accuracySummary, color = Color.Gray, fontSize = 12.sp)
+    Text(d.accuracySummary, color = ObsStyle.textSecondary, fontSize = 12.sp)
 }
 
 @Composable
 private fun GraphCard(title: String, content: @Composable () -> Unit) {
-    // Match Android's bg_graph_card fill (#222226) so the shared #333 gridlines read as the same
-    // subtle "half-faded" grid (the grid is one step lighter than the card, not lighter-on-lighter).
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF222226))) {
+    // The data-screen card (DataScreenStyle), the same fill Android's graph cards use.
+    DataCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(8.dp)) {
-            Text(title, fontSize = 12.sp, color = Color.Gray)
+            Text(title, fontSize = 12.sp, color = ObsStyle.textSecondary)
             Spacer(Modifier.height(4.dp))
             content()
         }
@@ -289,10 +307,10 @@ private fun GraphCard(title: String, content: @Composable () -> Unit) {
 private fun Legend(source: WeatherSource, isPast: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         // One forecast color for every API; the dot is labeled with the selected source.
-        LegendDot(parseColor(ForecastEvolutionStyle.FORECAST_COLOR), source.shortDisplayName)
+        LegendDot(parseHexColor(ForecastEvolutionStyle.FORECAST_COLOR), source.shortDisplayName)
         if (isPast) {
-            LegendDot(parseColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), "API actual")
-            LegendDot(parseColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), "Location actual")
+            LegendDot(parseHexColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), "API actual")
+            LegendDot(parseHexColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), "Location actual")
         }
     }
 }
@@ -302,7 +320,7 @@ private fun LegendDot(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Canvas(Modifier.size(10.dp)) { drawCircle(color) }
         Spacer(Modifier.width(4.dp))
-        Text(label, fontSize = 11.sp, color = Color.Gray)
+        Text(label, fontSize = 11.sp, color = ObsStyle.textSecondary)
     }
 }
 
@@ -358,10 +376,10 @@ private fun DrawScope.drawEvolution(
     val timeAxis = TimeAxis(series.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(l.width, spacingPx = 46f, maxDivisions = 20))
 
     drawGridAndAxes(l, axis, timeAxis, tm, isError = false, useCelsius = useCelsius)
-    drawSeriesCurve(series.mapNotNull { p -> tempFor(p)?.let { it to p.fetchedAt } }, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.FORECAST_COLOR))
-    drawActualLine(l, axis, actual, parseColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), dashed = true,
+    drawSeriesCurve(series.mapNotNull { p -> tempFor(p)?.let { it to p.fetchedAt } }, axis, timeAxis, l, parseHexColor(ForecastEvolutionStyle.FORECAST_COLOR))
+    drawActualLine(l, axis, actual, parseHexColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), dashed = true,
         "API actual: ${actual?.let { fmt(it, useCelsius) } ?: ""}", tm)
-    drawActualLine(l, axis, appActual, parseColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), dashed = false,
+    drawActualLine(l, axis, appActual, parseHexColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), dashed = false,
         "Location actual: ${appActual?.let { fmt(it, useCelsius) } ?: ""}", tm)
 }
 
@@ -388,27 +406,27 @@ private fun DrawScope.drawError(
     drawGridAndAxes(l, axis, timeAxis, tm, isError = true, useCelsius = useCelsius)
 
     val zeroY = axis.valueToY(0f, l.top, l.height)
-    drawLine(parseColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), Offset(l.left, zeroY), Offset(l.right, zeroY),
+    drawLine(parseHexColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), Offset(l.left, zeroY), Offset(l.right, zeroY),
         strokeWidth = ForecastEvolutionStyle.ZERO_LINE_STROKE_DP.dp.toPx(), pathEffect = dash())
-    label(tm, "Location actual", l.right + gap(), zeroY, parseColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), leftAligned = true)
+    label(tm, "Location actual", l.right + gap(), zeroY, parseHexColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), leftAligned = true)
 
     if (actual != null && appActual != null) {
         val apiBias = actual - appActual
         if (abs(apiBias) > 0.01f) {
             val apiY = axis.valueToY(apiBias, l.top, l.height)
-            drawLine(parseColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), Offset(l.left, apiY), Offset(l.right, apiY),
+            drawLine(parseHexColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), Offset(l.left, apiY), Offset(l.right, apiY),
                 strokeWidth = ForecastEvolutionStyle.API_ACTUAL_STROKE_DP.dp.toPx(), pathEffect = dash())
-            label(tm, "API actual", l.right + gap(), apiY, parseColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), leftAligned = true)
+            label(tm, "API actual", l.right + gap(), apiY, parseHexColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), leftAligned = true)
         }
     }
 
     // Single error series in one color, whatever the API.
-    drawErrorCurve(errors, axis, timeAxis, l, parseColor(ForecastEvolutionStyle.FORECAST_COLOR))
+    drawErrorCurve(errors, axis, timeAxis, l, parseHexColor(ForecastEvolutionStyle.FORECAST_COLOR))
 }
 
 private fun DrawScope.drawGridAndAxes(l: Layout, axis: AxisScale, timeAxis: TimeAxis, tm: TextMeasurer, isError: Boolean, useCelsius: Boolean) {
-    val grid = parseColor(ForecastEvolutionStyle.GRID_COLOR)
-    val labelColor = parseColor(ForecastEvolutionStyle.LABEL_COLOR)
+    val grid = parseHexColor(ForecastEvolutionStyle.GRID_COLOR)
+    val labelColor = parseHexColor(ForecastEvolutionStyle.LABEL_COLOR)
     for (tick in axis.ticks) {
         val y = axis.valueToY(tick, l.top, l.height)
         drawLine(grid, Offset(l.left, y), Offset(l.right, y), strokeWidth = ForecastEvolutionStyle.GRID_STROKE_DP.dp.toPx())
@@ -506,23 +524,12 @@ private fun loadHistory(
     val rows = dao.getForecastEvolution(targetEpoch, lat, lon).filter { it.source == source.id }
     val historyRows = if (isPast) dao.getExtremesInRange(targetEpoch, targetEpoch, lat, lon) else emptyList()
     val sourceHistory = historyRows.firstOrNull { it.source == source.id }
-    val rawPoints = rows.mapNotNull { row ->
-        val forecastDate = LocalDate.ofEpochDay(row.dateOfPrediction / MS_IN_A_DAY)
-        val daysAhead = java.time.temporal.ChronoUnit.DAYS.between(forecastDate, targetDate).toInt()
-        if (daysAhead < 0) null
-        else EvolutionPoint(
-            forecastDate = forecastDate.toString(),
-            fetchedAt = row.fetchedAt,
-            daysAhead = daysAhead,
-            highTemp = row.highTemp,
-            lowTemp = row.lowTemp,
-            source = WeatherSource.fromId(row.source),
-        )
-    }
-    // Hindcasts (fetched after the extreme was reached) are not forecasts: drop them per side.
+    // Hindcasts (fetched after the extreme was reached) are not forecasts: dropped per side.
     // Today's extreme times are only the running max/min (not loaded), so today uses the fixed cutoffs.
-    val points = ForecastEvolutionCutoff.apply(
-        points = rawPoints,
+    val points = ForecastEvolutionCutoff.points(
+        rows = rows.map {
+            ForecastEvolutionCutoff.Row(it.dateOfPrediction, it.fetchedAt, it.highTemp, it.lowTemp, it.source)
+        },
         targetDate = targetDate,
         highReachedAt = sourceHistory?.computedHighAt,
         lowReachedAt = sourceHistory?.computedLowAt,
@@ -601,15 +608,3 @@ private fun fmt(v: Float, useCelsius: Boolean): String = ForecastEvolutionGeomet
 
 private fun formatAge(durationMs: Long): String =
     com.weatherwidget.shared.util.AgeFormatter.formatDuration(durationMs)
-
-
-/** Parses a `#RRGGBB` / `#AARRGGBB` style string into a Compose [Color]. */
-private fun parseColor(hex: String): Color {
-    val clean = hex.removePrefix("#")
-    val argb = when (clean.length) {
-        6 -> 0xFF000000L or clean.toLong(16)
-        8 -> clean.toLong(16)
-        else -> 0xFFFFFFFFL
-    }
-    return Color(argb.toInt())
-}

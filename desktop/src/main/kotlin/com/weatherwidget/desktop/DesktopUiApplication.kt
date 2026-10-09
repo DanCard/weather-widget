@@ -845,6 +845,50 @@ internal fun runDesktopUiApplication() = application {
             }
         }
 
+        /**
+         * History of Forecasts' refresh: the viewed source only (user, 2026-10-09). The displayed
+         * source goes through [requestFullRefresh] — this window's repository is built for it — and
+         * any other source through a repository of its own, as the daemon's non-active loop does.
+         */
+        fun requestSourceRefresh(source: WeatherSource, origin: String) {
+            val cfg = currentConfig ?: return
+            if (source.id == cfg.displaySource) {
+                requestFullRefresh(origin)
+                return
+            }
+            weatherDao.log("REFRESH_CLICK", "origin=$origin source=${source.id}", "INFO")
+            if (refreshInFlight) {
+                weatherDao.log("REFRESH_CLICK", "origin=$origin suppressed=in_flight", "INFO")
+                return
+            }
+            refreshInFlight = true
+            // Application-owned scope, as in requestFullRefresh: closing the window cannot cancel it.
+            uiScope.launch {
+                val service = DesktopWeatherService(
+                    cfg.lat, cfg.lon, source.id, cfg.settings.apiKeys, weatherDao,
+                    isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(),
+                )
+                try {
+                    DesktopWeatherRepository(service, weatherDao, cfg.lat, cfg.lon, source.id, cfg.personalStationWeight())
+                        .refresh(reason = "user_refresh:$origin")
+                    dataUpdateCount++
+                    notifyRefreshRequested()
+                    weatherDao.log("REFRESH_CLICK", "origin=$origin source=${source.id} completed", "INFO")
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    weatherDao.log(
+                        "REFRESH_CLICK",
+                        "origin=$origin source=${source.id} failed ${e::class.simpleName}: ${e.message}",
+                        "WARN",
+                    )
+                } finally {
+                    service.close()
+                    refreshInFlight = false
+                }
+            }
+        }
+
         if (statsVisible && currentConfig != null) {
             StatisticsWindow(
                 weatherDao = weatherDao,
@@ -862,6 +906,9 @@ internal fun runDesktopUiApplication() = application {
                 initialDate = historyInitialDate,
                 onClose = { historyVisible = false },
                 onConfigUpdate = { newConfig -> saveConfigAndNotify(newConfig, "observations") },
+                dataUpdateCount = dataUpdateCount,
+                isRefreshing = refreshInFlight,
+                onRefreshSource = { source -> requestSourceRefresh(source, "history") },
             )
         }
 

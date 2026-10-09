@@ -261,6 +261,7 @@
     <string name="obs_subtitle_stale">%1$s の最近の観測データはありません — %2$s前の最新データを表示しています。</string>
     <string name="obs_no_location_to_refresh">更新できる位置がありません</string>
     <string name="obs_refreshed_source">%1$s を更新しました</string>
+    <string name="forecast_history_refresh_failed">%1$s を更新できませんでした</string>
     <string name="obs_reported_prefix">"観測 "</string>
     <string name="obs_fetched_separator">" • 取得 "</string>
     <string name="station_origin_web">ウェブ</string>

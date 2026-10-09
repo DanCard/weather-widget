@@ -261,6 +261,7 @@
     <string name="obs_subtitle_stale">لا توجد أرصاد حديثة لـ %1$s — يتم عرض الأحدث، قبل %2$s.</string>
     <string name="obs_no_location_to_refresh">لا يوجد موقع متاح للتحديث</string>
     <string name="obs_refreshed_source">تم تحديث %1$s</string>
+    <string name="forecast_history_refresh_failed">تعذّر تحديث %1$s</string>
     <string name="obs_reported_prefix">"أُبلغ "</string>
     <string name="obs_fetched_separator">" • جُلب "</string>
     <string name="station_origin_web">ويب</string>

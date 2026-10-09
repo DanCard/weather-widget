@@ -283,6 +283,7 @@
     <string name="obs_subtitle_stale">No recent %1$s observations — showing the latest, %2$s ago.</string>
     <string name="obs_no_location_to_refresh">No location available to refresh</string>
     <string name="obs_refreshed_source">Refreshed %1$s</string>
+    <string name="forecast_history_refresh_failed">Couldn\'t refresh %1$s</string>
     <string name="obs_reported_prefix">"Reported "</string>
     <string name="obs_fetched_separator">" • Fetched "</string>
     <string name="station_type_origin_format" translatable="false">%1$s (%2$s)</string>

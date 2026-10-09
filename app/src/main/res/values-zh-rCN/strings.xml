@@ -261,6 +261,7 @@
     <string name="obs_subtitle_stale">没有 %1$s 的最新观测数据 — 显示 %2$s 前的最后一条。</string>
     <string name="obs_no_location_to_refresh">没有可刷新的位置</string>
     <string name="obs_refreshed_source">已刷新 %1$s</string>
+    <string name="forecast_history_refresh_failed">无法刷新 %1$s</string>
     <string name="obs_reported_prefix">"报告于 "</string>
     <string name="obs_fetched_separator">" • 获取于 "</string>
     <string name="station_origin_web">网页</string>

@@ -261,6 +261,7 @@
     <string name="obs_subtitle_stale">ไม่มีการตรวจวัดล่าสุดของ %1$s — แสดงค่าล่าสุดเมื่อ %2$s ที่แล้ว</string>
     <string name="obs_no_location_to_refresh">ไม่มีตำแหน่งให้รีเฟรช</string>
     <string name="obs_refreshed_source">รีเฟรช %1$s แล้ว</string>
+    <string name="forecast_history_refresh_failed">รีเฟรช %1$s ไม่ได้</string>
     <string name="obs_reported_prefix">"รายงานเมื่อ "</string>
     <string name="obs_fetched_separator">" • ดึงเมื่อ "</string>
     <string name="station_origin_web">เว็บ</string>

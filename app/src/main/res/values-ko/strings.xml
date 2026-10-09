@@ -261,6 +261,7 @@
     <string name="obs_subtitle_stale">%1$s의 최근 관측 데이터가 없습니다 — %2$s 전의 최신 데이터를 표시합니다.</string>
     <string name="obs_no_location_to_refresh">새로고침할 위치가 없습니다</string>
     <string name="obs_refreshed_source">%1$s 새로고침됨</string>
+    <string name="forecast_history_refresh_failed">%1$s을(를) 새로고침할 수 없습니다</string>
     <string name="obs_reported_prefix">"보고 "</string>
     <string name="obs_fetched_separator">" • 가져옴 "</string>
     <string name="station_origin_web">웹</string>

@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.weatherwidget.shared.graph.DataScreenStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -55,15 +56,28 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /** Shared palette for the Observations & Logs window (pure-black "OLED" look). */
+/** Parses a `#RRGGBB` / `#AARRGGBB` string (the `:shared` style constants) into a Compose [Color]. */
+internal fun parseHexColor(hex: String): Color {
+    val clean = hex.removePrefix("#")
+    val argb = when (clean.length) {
+        6 -> 0xFF000000L or clean.toLong(16)
+        8 -> clean.toLong(16)
+        else -> 0xFFFFFFFFL
+    }
+    return Color(argb.toInt())
+}
+
+/** The data-screen palette ([DataScreenStyle], shared with Android) plus Observations-only colors. */
 internal object ObsStyle {
-    val background = Color.Black
-    val cardFill = Color(0xFF121214)
-    val cardBorder = Color(0xFF2A2A2E)
-    val textSecondary = Color(0xFFAAAAAA)
-    val accent = Color(0xFF4FC3F7)
+    val background = parseHexColor(DataScreenStyle.BACKGROUND)
+    val cardFill = parseHexColor(DataScreenStyle.CARD_FILL)
+    val cardBorder = parseHexColor(DataScreenStyle.CARD_BORDER)
+    val textSecondary = parseHexColor(DataScreenStyle.TEXT_SECONDARY)
+    val accent = parseHexColor(DataScreenStyle.ACCENT)
+    val sourceButtonFill = parseHexColor(DataScreenStyle.SOURCE_BUTTON_FILL)
     val typeOfficial = Color(0xFF2BFF88) // bright green — distinct from the blue accent
     val typePersonal = Color(0xFFB0B0B8)
-    val divider = Color(0xFF222226)
+    val divider = parseHexColor(DataScreenStyle.DIVIDER)
     val timeReported = Color(0xFFE8A24E) // amber — matches the mild band of the temp gradient
     val timeFetched = accent
     val error = Color(0xFFFF3366) // readings excluded from the blend: QC-rejected or stale
@@ -322,19 +336,10 @@ internal fun ObservationsWindow(
                         // Source Cycler
                         val visibleSources = config.effectiveSources.map { WeatherSource.valueOf(it) }
                         if (visibleSources.isNotEmpty()) {
-                            Button(
-                                onClick = {
-                                    val currentIndex = visibleSources.indexOf(currentSource)
-                                    val nextIndex = (currentIndex + 1) % visibleSources.size
-                                    currentSource = visibleSources[nextIndex]
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF0D2B45),
-                                    contentColor = ObsStyle.accent
-                                ),
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            ) {
-                                Text(currentSource.shortDisplayName, fontSize = 18.sp)
+                            SourceCycleButton(currentSource.shortDisplayName) {
+                                val currentIndex = visibleSources.indexOf(currentSource)
+                                val nextIndex = (currentIndex + 1) % visibleSources.size
+                                currentSource = visibleSources[nextIndex]
                             }
                         }
 
@@ -463,6 +468,33 @@ internal fun ObservationsWindow(
             }
         }
     }
+}
+
+/** The navy API-source pill of the data screens (Observations, History of Forecasts). */
+@Composable
+internal fun SourceCycleButton(label: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = ObsStyle.sourceButtonFill,
+            contentColor = ObsStyle.accent,
+        ),
+        modifier = Modifier.padding(horizontal = 4.dp),
+    ) {
+        Text(label, fontSize = 18.sp)
+    }
+}
+
+/** The data screens' card: [ObsStyle.cardFill], 1 dp [ObsStyle.cardBorder], 12 dp corners. */
+@Composable
+internal fun DataCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(DataScreenStyle.CARD_RADIUS_DP.dp),
+        colors = CardDefaults.cardColors(containerColor = ObsStyle.cardFill),
+        border = BorderStroke(DataScreenStyle.CARD_BORDER_DP.dp, ObsStyle.cardBorder),
+        content = content,
+    )
 }
 
 /**
@@ -608,16 +640,13 @@ internal fun ObservationCard(
     // QC-rejected and stale readings are both absent from the blend, so neither shows a value.
     val excludedFromBlend = origin == ObservationOrigin.Kind.QC_FAILED ||
         origin == ObservationOrigin.Kind.STALE
-    Card(
+    DataCard(
         // No pointer-input modifier at all when there is nothing to open: the hover overlay's cards
         // must not be hit-testable, or they would take the pointer from the graph beneath them.
         modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
             .then(
                 if (historyUrl != null) Modifier.clickable { openInBrowser(historyUrl) } else Modifier,
             ),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = ObsStyle.cardFill),
-        border = BorderStroke(1.dp, ObsStyle.cardBorder)
     ) {
         val hPad = if (compact) 4.dp else 10.dp
         Column(modifier = Modifier.padding(horizontal = hPad, vertical = if (compact) 4.dp else 8.dp)) {

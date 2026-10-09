@@ -261,6 +261,7 @@
     <string name="obs_subtitle_stale">Tidak ada observasi terbaru untuk %1$s — menampilkan yang terakhir, %2$s lalu.</string>
     <string name="obs_no_location_to_refresh">Tidak ada lokasi untuk disegarkan</string>
     <string name="obs_refreshed_source">%1$s disegarkan</string>
+    <string name="forecast_history_refresh_failed">Tidak dapat memuat ulang %1$s</string>
     <string name="obs_reported_prefix">"Dilaporkan "</string>
     <string name="obs_fetched_separator">" • Diambil "</string>
     <string name="station_origin_web">Web</string>
