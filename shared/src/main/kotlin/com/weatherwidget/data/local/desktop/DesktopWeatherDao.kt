@@ -705,7 +705,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     /**
      * Deletes rows past [com.weatherwidget.data.local.RetentionPolicy] — the same policy Android
-     * applies (daily_history 18 months, network_usage and api_usage_stats 90 days, everything else at most a month).
+     * applies (daily_history 18 months, network_usage and api_usage_stats 90 days, everything else —
+     * source_view_days included — at most a month).
      *
      * [protectedLogTags] survive the app_logs window: desktop keeps a few permanent "done" markers
      * in app_logs (one-time backfills), and losing them would re-run those backfills and stop the
@@ -725,6 +726,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.execute("DELETE FROM current_status WHERE updatedAt < $defaultCutoff")
                 stmt.execute("DELETE FROM network_usage WHERE timestamp < ${policy.daysAgo(nowMs, policy.USAGE_DAYS)}")
                 stmt.execute("DELETE FROM api_usage_stats WHERE date < ${policy.daysAgo(nowMs, policy.USAGE_DAYS)}")
+                stmt.execute(
+                    "DELETE FROM source_view_days WHERE date < " +
+                        com.weatherwidget.shared.sourceview.SourceViewTally.retentionCutoffMs(nowMs, java.time.ZoneId.systemDefault()),
+                )
             }
             conn.prepareStatement(
                 "DELETE FROM app_logs WHERE timestamp < ?" +
@@ -1981,6 +1986,60 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
     }
+
+    /** One switch into `source_view_days` (same table as Android's; see SourceViewTally). */
+    fun recordSourceSwitch(switch: com.weatherwidget.shared.sourceview.SourceViewSwitch) {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO source_view_days (date, sourceId, viewKind, triggerKind, wasPrimary, switches) " +
+                    "VALUES (?, ?, ?, ?, ?, 1) ON CONFLICT(date, sourceId, viewKind, triggerKind, wasPrimary) " +
+                    "DO UPDATE SET switches = switches + 1",
+            ).use { stmt ->
+                stmt.setLong(1, switch.dateMs)
+                stmt.setString(2, switch.sourceId)
+                stmt.setString(3, switch.viewKind.name)
+                stmt.setString(4, switch.trigger.name)
+                stmt.setInt(5, if (switch.wasPrimary) 1 else 0)
+                stmt.executeUpdate()
+            }
+        }
+    }
+
+    /** `source_view_days` rows dated at or after [sinceDateMs], for SourceViewProbability. */
+    fun sourceViewDaysSince(sinceDateMs: Long): List<com.weatherwidget.shared.sourceview.SourceViewDayRow> =
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT date, sourceId, viewKind, triggerKind, wasPrimary, switches FROM source_view_days WHERE date >= ?",
+            ).use { stmt ->
+                stmt.setLong(1, sinceDateMs)
+                stmt.executeQuery().use { rs ->
+                    buildList {
+                        while (rs.next()) {
+                            add(
+                                com.weatherwidget.shared.sourceview.SourceViewDayRow(
+                                    dateMs = rs.getLong(1),
+                                    sourceId = rs.getString(2),
+                                    viewKind = rs.getString(3),
+                                    trigger = rs.getString(4),
+                                    wasPrimary = rs.getInt(5) != 0,
+                                    switches = rs.getInt(6),
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+    /** The day `source_view_days` started counting (epoch-day ms), or null if the row is missing. */
+    fun sourceViewTrackingStartMs(): Long? =
+        db.getConnection().use { conn ->
+            conn.createStatement().use { stmt ->
+                stmt.executeQuery("SELECT startedDate FROM source_view_tracking WHERE id = 1").use { rs ->
+                    if (rs.next()) rs.getLong(1) else null
+                }
+            }
+        }
 
     /** `api_usage_stats` rows with a day key at or after [sinceDateMs], for Settings → Usage stats. */
     fun apiUsageSince(sinceDateMs: Long): List<com.weatherwidget.data.remote.ApiUsageRow> =

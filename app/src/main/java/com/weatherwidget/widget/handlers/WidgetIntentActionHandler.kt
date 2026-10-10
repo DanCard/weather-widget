@@ -9,6 +9,9 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.widget.SourceViewRecorder
+import com.weatherwidget.shared.sourceview.SourceViewTrigger
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetPushDispatcher
 import com.weatherwidget.widget.WidgetRenderer
@@ -158,6 +161,24 @@ internal object WidgetIntentActionHandler {
         // its daily forecast and current conditions but not the hourly forecast; only while an
         // hourly view is showing does a stale source refetch everything. HourlyFetchGate.
         val hourlyLimited = !viewMode.isGraphMode
+        // The switch is counted after the paint, so the tap's latency doesn't pay for it, and in
+        // `finally`, so a failed paint still counts what the user chose (source_view_days).
+        try {
+            showSwitchedSource(context, appWidgetId, repository, newSource, viewMode, startMs, hourlyLimited)
+        } finally {
+            SourceViewRecorder.record(context, newSource, viewMode, SourceViewTrigger.TOGGLE)
+        }
+    }
+
+    private suspend fun showSwitchedSource(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository?,
+        newSource: WeatherSource,
+        viewMode: ViewMode,
+        startMs: Long,
+        hourlyLimited: Boolean,
+    ) {
         val refreshContext = prepareContext(context, appWidgetId, "toggle_api", hourlyLimited = hourlyLimited) ?: return
         val now = LocalDateTime.now()
         if (
@@ -219,6 +240,21 @@ internal object WidgetIntentActionHandler {
         }
         stateManager.setCurrentDisplaySource(appWidgetId, preferred)
         val viewMode = stateManager.getViewMode(appWidgetId)
+        try {
+            showPreferredSource(context, appWidgetId, repository, preferred, viewMode, startMs)
+        } finally {
+            SourceViewRecorder.record(context, preferred, viewMode, SourceViewTrigger.HOME)
+        }
+    }
+
+    private suspend fun showPreferredSource(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository?,
+        preferred: WeatherSource,
+        viewMode: ViewMode,
+        startMs: Long,
+    ) {
         val refreshContext = prepareContext(context, appWidgetId, "reset_source") ?: return
         val now = LocalDateTime.now()
         if (

@@ -28,6 +28,12 @@ object RetentionPolicy {
      */
     const val USAGE_DAYS = 90L
 
+    /**
+     * source_view_days: how often the user switches sources, read by SourceViewProbability (user,
+     * 2026-10-10: "track for 30 days").
+     */
+    const val SOURCE_VIEW_DAYS = 30L
+
     private const val DAY_MS = 24L * 3_600_000L
 
     fun daysAgo(nowMs: Long, days: Long): Long = nowMs - days * DAY_MS

@@ -493,6 +493,15 @@ class WeatherObservationsActivity : AppCompatActivity() {
         val currentIndex = visibleSources.indexOf(currentSource)
         val nextIndex = (currentIndex + 1) % visibleSources.size
         currentSource = visibleSources[nextIndex]
+        val switchedTo = currentSource
+        lifecycleScope.launch(ioDispatcher) {
+            com.weatherwidget.widget.SourceViewRecorder.record(
+                applicationContext,
+                switchedTo,
+                com.weatherwidget.widget.ViewMode.DAILY,
+                com.weatherwidget.shared.sourceview.SourceViewTrigger.OBSERVATIONS,
+            )
+        }
 
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             widgetStateManager.setCurrentDisplaySource(appWidgetId, currentSource)

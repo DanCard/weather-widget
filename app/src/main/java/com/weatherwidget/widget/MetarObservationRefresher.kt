@@ -39,13 +39,20 @@ internal class MetarObservationRefresher(
     private val appLogDao: AppLogDao,
 ) {
     /** The tier this location currently sits in, or NONE when nothing visible would read the rows. */
-    fun currentTier(): MetarFetchPolicy.Tier {
+    /**
+     * [consumerSources] defaults to every enabled source; [refreshIfDue] passes only those still
+     * fetched in the background ([SourceFetchGateLoader]), so a borrower on demand only no longer
+     * keeps METAR fetched.
+     */
+    fun currentTier(
+        consumerSources: List<com.weatherwidget.data.model.WeatherSource> = widgetStateManager.getVisibleSourcesOrder(),
+    ): MetarFetchPolicy.Tier {
         val activeSourceIds = AppWidgetManager.getInstance(context)
             .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
             .map { widgetStateManager.getCurrentDisplaySource(it).id }
             .distinct()
             .toSet()
-        return MetarFetchPolicy.tierFor(widgetStateManager.getVisibleSourcesOrder(), activeSourceIds)
+        return MetarFetchPolicy.tierFor(consumerSources, activeSourceIds)
     }
 
     /**
@@ -79,7 +86,7 @@ internal class MetarObservationRefresher(
         reason: String,
         hours: Int = SHALLOW_HOURS,
     ) {
-        val tier = currentTier()
+        val tier = currentTier(SourceFetchGateLoader.backgroundSources(context, widgetStateManager, latitude to longitude))
         if (tier !in acceptTiers) return
         try {
             val rows = source.fetchObservations(latitude, longitude, hours = hours)

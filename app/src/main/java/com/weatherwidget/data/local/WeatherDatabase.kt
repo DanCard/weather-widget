@@ -12,8 +12,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.weatherwidget.shared.observations.MetarPlausibility
 
 @Database(
-    entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 76,
+    entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class, SourceViewDayEntity::class, SourceViewTrackingEntity::class],
+    version = 77,
     exportSchema = true,
 )
 @TypeConverters(CloudVerticalKindConverters::class, StationTypeConverters::class)
@@ -33,6 +33,8 @@ abstract class WeatherDatabase : RoomDatabase() {
     abstract fun apiUsageDao(): ApiUsageDao
 
     abstract fun dailyHistoryDao(): DailyHistoryDao
+
+    abstract fun sourceViewDao(): SourceViewDao
 
     companion object {
         @Volatile
@@ -823,6 +825,31 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * `source_view_days` + `source_view_tracking`: how often the user switches sources, per day
+         * (same DDL as desktop v30). The tracking row is today: counting starts now.
+         * plans/261010-source-view-tracking-table.md
+         */
+        val MIGRATION_76_77 = object : Migration(76, 77) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(SourceViewSql.DAYS_DDL)
+                db.execSQL(SourceViewSql.TRACKING_DDL)
+                insertSourceViewTrackingStart(db)
+            }
+        }
+
+        /** First write wins, so running it on every open only ever fills a missing row. */
+        private fun insertSourceViewTrackingStart(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                SourceViewSql.trackingStartSql(
+                    com.weatherwidget.shared.sourceview.SourceViewTally.dayMs(
+                        System.currentTimeMillis(),
+                        java.time.ZoneId.systemDefault(),
+                    ),
+                ),
+            )
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -869,6 +896,16 @@ abstract class WeatherDatabase : RoomDatabase() {
                                     )
                                 }
 
+                                // Fresh installs and destructive migrations have no tracking row yet.
+                                override fun onOpen(db: SupportSQLiteDatabase) {
+                                    super.onOpen(db)
+                                    try {
+                                        insertSourceViewTrackingStart(db)
+                                    } catch (e: Exception) {
+                                        Log.w("WeatherDatabase", "source_view_tracking start insert failed", e)
+                                    }
+                                }
+
                                 override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
                                     super.onDestructiveMigration(db)
                                     db.execSQL(
@@ -885,7 +922,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76, MIGRATION_76_77)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

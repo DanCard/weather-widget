@@ -893,7 +893,6 @@ internal class DaemonRuntime(
                     delay(delayMs)
 
                     val activeSource = config.displaySource
-                    val allVisible = config.effectiveSources
 
                     try {
                         Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource (charging=$isCharging, level=$level%)...")
@@ -920,8 +919,9 @@ internal class DaemonRuntime(
                         notifyDataUpdated()
                     }
 
-                    // Slower forecast fetch for other APIs
-                    val nonActiveSources = allVisible.filter { it != activeSource }
+                    // Slower forecast fetch for other APIs — only those viewed in the last 8 days;
+                    // the rest are fetched when the user switches to them (SourceFetchGate).
+                    val nonActiveSources = DesktopSourceFetchGate.otherSources(weatherDao, config)
                     for (otherSource in nonActiveSources) {
                         try {
                             val lastOtherFetch = weatherDao.getLastSuccessfulFetch(otherSource)
@@ -988,7 +988,7 @@ internal class DaemonRuntime(
 
                     delay(delayMs)
 
-                    val nonActiveSources = config.effectiveSources.filter { it != config.displaySource }
+                    val nonActiveSources = DesktopSourceFetchGate.otherSources(weatherDao, config)
                     for (otherSource in nonActiveSources) {
                         try {
                             Log.i(TAG, "Non-primary actuals refresh starting for $otherSource...")

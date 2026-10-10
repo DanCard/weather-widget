@@ -145,7 +145,30 @@ class ForecastRepository
             appLogDao = appLogDao,
             apiUsageDao = { com.weatherwidget.data.local.WeatherDatabase.getDatabase(context).apiUsageDao() },
             historyPrune = ::pruneHistorySnapshotsIfDue,
+            sourceViewMaintenance = ::maintainSourceViews,
         )
+
+        /**
+         * Drops source_view_days past 30 days, then once a local day logs what the shared estimator
+         * makes of them (`SOURCE_VIEW_PROBABILITY`), so the numbers can be watched before anything
+         * acts on them. plans/261010-source-view-tracking-table.md
+         */
+        private suspend fun maintainSourceViews(nowMs: Long) {
+            val zone = java.time.ZoneId.systemDefault()
+            val dao = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context).sourceViewDao()
+            val cutoff = com.weatherwidget.shared.sourceview.SourceViewTally.retentionCutoffMs(nowMs, zone)
+            dao.deleteOlderThan(cutoff)
+            val lastLoggedMs = appLogDao.getLogsByTag(SOURCE_VIEW_PROBABILITY_TAG, 1).firstOrNull()?.timestamp
+            if (!com.weatherwidget.shared.sourceview.SourceViewProbability.isDailyLogDue(lastLoggedMs, nowMs, zone)) return
+            val line = com.weatherwidget.shared.sourceview.SourceViewProbability.summaryLine(
+                rows = dao.getSince(cutoff).map { it.toRow() },
+                trackingSince = dao.getTrackingStart()?.let { java.time.LocalDate.ofEpochDay(it / com.weatherwidget.shared.sourceview.SourceViewTally.DAY_MS) },
+                today = java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate(),
+                primarySourceId = widgetStateManager.getPrimarySource().id,
+                sourceIds = widgetStateManager.getVisibleSourcesOrder().map { it.id },
+            )
+            appLogDao.log(SOURCE_VIEW_PROBABILITY_TAG, line, "INFO")
+        }
 
         /**
          * Once a day, after the one-shot repairs that read every snapshot have run
@@ -192,11 +215,16 @@ class ForecastRepository
             val fetchStartTime = System.currentTimeMillis()
             try {
                 var cachedForecasts = getCachedData(latitude, longitude)
+                // Background fetches skip sources not viewed in 8 days; null = fetch everything.
+                val gate = com.weatherwidget.widget.SourceFetchGateLoader.load(
+                    context, widgetStateManager, latitude, longitude,
+                )
                 if (
                     !forceRefresh &&
                     !fetchCoordinator.requiresNetworkFetch(
                         cachedForecasts,
                         fetchContext,
+                        gate?.forecasts,
                     )
                 ) {
                     return Result.success(cachedForecasts)
@@ -210,6 +238,7 @@ class ForecastRepository
                         !fetchCoordinator.requiresNetworkFetch(
                             cachedForecasts,
                             fetchContext,
+                            gate?.forecasts,
                         )
                     ) {
                         return Result.success(cachedForecasts)
@@ -276,6 +305,7 @@ class ForecastRepository
                         forceRefresh = forceRefresh,
                         targetSourceId = targetSourceId,
                         fetchContext = fetchContext,
+                        backgroundSources = gate?.forecasts,
                     )
                     fetchCoordinator.fetchFromAllApis(
                         latitude,
@@ -612,6 +642,7 @@ class ForecastRepository
 
         companion object {
             private const val KEY_HISTORY_PRUNE_LAST_MS = "history_prune_last_ms"
+            private const val SOURCE_VIEW_PROBABILITY_TAG = "SOURCE_VIEW_PROBABILITY"
 
             /** One-shot repairs that read every snapshot; see DailyHistorySnapshotter. */
             private val HISTORY_PRUNE_PREREQUISITE_FLAGS = listOf(

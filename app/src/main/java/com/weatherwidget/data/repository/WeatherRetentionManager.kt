@@ -24,6 +24,11 @@ internal class WeatherRetentionManager(
     private val apiUsageDao: (() -> com.weatherwidget.data.local.ApiUsageDao)? = null,
     /** Daily snapshot prune (see [HistorySnapshotPruner]); gated and throttled by the caller. */
     private val historyPrune: (suspend () -> Unit)? = null,
+    /**
+     * source_view_days retention ([com.weatherwidget.shared.sourceview.SourceViewTally.retentionCutoffMs],
+     * 30 days) and the once-a-day `SOURCE_VIEW_PROBABILITY` log line. Resolved lazily like [apiUsageDao].
+     */
+    private val sourceViewMaintenance: (suspend (nowMs: Long) -> Unit)? = null,
 ) {
     suspend fun cleanOldData() {
         val now = System.currentTimeMillis()
@@ -43,6 +48,13 @@ internal class WeatherRetentionManager(
             throw e
         } catch (e: Exception) {
             android.util.Log.w("WeatherRetention", "api_usage_stats retention failed", e)
+        }
+        try {
+            sourceViewMaintenance?.invoke(now)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("WeatherRetention", "source_view_days maintenance failed", e)
         }
         appLogDao.deleteOldLogs(logsCutoffTimestamp)
         appLogDao.capUnprotectedToNewest(

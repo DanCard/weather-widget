@@ -91,13 +91,7 @@ internal fun WidgetHeader(
     val precipProb = headerPrecipitation.probability
     val precipFontScale = headerPrecipitation.fontScale
 
-    val toggleWeatherSource = {
-        val visibleSources = config.effectiveSources
-        if (visibleSources.size > 1) {
-            val nextIdx = (visibleSources.indexOf(config.displaySource) + 1) % visibleSources.size
-            onUpdateConfig(config.copy(settings = config.settings.copy(weatherSource = visibleSources[nextIdx])))
-        }
-    }
+    val toggleWeatherSource = { cycleDisplaySource(config, onUpdateConfig) }
 
     Column(
         modifier = Modifier
@@ -317,6 +311,12 @@ internal fun WidgetHeader(
                                                     settings = config.settings.copy(weatherSource = preferred),
                                                 ),
                                             )
+                                            DesktopSourceViews.record(
+                                                preferred,
+                                                config.effectiveSources,
+                                                config.viewMode,
+                                                com.weatherwidget.shared.sourceview.SourceViewTrigger.HOME,
+                                            )
                                         }
                                     }.testTag("daily_home_button")
                                 )
@@ -363,8 +363,7 @@ internal fun WidgetHeader(
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = (10 * scale).sp,
                         modifier = Modifier.clickable {
-                            val nextIdx = (visibleSources.indexOf(config.displaySource) + 1) % visibleSources.size
-                            onUpdateConfig(config.copy(settings = config.settings.copy(weatherSource = visibleSources[nextIdx])))
+                            cycleDisplaySource(config, onUpdateConfig)
                         }.padding(end = 6.dp)
                     )
                 } else {

@@ -164,6 +164,26 @@ class WeatherObservationsActivityRobolectricTest {
         clearTestPrefs("weather_prefs")
     }
 
+    /** The Observations screen's source button counts as viewing that source (source_view_days). */
+    @Test
+    fun `source button records an OBSERVATIONS switch`() {
+        val scenario = launchActivity()
+        scenario.onActivity { activity ->
+            activity.findViewById<TextView>(R.id.api_source_button).performClick()
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val rows = runBlocking { database.sourceViewDao().getSince(0L) }
+        assertEquals(1, rows.size)
+        val row = rows.single()
+        assertEquals(WeatherSource.OPEN_METEO.id, row.sourceId)
+        assertEquals("OBSERVATIONS", row.triggerKind)
+        assertEquals("HOURLY", row.viewKind)
+        assertFalse(row.wasPrimary)
+        assertEquals(1, row.switches)
+        scenario.close()
+    }
+
     @Test
     fun `nws mode excludes silurian rows and shows current fetch logs`() {
         val scenario = launchActivity()

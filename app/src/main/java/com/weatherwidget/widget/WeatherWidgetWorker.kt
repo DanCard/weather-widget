@@ -479,7 +479,13 @@ class WeatherWidgetWorker
                 val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
                 val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
                 val activeSourceIds = appWidgetIds.map { widgetStateManager.getCurrentDisplaySource(it).id }.distinct().toSet()
-                val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+                // Only sources still fetched in the background (viewed in the last 8 days, or
+                // displayed): the rest are on demand (SourceFetchGate). Fails open to every source.
+                val visibleSources = SourceFetchGateLoader.backgroundSources(
+                    context,
+                    widgetStateManager,
+                    ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao()),
+                )
                 val nonActiveSources = visibleSources.filter { it.id !in activeSourceIds }
 
                 var resultMessage = "success"

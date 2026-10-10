@@ -93,13 +93,7 @@ internal fun WidgetPopup(
                 // first frame shows both buttons rather than flashing one in.
                 var dailyTodayInView by remember { mutableStateOf(true) }
                 var dailyObservationsInView by remember { mutableStateOf(true) }
-                val toggleWeatherSource = {
-                    val visibleSources = config.effectiveSources
-                    if (visibleSources.size > 1) {
-                        val nextIdx = (visibleSources.indexOf(config.displaySource) + 1) % visibleSources.size
-                        onUpdateConfig(config.copy(settings = config.settings.copy(weatherSource = visibleSources[nextIdx])))
-                    }
-                }
+                val toggleWeatherSource = { cycleDisplaySource(config, onUpdateConfig) }
                 Column(modifier = Modifier.fillMaxSize().padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 2.dp)) {
                     WidgetHeader(
                         config = config,

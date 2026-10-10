@@ -128,24 +128,38 @@ internal class ForecastFetchCoordinator(
 
     private var lastPriorCloudFetchMs = 0L
 
+    /**
+     * [backgroundSources] is [com.weatherwidget.shared.sourceview.SourceFetchGate]'s forecast set;
+     * null (gate unavailable) means every visible source, as before the gate.
+     */
     fun requiresNetworkFetch(
         forecasts: List<ForecastEntity>,
         fetchContext: ForecastFetchContext? = null,
+        backgroundSources: Set<WeatherSource>? = null,
     ): Boolean = SOURCES_TO_CHECK.any { source ->
         widgetStateManager.isSourceVisible(source) &&
+            (backgroundSources == null || source in backgroundSources) &&
             isStale(source, forecasts, fetchContext)
     }
 
+    /**
+     * A targeted force ([targetSourceId]: a source switch, an on-demand day) always fetches its
+     * target. Everything else — stale sources riding along, an untargeted force (Refresh, location
+     * change: user, 2026-10-10) — is limited to [backgroundSources]; a source not viewed in 8 days is
+     * fetched on demand only (performance/261010-fetch-only-sources-likely-to-be-viewed.md).
+     */
     fun visibleSourcesToFetch(
         cachedForecasts: List<ForecastEntity>,
         forceRefresh: Boolean,
         targetSourceId: String?,
         fetchContext: ForecastFetchContext?,
+        backgroundSources: Set<WeatherSource>? = null,
     ): Set<WeatherSource> {
         val enabledSources = widgetStateManager.getVisibleSourcesOrder().toSet()
         return enabledSources.filter { source ->
-            val forced = forceRefresh &&
-                (targetSourceId == null || source.id == targetSourceId)
+            if (forceRefresh && source.id == targetSourceId) return@filter true
+            if (backgroundSources != null && source !in backgroundSources) return@filter false
+            val forced = forceRefresh && targetSourceId == null
             forced || isStale(source, cachedForecasts, fetchContext)
         }.toSet() - WeatherSource.GENERIC_GAP
     }
@@ -298,7 +312,9 @@ internal class ForecastFetchCoordinator(
         }
 
         // NWS daily actuals from a dedicated /stations/{id}/observations pull. Idempotent: only
-        // dates still missing a station-derived actual trigger a request.
+        // dates still missing a station-derived actual trigger a request. It writes NWS's own
+        // daily_history rows only — borrowers read the provider's stored observations — so it rides
+        // the NWS forecast fetch, gated with it (SourceFetchGate).
         if (WeatherSource.NWS in servable) {
             runCatching { nwsApiDailyActualsFetcher?.fillMissingIfNeeded(latitude, longitude) }
                 .onFailure { if (it is CancellationException) throw it }

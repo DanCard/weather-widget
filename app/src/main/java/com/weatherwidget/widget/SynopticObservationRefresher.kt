@@ -25,14 +25,17 @@ internal class SynopticObservationRefresher(
     private val widgetStateManager: WidgetStateManager,
     private val appLogDao: AppLogDao,
 ) {
-    fun currentTier(): SynopticFetchPolicy.Tier {
+    /** [consumerSources]: see [MetarObservationRefresher.currentTier]. */
+    fun currentTier(
+        consumerSources: List<com.weatherwidget.data.model.WeatherSource> = widgetStateManager.getVisibleSourcesOrder(),
+    ): SynopticFetchPolicy.Tier {
         val activeSourceIds = AppWidgetManager.getInstance(context)
             .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
             .map { widgetStateManager.getCurrentDisplaySource(it).id }
             .distinct()
             .toSet()
         return SynopticFetchPolicy.tierFor(
-            visibleSources = widgetStateManager.getVisibleSourcesOrder(),
+            visibleSources = consumerSources,
             activeDisplaySourceIds = activeSourceIds,
             actualsPreference = { widgetStateManager.getActualsProvider(it) },
         )
@@ -75,7 +78,7 @@ internal class SynopticObservationRefresher(
         /** The forced sync of a setup-screen location change; see [com.weatherwidget.shared.util.SynopticBackoff.shouldSkip]. */
         userLocationChange: Boolean = false,
     ) {
-        val tier = currentTier()
+        val tier = currentTier(SourceFetchGateLoader.backgroundSources(context, widgetStateManager, latitude to longitude))
         if (tier !in acceptTiers) return
         try {
             val recentMinutes = fetchWindowMinutes(latitude, longitude)

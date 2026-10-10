@@ -114,6 +114,7 @@ internal fun runDesktopUiApplication() = application {
         // Persistence layer
         val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
         val weatherDao = remember { DesktopWeatherDao(weatherDb) }
+        remember(weatherDao) { DesktopSourceViews.install(weatherDao) }
 
         remember(weatherDao) {
             com.weatherwidget.widget.CurrentTemperatureResolver.dbLogger = { tag, message, level ->
@@ -128,6 +129,11 @@ internal fun runDesktopUiApplication() = application {
         // true, so bump this on every show request to reliably raise an already-open window.
         var showRequestId by remember { mutableStateOf(0) }
         var dataUpdateCount by remember { mutableStateOf(0) }
+        // Once a local day, what the shared estimator makes of source_view_days (checked on each
+        // data update; the helper skips when today's line is already written).
+        LaunchedEffect(dataUpdateCount, config) {
+            config?.let { DesktopSourceViews.logDailyIfDue(it.effectiveSources) }
+        }
 
         LaunchedEffect(config) {
             Log.i(TAG, "config loaded: config != null is ${config != null}")

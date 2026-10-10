@@ -78,6 +78,14 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   `history/hours` and writes it over that day's live rows fetched > 6 h before the hour; history
   snapshots untouched. No other refresh or fetch refills (`:shared` `GoogleHistoryRefill`;
   `plans/261010-google-history-refills-stale-elapsed-hours.md`).
+- **Background fetching skips sources not viewed in 8 days** (user, 2026-10-10): `:shared`
+  `SourceFetchGate` — a source is fetched in the background only if displayed/primary, switched to
+  (any trigger, `source_view_days`) within the last 7 days, or while tracking is < 8 days old; the
+  rest are on demand (a switch, a day tap, a history refill — targeted fetches never ask the gate).
+  An untargeted Refresh / location change skips them too. Applies to Android's sync selection, the
+  non-primary current-temp branch and the METAR/Synoptic tiers, and desktop loops 3c/3d. Fails open.
+  Logged as `SOURCE_FETCH_GATE on=… off=… feeds=…`
+  (`performance/261010-fetch-only-sources-likely-to-be-viewed.md`).
 - **Borrowed actuals default by location:** a forecast-only source (Google, Silurian) with no
   explicit provider uses **NWS inside `NwsCoverage`, METAR elsewhere**. The default is derived on
   every read and never stored (`ActualsProviderResolver.borrowerDefault`, location via
@@ -256,6 +264,7 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 |---|---|
 | `daily_history` | 18 months (the long record: accuracy stats, history) |
 | `network_usage` (desktop), `api_usage_stats` | 90 days (Usage stats: 90-day and calendar-month columns; user, 2026-10-08) |
+| `source_view_days` | 30 days, day-aligned (`SourceViewTally.retentionCutoffMs`) — exactly what `SourceViewProbability` reads |
 | `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `current_status`, `station_cache` | 30 days |
 | `observations` | 10 days |
 | `app_logs` | 72 h (desktop keeps its permanent `*_BACKFILL_DONE` markers) |
@@ -266,7 +275,7 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 
 ## Database Schema
 
-- **Version**: Room 76 / desktop 29 as of 2026-10-09. Authoritative: `WeatherDatabase.kt`
+- **Version**: Room 77 / desktop 30 as of 2026-10-10. Authoritative: `WeatherDatabase.kt`
   `version` and `DesktopWeatherDatabase.SCHEMA_VERSION`, which move in pairs — this line goes stale
   fast; trust the code.
 - `observations.stationType` is an INTEGER `StationType.dbCode` (0 UNKNOWN, 1 OFFICIAL, 2 PERSONAL,
@@ -274,7 +283,15 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
   (`plans/261009-station-type-enum-integer-codes-in-db.md`). `NWS_BLEND` is never stored; both
   platforms compute it on read.
 - Main tables: `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `daily_history`,
-  `observations`, `climate_normals`, `app_logs`, `api_usage_stats`
+  `observations`, `climate_normals`, `app_logs`, `api_usage_stats`, `source_view_days`
+- `source_view_days` counts the user's source switches per local day — `(date, sourceId, viewKind
+  DAILY|HOURLY, triggerKind TOGGLE|HOME|OBSERVATIONS, wasPrimary)` → `switches`; no timestamps
+  (privacy, user 2026-10-10); every switch is a view (no dwell filter). `source_view_tracking` holds
+  the day counting started. `:shared` `SourceViewProbability` turns it into P(toggle today) /
+  P(source viewed today) — recency-weighted (7-day half-life) over **calendar** days, so a phone in a
+  drawer lowers it; logged daily as `SOURCE_VIEW_PROBABILITY`, not yet acted on. The background
+  fetch gate reads the rows directly (last view within 8 days; see Weather Data APIs)
+  (`plans/261010-source-view-tracking-table.md`).
 - `hourly_forecast_history` is pruned daily to the snapshots something reads
   (`HistorySnapshotRetention` in `:shared` is the rule; Android `HistoryPruneWorker`, never inside a
   fetch; desktop from the refresh, plus VACUUM). **Only while charging with the screen off** (user,

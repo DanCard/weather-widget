@@ -184,6 +184,19 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 // Requests per day, source and endpoint — same table as Android's (Room v75).
                 stmt.execute(API_USAGE_STATS_DDL)
 
+                // How often the user switches sources, per day — same tables as Android's (Room v77).
+                // The tracking row records the day these tables first existed (INSERT OR IGNORE).
+                stmt.execute(com.weatherwidget.data.local.SourceViewSql.DAYS_DDL)
+                stmt.execute(com.weatherwidget.data.local.SourceViewSql.TRACKING_DDL)
+                stmt.execute(
+                    com.weatherwidget.data.local.SourceViewSql.trackingStartSql(
+                        com.weatherwidget.shared.sourceview.SourceViewTally.dayMs(
+                            System.currentTimeMillis(),
+                            java.time.ZoneId.systemDefault(),
+                        ),
+                    ),
+                )
+
                 // Migration / Versioning
                 val rs = stmt.executeQuery("PRAGMA user_version")
                 val currentVersion = if (rs.next()) rs.getInt(1) else 0
@@ -578,6 +591,9 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_time_loc ON observations(timestamp, locationLat, locationLon)")
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_api ON observations(api)")
             }
+            // v30: source_view_days + source_view_tracking (how often the user switches sources).
+            // Created by initialize()'s CREATE TABLE IF NOT EXISTS before migrate() runs; nothing to
+            // move. Room MIGRATION_76_77. plans/261010-source-view-tracking-table.md
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -708,7 +724,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 29
+        const val SCHEMA_VERSION = 30
 
         /**
          * Requests per local day, source and endpoint ([com.weatherwidget.data.remote.ApiUsageClassifier]).

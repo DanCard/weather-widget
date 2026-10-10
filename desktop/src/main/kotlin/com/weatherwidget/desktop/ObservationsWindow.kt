@@ -337,6 +337,12 @@ internal fun ObservationsWindow(
                                 val currentIndex = visibleSources.indexOf(currentSource)
                                 val nextIndex = (currentIndex + 1) % visibleSources.size
                                 currentSource = visibleSources[nextIndex]
+                                DesktopSourceViews.record(
+                                    currentSource.id,
+                                    config.effectiveSources,
+                                    config.viewMode,
+                                    com.weatherwidget.shared.sourceview.SourceViewTrigger.OBSERVATIONS,
+                                )
                             }
                         }
 

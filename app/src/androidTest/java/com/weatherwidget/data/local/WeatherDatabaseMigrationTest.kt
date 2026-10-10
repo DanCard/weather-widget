@@ -795,4 +795,35 @@ class WeatherDatabaseMigrationTest {
             codes,
         )
     }
+
+    /**
+     * source_view_days + source_view_tracking, created empty; the tracking row is today so the
+     * estimator does not read the days before the upgrade as "never switched".
+     * plans/261010-source-view-tracking-table.md
+     */
+    @Test
+    fun migrate76To77_createsSourceViewTablesWithTrackingStart() {
+        helper.createDatabase(testDb, 76).close()
+
+        val db = helper.runMigrationsAndValidate(testDb, 77, true, WeatherDatabase.MIGRATION_76_77)
+
+        val today = com.weatherwidget.shared.sourceview.SourceViewTally.dayMs(
+            System.currentTimeMillis(),
+            java.time.ZoneId.systemDefault(),
+        )
+        db.query("SELECT id, startedDate FROM source_view_tracking").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+            assertEquals(today, c.getLong(1))
+            assertEquals(1, c.count)
+        }
+        db.execSQL(
+            "INSERT INTO source_view_days (date, sourceId, viewKind, triggerKind, wasPrimary, switches) " +
+                "VALUES ($today, 'OPEN_METEO', 'DAILY', 'TOGGLE', 0, 1)",
+        )
+        db.query("SELECT switches FROM source_view_days").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+        }
+    }
 }
