@@ -109,6 +109,19 @@ class NwsCurrentObservationUpdater private constructor(
             }
         }
         val successful = stationDeferreds.mapNotNull { it.await() }
+        // Once per fetch, after every station is stored — not once per station. The stations run
+        // in parallel, so a per-station recompute started N full reductions of the same day at once
+        // (~3.5 s each on the Pixel; the signature skip cannot catch them, since each insert changes
+        // the signature and none is recorded until a run finishes), the current temperature waited
+        // for all N, and whichever finished last was kept even when it had seen fewer stations.
+        // See performance/261010-nws-current-fetch-recomputes-today-once-not-per-station.md.
+        val zone = ZoneId.systemDefault()
+        successful
+            .map { Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate() }
+            .distinct()
+            .forEach { date ->
+                dailyActualsStore.recomputeDailyExtremesForDay(latitude, longitude, date, emptyList())
+            }
         val totalMs = System.currentTimeMillis() - fetchStartMs
         if (successful.isEmpty()) {
             appLogDao.log(
@@ -224,15 +237,6 @@ class NwsCurrentObservationUpdater private constructor(
             System.currentTimeMillis(),
         )
         logCurrentObservationInsert(chosen)
-        val observationDate = Instant.ofEpochMilli(chosen.timestamp)
-            .atZone(ZoneId.systemDefault())
-            .toLocalDate()
-        dailyActualsStore.recomputeDailyExtremesForDay(
-            latitude,
-            longitude,
-            observationDate,
-            emptyList(),
-        )
         return chosen
     }
 
