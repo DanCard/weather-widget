@@ -55,7 +55,14 @@ class WeatherWidgetWorker
 
         override suspend fun doWork(): Result {
             if (WeatherDatabase.isTestingMode()) {
-                Log.d(TAG, "Skipping worker execution in test mode")
+                // The app's own queued work can come due while an instrumented test owns the process;
+                // it is dropped here. Warn (app_logs would go to the test database): an observation
+                // backfill lost this way is re-requested by HourlyBackfillGate on the next gap check.
+                Log.w(
+                    TAG,
+                    "Dropping work in test mode: backfill=${inputData.getBoolean(KEY_OBSERVATION_BACKFILL_ONLY, false)} " +
+                        "reason=${inputData.getString(KEY_OBSERVATION_BACKFILL_REASON) ?: inputData.getString(KEY_CURRENT_TEMP_REASON)}",
+                )
                 return Result.success()
             }
 
@@ -259,6 +266,14 @@ class WeatherWidgetWorker
                     "OBS_HOURLY_BACKFILL_RUN",
                     "reason=${input.backfillReason} lat=${input.backfillLat} lon=${input.backfillLon} lookbackHours=${input.backfillHours}",
                     "INFO",
+                )
+                // The gap check's cooldown runs from here — a backfill that actually started — not
+                // from the request, so a request dropped before it ran is asked again
+                // (HourlyBackfillGate). Stamped BEFORE the fetch so an attempt that throws or is killed
+                // still counts: stamping after it let a crashing backfill look "dropped" and be
+                // re-requested on every repaint.
+                widgetStateManager.markObservationBackfillAttempted(
+                    com.weatherwidget.widget.handlers.observationBackfillSiteKey(input.backfillLat, input.backfillLon),
                 )
                 val result = weatherRepository.backfillRecentNwsObservations(input.backfillLat, input.backfillLon, input.backfillHours)
                 appLogDao.log(

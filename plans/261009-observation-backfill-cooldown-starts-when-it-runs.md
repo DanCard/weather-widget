@@ -1,5 +1,7 @@
 # Observation backfill: the cooldown starts when a backfill runs, not when one is requested
 
+Approved and implemented 2026-10-09.
+
 ## Symptom (emulator, 2026-10-09, Google with NWS actuals)
 Hourly temperature graph: the actual line is flat ~62° from 9a to ~11a, then jumps; no NWS
 observations exist between 08:40 and 16:xx. User: "A backfill should run when data is missing."
@@ -25,28 +27,33 @@ fetched". Any path that drops the work — a test process, cancellation, a kille
 return — leaves a known gap unrepaired for the full 30 minutes while the logs say `cooldown`.
 The test run was this instance's trigger; the design is the bug.
 
-## Fix
-1. **Stamp the cooldown when a backfill finishes.** `handleObservationBackfillWork` records
-   completion for the fetched site (`LocationMatch`-quantized key, time) after
-   `backfillRecentNwsObservations` returns — success or unreachable (the retry policy already owns
-   unreachable).
-2. **Gate requests on "completed recently" or "already pending".** `maybeEnqueueHourlyObservationBackfill`
-   requests when the site has no completion within `HOURLY_BACKFILL_COOLDOWN_MS` and no backfill is
-   ENQUEUED/RUNNING (the existing `KEEP` + overdue-replace logic in
-   `enqueueRequiredObservationBackfill` stays the dedup). A gap the provider genuinely cannot fill
-   still waits 30 min after the attempt, so paint-time checks cannot hammer NWS.
-3. **Make the silent drop visible.** The `isTestingMode()` early return logs that it dropped work
-   (tag + reason), so a sighting like this one is one query instead of a WorkManager DB pull.
-4. Shared pure decision (`ObservationBackfillGate`: lastCompletedMs, pending, now → request/skip
-   with reason) so the rule is unit-testable without WorkManager.
+## Fix (as implemented)
+1. **Stamp the cooldown when a backfill starts its fetch.** `handleObservationBackfillWork` writes
+   `obs_backfill_attempted_<site>` (site-keyed: `LocationMatch`-quantized lat/lon) **before**
+   `backfillRecentNwsObservations`, so success, unreachable, a throw and a kill all count. Stamping
+   after the fetch (first draft) let a crashing backfill read as "dropped" and be re-requested on every
+   repaint — caught in review by a side agent.
+2. **Gate requests on `HourlyBackfillGate`** (pure, `widget/handlers`): attempt inside 30 min → skip
+   `cooldown`; no recent request → request `due`; recent request + ENQUEUED/RUNNING → skip `pending`;
+   recent request, nothing queued, no attempt since → request `dropped`. WorkManager is consulted only
+   in that last branch (`WidgetWorkScheduler.hasUnfinishedObservationBackfill`; inspection failure reads
+   as pending = the old behaviour). WeatherAPI's provider-history path stamps no attempt and keeps the
+   request-time cooldown.
+3. **Pre-check** (`hourlyBackfillCoolingDown`, CLOUD view / daily probe) stays I/O-free: certain only
+   about a recent attempt; a recent request with no attempt falls through to the full evaluation.
+4. **Test-mode drop** is a `Log.w` with the work's reason (app_logs would land in the test database);
+   the gate re-requests what it dropped.
+5. `OBS_HOURLY_BACKFILL_REQ` / `_SKIP` carry the gate reason.
 
 Android only: desktop has no WorkManager deferral (its backfill runs inline in the refresh).
 
 ## Tests
-- Pure gate: requested-but-never-completed → request again; completed 10 min ago → skip cooldown;
-  pending → skip pending; completed 31 min ago → request.
-- Robolectric: enqueue, drop the work without running it, re-evaluate → a new request is made
-  (fails today: `reason=cooldown`).
-- Worker: a run records completion; the next evaluation inside 30 min skips with `cooldown`.
+- `HourlyBackfillGateTest`: dropped → request; pending → skip; attempt inside window → skip; a
+  crashed attempt cools down without a WorkManager lookup; untracked path keeps request cooldown;
+  pre-check certainty.
+- `ObservationBackfillAttemptIntegrationTest` (real worker + state manager + test WorkManager):
+  a request that never ran is asked again; a backfill that throws still stamps and cools down
+  (verified to fail with the stamp moved after the fetch).
+- `HourlyObservationBackfillCooldownTest`, `DailyBackfillProbeCostTest` updated to the attempt key.
 - Emulator: reproduce by force-stopping the app while a backfill is pending; the next paint
   re-requests and `OBS_HOURLY_BACKFILL_RESULT` follows; the 9a–4p hours fill in.

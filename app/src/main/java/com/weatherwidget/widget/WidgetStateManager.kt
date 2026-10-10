@@ -324,6 +324,17 @@ class WidgetStateManager internal constructor(
         markMissingDataRefreshRequested(widgetId, sourceId, "actuals")
     }
 
+    fun missingActualsRequestedAtMs(widgetId: Int, sourceId: String): Long =
+        fetchStateStore.missingDataRequestedAtMs(widgetId, sourceId, "actuals")
+
+    fun markObservationBackfillAttempted(siteKey: String) =
+        fetchStateStore.markObservationBackfillAttempted(siteKey)
+
+    fun observationBackfillAttemptedAtMs(siteKey: String): Long =
+        fetchStateStore.observationBackfillAttemptedAtMs(siteKey)
+
+    fun fetchStateNowMs(): Long = fetchStateStore.nowMs()
+
     fun shouldFetchCurrentTempForSource(sourceId: String, minIntervalMs: Long): Boolean =
         fetchStateStore.shouldFetchCurrentTempForSource(sourceId, minIntervalMs)
 

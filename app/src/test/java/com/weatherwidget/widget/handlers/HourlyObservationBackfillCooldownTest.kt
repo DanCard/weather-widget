@@ -16,18 +16,26 @@ import org.junit.experimental.categories.Category
 
 /**
  * The CLOUD-view repair probe consults [hourlyBackfillCoolingDown] BEFORE loading its 72h
- * observation window, so the pre-check must be a pure read of the same shared cooldown key the
- * enqueue path uses — a wrong key here would either never probe or probe on every paint.
+ * observation window, so the pre-check must read the same keys the enqueue path uses — a wrong key
+ * here would either never probe or probe on every paint. Since 2026-10-09 the cooldown runs from a
+ * COMPLETED backfill (site key), not from the request (plans/261009-observation-backfill-cooldown-starts-when-it-runs.md).
  */
 @Category(ShortDuration::class)
 class HourlyObservationBackfillCooldownTest {
 
+    private val now = 1_791_600_000_000L
+
+    private fun stateManager(requestedAgoMin: Long?, completedAgoMin: Long?) = mockk<WidgetStateManager>().also {
+        every { it.fetchStateNowMs() } returns now
+        every { it.missingActualsRequestedAtMs(any(), any()) } returns
+            (requestedAgoMin?.let { m -> now - m * 60_000L } ?: 0L)
+        every { it.observationBackfillAttemptedAtMs(any()) } returns
+            (completedAgoMin?.let { m -> now - m * 60_000L } ?: 0L)
+    }
+
     @Test
-    fun `cooling down mirrors the shared cooldown read`() = runBlocking {
-        val stateManager = mockk<WidgetStateManager>()
-        every {
-            stateManager.shouldRefreshMissingActuals(any(), any(), any())
-        } returns false
+    fun `a backfill completed inside the window is cooling down, read from the site key`() = runBlocking {
+        val stateManager = stateManager(requestedAgoMin = 12, completedAgoMin = 10)
 
         assertTrue(
             hourlyBackfillCoolingDown(
@@ -35,22 +43,26 @@ class HourlyObservationBackfillCooldownTest {
                 lat = 37.4168205, lon = -122.0890350,
             ),
         )
-        verify(exactly = 1) {
-            stateManager.shouldRefreshMissingActuals(7, "NWS_HOURLY_HISTORY_37.417_-122.089", 30 * 60 * 1000L)
-        }
+        verify { stateManager.observationBackfillAttemptedAtMs("37.417_-122.089") }
+    }
+
+    /** Emulator 2026-10-09: requested, dropped by a test run, never completed — must not block. */
+    @Test
+    fun `a recent request with no completion is not cooling down`() = runBlocking {
+        assertFalse(
+            hourlyBackfillCoolingDown(
+                stateManager(requestedAgoMin = 5, completedAgoMin = null), appWidgetId = 7,
+                displaySource = WeatherSource.NWS, lat = 37.4168205, lon = -122.0890350,
+            ),
+        )
     }
 
     @Test
     fun `cooldown elapsed means not cooling down`() = runBlocking {
-        val stateManager = mockk<WidgetStateManager>()
-        every {
-            stateManager.shouldRefreshMissingActuals(any(), any(), any())
-        } returns true
-
         assertFalse(
             hourlyBackfillCoolingDown(
-                stateManager, appWidgetId = 7, displaySource = WeatherSource.NWS,
-                lat = 37.4168205, lon = -122.0890350,
+                stateManager(requestedAgoMin = 40, completedAgoMin = 35), appWidgetId = 7,
+                displaySource = WeatherSource.NWS, lat = 37.4168205, lon = -122.0890350,
             ),
         )
     }

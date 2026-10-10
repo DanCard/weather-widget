@@ -27,6 +27,24 @@ internal class WidgetFetchStateStore(
             .apply()
     }
 
+    /** When this widget last requested a missing-data refresh for [sourceId] (0 = never). */
+    fun missingDataRequestedAtMs(widgetId: Int, sourceId: String, refreshType: String): Long =
+        prefs.getLong(missingDataKey(widgetId, sourceId, refreshType), 0L)
+
+    /**
+     * An observation backfill for [siteKey] started its fetch — stamped before the network call, so
+     * success, unreachable, a throw and a kill all count. Site-keyed, not widget-keyed: the fetch is
+     * for a place, and every widget there is served by it.
+     */
+    fun markObservationBackfillAttempted(siteKey: String) {
+        prefs.edit().putLong("$KEY_OBS_BACKFILL_ATTEMPTED_PREFIX$siteKey", clock.millis()).apply()
+    }
+
+    fun observationBackfillAttemptedAtMs(siteKey: String): Long =
+        prefs.getLong("$KEY_OBS_BACKFILL_ATTEMPTED_PREFIX$siteKey", 0L)
+
+    fun nowMs(): Long = clock.millis()
+
     fun shouldFetchCurrentTempForSource(sourceId: String, minIntervalMs: Long): Boolean =
         cooldownElapsed(
             lastMs = prefs.getLong("$KEY_CURRENT_TEMP_FETCH_PREFIX$sourceId", 0L),
@@ -159,6 +177,7 @@ internal class WidgetFetchStateStore(
 
     private companion object {
         const val KEY_MISSING_DATA_REFRESH_PREFIX = "widget_missing_data_refresh_"
+        const val KEY_OBS_BACKFILL_ATTEMPTED_PREFIX = "obs_backfill_attempted_"
         const val KEY_CURRENT_TEMP_FETCH_PREFIX = "current_temp_fetch_"
         const val KEY_SOURCE_FAILURE_COUNT_PREFIX = "source_fail_count_"
         const val KEY_SOURCE_FAILURE_CODE_PREFIX = "source_fail_code_"

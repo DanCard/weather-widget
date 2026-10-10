@@ -43,8 +43,11 @@ class DailyBackfillProbeCostTest {
     private val now = LocalDateTime.of(2026, 9, 7, 5, 49)
 
     private fun stateManager(coolingDown: Boolean) = mockk<WidgetStateManager>(relaxed = true).also {
-        // shouldRefreshMissingActuals == false means "still cooling down".
-        every { it.shouldRefreshMissingActuals(any(), any(), any()) } returns !coolingDown
+        // Cooling down = a backfill for this site completed inside the 30-minute window.
+        every { it.fetchStateNowMs() } returns 1_791_600_000_000L
+        every { it.missingActualsRequestedAtMs(any(), any()) } returns 0L
+        every { it.observationBackfillAttemptedAtMs(any()) } returns
+            if (coolingDown) 1_791_600_000_000L - 60_000L else 0L
         // Unanchored, so the enqueue path stops right after the read: this test is about what the
         // probe COSTS, and resolveBackfillLocation's own behaviour is covered elsewhere.
         every { it.getStoredWidgetLocation(any()) } returns null

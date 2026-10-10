@@ -377,10 +377,18 @@ internal fun hourlyBackfillSourceKey(
     "${displaySource.id}_HOURLY_HISTORY_${LocationMatch.quantize(lat)}_${LocationMatch.quantize(lon)}"
 
 /**
+ * The key a finished observation backfill is stamped under. Site-only: the worker fetches a place
+ * (always NWS stations), and every widget and source there is served by that one fetch.
+ */
+internal fun observationBackfillSiteKey(lat: Double, lon: Double): String =
+    "${LocationMatch.quantize(lat)}_${LocationMatch.quantize(lon)}"
+
+/**
  * Cheap pure-read pre-check for callers that would otherwise load a large observation window just
- * to feed [maybeEnqueueHourlyObservationBackfill] (the CLOUD view probe). When the shared cooldown
- * is active the full evaluation could only ever log a cooldown SKIP, so the caller can skip its
- * expensive DB read too.
+ * to feed [maybeEnqueueHourlyObservationBackfill] (the CLOUD view probe). True only when the full
+ * evaluation is certain to skip ([HourlyBackfillGate.certainlyCoolingDown]), so the caller can skip
+ * its expensive DB read too. A request with no attempt since is NOT cooling: the full evaluation
+ * must get the chance to see that it was dropped.
  */
 internal suspend fun hourlyBackfillCoolingDown(
     stateManager: WidgetStateManager,
@@ -388,11 +396,19 @@ internal suspend fun hourlyBackfillCoolingDown(
     displaySource: WeatherSource,
     lat: Double,
     lon: Double,
-): Boolean = !stateManager.shouldRefreshMissingActuals(
-    appWidgetId,
-    hourlyBackfillSourceKey(backfillActualsSource(displaySource, lat, lon), lat, lon),
-    HOURLY_BACKFILL_COOLDOWN_MS,
-)
+): Boolean {
+    val actualsSource = backfillActualsSource(displaySource, lat, lon)
+    return HourlyBackfillGate.certainlyCoolingDown(
+        nowMs = stateManager.fetchStateNowMs(),
+        cooldownMs = HOURLY_BACKFILL_COOLDOWN_MS,
+        requestedAtMs = stateManager.missingActualsRequestedAtMs(
+            appWidgetId,
+            hourlyBackfillSourceKey(actualsSource, lat, lon),
+        ),
+        attemptedAtMs = stateManager.observationBackfillAttemptedAtMs(observationBackfillSiteKey(lat, lon)),
+        attemptTracked = actualsSource != WeatherSource.WEATHER_API,
+    )
+}
 
 internal suspend fun maybeEnqueueHourlyObservationBackfill(
     context: Context,
@@ -462,10 +478,21 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     }
 
     val sourceKey = hourlyBackfillSourceKey(actualsSource, lat, lon)
-    if (!stateManager.shouldRefreshMissingActuals(appWidgetId, sourceKey, HOURLY_BACKFILL_COOLDOWN_MS)) {
+    // The cooldown runs from a COMPLETED backfill; a request that was dropped before it ran is asked
+    // again (HourlyBackfillGate). WeatherAPI's provider-history refresh stamps no attempt and keeps
+    // the request-time cooldown.
+    val gate = HourlyBackfillGate.decide(
+        nowMs = stateManager.fetchStateNowMs(),
+        cooldownMs = HOURLY_BACKFILL_COOLDOWN_MS,
+        requestedAtMs = stateManager.missingActualsRequestedAtMs(appWidgetId, sourceKey),
+        attemptedAtMs = stateManager.observationBackfillAttemptedAtMs(observationBackfillSiteKey(lat, lon)),
+        attemptTracked = actualsSource != WeatherSource.WEATHER_API,
+        isPending = { WidgetWorkScheduler.hasUnfinishedObservationBackfill(context) },
+    )
+    if (!gate.request) {
         database.appLogDao().log(
             "OBS_HOURLY_BACKFILL_SKIP",
-            "widget=$appWidgetId $sourceLog reason=cooldown ${decision.reason}",
+            "widget=$appWidgetId $sourceLog reason=${gate.reason} ${decision.reason}",
             "INFO",
         )
         return
@@ -517,7 +544,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     // healthy one for a full day of 30-minute retries.
     database.appLogDao().log(
         "OBS_HOURLY_BACKFILL_REQ",
-        "widget=$appWidgetId $sourceLog reason=${decision.reason} " +
+        "widget=$appWidgetId $sourceLog reason=${decision.reason} gate=${gate.reason} " +
             "graphStart=$graphStart graphEnd=$graphEnd delayMs=$delayMs " +
             "outcome=${enqueue.outcome.logValue} (${enqueue.detail}) requestId=${enqueue.request.id}",
         "INFO",

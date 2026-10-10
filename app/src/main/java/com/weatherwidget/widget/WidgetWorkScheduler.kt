@@ -41,6 +41,15 @@ object WidgetWorkScheduler {
     /** Runs that [StartupCooldown] deferred, replayed serially once the cooldown lapses. */
     const val WORK_NAME_STARTUP_DEFERRED = "weather_widget_startup_deferred"
     private const val DEFERRED_SIGNATURE_TAG_PREFIX = "startup_deferred:"
+
+    /**
+     * Carried by an observation backfill the startup cooldown re-queued into
+     * [WORK_NAME_STARTUP_DEFERRED]. The deferral finishes the original unique work as SUCCEEDED, so
+     * without this the replay is invisible to every "is a backfill pending?" check — emulator
+     * 2026-10-09: a request deferred at 18:14:06 read as dropped in the same second and the fetch ran
+     * twice.
+     */
+    private const val DEFERRED_OBSERVATION_BACKFILL_TAG = "observation_backfill"
     const val WORK_NAME_CURRENT_TEMP = "weather_widget_current_temp"
     const val WORK_NAME_OBSERVATION_BACKFILL = "weather_widget_observation_backfill"
     const val WORK_NAME_UI = "weather_widget_one_time_ui"
@@ -211,6 +220,28 @@ object WidgetWorkScheduler {
      * a fetch that is already talking to the network, and cancelling a running worker mid-coroutine
      * is its own hazard ([[samsung_widget_dead_native_sigsegv]]).
      */
+    /**
+     * True when an observation backfill is ENQUEUED or RUNNING. An inspection failure reads as
+     * pending: the caller then waits out its cooldown, which is the old behaviour, rather than
+     * stacking requests on a WorkManager it cannot see.
+     */
+    internal suspend fun hasUnfinishedObservationBackfill(context: Context): Boolean =
+        runCatching {
+            withContext(Dispatchers.IO) {
+                val workManager = WorkManager.getInstance(context)
+                workManager.getWorkInfosForUniqueWork(WORK_NAME_OBSERVATION_BACKFILL).get().any { !it.state.isFinished } ||
+                    hasDeferredObservationBackfill(workManager)
+            }
+        }.getOrElse {
+            Log.e(TAG, "Observation backfill inspect failed: ${it.message}", it)
+            true
+        }
+
+    /** A backfill parked in the startup-deferred lane (see [DEFERRED_OBSERVATION_BACKFILL_TAG]). */
+    private fun hasDeferredObservationBackfill(workManager: WorkManager): Boolean =
+        workManager.getWorkInfosForUniqueWork(WORK_NAME_STARTUP_DEFERRED).get()
+            .any { !it.state.isFinished && DEFERRED_OBSERVATION_BACKFILL_TAG in it.tags }
+
     @androidx.annotation.VisibleForTesting
     internal fun decideObservationBackfillEnqueue(
         pending: List<PendingBackfillWork>,
@@ -332,8 +363,17 @@ object WidgetWorkScheduler {
                 Log.e(TAG, "Observation backfill inspect failed: ${it.message}", it)
                 emptyList()
             }
+        // A replay waiting in the startup-deferred lane is the same work; enqueueing another would
+        // fetch twice once the cooldown lapses.
+        val deferred = runCatching {
+            withContext(Dispatchers.IO) { hasDeferredObservationBackfill(workManager) }
+        }.getOrDefault(false)
         val (outcome, detail) =
-            decideObservationBackfillEnqueue(pending, System.currentTimeMillis())
+            if (deferred) {
+                BackfillEnqueueOutcome.KEPT_PENDING to "startup_deferred"
+            } else {
+                decideObservationBackfillEnqueue(pending, System.currentTimeMillis())
+            }
         val policy =
             when (outcome) {
                 // Nothing is RUNNING on this branch, so REPLACE cannot cancel a live fetch.
@@ -342,7 +382,9 @@ object WidgetWorkScheduler {
                 BackfillEnqueueOutcome.KEPT_PENDING,
                 -> ExistingWorkPolicy.KEEP
             }
-        workManager.enqueueUniqueWork(WORK_NAME_OBSERVATION_BACKFILL, policy, request)
+        // KEEP only sees this unique name, where a deferred original has already SUCCEEDED, so it
+        // would enqueue a second fetch; the deferred replay is the pending work.
+        if (!deferred) workManager.enqueueUniqueWork(WORK_NAME_OBSERVATION_BACKFILL, policy, request)
         Log.d(
             TAG,
             "Observation backfill outcome=${outcome.logValue} ($detail) policy=$policy " +
@@ -513,6 +555,11 @@ object WidgetWorkScheduler {
                 .setInputData(data)
                 .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
                 .addTag(signatureTag)
+                .apply {
+                    if (inputData.getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, false)) {
+                        addTag(DEFERRED_OBSERVATION_BACKFILL_TAG)
+                    }
+                }
                 .build()
         workManager.enqueueUniqueWork(
             WORK_NAME_STARTUP_DEFERRED,
