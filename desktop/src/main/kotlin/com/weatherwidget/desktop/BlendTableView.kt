@@ -171,7 +171,7 @@ private fun BlendRow(row: BlendTableRow) {
         DataCell(
             row.type,
             BlendCol.TYPE,
-            if (row.type == "OFFICIAL") ObsStyle.typeOfficial else ObsStyle.typePersonal,
+            if (row.type == BlendTableFormatter.OFFICIAL_LABEL) ObsStyle.typeOfficial else ObsStyle.typePersonal,
         )
         DataCell(row.km, BlendCol.KM, ObsStyle.textSecondary, align = TextAlign.End, endPadding = 12)
         DataCell(row.lastRead, BlendCol.LAST_READ, ObsStyle.timeReported)

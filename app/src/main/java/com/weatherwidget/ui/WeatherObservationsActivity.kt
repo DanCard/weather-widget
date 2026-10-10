@@ -584,7 +584,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 ),
                 colors = listOf(
                     if (historyUrl != null) BLEND_COLOR_LINK else BLEND_COLOR_PRIMARY,
-                    if (row.type == "O") BLEND_COLOR_OFFICIAL else BLEND_COLOR_PERSONAL,
+                    if (row.type == BlendTableFormatter.OFFICIAL_LABEL) BLEND_COLOR_OFFICIAL else BLEND_COLOR_PERSONAL,
                     BLEND_COLOR_SECONDARY,
                     BLEND_COLOR_DERIVED,
                     BLEND_COLOR_SECONDARY,

@@ -76,9 +76,16 @@ object BlendTableFormatter {
         else -> sourceKind
     }
 
+    /**
+     * [typeLabel] of an official station. Both Blend tabs tint on it; desktop compared against the
+     * spelled-out "OFFICIAL" after the column went to single letters, so official stations lost
+     * their colour there.
+     */
+    const val OFFICIAL_LABEL = "O"
+
     /** See [kindLabel]. */
     fun typeLabel(stationType: String): String = when (stationType) {
-        "OFFICIAL" -> "O"
+        "OFFICIAL" -> OFFICIAL_LABEL
         "PERSONAL" -> "P"
         // Not "R": the value column already uses R for "real reading".
         "RAWS" -> "F"
