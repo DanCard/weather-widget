@@ -372,6 +372,55 @@ class DesktopWeatherRepositoryTest {
         }
     }
 
+    /**
+     * Desktop stopped storing NWS_BLEND (plans/261009-desktop-stops-storing-nws-blend.md): the
+     * observed-at / condition come from the blend computed on read from the station rows, as on
+     * Android. A row stored before the change must not win — it used to, whatever its age.
+     */
+    @Test
+    fun `loadCached computes the NWS blend on read and ignores a stored leftover`() = runTest {
+        val hour = (System.currentTimeMillis() / 3600_000L) * 3600_000L
+        val now = hour + 30 * 60_000L
+        val service = DesktopWeatherService(37.4220, -122.0841, WeatherSource.NWS.id)
+        val nwsRepository = DesktopWeatherRepository(
+            service, dao, 37.4220, -122.0841, WeatherSource.NWS.id, currentTimeMillis = { now },
+        )
+        dao.upsertHourlyForecasts(
+            37.4220, -122.0841, WeatherSource.NWS.id,
+            listOf(
+                HourlyForecast(hour - 3600_000L, 66f, "Forecast", source = WeatherSource.NWS.id),
+                HourlyForecast(hour, 67f, "Forecast", source = WeatherSource.NWS.id),
+                HourlyForecast(hour + 3600_000L, 68f, "Forecast", source = WeatherSource.NWS.id),
+            ),
+        )
+        fun row(id: String, ts: Long, temp: Float, condition: String, km: Float, type: String = "OFFICIAL") =
+            DesktopObservationEntity(
+                stationId = id, stationName = id, timestamp = ts, temperature = temp,
+                condition = condition, locationLat = 37.4220, locationLon = -122.0841,
+                distanceKm = km, stationType = type, fetchedAt = ts, api = WeatherSource.NWS.id,
+            )
+        val knuqTs = now - 5 * 60_000L
+        dao.upsertObservations(
+            listOf(
+                row("KNUQ", knuqTs, 68f, "Clear", km = 3.8f),
+                // Nearest station: its condition is the blend's condition.
+                row("KPAO", now - 20 * 60_000L, 67f, "Sunny", km = 2.0f),
+                // Stored by an older build at the previous fetch.
+                row("NWS_BLEND", now - 3 * 3600_000L, 61f, "Stale blend", km = 0f, type = "BLENDED"),
+            ),
+        )
+
+        try {
+            val result = nwsRepository.loadCached(now)
+
+            assertNotNull(result)
+            assertEquals(knuqTs, result!!.resolved.currentObservedAt)
+            assertEquals("Sunny", result.resolved.currentCondition)
+        } finally {
+            service.close()
+        }
+    }
+
     @Test
     fun `loadCached fills missing cloud cover from hourly history`() = runTest {
         val baseTime = System.currentTimeMillis()

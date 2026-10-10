@@ -85,7 +85,7 @@ class DesktopObservationRecentWindowTest {
         // primary key collapses it on write. Timestamps are what actually reach the DB.
         val ksjcTimestamps = result.rawObservations.filter { it.stationId == "KSJC" }.map { it.timestamp }
         assertEquals(4, ksjcTimestamps.distinct().size)
-        assertEquals(setOf("KSJC", "NWS_BLEND"), result.rawObservations.map { it.stationId }.toSet())
+        assertEquals(setOf("KSJC"), result.rawObservations.map { it.stationId }.toSet())
 
         // Current temp still anchors on the newest reading, not an older one from the window.
         assertEquals((19.5f * 1.8f) + 32f, result.providerCurrentTemp!!, 0.01f)
@@ -144,7 +144,7 @@ class DesktopObservationRecentWindowTest {
 
         val result = serviceWith(nws, synoptic).fetchObservationsOnly(recentOnly = true)
 
-        assertEquals(setOf("KPAO", "NWS_BLEND"), result.rawObservations.map { it.stationId }.toSet())
+        assertEquals(setOf("KPAO"), result.rawObservations.map { it.stationId }.toSet())
         assertEquals((21.0f * 1.8f) + 32f, result.providerCurrentTemp!!, 0.01f)
     }
 

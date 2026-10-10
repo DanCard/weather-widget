@@ -88,19 +88,6 @@ class ObservationsWindowRowsTest {
     }
 
     @Test
-    fun `excludes rows explicitly marked BLENDED`() {
-        val rows = visibleStationRows(
-            listOf(
-                obs("KSJC", timestamp = 3000, stationType = "BLENDED"),
-                obs("KPAO", timestamp = 3000),
-            ),
-            WeatherSource.NWS,
-        )
-
-        assertEquals(listOf("KPAO"), rows.map { it.stationId })
-    }
-
-    @Test
     fun `excludes rows from a source other than the selected one`() {
         val rows = visibleStationRows(
             listOf(

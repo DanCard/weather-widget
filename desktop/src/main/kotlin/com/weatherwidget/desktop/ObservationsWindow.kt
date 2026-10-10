@@ -182,12 +182,8 @@ internal fun visibleStationRows(
         // against the feed that actually supplies this source's actuals — the same shared matcher
         // the Android stations list uses. There used to be a separate `api == source.id` pre-filter
         // here; that is exactly the comparison a borrowing source must NOT make, since Open-Meteo's
-        // actuals arrive filed under METAR or NWS. The stationType guard stays as a
-        // belt-and-suspenders catch for the desktop-only "BLENDED" marker.
-        .filter {
-            ObservationSourceMatcher.matchesStationsList(it.stationId, it.api, source) &&
-                it.stationType != "BLENDED"
-        }
+        // actuals arrive filed under METAR or NWS.
+        .filter { ObservationSourceMatcher.matchesStationsList(it.stationId, it.api, source) }
         .groupBy { it.stationId }
         .map { (_, rows) -> rows.maxByOrNull { it.timestamp }!! }
         .sortedBy { it.distanceKm }

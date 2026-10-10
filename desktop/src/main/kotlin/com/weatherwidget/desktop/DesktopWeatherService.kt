@@ -574,8 +574,8 @@ class DesktopWeatherService(
             System.currentTimeMillis() - it.timestamp <= FRESH_OBSERVATION_MS
         }
 
-        // The stored blend row is real-or-nothing (shared with Android). The header value may still
-        // fall back to the forecast, but that fallback never becomes an NWS_BLEND observation.
+        // Real-or-nothing blend (shared with Android) for the header value; the forecast fallback
+        // below is header-only too.
         val blend = NwsBlend.build(allLatestReadings, latitude, longitude)
         val currentTemp = blend?.temperature
             ?: TemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
@@ -599,10 +599,12 @@ class DesktopWeatherService(
             }
         }
 
-        // The NWS_BLEND row (when the blend produced one) keeps the graph and header on the same
-        // weighted truth; the header's observed-at anchors on the freshest readings.
+        // The blend is NOT stored: like Android, the repository computes it from the station rows
+        // on read, so its 3h IDW decay is weighted at render time rather than frozen at fetch time
+        // (plans/261009-desktop-stops-storing-nws-blend.md). Here it only feeds the header value.
+        // The header's observed-at anchors on the freshest readings.
         val latestReadings = freshLatestReadings.ifEmpty { allLatestReadings }
-        val observations = rawObservations + listOfNotNull(blend)
+        val observations = rawObservations
 
         return NwsObservationFetch(
             currentTemp = currentTemp,
@@ -1081,8 +1083,8 @@ class DesktopWeatherService(
             System.currentTimeMillis() - it.timestamp <= FRESH_OBSERVATION_MS
         }
 
-        // Real-or-nothing blend row (shared with Android); the nearest-station fallback below is
-        // for the header value only and is never stored as NWS_BLEND.
+        // Real-or-nothing blend (shared with Android) for the header value; the nearest-station
+        // fallback below is header-only too.
         val blend = NwsBlend.build(allLatestReadings, latitude, longitude)
         val currentTemp = blend?.temperature
             ?: bundles.minByOrNull { com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(latitude, longitude, it.station.lat, it.station.lon) }?.latest?.let {
@@ -1102,8 +1104,9 @@ class DesktopWeatherService(
             }
         }
 
+        // Blend feeds the header only; never stored (see fetchNwsObservations).
         val latestReadings = freshLatestReadings.ifEmpty { allLatestReadings }
-        val observations = rawObservations + listOfNotNull(blend)
+        val observations = rawObservations
 
         RawFetch(
             providerCurrentTemp = currentTemp,

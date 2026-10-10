@@ -30,6 +30,7 @@ import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.shared.actuals.NwsStationActualsMaintenance
 import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.shared.actuals.TomorrowIoActuals
+import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.ObservationTimelineNormalizer
@@ -247,9 +248,8 @@ class DesktopWeatherRepository(
             .map { it.toReading() }
 
         // The range query returns every API's observations; the displayed current condition /
-        // "observed at" must come ONLY from the displayed source (NWS_BLEND has api=NWS, so it's
-        // correctly included for NWS and excluded for Open-Meteo/Silurian). Without this filter a
-        // non-NWS view would show an NWS blend timestamp/condition.
+        // "observed at" must come ONLY from the displayed source's actuals provider. Without this
+        // filter a non-NWS view would show an NWS station's timestamp/condition.
         val matchedSourceObs = observations.filter {
             ObservationSourceMatcher.matchesActualSource(
                 stationId = it.stationId,
@@ -262,11 +262,18 @@ class DesktopWeatherRepository(
             ActualsProviderResolver.providerIdFor(displaySource),
         )
 
-        // Prefer the most-recent NWS_BLEND synthetic row — it represents the IDW-weighted truth
-        // across all stations. Raw station rows can have newer timestamps (from historical fetches)
-        // but those are single-station readings, not the calibrated blend.
-        val newestObs = sourceObs.filter { it.stationId == "NWS_BLEND" }.maxByOrNull { it.timestamp }
-            ?: sourceObs.maxByOrNull { it.timestamp }
+        // Prefer the NWS blend — the IDW-weighted truth across all stations. Raw station rows can
+        // have newer timestamps (from historical fetches) but those are single-station readings,
+        // not the calibrated blend. Computed here from the station rows, at `now`, exactly as
+        // Android's CurrentObservationReader does; desktop no longer stores it, so its 3h decay is
+        // weighted at render time instead of frozen at the last fetch
+        // (plans/261009-desktop-stops-storing-nws-blend.md).
+        val nwsBlend = if (ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.NWS.id) {
+            NwsBlend.build(matchedSourceObs.filter { it.api == WeatherSource.NWS.id }, latitude, longitude, nowMs = now)
+        } else {
+            null
+        }
+        val newestObs = nwsBlend ?: sourceObs.maxByOrNull { it.timestamp }
 
         // Freshness gate only governs whether the *current condition* is shown as observed vs forecast.
         val latestObs = newestObs?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
