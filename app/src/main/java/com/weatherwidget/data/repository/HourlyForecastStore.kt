@@ -25,6 +25,12 @@ internal class HourlyForecastStore(
     private val hourlyForecastHistoryDao: HourlyForecastHistoryDao,
     private val observationDao: ObservationDao,
     private val widgetStateManager: WidgetStateManager,
+    /**
+     * The repository's wall clock ([ForecastRepository.clock]), so a test that pins it pins every
+     * "now" decision here too — the elapsed-hour drop below used to read the real clock while the
+     * rest of the fetch used the pinned one, and a 10:00 "daytime" hour vanished after 11:00.
+     */
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
     data class HistoricalActualsWriteSummary(
         val rowCount: Int,
@@ -63,7 +69,7 @@ internal class HourlyForecastStore(
         val prioritySourceIds = widgetStateManager.getActiveDisplaySourceIds()
         // Google's on-demand hours (past its routine 72 h) are always rewritten: their fetchedAt is
         // what keeps them counted as fresh for a tapped day (HourlyOnDemand.MAX_EXTENSION_AGE_MS).
-        val extensionStartMs = HourlyOnDemand.extensionStartMs(sample.source, System.currentTimeMillis())
+        val extensionStartMs = HourlyOnDemand.extensionStartMs(sample.source, clock())
         val changedEntities = mergedEntities.filter { merged ->
             (extensionStartMs != null && merged.dateTime >= extensionStartMs) ||
                 hasMeaningfulHourlyChange(existingByDateTime[merged.dateTime], merged)
@@ -127,7 +133,7 @@ internal class HourlyForecastStore(
         sourceId: String,
         historicalData: List<HourlyForecast> = hourlyData,
     ): HistoricalActualsWriteSummary {
-        val now = System.currentTimeMillis()
+        val now = clock()
         // Deliberately drops elapsed hours: `hourly_forecasts` is a forecast archive, and letting a
         // `past_days` payload rewrite past rows would destroy the record of what was predicted.
         // Providers with a distinct actuals-capable historical product pass that series through
@@ -184,7 +190,7 @@ internal class HourlyForecastStore(
         latitude: Double,
         longitude: Double,
         sourceId: String,
-        nowMs: Long = System.currentTimeMillis(),
+        nowMs: Long = clock(),
     ): ElapsedBackfillSummary {
         val window = ElapsedForecastBackfill.window(nowMs)
         val offered = hourlyData.filter { it.dateTime in window }
@@ -246,7 +252,7 @@ internal class HourlyForecastStore(
             latitude = latitude,
             longitude = longitude,
             sourceId = sourceId,
-            nowMs = System.currentTimeMillis(),
+            nowMs = clock(),
         ).map { reading ->
             ObservationEntity(
                 stationId = reading.stationId,
