@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.test.category.MediumDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -33,7 +34,7 @@ class DesktopStationTypeRetagTest {
         Files.deleteIfExists(path)
     }
 
-    private fun row(station: String, type: String, api: String, ts: Long) = DesktopObservationEntity(
+    private fun row(station: String, type: StationType, api: String, ts: Long) = DesktopObservationEntity(
         stationId = station,
         stationName = station,
         timestamp = ts,
@@ -45,10 +46,10 @@ class DesktopStationTypeRetagTest {
         api = api,
     )
 
-    private fun types(): Map<String, String> = db.getConnection().use { c ->
+    private fun types(): Map<String, StationType> = db.getConnection().use { c ->
         c.createStatement().use { st ->
             st.executeQuery("SELECT api, stationId, timestamp, stationType FROM observations").use { rs ->
-                buildMap { while (rs.next()) put("${rs.getString(1)}|${rs.getString(2)}|${rs.getLong(3)}", rs.getString(4)) }
+                buildMap { while (rs.next()) put("${rs.getString(1)}|${rs.getString(2)}|${rs.getLong(3)}", StationType.fromDbCode(rs.getInt(4))) }
             }
         }
     }
@@ -57,26 +58,26 @@ class DesktopStationTypeRetagTest {
     fun `retag moves only the named stations of that api onto the new type`() {
         dao.upsertObservations(
             listOf(
-                row("LOAC1", "OFFICIAL", "SYNOPTIC", 1_000L),
-                row("LOAC1", "OFFICIAL", "SYNOPTIC", 2_000L),
-                row("KNUQ", "OFFICIAL", "SYNOPTIC", 1_000L),
-                row("LOAC1", "PERSONAL", "NWS", 1_000L),
+                row("LOAC1", StationType.OFFICIAL, "SYNOPTIC", 1_000L),
+                row("LOAC1", StationType.OFFICIAL, "SYNOPTIC", 2_000L),
+                row("KNUQ", StationType.OFFICIAL, "SYNOPTIC", 1_000L),
+                row("LOAC1", StationType.PERSONAL, "NWS", 1_000L),
             ),
         )
 
-        val changed = dao.retagStationType("SYNOPTIC", setOf("LOAC1"), "RAWS")
+        val changed = dao.retagStationType("SYNOPTIC", setOf("LOAC1"), StationType.RAWS)
 
         assertEquals(2, changed)
         assertEquals(
             mapOf(
-                "SYNOPTIC|LOAC1|1000" to "RAWS",
-                "SYNOPTIC|LOAC1|2000" to "RAWS",
-                "SYNOPTIC|KNUQ|1000" to "OFFICIAL",
-                "NWS|LOAC1|1000" to "PERSONAL",
+                "SYNOPTIC|LOAC1|1000" to StationType.RAWS,
+                "SYNOPTIC|LOAC1|2000" to StationType.RAWS,
+                "SYNOPTIC|KNUQ|1000" to StationType.OFFICIAL,
+                "NWS|LOAC1|1000" to StationType.PERSONAL,
             ),
             types(),
         )
         // Idempotent: rows already on the type are not rewritten.
-        assertEquals(0, dao.retagStationType("SYNOPTIC", setOf("LOAC1"), "RAWS"))
+        assertEquals(0, dao.retagStationType("SYNOPTIC", setOf("LOAC1"), StationType.RAWS))
     }
 }

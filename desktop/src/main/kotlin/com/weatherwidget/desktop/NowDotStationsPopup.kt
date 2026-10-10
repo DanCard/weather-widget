@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -144,7 +145,7 @@ fun nowDotStationCards(
     if (newest.contributions.isEmpty()) return null
     val all = visibleStationRows(observations, source)
     if (all.isEmpty()) return null
-    val official = all.filter { it.stationType == OFFICIAL_STATION_TYPE }
+    val official = all.filter { it.stationType == StationType.OFFICIAL }
     val officialOnly = official.isNotEmpty()
     val rows = if (officialOnly) official else all
     return NowDotStationCards(
@@ -153,9 +154,6 @@ fun nowDotStationCards(
         remaining = (rows.size - maxRows).coerceAtLeast(0),
     )
 }
-
-/** The `stationType` value the Observations tab tints green; everything else is a personal station. */
-const val OFFICIAL_STATION_TYPE = "OFFICIAL"
 
 /** The nearest official station only: one card is the glance. */
 const val MAX_POPUP_ROWS: Int = 1

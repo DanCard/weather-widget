@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.ObservationSiteMerge
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -67,7 +68,7 @@ class BlendCentreExcludesFreshRowsTest {
         locationLon = if (atCurrentSite) currentLon else leftLon,
         // KNUQ is 2.4 km from where the device is now and ~5 km from where it was.
         distanceKm = if (atCurrentSite) 2.4f else 5.0f,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         api = WeatherSource.NWS.id,
         fetchedAt = if (atCurrentSite) at(14, 5) else at(11, 26),
         isMetar = true,

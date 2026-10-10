@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.shared.util.PartialForecastDays
 import com.weatherwidget.shared.util.PredictionDate
 import com.weatherwidget.data.model.DailyHistory
@@ -535,17 +536,17 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      * a station's type is a property of the station, not of the fetch. Same rule as Android's
      * `insertAllRetaggingStationTypes`; see plans/261003-raws-station-type.md.
      */
-    fun retagStationType(api: String, stationIds: Collection<String>, stationType: String): Int {
+    fun retagStationType(api: String, stationIds: Collection<String>, stationType: StationType): Int {
         if (stationIds.isEmpty()) return 0
         val placeholders = stationIds.joinToString(",") { "?" }
         db.getConnection().use { conn ->
             conn.prepareStatement(
                 "UPDATE observations SET stationType = ? WHERE api = ? AND stationId IN ($placeholders) AND stationType != ?",
             ).use { stmt ->
-                stmt.setString(1, stationType)
+                stmt.setInt(1, stationType.dbCode)
                 stmt.setString(2, api)
                 stationIds.forEachIndexed { i, id -> stmt.setString(3 + i, id) }
-                stmt.setString(3 + stationIds.size, stationType)
+                stmt.setInt(3 + stationIds.size, stationType.dbCode)
                 return stmt.executeUpdate()
             }
         }
@@ -570,7 +571,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setDouble(6, obs.locationLat)
                         stmt.setDouble(7, obs.locationLon)
                         stmt.setFloat(8, obs.distanceKm)
-                        stmt.setString(9, obs.stationType)
+                        stmt.setInt(9, obs.stationType.dbCode)
                         stmt.setLong(10, obs.fetchedAt)
                         stmt.setNullableFloat(11, obs.maxTempLast24h)
                         stmt.setNullableFloat(12, obs.minTempLast24h)
@@ -625,7 +626,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         locationLat = rs.getDouble("locationLat"),
                         locationLon = rs.getDouble("locationLon"),
                         distanceKm = rs.getFloat("distanceKm"),
-                        stationType = rs.getString("stationType"),
+                        stationType = StationType.fromDbCode(rs.getInt("stationType")),
                         fetchedAt = rs.getLong("fetchedAt"),
                         maxTempLast24h = rs.getNullableFloat("maxTempLast24h"),
                         minTempLast24h = rs.getNullableFloat("minTempLast24h"),
@@ -1657,7 +1658,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             locationLat = rs.getDouble("locationLat"),
                             locationLon = rs.getDouble("locationLon"),
                             distanceKm = rs.getFloat("distanceKm"),
-                            stationType = rs.getString("stationType"),
+                            stationType = StationType.fromDbCode(rs.getInt("stationType")),
                             fetchedAt = rs.getLong("fetchedAt"),
                             maxTempLast24h = if (rs.getObject("maxTempLast24h") != null) rs.getFloat("maxTempLast24h") else null,
                             minTempLast24h = if (rs.getObject("minTempLast24h") != null) rs.getFloat("minTempLast24h") else null,
@@ -1709,7 +1710,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         locationLat = rs.getDouble("locationLat"),
                         locationLon = rs.getDouble("locationLon"),
                         distanceKm = rs.getFloat("distanceKm"),
-                        stationType = rs.getString("stationType"),
+                        stationType = StationType.fromDbCode(rs.getInt("stationType")),
                         fetchedAt = rs.getLong("fetchedAt"),
                         maxTempLast24h = rs.getNullableFloat("maxTempLast24h"),
                         minTempLast24h = rs.getNullableFloat("minTempLast24h"),

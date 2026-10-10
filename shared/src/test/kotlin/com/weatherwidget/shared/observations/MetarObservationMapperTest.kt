@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.remote.AviationWeatherApi
 import com.weatherwidget.data.remote.AviationWeatherStationFilter
 import com.weatherwidget.data.remote.FetchOutcome
@@ -21,7 +22,7 @@ class MetarObservationMapperTest {
 
     private fun station(id: String, distanceKm: Double = 3.8) =
         AviationWeatherStationFilter.RankedStation(
-            info = NwsApi.StationInfo(id, "$id site", 37.4059, -122.0491, NwsApi.StationType.OFFICIAL),
+            info = NwsApi.StationInfo(id, "$id site", 37.4059, -122.0491, StationType.OFFICIAL),
             distanceKm = distanceKm,
             elevationMeters = 9.0,
         )
@@ -165,7 +166,7 @@ class MetarObservationMapperTest {
     @Test
     fun `stations are OFFICIAL and never flagged as a web fallback`() {
         val reading = MetarObservationMapper.toReading(row(), station("KSJC"), 37.4, -122.1)!!
-        assertEquals("OFFICIAL", reading.stationType)
+        assertEquals(StationType.OFFICIAL, reading.stationType)
         assertTrue(!reading.isWebFallback)
     }
 

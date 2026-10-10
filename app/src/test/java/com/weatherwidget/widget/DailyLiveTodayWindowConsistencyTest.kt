@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.data.model.StationType
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.WeatherDatabase
@@ -143,7 +144,7 @@ class DailyLiveTodayWindowConsistencyTest {
             lat = lat,
             lon = lon,
             distanceKm = distanceKm,
-            stationType = "OFFICIAL",
+            stationType = StationType.OFFICIAL,
         )
 
     private fun com.weatherwidget.data.local.ObservationEntity.toReadingForTest() =

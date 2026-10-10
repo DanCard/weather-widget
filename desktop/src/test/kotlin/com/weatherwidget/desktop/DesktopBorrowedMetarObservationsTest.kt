@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
@@ -142,7 +143,7 @@ class DesktopBorrowedMetarObservationsTest {
         }
         val nws = mockk<NwsApi>()
         val station = NwsApi.StationInfo(
-            "KNUQ", "Moffett Field", 37.4161, -122.0492, NwsApi.StationType.OFFICIAL,
+            "KNUQ", "Moffett Field", 37.4161, -122.0492, StationType.OFFICIAL,
         )
         val grid = NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
         val old = NwsApi.Observation(

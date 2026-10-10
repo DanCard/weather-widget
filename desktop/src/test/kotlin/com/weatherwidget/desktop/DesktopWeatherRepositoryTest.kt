@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
@@ -75,7 +76,7 @@ class DesktopWeatherRepositoryTest {
                     locationLat = 37.4220,
                     locationLon = -122.0841,
                     distanceKm = 0f,
-                    stationType = "VIRTUAL",
+                    stationType = StationType.UNKNOWN,
                     fetchedAt = now,
                     api = "NWS"
                 )
@@ -134,7 +135,7 @@ class DesktopWeatherRepositoryTest {
                     locationLat = 37.4220,
                     locationLon = -122.0841,
                     distanceKm = 0f,
-                    stationType = "OFFICIAL",
+                    stationType = StationType.OFFICIAL,
                     fetchedAt = now,
                     api = WeatherSource.SILURIAN.id,
                 ),
@@ -283,7 +284,7 @@ class DesktopWeatherRepositoryTest {
                     locationLat = 37.4220,
                     locationLon = -122.0841,
                     distanceKm = 1.2f,
-                    stationType = "OFFICIAL",
+                    stationType = StationType.OFFICIAL,
                     fetchedAt = now,
                     api = WeatherSource.SYNOPTIC.id,
                 )
@@ -341,7 +342,7 @@ class DesktopWeatherRepositoryTest {
                     locationLat = 37.4220,
                     locationLon = -122.0841,
                     distanceKm = 0f,
-                    stationType = "OFFICIAL",
+                    stationType = StationType.OFFICIAL,
                     fetchedAt = hour - 25 * 60_000L,
                     api = WeatherSource.TOMORROW_IO.id,
                 ),
@@ -354,7 +355,7 @@ class DesktopWeatherRepositoryTest {
                     locationLat = 37.4220,
                     locationLon = -122.0841,
                     distanceKm = 0f,
-                    stationType = "OFFICIAL",
+                    stationType = StationType.OFFICIAL,
                     fetchedAt = hour + 19 * 60_000L,
                     api = WeatherSource.TOMORROW_IO.id,
                 ),
@@ -393,7 +394,7 @@ class DesktopWeatherRepositoryTest {
                 HourlyForecast(hour + 3600_000L, 68f, "Forecast", source = WeatherSource.NWS.id),
             ),
         )
-        fun row(id: String, ts: Long, temp: Float, condition: String, km: Float, type: String = "OFFICIAL") =
+        fun row(id: String, ts: Long, temp: Float, condition: String, km: Float, type: StationType = StationType.OFFICIAL) =
             DesktopObservationEntity(
                 stationId = id, stationName = id, timestamp = ts, temperature = temp,
                 condition = condition, locationLat = 37.4220, locationLon = -122.0841,
@@ -406,7 +407,7 @@ class DesktopWeatherRepositoryTest {
                 // Nearest station: its condition is the blend's condition.
                 row("KPAO", now - 20 * 60_000L, 67f, "Sunny", km = 2.0f),
                 // Stored by an older build at the previous fetch.
-                row("NWS_BLEND", now - 3 * 3600_000L, 61f, "Stale blend", km = 0f, type = "BLENDED"),
+                row("NWS_BLEND", now - 3 * 3600_000L, 61f, "Stale blend", km = 0f, type = StationType.BLENDED),
             ),
         )
 
@@ -582,7 +583,7 @@ class DesktopWeatherRepositoryTest {
                 locationLat = 37.4220,
                 locationLon = -122.0841,
                 distanceKm = 0f,
-                stationType = "VIRTUAL",
+                stationType = StationType.UNKNOWN,
                 fetchedAt = now,
                 api = "NWS"
             )

@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.test.category.ShortDuration
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -73,14 +74,14 @@ class SynopticApiRadiusTest {
 
         val knuq = stations[0]
         assertEquals("KNUQ", knuq.info.id)
-        assertEquals(NwsApi.StationType.OFFICIAL, knuq.info.type)
+        assertEquals(StationType.OFFICIAL, knuq.info.type)
         assertEquals(1, knuq.observations.size)
         assertEquals(1, knuq.observations[0].cloudLayers.size)
         assertEquals("OVC", knuq.observations[0].cloudLayers[0].amount)
 
         val pws = stations[1]
         assertEquals("PWS01", pws.info.id)
-        assertEquals(NwsApi.StationType.PERSONAL, pws.info.type)
+        assertEquals(StationType.PERSONAL, pws.info.type)
         assertEquals(1, pws.observations.size)
         assertEquals(3, pws.observations[0].cloudLayers.size)
         assertEquals(listOf("SCT", "BKN", "OVC"), pws.observations[0].cloudLayers.map { it.amount })
@@ -141,9 +142,9 @@ class SynopticApiRadiusTest {
             .associate { it.info.id to it.info.type }
         assertEquals(
             mapOf(
-                "KNUQ" to NwsApi.StationType.OFFICIAL,
-                "LOAC1" to NwsApi.StationType.RAWS,
-                "AW020" to NwsApi.StationType.PERSONAL,
+                "KNUQ" to StationType.OFFICIAL,
+                "LOAC1" to StationType.RAWS,
+                "AW020" to StationType.PERSONAL,
             ),
             types,
         )

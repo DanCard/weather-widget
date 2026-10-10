@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -25,7 +26,7 @@ class NowDotStationsPopupTest {
     private fun contribution(stationId: String, weightShare: Double) = BlendContribution(
         stationId = stationId,
         stationName = stationId,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         distanceKm = 3f,
         lastReadingMs = targetMs,
         rawTemp = 68f,
@@ -46,7 +47,7 @@ class NowDotStationsPopupTest {
     private fun obs(
         stationId: String,
         distanceKm: Float = 1f,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
         timestamp: Long = targetMs,
         temperature: Float = 60f,
         api: String = WeatherSource.NWS.id,
@@ -126,9 +127,9 @@ class NowDotStationsPopupTest {
     fun `personal stations are dropped when an official station is present`() {
         val c = cards(
             listOf(
-                obs("AW020", distanceKm = 2f, stationType = "PERSONAL"),
+                obs("AW020", distanceKm = 2f, stationType = StationType.PERSONAL),
                 obs("KNUQ", distanceKm = 4f),
-                obs("LOAC1", distanceKm = 8f, stationType = "PERSONAL"),
+                obs("LOAC1", distanceKm = 8f, stationType = StationType.PERSONAL),
                 obs("KSJC", distanceKm = 16f),
             ),
             breakdowns = listOf(
@@ -148,8 +149,8 @@ class NowDotStationsPopupTest {
     fun `falls back to all stations when none is official`() {
         val c = cards(
             listOf(
-                obs("AW020", distanceKm = 2f, stationType = "PERSONAL"),
-                obs("LOAC1", distanceKm = 8f, stationType = "PERSONAL"),
+                obs("AW020", distanceKm = 2f, stationType = StationType.PERSONAL),
+                obs("LOAC1", distanceKm = 8f, stationType = StationType.PERSONAL),
             ),
             maxRows = 10,
         )!!

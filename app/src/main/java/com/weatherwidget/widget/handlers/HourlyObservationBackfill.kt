@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.model.StationType
 import android.content.Context
 import android.util.Log
 import androidx.work.ExistingWorkPolicy
@@ -312,7 +313,7 @@ internal fun metarCloudBreakReason(sourceObservations: List<ObservationEntity>):
 @androidx.annotation.VisibleForTesting
 internal fun metarCloudGapReason(sourceObservations: List<ObservationEntity>): String? {
     val officialRows = sourceObservations
-        .filter { it.stationType == "OFFICIAL" && !it.qcFailed }
+        .filter { it.stationType == StationType.OFFICIAL && !it.qcFailed }
     if (officialRows.isEmpty()) return null
     // The blender's shared round-to-nearest-hour rule — the buckets this check counts must be the
     // same buckets the blend emits, or "cloud sparse here" says nothing about the curve.

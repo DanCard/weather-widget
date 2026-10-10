@@ -119,7 +119,7 @@ data class ObservationReading(
     val locationLat: Double,
     val locationLon: Double,
     val distanceKm: Float = 0f,
-    val stationType: String = "UNKNOWN",
+    val stationType: StationType = StationType.UNKNOWN,
     val maxTempLast24h: Float? = null, // Fahrenheit
     val minTempLast24h: Float? = null, // Fahrenheit
     val api: String,

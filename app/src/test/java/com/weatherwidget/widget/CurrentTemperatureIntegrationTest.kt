@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.data.model.StationType
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.HourlyForecastEntity
@@ -482,7 +483,7 @@ private suspend fun insertObservation(
                 locationLat = lat,
                 locationLon = lon,
                 distanceKm = 5f,
-                stationType = "OFFICIAL",
+                stationType = StationType.OFFICIAL,
                 fetchedAt = fetchedAt,
                 api = api,
             )

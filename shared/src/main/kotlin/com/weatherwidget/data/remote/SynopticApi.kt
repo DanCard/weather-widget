@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.shared.observations.MetarRawSkyParser
 import com.weatherwidget.shared.util.Log
 import io.ktor.client.*
@@ -195,9 +196,9 @@ class SynopticApi(
                             // stations (plans/261003-raws-station-type.md), so it is discounted like
                             // them. Everything else is a cooperative or personal station.
                             type = when (o["MNET_ID"]?.jsonPrimitive?.contentOrNull) {
-                                "1" -> NwsApi.StationType.OFFICIAL
-                                "2" -> NwsApi.StationType.RAWS
-                                else -> NwsApi.StationType.PERSONAL
+                                "1" -> StationType.OFFICIAL
+                                "2" -> StationType.RAWS
+                                else -> StationType.PERSONAL
                             },
                         ),
                         distanceKm = (o["DISTANCE"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: 0.0) * MILES_TO_KM,

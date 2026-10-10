@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.shared.observations.NwsQualityControl
 import com.weatherwidget.shared.util.Log
 import io.ktor.client.*
@@ -306,19 +307,6 @@ class NwsApi
                     null
                 }
             }
-        }
-
-        enum class StationType {
-            OFFICIAL,
-            PERSONAL,
-
-            /**
-             * Remote Automated Weather Stations (Synoptic `MNET_ID` 2): fire-weather sites, passive
-             * radiation shields, often on ridges. Kept distinct for provenance, but discounted and
-             * thinned exactly like [PERSONAL] — see `StationTypes.isDiscounted`.
-             */
-            RAWS,
-            UNKNOWN
         }
 
         data class StationInfo(

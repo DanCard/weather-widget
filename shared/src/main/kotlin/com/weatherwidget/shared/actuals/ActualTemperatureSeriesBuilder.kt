@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -53,7 +54,7 @@ data class BlendObservationStats(
 data class BlendContribution(
     val stationId: String,
     val stationName: String,
-    val stationType: String,
+    val stationType: StationType,
     val distanceKm: Float,
     val lastReadingMs: Long,
     val rawTemp: Float,
@@ -67,7 +68,7 @@ data class BlendContribution(
      * e.g. `WEATHER_API_MAIN`) rather than a thermometer — the source's own history re-filed as
      * observations at `distanceKm = 0`.
      *
-     * Nothing in the other fields gives this away: the row carries `stationType = "OFFICIAL"` and resolves
+     * Nothing in the other fields gives this away: the row carries `stationType = StationType.OFFICIAL` and resolves
      * with `sourceKind = "observed"`, because it has to look like a station to drive the actual line at all.
      * Surfaces that *name* the station must therefore be told (see [com.weatherwidget.shared.graph.DominantStationLabel]);
      * under a forecast-only source it is the ONLY candidate, so it is always the dominant one.
@@ -410,8 +411,8 @@ object ActualTemperatureSeriesBuilder {
                 val resolved = resolveStationValueAt(stationObs, targetTs, forecastSeries)
                 if (resolved != null) {
                     val ageMs = maxOf(0L, targetTs - resolved.anchorTs)
-                    // RAWS shares the personal discount; see StationTypes.
-                    val isPersonal = com.weatherwidget.shared.observations.StationTypes.isDiscounted(resolved.stationType)
+                    // RAWS shares the personal discount; see StationType.isDiscounted.
+                    val isPersonal = resolved.stationType.isDiscounted
                     val isSynthetic = ObservationSourceMatcher.isSyntheticBackfillStation(stationId, displaySourceId)
                     if (isSynthetic) syntheticStationIds.add(stationId)
                     candidates.add(DecayBlendInput(resolved.distanceKm, resolved.temperature, ageMs, isPersonal, isSynthetic))
@@ -600,7 +601,7 @@ object ActualTemperatureSeriesBuilder {
     private class ContributionMeta(
         val stationId: String,
         val stationName: String,
-        val stationType: String,
+        val stationType: StationType,
         val distanceKm: Float,
         val lastReadingMs: Long,
         val rawTemp: Float,
@@ -641,7 +642,7 @@ object ActualTemperatureSeriesBuilder {
         val distanceKm: Float,
         val sourceKind: String,
         val anchorTs: Long,
-        val stationType: String,
+        val stationType: StationType,
         /**
          * The station's measured value at [anchorTs], before any interpolation or forecast carry-forward.
          * Equals [temperature] only when [sourceKind] is `observed`; the difference is the fabricated
@@ -782,7 +783,7 @@ object ActualTemperatureSeriesBuilder {
         before: ObservationReading,
         targetTs: Long,
         forecastSeries: List<HourlyForecast>,
-        stationType: String,
+        stationType: StationType,
     ): ResolvedStationValue? {
         val gapMs = targetTs - before.timestamp
         if (gapMs > MAX_EXTRAPOLATION_GAP_MS) return null

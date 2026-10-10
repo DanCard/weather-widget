@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -112,7 +113,7 @@ class AviationWeatherStationFilterTest {
         val result = AviationWeatherStationFilter.nearest(
             listOf(candidate("KSJC", 37.36, -121.92)), 37.4, -122.1,
         )
-        assertEquals(NwsApi.StationType.OFFICIAL, result.single().info.type)
+        assertEquals(StationType.OFFICIAL, result.single().info.type)
     }
 
     @Test

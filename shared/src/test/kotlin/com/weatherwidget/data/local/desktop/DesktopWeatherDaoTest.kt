@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyActual
 import com.weatherwidget.data.model.DailyForecast
@@ -289,15 +290,15 @@ class DesktopWeatherDaoTest {
     @Test
     fun `test station cache round-trip`() {
         val stations = listOf(
-            NwsApi.StationInfo("KNUQ", "Moffett", 37.4, -122.0, NwsApi.StationType.OFFICIAL),
-            NwsApi.StationInfo("AW020", "Personal", 37.3, -122.1, NwsApi.StationType.PERSONAL),
+            NwsApi.StationInfo("KNUQ", "Moffett", 37.4, -122.0, StationType.OFFICIAL),
+            NwsApi.StationInfo("AW020", "Personal", 37.3, -122.1, StationType.PERSONAL),
         )
 
         dao.upsertStationCache("stations_test", stations)
 
         val cached = dao.getCachedStations("stations_test", 10_000)
         assertEquals(listOf("KNUQ", "AW020"), cached?.map { it.id })
-        assertEquals(NwsApi.StationType.OFFICIAL, cached?.first()?.type)
+        assertEquals(StationType.OFFICIAL, cached?.first()?.type)
     }
 
     @Test

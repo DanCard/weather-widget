@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -171,7 +172,7 @@ private fun BlendRow(row: BlendTableRow) {
         DataCell(
             row.type,
             BlendCol.TYPE,
-            if (row.type == BlendTableFormatter.OFFICIAL_LABEL) ObsStyle.typeOfficial else ObsStyle.typePersonal,
+            if (row.stationType == StationType.OFFICIAL) ObsStyle.typeOfficial else ObsStyle.typePersonal,
         )
         DataCell(row.km, BlendCol.KM, ObsStyle.textSecondary, align = TextAlign.End, endPadding = 12)
         DataCell(row.lastRead, BlendCol.LAST_READ, ObsStyle.timeReported)

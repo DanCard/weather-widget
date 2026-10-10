@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertNotNull
@@ -24,7 +25,7 @@ class HourlyObservationBackfillCloudGapTest {
 
     private fun row(
         bucket: Int,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
         cloudCoverLow: Int? = null,
         isWebFallback: Boolean = false,
         qcFailed: Boolean = false,
@@ -72,7 +73,7 @@ class HourlyObservationBackfillCloudGapTest {
         // No ceilometer, so they report empty sky condition on every report and could never satisfy
         // the check. Counting them would keep the repair firing forever.
         val rows = (0 until 10).map {
-            row(bucket = it, stationType = "PERSONAL", cloudCoverLow = null)
+            row(bucket = it, stationType = StationType.PERSONAL, cloudCoverLow = null)
         }
         assertNull(metarCloudGapReason(rows))
     }
@@ -81,7 +82,7 @@ class HourlyObservationBackfillCloudGapTest {
     fun `a personal station cannot drag an otherwise healthy official series down`() {
         val official = (0 until 6).map { row(bucket = it, cloudCoverLow = 75) }
         val personal = (10 until 40).map {
-            row(bucket = it, stationType = "PERSONAL", cloudCoverLow = null, stationId = "AW020")
+            row(bucket = it, stationType = StationType.PERSONAL, cloudCoverLow = null, stationId = "AW020")
         }
         assertNull(metarCloudGapReason(official + personal))
     }
@@ -112,7 +113,7 @@ class HourlyObservationBackfillCloudGapTest {
     fun `no official rows at all is not a cloud verdict`() {
         // Nothing to judge — must stay silent rather than demand a repair it cannot evaluate.
         assertNull(metarCloudGapReason(emptyList()))
-        assertNull(metarCloudGapReason(listOf(row(bucket = 0, stationType = "PERSONAL"))))
+        assertNull(metarCloudGapReason(listOf(row(bucket = 0, stationType = StationType.PERSONAL))))
     }
 
     @Test
@@ -136,7 +137,7 @@ class HourlyObservationBackfillCloudGapTest {
             condition = "Clear",
             locationLat = 37.417,
             locationLon = -122.089,
-            stationType = "OFFICIAL",
+            stationType = StationType.OFFICIAL,
             api = "NWS",
             isWebFallback = false,
             qcFailed = qcFailed,
@@ -145,7 +146,7 @@ class HourlyObservationBackfillCloudGapTest {
 
     /** A temperature-only row: present in the window, invisible to the cloud curve. */
     private fun tempOnly(minutesFromStart: Int, stationId: String = "AW020") =
-        carrier(minutesFromStart, stationId).copy(cloudCoverLow = null, stationType = "PERSONAL")
+        carrier(minutesFromStart, stationId).copy(cloudCoverLow = null, stationType = StationType.PERSONAL)
 
     /**
      * The Samsung's cloud-carrying observation times on 2026-09-03, minutes from 02:53. The curve

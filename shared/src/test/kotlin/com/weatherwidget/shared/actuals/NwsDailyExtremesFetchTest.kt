@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.test.category.ShortDuration
 import java.time.LocalDate
@@ -22,7 +23,7 @@ class NwsDailyExtremesFetchTest {
 
     private fun epoch(date: LocalDate) = date.toEpochDay() * 86_400_000L
 
-    private fun reading(date: LocalDate, hour: Int, temp: Float, stationId: String, distanceKm: Float, stationType: String = "OFFICIAL") =
+    private fun reading(date: LocalDate, hour: Int, temp: Float, stationId: String, distanceKm: Float, stationType: StationType = StationType.OFFICIAL) =
         ObservationReading(
             stationId = stationId,
             stationName = stationId,
@@ -269,7 +270,7 @@ class NwsDailyExtremesFetchTest {
             zone = zone,
             nowMs = nowMs,
         ) { _, _, _ ->
-            coveredDay(d, "AW020", 2.22f, 61.0f, 77.0f).map { it.copy(stationType = "PERSONAL") }
+            coveredDay(d, "AW020", 2.22f, 61.0f, 77.0f).map { it.copy(stationType = StationType.PERSONAL) }
         }
 
         val day = (result[epoch(d)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals
@@ -293,7 +294,7 @@ class NwsDailyExtremesFetchTest {
             nowMs = nowMs,
         ) { stationId, _, _ ->
             when (stationId) {
-                "AW020" -> coveredDay(d, "AW020", 2.22f, 61.0f, 90.0f).map { it.copy(stationType = "PERSONAL") }
+                "AW020" -> coveredDay(d, "AW020", 2.22f, 61.0f, 90.0f).map { it.copy(stationType = StationType.PERSONAL) }
                 else -> coveredDay(d, "KNUQ", 3.83f, 60.8f, 70.0f)
             }
         }.let { (it[epoch(d)] as? NwsDailyExtremesFetch.DayOutcome.Resolved)?.actuals?.blendHigh }

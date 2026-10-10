@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -105,8 +106,8 @@ class ActualTemperatureSeriesBuilderTest {
         try {
             val forecasts = forecasts("2026-06-03T08:00:00", 8, source = WeatherSource.SILURIAN.id)
             val observations = listOf(
-                observation("CWOP1", "2026-06-03T10:00:00", 80f, api = WeatherSource.SYNOPTIC.id, distanceKm = 1.5f, stationType = "PERSONAL"),
-                observation("KNUQ", "2026-06-03T10:00:00", 72f, api = WeatherSource.SYNOPTIC.id, distanceKm = 3.8f, stationType = "OFFICIAL"),
+                observation("CWOP1", "2026-06-03T10:00:00", 80f, api = WeatherSource.SYNOPTIC.id, distanceKm = 1.5f, stationType = StationType.PERSONAL),
+                observation("KNUQ", "2026-06-03T10:00:00", 72f, api = WeatherSource.SYNOPTIC.id, distanceKm = 3.8f, stationType = StationType.OFFICIAL),
             )
 
             val result = ActualTemperatureSeriesBuilder.build(
@@ -454,18 +455,18 @@ class ActualTemperatureSeriesBuilderTest {
     fun `a RAWS station gets exactly the personal discount`() {
         // LOAC1 ran ~6 F above nearby personal stations on 2026-10-03; it must not keep full weight
         // while they are discounted. Same numbers as the half-weight personal case above.
-        val asPersonal = blendTwoStation(personalStationWeight = 0.5, discountedType = "PERSONAL")
-        val asRaws = blendTwoStation(personalStationWeight = 0.5, discountedType = "RAWS")
+        val asPersonal = blendTwoStation(personalStationWeight = 0.5, discountedType = StationType.PERSONAL)
+        val asRaws = blendTwoStation(personalStationWeight = 0.5, discountedType = StationType.RAWS)
         assertEquals(77.67f, asRaws, 0.05f)
         assertEquals(asPersonal, asRaws, 0.0001f)
-        assertEquals(75f, blendTwoStation(personalStationWeight = 0.0, discountedType = "RAWS"), 0.01f)
+        assertEquals(75f, blendTwoStation(personalStationWeight = 0.0, discountedType = StationType.RAWS), 0.01f)
     }
 
-    private fun blendTwoStation(personalStationWeight: Double, discountedType: String = "PERSONAL"): Float {
+    private fun blendTwoStation(personalStationWeight: Double, discountedType: StationType = StationType.PERSONAL): Float {
         val peak = "2026-06-03T15:00:00"
         val obs = listOf(
             observation("PWS", peak, 79f, distanceKm = 2f, stationType = discountedType),
-            observation("OFFICIAL_1", peak, 75f, distanceKm = 4f, stationType = "OFFICIAL"),
+            observation("OFFICIAL_1", peak, 75f, distanceKm = 4f, stationType = StationType.OFFICIAL),
         )
         val forecasts = forecasts("2026-06-03T00:00:00", 24)
 
@@ -666,7 +667,7 @@ class ActualTemperatureSeriesBuilderTest {
         temperature: Float,
         api: String = WeatherSource.NWS.id,
         distanceKm: Float,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
     ): ObservationReading =
         ObservationReading(
             stationId = stationId,

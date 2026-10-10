@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -51,7 +52,7 @@ class ObservationKeyCollisionTest {
         locationLat = 37.417,
         locationLon = -122.089,
         distanceKm = 3.8f,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         api = api,
     )
 

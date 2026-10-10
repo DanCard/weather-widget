@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
@@ -75,7 +76,7 @@ class NwsStationActualsStoreTest {
         temp: Float,
         stationId: String,
         distanceKm: Float,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
     ) =
         ObservationEntity(
             stationId = stationId,
@@ -96,7 +97,7 @@ class NwsStationActualsStoreTest {
         distanceKm: Float,
         low: Float,
         high: Float,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
     ) = listOf(
         observation(3, low, stationId, distanceKm, stationType),
         observation(15, high, stationId, distanceKm, stationType),
@@ -352,7 +353,7 @@ class NwsStationActualsStoreTest {
     @Test
     fun `stored-observation fallback applies the same nearest-official rule`() = runTest {
         db.observationDao().insertAll(
-            coveredStation("AW020", 2.22f, 61.0f, 90.0f, stationType = "PERSONAL") +
+            coveredStation("AW020", 2.22f, 61.0f, 90.0f, stationType = StationType.PERSONAL) +
                 coveredStation("KNUQ", 3.83f, 60.8f, 75.2f),
         )
 

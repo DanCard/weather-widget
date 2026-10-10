@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.shared.util.TempUtils
 import com.weatherwidget.util.StationHistoryUrl
 import java.time.Instant
@@ -17,6 +18,7 @@ import java.util.Locale
  */
 data class BlendTableRow(
     val station: String,
+    /** The station's [StationType.label] — display text only; tint on [stationType]. */
     val type: String,
     val km: String,
     val lastRead: String,
@@ -34,6 +36,11 @@ data class BlendTableRow(
      * every NWS station unlinked whenever actuals were redirected (Open-Meteo shown, NWS actuals).
      */
     val historyUrl: String? = null,
+    /**
+     * What renderers compare against. Desktop once compared the [type] letter to "OFFICIAL" and
+     * official stations lost their tint; an enum makes that a compile error.
+     */
+    val stationType: StationType = StationType.UNKNOWN,
 )
 
 data class BlendTable(
@@ -76,21 +83,8 @@ object BlendTableFormatter {
         else -> sourceKind
     }
 
-    /**
-     * [typeLabel] of an official station. Both Blend tabs tint on it; desktop compared against the
-     * spelled-out "OFFICIAL" after the column went to single letters, so official stations lost
-     * their colour there.
-     */
-    const val OFFICIAL_LABEL = "O"
-
-    /** See [kindLabel]. */
-    fun typeLabel(stationType: String): String = when (stationType) {
-        "OFFICIAL" -> OFFICIAL_LABEL
-        "PERSONAL" -> "P"
-        // Not "R": the value column already uses R for "real reading".
-        "RAWS" -> "F"
-        else -> stationType
-    }
+    /** See [kindLabel]; the letters live on [StationType.label]. */
+    fun typeLabel(stationType: StationType): String = stationType.label
 
     /** Integer-minute convention shared by the Blend tab and compact graph annotations. */
     fun formatAgeMs(ageMs: Long): String = "${ageMs.coerceAtLeast(0L) / 60_000L}m"
@@ -137,6 +131,7 @@ object BlendTableFormatter {
                 BlendTableRow(
                     station = c.stationId,
                     type = typeLabel(c.stationType),
+                    stationType = c.stationType,
                     km = String.format(Locale.US, "%.2f", c.distanceKm),
                     lastRead = time(c.lastReadingMs),
                     // Minutes throughout: weight reaches zero at 180 min, so the number stays small

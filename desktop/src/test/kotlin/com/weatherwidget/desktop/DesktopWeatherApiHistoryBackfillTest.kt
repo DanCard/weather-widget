@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.DailyForecast
@@ -148,7 +149,7 @@ class DesktopWeatherApiHistoryBackfillTest {
                 locationLat = lat,
                 locationLon = lon,
                 distanceKm = 0f,
-                stationType = "OFFICIAL",
+                stationType = StationType.OFFICIAL,
                 api = WeatherSource.WEATHER_API.id,
                 precipAmountMm = if (index == 4) 1.2f else 0f,
             )

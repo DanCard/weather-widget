@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -37,7 +38,7 @@ class SkyStationSlotsGapIntegrationTest {
             locationLat = 37.417,
             locationLon = -122.089,
             distanceKm = km,
-            stationType = "OFFICIAL",
+            stationType = StationType.OFFICIAL,
             api = WeatherSource.SYNOPTIC.id,
             isMetar = true,
             rawMetar = "$station REPORT",

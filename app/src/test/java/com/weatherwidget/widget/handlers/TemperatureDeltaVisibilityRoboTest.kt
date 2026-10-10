@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.model.StationType
 import android.content.Context
 import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
@@ -120,7 +121,7 @@ class TemperatureDeltaVisibilityRoboTest {
             locationLat = 37.0,
             locationLon = -122.0,
             distanceKm = 1f,
-            stationType = "OFFICIAL",
+            stationType = StationType.OFFICIAL,
             api = WeatherSource.NWS.id,
         )
         val read = observationReadOf(listOf(observation))

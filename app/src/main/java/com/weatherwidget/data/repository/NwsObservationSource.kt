@@ -204,7 +204,7 @@ class NwsObservationSource(
                     api = WeatherSource.NWS.id,
                     isWebFallback = true,
                     stationName = stationInfo.name,
-                    stationType = stationInfo.type.name,
+                    stationType = stationInfo.type,
                 )
             } else {
                 apiEntity

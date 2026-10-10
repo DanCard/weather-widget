@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.test.category.ShortDuration
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -42,12 +43,12 @@ class NwsStationTypeTest {
 
         assertEquals(
             mapOf(
-                "AW020" to NwsApi.StationType.PERSONAL, // APRSWXNET
-                "KNUQ" to NwsApi.StationType.OFFICIAL, // ASOS
-                "KPAO" to NwsApi.StationType.OFFICIAL, // OTHER-MTR: an airport the provider rule would miss
-                "LOAC1" to NwsApi.StationType.RAWS,
-                "KSJC" to NwsApi.StationType.OFFICIAL, // ASOS-HFM
-                "LAHC1" to NwsApi.StationType.RAWS,
+                "AW020" to StationType.PERSONAL, // APRSWXNET
+                "KNUQ" to StationType.OFFICIAL, // ASOS
+                "KPAO" to StationType.OFFICIAL, // OTHER-MTR: an airport the provider rule would miss
+                "LOAC1" to StationType.RAWS,
+                "KSJC" to StationType.OFFICIAL, // ASOS-HFM
+                "LAHC1" to StationType.RAWS,
             ),
             stations.associate { it.id to it.type },
         )
@@ -55,16 +56,16 @@ class NwsStationTypeTest {
 
     @Test
     fun `provider RAWS wins over the id, and no provider keeps the id rule`() {
-        assertEquals(NwsApi.StationType.RAWS, NwsApi.classifyStationType("LOAC1", "RAWS"))
-        assertEquals(NwsApi.StationType.RAWS, NwsApi.classifyStationType("LOAC1", "raws"))
-        assertEquals(NwsApi.StationType.PERSONAL, NwsApi.classifyStationType("LOAC1"))
-        assertEquals(NwsApi.StationType.PERSONAL, NwsApi.classifyStationType("LOAC1", ""))
-        assertEquals(NwsApi.StationType.OFFICIAL, NwsApi.classifyStationType("KPAO", "OTHER-MTR"))
+        assertEquals(StationType.RAWS, NwsApi.classifyStationType("LOAC1", "RAWS"))
+        assertEquals(StationType.RAWS, NwsApi.classifyStationType("LOAC1", "raws"))
+        assertEquals(StationType.PERSONAL, NwsApi.classifyStationType("LOAC1"))
+        assertEquals(StationType.PERSONAL, NwsApi.classifyStationType("LOAC1", ""))
+        assertEquals(StationType.OFFICIAL, NwsApi.classifyStationType("KPAO", "OTHER-MTR"))
     }
 
     @Test
     fun `a cached RAWS station decodes back as RAWS`() {
-        val station = NwsApi.StationInfo("LOAC1", "LOS ALTOS", 37.36, -122.14, NwsApi.StationType.RAWS)
+        val station = NwsApi.StationInfo("LOAC1", "LOS ALTOS", 37.36, -122.14, StationType.RAWS)
         assertEquals(station, NwsApi.decodeStationInfo(NwsApi.encodeStationInfo(station)))
     }
 }

@@ -62,7 +62,7 @@ object ObservationTimelineNormalizer {
             .thenBy { it.locationLat }
             .thenBy { it.locationLon }
             .thenBy { it.distanceKm }
-            .thenBy { it.stationType }
+            .thenBy { it.stationType.name }
 
     private val outputOrder =
         compareBy<ObservationReading> { it.timestamp }

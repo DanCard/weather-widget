@@ -1,5 +1,6 @@
 package com.weatherwidget.ui
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.data.model.WeatherSource
 import android.appwidget.AppWidgetManager
@@ -207,7 +208,7 @@ class WeatherObservationsStaleAutoRefreshIntegrationTest {
             locationLat = lat,
             locationLon = lon,
             distanceKm = 2.5f,
-            stationType = "OFFICIAL",
+            stationType = StationType.OFFICIAL,
             fetchedAt = timestamp,
             api = "NWS",
         )

@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.SynopticApi
@@ -31,7 +32,7 @@ class DesktopSynopticFallbackTest {
     fun `fetchObservationsOnly falls back to Synoptic when NWS observations are stale`() = runTest {
         // 1. Mock NwsApi.
         val mockNwsApi = mockk<NwsApi>()
-        val station = NwsApi.StationInfo("KNUQ", "Moffett Field", 37.4058, -122.0480, NwsApi.StationType.OFFICIAL)
+        val station = NwsApi.StationInfo("KNUQ", "Moffett Field", 37.4058, -122.0480, StationType.OFFICIAL)
 
         val dummyGrid = NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
         coEvery { mockNwsApi.getGridPoint(any(), any()) } returns dummyGrid

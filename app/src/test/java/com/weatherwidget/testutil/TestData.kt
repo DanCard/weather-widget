@@ -1,5 +1,6 @@
 package com.weatherwidget.testutil
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.data.local.HourlyForecastEntity
@@ -54,7 +55,7 @@ object TestData {
         lat: Double = LAT,
         lon: Double = LON,
         distanceKm: Float = 5f,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
         fetchedAt: Long = System.currentTimeMillis(),
         api: String = "NWS",
     ) = ObservationEntity(

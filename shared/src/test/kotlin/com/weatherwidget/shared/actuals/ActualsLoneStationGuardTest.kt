@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -203,7 +204,7 @@ class ActualsLoneStationGuardTest {
         temperature: Float,
         api: String = WeatherSource.NWS.id,
         distanceKm: Float,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
     ): ObservationReading =
         ObservationReading(
             stationId = stationId,

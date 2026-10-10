@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.*
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.*
@@ -692,7 +693,7 @@ settings = config.settings.copy(useCelsius = false)),
                 locationLat = config.lat,
                 locationLon = config.lon,
                 distanceKm = distanceKm,
-                stationType = "OFFICIAL",
+                stationType = StationType.OFFICIAL,
                 api = WeatherSource.NWS.id,
                 fetchedAt = LocalDateTime.parse(local).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
             )

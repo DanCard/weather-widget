@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -50,7 +51,7 @@ class ActualsAggregatorExtremeTimeTest {
                     locationLon = LON,
                     distanceKm = 2f,
                     api = SOURCE,
-                    stationType = "OFFICIAL",
+                    stationType = StationType.OFFICIAL,
                 )
             }
 

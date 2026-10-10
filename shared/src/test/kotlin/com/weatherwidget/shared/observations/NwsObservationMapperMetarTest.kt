@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
@@ -24,7 +25,7 @@ class NwsObservationMapperMetarTest {
         name = "San Jose International Airport",
         lat = 37.36,
         lon = -121.93,
-        type = NwsApi.StationType.OFFICIAL,
+        type = StationType.OFFICIAL,
     )
 
     private fun read(obs: NwsApi.Observation) =

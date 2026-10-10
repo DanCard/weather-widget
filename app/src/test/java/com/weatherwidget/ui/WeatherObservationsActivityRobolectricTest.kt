@@ -1,5 +1,6 @@
 package com.weatherwidget.ui
 
+import com.weatherwidget.data.model.StationType
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -94,12 +95,12 @@ class WeatherObservationsActivityRobolectricTest {
                 listOf(
                     observation("SILURIAN_MAIN", "Silurian: Current", now, 67.7f, 0f),
                     observation("SILURIAN_1", "Silurian: North", now - 1_000L, 68.2f, 0f),
-                    observation("AW020", "AE6EO MOUNTAIN VIEW", now - 10_000L, 73.0f, 2.9f, stationType = "PERSONAL"),
-                    observation("KNUQ", "Mountain View, Moffett Field", now - 20_000L, 68.0f, 3.7f, stationType = "OFFICIAL"),
+                    observation("AW020", "AE6EO MOUNTAIN VIEW", now - 10_000L, 73.0f, 2.9f, stationType = StationType.PERSONAL),
+                    observation("KNUQ", "Mountain View, Moffett Field", now - 20_000L, 68.0f, 3.7f, stationType = StationType.OFFICIAL),
                     // Same airport, the OTHER feed. Both rows coexist since the observations primary
                     // key gained `api`, so the NWS list must reject this one on provenance alone —
                     // the station-ID rule cannot, KNUQ is a real ICAO id under either api.
-                    observation("KNUQ", "Mountain View, Moffett Field", now - 15_000L, 68.4f, 3.7f, stationType = "OFFICIAL", api = "METAR"),
+                    observation("KNUQ", "Mountain View, Moffett Field", now - 15_000L, 68.4f, 3.7f, stationType = StationType.OFFICIAL, api = "METAR"),
                     observation("WEATHER_API_MAIN", "WAPI: Current", now - 30_000L, 68.5f, 0f),
                     observation("TOMORROW_IO_MAIN", "Tmrw: Current", now - 40_000L, 69.1f, 0f),
                 ),
@@ -175,7 +176,7 @@ class WeatherObservationsActivityRobolectricTest {
 
             assertEquals(listOf("AW020", "KNUQ"), stationIds)
             assertEquals("Real-time data from nearby stations", subtitle)
-            assertEquals("PERSONAL", adapter.items[0].stationType)
+            assertEquals(StationType.PERSONAL, adapter.items[0].stationType)
             assertFalse(logs.contains("No recent fetch logs for NWS"))
             assertFalse(logs.contains("No current observation fetch logs found for NWS"))
             assertTrue(logs.contains("enqueued type=charging_loop reason=charging_loop"))
@@ -295,7 +296,7 @@ class WeatherObservationsActivityRobolectricTest {
                         locationLat = 30.32079,
                         locationLon = -97.76048,
                         distanceKm = 5.8f,
-                        stationType = "OFFICIAL",
+                        stationType = StationType.OFFICIAL,
                         fetchedAt = now - 30_000L,
                         api = "NWS",
                     ),
@@ -335,7 +336,7 @@ class WeatherObservationsActivityRobolectricTest {
                         locationLat = 37.3414,
                         locationLon = -122.0422,
                         distanceKm = 17.25f,
-                        stationType = "PERSONAL",
+                        stationType = StationType.PERSONAL,
                         fetchedAt = now - 30_000L,
                         api = "NWS",
                     ),
@@ -362,7 +363,7 @@ class WeatherObservationsActivityRobolectricTest {
         runBlocking {
             database.observationDao().insertAll(
                 listOf(
-                    observation("KPAO", "Palo Alto Airport", now - 5_000L, 50.0f, 6.1f, stationType = "OFFICIAL")
+                    observation("KPAO", "Palo Alto Airport", now - 5_000L, 50.0f, 6.1f, stationType = StationType.OFFICIAL)
                         .copy(isWebFallback = true, qcFailed = true),
                 ),
             )
@@ -401,7 +402,7 @@ class WeatherObservationsActivityRobolectricTest {
         runBlocking {
             database.observationDao().insertAll(
                 listOf(
-                    observation("KPAO", "Palo Alto Airport", staleMs, 50.0f, 6.1f, stationType = "OFFICIAL"),
+                    observation("KPAO", "Palo Alto Airport", staleMs, 50.0f, 6.1f, stationType = StationType.OFFICIAL),
                 ),
             )
         }
@@ -444,7 +445,7 @@ class WeatherObservationsActivityRobolectricTest {
                         timestamp = newerFetchAt,
                         temperature = 74.5f,
                         distanceKm = 2.9f,
-                        stationType = "PERSONAL",
+                        stationType = StationType.PERSONAL,
                     ),
                 ),
             )
@@ -757,8 +758,8 @@ class WeatherObservationsActivityRobolectricTest {
             database.observationDao().deleteOldObservations(now + 60_000L)
             database.observationDao().insertAll(
                 listOf(
-                    observation("AW020", "AE6EO MOUNTAIN VIEW", staleMs, 71.0f, 2.9f, stationType = "PERSONAL"),
-                    observation("KNUQ", "Mountain View, Moffett Field", staleMs, 68.0f, 3.7f, stationType = "OFFICIAL"),
+                    observation("AW020", "AE6EO MOUNTAIN VIEW", staleMs, 71.0f, 2.9f, stationType = StationType.PERSONAL),
+                    observation("KNUQ", "Mountain View, Moffett Field", staleMs, 68.0f, 3.7f, stationType = StationType.OFFICIAL),
                 ),
             )
         }
@@ -810,8 +811,8 @@ class WeatherObservationsActivityRobolectricTest {
             database.observationDao().deleteOldObservations(now + 60_000L)
             database.observationDao().insertAll(
                 listOf(
-                    observation("AW020", "AE6EO MOUNTAIN VIEW", staleMs, 71.0f, 2.9f, stationType = "PERSONAL"),
-                    observation("KNUQ", "Mountain View, Moffett Field", staleMs, 68.0f, 3.7f, stationType = "OFFICIAL"),
+                    observation("AW020", "AE6EO MOUNTAIN VIEW", staleMs, 71.0f, 2.9f, stationType = StationType.PERSONAL),
+                    observation("KNUQ", "Mountain View, Moffett Field", staleMs, 68.0f, 3.7f, stationType = StationType.OFFICIAL),
                 ),
             )
         }
@@ -881,7 +882,7 @@ class WeatherObservationsActivityRobolectricTest {
         timestamp: Long,
         temperature: Float,
         distanceKm: Float,
-        stationType: String = "UNKNOWN",
+        stationType: StationType = StationType.UNKNOWN,
         api: String = apiForStationId(stationId),
     ): ObservationEntity {
         return ObservationEntity(

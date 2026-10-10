@@ -58,7 +58,7 @@ object MetarObservationMapper {
             locationLat = siteLat,
             locationLon = siteLon,
             distanceKm = station.distanceKm.toFloat(),
-            stationType = station.info.type.name,
+            stationType = station.info.type,
             api = SOURCE_ID,
             // No precip in the JSON. Pxxxx is "since the last hourly report", the same window as
             // NWS's precipitationLastHour, so the remarks group is a legitimate source here for the

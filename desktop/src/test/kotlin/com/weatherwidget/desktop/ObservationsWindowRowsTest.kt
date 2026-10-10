@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
@@ -23,7 +24,7 @@ class ObservationsWindowRowsTest {
         api: String = WeatherSource.NWS.id,
         temperature: Float = 60f,
         distanceKm: Float = 1f,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
     ) = ObservationReading(
         stationId = stationId,
         stationName = stationId,

@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
@@ -123,7 +124,7 @@ class TodayColumnOverlayContentResolverTest {
             locationLat = lat,
             locationLon = lon,
             distanceKm = distanceKm,
-            stationType = "OFFICIAL",
+            stationType = StationType.OFFICIAL,
             api = WeatherSource.NWS.id,
             fetchedAt = ms(local),
         )

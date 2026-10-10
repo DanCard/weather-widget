@@ -1,5 +1,6 @@
 package com.weatherwidget.ui
 
+import com.weatherwidget.data.model.StationType
 import android.content.Context
 import android.graphics.Color
 import android.text.SpannableStringBuilder
@@ -59,12 +60,12 @@ internal class ObservationAdapter(
                 ObservationOrigin.Kind.API -> R.string.station_origin_api
             }
         )
-        holder.stationTypeBadge.text = context.getString(R.string.station_type_origin_format, item.stationType, originStr)
+        holder.stationTypeBadge.text = context.getString(R.string.station_type_origin_format, item.stationType.name, originStr)
         holder.stationTypeBadge.setTextColor(
             when {
                 // Both error states mean "this reading is not in the blend" — say so in red.
                 origin == ObservationOrigin.Kind.QC_FAILED || origin == ObservationOrigin.Kind.STALE -> COLOR_ERROR
-                item.stationType == "OFFICIAL" -> COLOR_TYPE_OFFICIAL
+                item.stationType == StationType.OFFICIAL -> COLOR_TYPE_OFFICIAL
                 else -> COLOR_TYPE_PERSONAL
             }
         )

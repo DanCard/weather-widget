@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local
 
+import com.weatherwidget.data.model.StationType
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -56,7 +57,7 @@ interface ObservationDao {
         WHERE api = :api AND stationId IN (:stationIds) AND stationType != :stationType
     """,
     )
-    suspend fun retagStationType(api: String, stationIds: List<String>, stationType: String): Int
+    suspend fun retagStationType(api: String, stationIds: List<String>, stationType: StationType): Int
 
     /**
      * Timestamp of the newest stored reading for [api] at this site, or null when there is none.

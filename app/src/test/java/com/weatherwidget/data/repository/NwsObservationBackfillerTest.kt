@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.ObservationDao
@@ -33,7 +34,7 @@ class NwsObservationBackfillerTest {
         name = id,
         lat = 37.42,
         lon = -122.08,
-        type = NwsApi.StationType.OFFICIAL,
+        type = StationType.OFFICIAL,
     )
 
     private fun row(stationId: String) = ObservationEntity(
@@ -45,7 +46,7 @@ class NwsObservationBackfillerTest {
         locationLat = 37.417,
         locationLon = -122.089,
         distanceKm = 3f,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         fetchedAt = 1_791_000_000_000L,
         api = "NWS",
     )

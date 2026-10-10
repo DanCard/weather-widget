@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -119,7 +120,7 @@ class YesterdayDeltaCalculatorTest {
         locationLon = LON,
         distanceKm = distanceKm,
         api = api,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
     )
 
     private fun epoch(value: String): Long =

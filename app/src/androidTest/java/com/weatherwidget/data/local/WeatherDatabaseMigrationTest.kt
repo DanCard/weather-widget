@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local
 
+import com.weatherwidget.data.model.StationType
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -747,5 +748,51 @@ class WeatherDatabaseMigrationTest {
             assertTrue(c.moveToFirst())
             assertEquals(2, c.getInt(0))
         }
+    }
+
+    /**
+     * observations.stationType TEXT -> INTEGER (StationType.dbCode). Every stored spelling maps by
+     * name, a junk value becomes UNKNOWN rather than failing, and NWS_BLEND rows are dropped (the
+     * blend is computed on read). plans/261009-station-type-enum-integer-codes-in-db.md
+     */
+    @Test
+    fun migrate75To76_storesStationTypeAsIntegerCodes() {
+        helper.createDatabase(testDb, 75).apply {
+            fun insert(stationId: String, type: String) = execSQL(
+                "INSERT INTO observations (stationId, stationName, timestamp, temperature, condition, " +
+                    "locationLat, locationLon, distanceKm, stationType, fetchedAt, api, isWebFallback, " +
+                    "qcFailed, isMetar, cloudVerticalKind) VALUES " +
+                    "('$stationId', '$stationId', 1000, 68.0, 'Clear', 37.417, -122.089, 3.8, '$type', 1000, " +
+                    "'NWS', 0, 0, 0, 0)",
+            )
+            insert("KNUQ", "OFFICIAL")
+            insert("AW020", "PERSONAL")
+            insert("LOAC1", "RAWS")
+            insert("ODD1", "UNKNOWN")
+            insert("JUNK1", "something-else")
+            insert("NWS_BLEND", "BLENDED")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 76, true, WeatherDatabase.MIGRATION_75_76)
+
+        val codes = db.query("SELECT stationId, stationType, typeof(stationType) FROM observations").use { c ->
+            buildMap {
+                while (c.moveToNext()) {
+                    assertEquals("stationType must be stored as an integer", "integer", c.getString(2))
+                    put(c.getString(0), c.getInt(1))
+                }
+            }
+        }
+        assertEquals(
+            mapOf(
+                "KNUQ" to StationType.OFFICIAL.dbCode,
+                "AW020" to StationType.PERSONAL.dbCode,
+                "LOAC1" to StationType.RAWS.dbCode,
+                "ODD1" to StationType.UNKNOWN.dbCode,
+                "JUNK1" to StationType.UNKNOWN.dbCode,
+            ),
+            codes,
+        )
     }
 }

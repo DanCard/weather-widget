@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -43,7 +44,7 @@ class DailyActualsAssemblerTest {
         locationLon = lon,
         distanceKm = 2f,
         api = api,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
     )
 
     /** Coldest at the first hour, warming 1° per hour. */

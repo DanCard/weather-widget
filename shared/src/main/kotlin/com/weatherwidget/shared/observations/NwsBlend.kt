@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.SpatialInterpolator
@@ -19,7 +20,7 @@ import com.weatherwidget.shared.util.SpatialInterpolator
 object NwsBlend {
     const val STATION_ID = "NWS_BLEND"
     const val STATION_NAME = "NWS Blended"
-    const val STATION_TYPE = "BLENDED"
+    val STATION_TYPE = StationType.BLENDED
 
     /** Each station's newest reading that passed upstream QC, sorted by station id. */
     fun latestUsableByStation(readings: List<ObservationReading>): List<ObservationReading> =

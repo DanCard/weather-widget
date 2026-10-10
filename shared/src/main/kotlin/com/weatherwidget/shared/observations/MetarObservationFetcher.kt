@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.remote.AviationWeatherApi
 import com.weatherwidget.data.remote.AviationWeatherBbox
@@ -245,7 +246,7 @@ object MetarStationCacheCodec {
                     lon = lon,
                     // Every station in this feed is an airport reporting station; typing one
                     // PERSONAL would wrongly apply the personal-station discount in the blend.
-                    type = NwsApi.StationType.OFFICIAL,
+                    type = StationType.OFFICIAL,
                 ),
                 distanceKm = distance,
                 elevationMeters = f.getOrNull(5)?.toDoubleOrNull(),

@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.toEntity
@@ -65,7 +66,7 @@ class DesktopApiActualsMergeTest {
         temp: Float,
         stationId: String,
         distanceKm: Float,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
         api: String = WeatherSource.NWS.id,
     ) = ObservationReading(
         stationId = stationId,
@@ -81,7 +82,7 @@ class DesktopApiActualsMergeTest {
     )
 
     /** Covers both guard windows so the station qualifies. */
-    private fun coveredStation(stationId: String, distanceKm: Float, low: Float, high: Float, stationType: String = "OFFICIAL") =
+    private fun coveredStation(stationId: String, distanceKm: Float, low: Float, high: Float, stationType: StationType = StationType.OFFICIAL) =
         listOf(
             reading(3, low, stationId, distanceKm, stationType),
             reading(15, high, stationId, distanceKm, stationType),

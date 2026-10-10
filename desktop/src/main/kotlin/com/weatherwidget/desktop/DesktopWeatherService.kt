@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.CloudVerticalKind
@@ -396,7 +397,7 @@ class DesktopWeatherService(
                 locationLat = latitude,
                 locationLon = longitude,
                 distanceKm = 0f,
-                stationType = "OFFICIAL",
+                stationType = StationType.OFFICIAL,
                 api = WeatherSource.OPEN_METEO.id,
                 cloudCover = forecast.providerCurrentCloudCover,
                 cloudCoverLow = forecast.providerCurrentCloudCoverLow,
@@ -963,7 +964,7 @@ class DesktopWeatherService(
             locationLat = latitude,
             locationLon = longitude,
             distanceKm = 0f,
-            stationType = "OFFICIAL",
+            stationType = StationType.OFFICIAL,
             api = WeatherSource.OPEN_METEO.id,
             cloudCover = reading.cloudCover,
             cloudCoverLow = reading.cloudCoverLow,

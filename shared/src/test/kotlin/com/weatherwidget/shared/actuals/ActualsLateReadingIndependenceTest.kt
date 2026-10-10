@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -174,7 +175,7 @@ class ActualsLateReadingIndependenceTest {
             locationLon = LON,
             distanceKm = distanceKm,
             api = WeatherSource.NWS.id,
-            stationType = "OFFICIAL",
+            stationType = StationType.OFFICIAL,
         )
 
     private fun epoch(value: String): Long =

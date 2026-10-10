@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 
@@ -33,7 +34,7 @@ object DeviceBlendFixture {
                 locationLat = r.getValue("locationLat").toDouble(),
                 locationLon = r.getValue("locationLon").toDouble(),
                 distanceKm = r.getValue("distanceKm").toFloat(),
-                stationType = r.getValue("stationType"),
+                stationType = StationType.fromName(r.getValue("stationType")),
                 api = r.getValue("api"),
                 fetchedAt = r.getValue("fetchedAt").toLong(),
                 qcFailed = r.getValue("qcFailed") == "1",

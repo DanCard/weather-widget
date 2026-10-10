@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -34,7 +35,7 @@ class BlendBreakdownCaptureTest {
             BlendContribution(
                 stationId = "KNUQ",
                 stationName = "Moffett Federal Airfield",
-                stationType = "OFFICIAL",
+                stationType = StationType.OFFICIAL,
                 distanceKm = 3.2f,
                 lastReadingMs = 5 * 60_000L,
                 rawTemp = 63.4f,
@@ -67,7 +68,7 @@ class BlendBreakdownCaptureTest {
         time: String,
         temp: Float,
         distanceKm: Float,
-        stationType: String,
+        stationType: StationType,
     ) = ObservationReading(
         stationId = stationId,
         stationName = stationId,
@@ -102,14 +103,14 @@ class BlendBreakdownCaptureTest {
 
     // Each station's readings up to 08:20, exactly as the desktop DB held them.
     private fun observations() = listOf(
-        observation("AW020", "2026-08-03T08:00:00", 63.0f, 2.22f, "PERSONAL"),
-        observation("AW020", "2026-08-03T08:10:00", 64.0f, 2.22f, "PERSONAL"),
-        observation("AW020", "2026-08-03T08:20:00", 65.0f, 2.22f, "PERSONAL"),
-        observation("KNUQ", "2026-08-03T07:45:00", 64.4f, 3.82f, "OFFICIAL"),
-        observation("KNUQ", "2026-08-03T08:15:00", 64.4f, 3.82f, "OFFICIAL"),
-        observation("KPAO", "2026-08-03T07:47:00", 64.4f, 6.06f, "OFFICIAL"),
-        observation("KSJC", "2026-08-03T08:05:00", 64.4f, 15.91f, "OFFICIAL"),
-        observation("LOAC1", "2026-08-03T07:10:00", 55.0f, 8.33f, "PERSONAL"),
+        observation("AW020", "2026-08-03T08:00:00", 63.0f, 2.22f, StationType.PERSONAL),
+        observation("AW020", "2026-08-03T08:10:00", 64.0f, 2.22f, StationType.PERSONAL),
+        observation("AW020", "2026-08-03T08:20:00", 65.0f, 2.22f, StationType.PERSONAL),
+        observation("KNUQ", "2026-08-03T07:45:00", 64.4f, 3.82f, StationType.OFFICIAL),
+        observation("KNUQ", "2026-08-03T08:15:00", 64.4f, 3.82f, StationType.OFFICIAL),
+        observation("KPAO", "2026-08-03T07:47:00", 64.4f, 6.06f, StationType.OFFICIAL),
+        observation("KSJC", "2026-08-03T08:05:00", 64.4f, 15.91f, StationType.OFFICIAL),
+        observation("LOAC1", "2026-08-03T07:10:00", 55.0f, 8.33f, StationType.PERSONAL),
     )
 
     private fun blend(
@@ -373,7 +374,7 @@ class BlendBreakdownCaptureTest {
 
     @Test
     fun `RAWS has its own type letter, distinct from the value column's R`() {
-        assertEquals("F", BlendTableFormatter.typeLabel("RAWS"))
+        assertEquals("F", BlendTableFormatter.typeLabel(StationType.RAWS))
         assertTrue(BlendTableFormatter.LEGEND.any { it.contains("F = fire-weather (RAWS)") })
     }
 }

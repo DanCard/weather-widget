@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.withQuantizedLocation
@@ -195,7 +196,7 @@ class HourlyObservationBackfillLocationTest {
     private fun metarStationRows(
         graphStart: LocalDateTime,
         now: LocalDateTime,
-        stationType: String,
+        stationType: StationType,
         cloudCoverLow: Int?,
         isWebFallback: Boolean = false,
     ): List<ObservationEntity> {
@@ -219,7 +220,7 @@ class HourlyObservationBackfillLocationTest {
         // the same payload and fills the curve.
         val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
         val now = LocalDateTime.of(2026, 7, 30, 7, 0)
-        val observations = metarStationRows(graphStart, now, "OFFICIAL", cloudCoverLow = null)
+        val observations = metarStationRows(graphStart, now, StationType.OFFICIAL, cloudCoverLow = null)
 
         val decision =
             evaluateHourlyBackfillNeed(
@@ -240,7 +241,7 @@ class HourlyObservationBackfillLocationTest {
         // satisfy the check, so they must not keep it (and its 30-minute re-fetch) firing.
         val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
         val now = LocalDateTime.of(2026, 7, 30, 7, 0)
-        val observations = metarStationRows(graphStart, now, "PERSONAL", cloudCoverLow = null)
+        val observations = metarStationRows(graphStart, now, StationType.PERSONAL, cloudCoverLow = null)
 
         val decision =
             evaluateHourlyBackfillNeed(
@@ -259,7 +260,7 @@ class HourlyObservationBackfillLocationTest {
     fun `NWS does not request cloud repair when official buckets carry cloud`() {
         val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
         val now = LocalDateTime.of(2026, 7, 30, 7, 0)
-        val observations = metarStationRows(graphStart, now, "OFFICIAL", cloudCoverLow = 75)
+        val observations = metarStationRows(graphStart, now, StationType.OFFICIAL, cloudCoverLow = 75)
 
         val decision =
             evaluateHourlyBackfillNeed(
@@ -290,7 +291,7 @@ class HourlyObservationBackfillLocationTest {
         val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
         val now = LocalDateTime.of(2026, 7, 30, 7, 0)
         val observations = metarStationRows(
-            graphStart, now, "OFFICIAL", cloudCoverLow = null, isWebFallback = true,
+            graphStart, now, StationType.OFFICIAL, cloudCoverLow = null, isWebFallback = true,
         )
 
         val decision =
@@ -312,7 +313,7 @@ class HourlyObservationBackfillLocationTest {
         val graphStart = LocalDateTime.of(2026, 7, 29, 19, 0)
         val now = LocalDateTime.of(2026, 7, 30, 7, 0)
         val observations = metarStationRows(
-            graphStart, now, "OFFICIAL", cloudCoverLow = 75, isWebFallback = true,
+            graphStart, now, StationType.OFFICIAL, cloudCoverLow = 75, isWebFallback = true,
         )
 
         val decision =
@@ -419,7 +420,7 @@ class HourlyObservationBackfillLocationTest {
             condition = "Clear",
             locationLat = 37.417,
             locationLon = -122.089,
-            stationType = "OFFICIAL",
+            stationType = StationType.OFFICIAL,
             // Cloud present so metarCloudGapReason stays quiet and these cases isolate the
             // day-start check rather than tripping an unrelated repair reason.
             cloudCoverLow = 10,

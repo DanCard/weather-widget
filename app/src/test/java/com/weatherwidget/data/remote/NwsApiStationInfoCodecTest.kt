@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.StationType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -17,7 +18,7 @@ class NwsApiStationInfoCodecTest {
         assertNotNull(decoded)
         assertEquals("KNUQ", decoded!!.id)
         assertEquals("Mountain View, Moffett Field", decoded.name)
-        assertEquals(NwsApi.StationType.OFFICIAL, decoded.type)
+        assertEquals(StationType.OFFICIAL, decoded.type)
     }
 
     @Test
@@ -27,7 +28,7 @@ class NwsApiStationInfoCodecTest {
         assertNotNull(decoded)
         assertEquals("KSJC", decoded!!.id)
         assertEquals("San Jose, San Jose International Airport", decoded.name)
-        assertEquals(NwsApi.StationType.OFFICIAL, decoded.type)
+        assertEquals(StationType.OFFICIAL, decoded.type)
     }
 
     @Test
@@ -36,6 +37,6 @@ class NwsApiStationInfoCodecTest {
 
         assertNotNull(decoded)
         assertEquals("AW020", decoded!!.id)
-        assertEquals(NwsApi.StationType.PERSONAL, decoded.type)
+        assertEquals(StationType.PERSONAL, decoded.type)
     }
 }

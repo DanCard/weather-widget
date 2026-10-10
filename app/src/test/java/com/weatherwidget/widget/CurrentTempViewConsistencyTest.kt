@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.shared.util.SpatialInterpolator
@@ -68,7 +69,7 @@ class CurrentTempViewConsistencyTest {
             locationLat = TestData.LAT,
             locationLon = TestData.LON,
             distanceKm = 0f,
-            stationType = "BLENDED",
+            stationType = StationType.BLENDED,
             fetchedAt = nowMs,
             api = WeatherSource.NWS.id,
         )
@@ -87,7 +88,7 @@ class CurrentTempViewConsistencyTest {
                 locationLat = TestData.LAT,
                 locationLon = TestData.LON,
                 distanceKm = 0f,
-                stationType = "OFFICIAL",
+                stationType = StationType.OFFICIAL,
                 fetchedAt = nowMs - 25 * 60_000L,
                 api = WeatherSource.TOMORROW_IO.id,
             ),
@@ -100,7 +101,7 @@ class CurrentTempViewConsistencyTest {
                 locationLat = TestData.LAT,
                 locationLon = TestData.LON,
                 distanceKm = 0f,
-                stationType = "OFFICIAL",
+                stationType = StationType.OFFICIAL,
                 fetchedAt = nowMs + 20 * 60_000L,
                 api = WeatherSource.TOMORROW_IO.id,
             ),

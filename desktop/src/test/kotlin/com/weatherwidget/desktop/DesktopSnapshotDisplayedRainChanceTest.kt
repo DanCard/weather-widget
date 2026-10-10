@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
@@ -381,7 +382,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
                     stationId = "KNEAR", stationName = "Near", timestamp = t10,
                     temperature = 70f, condition = "Clear",
                     locationLat = lat, locationLon = lon, distanceKm = 1f,
-                    stationType = "OFFICIAL", fetchedAt = t10, api = source,
+                    stationType = StationType.OFFICIAL, fetchedAt = t10, api = source,
                 ),
             ),
         )

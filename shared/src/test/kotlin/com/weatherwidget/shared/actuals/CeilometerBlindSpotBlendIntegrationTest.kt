@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -42,7 +43,7 @@ class CeilometerBlindSpotBlendIntegrationTest {
         locationLat = lat,
         locationLon = lon,
         distanceKm = distanceKm,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         api = WeatherSource.NWS.id,
         rawMetar = raw,
         isMetar = isMetar,

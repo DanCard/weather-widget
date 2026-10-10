@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.remote.FetchErrorCode
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import android.content.Context
@@ -280,7 +281,7 @@ class CurrentTempRepository
                             point.first,
                             point.second,
                             calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
-                            "OFFICIAL",
+                            StationType.OFFICIAL,
                             api = source.id,
                         )
                         insertCurrentObservation(obsEntity)
@@ -323,7 +324,7 @@ class CurrentTempRepository
                             locationLat = point.first,
                             locationLon = point.second,
                             distanceKm = calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
-                            stationType = "OFFICIAL",
+                            stationType = StationType.OFFICIAL,
                             api = WeatherSource.OPEN_METEO.id,
                             cloudCover = reading.cloudCover,
                             cloudCoverLow = reading.cloudCoverLow,
@@ -374,7 +375,7 @@ class CurrentTempRepository
                     latitude,
                     longitude,
                     0f,
-                    "OFFICIAL",
+                    StationType.OFFICIAL,
                     api = WeatherSource.GOOGLE_WEATHER.id,
                 ),
             )

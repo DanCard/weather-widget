@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -52,7 +53,7 @@ class ObservedCloudBandPipelineIntegrationTest {
         locationLat = lat,
         locationLon = lon,
         distanceKm = 0f,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         api = WeatherSource.OPEN_METEO.id,
         cloudCoverLow = low,
         cloudCoverMid = mid,

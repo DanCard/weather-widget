@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.ObservationEntity
@@ -70,7 +71,7 @@ class NwsObservationSourceTest {
             name = "Moffett Federal Airfield",
             lat = 37.4161,
             lon = -122.0492,
-            type = NwsApi.StationType.OFFICIAL,
+            type = StationType.OFFICIAL,
         )
         val logDao = mockk<AppLogDao>(relaxed = true)
         val logged = mutableListOf<AppLogEntity>()
@@ -146,7 +147,7 @@ class NwsObservationSourceTest {
             name = "Palo Alto",
             lat = 37.46,
             lon = -122.12,
-            type = NwsApi.StationType.OFFICIAL,
+            type = StationType.OFFICIAL,
         )
         coEvery { nwsApi.getObservations(any(), any(), any()) } throws
             CancellationException("worker stopped")
@@ -208,7 +209,7 @@ class NwsObservationSourceTest {
             name = "Palo Alto",
             lat = 37.46,
             lon = -122.12,
-            type = NwsApi.StationType.OFFICIAL,
+            type = StationType.OFFICIAL,
         )
         SharedPreferencesUtil.getPrefs(context, "weather_prefs")
             .edit()
@@ -230,7 +231,7 @@ class NwsObservationSourceTest {
             name = "Mountain View, Moffett Field",
             lat = 37.4161,
             lon = -122.0492,
-            type = NwsApi.StationType.OFFICIAL,
+            type = StationType.OFFICIAL,
         )
         val apiMs = 1_787_645_700_000L
         val webMs = apiMs + 80 * 60_000L
@@ -254,7 +255,7 @@ class NwsObservationSourceTest {
             locationLat = 37.417,
             locationLon = -122.089,
             distanceKm = 2.4f,
-            stationType = "OFFICIAL",
+            stationType = StationType.OFFICIAL,
             api = "METAR",
             isMetar = true,
             rawMetar = "METAR KNUQ WEB",
@@ -277,7 +278,7 @@ class NwsObservationSourceTest {
             name = "Mountain View, Moffett Field",
             lat = 37.4161,
             lon = -122.0492,
-            type = NwsApi.StationType.OFFICIAL,
+            type = StationType.OFFICIAL,
         )
         coEvery { nwsApi.getLatestObservationDetailedResult("KNUQ", any()) } returns
             FetchOutcome.Success(

@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.shared.actuals.BlendContribution
 import com.weatherwidget.test.category.ShortDuration
 import java.time.LocalDateTime
@@ -160,7 +161,7 @@ class DominantStationLabelTest {
     ) = BlendContribution(
         stationId = stationId,
         stationName = stationId,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         distanceKm = 3.8f,
         lastReadingMs = lastReadingMs,
         rawTemp = rawTemp,

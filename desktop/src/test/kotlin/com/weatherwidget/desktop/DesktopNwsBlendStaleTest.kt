@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.SynopticApi
@@ -57,7 +58,7 @@ class DesktopNwsBlendStaleTest {
 
     private suspend fun fetchWithReadingAgedHours(hours: Long) = run {
         val nwsApi = mockk<NwsApi>()
-        val station = NwsApi.StationInfo("KNUQ", "Moffett Field", 37.4058, -122.0480, NwsApi.StationType.OFFICIAL)
+        val station = NwsApi.StationInfo("KNUQ", "Moffett Field", 37.4058, -122.0480, StationType.OFFICIAL)
         coEvery { nwsApi.getGridPoint(any(), any()) } returns
             NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
         coEvery { nwsApi.getObservationStations(any()) } returns listOf(station)

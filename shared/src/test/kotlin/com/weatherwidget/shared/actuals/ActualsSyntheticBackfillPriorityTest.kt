@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -30,7 +31,7 @@ class ActualsSyntheticBackfillPriorityTest {
 
     /** The real stations reporting on 2026-08-02, with their field distances and readings. */
     private fun realStations(): List<ObservationReading> = listOf(
-        observation("AW020", "2026-08-02T18:00:00", 79.0f, distanceKm = 2.22f, stationType = "PERSONAL"),
+        observation("AW020", "2026-08-02T18:00:00", 79.0f, distanceKm = 2.22f, stationType = StationType.PERSONAL),
         observation("KNUQ", "2026-08-02T18:00:00", 77.0f, distanceKm = 3.82f),
         observation("KPAO", "2026-08-02T18:00:00", 73.4f, distanceKm = 6.06f),
     )
@@ -133,7 +134,7 @@ class ActualsSyntheticBackfillPriorityTest {
         assertTrue("the backfill row must be flagged synthetic", dominant.contribution.isSynthetic)
         // The fields that would otherwise pass it off as a station reading, pinned so the flag stays
         // the only way to tell.
-        assertEquals("OFFICIAL", dominant.contribution.stationType)
+        assertEquals(StationType.OFFICIAL, dominant.contribution.stationType)
         assertEquals("observed", dominant.contribution.sourceKind)
     }
 
@@ -159,7 +160,7 @@ class ActualsSyntheticBackfillPriorityTest {
 
         assertEquals(TomorrowIoActuals.MERGED_SERIES_STATION_ID, dominant.contribution.stationId)
         assertTrue("tomorrow.io actuals must be flagged synthetic", dominant.contribution.isSynthetic)
-        assertEquals("OFFICIAL", dominant.contribution.stationType)
+        assertEquals(StationType.OFFICIAL, dominant.contribution.stationType)
         assertEquals("observed", dominant.contribution.sourceKind)
     }
 
@@ -218,7 +219,7 @@ class ActualsSyntheticBackfillPriorityTest {
         temperature: Float,
         api: String = WeatherSource.NWS.id,
         distanceKm: Float,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
     ): ObservationReading =
         ObservationReading(
             stationId = stationId,

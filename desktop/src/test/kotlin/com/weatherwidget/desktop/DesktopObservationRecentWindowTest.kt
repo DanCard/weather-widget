@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.SynopticApi
@@ -30,7 +31,7 @@ class DesktopObservationRecentWindowTest {
     private val lat = 37.4220
     private val lon = -122.0841
 
-    private fun station(id: String, name: String, type: NwsApi.StationType) =
+    private fun station(id: String, name: String, type: StationType) =
         NwsApi.StationInfo(id, name, lat, lon, type)
 
     private fun freshObservation(stationId: String, minutesAgo: Long, tempC: Float = 20.0f) = NwsApi.Observation(
@@ -53,7 +54,7 @@ class DesktopObservationRecentWindowTest {
     fun `recentOnly keeps every reading in the window, not just the newest`() = runTest {
         val nws = mockk<NwsApi>()
         val synoptic = mockk<SynopticApi>()
-        val station = station("KSJC", "San Jose", NwsApi.StationType.OFFICIAL)
+        val station = station("KSJC", "San Jose", StationType.OFFICIAL)
         val grid = NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
 
         // A KSJC-shaped station: publishing every 5 minutes, so a 10-minute poll straddles several
@@ -95,7 +96,7 @@ class DesktopObservationRecentWindowTest {
     fun `recentOnly requests a short window, not the 7-day history`() = runTest {
         val nws = mockk<NwsApi>()
         val synoptic = mockk<SynopticApi>()
-        val station = station("KNUQ", "Moffett Field", NwsApi.StationType.OFFICIAL)
+        val station = station("KNUQ", "Moffett Field", StationType.OFFICIAL)
         val grid = NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
 
         coEvery { nws.getGridPoint(any(), any()) } returns grid
@@ -129,7 +130,7 @@ class DesktopObservationRecentWindowTest {
     fun `recentOnly still contributes the latest reading when the window is empty`() = runTest {
         val nws = mockk<NwsApi>()
         val synoptic = mockk<SynopticApi>()
-        val station = station("KPAO", "Palo Alto", NwsApi.StationType.OFFICIAL)
+        val station = station("KPAO", "Palo Alto", StationType.OFFICIAL)
         val grid = NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
 
         coEvery { nws.getGridPoint(any(), any()) } returns grid
@@ -152,7 +153,7 @@ class DesktopObservationRecentWindowTest {
     fun `full fetch still requests the multi-day history window`() = runTest {
         val nws = mockk<NwsApi>()
         val synoptic = mockk<SynopticApi>()
-        val station = station("KNUQ", "Moffett Field", NwsApi.StationType.OFFICIAL)
+        val station = station("KNUQ", "Moffett Field", StationType.OFFICIAL)
         val grid = NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
 
         coEvery { nws.getGridPoint(any(), any()) } returns grid

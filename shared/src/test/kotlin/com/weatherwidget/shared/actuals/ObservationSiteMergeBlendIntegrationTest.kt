@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.ObservationSiteMerge
 import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.ObservationReading
@@ -45,7 +46,7 @@ class ObservationSiteMergeBlendIntegrationTest {
         locationLat = if (atCourt) courtLat else homeLat,
         locationLon = if (atCourt) courtLon else homeLon,
         distanceKm = distanceKm,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         api = WeatherSource.NWS.id,
         isMetar = true,
         rawMetar = "$station REPORT",

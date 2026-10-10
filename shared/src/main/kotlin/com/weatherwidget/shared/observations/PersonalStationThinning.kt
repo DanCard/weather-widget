@@ -1,5 +1,7 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.StationType
+
 /**
  * Floors how densely a *personal* weather station may be stored.
  *
@@ -25,9 +27,6 @@ object PersonalStationThinning {
     /** Minimum spacing kept for a personal station. */
     const val BUCKET_MS = 10 * 60 * 1000L
 
-    /** The `stationType` value that marks a non-official station. */
-    const val PERSONAL = "PERSONAL"
-
     /**
      * Drops personal-station rows that fall in a [BUCKET_MS] bucket another kept row already covers.
      *
@@ -52,7 +51,7 @@ object PersonalStationThinning {
     fun <T> thin(
         rows: List<T>,
         stationOf: (T) -> String,
-        stationTypeOf: (T) -> String?,
+        stationTypeOf: (T) -> StationType?,
         timestampOf: (T) -> Long,
     ): List<T> {
         if (rows.isEmpty()) return rows
@@ -86,7 +85,7 @@ object PersonalStationThinning {
     }
 
     /** Null and unknown types are treated as official — never thin what you cannot identify. */
-    private fun isPersonal(stationType: String?): Boolean = StationTypes.isDiscounted(stationType)
+    private fun isPersonal(stationType: StationType?): Boolean = stationType?.isDiscounted == true
 
     private fun bucketKey(station: String, timestampMs: Long): String =
         "$station|${Math.floorDiv(timestampMs, BUCKET_MS)}"

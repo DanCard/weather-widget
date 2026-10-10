@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.data.model.StationType
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.ObservationEntity
@@ -51,7 +52,7 @@ class SynopticStationTypeRetagTest {
         WeatherDatabase.setIsTesting(false)
     }
 
-    private fun row(station: String, type: String, api: String, ageMin: Long) = ObservationEntity(
+    private fun row(station: String, type: StationType, api: String, ageMin: Long) = ObservationEntity(
         stationId = station,
         stationName = station,
         timestamp = now - ageMin * 60_000L,
@@ -68,17 +69,17 @@ class SynopticStationTypeRetagTest {
         val dao = WeatherDatabase.getDatabase(context).observationDao()
         dao.insertAll(
             listOf(
-                row("LOAC1", "OFFICIAL", WeatherSource.SYNOPTIC.id, ageMin = 600),
-                row("KNUQ", "OFFICIAL", WeatherSource.SYNOPTIC.id, ageMin = 600),
-                row("LOAC1", "PERSONAL", WeatherSource.NWS.id, ageMin = 600),
+                row("LOAC1", StationType.OFFICIAL, WeatherSource.SYNOPTIC.id, ageMin = 600),
+                row("KNUQ", StationType.OFFICIAL, WeatherSource.SYNOPTIC.id, ageMin = 600),
+                row("LOAC1", StationType.PERSONAL, WeatherSource.NWS.id, ageMin = 600),
             ),
         )
         val source = mockk<SynopticObservationSource>()
         coEvery { source.fetchObservationsResult(any(), any(), any(), any(), any(), any()) } returns
             FetchOutcome.Success(
                 listOf(
-                    row("LOAC1", "RAWS", WeatherSource.SYNOPTIC.id, ageMin = 5),
-                    row("KNUQ", "OFFICIAL", WeatherSource.SYNOPTIC.id, ageMin = 5),
+                    row("LOAC1", StationType.RAWS, WeatherSource.SYNOPTIC.id, ageMin = 5),
+                    row("KNUQ", StationType.OFFICIAL, WeatherSource.SYNOPTIC.id, ageMin = 5),
                 ),
             )
 
@@ -90,11 +91,11 @@ class SynopticStationTypeRetagTest {
             .associate { "${it.api}|${it.stationId}|${if (it.timestamp < now - 60 * 60_000L) "old" else "new"}" to it.stationType }
         assertEquals(
             mapOf(
-                "SYNOPTIC|LOAC1|old" to "RAWS",
-                "SYNOPTIC|LOAC1|new" to "RAWS",
-                "SYNOPTIC|KNUQ|old" to "OFFICIAL",
-                "SYNOPTIC|KNUQ|new" to "OFFICIAL",
-                "NWS|LOAC1|old" to "PERSONAL",
+                "SYNOPTIC|LOAC1|old" to StationType.RAWS,
+                "SYNOPTIC|LOAC1|new" to StationType.RAWS,
+                "SYNOPTIC|KNUQ|old" to StationType.OFFICIAL,
+                "SYNOPTIC|KNUQ|new" to StationType.OFFICIAL,
+                "NWS|LOAC1|old" to StationType.PERSONAL,
             ),
             stored,
         )

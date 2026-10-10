@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.test.category.ShortDuration
 import java.time.LocalDateTime
@@ -46,7 +47,7 @@ class TodayColumnOverlayObservedAtSkewTest {
         locationLat = lat,
         locationLon = lon,
         distanceKm = distanceKm,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         api = "NWS",
         fetchedAt = atMs,
     )

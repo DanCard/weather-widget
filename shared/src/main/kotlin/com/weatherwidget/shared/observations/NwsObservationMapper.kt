@@ -77,7 +77,7 @@ object NwsObservationMapper {
             locationLat = siteLat,
             locationLon = siteLon,
             distanceKm = distanceKm(siteLat, siteLon, station.lat, station.lon).toFloat(),
-            stationType = station.type.name,
+            stationType = station.type,
             api = api,
             precipAmountMm = precipMm,
             maxTempLast24h = max24hCelsius?.let { celsiusToFahrenheit(it) },

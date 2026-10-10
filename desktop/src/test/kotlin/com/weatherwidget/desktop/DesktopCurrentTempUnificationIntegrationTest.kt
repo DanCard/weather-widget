@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
@@ -82,7 +83,7 @@ class DesktopCurrentTempUnificationIntegrationTest {
                 locationLat = testLat,
                 locationLon = testLon,
                 distanceKm = 0f,
-                stationType = "VIRTUAL",
+                stationType = StationType.UNKNOWN,
                 fetchedAt = nowMs,
                 api = WeatherSource.WEATHER_API.id
             )

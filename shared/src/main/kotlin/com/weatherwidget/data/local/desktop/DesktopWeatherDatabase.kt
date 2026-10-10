@@ -98,45 +98,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_hourly_history_lookup ON hourly_forecast_history(locationLat, locationLon, source, timestampToGroupPredictions)")
 
                 // Observations
-                stmt.execute("""
-                    CREATE TABLE IF NOT EXISTS observations (
-                        stationId TEXT NOT NULL,
-                        stationName TEXT NOT NULL,
-                        timestamp INTEGER NOT NULL,
-                        temperature REAL NOT NULL,
-                        condition TEXT NOT NULL,
-                        locationLat REAL NOT NULL,
-                        locationLon REAL NOT NULL,
-                        distanceKm REAL NOT NULL DEFAULT 0,
-                        stationType TEXT NOT NULL DEFAULT 'UNKNOWN',
-                        fetchedAt INTEGER NOT NULL,
-                        maxTempLast24h REAL,
-                        minTempLast24h REAL,
-                        api TEXT NOT NULL,
-                        precipAmountMm REAL,
-                        isWebFallback INTEGER NOT NULL DEFAULT 0,
-                        qcFailed INTEGER NOT NULL DEFAULT 0,
-                        cloudCover INTEGER,
-                        cloudCoverLow INTEGER,
-                        isMetar INTEGER NOT NULL DEFAULT 0,
-                        rawMetar TEXT,
-                        cloudCoverMid INTEGER,
-                        cloudCoverHigh INTEGER,
-                        cloudBaseLowMeters INTEGER,
-                        cloudBaseMidMeters INTEGER,
-                        cloudBaseHighMeters INTEGER,
-                        cloudEnvelopeBaseMeters INTEGER,
-                        cloudEnvelopeTopMeters INTEGER,
-                        cloudVerticalKind INTEGER NOT NULL DEFAULT 0,
-                        -- Location AND api are part of the identity. Two sources can observe the
-                        -- same station at the same instant (aviationweather and api.weather.gov both
-                        -- serve KNUQ), and one physical site can be observed from two fetch
-                        -- coordinates. Without them, an INSERT OR REPLACE silently destroys the other
-                        -- row and flips its provenance — measured on Android 2026-08-23, KNUQ was cut
-                        -- to 1 NWS row against 70 METAR rows. Matches Android's key exactly.
-                        PRIMARY KEY (stationId, timestamp, locationLat, locationLon, api)
-                    )
-                """.trimIndent())
+                stmt.execute(OBSERVATIONS_DDL)
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_location ON observations(locationLat, locationLon)")
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_time_loc ON observations(timestamp, locationLat, locationLon)")
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_api ON observations(api)")
@@ -603,6 +565,18 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             }
             // v28: api_usage_stats (requests per day/source/endpoint). Created by initialize()'s
             // CREATE TABLE IF NOT EXISTS before migrate() runs; nothing to move. Room MIGRATION_74_75.
+            // v29: observations.stationType TEXT -> INTEGER (StationType.dbCode). SQLite cannot change
+            // a column type, so rebuild. Room MIGRATION_75_76.
+            // plans/261009-station-type-enum-integer-codes-in-db.md
+            if (from < 29) {
+                stmt.execute("ALTER TABLE observations RENAME TO observations_old_v29")
+                stmt.execute(OBSERVATIONS_DDL)
+                stmt.execute(observationStationTypeCopySql("observations_old_v29", "observations"))
+                stmt.execute("DROP TABLE observations_old_v29")
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_location ON observations(locationLat, locationLon)")
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_time_loc ON observations(timestamp, locationLat, locationLon)")
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_observations_api ON observations(api)")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -661,12 +635,79 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
 
     companion object {
         /**
+         * The observations table, shared by initialize() (fresh installs) and the v29 rebuild so the
+         * two cannot drift. `stationType` is [com.weatherwidget.data.model.StationType.dbCode].
+         */
+        val OBSERVATIONS_DDL = """
+                    CREATE TABLE IF NOT EXISTS observations (
+                        stationId TEXT NOT NULL,
+                        stationName TEXT NOT NULL,
+                        timestamp INTEGER NOT NULL,
+                        temperature REAL NOT NULL,
+                        condition TEXT NOT NULL,
+                        locationLat REAL NOT NULL,
+                        locationLon REAL NOT NULL,
+                        distanceKm REAL NOT NULL DEFAULT 0,
+                        stationType INTEGER NOT NULL DEFAULT 0,
+                        fetchedAt INTEGER NOT NULL,
+                        maxTempLast24h REAL,
+                        minTempLast24h REAL,
+                        api TEXT NOT NULL,
+                        precipAmountMm REAL,
+                        isWebFallback INTEGER NOT NULL DEFAULT 0,
+                        qcFailed INTEGER NOT NULL DEFAULT 0,
+                        cloudCover INTEGER,
+                        cloudCoverLow INTEGER,
+                        isMetar INTEGER NOT NULL DEFAULT 0,
+                        rawMetar TEXT,
+                        cloudCoverMid INTEGER,
+                        cloudCoverHigh INTEGER,
+                        cloudBaseLowMeters INTEGER,
+                        cloudBaseMidMeters INTEGER,
+                        cloudBaseHighMeters INTEGER,
+                        cloudEnvelopeBaseMeters INTEGER,
+                        cloudEnvelopeTopMeters INTEGER,
+                        cloudVerticalKind INTEGER NOT NULL DEFAULT 0,
+                        -- Location AND api are part of the identity. Two sources can observe the
+                        -- same station at the same instant (aviationweather and api.weather.gov both
+                        -- serve KNUQ), and one physical site can be observed from two fetch
+                        -- coordinates. Without them, an INSERT OR REPLACE silently destroys the other
+                        -- row and flips its provenance — measured on Android 2026-08-23, KNUQ was cut
+                        -- to 1 NWS row against 70 METAR rows. Matches Android's key exactly.
+                        PRIMARY KEY (stationId, timestamp, locationLat, locationLon, api)
+                    )
+                """.trimIndent()
+
+        /** Every observations column, in DDL order; the v29 rebuild copies them by name. */
+        val OBSERVATION_COLUMNS = listOf(
+            "stationId", "stationName", "timestamp", "temperature", "condition", "locationLat",
+            "locationLon", "distanceKm", "stationType", "fetchedAt", "maxTempLast24h", "minTempLast24h",
+            "api", "precipAmountMm", "isWebFallback", "qcFailed", "cloudCover", "cloudCoverLow",
+            "isMetar", "rawMetar", "cloudCoverMid", "cloudCoverHigh", "cloudBaseLowMeters",
+            "cloudBaseMidMeters", "cloudBaseHighMeters", "cloudEnvelopeBaseMeters",
+            "cloudEnvelopeTopMeters", "cloudVerticalKind",
+        )
+
+        /**
+         * `INSERT … SELECT` body for rebuilding observations with integer station types: every
+         * column by name, `stationType` converted by the shared CASE, `NWS_BLEND` rows skipped (the
+         * blend is computed on read now). Shared by desktop v29 and Room MIGRATION_75_76.
+         */
+        fun observationStationTypeCopySql(from: String, to: String): String {
+            val columns = OBSERVATION_COLUMNS.joinToString(", ")
+            val select = OBSERVATION_COLUMNS.joinToString(", ") {
+                if (it == "stationType") com.weatherwidget.data.model.StationType.SQL_CODE_FROM_LEGACY_NAME else it
+            }
+            return "INSERT INTO $to ($columns) SELECT $select FROM $from WHERE stationId != 'NWS_BLEND'"
+        }
+
+        /**
          * Public so tests can assert "initialize() migrates all the way to current" rather than
          * hardcoding a literal — a hardcoded 23 in DesktopObservedCloudSchemaTest is what broke on
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 28
+        const val SCHEMA_VERSION = 29
 
         /**
          * Requests per local day, source and endpoint ([com.weatherwidget.data.remote.ApiUsageClassifier]).

@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import java.time.Instant
@@ -32,7 +33,6 @@ object StationDailyExtremes {
     const val LOW_WINDOW_START_HOUR = 0
     const val LOW_WINDOW_END_HOUR = 7 // exclusive
 
-    private const val OFFICIAL_STATION_TYPE = "OFFICIAL"
 
     data class StationDailyExtreme(
         val stationId: String,
@@ -62,7 +62,7 @@ object StationDailyExtremes {
             reading.api == sourceId &&
                 reading.timestamp >= dayStartMs &&
                 reading.timestamp < dayEndMs &&
-                reading.stationType == OFFICIAL_STATION_TYPE &&
+                reading.stationType == StationType.OFFICIAL &&
                 !reading.qcFailed &&
                 reading.stationId != "NWS_BLEND" &&
                 !ObservationSourceMatcher.isSyntheticBackfillStation(reading.stationId, sourceId)

@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
@@ -20,7 +21,7 @@ class NwsObservationMapperTest {
         name = "Palo Alto Airport",
         lat = 37.46,
         lon = -122.11,
-        type = NwsApi.StationType.OFFICIAL,
+        type = StationType.OFFICIAL,
     )
 
     private fun observation(
@@ -45,7 +46,7 @@ class NwsObservationMapperTest {
         assertEquals(50f, reading.temperature)
         assertEquals("Palo Alto Airport", reading.stationName)
         assertEquals("KPAO", reading.stationId)
-        assertEquals("OFFICIAL", reading.stationType)
+        assertEquals(StationType.OFFICIAL, reading.stationType)
     }
 
     @Test

@@ -13,10 +13,10 @@ import com.weatherwidget.shared.observations.MetarPlausibility
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class],
-    version = 75,
+    version = 76,
     exportSchema = true,
 )
-@TypeConverters(CloudVerticalKindConverters::class)
+@TypeConverters(CloudVerticalKindConverters::class, StationTypeConverters::class)
 abstract class WeatherDatabase : RoomDatabase() {
     abstract fun forecastDao(): ForecastDao
 
@@ -783,6 +783,46 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * `observations.stationType` TEXT -> INTEGER ([com.weatherwidget.data.model.StationType.dbCode]).
+         * SQLite cannot change a column type, so rebuild; the copy (shared with desktop v29) converts
+         * by name and drops any `NWS_BLEND` row. See
+         * plans/261009-station-type-enum-integer-codes-in-db.md.
+         */
+        val MIGRATION_75_76 = object : Migration(75, 76) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `observations` RENAME TO `observations_old_v76`")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `observations` (`stationId` TEXT NOT NULL, " +
+                        "`stationName` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `temperature` REAL NOT NULL, " +
+                        "`condition` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, " +
+                        "`distanceKm` REAL NOT NULL, `stationType` INTEGER NOT NULL, `fetchedAt` INTEGER NOT NULL, " +
+                        "`maxTempLast24h` REAL, `minTempLast24h` REAL, `api` TEXT NOT NULL, `precipAmountMm` REAL, " +
+                        "`isWebFallback` INTEGER NOT NULL, `qcFailed` INTEGER NOT NULL, `cloudCover` INTEGER, " +
+                        "`cloudCoverLow` INTEGER, `isMetar` INTEGER NOT NULL, `rawMetar` TEXT, " +
+                        "`cloudCoverMid` INTEGER, `cloudCoverHigh` INTEGER, `cloudBaseLowMeters` INTEGER, " +
+                        "`cloudBaseMidMeters` INTEGER, `cloudBaseHighMeters` INTEGER, " +
+                        "`cloudEnvelopeBaseMeters` INTEGER, `cloudEnvelopeTopMeters` INTEGER, " +
+                        "`cloudVerticalKind` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`stationId`, `timestamp`, `locationLat`, `locationLon`, `api`))",
+                )
+                db.execSQL(
+                    com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
+                        .observationStationTypeCopySql("`observations_old_v76`", "`observations`"),
+                )
+                db.execSQL("DROP TABLE `observations_old_v76`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_observations_locationLat_locationLon` " +
+                        "ON `observations` (`locationLat`, `locationLon`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_observations_timestamp_locationLat_locationLon` " +
+                        "ON `observations` (`timestamp`, `locationLat`, `locationLon`)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_observations_api` ON `observations` (`api`)")
+            }
+        }
+
         private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
             val cursor = db.query("PRAGMA table_info($table)")
             val columns = mutableListOf<String>()
@@ -845,7 +885,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

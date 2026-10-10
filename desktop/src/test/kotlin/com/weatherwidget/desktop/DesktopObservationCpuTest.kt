@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
@@ -107,7 +108,7 @@ class DesktopObservationCpuTest {
                         locationLat = lat,
                         locationLon = lon,
                         distanceKm = station.toFloat(),
-                        stationType = "OFFICIAL",
+                        stationType = StationType.OFFICIAL,
                         fetchedAt = now,
                         api = source,
                     ),
@@ -126,7 +127,7 @@ class DesktopObservationCpuTest {
         locationLat = lat,
         locationLon = lon,
         distanceKm = station.toFloat(),
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         api = source,
     )
 

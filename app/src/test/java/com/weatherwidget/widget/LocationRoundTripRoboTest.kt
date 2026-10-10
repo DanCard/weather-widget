@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.data.model.StationType
 import android.Manifest
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
@@ -149,7 +150,7 @@ class LocationRoundTripRoboTest : RobolectricTest() {
                     locationLat = homeLat,
                     locationLon = homeLon,
                     distanceKm = 2.4f,
-                    stationType = "OFFICIAL",
+                    stationType = StationType.OFFICIAL,
                     fetchedAt = hourMs(0),
                     api = source,
                     cloudCover = 20,

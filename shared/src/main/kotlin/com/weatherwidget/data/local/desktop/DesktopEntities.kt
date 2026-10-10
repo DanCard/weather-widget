@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.CloudVerticalKind
 
@@ -12,7 +13,7 @@ data class DesktopObservationEntity(
     val locationLat: Double,
     val locationLon: Double,
     val distanceKm: Float = 0f,
-    val stationType: String = "UNKNOWN",
+    val stationType: StationType = StationType.UNKNOWN,
     val fetchedAt: Long = System.currentTimeMillis(),
     val maxTempLast24h: Float? = null,
     val minTempLast24h: Float? = null,

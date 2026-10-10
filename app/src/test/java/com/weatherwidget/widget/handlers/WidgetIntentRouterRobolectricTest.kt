@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
@@ -68,7 +69,7 @@ class WidgetIntentRouterRobolectricTest {
         locationLat = lat,
         locationLon = lon,
         distanceKm = 1f,
-        stationType = "station",
+        stationType = StationType.UNKNOWN,
         api = WeatherSource.NWS.id,
         fetchedAt = epochMs(time),
     )
@@ -287,7 +288,7 @@ class WidgetIntentRouterRobolectricTest {
                         locationLat = lat,
                         locationLon = lon,
                         distanceKm = 1f,
-                        stationType = "station",
+                        stationType = StationType.UNKNOWN,
                         api = WeatherSource.NWS.id,
                         fetchedAt = obsTimeMs,
                     ),

@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.model.StationType
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.DailyHistoryEntity
@@ -95,7 +96,7 @@ class DailyActualsStoreCrossSiteTest : RobolectricTest() {
         locationLat = lat,
         locationLon = lon,
         distanceKm = 2f,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         fetchedAt = timestamp,
         api = source,
     )

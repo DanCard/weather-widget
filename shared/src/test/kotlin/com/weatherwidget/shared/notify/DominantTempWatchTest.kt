@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.notify
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.shared.actuals.BlendContribution
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
@@ -18,7 +19,7 @@ class DominantTempWatchTest {
     ) = BlendContribution(
         stationId = stationId,
         stationName = stationId,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         distanceKm = 3f,
         lastReadingMs = 1_700_000_000_000L,
         rawTemp = rawTemp,

@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
@@ -57,7 +58,7 @@ class NwsCloudActualsRoundTripTest {
         name = id,
         lat = lat,
         lon = lon,
-        type = if (official) NwsApi.StationType.OFFICIAL else NwsApi.StationType.PERSONAL,
+        type = if (official) StationType.OFFICIAL else StationType.PERSONAL,
     )
 
     private fun observation(
@@ -115,7 +116,7 @@ class NwsCloudActualsRoundTripTest {
                     locationLat = entities.first().locationLat,
                     locationLon = entities.first().locationLon,
                     distanceKm = 0f,
-                    stationType = "OFFICIAL",
+                    stationType = StationType.OFFICIAL,
                     api = WeatherSource.OPEN_METEO.id,
                     cloudCover = 88,
                 ),
@@ -350,7 +351,7 @@ class NwsCloudActualsRoundTripTest {
             locationLat = com.weatherwidget.data.local.LocationMatch.quantize(userLat),
             locationLon = com.weatherwidget.data.local.LocationMatch.quantize(userLon),
             distanceKm = 0f,
-            stationType = "OFFICIAL",
+            stationType = StationType.OFFICIAL,
             api = WeatherSource.WEATHER_API.id,
             cloudCoverLow = 61,
         )

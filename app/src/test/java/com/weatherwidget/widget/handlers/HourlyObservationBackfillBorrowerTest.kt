@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
@@ -105,6 +106,6 @@ class HourlyObservationBackfillBorrowerTest {
         locationLat = lat,
         locationLon = lon,
         api = WeatherSource.NWS.id,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
     )
 }

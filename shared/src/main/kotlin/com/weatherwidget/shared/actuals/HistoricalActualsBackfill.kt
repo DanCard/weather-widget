@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -76,7 +77,7 @@ object HistoricalActualsBackfill {
                     locationLat = latitude,
                     locationLon = longitude,
                     distanceKm = 0f,
-                    stationType = "OFFICIAL",
+                    stationType = StationType.OFFICIAL,
                     api = sourceId,
                     fetchedAt = fetchedAt,
                     precipAmountMm = if (keepHistoricalPrecip) hour.precipAmountMm else null,

@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.StationType
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -697,12 +698,12 @@ internal fun ObservationCard(
                 }
                 Text("${obs.stationId} • $distanceStr • ", fontSize = (18f * fontScale).sp, color = ObsStyle.textSecondary)
                 Text(
-                    "${obs.stationType} ($originStr)",
+                    "${obs.stationType.name} ($originStr)",
                     fontSize = (16f * fontScale).sp,
                     fontWeight = FontWeight.Bold,
                     color = when {
                         excludedFromBlend -> ObsStyle.error
-                        obs.stationType == "OFFICIAL" -> ObsStyle.typeOfficial
+                        obs.stationType == StationType.OFFICIAL -> ObsStyle.typeOfficial
                         else -> ObsStyle.typePersonal
                     }
                 )

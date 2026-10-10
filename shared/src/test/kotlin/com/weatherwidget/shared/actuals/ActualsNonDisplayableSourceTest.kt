@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.observations.ActualsProviderResolver
@@ -59,7 +60,7 @@ class ActualsNonDisplayableSourceTest {
         locationLon = lon,
         distanceKm = distanceKm,
         api = api,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
     )
 
     /** A full day of readings for one api, dense enough for the blend to emit a range. */

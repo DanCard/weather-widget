@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -9,7 +10,7 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class PersonalStationThinningTest {
 
-    private data class Row(val station: String, val type: String?, val ts: Long)
+    private data class Row(val station: String, val type: StationType?, val ts: Long)
 
     private fun thin(rows: List<Row>) = PersonalStationThinning.thin(
         rows = rows,
@@ -25,13 +26,13 @@ class PersonalStationThinningTest {
     fun `official stations are never thinned however dense`() {
         // KSJC reports every 4.6 min and is OFFICIAL, full-weight and sky-reporting. An
         // interval-based rule would thin exactly the station that must not be.
-        val rows = (0..11).map { Row("KSJC", "OFFICIAL", base + it * 5 * min) }
+        val rows = (0..11).map { Row("KSJC", StationType.OFFICIAL, base + it * 5 * min) }
         assertEquals(rows, thin(rows))
     }
 
     @Test
     fun `a personal station reporting every five minutes is halved`() {
-        val rows = (0..11).map { Row("G4110", "PERSONAL", base + it * 5 * min) }
+        val rows = (0..11).map { Row("G4110", StationType.PERSONAL, base + it * 5 * min) }
         val kept = thin(rows)
         // Buckets are 10 min, so one row per bucket plus the unconditional newest.
         assertEquals(listOf(0L, 10L, 20L, 30L, 40L, 50L, 55L), kept.map { (it.ts - base) / min })
@@ -39,13 +40,13 @@ class PersonalStationThinningTest {
 
     @Test
     fun `a personal station already at ten minutes is untouched`() {
-        val rows = (0..5).map { Row("496PG", "PERSONAL", base + it * 10 * min) }
+        val rows = (0..5).map { Row("496PG", StationType.PERSONAL, base + it * 10 * min) }
         assertEquals(rows, thin(rows))
     }
 
     @Test
     fun `a personal station at fifteen minutes is untouched`() {
-        val rows = (0..3).map { Row("E0597", "PERSONAL", base + it * 15 * min) }
+        val rows = (0..3).map { Row("E0597", StationType.PERSONAL, base + it * 15 * min) }
         assertEquals(rows, thin(rows))
     }
 
@@ -54,9 +55,9 @@ class PersonalStationThinningTest {
         // Latest-reading staleness drives DOMINANT_STATION, readingAgeMin and the backfill's
         // latest_gap_min gate, so the newest row must survive even when it shares a bucket.
         val rows = listOf(
-            Row("F4751", "PERSONAL", base),
-            Row("F4751", "PERSONAL", base + 2 * min),
-            Row("F4751", "PERSONAL", base + 4 * min),
+            Row("F4751", StationType.PERSONAL, base),
+            Row("F4751", StationType.PERSONAL, base + 2 * min),
+            Row("F4751", StationType.PERSONAL, base + 4 * min),
         )
         val kept = thin(rows)
         assertTrue("newest row must survive", kept.any { it.ts == base + 4 * min })
@@ -66,10 +67,10 @@ class PersonalStationThinningTest {
     @Test
     fun `stations are bucketed independently`() {
         val rows = listOf(
-            Row("A", "PERSONAL", base),
-            Row("B", "PERSONAL", base + min),
-            Row("A", "PERSONAL", base + 2 * min),
-            Row("B", "PERSONAL", base + 3 * min),
+            Row("A", StationType.PERSONAL, base),
+            Row("B", StationType.PERSONAL, base + min),
+            Row("A", StationType.PERSONAL, base + 2 * min),
+            Row("B", StationType.PERSONAL, base + 3 * min),
         )
         val kept = thin(rows)
         assertEquals(setOf("A", "B"), kept.map { it.station }.toSet())
@@ -82,7 +83,7 @@ class PersonalStationThinningTest {
         // The reason bucketing is absolute rather than walked forward from the batch's first row:
         // fetch windows overlap, and a batch-relative rule would keep a different subset each time
         // the window shifted, growing the table instead of shrinking it.
-        val full = (0..23).map { Row("G6550", "PERSONAL", base + it * 5 * min) }
+        val full = (0..23).map { Row("G6550", StationType.PERSONAL, base + it * 5 * min) }
         val shifted = full.drop(3)
 
         val fromFull = thin(full).map { it.ts }.toSet()
@@ -102,7 +103,7 @@ class PersonalStationThinningTest {
 
     @Test
     fun `input order does not change what is kept`() {
-        val rows = (0..11).map { Row("E7138", "PERSONAL", base + it * 5 * min) }
+        val rows = (0..11).map { Row("E7138", StationType.PERSONAL, base + it * 5 * min) }
         assertEquals(thin(rows).toSet(), thin(rows.reversed()).toSet())
     }
 
@@ -115,8 +116,8 @@ class PersonalStationThinningTest {
     fun `a mixed batch thins only the personal rows`() {
         val rows = (0..5).flatMap {
             listOf(
-                Row("KSJC", "OFFICIAL", base + it * 5 * min),
-                Row("G4110", "PERSONAL", base + it * 5 * min),
+                Row("KSJC", StationType.OFFICIAL, base + it * 5 * min),
+                Row("G4110", StationType.PERSONAL, base + it * 5 * min),
             )
         }
         val kept = thin(rows)
@@ -126,8 +127,8 @@ class PersonalStationThinningTest {
 
     @Test
     fun `a RAWS station is thinned exactly like a personal one`() {
-        val personal = thin((0..11).map { Row("G4110", "PERSONAL", base + it * 5 * min) }).map { it.ts }
-        val raws = thin((0..11).map { Row("LOAC1", "RAWS", base + it * 5 * min) }).map { it.ts }
+        val personal = thin((0..11).map { Row("G4110", StationType.PERSONAL, base + it * 5 * min) }).map { it.ts }
+        val raws = thin((0..11).map { Row("LOAC1", StationType.RAWS, base + it * 5 * min) }).map { it.ts }
         assertEquals(personal, raws)
         assertEquals(7, raws.size)
     }

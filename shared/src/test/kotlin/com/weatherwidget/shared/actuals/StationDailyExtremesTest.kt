@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.data.model.ObservationReading
 import java.time.LocalDate
@@ -32,7 +33,7 @@ class StationDailyExtremesTest {
         temp: Float,
         stationId: String,
         distanceKm: Float,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
         api: String = "NWS",
         qcFailed: Boolean = false,
         dayOffset: Long = 0,
@@ -57,7 +58,7 @@ class StationDailyExtremesTest {
         distanceKm: Float,
         low: Float,
         high: Float,
-        stationType: String = "OFFICIAL",
+        stationType: StationType = StationType.OFFICIAL,
         api: String = "NWS",
     ) = listOf(
         readingAt(3, low, stationId, distanceKm, stationType, api),
@@ -72,7 +73,7 @@ class StationDailyExtremesTest {
     @Test
     fun `picks nearest official station and ignores the nearer personal station`() {
         val observations =
-            coveredStation("AW020", 2.22f, 61.0f, 77.0f, stationType = "PERSONAL") +
+            coveredStation("AW020", 2.22f, 61.0f, 77.0f, stationType = StationType.PERSONAL) +
                 coveredStation("KNUQ", 3.83f, 60.8f, 75.2f) +
                 coveredStation("KSJC", 15.94f, 59.0f, 80.6f)
 
@@ -122,7 +123,7 @@ class StationDailyExtremesTest {
 
     @Test
     fun `returns null when only personal stations are present`() {
-        assertNull(resolve(coveredStation("AW020", 2.22f, 61.0f, 77.0f, stationType = "PERSONAL")))
+        assertNull(resolve(coveredStation("AW020", 2.22f, 61.0f, 77.0f, stationType = StationType.PERSONAL)))
     }
 
     @Test
@@ -184,7 +185,7 @@ class StationDailyExtremesTest {
     @Test
     fun `a nearer RAWS station is ignored like a personal one`() {
         val observations =
-            coveredStation("LOAC1", 6.7f, 62.0f, 92.0f, stationType = "RAWS") +
+            coveredStation("LOAC1", 6.7f, 62.0f, 92.0f, stationType = StationType.RAWS) +
                 coveredStation("KSJC", 14.2f, 59.0f, 84.0f)
         assertEquals("KSJC", resolve(observations)?.stationId)
     }

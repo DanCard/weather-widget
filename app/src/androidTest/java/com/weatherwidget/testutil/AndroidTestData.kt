@@ -1,5 +1,6 @@
 package com.weatherwidget.testutil
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import java.time.LocalDateTime
@@ -27,7 +28,7 @@ object AndroidTestData {
         locationLat = LAT,
         locationLon = LON,
         distanceKm = distanceKm,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         fetchedAt = System.currentTimeMillis(),
         api = "NWS"
     )

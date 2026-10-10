@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
@@ -48,7 +49,7 @@ class ObservedCloudBandsReadTest {
         locationLat = lat,
         locationLon = lon,
         distanceKm = 0f,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         api = WeatherSource.OPEN_METEO.id,
         cloudCoverLow = low,
         cloudCoverMid = mid,

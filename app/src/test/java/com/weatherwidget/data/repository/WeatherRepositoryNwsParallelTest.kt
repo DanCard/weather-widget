@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.model.StationType
 import android.content.Context
 import android.content.SharedPreferences
 import com.weatherwidget.data.local.*
@@ -100,8 +101,8 @@ class WeatherRepositoryNwsParallelTest {
         val gridPoint = NwsApi.GridPointInfo("MTR", 93, 87, "https://api.weather.gov/forecast", stationsUrl)
         coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
         coEvery { nwsApi.getObservationStations(stationsUrl) } returns listOf(
-            NwsApi.StationInfo("AW020", "AE6EO", 37.42, -122.08, NwsApi.StationType.PERSONAL),
-            NwsApi.StationInfo("KNUQ", "Moffett Field", 37.41, -122.05, NwsApi.StationType.OFFICIAL)
+            NwsApi.StationInfo("AW020", "AE6EO", 37.42, -122.08, StationType.PERSONAL),
+            NwsApi.StationInfo("KNUQ", "Moffett Field", 37.41, -122.05, StationType.OFFICIAL)
         )
         val now = OffsetDateTime.now().toString()
         coEvery { nwsApi.getLatestObservationDetailedResult("AW020", any()) } returns

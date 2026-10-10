@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local
 
+import com.weatherwidget.data.model.StationType
 import androidx.room.Entity
 import androidx.room.Index
 import com.weatherwidget.data.model.CloudVerticalKind
@@ -36,7 +37,7 @@ data class ObservationEntity(
     val locationLat: Double,
     val locationLon: Double,
     val distanceKm: Float = 0f,
-    val stationType: String = "UNKNOWN",
+    val stationType: StationType = StationType.UNKNOWN,
     val fetchedAt: Long = System.currentTimeMillis(),
     val maxTempLast24h: Float? = null, // Fahrenheit; from NWS maxTemperatureLast24Hours (rolling 24h ASOS extreme)
     val minTempLast24h: Float? = null, // Fahrenheit; from NWS minTemperatureLast24Hours (rolling 24h ASOS extreme)

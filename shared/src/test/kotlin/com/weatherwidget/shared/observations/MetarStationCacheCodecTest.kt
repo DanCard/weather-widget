@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.remote.AviationWeatherStationFilter
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.test.category.ShortDuration
@@ -20,7 +21,7 @@ class MetarStationCacheCodecTest {
         distanceKm: Double = 15.9,
         elev: Double? = 13.0,
     ) = AviationWeatherStationFilter.RankedStation(
-        info = NwsApi.StationInfo(id, name, lat, lon, NwsApi.StationType.OFFICIAL),
+        info = NwsApi.StationInfo(id, name, lat, lon, StationType.OFFICIAL),
         distanceKm = distanceKm,
         elevationMeters = elev,
     )
@@ -75,7 +76,7 @@ class MetarStationCacheCodecTest {
     @Test
     fun `every decoded station is OFFICIAL`() {
         val decoded = MetarStationCacheCodec.decode(MetarStationCacheCodec.encode(listOf(station("KX"))))
-        assertEquals(NwsApi.StationType.OFFICIAL, decoded.single().info.type)
+        assertEquals(StationType.OFFICIAL, decoded.single().info.type)
     }
 
     // ---- corrupt input degrades, never throws ----

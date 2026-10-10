@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.StationType
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.pow
@@ -51,7 +52,7 @@ object AviationWeatherStationFilter {
     /**
      * METAR-reporting candidates, nearest first, capped at [limit].
      *
-     * Every station here is an airport reporting station, so all are typed [NwsApi.StationType.OFFICIAL]
+     * Every station here is an airport reporting station, so all are typed [StationType.OFFICIAL]
      * — there is no personal-weather-station equivalent in this feed, and mislabelling one as
      * PERSONAL would wrongly apply `DEFAULT_PERSONAL_STATION_DISCOUNT` in the blend.
      */
@@ -73,7 +74,7 @@ object AviationWeatherStationFilter {
                         name = c.name.ifBlank { c.id },
                         lat = c.lat,
                         lon = c.lon,
-                        type = NwsApi.StationType.OFFICIAL,
+                        type = StationType.OFFICIAL,
                     ),
                     distanceKm = distanceKm(latitude, longitude, c.lat, c.lon),
                     elevationMeters = c.elevationMeters,

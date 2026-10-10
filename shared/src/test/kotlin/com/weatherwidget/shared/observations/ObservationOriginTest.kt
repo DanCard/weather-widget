@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.observations
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.test.category.ShortDuration
@@ -75,7 +76,7 @@ class ObservationOriginTest {
         locationLat = 37.0,
         locationLon = -122.0,
         distanceKm = 5f,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         api = "nws",
     )
 }

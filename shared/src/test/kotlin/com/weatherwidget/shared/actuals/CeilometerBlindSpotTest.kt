@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
@@ -30,7 +31,7 @@ class CeilometerBlindSpotTest {
         locationLat = 37.42,
         locationLon = -122.08,
         distanceKm = distanceKm,
-        stationType = "OFFICIAL",
+        stationType = StationType.OFFICIAL,
         api = WeatherSource.NWS.id,
         rawMetar = raw,
         isMetar = isMetar,
