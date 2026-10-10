@@ -341,6 +341,67 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         assertEquals(banner, stateManager.getActiveTransientMessage(widgetId))
     }
 
+    private fun onDemandPolicies(): List<ExistingWorkPolicy> {
+        val names = mutableListOf<String>()
+        val policies = mutableListOf<ExistingWorkPolicy>()
+        verify(atLeast = 0) {
+            mockWorkManager.enqueueUniqueWork(capture(names), capture(policies), any<OneTimeWorkRequest>())
+        }
+        return names.zip(policies).filter { it.first.startsWith("hourly_on_demand_") }.map { it.second }
+    }
+
+    @Test
+    fun `a paint's gap-fill fetches the uncovered day's source alone, quietly, not a full sync`() = runTest {
+        val targetDay = LocalDate.now().plusDays(5)
+        seedGoogleRoutine(targetDay)
+        restHourlyOn(targetDay)
+
+        WidgetDayClickCoordinator.fillHourlyGaps(context, widgetId, "temp_gaps")
+
+        assertNull("a paint raises no banner", stateManager.getActiveTransientMessage(widgetId))
+        val (name, request) = onDemandRequests().single()
+        assertEquals(HourlyOnDemandWorker.uniqueName(widgetId), name)
+        assertEquals(targetDay.toString(), HourlyOnDemandWorker.dateOf(request))
+        assertEquals(WeatherSource.GOOGLE_WEATHER.id, HourlyOnDemandWorker.sourceOf(request))
+        assertEquals(false, HourlyOnDemandWorker.announceOf(request))
+        assertEquals("never replaces a tap's or pan's fetch", ExistingWorkPolicy.KEEP, onDemandPolicies().single())
+        verify(exactly = 0) { mockWorkManager.enqueueUniqueWork(match { !it.startsWith("hourly_on_demand_") }, any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>()) }
+    }
+
+    @Test
+    fun `a second paint inside the cooldown does not fetch again`() = runTest {
+        val targetDay = LocalDate.now().plusDays(5)
+        seedGoogleRoutine(targetDay)
+        restHourlyOn(targetDay)
+
+        WidgetDayClickCoordinator.fillHourlyGaps(context, widgetId, "temp_gaps")
+        WidgetDayClickCoordinator.fillHourlyGaps(context, widgetId, "precip_gaps")
+
+        assertEquals(1, onDemandRequests().size)
+    }
+
+    @Test
+    fun `a paint's gap past a source's data neither fetches nor raises a banner`() = runTest {
+        val targetDay = LocalDate.now().plusDays(7)
+        seedMissingHourlyScenario(targetDay) // NWS, fresh, data ends today+6 17:00
+        restHourlyOn(targetDay)
+
+        WidgetDayClickCoordinator.fillHourlyGaps(context, widgetId, "cloud_gaps")
+
+        assertNull(stateManager.getActiveTransientMessage(widgetId))
+        assertTrue(onDemandRequests().isEmpty())
+    }
+
+    @Test
+    fun `a quiet fetch's result shows no banner when its hours did not arrive`() = runTest {
+        val targetDay = LocalDate.now().plusDays(5)
+        seedGoogleRoutine(targetDay)
+
+        WidgetDayClickCoordinator.completeOnDemand(context, widgetId, targetDay.toString(), lat, lon, announce = false)
+
+        assertNull(stateManager.getActiveTransientMessage(widgetId))
+    }
+
     private fun seedMissingHourlyScenario(targetDay: LocalDate, withFarHourlyRow: Boolean = true) {
         stateManager.setViewMode(widgetId, ViewMode.DAILY)
         stateManager.setCurrentDisplaySource(widgetId, source)

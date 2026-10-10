@@ -46,7 +46,10 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   billed page per 24 h; next week ≈ 7; reach 240 h, which is also how far both platforms load hourly),
   fresh for 12 h — `:shared` `HourlyOnDemand`. Any source whose stored hourly misses a tapped/panned-to
   day is fetched the same way, alone (per-source reach in `HourlyHorizons`; Android `HourlyOnDemandWorker`,
-  not the full sync — `plans/261009-on-demand-hourly-shared-single-source-fetch.md`). Hourly stays 72 h
+  not the full sync — `plans/261009-on-demand-hourly-shared-single-source-fetch.md`). That is the
+  **one** hourly gap-fill: an hourly-view paint with missing hours asks the same rule
+  (`WidgetDayClickCoordinator.fillHourlyGaps`, quiet, KEEP, 15-min cooldown) — the old per-view forced
+  full sync (`reason=hourly_gaps`) is gone (`plans/261009-one-hourly-gap-fill.md`). Hourly stays 72 h
   routinely because day/night rain % and the daily icon's noon cloud read it
   (`plans/261009-google-hourly-on-demand-past-72h.md`). Its quotas are per project,
   per Pacific calendar day (429 `window_start_time` = PT midnight, verified 2026-10-07).

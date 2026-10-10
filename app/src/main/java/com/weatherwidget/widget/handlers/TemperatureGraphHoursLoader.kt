@@ -15,7 +15,6 @@ import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.WidgetWorkScheduler
 import com.weatherwidget.widget.ZoomWindow
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -158,22 +157,16 @@ internal object TemperatureGraphHoursLoader {
 
         val cooldownMs = 15 * 60 * 1000L
         if (missingForecasts.fillableCount > 0) {
-            if (!sourceMissingFromLoad &&
-                stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, "hourly_gaps", cooldownMs)
-            ) {
-                stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, "hourly_gaps")
-                database.appLogDao().log(
-                    "TEMP_GAPS_REFRESH",
-                    "widget=$appWidgetId source=${displaySource.id} ${missingForecasts.diagnosticText()} " +
-                        "dataRows=${hourlyForecasts.size} dataLoc=${String.format(Locale.US, "%.5f,%.5f", lat, lon)}, " +
-                        "requesting immediate API update",
-                    "INFO"
-                )
-                WidgetWorkScheduler.enqueueRedundantImmediateSync(
-                    context = context,
-                    forceRefresh = true,
-                    reason = "hourly_gaps"
-                )
+            database.appLogDao().log(
+                "TEMP_GAPS",
+                "widget=$appWidgetId source=${displaySource.id} ${missingForecasts.diagnosticText()} " +
+                    "dataRows=${hourlyForecasts.size} dataLoc=${String.format(Locale.US, "%.5f,%.5f", lat, lon)} " +
+                    "sourceMissingFromLoad=$sourceMissingFromLoad",
+                "INFO"
+            )
+            // The one gap-fill: only a fetch that can cover a day in view, that source alone.
+            if (!sourceMissingFromLoad) {
+                com.weatherwidget.widget.WidgetDayClickCoordinator.fillHourlyGaps(context, appWidgetId, "temp_gaps")
             }
         } else if (missingForecasts.missingCount > 0) {
             // Every gap is older than the live-table boundary. The move's own fetch already filed

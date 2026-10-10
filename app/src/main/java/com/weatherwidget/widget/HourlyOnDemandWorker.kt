@@ -63,6 +63,7 @@ class HourlyOnDemandWorker
             val hours = inputData.getInt(KEY_HOURS, 0)
             val settleMs = inputData.getLong(KEY_SETTLE_MS, 0L)
             val enqueuedAtMs = inputData.getLong(KEY_ENQUEUED_AT_MS, System.currentTimeMillis())
+            val announce = inputData.getBoolean(KEY_ANNOUNCE, true)
             if (settleMs > 0) delay(settleMs)
             val startDelayMs = System.currentTimeMillis() - enqueuedAtMs - settleMs
 
@@ -82,13 +83,13 @@ class HourlyOnDemandWorker
             val fetchMs = SystemClock.elapsedRealtime() - fetchStart
 
             val paintStart = SystemClock.elapsedRealtime()
-            WidgetDayClickCoordinator.completeOnDemand(context, widgetId, date, lat, lon)
+            WidgetDayClickCoordinator.completeOnDemand(context, widgetId, date, lat, lon, announce)
             WidgetIntentActionHandler.renderWidgetFromCache(context, widgetId, weatherRepository)
             val paintMs = SystemClock.elapsedRealtime() - paintStart
 
             WeatherDatabase.getDatabase(context).appLogDao().log(
                 "HOURLY_ON_DEMAND",
-                "widget=$widgetId source=${source.id} date=$date hours=$hours answered=$answered " +
+                "widget=$widgetId source=${source.id} date=$date hours=$hours announce=$announce answered=$answered " +
                     "startDelayMs=$startDelayMs fetchMs=$fetchMs paintMs=$paintMs",
                 "INFO",
             )
@@ -104,12 +105,15 @@ class HourlyOnDemandWorker
             private const val KEY_HOURS = "hours"
             private const val KEY_SETTLE_MS = "settle_ms"
             private const val KEY_ENQUEUED_AT_MS = "enqueued_at_ms"
+            private const val KEY_ANNOUNCE = "announce"
 
             fun uniqueName(widgetId: Int) = "hourly_on_demand_$widgetId"
 
             /**
              * [hours]: the horizon Google asks for (`HourlyOnDemand.hoursToCover`); 0 for a source whose
              * single call returns its whole horizon. [afterPan]: wait [HourlyOnDemand.PAN_SETTLE_MS] first.
+             * [announce] false: a paint's quiet gap-fill (`WidgetDayClickCoordinator.fillHourlyGaps`) —
+             * no banner settled, and KEEP, so it never replaces a tap's or pan's announced fetch.
              */
             fun enqueue(
                 context: Context,
@@ -120,9 +124,11 @@ class HourlyOnDemandWorker
                 lon: Double,
                 hours: Int,
                 afterPan: Boolean,
+                announce: Boolean = true,
             ): OneTimeWorkRequest {
-                val request = request(widgetId, date, sourceId, lat, lon, hours, afterPan)
-                WorkManager.getInstance(context).enqueueUniqueWork(uniqueName(widgetId), ExistingWorkPolicy.REPLACE, request)
+                val request = request(widgetId, date, sourceId, lat, lon, hours, afterPan, announce)
+                val policy = if (announce) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
+                WorkManager.getInstance(context).enqueueUniqueWork(uniqueName(widgetId), policy, request)
                 return request
             }
 
@@ -139,6 +145,7 @@ class HourlyOnDemandWorker
                 lon: Double,
                 hours: Int,
                 afterPan: Boolean,
+                announce: Boolean = true,
                 sdkInt: Int = Build.VERSION.SDK_INT,
             ): OneTimeWorkRequest {
                 val builder = OneTimeWorkRequestBuilder<HourlyOnDemandWorker>()
@@ -156,6 +163,7 @@ class HourlyOnDemandWorker
                             .putInt(KEY_HOURS, hours)
                             .putLong(KEY_SETTLE_MS, if (afterPan) HourlyOnDemand.PAN_SETTLE_MS else 0L)
                             .putLong(KEY_ENQUEUED_AT_MS, System.currentTimeMillis())
+                            .putBoolean(KEY_ANNOUNCE, announce)
                             .tagTestModeEnqueue()
                             .build(),
                     )
@@ -170,6 +178,9 @@ class HourlyOnDemandWorker
 
             @VisibleForTesting
             internal fun hoursOf(request: OneTimeWorkRequest): Int = request.workSpec.input.getInt(KEY_HOURS, 0)
+
+            @VisibleForTesting
+            internal fun announceOf(request: OneTimeWorkRequest): Boolean = request.workSpec.input.getBoolean(KEY_ANNOUNCE, true)
 
             @VisibleForTesting
             internal fun settleMsOf(request: OneTimeWorkRequest): Long = request.workSpec.input.getLong(KEY_SETTLE_MS, 0L)

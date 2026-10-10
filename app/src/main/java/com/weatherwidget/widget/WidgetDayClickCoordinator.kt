@@ -79,15 +79,22 @@ internal object WidgetDayClickCoordinator {
         date: String,
         lat: Double,
         lon: Double,
+        announce: Boolean = true,
     ) {
         val nowMs = System.currentTimeMillis()
         val database = WeatherDatabase.getDatabase(context)
         val stateManager = WidgetStateManager(context)
         val dayLabel = NoHourlyDayClickCoordinator.formatDayLabel(date)
-        // A banner for a later day (the user panned on) is not this result's to replace or clear.
         val active = stateManager.getActiveTransientMessage(appWidgetId)
-        if (active != null && active != NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel)) {
+        val pending = NoHourlyDayClickCoordinator.buildPendingMessage(context, dayLabel)
+        // A banner for a later day (the user panned on) is not this result's to replace or clear.
+        if (active != null && active != pending) {
             database.appLogDao().log("CLICK_DAILY_NO_HOURLY", "phase=result date=$date superseded")
+            return
+        }
+        // A paint's gap-fill ([fillHourlyGaps]) raised no banner, so it settles none either.
+        if (!announce && active != pending) {
+            database.appLogDao().log("CLICK_DAILY_NO_HOURLY", "phase=result date=$date quiet")
             return
         }
         val hasHourly =
@@ -138,27 +145,11 @@ internal object WidgetDayClickCoordinator {
     suspend fun afterHourlyNavigate(context: Context, appWidgetId: Int, nowMs: Long = System.currentTimeMillis()) {
         val stateManager = WidgetStateManager(context)
         if (!stateManager.getViewMode(appWidgetId).isGraphMode) return
-        val zone = java.time.ZoneId.systemDefault()
-        val zoom = stateManager.getZoomWindow(appWidgetId)
-        val centerMs = nowMs + stateManager.getHourlyOffset(appWidgetId) * 3_600_000L
-        val windowStartMs = centerMs - zoom.backHours * 3_600_000L
-        val windowEndMs = centerMs + zoom.forwardHours * 3_600_000L
         val database = WeatherDatabase.getDatabase(context)
-        val sourceId = stateManager.getCurrentDisplaySource(appWidgetId).id
-        val latest = database.forecastDao().getLatestWeather() ?: return
-        val stored = NoHourlyDayClickCoordinator.storedHourlyForSource(
-            database, sourceId, latest.locationLat, latest.locationLon, nowMs,
-        )
-        // Every day the window shows, not only its centre's (HourlyOnDemand.panAction).
-        val daysInView = generateSequence(java.time.Instant.ofEpochMilli(windowStartMs).atZone(zone).toLocalDate()) { it.plusDays(1) }
-            .takeWhile { !it.isAfter(java.time.Instant.ofEpochMilli(windowEndMs).atZone(zone).toLocalDate()) }
-            .toList()
-        val hasHourlyByDay = daysInView.associateWith { day ->
-            NoHourlyDayClickCoordinator.hasHourlyForTappedDay(
-                database, stateManager, appWidgetId, day.toString(), latest.locationLat, latest.locationLon,
-            )
-        }
-        val action = HourlyOnDemand.panAction(sourceId, windowStartMs, windowEndMs, zone, nowMs, stored) { hasHourlyByDay[it] ?: false }
+        val window = hourlyWindow(context, stateManager, database, appWidgetId, nowMs) ?: return
+        val action = window.action
+        val sourceId = window.sourceId
+        val latest = window.latest
         val date = when (action) {
             is HourlyOnDemand.PanAction.Fetch -> action.date
             is HourlyOnDemand.PanAction.NoDataMessage -> action.date
@@ -166,7 +157,7 @@ internal object WidgetDayClickCoordinator {
         }
         database.appLogDao().log(
             "HOURLY_PAN",
-            "widget=$appWidgetId window=${daysInView.first()}..${daysInView.last()} source=$sourceId action=$action",
+            "widget=$appWidgetId window=${window.days.first()}..${window.days.last()} source=$sourceId action=$action",
         )
         if (date == null) return
         val dateStr = date.toString()
@@ -207,6 +198,91 @@ internal object WidgetDayClickCoordinator {
             }
             HourlyOnDemand.PanAction.Nothing -> Unit
         }
+    }
+
+    /**
+     * The one hourly gap-fill (plans/261009-one-hourly-gap-fill.md). A paint of an hourly view
+     * (temperature, precipitation, cloud) found hours missing in its window: ask the same rule as a
+     * pan ([HourlyOnDemand.panAction]) and, only when a fetch can cover a day in view, fetch that
+     * source alone — quietly, every [GAP_FILL_COOLDOWN_MS] at most. It replaced a forced full sync
+     * per handler, which also fired on every pan beside the on-demand fetch and refetched sources
+     * whose data simply ends.
+     *
+     * Quiet: no banner (a paint is not the user asking), and KEEP, so it never replaces a pan's or a
+     * tap's announced fetch. It is what retries after a failed fetch with no tap or pan.
+     */
+    suspend fun fillHourlyGaps(
+        context: Context,
+        appWidgetId: Int,
+        reason: String,
+        nowMs: Long = System.currentTimeMillis(),
+    ) {
+        val stateManager = WidgetStateManager(context)
+        if (!stateManager.getViewMode(appWidgetId).isGraphMode) return
+        val database = WeatherDatabase.getDatabase(context)
+        val window = hourlyWindow(context, stateManager, database, appWidgetId, nowMs) ?: return
+        val fetch = window.action as? HourlyOnDemand.PanAction.Fetch
+        val coolingDown = fetch != null &&
+            !stateManager.shouldRefreshMissingData(appWidgetId, window.sourceId, GAP_FILL_REFRESH_TYPE, GAP_FILL_COOLDOWN_MS)
+        database.appLogDao().log(
+            "HOURLY_GAP_FILL",
+            "widget=$appWidgetId reason=$reason window=${window.days.first()}..${window.days.last()} " +
+                "source=${window.sourceId} action=${window.action}${if (coolingDown) " cooldown" else ""}",
+        )
+        if (fetch == null || coolingDown) return
+        stateManager.markMissingDataRefreshRequested(appWidgetId, window.sourceId, GAP_FILL_REFRESH_TYPE)
+        HourlyOnDemandWorker.enqueue(
+            context = context,
+            widgetId = appWidgetId,
+            date = fetch.date.toString(),
+            sourceId = window.sourceId,
+            lat = window.latest.locationLat,
+            lon = window.latest.locationLon,
+            hours = fetch.hours,
+            afterPan = true,
+            announce = false,
+        )
+    }
+
+    const val GAP_FILL_REFRESH_TYPE = "hourly_gaps"
+    const val GAP_FILL_COOLDOWN_MS = 15 * 60 * 1000L
+
+    private class HourlyWindow(
+        val sourceId: String,
+        val latest: com.weatherwidget.data.local.ForecastEntity,
+        val days: List<LocalDate>,
+        val action: HourlyOnDemand.PanAction,
+    )
+
+    /** The hourly view's window right now, and what [HourlyOnDemand.panAction] says about it. */
+    private suspend fun hourlyWindow(
+        context: Context,
+        stateManager: WidgetStateManager,
+        database: WeatherDatabase,
+        appWidgetId: Int,
+        nowMs: Long,
+    ): HourlyWindow? {
+        val zone = java.time.ZoneId.systemDefault()
+        val zoom = stateManager.getZoomWindow(appWidgetId)
+        val centerMs = nowMs + stateManager.getHourlyOffset(appWidgetId) * 3_600_000L
+        val windowStartMs = centerMs - zoom.backHours * 3_600_000L
+        val windowEndMs = centerMs + zoom.forwardHours * 3_600_000L
+        val sourceId = stateManager.getCurrentDisplaySource(appWidgetId).id
+        val latest = database.forecastDao().getLatestWeather() ?: return null
+        val stored = NoHourlyDayClickCoordinator.storedHourlyForSource(
+            database, sourceId, latest.locationLat, latest.locationLon, nowMs,
+        )
+        // Every day the window shows, not only its centre's (HourlyOnDemand.panAction).
+        val daysInView = generateSequence(java.time.Instant.ofEpochMilli(windowStartMs).atZone(zone).toLocalDate()) { it.plusDays(1) }
+            .takeWhile { !it.isAfter(java.time.Instant.ofEpochMilli(windowEndMs).atZone(zone).toLocalDate()) }
+            .toList()
+        val hasHourlyByDay = daysInView.associateWith { day ->
+            NoHourlyDayClickCoordinator.hasHourlyForTappedDay(
+                database, stateManager, appWidgetId, day.toString(), latest.locationLat, latest.locationLon,
+            )
+        }
+        val action = HourlyOnDemand.panAction(sourceId, windowStartMs, windowEndMs, zone, nowMs, stored) { hasHourlyByDay[it] ?: false }
+        return HourlyWindow(sourceId, latest, daysInView, action)
     }
 
     fun isValid(intent: Intent): Boolean {

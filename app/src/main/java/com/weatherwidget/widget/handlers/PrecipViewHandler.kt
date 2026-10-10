@@ -27,7 +27,6 @@ import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.WidgetWorkScheduler
 import com.weatherwidget.widget.GraphRepaintGate
 import com.weatherwidget.widget.ObservationWatermark
 import java.time.Instant
@@ -326,21 +325,9 @@ object PrecipViewHandler {
                     "widget=$appWidgetId source=${displaySource.id} missing=$missingHours total=$totalWindowHours " +
                         "sourceMissingFromLoad=$sourceMissingFromLoad",
                 )
-                val cooldownMs = 15 * 60 * 1000L
-                if (!sourceMissingFromLoad &&
-                    stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, "hourly_gaps", cooldownMs)
-                ) {
-                    stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, "hourly_gaps")
-                    appLogDao.log(
-                        "PRECIP_GAPS_REFRESH",
-                        "widget=$appWidgetId source=${displaySource.id} missing=$missingHours, requesting immediate API update",
-                        "INFO"
-                    )
-                    WidgetWorkScheduler.enqueueRedundantImmediateSync(
-                        context = context,
-                        forceRefresh = true,
-                        reason = "hourly_gaps"
-                    )
+                // The one gap-fill: only a fetch that can cover a day in view, that source alone.
+                if (!sourceMissingFromLoad) {
+                    com.weatherwidget.widget.WidgetDayClickCoordinator.fillHourlyGaps(context, appWidgetId, "precip_gaps")
                 }
             }
 

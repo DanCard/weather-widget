@@ -36,7 +36,6 @@ import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.WidgetWorkScheduler
 import com.weatherwidget.widget.GraphRepaintGate
 import com.weatherwidget.widget.ObservationWatermark
 import kotlinx.coroutines.Job
@@ -467,21 +466,9 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                         "ranges=${missingDescription ?: "-"} reason=${missingReason ?: "-"} " +
                         "sourceMissingFromLoad=$sourceMissingFromLoad",
                 )
-                val cooldownMs = 15 * 60 * 1000L
-                if (!sourceMissingFromLoad &&
-                    stateManager.shouldRefreshMissingData(appWidgetId, effectiveDisplaySource.id, "hourly_gaps", cooldownMs)
-                ) {
-                    stateManager.markMissingDataRefreshRequested(appWidgetId, effectiveDisplaySource.id, "hourly_gaps")
-                    appLogDao.log(
-                        "CLOUD_COVER_GAPS_REFRESH",
-                        "widget=$appWidgetId source=${effectiveDisplaySource.id} missing=$missingHours, requesting immediate API update",
-                        "INFO"
-                    )
-                    WidgetWorkScheduler.enqueueRedundantImmediateSync(
-                        context = context,
-                        forceRefresh = true,
-                        reason = "hourly_gaps"
-                    )
+                // The one gap-fill: only a fetch that can cover a day in view, that source alone.
+                if (!sourceMissingFromLoad) {
+                    com.weatherwidget.widget.WidgetDayClickCoordinator.fillHourlyGaps(context, appWidgetId, "cloud_gaps")
                 }
             }
 
