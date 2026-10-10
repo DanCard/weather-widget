@@ -12,6 +12,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -27,18 +28,19 @@ class TomorrowIoDesktopServiceTest {
         val past = hour.minus(1, ChronoUnit.HOURS)
         val future = hour.plus(1, ChronoUnit.HOURS)
         val latestFiveMinute = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.MINUTES)
-        val capturedStarts = mutableListOf<String?>()
-        val capturedEnds = mutableListOf<String?>()
-        val capturedHourlyFields = mutableListOf<String?>()
-        val capturedTimesteps = mutableListOf<List<String>>()
-        var timelineCalls = 0
+        // fetchForecast sends the forecast and 5-minute requests concurrently, so this handler runs
+        // on two threads at once: one immutable record per request in a concurrent queue. Separate
+        // plain lists (and a `var` counter) threw ArrayIndexOutOfBounds from ArrayList.add under
+        // that race, and could pair one request's startTime with the other's timesteps.
+        val captured = ConcurrentLinkedQueue<CapturedRequest>()
         val engine = MockEngine { request ->
-            timelineCalls++
-            capturedStarts += request.url.parameters["startTime"]
-            capturedEnds += request.url.parameters["endTime"]
-            capturedHourlyFields += request.url.parameters["fields"]
             val timesteps = request.url.parameters.getAll("timesteps").orEmpty()
-            capturedTimesteps += timesteps
+            captured += CapturedRequest(
+                start = request.url.parameters["startTime"],
+                end = request.url.parameters["endTime"],
+                fields = request.url.parameters["fields"],
+                timesteps = timesteps,
+            )
             val body = if (timesteps == listOf("5m")) {
                 fiveMinuteTimelineJson(latestFiveMinute.minus(5, ChronoUnit.MINUTES), latestFiveMinute)
             } else {
@@ -63,18 +65,18 @@ class TomorrowIoDesktopServiceTest {
 
             // Covers the whole elapsed local day so a first-time fetch at a new site still gets
             // today's overnight minimum — see TomorrowIoApi's startTime comment.
-            assertEquals(2, timelineCalls)
-            assertEquals(setOf(listOf("1h", "1d"), listOf("5m")), capturedTimesteps.toSet())
-            assertEquals(2, capturedStarts.size)
-            val forecastIndex = capturedTimesteps.indexOf(listOf("1h", "1d"))
-            val fiveMinuteIndex = capturedTimesteps.indexOf(listOf("5m"))
-            assertEquals("nowMinus23h", capturedStarts[forecastIndex])
-            val fiveMinuteStart = Instant.parse(capturedStarts[fiveMinuteIndex])
-            val fiveMinuteEnd = Instant.parse(capturedEnds[fiveMinuteIndex])
+            val requests = captured.toList()
+            assertEquals(2, requests.size)
+            assertEquals(setOf(listOf("1h", "1d"), listOf("5m")), requests.map { it.timesteps }.toSet())
+            val forecastRequest = requests.single { it.timesteps == listOf("1h", "1d") }
+            val fiveMinuteRequest = requests.single { it.timesteps == listOf("5m") }
+            assertEquals("nowMinus23h", forecastRequest.start)
+            val fiveMinuteStart = Instant.parse(fiveMinuteRequest.start)
+            val fiveMinuteEnd = Instant.parse(fiveMinuteRequest.end)
             assertEquals(23L, ChronoUnit.HOURS.between(fiveMinuteStart, fiveMinuteEnd))
             assertEquals(0L, Math.floorMod(fiveMinuteEnd.epochSecond, 5 * 60L))
-            assertTrue(capturedHourlyFields.all { it.orEmpty().contains("cloudBase") })
-            assertTrue(capturedHourlyFields.all { it.orEmpty().contains("cloudCeiling") })
+            assertTrue(requests.all { it.fields.orEmpty().contains("cloudBase") })
+            assertTrue(requests.all { it.fields.orEmpty().contains("cloudCeiling") })
             assertEquals(
                 setOf(TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID),
                 result.rawObservations.map { it.stationId }.toSet(),
@@ -138,6 +140,13 @@ class TomorrowIoDesktopServiceTest {
             service.close()
         }
     }
+
+    private data class CapturedRequest(
+        val start: String?,
+        val end: String?,
+        val fields: String?,
+        val timesteps: List<String>,
+    )
 
     private fun combinedTimelineJson(past: Instant, future: Instant, day: Instant) =
         """{"data":{"timelines":[
