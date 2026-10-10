@@ -27,23 +27,33 @@ class DailyPrecipPeriodsTest {
         hour(at(date.plusDays(1), 8), 95), // next day's daytime, not this night
     )
 
+    private fun summary(rows: List<HourlyForecast>) = DailyHourlySummaries.forDate(rows, date, "OPEN_METEO", zone)
+
     @Test
     fun `day is the 8am-8pm max and night the 8pm-8am max`() {
-        assertEquals(DailyPrecipPeriods.Periods(50, 100), DailyPrecipPeriods.resolve(date, hourly, null, null, zone))
+        assertEquals(DailyPrecipPeriods.Periods(50, 100), DailyPrecipPeriods.resolve(null, null, summary(hourly)))
     }
 
     /** NWS "Tomorrow 30%" is its forecast for the period; one 95% hour must not replace it (3fa341b6). */
     @Test
     fun `the provider's own values win over hourly rows`() {
-        assertEquals(DailyPrecipPeriods.Periods(30, 70), DailyPrecipPeriods.resolve(date, hourly, 30, 70, zone))
+        assertEquals(DailyPrecipPeriods.Periods(30, 70), DailyPrecipPeriods.resolve(30, 70, summary(hourly)))
     }
 
     @Test
     fun `hourly rows fill a period the provider leaves empty`() {
-        assertEquals(DailyPrecipPeriods.Periods(30, 100), DailyPrecipPeriods.resolve(date, hourly, 30, null, zone))
-        val dayOnly = hourly.filter { it.dateTime < at(date, 20) }
-        assertEquals(DailyPrecipPeriods.Periods(50, null), DailyPrecipPeriods.resolve(date, dayOnly, null, null, zone))
-        assertEquals(DailyPrecipPeriods.Periods(null, null), DailyPrecipPeriods.resolve(date, emptyList(), null, null, zone))
+        assertEquals(DailyPrecipPeriods.Periods(30, 100), DailyPrecipPeriods.resolve(30, null, summary(hourly)))
+        assertEquals(DailyPrecipPeriods.Periods(null, null), DailyPrecipPeriods.resolve(null, null, summary(emptyList())))
+    }
+
+    /**
+     * Rows ending part-way through the night: no night value at all rather than a partial max — the
+     * row keeps the previous fetch's value instead ([DailyHourlySummaries.carryForward]).
+     */
+    @Test
+    fun `a period the rows only partly cover is left empty, not a partial max`() {
+        val dayOnly = hourly.filter { it.dateTime < at(date, 23) }
+        assertEquals(DailyPrecipPeriods.Periods(50, null), DailyPrecipPeriods.resolve(null, null, summary(dayOnly)))
     }
 
     @Test

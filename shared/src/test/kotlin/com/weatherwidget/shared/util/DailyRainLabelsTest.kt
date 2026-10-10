@@ -591,4 +591,100 @@ class DailyRainLabelsTest {
         assertEquals("31%", label)
         assertEquals(".043in", nightLabel)
     }
+
+    // ---- days past the 72 h hourly store (performance/261010-daily-view-summaries-instead-of-far-hourly.md) ----
+
+    /**
+     * NWS day 5: its own 12-hour period chance (30) is on the row, and so is the hourly max the fetch
+     * saw (60). The display has always preferred the hourly max; with hourly stored to 72 h it comes
+     * from the row, so the label does not change.
+     */
+    @Test
+    fun `a day past the stored hourly shows the row's hourly max before the provider's period chance`() {
+        val day5 = today.plusDays(5)
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = false,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = 30,
+            nighttimePrecipProbability = 20,
+            precipProbability = 30,
+            hourly = emptyList(),
+            targetDate = day5,
+            zoneId = zone,
+            hourlySummary = DailyHourlySummaries.Summary(noonCloudPercent = null, dayPrecipMax = 60, nightPrecipMax = 45),
+        )
+        assertEquals(60, resolved.dayPrecip)
+        assertEquals(45, resolved.nightPrecip)
+    }
+
+    @Test
+    fun `no hourly and no row max still falls back to the provider's period chance`() {
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = false,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = 30,
+            nighttimePrecipProbability = 20,
+            precipProbability = 35,
+            hourly = emptyList(),
+            targetDate = today.plusDays(5),
+            zoneId = zone,
+            hourlySummary = DailyHourlySummaries.Summary(),
+        )
+        assertEquals(30, resolved.dayPrecip)
+        assertEquals(20, resolved.nightPrecip)
+    }
+
+    @Test
+    fun `the row's value wins over stored hourly, which may be older`() {
+        val day = today.plusDays(1)
+        val hourly = (0 until 48).map { h ->
+            HourlyForecast(
+                dateTime = day.atStartOfDay(zone).toInstant().toEpochMilli() + h * 3_600_000L,
+                temperature = 60f,
+                condition = "Rain",
+                precipProbability = 25,
+                source = WeatherSource.NWS.id,
+            )
+        }
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = false,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = 30,
+            nighttimePrecipProbability = 20,
+            precipProbability = 30,
+            hourly = hourly,
+            targetDate = day,
+            zoneId = zone,
+            hourlySummary = DailyHourlySummaries.Summary(dayPrecipMax = 90, nightPrecipMax = 90),
+        )
+        assertEquals(90, resolved.dayPrecip)
+        assertEquals(90, resolved.nightPrecip)
+    }
+
+    @Test
+    fun `a row without its hourly max still reads the stored hourly, as before`() {
+        val day = today.plusDays(1)
+        val hourly = (0 until 48).map { h ->
+            HourlyForecast(
+                dateTime = day.atStartOfDay(zone).toInstant().toEpochMilli() + h * 3_600_000L,
+                temperature = 60f,
+                condition = "Rain",
+                precipProbability = 25,
+                source = WeatherSource.NWS.id,
+            )
+        }
+        val resolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = false,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = 30,
+            nighttimePrecipProbability = 20,
+            precipProbability = 30,
+            hourly = hourly,
+            targetDate = day,
+            zoneId = zone,
+            hourlySummary = DailyHourlySummaries.Summary(),
+        )
+        assertEquals(25, resolved.dayPrecip)
+        assertEquals(25, resolved.nightPrecip)
+    }
 }

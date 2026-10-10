@@ -436,6 +436,7 @@ object DesktopDailyForecastModel {
             targetDate = date,
             storedDayPrecipChance = actual?.forecastDayPrecipChance,
             storedNightPrecipChance = actual?.forecastNightPrecipChance,
+            hourlySummary = forecast?.hourlySummary,
         )
         // Past days prefer the amount frozen into daily_history while the day was live.
         val forecastAmountMm = (if (isPast) actual?.forecastPrecipAmountMm else null)
@@ -467,7 +468,11 @@ object DesktopDailyForecastModel {
         val rowSourceId = if (forecast?.isClimateNormal == true) WeatherSource.GENERIC_GAP.id else null
         // Past days prefer the noon cloud % frozen into daily_history while the day was live (see
         // DailyHistoryFreeze); live derivation stays for today/future and pre-feature rows.
+        // Today/future: the forecast row's own noon cloud first (DailyHourlySummaries, same as
+        // Android's DailyViewLogic — hours past the 72 h store may be older than the row), else the
+        // hourly noon row for rows written before it existed.
         val measuredNoonCloudPercent = (if (isPast) actual?.noonCloudPercent else null)
+            ?: forecast?.noonCloudPercent?.takeIf { !isPast && !forecast.isClimateNormal }
             ?: com.weatherwidget.shared.util.DailyNoonCloudCover
                 .resolveMeasuredNoonCloudCoverPercent(
                     hourly = hourly,

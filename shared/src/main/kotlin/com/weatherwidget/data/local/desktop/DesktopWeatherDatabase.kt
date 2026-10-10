@@ -208,6 +208,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     addDailyHistoryExtremeTimeColumns(stmt)
                     addDailyHistoryPriorForecastColumns(stmt)
                     addForecastHindcastColumns(stmt)
+                    addForecastHourlySummaryColumns(stmt)
                     stmt.execute("PRAGMA user_version = $SCHEMA_VERSION")
                 } else {
                     migrate(conn, currentVersion, SCHEMA_VERSION)
@@ -594,6 +595,12 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             // v30: source_view_days + source_view_tracking (how often the user switches sources).
             // Created by initialize()'s CREATE TABLE IF NOT EXISTS before migrate() runs; nothing to
             // move. Room MIGRATION_76_77. plans/261010-source-view-tracking-table.md
+            // v31: the daily view's noon cloud and hourly rain maxima on the forecast row, so hourly is
+            // stored to 72 h only. Room MIGRATION_77_78.
+            // performance/261010-daily-view-summaries-instead-of-far-hourly.md
+            if (from < 31) {
+                addForecastHourlySummaryColumns(stmt)
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -615,6 +622,10 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
 
     private fun addForecastHindcastColumns(stmt: java.sql.Statement) {
         FORECAST_HINDCAST_COLUMNS.forEach { addColumnIfMissing(stmt, "forecasts", it, "REAL") }
+    }
+
+    private fun addForecastHourlySummaryColumns(stmt: java.sql.Statement) {
+        FORECAST_HOURLY_SUMMARY_COLUMNS.forEach { addColumnIfMissing(stmt, "forecasts", it, "INTEGER") }
     }
 
     private fun addColumnIfMissing(stmt: java.sql.Statement, table: String, column: String, type: String) {
@@ -724,7 +735,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 30
+        const val SCHEMA_VERSION = 31
 
         /**
          * Requests per local day, source and endpoint ([com.weatherwidget.data.remote.ApiUsageClassifier]).
@@ -757,6 +768,14 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * Shared by desktop v27 and Room MIGRATION_73_74.
          */
         val FORECAST_HINDCAST_COLUMNS = listOf("hindcastHighTemp", "hindcastLowTemp")
+
+        /**
+         * `forecasts` columns holding what the daily view reads from hourly rows — noon cloud % and the
+         * 8am–8pm / 8pm–8am rain maxima ([com.weatherwidget.shared.util.DailyHourlySummaries]) — so
+         * hourly is stored to 72 h only. Nullable INTEGER 0–100. Shared by desktop v31 and Room
+         * MIGRATION_77_78.
+         */
+        val FORECAST_HOURLY_SUMMARY_COLUMNS = listOf("noonCloudPercent", "hourlyDayPrecipMax", "hourlyNightPrecipMax")
 
         /**
          * Column list shared by the desktop `daily_history` CREATE TABLE and the v19 rebuild (and by

@@ -11,10 +11,11 @@ import kotlin.math.ceil
  * ([HourlyHorizons]), never a source check here
  * (`plans/261009-on-demand-hourly-shared-single-source-fetch.md`).
  *
- * Google stores 72 h routinely (`GoogleWeatherApi.FORECAST_HOURS`; the daily icon's noon cloud reads
- * those hours) and serves 240 h at a billed page per 24 h, so its later hours are fetched only when
- * someone opens that day. Every other source stores its whole horizon on each fetch; for it a fetch
- * helps only when its stored rows are stale or missing at this site.
+ * Every source stores 72 h routinely ([HourlyHorizons.ROUTINE_HOURS]; the daily view keeps its far
+ * days' noon cloud and rain maxima on the forecast row, `DailyHourlySummaries`), so later hours are
+ * fetched only when someone opens that day. Google serves 240 h at a billed page per 24 h; the free
+ * sources return their whole horizon in one call and the save keeps it out to the requested day
+ * (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`).
  *
  * Google pages by token from the current hour, so reaching day N costs every page before it: next
  * week's Thursday is about 7 requests (the first 3 every routine fetch pays anyway).
@@ -42,9 +43,17 @@ object HourlyOnDemand {
     /** A fetch's deeper horizon for a tapped day's source; null on every other fetch. */
     data class Request(val sourceId: String, val hours: Int)
 
-    /** The horizon a fetch of [sourceId] asks for: [request]'s, else what the source stores routinely. */
-    fun hoursAhead(sourceId: String, request: Request?): Int =
-        request?.takeIf { it.sourceId == sourceId }?.hours ?: HourlyHorizons.of(sourceId).routineHours
+    /**
+     * The horizon a fetch of [sourceId] asks for and stores: what the source stores routinely, or for
+     * an on-demand [request] — [request]'s depth where reaching further costs requests (Google), else
+     * the source's whole horizon. A free source's one call returns all of it anyway, and keeping it
+     * all is what lets [hoursToCover] know a recent on-demand fetch already brought everything.
+     */
+    fun hoursAhead(sourceId: String, request: Request?): Int {
+        val horizon = HourlyHorizons.of(sourceId)
+        val requested = request?.takeIf { it.sourceId == sourceId } ?: return horizon.routineHours
+        return if (horizon.costsPerExtraDay) requested.hours else horizon.maxHours
+    }
 
     /**
      * First instant past [sourceId]'s routine window — where on-demand hours begin — or null for a
@@ -62,7 +71,10 @@ object HourlyOnDemand {
      * - a day [storedHourly] covers (this source's rows at the site: a row at or past the day's last
      *   wanted hour, fetched within [MAX_EXTENSION_AGE_MS] when it lies past the routine window);
      * - a day inside the routine window when the source was fetched within [MAX_EXTENSION_AGE_MS]: its
-     *   fresh data simply ends sooner, and fetching again would not change that.
+     *   fresh data simply ends sooner, and fetching again would not change that;
+     * - for a source whose extra days are free, any day once an on-demand fetch within
+     *   [MAX_EXTENSION_AGE_MS] stored hours past the routine window: that fetch kept the source's whole
+     *   horizon ([hoursAhead]), so its data ends where the API's does (NWS: ~150 h).
      */
     fun hoursToCover(
         sourceId: String,
@@ -88,6 +100,10 @@ object HourlyOnDemand {
         val newestFetchMs = storedHourly.maxOfOrNull { it.fetchedAt }
         val fetchedRecently = newestFetchMs != null && nowMs - newestFetchMs <= MAX_EXTENSION_AGE_MS
         if (lastWantedMs < routineEndMs && fetchedRecently) return null
+        val wholeHorizonFresh = !horizon.costsPerExtraDay && storedHourly.any { row ->
+            row.dateTime >= routineEndMs && nowMs - row.fetchedAt <= MAX_EXTENSION_AGE_MS
+        }
+        if (wholeHorizonFresh) return null
         val hours = ceil((lastWantedMs - currentHour).toDouble() / HOUR_MS).toInt() + 1
         return hours.coerceIn(horizon.routineHours, horizon.maxHours)
     }

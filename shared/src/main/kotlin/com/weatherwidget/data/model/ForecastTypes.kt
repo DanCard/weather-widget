@@ -55,7 +55,21 @@ data class DailyForecast(
     val source: String? = null,
     val daytimePrecipProbability: Int? = null,
     val nighttimePrecipProbability: Int? = null,
-)
+    // What the daily view reads from hourly rows (DailyHourlySummaries), stored on the row so hourly
+    // is kept to 72 h only: noon cloud % and the 8am–8pm / 8pm–8am rain maxima.
+    val noonCloudPercent: Int? = null,
+    val hourlyDayPrecipMax: Int? = null,
+    val hourlyNightPrecipMax: Int? = null,
+) {
+    val hourlySummary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary
+        get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax)
+
+    fun withHourlySummary(summary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary): DailyForecast = copy(
+        noonCloudPercent = summary.noonCloudPercent,
+        hourlyDayPrecipMax = summary.dayPrecipMax,
+        hourlyNightPrecipMax = summary.nightPrecipMax,
+    )
+}
 
 data class DailyForecastSnapshot(
     val date: String,

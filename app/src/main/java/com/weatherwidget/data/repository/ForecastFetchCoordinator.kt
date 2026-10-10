@@ -17,7 +17,11 @@ import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WidgetConstants
+import com.weatherwidget.shared.util.DailyHourlySummaries
 import com.weatherwidget.shared.util.DailyPrecipPeriods
+import com.weatherwidget.data.local.hourlySummary
+import com.weatherwidget.data.local.withHourlySummary
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.FetchErrorCode
 import com.weatherwidget.data.remote.ApiKeyRedaction
@@ -180,19 +184,27 @@ internal class ForecastFetchCoordinator(
      * provisioned in this build) are absent — the fetch loop skips them just as the old per-source
      * `if` guards did.
      */
+    /**
+     * Last instant (exclusive) of hourly a fetch of [source] stores: 72 h routinely, deeper for the
+     * on-demand day it was asked for ([HourlyOnDemand.hoursAhead]). Past it, only the daily row's
+     * summaries are kept ([DailyHourlySummaries]).
+     */
+    private fun hourlyKeepUntilMs(source: WeatherSource, fetchContext: ForecastFetchContext?): Long =
+        DailyHourlySummaries.keepUntilMs(clock(), HourlyOnDemand.hoursAhead(source.id, fetchContext?.hourlyAhead))
+
     private fun buildFetchRegistry(fetchContext: ForecastFetchContext?): Map<WeatherSource, SourceFetchEntry> = buildMap {
         put(WeatherSource.NWS, SourceFetchEntry(WeatherSource.NWS) { lat, lon ->
-            fetchFromNws(lat, lon)
+            fetchFromNws(lat, lon, hourlyKeepUntilMs(WeatherSource.NWS, fetchContext))
         })
         openWeatherMapApi?.let { api ->
             put(WeatherSource.OPEN_WEATHER_MAP, SourceFetchEntry(WeatherSource.OPEN_WEATHER_MAP) { lat, lon ->
-                fetchAndSaveSharedForecast(lat, lon, WeatherSource.OPEN_WEATHER_MAP) {
+                fetchAndSaveSharedForecast(lat, lon, WeatherSource.OPEN_WEATHER_MAP, hourlyKeepUntilMs(WeatherSource.OPEN_WEATHER_MAP, fetchContext)) {
                     api.getForecast(lat, lon)
                 }
             })
         }
         put(WeatherSource.OPEN_METEO, SourceFetchEntry(WeatherSource.OPEN_METEO) { lat, lon ->
-            fetchAndSaveSharedForecast(lat, lon, WeatherSource.OPEN_METEO) {
+            fetchAndSaveSharedForecast(lat, lon, WeatherSource.OPEN_METEO, hourlyKeepUntilMs(WeatherSource.OPEN_METEO, fetchContext)) {
                 openMeteoApi.getForecast(lat, lon, historyDays = 7)
             }.also {
                 // Only Open-Meteo has a previous-runs product, and this rides its fetch so
@@ -201,14 +213,14 @@ internal class ForecastFetchCoordinator(
             }
         })
         put(WeatherSource.WEATHER_API, SourceFetchEntry(WeatherSource.WEATHER_API) { lat, lon ->
-            val forecasts = fetchAndSaveSharedForecast(lat, lon, WeatherSource.WEATHER_API) {
+            val forecasts = fetchAndSaveSharedForecast(lat, lon, WeatherSource.WEATHER_API, hourlyKeepUntilMs(WeatherSource.WEATHER_API, fetchContext)) {
                 weatherApi.getForecast(lat, lon)
             }
             weatherApiHistoryBackfiller.backfillIfNeeded(lat, lon)
             forecasts
         })
         put(WeatherSource.SILURIAN, SourceFetchEntry(WeatherSource.SILURIAN) { lat, lon ->
-            fetchFromSilurian(lat, lon)
+            fetchFromSilurian(lat, lon, hourlyKeepUntilMs(WeatherSource.SILURIAN, fetchContext))
         })
         googleWeatherApi?.let { api ->
             put(WeatherSource.GOOGLE_WEATHER, SourceFetchEntry(WeatherSource.GOOGLE_WEATHER) { lat, lon ->
@@ -233,7 +245,7 @@ internal class ForecastFetchCoordinator(
                     },
                     nowMs = nowMs,
                 )
-                fetchAndSaveSharedForecast(lat, lon, WeatherSource.GOOGLE_WEATHER) {
+                fetchAndSaveSharedForecast(lat, lon, WeatherSource.GOOGLE_WEATHER, hourlyKeepUntilMs(WeatherSource.GOOGLE_WEATHER, fetchContext)) {
                     api.getForecast(
                         lat,
                         lon,
@@ -252,7 +264,7 @@ internal class ForecastFetchCoordinator(
         }
         tomorrowIoApi?.let { api ->
             put(WeatherSource.TOMORROW_IO, SourceFetchEntry(WeatherSource.TOMORROW_IO) { lat, lon ->
-                fetchAndSaveSharedForecast(lat, lon, WeatherSource.TOMORROW_IO) {
+                fetchAndSaveSharedForecast(lat, lon, WeatherSource.TOMORROW_IO, hourlyKeepUntilMs(WeatherSource.TOMORROW_IO, fetchContext)) {
                     coroutineScope {
                         val forecastDeferred = async { api.getForecast(lat, lon) }
                         val historyDeferred = async {
@@ -350,7 +362,7 @@ internal class ForecastFetchCoordinator(
     ) {
         val nowMs = clock()
         snapshotStore.saveForecastSnapshot(
-            withStoredPrecipPeriods(forecasts, latitude, longitude, source.id),
+            withStoredHourlySummaries(forecasts, latitude, longitude, source.id),
             latitude,
             longitude,
             source.id,
@@ -383,12 +395,14 @@ internal class ForecastFetchCoordinator(
     }
 
     /**
-     * Day/night precip for each daily row by the shared rule ([DailyPrecipPeriods], same as desktop):
-     * the provider's own value carried on the row, else the max over the source's hourly rows as
-     * stored now — every fetch saves its hourly rows before returning its daily ones, and a Google
-     * one-page fetch leaves hours 25–72 in place.
+     * The daily view's hourly-derived values for each row ([DailyHourlySummaries], shared with
+     * desktop): the fetch's own download (set by [withPayloadSummaries]) per field, else the site's
+     * stored hours — every fetch saves its hourly before its daily rows, and a Google one-page fetch
+     * leaves hours 25–72 in place. A field neither covers stays null here and is carried from the
+     * previous row by [ForecastSnapshotStore.saveForecastSnapshot], which also resolves the stored
+     * day/night chance from it ([DailyPrecipPeriods]).
      */
-    private suspend fun withStoredPrecipPeriods(
+    private suspend fun withStoredHourlySummaries(
         forecasts: List<ForecastEntity>,
         latitude: Double,
         longitude: Double,
@@ -404,30 +418,57 @@ internal class ForecastFetchCoordinator(
             endMs = DailyPrecipPeriods.readEndMs(dates.max()),
         )
         return forecasts.zip(dates) { entity, date ->
-            val periods = DailyPrecipPeriods.resolve(
-                targetDate = date,
-                storedHourly = stored,
-                providerDay = entity.daytimePrecipProbability,
-                providerNight = entity.nighttimePrecipProbability,
-            )
-            entity.copy(
-                daytimePrecipProbability = periods.day,
-                nighttimePrecipProbability = periods.night,
+            entity.withHourlySummary(
+                DailyHourlySummaries.carryForward(
+                    incoming = entity.hourlySummary,
+                    prior = if (stored.isEmpty()) null else DailyHourlySummaries.forDate(stored, date, sourceId),
+                ),
             )
         }
+    }
+
+    /** [forecasts] with each day's summary from this fetch's whole hourly [payload], before any trim. */
+    private suspend fun withPayloadSummaries(
+        forecasts: List<ForecastEntity>,
+        payload: List<HourlyForecast>,
+        latitude: Double,
+        longitude: Double,
+        sourceId: String,
+    ): List<ForecastEntity> {
+        if (forecasts.isEmpty() || payload.isEmpty()) return forecasts
+        val summarized = forecasts.map { entity ->
+            val date = LocalDate.ofEpochDay(entity.targetDate / WidgetConstants.MS_IN_A_DAY)
+            entity.withHourlySummary(DailyHourlySummaries.forDate(payload, date, sourceId))
+        }
+        appLogDao.log(
+            "DAILY_SUMMARY",
+            "source=$sourceId site=${LocationMatch.quantize(latitude)},${LocationMatch.quantize(longitude)} " +
+                "days=${summarized.size} noon=${summarized.count { it.noonCloudPercent != null }} " +
+                "day=${summarized.count { it.hourlyDayPrecipMax != null }} " +
+                "night=${summarized.count { it.hourlyNightPrecipMax != null }}",
+            "VERBOSE",
+        )
+        return summarized
     }
 
     suspend fun fetchFromNws(
         latitude: Double,
         longitude: Double,
+        keepUntilMs: Long = hourlyKeepUntilMs(WeatherSource.NWS, null),
     ): List<ForecastEntity> {
         val (forecastEntities, hourlyEntities, elapsedHourly) =
             nwsForecastMapper.fetchFromNws(latitude, longitude)
         if (hourlyEntities.isNotEmpty()) {
-            hourlyStore.saveHourlyEntities(hourlyEntities)
+            hourlyStore.saveHourlyEntities(hourlyEntities, keepUntilMs)
         }
         backfillElapsedHistory(elapsedHourly, latitude, longitude, WeatherSource.NWS)
-        return forecastEntities
+        return withPayloadSummaries(
+            forecastEntities,
+            elapsedHourly + hourlyEntities.map { it.toHourlyForecast() },
+            latitude,
+            longitude,
+            WeatherSource.NWS.id,
+        )
     }
 
     /**
@@ -513,6 +554,7 @@ internal class ForecastFetchCoordinator(
     private suspend fun fetchFromSilurian(
         latitude: Double,
         longitude: Double,
+        keepUntilMs: Long,
     ): List<ForecastEntity> {
         val result = silurianApi.getForecast(latitude, longitude)
         if (result.hourly.isNotEmpty()) {
@@ -521,9 +563,10 @@ internal class ForecastFetchCoordinator(
                 latitude,
                 longitude,
                 WeatherSource.SILURIAN.id,
+                keepUntilMs = keepUntilMs,
             )
         }
-        return result.daily.map { day ->
+        val daily = result.daily.map { day ->
             snapshotStore.mapDailyForecast(
                 DailyForecast(
                     date = day.date,
@@ -539,6 +582,7 @@ internal class ForecastFetchCoordinator(
                 WeatherSource.SILURIAN.id,
             )
         }
+        return withPayloadSummaries(daily, result.hourly, latitude, longitude, WeatherSource.SILURIAN.id)
     }
 
     private fun isStale(
@@ -572,6 +616,7 @@ internal class ForecastFetchCoordinator(
         latitude: Double,
         longitude: Double,
         source: WeatherSource,
+        keepUntilMs: Long,
         fetch: suspend () -> RawFetch?,
     ): List<ForecastEntity>? {
         val result = fetch() ?: return null
@@ -585,6 +630,7 @@ internal class ForecastFetchCoordinator(
                 historicalData = result.subHourly.ifEmpty {
                     if (source == WeatherSource.TOMORROW_IO) emptyList() else result.hourly
                 },
+                keepUntilMs = keepUntilMs,
             ).also {
                 // The elapsed hours the live write just dropped, filed as history where the site
                 // has none (Open-Meteo past_days, Silurian include_past, Tomorrow.io nowMinus23h).
@@ -604,9 +650,13 @@ internal class ForecastFetchCoordinator(
                 "INFO",
             )
         }
-        return result.daily.map { day ->
-            snapshotStore.mapDailyForecast(day, latitude, longitude, source.id)
-        }
+        return withPayloadSummaries(
+            result.daily.map { day -> snapshotStore.mapDailyForecast(day, latitude, longitude, source.id) },
+            result.hourly,
+            latitude,
+            longitude,
+            source.id,
+        )
     }
 
     private suspend fun <T> safeFetch(

@@ -826,4 +826,31 @@ class WeatherDatabaseMigrationTest {
             assertEquals(1, c.getInt(0))
         }
     }
+
+    /**
+     * The daily view's noon cloud and hourly rain maxima on `forecasts`, nullable and empty after the
+     * upgrade (the next fetch fills them; until then the old hourly rows are still stored).
+     * performance/261010-daily-view-summaries-instead-of-far-hourly.md
+     */
+    @Test
+    fun migrate77To78_addsForecastHourlySummaryColumns() {
+        helper.createDatabase(testDb, 77).apply {
+            execSQL(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
+                    "condition, isClimateNormal, source, batchFetchedAt, fetchedAt) VALUES " +
+                    "(1791244800000, 1791244800000, 37.417, -122.089, 70.0, 50.0, 'Clear', 0, 'OPEN_METEO', 5, 5)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 78, true, WeatherDatabase.MIGRATION_77_78)
+
+        db.query("SELECT highTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax FROM forecasts").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(70.0, c.getDouble(0), 0.01)
+            assertTrue(c.isNull(1))
+            assertTrue(c.isNull(2))
+            assertTrue(c.isNull(3))
+        }
+    }
 }

@@ -1,6 +1,7 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.log
 
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.HourlyForecastDao
@@ -31,16 +32,34 @@ internal class HourlyForecastStore(
      * rest of the fetch used the pinned one, and a 10:00 "daytime" hour vanished after 11:00.
      */
     private val clock: () -> Long = System::currentTimeMillis,
+    private val appLogDao: com.weatherwidget.data.local.AppLogDao? = null,
 ) {
     data class HistoricalActualsWriteSummary(
         val rowCount: Int,
         val replacementCount: Int,
     )
 
-    suspend fun saveHourlyEntities(rawEntities: List<HourlyForecastEntity>) {
+    /**
+     * [keepUntilMs]: hours at or past it are not stored, live or snapshot — the fetch's horizon
+     * (72 h routinely, deeper for an on-demand day). The daily view keeps what it needs from them on
+     * the forecast row ([com.weatherwidget.shared.util.DailyHourlySummaries]); the caller computes
+     * that from the whole download before calling here.
+     * `performance/261010-daily-view-summaries-instead-of-far-hourly.md`
+     */
+    suspend fun saveHourlyEntities(rawEntities: List<HourlyForecastEntity>, keepUntilMs: Long? = null) {
         if (rawEntities.isEmpty()) return
+        val kept = if (keepUntilMs == null) rawEntities else rawEntities.filter { it.dateTime < keepUntilMs }
+        if (kept.size < rawEntities.size) {
+            appLogDao?.log(
+                "HOURLY_TRIM",
+                "source=${rawEntities.first().source} kept=${kept.size} dropped=${rawEntities.size - kept.size} " +
+                    "horizonH=${keepUntilMs?.let { (it - clock()) / 3_600_000L }}",
+                "VERBOSE",
+            )
+        }
+        if (kept.isEmpty()) return
 
-        val entities = rawEntities.map {
+        val entities = kept.map {
             it.copy(
                 locationLat = LocationMatch.quantize(it.locationLat),
                 locationLon = LocationMatch.quantize(it.locationLon),
@@ -67,8 +86,8 @@ internal class HourlyForecastStore(
             )
         }
         val prioritySourceIds = widgetStateManager.getActiveDisplaySourceIds()
-        // Google's on-demand hours (past its routine 72 h) are always rewritten: their fetchedAt is
-        // what keeps them counted as fresh for a tapped day (HourlyOnDemand.MAX_EXTENSION_AGE_MS).
+        // On-demand hours (past the routine 72 h) are always rewritten: their fetchedAt is what keeps
+        // them counted as fresh for a tapped day (HourlyOnDemand.MAX_EXTENSION_AGE_MS).
         val extensionStartMs = HourlyOnDemand.extensionStartMs(sample.source, clock())
         val changedEntities = mergedEntities.filter { merged ->
             (extensionStartMs != null && merged.dateTime >= extensionStartMs) ||
@@ -132,6 +151,7 @@ internal class HourlyForecastStore(
         longitude: Double,
         sourceId: String,
         historicalData: List<HourlyForecast> = hourlyData,
+        keepUntilMs: Long? = null,
     ): HistoricalActualsWriteSummary {
         val now = clock()
         // Deliberately drops elapsed hours: `hourly_forecasts` is a forecast archive, and letting a
@@ -160,6 +180,7 @@ internal class HourlyForecastStore(
                     fetchedAt = now,
                 )
             },
+            keepUntilMs,
         )
         return saveHistoricalActuals(historicalData, latitude, longitude, sourceId)
     }

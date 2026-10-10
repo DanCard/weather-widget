@@ -1,5 +1,6 @@
 package com.weatherwidget.util
 
+import com.weatherwidget.data.local.hourlySummary
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
@@ -77,6 +78,7 @@ object DailyForecastIconResolver {
                 targetDate = targetDate,
                 storedDayPrecipChance = actual?.forecastDayPrecipChance,
                 storedNightPrecipChance = actual?.forecastNightPrecipChance,
+                hourlySummary = weather?.hourlySummary,
             )
         }
         return common.resolveDailyLabelPrecip(
@@ -89,6 +91,7 @@ object DailyForecastIconResolver {
             targetDate = targetDate,
             storedDayPrecipChance = actual?.forecastDayPrecipChance,
             storedNightPrecipChance = actual?.forecastNightPrecipChance,
+            hourlySummary = weather?.hourlySummary,
         )
     }
 

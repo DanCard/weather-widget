@@ -18,9 +18,12 @@ import java.time.ZoneId
  * Rule (user, 2026-10-07): the **provider's own value** when it supplies one — NWS 12-hour period
  * chances are stored as-is by an earlier decision (commit 3fa341b6: "Tomorrow 30%" is not overridden
  * by one 95% hour), and Google's daytime/nighttime cover all 10 days, so a one-page fetch cannot blank
- * days 2–3. Otherwise the 8am–8pm / 8pm–8am max over the source's hourly rows **as stored after this
- * fetch's hourly save** (the payload plus any hours a one-page fetch left in place). The display keeps
- * its own hourly-first order ([DailyRainLabels.resolveLiveDayNightChance]); this is what is stored.
+ * days 2–3. Otherwise the 8am–8pm / 8pm–8am hourly max stored on the same row
+ * ([DailyHourlySummaries]: from this fetch's whole download and the site's stored hours, each window
+ * only when covered, else carried from the previous row). Since 2026-10-10 hourly is stored to 72 h
+ * only, so a re-read of stored hourly would have blanked days 4+
+ * (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`). The display keeps its own
+ * hourly-first order ([DailyRainLabels.resolveLiveDayNightChance]); this is what is stored.
  */
 object DailyPrecipPeriods {
     data class Periods(val day: Int?, val night: Int?)
@@ -43,17 +46,13 @@ object DailyPrecipPeriods {
         return rows.filter { it.locationLat == null || (it.locationLat == lat && it.locationLon == lon) }
     }
 
+    /** [providerDay]/[providerNight] when the provider sent them, else [hourly]'s maxima. */
     fun resolve(
-        targetDate: LocalDate,
-        storedHourly: List<HourlyForecast>,
         providerDay: Int?,
         providerNight: Int?,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-    ): Periods {
-        val computed = DailyRainLabels.periodMaxima(storedHourly, targetDate, zoneId)
-        return Periods(
-            day = providerDay ?: computed.dayMax,
-            night = providerNight ?: computed.nightMax,
-        )
-    }
+        hourly: DailyHourlySummaries.Summary,
+    ): Periods = Periods(
+        day = providerDay ?: hourly.dayPrecipMax,
+        night = providerNight ?: hourly.nightPrecipMax,
+    )
 }

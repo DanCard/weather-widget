@@ -49,9 +49,7 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   not the full sync — `plans/261009-on-demand-hourly-shared-single-source-fetch.md`). That is the
   **one** hourly gap-fill: an hourly-view paint with missing hours asks the same rule
   (`WidgetDayClickCoordinator.fillHourlyGaps`, quiet, KEEP, 15-min cooldown) — the old per-view forced
-  full sync (`reason=hourly_gaps`) is gone (`plans/261009-one-hourly-gap-fill.md`). Hourly stays 72 h
-  routinely because day/night rain % and the daily icon's noon cloud read it
-  (`plans/261009-google-hourly-on-demand-past-72h.md`). Its quotas are per project,
+  full sync (`reason=hourly_gaps`) is gone (`plans/261009-one-hourly-gap-fill.md`). Google's quotas are per project,
   per Pacific calendar day (429 `window_start_time` = PT midnight, verified 2026-10-07).
   See `plans/261006-add-google-weather-source.md`.
   **Screen on refreshes current temp / actuals (viewed source, 15 min), not the forecast** — the
@@ -72,6 +70,16 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   Settings → Data Usage → **Usage stats…** shows the same table per source / endpoint (Today · This
   month · Last month · 90 days), `:shared` `ApiUsageSummary`
   (`plans/261008-settings-usage-stats-screen-api-calls-per-source.md`).
+- **Hourly is stored to 72 h for every source** (2026-10-10; `HourlyHorizons.ROUTINE_HOURS`), live
+  and snapshot. The daily view's far days read noon cloud and the 8am–8pm / 8pm–8am rain maxima from
+  the `forecasts` row (`noonCloudPercent`, `hourlyDay/NightPrecipMax`; Room 78 / desktop 31), computed
+  from each fetch's whole download before the trim (`:shared` `DailyHourlySummaries`). **A window the
+  download does not cover keeps the previous row's value — never blanked.** Display order: the row,
+  else stored hourly (rows written before the columns), else the provider's period value — hours
+  past 72 h may be older than the row, so they never come first. Days past 72 h in
+  the hourly view are on demand for every source; a free source's on-demand fetch keeps its whole
+  horizon, so a fresh one means "nothing more to fetch". Expected to free ~25 MB of the Pixel's 72 MB DB
+  (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`).
 - **Google past-day hourly refill** (user, 2026-10-10): `forecast/hours` never re-sends a passed
   hour, so a day of refused hourly fetches freezes that day's line. Refresh on a **previous day** —
   Forecast History (both platforms) or desktop Observations opened from that day — requests
@@ -275,7 +283,7 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 
 ## Database Schema
 
-- **Version**: Room 77 / desktop 30 as of 2026-10-10. Authoritative: `WeatherDatabase.kt`
+- **Version**: Room 78 / desktop 31 as of 2026-10-10. Authoritative: `WeatherDatabase.kt`
   `version` and `DesktopWeatherDatabase.SCHEMA_VERSION`, which move in pairs — this line goes stale
   fast; trust the code.
 - `observations.stationType` is an INTEGER `StationType.dbCode` (0 UNKNOWN, 1 OFFICIAL, 2 PERSONAL,

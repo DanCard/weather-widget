@@ -562,23 +562,27 @@ object DailyViewLogic {
                     "day=$dayPrecipForIcon night=$nightPrecipForIcon center=${request.centerLat},${request.centerLon}",
             )
 
+            // Past days: frozen into daily_history. Today/future: the forecast row's own noon cloud
+            // (DailyHourlySummaries — hourly is stored to 72 h only, and hours past that may be older
+            // than the row), else the hourly noon row for rows written before it existed.
             val storedNoonCloud = if (isPastDate) actual?.noonCloudPercent else null
-            val cloudCoverRatioOverride =
-                storedNoonCloud?.let { it / 100f }
-                    ?: resolveNoonCloudCoverRatio(
-                        date = date,
-                        hourlyForecasts = hourlyForecasts,
-                        displaySource = displaySource,
-                        weatherSourceId = weather?.source,
-                    )
             val measuredCloudCoverPercent =
                 storedNoonCloud
+                    ?: weather?.noonCloudPercent?.takeIf { !isPastDate && weather.source == displaySource.id }
                     ?: resolveMeasuredNoonCloudCoverPercent(
                         date = date,
                         hourlyForecasts = hourlyForecasts,
                         displaySource = displaySource,
                         weatherSourceId = weather?.source,
                     )
+            val cloudCoverRatioOverride = (measuredCloudCoverPercent ?: 0) / 100f
+            if (storedNoonCloud == null) {
+                Log.d(
+                    TAG,
+                    "resolveNoonCloudCoverRatio: date=$date displaySource=${displaySource.id} " +
+                        "weatherSourceId=${weather?.source} rowNoon=${weather?.noonCloudPercent} ratio=$cloudCoverRatioOverride",
+                )
+            }
 
             val iconRes =
                 when {
@@ -706,22 +710,6 @@ object DailyViewLogic {
         hourlyForecasts: List<HourlyForecastEntity>,
     ): List<com.weatherwidget.data.model.HourlyForecast> =
         hourlyForecasts.map { it.toHourlyForecast() }
-
-    private fun resolveNoonCloudCoverRatio(
-        date: LocalDate,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        displaySource: WeatherSource,
-        weatherSourceId: String?,
-    ): Float {
-        val ratio = com.weatherwidget.shared.util.DailyNoonCloudCover.resolveNoonCloudCoverRatio(
-            hourly = mapHourlyForecastsForNoonCloud(hourlyForecasts),
-            date = date,
-            displaySourceId = displaySource.id,
-            rowSourceId = weatherSourceId,
-        )
-        Log.d(TAG, "resolveNoonCloudCoverRatio: date=$date displaySource=${displaySource.id} weatherSourceId=$weatherSourceId ratio=$ratio")
-        return ratio
-    }
 
     private fun resolveMeasuredNoonCloudCoverPercent(
         date: LocalDate,

@@ -247,6 +247,7 @@ object DailyRainLabels {
         centerLon: Double,
         targetDate: LocalDate,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        hourlySummary: DailyHourlySummaries.Summary? = null,
     ): ResolvedDailyPrecip {
         val sited = selectSiteHourly(hourly, displaySourceId, centerLat, centerLon)
         return resolveLiveDayNightChance(
@@ -257,6 +258,7 @@ object DailyRainLabels {
             hourly = sited,
             targetDate = targetDate,
             zoneId = zoneId,
+            hourlySummary = hourlySummary,
         )
     }
 
@@ -289,11 +291,16 @@ object DailyRainLabels {
         hourly: List<HourlyForecast>,
         targetDate: LocalDate,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        hourlySummary: DailyHourlySummaries.Summary? = null,
     ): ResolvedDailyPrecip {
-        val dayNight = calculateDayNightPrecipProbabilities(
-            hourly = hourly,
-            targetDate = targetDate,
-            displaySourceId = displaySourceId,
+        // The forecast row's own hourly max (DailyHourlySummaries, kept at fetch time from the whole
+        // download), else the stored hours' window max for rows written before it existed.
+        val sourceRows = hourly.filter { it.source == displaySourceId }
+        val dayNight = DailyHourlySummaries.liveDayNight(
+            sitedRows = sourceRows.ifEmpty { hourly.filter { it.source == WeatherSource.GENERIC_GAP.id } },
+            date = targetDate,
+            storedDayMax = hourlySummary?.dayPrecipMax,
+            storedNightMax = hourlySummary?.nightPrecipMax,
             zoneId = zoneId,
         )
         return ResolvedDailyPrecip(
@@ -323,6 +330,7 @@ object DailyRainLabels {
         zoneId: ZoneId = ZoneId.systemDefault(),
         storedDayPrecipChance: Int? = null,
         storedNightPrecipChance: Int? = null,
+        hourlySummary: DailyHourlySummaries.Summary? = null,
     ): ResolvedDailyPrecip {
         if (isPast) {
             // Past days use the raw day/night period split with NO precipProbability→daytime fallback:
@@ -342,6 +350,7 @@ object DailyRainLabels {
             hourly = hourly,
             targetDate = targetDate,
             zoneId = zoneId,
+            hourlySummary = hourlySummary,
         )
     }
 
@@ -363,6 +372,7 @@ object DailyRainLabels {
         zoneId: ZoneId = ZoneId.systemDefault(),
         storedDayPrecipChance: Int? = null,
         storedNightPrecipChance: Int? = null,
+        hourlySummary: DailyHourlySummaries.Summary? = null,
     ): ResolvedDailyPrecip {
         if (isPast) {
             return resolveDailyLabelPrecip(
@@ -388,6 +398,7 @@ object DailyRainLabels {
             centerLon = centerLon,
             targetDate = targetDate,
             zoneId = zoneId,
+            hourlySummary = hourlySummary,
         )
     }
 

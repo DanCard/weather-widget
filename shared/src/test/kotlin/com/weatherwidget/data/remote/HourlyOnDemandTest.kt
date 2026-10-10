@@ -45,12 +45,17 @@ class HourlyOnDemandTest {
         assertEquals(72, horizon.routineHours)
         assertEquals(HourlyOnDemand.REACH_HOURS, horizon.maxHours)
         assertTrue(horizon.costsPerExtraDay && horizon.hasOnDemandRange)
+        // Every source stores 72 h routinely (performance/261010-daily-view-summaries-instead-of-far-hourly.md);
+        // only Google pays for reaching further.
         WeatherSource.entries.filter { it != WeatherSource.GOOGLE_WEATHER }.forEach {
             val h = HourlyHorizons.of(it.id)
-            assertFalse(it.id, h.hasOnDemandRange || h.costsPerExtraDay)
+            assertFalse(it.id, h.costsPerExtraDay)
+            assertEquals(it.id, minOf(72, h.maxHours), h.routineHours)
+            assertEquals(it.id, h.maxHours > 72, h.hasOnDemandRange)
             assertTrue(it.id, h.maxHours <= HourlyOnDemand.REACH_HOURS)
         }
         assertEquals(156, HourlyHorizons.of(nws).maxHours)
+        assertTrue(HourlyHorizons.of(nws).hasOnDemandRange)
     }
 
     @Test
@@ -77,13 +82,40 @@ class HourlyOnDemandTest {
     }
 
     @Test
-    fun `only Google has an extension window, starting past its routine 72 hours`() {
-        assertEquals(now - Math.floorMod(now, hour) + 72 * hour, HourlyOnDemand.extensionStartMs(google, now))
-        assertNull(HourlyOnDemand.extensionStartMs(WeatherSource.OPEN_METEO.id, now))
+    fun `every source's extension window starts past its routine 72 hours`() {
+        val routineEnd = now - Math.floorMod(now, hour) + 72 * hour
+        assertEquals(routineEnd, HourlyOnDemand.extensionStartMs(google, now))
+        assertEquals(routineEnd, HourlyOnDemand.extensionStartMs(WeatherSource.OPEN_METEO.id, now))
+        assertEquals(routineEnd, HourlyOnDemand.extensionStartMs(nws, now))
+        assertNull("WeatherAPI's API ends at 72 h", HourlyOnDemand.extensionStartMs(WeatherSource.WEATHER_API.id, now))
+    }
+
+    @Test
+    fun `a fetch stores 72 h routinely, the requested depth for Google, the whole horizon for a free source`() {
         assertEquals(72, HourlyOnDemand.hoursAhead(google, null))
         assertEquals(120, HourlyOnDemand.hoursAhead(google, HourlyOnDemand.Request(google, 120)))
         assertEquals(72, HourlyOnDemand.hoursAhead(google, HourlyOnDemand.Request(nws, 120)))
-        assertEquals("NWS stores its whole horizon", 156, HourlyOnDemand.hoursAhead(nws, null))
+        assertEquals(72, HourlyOnDemand.hoursAhead(nws, null))
+        assertEquals("one free call: keep all of it", 156, HourlyOnDemand.hoursAhead(nws, HourlyOnDemand.Request(nws, 120)))
+        assertEquals(HourlyOnDemand.REACH_HOURS, HourlyOnDemand.hoursAhead(WeatherSource.OPEN_METEO.id, HourlyOnDemand.Request(WeatherSource.OPEN_METEO.id, 96)))
+    }
+
+    /** Open-Meteo stored to 72 h by the routine fetch: day 6 is on demand, like Google's. */
+    @Test
+    fun `a free source stored to 72 h fetches a later day, and not again once that fetch is fresh`() {
+        val om = WeatherSource.OPEN_METEO.id
+        fun omRows(through: Int, fetchedAt: Long = now) = (0..through).map {
+            HourlyForecast(now - Math.floorMod(now, hour) + it * hour, 60f, "Clear", source = om, fetchedAt = fetchedAt)
+        }
+        val day6 = today.plusDays(6)
+        val hours = HourlyOnDemand.hoursToCover(om, day6, zone, now, omRows(71))!!
+        assertTrue("reaches day 6's last hour", hours >= ((ms(day6, 23) - (now - Math.floorMod(now, hour))) / hour + 1).toInt())
+        assertNull("covered once stored", HourlyOnDemand.hoursToCover(om, day6, zone, now, omRows(240)))
+        assertEquals(
+            "a 13 h-old deep fetch no longer vouches for day 6",
+            hours,
+            HourlyOnDemand.hoursToCover(om, day6, zone, now, omRows(71) + omRows(240, fetchedAt = now - 13 * hour).drop(72)),
+        )
     }
 
     @Test

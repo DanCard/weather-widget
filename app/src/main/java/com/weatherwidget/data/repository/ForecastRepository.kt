@@ -102,6 +102,7 @@ class ForecastRepository
             observationDao = observationDao,
             widgetStateManager = widgetStateManager,
             clock = { clock() },
+            appLogDao = appLogDao,
         )
         private val dailyHistorySnapshotter = DailyHistorySnapshotter(
             context = context,

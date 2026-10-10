@@ -2,6 +2,7 @@ package com.weatherwidget.data.local.desktop
 
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.shared.util.PartialForecastDays
+import com.weatherwidget.shared.util.DailyPrecipPeriods
 import com.weatherwidget.shared.util.PredictionDate
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyActual
@@ -360,15 +361,21 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      * Newest stored high/low for one day at this site — the last real prediction to keep when a
      * post-cutoff batch would otherwise overwrite it with a hindcast (see [SameDayExtremeCutoff]).
      */
-    private fun latestForecastTemps(
+    private data class LatestForecast(
+        val high: Float?,
+        val low: Float?,
+        val summary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary,
+    )
+
+    private fun latestForecast(
         conn: Connection,
         keyLat: Double,
         keyLon: Double,
         source: String,
         targetDate: Long,
-    ): Pair<Float?, Float?> {
+    ): LatestForecast? {
         val sql = """
-            SELECT highTemp, lowTemp FROM forecasts
+            SELECT highTemp, lowTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax FROM forecasts
             WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate = ?
             ORDER BY batchFetchedAt DESC, fetchedAt DESC
             LIMIT 1
@@ -379,8 +386,16 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             stmt.setString(3, source)
             stmt.setLong(4, targetDate)
             val rs = stmt.executeQuery()
-            if (rs.next()) rs.getNullableFloat("highTemp") to rs.getNullableFloat("lowTemp")
-            else null to null
+            if (!rs.next()) return@use null
+            LatestForecast(
+                high = rs.getNullableFloat("highTemp"),
+                low = rs.getNullableFloat("lowTemp"),
+                summary = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(
+                    noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
+                    dayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
+                    nightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
+                ),
+            )
         }
     }
 
@@ -401,8 +416,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition,
                      nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm,
                      daytimePrecipProbability, nighttimePrecipProbability, batchFetchedAt, fetchedAt,
-                     hindcastHighTemp, hindcastLowTemp)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     hindcastHighTemp, hindcastLowTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = nowMs
@@ -426,6 +441,15 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         // reader takes hindcast* as a forecast.
                         var hindcastHigh: Float? = null
                         var hindcastLow: Float? = null
+                        val prior = latestForecast(conn, keyLat, keyLon, source, targetDate)
+                        // A fetch that did not cover a window keeps the previous row's value
+                        // (DailyHourlySummaries, same as Android's ForecastSnapshotStore).
+                        val summary = com.weatherwidget.shared.util.DailyHourlySummaries.carryForward(d.hourlySummary, prior?.summary)
+                        val periods = DailyPrecipPeriods.resolve(
+                            providerDay = d.daytimePrecipProbability,
+                            providerNight = d.nighttimePrecipProbability,
+                            hourly = summary,
+                        )
                         if (!d.isClimateNormal) {
                             val filtered = SameDayExtremeCutoff.filter(
                                 targetDate = LocalDate.parse(d.date),
@@ -434,19 +458,18 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                                 nowMs = now,
                             )
                             if (filtered.frozeAny) {
-                                val prior = latestForecastTemps(conn, keyLat, keyLon, source, targetDate)
                                 if (filtered.frozeHigh) {
                                     hindcastHigh = highToStore
-                                    highToStore = prior.first
+                                    highToStore = prior?.high
                                 }
                                 if (filtered.frozeLow) {
                                     hindcastLow = lowToStore
-                                    lowToStore = prior.second
+                                    lowToStore = prior?.low
                                 }
                                 pendingLogs += "FORECAST_SKIP_HINDCAST" to
                                     "date=${d.date} source=$source " +
                                     "froze=${listOfNotNull("high".takeIf { filtered.frozeHigh }, "low".takeIf { filtered.frozeLow }).joinToString("+")} " +
-                                    "prior_high=${prior.first} prior_low=${prior.second}"
+                                    "prior_high=${prior?.high} prior_low=${prior?.low}"
                             }
                         }
                         stmt.setLong(1, targetDate)
@@ -463,12 +486,15 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setString(10, source)
                         stmt.setNullableInt(11, d.precipProbability)
                         stmt.setNullableFloat(12, d.precipAmountMm)
-                        stmt.setNullableInt(13, d.daytimePrecipProbability)
-                        stmt.setNullableInt(14, d.nighttimePrecipProbability)
+                        stmt.setNullableInt(13, periods.day)
+                        stmt.setNullableInt(14, periods.night)
                         stmt.setLong(15, now)
                         stmt.setLong(16, now)
                         stmt.setNullableFloat(17, hindcastHigh)
                         stmt.setNullableFloat(18, hindcastLow)
+                        stmt.setNullableInt(19, summary.noonCloudPercent)
+                        stmt.setNullableInt(20, summary.dayPrecipMax)
+                        stmt.setNullableInt(21, summary.nightPrecipMax)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -1496,6 +1522,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         source = source,
                         daytimePrecipProbability = rs.getNullableInt("daytimePrecipProbability"),
                         nighttimePrecipProbability = rs.getNullableInt("nighttimePrecipProbability"),
+                        noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
+                        hourlyDayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
+                        hourlyNightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
                     ))
                 }
             }

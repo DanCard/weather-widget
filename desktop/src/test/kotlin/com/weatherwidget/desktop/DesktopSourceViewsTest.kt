@@ -67,8 +67,8 @@ class DesktopSourceViewsTest {
         }
 
     @Test
-    fun `fresh database is v30 with tracking started today`() {
-        assertEquals(30, DesktopWeatherDatabase.SCHEMA_VERSION)
+    fun `fresh database is current with tracking started today`() {
+        assertTrue(DesktopWeatherDatabase.SCHEMA_VERSION >= 30)
         assertEquals(DesktopWeatherDatabase.SCHEMA_VERSION, userVersion())
         assertEquals(today(), dao.sourceViewTrackingStartMs())
         assertTrue(dao.sourceViewDaysSince(0L).isEmpty())

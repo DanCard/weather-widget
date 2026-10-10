@@ -10,7 +10,11 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.DailyHourlySummaries
+import com.weatherwidget.shared.util.DailyPrecipPeriods
 import com.weatherwidget.shared.util.ForecastTempRounding
+import com.weatherwidget.data.local.hourlySummary
+import com.weatherwidget.data.local.withHourlySummary
 import com.weatherwidget.shared.util.PredictionDate
 import com.weatherwidget.shared.util.SameDayExtremeCutoff
 import com.weatherwidget.widget.WidgetConstants
@@ -38,8 +42,8 @@ internal class ForecastSnapshotStore(
 ) {
     /**
      * Maps a provider's daily row. Day/night precip are the provider's own values here; the stored
-     * values are resolved once at save time from the stored hourly rows ([DailyPrecipPeriods], shared
-     * with desktop) — see [ForecastFetchCoordinator.withStoredPrecipPeriods].
+     * values are resolved at save time ([saveForecastSnapshot]) from the provider's values and the
+     * row's hourly maxima ([DailyPrecipPeriods], shared with desktop).
      */
     fun mapDailyForecast(
         day: DailyForecast,
@@ -143,6 +147,15 @@ internal class ForecastSnapshotStore(
                 return@mapNotNull null
             }
 
+            // A window this fetch's hourly did not cover keeps the previous row's value
+            // (DailyHourlySummaries); never blanked by a fetch that does not reach the day.
+            val summary = DailyHourlySummaries.carryForward(forecast.hourlySummary, prior?.hourlySummary)
+            val periods = DailyPrecipPeriods.resolve(
+                providerDay = forecast.daytimePrecipProbability,
+                providerNight = forecast.nighttimePrecipProbability,
+                hourly = summary,
+            )
+
             ForecastEntity(
                 targetDate = forecast.targetDate,
                 dateOfPrediction = todayEpoch,
@@ -155,14 +168,14 @@ internal class ForecastSnapshotStore(
                 isClimateNormal = forecast.isClimateNormal,
                 source = sourceId,
                 precipProbability = forecast.precipProbability,
-                daytimePrecipProbability = forecast.daytimePrecipProbability,
-                nighttimePrecipProbability = forecast.nighttimePrecipProbability,
+                daytimePrecipProbability = periods.day,
+                nighttimePrecipProbability = periods.night,
                 precipAmountMm = forecast.precipAmountMm,
                 batchFetchedAt = batchFetchedAt,
                 fetchedAt = System.currentTimeMillis(),
                 hindcastHighTemp = hindcastHigh,
                 hindcastLowTemp = hindcastLow,
-            )
+            ).withHourlySummary(summary)
         }
 
         if (forecastsToSave.isEmpty()) return
@@ -179,7 +192,8 @@ internal class ForecastSnapshotStore(
                 existing.nighttimePrecipProbability == newlyFetched.nighttimePrecipProbability &&
                 existing.precipAmountMm == newlyFetched.precipAmountMm &&
                 existing.hindcastHighTemp == newlyFetched.hindcastHighTemp &&
-                existing.hindcastLowTemp == newlyFetched.hindcastLowTemp
+                existing.hindcastLowTemp == newlyFetched.hindcastLowTemp &&
+                existing.hourlySummary == newlyFetched.hourlySummary
             val newDataIsStrictlyBetter = existing != null &&
                 (
                     (existing.highTemp == null && newlyFetched.highTemp != null) ||

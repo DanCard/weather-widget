@@ -1,8 +1,41 @@
 # Hourly horizon by how often each source is viewed
 
-Status: **proposed — awaiting approval** (2026-10-09). Builds on
-`plans/261009-google-hourly-on-demand-past-72h.md` (on-demand day fetch, 12 h freshness, daily
-prune), which must land first.
+Status: **superseded 2026-10-10** by `performance/261010-daily-view-summaries-instead-of-far-hourly.md`
+(the daily view keeps far-day cloud/rain from a per-day summary, so no source needs 7-day hourly).
+Previously: proposed — awaiting answers; may be shelved (updated 2026-10-09). The sections below
+predate several decisions; this block overrides them.
+
+## Settled since this was written
+
+- **Google stays at 72 h routinely**, not 24 h — it would lose noon cloud shading (user).
+- **No prune of extended hourly rows** (rule 7 is dropped) — "remove all prunes that aren't
+  helpful"; see `arch/data-pruning.md`.
+- **Tap / pan / paint past stored hours** (rule 5) is done for every source: one gap-fill,
+  `plans/261009-on-demand-hourly-shared-single-source-fetch.md`, `plans/261009-one-hourly-gap-fill.md`.
+- Hourly reach is 240 h on both platforms (`HourlyOnDemand.REACH_HOURS`).
+
+## Threshold question: is this plan still worth doing?
+
+With Google at 72 h and every other source already storing its full reach on each fetch, a daily
+7-day fetch only buys (a) Google days 4–10 getting hourly-based day/night rain % and noon cloud
+without being tapped — about 7 billed pages a day — and (b) a little space (~2–3 MB of 24 MB on the
+desktop DB). If (a) doesn't matter, shelve it.
+
+## Open questions (only if it goes ahead)
+
+1. "Commonly viewed" = ≥ 20 % of views over 30 days; a view = a screen-on widget paint (Android) or
+   the popup opening (desktop), per source per day?
+2. Desktop "while charging" = on AC (a machine without a battery counts as charging; desktop may be a
+   notebook)?
+3. Switching to a rarely viewed source in the daily view fetches its 7 days once if missing or > 24 h
+   old?
+4. Unplugged for days: no 7-day fetch off-charger (days 4–7 hourly ages), or allow it above some
+   battery level?
+5. Settings → Data Usage shows per source "Viewed 64 % · hourly 7 days daily"?
+
+## Original proposal (pre-decisions)
+
+Builds on `plans/261009-google-hourly-on-demand-past-72h.md`.
 
 ## User's proposal (2026-10-09)
 

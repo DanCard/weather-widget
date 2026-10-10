@@ -34,4 +34,19 @@ data class ForecastEntity(
     // forecast (highTemp/lowTemp hold the last pre-cutoff value). Past-day dashed fallback only.
     val hindcastHighTemp: Float? = null,
     val hindcastLowTemp: Float? = null,
+    // What the daily view reads from hourly rows, kept here so hourly is stored to 72 h only
+    // (DailyHourlySummaries): noon cloud % and the 8am–8pm / 8pm–8am rain maxima. A fetch that does
+    // not cover a window carries the previous row's value forward; never blanked.
+    val noonCloudPercent: Int? = null,
+    val hourlyDayPrecipMax: Int? = null,
+    val hourlyNightPrecipMax: Int? = null,
+)
+
+val ForecastEntity.hourlySummary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary
+    get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax)
+
+fun ForecastEntity.withHourlySummary(summary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary): ForecastEntity = copy(
+    noonCloudPercent = summary.noonCloudPercent,
+    hourlyDayPrecipMax = summary.dayPrecipMax,
+    hourlyNightPrecipMax = summary.nightPrecipMax,
 )
