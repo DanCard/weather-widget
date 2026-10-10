@@ -32,7 +32,8 @@ internal fun WidgetHeader(
     resolvedDeltaFromYesterday: Float? = null,
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenObservations: () -> Unit,
+    /** Opens the Observations window for the viewed day (a past day lets its refresh refill stale Google hours). */
+    onOpenObservations: (LocalDate) -> Unit,
     onOpenHistory: (viewedDate: LocalDate) -> Unit = {},
     onUpdateLocation: () -> Unit,
     headerTime: LocalDateTime = LocalDateTime.now(),
@@ -223,7 +224,7 @@ internal fun WidgetHeader(
                             contentDescription = "Weather station observations",
                             tint = Color.White.copy(alpha = 0.67f),
                             modifier = Modifier.size((15 * scale).dp).clickable {
-                                onOpenObservations()
+                                onOpenObservations(targetHour.toLocalDate())
                             }.testTag("open_observations_header")
                         )
                         // Home/Daily view mode — ports Android's ic_home line icon
@@ -298,7 +299,7 @@ internal fun WidgetHeader(
                                     contentDescription = "Weather station observations",
                                     tint = Color.White.copy(alpha = 0.67f),
                                     modifier = Modifier.size(iconSizeDp.dp).clickable {
-                                        onOpenObservations()
+                                        onOpenObservations(if (todayInView) LocalDate.now() else targetHour.toLocalDate())
                                     }.testTag("open_observations_header_daily")
                                 )
                             }

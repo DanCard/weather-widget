@@ -713,7 +713,14 @@ class ForecastHistoryActivity : AppCompatActivity() {
             val startMs = android.os.SystemClock.elapsedRealtime()
             val ok = try {
                 withContext(Dispatchers.IO) {
-                    weatherRepository.fetchSourceOnDemand(targetLat, targetLon, source, request = null)
+                    weatherRepository.fetchSourceOnDemand(
+                        targetLat,
+                        targetLon,
+                        source,
+                        request = null,
+                        // A past day may refill its stale Google hours from history/hours.
+                        historyRefillDay = com.weatherwidget.data.remote.GoogleHistoryRefill.refillDay(targetLocalDate, LocalDate.now()),
+                    )
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e

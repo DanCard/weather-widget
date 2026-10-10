@@ -72,6 +72,12 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   Settings → Data Usage → **Usage stats…** shows the same table per source / endpoint (Today · This
   month · Last month · 90 days), `:shared` `ApiUsageSummary`
   (`plans/261008-settings-usage-stats-screen-api-calls-per-source.md`).
+- **Google past-day hourly refill** (user, 2026-10-10): `forecast/hours` never re-sends a passed
+  hour, so a day of refused hourly fetches freezes that day's line. Refresh on a **previous day** —
+  Forecast History (both platforms) or desktop Observations opened from that day — requests
+  `history/hours` and writes it over that day's live rows fetched > 6 h before the hour; history
+  snapshots untouched. No other refresh or fetch refills (`:shared` `GoogleHistoryRefill`;
+  `plans/261010-google-history-refills-stale-elapsed-hours.md`).
 - **Borrowed actuals default by location:** a forecast-only source (Google, Silurian) with no
   explicit provider uses **NWS inside `NwsCoverage`, METAR elsewhere**. The default is derived on
   every read and never stored (`ActualsProviderResolver.borrowerDefault`, location via

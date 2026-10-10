@@ -117,7 +117,8 @@ class WeatherRepository
             longitude: Double,
             source: WeatherSource,
             request: com.weatherwidget.data.remote.HourlyOnDemand.Request?,
-        ): Boolean = forecastRepository.fetchSourceOnDemand(latitude, longitude, source, request)
+            historyRefillDay: java.time.LocalDate? = null,
+        ): Boolean = forecastRepository.fetchSourceOnDemand(latitude, longitude, source, request, historyRefillDay)
 
         @androidx.annotation.VisibleForTesting
         internal suspend fun fetchFromNws(latitude: Double, longitude: Double) = 

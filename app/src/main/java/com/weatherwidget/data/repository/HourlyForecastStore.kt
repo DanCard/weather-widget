@@ -164,6 +164,43 @@ internal class HourlyForecastStore(
         return saveHistoricalActuals(historicalData, latitude, longitude, sourceId)
     }
 
+    /**
+     * A past day's Forecast History refresh: Google `history/hours` values written over that day's
+     * live rows whose forecast went stale ([com.weatherwidget.data.remote.GoogleHistoryRefill]). Live table only, always written
+     * (fresh fetchedAt is what marks the hour no longer stale); the history snapshots keep the
+     * as-issued forecast.
+     */
+    suspend fun saveRefillHours(
+        refill: List<HourlyForecast>,
+        latitude: Double,
+        longitude: Double,
+        sourceId: String,
+    ) {
+        if (refill.isEmpty()) return
+        val now = clock()
+        val lat = LocationMatch.quantize(latitude)
+        val lon = LocationMatch.quantize(longitude)
+        hourlyForecastDao.insertAll(
+            refill.map {
+                HourlyForecastEntity(
+                    dateTime = it.dateTime,
+                    locationLat = lat,
+                    locationLon = lon,
+                    temperature = it.temperature,
+                    condition = it.condition,
+                    source = sourceId,
+                    precipProbability = it.precipProbability,
+                    cloudCover = it.cloudCover,
+                    cloudCoverLow = it.cloudCoverLow,
+                    cloudCoverMid = it.cloudCoverMid,
+                    cloudCoverHigh = it.cloudCoverHigh,
+                    precipAmountMm = it.precipAmountMm,
+                    fetchedAt = now,
+                )
+            },
+        )
+    }
+
     /** Outcome of one [backfillElapsedHistory] call, for the caller's `HOURLY_HISTORY_BACKFILL` log line. */
     data class ElapsedBackfillSummary(
         /** Elapsed hours the payload offered inside the backfill window. */

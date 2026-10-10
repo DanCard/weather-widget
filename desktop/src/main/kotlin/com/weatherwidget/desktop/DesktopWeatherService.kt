@@ -185,7 +185,14 @@ class DesktopWeatherService(
     override suspend fun fetchForecast(recentObservationsOnly: Boolean): RawFetch =
         fetchForecast(recentObservationsOnly, hourlyLimited = false)
 
-    override suspend fun fetchForecast(recentObservationsOnly: Boolean, hourlyLimited: Boolean): RawFetch = runCatching {
+    override suspend fun fetchForecast(recentObservationsOnly: Boolean, hourlyLimited: Boolean): RawFetch =
+        fetchForecast(recentObservationsOnly, hourlyLimited, refillDay = null)
+
+    override suspend fun fetchForecast(
+        recentObservationsOnly: Boolean,
+        hourlyLimited: Boolean,
+        refillDay: java.time.LocalDate?,
+    ): RawFetch = runCatching {
         when (weatherSource) {
             "NWS" -> fetchNwsForecast(recentObservationsOnly)
             WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoForecastWithFiveMinuteHistory()
@@ -197,7 +204,7 @@ class DesktopWeatherService(
                 googleWeather.getForecast(
                     latitude,
                     longitude,
-                    includeHistory = googleNeedsHistory(),
+                    includeHistory = googleNeedsHistory(refillDay),
                     storedHours = googleStoredHours(),
                     includeHours = googleIncludeHours(hourlyLimited),
                 ).also { weatherDao?.log("GOOGLE_HOURS_PAGES", googleWeather.lastHoursPaging.orEmpty(), "INFO") },
@@ -311,19 +318,37 @@ class DesktopWeatherService(
         )
     }
 
-    /** See `GoogleWeatherApi.needsHistory`: `history/hours` has a small per-project daily quota (Cloud Console setting). */
-    private fun googleNeedsHistory(): Boolean {
+    /**
+     * See `GoogleWeatherApi.needsHistory`: `history/hours` has a small per-project daily quota (Cloud
+     * Console setting). A Forecast History refresh of a previous day ([refillDay]) also requests it
+     * when that day's elapsed hours went stale ([GoogleHistoryRefill]); any other fetch leaves stale
+     * hours and logs `reason=not_requested`.
+     */
+    private fun googleNeedsHistory(refillDay: java.time.LocalDate?): Boolean {
         val dao = weatherDao ?: return true
         val now = System.currentTimeMillis()
         val window = GoogleWeatherApi.historyWindow(now)
-        val covered = dao.getHourlyHistoryCoveredHours(
-            LocationMatch.quantize(latitude),
-            LocationMatch.quantize(longitude),
-            WeatherSource.GOOGLE_WEATHER.id,
-            window.first,
-            window.last + 1,
-        )
-        return GoogleWeatherApi.needsHistory(covered, now)
+        val lat = LocationMatch.quantize(latitude)
+        val lon = LocationMatch.quantize(longitude)
+        val covered = dao.getHourlyHistoryCoveredHours(lat, lon, WeatherSource.GOOGLE_WEATHER.id, window.first, window.last + 1)
+        val needsHistory = GoogleWeatherApi.needsHistory(covered, now)
+        val stale = GoogleHistoryRefill.staleHours(googleLiveHours(window.first, window.last), now, refillDay)
+        if (refillDay == null && !needsHistory && stale.isNotEmpty()) {
+            dao.log(GoogleHistoryRefill.LOG_TAG, "stale=${stale.size} reason=not_requested", "VERBOSE")
+        }
+        return GoogleHistoryRefill.shouldRequest(needsHistory, stale, refillDay)
+    }
+
+    /** Google's live rows at this site in [startMs]..[endMs] (same-site match as [googleStoredHours]). */
+    fun googleLiveHours(startMs: Long, endMs: Long): List<com.weatherwidget.data.model.HourlyForecast> {
+        val dao = weatherDao ?: return emptyList()
+        val lat = LocationMatch.quantize(latitude)
+        val lon = LocationMatch.quantize(longitude)
+        return dao.getHourlyForecasts(lat, lon, WeatherSource.GOOGLE_WEATHER.id, startMs, endMs).filter { row ->
+            val rowLat = row.locationLat
+            val rowLon = row.locationLon
+            rowLat == null || rowLon == null || LocationMatch.sameSite(lat, lon, rowLat, rowLon)
+        }
     }
 
     private suspend fun fetchTomorrowIoForecastWithFiveMinuteHistory(): RawFetch = coroutineScope {

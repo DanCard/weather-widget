@@ -6,6 +6,8 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.*
 import com.weatherwidget.data.remote.ApiAccessException
+import com.weatherwidget.data.remote.GoogleHistoryRefill
+import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.TomorrowIoApi
@@ -523,7 +525,12 @@ class DesktopWeatherRepository(
         reason: String = "unspecified",
         /** Refresh daily and current, not the hourly forecast: [com.weatherwidget.data.remote.HourlyFetchGate]. */
         hourlyLimited: Boolean = false,
-    ): ForecastSnapshot = refreshWithOutcome(now, userLocationChange, reason = reason, hourlyLimited = hourlyLimited).snapshot
+        /**
+         * A previous day refreshed on the Forecast History screen: Google may refill its stale
+         * elapsed hours from `history/hours` ([GoogleHistoryRefill]). Null on every other refresh.
+         */
+        refillDay: LocalDate? = null,
+    ): ForecastSnapshot = refreshWithOutcome(now, userLocationChange, reason = reason, hourlyLimited = hourlyLimited, refillDay = refillDay).snapshot
 
     /**
      * Runs a full refresh and reports whether it already supplied observation data. Schedulers can
@@ -541,6 +548,7 @@ class DesktopWeatherRepository(
         deferObservationWindow: Boolean = false,
         reason: String = "unspecified",
         hourlyLimited: Boolean = false,
+        refillDay: LocalDate? = null,
     ): RefreshOutcome = withContext(Dispatchers.IO) {
         Log.i(TAG, "refresh() started source=$weatherSource")
         // Entry marker. The terminal REFRESH row below only lands on success, so without this an
@@ -566,10 +574,15 @@ class DesktopWeatherRepository(
                 nowMs = now,
             )
             val (forecastResult, borrowedRecovery) = coroutineScope {
-                val forecast = async { if (hourlyLimited) {
-                        weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow, hourlyLimited = true)
-                    } else {
-                        weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow)
+                val forecast = async { when {
+                        refillDay != null -> weatherService.fetchForecast(
+                            recentObservationsOnly = deferObservationWindow,
+                            hourlyLimited = hourlyLimited,
+                            refillDay = refillDay,
+                        )
+                        hourlyLimited ->
+                            weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow, hourlyLimited = true)
+                        else -> weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow)
                     } }
                 val recovery = async { fetchBorrowedRecovery(borrowedPlan, userLocationChange) }
                 forecast.await() to recovery.await()
@@ -583,6 +596,7 @@ class DesktopWeatherRepository(
             }
 
             val forecastHours = persistForecastResult(result, now)
+            if (refillDay != null) refillStaleGoogleHours(result, now, refillDay)
 
             if (borrowedPlan != null) {
                 val feedId = borrowedPlan.feed.id
@@ -696,6 +710,29 @@ class DesktopWeatherRepository(
             )
             -1
         }
+    }
+
+    /**
+     * A previous day's Forecast History refresh: `history/hours` values written over that day's live
+     * Google rows whose forecast went stale ([GoogleHistoryRefill]). Only the live table: the history snapshots keep the as-issued
+     * forecast. Logs `GOOGLE_HISTORY_REFILL` whenever stale hours were found.
+     */
+    private fun refillStaleGoogleHours(result: RawFetch, now: Long, day: LocalDate) {
+        if (weatherSource != WeatherSource.GOOGLE_WEATHER.id || result.providerHistoryHourly.isEmpty()) return
+        val window = GoogleWeatherApi.historyWindow(now)
+        val lat = LocationMatch.quantize(latitude)
+        val lon = LocationMatch.quantize(longitude)
+        val live = weatherDao.getHourlyForecasts(lat, lon, weatherSource, window.first, window.last)
+            .filter { row ->
+                val rowLat = row.locationLat
+                val rowLon = row.locationLon
+                rowLat == null || rowLon == null || LocationMatch.sameSite(lat, lon, rowLat, rowLon)
+            }
+        val stale = GoogleHistoryRefill.staleHours(live, now, day)
+        if (stale.isEmpty()) return
+        val refill = GoogleHistoryRefill.select(result.providerHistoryHourly, stale)
+        if (refill.isNotEmpty()) weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, refill)
+        weatherDao.log(GoogleHistoryRefill.LOG_TAG, GoogleHistoryRefill.logMessage(day, stale, refill), "INFO")
     }
 
     /**

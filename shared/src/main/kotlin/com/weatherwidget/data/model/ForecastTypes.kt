@@ -178,6 +178,12 @@ data class RawFetch(
      * this empty. History-only material for the elapsed-hour backfill; never the live table.
      */
     val elapsedHourly: List<HourlyForecast> = emptyList(),
+    /**
+     * Google `history/hours`: the provider's estimate of already-elapsed hours (also merged into
+     * [hourly] for the elapsed-hour backfill). Written to the live table only for stale hours on a
+     * manual refresh ([com.weatherwidget.data.remote.GoogleHistoryRefill]).
+     */
+    val providerHistoryHourly: List<HourlyForecast> = emptyList(),
     /** Optional provider history at its native sub-hour cadence, when provenance permits actuals. */
     val subHourly: List<HourlyForecast> = emptyList(),
     val daily: List<DailyForecast> = emptyList(),

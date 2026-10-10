@@ -1,6 +1,7 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.shared.util.WeatherSourceOrdering
+import com.weatherwidget.data.remote.GoogleHistoryRefill
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.HourlyFetchGate
 import com.weatherwidget.data.remote.HourlyOnDemand
@@ -223,11 +224,15 @@ internal class ForecastFetchCoordinator(
                         lat,
                         lon,
                         // An on-demand day needs no elapsed hours; history/hours has a 20/day quota.
-                        includeHistory = fetchContext?.hourlyAhead == null && googleNeedsHistory(lat, lon),
+                        includeHistory = fetchContext?.hourlyAhead == null &&
+                            googleNeedsHistory(lat, lon, fetchContext?.historyRefillDay),
                         storedHours = storedHours,
                         includeHours = includeHours,
                         hoursAhead = HourlyOnDemand.hoursAhead(WeatherSource.GOOGLE_WEATHER.id, fetchContext?.hourlyAhead),
-                    ).also { appLogDao.log("GOOGLE_HOURS_PAGES", api.lastHoursPaging.orEmpty(), "INFO") }
+                    ).also {
+                        appLogDao.log("GOOGLE_HOURS_PAGES", api.lastHoursPaging.orEmpty(), "INFO")
+                        fetchContext?.historyRefillDay?.let { day -> refillStaleGoogleHours(it, lat, lon, day) }
+                    }
                 }
             })
         }
@@ -442,11 +447,13 @@ internal class ForecastFetchCoordinator(
     }
 
     /**
-     * Google's `history/hours` has a small per-project daily quota (Cloud Console setting), so it is requested only for a site with
-     * no Google history hours in the last day (`GoogleWeatherApi.needsHistory`) — read through the
-     * same site match the elapsed backfill uses.
+     * Google's `history/hours` has a small per-project daily quota (Cloud Console setting), so it is
+     * requested for a site with no Google history hours in the last day (`GoogleWeatherApi.needsHistory`)
+     * — read through the same site match the elapsed backfill uses — or, for a previous day refreshed
+     * on the Forecast History screen ([refillDay]), when that day's elapsed hours went stale
+     * ([GoogleHistoryRefill]). Any other fetch leaves stale hours and logs `reason=not_requested`.
      */
-    private suspend fun googleNeedsHistory(latitude: Double, longitude: Double): Boolean {
+    private suspend fun googleNeedsHistory(latitude: Double, longitude: Double, refillDay: java.time.LocalDate?): Boolean {
         val dao = hourlyForecastHistoryDao ?: return true
         val nowMs = clock()
         val window = GoogleWeatherApi.historyWindow(nowMs)
@@ -462,7 +469,29 @@ internal class ForecastFetchCoordinator(
             source = WeatherSource.GOOGLE_WEATHER.id,
         ).filter { LocationMatch.sameSite(keyLat, keyLon, it.locationLat, it.locationLon) }
             .map { it.dateTime }
-        return GoogleWeatherApi.needsHistory(covered, nowMs)
+        val needsHistory = GoogleWeatherApi.needsHistory(covered, nowMs)
+        val stale = GoogleHistoryRefill.staleHours(googleLiveHours(latitude, longitude, nowMs), nowMs, refillDay)
+        if (refillDay == null && !needsHistory && stale.isNotEmpty()) {
+            appLogDao.log(GoogleHistoryRefill.LOG_TAG, "stale=${stale.size} reason=not_requested", "VERBOSE")
+        }
+        return GoogleHistoryRefill.shouldRequest(needsHistory, stale, refillDay)
+    }
+
+    /** Google's live rows at this site inside [GoogleWeatherApi.historyWindow]. */
+    private suspend fun googleLiveHours(latitude: Double, longitude: Double, nowMs: Long) =
+        GoogleWeatherApi.historyWindow(nowMs).let { window ->
+            hourlyStore.storedHourlyForSite(latitude, longitude, WeatherSource.GOOGLE_WEATHER.id, window.first, window.last)
+        }
+
+    /** A past day's History refresh: write `history/hours` over that day's stale live hours ([GoogleHistoryRefill]). */
+    private suspend fun refillStaleGoogleHours(result: RawFetch, latitude: Double, longitude: Double, day: java.time.LocalDate) {
+        if (result.providerHistoryHourly.isEmpty()) return
+        val nowMs = clock()
+        val stale = GoogleHistoryRefill.staleHours(googleLiveHours(latitude, longitude, nowMs), nowMs, day)
+        if (stale.isEmpty()) return
+        val refill = GoogleHistoryRefill.select(result.providerHistoryHourly, stale)
+        hourlyStore.saveRefillHours(refill, latitude, longitude, WeatherSource.GOOGLE_WEATHER.id)
+        appLogDao.log(GoogleHistoryRefill.LOG_TAG, GoogleHistoryRefill.logMessage(day, stale, refill), "INFO")
     }
 
     private suspend fun fetchFromSilurian(

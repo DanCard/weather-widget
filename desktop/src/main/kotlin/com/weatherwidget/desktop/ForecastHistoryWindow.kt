@@ -91,8 +91,11 @@ internal fun ForecastHistoryWindow(
     /** Bumped when stored data changes (a refresh landed); the window reloads on it. */
     dataUpdateCount: Int = 0,
     isRefreshing: Boolean = false,
-    /** Refetch the viewed source only; run by the caller's application scope (see [ObservationRefreshButton]). */
-    onRefreshSource: (WeatherSource) -> Unit = {},
+    /**
+     * Refetch the viewed source only, for the viewed date (a past day may refill stale Google hours,
+     * `GoogleHistoryRefill`); run by the caller's application scope (see [ObservationRefreshButton]).
+     */
+    onRefreshSource: (WeatherSource, LocalDate) -> Unit = { _, _ -> },
     onOpenSettings: () -> Unit = {},
 ) {
     val state = rememberSanitizedWindowState(
@@ -179,7 +182,7 @@ internal fun ForecastHistoryWindow(
                         source = visibleSources[(idx + 1) % visibleSources.size]
                     },
                     isRefreshing = isRefreshing,
-                    onRefresh = { onRefreshSource(source) },
+                    onRefresh = { onRefreshSource(source, targetDate) },
                     onOpenSettings = onOpenSettings,
                     onToggleMode = {
                         graphMode = if (graphMode == GraphMode.EVOLUTION) GraphMode.ERROR else GraphMode.EVOLUTION

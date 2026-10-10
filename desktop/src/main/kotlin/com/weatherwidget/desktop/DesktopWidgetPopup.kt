@@ -60,7 +60,7 @@ internal fun WidgetPopup(
     onUpdateLocation: () -> Unit,
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenObservations: () -> Unit,
+    onOpenObservations: (java.time.LocalDate) -> Unit,
     onOpenHistory: (viewedDate: LocalDate) -> Unit = {},
     onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
     onNeedHistory: (Int) -> Unit = {},

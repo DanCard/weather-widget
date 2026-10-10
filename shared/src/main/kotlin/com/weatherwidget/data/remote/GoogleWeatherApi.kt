@@ -325,7 +325,7 @@ class GoogleWeatherApi(
             "parsed daily=${daily.size} hourly=${hourly.size} elapsed=${elapsed.size} " +
                 "currentTemp=${current?.degrees("temperature")}",
         )
-        return (current?.let(::parseCurrent) ?: RawFetch()).copy(daily = daily, hourly = hourly)
+        return (current?.let(::parseCurrent) ?: RawFetch()).copy(daily = daily, hourly = hourly, providerHistoryHourly = elapsed)
     }
 
     private fun parseCurrent(current: JsonObject): RawFetch =

@@ -241,7 +241,7 @@ internal fun PopupWindowHost(
     onUpdateLocation: () -> Unit,
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenObservations: () -> Unit,
+    onOpenObservations: (java.time.LocalDate) -> Unit,
     onOpenHistory: (LocalDate) -> Unit,
     onNeedHistory: (Int) -> Unit,
     onNeedHourlyRefresh: (LocalDate, (List<HourlyForecast>) -> Unit) -> Unit,
