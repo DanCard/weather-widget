@@ -71,7 +71,7 @@ object ObservationSourceMatcher {
         if (!source.supportsTemperatureActuals) return false
         return when (source) {
             WeatherSource.NWS ->
-                stationId != "NWS_BLEND" &&
+                stationId != NwsBlend.STATION_ID &&
                     stationId != HistoricalActualsBackfill.syntheticStationId(WeatherSource.NWS.id) &&
                     sourcePrefixes.values.none { prefix -> stationId.startsWith(prefix) }
             WeatherSource.TOMORROW_IO -> TomorrowIoActuals.isAllowedStation(stationId)

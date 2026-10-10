@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -216,7 +217,7 @@ object ActualsAggregator {
         val today = LocalDate.now(zoneId)
 
         val byApi = observations
-            .filter { it.stationId != "NWS_BLEND" }
+            .filter { it.stationId != NwsBlend.STATION_ID }
             .groupBy { it.api }
 
         // A source whose actuals come from ANOTHER feed ([ActualsProviderResolver.providerIdFor])

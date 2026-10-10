@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -859,7 +860,7 @@ object ActualTemperatureSeriesBuilder {
             api = observation.api,
             source = WeatherSource.fromId(displaySourceId),
         ) &&
-            observation.stationId != "NWS_BLEND"
+            observation.stationId != NwsBlend.STATION_ID
 
     private fun observationHour(observation: ObservationReading, zoneId: ZoneId): LocalDateTime =
         Instant.ofEpochMilli(observation.timestamp).atZone(zoneId).toLocalDateTime().truncatedTo(ChronoUnit.HOURS)

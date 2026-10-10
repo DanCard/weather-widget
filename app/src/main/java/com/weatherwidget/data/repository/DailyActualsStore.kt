@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.shared.observations.NwsBlend
 import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.VisibleForTesting
@@ -524,7 +525,7 @@ class DailyActualsStore @Inject constructor(
                 // recompute, which is where the worst reads of 2026-09-07 were measured
                 // (spanH=72 apis=ALL, 37,551 candidates, 8,325ms under contention).
                 .getObservationsInRange(dayStart, dayEnd, latitude, longitude, setOf(WeatherSource.NWS.id))
-                .filter { it.api == WeatherSource.NWS.id && it.stationId != "NWS_BLEND" }
+                .filter { it.api == WeatherSource.NWS.id && it.stationId != NwsBlend.STATION_ID }
                 .map { it.timestamp }
             pastDayLacksAfternoonCoverage(timestamps, date, zone, today)
         }

@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.util.WeatherTimeUtils
@@ -58,7 +59,7 @@ object DailyActualsLoader {
                     // means when it says the all-source paths must stay unscoped.
                     apis = null,
                 )
-                .filter { it.stationId != "NWS_BLEND" }
+                .filter { it.stationId != NwsBlend.STATION_ID }
 
         val hourlyLookbackStart =
             now.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS)

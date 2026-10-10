@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.observations.NwsBlend
 import android.util.Log
 import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
@@ -57,7 +58,7 @@ object ObservationResolver {
         val maxTs = selectionPool.maxOfOrNull { it.timestamp }
         val selected = if (maxTs != null) {
             val candidates = selectionPool.filter { it.timestamp == maxTs }
-            candidates.find { it.stationId == "NWS_BLEND" } ?: candidates.first()
+            candidates.find { it.stationId == NwsBlend.STATION_ID } ?: candidates.first()
         } else null
         Log.d("ObsResolver", "resolveObservedCurrentTemp: stationId=${selected?.stationId} temp=${selected?.temperature} source=${displaySource.id}")
         return selected?.let { obs ->

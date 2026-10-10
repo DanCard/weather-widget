@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.HistoricalDataKind
 import com.weatherwidget.data.model.ObservationReading
@@ -282,7 +283,7 @@ object MetarCloudBlender {
     ): Result {
         val real = readings.asSequence()
             .filter { it.api == providerApi || it.api in supplementalProviderApis }
-            .filter { it.stationId != "NWS_BLEND" }
+            .filter { it.stationId != NwsBlend.STATION_ID }
             .filter { !ObservationSourceMatcher.isSyntheticBackfillStation(it.stationId, providerApi) }
             // TOTAL order, not `sortedBy { timestamp }` (a STABLE sort): same-timestamp rows must not
             // resolve differently based on the caller's query order. See ActualsRowOrderDeterminismTest.

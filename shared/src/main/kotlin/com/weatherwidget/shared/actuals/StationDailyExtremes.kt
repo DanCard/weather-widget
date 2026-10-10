@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
@@ -64,7 +65,7 @@ object StationDailyExtremes {
                 reading.timestamp < dayEndMs &&
                 reading.stationType == StationType.OFFICIAL &&
                 !reading.qcFailed &&
-                reading.stationId != "NWS_BLEND" &&
+                reading.stationId != NwsBlend.STATION_ID &&
                 !ObservationSourceMatcher.isSyntheticBackfillStation(reading.stationId, sourceId)
         }
         if (candidates.isEmpty()) return null

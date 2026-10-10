@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local.desktop
 
+import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.shared.observations.MetarPlausibility
 import java.nio.file.Path
 import java.sql.Connection
@@ -698,7 +699,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             val select = OBSERVATION_COLUMNS.joinToString(", ") {
                 if (it == "stationType") com.weatherwidget.data.model.StationType.SQL_CODE_FROM_LEGACY_NAME else it
             }
-            return "INSERT INTO $to ($columns) SELECT $select FROM $from WHERE stationId != 'NWS_BLEND'"
+            return "INSERT INTO $to ($columns) SELECT $select FROM $from WHERE stationId != '${NwsBlend.STATION_ID}'"
         }
 
         /**

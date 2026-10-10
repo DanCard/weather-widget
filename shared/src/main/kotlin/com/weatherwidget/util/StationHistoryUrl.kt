@@ -1,5 +1,6 @@
 package com.weatherwidget.util
 
+import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 
@@ -20,7 +21,7 @@ object StationHistoryUrl {
     fun forStation(providerId: String, stationId: String): String? {
         if (providerId != WeatherSource.NWS.id) return null
         // Exclude the synthetic IDW blend (not a real station) and blanks.
-        if (stationId.isBlank() || stationId == DesktopObservationEntity.NWS_BLEND_STATION_ID) {
+        if (stationId.isBlank() || stationId == NwsBlend.STATION_ID) {
             return null
         }
         return "https://www.weather.gov/wrh/timeseries?site=$stationId"

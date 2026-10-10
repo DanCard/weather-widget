@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.observations.NwsBlend
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -323,7 +324,7 @@ internal fun actualPrecipRowsForSource(
     return observations.filter { observation ->
         when (source) {
             com.weatherwidget.data.model.WeatherSource.NWS ->
-                observation.api == source.id && observation.stationId != "NWS_BLEND"
+                observation.api == source.id && observation.stationId != NwsBlend.STATION_ID
             com.weatherwidget.data.model.WeatherSource.TOMORROW_IO ->
                 observation.api == source.id &&
                     com.weatherwidget.shared.actuals.TomorrowIoActuals.isAllowedStation(observation.stationId)

@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.data.model.ForecastProduct
 import android.content.Context
 import android.os.SystemClock
@@ -564,7 +565,7 @@ internal object DailyGraphRenderer {
             // provider it may borrow actuals from, and GENERIC_GAP is a forecast filler with no
             // observation to contribute.
             .getObservationsInRange(startMs, endMs, lat, lon, setOf(displaySource.id))
-            .filter { it.api == displaySource.id && it.stationId != "NWS_BLEND" }
+            .filter { it.api == displaySource.id && it.stationId != NwsBlend.STATION_ID }
     }
 
     @VisibleForTesting

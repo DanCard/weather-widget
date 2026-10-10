@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.actuals
 
+import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
@@ -93,7 +94,7 @@ object DailyActualsAssembler {
             today = today,
         )
 
-        val blendObs = observations.filter { it.stationId != "NWS_BLEND" && it.api in observationApis }
+        val blendObs = observations.filter { it.stationId != NwsBlend.STATION_ID && it.api in observationApis }
         // Hourly stays keyed on the SOURCE: borrowed actuals are compared against the borrowing
         // source's own forecast.
         val blendHourly = hourlyForecasts.filter { it.source in actualsCapable }

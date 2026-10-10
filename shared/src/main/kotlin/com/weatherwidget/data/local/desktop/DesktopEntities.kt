@@ -34,16 +34,7 @@ data class DesktopObservationEntity(
     val cloudEnvelopeBaseMeters: Int? = null,
     val cloudEnvelopeTopMeters: Int? = null,
     val cloudVerticalKind: CloudVerticalKind = CloudVerticalKind.NONE,
-) {
-    companion object {
-        /**
-         * Synthetic station id for the internal multi-station IDW blend. It is an aggregate, not a
-         * real station, so it must never be shown in the observations UI (mirrors the Android
-         * widget's `ActualPrecipSource.NWS_BLEND_STATION_ID`).
-         */
-        const val NWS_BLEND_STATION_ID = "NWS_BLEND"
-    }
-}
+)
 
 fun DesktopObservationEntity.toReading() = ObservationReading(
     stationId = stationId,
