@@ -35,6 +35,12 @@ One policy for both platforms: `:shared` `RetentionPolicy` (user's decision, 202
 These are plain indexed `DELETE … WHERE <time> < cutoff` statements, cheap enough to run inside a sync,
 so they are not gated on power or screen.
 
+**Open question (2026-10-09, unanswered):** should retention also wait for charging + screen off,
+like the snapshot prune? Against: it is cheap, and gating it could let rows outlive their limit on a
+device or notebook that is rarely charged with the screen off. For: one rule for all housekeeping.
+A `cleanOldData` run once took 96 s under the sync mutex and stalled a sync, so "cheap" is worth
+re-measuring before deciding.
+
 ## Snapshot prune (`hourly_forecast_history`)
 
 ### Why it exists

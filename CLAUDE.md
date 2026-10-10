@@ -386,6 +386,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for complete update system design.
 
 The `:desktop` module is a Compose-for-Desktop tray app sharing `:shared` with Android.
 
+- **"Desktop" means the Linux app, not the hardware** — it may be a notebook on battery (user,
+  2026-10-09; the misnomer is kept on purpose rather than renamed). Never assume AC power: read it
+  (`PowerDetector`, `/sys/class/power_supply`); only a machine with no battery reports charging.
+
 - **For daily use: run the repo-local distributable from autostart** — build with
   `./gradlew :desktop:createDistributable`; login autostart should point at
   `scripts/desktop-app-launcher-and-autostart.sh`. The script launches
