@@ -601,6 +601,11 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 31) {
                 addForecastHourlySummaryColumns(stmt)
             }
+            // v32: Google's daily low moved to the morning it ends; stored rows shifted the same way,
+            // once. Room MIGRATION_78_79. plans/261010-google-daily-low-filed-under-the-morning-it-ends.md
+            if (from < 32) {
+                GOOGLE_LOW_SHIFT_SQL.forEach { stmt.execute(it) }
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -735,7 +740,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 31
+        const val SCHEMA_VERSION = 32
 
         /**
          * Requests per local day, source and endpoint ([com.weatherwidget.data.remote.ApiUsageClassifier]).
@@ -776,6 +781,29 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * MIGRATION_77_78.
          */
         val FORECAST_HOURLY_SUMMARY_COLUMNS = listOf("noonCloudPercent", "hourlyDayPrecipMax", "hourlyNightPrecipMax")
+
+        /**
+         * One-time repair matching `GoogleWeatherApi.lowsFiledUnderTheirMorning`: Google's daily low
+         * was filed under the day its 07:00→07:00 interval starts, one night late. Within each fetch
+         * batch at each site, row D takes row D−1's original low (and hindcast low); a row with no
+         * D−1 in its batch — the batch's first day — gets null, as a fetch now writes it. Reads the
+         * originals from a copy so no row sees an already-shifted neighbour. Shared by desktop v32
+         * and Room MIGRATION_78_79. plans/261010-google-daily-low-filed-under-the-morning-it-ends.md
+         */
+        val GOOGLE_LOW_SHIFT_SQL = listOf(
+            "DROP TABLE IF EXISTS google_low_shift_src",
+            "CREATE TEMP TABLE google_low_shift_src AS SELECT targetDate, locationLat, locationLon, " +
+                "batchFetchedAt, fetchedAt, lowTemp, hindcastLowTemp FROM forecasts WHERE source = 'GOOGLE_WEATHER'",
+            "UPDATE forecasts SET " +
+                "lowTemp = (SELECT p.lowTemp FROM google_low_shift_src p WHERE p.locationLat = forecasts.locationLat " +
+                "AND p.locationLon = forecasts.locationLon AND p.batchFetchedAt = forecasts.batchFetchedAt " +
+                "AND p.targetDate = forecasts.targetDate - 86400000 ORDER BY p.fetchedAt DESC LIMIT 1), " +
+                "hindcastLowTemp = (SELECT p.hindcastLowTemp FROM google_low_shift_src p WHERE p.locationLat = forecasts.locationLat " +
+                "AND p.locationLon = forecasts.locationLon AND p.batchFetchedAt = forecasts.batchFetchedAt " +
+                "AND p.targetDate = forecasts.targetDate - 86400000 ORDER BY p.fetchedAt DESC LIMIT 1) " +
+                "WHERE source = 'GOOGLE_WEATHER'",
+            "DROP TABLE google_low_shift_src",
+        )
 
         /**
          * Column list shared by the desktop `daily_history` CREATE TABLE and the v19 rebuild (and by

@@ -93,4 +93,21 @@ class SameDayExtremeCutoffTest {
         assertTrue(filtered.frozeHigh)
         assertFalse(filtered.frozeLow)
     }
+
+    // ---- today's low when a fetch sends none (plans/261010-google-daily-low-filed-under-the-morning-it-ends.md) ----
+
+    @Test
+    fun `today keeps a stored low fetched within a day`() {
+        val now = 1_000_000_000_000L
+        assertEquals(58.2f, SameDayExtremeCutoff.keptTodayLow(true, 58.2f, now - 23 * 3_600_000L, now))
+    }
+
+    @Test
+    fun `an older stored low, another day, or no stored low keeps nothing`() {
+        val now = 1_000_000_000_000L
+        org.junit.Assert.assertNull(SameDayExtremeCutoff.keptTodayLow(true, 58.2f, now - 25 * 3_600_000L, now))
+        org.junit.Assert.assertNull(SameDayExtremeCutoff.keptTodayLow(false, 58.2f, now, now))
+        org.junit.Assert.assertNull(SameDayExtremeCutoff.keptTodayLow(true, null, now, now))
+        org.junit.Assert.assertNull(SameDayExtremeCutoff.keptTodayLow(true, 58.2f, null, now))
+    }
 }

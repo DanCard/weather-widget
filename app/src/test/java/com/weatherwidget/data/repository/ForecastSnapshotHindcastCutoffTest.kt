@@ -195,4 +195,71 @@ class ForecastSnapshotHindcastCutoffTest {
         assertEquals(80f, row.highTemp)
         assertEquals(55f, row.lowTemp)
     }
+
+    // ---- today's low when a fetch sends none (plans/261010-google-daily-low-filed-under-the-morning-it-ends.md) ----
+
+    /** Google's today row carries no low (the night ending this morning is yesterday's Google day). */
+    @Test
+    fun `a fetch with no low for today keeps the stored low and stores its own high`() = runTest {
+        repository.saveForecastSnapshot(
+            listOf(TestData.forecast(targetDate = todayStr, highTemp = 67f, lowTemp = 58.2f, source = "GOOGLE_WEATHER")),
+            LAT, LON, "GOOGLE_WEATHER",
+            nowMs = at(5, 0),
+        )
+        repository.saveForecastSnapshot(
+            listOf(TestData.forecast(targetDate = todayStr, highTemp = 68f, lowTemp = null, source = "GOOGLE_WEATHER")),
+            LAT, LON, "GOOGLE_WEATHER",
+            nowMs = at(9, 0),
+        )
+        val row = db.forecastDao().getLatestForecastBySource("GOOGLE_WEATHER", LAT, LON)!!
+        assertEquals(68f, row.highTemp)
+        assertEquals(58.2f, row.lowTemp)
+    }
+
+    @Test
+    fun `a fetch with no low for a future day keeps none`() = runTest {
+        repository.saveForecastSnapshot(
+            listOf(TestData.forecast(targetDate = tomorrowStr, highTemp = 67f, lowTemp = 50f, source = "GOOGLE_WEATHER")),
+            LAT, LON, "GOOGLE_WEATHER",
+            nowMs = at(5, 0),
+        )
+        repository.saveForecastSnapshot(
+            listOf(TestData.forecast(targetDate = tomorrowStr, highTemp = 68f, lowTemp = null, source = "GOOGLE_WEATHER")),
+            LAT, LON, "GOOGLE_WEATHER",
+            nowMs = at(9, 0),
+        )
+        val row = db.forecastDao().getLatestForecastBySource("GOOGLE_WEATHER", LAT, LON)!!
+        assertEquals(68f, row.highTemp)
+        assertNull(row.lowTemp)
+    }
+
+    /**
+     * Pixel, 2026-10-10 11:36: after the v79 repair the latest stored row for today (the 11:12 fetch's
+     * first day) had no low, so keeping "the latest row's low" kept nothing. The newest row that has
+     * one — yesterday's fetch — is the one to keep.
+     */
+    @Test
+    fun `today's low is kept from the newest row that has one, past a newer row without`() = runTest {
+        repository.saveForecastSnapshot(
+            listOf(TestData.forecast(targetDate = todayStr, highTemp = 67f, lowTemp = 58.2f, source = "GOOGLE_WEATHER")),
+            LAT, LON, "GOOGLE_WEATHER",
+            nowMs = at(5, 0),
+        )
+        val withLow = db.forecastDao().getLatestForecastBySource("GOOGLE_WEATHER", LAT, LON)!!
+        db.forecastDao().insertAll(
+            listOf(withLow.copy(lowTemp = null, fetchedAt = withLow.fetchedAt + 60_000L, batchFetchedAt = withLow.batchFetchedAt + 60_000L)),
+        )
+        Thread.sleep(5)
+        repository.saveForecastSnapshot(
+            listOf(TestData.forecast(targetDate = todayStr, highTemp = 68f, lowTemp = null, source = "GOOGLE_WEATHER")),
+            LAT, LON, "GOOGLE_WEATHER",
+            nowMs = at(9, 0),
+        )
+        val rows = db.forecastDao().getForecastsInRangeBySource(
+            withLow.targetDate, withLow.targetDate, LAT, LON, "GOOGLE_WEATHER",
+        )
+        val newest = rows.maxBy { it.batchFetchedAt }
+        assertEquals(68f, newest.highTemp)
+        assertEquals(58.2f, newest.lowTemp)
+    }
 }

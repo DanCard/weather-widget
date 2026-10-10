@@ -318,7 +318,9 @@ class GoogleWeatherApi(
             .filter { it.dateTime < firstForecastMs }
         val hourly = (elapsed + forecast).distinctBy { it.dateTime }.sortedBy { it.dateTime }
 
-        val daily = days?.get("forecastDays")?.jsonArray.orEmpty().mapNotNull { parseDay(it.jsonObject) }
+        val daily = lowsFiledUnderTheirMorning(
+            days?.get("forecastDays")?.jsonArray.orEmpty().mapNotNull { parseDay(it.jsonObject) },
+        )
 
         Log.d(
             TAG,
@@ -349,6 +351,24 @@ class GoogleWeatherApi(
             cloudCover = obj.int("cloudCover"),
             source = WeatherSource.GOOGLE_WEATHER.id,
         )
+    }
+
+    /**
+     * Google's day runs 07:00 → 07:00 local (`interval`; raw reply 2026-10-10), so its `minTemperature`
+     * is the low of the night *after* `displayDate` — the next morning's. Every other source, and the
+     * observed actuals, pair a calendar day's high with its **own** morning low (NWS files a night's
+     * low under the date it ends, `NwsDailyMapper`). So day D takes Google day D−1's min: today gets no
+     * low from this fetch (that night began yesterday; the partial-today rule completes it from a stored
+     * row), and the last Google day's min — the morning after the horizon — is dropped. Only an
+     * adjacent previous day lends its low; a gap in the response leaves the next day without one.
+     * `plans/261010-google-daily-low-filed-under-the-morning-it-ends.md`
+     */
+    internal fun lowsFiledUnderTheirMorning(days: List<DailyForecast>): List<DailyForecast> {
+        val byDate = days.associateBy { it.date }
+        return days.map { day ->
+            val previous = runCatching { LocalDate.parse(day.date).minusDays(1).toString() }.getOrNull()
+            day.copy(lowTemp = previous?.let { byDate[it]?.lowTemp })
+        }
     }
 
     private fun parseDay(obj: JsonObject): DailyForecast? {

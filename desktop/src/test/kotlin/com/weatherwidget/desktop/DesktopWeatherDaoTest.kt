@@ -199,12 +199,13 @@ class DesktopWeatherDaoTest {
     }
 
     /**
-     * NWS stops reporting today's low in the evening; the mapper now stores it as null (it used to
-     * store low = high). Today is replaced by the newest stored row with both values, the same rule
-     * as Android's DailyTodayResolver (PartialForecastDays).
+     * NWS stops reporting today's low in the evening. Since 2026-10-10 the write keeps the stored low
+     * (SameDayExtremeCutoff.keptTodayLow), so the evening row stands complete with its own newer high;
+     * before, it was stored without a low and the reader swapped in the morning row, high included.
+     * plans/261010-google-daily-low-filed-under-the-morning-it-ends.md
      */
     @Test
-    fun `getDailyForecasts replaces a partial today with the newest complete forecast`() {
+    fun `an evening fetch without today's low keeps the stored low and its own high`() {
         val lat = 37.0
         val lon = -122.0
         val source = "NWS"
@@ -226,7 +227,7 @@ class DesktopWeatherDaoTest {
         ), nowMs = earlyMorningMs() + 60_000L)
 
         val days = dao.getDailyForecasts(lat, lon, source).associateBy { it.date }
-        assertEquals(91f, days.getValue(today).highTemp)
+        assertEquals(92f, days.getValue(today).highTemp)
         assertEquals(62f, days.getValue(today).lowTemp)
         assertEquals(87f, days.getValue(tomorrow).highTemp)
         assertEquals(60f, days.getValue(tomorrow).lowTemp)

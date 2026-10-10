@@ -13,7 +13,10 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -167,7 +170,8 @@ class GoogleWeatherApiTest {
         val today = result.daily.first()
         assertEquals("2026-10-06", today.date)
         assertEquals(81.9f, today.highTemp!!, 0.01f)
-        assertTrue("low is °F, not °C", today.lowTemp!! > 45f)
+        assertNull("today's morning low began yesterday: not in this response", today.lowTemp)
+        assertTrue("low is °F, not °C", result.daily[1].lowTemp!! > 45f)
         assertEquals(WeatherSource.GOOGLE_WEATHER.id, today.source)
         assertEquals("CLEAR", today.iconToken)
         assertEquals("Clear", today.condition)
@@ -402,5 +406,43 @@ class GoogleWeatherApiTest {
         assertFalse(GoogleQuota.isDailyQuotaExhausted(429, null))
         // The literal Fold body shape: pretty-printed with spaces after the colon.
         assertTrue(GoogleQuota.isDailyQuotaExhausted(429, """ "quota_unit": "1/d/{project}", """))
+    }
+
+    // ---- daily low filed under the morning it ends (plans/261010-google-daily-low-filed-under-the-morning-it-ends.md) ----
+
+    /**
+     * Raw reply, 2026-10-10: each day's interval is 07:00 → 07:00 PDT and its min is the next
+     * morning's (Oct 10 min 49.2 = Oct 11 05:00). Row D pairs D's high with D−1's min.
+     */
+    @Test
+    fun `each day's low is the previous Google day's min, the night ending that morning`() {
+        val days = kotlinx.serialization.json.Json.parseToJsonElement(fixture("days-3-2026-10-10")).jsonObject
+        val daily = api().parse(current = null, days = days, forecastHours = emptyList(), historyHours = emptyList()).daily
+
+        assertEquals(listOf("2026-10-10", "2026-10-11", "2026-10-12"), daily.map { it.date })
+        assertEquals(listOf(68.7f, 69.3f, 69.9f), daily.map { it.highTemp })
+        assertEquals(listOf(null, 49.2f, 50.1f), daily.map { it.lowTemp })
+    }
+
+    @Test
+    fun `rain chances stay on their own day`() {
+        fun day(d: Int, min: Int, dayPop: Int, nightPop: Int) = """
+            {"displayDate": {"year": 2026, "month": 10, "day": $d},
+             "maxTemperature": {"degrees": 70}, "minTemperature": {"degrees": $min},
+             "daytimeForecast": {"precipitation": {"probability": {"percent": $dayPop}}},
+             "nighttimeForecast": {"precipitation": {"probability": {"percent": $nightPop}}}}
+        """
+        val days = Json.parseToJsonElement("""{"forecastDays": [${day(10, 49, 10, 20)}, ${day(11, 50, 30, 40)}]}""").jsonObject
+        val daily = api().parse(current = null, days = days, forecastHours = emptyList(), historyHours = emptyList()).daily
+        assertEquals(listOf(10, 30), daily.map { it.daytimePrecipProbability })
+        assertEquals(listOf(20, 40), daily.map { it.nighttimePrecipProbability })
+        assertEquals(listOf(null, 49f), daily.map { it.lowTemp })
+    }
+
+    @Test
+    fun `a gap in the days lends no low across it`() {
+        fun day(date: String, low: Float) = com.weatherwidget.data.model.DailyForecast(date, 70f, low, "Clear")
+        val shifted = api().lowsFiledUnderTheirMorning(listOf(day("2026-10-10", 49f), day("2026-10-12", 48f), day("2026-10-13", 47f)))
+        assertEquals(listOf(null, null, 48f), shifted.map { it.lowTemp })
     }
 }

@@ -364,6 +364,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     private data class LatestForecast(
         val high: Float?,
         val low: Float?,
+        val fetchedAt: Long,
         val summary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary,
     )
 
@@ -375,7 +376,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         targetDate: Long,
     ): LatestForecast? {
         val sql = """
-            SELECT highTemp, lowTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax FROM forecasts
+            SELECT highTemp, lowTemp, fetchedAt, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax FROM forecasts
             WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate = ?
             ORDER BY batchFetchedAt DESC, fetchedAt DESC
             LIMIT 1
@@ -390,11 +391,45 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             LatestForecast(
                 high = rs.getNullableFloat("highTemp"),
                 low = rs.getNullableFloat("lowTemp"),
+                fetchedAt = rs.getLong("fetchedAt"),
                 summary = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(
                     noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
                     dayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
                     nightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
                 ),
+            )
+        }
+    }
+
+    /**
+     * Newest stored row for the day that has a low. The latest row may have none (a source that no
+     * longer reports the night ending this morning), so [latestForecast] cannot be the one to keep from.
+     */
+    private fun latestForecastWithLow(
+        conn: Connection,
+        keyLat: Double,
+        keyLon: Double,
+        source: String,
+        targetDate: Long,
+    ): LatestForecast? {
+        val sql = """
+            SELECT highTemp, lowTemp, fetchedAt FROM forecasts
+            WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate = ? AND lowTemp IS NOT NULL
+            ORDER BY fetchedAt DESC
+            LIMIT 1
+        """.trimIndent()
+        return conn.prepareStatement(sql).use { stmt ->
+            stmt.setDouble(1, keyLat)
+            stmt.setDouble(2, keyLon)
+            stmt.setString(3, source)
+            stmt.setLong(4, targetDate)
+            val rs = stmt.executeQuery()
+            if (!rs.next()) return@use null
+            LatestForecast(
+                high = rs.getNullableFloat("highTemp"),
+                low = rs.getNullableFloat("lowTemp"),
+                fetchedAt = rs.getLong("fetchedAt"),
+                summary = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(),
             )
         }
     }
@@ -457,6 +492,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                                 lowTemp = lowToStore,
                                 nowMs = now,
                             )
+                            if (!filtered.frozeLow && lowToStore == null && isToday) {
+                                val withLow = latestForecastWithLow(conn, keyLat, keyLon, source, targetDate)
+                                lowToStore = SameDayExtremeCutoff.keptTodayLow(isToday, withLow?.low, withLow?.fetchedAt, now)
+                            }
                             if (filtered.frozeAny) {
                                 if (filtered.frozeHigh) {
                                     hindcastHigh = highToStore

@@ -116,17 +116,17 @@ It was removed for two reasons:
 view's render-time reads of hourly data (day/night rain %, noon cloud), not only the screen that
 fetched them.
 
+**Since 2026-10-10** those render-time reads have a fallback on the `forecasts` row
+(`DailyHourlySummaries`), and every source stores hourly to 72 h only — a trim before writing, not a
+prune (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`). On-demand rows are still
+never pruned.
+
 ## Key files
 
 | Concern | File |
 |---|---|
 | Retention ages | `shared/.../data/local/RetentionPolicy.kt` |
 | Snapshot keep rule (spec) | `shared/.../data/local/HistorySnapshotRetention.kt` |
-**Since 2026-10-10** those render-time reads have a fallback on the `forecasts` row
-(`DailyHourlySummaries`), and every source stores hourly to 72 h only — a trim before writing, not a
-prune (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`). On-demand rows are still
-never pruned.
-
 | Android retention + prune trigger | `app/.../data/repository/WeatherRetentionManager.kt`, `ForecastRepository.kt` |
 | Android prune job + constraints | `app/.../data/repository/HistoryPruneWorker.kt`, `HistorySnapshotPruner` |
 | Desktop retention + prune | `shared/.../data/local/desktop/DesktopWeatherDao.kt` (`applyRetention`, `pruneHourlyHistorySnapshots`), `desktop/.../DesktopWeatherRepository.kt` (`pruneHistorySnapshotsIfDue`, `housekeepingAllowed`) |

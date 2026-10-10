@@ -853,4 +853,41 @@ class WeatherDatabaseMigrationTest {
             assertTrue(c.isNull(3))
         }
     }
+
+    /**
+     * Google's stored daily lows move to the morning they end: within each batch row D takes row
+     * D−1's low; the batch's first day gets null; other sources untouched.
+     * plans/261010-google-daily-low-filed-under-the-morning-it-ends.md
+     */
+    @Test
+    fun migrate78To79_shiftsGoogleLowsToTheMorningTheyEnd() {
+        val d10 = 1791590400000L // 2026-10-10 UTC midnight
+        val day = 86_400_000L
+        helper.createDatabase(testDb, 78).apply {
+            listOf(49.0, 50.0, 48.0).forEachIndexed { i, low ->
+                execSQL(
+                    "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
+                        "condition, isClimateNormal, source, batchFetchedAt, fetchedAt) VALUES " +
+                        "(${d10 + i * day}, $d10, 37.417, -122.089, 70.0, $low, 'Clear', 0, 'GOOGLE_WEATHER', 5, 5)",
+                )
+            }
+            execSQL(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
+                    "condition, isClimateNormal, source, batchFetchedAt, fetchedAt) VALUES " +
+                    "(${d10 + day}, $d10, 37.417, -122.089, 70.0, 55.0, 'Clear', 0, 'OPEN_METEO', 5, 5)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 79, true, WeatherDatabase.MIGRATION_78_79)
+
+        db.query("SELECT lowTemp FROM forecasts WHERE source = 'GOOGLE_WEATHER' ORDER BY targetDate").use { c ->
+            assertTrue(c.moveToFirst()); assertTrue("first day of the batch: no D−1", c.isNull(0))
+            assertTrue(c.moveToNext()); assertEquals(49.0, c.getDouble(0), 0.01)
+            assertTrue(c.moveToNext()); assertEquals(50.0, c.getDouble(0), 0.01)
+        }
+        db.query("SELECT lowTemp FROM forecasts WHERE source = 'OPEN_METEO'").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals(55.0, c.getDouble(0), 0.01)
+        }
+    }
 }

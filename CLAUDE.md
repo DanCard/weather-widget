@@ -40,7 +40,11 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   quota-theft risk; usage is tracked in `api_usage_stats`) — **except Google Weather**, billed per
   request, whose key is baked into debug builds only (release `BuildConfig` field is `""`).
   Google is forecast-only (borrows actuals); one full fetch = 4–6 requests (`forecast/hours` page 1, then
-  pages 2–3 only if page 1 changed — `GoogleHourPaging`), current temp = 1. A daily-view tap on a day
+  pages 2–3 only if page 1 changed — `GoogleHourPaging`), current temp = 1. Google's day runs
+  07:00→07:00, so its `minTemperature` is the next morning's: day D takes day D−1's min, like NWS
+  (`GoogleWeatherApi.lowsFiledUnderTheirMorning`); a fetch with no low for today keeps the newest
+  stored one ≤ 24 h old (`SameDayExtremeCutoff.keptTodayLow`, both platforms;
+  `plans/261010-google-daily-low-filed-under-the-morning-it-ends.md`). A daily-view tap on a day
   past the stored hourly opens its hourly view at once (empty) under "Fetching hourly forecast for
   {day}…"; for Google past 72 h that tap fetches `forecast/hours` deep enough to cover the day (one
   billed page per 24 h; next week ≈ 7; reach 240 h, which is also how far both platforms load hourly),
@@ -283,7 +287,7 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 
 ## Database Schema
 
-- **Version**: Room 78 / desktop 31 as of 2026-10-10. Authoritative: `WeatherDatabase.kt`
+- **Version**: Room 79 / desktop 32 as of 2026-10-10. Authoritative: `WeatherDatabase.kt`
   `version` and `DesktopWeatherDatabase.SCHEMA_VERSION`, which move in pairs — this line goes stale
   fast; trust the code.
 - `observations.stationType` is an INTEGER `StationType.dbCode` (0 UNKNOWN, 1 OFFICIAL, 2 PERSONAL,

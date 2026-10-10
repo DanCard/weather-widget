@@ -52,4 +52,18 @@ object SameDayExtremeCutoff {
             frozeLow = freezeLow && lowTemp != null,
         )
     }
+
+    /**
+     * Today's low when a fetch sends none: the stored one, if fetched within
+     * [PartialForecastDays.COMPLETE_REPLACEMENT_MAX_AGE_MS]. The night that ends this morning began
+     * yesterday, so a source may simply not report it any more — Google's 07:00→07:00 day files it
+     * under yesterday (`GoogleWeatherApi.lowsFiledUnderTheirMorning`), and NWS drops "Tonight" in the
+     * evening. Writing null made the reader swap in an older complete row, high included; keeping the
+     * low leaves this fetch's high standing. Null for any other day.
+     * `plans/261010-google-daily-low-filed-under-the-morning-it-ends.md`
+     */
+    fun keptTodayLow(isToday: Boolean, priorLow: Float?, priorFetchedAt: Long?, nowMs: Long): Float? =
+        priorLow.takeIf {
+            isToday && priorFetchedAt != null && nowMs - priorFetchedAt <= PartialForecastDays.COMPLETE_REPLACEMENT_MAX_AGE_MS
+        }
 }

@@ -109,6 +109,12 @@ internal class ForecastSnapshotStore(
             source = sourceId,
         )
         val latestByDate = siteExactLatestForecastByDate(existingForecasts, keyLat, keyLon)
+        // Newest stored row per day that has a low — the latest row may have none (a source that no
+        // longer reports the night ending this morning), so it cannot be the one to keep from.
+        val latestLowByDate = existingForecasts
+            .filter { it.locationLat == keyLat && it.locationLon == keyLon && it.lowTemp != null }
+            .groupBy { it.targetDate }
+            .mapValues { (_, rows) -> rows.maxBy { it.fetchedAt } }
         val nowMs = now.toInstant().toEpochMilli()
         val zone = now.zone
 
@@ -130,7 +136,13 @@ internal class ForecastSnapshotStore(
             // batch must not become the latest row with a hole where the forecast used to be.
             val prior = latestByDate[forecast.targetDate]
             val highToStore = if (filtered.frozeHigh) prior?.highTemp else filtered.highTemp
-            val lowToStore = if (filtered.frozeLow) prior?.lowTemp else filtered.lowTemp
+            val lowToStore = if (filtered.frozeLow) {
+                prior?.lowTemp
+            } else {
+                filtered.lowTemp ?: latestLowByDate[forecast.targetDate].let {
+                    SameDayExtremeCutoff.keptTodayLow(isToday, it?.lowTemp, it?.fetchedAt, nowMs)
+                }
+            }
             // The frozen side's raw value is kept, not dropped: readers ignore hindcast*, and a past
             // day with no pre-cutoff forecast draws it as a dashed fallback (PastDayForecastOverlay).
             val hindcastHigh = if (filtered.frozeHigh) ForecastTempRounding.forStorage(high, isToday) else null
