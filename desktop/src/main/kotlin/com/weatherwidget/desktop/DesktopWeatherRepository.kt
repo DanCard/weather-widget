@@ -10,6 +10,7 @@ import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.GoogleHistoryRefill
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.HourlyOnDemand
+import com.weatherwidget.data.remote.HourlyWindowPolicy
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.shared.actuals.DailyHistoryMaintenance
@@ -600,7 +601,16 @@ class DesktopWeatherRepository(
                 )
             }
 
-            val forecastHours = persistForecastResult(result, now)
+            // NEAR or FULL hourly window (HourlyWindowPolicy): what this fetch stores, 48 h or 72 h.
+            val hourlyWindow = DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude).current(now)
+            val forecastHours = persistForecastResult(
+                result,
+                now,
+                hoursAhead = HourlyOnDemand.hoursAhead(weatherSource, null, hourlyWindow),
+            )
+            if (hourlyWindow == HourlyWindowPolicy.Window.FULL && result.hourly.isNotEmpty()) {
+                DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude).markFull()
+            }
             if (refillDay != null) refillStaleGoogleHours(result, now, refillDay)
 
             if (borrowedPlan != null) {

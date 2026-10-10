@@ -118,6 +118,46 @@ class GoogleWeatherApiTest {
     }
 
     @Test
+    fun `a NEAR fetch asks 48 h and stops at two pages even when page 1 changed`() = runBlocking {
+        val stored = storedAfterFullFetch().map { it.copy(temperature = it.temperature + 2f) }
+        requests.clear()
+        val google = api()
+
+        google.getForecast(37.422, -122.084, includeHistory = false, storedHours = stored, hoursAhead = 48)
+
+        val pages = requests.filter { it.url.encodedPath.endsWith("forecast/hours:lookup") }
+        assertTrue(pages.all { it.url.parameters["hours"] == "48" })
+        assertEquals(2, pages.size)
+        assertTrue(google.lastHoursPaging!!, google.lastHoursPaging!!.startsWith("pages=2 reason=changed"))
+    }
+
+    @Test
+    fun `an unchanged first page stops a NEAR fetch at one page`() = runBlocking {
+        val stored = storedAfterFullFetch()
+        requests.clear()
+        val google = api()
+
+        google.getForecast(37.422, -122.084, includeHistory = false, storedHours = stored, hoursAhead = 48)
+
+        assertEquals(1, hourPageCalls())
+        assertTrue(google.lastHoursPaging!!, google.lastHoursPaging!!.startsWith("pages=1 reason=unchanged"))
+    }
+
+    @Test
+    fun `a FULL fetch asks for eight days and skips the page-1 check`() = runBlocking {
+        val stored = storedAfterFullFetch()
+        requests.clear()
+        val google = api()
+
+        google.getForecast(37.422, -122.084, includeHistory = false, storedHours = stored, hoursAhead = 192)
+
+        val pages = requests.filter { it.url.encodedPath.endsWith("forecast/hours:lookup") }
+        assertTrue(pages.all { it.url.parameters["hours"] == "192" })
+        assertEquals("the recording's token chain ends at page 3", 3, pages.size)
+        assertEquals("pages=3 reason=no_stored_hours_given hours=192", google.lastHoursPaging)
+    }
+
+    @Test
     fun `a deeper on-demand horizon asks for it and skips the page-1 check`() = runBlocking {
         val stored = storedAfterFullFetch()
         requests.clear()

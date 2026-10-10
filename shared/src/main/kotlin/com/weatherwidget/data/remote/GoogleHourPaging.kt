@@ -4,7 +4,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import kotlin.math.abs
 
 /**
- * Whether a Google `forecast/hours` fetch needs pages 2–3 after page 1.
+ * Whether a Google `forecast/hours` fetch needs pages 2+ after page 1.
  *
  * Every page is one billed request against `ForecastHoursQueriesPerDay`, a per-project daily quota
  * shared by every device; 72 h at 24 per page made each full fetch cost 3 (spent by 03:16 on

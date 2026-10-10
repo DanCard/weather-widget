@@ -49,10 +49,29 @@ object HourlyOnDemand {
      * the source's whole horizon. A free source's one call returns all of it anyway, and keeping it
      * all is what lets [hoursToCover] know a recent on-demand fetch already brought everything.
      */
-    fun hoursAhead(sourceId: String, request: Request?): Int {
+    fun hoursAhead(
+        sourceId: String,
+        request: Request?,
+        window: HourlyWindowPolicy.Window? = null,
+    ): Int {
         val horizon = HourlyHorizons.of(sourceId)
-        val requested = request?.takeIf { it.sourceId == sourceId } ?: return horizon.routineHours
+        val requested = request?.takeIf { it.sourceId == sourceId }
+            ?: return window?.let { HourlyWindowPolicy.storeHours(sourceId, it) } ?: horizon.routineHours
         return if (horizon.costsPerExtraDay) requested.hours else horizon.maxHours
+    }
+
+    /**
+     * The horizon a fetch of [sourceId] *asks* a billed source for, which may exceed what it stores
+     * ([hoursAhead]): a FULL routine fetch downloads 8 days so the far days' summaries refresh, and
+     * stores 72 h. Same as [hoursAhead] for an on-demand [request] or no [window].
+     */
+    fun askHours(
+        sourceId: String,
+        request: Request?,
+        window: HourlyWindowPolicy.Window? = null,
+    ): Int {
+        if (request?.sourceId == sourceId || window == null) return hoursAhead(sourceId, request)
+        return HourlyWindowPolicy.askHours(sourceId, window)
     }
 
     /**

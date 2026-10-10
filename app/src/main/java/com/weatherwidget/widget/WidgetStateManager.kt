@@ -427,6 +427,24 @@ class WidgetStateManager internal constructor(
         prefs.edit().remove(KEY_PENDING_LOCATION_FETCH).apply()
     }
 
+    /**
+     * When [sourceId] last downloaded its full hourly window (8 days) at the site, or null when it
+     * never did here ([com.weatherwidget.data.remote.HourlyWindowPolicy]). One marker per source: a
+     * different site reads null, so a new place is FULL-due at once.
+     */
+    fun getLastFullHourlyFetch(sourceId: String, lat: Double, lon: Double): Long? =
+        com.weatherwidget.data.remote.HourlyWindowPolicy.FullMarker
+            .decode(prefs.getString(KEY_FULL_HOURLY_PREFIX + sourceId, null))
+            ?.forSite(lat, lon)
+
+    fun markFullHourlyFetch(sourceId: String, lat: Double, lon: Double, atMs: Long) {
+        prefs.edit()
+            .putString(
+                KEY_FULL_HOURLY_PREFIX + sourceId,
+                com.weatherwidget.data.remote.HourlyWindowPolicy.FullMarker.at(lat, lon, atMs).encode(),
+            ).apply()
+    }
+
     fun getRecentLocations(): List<RecentLocation> {
         val raw = prefs.getString(KEY_RECENT_LOCATIONS, null)
         return RecentLocationsHelper.decodeFromJson(raw)
@@ -557,6 +575,7 @@ class WidgetStateManager internal constructor(
 
         /** Global: place name of a setup-screen location change whose first fetch has not landed. */
         const val KEY_PENDING_LOCATION_FETCH = "widget_pending_location_fetch"
+        private const val KEY_FULL_HOURLY_PREFIX = "hourly_full_fetch_"
 
         /** Global: JSON array of recent locations. */
         const val KEY_RECENT_LOCATIONS = "recent_locations"

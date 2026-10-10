@@ -143,8 +143,9 @@ class GoogleWeatherApi(
      * [storedHours]: this source's stored hourly rows at the site. When given, page 1 is compared
      * with them and pages 2–3 are fetched only on change ([GoogleHourPaging]); null fetches all.
      *
-     * [hoursAhead]: the `forecast/hours` horizon — [FORECAST_HOURS] routinely, more for a tapped day
-     * past it ([HourlyOnDemand]); a deeper fetch takes every page, without the page-1 check.
+     * [hoursAhead]: the `forecast/hours` horizon — [FORECAST_HOURS] routinely, less for a NEAR fetch
+     * ([HourlyWindowPolicy]), more for a FULL one or a tapped day past it ([HourlyOnDemand]); a
+     * horizon past [FORECAST_HOURS] takes every page, without the page-1 check.
      *
      * [includeHours]: false skips `forecast/hours` and `history/hours` (an hourly-limited fetch,
      * [HourlyFetchGate]); daily and current conditions are fetched as usual, and the result has no
@@ -196,7 +197,7 @@ class GoogleWeatherApi(
             when {
                 !includeHours -> null
                 hoursBlock != null -> null
-                else -> fetchProduct(ForecastProduct.HOURLY) { fetchForecastHours(apiKey, lat, lon, storedHours.takeIf { hoursAhead == FORECAST_HOURS }, hoursAhead) }
+                else -> fetchProduct(ForecastProduct.HOURLY) { fetchForecastHours(apiKey, lat, lon, storedHours.takeIf { hoursAhead <= FORECAST_HOURS }, hoursAhead) }
             }
         }
         val requestHistory = includeHours && includeHistory && nowMs() >= historyBlockedUntilMs
@@ -292,7 +293,7 @@ class GoogleWeatherApi(
                     page1 = hours.mapNotNull(::parseHour),
                     stored = storedHours,
                     nowMs = startMs,
-                    horizonEndMs = startMs + FORECAST_HOURS * 3_600_000L,
+                    horizonEndMs = startMs + hoursAhead * 3_600_000L,
                 )
                 pagingReason = decision.reason
                 if (!decision.fetchRest) break

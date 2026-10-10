@@ -84,6 +84,13 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   the hourly view are on demand for every source; a free source's on-demand fetch keeps its whole
   horizon, so a fresh one means "nothing more to fetch". Expected to free ~25 MB of the Pixel's 72 MB DB
   (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`).
+- **Routine hourly fetch has two windows** (user, 2026-10-10; `:shared` `HourlyWindowPolicy`):
+  **NEAR** stores 48 h at the normal forecast cadence; **FULL** downloads 8 days (Google asks 192 h =
+  8 pages) and stores 72 h, at most once per 24 h per source+site and only while charging (or ≥ 80 %).
+  Off charger is NEAR only. 48 h, not 24: the history readers need the previous day's copy of every
+  hour of today. Summaries on the `forecasts` row come from the whole download and carry forward, so a
+  NEAR fetch never blanks a far day. On-demand days and unknown context are unchanged. See
+  `performance/261010-hourly-near-window-often-full-eight-days-daily.md`.
 - **Google past-day hourly refill** (user, 2026-10-10): `forecast/hours` never re-sends a passed
   hour, so a day of refused hourly fetches freezes that day's line. Refresh on a **previous day** —
   Forecast History (both platforms) or desktop Observations opened from that day — requests

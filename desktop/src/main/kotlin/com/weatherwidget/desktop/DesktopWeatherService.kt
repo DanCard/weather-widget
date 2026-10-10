@@ -207,6 +207,12 @@ class DesktopWeatherService(
                     includeHistory = googleNeedsHistory(refillDay),
                     storedHours = googleStoredHours(),
                     includeHours = googleIncludeHours(hourlyLimited),
+                    hoursAhead = HourlyOnDemand.askHours(
+                        WeatherSource.GOOGLE_WEATHER.id,
+                        null,
+                        DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude)
+                            .current(System.currentTimeMillis()),
+                    ),
                 ).also { weatherDao?.log("GOOGLE_HOURS_PAGES", googleWeather.lastHoursPaging.orEmpty(), "INFO") },
                 WeatherSource.GOOGLE_WEATHER.id,
             )
