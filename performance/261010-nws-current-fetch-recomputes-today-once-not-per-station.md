@@ -85,3 +85,18 @@ per charging-loop NWS fetch instead of five, and `NWS_IDW totalMs` down from ~5 
   `expected:<2> but was:<5>` (two dates). Test 4 passes on both versions: the test runs on one
   thread, so the old race never reorders there; it guards the result, not the race.
 - `com.weatherwidget.data.repository.*`: 260 tests, 0 failures.
+- **Pixel 7 Pro, installed 13:21** (`app_logs` pulled 14:51):
+
+  | Fetch | Recomputes of today | Each | `NWS_IDW totalMs` |
+  |---|---|---|---|
+  | 12:46 charging_loop (old build) | 5, concurrent | 3.5–4.7 s | 9350 |
+  | 13:02 charging_loop (old) | 5 | 3.5–4.5 s | 5037 |
+  | 13:15 charging_loop (old) | 5 | 3.8–4.5 s | 7317 |
+  | 13:30 location_changed (new) | **1** | 1.2 s (new site, 157 obs) | 4308 |
+  | 14:34 location_changed (new) | **1** | 2.2 s (3,237 obs) | **3192** |
+  | 14:51 opportunistic_job (new, logcat) | **1** | 4.0 s (3,675 obs) | 4491 |
+
+  The phone was unplugged at ~13:28 (`isPlugged=false`, battery 79 → 68 %), so no charging-loop
+  fetch ran on the new build. The two fetches that did run go through the same `fetchNwsCurrent`.
+  The rebuilds at 14:34:26–39 (Oct 7–10, one after another) come from the backfill and paint paths,
+  not this fetch.

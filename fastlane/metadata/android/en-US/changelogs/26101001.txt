@@ -1,0 +1,1 @@
+Release 26101001: Faster NWS observation processing and extreme calculations; smarter hourly fetch cadence (48h near window, 8-day daily charging sync); background fetch skips unused sources to save battery and quota; smoother on-demand hourly panning and navigation; pruning optimized for charging/screen-off periods; stability and parity improvements.
