@@ -22,6 +22,43 @@ object NwsBlend {
     const val STATION_NAME = "NWS Blended"
     val STATION_TYPE = StationType.BLENDED
 
+    /**
+     * The blend at [nowMs] from whatever observation rows the caller has loaded — the one rule both
+     * platforms use to choose its inputs, so the same rows give the same blend everywhere.
+     *
+     * - **NWS rows only.** The blend is NWS's truth; other feeds' rows are not inputs.
+     * - **Window = the blend's own decay**, [ObservationOrigin.BLEND_MAX_AGE_MS] before [nowMs], never
+     *   a caller's calendar boundary. Android used to pass local midnight, so at 00:15 a 23:30 reading
+     *   the IDW still weights was excluded and the header blended fewer stations than desktop.
+     * - **Sites merged, not collapsed** ([com.weatherwidget.data.local.ObservationSiteMerge]): a row's
+     *   location is fetch provenance, and collapsing to the nearest site dropped the newest readings
+     *   after a short walk. Desktop's reads were already merged; Android's blend collapsed.
+     *
+     * See plans/261009-desktop-stops-storing-nws-blend.md (step 3).
+     */
+    fun current(
+        readings: List<ObservationReading>,
+        latitude: Double,
+        longitude: Double,
+        nowMs: Long,
+        rowLatitude: Double = latitude,
+        rowLongitude: Double = longitude,
+    ): ObservationReading? {
+        val windowStartMs = nowMs - ObservationOrigin.BLEND_MAX_AGE_MS
+        val inputs = com.weatherwidget.data.local.ObservationSiteMerge.merge(
+            readings.filter { it.api == WeatherSource.NWS.id && it.timestamp > windowStartMs },
+            latitude,
+            longitude,
+            latOf = { it.locationLat },
+            lonOf = { it.locationLon },
+            stationOf = { it.stationId },
+            timestampOf = { it.timestamp },
+            apiOf = { it.api },
+            fetchedAtOf = { it.fetchedAt },
+        )
+        return build(inputs, latitude, longitude, rowLatitude, rowLongitude, nowMs)
+    }
+
     /** Each station's newest reading that passed upstream QC, sorted by station id. */
     fun latestUsableByStation(readings: List<ObservationReading>): List<ObservationReading> =
         readings

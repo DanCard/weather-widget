@@ -39,7 +39,7 @@ class ObservationProximityQueryAllowlistTest {
         // not an obstacle to it. Whether an excursion should also widen the current-temp read is a
         // separate question and was left open by
         // plans/260827-observation-site-merge-for-actual-series.md.
-        "CurrentObservationReader.kt" to "current-observation pick; site identity is the question, not a filter",
+        "CurrentObservationReader.kt" to "_MAIN pick collapses to one site (site identity is the question); NWS blend candidates are merged by NwsBlend.current",
     )
 
     @Test

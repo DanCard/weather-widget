@@ -94,4 +94,25 @@ class NwsBlendTest {
         val blend = NwsBlend.build(listOf(prior, reading("KNUQ", 5, 60f, 3f)), lat, lon, nowMs = now)!!
         assertEquals(60f, blend.temperature, 0f)
     }
+
+    /** The one input rule both platforms share (plans/261009-desktop-stops-storing-nws-blend.md, step 3). */
+    @Test
+    fun `current blends only NWS rows inside the blend's own window`() {
+        val rows = listOf(
+            reading("KNUQ", ageMin = 45, temp = 60f, km = 3.8f),
+            reading("KPAO", ageMin = 200, temp = 90f, km = 6.0f), // past the 3 h decay
+            reading("SYN1", ageMin = 5, temp = 99f, km = 1.0f).copy(api = "SYNOPTIC"),
+        )
+        val blend = NwsBlend.current(rows, lat, lon, now)!!
+        assertEquals(60f, blend.temperature, 0.01f)
+        assertEquals(now - 45 * minute, blend.timestamp)
+    }
+
+    @Test
+    fun `current merges nearby fetch sites instead of collapsing to the nearest`() {
+        val home = reading("KNUQ", ageMin = 70, temp = 60f, km = 3.8f)
+        val walk = reading("KNUQ", ageMin = 10, temp = 66f, km = 4.1f).copy(locationLat = lat + 0.007)
+        val blend = NwsBlend.current(listOf(home, walk), lat, lon, now)!!
+        assertEquals(66f, blend.temperature, 0.01f)
+    }
 }

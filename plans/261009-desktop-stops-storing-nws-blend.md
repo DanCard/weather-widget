@@ -29,9 +29,16 @@ Android stopped storing it around 2026-07-30 (`a69cedcf`); desktop never followe
    already loaded (`NwsBlend.build`, at `now`) when NWS provides the displayed source's actuals,
    and uses it for `currentObservedAt` / current condition exactly where it read the stored row.
    Falls back to the newest source observation, as today when no blend row exists.
-3. **Share the read rule.** If the Android reader and the desktop repository need the same
-   "which rows feed the blend, when" logic beyond `NwsBlend.build`, lift it into `:shared`
-   `NwsBlend` so both call one function.
+3. **Share the read rule — implemented later the same day.** First skipped as unneeded (both called
+   `NwsBlend.build`), then found to differ in its *inputs*: Android windowed at the caller's
+   `sinceMs` (local midnight, so at 00:15 a 23:30 reading the IDW still weights was dropped) and
+   collapsed to one fetch site (`selectNearestObservationSite` — the excursion bug
+   `ObservationSiteMerge` exists for); desktop used 6 days, merged. Now both call
+   `NwsBlend.current(readings, lat, lon, nowMs)`: NWS rows only, window = `BLEND_MAX_AGE_MS` (3 h)
+   before now, sites merged. Android's `CurrentObservationReader` reads the raw NWS candidates
+   (the collapsing `getLatestNwsObservationsByStationAllTime` wrapper is deleted); its `_MAIN` pick
+   still collapses (site identity is its question). Tests: `NwsBlendTest` (window, NWS-only, merge),
+   `CurrentObservationReaderTest` (after midnight; walk-away fragment).
 4. **Purge stored rows — by hand, no migration.** Only the user's own desktop DB ever held them
    (Android never stored the row). After the new code was running: backed up the DB and ran
    `DELETE FROM observations WHERE stationId = 'NWS_BLEND'` (2026-10-09: 398 BLENDED + 82

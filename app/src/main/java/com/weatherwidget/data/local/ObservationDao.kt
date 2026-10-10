@@ -399,17 +399,6 @@ interface ObservationDao {
         sinceMs: Long,
     ): List<ObservationEntity>
 
-    suspend fun getLatestNwsObservationsByStationAllTime(
-        lat: Double,
-        lon: Double,
-        sinceMs: Long,
-    ): List<ObservationEntity> =
-        selectNearestObservationSite(
-            getLatestNwsObservationCandidatesByStationAllTime(lat, lon, sinceMs),
-            lat,
-            lon,
-        )
-
     @Query("""
         SELECT * FROM observations
         WHERE stationId LIKE '%\_MAIN' ESCAPE '\'

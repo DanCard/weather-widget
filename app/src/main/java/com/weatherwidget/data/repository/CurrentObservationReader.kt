@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.selectNearestObservationSite
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.shared.observations.NwsBlend
+import com.weatherwidget.shared.observations.ObservationOrigin
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,6 +21,7 @@ class CurrentObservationReader @Inject constructor(
         latitude: Double,
         longitude: Double,
         sinceMs: Long,
+        nowMs: Long = System.currentTimeMillis(),
     ): List<ObservationEntity> {
         val persistedMain = selectNearestObservationSite(
             observationDao.getLatestMainObservationsExcludingNws(
@@ -30,27 +32,27 @@ class CurrentObservationReader @Inject constructor(
             latitude,
             longitude,
         )
-        val stationRows = selectNearestObservationSite(
-            observationDao.getLatestNwsObservationsByStationAllTime(
-                latitude,
-                longitude,
-                sinceMs,
-            ),
+        // The blend's inputs are chosen by the shared rule (NwsBlend.current: NWS only, the blend's own
+        // 3 h window rather than [sinceMs], sites merged rather than collapsed) — the raw candidate
+        // rows, uncollapsed: a row's site is fetch provenance (ObservationSiteMerge).
+        // fetchedAt >= timestamp, so this fetchedAt-filtered query is a superset of the window.
+        val stationRows = observationDao.getLatestNwsObservationCandidatesByStationAllTime(
             latitude,
             longitude,
+            nowMs - ObservationOrigin.BLEND_MAX_AGE_MS,
         )
-            .filter { it.timestamp > sinceMs }
         val readings = stationRows.map { it.toReading() }
         Log.v(
             TAG,
             "computedNwsBlend persisted=${persistedMain.size} stationRows=${stationRows.size} " +
-                "usableStations=${NwsBlend.latestUsableByStation(readings).size} sinceMs=$sinceMs",
+                "usableStations=${NwsBlend.latestUsableByStation(readings).size}",
         )
-        // Shared with desktop's fetch path: no usable station, or all too stale to weight → no row.
-        val blend = NwsBlend.build(
+        // No usable station, or all too stale to weight → no row.
+        val blend = NwsBlend.current(
             readings,
             latitude,
             longitude,
+            nowMs,
             rowLatitude = LocationMatch.quantize(latitude),
             rowLongitude = LocationMatch.quantize(longitude),
         ) ?: return persistedMain
