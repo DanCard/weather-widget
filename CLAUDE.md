@@ -257,8 +257,13 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 
 ## Database Schema
 
-- **Version**: 55 (see `WeatherDatabase.kt` for the authoritative version and migration list —
-  this file goes stale fast; trust the code)
+- **Version**: Room 76 / desktop 29 as of 2026-10-09. Authoritative: `WeatherDatabase.kt`
+  `version` and `DesktopWeatherDatabase.SCHEMA_VERSION`, which move in pairs — this line goes stale
+  fast; trust the code.
+- `observations.stationType` is an INTEGER `StationType.dbCode` (0 UNKNOWN, 1 OFFICIAL, 2 PERSONAL,
+  3 RAWS) on both platforms since Room 76 / desktop 29 — query `stationType = 1`, not `'OFFICIAL'`
+  (`plans/261009-station-type-enum-integer-codes-in-db.md`). `NWS_BLEND` is never stored; both
+  platforms compute it on read.
 - Main tables: `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `daily_history`,
   `observations`, `climate_normals`, `app_logs`, `api_usage_stats`
 - `hourly_forecast_history` is pruned daily to the snapshots something reads
