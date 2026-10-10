@@ -3,6 +3,7 @@ package com.weatherwidget.shared.actuals
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -82,7 +83,7 @@ class BlendBreakdownCaptureTest {
     )
 
     /** NWS hourly forecast for the site that morning — this is what the extrapolation rides on. */
-    private fun forecasts() = listOf(
+    private fun forecasts(source: String = WeatherSource.NWS.id) = listOf(
         "2026-08-03T06:00:00" to 60f,
         "2026-08-03T07:00:00" to 60f,
         "2026-08-03T08:00:00" to 63f,
@@ -93,7 +94,7 @@ class BlendBreakdownCaptureTest {
             dateTime = ms(time),
             temperature = temp,
             condition = "Sunny",
-            source = WeatherSource.NWS.id,
+            source = source,
             locationLat = lat,
             locationLon = lon,
         )
@@ -114,10 +115,12 @@ class BlendBreakdownCaptureTest {
     private fun blend(
         captureBreakdowns: Int,
         captureLatestDominantAtOrBeforeMs: Long? = null,
+        displaySourceId: String = WeatherSource.NWS.id,
     ) = ActualTemperatureSeriesBuilder.blendObservationSeries(
         observations = observations(),
-        hourlyForecasts = forecasts(),
-        displaySourceId = WeatherSource.NWS.id,
+        // The display source's own hourly, as both platforms load it.
+        hourlyForecasts = forecasts(displaySourceId),
+        displaySourceId = displaySourceId,
         userLat = lat,
         userLon = lon,
         startMs = ms("2026-08-03T00:00:00"),
@@ -284,6 +287,41 @@ class BlendBreakdownCaptureTest {
         assertEquals("64.90 E", knuq.valueFedToBlend)
         assertEquals("64.6%", knuq.weightShare)
         assertTrue(knuq.isExtrapolated)
+    }
+
+    /**
+     * Fold 4, 2026-10-09: Open-Meteo displayed with NWS actuals, and tapping KNUQ did nothing — both
+     * Blend tabs keyed the link on the displayed source. The row's own provider decides it now.
+     */
+    @Test
+    fun `NWS stations link even when another source is displayed`() {
+        // The user's picker choice on the Fold: Open-Meteo's actuals redirected to NWS.
+        ActualsProviderResolver.installPreferenceSource { source ->
+            WeatherSource.NWS.takeIf { source == WeatherSource.OPEN_METEO }
+        }
+        val breakdown = try {
+            blend(captureBreakdowns = 100, displaySourceId = WeatherSource.OPEN_METEO.id)
+                .breakdowns.single { it.targetMs == ms("2026-08-03T08:20:00") }
+        } finally {
+            ActualsProviderResolver.installPreferenceSource { null }
+        }
+        assertTrue(breakdown.contributions.all { it.api == WeatherSource.NWS.id })
+
+        val table = BlendTableFormatter.format(breakdown, useCelsius = false, zoneId = zone)
+        assertEquals(
+            "https://www.weather.gov/wrh/timeseries?site=KNUQ",
+            table.rows.single { it.station == "KNUQ" }.historyUrl,
+        )
+        assertTrue(table.rows.all { it.historyUrl != null })
+    }
+
+    @Test
+    fun `rows filed by a source without station pages are not linked`() {
+        val nonNws = breakdownAt0820().let { b ->
+            b.copy(contributions = b.contributions.map { it.copy(api = WeatherSource.OPEN_METEO.id) })
+        }
+        val table = BlendTableFormatter.format(nonNws, useCelsius = false, zoneId = zone)
+        assertTrue(table.rows.all { it.historyUrl == null })
     }
 
     @Test

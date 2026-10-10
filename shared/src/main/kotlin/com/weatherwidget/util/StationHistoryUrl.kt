@@ -11,10 +11,14 @@ import com.weatherwidget.data.model.WeatherSource
  * Only NWS stations have a public per-station page: the NWS Western Region "time series" tool, which
  * accepts both OFFICIAL METAR codes (e.g. KSFO) and PERSONAL/PWS codes (e.g. AW020) as its `site`
  * parameter. Every other source identifies stations only by lat/lon, so there is nothing to link.
+ *
+ * [providerId] is the provider that filed the station's readings (the row's `api`), never the
+ * displayed source: with actuals redirected (Open-Meteo shown, NWS actuals) the two differ, and
+ * keying on the displayed source left every NWS station unlinked.
  */
 object StationHistoryUrl {
-    fun forStation(sourceId: String, stationId: String): String? {
-        if (sourceId != WeatherSource.NWS.id) return null
+    fun forStation(providerId: String, stationId: String): String? {
+        if (providerId != WeatherSource.NWS.id) return null
         // Exclude the synthetic IDW blend (not a real station) and blanks.
         if (stationId.isBlank() || stationId == DesktopObservationEntity.NWS_BLEND_STATION_ID) {
             return null

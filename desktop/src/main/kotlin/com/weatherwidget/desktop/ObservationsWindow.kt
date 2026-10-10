@@ -428,7 +428,7 @@ internal fun ObservationsWindow(
 
                     Box(modifier = Modifier.weight(1f)) {
                         when (selectedTab) {
-                            TAB_BLEND -> BlendTableView(blendTables, currentSource.id)
+                            TAB_BLEND -> BlendTableView(blendTables)
                             TAB_OBSERVATIONS -> Column {
                                 // Only a forecast-only source gets the control. A source that ships
                                 // its own observations is not offered a choice, because borrowing

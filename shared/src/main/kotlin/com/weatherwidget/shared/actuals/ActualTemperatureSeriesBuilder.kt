@@ -73,6 +73,12 @@ data class BlendContribution(
      * under a forecast-only source it is the ONLY candidate, so it is always the dominant one.
      */
     val isSynthetic: Boolean = false,
+    /**
+     * The provider that filed this station's readings ([ObservationReading.api]) — NOT the displayed
+     * source. Actuals can be redirected (Open-Meteo displayed, NWS actuals), so anything keyed on the
+     * station's provenance (its web history link) must read this.
+     */
+    val api: String = "",
 )
 
 /**
@@ -421,6 +427,7 @@ object ActualTemperatureSeriesBuilder {
                             sourceKind = resolved.sourceKind,
                             ageMs = ageMs,
                             isSynthetic = isSynthetic,
+                            api = stationObs.first().api,
                         ),
                     )
                     soleContributorId = if (candidates.size == 1) stationId else null
@@ -520,6 +527,7 @@ object ActualTemperatureSeriesBuilder {
                                         weight = dominantWeight,
                                         weightShare = if (weightSum > 0.0) dominantWeight / weightSum else 0.0,
                                         isSynthetic = meta.isSynthetic,
+                                        api = meta.api,
                                     ),
                             )
                     }
@@ -546,6 +554,7 @@ object ActualTemperatureSeriesBuilder {
                                     weight = weight,
                                     weightShare = if (weightSum > 0.0) weight / weightSum else 0.0,
                                     isSynthetic = meta.isSynthetic,
+                                    api = meta.api,
                                 )
                             },
                         ),
@@ -599,6 +608,7 @@ object ActualTemperatureSeriesBuilder {
         val sourceKind: String,
         val ageMs: Long,
         val isSynthetic: Boolean,
+        val api: String,
     )
 
     /**

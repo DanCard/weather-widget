@@ -491,6 +491,7 @@ object MetarCloudBlender {
                     weight = 1.0,
                     weightShare = 1.0,
                     isSynthetic = false,
+                    api = anchor.api,
                 )
             }
         }

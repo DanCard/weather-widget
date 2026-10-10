@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.actuals
 
 import com.weatherwidget.shared.util.TempUtils
+import com.weatherwidget.util.StationHistoryUrl
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -27,6 +28,12 @@ data class BlendTableRow(
     val weightShare: String,
     /** Drives row tinting: these degrees came from the forecast, not a thermometer. */
     val isExtrapolated: Boolean,
+    /**
+     * The station's public web page, or null. Decided here, from the row's own provider, so both
+     * platforms' Blend tabs link the same rows — each used to pass the DISPLAYED source, which left
+     * every NWS station unlinked whenever actuals were redirected (Open-Meteo shown, NWS actuals).
+     */
+    val historyUrl: String? = null,
 )
 
 data class BlendTable(
@@ -137,6 +144,7 @@ object BlendTableFormatter {
                     ),
                     weightShare = String.format(Locale.US, "%.1f%%", c.weightShare * 100.0),
                     isExtrapolated = c.sourceKind == "forecast_extrapolated",
+                    historyUrl = StationHistoryUrl.forStation(c.api, c.stationId),
                 )
             }
 

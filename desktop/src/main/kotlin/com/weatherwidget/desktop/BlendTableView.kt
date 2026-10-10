@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.sp
 import com.weatherwidget.shared.actuals.BlendTable
 import com.weatherwidget.shared.actuals.BlendTableFormatter
 import com.weatherwidget.shared.actuals.BlendTableRow
-import com.weatherwidget.util.StationHistoryUrl
 
 /**
  * The "Blend" tab: for each blended point, the per-station table showing what each station actually
@@ -66,7 +65,7 @@ private val RULE_COLOR = Color.White.copy(alpha = 0.07f)
 private val RULE_COLOR_STRONG = Color.White.copy(alpha = 0.14f)
 
 @Composable
-internal fun BlendTableView(tables: List<BlendTable>, sourceId: String) {
+internal fun BlendTableView(tables: List<BlendTable>) {
     if (tables.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
@@ -81,13 +80,13 @@ internal fun BlendTableView(tables: List<BlendTable>, sourceId: String) {
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
         items(tables) { table ->
-            BlendTableCard(table, sourceId)
+            BlendTableCard(table)
         }
     }
 }
 
 @Composable
-private fun BlendTableCard(table: BlendTable, sourceId: String) {
+private fun BlendTableCard(table: BlendTable) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -132,7 +131,7 @@ private fun BlendTableCard(table: BlendTable, sourceId: String) {
 
         table.rows.forEachIndexed { index, row ->
             if (index > 0) HorizontalDivider(thickness = 1.dp, color = RULE_COLOR)
-            BlendRow(row, sourceId)
+            BlendRow(row)
         }
 
         HorizontalDivider(
@@ -151,10 +150,11 @@ private fun BlendTableCard(table: BlendTable, sourceId: String) {
 }
 
 @Composable
-private fun BlendRow(row: BlendTableRow, sourceId: String) {
+private fun BlendRow(row: BlendTableRow) {
     val valueColor = if (row.isExtrapolated) EXTRAPOLATED_TINT else Color.White
     // Same affordance as the Observations tab: NWS stations link to their public time-series page.
-    val historyUrl = StationHistoryUrl.forStation(sourceId, row.station)
+    // Decided in :shared from the row's own provider, so Android and desktop link the same rows.
+    val historyUrl = row.historyUrl
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable(enabled = historyUrl != null) { historyUrl?.let(::openInBrowser) }

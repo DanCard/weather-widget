@@ -147,8 +147,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
             if (entity.stationId.contains("_HIST_")) {
                 showRenameDialog(entity)
             } else {
-                // NWS stations link to their public web history page; other sources have none.
-                StationHistoryUrl.forStation(currentSource.id, entity.stationId)
+                // NWS stations link to their public web history page; other sources have none. Keyed on
+                // the row's own provider: with actuals redirected the displayed source is not NWS.
+                StationHistoryUrl.forStation(entity.api, entity.stationId)
                     ?.let { openStationHistory(it) }
             }
         }
@@ -568,7 +569,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         )
 
         table.rows.forEach { row ->
-            val historyUrl = StationHistoryUrl.forStation(currentSource.id, row.station)
+            val historyUrl = row.historyUrl
             val valueColor = if (row.isExtrapolated) BLEND_COLOR_DERIVED else BLEND_COLOR_PRIMARY
             val view = blendRowView(
                 cells = listOf(
