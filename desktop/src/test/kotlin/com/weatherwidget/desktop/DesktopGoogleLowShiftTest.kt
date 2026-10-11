@@ -57,6 +57,14 @@ class DesktopGoogleLowShiftTest {
         return out
     }
 
+    /**
+     * [h]:00 local today. The "today" tests pin their clock to one local day, as Android's
+     * ForecastSnapshotHindcastCutoffTest does: a wall-clock `now − 10 h` before 10 am is yesterday,
+     * from where today is a future day and stored rounded (58.2 → 58).
+     */
+    private fun todayAt(h: Int): Long =
+        LocalDate.now(ZoneId.systemDefault()).atTime(h, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
     private fun upgradeFrom31() {
         sql { it.execute("PRAGMA user_version = 31") }
         DesktopWeatherDatabase(dbPath).initialize()
@@ -90,19 +98,15 @@ class DesktopGoogleLowShiftTest {
     fun `a fetch with no low for today keeps the stored one, and its own high`() {
         val database = DesktopWeatherDatabase(dbPath).apply { initialize() }
         val dao = DesktopWeatherDao(database)
-        val zone = ZoneId.systemDefault()
-        val today = LocalDate.now(zone)
-        val now = System.currentTimeMillis()
-        // Yesterday evening's fetch: today 67 / 58.2 (58.2 = Google's yesterday min, this morning).
-        dao.upsertForecasts(37.4170, -122.0890, google, listOf(DailyForecast(today.toString(), 67f, 58.2f, "Clear")), nowMs = now - 10 * 3_600_000L)
-        // Now: today's low is not in the response.
-        dao.upsertForecasts(37.4170, -122.0890, google, listOf(DailyForecast(today.toString(), 68f, null, "Clear")), nowMs = now)
+        val today = LocalDate.now(ZoneId.systemDefault())
+        // This morning's early fetch: today 67 / 58.2 (58.2 = Google's yesterday min, this morning).
+        dao.upsertForecasts(37.4170, -122.0890, google, listOf(DailyForecast(today.toString(), 67f, 58.2f, "Clear")), nowMs = todayAt(5))
+        // 09:00, before the high cutoff: today's low is not in the response.
+        dao.upsertForecasts(37.4170, -122.0890, google, listOf(DailyForecast(today.toString(), 68f, null, "Clear")), nowMs = todayAt(9))
 
         val row = dao.getDailyForecasts(37.4170, -122.0890, google).single { it.date == today.toString() }
         assertEquals(58.2f, row.lowTemp)
-        if (java.time.LocalTime.now(zone).isBefore(com.weatherwidget.shared.util.SameDayExtremeCutoff.HIGH_CUTOFF)) {
-            assertEquals("this fetch's high, not the older row's", 68f, row.highTemp)
-        }
+        assertEquals("this fetch's high, not the older row's", 68f, row.highTemp)
     }
 
     @Test
@@ -123,10 +127,10 @@ class DesktopGoogleLowShiftTest {
         val database = DesktopWeatherDatabase(dbPath).apply { initialize() }
         val dao = DesktopWeatherDao(database)
         val today = LocalDate.now(ZoneId.systemDefault()).toString()
-        val now = System.currentTimeMillis()
-        dao.upsertForecasts(37.4170, -122.0890, google, listOf(DailyForecast(today, 67f, 58.2f, "Clear")), nowMs = now - 10 * 3_600_000L)
-        dao.upsertForecasts(37.4170, -122.0890, google, listOf(DailyForecast(today, 68f, null, "Clear")), nowMs = now - 3_600_000L)
-        sql { it.execute("UPDATE forecasts SET lowTemp = NULL WHERE fetchedAt = ${now - 3_600_000L}") }
+        val now = todayAt(9)
+        dao.upsertForecasts(37.4170, -122.0890, google, listOf(DailyForecast(today, 67f, 58.2f, "Clear")), nowMs = todayAt(5))
+        dao.upsertForecasts(37.4170, -122.0890, google, listOf(DailyForecast(today, 68f, null, "Clear")), nowMs = todayAt(8))
+        sql { it.execute("UPDATE forecasts SET lowTemp = NULL WHERE fetchedAt = ${todayAt(8)}") }
 
         dao.upsertForecasts(37.4170, -122.0890, google, listOf(DailyForecast(today, 69f, null, "Clear")), nowMs = now)
 
