@@ -10,7 +10,7 @@ import java.time.ZoneId
  * `source_last_view` keeps one timestamp per source, overwritten on every view: the last view, not a
  * history (`source_view_days` stays per-day with no timestamps; user, 2026-10-11). A source with no
  * timestamp yet — viewed only before the table existed — falls back to its newest `source_view_days`
- * day, taken as the **end** of that local day, which errs toward fetching.
+ * day, taken as the **end** of that local day (today's: now), which errs toward fetching.
  * performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md
  */
 object SourceLastView {
@@ -32,18 +32,23 @@ object SourceLastView {
         trackingSince: LocalDate?,
         today: LocalDate,
         zone: ZoneId,
+        nowMs: Long,
     ): Recency = Recency(
-        lastViewedAtMs = sourceIds.mapNotNull { id -> resolve(id, timestamps, rows, zone)?.let { id to it } }.toMap(),
+        lastViewedAtMs = sourceIds.mapNotNull { id -> resolve(id, timestamps, rows, zone, nowMs)?.let { id to it } }.toMap(),
         inGrace = com.weatherwidget.data.remote.HourlyCadence.inGrace(trackingSince, today),
     )
 
-    /** [sourceId]'s last view: its timestamp, else the end of its newest counted day, else null. */
+    /**
+     * [sourceId]'s last view: its timestamp, else the end of its newest counted day — no later than
+     * [nowMs], since today's day ends in the future — else null.
+     */
     fun resolve(
         sourceId: String,
         timestamps: Map<String, Long>,
         rows: List<SourceViewDayRow>,
         zone: ZoneId,
-    ): Long? = timestamps[sourceId] ?: newestDay(sourceId, rows)?.let { endOfDayMs(it, zone) }
+        nowMs: Long,
+    ): Long? = timestamps[sourceId] ?: newestDay(sourceId, rows)?.let { minOf(endOfDayMs(it, zone), nowMs) }
 
     private fun newestDay(sourceId: String, rows: List<SourceViewDayRow>): LocalDate? =
         rows.filter { it.sourceId == sourceId && it.switches > 0 }.maxOfOrNull { it.date }

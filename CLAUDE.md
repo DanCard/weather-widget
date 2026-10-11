@@ -106,6 +106,13 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   app_logs row), not the rows' `fetchedAt`. Logged as `FETCH_PLAN parts=… hourly=…`; desktop's
   hourly-only refresh logs `REFRESH_HOURLY`, never `REFRESH` (that row is the daily age). See
   `performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md`.
+  **Desktop forecast loop sleeps until the next due part** (`:shared` `ForecastSchedule`; desktop
+  `DesktopForecastPlanner`), not a fixed tick: capped at 2 h, ≥ 1 min, ≥ 15 min after a failed fetch,
+  and woken early (`FORECAST_LOOP_WAKE reason=power|screen`) by a UPower cadence-tier change
+  (`BatteryTier.cadenceTier`; `POWER_DETECT`) or the ScreenSaver unblanking. Resume / network restore
+  restart the loops. First plan 5 min after (re)start, so it never fetches beside the launch refresh.
+  Logged `FORECAST_LOOP_SLEEP sleepMin=… reason=DUE|CAP|RETRY next=…`
+  (`performance/261011-desktop-forecast-loop-sleep-until-due.md`).
 - **Routine hourly fetch has two windows** (user, 2026-10-10; `:shared` `HourlyWindowPolicy`):
   **NEAR** stores 48 h; **FULL** downloads 8 days (Google asks 192 h =
   8 pages) and stores 72 h, at most once per **20 h** per source+site (20, not 24, so a nightly 3 am

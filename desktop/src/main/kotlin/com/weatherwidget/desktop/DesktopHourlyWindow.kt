@@ -86,6 +86,7 @@ internal class DesktopHourlyWindow(
                     trackingSince = dao.sourceViewTrackingStartMs()?.let { LocalDate.ofEpochDay(it / SourceViewTally.DAY_MS) },
                     today = today,
                     zone = zone,
+                    nowMs = nowMs,
                 )
             }.getOrDefault(SourceLastView.Recency.UNKNOWN)
     }

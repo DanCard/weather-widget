@@ -1,5 +1,8 @@
 package com.weatherwidget.desktop
 
+import kotlinx.coroutines.withTimeoutOrNull
+import com.weatherwidget.shared.util.BatteryTier
+import com.weatherwidget.data.remote.ForecastSchedule
 import com.weatherwidget.data.remote.HourlyWindowPolicy
 import com.weatherwidget.data.remote.HourlyCadence
 import com.weatherwidget.data.model.ForecastParts
@@ -53,6 +56,20 @@ internal class DaemonRuntime(
     @Volatile private var zoneRestartInProgress = false
     private var logindMonitor: Process? = null
     private var networkMonitor: Process? = null
+    private var upowerMonitor: Process? = null
+
+    /**
+     * Wakes the forecast loop (3c) before its planned sleep ends, with the reason, when something it
+     * cannot see from its own clock may have made a fetch due sooner: the power cadence tier changed
+     * (UPower) or the screen came on. Conflated: several signals during one sleep are one wake.
+     * Resume and network restore restart the loops instead. Best-effort: a lost signal costs at most
+     * [ForecastSchedule.MAX_SLEEP_MS]. performance/261011-desktop-forecast-loop-sleep-until-due.md
+     */
+    private val forecastLoopWake = kotlinx.coroutines.channels.Channel<String>(kotlinx.coroutines.channels.Channel.CONFLATED)
+
+    fun wakeForecastLoop(reason: String) {
+        forecastLoopWake.trySend(reason)
+    }
     private var screensaverMonitor: Process? = null
     private var fetchJob: Job? = null
     private var weatherService: DesktopWeatherService? = null
@@ -320,7 +337,11 @@ internal class DaemonRuntime(
                 weatherDao.log("SCREEN_DETECT", "gdbus ScreenSaver monitor started (pid=${proc.pid()})", "INFO")
                 proc.inputStream.bufferedReader().useLines { lines ->
                     for (line in lines) {
-                        if (isScreenWakeSignalLine(line)) kickObservationCatchUp("screensaver:wake")
+                        if (isScreenWakeSignalLine(line)) {
+                            kickObservationCatchUp("screensaver:wake")
+                            // Screen on shortens the displayed daily cadence (6 h → 4 h).
+                            wakeForecastLoop("screen")
+                        }
                     }
                 }
                 weatherDao.log("SCREEN_DETECT", "gdbus ScreenSaver monitor stream ended", "WARN")
@@ -328,6 +349,38 @@ internal class DaemonRuntime(
                 throw e
             } catch (e: Exception) {
                 weatherDao.log("SCREEN_DETECT", "gdbus ScreenSaver monitor unavailable (${e.message})", "WARN")
+            }
+        }
+
+        // Charger / battery detector (interrupt-driven): UPower PropertiesChanged. Percentage arrives every
+        // percent, so the forecast loop is woken only when the cadence tier changes (BatteryTier.cadenceTier).
+        // A machine with no battery never signals; the loop's 2 h cap covers it, and a dead stream too.
+        daemonScope.launch(Dispatchers.IO) {
+            try {
+                val proc = ProcessBuilder(
+                    "gdbus", "monitor", "--system",
+                    "--dest", "org.freedesktop.UPower",
+                ).redirectErrorStream(true).start()
+                upowerMonitor = proc
+                weatherDao.log("POWER_DETECT", "gdbus UPower monitor started (pid=${proc.pid()})", "INFO")
+                var tier = PowerDetector.getPowerState().let { BatteryTier.cadenceTier(it.isCharging, it.batteryLevel) }
+                proc.inputStream.bufferedReader().useLines { lines ->
+                    for (line in lines) {
+                        if (!isPowerChangeSignalLine(line)) continue
+                        val power = PowerDetector.getPowerState()
+                        val now = BatteryTier.cadenceTier(power.isCharging, power.batteryLevel)
+                        if (now != tier) {
+                            weatherDao.log("POWER_DETECT", "cadence tier $tier → $now (charging=${power.isCharging} level=${power.batteryLevel})", "INFO")
+                            tier = now
+                            wakeForecastLoop("power")
+                        }
+                    }
+                }
+                weatherDao.log("POWER_DETECT", "gdbus UPower monitor stream ended — forecast loop cap only", "WARN")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                weatherDao.log("POWER_DETECT", "gdbus UPower monitor unavailable (${e.message}) — forecast loop cap only", "WARN")
             }
         }
 
@@ -412,6 +465,7 @@ internal class DaemonRuntime(
         // Unblock the gdbus readers (coroutine cancellation can't interrupt their blocking reads).
         runCatching { logindMonitor?.destroy() }
         runCatching { networkMonitor?.destroy() }
+        runCatching { upowerMonitor?.destroy() }
         runCatching { screensaverMonitor?.destroy() }
         daemonScope.cancel()
 
@@ -879,46 +933,34 @@ internal class DaemonRuntime(
                 }
             }
 
-            // 3c. Forecast fetch loop. Every tick plans each source's daily and hourly parts apart
-            // (shared ForecastParts.forRoutine): daily on the forecast cadence (ForecastCadence),
-            // hourly on HourlyCadence by how recently the source was viewed.
-            // performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md
+            // 3c. Forecast fetch loop. Sleeps until the earliest daily or hourly due time across the
+            // sources (shared ForecastSchedule), capped at 2 h, and is woken sooner by a power-tier change
+            // or the screen coming on. Every wake re-plans each source's parts (ForecastParts.forRoutine):
+            // daily on ForecastCadence, hourly on HourlyCadence by how recently the source was viewed.
+            // performance/261011-desktop-forecast-loop-sleep-until-due.md
             launch {
+                // The launch refresh owns the first minutes; planning now would fetch beside it.
+                delay(FORECAST_LOOP_STARTUP_SETTLE_MS)
                 while (true) {
-                    delay(FORECAST_LOOP_TICK_MS)
                     val (isCharging, level) = PowerDetector.getPowerState()
                     val screenOn = ScreenStateDetector.isScreenOn()
-                    val now = System.currentTimeMillis()
                     val activeSource = config.displaySource
                     // Slower forecast fetch for other APIs — only those viewed in the last 8 days;
                     // the rest are fetched when the user switches to them (SourceFetchGate).
                     val nonActiveSources = DesktopSourceFetchGate.otherSources(weatherDao, config)
+                    val sources = listOf(activeSource to true) + nonActiveSources.map { it to false }
 
-                    fun planFor(source: String, isDisplayed: Boolean): Pair<ForecastParts?, String?> {
-                        val dailyDelayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(
-                            isCharging, level, isActiveSource = isDisplayed, screenOn = screenOn,
-                        )
-                        val lastDaily = weatherDao.getLastSuccessfulFetch(source)
-                        val dailyDue = dailyDelayMs != null && (lastDaily == null || now - lastDaily >= dailyDelayMs)
-                        val window = DesktopHourlyWindow(weatherDao, source, config.lat, config.lon)
-                        val hourly = window.hourlyDecision(isDisplayed, now)
-                        val parts = ForecastParts.forRoutine(
-                            dailyDue = dailyDue,
-                            hourlyDue = hourly?.due,
-                            isFull = window.current(now) == HourlyWindowPolicy.Window.FULL,
-                        )
-                        val fragment = hourly?.let {
-                            HourlyCadence.logFragment(source, it.intervalHours, it.viewAgeMs, it.lastHourlyFetchMs, now, it.due)
-                        }
-                        return parts to fragment
-                    }
+                    val planner = DesktopForecastPlanner(
+                        weatherDao, config.lat, config.lon, PowerDetector.PowerState(isCharging, level), screenOn,
+                    )
 
-                    val plans = (listOf(activeSource to true) + nonActiveSources.map { it to false })
-                        .associate { (source, isDisplayed) -> source to planFor(source, isDisplayed) }
-                    val due = plans.mapNotNull { (source, plan) -> plan.first?.let { source to it } }.toMap()
+                    val planNow = System.currentTimeMillis()
+                    val plans = sources.associate { (source, isDisplayed) -> source to planner.plan(source, isDisplayed, planNow) }
+                    val due = plans.mapNotNull { (source, plan) -> plan.parts?.let { source to it } }.toMap()
                     if (due.isNotEmpty()) {
-                        weatherDao.log("FETCH_PLAN", ForecastParts.planLogLine(due, plans.values.mapNotNull { it.second }), "INFO")
+                        weatherDao.log("FETCH_PLAN", ForecastParts.planLogLine(due, plans.values.mapNotNull { it.hourlyLog }), "INFO")
                     }
+                    var fetchFailed = false
 
                     due[activeSource]?.let { parts ->
                         try {
@@ -932,6 +974,7 @@ internal class DaemonRuntime(
                             Log.i(TAG, "Loop refresh cancelled.")
                             throw e
                         } catch (e: Exception) {
+                            fetchFailed = true
                             Log.i(TAG, "Active source forecast refresh failed: ${e.message}")
                             val isOffline = isOfflineException(e)
                             val reason = if (isOffline) "offline" else "source_error"
@@ -974,12 +1017,21 @@ internal class DaemonRuntime(
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
+                            fetchFailed = true
                             Log.i(TAG, "Non-active source $otherSource forecast refresh failed: ${e.message}")
                             val isOffline = isOfflineException(e)
                             val reason = if (isOffline) "offline" else "source_error"
                             weatherDao.log("REFRESH_FAIL", "forecast other $otherSource: $reason ${e.message}", "WARN")
                         }
                     }
+
+                    // Sleep until the next due part, judged after the fetches moved their markers.
+                    val sleepNow = System.currentTimeMillis()
+                    val next = planner.next(sources, sleepNow)
+                    val sleep = ForecastSchedule.sleep(next, sleepNow, fetchFailed)
+                    weatherDao.log("FORECAST_LOOP_SLEEP", sleep.logLine(), "INFO")
+                    val wokeBy = withTimeoutOrNull(sleep.ms) { forecastLoopWake.receive() }
+                    if (wokeBy != null) weatherDao.log("FORECAST_LOOP_WAKE", "reason=$wokeBy", "INFO")
                 }
             }
 
@@ -1041,3 +1093,4 @@ internal class DaemonRuntime(
     }
 
 }
+

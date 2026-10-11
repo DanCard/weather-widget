@@ -83,10 +83,10 @@ const val UI_FALLBACK_TICK_MS = 30 * 1000L
 const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
 
 /**
- * How often the daemon's forecast loop asks whether any source's daily or hourly forecast is due
- * (ForecastCadence / HourlyCadence). A check, not a fetch: the shortest cadence is 4 h.
+ * The forecast loop's first plan waits this long after (re)start: the launch / catch-up refresh that
+ * runs beside it owns the first minutes, and planning at once would fetch the same source twice.
  */
-const val FORECAST_LOOP_TICK_MS = 15 * 60 * 1000L
+const val FORECAST_LOOP_STARTUP_SETTLE_MS = 5 * 60 * 1000L
 
 /**
  * Cadence of the current-status tick: the daemon re-resolves + republishes `current_status`, and the
@@ -202,6 +202,20 @@ fun isResumeSignalLine(line: String): Boolean =
  */
 fun isScreenWakeSignalLine(line: String): Boolean =
     line.contains("ActiveChanged") && line.contains("false")
+
+/**
+ * True when a UPower `PropertiesChanged` line may have changed the power state the forecast cadences
+ * read: the manager's `OnBattery`, or a device's `Online` (line power), `Percentage` or `State`
+ * (battery). Matches `gdbus monitor --system --dest org.freedesktop.UPower` lines such as
+ * `/org/freedesktop/UPower/devices/line_power_AC: org.freedesktop.DBus.Properties.PropertiesChanged
+ * ('org.freedesktop.UPower.Device', {'Online': <true>}, @as [])`. The caller still compares the cadence
+ * tier, since `Percentage` arrives every percent.
+ */
+fun isPowerChangeSignalLine(line: String): Boolean =
+    line.contains("PropertiesChanged") &&
+        POWER_CHANGE_PROPERTIES.any { line.contains("'$it'") }
+
+private val POWER_CHANGE_PROPERTIES = listOf("OnBattery", "Online", "Percentage", "State")
 
 /**
  * True when a heartbeat tick's wall-clock gap is far larger than the scheduled interval, which only

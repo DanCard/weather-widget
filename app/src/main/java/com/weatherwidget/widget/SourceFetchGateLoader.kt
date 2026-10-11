@@ -86,6 +86,7 @@ object SourceFetchGateLoader {
             trackingSince = dao.getTrackingStart()?.let { LocalDate.ofEpochDay(it / SourceViewTally.DAY_MS) },
             today = today,
             zone = zone,
+            nowMs = nowMs,
         )
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e

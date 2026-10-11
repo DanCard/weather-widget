@@ -80,11 +80,10 @@ object HourlyCadence {
     }
 
     /** Due when [intervalHours] is set and the last hourly fetch at the site is that old, or there was none. */
-    fun isDue(lastHourlyFetchMs: Long?, intervalHours: Int?, nowMs: Long): Boolean {
-        val hours = intervalHours ?: return false
-        val last = lastHourlyFetchMs ?: return true
-        return nowMs - last >= hours * HOUR_MS - DUE_GRACE_MS
-    }
+    fun isDue(lastHourlyFetchMs: Long?, intervalHours: Int?, nowMs: Long): Boolean =
+        ForecastSchedule.isDue(lastHourlyFetchMs, intervalMs(intervalHours), nowMs)
+
+    fun intervalMs(intervalHours: Int?): Long? = intervalHours?.let { it * HOUR_MS }
 
     /** True while view tracking has fewer than [GRACE_TRACKING_DAYS] days to judge by (or none at all). */
     fun inGrace(trackingSince: java.time.LocalDate?, today: java.time.LocalDate): Boolean =
