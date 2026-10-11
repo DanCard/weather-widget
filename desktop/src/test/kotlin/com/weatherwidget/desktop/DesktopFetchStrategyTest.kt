@@ -20,9 +20,9 @@ class DesktopFetchStrategyTest {
     }
 
     @Test
-    fun `getObservationRefreshDelayMs returns 30 min when charging and screen off`() {
-        assertEquals(30 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 20, screenOn = false))
-        assertEquals(30 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 90, screenOn = false))
+    fun `getObservationRefreshDelayMs returns 16 min when charging and screen off`() {
+        assertEquals(16 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 20, screenOn = false))
+        assertEquals(16 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 90, screenOn = false))
     }
 
     @Test
@@ -47,8 +47,9 @@ class DesktopFetchStrategyTest {
     }
 
     @Test
-    fun `getObservationRefreshDelayMs returns 4 hours on battery above 70 with screen off`() {
-        assertEquals(240 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 71, screenOn = false))
+    fun `getObservationRefreshDelayMs returns 45 min on battery at 70 or more with screen off`() {
+        assertEquals(45 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 71, screenOn = false))
+        assertEquals(45 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 70, screenOn = false))
     }
 
     @Test
@@ -58,20 +59,29 @@ class DesktopFetchStrategyTest {
     }
 
     @Test
-    fun `getObservationRefreshDelayMs keeps the battery tiers below 70 even with screen on`() {
-        assertEquals(480 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 69, screenOn = true))
+    fun `getObservationRefreshDelayMs - 66 to 69 percent is 45 min with the screen on, none with it off`() {
+        assertEquals(45 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 69, screenOn = true))
+        assertEquals(45 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 66, screenOn = true))
+        assertNull(DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 69, screenOn = false))
     }
 
     @Test
-    fun `getObservationRefreshDelayMs returns 8 hours when battery above 50`() {
-        assertEquals(480 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 51))
-        assertEquals(480 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 70, screenOn = false))
+    fun `getObservationRefreshDelayMs returns null at 65 percent or below`() {
+        assertNull(DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 65))
+        assertNull(DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 51))
+        assertNull(DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 10, screenOn = false))
     }
 
     @Test
-    fun `getObservationRefreshDelayMs returns null when battery 50 or below`() {
-        assertNull(DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 50))
-        assertNull(DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 10))
+    fun `screen wake catches up on battery at 70 percent after 20 min, a click after 10 min at any power`() {
+        val now = 10_000 * MS_PER_MINUTE
+        val wake = "screensaver:wake"
+        assertEquals(true, DesktopFetchStrategy.shouldCatchUpOnKick(wake, now - 20 * MS_PER_MINUTE, false, 80, now))
+        assertEquals(false, DesktopFetchStrategy.shouldCatchUpOnKick(wake, now - 15 * MS_PER_MINUTE, false, 80, now))
+        assertEquals("below 70 %", false, DesktopFetchStrategy.shouldCatchUpOnKick(wake, null, false, 69, now))
+        assertEquals("charging has its 10-min loop", false, DesktopFetchStrategy.shouldCatchUpOnKick(wake, null, true, 90, now))
+        assertEquals(true, DesktopFetchStrategy.shouldCatchUpOnKick("genmon:click", now - 10 * MS_PER_MINUTE, true, 20, now))
+        assertEquals(false, DesktopFetchStrategy.shouldCatchUpOnKick("genmon:click", now - 5 * MS_PER_MINUTE, true, 20, now))
     }
 
     @Test

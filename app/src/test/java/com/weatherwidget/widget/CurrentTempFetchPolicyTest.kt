@@ -47,13 +47,30 @@ class CurrentTempFetchPolicyTest {
     }
 
     @Test
-    fun `battery mode fetches opportunistically only above 65 percent`() {
+    fun `battery mode fetches opportunistically above 65 percent screen on, at 70 percent screen off`() {
+        assertTrue(
+            CurrentTempFetchPolicy.shouldFetchNow(
+                isCharging = false,
+                isScreenInteractive = true,
+                isOpportunisticContext = true,
+                batteryLevel = 66,
+            ),
+        )
+        // 66–69 % with the screen off: none (user, 2026-10-11).
+        assertFalse(
+            CurrentTempFetchPolicy.shouldFetchNow(
+                isCharging = false,
+                isScreenInteractive = false,
+                isOpportunisticContext = true,
+                batteryLevel = 69,
+            ),
+        )
         assertTrue(
             CurrentTempFetchPolicy.shouldFetchNow(
                 isCharging = false,
                 isScreenInteractive = false,
                 isOpportunisticContext = true,
-                batteryLevel = 66,
+                batteryLevel = 70,
             ),
         )
         assertFalse(
@@ -173,15 +190,15 @@ class CurrentTempFetchPolicyTest {
         val now = 10_000_000_000L
         val min = 60_000L
         assertEquals(
-            CurrentTempFetchPolicy.ScreenOnCatchUp.FETCH_NOW,
+            com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.FETCH_NOW,
             CurrentTempFetchPolicy.screenOnCatchUp(isCharging = false, batteryLevel = 70, lastFetchMs = now - 20 * min, nowMs = now),
         )
         assertEquals(
-            CurrentTempFetchPolicy.ScreenOnCatchUp.FETCH_NOW,
+            com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.FETCH_NOW,
             CurrentTempFetchPolicy.screenOnCatchUp(isCharging = false, batteryLevel = 96, lastFetchMs = 0L, nowMs = now),
         )
         assertEquals(
-            CurrentTempFetchPolicy.ScreenOnCatchUp.SCHEDULE,
+            com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.SCHEDULE,
             CurrentTempFetchPolicy.screenOnCatchUp(isCharging = false, batteryLevel = 96, lastFetchMs = now - 19 * min, nowMs = now),
         )
     }
@@ -190,11 +207,11 @@ class CurrentTempFetchPolicyTest {
     fun `screen-on catch-up does nothing while charging or below 70 percent`() {
         val now = 10_000_000_000L
         assertEquals(
-            CurrentTempFetchPolicy.ScreenOnCatchUp.NONE,
+            com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.NONE,
             CurrentTempFetchPolicy.screenOnCatchUp(isCharging = true, batteryLevel = 100, lastFetchMs = 0L, nowMs = now),
         )
         assertEquals(
-            CurrentTempFetchPolicy.ScreenOnCatchUp.NONE,
+            com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.NONE,
             CurrentTempFetchPolicy.screenOnCatchUp(isCharging = false, batteryLevel = 69, lastFetchMs = 0L, nowMs = now),
         )
     }

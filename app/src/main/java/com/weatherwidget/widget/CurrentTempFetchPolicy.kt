@@ -1,25 +1,23 @@
 package com.weatherwidget.widget
 
-import com.weatherwidget.shared.util.BatteryTier
-import java.util.concurrent.TimeUnit
+import com.weatherwidget.shared.util.CurrentTempCadence
 
 /**
  * Policy decisions for lightweight current-temperature network refresh.
  */
 object CurrentTempFetchPolicy {
-    const val CHARGING_INTERVAL_MINUTES = 10L
-    const val CHARGING_SCREEN_OFF_INTERVAL_MINUTES = 16L
-    const val OPPORTUNISTIC_INTERVAL_MINUTES = 45L
-    const val BATTERY_SCREEN_ON_INTERVAL_MINUTES = BatteryTier.SCREEN_ON_OBSERVATION_INTERVAL_MINUTES
-
-    // Single source of truth for the battery cutoff lives in BatteryTier (shared).
-    const val OPPORTUNISTIC_MIN_BATTERY_PERCENT = BatteryTier.OPPORTUNISTIC_MIN_BATTERY_PERCENT
+    // The numbers are :shared CurrentTempCadence (one rule with desktop); these name them for Android.
+    const val CHARGING_INTERVAL_MINUTES = CurrentTempCadence.CHARGING_SCREEN_ON_MINUTES
+    const val CHARGING_SCREEN_OFF_INTERVAL_MINUTES = CurrentTempCadence.CHARGING_SCREEN_OFF_MINUTES
+    const val OPPORTUNISTIC_INTERVAL_MINUTES = CurrentTempCadence.OPPORTUNISTIC_MINUTES
+    const val BATTERY_SCREEN_ON_INTERVAL_MINUTES = CurrentTempCadence.BATTERY_SCREEN_ON_MINUTES
+    const val OPPORTUNISTIC_MIN_BATTERY_PERCENT = CurrentTempCadence.OPPORTUNISTIC_MIN_BATTERY_PERCENT
 
     /**
      * Returns the appropriate charging loop interval based on screen state.
      */
     fun chargingIntervalMinutes(isScreenInteractive: Boolean): Long =
-        if (isScreenInteractive) CHARGING_INTERVAL_MINUTES else CHARGING_SCREEN_OFF_INTERVAL_MINUTES
+        CurrentTempCadence.chargingIntervalMinutes(isScreenInteractive)
 
     /**
      * The one definition of the current-temp loop cadence; null means the loop does not run.
@@ -36,13 +34,7 @@ object CurrentTempFetchPolicy {
         isCharging: Boolean,
         isScreenInteractive: Boolean,
         batteryLevel: Int,
-    ): Long? =
-        when {
-            isCharging -> chargingIntervalMinutes(isScreenInteractive)
-            BatteryTier.screenOnObservationAllowed(batteryLevel, isScreenInteractive) ->
-                BATTERY_SCREEN_ON_INTERVAL_MINUTES
-            else -> null
-        }
+    ): Long? = CurrentTempCadence.loopIntervalMinutes(isCharging, isScreenInteractive, batteryLevel)
 
     /** Log/work reason for a loop iteration, so the trace shows which cadence ran. */
     fun loopReason(isCharging: Boolean, overdue: Boolean): String {
@@ -50,42 +42,17 @@ object CurrentTempFetchPolicy {
         return if (overdue) "${base}_overdue" else base
     }
 
-    enum class ScreenOnCatchUp {
-        /** Charging, screen off, or battery below the cutoff: screen-on does not touch the loop. */
-        NONE,
-
-        /** Last fetch is at least one interval old: fetch now; the run reschedules the loop. */
-        FETCH_NOW,
-
-        /** Last fetch is recent: start the loop, first run when the interval since it elapses. */
-        SCHEDULE,
-    }
-
-    /**
-     * What screen-on does on battery. Without the catch-up the loop's first run is a full interval
-     * after screen-on, and a typical phone session is shorter than that, so it would rarely fetch.
-     */
+    /** [CurrentTempCadence.screenOnCatchUp] (shared with desktop). */
     fun screenOnCatchUp(
         isCharging: Boolean,
         batteryLevel: Int,
         lastFetchMs: Long,
         nowMs: Long,
-    ): ScreenOnCatchUp {
-        if (isCharging) return ScreenOnCatchUp.NONE
-        if (!BatteryTier.screenOnObservationAllowed(batteryLevel, isScreenOn = true)) return ScreenOnCatchUp.NONE
-        val ageMs = nowMs - lastFetchMs
-        return if (lastFetchMs <= 0L || ageMs >= TimeUnit.MINUTES.toMillis(BATTERY_SCREEN_ON_INTERVAL_MINUTES)) {
-            ScreenOnCatchUp.FETCH_NOW
-        } else {
-            ScreenOnCatchUp.SCHEDULE
-        }
-    }
+    ): CurrentTempCadence.ScreenOnCatchUp = CurrentTempCadence.screenOnCatchUp(isCharging, batteryLevel, lastFetchMs, nowMs)
 
-    /** Minutes until the next loop run when screen-on found a recent fetch (never below 1). */
-    fun screenOnFirstDelayMinutes(lastFetchMs: Long, nowMs: Long): Long {
-        val remainingMs = TimeUnit.MINUTES.toMillis(BATTERY_SCREEN_ON_INTERVAL_MINUTES) - (nowMs - lastFetchMs)
-        return TimeUnit.MILLISECONDS.toMinutes(remainingMs).coerceIn(1L, BATTERY_SCREEN_ON_INTERVAL_MINUTES)
-    }
+    /** [CurrentTempCadence.screenOnFirstDelayMinutes]. */
+    fun screenOnFirstDelayMinutes(lastFetchMs: Long, nowMs: Long): Long =
+        CurrentTempCadence.screenOnFirstDelayMinutes(lastFetchMs, nowMs)
 
     /**
      * Opportunistic work is allowed only above the battery cutoff. Other current-temperature work
@@ -102,7 +69,8 @@ object CurrentTempFetchPolicy {
         if (isManual) return true
 
         if (isOpportunisticContext) {
-            return batteryLevel > OPPORTUNISTIC_MIN_BATTERY_PERCENT
+            // Screen on > 65 %, screen off ≥ 70 % (CurrentTempCadence.opportunisticAllowed).
+            return CurrentTempCadence.opportunisticAllowed(batteryLevel, isScreenInteractive)
         }
         return loopIntervalMinutes(isCharging, isScreenInteractive, batteryLevel) != null
     }

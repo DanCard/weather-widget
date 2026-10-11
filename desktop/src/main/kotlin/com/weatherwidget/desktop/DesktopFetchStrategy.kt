@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.shared.util.BatteryTier
+import com.weatherwidget.shared.util.CurrentTempCadence
 import com.weatherwidget.shared.util.ForecastCadence
 import com.weatherwidget.shared.util.NonPrimaryObservationPolicy
 
@@ -12,37 +13,19 @@ object DesktopFetchStrategy {
 
     private const val MS_PER_MINUTE = 60 * 1000L
 
-    // AC Power Intervals
-    const val AC_OBSERVATION_SCREEN_ON_MINUTES = 10L
-    const val AC_OBSERVATION_SCREEN_OFF_MINUTES = 30L
-
+    /** A click on the panel refreshes observations at least this old (user interaction, not a schedule). */
     const val CATCH_UP_STALENESS_THRESHOLD_MINUTES = 10L
 
     /**
-     * Returns the delay in MS for the next observation fetch.
-     * Returns null if fetches should be suspended.
+     * The delay in MS for the next observation fetch, or null when none runs now: the shared
+     * [CurrentTempCadence] table, one rule with Android (performance/261011-unify-current-temp-cadence-shared.md).
      */
-    fun getObservationRefreshDelayMs(isCharging: Boolean, batteryLevel: Int, screenOn: Boolean = true): Long? {
-        if (isCharging) {
-            val minutes = if (screenOn) AC_OBSERVATION_SCREEN_ON_MINUTES else AC_OBSERVATION_SCREEN_OFF_MINUTES
-            return minutes * MS_PER_MINUTE
-        }
-
-        // Same rule as Android's CurrentTempFetchPolicy.loopIntervalMinutes: on battery with the
-        // screen on at >= 70%, every 20 min (performance/261003-observations-every-20-min-on-battery-screen-on.md).
-        if (BatteryTier.screenOnObservationAllowed(batteryLevel, screenOn)) {
-            return BatteryTier.SCREEN_ON_OBSERVATION_INTERVAL_MINUTES * MS_PER_MINUTE
-        }
-
-        return when {
-            batteryLevel > BatteryTier.TIER_HIGH_THRESHOLD -> BatteryTier.INTERVAL_HIGH_MINUTES * MS_PER_MINUTE
-            batteryLevel > BatteryTier.TIER_MEDIUM_THRESHOLD -> BatteryTier.INTERVAL_MEDIUM_MINUTES * MS_PER_MINUTE
-            else -> null
-        }
-    }
+    fun getObservationRefreshDelayMs(isCharging: Boolean, batteryLevel: Int, screenOn: Boolean = true): Long? =
+        CurrentTempCadence.intervalMinutes(isCharging, screenOn, batteryLevel)?.times(MS_PER_MINUTE)
 
     /**
-     * Returns true if an immediate catch-up observation fetch should run upon screen wake or user interaction.
+     * Whether a panel click should refresh observations now: the last observation fetch is at least
+     * [CATCH_UP_STALENESS_THRESHOLD_MINUTES] old. Screen wake uses [CurrentTempCadence.screenOnCatchUp].
      */
     fun shouldCatchUpObservations(
         lastFetchMs: Long?,
@@ -52,6 +35,26 @@ object DesktopFetchStrategy {
         if (lastFetchMs == null) return true
         return (nowMs - lastFetchMs) >= stalenessThresholdMs
     }
+
+    /**
+     * Whether a catch-up kick fetches observations now. Screen wake (`screensaver:*`) follows the shared
+     * [CurrentTempCadence.screenOnCatchUp] (battery ≥ 70 %, last fetch ≥ 20 min; charging has its own
+     * 10-min loop); a panel click is user interaction and keeps [shouldCatchUpObservations].
+     * [lastObservationFetchMs] is the observations' own last fetch, never the forecast's.
+     */
+    fun shouldCatchUpOnKick(
+        reason: String,
+        lastObservationFetchMs: Long?,
+        isCharging: Boolean,
+        batteryLevel: Int,
+        nowMs: Long,
+    ): Boolean =
+        if (reason.startsWith("screensaver")) {
+            CurrentTempCadence.screenOnCatchUp(isCharging, batteryLevel, lastObservationFetchMs ?: 0L, nowMs) ==
+                CurrentTempCadence.ScreenOnCatchUp.FETCH_NOW
+        } else {
+            shouldCatchUpObservations(lastObservationFetchMs, nowMs)
+        }
 
     /**
      * Returns the delay in MS for the next forecast fetch, or null if fetches should be suspended.

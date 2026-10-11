@@ -259,11 +259,11 @@ class ScreenOnReceiver : BroadcastReceiver() {
             lastFetchMs = lastFetchMs,
             nowMs = nowMs,
         )
-        if (decision == CurrentTempFetchPolicy.ScreenOnCatchUp.NONE) return
+        if (decision == com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.NONE) return
 
         val ageMin = if (lastFetchMs > 0L) TimeUnit.MILLISECONDS.toMinutes(nowMs - lastFetchMs).toString() else "never"
         when (decision) {
-            CurrentTempFetchPolicy.ScreenOnCatchUp.FETCH_NOW ->
+            com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.FETCH_NOW ->
                 // The run's post-run loop management schedules the next one 20 minutes out.
                 CurrentTempUpdateScheduler.enqueueImmediateUpdate(
                     context = context,
@@ -272,21 +272,21 @@ class ScreenOnReceiver : BroadcastReceiver() {
                     targetSourceId = WidgetStateManager(context.applicationContext).getPrimarySource().id,
                     expedited = true,
                 )
-            CurrentTempFetchPolicy.ScreenOnCatchUp.SCHEDULE ->
+            com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.SCHEDULE ->
                 CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
                     context = context,
                     isScreenInteractive = true,
                     firstDelayMinutes = CurrentTempFetchPolicy.screenOnFirstDelayMinutes(lastFetchMs, nowMs),
                     nowMs = nowMs,
                 )
-            CurrentTempFetchPolicy.ScreenOnCatchUp.NONE -> Unit
+            com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.NONE -> Unit
         }
         logScreenOnLoop(context, decision, battery.batteryLevel, ageMin)
     }
 
     private fun logScreenOnLoop(
         context: Context,
-        decision: CurrentTempFetchPolicy.ScreenOnCatchUp,
+        decision: com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp,
         batteryLevel: Int,
         lastFetchAgeMin: String,
     ) {

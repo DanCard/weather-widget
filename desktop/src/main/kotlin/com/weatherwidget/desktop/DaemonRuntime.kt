@@ -777,9 +777,11 @@ internal class DaemonRuntime(
             return
         }
 
-        val lastFetch = weatherDao.getLastSuccessfulFetch(activeConfig.displaySource)
-        if (!DesktopFetchStrategy.shouldCatchUpObservations(lastFetch, now)) {
-            Log.d(TAG, "kickObservationCatchUp ($reason) skipped: observations are fresh (lastFetch=${lastFetch?.let { (now - it) / 1000 } ?: "none"}s ago)")
+        // Freshness of the observations themselves (OBS_REFRESH / REFRESH), not the forecast's REFRESH.
+        val lastFetch = weatherDao.getLastSuccessfulObservationFetch(activeConfig.displaySource)
+        val (isCharging, level) = PowerDetector.getPowerState()
+        if (!DesktopFetchStrategy.shouldCatchUpOnKick(reason, lastFetch, isCharging, level, now)) {
+            Log.d(TAG, "kickObservationCatchUp ($reason) skipped: not due (lastObsFetch=${lastFetch?.let { (now - it) / 1000 } ?: "none"}s ago)")
             return
         }
 
