@@ -9,7 +9,7 @@ import androidx.annotation.VisibleForTesting
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.StandInBarStyle
 import com.weatherwidget.shared.graph.TodayColumnHighlight
-import com.weatherwidget.shared.util.DailyDayValueResolver
+import com.weatherwidget.shared.graph.TodayThermostat
 import com.weatherwidget.util.WeatherConditionColors
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer.BarDrawnDebug
@@ -32,7 +32,6 @@ internal object DailyBarRenderer {
     internal const val FORECAST_BAR_WIDTH_DP = 9f
     internal const val TODAY_TRIPLE_BAR_WIDTH_DP = 8f
     internal const val TODAY_TRIPLE_BAR_WIDTH_DP_COMPACT = 6f
-    internal const val GHOST_BAR_ALPHA = 75
     internal const val CLIMATE_OVERLAY_ALPHA = 80
     internal const val BULB_RADIUS_SCALE = 1.2f
     private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
@@ -101,11 +100,10 @@ internal object DailyBarRenderer {
         val lowY = day.solidLineLow?.let { layout.tempToY(it) }
 
         if (day.isToday) {
-            // The mercury's bottom (bulb) is never warmer than its top (current temp); see
-            // DailyDayValueResolver.mercuryBottom.
-            val mercuryLowY = DailyDayValueResolver.mercuryBottom(day.solidLineHigh, day.solidLineLow)
-                ?.let { layout.tempToY(it) }
-            drawTodayTripleBar(canvas, day, centerX, highY, mercuryLowY, layout, paints, onBarDrawn)
+            // Mercury, ghost and bulb spans come from the shared TodayThermostat (desktop draws
+            // the same shape); only the pixel minimum bar height is applied here.
+            val thermostat = TodayThermostat.segments(day.solidLineHigh, day.solidLineLow, day.ghostLineHigh)
+            drawTodayTripleBar(canvas, day, centerX, thermostat, layout, paints, onBarDrawn)
         } else if (highY != null || lowY != null) {
             // Past triple bar, left slot: the frozen "yesterday's forecast". Drawn first so the
             // actual sits over it, as on today's column. No bulb on past days.
@@ -402,14 +400,16 @@ internal object DailyBarRenderer {
         canvas: Canvas,
         day: DayData,
         centerX: Float,
-        highY: Float?,
-        lowY: Float?,
+        thermostat: TodayThermostat.Segments,
         layout: DailyGraphLayoutInfo,
         paints: DailyGraphPaintSet,
         onBarDrawn: ((BarDrawnDebug) -> Unit)?,
     ) {
-        val (obsHighY, effectiveObsLowY) =
-            resolveBarEndpoints(highY, lowY, layout.minBarHeightPx) ?: return
+        val (obsHighY, effectiveObsLowY) = resolveBarEndpoints(
+            thermostat.mercuryTop?.let { layout.tempToY(it) },
+            thermostat.mercuryBottom?.let { layout.tempToY(it) },
+            layout.minBarHeightPx,
+        ) ?: return
 
         drawSnapshotBar(
             canvas = canvas,
@@ -470,28 +470,25 @@ internal object DailyBarRenderer {
             paints.todayObservedRedBulbPaint,
         )
 
-        day.ghostLineHigh?.let { trueHigh ->
-            val obsHighTemp = day.solidLineHigh ?: 0f
-            if (trueHigh > obsHighTemp) {
-                val ghostHighY = layout.tempToY(trueHigh)
-                canvas.drawLine(
-                    centerX,
+        thermostat.ghostTop?.let { ghostTop ->
+            val ghostHighY = layout.tempToY(ghostTop)
+            canvas.drawLine(
+                centerX,
+                ghostHighY,
+                centerX,
+                obsHighY,
+                paints.todayObservedGhostPaint,
+            )
+            onBarDrawn?.invoke(
+                BarDrawnDebug(
+                    day.date,
+                    "TODAY_GHOST",
                     ghostHighY,
-                    centerX,
                     obsHighY,
-                    paints.todayObservedGhostPaint,
-                )
-                onBarDrawn?.invoke(
-                    BarDrawnDebug(
-                        day.date,
-                        "TODAY_GHOST",
-                        ghostHighY,
-                        obsHighY,
-                        centerX,
-                        paints.todayObservedGhostPaint.color,
-                    ),
-                )
-            }
+                    centerX,
+                    paints.todayObservedGhostPaint.color,
+                ),
+            )
         }
 
         onBarDrawn?.invoke(

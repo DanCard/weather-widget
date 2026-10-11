@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.weatherwidget.shared.graph.DailyRainLabelPlanner
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.TodayColumnHighlight
+import com.weatherwidget.shared.graph.TodayThermostat
 import com.weatherwidget.shared.graph.TodayColumnOverlayBlocks
 import com.weatherwidget.shared.graph.TodayColumnOverlayPlanner
 import com.weatherwidget.shared.graph.TodayColumnOverlayStyle
@@ -48,7 +49,6 @@ private val COLOR_FORECAST_RAINY = Color(com.weatherwidget.shared.util.WeatherCo
 private val COLOR_OBSERVED = Color(com.weatherwidget.shared.util.WeatherColors.OBSERVED)
 private val COLOR_LABEL_GRAY = Color(0xFFAAAAAA)
 private val COLOR_GAP_FALLBACK = Color(0xFF34C759)
-private const val GHOST_BAR_ALPHA = 0.3f
 // Mirrors Android's BULB_RADIUS_SCALE/BULB_VERTICAL_CENTER_FRACTION (DailyForecastGraphRenderer).
 private const val BULB_RADIUS_SCALE = 1.2f
 private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
@@ -252,22 +252,16 @@ fun DailyForecastGraph(
                     snapshotColor, day.cloudCoverRatio, day.snapshot?.condition,
                     pathEffect = standInDash(compactTodayBarWidth).takeIf { day.snapshotIsStale },
                 )
-                // The thermostat: solid red "mercury", a faint ghost reaching up to
-                // the day's high-water mark, and a round bulb at the low end. Drawn last so the
-                // mercury and bulb sit on top of the forecast/snapshot bars.
-                // Bar top reaches today's high: mercury/forecast fallback (barTopHigh) plus the
-                // observed peak (ghostHigh — Synoptic/METAR for Silurian) so the column shows
-                // today's high temperature.
-                val mercuryTop = day.barTopHigh ?: day.solidHigh
-                val ghostHigh = day.ghostHigh
-                val barTop = listOfNotNull(mercuryTop, ghostHigh).maxOrNull()
-                if (ghostHigh != null && mercuryTop != null && ghostHigh > mercuryTop) {
-                    drawRangeLine(centerX, ghostHigh, mercuryTop, ::yAt, COLOR_OBSERVED.copy(alpha = GHOST_BAR_ALPHA), compactTodayBarWidth)
+                // The thermostat — shared TodayThermostat decides the spans: solid mercury from
+                // barTopHigh down to the bulb, translucent ghost from today's earlier peak down to the
+                // mercury top. Drawn last so the mercury and bulb sit on top of the forecast/snapshot bars.
+                val thermostat = TodayThermostat.segments(day.barTopHigh, day.solidLow, day.ghostHigh)
+                thermostat.ghostTop?.let { ghostTop ->
+                    drawRangeLine(centerX, ghostTop, thermostat.mercuryTop, ::yAt, COLOR_OBSERVED.copy(alpha = TodayThermostat.GHOST_ALPHA), compactTodayBarWidth)
                 }
-                // The bulb sits at the mercury's bottom, which is never warmer than its top
-                // (current temp) — see DailyDayValueResolver.mercuryBottom.
-                val mercuryLow = com.weatherwidget.shared.util.DailyDayValueResolver.mercuryBottom(barTop, day.solidLow)
-                drawRangeLine(centerX, barTop, mercuryLow, ::yAt, COLOR_OBSERVED, compactTodayBarWidth)
+                val barTop = thermostat.top
+                val mercuryLow = thermostat.mercuryBottom
+                drawRangeLine(centerX, thermostat.mercuryTop, mercuryLow, ::yAt, COLOR_OBSERVED, compactTodayBarWidth)
                 mercuryLow?.let { low ->
                     val bulbRadius = compactTodayBarWidth * BULB_RADIUS_SCALE
                     drawCircle(

@@ -4,6 +4,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.shared.graph.TodayColumnHighlight
+import com.weatherwidget.shared.graph.TodayThermostat
 import com.weatherwidget.widget.handlers.HeaderConstants
 import java.util.concurrent.ConcurrentHashMap
 
@@ -130,7 +131,7 @@ internal object DailyGraphPaintCache {
                     createBarPaint(DailyBarRenderer.COLOR_OBSERVED_RED, tripleBarWidth),
                 todayObservedGhostPaint =
                     createBarPaint(DailyBarRenderer.COLOR_OBSERVED_RED, tripleBarWidth).apply {
-                        alpha = DailyBarRenderer.GHOST_BAR_ALPHA
+                        alpha = TodayThermostat.GHOST_ALPHA_255
                     },
                 todayObservedRedBulbPaint =
                     Paint(Paint.ANTI_ALIAS_FLAG).apply {
