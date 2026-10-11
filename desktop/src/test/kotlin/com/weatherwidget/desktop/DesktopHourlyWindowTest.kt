@@ -27,11 +27,12 @@ class DesktopHourlyWindowTest {
     }
 
     @Test
-    fun `first charging fetch is FULL, then NEAR until a day has passed`() {
+    fun `first charging fetch is FULL, then NEAR until 20 h have passed`() {
         assertEquals(Window.FULL, window().current(now))
         window().markFull()
         assertEquals(Window.NEAR, window().current(now + 60_000L))
-        assertEquals(Window.FULL, window().current(now + 25 * 3_600_000L))
+        assertEquals(Window.NEAR, window().current(now + 19 * 3_600_000L))
+        assertEquals(Window.FULL, window().current(now + 21 * 3_600_000L))
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.test.category.ShortDuration
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -126,6 +127,22 @@ class NwsForecastFetchTest {
             install(ContentNegotiation) { json(this@NwsForecastFetchTest.json) }
         }
         return NwsApi(client, json)
+    }
+
+    @Test
+    fun `daily-only skips the hourly endpoint and hourly-only skips the forecast endpoint`() = runBlocking {
+        val grid = apiWith().getGridPoint(37.42, -122.08)
+
+        val daily = NwsForecastFetch.fetch(apiWith(), grid, ForecastParts.DAILY)
+        assertEquals(1, daily.forecastPeriods.size)
+        assertTrue(daily.rawHourlyPeriods.isEmpty())
+        assertTrue(daily.hourlyPeriods.isEmpty())
+        assertTrue(daily.elapsedHourlyPeriods.isEmpty())
+        assertTrue("gridpoints still fetched", daily.gridpoints.skyCoverByHour.isNotEmpty())
+
+        val hourly = NwsForecastFetch.fetch(apiWith(), grid, ForecastParts.HOURLY)
+        assertTrue(hourly.forecastPeriods.isEmpty())
+        assertEquals(42, hourly.hourlyPeriods.single().cloudCover)
     }
 
     @Test

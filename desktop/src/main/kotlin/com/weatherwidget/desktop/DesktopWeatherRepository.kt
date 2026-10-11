@@ -5,6 +5,7 @@ import com.weatherwidget.shared.util.DailyPrecipPeriods
 import com.weatherwidget.shared.util.DailyHourlySummaries
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.*
+import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.*
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.GoogleHistoryRefill
@@ -529,14 +530,19 @@ class DesktopWeatherRepository(
         userLocationChange: Boolean = false,
         /** Why this refresh runs, for `REFRESH_ENTER` (each full Google refresh spends quota). */
         reason: String = "unspecified",
-        /** Refresh daily and current, not the hourly forecast: [com.weatherwidget.data.remote.HourlyFetchGate]. */
+        /**
+         * Screen on / wake / a daily-view toggle: refresh daily and current, and hourly only when
+         * [com.weatherwidget.data.remote.HourlyCadence] says it is due ([ForecastParts.forForced]).
+         */
         hourlyLimited: Boolean = false,
         /**
          * A previous day refreshed on the Forecast History screen: Google may refill its stale
          * elapsed hours from `history/hours` ([GoogleHistoryRefill]). Null on every other refresh.
          */
         refillDay: LocalDate? = null,
-    ): ForecastSnapshot = refreshWithOutcome(now, userLocationChange, reason = reason, hourlyLimited = hourlyLimited, refillDay = refillDay).snapshot
+        /** The parts a scheduled refresh planned ([ForecastParts.forRoutine]); null = a forced refresh. */
+        parts: ForecastParts? = null,
+    ): ForecastSnapshot = refreshWithOutcome(now, userLocationChange, reason = reason, hourlyLimited = hourlyLimited, refillDay = refillDay, parts = parts).snapshot
 
     /**
      * Runs a full refresh and reports whether it already supplied observation data. Schedulers can
@@ -555,14 +561,22 @@ class DesktopWeatherRepository(
         reason: String = "unspecified",
         hourlyLimited: Boolean = false,
         refillDay: LocalDate? = null,
+        parts: ForecastParts? = null,
     ): RefreshOutcome = withContext(Dispatchers.IO) {
         Log.i(TAG, "refresh() started source=$weatherSource")
+        val hourlyWindowNow = DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude)
+        // Hourly-limited refreshes are the displayed source's (screen on, wake, a daily-view toggle).
+        val fetchParts = parts ?: ForecastParts.forForced(
+            hourlyLimited = hourlyLimited,
+            hourlyDue = if (hourlyLimited) hourlyWindowNow.hourlyDecision(isDisplayed = true, nowMs = now)?.due else null,
+        )
+        if (!fetchParts.daily) return@withContext refreshHourlyOnly(now, reason)
         // Entry marker. The terminal REFRESH row below only lands on success, so without this an
         // aborted fetch is invisible unless it also throws (the catch logs a WARN); a hang or a
         // cancellation leaves no trace at all.
         weatherDao.log(
             tag = "REFRESH_ENTER",
-            message = "reason=$reason hourlyLimited=$hourlyLimited source=$weatherSource lat=$latitude lon=$longitude",
+            message = "reason=$reason hourlyLimited=$hourlyLimited parts=$fetchParts source=$weatherSource lat=$latitude lon=$longitude",
             level = "INFO",
         )
         try {
@@ -583,11 +597,11 @@ class DesktopWeatherRepository(
                 val forecast = async { when {
                         refillDay != null -> weatherService.fetchForecast(
                             recentObservationsOnly = deferObservationWindow,
-                            hourlyLimited = hourlyLimited,
+                            parts = fetchParts,
                             refillDay = refillDay,
                         )
-                        hourlyLimited ->
-                            weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow, hourlyLimited = true)
+                        fetchParts != ForecastParts.BOTH ->
+                            weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow, parts = fetchParts)
                         else -> weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow)
                     } }
                 val recovery = async { fetchBorrowedRecovery(borrowedPlan, userLocationChange) }
@@ -608,9 +622,7 @@ class DesktopWeatherRepository(
                 now,
                 hoursAhead = HourlyOnDemand.hoursAhead(weatherSource, null, hourlyWindow),
             )
-            if (hourlyWindow == HourlyWindowPolicy.Window.FULL && result.hourly.isNotEmpty()) {
-                DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude).markFull()
-            }
+            markHourlyFetch(hourlyWindow, fetchParts, result)
             if (refillDay != null) refillStaleGoogleHours(result, now, refillDay)
 
             if (borrowedPlan != null) {
@@ -688,6 +700,47 @@ class DesktopWeatherRepository(
             }
             throw e
         }
+    }
+
+    /**
+     * A fetch that brought hours home starts the hourly cadence again (`HOURLY_FETCH`); a FULL one also
+     * starts the FULL interval (`HOURLY_FULL_FETCH`).
+     */
+    private fun markHourlyFetch(window: HourlyWindowPolicy.Window?, parts: ForecastParts, result: RawFetch) {
+        if (!ForecastParts.requested(displaySource, parts).hourly || result.hourly.isEmpty()) return
+        val marker = DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude)
+        marker.markHourly()
+        if (window == HourlyWindowPolicy.Window.FULL) marker.markFull()
+    }
+
+    /**
+     * An hourly-only refresh ([ForecastParts.HOURLY]): the hourly rows and their history snapshot,
+     * nothing on the daily cadence — no daily rows, observations, actuals backfills or `REFRESH` row
+     * (`getLastSuccessfulFetch` reads that row as the daily forecast's age). Logged `REFRESH_HOURLY`.
+     * performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md
+     */
+    private suspend fun refreshHourlyOnly(now: Long, reason: String): RefreshOutcome {
+        weatherDao.log(
+            tag = "REFRESH_ENTER",
+            message = "reason=$reason parts=HOURLY source=$weatherSource lat=$latitude lon=$longitude",
+            level = "INFO",
+        )
+        val result = weatherService.fetchForecast(recentObservationsOnly = true, parts = ForecastParts.HOURLY)
+        val hourlyWindow = DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude).current(now)
+        val forecastHours = persistForecastResult(
+            result.copy(daily = emptyList(), rawObservations = emptyList()),
+            now,
+            hoursAhead = HourlyOnDemand.hoursAhead(weatherSource, null, hourlyWindow),
+        )
+        markHourlyFetch(hourlyWindow, ForecastParts.HOURLY, result)
+        val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
+        weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, forecastHours)
+        backfillElapsedHistory(result, now, timestampToGroupPredictions)
+        weatherDao.log(tag = "REFRESH_HOURLY", message = "source=$weatherSource hourly=${result.hourly.size} reason=$reason")
+        return RefreshOutcome(
+            snapshot = loadCached(now) ?: rawFetchToSnapshot(result),
+            suppliedObservations = false,
+        )
     }
 
     /**

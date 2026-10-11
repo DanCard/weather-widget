@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.sourceview.SourceFetchGate
+import com.weatherwidget.shared.sourceview.SourceLastView
 import com.weatherwidget.shared.sourceview.SourceViewTally
 import java.time.Instant
 import java.time.LocalDate
@@ -64,6 +65,33 @@ object SourceFetchGateLoader {
     } catch (e: Exception) {
         Log.w(TAG, "gate unavailable, fetching every source: ${e.message}")
         null
+    }
+
+    /**
+     * Each source's last view and the tracking grace, for [com.weatherwidget.data.remote.HourlyCadence]
+     * ([SourceLastView]). Fails open to [SourceLastView.Recency.UNKNOWN] (every source in grace).
+     */
+    suspend fun loadRecency(
+        context: Context,
+        sourceIds: Collection<String>,
+        nowMs: Long = System.currentTimeMillis(),
+    ): SourceLastView.Recency = try {
+        val zone = ZoneId.systemDefault()
+        val today = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
+        val dao = WeatherDatabase.getDatabase(context).sourceViewDao()
+        SourceLastView.recency(
+            sourceIds = sourceIds,
+            timestamps = dao.getLastViews().associate { it.sourceId to it.lastViewedAtMs },
+            rows = dao.getSince(SourceViewTally.dayMs(today.minusDays(SourceFetchGate.RECENT_VIEW_DAYS))).map { it.toRow() },
+            trackingSince = dao.getTrackingStart()?.let { LocalDate.ofEpochDay(it / SourceViewTally.DAY_MS) },
+            today = today,
+            zone = zone,
+        )
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "view recency unavailable, every source in grace: ${e.message}")
+        SourceLastView.Recency.UNKNOWN
     }
 
     /** The background forecast set, or every enabled source when the gate is unavailable. */

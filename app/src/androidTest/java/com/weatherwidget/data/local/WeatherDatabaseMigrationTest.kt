@@ -5,6 +5,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -888,6 +889,20 @@ class WeatherDatabaseMigrationTest {
         }
         db.query("SELECT lowTemp FROM forecasts WHERE source = 'OPEN_METEO'").use { c ->
             assertTrue(c.moveToFirst()); assertEquals(55.0, c.getDouble(0), 0.01)
+        }
+    }
+
+    @Test
+    fun migrate79To80_createsSourceLastView() {
+        helper.createDatabase(testDb, 79).close()
+
+        val db = helper.runMigrationsAndValidate(testDb, 80, true, WeatherDatabase.MIGRATION_79_80)
+
+        db.execSQL("INSERT OR REPLACE INTO source_last_view (sourceId, lastViewedAtMs) VALUES ('NWS', 5)")
+        db.execSQL("INSERT OR REPLACE INTO source_last_view (sourceId, lastViewedAtMs) VALUES ('NWS', 9)")
+        db.query("SELECT lastViewedAtMs FROM source_last_view WHERE sourceId = 'NWS'").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals(9L, c.getLong(0))
+            assertFalse("one row per source", c.moveToNext())
         }
     }
 }

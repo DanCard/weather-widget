@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.RawFetch
@@ -22,10 +23,11 @@ interface WeatherApiClient {
     suspend fun fetchForecast(recentObservationsOnly: Boolean = false): RawFetch
 
     /**
-     * [hourlyLimited]: refresh daily and current, not the hourly forecast where the provider bills it
-     * apart ([com.weatherwidget.data.remote.HourlyFetchGate]). Clients without such a product ignore it.
+     * [parts] ([ForecastParts]): which parts of the forecast to ask for — a source whose API can drop
+     * one ([ForecastParts.splits]) does; the others make their one full request. An hourly-only fetch
+     * also skips what keeps the daily cadence (station observations, Tomorrow.io's 5-minute history).
      */
-    suspend fun fetchForecast(recentObservationsOnly: Boolean, hourlyLimited: Boolean): RawFetch =
+    suspend fun fetchForecast(recentObservationsOnly: Boolean, parts: ForecastParts): RawFetch =
         fetchForecast(recentObservationsOnly)
 
     /**
@@ -33,8 +35,8 @@ interface WeatherApiClient {
      * requests `history/hours` when that day's stored elapsed hours went stale
      * ([com.weatherwidget.data.remote.GoogleHistoryRefill]). Clients without such a product ignore it.
      */
-    suspend fun fetchForecast(recentObservationsOnly: Boolean, hourlyLimited: Boolean, refillDay: LocalDate?): RawFetch =
-        fetchForecast(recentObservationsOnly, hourlyLimited)
+    suspend fun fetchForecast(recentObservationsOnly: Boolean, parts: ForecastParts, refillDay: LocalDate?): RawFetch =
+        fetchForecast(recentObservationsOnly, parts)
 
     /**
      * The displayed source's forecast for a tapped or panned-to day

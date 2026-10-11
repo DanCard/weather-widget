@@ -188,6 +188,8 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 // The tracking row records the day these tables first existed (INSERT OR IGNORE).
                 stmt.execute(com.weatherwidget.data.local.SourceViewSql.DAYS_DDL)
                 stmt.execute(com.weatherwidget.data.local.SourceViewSql.TRACKING_DDL)
+                // The last switch to each source (Room v80): HourlyCadence's view age.
+                stmt.execute(com.weatherwidget.data.local.SourceViewSql.LAST_VIEW_DDL)
                 stmt.execute(
                     com.weatherwidget.data.local.SourceViewSql.trackingStartSql(
                         com.weatherwidget.shared.sourceview.SourceViewTally.dayMs(
@@ -606,6 +608,9 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             if (from < 32) {
                 GOOGLE_LOW_SHIFT_SQL.forEach { stmt.execute(it) }
             }
+            // v33: `source_last_view`, created by initialize()'s CREATE TABLE IF NOT EXISTS before
+            // migrate() runs; nothing to move. Room MIGRATION_79_80.
+            // performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -740,7 +745,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 32
+        const val SCHEMA_VERSION = 33
 
         /**
          * Requests per local day, source and endpoint ([com.weatherwidget.data.remote.ApiUsageClassifier]).

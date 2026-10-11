@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
+import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
@@ -101,11 +102,11 @@ class DesktopGoogleHistoryRefillTest {
     @Test
     fun `refreshing yesterday replaces only yesterday's stale live hours`() = runTest {
         seed()
-        coEvery { service.fetchForecast(false, false, yesterday) } returns fetchWithHistory
+        coEvery { service.fetchForecast(false, ForecastParts.BOTH, yesterday) } returns fetchWithHistory
 
         repo().refresh(now = now, reason = "user_refresh:history", refillDay = yesterday)
 
-        coVerify(exactly = 1) { service.fetchForecast(false, false, yesterday) }
+        coVerify(exactly = 1) { service.fetchForecast(false, ForecastParts.BOTH, yesterday) }
         staleYesterday.filter { it != freshHour }.forEach { assertEquals("stale hour $it refilled", 69.5f, live(it).temperature) }
         assertEquals("a current hour keeps its forecast", 66f, live(freshHour).temperature)
         staleToday.forEach { assertEquals("today is not the refreshed day", 71.7f, live(it).temperature) }
@@ -118,7 +119,7 @@ class DesktopGoogleHistoryRefillTest {
     @Test
     fun `the stitched hourly read draws the refilled values`() = runTest {
         seed()
-        coEvery { service.fetchForecast(false, false, yesterday) } returns fetchWithHistory
+        coEvery { service.fetchForecast(false, ForecastParts.BOTH, yesterday) } returns fetchWithHistory
 
         repo().refresh(now = now, reason = "user_refresh:history", refillDay = yesterday)
 
@@ -144,11 +145,11 @@ class DesktopGoogleHistoryRefillTest {
     @Test
     fun `a second refresh of yesterday finds nothing stale`() = runTest {
         seed()
-        coEvery { service.fetchForecast(false, false, yesterday) } returns fetchWithHistory
+        coEvery { service.fetchForecast(false, ForecastParts.BOTH, yesterday) } returns fetchWithHistory
         repo().refresh(now = now, reason = "user_refresh:history", refillDay = yesterday)
         val refilledAt = live(staleYesterday.first()).fetchedAt
 
-        coEvery { service.fetchForecast(false, false, yesterday) } returns fetchWithHistory.copy(
+        coEvery { service.fetchForecast(false, ForecastParts.BOTH, yesterday) } returns fetchWithHistory.copy(
             providerHistoryHourly = staleHours.map { HourlyForecast(it, 50f, "Clear") },
         )
         repo().refresh(now = now, reason = "user_refresh:history", refillDay = yesterday)

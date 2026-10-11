@@ -1,5 +1,8 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.remote.HourlyWindowPolicy
+import com.weatherwidget.data.remote.HourlyCadence
+import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.ForecastSnapshot
 import com.weatherwidget.data.model.DataStatus
 import com.weatherwidget.data.model.deriveDataStatus
@@ -876,86 +879,98 @@ internal class DaemonRuntime(
                 }
             }
 
-            // 3c. Forecast fetch loop
+            // 3c. Forecast fetch loop. Every tick plans each source's daily and hourly parts apart
+            // (shared ForecastParts.forRoutine): daily on the forecast cadence (ForecastCadence),
+            // hourly on HourlyCadence by how recently the source was viewed.
+            // performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md
             launch {
                 while (true) {
+                    delay(FORECAST_LOOP_TICK_MS)
                     val (isCharging, level) = PowerDetector.getPowerState()
-                    val delayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(
-                        isCharging, level, isActiveSource = true, screenOn = ScreenStateDetector.isScreenOn(),
-                    )
-
-                    if (delayMs == null) {
-                        Log.i(TAG, "Forecast loop: background fetch suspended due to low battery ($level%). Re-checking in 5 min.")
-                        delay(SUSPEND_RECHECK_INTERVAL_MS)
-                        continue
-                    }
-
-                    delay(delayMs)
-
+                    val screenOn = ScreenStateDetector.isScreenOn()
+                    val now = System.currentTimeMillis()
                     val activeSource = config.displaySource
-
-                    try {
-                        Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource (charging=$isCharging, level=$level%)...")
-                        val result = newRepo.refresh(reason = "forecast_loop")
-                        panelPublisher.publishForecastState(result)
-                        dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
-                        notifyDataUpdated()
-                        Log.i(TAG, "Active source forecast refresh successful.")
-                    } catch (e: CancellationException) {
-                        Log.i(TAG, "Loop refresh cancelled.")
-                        throw e
-                    } catch (e: Exception) {
-                        Log.i(TAG, "Active source forecast refresh failed: ${e.message}")
-                        val isOffline = isOfflineException(e)
-                        val reason = if (isOffline) "offline" else "source_error"
-                        weatherDao.log("REFRESH_FAIL", "$reason ${e.message}", "WARN")
-                        val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource)
-                        dataStatusState.value = deriveDataStatus(
-                            cachePresent = forecastState.value != null,
-                            lastFetchMs = lastSuccess,
-                            refreshFailed = true,
-                            failureIsOffline = isOffline,
-                        )
-                        notifyDataUpdated()
-                    }
-
                     // Slower forecast fetch for other APIs — only those viewed in the last 8 days;
                     // the rest are fetched when the user switches to them (SourceFetchGate).
                     val nonActiveSources = DesktopSourceFetchGate.otherSources(weatherDao, config)
-                    for (otherSource in nonActiveSources) {
+
+                    fun planFor(source: String, isDisplayed: Boolean): Pair<ForecastParts?, String?> {
+                        val dailyDelayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(
+                            isCharging, level, isActiveSource = isDisplayed, screenOn = screenOn,
+                        )
+                        val lastDaily = weatherDao.getLastSuccessfulFetch(source)
+                        val dailyDue = dailyDelayMs != null && (lastDaily == null || now - lastDaily >= dailyDelayMs)
+                        val window = DesktopHourlyWindow(weatherDao, source, config.lat, config.lon)
+                        val hourly = window.hourlyDecision(isDisplayed, now)
+                        val parts = ForecastParts.forRoutine(
+                            dailyDue = dailyDue,
+                            hourlyDue = hourly?.due,
+                            isFull = window.current(now) == HourlyWindowPolicy.Window.FULL,
+                        )
+                        val fragment = hourly?.let {
+                            HourlyCadence.logFragment(source, it.intervalHours, it.viewAgeMs, it.lastHourlyFetchMs, now, it.due)
+                        }
+                        return parts to fragment
+                    }
+
+                    val plans = (listOf(activeSource to true) + nonActiveSources.map { it to false })
+                        .associate { (source, isDisplayed) -> source to planFor(source, isDisplayed) }
+                    val due = plans.mapNotNull { (source, plan) -> plan.first?.let { source to it } }.toMap()
+                    if (due.isNotEmpty()) {
+                        weatherDao.log("FETCH_PLAN", ForecastParts.planLogLine(due, plans.values.mapNotNull { it.second }), "INFO")
+                    }
+
+                    due[activeSource]?.let { parts ->
                         try {
-                            val lastOtherFetch = weatherDao.getLastSuccessfulFetch(otherSource)
-                            val otherDelayMs = DesktopFetchStrategy.getForecastRefreshDelayMs(
-                                isCharging, level, isActiveSource = false, screenOn = ScreenStateDetector.isScreenOn(),
+                            Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource parts=$parts (charging=$isCharging, level=$level%)...")
+                            val result = newRepo.refresh(reason = "forecast_loop", parts = parts)
+                            panelPublisher.publishForecastState(result)
+                            dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
+                            notifyDataUpdated()
+                            Log.i(TAG, "Active source forecast refresh successful.")
+                        } catch (e: CancellationException) {
+                            Log.i(TAG, "Loop refresh cancelled.")
+                            throw e
+                        } catch (e: Exception) {
+                            Log.i(TAG, "Active source forecast refresh failed: ${e.message}")
+                            val isOffline = isOfflineException(e)
+                            val reason = if (isOffline) "offline" else "source_error"
+                            weatherDao.log("REFRESH_FAIL", "$reason ${e.message}", "WARN")
+                            val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource)
+                            dataStatusState.value = deriveDataStatus(
+                                cachePresent = forecastState.value != null,
+                                lastFetchMs = lastSuccess,
+                                refreshFailed = true,
+                                failureIsOffline = isOffline,
                             )
-                                ?: continue
+                            notifyDataUpdated()
+                        }
+                    }
 
-                            val isDue = lastOtherFetch == null ||
-                                (System.currentTimeMillis() - lastOtherFetch) >= otherDelayMs
-
-                            if (isDue) {
-                                Log.i(TAG, "Refreshing forecast for non-active source: $otherSource...")
-                                val otherService = DesktopWeatherService(
-                                    config.lat,
-                                    config.lon,
-                                    otherSource,
-                                    config.settings.apiKeys,
-                                    weatherDao,
-                                    synopticBackoffStore = DesktopSynopticBackoffStore.default(),
-                                )
-                                val otherRepo = DesktopWeatherRepository(
-                                    otherService,
-                                    weatherDao,
-                                    config.lat,
-                                    config.lon,
-                                    otherSource,
-                                    config.personalStationWeight()
-                                )
-                                otherRepo.refresh(reason = "forecast_loop_other")
-                                otherService.close()
-                                Log.i(TAG, "Non-active source $otherSource forecast refresh successful.")
-                                notifyDataUpdated()
-                            }
+                    for (otherSource in nonActiveSources) {
+                        val parts = due[otherSource] ?: continue
+                        try {
+                            Log.i(TAG, "Refreshing forecast for non-active source: $otherSource parts=$parts...")
+                            val otherService = DesktopWeatherService(
+                                config.lat,
+                                config.lon,
+                                otherSource,
+                                config.settings.apiKeys,
+                                weatherDao,
+                                synopticBackoffStore = DesktopSynopticBackoffStore.default(),
+                            )
+                            val otherRepo = DesktopWeatherRepository(
+                                otherService,
+                                weatherDao,
+                                config.lat,
+                                config.lon,
+                                otherSource,
+                                config.personalStationWeight()
+                            )
+                            otherRepo.refresh(reason = "forecast_loop_other", parts = parts)
+                            otherService.close()
+                            Log.i(TAG, "Non-active source $otherSource forecast refresh successful.")
+                            notifyDataUpdated()
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {

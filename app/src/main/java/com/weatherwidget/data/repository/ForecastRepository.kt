@@ -202,6 +202,31 @@ class ForecastRepository
             get() = FetchMetadata.getLastFullFetchTime(context)
             set(value) = FetchMetadata.setLastFullFetchTime(context, value)
 
+        /**
+         * `FETCH_PLAN parts=NWS:BOTH,GOOGLE_WEATHER:DAILY hourly=NWS:4h(view=…,lastHourly=…,due=…)…`:
+         * what this sync fetches and each visible source's hourly cadence
+         * (performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md).
+         */
+        private suspend fun logFetchPlan(
+            plan: Map<com.weatherwidget.data.model.WeatherSource, com.weatherwidget.data.model.ForecastParts>,
+            fetchContext: ForecastFetchContext?,
+            recency: com.weatherwidget.shared.sourceview.SourceLastView.Recency,
+            latitude: Double,
+            longitude: Double,
+        ) {
+            val nowMs = System.currentTimeMillis()
+            val hourly = widgetStateManager.getVisibleSourcesOrder().mapNotNull { source ->
+                fetchCoordinator.hourlyDecision(source, fetchContext, recency, latitude, longitude)?.let {
+                    com.weatherwidget.data.remote.HourlyCadence.logFragment(source.id, it.intervalHours, it.viewAgeMs, it.lastHourlyFetchMs, nowMs, it.due)
+                }
+            }
+            appLogDao.log(
+                "FETCH_PLAN",
+                com.weatherwidget.data.model.ForecastParts.planLogLine(plan.mapKeys { it.key.id }, hourly),
+                "INFO",
+            )
+        }
+
         suspend fun getWeatherData(
             latitude: Double,
             longitude: Double,
@@ -220,12 +245,19 @@ class ForecastRepository
                 val gate = com.weatherwidget.widget.SourceFetchGateLoader.load(
                     context, widgetStateManager, latitude, longitude,
                 )
+                // Hourly runs on its own cadence, by how recently each source was viewed (HourlyCadence).
+                val recency = com.weatherwidget.widget.SourceFetchGateLoader.loadRecency(
+                    context, widgetStateManager.getVisibleSourcesOrder().map { it.id },
+                )
                 if (
                     !forceRefresh &&
                     !fetchCoordinator.requiresNetworkFetch(
                         cachedForecasts,
                         fetchContext,
                         gate?.forecasts,
+                        recency,
+                        latitude,
+                        longitude,
                     )
                 ) {
                     return Result.success(cachedForecasts)
@@ -240,6 +272,9 @@ class ForecastRepository
                             cachedForecasts,
                             fetchContext,
                             gate?.forecasts,
+                            recency,
+                            latitude,
+                            longitude,
                         )
                     ) {
                         return Result.success(cachedForecasts)
@@ -301,17 +336,22 @@ class ForecastRepository
                         )
                         return Result.success(cachedForecasts)
                     }
-                    val sourcesToFetch = fetchCoordinator.visibleSourcesToFetch(
+                    val fetchPlan = fetchCoordinator.planFetch(
                         cachedForecasts = cachedForecasts,
                         forceRefresh = forceRefresh,
                         targetSourceId = targetSourceId,
                         fetchContext = fetchContext,
                         backgroundSources = gate?.forecasts,
+                        recency = recency,
+                        latitude = latitude,
+                        longitude = longitude,
                     )
+                    val sourcesToFetch = fetchPlan.keys
+                    logFetchPlan(fetchPlan, fetchContext, recency, latitude, longitude)
                     fetchCoordinator.fetchFromAllApis(
                         latitude,
                         longitude,
-                        sourcesToFetch,
+                        fetchPlan,
                         fetchContext,
                     )
                     // Retire any source's replaced observation products at this site (shared with

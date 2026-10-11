@@ -102,7 +102,7 @@ object RefreshScheduler {
         // When null the repository forces every enabled source; set this to confine the forced
         // fetch to one provider (avoids burning quota on the key-based sources).
         targetSourceId: String? = null,
-        // Refresh daily and current, not the hourly forecast (HourlyFetchGate).
+        // Refresh daily and current; hourly only when HourlyCadence says it is due (ForecastParts.forForced).
         hourlyLimited: Boolean = false,
     ) {
         if (isRefreshDisabledForTesting) {

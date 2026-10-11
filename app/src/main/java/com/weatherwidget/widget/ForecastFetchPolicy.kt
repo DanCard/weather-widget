@@ -13,7 +13,7 @@ data class ForecastFetchContext(
     val isScreenInteractive: Boolean,
     val batteryLevel: Int,
     val activeSourceIds: Set<String>,
-    /** See [com.weatherwidget.data.remote.HourlyFetchGate]: refresh daily/current, not hourly. */
+    /** Refresh daily/current; hourly only when due ([com.weatherwidget.data.model.ForecastParts.forForced]). */
     val hourlyLimited: Boolean = false,
     /**
      * A tapped day past Google's routine 72 h: the deeper `forecast/hours` horizon that reaches it

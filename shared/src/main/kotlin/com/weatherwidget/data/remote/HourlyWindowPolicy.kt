@@ -28,12 +28,17 @@ object HourlyWindowPolicy {
     /** 8 days: what a FULL fetch asks a billed source for (capped by its reach). */
     const val FULL_HOURS = 192
 
-    /** A FULL fetch is due when the last one for the source at this site is at least this old. */
-    const val FULL_INTERVAL_MS = 24L * 3_600_000L
+    /**
+     * A FULL fetch is due when the last one for the source at this site is at least this old. 20 h,
+     * not 24: a phone that charges nightly around 3 am must get it every night, and a run at 03:10 one
+     * night would otherwise block 03:00 the next (user, 2026-10-11). Still at most one per night — the
+     * charging tick is an hour and a night's charge is far shorter than 20 h.
+     */
+    const val FULL_INTERVAL_MS = 20L * 3_600_000L
 
     /**
      * FULL when the battery counts as charging ([BatteryTier.treatAsCharging], the same test the
-     * forecast cadence uses) and the last FULL fetch at the site is a day old or absent; else NEAR.
+     * forecast cadence uses) and the last FULL fetch at the site is [FULL_INTERVAL_MS] old or absent; else NEAR.
      */
     fun choose(isCharging: Boolean, batteryLevel: Int, lastFullFetchedAtMs: Long?, nowMs: Long): Window =
         if (BatteryTier.treatAsCharging(isCharging, batteryLevel) &&

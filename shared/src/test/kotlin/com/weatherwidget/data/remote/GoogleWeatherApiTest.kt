@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import io.ktor.client.HttpClient
@@ -173,15 +174,27 @@ class GoogleWeatherApiTest {
     }
 
     @Test
-    fun `an hourly-limited fetch makes no hour or history call and keeps the daily forecast`() = runBlocking {
+    fun `a daily-only fetch makes no hour or history call and keeps the daily forecast`() = runBlocking {
         val google = api()
-        val result = google.getForecast(37.422, -122.084, includeHistory = true, includeHours = false)
+        val result = google.getForecast(37.422, -122.084, includeHistory = true, parts = ForecastParts.DAILY)
 
         assertEquals(0, hourPageCalls())
         assertEquals(0, historyCalls())
         assertEquals(10, result.daily.size)
         assertTrue(result.hourly.isEmpty())
-        assertEquals("pages=0 reason=hourly_limited", google.lastHoursPaging)
+        assertEquals("pages=0 reason=hourly_not_due", google.lastHoursPaging)
+    }
+
+    @Test
+    fun `an hourly-only fetch makes no daily or current call and keeps the hours`() = runBlocking {
+        val google = api()
+        val result = google.getForecast(37.422, -122.084, includeHistory = false, parts = ForecastParts.HOURLY)
+
+        assertEquals(0, requests.count { it.url.encodedPath.endsWith("forecast/days:lookup") })
+        assertEquals(0, requests.count { it.url.encodedPath.endsWith("currentConditions:lookup") })
+        assertTrue(hourPageCalls() > 0)
+        assertTrue(result.daily.isEmpty())
+        assertTrue(result.hourly.isNotEmpty())
     }
 
     @Test

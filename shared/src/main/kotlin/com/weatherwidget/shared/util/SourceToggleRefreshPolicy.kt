@@ -3,7 +3,7 @@ package com.weatherwidget.shared.util
 /**
  * How old the source a user toggles to may be before the toggle refreshes it (user, 2026-10-08):
  * 4 hours, in the daily view and in every hourly view (temperature, cloud, rain) alike. In the daily
- * view the refresh is hourly-limited (`HourlyFetchGate`); in an hourly view it is full.
+ * view the refresh is hourly-limited (`ForecastParts.forForced`); in an hourly view it is full.
  *
  * A source with nothing to draw still fetches at once — that arm is the platforms' own
  * (Android `SourceStalenessProbe`, desktop's no-cache launch action).

@@ -2073,6 +2073,27 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
+    /** [sourceId]'s last view in `source_last_view` (same table as Android's; see SourceLastView). */
+    fun recordLastView(sourceId: String, atMs: Long) {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(com.weatherwidget.data.local.SourceViewSql.LAST_VIEW_UPSERT).use { stmt ->
+                stmt.setString(1, sourceId)
+                stmt.setLong(2, atMs)
+                stmt.executeUpdate()
+            }
+        }
+    }
+
+    /** Every source's last view, sourceId → epoch ms. */
+    fun lastViews(): Map<String, Long> =
+        db.getConnection().use { conn ->
+            conn.prepareStatement("SELECT sourceId, lastViewedAtMs FROM source_last_view").use { stmt ->
+                stmt.executeQuery().use { rs ->
+                    buildMap { while (rs.next()) put(rs.getString(1), rs.getLong(2)) }
+                }
+            }
+        }
+
     /** `source_view_days` rows dated at or after [sinceDateMs], for SourceViewProbability. */
     fun sourceViewDaysSince(sinceDateMs: Long): List<com.weatherwidget.shared.sourceview.SourceViewDayRow> =
         db.getConnection().use { conn ->

@@ -3,6 +3,7 @@ package com.weatherwidget.data.remote
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
@@ -53,6 +54,10 @@ class OpenMeteoApi
              * ForecastFetchCoordinator).
              */
             const val PREVIOUS_RUNS_VARIABLE = "cloud_cover_previous_day1"
+            const val DAILY_VARIABLES =
+                "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum"
+            const val HOURLY_VARIABLES =
+                "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
             const val MINUTELY_15_VARIABLES =
                 "temperature_2m,precipitation,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
 
@@ -142,21 +147,28 @@ class OpenMeteoApi
 
         }
 
+        /**
+         * [parts]: [ForecastParts.DAILY] drops `hourly=`, [ForecastParts.HOURLY] drops `daily=`.
+         * `current` and `minutely_15` are always asked: they are not the hourly forecast — they feed
+         * current temperature and actuals ([parseSubHourlyHistory]), which keep the daily cadence.
+         */
         suspend fun getForecast(
             lat: Double,
             lon: Double,
             days: Int = ForecastHorizon.MAX_DAYS,
             historyDays: Int = 0,
+            parts: ForecastParts = ForecastParts.BOTH,
         ): RawFetch {
             val response: String =
                 httpClient.get("$BASE_URL/forecast") {
                     parameter("latitude", lat)
                     parameter("longitude", lon)
-                    parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum")
-                    parameter(
-                        "hourly",
-                        "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high",
-                    )
+                    if (parts.daily) {
+                        parameter("daily", DAILY_VARIABLES)
+                    }
+                    if (parts.hourly) {
+                        parameter("hourly", HOURLY_VARIABLES)
+                    }
                     parameter("minutely_15", MINUTELY_15_VARIABLES)
                     parameter(
                         "current",

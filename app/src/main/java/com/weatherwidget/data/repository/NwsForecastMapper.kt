@@ -55,9 +55,10 @@ class NwsForecastMapper @Inject constructor(
     suspend fun fetchFromNws(
         latitude: Double,
         longitude: Double,
+        parts: com.weatherwidget.data.model.ForecastParts = com.weatherwidget.data.model.ForecastParts.BOTH,
     ): NwsFetchResult = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
-        val bundle = NwsForecastFetch.fetch(nwsApi, grid)
+        val bundle = NwsForecastFetch.fetch(nwsApi, grid, parts)
         bundle.gridpointsFailure?.let { e ->
             Log.w(TAG, "getGridpointsBundle failed: ${e.message}")
             appLogDao.log(
@@ -91,6 +92,13 @@ class NwsForecastMapper @Inject constructor(
         // the leftover past-date windows as "API actuals" made every past day's actual equal that
         // day's forecast. See plans/260808-nws-actuals-forecast-contamination.md. NWS actuals now
         // come from station observations via StationDailyExtremes.
+
+        // Hourly-only (ForecastParts.HOURLY): no /forecast periods were asked, so there is no daily
+        // batch to assemble or summarize; the caller stores the hours only.
+        if (!parts.daily) {
+            val (hourlyOnly, elapsedOnly) = hourlyResult(bundle, hourlyPeriods, latitude, longitude)
+            return@coroutineScope NwsFetchResult(emptyList(), hourlyOnly, elapsedOnly)
+        }
 
         persistNwsPeriodSummary(grid.forecastUrl, forecastPeriods)
 
@@ -177,6 +185,17 @@ class NwsForecastMapper @Inject constructor(
         val batchSummary = buildBatchSummary(forecastPeriods, forecastEntities, preservedTerminalLowOnlyDay)
         persistNwsBatchSummary(grid.forecastUrl, batchSummary)
 
+        val (hourlyEntities, elapsedHourly) = hourlyResult(bundle, hourlyPeriods, latitude, longitude)
+        NwsFetchResult(forecastEntities, hourlyEntities, elapsedHourly)
+    }
+
+    /** The live hourly rows and the issuance's elapsed hours, from [bundle]. */
+    private suspend fun hourlyResult(
+        bundle: com.weatherwidget.data.remote.NwsForecastBundle,
+        hourlyPeriods: List<com.weatherwidget.data.remote.NwsApi.HourlyForecastPeriod>,
+        latitude: Double,
+        longitude: Double,
+    ): Pair<List<HourlyForecastEntity>, List<HourlyForecast>> {
         val nowMs = System.currentTimeMillis()
         val hourlyEntities = hourlyPeriods.map { period ->
             val periodAgeMs = nowMs - period.startTime
@@ -211,7 +230,7 @@ class NwsForecastMapper @Inject constructor(
             )
         }
 
-        NwsFetchResult(forecastEntities, hourlyEntities, elapsedHourly)
+        return hourlyEntities to elapsedHourly
     }
 
     suspend fun logTodayDiagnostics(

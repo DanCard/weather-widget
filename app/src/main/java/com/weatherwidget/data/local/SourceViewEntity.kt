@@ -36,6 +36,16 @@ data class SourceViewTrackingEntity(
     val startedDate: Long,
 )
 
+/**
+ * One row per source: the last time the user switched to it (`SourceViewSql.LAST_VIEW_DDL`), read as
+ * view age by `HourlyCadence`. Overwritten on every switch — not a history.
+ */
+@Entity(tableName = "source_last_view")
+data class SourceLastViewEntity(
+    @PrimaryKey val sourceId: String,
+    val lastViewedAtMs: Long,
+)
+
 @Dao
 interface SourceViewDao {
     @Query(
@@ -56,6 +66,12 @@ interface SourceViewDao {
             insert(SourceViewDayEntity(switch.dateMs, switch.sourceId, kind, trigger, switch.wasPrimary, 1))
         }
     }
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertLastView(entity: SourceLastViewEntity)
+
+    @Query("SELECT * FROM source_last_view")
+    suspend fun getLastViews(): List<SourceLastViewEntity>
 
     @Query("SELECT * FROM source_view_days WHERE date >= :sinceDateMs")
     suspend fun getSince(sinceDateMs: Long): List<SourceViewDayEntity>

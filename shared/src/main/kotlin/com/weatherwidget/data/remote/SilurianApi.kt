@@ -2,6 +2,7 @@ package com.weatherwidget.data.remote
 
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
@@ -44,22 +45,26 @@ class SilurianApi(
         private const val INCHES_TO_MM = 25.4f
     }
 
+    /** [parts]: [ForecastParts.DAILY] skips `/forecast/hourly`, [ForecastParts.HOURLY] skips `/forecast/daily`. */
     suspend fun getForecast(
         lat: Double,
         lon: Double,
+        parts: ForecastParts = ForecastParts.BOTH,
     ): RawFetch = coroutineScope {
         val apiKey = apiKeyProvider()
         if (apiKey.isNullOrBlank()) {
             throw IllegalStateException("SILURIAN_API_KEY is missing.")
         }
 
-        // Two independent endpoints — fetch concurrently.
+        // Two independent endpoints — fetch concurrently, each only when its part is wanted.
         val hourlyDeferred = async {
+            if (!parts.hourly) return@async JsonObject(emptyMap())
             fetchJson(apiKey, "/forecast/hourly", lat, lon) {
                 parameter("include_past", true)
             }
         }
         val dailyDeferred = async {
+            if (!parts.daily) return@async JsonObject(emptyMap())
             fetchJson(apiKey, "/forecast/daily", lat, lon)
         }
 

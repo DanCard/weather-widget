@@ -159,7 +159,7 @@ internal object WidgetIntentActionHandler {
         val viewMode = stateManager.getViewMode(appWidgetId)
         // Cycling sources is browsing (user, 2026-10-08): in the daily view a stale source refreshes
         // its daily forecast and current conditions but not the hourly forecast; only while an
-        // hourly view is showing does a stale source refetch everything. HourlyFetchGate.
+        // hourly view is showing does a stale source refetch everything. ForecastParts.forForced.
         val hourlyLimited = !viewMode.isGraphMode
         // The switch is counted after the paint, so the tap's latency doesn't pay for it, and in
         // `finally`, so a failed paint still counts what the user chose (source_view_days).
@@ -462,7 +462,7 @@ internal object WidgetIntentActionHandler {
         context: Context,
         appWidgetId: Int,
         reason: String,
-        /** Passed to the stale-data refresh: see [com.weatherwidget.data.remote.HourlyFetchGate]. */
+        /** Passed to the stale-data refresh: see [com.weatherwidget.data.model.ForecastParts.forForced]. */
         hourlyLimited: Boolean = false,
     ): WidgetRefreshContextResolver.Resolved? {
         // The largest untimed span on the click path as of 2026-09-06: this runs

@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.DailyForecast
@@ -183,21 +184,23 @@ class DesktopWeatherService(
      * past a source's real coverage render climate-normal filler by design.
      */
     override suspend fun fetchForecast(recentObservationsOnly: Boolean): RawFetch =
-        fetchForecast(recentObservationsOnly, hourlyLimited = false)
+        fetchForecast(recentObservationsOnly, ForecastParts.BOTH)
 
-    override suspend fun fetchForecast(recentObservationsOnly: Boolean, hourlyLimited: Boolean): RawFetch =
-        fetchForecast(recentObservationsOnly, hourlyLimited, refillDay = null)
+    override suspend fun fetchForecast(recentObservationsOnly: Boolean, parts: ForecastParts): RawFetch =
+        fetchForecast(recentObservationsOnly, parts, refillDay = null)
 
     override suspend fun fetchForecast(
         recentObservationsOnly: Boolean,
-        hourlyLimited: Boolean,
+        parts: ForecastParts,
         refillDay: java.time.LocalDate?,
     ): RawFetch = runCatching {
+        // What the request asks for: a source that cannot split always asks for everything.
+        val requested = ForecastParts.requested(WeatherSource.fromId(weatherSource), parts)
         when (weatherSource) {
-            "NWS" -> fetchNwsForecast(recentObservationsOnly)
-            WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoForecastWithFiveMinuteHistory()
+            "NWS" -> fetchNwsForecast(recentObservationsOnly, requested)
+            WeatherSource.TOMORROW_IO.id -> fetchTomorrowIoForecastWithFiveMinuteHistory(requested)
             WeatherSource.WEATHER_API.id -> withHistoricalActuals(weatherApi.getForecast(latitude, longitude), WeatherSource.WEATHER_API.id)
-            WeatherSource.SILURIAN.id -> withHistoricalActuals(silurian.getForecast(latitude, longitude), WeatherSource.SILURIAN.id)
+            WeatherSource.SILURIAN.id -> withHistoricalActuals(silurian.getForecast(latitude, longitude, requested), WeatherSource.SILURIAN.id)
             // Forecast-only like Silurian: withHistoricalActuals files nothing for it (the builder
             // rejects sources without a historical-actuals contract); actuals are borrowed.
             WeatherSource.GOOGLE_WEATHER.id -> withHistoricalActuals(
@@ -206,7 +209,7 @@ class DesktopWeatherService(
                     longitude,
                     includeHistory = googleNeedsHistory(refillDay),
                     storedHours = googleStoredHours(),
-                    includeHours = googleIncludeHours(hourlyLimited),
+                    parts = requested,
                     hoursAhead = HourlyOnDemand.askHours(
                         WeatherSource.GOOGLE_WEATHER.id,
                         null,
@@ -217,7 +220,7 @@ class DesktopWeatherService(
                 WeatherSource.GOOGLE_WEATHER.id,
             )
             WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapForecastWithCurrent()
-            WeatherSource.OPEN_METEO.id -> fetchOpenMeteoForecast()
+            WeatherSource.OPEN_METEO.id -> fetchOpenMeteoForecast(requested)
             else -> throw IllegalArgumentException("Unsupported weather source: $weatherSource")
         }
     }.getOrElse { e ->
@@ -310,20 +313,6 @@ class DesktopWeatherService(
             fetchForecast(recentObservationsOnly = true)
         }
 
-    /** [HourlyFetchGate] against the desktop's background forecast cadence. */
-    private fun googleIncludeHours(hourlyLimited: Boolean): Boolean {
-        if (!hourlyLimited) return true
-        val (isCharging, level) = PowerDetector.getPowerState()
-        return HourlyFetchGate.includeHours(
-            hourlyLimited = true,
-            newestHourlyFetchedAtMs = googleStoredHours()?.maxOfOrNull { it.fetchedAt },
-            cadenceMs = DesktopFetchStrategy.getForecastRefreshDelayMs(
-                isCharging, level, isActiveSource = true, screenOn = ScreenStateDetector.isScreenOn(),
-            ),
-            nowMs = System.currentTimeMillis(),
-        )
-    }
-
     /**
      * See `GoogleWeatherApi.needsHistory`: `history/hours` has a small per-project daily quota (Cloud
      * Console setting). A Forecast History refresh of a previous day ([refillDay]) also requests it
@@ -357,9 +346,13 @@ class DesktopWeatherService(
         }
     }
 
-    private suspend fun fetchTomorrowIoForecastWithFiveMinuteHistory(): RawFetch = coroutineScope {
-        val forecastDeferred = async { tomorrowIo.getForecast(latitude, longitude) }
+    private suspend fun fetchTomorrowIoForecastWithFiveMinuteHistory(
+        parts: ForecastParts = ForecastParts.BOTH,
+    ): RawFetch = coroutineScope {
+        val forecastDeferred = async { tomorrowIo.getForecast(latitude, longitude, parts) }
         val historyDeferred = async {
+            // Actuals: on the daily cadence, not the hourly one.
+            if (!parts.daily) return@async null
             try {
                 tomorrowIo.getFiveMinuteHistory(
                     latitude,
@@ -410,12 +403,13 @@ class DesktopWeatherService(
     }
 
     /** Open-Meteo Forecast API with current observation and historical actuals backfill. */
-    private suspend fun fetchOpenMeteoForecast(): RawFetch {
+    private suspend fun fetchOpenMeteoForecast(parts: ForecastParts = ForecastParts.BOTH): RawFetch {
         val forecast = openMeteo.getForecast(
             latitude,
             longitude,
             days = ForecastHorizon.MAX_DAYS,
             historyDays = ACTUALS_HISTORY_DAYS,
+            parts = parts,
         )
         val observation = forecast.providerCurrentTemp?.let { temp ->
             val timestamp = forecast.providerCurrentObservedAt ?: System.currentTimeMillis()
@@ -540,8 +534,24 @@ class DesktopWeatherService(
         return openMeteo.getHistoricalDailyTemps(latitude, longitude, startDate, endDate)
     }
 
-    private suspend fun fetchNwsForecast(recentObservationsOnly: Boolean = false): RawFetch = coroutineScope {
+    /**
+     * [parts]: daily-only skips `/forecast/hourly` (the current-temp fallback then interpolates the
+     * stored hours); hourly-only skips `/forecast` and the station observations, which keep the daily
+     * cadence.
+     */
+    private suspend fun fetchNwsForecast(
+        recentObservationsOnly: Boolean = false,
+        parts: ForecastParts = ForecastParts.BOTH,
+    ): RawFetch = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
+        if (!parts.daily) {
+            val bundle = NwsForecastFetch.fetch(nwsApi, grid, parts)
+            bundle.gridpointsFailure?.let { Log.w(TAG, "gridpoints fetch failed: $it") }
+            return@coroutineScope RawFetch(
+                hourly = bundle.hourlyPeriods.map { it.toHourlyForecast() },
+                elapsedHourly = bundle.elapsedHourlyPeriods.map { it.toHourlyForecast() },
+            )
+        }
 
         // Resolve candidate observation stations concurrently with the forecast fetch, then try
         // official stations first for the historical window that drives actuals. Observation
@@ -552,13 +562,14 @@ class DesktopWeatherService(
             } ?: emptyList()
         }
 
-        val bundle = NwsForecastFetch.fetch(nwsApi, grid)
+        val bundle = NwsForecastFetch.fetch(nwsApi, grid, parts)
         // Preserves the previous bestEffort("gridpoints") diagnostic.
         bundle.gridpointsFailure?.let { Log.w(TAG, "gridpoints fetch failed: $it") }
 
         val observations = fetchNwsObservations(
             stationsDeferred.await(),
-            bundle.rawHourlyPeriods,
+            // A daily-only fetch has no fresh hours; the header's forecast fallback reads the stored ones.
+            bundle.rawHourlyPeriods.ifEmpty { storedNwsHourlyPeriods() },
             recentOnly = recentObservationsOnly,
         )
 
@@ -577,6 +588,31 @@ class DesktopWeatherService(
             rawObservations = observations.observations,
             nwsDailyExtremes = bundle.gridpoints.dailyTemperatures,
         )
+    }
+
+    /** The stored NWS hours around now, as periods, for the header fallback of a daily-only fetch. */
+    private fun storedNwsHourlyPeriods(): List<NwsApi.HourlyForecastPeriod> {
+        val dao = weatherDao ?: return emptyList()
+        val now = System.currentTimeMillis()
+        val zone = java.time.ZoneId.systemDefault()
+        return dao.getHourlyForecasts(
+            LocationMatch.quantize(latitude),
+            LocationMatch.quantize(longitude),
+            WeatherSource.NWS.id,
+            now - 3 * 3_600_000L,
+            now + 3 * 3_600_000L,
+        ).map { row ->
+            val local = java.time.Instant.ofEpochMilli(row.dateTime).atZone(zone)
+            NwsApi.HourlyForecastPeriod(
+                startTime = row.dateTime,
+                localDate = local.toLocalDate().toString(),
+                localHour = local.hour,
+                temperature = row.temperature,
+                shortForecast = row.condition,
+                precipProbability = row.precipProbability,
+                cloudCover = row.cloudCover,
+            )
+        }
     }
 
     /**

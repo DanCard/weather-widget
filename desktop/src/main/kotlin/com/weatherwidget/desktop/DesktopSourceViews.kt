@@ -53,7 +53,11 @@ internal object DesktopSourceViews {
             ZoneId.systemDefault(),
         )
         executor.execute {
-            runCatching { target.recordSourceSwitch(switch) }
+            runCatching {
+                target.recordSourceSwitch(switch)
+                // The one timestamp kept: this source's last view (HourlyCadence's view age).
+                target.recordLastView(toSourceId, nowMs)
+            }
                 .onFailure { Log.w(TAG, "source view record failed trigger=$trigger source=$toSourceId: ${it.message}") }
         }
     }

@@ -65,8 +65,9 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   hourly views alike (`:shared` `SourceToggleRefreshPolicy`; was 15 min). See
   `plans/261008-source-toggle-refreshes-only-past-four-hours.md`.
   **Hourly-limited refreshes** (user, 2026-10-08): those screen-on forecast refreshes and source
-  cycling in the daily view refresh daily and current but skip `forecast/hours` unless the stored
-  hourly is due by cadence (`:shared` `HourlyFetchGate`). Every billed request logs
+  cycling in the daily view refresh daily and current but skip the hourly forecast unless it is due by
+  the hourly cadence (`:shared` `ForecastParts.forForced`, `HourlyCadence`; was Google-only
+  `HourlyFetchGate`, deleted 2026-10-11). Every billed request logs
   `GOOGLE_REQUEST`; `api_usage_stats` is per (date, source, endpoint) on both platforms, Google rows
   filed by the **Pacific** day (`ApiUsageClassifier.usageDayMs`), others by the local day.
   `scripts/google_usage_today.py` totals one PT day across desktop and attached devices. See
@@ -84,9 +85,31 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   the hourly view are on demand for every source; a free source's on-demand fetch keeps its whole
   horizon, so a fresh one means "nothing more to fetch". Expected to free ~25 MB of the Pixel's 72 MB DB
   (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`).
+- **Hourly has its own cadence, by how recently each source was viewed** (user, 2026-10-11; `:shared`
+  `HourlyCadence`). Daily, current and actuals keep `ForecastCadence` unchanged.
+
+  | Battery | Displayed | Other sources, by time since last view |
+  |---|---|---|
+  | Charging (or ≥ 80 %) | 4 h | ≤ 24 h → 4 h · ≤ 36 h → 6 h · ≤ 48 h → 8 h · ≤ 72 h → 12 h · older → none |
+  | > 50 % | 8 h | ≤ 24 h → 8 h · older → none |
+  | ≤ 50 % | 24 h | none |
+
+  Each scheduled check plans daily and hourly apart per source (`ForecastParts.forRoutine`): both,
+  daily-only, hourly-only or nothing. Google, NWS, Silurian, Open-Meteo and Tomorrow.io drop the
+  other part from the request (`ForecastParts.splits`; NWS daily-only loses its hourly cross-check —
+  user's call); WeatherAPI (past hours feed actuals) and OWM (daily built from 3-hourly) always make
+  the full request, and an hourly-only fetch of them stores the hours only. Open-Meteo keeps
+  `current` + `minutely_15` (actuals) in every request. Hourly due inside a FULL window takes daily
+  too (the far-day summaries live on the daily row). "Last view" = `source_last_view` (one timestamp
+  per source, overwritten; else the end of its newest `source_view_days` day); 3-day grace for a
+  fresh install. "Due" is measured from a per-source+site marker (Android prefs, desktop `HOURLY_FETCH`
+  app_logs row), not the rows' `fetchedAt`. Logged as `FETCH_PLAN parts=… hourly=…`; desktop's
+  hourly-only refresh logs `REFRESH_HOURLY`, never `REFRESH` (that row is the daily age). See
+  `performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md`.
 - **Routine hourly fetch has two windows** (user, 2026-10-10; `:shared` `HourlyWindowPolicy`):
-  **NEAR** stores 48 h at the normal forecast cadence; **FULL** downloads 8 days (Google asks 192 h =
-  8 pages) and stores 72 h, at most once per 24 h per source+site and only while charging (or ≥ 80 %).
+  **NEAR** stores 48 h; **FULL** downloads 8 days (Google asks 192 h =
+  8 pages) and stores 72 h, at most once per **20 h** per source+site (20, not 24, so a nightly 3 am
+  charge never misses a night to clock drift; user, 2026-10-11) and only while charging (or ≥ 80 %).
   Off charger is NEAR only. 48 h, not 24: the history readers need the previous day's copy of every
   hour of today. Summaries on the `forecasts` row come from the whole download and carry forward, so a
   NEAR fetch never blanks a far day. On-demand days and unknown context are unchanged. See
@@ -294,7 +317,7 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 
 ## Database Schema
 
-- **Version**: Room 79 / desktop 32 as of 2026-10-10. Authoritative: `WeatherDatabase.kt`
+- **Version**: Room 80 / desktop 33 as of 2026-10-11. Authoritative: `WeatherDatabase.kt`
   `version` and `DesktopWeatherDatabase.SCHEMA_VERSION`, which move in pairs — this line goes stale
   fast; trust the code.
 - `observations.stationType` is an INTEGER `StationType.dbCode` (0 UNKNOWN, 1 OFFICIAL, 2 PERSONAL,
@@ -302,7 +325,8 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
   (`plans/261009-station-type-enum-integer-codes-in-db.md`). `NWS_BLEND` is never stored; both
   platforms compute it on read.
 - Main tables: `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `daily_history`,
-  `observations`, `climate_normals`, `app_logs`, `api_usage_stats`, `source_view_days`
+  `observations`, `climate_normals`, `app_logs`, `api_usage_stats`, `source_view_days`,
+  `source_last_view` (one row per source: its last view, the only view timestamp kept — hourly cadence)
 - `source_view_days` counts the user's source switches per local day — `(date, sourceId, viewKind
   DAILY|HOURLY, triggerKind TOGGLE|HOME|OBSERVATIONS, wasPrimary)` → `switches`; no timestamps
   (privacy, user 2026-10-10); every switch is a view (no dwell filter). `source_view_tracking` holds

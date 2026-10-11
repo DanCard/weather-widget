@@ -22,9 +22,18 @@ class HourlyWindowPolicyTest {
     }
 
     @Test
-    fun `charging a day after the last FULL is FULL, just under a day is NEAR`() {
-        assertEquals(Window.FULL, HourlyWindowPolicy.choose(true, 50, now - 24 * hour, now))
-        assertEquals(Window.NEAR, HourlyWindowPolicy.choose(true, 50, now - 24 * hour + 1, now))
+    fun `charging 20 h after the last FULL is FULL, just under 20 h is NEAR`() {
+        assertEquals(Window.FULL, HourlyWindowPolicy.choose(true, 50, now - 20 * hour, now))
+        assertEquals(Window.NEAR, HourlyWindowPolicy.choose(true, 50, now - 20 * hour + 60_000L, now))
+    }
+
+    @Test
+    fun `a nightly 3 am charge gets FULL every night even when the run drifts`() {
+        // Last night's FULL ran at 03:10; tonight's charger tick lands at 03:00, 23 h 50 m later.
+        val last = now - (23 * hour + 50 * 60_000L)
+        assertEquals(Window.FULL, HourlyWindowPolicy.choose(true, 50, last, now))
+        // An hour after tonight's FULL, the next tick does not repeat it.
+        assertEquals(Window.NEAR, HourlyWindowPolicy.choose(true, 50, now - hour, now))
     }
 
     @Test

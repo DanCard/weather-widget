@@ -1,6 +1,7 @@
 package com.weatherwidget.data.remote
 
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
@@ -49,9 +50,11 @@ class TomorrowIoApi(
             ?.coerceIn(0, 100)
     }
 
+    /** [parts]: [ForecastParts.DAILY] asks `timesteps=1d` only, [ForecastParts.HOURLY] `1h` only. */
     suspend fun getForecast(
         lat: Double,
         lon: Double,
+        parts: ForecastParts = ForecastParts.BOTH,
     ): RawFetch {
         val apiKey = apiKeyProvider()
         if (apiKey.isNullOrBlank()) {
@@ -65,8 +68,8 @@ class TomorrowIoApi(
                 "temperature,temperatureMax,temperatureMin,weatherCode,precipitationProbability," +
                     "precipitationAccumulation,cloudCover,cloudBase,cloudCeiling",
             )
-            url.parameters.append("timesteps", "1h")
-            url.parameters.append("timesteps", "1d")
+            if (parts.hourly) url.parameters.append("timesteps", "1h")
+            if (parts.daily) url.parameters.append("timesteps", "1d")
             parameter("units", "imperial")
             parameter("apikey", apiKey)
             // Reaches back far enough to cover the elapsed part of the local day, so a site being

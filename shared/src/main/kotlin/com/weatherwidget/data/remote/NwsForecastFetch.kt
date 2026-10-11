@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.ForecastParts
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -42,12 +43,18 @@ data class NwsForecastBundle(
  * fetch before awaiting the forecast endpoints, preserving the existing overlap.
  */
 object NwsForecastFetch {
+    /**
+     * [parts]: [ForecastParts.DAILY] skips `/forecast/hourly` (the daily mapping then has no hourly
+     * cross-check — the user's call, 2026-10-11), [ForecastParts.HOURLY] skips `/forecast`. Gridpoints
+     * are fetched either way: they carry both the daily extremes and the hourly sky cover.
+     */
     suspend fun fetch(
         api: NwsApi,
         grid: NwsApi.GridPointInfo,
+        parts: ForecastParts = ForecastParts.BOTH,
     ): NwsForecastBundle = coroutineScope {
-        val hourlyDeferred = async { api.getHourlyForecast(grid) }
-        val dailyDeferred = async { api.getForecast(grid) }
+        val hourlyDeferred = async { if (parts.hourly) api.getHourlyForecast(grid) else emptyList() }
+        val dailyDeferred = async { if (parts.daily) api.getForecast(grid) else emptyList() }
         // Raw gridpoints supply per-date min/max extremes that backstop the day/night periods —
         // notably the final forecast day, whose overnight low is otherwise absent. Best-effort:
         // on failure the daily mapping falls back to whatever the periods provide. Cancellation

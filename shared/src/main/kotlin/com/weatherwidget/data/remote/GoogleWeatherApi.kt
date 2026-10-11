@@ -1,6 +1,7 @@
 package com.weatherwidget.data.remote
 
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.QuotaRefusal
 import com.weatherwidget.data.model.HourlyForecast
@@ -147,18 +148,21 @@ class GoogleWeatherApi(
      * ([HourlyWindowPolicy]), more for a FULL one or a tapped day past it ([HourlyOnDemand]); a
      * horizon past [FORECAST_HOURS] takes every page, without the page-1 check.
      *
-     * [includeHours]: false skips `forecast/hours` and `history/hours` (an hourly-limited fetch,
-     * [HourlyFetchGate]); daily and current conditions are fetched as usual, and the result has no
-     * hourly rows, so the stored hours stand.
+     * [parts] ([ForecastParts]): [ForecastParts.DAILY] skips `forecast/hours` and `history/hours`
+     * (hourly not due, [HourlyCadence]) — the result has no hourly rows, so the
+     * stored hours stand. [ForecastParts.HOURLY] skips `forecast/days` and `currentConditions`, which
+     * keep the daily cadence — the result has no daily rows.
      */
     suspend fun getForecast(
         lat: Double,
         lon: Double,
         includeHistory: Boolean = true,
         storedHours: List<HourlyForecast>? = null,
-        includeHours: Boolean = true,
+        parts: ForecastParts = ForecastParts.BOTH,
         hoursAhead: Int = FORECAST_HOURS,
     ): RawFetch = coroutineScope {
+        val includeHours = parts.hourly
+        val includeDays = parts.daily
         val apiKey = apiKeyProvider()
         if (apiKey.isNullOrBlank()) {
             throw IllegalStateException("GOOGLE_WEATHER_API_KEY is missing.")
@@ -166,14 +170,16 @@ class GoogleWeatherApi(
         val startMs = nowMs()
         val hoursBlock = activeBlock(ForecastProduct.HOURLY, startMs)
         val daysBlock = activeBlock(ForecastProduct.DAILY, startMs)
-        if (hoursBlock != null && daysBlock != null) {
+        if ((hoursBlock != null || !includeHours) && (daysBlock != null || !includeDays)) {
             Log.d(TAG, "forecast skipped: hourly and daily quotas exhausted")
-            throw GoogleDailyQuotaException(minOf(hoursBlock.untilMs, daysBlock.untilMs), hoursBlock.detail)
+            val block = listOfNotNull(hoursBlock.takeIf { includeHours }, daysBlock.takeIf { includeDays }).minBy { it.untilMs }
+            throw GoogleDailyQuotaException(block.untilMs, block.detail)
         }
 
         // Current conditions ride along for the header; their own quota refusing must not cost the
         // forecast, so a daily-quota 429 there just leaves the current fields empty.
         val currentDeferred = async {
+            if (!includeDays) return@async null
             try {
                 fetchJson(apiKey, "/currentConditions:lookup", lat, lon)
             } catch (e: ApiAccessException) {
@@ -182,7 +188,7 @@ class GoogleWeatherApi(
             }
         }
         val daysDeferred = async {
-            if (daysBlock != null) {
+            if (!includeDays || daysBlock != null) {
                 null
             } else {
                 fetchProduct(ForecastProduct.DAILY) {
@@ -215,11 +221,14 @@ class GoogleWeatherApi(
             .mapNotNull { product -> activeBlock(product, nowMs())?.let { product to it } }
             .toMap()
         if (!includeHours) {
-            lastHoursPaging = "pages=0 reason=hourly_limited"
+            lastHoursPaging = "pages=0 reason=hourly_not_due"
             if (days == null) {
                 val block = refused[ForecastProduct.DAILY] ?: throw IllegalStateException("Google daily forecast missing")
                 throw GoogleDailyQuotaException(block.untilMs, block.detail)
             }
+        } else if (!includeDays && forecastHours == null) {
+            val block = refused[ForecastProduct.HOURLY] ?: throw IllegalStateException("Google hourly forecast missing")
+            throw GoogleDailyQuotaException(block.untilMs, block.detail)
         } else if (days == null && forecastHours == null) {
             // Both refused (one now, one earlier, or both now): nothing to return.
             val first = refused.values.minBy { it.untilMs }

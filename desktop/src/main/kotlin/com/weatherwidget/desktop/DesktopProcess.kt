@@ -83,6 +83,12 @@ const val UI_FALLBACK_TICK_MS = 30 * 1000L
 const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
 
 /**
+ * How often the daemon's forecast loop asks whether any source's daily or hourly forecast is due
+ * (ForecastCadence / HourlyCadence). A check, not a fetch: the shortest cadence is 4 h.
+ */
+const val FORECAST_LOOP_TICK_MS = 15 * 60 * 1000L
+
+/**
  * Cadence of the current-status tick: the daemon re-resolves + republishes `current_status`, and the
  * UI re-reads it to advance the displayed clock/temperature.
  *
@@ -126,7 +132,7 @@ const val RESUME_KICK_JITTER_MS = 10_000L
 
 /**
  * Whether a [runLaunchRefresh]-style catch-up refreshes only daily and current, not the hourly
- * forecast ([com.weatherwidget.data.remote.HourlyFetchGate]; user, 2026-10-08):
+ * forecast ([com.weatherwidget.data.model.ForecastParts.forForced]; user, 2026-10-08):
  * - wake / link-up (`resume:*`, `network:*`): automatic, nobody asked;
  * - cycling the displayed source ([SOURCE_CYCLE_REASON]) while the daily view is showing.
  * Startup, location change, settings changes and a source cycle in an hourly view fetch everything.

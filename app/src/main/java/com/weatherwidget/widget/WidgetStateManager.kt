@@ -445,6 +445,24 @@ class WidgetStateManager internal constructor(
             ).apply()
     }
 
+    /**
+     * The last fetch that brought [sourceId]'s hourly forecast home at this site — what
+     * [com.weatherwidget.data.remote.HourlyCadence] measures "due" from. A marker, not the rows'
+     * `fetchedAt`: the hourly save skips unchanged rows, so their newest `fetchedAt` can lag a fetch.
+     */
+    fun getLastHourlyFetch(sourceId: String, lat: Double, lon: Double): Long? =
+        com.weatherwidget.data.remote.HourlyWindowPolicy.FullMarker
+            .decode(prefs.getString(KEY_HOURLY_FETCH_PREFIX + sourceId, null))
+            ?.forSite(lat, lon)
+
+    fun markHourlyFetch(sourceId: String, lat: Double, lon: Double, atMs: Long) {
+        prefs.edit()
+            .putString(
+                KEY_HOURLY_FETCH_PREFIX + sourceId,
+                com.weatherwidget.data.remote.HourlyWindowPolicy.FullMarker.at(lat, lon, atMs).encode(),
+            ).apply()
+    }
+
     fun getRecentLocations(): List<RecentLocation> {
         val raw = prefs.getString(KEY_RECENT_LOCATIONS, null)
         return RecentLocationsHelper.decodeFromJson(raw)
@@ -576,6 +594,7 @@ class WidgetStateManager internal constructor(
         /** Global: place name of a setup-screen location change whose first fetch has not landed. */
         const val KEY_PENDING_LOCATION_FETCH = "widget_pending_location_fetch"
         private const val KEY_FULL_HOURLY_PREFIX = "hourly_full_fetch_"
+        private const val KEY_HOURLY_FETCH_PREFIX = "hourly_fetch_marker_"
 
         /** Global: JSON array of recent locations. */
         const val KEY_RECENT_LOCATIONS = "recent_locations"
