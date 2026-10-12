@@ -180,6 +180,28 @@ class HourlyWindowStorageIntegrationTest : RobolectricTest() {
     }
 
     @Test
+    fun `a manual refresh on battery stores 72 h but records no FULL marker`() = runTest {
+        fetch(seed = 1, onBattery.copy(userRefresh = true))
+
+        val rows = liveHourly()
+        assertTrue("reaches into hours 48-72", rows.any { it.dateTime >= clockMs + 48 * hour })
+        assertNull("tonight's charger FULL stays due", widgetStateManager.getLastFullHourlyFetch(om.id, lat, lon))
+        assertEquals("the hourly cadence restarts", clockMs, widgetStateManager.getLastHourlyFetch(om.id, lat, lon))
+
+        // The 03:00 charger tick, 13 h after a 14:00 tap: still FULL.
+        clockMs += 13 * hour
+        fetch(seed = 50, charging)
+        assertEquals(clockMs, widgetStateManager.getLastFullHourlyFetch(om.id, lat, lon))
+    }
+
+    @Test
+    fun `a manual refresh is FULL only for the displayed source`() = runTest {
+        fetch(seed = 1, onBattery.copy(userRefresh = true, activeSourceIds = setOf(WeatherSource.NWS.id)))
+
+        assertTrue("NEAR: stored past 48 h", liveHourly().all { it.dateTime < clockMs + 48 * hour })
+    }
+
+    @Test
     fun `a NEAR fetch keeps far-day summaries from the last FULL fetch`() = runTest {
         fetch(seed = 1, charging)
         val farDate = today.plusDays(10)

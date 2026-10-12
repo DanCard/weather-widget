@@ -112,6 +112,8 @@ object WidgetWorkScheduler {
         forceRefresh: Boolean = true,
         reason: String,
         targetSourceId: String? = null,
+        /** See [WeatherWidgetWorker.KEY_USER_REFRESH]. */
+        userRefresh: Boolean = false,
     ): OneTimeWorkRequest =
         enqueueFullSync(
             context = context,
@@ -120,6 +122,11 @@ object WidgetWorkScheduler {
             forceRefresh = forceRefresh,
             reason = reason,
             targetSourceId = targetSourceId,
+            extraInput = if (userRefresh) {
+                { putBoolean(WeatherWidgetWorker.KEY_USER_REFRESH, true) }
+            } else {
+                null
+            },
         )
 
     fun enqueueForcedSync(
@@ -519,6 +526,7 @@ object WidgetWorkScheduler {
             // A source switch's run owns its banner; folding it into another run would pin it.
             data.getString(WeatherWidgetWorker.KEY_SOURCE_SWITCH_ID) ?: "",
             data.getBoolean(WeatherWidgetWorker.KEY_HOURLY_LIMITED, false),
+            data.getBoolean(WeatherWidgetWorker.KEY_USER_REFRESH, false),
         ).joinToString(":")
 
     /**

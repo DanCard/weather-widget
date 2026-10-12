@@ -7,6 +7,7 @@ import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.HourlyWindowPolicy
 import com.weatherwidget.test.category.ShortDuration
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -91,6 +92,29 @@ class DesktopHourlyCadenceTest {
         // Just fetched: the displayed source's shortest cadence is 4 h, so daily only.
         repo().refresh(now = now + 60_000L, reason = "test", hourlyLimited = true)
         coVerify(exactly = 1) { service.fetchForecast(false, ForecastParts.DAILY) }
+    }
+
+    @Test
+    fun `a user refresh asks for the FULL window on battery but never starts the FULL interval`() = runTest {
+        val onBattery = { PowerDetector.PowerState(false, 30) }
+        coEvery {
+            service.fetchForecast(false, ForecastParts.BOTH, null, HourlyWindowPolicy.Window.FULL)
+        } returns RawFetch(daily = daily, hourly = hourly)
+
+        repo().refresh(now = now, reason = "user_refresh:popup", userRefresh = true)
+
+        coVerify(exactly = 1) { service.fetchForecast(false, ForecastParts.BOTH, null, HourlyWindowPolicy.Window.FULL) }
+        assertNotNull("the hourly cadence restarts", window().lastHourlyFetch())
+        assertNull(
+            "no FULL marker: tonight's charger FULL stays due",
+            dao.getLatestLogByTagAndMessagePrefix(DesktopHourlyWindow.TAG, "source=$om"),
+        )
+        // On the charger the next routine check is still FULL.
+        assertEquals(
+            HourlyWindowPolicy.Window.FULL,
+            DesktopHourlyWindow(dao, om, lat, lon) { PowerDetector.PowerState(true, 90) }.current(now + 60_000L),
+        )
+        assertEquals(HourlyWindowPolicy.Window.NEAR, DesktopHourlyWindow(dao, om, lat, lon, onBattery).current(now))
     }
 
     @Test

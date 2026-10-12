@@ -297,8 +297,13 @@ internal class ForecastFetchCoordinator(
             batteryLevel = fetchContext.batteryLevel,
             lastFullFetchedAtMs = widgetStateManager.getLastFullHourlyFetch(source.id, latitude, longitude),
             nowMs = clock(),
+            userRefresh = isUserRefreshOf(source, fetchContext),
         )
     }
+
+    /** A manual Refresh reaches FULL for the displayed source only; others keep the routine rule. */
+    private fun isUserRefreshOf(source: WeatherSource, fetchContext: ForecastFetchContext?): Boolean =
+        fetchContext?.userRefresh == true && source.id in fetchContext.activeSourceIds
 
     /**
      * Whether the fetch just made downloaded hourly at all: a hourly-limited or quota-refused Google
@@ -311,8 +316,9 @@ internal class ForecastFetchCoordinator(
             )
 
     /**
-     * A fetch that brought hours home starts the hourly cadence again ([HourlyCadence]); a FULL one
-     * also starts the FULL interval ([HourlyWindowPolicy.FULL_INTERVAL_MS]).
+     * A fetch that brought hours home starts the hourly cadence again ([HourlyCadence]); a routine FULL
+     * one also starts the FULL interval ([HourlyWindowPolicy.FULL_INTERVAL_MS]). A manual Refresh's FULL
+     * does not, so a daytime tap never holds off the night's charger FULL ([HourlyWindowPolicy.marksFull]).
      */
     private suspend fun markFullIfDone(
         window: HourlyWindowPolicy.Window?,
@@ -320,12 +326,15 @@ internal class ForecastFetchCoordinator(
         latitude: Double,
         longitude: Double,
         broughtHours: Boolean,
+        userRefresh: Boolean,
     ) {
         if (!broughtHours) return
         widgetStateManager.markHourlyFetch(source.id, latitude, longitude, clock())
         if (window != HourlyWindowPolicy.Window.FULL) return
-        widgetStateManager.markFullHourlyFetch(source.id, latitude, longitude, clock())
-        appLogDao.log("HOURLY_WINDOW", "source=${source.id} window=FULL", "INFO")
+        if (HourlyWindowPolicy.marksFull(window, userRefresh)) {
+            widgetStateManager.markFullHourlyFetch(source.id, latitude, longitude, clock())
+        }
+        appLogDao.log("HOURLY_WINDOW", "source=${source.id} window=FULL" + if (userRefresh) " reason=user_refresh" else "", "INFO")
     }
 
     private fun buildFetchRegistry(
@@ -470,7 +479,10 @@ internal class ForecastFetchCoordinator(
             forecasts?.let {
                 val parts = plan.getValue(source)
                 if (parts.daily) saveDailyBatch(it, latitude, longitude, source)
-                markFullIfDone(windows[source], source, latitude, longitude, broughtHours(source, parts))
+                markFullIfDone(
+                    windows[source], source, latitude, longitude, broughtHours(source, parts),
+                    userRefresh = isUserRefreshOf(source, fetchContext),
+                )
             }
         }
 
@@ -503,7 +515,10 @@ internal class ForecastFetchCoordinator(
         val forecasts = safeFetch(entry.tag, source, latitude, longitude) { entry.fetch(latitude, longitude) }
             ?: return false
         saveDailyBatch(forecasts, latitude, longitude, source)
-        markFullIfDone(window, source, latitude, longitude, broughtHours(source, ForecastParts.BOTH))
+        markFullIfDone(
+            window, source, latitude, longitude, broughtHours(source, ForecastParts.BOTH),
+            userRefresh = isUserRefreshOf(source, fetchContext),
+        )
         return true
     }
 

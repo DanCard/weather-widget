@@ -147,6 +147,7 @@ class SettingsActivity : AppCompatActivity() {
                 WidgetWorkScheduler.enqueueRequiredImmediateSync(
                     context = this,
                     reason = "settings_manual_refresh",
+                    userRefresh = true,
                 )
             val currentRefreshWork =
                 OneTimeWorkRequestBuilder<WeatherWidgetWorker>()

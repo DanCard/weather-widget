@@ -39,15 +39,30 @@ object HourlyWindowPolicy {
     /**
      * FULL when the battery counts as charging ([BatteryTier.treatAsCharging], the same test the
      * forecast cadence uses) and the last FULL fetch at the site is [FULL_INTERVAL_MS] old or absent; else NEAR.
+     *
+     * [userRefresh]: the user's Refresh of the displayed source — always FULL (user, 2026-10-12). Such a
+     * fetch must not write the FULL marker ([marksFull]): a daytime tap would otherwise hold off the
+     * night's charger FULL (`plans/261012-manual-refresh-fetches-full-window-of-current-source.md`).
      */
-    fun choose(isCharging: Boolean, batteryLevel: Int, lastFullFetchedAtMs: Long?, nowMs: Long): Window =
-        if (BatteryTier.treatAsCharging(isCharging, batteryLevel) &&
+    fun choose(
+        isCharging: Boolean,
+        batteryLevel: Int,
+        lastFullFetchedAtMs: Long?,
+        nowMs: Long,
+        userRefresh: Boolean = false,
+    ): Window =
+        if (userRefresh) {
+            Window.FULL
+        } else if (BatteryTier.treatAsCharging(isCharging, batteryLevel) &&
             (lastFullFetchedAtMs == null || nowMs - lastFullFetchedAtMs >= FULL_INTERVAL_MS)
         ) {
             Window.FULL
         } else {
             Window.NEAR
         }
+
+    /** Whether a fetch made in [window] starts the [FULL_INTERVAL_MS] again: a routine FULL only. */
+    fun marksFull(window: Window?, userRefresh: Boolean): Boolean = window == Window.FULL && !userRefresh
 
     /** Hours a routine fetch of [sourceId] stores in [window]. */
     fun storeHours(sourceId: String, window: Window): Int {

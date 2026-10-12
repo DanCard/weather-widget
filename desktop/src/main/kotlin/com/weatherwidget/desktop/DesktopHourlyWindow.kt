@@ -32,9 +32,13 @@ internal class DesktopHourlyWindow(
     private val siteKey = "${LocationMatch.quantize(latitude)},${LocationMatch.quantize(longitude)}"
     private val prefix = "source=$weatherSource site=$siteKey"
 
-    /** Null without a DB: the unchanged routine fetch (no window). */
-    fun current(nowMs: Long): HourlyWindowPolicy.Window? {
+    /**
+     * Null without a DB: the unchanged routine fetch (no window). [userRefresh]: the user's Refresh —
+     * always FULL ([HourlyWindowPolicy.choose]).
+     */
+    fun current(nowMs: Long, userRefresh: Boolean = false): HourlyWindowPolicy.Window? {
         val dao = weatherDao ?: return null
+        if (userRefresh) return HourlyWindowPolicy.Window.FULL
         val (isCharging, level) = powerState()
         val last = dao.getLatestLogByTagAndMessagePrefix(TAG, prefix)?.timestamp
         return HourlyWindowPolicy.choose(isCharging, level, last, nowMs)

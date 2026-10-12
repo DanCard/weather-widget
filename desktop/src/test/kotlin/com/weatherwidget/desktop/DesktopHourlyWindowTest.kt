@@ -36,6 +36,14 @@ class DesktopHourlyWindowTest {
     }
 
     @Test
+    fun `a user refresh is FULL on battery and right after a FULL`() {
+        charging = false
+        assertEquals(Window.FULL, window().current(now, userRefresh = true))
+        window().markFull()
+        assertEquals(Window.FULL, window().current(now + 60_000L, userRefresh = true))
+    }
+
+    @Test
     fun `on battery is NEAR even when never FULL`() {
         charging = false
         assertEquals(Window.NEAR, DesktopHourlyWindow(dao, "OPEN_METEO", 37.422, -122.084) {

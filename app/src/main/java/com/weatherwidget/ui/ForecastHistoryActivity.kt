@@ -720,6 +720,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                         request = null,
                         // A past day may refill its stale Google hours from history/hours.
                         historyRefillDay = com.weatherwidget.data.remote.GoogleHistoryRefill.refillDay(targetLocalDate, LocalDate.now()),
+                        userRefresh = true,
                     )
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {

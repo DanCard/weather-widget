@@ -122,7 +122,11 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   **NEAR** stores 48 h; **FULL** downloads 8 days (Google asks 192 h =
   8 pages) and stores 72 h, at most once per **20 h** per source+site (20, not 24, so a nightly 3 am
   charge never misses a night to clock drift; user, 2026-10-11) and only while charging (or ≥ 80 %).
-  Off charger is NEAR only. 48 h, not 24: the history readers need the previous day's copy of every
+  Off charger is NEAR only. **A manual Refresh is FULL** for the displayed source, any battery, and
+  writes no FULL marker, so a daytime tap never holds off the night's charger FULL (user, 2026-10-12;
+  `HourlyWindowPolicy.choose(userRefresh)` / `marksFull`; desktop Refresh buttons, Android Settings →
+  Refresh data and the History Refresh; `plans/261012-manual-refresh-fetches-full-window-of-current-source.md`).
+  48 h, not 24: the history readers need the previous day's copy of every
   hour of today. Summaries on the `forecasts` row come from the whole download and carry forward, so a
   NEAR fetch never blanks a far day. On-demand days and unknown context are unchanged. See
   `performance/261010-hourly-near-window-often-full-eight-days-daily.md`.

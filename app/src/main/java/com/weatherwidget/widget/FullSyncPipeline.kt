@@ -110,6 +110,7 @@ internal class FullSyncPipeline(
                 batteryLevel = device.batteryLevel,
                 activeSourceIds = activeSourceList.toSet(),
                 hourlyLimited = input.hourlyLimited,
+                userRefresh = input.userRefresh,
             )
 
             val result = weatherRepository.getWeatherData(

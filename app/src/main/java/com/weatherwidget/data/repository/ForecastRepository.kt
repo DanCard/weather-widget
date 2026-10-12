@@ -488,6 +488,8 @@ class ForecastRepository
             request: com.weatherwidget.data.remote.HourlyOnDemand.Request?,
             /** See [ForecastFetchContext.historyRefillDay]; set only by a past day's History refresh. */
             historyRefillDay: java.time.LocalDate? = null,
+            /** See [ForecastFetchContext.userRefresh]; the History screen's Refresh button. */
+            userRefresh: Boolean = false,
         ): Boolean = fetchCoordinator.fetchSingleSource(
             latitude,
             longitude,
@@ -500,6 +502,7 @@ class ForecastRepository
                 activeSourceIds = setOf(source.id),
                 hourlyAhead = request,
                 historyRefillDay = historyRefillDay,
+                userRefresh = userRefresh,
             ),
         )
 

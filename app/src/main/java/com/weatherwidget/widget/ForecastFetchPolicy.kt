@@ -26,6 +26,11 @@ data class ForecastFetchContext(
      * ([com.weatherwidget.data.remote.GoogleHistoryRefill]). Null on every other sync.
      */
     val historyRefillDay: java.time.LocalDate? = null,
+    /**
+     * The user's manual Refresh: the displayed sources ([activeSourceIds]) fetch the FULL hourly
+     * window and do not start its interval ([com.weatherwidget.data.remote.HourlyWindowPolicy.marksFull]).
+     */
+    val userRefresh: Boolean = false,
 )
 
 /**

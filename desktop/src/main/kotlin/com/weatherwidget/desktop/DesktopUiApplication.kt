@@ -834,7 +834,7 @@ internal fun runDesktopUiApplication() = application {
             // the fetch or discard its result.
             uiScope.launch {
                 try {
-                    forecast = repo.refresh(reason = "user_refresh:$origin", refillDay = refillDay)
+                    forecast = repo.refresh(reason = "user_refresh:$origin", refillDay = refillDay, userRefresh = true)
                     // A Refresh is the way out the location-change error message points at.
                     if (dataStatus is DataStatus.FetchingLocation || dataStatus is DataStatus.Error) {
                         dataStatus = DataStatus.Live(System.currentTimeMillis())
@@ -893,7 +893,7 @@ internal fun runDesktopUiApplication() = application {
                 )
                 try {
                     DesktopWeatherRepository(service, weatherDao, cfg.lat, cfg.lon, source.id, cfg.personalStationWeight())
-                        .refresh(reason = "user_refresh:$origin", refillDay = refillDay)
+                        .refresh(reason = "user_refresh:$origin", refillDay = refillDay, userRefresh = true)
                     dataUpdateCount++
                     notifyRefreshRequested()
                     weatherDao.log("REFRESH_CLICK", "origin=$origin source=${source.id} completed", "INFO")

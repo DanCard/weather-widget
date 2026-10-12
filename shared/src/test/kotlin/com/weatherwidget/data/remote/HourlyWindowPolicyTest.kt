@@ -43,6 +43,23 @@ class HourlyWindowPolicyTest {
     }
 
     @Test
+    fun `a user refresh is FULL on a low battery and a minute after a FULL`() {
+        assertEquals(Window.FULL, HourlyWindowPolicy.choose(false, 20, null, now, userRefresh = true))
+        assertEquals(Window.FULL, HourlyWindowPolicy.choose(false, 20, now - 60_000L, now, userRefresh = true))
+    }
+
+    @Test
+    fun `only a routine FULL starts the FULL interval, so a daytime tap never delays the night's`() {
+        assertEquals(true, HourlyWindowPolicy.marksFull(Window.FULL, userRefresh = false))
+        assertEquals(false, HourlyWindowPolicy.marksFull(Window.FULL, userRefresh = true))
+        assertEquals(false, HourlyWindowPolicy.marksFull(Window.NEAR, userRefresh = false))
+        assertEquals(false, HourlyWindowPolicy.marksFull(null, userRefresh = false))
+        // 14:00 tap, then the 03:00 charger tick 13 h later: still FULL, because the tap left no marker.
+        val lastRoutineFull = now - 24 * hour
+        assertEquals(Window.FULL, HourlyWindowPolicy.choose(true, 50, lastRoutineFull, now))
+    }
+
+    @Test
     fun `a nearly full battery counts as charging like the forecast cadence`() {
         assertEquals(Window.FULL, HourlyWindowPolicy.choose(false, 95, null, now))
     }

@@ -542,7 +542,20 @@ class DesktopWeatherRepository(
         refillDay: LocalDate? = null,
         /** The parts a scheduled refresh planned ([ForecastParts.forRoutine]); null = a forced refresh. */
         parts: ForecastParts? = null,
-    ): ForecastSnapshot = refreshWithOutcome(now, userLocationChange, reason = reason, hourlyLimited = hourlyLimited, refillDay = refillDay, parts = parts).snapshot
+        /**
+         * The user's Refresh button: the FULL hourly window, without starting the FULL interval
+         * ([HourlyWindowPolicy.marksFull]).
+         */
+        userRefresh: Boolean = false,
+    ): ForecastSnapshot = refreshWithOutcome(
+        now,
+        userLocationChange,
+        reason = reason,
+        hourlyLimited = hourlyLimited,
+        refillDay = refillDay,
+        parts = parts,
+        userRefresh = userRefresh,
+    ).snapshot
 
     /**
      * Runs a full refresh and reports whether it already supplied observation data. Schedulers can
@@ -562,6 +575,7 @@ class DesktopWeatherRepository(
         hourlyLimited: Boolean = false,
         refillDay: LocalDate? = null,
         parts: ForecastParts? = null,
+        userRefresh: Boolean = false,
     ): RefreshOutcome = withContext(Dispatchers.IO) {
         Log.i(TAG, "refresh() started source=$weatherSource")
         val hourlyWindowNow = DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude)
@@ -571,12 +585,16 @@ class DesktopWeatherRepository(
             hourlyDue = if (hourlyLimited) hourlyWindowNow.hourlyDecision(isDisplayed = true, nowMs = now)?.due else null,
         )
         if (!fetchParts.daily) return@withContext refreshHourlyOnly(now, reason)
+        // NEAR or FULL hourly window (HourlyWindowPolicy): what this fetch stores (and, for a user
+        // Refresh, what a billed source is asked for). Chosen before the fetch writes its markers.
+        val hourlyWindow = hourlyWindowNow.current(now, userRefresh)
         // Entry marker. The terminal REFRESH row below only lands on success, so without this an
         // aborted fetch is invisible unless it also throws (the catch logs a WARN); a hang or a
         // cancellation leaves no trace at all.
         weatherDao.log(
             tag = "REFRESH_ENTER",
-            message = "reason=$reason hourlyLimited=$hourlyLimited parts=$fetchParts source=$weatherSource lat=$latitude lon=$longitude",
+            message = "reason=$reason hourlyLimited=$hourlyLimited parts=$fetchParts window=$hourlyWindow " +
+                "source=$weatherSource lat=$latitude lon=$longitude",
             level = "INFO",
         )
         try {
@@ -595,6 +613,13 @@ class DesktopWeatherRepository(
             )
             val (forecastResult, borrowedRecovery) = coroutineScope {
                 val forecast = async { when {
+                        // The one window the service cannot derive from the markers itself.
+                        userRefresh -> weatherService.fetchForecast(
+                            recentObservationsOnly = deferObservationWindow,
+                            parts = fetchParts,
+                            refillDay = refillDay,
+                            hourlyWindow = hourlyWindow,
+                        )
                         refillDay != null -> weatherService.fetchForecast(
                             recentObservationsOnly = deferObservationWindow,
                             parts = fetchParts,
@@ -615,14 +640,12 @@ class DesktopWeatherRepository(
                 )
             }
 
-            // NEAR or FULL hourly window (HourlyWindowPolicy): what this fetch stores, 48 h or 72 h.
-            val hourlyWindow = DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude).current(now)
             val forecastHours = persistForecastResult(
                 result,
                 now,
                 hoursAhead = HourlyOnDemand.hoursAhead(weatherSource, null, hourlyWindow),
             )
-            markHourlyFetch(hourlyWindow, fetchParts, result)
+            markHourlyFetch(hourlyWindow, fetchParts, result, userRefresh)
             if (refillDay != null) refillStaleGoogleHours(result, now, refillDay)
 
             if (borrowedPlan != null) {
@@ -703,14 +726,20 @@ class DesktopWeatherRepository(
     }
 
     /**
-     * A fetch that brought hours home starts the hourly cadence again (`HOURLY_FETCH`); a FULL one also
-     * starts the FULL interval (`HOURLY_FULL_FETCH`).
+     * A fetch that brought hours home starts the hourly cadence again (`HOURLY_FETCH`); a routine FULL one
+     * also starts the FULL interval (`HOURLY_FULL_FETCH`) — a user Refresh's FULL does not, so a daytime
+     * tap never holds off the night's charger FULL ([HourlyWindowPolicy.marksFull]).
      */
-    private fun markHourlyFetch(window: HourlyWindowPolicy.Window?, parts: ForecastParts, result: RawFetch) {
+    private fun markHourlyFetch(
+        window: HourlyWindowPolicy.Window?,
+        parts: ForecastParts,
+        result: RawFetch,
+        userRefresh: Boolean = false,
+    ) {
         if (!ForecastParts.requested(displaySource, parts).hourly || result.hourly.isEmpty()) return
         val marker = DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude)
         marker.markHourly()
-        if (window == HourlyWindowPolicy.Window.FULL) marker.markFull()
+        if (HourlyWindowPolicy.marksFull(window, userRefresh)) marker.markFull()
     }
 
     /**

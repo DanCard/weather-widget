@@ -193,6 +193,18 @@ class DesktopWeatherService(
         recentObservationsOnly: Boolean,
         parts: ForecastParts,
         refillDay: java.time.LocalDate?,
+    ): RawFetch = fetchForecast(
+        recentObservationsOnly,
+        parts,
+        refillDay,
+        DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude).current(System.currentTimeMillis()),
+    )
+
+    override suspend fun fetchForecast(
+        recentObservationsOnly: Boolean,
+        parts: ForecastParts,
+        refillDay: java.time.LocalDate?,
+        hourlyWindow: HourlyWindowPolicy.Window?,
     ): RawFetch = runCatching {
         // What the request asks for: a source that cannot split always asks for everything.
         val requested = ForecastParts.requested(WeatherSource.fromId(weatherSource), parts)
@@ -210,12 +222,7 @@ class DesktopWeatherService(
                     includeHistory = googleNeedsHistory(refillDay),
                     storedHours = googleStoredHours(),
                     parts = requested,
-                    hoursAhead = HourlyOnDemand.askHours(
-                        WeatherSource.GOOGLE_WEATHER.id,
-                        null,
-                        DesktopHourlyWindow(weatherDao, weatherSource, latitude, longitude)
-                            .current(System.currentTimeMillis()),
-                    ),
+                    hoursAhead = HourlyOnDemand.askHours(WeatherSource.GOOGLE_WEATHER.id, null, hourlyWindow),
                 ).also { weatherDao?.log("GOOGLE_HOURS_PAGES", googleWeather.lastHoursPaging.orEmpty(), "INFO") },
                 WeatherSource.GOOGLE_WEATHER.id,
             )
