@@ -9,6 +9,8 @@ import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ForecastSchedule
 import com.weatherwidget.data.remote.ForecastSchedule.Part
+import com.weatherwidget.data.remote.SourceQuotaBlocks
+import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.test.category.ShortDuration
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -53,6 +55,7 @@ class DesktopForecastPlannerTest {
 
     @After
     fun teardown() {
+        SourceQuotaBlocks.reset()
         database.getConnection().close()
         Files.deleteIfExists(tempDbPath)
     }
@@ -109,6 +112,70 @@ class DesktopForecastPlannerTest {
         assertNull(plan.parts)
         assertTrue("no daily cadence, no hourly cadence", plan.dues.isEmpty())
         assertEquals(ForecastSchedule.Reason.CAP, ForecastSchedule.sleep(planner(false, 40).next(listOf(nws to false), now), now, false).reason)
+    }
+
+    private val google = WeatherSource.GOOGLE_WEATHER.id
+
+    /** Google with a fresh daily row and its hours never fetched: hourly due now, daily not. */
+    private suspend fun googleDailyFreshHourlyOverdue() {
+        coEvery { service.fetchForecast(any(), any()) } returns raw.copy(hourly = emptyList())
+        coEvery { service.fetchForecast(any(), any(), any()) } returns raw.copy(hourly = emptyList())
+        DesktopWeatherRepository(service, dao, lat, lon, google).refresh(reason = "test", parts = ForecastParts.DAILY)
+    }
+
+    /** performance/261012-forecast-loop-quota-blocked-part-is-not-due.md */
+    @Test
+    fun `a quota-blocked hourly part is not planned and is next due when the block ends`() = runTest {
+        googleDailyFreshHourlyOverdue()
+        val now = System.currentTimeMillis()
+        assertEquals("unblocked, FULL window: hourly due takes daily too", ForecastParts.BOTH, planner().plan(google, true, now).parts)
+
+        SourceQuotaBlocks.block(google, ForecastProduct.HOURLY, now + 3 * hour)
+        val plan = planner().plan(google, isDisplayed = true, nowMs = now)
+        assertNull("blocked hourly is not due and does not drag daily along", plan.parts)
+        assertEquals(now + 3 * hour, plan.dues.single { it.part == Part.HOURLY }.atMs)
+        assertTrue(plan.hourlyLog!!.contains("quotaHeldMin=180"))
+    }
+
+    @Test
+    fun `a quota-blocked hourly part leaves a due daily part to run alone`() {
+        val now = System.currentTimeMillis()
+        SourceQuotaBlocks.block(google, ForecastProduct.HOURLY, now + 3 * hour)
+        assertEquals(ForecastParts.DAILY, planner().plan(google, isDisplayed = true, nowMs = now).parts)
+    }
+
+    @Test
+    fun `a quota-blocked daily part leaves a due hourly part to run alone, never upgraded to both`() {
+        val now = System.currentTimeMillis()
+        SourceQuotaBlocks.block(google, ForecastProduct.DAILY, now + 3 * hour)
+        val plan = planner().plan(google, isDisplayed = true, nowMs = now)
+        assertEquals(ForecastParts.HOURLY, plan.parts)
+        assertEquals(now + 3 * hour, plan.dues.single { it.part == Part.DAILY }.atMs)
+    }
+
+    /**
+     * Replays 2026-10-11 21:36: charging, Google displayed, hours overdue in a FULL window,
+     * `forecast/hours` refused until midnight PT. The loop slept 1 min and paid for daily + current on
+     * every wake; now it sleeps toward the block's end.
+     */
+    @Test
+    fun `replay - a blocked hourly part no longer spins the loop every minute`() = runTest {
+        googleDailyFreshHourlyOverdue()
+        val now = System.currentTimeMillis()
+        SourceQuotaBlocks.block(google, ForecastProduct.HOURLY, now + 145 * minute)
+
+        val sleep = ForecastSchedule.sleep(planner().next(listOf(google to true), now), now, fetchFailed = false)
+        assertTrue("slept ${sleep.ms / minute} min", sleep.ms >= 60 * minute)
+        assertFalse(sleep.reason == ForecastSchedule.Reason.RETRY)
+    }
+
+    @Test
+    fun `once the block ends the hourly part is due again`() = runTest {
+        googleDailyFreshHourlyOverdue()
+        val now = System.currentTimeMillis()
+        SourceQuotaBlocks.block(google, ForecastProduct.HOURLY, now + hour)
+        assertNull(planner().plan(google, true, now).parts)
+        assertEquals(ForecastParts.BOTH, planner().plan(google, true, now + hour).parts)
     }
 
     @Test

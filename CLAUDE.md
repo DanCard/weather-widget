@@ -103,7 +103,12 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   too (the far-day summaries live on the daily row). "Last view" = `source_last_view` (one timestamp
   per source, overwritten; else the end of its newest `source_view_days` day); 3-day grace for a
   fresh install. "Due" is measured from a per-source+site marker (Android prefs, desktop `HOURLY_FETCH`
-  app_logs row), not the rows' `fetchedAt`. Logged as `FETCH_PLAN parts=… hourly=…`; desktop's
+  app_logs row), not the rows' `fetchedAt`. **A quota-blocked part is not due** until its block ends
+  (`forRoutine`'s required `blocked` = `SourceQuotaBlocks.blockedProducts`; desktop due times held
+  past the block, `ForecastSchedule.heldPast`). A blocked `forecast/hours` once kept hourly due and
+  spun the desktop loop every minute on billed daily + current
+  (`performance/261012-forecast-loop-quota-blocked-part-is-not-due.md`). Logged as
+  `FETCH_PLAN parts=… hourly=…` (`quotaHeldMin=N` when held); desktop's
   hourly-only refresh logs `REFRESH_HOURLY`, never `REFRESH` (that row is the daily age). See
   `performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md`.
   **Desktop forecast loop sleeps until the next due part** (`:shared` `ForecastSchedule`; desktop
@@ -430,6 +435,11 @@ The `:desktop` module is a Compose-for-Desktop tray app sharing `:shared` with A
   then stops any running desktop app, then starts the same repo autostart launcher used at login.
 - **For development only: `./gradlew :desktop:run`** (fast iteration, no distributable step). Not for
   daily autostart.
+- **A source change never cancels the fetch already in flight** (user, 2026-10-12). The launch
+  refresh runs in `LaunchRefreshJobs`, beside the loops; only location / resume / network restarts
+  cancel it. A refresh whose source is no longer displayed stores its data without painting
+  (`LAUNCH_REFRESH_DETACHED`). Android's forced sync is `KEEP` and never cancelled
+  (`plans/261012-desktop-source-change-keeps-in-flight-fetch.md`).
 - **Last-launch-wins single instance**: a new launch touches a `.quit` trigger file
   (`~/.local/share/weather-widget/.quit`) that any running instance's `WatchService` is watching, so
   the incumbent exits and the new launch takes over. This mirrors the `.show` trigger and is

@@ -62,10 +62,25 @@ enum class ForecastParts(val daily: Boolean, val hourly: Boolean) {
          * ([com.weatherwidget.data.remote.HourlyCadence]), null when neither. Null [hourlyDue] (not
          * judged: no context or site) lets the daily fetch carry the hours, as before the split. Hourly
          * due in a FULL window takes daily too ([withFullWindow]).
+         *
+         * A product in [blocked] (refused until a known time,
+         * [com.weatherwidget.data.remote.SourceQuotaBlocks.blockedProducts]) is not due, and never
+         * pulls the other part along. Required, with no default, so no platform can plan around it: a
+         * blocked `forecast/hours` once stayed due and, in a FULL window, made every 1-min wake a
+         * billed daily + current request (performance/261012-forecast-loop-quota-blocked-part-is-not-due.md).
          */
-        fun forRoutine(dailyDue: Boolean, hourlyDue: Boolean?, isFull: Boolean): ForecastParts? {
-            if (hourlyDue == null) return if (dailyDue) BOTH else null
-            return withFullWindow(of(dailyDue, hourlyDue), isFull)
+        fun forRoutine(
+            dailyDue: Boolean,
+            hourlyDue: Boolean?,
+            isFull: Boolean,
+            blocked: Set<ForecastProduct>,
+        ): ForecastParts? {
+            val dailyBlocked = ForecastProduct.DAILY in blocked
+            val hourlyBlocked = ForecastProduct.HOURLY in blocked
+            val daily = dailyDue && !dailyBlocked
+            if (hourlyDue == null) return if (!daily) null else if (hourlyBlocked) DAILY else BOTH
+            val parts = of(daily, hourlyDue && !hourlyBlocked)
+            return if (dailyBlocked) parts else withFullWindow(parts, isFull)
         }
 
         /**

@@ -35,6 +35,15 @@ object SourceQuotaBlocks {
 
     fun isFullyBlocked(sourceId: String, nowMs: Long): Boolean = fullyBlockedUntil(sourceId, nowMs) != null
 
+    /**
+     * The products of [sourceId] refused at [nowMs]: the `blocked` input of every routine plan
+     * ([com.weatherwidget.data.model.ForecastParts.forRoutine]), so a refused part is not due.
+     */
+    fun blockedProducts(sourceId: String, nowMs: Long): Set<ForecastProduct> =
+        ForecastProduct.entries.filterTo(java.util.EnumSet.noneOf(ForecastProduct::class.java)) {
+            blockedUntil(sourceId, it, nowMs) != null
+        }
+
     /** For tests. */
     fun reset() = blockedUntilMs.clear()
 }

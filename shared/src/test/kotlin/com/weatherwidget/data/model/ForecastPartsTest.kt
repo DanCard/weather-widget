@@ -51,11 +51,33 @@ class ForecastPartsTest {
 
     @Test
     fun `a scheduled fetch takes what is due, and daily carries hours when hourly is not judged`() {
-        assertEquals(ForecastParts.HOURLY, ForecastParts.forRoutine(dailyDue = false, hourlyDue = true, isFull = false))
-        assertEquals(ForecastParts.BOTH, ForecastParts.forRoutine(dailyDue = false, hourlyDue = true, isFull = true))
-        assertEquals(ForecastParts.DAILY, ForecastParts.forRoutine(dailyDue = true, hourlyDue = false, isFull = true))
-        assertNull(ForecastParts.forRoutine(dailyDue = false, hourlyDue = false, isFull = true))
-        assertEquals(ForecastParts.BOTH, ForecastParts.forRoutine(dailyDue = true, hourlyDue = null, isFull = false))
-        assertNull(ForecastParts.forRoutine(dailyDue = false, hourlyDue = null, isFull = false))
+        assertEquals(ForecastParts.HOURLY, ForecastParts.forRoutine(dailyDue = false, hourlyDue = true, isFull = false, blocked = none))
+        assertEquals(ForecastParts.BOTH, ForecastParts.forRoutine(dailyDue = false, hourlyDue = true, isFull = true, blocked = none))
+        assertEquals(ForecastParts.DAILY, ForecastParts.forRoutine(dailyDue = true, hourlyDue = false, isFull = true, blocked = none))
+        assertNull(ForecastParts.forRoutine(dailyDue = false, hourlyDue = false, isFull = true, blocked = none))
+        assertEquals(ForecastParts.BOTH, ForecastParts.forRoutine(dailyDue = true, hourlyDue = null, isFull = false, blocked = none))
+        assertNull(ForecastParts.forRoutine(dailyDue = false, hourlyDue = null, isFull = false, blocked = none))
+    }
+
+    private val none = emptySet<ForecastProduct>()
+    private val hoursBlocked = setOf(ForecastProduct.HOURLY)
+    private val daysBlocked = setOf(ForecastProduct.DAILY)
+
+    /** performance/261012-forecast-loop-quota-blocked-part-is-not-due.md */
+    @Test
+    fun `a quota-blocked hourly part is not due and never drags daily along in a FULL window`() {
+        // 2026-10-11 21:36: hourly overdue, FULL window, forecast/hours refused → was BOTH every minute.
+        assertNull(ForecastParts.forRoutine(dailyDue = false, hourlyDue = true, isFull = true, blocked = hoursBlocked))
+        assertEquals(ForecastParts.DAILY, ForecastParts.forRoutine(dailyDue = true, hourlyDue = true, isFull = true, blocked = hoursBlocked))
+        assertEquals(ForecastParts.DAILY, ForecastParts.forRoutine(dailyDue = true, hourlyDue = null, isFull = false, blocked = hoursBlocked))
+        assertNull(ForecastParts.forRoutine(dailyDue = false, hourlyDue = null, isFull = false, blocked = hoursBlocked))
+    }
+
+    @Test
+    fun `a quota-blocked daily part is not due and FULL does not upgrade hourly to both`() {
+        assertEquals(ForecastParts.HOURLY, ForecastParts.forRoutine(dailyDue = true, hourlyDue = true, isFull = true, blocked = daysBlocked))
+        assertEquals(ForecastParts.HOURLY, ForecastParts.forRoutine(dailyDue = false, hourlyDue = true, isFull = true, blocked = daysBlocked))
+        assertNull(ForecastParts.forRoutine(dailyDue = true, hourlyDue = null, isFull = false, blocked = daysBlocked))
+        assertNull(ForecastParts.forRoutine(dailyDue = true, hourlyDue = true, isFull = true, blocked = daysBlocked + hoursBlocked))
     }
 }

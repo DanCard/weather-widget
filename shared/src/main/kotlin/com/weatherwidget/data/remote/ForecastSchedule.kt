@@ -1,5 +1,7 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.model.ForecastProduct
+
 /**
  * When a forecast loop next has something to fetch, so it can sleep until then instead of checking on a
  * fixed tick (user, 2026-10-11; performance/261011-desktop-forecast-loop-sleep-until-due.md).
@@ -24,7 +26,7 @@ object ForecastSchedule {
     /** After a failed fetch the source is still due; wait this long before trying again (the old tick). */
     const val FAILURE_RETRY_MS = 15 * MINUTE_MS
 
-    enum class Part { DAILY, HOURLY }
+    enum class Part(val product: ForecastProduct) { DAILY(ForecastProduct.DAILY), HOURLY(ForecastProduct.HOURLY) }
 
     /** One source part's next due instant. */
     data class Due(val sourceId: String, val part: Part, val atMs: Long)
@@ -38,6 +40,14 @@ object ForecastSchedule {
         val last = lastMs ?: return nowMs
         return last + interval - DUE_GRACE_MS
     }
+
+    /**
+     * A part's next due instant held past its quota block: a refused product cannot be fetched before
+     * [blockedUntilMs], so the loop sleeps until then rather than waking every [MIN_SLEEP_MS] to plan
+     * a part it cannot fetch (performance/261012-forecast-loop-quota-blocked-part-is-not-due.md).
+     */
+    fun heldPast(dueAtMs: Long?, blockedUntilMs: Long?): Long? =
+        dueAtMs?.let { due -> blockedUntilMs?.let { maxOf(due, it) } ?: due }
 
     fun isDue(lastMs: Long?, intervalMs: Long?, nowMs: Long): Boolean =
         dueAtMs(lastMs, intervalMs, nowMs)?.let { nowMs >= it } ?: false

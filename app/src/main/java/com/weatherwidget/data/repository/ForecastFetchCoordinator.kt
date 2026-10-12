@@ -8,6 +8,7 @@ import com.weatherwidget.data.remote.HourlyCadence
 import com.weatherwidget.shared.sourceview.SourceLastView
 import com.weatherwidget.data.remote.HourlyWindowPolicy
 import com.weatherwidget.data.remote.HourlyOnDemand
+import com.weatherwidget.data.remote.SourceQuotaBlocks
 import com.weatherwidget.shared.util.SourceCoverage
 import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
@@ -216,7 +217,7 @@ internal class ForecastFetchCoordinator(
         hourlyDue = hourlyDecision(source, fetchContext, recency ?: SourceLastView.Recency.UNKNOWN, latitude, longitude)?.due,
     )
 
-    /** [ForecastParts.forRoutine] with this source's daily staleness, hourly cadence and window. */
+    /** [ForecastParts.forRoutine] with this source's daily staleness, hourly cadence, window and quota blocks. */
     private fun routineParts(
         source: WeatherSource,
         cachedForecasts: List<ForecastEntity>,
@@ -229,6 +230,7 @@ internal class ForecastFetchCoordinator(
         hourlyDue = recency?.let { hourlyDecision(source, fetchContext, it, latitude, longitude) }?.due,
         isFull = latitude != null && longitude != null &&
             hourlyWindow(source, latitude, longitude, fetchContext) == HourlyWindowPolicy.Window.FULL,
+        blocked = SourceQuotaBlocks.blockedProducts(source.id, clock()),
     )
 
     /** [HourlyCadence] for [source] at the site, or null without a context or site. */

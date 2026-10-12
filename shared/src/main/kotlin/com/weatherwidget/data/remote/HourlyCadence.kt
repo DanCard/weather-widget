@@ -106,9 +106,21 @@ object HourlyCadence {
         return Decision(interval, age, lastHourlyFetchMs, isDue(lastHourlyFetchMs, interval, nowMs))
     }
 
-    /** `HOURLY_CADENCE` app_logs fragment for one source. */
-    fun logFragment(sourceId: String, intervalHours: Int?, viewAgeMs: Long?, lastHourlyFetchMs: Long?, nowMs: Long, due: Boolean): String =
+    /**
+     * `HOURLY_CADENCE` app_logs fragment for one source. [due] is the cadence's verdict;
+     * `quotaHeldMin` says the part is nonetheless held by a quota block ([hourlyBlockedUntilMs]).
+     */
+    fun logFragment(
+        sourceId: String,
+        intervalHours: Int?,
+        viewAgeMs: Long?,
+        lastHourlyFetchMs: Long?,
+        nowMs: Long,
+        due: Boolean,
+        hourlyBlockedUntilMs: Long? = null,
+    ): String =
         "$sourceId:" + (intervalHours?.let { "${it}h" } ?: "none") +
             "(view=${viewAgeMs?.let { "${it / HOUR_MS}h" } ?: "never"}," +
-            "lastHourly=${lastHourlyFetchMs?.let { "${(nowMs - it) / HOUR_MS}h" } ?: "none"},due=$due)"
+            "lastHourly=${lastHourlyFetchMs?.let { "${(nowMs - it) / HOUR_MS}h" } ?: "none"},due=$due" +
+            (hourlyBlockedUntilMs?.let { ",quotaHeldMin=${(it - nowMs) / 60_000L}" } ?: "") + ")"
 }

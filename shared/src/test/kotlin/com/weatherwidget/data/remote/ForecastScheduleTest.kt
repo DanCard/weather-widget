@@ -69,4 +69,31 @@ class ForecastScheduleTest {
         assertTrue(BatteryTier.cadenceTier(false, 50) != BatteryTier.cadenceTier(false, 51))
         assertEquals(BatteryTier.cadenceTier(true, 10), BatteryTier.cadenceTier(false, 95))
     }
+
+    /** performance/261012-forecast-loop-quota-blocked-part-is-not-due.md */
+    @Test
+    fun `a part held by a quota block is next due when the block ends`() {
+        val now = 1_000_000_000L
+        val hour = 3_600_000L
+        val overdue = now - hour
+        assertEquals(now + 3 * hour, ForecastSchedule.heldPast(overdue, now + 3 * hour))
+        assertEquals("a block ending before the due time changes nothing", now + 5 * hour, ForecastSchedule.heldPast(now + 5 * hour, now + 3 * hour))
+        assertEquals(overdue, ForecastSchedule.heldPast(overdue, null))
+        assertNull("no cadence stays no cadence", ForecastSchedule.heldPast(null, now + hour))
+    }
+
+    @Test
+    fun `blocked products are the ones refused past now`() {
+        SourceQuotaBlocks.reset()
+        try {
+            val now = 1_000_000_000L
+            SourceQuotaBlocks.block("GOOGLE_WEATHER", com.weatherwidget.data.model.ForecastProduct.HOURLY, now + 60_000L)
+            SourceQuotaBlocks.block("GOOGLE_WEATHER", com.weatherwidget.data.model.ForecastProduct.DAILY, now - 1L)
+            assertEquals(setOf(com.weatherwidget.data.model.ForecastProduct.HOURLY), SourceQuotaBlocks.blockedProducts("GOOGLE_WEATHER", now))
+            assertTrue(SourceQuotaBlocks.blockedProducts("NWS", now).isEmpty())
+            assertTrue(SourceQuotaBlocks.blockedProducts("GOOGLE_WEATHER", now + 60_000L).isEmpty())
+        } finally {
+            SourceQuotaBlocks.reset()
+        }
+    }
 }

@@ -72,6 +72,9 @@ internal class DaemonRuntime(
     }
     private var screensaverMonitor: Process? = null
     private var fetchJob: Job? = null
+    // Launch refreshes live beside fetchJob, not in it: a source change restarts the loops but
+    // leaves the fetch already in flight running (plans/261012-desktop-source-change-keeps-in-flight-fetch.md).
+    private val launchRefreshJobs = LaunchRefreshJobs(daemonScope)
     private var weatherService: DesktopWeatherService? = null
     private var repo: DesktopWeatherRepository? = null
     private var lastResumeKickMs = 0L
@@ -208,6 +211,7 @@ internal class DaemonRuntime(
                                     if (newConfig == null) {
                                         Log.w(TAG, "Config loaded was null. Stopping loops.")
                                         fetchJob?.cancel()
+                                        launchRefreshJobs.cancel()
                                         DesktopActualsPreference.publish(null)
                                         currentConfig = null
                                         configState.value = null
@@ -589,69 +593,95 @@ internal class DaemonRuntime(
             )
 
             var observationWindowDeferred = false
+            // Paint only while this refresh's source and site are still displayed: one left running
+            // past a source change stores what it fetched and leaves the screen to the new source.
+            fun stillDisplayed() = launchRefreshPublishes(config, currentConfig)
+            fun logDetached(outcome: String) = weatherDao.log(
+                "LAUNCH_REFRESH_DETACHED",
+                "reason=$reason source=${displaySource.id} outcome=$outcome published=false",
+                "INFO",
+            )
             if (launchRefreshAction != LaunchRefreshAction.NONE) {
-                var attempt = 0
-                while (true) {
-                    try {
-                        val result = when (launchRefreshAction) {
-                            LaunchRefreshAction.FULL_FORECAST -> {
-                                Log.i(TAG, "Refreshing full forecast from network...")
-                                // Publish first; the 7-day observation window follows below.
-                                activeRepo.refreshWithOutcome(
-                                    deferObservationWindow = true,
-                                    reason = "launch:$reason",
-                                    hourlyLimited = hourlyLimited,
-                                ).snapshot
-                                    .also { observationWindowDeferred = true }
+                val fetched = launchRefreshJobs.fetchOnce(LaunchRefreshJobs.key(config)) {
+                    var attempt = 0
+                    while (true) {
+                        try {
+                            val result = when (launchRefreshAction) {
+                                LaunchRefreshAction.FULL_FORECAST -> {
+                                    Log.i(TAG, "Refreshing full forecast from network...")
+                                    // Publish first; the 7-day observation window follows below.
+                                    activeRepo.refreshWithOutcome(
+                                        deferObservationWindow = true,
+                                        reason = "launch:$reason",
+                                        hourlyLimited = hourlyLimited,
+                                    ).snapshot
+                                        .also { observationWindowDeferred = true }
+                                }
+                                LaunchRefreshAction.OBSERVATIONS -> {
+                                    Log.i(TAG, "Refreshing current observations from network...")
+                                    activeRepo.refreshObservations()
+                                }
+                                LaunchRefreshAction.NONE -> forecastState.value
                             }
-                            LaunchRefreshAction.OBSERVATIONS -> {
-                                Log.i(TAG, "Refreshing current observations from network...")
-                                activeRepo.refreshObservations()
+                            if (!stillDisplayed()) {
+                                logDetached("stored")
+                                break
                             }
-                            LaunchRefreshAction.NONE -> forecastState.value
-                        }
-                        panelPublisher.publishForecastState(result)
-                        checkDominantTempWatch(activeRepo, result, "launch:$reason")
-                        dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
-                        notifyDataUpdated()
-                        Log.i(TAG, "[$reason] refresh successful. DataStatus updated to Live.")
-                        break
-                    } catch (e: CancellationException) {
-                        Log.i(TAG, "Refresh cancelled.")
-                        throw e
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Refresh failed: ${e.message}")
-                        e.printStackTrace()
-                        val isOffline = isOfflineException(e)
-                        val retryDelayMs = offlineRetryDelayMs(attempt, isOffline)
-                        if (retryDelayMs != null) {
-                            // Offline right after resume/login usually means the network is still
-                            // coming up. Don't surface a failure yet: the UI keeps showing cached
-                            // data as Live, and the NetworkManager monitor is the primary recovery.
-                            weatherDao.log(
-                                "REFRESH_RETRY",
-                                "$reason fetch offline (${e.message}); retry #${attempt + 1} in ${retryDelayMs / 1000}s",
-                                "INFO"
+                            panelPublisher.publishForecastState(result)
+                            checkDominantTempWatch(activeRepo, result, "launch:$reason")
+                            dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
+                            notifyDataUpdated()
+                            Log.i(TAG, "[$reason] refresh successful. DataStatus updated to Live.")
+                            break
+                        } catch (e: CancellationException) {
+                            Log.i(TAG, "Refresh cancelled.")
+                            throw e
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Refresh failed: ${e.message}")
+                            e.printStackTrace()
+                            val isOffline = isOfflineException(e)
+                            val retryDelayMs = offlineRetryDelayMs(attempt, isOffline)
+                            if (retryDelayMs != null) {
+                                // Offline right after resume/login usually means the network is still
+                                // coming up. Don't surface a failure yet: the UI keeps showing cached
+                                // data as Live, and the NetworkManager monitor is the primary recovery.
+                                weatherDao.log(
+                                    "REFRESH_RETRY",
+                                    "$reason fetch offline (${e.message}); retry #${attempt + 1} in ${retryDelayMs / 1000}s",
+                                    "INFO"
+                                )
+                                delay(retryDelayMs)
+                                attempt++
+                                continue
+                            }
+                            val failReason = if (isOffline) "offline" else "source_error"
+                            weatherDao.log("REFRESH_FAIL", "$reason fetch: $failReason ${e.message}", "WARN")
+                            if (!stillDisplayed()) {
+                                logDetached("failed")
+                                break
+                            }
+                            val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource)
+                            dataStatusState.value = deriveDataStatus(
+                                cachePresent = forecastState.value != null,
+                                lastFetchMs = lastSuccess,
+                                refreshFailed = true,
+                                failureIsOffline = isOffline,
                             )
-                            delay(retryDelayMs)
-                            attempt++
-                            continue
+                            notifyDataUpdated()
+                            Log.i(TAG, "DataStatus updated to: ${dataStatusState.value}")
+                            break
                         }
-                        val failReason = if (isOffline) "offline" else "source_error"
-                        weatherDao.log("REFRESH_FAIL", "$reason fetch: $failReason ${e.message}", "WARN")
-                        val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource)
-                        dataStatusState.value = deriveDataStatus(
-                            cachePresent = forecastState.value != null,
-                            lastFetchMs = lastSuccess,
-                            refreshFailed = true,
-                            failureIsOffline = isOffline,
-                        )
-                        notifyDataUpdated()
-                        Log.i(TAG, "DataStatus updated to: ${dataStatusState.value}")
-                        break
                     }
                 }
+                // A launch refresh for this source and site is still fetching (A→B→A): it paints when
+                // done if its source is displayed by then.
+                if (fetched == null) {
+                    weatherDao.log("LAUNCH_REFRESH_SKIP", "reason=$reason source=${displaySource.id} skip=in_flight", "INFO")
+                }
             }
+
+            // The deferred window and the normals belong to the displayed source's screen.
+            if (!stillDisplayed()) return
 
             if (observationWindowDeferred) {
                 // Already published: a stalled or failed window costs history depth, never the
@@ -813,20 +843,22 @@ internal class DaemonRuntime(
 
     fun startFetchLoops(reason: String = STARTUP_REASON) {
         fetchJob?.cancel()
-        // Close the replaced client after a grace, not now: a caller still holding the old repo
-        // (an observation catch-up, a non-loop refresh) would otherwise fail mid-request on
-        // "client closed" and surface a false error. New work goes to the new client either way.
-        weatherService?.let { old ->
-            daemonScope.launch {
-                delay(REPLACED_CLIENT_CLOSE_GRACE_MS)
-                runCatching { old.close() }
-            }
-        }
-
         val config = currentConfig ?: return
         val svc = DesktopWeatherService(config.lat, config.lon, config.displaySource, config.settings.apiKeys, weatherDao, synopticBackoffStore = DesktopSynopticBackoffStore.default())
-        weatherService = svc
         val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.displaySource, config.personalStationWeight())
+
+        // 1. Startup refresh, outside fetchJob: a source change leaves the previous one running
+        // (launchRefreshSurvivesRestart); every other restart cancels it.
+        val previousLaunch = launchRefreshJobs.start(reason) { runLaunchRefresh(newRepo, config, reason) }
+        // Close the replaced client after a grace, not now: a caller still holding the old repo
+        // (an observation catch-up, a non-loop refresh, a launch refresh left running past a source
+        // change) would otherwise fail mid-request on "client closed" and surface a false error.
+        // New work goes to the new client either way.
+        weatherService?.let { old ->
+            launchRefreshJobs.closeWhenDone(previousLaunch, REPLACED_CLIENT_CLOSE_GRACE_MS) { old.close() }
+        }
+
+        weatherService = svc
         repo = newRepo
         currentStatusResolver = CurrentStatusResolver(
             latitude = config.lat,
@@ -836,11 +868,6 @@ internal class DaemonRuntime(
         )
 
         fetchJob = daemonScope.launch {
-            // 1. Startup refresh
-            launch {
-                runLaunchRefresh(newRepo, config, reason)
-            }
-
             // 3a. Panel/status refresh loop: re-resolve the published current_status each
             // STATUS_TICK_MS (single owner keeps the interpolation smooth), then re-render the panel
             // from it. Boundary-aligned and phase-locked with the UI ticker in Main.kt — see

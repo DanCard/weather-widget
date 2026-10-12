@@ -13,6 +13,8 @@ import com.weatherwidget.data.model.WeatherSource.NWS
 import com.weatherwidget.data.model.WeatherSource.OPEN_METEO
 import com.weatherwidget.data.model.WeatherSource.WEATHER_API
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.data.remote.SourceQuotaBlocks
+import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.shared.sourceview.SourceLastView
 import com.weatherwidget.shared.sourceview.SourceViewTrigger
@@ -83,6 +85,7 @@ class HourlyCadencePlanRoboTest {
 
     @After
     fun teardown() {
+        SourceQuotaBlocks.reset()
         WeatherDatabase.resetInstanceForTesting()
         WeatherDatabase.setIsTesting(false)
     }
@@ -161,6 +164,19 @@ class HourlyCadencePlanRoboTest {
         lastHourly[NWS.id] = now - 5 * hour
         lastFull[NWS.id] = now - 21 * hour
         assertEquals(mapOf(NWS to ForecastParts.BOTH), plan(freshDaily, recency()))
+    }
+
+    /** performance/261012-forecast-loop-quota-blocked-part-is-not-due.md */
+    @Test
+    fun `a quota-blocked hourly part is not planned and does not drag daily along, other sources unaffected`() {
+        lastHourly[NWS.id] = now - 5 * hour
+        lastFull[NWS.id] = now - 21 * hour
+        lastHourly[OPEN_METEO.id] = now - 7 * hour
+        lastFull[OPEN_METEO.id] = now - hour
+        SourceQuotaBlocks.block(NWS.id, ForecastProduct.HOURLY, now + 3 * hour)
+        assertEquals(mapOf(OPEN_METEO to ForecastParts.HOURLY), plan(freshDaily, recency(OPEN_METEO to 30)))
+        lastHourly[OPEN_METEO.id] = now - hour
+        assertFalse(coordinator().requiresNetworkFetch(freshDaily, ctx(), null, recency(OPEN_METEO to 30), lat, lon))
     }
 
     @Test

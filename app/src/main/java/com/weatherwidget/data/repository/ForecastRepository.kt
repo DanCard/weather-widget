@@ -217,7 +217,12 @@ class ForecastRepository
             val nowMs = System.currentTimeMillis()
             val hourly = widgetStateManager.getVisibleSourcesOrder().mapNotNull { source ->
                 fetchCoordinator.hourlyDecision(source, fetchContext, recency, latitude, longitude)?.let {
-                    com.weatherwidget.data.remote.HourlyCadence.logFragment(source.id, it.intervalHours, it.viewAgeMs, it.lastHourlyFetchMs, nowMs, it.due)
+                    com.weatherwidget.data.remote.HourlyCadence.logFragment(
+                        source.id, it.intervalHours, it.viewAgeMs, it.lastHourlyFetchMs, nowMs, it.due,
+                        hourlyBlockedUntilMs = com.weatherwidget.data.remote.SourceQuotaBlocks.blockedUntil(
+                            source.id, com.weatherwidget.data.model.ForecastProduct.HOURLY, nowMs,
+                        ),
+                    )
                 }
             }
             appLogDao.log(
