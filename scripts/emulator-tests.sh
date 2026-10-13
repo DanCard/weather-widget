@@ -441,7 +441,11 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
         echo -e "${YELLOW}Building APKs once, then running tests in parallel...${NC}"
 
         export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-        if ! "$PROJECT_DIR/gradlew" assembleDebug assembleDebugAndroidTest --console=plain > "$TEST_RESULTS_LOG" 2>&1; then
+        if [ "${EMULATOR_TESTS_PREBUILT:-}" = 1 ]; then
+            # staggered-tests.sh built both APKs inside the unit-test Gradle run, which is still
+            # executing the Long bucket; a second Gradle here would build the project concurrently.
+            echo -e "${BLUE}Using APKs prebuilt by the unit-test run (EMULATOR_TESTS_PREBUILT=1)${NC}"
+        elif ! "$PROJECT_DIR/gradlew" assembleDebug assembleDebugAndroidTest --console=plain > "$TEST_RESULTS_LOG" 2>&1; then
             if grep -q "transformDebugClassesWithAsm" "$TEST_RESULTS_LOG" 2>/dev/null; then
                 if [ "$NO_RETRY" = true ]; then
                     echo -e "${YELLOW}ASM instrumentation error (--no-retry: deferring to caller)${NC}"

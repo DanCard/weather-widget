@@ -8,6 +8,7 @@ RUN_MODE=""
 STREAM_OUTPUT=false
 LOG_FILE=""
 INSTALL_MODE=false
+ALSO_BUILD_APKS=false
 BUCKETS=()
 OVERALL_START=$(date +%s)
 SINGLE_INVOCATION_REPORTED_DIR=""
@@ -50,6 +51,13 @@ while [ $# -gt 0 ]; do
       ;;
     --install)
       INSTALL_MODE=true
+      shift
+      ;;
+    --also-build-apks)
+      # Build the emulator APKs in THIS Gradle invocation (staggered-tests.sh overlaps the
+      # emulator phase with the Long bucket; a second Gradle building the same project
+      # concurrently is the ASM race the scripts avoid).
+      ALSO_BUILD_APKS=true
       shift
       ;;
     *)
@@ -390,6 +398,9 @@ fi
 
 if [ "$INSTALL_MODE" = true ]; then
   task_name="$task_name installDebug"
+fi
+if [ "$ALSO_BUILD_APKS" = true ]; then
+  task_name="$task_name :app:assembleDebug :app:assembleDebugAndroidTest"
 fi
 
 gradle_log="${LOG_FILE}"

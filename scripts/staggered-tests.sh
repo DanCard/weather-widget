@@ -34,6 +34,7 @@ NC='\033[0m'
 
 EMULATOR_ARGS=()
 INSTALL_MODE=false
+SEQUENTIAL=false
 
 show_help() {
     cat <<EOF
@@ -43,6 +44,8 @@ Run unit tests and emulator tests in parallel, staggered to avoid build contenti
 
 Options:
   --install                 Also install debug APK to all connected devices
+  --sequential              Start emulator tests only after ALL unit tests finish (the old order).
+                            Default with 2+ emulators: start them during the Long bucket's tail.
   --emulator-args "ARGS"   Extra arguments forwarded to scripts/emulator-tests.sh
   -h, --help               Show this help
 EOF
@@ -62,6 +65,10 @@ while [ $# -gt 0 ]; do
             ;;
         --install)
             INSTALL_MODE=true
+            shift
+            ;;
+        --sequential)
+            SEQUENTIAL=true
             shift
             ;;
         -h|--help)
@@ -91,73 +98,6 @@ clear_asm_cache() {
         find "$dir" -name "*.lock" -delete 2>/dev/null || true
     done
 }
-
-TOTAL_START=$(date +%s)
-BUILD_START=$(date +%s)
-
-# "[+12s 09:36:53] message" — to the terminal and the summary log.
-phase() {
-    local now
-    now=$(date +%s)
-    local line
-    line="[+$((now - TOTAL_START))s $(date +%H:%M:%S)] $*"
-    echo -e "${BLUE}${line}${NC}"
-    echo "$line" >> "$SUMMARY_LOG_FILE"
-}
-
-# Copy a stream to the terminal unchanged and, stripped of colour, to the summary log.
-to_summary() {
-    tee >(sed -u 's/\x1b\[[0-9;]*m//g' >> "$SUMMARY_LOG_FILE")
-}
-
-phase "Unit tests started (log: $UNIT_LOG_FILE)"
-
-# Start unit tests (this will start the first Gradle build)
-# --log-file captures full output for diagnostics; concise summary goes to stdout.
-#
-# NOTE: We deliberately do NOT pass --install to unit-tests.sh here even when the user
-# passed --install to this script. unit-tests.sh's --install triggers `./gradlew installDebug`
-# inside the unit-test Gradle invocation, which broadcasts adb install to ALL connected
-# devices — including the emulators that emulator-tests.sh is concurrently running
-# am instrument on. The mid-test install force-stops com.weatherwidget.test, the
-# instrumentation dies silently, and emulator-tests.sh reports the non-descriptive
-# "One or more emulators failed". We defer installDebug to a final step below so it
-# runs after both test phases finish.
-touch "$UNIT_LOG_FILE"
-"$UNIT_SCRIPT" --log-file "$UNIT_LOG_FILE" > >(to_summary) &
-UNIT_PID=$!
-
-# Wait for unit tests to reach execution phase
-# echo -en "${YELLOW}Waiting for unit test build to finish...${NC}  "
-
-# Wait for log file to be created
-while [ ! -f "$UNIT_LOG_FILE" ] && kill -0 "$UNIT_PID" 2>/dev/null; do
-    sleep 0.5
-done
-
-BUILD_DONE=false
-if [ -f "$UNIT_LOG_FILE" ]; then
-    while kill -0 "$UNIT_PID" 2>/dev/null; do
-        # Look for the start of the first test task
-        if grep -q "> Task :app:test" "$UNIT_LOG_FILE"; then
-            BUILD_DONE=true
-            BUILD_DURATION=$(( $(date +%s) - BUILD_START ))
-            phase "Unit test build finished in ${BUILD_DURATION}s"
-            # Give it a tiny bit more time to finish all transformations if they are parallel
-            sleep 2
-            break
-        fi
-        sleep 1
-    done
-fi
-
-if [ "$BUILD_DONE" = false ] && ! kill -0 "$UNIT_PID" 2>/dev/null; then
-    echo -e "${YELLOW}Unit test build finished early or failed.${NC}"
-fi
-
-wait "$UNIT_PID"
-UNIT_STATUS=$?
-phase "Unit tests finished (exit $UNIT_STATUS)"
 
 # Max attempts per emulator before giving up on a transient device disconnect.
 EMULATOR_MAX_ATTEMPTS=3
@@ -256,11 +196,12 @@ run_all_emulators_parallel_with_retries() {
     return "$run_status"
 }
 
-# Start emulator tests only after JVM/unit tests finish. Running the long JVM bucket while
-# two emulators are both installing and executing instrumentation has produced truncated
-# per-emulator logs with no OK/FAILURES footer, even though standalone emulator-tests.sh
-# passes. Keep THOSE phases sequential so emulator-tests.sh owns the device-intensive
-# phase; within that phase the emulators themselves run in parallel.
+# Run the emulator phase; within it the emulators run in parallel. Running it beside the FULL
+# JVM load (all four buckets, 16 Robolectric JVMs) once produced truncated per-emulator logs
+# with no OK/FAILURES footer, so it never starts before Short, Medium and Localization finish.
+# With 2+ emulators it does start during the Long bucket's tail (OVERLAP below): measured
+# 2026-10-13, 100 s and 90 s vs 119 s sequential, footers intact; --sequential restores the
+# old order.
 run_emulator_tests_for_staggered() {
     local status=0
     local adb_bin="${ADB:-$HOME/.Android/Sdk/platform-tools/adb}"
@@ -289,8 +230,129 @@ run_emulator_tests_for_staggered() {
     return "$status"
 }
 
+TOTAL_START=$(date +%s)
+BUILD_START=$(date +%s)
+
+# "[+12s 09:36:53] message" — to the terminal and the summary log.
+phase() {
+    local now
+    now=$(date +%s)
+    local line
+    line="[+$((now - TOTAL_START))s $(date +%H:%M:%S)] $*"
+    echo -e "${BLUE}${line}${NC}"
+    echo "$line" >> "$SUMMARY_LOG_FILE"
+}
+
+# Copy a stream to the terminal unchanged and, stripped of colour, to the summary log.
+to_summary() {
+    tee >(sed -u 's/\x1b\[[0-9;]*m//g' >> "$SUMMARY_LOG_FILE")
+}
+
+resolve_adb() {
+    local adb_bin="${ADB:-$HOME/.Android/Sdk/platform-tools/adb}"
+    [ -x "$adb_bin" ] || adb_bin="$(command -v adb || true)"
+    echo "$adb_bin"
+}
+
+# Overlap (2026-10-13): the Long bucket runs ~30-40 s after every other bucket has finished, and
+# the emulator phase (~40 s) used to start only after it. With 2+ emulators, the unit-test Gradle
+# run also builds both APKs, and emulator tests start once those exist and Short, Medium and
+# Localization have reported — so they overlap only Long's tail, never the full 16-JVM peak that
+# once truncated emulator logs. One emulator keeps the old order: that path builds through Gradle
+# itself. --sequential restores the old order everywhere.
+OVERLAP=false
+if [ "$SEQUENTIAL" = false ]; then
+    overlap_adb=$(resolve_adb)
+    if [ -n "$overlap_adb" ] && [ "$("$overlap_adb" devices 2>/dev/null | grep -cE '^emulator-[0-9]+'$'\t''device$')" -ge 2 ]; then
+        OVERLAP=true
+    fi
+fi
+UNIT_ARGS=(--log-file "$UNIT_LOG_FILE")
+[ "$OVERLAP" = true ] && UNIT_ARGS+=(--also-build-apks)
+
+phase "Unit tests started (log: $UNIT_LOG_FILE)$([ "$OVERLAP" = true ] && echo "; emulators will start during the Long bucket")"
+
+# Start unit tests (this will start the first Gradle build)
+# --log-file captures full output for diagnostics; concise summary goes to stdout.
+#
+# NOTE: We deliberately do NOT pass --install to unit-tests.sh here even when the user
+# passed --install to this script. unit-tests.sh's --install triggers `./gradlew installDebug`
+# inside the unit-test Gradle invocation, which broadcasts adb install to ALL connected
+# devices — including the emulators that emulator-tests.sh is concurrently running
+# am instrument on. The mid-test install force-stops com.weatherwidget.test, the
+# instrumentation dies silently, and emulator-tests.sh reports the non-descriptive
+# "One or more emulators failed". We defer installDebug to a final step below so it
+# runs after both test phases finish.
+touch "$UNIT_LOG_FILE"
+"$UNIT_SCRIPT" "${UNIT_ARGS[@]}" > >(to_summary) &
+UNIT_PID=$!
+
+# Wait for unit tests to reach execution phase
+# echo -en "${YELLOW}Waiting for unit test build to finish...${NC}  "
+
+# Wait for log file to be created
+while [ ! -f "$UNIT_LOG_FILE" ] && kill -0 "$UNIT_PID" 2>/dev/null; do
+    sleep 0.5
+done
+
+BUILD_DONE=false
+if [ -f "$UNIT_LOG_FILE" ]; then
+    while kill -0 "$UNIT_PID" 2>/dev/null; do
+        # Look for the start of the first test task
+        if grep -q "> Task :app:test" "$UNIT_LOG_FILE"; then
+            BUILD_DONE=true
+            BUILD_DURATION=$(( $(date +%s) - BUILD_START ))
+            phase "Unit test build finished in ${BUILD_DURATION}s"
+            # Give it a tiny bit more time to finish all transformations if they are parallel
+            sleep 2
+            break
+        fi
+        sleep 1
+    done
+fi
+
+if [ "$BUILD_DONE" = false ] && ! kill -0 "$UNIT_PID" 2>/dev/null; then
+    echo -e "${YELLOW}Unit test build finished early or failed.${NC}"
+fi
+
+EMULATOR_STARTED_EARLY=false
+EMULATOR_PID=""
+if [ "$OVERLAP" = true ]; then
+    # Ready = both APKs built by the unit run, and every bucket except Long has reported.
+    overlap_ready() {
+        grep -qE "^> Task :app:assembleDebug( |$)" "$UNIT_LOG_FILE" 2>/dev/null &&
+            grep -qE "^> Task :app:assembleDebugAndroidTest( |$)" "$UNIT_LOG_FILE" 2>/dev/null &&
+            grep -qE "short tests" "$SUMMARY_LOG_FILE" 2>/dev/null &&
+            grep -qE "medium tests" "$SUMMARY_LOG_FILE" 2>/dev/null &&
+            grep -qE "localization tests" "$SUMMARY_LOG_FILE" 2>/dev/null
+    }
+    while kill -0 "$UNIT_PID" 2>/dev/null && ! overlap_ready; do
+        sleep 1
+    done
+    if kill -0 "$UNIT_PID" 2>/dev/null && ! grep -qE "tests: .*failed|FAILED" "$SUMMARY_LOG_FILE" 2>/dev/null; then
+        phase "Emulator tests started during the Long bucket (log: $EMULATOR_LOG_FILE)"
+        (
+            export EMULATOR_TESTS_PREBUILT=1
+            run_emulator_tests_for_staggered
+        ) &
+        EMULATOR_PID=$!
+        EMULATOR_STARTED_EARLY=true
+    fi
+fi
+
+wait "$UNIT_PID"
+UNIT_STATUS=$?
+phase "Unit tests finished (exit $UNIT_STATUS)"
+
 EMULATOR_STATUS=0
-if [ "$UNIT_STATUS" -eq 0 ]; then
+if [ "$EMULATOR_STARTED_EARLY" = true ]; then
+    wait "$EMULATOR_PID"
+    EMULATOR_STATUS=$?
+    phase "Emulator tests finished (exit $EMULATOR_STATUS)"
+elif [ "$UNIT_STATUS" -eq 0 ]; then
+    # Overlap planned but unit tests ended first (all cached, or quicker than the APK build):
+    # the APKs were still built by that run.
+    [ "$OVERLAP" = true ] && export EMULATOR_TESTS_PREBUILT=1
     phase "Emulator tests started (log: $EMULATOR_LOG_FILE)"
     run_emulator_tests_for_staggered
     EMULATOR_STATUS=$?
