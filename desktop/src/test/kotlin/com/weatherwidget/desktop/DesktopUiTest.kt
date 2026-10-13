@@ -5,6 +5,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -74,6 +78,38 @@ currentCondition = "Sunny"),
 
         // Verify daily forecast renders through the canvas surface.
         composeTestRule.onNodeWithTag("daily_forecast_surface").assertExists()
+    }
+
+    /**
+     * Header and today's column show one current temperature: the published value when there is
+     * one (73.4 vs the snapshot's own 72), the snapshot's otherwise
+     * (plans/261013-desktop-today-column-uses-published-current-temp.md).
+     */
+    @Test
+    fun headerAndTodayColumnShareTheCurrentTemperature() {
+        var published by mutableStateOf<Float?>(73.4f)
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig,
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                resolvedCurrentTemp = published,
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        fun assertBoth(temp: Float) {
+            composeTestRule.onNodeWithText(formatTrayTemperature(temp, false) + "°").assertExists()
+            composeTestRule.onNode(SemanticsMatcher.expectValue(TodayColumnSolidHigh, temp)).assertExists()
+        }
+        assertBoth(73.4f)
+
+        published = null
+        composeTestRule.waitForIdle()
+        assertBoth(72f)
     }
 
     @Test

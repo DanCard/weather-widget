@@ -20,6 +20,14 @@ dateOffset = -1,
 settings = DesktopSettings(weatherSource = "NWS"),
 )
 
+    /** The snapshot's own current temp stands in for the published one (no daemon in these tests). */
+    private fun buildModel(
+        config: DesktopConfig,
+        forecast: ForecastSnapshot,
+        dimensions: DesktopWidgetDimensions,
+        now: LocalDateTime = LocalDateTime.now(),
+    ) = DesktopDailyForecastModel.build(config, forecast, dimensions, now, currentTemp = forecast.resolved.currentTemp)
+
     private fun extreme(date: String, high: Float, low: Float, condition: String) = DailyHistory(
         date = LocalDate.parse(date).toEpochDay() * 86_400_000L,
         source = "NWS",
@@ -81,7 +89,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
             lon = -122.088951,
             dateOffset = 0,
         )
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config = siteConfig,
             forecast = snapshot(
                 daily = (6..10).map { day ->
@@ -109,7 +117,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
      */
     @Test
     fun `past day with only a high-only snapshot draws no forecast overlay`() {
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config = config,
             forecast = snapshot(
                 daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
@@ -136,7 +144,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
         val hourly = listOf(3 to 57f, 9 to 63f, 15 to 79f, 21 to 66f).map { (h, t) ->
             HourlyForecast(date.atTime(h, 0).atZone(zone).toInstant().toEpochMilli(), t, "Clear", source = WeatherSource.NWS.id)
         }
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config = config.copy(dateOffset = 0),
             forecast = snapshot(
                 daily = listOf(DailyForecast("2026-06-03", 80f, null, "Sunny")),
@@ -154,7 +162,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
     @Test
     fun `build properly groups and maps daily data`() {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config = config,
             forecast = snapshot(
                 currentTemp = 72.4f,
@@ -200,12 +208,33 @@ settings = DesktopSettings(weatherSource = "NWS"),
     }
 
     @Test
+    fun `today column uses the passed current temp, not the snapshot's`() {
+        // Header 73.4 (published current_status) vs a snapshot resolved earlier at 71.76: today's
+        // bar must follow the header (plans/261013-desktop-today-column-uses-published-current-temp.md).
+        val now = LocalDateTime.parse("2026-06-03T14:00:00")
+        val forecast = snapshot(
+            currentTemp = 71.76f,
+            currentCondition = "Sunny",
+            daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
+        )
+        val dims = DesktopDailyForecastModel.dimensions(600, 400)
+
+        val published = DesktopDailyForecastModel.build(config, forecast, dims, now, currentTemp = 73.4f)
+        val today = published.days.single { it.isToday }
+        assertEquals(73.4f, today.solidHigh)
+
+        // No current temp at all: the actual high (none here) — never the snapshot's value.
+        val none = DesktopDailyForecastModel.build(config, forecast, dims, now, currentTemp = null)
+        assertNotEquals(71.76f, none.days.single { it.isToday }.solidHigh)
+    }
+
+    @Test
     fun `past day with forecast-only row labels the frozen forecast from the row alone`() {
         // Desktop regression guard for plans/260822-daily-history-forecast-only-rows.md: no
         // actuals on the row (Open-Meteo), snapshots aged out — the frozen values still become
         // the labeled solid high/low.
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config = config,
             forecast = snapshot(
                 currentTemp = 72.4f,
@@ -236,7 +265,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
     @Test
     fun `past day with real actuals keeps the actual as the label`() {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config = config,
             forecast = snapshot(
                 currentTemp = 72.4f,
@@ -265,7 +294,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
     @Test
     fun `past day prefers frozen overlay and noon cloud from daily_history over snapshots`() {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config = config,
             forecast = snapshot(
                 currentTemp = 72.4f,
@@ -298,7 +327,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
     @Test
     fun `past day falls back to snapshot when frozen columns are null`() {
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config = config,
             forecast = snapshot(
                 currentTemp = 72.4f,
@@ -328,7 +357,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
         val now = LocalDateTime.parse("2026-06-03T07:00:00")
         val nowMs = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val hour = 3_600_000L
-        fun build(snapshotAgeHours: Long, borrowedKm: Double?) = DesktopDailyForecastModel.build(
+        fun build(snapshotAgeHours: Long, borrowedKm: Double?) = buildModel(
             config = config,
             forecast = snapshot(
                 currentTemp = 72.4f,
@@ -366,7 +395,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
         val now = LocalDateTime.parse("2026-06-03T20:00:00")
         val zone = java.time.ZoneId.systemDefault()
         fun ms(t: String) = LocalDateTime.parse(t).atZone(zone).toInstant().toEpochMilli()
-        val days = DesktopDailyForecastModel.build(
+        val days = buildModel(
             config = config,
             forecast = snapshot(
                 currentTemp = 72.4f,
@@ -409,7 +438,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
         val now = LocalDateTime.parse("2026-06-03T20:00:00")
         val zone = java.time.ZoneId.systemDefault()
         fun ms(t: String) = LocalDateTime.parse(t).atZone(zone).toInstant().toEpochMilli()
-        val days = DesktopDailyForecastModel.build(
+        val days = buildModel(
             config = config,
             forecast = snapshot(
                 currentTemp = 72.4f,
@@ -437,7 +466,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
         // Evening case: the day already peaked above the current reading, so the solid mercury
         // sits at the current temp while the ghost preserves the day's high.
         val now = LocalDateTime.parse("2026-06-03T20:00:00")
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config = config,
             forecast = snapshot(
                 currentTemp = 72.4f,
@@ -465,7 +494,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
         // Silurian before borrowed actuals land (or no current reading): the middle column
         // must still rise to today's high (shared barTopHigh = solidHigh ?: forecastHigh).
         val now = LocalDateTime.parse("2026-06-03T12:00:00")
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config = config,
             forecast = snapshot(
                 currentTemp = null,
@@ -486,7 +515,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
         // Silurian + Synoptic actuals: current temp is 72.4, Synoptic peak is 97.7 —
         // the middle column must rise to 97.7 (today's high from the actuals provider).
         val now = LocalDateTime.parse("2026-06-03T15:00:00")
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config = config,
             forecast = snapshot(
                 currentTemp = 72.4f,
@@ -553,8 +582,8 @@ settings = DesktopSettings(weatherSource = "NWS"),
             for (offset in listOf(-3, 0, 3)) {
                 for (extraHistory in listOf(0, 3)) {
                     val cfg = config.copy(dateOffset = offset, dailyExtraHistory = extraHistory)
-                    val a = DesktopDailyForecastModel.build(cfg, forecast, dims, before)
-                    val b = DesktopDailyForecastModel.build(cfg, forecast, dims, after)
+                    val a = buildModel(cfg, forecast, dims, before)
+                    val b = buildModel(cfg, forecast, dims, after)
                     val label = "width=$widthDp cols=${dims.cols} offset=$offset extra=$extraHistory"
                     assertEquals("$label: column count", a.days.size, b.days.size)
                     assertEquals(
@@ -581,7 +610,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
             dailyActuals = actualsRange("2026-06-01", 9), // 06-01..06-09
         )
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 3)
-        val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
+        val state = buildModel(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
         // Overlay-enabled → 8 base columns + 3 prepended history days.
         assertEquals(3, state.clampedExtraHistory)
@@ -602,7 +631,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
             dailyActuals = actualsRange("2026-06-01", 9), // earliest = 06-01
         )
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 20)
-        val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
+        val state = buildModel(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
         // Available history left of the base edge (06-09) is 8 days, so extra clamps to 8.
         assertEquals(8, state.clampedExtraHistory)
@@ -619,7 +648,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
             dailyActuals = actualsRange("2026-05-20", 21), // 05-20..06-09, 20 days left of base edge
         )
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 30)
-        val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
+        val state = buildModel(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
         // Capped at DAILY_MAX_EXTRA_HISTORY (14) despite 20 days of available history.
         assertEquals(14, state.clampedExtraHistory)
@@ -636,7 +665,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
             dailyActuals = actualsRange("2026-06-01", 9),
         )
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 0)
-        val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
+        val state = buildModel(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
         assertEquals(0, state.clampedExtraHistory)
         assertEquals(8, state.days.size)
@@ -650,7 +679,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
         val now = LocalDateTime.parse("2026-08-04T08:20:00")
         val forecast = overlayForecast()
 
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config.copy(dateOffset = 0,
 settings = config.settings.copy(useCelsius = false,
 todayOverlayDelta = true,
@@ -670,7 +699,7 @@ todayOverlayDominantTemp = true)),
     @Test
     fun `large desktop Today overlay is null when all overlay toggles default off`() {
         val now = LocalDateTime.parse("2026-08-04T08:20:00")
-        val state = DesktopDailyForecastModel.build(
+        val state = buildModel(
             config.copy(dateOffset = 0,
 settings = config.settings.copy(useCelsius = false)),
             overlayForecast(),
@@ -719,7 +748,7 @@ settings = config.settings.copy(useCelsius = false)),
             dailyActuals = actualsRange("2026-06-01", 9),
         )
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 2)
-        val state = DesktopDailyForecastModel.build(cfg, forecast, DesktopDailyForecastModel.dimensions(300, 400), now)
+        val state = buildModel(cfg, forecast, DesktopDailyForecastModel.dimensions(300, 400), now)
 
         assertTrue(state.skipYesterday)
         assertEquals(2, state.clampedExtraHistory)
@@ -735,7 +764,7 @@ settings = config.settings.copy(useCelsius = false)),
             daily = listOf(DailyForecast("2026-06-03", 80f, 60f, "Sunny")),
             dailyActuals = mapOf("2026-06-01" to extreme("2026-06-01", 77f, 56f, "Fair"))
         )
-        val state = DesktopDailyForecastModel.build(config, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
+        val state = buildModel(config, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
         
         assertFalse(state.canNavigateLeft) // Already at the earliest date (June 1st)
         assertFalse(state.canNavigateRight) // No data past today

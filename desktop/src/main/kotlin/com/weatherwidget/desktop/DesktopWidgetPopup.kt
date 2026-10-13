@@ -14,6 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.draw.drawBehind
@@ -48,6 +50,9 @@ import kotlin.math.roundToInt
 
 private const val TAG = "Main"
 private const val MIN_HOURLY_OFFSET = -720
+
+/** Today's column solid high (the current temperature, while there is one) — lets tests compare it with the header. */
+internal val TodayColumnSolidHigh = SemanticsPropertyKey<Float?>("TodayColumnSolidHigh")
 private const val MAX_HOURLY_OFFSET = 720
 
 @Composable
@@ -85,6 +90,9 @@ internal fun WidgetPopup(
             is DataStatus.NoData -> CenteredMessage("Tap to configure")
             is DataStatus.Live, is DataStatus.Stale -> {
                 val snapshot = forecast ?: return@Surface
+                // One current temperature for the header and today's column: the published value,
+                // else the snapshot's own (startup / preview).
+                val displayCurrentTemp = resolvedCurrentTemp ?: snapshot.resolved.currentTemp
                 // Published by the daily branch below from the days it actually renders. The header
                 // is composed before the daily surface measures itself, so this is reported upward
                 // rather than recomputed here: the daily column count depends on the graph area's
@@ -98,7 +106,7 @@ internal fun WidgetPopup(
                     WidgetHeader(
                         config = config,
                         forecast = snapshot,
-                        resolvedCurrentTemp = resolvedCurrentTemp,
+                        resolvedCurrentTemp = displayCurrentTemp,
                         resolvedDeltaFromYesterday = resolvedDeltaFromYesterday,
                         onUpdateConfig = onUpdateConfig,
                         onOpenSettings = onOpenSettings,
@@ -388,6 +396,7 @@ internal fun WidgetPopup(
                                 config = config,
                                 forecast = snapshot,
                                 dimensions = dimensions,
+                                currentTemp = displayCurrentTemp,
                             )
 
                             // Report today's on-screen status up to the header: it decides whether
@@ -494,10 +503,12 @@ internal fun WidgetPopup(
                                 }
                             }
 
+                            val todayBarTop = dailyState.days.firstOrNull { it.isToday }?.solidHigh
+                            val todayBarSemantics = Modifier.semantics { set(TodayColumnSolidHigh, todayBarTop) }
                             if (dailyState.dimensions.useGraph) {
                                 DailyForecastGraph(
                                     state = dailyState,
-                                    modifier = Modifier.fillMaxSize().then(dailyInput),
+                                    modifier = Modifier.fillMaxSize().then(dailyInput).then(todayBarSemantics),
                                     scale = uiScale,
                                     onDayClick = handleDayClick,
                                     useCelsius = config.settings.useCelsius,
@@ -505,7 +516,7 @@ internal fun WidgetPopup(
                             } else {
                                 DailyForecastTextMode(
                                     state = dailyState,
-                                    modifier = Modifier.fillMaxSize().then(dailyInput),
+                                    modifier = Modifier.fillMaxSize().then(dailyInput).then(todayBarSemantics),
                                     onDayClick = handleDayClick,
                                     useCelsius = config.settings.useCelsius,
                                 )

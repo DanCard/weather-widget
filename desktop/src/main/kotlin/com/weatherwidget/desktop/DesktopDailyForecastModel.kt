@@ -134,11 +134,19 @@ object DesktopDailyForecastModel {
         )
     }
 
+    /**
+     * @param currentTemp the current temperature the header shows — the daemon-published
+     *   `current_status` value, else the snapshot's own. Required, never read from [forecast]: the
+     *   popup's snapshot is resolved once per load while the header re-reads the published value each
+     *   tick, so the two disagreed (header 73.4°, today's bar 71.8°;
+     *   plans/261013-desktop-today-column-uses-published-current-temp.md).
+     */
     fun build(
         config: DesktopConfig,
         forecast: ForecastSnapshot,
         dimensions: DesktopWidgetDimensions,
         now: LocalDateTime = LocalDateTime.now(),
+        currentTemp: Float?,
     ): DesktopDailyViewState {
         val today = now.toLocalDate()
         val skipYesterday = NavigationUtils.shouldSkipYesterday(dimensions.cols)
@@ -196,7 +204,7 @@ object DesktopDailyForecastModel {
                 actual = actualsByDate[date],
                 snapshots = snapshotsByDate[date].orEmpty(),
                 hourly = forecast.raw.hourly,
-                currentTemp = forecast.resolved.currentTemp,
+                currentTemp = currentTemp,
                 displaySourceId = config.displaySource,
                 centerLat = config.lat,
                 centerLon = config.lon,
