@@ -90,7 +90,7 @@ class DesktopRefreshObservationsTest {
             locationLon = lon,
             api = "NWS",
         )
-        coEvery { weatherService.fetchObservationsOnly(recentOnly = any()) } returns RawFetch(
+        coEvery { weatherService.fetchFeedObservations(any(), recentOnly = any()) } returns RawFetch(
             rawObservations = listOf(inRange, outOfRange),
         )
 

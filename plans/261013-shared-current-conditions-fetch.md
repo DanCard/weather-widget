@@ -223,3 +223,73 @@ shared `webRows`.
     Each matches that platform's own KNUQ API-row distance (their sites differ by about 20 m).
   - Fold `NWS_IDW` 73.66 °F from 5 stations; `CURR_FETCH_SOURCE_RESULT NWS success=true`.
 - **Replay harness kept** (inert without `REPLAY_DIR`) for Phase 3.
+
+### Phase 3 plan (user, 2026-10-13: "phase 3 with Android's rule")
+
+- **What exists.** Both platforms already share the cadence (`CurrentTempCadence`; primary only on
+  battery) and the 30-min loop for the other sources (`NonPrimaryObservationPolicy`).
+- **The gap is the charging run.** Android's charging loop calls `refreshCurrentTemperature(source = null)`.
+  - That run fetches every visible source's feed **once**, deduplicated through
+    `ActualsFeedPolicy.currentTempFeeds`.
+  - Throttle: a feed whose best consumer is ranked 4th or lower and is not displayed is fetched at
+    most hourly.
+  - It has a 5-min per-location freshness gate; a force or an explicit source bypasses both the
+    gate and the throttle.
+  - It records per-feed success/failure and logs `CURR_FETCH_*`.
+  - Desktop's loop 3b fetches only the displayed source's feed.
+- **`:shared` `CurrentConditionsRun`** is that run, moved from `CurrentTempRepository` behind a
+  `Host` interface. The host supplies:
+  - visible order and displayed ids;
+  - freshness / throttle stores;
+  - the per-feed fetch-and-store;
+  - success/failure recording;
+  - the log.
+
+  The run owns the mutex, the plan and the log lines (unchanged text).
+- **Android:** `refreshCurrentTemperature` delegates to the run. No behaviour change.
+- **Desktop:**
+  - While charging, loop 3b's observation step runs the shared run over the visible sources, then
+    finishes the displayed source's post-processing as today.
+  - On battery it stays primary-only (`CurrentTempCadence`), as on Android.
+  - Desktop gains `CURR_FETCH_START / SOURCE_RESULT / COMPLETE` rows.
+- **Not changed:** loop 3d and Android's non-primary branch (both on `NonPrimaryObservationPolicy`).
+
+### Phase 3 (2026-10-13)
+
+- **`:shared` `CurrentConditionsRun`.** It holds the mutex, the freshness gate (5 min per site,
+  bypassed by force), the plan (`currentTempFeeds`), the low-priority throttle (rank ≥ 3, not
+  displayed, hourly; bypassed by force or a named source), and per-feed records. It logs
+  `CURR_FETCH_MUTEX/FRESH_SKIP/THROTTLE_SKIP/START/SOURCE_RESULT/ERROR/COMPLETE` and
+  `CURRENT_TEMP_STATUS`, in the same text as before.
+  - Change: the orchestrator now rethrows a cancellation after logging it, where Android used to
+    return `Result.failure`.
+- **Android:** `CurrentTempRepository.refreshCurrentTemperature` delegates to it.
+  - The host is `FetchMetadata`, `WidgetStateManager` and `fetchFromSource`.
+  - Removed: `syncMutex`, the run's constants, the two log helpers and `extractHttpErrorDetail`.
+  - Over the three phases the file went from 679 to about 250 lines.
+- **Desktop:** `WeatherApiClient.fetchFeedObservations(feed)` fetches any feed.
+  - `DesktopWeatherRepository.refreshObservations(visibleSources, reason)` runs the shared run.
+    `visibleSources = null` means the displayed source alone, forced; that's every caller except
+    the charging loop.
+  - Station-network feeds (METAR / Synoptic) are still fetched beside the run for a source that
+    borrows one.
+  - A failure of the displayed source's feed is rethrown, so the daemon's failure banner works as
+    before.
+  - The stores are `DesktopCurrentConditionsMemory` (in memory, per daemon).
+  - Loop 3b passes `config.effectiveSources` while charging (`reason=charging_loop`); on battery it
+    is the displayed source only.
+- **User correction, mid-phase: "for meteo the source is NWS".** `currentTempFeeds` used to list
+  every source able to file its own actuals as its own feed, "to keep the loop fetching what it did
+  before", even when the user had redirected it.
+  - With Open-Meteo set to NWS actuals, nothing reads its own current: the series builder rejects
+    its rows, the daily actuals drop them, and `MetarCloudBlender` reads the provider.
+  - Fix (shared, both platforms): a source contributes only its provider (`feedFor`), so it is its
+    own feed only when self-provided. NWS outside its coverage is no longer listed either.
+  - The user's desktop sources (Google, Open-Meteo, Silurian, NWS; Open-Meteo and Google → NWS) now
+    give one feed: NWS, fetched once for all four.
+  - This was already wasting a request per cycle on Android: the Fold 4 logged
+    `targets=NWS, OPEN_METEO`.
+  - Quota: Google is never a feed (forecast-only), so the run spends no Google quota.
+- **Tests:**
+  - `CurrentConditionsRunTest` (7), including the user's exact settings.
+  - `ActualsFeedPolicyTest` +2: redirected source not fetched; NWS outside coverage.

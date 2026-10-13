@@ -159,6 +159,34 @@ class ActualsFeedPolicyTest {
         assertEquals(listOf(WeatherSource.NWS, WeatherSource.GOOGLE_WEATHER), feeds[WeatherSource.NWS])
     }
 
+    /**
+     * The user's desktop sources (2026-10-13): Open-Meteo set to NWS actuals. Nothing reads its own
+     * current once redirected, so it is not fetched; NWS is fetched once for all three consumers.
+     */
+    @Test
+    fun `a source redirected to another provider is not fetched as its own feed`() {
+        val feeds = ActualsFeedPolicy.currentTempFeeds(
+            listOf(WeatherSource.GOOGLE_WEATHER, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN, WeatherSource.NWS),
+            usLat, usLon,
+            prefs(WeatherSource.OPEN_METEO to WeatherSource.NWS, WeatherSource.GOOGLE_WEATHER to WeatherSource.NWS),
+        )
+        assertEquals(listOf(WeatherSource.NWS), feeds.keys.toList())
+        assertEquals(
+            listOf(WeatherSource.GOOGLE_WEATHER, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN, WeatherSource.NWS),
+            feeds[WeatherSource.NWS],
+        )
+        // Left on its own provider, Open-Meteo is its own feed as before.
+        assertEquals(
+            listOf(WeatherSource.OPEN_METEO),
+            ActualsFeedPolicy.currentTempFeeds(listOf(WeatherSource.OPEN_METEO), usLat, usLon, prefs()).keys.toList(),
+        )
+    }
+
+    @Test
+    fun `NWS outside its coverage is not a feed`() {
+        assertTrue(ActualsFeedPolicy.currentTempFeeds(listOf(WeatherSource.NWS), kyivLat, kyivLon, prefs()).isEmpty())
+    }
+
     // --- requiresFeed / borrowers ---
 
     @Test

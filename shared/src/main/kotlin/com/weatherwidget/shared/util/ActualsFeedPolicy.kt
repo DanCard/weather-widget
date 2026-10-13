@@ -125,11 +125,13 @@ object ActualsFeedPolicy {
      * to the requested sources it serves (in [requested] order, so callers can rank and throttle a
      * feed by its consumers).
      *
-     * A source that files its own actuals is always its own feed, which keeps the loop fetching
-     * what it did before. A source whose provider is a different feed adds that provider, so a
-     * borrower reaches its feed even when the feed is not itself visible. A forecast-only source is
-     * never fetched as its own feed: it must never file its model current as an observation.
-     * [STATION_NETWORK_FEEDS] are left to their own refreshers.
+     * Each source contributes its actuals provider ([feedFor]) and nothing else. A source is its own
+     * feed only when it is its own provider: Open-Meteo set to NWS actuals fetches NWS, not its own
+     * current, which nothing reads once redirected (the series, the daily actuals and the cloud
+     * blend all follow the provider; user, 2026-10-13). It used to be fetched anyway, "to keep the
+     * loop fetching what it did before". A borrower reaches its feed even when the feed is not itself
+     * visible. A forecast-only source is never fetched as its own feed: it must never file its model
+     * current as an observation. [STATION_NETWORK_FEEDS] are left to their own refreshers.
      */
     fun currentTempFeeds(
         requested: List<WeatherSource>,
@@ -139,11 +141,8 @@ object ActualsFeedPolicy {
     ): Map<WeatherSource, List<WeatherSource>> {
         val result = LinkedHashMap<WeatherSource, MutableList<WeatherSource>>()
         for (source in requested.distinct()) {
-            if (source.supportsTemperatureActuals && source !in STATION_NETWORK_FEEDS) {
-                result.getOrPut(source) { mutableListOf() }.add(source)
-            }
             val feed = feedFor(source, latitude, longitude, actualsPreference) ?: continue
-            if (feed != source && feed.supportsTemperatureActuals && feed !in STATION_NETWORK_FEEDS) {
+            if (feed.supportsTemperatureActuals && feed !in STATION_NETWORK_FEEDS) {
                 val consumers = result.getOrPut(feed) { mutableListOf() }
                 if (source !in consumers) consumers.add(source)
             }

@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.HourlyForecast
@@ -83,6 +84,13 @@ interface WeatherApiClient {
         /** The UI's picker-save refresh: may fetch Synoptic through a backoff (SynopticBackoff.shouldSkip). */
         userLocationChange: Boolean = false,
     ): RawFetch
+
+    /**
+     * One actuals feed's recent observations, whichever source this client was built for: the
+     * per-feed fetch of the shared current-conditions run (Phase 3 of
+     * plans/261013-shared-current-conditions-fetch.md). The feed's own provider current is kept.
+     */
+    suspend fun fetchFeedObservations(feed: WeatherSource, recentOnly: Boolean = true): RawFetch
 
     suspend fun nearestStationsForDailyActuals(): List<NwsApi.StationInfo>
 

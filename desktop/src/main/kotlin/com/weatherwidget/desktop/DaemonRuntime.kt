@@ -938,7 +938,17 @@ internal class DaemonRuntime(
                     val src = WeatherSource.fromDisplaySource(config.displaySource).id
                     try {
                         Log.i(TAG, "Temp actuals loop refresh starting for ${config.displaySource} (charging=$isCharging, level=$level%)...")
-                        val result = newRepo.refreshObservations()
+                        // Charging: every visible source's feed, each once (Android's charging loop; the
+                        // shared CurrentConditionsRun). On battery, the displayed source alone
+                        // (CurrentTempCadence: primary only on battery).
+                        val result = if (isCharging) {
+                            newRepo.refreshObservations(
+                                visibleSources = config.effectiveSources.map(WeatherSource::fromId),
+                                reason = "charging_loop",
+                            )
+                        } else {
+                            newRepo.refreshObservations(reason = "obs_loop")
+                        }
                         panelPublisher.publishForecastState(result)
                         checkDominantTempWatch(newRepo, result, "obs_loop")
                         dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.displaySource) ?: System.currentTimeMillis())

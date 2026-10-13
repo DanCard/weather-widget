@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.observations.CurrentConditionsRun
 import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.shared.util.DailyPrecipPeriods
 import com.weatherwidget.shared.util.DailyHourlySummaries
@@ -1144,26 +1145,87 @@ class DesktopWeatherRepository(
         )
     }
 
-    suspend fun refreshObservations(): ForecastSnapshot = withContext(Dispatchers.IO) {
+    /**
+     * The current-temperature fetch: the shared [CurrentConditionsRun] (Android's rule; Phase 3 of
+     * plans/261013-shared-current-conditions-fetch.md), then this source's own post-processing.
+     *
+     * @param visibleSources every visible source, best first: the charging loop's run, each feed
+     *   once, low-priority feeds throttled, a 5-min gate per site. Null = the displayed source alone,
+     *   forced, which every other caller (catch-up, launch, the battery loop) wants.
+     */
+    suspend fun refreshObservations(
+        visibleSources: List<WeatherSource>? = null,
+        reason: String = "obs_refresh",
+    ): ForecastSnapshot = withContext(Dispatchers.IO) {
         try {
             // Recent-only: this path (the current-temp loop + launch OBSERVATIONS action) needs
             // every reading published since the previous poll, not the whole 7-day series that
             // refresh()'s full pull re-fetches anyway. A single-latest fetch here dropped the
             // intermediate readings of stations that publish faster than the poll interval. See
             // plans/260820-observation-loop-recent-window-not-latest-row.md.
-            val result = weatherService.fetchObservationsOnly(recentOnly = true)
-            val now = currentTimeMillis()
-
-            if (
-                result.rawObservations.isNotEmpty() ||
-                ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.TOMORROW_IO.id
-            ) {
-                persistObservations(
-                    readings = result.rawObservations,
-                    now = now,
-                    tomorrowWindowHours = TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS,
-                )
+            val displayedFeed = ActualsFeedPolicy.feedFor(displaySource, latitude, longitude)
+            var displayedRaw: RawFetch? = null
+            var displayedFailure: Exception? = null
+            var stored = 0
+            suspend fun store(raw: RawFetch, feed: WeatherSource?) {
+                if (raw.rawObservations.isNotEmpty() || feed == WeatherSource.TOMORROW_IO) {
+                    persistObservations(raw.rawObservations, currentTimeMillis(), TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS)
+                    stored += raw.rawObservations.size
+                }
             }
+            val run = CurrentConditionsRun(
+                object : CurrentConditionsRun.Host {
+                    override fun visibleSources() = visibleSources ?: listOf(displaySource)
+                    override fun displayedSourceIds() = setOf(displaySource.id)
+                    override fun lastRunMs(latitude: Double, longitude: Double) =
+                        DesktopCurrentConditionsMemory.lastRunMs(latitude, longitude)
+                    override fun setLastRunMs(latitude: Double, longitude: Double, ms: Long) =
+                        DesktopCurrentConditionsMemory.setLastRunMs(latitude, longitude, ms)
+                    override fun lowPriorityDue(feedId: String, intervalMs: Long) =
+                        DesktopCurrentConditionsMemory.due(feedId, intervalMs, currentTimeMillis())
+                    override fun markAttempt(feedId: String) =
+                        DesktopCurrentConditionsMemory.markAttempt(feedId, currentTimeMillis())
+                    override suspend fun fetch(feed: WeatherSource, latitude: Double, longitude: Double): CurrentConditionsRun.Reading? {
+                        val raw = weatherService.fetchFeedObservations(feed, recentOnly = true)
+                        store(raw, feed)
+                        if (feed == displayedFeed) displayedRaw = raw
+                        val temperature = raw.providerCurrentTemp
+                        return if (temperature != null) {
+                            CurrentConditionsRun.Reading(feed, temperature, raw.providerCurrentCondition, raw.providerCurrentObservedAt)
+                        } else {
+                            raw.rawObservations.maxByOrNull { it.timestamp }
+                                ?.let { CurrentConditionsRun.Reading(feed, it.temperature, it.condition, it.timestamp) }
+                        }
+                    }
+                    override fun recordSuccess(feed: WeatherSource) = Unit
+                    // The daemon's failure banner reads the displayed feed's failure, raised below.
+                    override fun recordFailure(feed: WeatherSource, error: Exception) {
+                        if (feed == displayedFeed) displayedFailure = error
+                    }
+                    override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
+                },
+                nowMs = currentTimeMillis,
+            )
+            run.run(
+                latitude, longitude,
+                source = if (visibleSources == null) displaySource else null,
+                reason = reason,
+                force = visibleSources == null,
+            ).getOrThrow()
+            // Station networks are not run feeds (Android refreshes them on their own); a source that
+            // borrows one still gets its rows here, as before.
+            if (displayedFeed in ActualsFeedPolicy.STATION_NETWORK_FEEDS) {
+                val raw = weatherService.fetchObservationsOnly(recentOnly = true)
+                store(raw, displayedFeed)
+                displayedRaw = raw
+            }
+            displayedFailure?.let { throw it }
+            // A borrowed feed's own current (NWS's blend, Open-Meteo's current) is never the
+            // borrower's header value.
+            val result = displayedRaw
+                ?.let { if (displayedFeed != displaySource) RawFetch(rawObservations = it.rawObservations) else it }
+                ?: RawFetch()
+            val now = currentTimeMillis()
 
             val extremesCount = recomputeDailyExtremes(now)
             ensureForecastOnlyHistoryRows(now)
@@ -1175,7 +1237,7 @@ class DesktopWeatherRepository(
 
             weatherDao.log(
                 tag = "OBS_REFRESH",
-                message = "source=$weatherSource obs=${result.rawObservations.size} extremes=$extremesCount",
+                message = "source=$weatherSource obs=$stored extremes=$extremesCount",
             )
             // Once per fetch cycle (~30 min), not per status tick: enough to spot a cache that
             // stopped hitting, sparse enough not to swamp app_logs. See BlendSeriesCache.stats().
