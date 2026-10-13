@@ -215,6 +215,10 @@ internal fun runDesktopUiApplication() = application {
         // "did a banner appear during that resume?" question is unanswerable after the fact.
         var lastLoggedBannerState by remember { mutableStateOf("none") }
         val uiScope = rememberCoroutineScope()
+        // User refreshes start here (the rule Android shares): a fetch outlives whatever window asked.
+        val refreshRunner = remember(uiScope) {
+            com.weatherwidget.shared.util.UserRefreshRunner(uiScope) { tag, message, level -> weatherDao.log(tag, message, level) }
+        }
         val currentConfig = config
 
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.apiKeys) {
@@ -830,11 +834,14 @@ internal fun runDesktopUiApplication() = application {
             }
 
             refreshInFlight = true
-            // Application-owned scope: removing either child window from composition cannot cancel
-            // the fetch or discard its result.
+            // Through the shared runner on the application-owned scope: removing either child window
+            // from composition cannot cancel the fetch or discard its result.
+            val refresh = refreshRunner.start("user_refresh:$origin") {
+                repo.refresh(reason = "user_refresh:$origin", refillDay = refillDay, userRefresh = true)
+            }
             uiScope.launch {
                 try {
-                    forecast = repo.refresh(reason = "user_refresh:$origin", refillDay = refillDay, userRefresh = true)
+                    forecast = refresh.await()
                     // A Refresh is the way out the location-change error message points at.
                     if (dataStatus is DataStatus.FetchingLocation || dataStatus is DataStatus.Error) {
                         dataStatus = DataStatus.Live(System.currentTimeMillis())
@@ -885,8 +892,8 @@ internal fun runDesktopUiApplication() = application {
                 return
             }
             refreshInFlight = true
-            // Application-owned scope, as in requestFullRefresh: closing the window cannot cancel it.
-            uiScope.launch {
+            // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
+            val refresh = refreshRunner.start("user_refresh:$origin:${source.id}") {
                 val service = DesktopWeatherService(
                     cfg.lat, cfg.lon, source.id, cfg.settings.apiKeys, weatherDao,
                     isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(),
@@ -894,6 +901,13 @@ internal fun runDesktopUiApplication() = application {
                 try {
                     DesktopWeatherRepository(service, weatherDao, cfg.lat, cfg.lon, source.id, cfg.personalStationWeight())
                         .refresh(reason = "user_refresh:$origin", refillDay = refillDay, userRefresh = true)
+                } finally {
+                    service.close()
+                }
+            }
+            uiScope.launch {
+                try {
+                    refresh.await()
                     dataUpdateCount++
                     notifyRefreshRequested()
                     weatherDao.log("REFRESH_CLICK", "origin=$origin source=${source.id} completed", "INFO")
@@ -906,7 +920,6 @@ internal fun runDesktopUiApplication() = application {
                         "WARN",
                     )
                 } finally {
-                    service.close()
                     refreshInFlight = false
                 }
             }

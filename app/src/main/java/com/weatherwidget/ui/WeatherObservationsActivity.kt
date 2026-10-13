@@ -84,22 +84,20 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     /**
-     * Force-refresh seam for the automatic stale-display repair (test override point). Production
-     * wiring is the same call the manual refresh button makes, under a distinct reason token.
+     * Test override for the automatic stale-display repair's network call. Null in production: the
+     * same call the manual refresh button makes, under a distinct reason token, inside the runner.
      */
-    internal var forceRefreshDisplayedSource: suspend (Double, Double) -> Unit = { latitude, longitude ->
-        weatherRepository.refreshCurrentTemperature(
-            latitude,
-            longitude,
-            source = currentSource,
-            reason = "stale_observations_screen",
-            forceRefresh = true,
-        )
-    }
+    internal var forceRefreshDisplayedSource: (suspend (Double, Double) -> Unit)? = null
+
+    /** Test override for the Refresh button's network calls. Null in production; runs inside the runner. */
+    internal var refreshFetchOverride: (suspend (Double, Double, WeatherSource) -> Unit)? = null
 
     
     @Inject
     lateinit var weatherRepository: WeatherRepository
+
+    @Inject
+    lateinit var userRefreshRunner: com.weatherwidget.shared.util.UserRefreshRunner
     
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
@@ -377,11 +375,25 @@ class WeatherObservationsActivity : AppCompatActivity() {
             findViewById<View>(R.id.refresh_button).isEnabled = false
             findViewById<View>(R.id.refresh_button).alpha = 0.5f
             
-            withContext(ioDispatcher) {
-                weatherRepository.refreshCurrentTemperature(
-                    location.first,
-                    location.second,
-                    source = currentSource,
+            // In the app scope, not lifecycleScope: closing this screen mid-fetch cancelled the
+            // fetch and stored nothing (Fold 4, 2026-10-13). Leaving now cancels only the waiting.
+            val source = currentSource
+            val (lat, lon) = location
+            val repository = weatherRepository
+            val stateManager = widgetStateManager
+            val metar = metarObservationSource
+            val synoptic = synopticObservationSource
+            val dao = observationDao
+            val override = refreshFetchOverride
+            userRefreshRunner.start("user_observations_screen", afterDetached = repaintWidgetAfterDetach()) {
+                if (override != null) {
+                    override(lat, lon, source)
+                    return@start
+                }
+                repository.refreshCurrentTemperature(
+                    lat,
+                    lon,
+                    source = source,
                     reason = "user_observations_screen",
                     forceRefresh = true
                 )
@@ -391,21 +403,21 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 // refreshCurrentTemperature(source = provider), which dropped any provider that
                 // was not itself visible, so Google borrowing NWS fetched nothing here.
                 when (
-                    com.weatherwidget.shared.util.ActualsFeedPolicy.feedFor(currentSource, location.first, location.second) {
-                        widgetStateManager.getActualsProvider(it)
+                    com.weatherwidget.shared.util.ActualsFeedPolicy.feedFor(source, lat, lon) {
+                        stateManager.getActualsProvider(it)
                     }
                 ) {
                     WeatherSource.METAR -> {
-                        val rows = metarObservationSource.fetchObservations(location.first, location.second, hours = 24)
-                        if (rows.isNotEmpty()) observationDao.insertAll(rows)
+                        val rows = metar.fetchObservations(lat, lon, hours = 24)
+                        if (rows.isNotEmpty()) dao.insertAll(rows)
                     }
                     WeatherSource.SYNOPTIC -> {
-                        val rows = synopticObservationSource.fetchObservations(location.first, location.second, hours = 24)
-                        if (rows.isNotEmpty()) observationDao.insertAllRetaggingStationTypes(rows)
+                        val rows = synoptic.fetchObservations(lat, lon, hours = 24)
+                        if (rows.isNotEmpty()) dao.insertAllRetaggingStationTypes(rows)
                     }
                     else -> Unit
                 }
-            }
+            }.await()
             widgetContentChanged = true
             
             loadObservations()
@@ -515,6 +527,26 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     private fun effectiveVisibleSources(): List<WeatherSource> {
         return widgetStateManager.getVisibleSourcesOrder()
+    }
+
+    /**
+     * The repaint [onDestroy] would have sent had the fetch landed first: a fetch that outlives this
+     * screen asks for it itself. Captures only the application context and the widget id.
+     */
+    private fun <T> repaintWidgetAfterDetach(): suspend (T) -> Unit {
+        val appContext = applicationContext
+        val widgetId = appWidgetId
+        return {
+            if (WeatherObservationsSupport.shouldRefreshWidgetOnExit(widgetId, widgetContentChanged = true)) {
+                appContext.sendBroadcast(
+                    Intent(appContext, com.weatherwidget.widget.WidgetActionReceiver::class.java).apply {
+                        action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                        putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
+                    },
+                )
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -871,17 +903,36 @@ class WeatherObservationsActivity : AppCompatActivity() {
         prefs.edit().putLong(KEY_LAST_STALE_AUTO_REFRESH_MS, System.currentTimeMillis()).apply()
         lifecycleScope.launch {
             try {
-                withContext(ioDispatcher) {
+                val refreshedLocation = withContext(ioDispatcher) {
                     resampleLocation(applicationContext, TRIGGER_SOURCE)
                     // Re-resolve after the resample: if it detected a move, the anchor may have
                     // just changed, and fetching under the abandoned coordinate would write
                     // another orphan fragment.
-                    val refreshedLocation = resolveLocation() ?: location
-                    forceRefreshDisplayedSource(refreshedLocation.first, refreshedLocation.second)
+                    resolveLocation() ?: location
                 }
+                val (lat, lon) = refreshedLocation
+                val source = currentSource
+                val repository = weatherRepository
+                val override = forceRefreshDisplayedSource
+                // App scope, as the Refresh button: leaving the screen must not discard the fetch.
+                userRefreshRunner.start("stale_observations_screen", afterDetached = repaintWidgetAfterDetach()) {
+                    if (override != null) {
+                        override(lat, lon)
+                    } else {
+                        repository.refreshCurrentTemperature(
+                            lat,
+                            lon,
+                            source = source,
+                            reason = "stale_observations_screen",
+                            forceRefresh = true,
+                        )
+                    }
+                }.await()
                 widgetContentChanged = true
                 loadObservations()
                 loadFetchLogs()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Stale-display auto refresh failed", e)
                 withContext(ioDispatcher) {

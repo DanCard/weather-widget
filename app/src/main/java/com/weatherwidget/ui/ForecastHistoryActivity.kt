@@ -56,6 +56,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
     lateinit var forecastDao: ForecastDao
 
     @Inject
+    lateinit var userRefreshRunner: com.weatherwidget.shared.util.UserRefreshRunner
+
+    @Inject
     lateinit var dailyHistoryDao: DailyHistoryDao
 
     @Inject
@@ -74,6 +77,18 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private var refreshInFlight = false
 
     companion object {
+        /** Repaints the widget that opened this screen; application context only, so a detached fetch can call it. */
+        private fun sendUiOnlyWidgetRefresh(appContext: android.content.Context, widgetId: Int) {
+            if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return
+            appContext.sendBroadcast(
+                Intent(appContext, WidgetActionReceiver::class.java).apply {
+                    action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                    putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
+                },
+            )
+        }
+
         const val EXTRA_TARGET_DATE = "target_date"
         const val EXTRA_LAT = "latitude"
         const val EXTRA_LON = "longitude"
@@ -747,18 +762,29 @@ class ForecastHistoryActivity : AppCompatActivity() {
         lifecycleScope.launch {
             appLogDao.log("HISTORY_REFRESH_TAP", "outcome=fetch_started $tapContext", "INFO")
             val startMs = android.os.SystemClock.elapsedRealtime()
+            val lat = targetLat
+            val lon = targetLon
+            // A past day may refill its stale Google hours from history/hours.
+            val refillDay = com.weatherwidget.data.remote.GoogleHistoryRefill.refillDay(targetLocalDate, LocalDate.now())
+            val repository = weatherRepository
+            val appContext = applicationContext
+            val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
             val ok = try {
-                withContext(Dispatchers.IO) {
-                    weatherRepository.fetchSourceOnDemand(
-                        targetLat,
-                        targetLon,
+                // App scope, not lifecycleScope: leaving History mid-fetch must not discard it (a
+                // past Google day's history/hours is billed whether or not the result is kept).
+                userRefreshRunner.start(
+                    "history_refresh",
+                    afterDetached = { fetched -> if (fetched) sendUiOnlyWidgetRefresh(appContext, widgetId) },
+                ) {
+                    repository.fetchSourceOnDemand(
+                        lat,
+                        lon,
                         source,
                         request = null,
-                        // A past day may refill its stale Google hours from history/hours.
-                        historyRefillDay = com.weatherwidget.data.remote.GoogleHistoryRefill.refillDay(targetLocalDate, LocalDate.now()),
+                        historyRefillDay = refillDay,
                         userRefresh = true,
                     )
-                }
+                }.await()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -776,16 +802,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             Toast.makeText(this@ForecastHistoryActivity, getString(message, source.shortDisplayName), Toast.LENGTH_SHORT).show()
             if (!ok) return@launch
             loadData(targetDate, targetLat, targetLon, targetLocalDate, source)
-            val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-            if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                sendBroadcast(
-                    Intent(this@ForecastHistoryActivity, WidgetActionReceiver::class.java).apply {
-                        action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
-                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                        putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
-                    },
-                )
-            }
+            sendUiOnlyWidgetRefresh(appContext, widgetId)
         }
     }
 

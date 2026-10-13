@@ -5,6 +5,7 @@ import android.content.Context
 import com.weatherwidget.data.local.ApiUsageDao
 import com.weatherwidget.data.remote.ApiUsageClassifier
 import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.shared.util.UserRefreshRunner
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.ForecastDao
@@ -89,6 +90,19 @@ object AppModule {
     @ApplicationIoScope
     fun provideApplicationIoScope(): CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Fetches the user asks for from a screen run here, so closing the screen cancels only its
+     * waiting (plans/261013-observations-refresh-survives-closing-the-screen.md). The log write is
+     * launched: a detach is noticed on the screen's main-thread scope.
+     */
+    @Provides
+    @Singleton
+    fun provideUserRefreshRunner(
+        appLogDao: AppLogDao,
+        @ApplicationIoScope scope: CoroutineScope,
+    ): UserRefreshRunner =
+        UserRefreshRunner(scope) { tag, message, level -> scope.launch { appLogDao.log(tag, message, level) } }
 
     @Provides
     @Singleton
