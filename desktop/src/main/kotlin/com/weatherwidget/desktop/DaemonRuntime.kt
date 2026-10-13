@@ -869,6 +869,7 @@ internal class DaemonRuntime(
             longitude = config.lon,
             source = config.displaySource,
             resolveTemp = { raw, now -> newRepo.resolveCurrentTempInMemory(raw, now) },
+            logChange = { message -> weatherDao.log("CURRENT_STATUS_PUBLISH", message, "INFO") },
         )
 
         fetchJob = daemonScope.launch {

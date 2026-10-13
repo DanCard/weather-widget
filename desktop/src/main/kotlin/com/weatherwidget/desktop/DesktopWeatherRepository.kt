@@ -93,6 +93,12 @@ class DesktopWeatherRepository(
         val displayTemp: Float?,
         val appliedDelta: Float?,
         val deltaFromYesterday: Float?,
+        /** The blended observation the display is anchored on, and when it was observed (diagnostics). */
+        val observedTemp: Float? = null,
+        val observedAt: Long? = null,
+        /** Inputs the resolve saw inside its window (diagnostics). */
+        val windowObservations: Int = 0,
+        val windowHourly: Int = 0,
     )
 
     /** Epoch bounds + zone/nowLocal context for the current-temp resolution window. */
@@ -171,7 +177,15 @@ class DesktopWeatherRepository(
             personalStationWeight = personalStationWeight,
             zoneId = win.zoneId,
         )
-        return ResolvedCurrentTemp(resolution.displayTemp, resolution.appliedDelta, deltaFromYesterday)
+        return ResolvedCurrentTemp(
+            resolution.displayTemp,
+            resolution.appliedDelta,
+            deltaFromYesterday,
+            observedTemp = lastObservedTemp,
+            observedAt = observedAt,
+            windowObservations = narrowObs.size,
+            windowHourly = narrowHourly.size,
+        )
     }
 
     /**

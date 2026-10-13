@@ -60,4 +60,29 @@ resolved = ResolvedView(),
         assertNull(status.deltaFromYesterdayF)
         assertEquals(42L, status.updatedAt)
     }
+
+    /** CURRENT_STATUS_PUBLISH: on change only, carrying the inputs (the 2026-10-13 lone-KSJC 73.4). */
+    @Test
+    fun `the publish log fires on a real change and stays quiet on a repeat`() {
+        val logs = mutableListOf<String>()
+        var next = DesktopWeatherRepository.ResolvedCurrentTemp(71.76f, 1.5f, null, observedTemp = 71.5f, observedAt = 9L, windowObservations = 12, windowHourly = 4)
+        val resolver = CurrentStatusResolver(1.0, 2.0, "NWS", logChange = { logs += it }) { _, _ -> next }
+        val snapshot = ForecastSnapshot(raw = RawFetch(), resolved = ResolvedView())
+
+        resolver.resolve(snapshot, now = 1L)
+        resolver.resolve(snapshot, now = 2L) // same value: quiet
+        next = next.copy(displayTemp = 71.80f) // < 0.1°: quiet
+        resolver.resolve(snapshot, now = 3L)
+        next = next.copy(displayTemp = 73.4f, appliedDelta = null, observedTemp = 73.4f)
+        resolver.resolve(snapshot, now = 4L)
+
+        assertEquals(2, logs.size)
+        assertEquals(
+            "source=NWS display=71.76 appliedDelta=1.5 obs=71.5 observedAt=9 windowObs=12 windowHourly=4 " +
+                "snapshotObs=0 snapshotNewestObs=null snapshotHourly=0 previous=null",
+            logs[0],
+        )
+        assertEquals(true, logs[1].startsWith("source=NWS display=73.4 appliedDelta=null obs=73.4"))
+        assertEquals(true, logs[1].endsWith("previous=71.76"))
+    }
 }
