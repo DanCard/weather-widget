@@ -138,15 +138,18 @@ class LaunchRefreshJobsTest {
         val jobs = LaunchRefreshJobs(scope)
         jobs.start(STARTUP_REASON) { jobs.fetchOnce(key) { held.repo.refresh(reason = "launch:startup") } }
         withTimeout(10_000) { held.entered.await() }
-        val inFlight = jobs.start(SOURCE_CYCLE_REASON) { jobs.fetchOnce("GOOGLE_WEATHER@$lat,$lon") { Unit } }
+        // start() returns the PREVIOUS launch refresh: here the startup one, still held mid-fetch.
+        val startupRefresh = jobs.start(SOURCE_CYCLE_REASON) { jobs.fetchOnce("GOOGLE_WEATHER@$lat,$lon") { Unit } }
 
-        var skipped: Boolean? = null
-        val second = jobs.start(SOURCE_CYCLE_REASON) { skipped = jobs.fetchOnce(key) { held.repo.refresh(reason = "launch:again") } == null }
-        withTimeout(10_000) { second!!.join() }
-        assertEquals(true, skipped)
+        // Await the new refresh's own answer. Joining the job start() returned waited on the
+        // previous (Google) one, and the skip check — on Dispatchers.Default — had sometimes not run
+        // yet: "expected:<true> but was:<null>" (flaky 2026-10-12/13).
+        val skipped = CompletableDeferred<Boolean>()
+        jobs.start(SOURCE_CYCLE_REASON) { skipped.complete(jobs.fetchOnce(key) { held.repo.refresh(reason = "launch:again") } == null) }
+        assertTrue("the second ask for the same source is skipped", withTimeout(10_000) { skipped.await() })
 
         held.release.complete(Unit)
-        withTimeout(10_000) { inFlight!!.join() }
+        withTimeout(10_000) { startupRefresh!!.join() }
         assertEquals("one service request for the source", 1, held.calls.get())
         assertNotNull(dao.getLastSuccessfulFetch(source))
     }

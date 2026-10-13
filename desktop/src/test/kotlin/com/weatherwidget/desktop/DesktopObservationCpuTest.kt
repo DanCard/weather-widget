@@ -30,8 +30,9 @@ import org.junit.experimental.categories.Category
  * window, and reloads the cache (re-resolving the current temperature). This test measures the
  * **CPU time** that cycle consumes against a realistically-populated database.
  *
- * CPU time, not wall time, is the metric by design: process CPU time counts what this JVM actually
- * burned, so a busy machine that makes the test run slowly does NOT inflate it (wall time would).
+ * CPU time, not wall time, is the metric by design: a busy machine that makes the test run slowly
+ * does not inflate it the way it inflates wall time. Only the threads that run the cycle are
+ * counted ([workerCpuTimeNanos]); whole-process time also counted JIT, GC and leftover threads.
  * It is the same signal `~/bin/sys-logging.sh`'s `top` samples were showing — the reason this
  * latest-only change exists (plans/260820-desktop-observation-loop-latest-only.md).
  */
@@ -131,6 +132,26 @@ class DesktopObservationCpuTest {
         api = source,
     )
 
+    private val threadBean = java.lang.management.ManagementFactory.getThreadMXBean()
+
+    /**
+     * CPU time of the threads that run the cycle: this test thread and the coroutine pool
+     * (`Dispatchers.IO` shares `DefaultDispatcher-worker-*` threads with Default). Process CPU time
+     * also counted the JIT compilers, GC and coroutines left running by earlier test classes in
+     * this JVM, and failed the full suite at 502 ms against a cycle measured at ~165 ms alone.
+     */
+    private fun workerCpuTimeNanos(): Long {
+        val testThread = Thread.currentThread().name
+        return threadBean.allThreadIds.sumOf { id ->
+            val name = threadBean.getThreadInfo(id)?.threadName ?: return@sumOf 0L
+            if (name == testThread || name.startsWith("DefaultDispatcher-worker")) {
+                threadBean.getThreadCpuTime(id).coerceAtLeast(0L)
+            } else {
+                0L
+            }
+        }
+    }
+
     private fun processCpuTimeNanos(): Long {
         val bean = java.lang.management.ManagementFactory.getOperatingSystemMXBean()
         val cpu = (bean as? com.sun.management.OperatingSystemMXBean)?.processCpuTime ?: return -1L
@@ -146,15 +167,22 @@ class DesktopObservationCpuTest {
         repeat(3) { repository.refreshObservations() }
 
         val iterations = 5
-        val start = processCpuTimeNanos()
+        val processStart = processCpuTimeNanos()
+        val start = workerCpuTimeNanos()
         repeat(iterations) { repository.refreshObservations() }
-        val cpuMsPerIteration = (processCpuTimeNanos() - start) / iterations / 1_000_000L
+        val cpuMsPerIteration = (workerCpuTimeNanos() - start) / iterations / 1_000_000L
+        val processMsPerIteration = (processCpuTimeNanos() - processStart) / iterations / 1_000_000L
 
-        println("DIAGNOSTIC: refreshObservations CPU per iteration = ${cpuMsPerIteration}ms")
+        println(
+            "DIAGNOSTIC: refreshObservations CPU per iteration = ${cpuMsPerIteration}ms " +
+                "(whole process ${processMsPerIteration}ms)",
+        )
 
-        // Generous bound. The healthy path is single-digit ms; the bound exists to catch a real
-        // regression (e.g. re-introducing a ~2 500-row fetch/upsert or an O(n²) recompute), not to
-        // benchmark. Process CPU time is immune to machine load, so this is stable in CI.
+        // Generous bound. The cycle's own threads measured ~35 ms alone and ~68 ms with the full
+        // suite running beside it (hyperthread siblings busy, 2026-10-13); the bound exists to catch
+        // a real regression (e.g. re-introducing a ~2 500-row fetch/upsert or an O(n²) recompute),
+        // not to benchmark. CPU time is not fully immune to load — a busy sibling hyperthread makes
+        // the same work cost more — hence the headroom.
         assertTrue(
             "refreshObservations used ${cpuMsPerIteration}ms CPU per iteration, exceeding 500ms",
             cpuMsPerIteration < 500,
