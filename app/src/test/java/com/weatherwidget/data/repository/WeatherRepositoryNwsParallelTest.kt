@@ -83,7 +83,6 @@ class WeatherRepositoryNwsParallelTest {
             nwsApi,
             openMeteoApi,
             weatherApi,
-            mockk(relaxed = true),
             widgetStateManager,
             mockk(relaxed = true),
             observationRepo

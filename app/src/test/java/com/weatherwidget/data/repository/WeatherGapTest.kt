@@ -92,7 +92,6 @@ class WeatherGapTest {
             nwsApi,
             openMeteoApi,
             weatherApi,
-            mockk(relaxed = true),
             widgetStateManager,
 
             mockk(relaxed = true),

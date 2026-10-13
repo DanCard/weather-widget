@@ -98,7 +98,6 @@ class WeatherRepositoryTest {
             nwsApi,
             openMeteoApi,
             weatherApi,
-            mockk(relaxed = true),
             widgetStateManager,
             mockk(relaxed = true),
             mockk(relaxed = true)

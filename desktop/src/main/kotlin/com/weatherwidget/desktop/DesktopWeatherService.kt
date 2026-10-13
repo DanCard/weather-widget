@@ -121,6 +121,11 @@ class DesktopWeatherService(
     private val weatherApi = WeatherApi(httpClient, json) { effectiveKeys[WeatherSource.WEATHER_API.id] }
     private val silurian = SilurianApi(httpClient, json) { effectiveKeys[WeatherSource.SILURIAN.id] }
     private val openWeatherMap = OpenWeatherMapApi(httpClient, json) { effectiveKeys[WeatherSource.OPEN_WEATHER_MAP.id] }
+
+    /** The model feeds' current conditions, shared with Android (plans/261013-shared-current-conditions-fetch.md). */
+    private val currentConditions = com.weatherwidget.shared.observations.CurrentConditionsFetcher.of(
+        openMeteo, weatherApi, openWeatherMap, tomorrowIo,
+    )
     private val googleWeather = GoogleWeatherApi(
         httpClient,
         json,
@@ -1015,9 +1020,7 @@ class DesktopWeatherService(
             }
             WeatherSource.NWS -> fetchNwsObservationsOnly(recentOnly)
             WeatherSource.METAR, WeatherSource.SYNOPTIC -> fetchStationNetworkObservations(feed, recentOnly, userLocationChange)
-            WeatherSource.TOMORROW_IO -> fetchTomorrowIoObservationsOnly()
-            WeatherSource.OPEN_METEO -> fetchOpenMeteoObservationsOnly()
-            WeatherSource.OPEN_WEATHER_MAP -> fetchOpenWeatherMapObservationsOnly()
+            in com.weatherwidget.shared.observations.CurrentConditionsFetcher.FEEDS -> fetchCurrentConditions(feed)
             else -> {
                 Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path for feed ${feed.id}")
                 RawFetch()
@@ -1025,36 +1028,21 @@ class DesktopWeatherService(
         }
     }
 
-    private suspend fun fetchOpenMeteoObservationsOnly(): RawFetch {
-        val reading = openMeteo.getCurrent(latitude, longitude) ?: return RawFetch()
-        val timestamp = reading.observedAt ?: System.currentTimeMillis()
-        val condition = reading.weatherCode?.let { openMeteo.weatherCodeToCondition(it) } ?: "Unknown"
-        val observation = ObservationReading(
-            stationId = "OPEN_METEO_MAIN",
-            stationName = "Open-Meteo Current",
-            timestamp = timestamp,
-            temperature = reading.temperature,
-            condition = condition,
-            locationLat = latitude,
-            locationLon = longitude,
-            distanceKm = 0f,
-            stationType = StationType.OFFICIAL,
-            api = WeatherSource.OPEN_METEO.id,
-            cloudCover = reading.cloudCover,
-            cloudCoverLow = reading.cloudCoverLow,
-            cloudCoverMid = reading.cloudCoverMid,
-            cloudCoverHigh = reading.cloudCoverHigh,
-            cloudVerticalKind = if (
-                reading.cloudCoverLow != null ||
-                reading.cloudCoverMid != null ||
-                reading.cloudCoverHigh != null
-            ) {
-                CloudVerticalKind.PROVIDER_BANDS
-            } else {
-                CloudVerticalKind.NONE
-            },
+    /**
+     * A model feed through the shared fetcher (WeatherAPI gained a path here; it had none). Only the
+     * forecast-carried currents (OpenWeatherMap, WeatherAPI) name a provider current, as OWM did
+     * before the move: Open-Meteo's header resolves from its forecast timeline, Tomorrow.io's from
+     * its rows.
+     */
+    private suspend fun fetchCurrentConditions(feed: WeatherSource): RawFetch {
+        val result = currentConditions.fetch(feed, latitude, longitude) ?: return RawFetch()
+        val current = result.current?.takeIf { feed == WeatherSource.OPEN_WEATHER_MAP || feed == WeatherSource.WEATHER_API }
+        return RawFetch(
+            rawObservations = result.readings,
+            providerCurrentTemp = current?.temperature,
+            providerCurrentCondition = current?.condition,
+            providerCurrentObservedAt = current?.observedAt,
         )
-        return RawFetch(rawObservations = listOf(observation))
     }
 
     /**
@@ -1109,36 +1097,6 @@ class DesktopWeatherService(
             Log.i(TAG, "Observations-only refresh for $weatherSource: ${feed.id} is not a station network")
             return RawFetch()
         }
-    }
-
-    private suspend fun fetchTomorrowIoObservationsOnly(): RawFetch {
-        val history = tomorrowIo.getFiveMinuteHistory(
-            latitude,
-            longitude,
-            TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS,
-        )
-        return withHistoricalActuals(history, WeatherSource.TOMORROW_IO.id)
-    }
-
-    private suspend fun fetchOpenWeatherMapObservationsOnly(): RawFetch {
-        val forecast = openWeatherMap.getForecast(latitude, longitude)
-        val currentTemp = forecast.providerCurrentTemp ?: return RawFetch()
-        val observation = ObservationReading(
-            stationId = "OPEN_WEATHER_MAP_MAIN",
-            stationName = "OWM: Current",
-            timestamp = forecast.providerCurrentObservedAt ?: System.currentTimeMillis(),
-            temperature = currentTemp,
-            condition = forecast.providerCurrentCondition ?: "Unknown",
-            locationLat = latitude,
-            locationLon = longitude,
-            api = WeatherSource.OPEN_WEATHER_MAP.id,
-        )
-        return RawFetch(
-            rawObservations = listOf(observation),
-            providerCurrentTemp = currentTemp,
-            providerCurrentCondition = forecast.providerCurrentCondition,
-            providerCurrentObservedAt = forecast.providerCurrentObservedAt,
-        )
     }
 
     private suspend fun fetchNwsObservationsOnly(recentOnly: Boolean): RawFetch = coroutineScope {

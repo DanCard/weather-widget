@@ -1,8 +1,8 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.local.toEntity
 import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
-import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.remote.AviationWeatherApi
@@ -72,36 +72,6 @@ class MetarObservationSource(
             is FetchOutcome.NoData -> FetchOutcome.NoData
             is FetchOutcome.Failed -> outcome
         }
-
-    private fun com.weatherwidget.data.model.ObservationReading.toEntity() = ObservationEntity(
-        stationId = stationId,
-        stationName = stationName,
-        timestamp = timestamp,
-        temperature = temperature,
-        condition = condition,
-        locationLat = LocationMatch.quantize(locationLat),
-        locationLon = LocationMatch.quantize(locationLon),
-        distanceKm = distanceKm,
-        stationType = stationType,
-        maxTempLast24h = maxTempLast24h,
-        minTempLast24h = minTempLast24h,
-        api = api,
-        precipAmountMm = precipAmountMm,
-        isWebFallback = isWebFallback,
-        qcFailed = qcFailed,
-        cloudCover = cloudCover,
-        cloudCoverLow = cloudCoverLow,
-        isMetar = isMetar,
-        rawMetar = rawMetar,
-        cloudCoverMid = cloudCoverMid,
-        cloudCoverHigh = cloudCoverHigh,
-        cloudBaseLowMeters = cloudBaseLowMeters,
-        cloudBaseMidMeters = cloudBaseMidMeters,
-        cloudBaseHighMeters = cloudBaseHighMeters,
-        cloudEnvelopeBaseMeters = cloudEnvelopeBaseMeters,
-        cloudEnvelopeTopMeters = cloudEnvelopeTopMeters,
-        cloudVerticalKind = cloudVerticalKind,
-    )
 
     companion object {
         /** Retained for callers that reason about the discovery cache lifetime. */

@@ -71,7 +71,6 @@ class WeatherGapIntegrationTest {
             mockk(relaxed = true),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            mockk(relaxed = true),
             mockk(relaxed = true)
         )
         repository = WeatherRepository(

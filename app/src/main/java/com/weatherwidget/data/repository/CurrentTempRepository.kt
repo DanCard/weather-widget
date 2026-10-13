@@ -1,8 +1,6 @@
 package com.weatherwidget.data.repository
 
-import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.remote.FetchErrorCode
-import com.weatherwidget.data.remote.GoogleWeatherApi
 import android.content.Context
 import android.location.Location
 import android.os.SystemClock
@@ -13,11 +11,10 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.withQuantizedLocation
+import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
-import com.weatherwidget.data.model.CloudVerticalKind
-import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -26,20 +23,17 @@ import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.data.remote.GoogleQuota
 import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.WeatherApi
-import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
+import com.weatherwidget.shared.observations.CurrentConditionsFetcher
 import com.weatherwidget.shared.util.ActualsFeedPolicy
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.shared.util.TemperatureInterpolator
-import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.util.NetworkRestrictionHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.statement.bodyAsText
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -66,15 +60,16 @@ class CurrentTempRepository
         private val nwsApi: NwsApi,
         private val openMeteoApi: OpenMeteoApi,
         private val weatherApi: WeatherApi,
-        private val silurianApi: SilurianApi,
         private val widgetStateManager: WidgetStateManager,
         private val dailyHistoryDao: DailyHistoryDao,
         private val observationRepository: ObservationRepository,
         private val tomorrowIoApi: TomorrowIoApi? = null,
         private val openWeatherMapApi: OpenWeatherMapApi? = null,
-        private val googleWeatherApi: GoogleWeatherApi? = null,
     ) {
         private val syncMutex = Mutex()
+
+        /** The model feeds' current conditions, shared with desktop (plans/261013-shared-current-conditions-fetch.md). */
+        private val currentConditions = CurrentConditionsFetcher.of(openMeteoApi, weatherApi, openWeatherMapApi, tomorrowIoApi)
         companion object {
             private val logTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
             private fun formatLogTime(ms: Long?): String = if (ms == null) "none" else logTimeFormatter.format(Instant.ofEpochMilli(ms))
@@ -90,11 +85,6 @@ class CurrentTempRepository
             // the source the user is viewing stays fresh even if it sits low in the global order.
             private const val LOW_PRIORITY_RANK_THRESHOLD = 3
             private const val LOW_PRIORITY_CURRENT_TEMP_INTERVAL_MS = 3_600_000L // 60 minutes
-
-            // Spatial-interpolation sample grid around the user (see getPointsOfInterest). ~0.072°
-            // lat ≈ 8 km and ~0.09° lon ≈ 9-10 km at mid-latitudes.
-            private const val POI_LAT_OFFSET_DEGREES = 0.072
-            private const val POI_LON_OFFSET_DEGREES = 0.09
         }
 
         suspend fun refreshCurrentTemperature(
@@ -224,234 +214,37 @@ class CurrentTempRepository
 
         private suspend fun fetchFromSource(source: WeatherSource, latitude: Double, longitude: Double): CurrentReadingPayload? =
             when (source) {
-                WeatherSource.OPEN_WEATHER_MAP -> fetchOpenWeatherMapCurrent(latitude, longitude)
-                WeatherSource.OPEN_METEO -> fetchOpenMeteoCurrent(latitude, longitude)
-                WeatherSource.WEATHER_API -> fetchWeatherApiCurrent(latitude, longitude)
                 WeatherSource.NWS -> observationRepository.fetchNwsCurrent(latitude, longitude)
-                WeatherSource.SILURIAN -> fetchSilurianCurrent(latitude, longitude)
-                WeatherSource.TOMORROW_IO -> fetchTomorrowIoCurrent(latitude, longitude)
-                WeatherSource.GOOGLE_WEATHER -> fetchGoogleWeatherCurrent(latitude, longitude)
+                in CurrentConditionsFetcher.FEEDS -> fetchCurrentConditions(source, latitude, longitude)
                 else -> null
             }
 
-        private suspend fun fetchOpenWeatherMapCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
-            val api = openWeatherMapApi ?: return@coroutineScope null
-            fetchForecastCurrent(
-                source = WeatherSource.OPEN_WEATHER_MAP,
-                stationPrefix = "OPEN_WEATHER_MAP",
-                stationLabelPrefix = "OWM",
-                latitude = latitude,
-                longitude = longitude,
-            ) { lat, lon -> api.getForecast(lat, lon) }
-        }
-
-        private suspend fun fetchForecastCurrent(
-            source: WeatherSource,
-            stationPrefix: String,
-            stationLabelPrefix: String,
-            latitude: Double,
-            longitude: Double,
-            fetch: suspend (Double, Double) -> RawFetch,
-        ): CurrentReadingPayload? = coroutineScope {
-            val pointsOfInterest = getPointsOfInterest(latitude, longitude)
-            val deferredResults = pointsOfInterest.mapIndexed { index, point ->
-                async {
-                    val result = try {
-                        fetch(point.first, point.second)
-                    } catch (e: ApiAccessException) {
-                        throw e
-                    } catch (e: ClientRequestException) {
-                        checkAndRethrowFailure(source, e)
-                        null
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        null
-                    }
-                    val currentTemp = result?.providerCurrentTemp
-                    if (result != null && currentTemp != null) {
-                        val stationId = if (point.third == "Current") "${stationPrefix}_MAIN" else "${stationPrefix}_$index"
-                        val condition = result.providerCurrentCondition ?: "Unknown"
-                        val obsEntity = ObservationEntity(
-                            stationId,
-                            "$stationLabelPrefix: ${point.third}",
-                            result.providerCurrentObservedAt ?: System.currentTimeMillis(),
-                            currentTemp,
-                            condition,
-                            point.first,
-                            point.second,
-                            calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
-                            StationType.OFFICIAL,
-                            api = source.id,
-                        )
-                        insertCurrentObservation(obsEntity)
-                    }
-                    result
-                }
-            }.map { it.await() }
-
-            deferredResults.firstNotNullOfOrNull { result ->
-                val forecastResult = result ?: return@firstNotNullOfOrNull null
-                val currentTemp = forecastResult.providerCurrentTemp
-                if (currentTemp != null) {
-                    CurrentReadingPayload(source, currentTemp, forecastResult.providerCurrentCondition, forecastResult.providerCurrentObservedAt)
-                } else {
-                    null
-                }
-            }
-        }
-
-        private suspend fun fetchOpenMeteoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
-            val pointsOfInterest = getPointsOfInterest(latitude, longitude)
-            val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
-                async {
-                    val reading = try {
-                        openMeteoApi.getCurrent(point.first, point.second)
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        null
-                    }
-                    if (reading != null) {
-                        val condition = reading.weatherCode?.let { openMeteoApi.weatherCodeToCondition(it) } ?: "Unknown"
-                        val stationId = if (point.third == "Current") "OPEN_METEO_MAIN" else "OPEN_METEO_$index"
-                        val obsEntity = ObservationEntity(
-                            stationId = stationId,
-                            stationName = "Meteo: ${point.third}",
-                            timestamp = reading.observedAt ?: System.currentTimeMillis(),
-                            temperature = reading.temperature,
-                            condition = condition,
-                            locationLat = point.first,
-                            locationLon = point.second,
-                            distanceKm = calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
-                            stationType = StationType.OFFICIAL,
-                            api = WeatherSource.OPEN_METEO.id,
-                            cloudCover = reading.cloudCover,
-                            cloudCoverLow = reading.cloudCoverLow,
-                            cloudCoverMid = reading.cloudCoverMid,
-                            cloudCoverHigh = reading.cloudCoverHigh,
-                            cloudVerticalKind = if (
-                                reading.cloudCoverLow != null ||
-                                reading.cloudCoverMid != null ||
-                                reading.cloudCoverHigh != null
-                            ) {
-                                CloudVerticalKind.PROVIDER_BANDS
-                            } else {
-                                CloudVerticalKind.NONE
-                            },
-                        )
-                        insertCurrentObservation(obsEntity)
-                    }
-                    reading
-                }
-            }.map { it.await() }
-
-            deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
-                CurrentReadingPayload(
-                    WeatherSource.OPEN_METEO,
-                    reading.temperature,
-                    reading.weatherCode?.let { openMeteoApi.weatherCodeToCondition(it) },
-                    reading.observedAt,
-                )
-            }
-        }
-
         /**
-         * Centre point only, via the one-request current endpoint. Not [fetchForecastCurrent]: that
-         * runs a full forecast at five points, which for a per-request-billed source would cost 30
-         * calls every refresh. Google borrows actuals, so the offset POIs would feed nothing anyway.
+         * A model feed through the shared [CurrentConditionsFetcher]; this side stores the rows and logs.
+         * A failed request the provider did not refuse is "no reading", not a source failure, as before
+         * the move: only an [ApiAccessException] reaches the failure record (Phase 3 sets one rule).
          */
-        private suspend fun fetchGoogleWeatherCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? {
-            val api = googleWeatherApi ?: return null
-            val result = api.getCurrent(latitude, longitude)
-            val currentTemp = result.providerCurrentTemp ?: return null
-            insertCurrentObservation(
-                ObservationEntity(
-                    "GOOGLE_WEATHER_MAIN",
-                    "Google: Current",
-                    result.providerCurrentObservedAt ?: System.currentTimeMillis(),
-                    currentTemp,
-                    result.providerCurrentCondition ?: "Unknown",
-                    latitude,
-                    longitude,
-                    0f,
-                    StationType.OFFICIAL,
-                    api = WeatherSource.GOOGLE_WEATHER.id,
-                ),
-            )
-            return CurrentReadingPayload(
-                WeatherSource.GOOGLE_WEATHER,
-                currentTemp,
-                result.providerCurrentCondition,
-                result.providerCurrentObservedAt,
-            )
-        }
-
-        private suspend fun fetchSilurianCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
-            fetchForecastCurrent(
-                source = WeatherSource.SILURIAN,
-                stationPrefix = "SILURIAN",
-                stationLabelPrefix = "Silurian",
-                latitude = latitude,
-                longitude = longitude,
-            ) { lat, lon -> silurianApi.getForecast(lat, lon) }
-        }
-        private suspend fun fetchWeatherApiCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
-            fetchForecastCurrent(
-                source = WeatherSource.WEATHER_API,
-                stationPrefix = "WEATHER_API",
-                stationLabelPrefix = "WAPI",
-                latitude = latitude,
-                longitude = longitude,
-            ) { lat, lon -> weatherApi.getForecast(lat, lon) }
-        }
-
-        private suspend fun fetchTomorrowIoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? {
-            val api = tomorrowIoApi ?: return null
+        private suspend fun fetchCurrentConditions(feed: WeatherSource, latitude: Double, longitude: Double): CurrentReadingPayload? {
             val result = try {
-                api.getFiveMinuteHistory(
-                    latitude,
-                    longitude,
-                    TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS,
-                )
+                currentConditions.fetch(feed, latitude, longitude)
             } catch (e: ApiAccessException) {
                 throw e
-            } catch (e: ClientRequestException) {
-                checkAndRethrowFailure(WeatherSource.TOMORROW_IO, e)
-                null
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 null
             } ?: return null
-            val fetchedAt = System.currentTimeMillis()
-            val readings = HistoricalActualsBackfill.build(
-                hourly = result.subHourly,
-                latitude = latitude,
-                longitude = longitude,
-                sourceId = WeatherSource.TOMORROW_IO.id,
-                nowMs = fetchedAt,
-                fetchedAt = fetchedAt,
-            )
-            val entities = readings.map { reading ->
-                ObservationEntity(
-                        stationId = reading.stationId,
-                        stationName = reading.stationName,
-                        timestamp = reading.timestamp,
-                        temperature = reading.temperature,
-                        condition = reading.condition,
-                        locationLat = reading.locationLat,
-                        locationLon = reading.locationLon,
-                        distanceKm = reading.distanceKm,
-                        stationType = reading.stationType,
-                        fetchedAt = reading.fetchedAt,
-                        api = reading.api,
-                        cloudCover = reading.cloudCover,
-                        cloudEnvelopeBaseMeters = reading.cloudEnvelopeBaseMeters,
-                        cloudEnvelopeTopMeters = reading.cloudEnvelopeTopMeters,
-                        cloudVerticalKind = reading.cloudVerticalKind,
-                    ).withQuantizedLocation()
+            val entities = result.readings.map { it.toEntity() }
+            if (feed == WeatherSource.TOMORROW_IO) {
+                storeTomorrowIoHistory(entities, latitude, longitude)
+            } else {
+                entities.forEach { insertCurrentObservation(it) }
             }
+            return result.current?.let { CurrentReadingPayload(it.source, it.temperature, it.condition, it.observedAt) }
+        }
+
+        /** Tomorrow.io's five-minute window: one batch, with how many rows it replaced, then the retired-product cleanup. */
+        private suspend fun storeTomorrowIoHistory(entities: List<ObservationEntity>, latitude: Double, longitude: Double) {
             val replacementCount = if (entities.isEmpty()) {
                 0
             } else {
@@ -487,32 +280,7 @@ class CurrentTempRepository
                 dailyHistoryDao = dailyHistoryDao,
                 appLogDao = appLogDao,
             )
-            val latest = readings.maxByOrNull { it.timestamp } ?: return null
-            return CurrentReadingPayload(
-                source = WeatherSource.TOMORROW_IO,
-                temperature = latest.temperature,
-                condition = latest.condition,
-                observedAt = latest.timestamp,
-            )
         }
-
-        /**
-         * Five fetch points for the current temperature: the user's site plus four offset samples.
-         * Each is filed as its own stationId — the centre as `<SOURCE>_MAIN` (the synthetic backfill
-         * ID), the offsets as `<SOURCE>_<index>` — so the IDW blend can spatially interpolate. The
-         * offsets are deliberately NOT flagged synthetic (see
-         * ObservationSourceMatcher.isSyntheticBackfillStation): they rank as real "sites" in the
-         * blend and surface as POIs in the stations list, while the centre row is the synthetic
-         * backfill and is deprioritised against them.
-         */
-        private fun getPointsOfInterest(latitude: Double, longitude: Double): List<Triple<Double, Double, String>> =
-            listOf(
-                Triple(latitude, longitude, "Current"),
-                Triple(latitude + POI_LAT_OFFSET_DEGREES, longitude, "North"),
-                Triple(latitude - POI_LAT_OFFSET_DEGREES, longitude, "South"),
-                Triple(latitude, longitude + POI_LON_OFFSET_DEGREES, "East"),
-                Triple(latitude, longitude - POI_LON_OFFSET_DEGREES, "West"),
-            )
 
         private fun extractCurrentErrorCode(exception: Exception): String =
             FetchErrorCode.of(exception) { NetworkRestrictionHelper.isBackgroundDataRestricted(context) }
@@ -593,35 +361,6 @@ class CurrentTempRepository
                 "INFO",
             )
         }
-
-        private suspend fun checkAndRethrowFailure(source: WeatherSource, exception: ClientRequestException) {
-            val status = exception.response.status.value
-            if (status == 429) {
-                val detail = extractHttpErrorDetail(
-                    runCatching { exception.response.bodyAsText() }.getOrNull(),
-                    exception.message,
-                )
-                throw ApiAccessException(
-                    source = source,
-                    statusCode = 429,
-                    detail = detail,
-                    message = "${source.displayName} 429 rate limit. $detail",
-                )
-            }
-            if (status == 401) {
-                val detail = extractHttpErrorDetail(
-                    runCatching { exception.response.bodyAsText() }.getOrNull(),
-                    exception.message,
-                )
-                throw ApiAccessException(
-                    source = source,
-                    statusCode = 401,
-                    detail = detail,
-                    message = "${source.displayName} 401 error. $detail",
-                )
-            }
-        }
-
 
         private fun extractHttpErrorDetail(body: String?, fallbackMessage: String?): String {
             val bodyText = body?.trim().orEmpty()

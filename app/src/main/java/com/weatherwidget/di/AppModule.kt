@@ -325,8 +325,7 @@ object AppModule {
         googleWeatherApi: GoogleWeatherApi,
     ): CurrentTempRepository = CurrentTempRepository(
         context, observationDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi,
-        googleWeatherApi = googleWeatherApi,
+        nwsApi, openMeteoApi, weatherApi, widgetStateManager, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi,
     )
 
     @Provides

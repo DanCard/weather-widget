@@ -94,7 +94,6 @@ class NwsMiddayOverrideTest {
             nwsApi,
             openMeteoApi,
             weatherApi,
-            mockk(relaxed = true),
             widgetStateManager,
 
             mockk(relaxed = true),

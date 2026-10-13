@@ -71,7 +71,6 @@ class YesterdayActualHighConsistencyTest {
             nwsApi,
             openMeteoApi,
             weatherApi,
-            silurianApi,
             widgetStateManager,
             db.dailyHistoryDao(),
             observationRepository,

@@ -71,7 +71,7 @@ class DailyLiveTodayWindowConsistencyTest {
         )
         val currentTempRepository = CurrentTempRepository(
             context, db.observationDao(), db.hourlyForecastDao(), db.appLogDao(), nwsApi, openMeteoApi,
-            weatherApi, silurianApi, widgetStateManager, db.dailyHistoryDao(),
+            weatherApi, widgetStateManager, db.dailyHistoryDao(),
             observationRepository, tomorrowIoApi, openWeatherMapApi,
         )
         val nwsForecastMapper = NwsForecastMapper(nwsApi, db.appLogDao())

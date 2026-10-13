@@ -70,7 +70,6 @@ class WeatherRepositoryRateLimitIntegrationTest {
             nwsApi,
             openMeteoApi,
             weatherApi,
-            mockk(relaxed = true),
             widgetStateManager,
             mockk(relaxed = true),
             mockk(relaxed = true)

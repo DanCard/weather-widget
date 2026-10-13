@@ -96,6 +96,42 @@ fun selectNearestObservationSite(
         ObservationEntity::locationLon,
     )
 
+/**
+ * The row to store for a fetched reading, location snapped to the shared write-key grid
+ * ([LocationMatch.quantize]) like every other observation write. The one converter for the shared
+ * fetchers' output (METAR, Synoptic, current conditions).
+ */
+fun com.weatherwidget.data.model.ObservationReading.toEntity() = ObservationEntity(
+    stationId = stationId,
+    stationName = stationName,
+    timestamp = timestamp,
+    temperature = temperature,
+    condition = condition,
+    locationLat = LocationMatch.quantize(locationLat),
+    locationLon = LocationMatch.quantize(locationLon),
+    distanceKm = distanceKm,
+    stationType = stationType,
+    maxTempLast24h = maxTempLast24h,
+    minTempLast24h = minTempLast24h,
+    api = api,
+    fetchedAt = fetchedAt,
+    precipAmountMm = precipAmountMm,
+    isWebFallback = isWebFallback,
+    qcFailed = qcFailed,
+    cloudCover = cloudCover,
+    cloudCoverLow = cloudCoverLow,
+    isMetar = isMetar,
+    rawMetar = rawMetar,
+    cloudCoverMid = cloudCoverMid,
+    cloudCoverHigh = cloudCoverHigh,
+    cloudBaseLowMeters = cloudBaseLowMeters,
+    cloudBaseMidMeters = cloudBaseMidMeters,
+    cloudBaseHighMeters = cloudBaseHighMeters,
+    cloudEnvelopeBaseMeters = cloudEnvelopeBaseMeters,
+    cloudEnvelopeTopMeters = cloudEnvelopeTopMeters,
+    cloudVerticalKind = cloudVerticalKind,
+)
+
 fun ObservationEntity.toReading() = com.weatherwidget.data.model.ObservationReading(
     stationId = stationId,
     stationName = stationName,

@@ -71,7 +71,6 @@ class ForecastSnapshotDeduplicationTest {
             mockk(),
             mockk(relaxed = true),
             mockk(relaxed = true),
-            mockk(relaxed = true),
             mockk(relaxed = true)
         )
         repository = WeatherRepository(context, forecastRepo, currentRepo, db.forecastDao(), db.appLogDao(), mockk(relaxed = true))
