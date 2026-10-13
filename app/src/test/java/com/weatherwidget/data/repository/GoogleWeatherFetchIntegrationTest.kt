@@ -275,9 +275,18 @@ class GoogleWeatherFetchIntegrationTest {
         val repo = repository()
         repo.getWeatherData(lat, lon, forceRefresh = true)
         val afterFull = storedPeriods()
+        val firstFetchRequests = requests.size
         repo.getWeatherData(lat, lon, forceRefresh = true)
+        // Every request, split by fetch, so a short count says which fetch skipped a page.
+        fun describe(list: List<io.ktor.client.request.HttpRequestData>) =
+            list.joinToString { "${it.url.encodedPath.split('/').takeLast(2).joinToString("/")}?pageToken=${it.url.parameters["pageToken"] ?: "-"}" }
+        // Flaky in full runs only (2026-10-13: 3 instead of 4); what each fetch planned and paged.
+        val planLogs = listOf("FETCH_PLAN", "GOOGLE_HOURS_PAGES", "HOURLY_FETCH").flatMap { tag ->
+            db.appLogDao().getLogsByTag(tag, 20).map { "${it.timestamp} $tag ${it.message}" }
+        }.sorted()
         assertEquals(
-            "second fetch must be the one-page path",
+            "second fetch must be the one-page path; first=[${describe(requests.take(firstFetchRequests))}] " +
+                "second=[${describe(requests.drop(firstFetchRequests))}] logs=$planLogs",
             4,
             requests.count { it.url.encodedPath.endsWith("forecast/hours:lookup") },
         )
