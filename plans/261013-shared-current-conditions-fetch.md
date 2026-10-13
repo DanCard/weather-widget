@@ -293,3 +293,10 @@ shared `webRows`.
 - **Tests:**
   - `CurrentConditionsRunTest` (7), including the user's exact settings.
   - `ActualsFeedPolicyTest` +2: redirected source not fetched; NWS outside coverage.
+- **Live (after commit 51194fc7):**
+  - Fold 4 at 15:43:45 and desktop at 15:56:57 each logged
+    `CURR_FETCH_START reason=charging_loop targets=NWS` → NWS `success=true` →
+    `CURR_FETCH_COMPLETE successCount=1 attempted=1`.
+  - One feed; no Open-Meteo, no Google.
+  - Desktop then ran its displayed-source post-processing
+    (`OBS_REFRESH source=GOOGLE_WEATHER obs=35`).
