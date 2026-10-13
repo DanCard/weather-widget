@@ -22,13 +22,21 @@ object DailyHistoryBackfillCoordinator {
 
     const val HISTORY_BACKFILL_VISIBLE_DAYS = 7L
 
+    /**
+     * Whether the daily view probes recent observation coverage for a repair. Asked of the
+     * **actuals provider**, not the displayed source: Google/Silurian inside NWS coverage draw
+     * NWS actuals, and a night with no NWS rows (device off) withheld their today low with
+     * nothing to re-fetch it, because this asked `displaySource == NWS`
+     * (plans/261013-daily-view-backfills-borrowed-nws-actuals.md). Only NWS history is
+     * gap-fetchable here, so other providers skip the read entirely.
+     */
     fun shouldProbeHistoryBackfill(
-        displaySource: WeatherSource,
+        actualsSource: WeatherSource,
         centerDate: LocalDate,
         today: LocalDate,
         visibleDays: Long = HISTORY_BACKFILL_VISIBLE_DAYS,
     ): Boolean =
-        displaySource == WeatherSource.NWS && !centerDate.isBefore(today.minusDays(visibleDays))
+        actualsSource == WeatherSource.NWS && !centerDate.isBefore(today.minusDays(visibleDays))
 
     suspend fun maybeBackfillIncompleteHistory(
         context: Context,
@@ -44,7 +52,10 @@ object DailyHistoryBackfillCoordinator {
         now: LocalDateTime,
     ) {
         if (repository == null) return
-        if (!shouldProbeHistoryBackfill(displaySource, centerDate, today)) return
+        // The same resolver maybeEnqueueHourlyObservationBackfill uses, so gate, read and enqueue
+        // are about one series.
+        val actualsSource = backfillActualsSource(displaySource, lat, lon)
+        if (!shouldProbeHistoryBackfill(actualsSource, centerDate, today)) return
         if (hourlyBackfillCoolingDown(stateManager, appWidgetId, displaySource, lat, lon)) return
 
         val graphStart = now.minusHours(WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS)
@@ -56,7 +67,7 @@ object DailyHistoryBackfillCoordinator {
             maxEpoch,
             lat,
             lon,
-            ActualsReadScope.apisFor(displaySource),
+            ActualsReadScope.apisFor(actualsSource),
         )
         maybeEnqueueHourlyObservationBackfill(
             context = context,

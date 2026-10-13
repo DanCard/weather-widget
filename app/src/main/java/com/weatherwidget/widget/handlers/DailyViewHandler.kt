@@ -562,17 +562,18 @@ object DailyViewHandler : WidgetViewHandler {
     }
 
     /**
-     * Whether the daily view should probe recent NWS observation coverage for a backfill. Only
-     * NWS history is gap-fetchable, and only the recent window ([HISTORY_BACKFILL_VISIBLE_DAYS])
-     * is still served by NWS — probing older navigation targets just wastes a DB query.
+     * Whether the daily view should probe recent NWS observation coverage for a backfill, asked of
+     * the **actuals provider** (Google inside NWS coverage → NWS). Only NWS history is
+     * gap-fetchable, and only the recent window ([HISTORY_BACKFILL_VISIBLE_DAYS]) is still served
+     * by NWS — probing older navigation targets just wastes a DB query.
      */
     @VisibleForTesting
     internal fun shouldProbeHistoryBackfill(
-        displaySource: WeatherSource,
+        actualsSource: WeatherSource,
         centerDate: LocalDate,
         today: LocalDate,
         visibleDays: Long = DailyHistoryBackfillCoordinator.HISTORY_BACKFILL_VISIBLE_DAYS,
-    ): Boolean = DailyHistoryBackfillCoordinator.shouldProbeHistoryBackfill(displaySource, centerDate, today, visibleDays)
+    ): Boolean = DailyHistoryBackfillCoordinator.shouldProbeHistoryBackfill(actualsSource, centerDate, today, visibleDays)
 
     @VisibleForTesting
     internal suspend fun maybeBackfillIncompleteHistory(

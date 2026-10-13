@@ -77,10 +77,12 @@ class DailyBackfillProbeCostTest {
     }
 
     @Test
-    fun `a non-NWS source never probes, whatever the cooldown says`() = runBlocking {
+    fun `a source whose actuals are not NWS never probes, whatever the cooldown says`() = runBlocking {
         val repository = mockk<WeatherRepository>(relaxed = true)
 
-        for (source in listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN, WeatherSource.TOMORROW_IO)) {
+        // Silurian left this list 2026-10-13: inside NWS coverage it borrows NWS actuals and must
+        // probe (see `a borrower inside NWS coverage probes the NWS series` below).
+        for (source in listOf(WeatherSource.OPEN_METEO, WeatherSource.TOMORROW_IO)) {
             DailyViewHandler.maybeBackfillIncompleteHistory(
                 context = mockk<Context>(relaxed = true),
                 database = mockk<WeatherDatabase>(relaxed = true),
@@ -160,6 +162,64 @@ class DailyBackfillProbeCostTest {
             lon = lon,
             centerDate = today.minusDays(30),
             today = today,
+            now = now,
+        )
+
+        coVerify(exactly = 0) {
+            repository.getObservationsInRange(any(), any(), any(), any(), any())
+        }
+    }
+
+    /**
+     * Emulator 2026-10-13: Google displayed, device off overnight, NWS rows only from 08:10. The
+     * today low was withheld (day start uncovered) and nothing re-fetched the night, because this
+     * probe only ran for a displayed NWS. A borrower now probes its provider's series.
+     */
+    @Test
+    fun `a borrower inside NWS coverage probes the NWS series`() = runBlocking {
+        for (source in listOf(WeatherSource.GOOGLE_WEATHER, WeatherSource.SILURIAN)) {
+            val repository = mockk<WeatherRepository>(relaxed = true)
+            val apisSlot = slot<Collection<String>?>()
+            coEvery {
+                repository.getObservationsInRange(any(), any(), any(), any(), captureNullable(apisSlot))
+            } returns emptyList()
+
+            DailyViewHandler.maybeBackfillIncompleteHistory(
+                context = mockk<Context>(relaxed = true),
+                database = mockk<WeatherDatabase>(relaxed = true),
+                repository = repository,
+                stateManager = stateManager(coolingDown = false),
+                appWidgetId = 345,
+                displaySource = source,
+                lat = lat,
+                lon = lon,
+                centerDate = now.toLocalDate(),
+                today = now.toLocalDate(),
+                now = now,
+            )
+
+            coVerify(exactly = 1) {
+                repository.getObservationsInRange(any(), any(), any(), any(), any())
+            }
+            assertEquals("$source reads the NWS series it draws", ActualsReadScope.apisFor(WeatherSource.NWS), apisSlot.captured!!.toSet())
+        }
+    }
+
+    @Test
+    fun `a borrower outside NWS coverage does not probe`() = runBlocking {
+        val repository = mockk<WeatherRepository>(relaxed = true)
+
+        DailyViewHandler.maybeBackfillIncompleteHistory(
+            context = mockk<Context>(relaxed = true),
+            database = mockk<WeatherDatabase>(relaxed = true),
+            repository = repository,
+            stateManager = stateManager(coolingDown = false),
+            appWidgetId = 345,
+            displaySource = WeatherSource.GOOGLE_WEATHER,
+            lat = 50.45, // Kyiv: borrows METAR
+            lon = 30.52,
+            centerDate = now.toLocalDate(),
+            today = now.toLocalDate(),
             now = now,
         )
 
