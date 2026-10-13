@@ -7,12 +7,6 @@ package com.weatherwidget.shared.util
 object DailyDayValueResolver {
 
     /**
-     * After this local hour (9am) the day's overnight low is effectively settled, so the today
-     * column's low number tracks the observed actual instead of the forecast.
-     */
-    const val ACTUAL_LOW_CUTOFF_HOUR = 9
-
-    /**
      * After this local hour (5pm = 17:00) the day's high is effectively settled, so the today
      * column's high number tracks the observed actual instead of the forecast.
      */
@@ -209,41 +203,41 @@ object DailyDayValueResolver {
      * The "headline" low used for the today column's single low number. Mirror of
      * [effectiveHighForLabel].
      *
-     * Before the cutoff = `min(observed low, forecast low)` (the forecast can still win when
-     * the predicted low has not been reached yet). Once the overnight low is settled (local
-     * time past [ACTUAL_LOW_CUTOFF_HOUR]) the number tracks the observed actual and drops the
-     * forecast; if no actual exists yet it falls back to the forecast-inclusive blend.
+     * Until settled = `min(observed low, forecast low)` (the forecast can still win when the
+     * predicted low has not been reached yet). Once the overnight low is settled ([lowSettled],
+     * decided by [TodayLowSettle]: sunrise + 30 min with a rising 3 h forecast, or 09:00) the number
+     * tracks the observed actual and drops the forecast; if no actual exists yet it falls back to
+     * the forecast-inclusive blend.
      *
      * Only used for today — non-today rows use their observed low directly.
      *
      * [forecastLow] is the **live** forecast low only. The 24h-prior snapshot ("yesterday's
      * forecast") is a comparison bar, not a headline candidate — the same rule as
      * [effectiveHighForLabel]. Desktop folded it into the min until 2026-10-06, so the two
-     * platforms printed different numbers before 9am.
+     * platforms printed different numbers before the cutoff.
      *
-     * Settled (post-cutoff, observed-low branch) additionally requires [actualLow] to be
-     * non-null: without a genuine observation the low keeps the forecast-inclusive blend,
-     * since a forecast stand-in `solidLow` is not a settled actual.
+     * Settled (observed-low branch) additionally requires [actualLow] to be non-null: without a
+     * genuine observation the low keeps the forecast-inclusive blend, since a forecast stand-in
+     * `solidLow` is not a settled actual.
      *
-     * @param nowHour Local hour-of-day (0–23); null disables the cutoff (legacy behavior).
+     * @param lowSettled [TodayLowSettle.Decision.settled]; false keeps the blend.
      */
     fun effectiveLowForLabel(
         isToday: Boolean,
         solidLow: Float?,
         forecastLow: Float?,
-        nowHour: Int? = null,
+        lowSettled: Boolean = false,
         actualLow: Float? = null,
     ): Float? {
         if (!isToday) return solidLow
-        val lowSettled = nowHour != null && nowHour >= ACTUAL_LOW_CUTOFF_HOUR && actualLow != null
-        return if (lowSettled && solidLow != null) solidLow
+        return if (lowSettled && actualLow != null && solidLow != null) solidLow
         else listOfNotNull(solidLow, forecastLow).minOrNull()
     }
 
     /**
      * Whether today's printed low ([printedLow], the value [effectiveLowForLabel] returned) **is**
      * the observed actual — the rule that recolors the low label to the thermostat (observed)
-     * color. Asks where the number came from, not what time it is: before the 9am cutoff the
+     * color. Asks where the number came from, not what time it is: before the low settles the
      * label prints `min(observed, forecast)`, and when the night has already gone colder than
      * forecast that minimum is the actual and must read as one.
      *

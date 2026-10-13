@@ -101,7 +101,7 @@ internal object DailyColumnRenderer {
                         else -> paints.tempTextPaint
                     }
                 // Thermostat color whenever the printed number IS today's observed low —
-                // before 9am too, when the night already went colder than forecast.
+                // before the low settles too, when the night already went colder than forecast.
                 val todayLowIsActual =
                     DailyDayValueResolver.isLowLabelActual(
                         isToday = day.isToday,

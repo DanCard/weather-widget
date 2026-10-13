@@ -190,13 +190,13 @@ class DailyDayValueResolverTest {
         )
     }
 
-    // ── Low cutoff (9am) ───────────────────────────────────────────────────
+    // ── Low settle (TodayLowSettle decides; see TodayLowSettleTest) ───────────────────────────────────────────────────
 
     @Test
     fun todayLowBeforeCutoffUsesMinOfActualAndForecast() {
         // 7am: forecast low 45 still wins over the observed-so-far low of 48.
         val low = DailyDayValueResolver.effectiveLowForLabel(
-            isToday = true, solidLow = 48f, forecastLow = 45f, nowHour = 7,
+            isToday = true, solidLow = 48f, forecastLow = 45f, lowSettled = false,
         )
         assertEquals(45f, low)
     }
@@ -205,7 +205,7 @@ class DailyDayValueResolverTest {
     fun todayLowAfterCutoffTracksActualNotForecast() {
         // 10am: overnight low is settled. Forecast under-predicted (45) but actual low was 48 → 48.
         val low = DailyDayValueResolver.effectiveLowForLabel(
-            isToday = true, solidLow = 48f, forecastLow = 45f, nowHour = 10, actualLow = 48f,
+            isToday = true, solidLow = 48f, forecastLow = 45f, lowSettled = true, actualLow = 48f,
         )
         assertEquals(48f, low)
     }
@@ -215,7 +215,7 @@ class DailyDayValueResolverTest {
         // 10am but the source never writes actuals (Open-Meteo): a forecast stand-in
         // solidLow must NOT count as a settled actual — the blend (forecast low) stays.
         val low = DailyDayValueResolver.effectiveLowForLabel(
-            isToday = true, solidLow = 57.5f, forecastLow = 57.5f, nowHour = 10, actualLow = null,
+            isToday = true, solidLow = 57.5f, forecastLow = 57.5f, lowSettled = true, actualLow = null,
         )
         assertEquals(57.5f, low)
     }
@@ -223,15 +223,15 @@ class DailyDayValueResolverTest {
     @Test
     fun todayLowAfterCutoffFallsBackToForecastWhenNoActual() {
         val low = DailyDayValueResolver.effectiveLowForLabel(
-            isToday = true, solidLow = null, forecastLow = 45f, nowHour = 10,
+            isToday = true, solidLow = null, forecastLow = 45f, lowSettled = true,
         )
         assertEquals(45f, low)
     }
 
     @Test
-    fun lowNullHourKeepsLegacyMinBehavior() {
+    fun lowNotSettledKeepsMinBehavior() {
         val low = DailyDayValueResolver.effectiveLowForLabel(
-            isToday = true, solidLow = 48f, forecastLow = 45f, nowHour = null,
+            isToday = true, solidLow = 48f, forecastLow = 45f, lowSettled = false,
         )
         assertEquals(45f, low)
     }
@@ -239,7 +239,7 @@ class DailyDayValueResolverTest {
     @Test
     fun nonTodayLowReturnsObservedOnly() {
         val low = DailyDayValueResolver.effectiveLowForLabel(
-            isToday = false, solidLow = 50f, forecastLow = 40f, nowHour = 12,
+            isToday = false, solidLow = 50f, forecastLow = 40f, lowSettled = true,
         )
         assertEquals(50f, low)
     }
@@ -293,10 +293,10 @@ class DailyDayValueResolverTest {
     // The rule: thermostat color iff the printed number IS the observed actual. Each case runs
     // the real printed value through effectiveLowForLabel so color and value can't disagree.
 
-    private fun todayLowIsActual(actualLow: Float?, forecastLow: Float?, nowHour: Int): Boolean {
+    private fun todayLowIsActual(actualLow: Float?, forecastLow: Float?, settled: Boolean): Boolean {
         val solidLow = actualLow ?: forecastLow
         val printed = DailyDayValueResolver.effectiveLowForLabel(
-            isToday = true, solidLow = solidLow, forecastLow = forecastLow, nowHour = nowHour, actualLow = actualLow,
+            isToday = true, solidLow = solidLow, forecastLow = forecastLow, lowSettled = settled, actualLow = actualLow,
         )
         return DailyDayValueResolver.isLowLabelActual(isToday = true, printedLow = printed, actualLow = actualLow)
     }
@@ -305,32 +305,32 @@ class DailyDayValueResolverTest {
     fun lowLabelActualBeforeCutoffWhenObservedColderThanForecast() {
         // 6am: the night already went to 41 vs a forecast 45 — the label prints 41, the actual.
         // The old 9am-gated rule drew this white.
-        assertEquals(true, todayLowIsActual(actualLow = 41f, forecastLow = 45f, nowHour = 6))
+        assertEquals(true, todayLowIsActual(actualLow = 41f, forecastLow = 45f, settled = false))
     }
 
     @Test
     fun lowLabelNotActualBeforeCutoffWhenForecastColder() {
         // 7am: forecast 45 still wins over observed-so-far 48 — the printed number is a prediction.
-        assertEquals(false, todayLowIsActual(actualLow = 48f, forecastLow = 45f, nowHour = 7))
+        assertEquals(false, todayLowIsActual(actualLow = 48f, forecastLow = 45f, settled = false))
     }
 
     @Test
     fun lowLabelActualAfterCutoffEvenWhenForecastColder() {
         // 10am: settled — prints the observed 48 although the forecast said 45.
-        assertEquals(true, todayLowIsActual(actualLow = 48f, forecastLow = 45f, nowHour = 10))
+        assertEquals(true, todayLowIsActual(actualLow = 48f, forecastLow = 45f, settled = true))
     }
 
     @Test
     fun lowLabelActualOnTieWithForecast() {
-        assertEquals(true, todayLowIsActual(actualLow = 45f, forecastLow = 45f, nowHour = 7))
+        assertEquals(true, todayLowIsActual(actualLow = 45f, forecastLow = 45f, settled = false))
     }
 
     @Test
     fun lowLabelNeverActualWithoutObservedLow() {
         // Regression: Open-Meteo has no daily_history row, so solidLow is the forecast stand-in —
         // it once painted the low label red as a "settled actual".
-        assertEquals(false, todayLowIsActual(actualLow = null, forecastLow = 57.5f, nowHour = 16))
-        assertEquals(false, todayLowIsActual(actualLow = null, forecastLow = 57.5f, nowHour = 6))
+        assertEquals(false, todayLowIsActual(actualLow = null, forecastLow = 57.5f, settled = true))
+        assertEquals(false, todayLowIsActual(actualLow = null, forecastLow = 57.5f, settled = false))
     }
 
     @Test

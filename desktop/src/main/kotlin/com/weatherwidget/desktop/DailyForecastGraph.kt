@@ -317,7 +317,8 @@ fun DailyForecastGraph(
             }
 
             // All columns funnel through the shared resolver (matches Android exactly):
-            //   today  -> cutoff rule: before 9am min(observed, live forecast); after, the observed
+            //   today  -> settle rule (TodayLowSettle): until sunrise + 30 min with a rising 3 h forecast,
+            //             or 09:00, min(observed, live forecast); after, the observed
             //             actual, falling back to the forecast only when no actual exists yet. The
             //             24h-prior snapshot is a comparison bar and never the printed number.
             //   past   -> returns solidLow (the observed actual) — the forecast low is bar-only and
@@ -505,7 +506,7 @@ fun DailyForecastGraph(
                 val lowSize = tempFontSize(lowLabelText, DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale)
                 // Thermostat (observed) color whenever the printed number IS the actual: a past day's
                 // observed low, and today's once the observed low is what prints (the shared rule —
-                // before 9am too, when the night already went colder than forecast). A forecast
+                // before the low settles too, when the night already went colder than forecast). A forecast
                 // stand-in never qualifies.
                 val todayLowIsActual = com.weatherwidget.shared.util.DailyDayValueResolver.isLowLabelActual(
                     isToday = day.isToday,
@@ -1125,7 +1126,7 @@ private fun DesktopDailyDay.lowForLabel(): Float? =
         isToday = isToday,
         solidLow = solidLow,
         forecastLow = forecastLow,
-        nowHour = nowHour,
+        lowSettled = lowSettled,
         actualLow = actual?.computedLowTemp,
     )
 

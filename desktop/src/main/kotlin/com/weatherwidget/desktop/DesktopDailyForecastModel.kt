@@ -76,8 +76,10 @@ data class DesktopDailyDay(
     /** Signed offset from today (today=0, tomorrow=1, yesterday=-1); feeds the distance font term. */
     val daysFromToday: Int,
     val isClimateNormal: Boolean,
-    /** Local hour-of-day (0–23) for the today column's actual-tracking cutoffs; null = legacy. */
+    /** Local hour-of-day (0–23) for the today column's high cutoff; null = legacy. */
     val nowHour: Int? = null,
+    /** Today's low is settled ([com.weatherwidget.shared.util.TodayLowSettle]) — print the observed actual. */
+    val lowSettled: Boolean = false,
     /** Today's left bar was last confirmed more than a day before its anchor — drawn dashed (StandInBarStyle). Mirrors Android. */
     val snapshotIsStale: Boolean = false,
     /** This past day's actuals were measured at a previous site (PreviousSiteHistory) — drawn dashed. */
@@ -322,6 +324,7 @@ object DesktopDailyForecastModel {
         var barTopHigh: Float? = null
         var solidIsForecastFallback = false
         var forecastIsFallback = false
+        var lowSettled = false
 
         when {
             isPast -> {
@@ -389,6 +392,17 @@ object DesktopDailyForecastModel {
                     Instant.ofEpochMilli(it.dateTime).atZone(zone).toLocalDate() == today &&
                         (it.source == null || it.source == sourceId || it.source == WeatherSource.GENERIC_GAP.id)
                 }
+                // Settled from sunrise + 30 min if the next 3 h are not forecast colder; at 09:00 regardless (shared with Android).
+                lowSettled = com.weatherwidget.shared.util.TodayLowSettle.decide(
+                    now = now,
+                    lat = centerLat,
+                    lon = centerLon,
+                    zone = zone,
+                    actualLow = actual?.computedLowTemp,
+                    todayHourly = todayHourly,
+                    epochMs = { it.dateTime },
+                    temperature = { it.temperature },
+                ).settled
                 val (todayForecastHigh, todayForecastLow) = PartialForecastDays.todayForecastRange(
                     forecast?.highTemp, forecast?.lowTemp, todayHourly.map { it.temperature },
                 )
@@ -536,6 +550,7 @@ object DesktopDailyForecastModel {
             daysFromToday = java.time.temporal.ChronoUnit.DAYS.between(today, date).toInt(),
             isClimateNormal = forecast?.isClimateNormal == true,
             nowHour = if (isToday) now.hour else null,
+            lowSettled = lowSettled,
         )
     }
 

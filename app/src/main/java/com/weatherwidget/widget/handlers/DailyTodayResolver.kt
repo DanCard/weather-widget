@@ -9,6 +9,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.DailyDayValueResolver
 import com.weatherwidget.shared.util.PartialForecastDays
 import com.weatherwidget.shared.util.PriorDayForecast
+import com.weatherwidget.shared.util.TodayLowSettle
 import com.weatherwidget.util.DailyActualsEstimator
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.widget.DailyActualMap
@@ -111,11 +112,25 @@ internal object DailyTodayResolver {
         val finalLow = tripleValues.solidLineLow ?: tripleValues.dashedLineLow
         val fHigh = tripleValues.dashedLineHigh
         val fLow = tripleValues.dashedLineLow
+        // Settled from sunrise + 30 min if the next 3 h are not forecast colder; at 09:00 regardless (shared with desktop).
+        val todayHourly = hourlyForecasts.filter {
+            it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id
+        }
+        val lowSettle = TodayLowSettle.decide(
+            now = now,
+            lat = weather?.locationLat ?: todayHourly.firstOrNull()?.locationLat,
+            lon = weather?.locationLon ?: todayHourly.firstOrNull()?.locationLon,
+            zone = zone,
+            actualLow = actual?.computedLowTemp,
+            todayHourly = todayHourly,
+            epochMs = { it.dateTime },
+            temperature = { it.temperature },
+        )
         val bottomStackLow = DailyDayValueResolver.effectiveLowForLabel(
             isToday = true,
             solidLow = tripleValues.solidLineLow,
             forecastLow = tripleValues.dashedLineLow,
-            nowHour = now.hour,
+            lowSettled = lowSettle.settled,
             actualLow = actual?.computedLowTemp,
         )
         val snapshotHigh = tripleValues.snapshotHigh

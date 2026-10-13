@@ -1,7 +1,10 @@
 package com.weatherwidget.util
 
+import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlin.math.*
 
 /**
@@ -160,6 +163,25 @@ object SunPositionUtils {
         )
     }
 
+    /** Zenith at which the sun's upper limb meets the horizon, refraction included (≈ 34′ + 16′). */
+    const val SUNRISE_ZENITH = 90.833
+
+    /** Civil twilight: sun 6° below the horizon. What [getSunTimes] and [getSunInfo] use. */
+    private const val CIVIL_TWILIGHT_ZENITH = 96.0
+
+    /**
+     * The moment of true **sunrise** (zenith [SUNRISE_ZENITH]) on [date] at ([lat], [lon]), or null
+     * when the sun neither rises nor sets that day (polar day/night).
+     *
+     * Unlike [getSunTimes] — civil dawn (96°) as an hour of the day in the device's zone at that
+     * moment — this is an absolute [Instant], so the caller converts with whatever zone its "now"
+     * lives in and nothing wraps at midnight or reads the wrong side of a DST change.
+     */
+    fun sunriseInstant(date: LocalDate, lat: Double, lon: Double): Instant? {
+        val utcHours = sunEventUtcHours(date.dayOfYear, lat, lon, SUNRISE_ZENITH, isSunrise = true) ?: return null
+        return date.atStartOfDay(ZoneOffset.UTC).toInstant().plusMillis((utcHours * 3_600_000).roundToLong())
+    }
+
     /**
      * Simple approximation of the sunrise/sunset hour using civil twilight zenith (96°).
      *
@@ -172,77 +194,12 @@ object SunPositionUtils {
         lon: Double,
         isSunrise: Boolean,
     ): Double {
-        require(lat in -90.0..90.0) { "lat must be in [-90, 90], was $lat" }
-        require(lon in -180.0..180.0) { "lon must be in [-180, 180], was $lon" }
-
-        val dayOfYear = dateTime.dayOfYear
-
-        // Zenith 96° = civil twilight (sun 6° below horizon — visible light persists).
-        // This makes sunrise/sunset boundaries match what users see, and aligns with
-        // getSunInfo which also uses 96°.
-        val zenith = 96.0
-
-        // 1. Calculate the day of the year
-        val n = dayOfYear.toDouble()
-
-        // 2. Convert longitude to hour value and calculate an approximate time
-        val lngHour = lon / 15.0
-        val t =
-            if (isSunrise) {
-                n + ((6.0 - lngHour) / 24.0)
-            } else {
-                n + ((18.0 - lngHour) / 24.0)
-            }
-
-        // 3. Calculate the Sun's mean anomaly
-        val m = (0.9856 * t) - 3.2891
-
-        // 4. Calculate the Sun's true longitude
-        var sunLongitude = m + (1.916 * sin(Math.toRadians(m))) + (0.020 * sin(Math.toRadians(2 * m))) + 282.634
-        sunLongitude %= 360.0
-        if (sunLongitude < 0) sunLongitude += 360.0
-
-        // 5. Calculate the Sun's right ascension
-        var ra = Math.toDegrees(atan(0.91764 * tan(Math.toRadians(sunLongitude))))
-        ra %= 360.0
-        if (ra < 0) ra += 360.0
-
-        // sunLongitude and RA need to be in the same quadrant
-        val lQuadrant = floor(sunLongitude / 90.0) * 90.0
-        val raQuadrant = floor(ra / 90.0) * 90.0
-        ra += (lQuadrant - raQuadrant)
-
-        // Right ascension value in hours
-        ra /= 15.0
-
-        // 6. Calculate the Sun's declination
-        val sinDec = 0.39782 * sin(Math.toRadians(sunLongitude))
-        val cosDec = cos(asin(sinDec))
-
-        // 7. Calculate the Sun's local hour angle
-        val cosH = (cos(Math.toRadians(zenith)) - (sinDec * sin(Math.toRadians(lat)))) / (cosDec * cos(Math.toRadians(lat)))
-
-        if (cosH > 1) return 0.0 // Sun never rises
-        if (cosH < -1) return 24.0 // Sun never sets
-
-        // 8. Finish calculating H and convert into hours
-        val h =
-            if (isSunrise) {
-                360.0 - Math.toDegrees(acos(cosH))
-            } else {
-                Math.toDegrees(acos(cosH))
-            }
-        val hHours = h / 15.0
-
-        // 9. Calculate local mean time of rising/setting
-        val localT = hHours + ra - (0.06571 * t) - 6.622
-
-        // 10. Adjust back to UTC
-        var utcT = localT - lngHour
-        utcT %= 24.0
+        val utcHours = sunEventUtcHours(dateTime.dayOfYear, lat, lon, CIVIL_TWILIGHT_ZENITH, isSunrise)
+            ?: return polarAnswer(dateTime.dayOfYear, lat, lon, CIVIL_TWILIGHT_ZENITH, isSunrise)
+        var utcT = utcHours % 24.0
         if (utcT < 0) utcT += 24.0
 
-        // 11. Convert UTC to local time using the system default timezone offset.
+        // Convert UTC to local time using the system default timezone offset.
         // Since the app only shows weather for the device's location, this is correct.
         val zoneOffset = ZoneId.systemDefault().rules.getOffset(dateTime).totalSeconds / 3600.0
         var localTime = utcT + zoneOffset
@@ -250,5 +207,65 @@ object SunPositionUtils {
         if (localTime < 0) localTime += 24.0
 
         return localTime
+    }
+
+    /** 0.0 when the sun never rises, 24.0 when it never sets — [calculateSunriseSunset]'s contract. */
+    private fun polarAnswer(dayOfYear: Int, lat: Double, lon: Double, zenith: Double, isSunrise: Boolean): Double =
+        if (cosHourAngle(dayOfYear, lat, lon, zenith, isSunrise) > 1) 0.0 else 24.0
+
+    private fun approxTime(dayOfYear: Int, lon: Double, isSunrise: Boolean): Double =
+        dayOfYear + (((if (isSunrise) 6.0 else 18.0) - lon / 15.0) / 24.0)
+
+    /** The Sun's true longitude (degrees, 0–360) at approximate time [t]. */
+    private fun sunTrueLongitude(t: Double): Double {
+        val m = (0.9856 * t) - 3.2891 // mean anomaly
+        var sunLongitude = m + (1.916 * sin(Math.toRadians(m))) + (0.020 * sin(Math.toRadians(2 * m))) + 282.634
+        sunLongitude %= 360.0
+        if (sunLongitude < 0) sunLongitude += 360.0
+        return sunLongitude
+    }
+
+    private fun cosHourAngle(dayOfYear: Int, lat: Double, lon: Double, zenith: Double, isSunrise: Boolean): Double {
+        val sinDec = 0.39782 * sin(Math.toRadians(sunTrueLongitude(approxTime(dayOfYear, lon, isSunrise))))
+        val cosDec = cos(asin(sinDec))
+        return (cos(Math.toRadians(zenith)) - (sinDec * sin(Math.toRadians(lat)))) / (cosDec * cos(Math.toRadians(lat)))
+    }
+
+    /**
+     * The sunrise equation: hours after **UTC midnight of the local date** at which the sun crosses
+     * [zenith], or null when it never does (polar day/night). Not wrapped into 0–24 — far east the
+     * morning event lands before UTC midnight (negative), which an [Instant] needs to keep.
+     */
+    private fun sunEventUtcHours(
+        dayOfYear: Int,
+        lat: Double,
+        lon: Double,
+        zenith: Double,
+        isSunrise: Boolean,
+    ): Double? {
+        require(lat in -90.0..90.0) { "lat must be in [-90, 90], was $lat" }
+        require(lon in -180.0..180.0) { "lon must be in [-180, 180], was $lon" }
+
+        val lngHour = lon / 15.0
+        val t = approxTime(dayOfYear, lon, isSunrise)
+        val sunLongitude = sunTrueLongitude(t)
+
+        // Right ascension, in the same quadrant as the true longitude, in hours
+        var ra = Math.toDegrees(atan(0.91764 * tan(Math.toRadians(sunLongitude))))
+        ra %= 360.0
+        if (ra < 0) ra += 360.0
+        ra += floor(sunLongitude / 90.0) * 90.0 - floor(ra / 90.0) * 90.0
+        ra /= 15.0
+
+        val cosH = cosHourAngle(dayOfYear, lat, lon, zenith, isSunrise)
+        if (cosH > 1 || cosH < -1) return null // never rises / never sets
+
+        val h = if (isSunrise) 360.0 - Math.toDegrees(acos(cosH)) else Math.toDegrees(acos(cosH))
+
+        // Local mean time of the event, 0–24, then back to UTC (unwrapped).
+        var localMeanT = (h / 15.0) + ra - (0.06571 * t) - 6.622
+        localMeanT %= 24.0
+        if (localMeanT < 0) localMeanT += 24.0
+        return localMeanT - lngHour
     }
 }
