@@ -66,6 +66,8 @@ class HourlyProximityQueryAllowlistTest {
         "NoHourlyDayClickCoordinator.kt" to "pre-existing presence gate; audit before touching",
         "WeatherObservationsActivity.kt" to
             "Blend tab diagnostic; sole call site wrapped in GraphDataLoader.unifyToNearestSite",
+        "ForecastHistoryActivity.kt" to
+            "today's settled-low look-ahead; sole call site wrapped in GraphDataLoader.unifyToNearestSite",
     )
 
     @Test

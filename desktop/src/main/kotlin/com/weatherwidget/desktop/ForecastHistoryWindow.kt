@@ -36,11 +36,14 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.shared.actuals.ApiActualPicker
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.graph.AxisScale
 import com.weatherwidget.shared.graph.ForecastEvolutionCutoff
+import java.time.ZoneId
+import java.time.LocalDateTime
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.ErrorSample
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.EvolutionPoint
@@ -68,6 +71,8 @@ private data class HistoryData(
     val appHigh: Float?,
     val appLow: Float?,
     val isPast: Boolean,
+    /** Some "Location actual" line is drawn (past day, or today's settled low). */
+    val hasLocationActual: Boolean,
     val snapshotCount: Int,
     val newestFetchAgeMs: Long?,
     val accuracySummary: String,
@@ -278,7 +283,7 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource,
         Spacer(Modifier.height(12.dp))
     }
 
-    Legend(source, d.isPast)
+    Legend(source, d.isPast, d.hasLocationActual)
     Spacer(Modifier.height(8.dp))
 
     if (d.isPast && ((d.apiHigh != null && d.apiLow != null) || (d.appHigh != null && d.appLow != null))) {
@@ -323,12 +328,14 @@ private fun GraphCard(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Legend(source: WeatherSource, isPast: Boolean) {
+private fun Legend(source: WeatherSource, isPast: Boolean, hasLocationActual: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         // One forecast color for every API; the dot is labeled with the selected source.
         LegendDot(parseHexColor(ForecastEvolutionStyle.FORECAST_COLOR), source.shortDisplayName)
         if (isPast) {
             LegendDot(parseHexColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), "API actual")
+        }
+        if (isPast || hasLocationActual) {
             LegendDot(parseHexColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), "Location actual")
         }
     }
@@ -541,26 +548,57 @@ private fun loadHistory(
     val isPast = targetDate.isBefore(LocalDate.now())
 
     val rows = dao.getForecastEvolution(targetEpoch, lat, lon).filter { it.source == source.id }
-    val historyRows = if (isPast) dao.getExtremesInRange(targetEpoch, targetEpoch, lat, lon) else emptyList()
+    val zone = ZoneId.systemDefault()
+    val needsTodayHourly = ForecastHistoryViewLogic.needsTodayHourly(targetDate)
+    val historyRows =
+        if (isPast || needsTodayHourly) dao.getExtremesInRange(targetEpoch, targetEpoch, lat, lon) else emptyList()
     val sourceHistory = historyRows.firstOrNull { it.source == source.id }
+    val todayHourly = if (needsTodayHourly) {
+        val start = targetDate.atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = targetDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        // The proximity box spans every cached site; collapse to one so a stale GPS fragment's
+        // hours never drive the settle look-ahead (Android: GraphDataLoader.unifyToNearestSite).
+        // A row without coordinates cannot be placed, so it never competes for "nearest".
+        val located = (
+            dao.getHourlyForecasts(lat, lon, source.id, start, end) +
+                dao.getHourlyForecasts(lat, lon, WeatherSource.GENERIC_GAP.id, start, end)
+            ).filter { it.locationLat != null && it.locationLon != null }
+        LocationMatch.selectNearestSite(located, lat, lon, { it.locationLat ?: lat }, { it.locationLon ?: lon })
+    } else {
+        emptyList()
+    }
+    // Past day: both extremes; today: the low once settled (shared with Android).
+    val locationActuals = ForecastHistoryViewLogic.locationActuals(
+        date = targetDate,
+        now = LocalDateTime.now(zone),
+        zone = zone,
+        lat = lat,
+        lon = lon,
+        computedHigh = sourceHistory?.computedHighTemp,
+        computedLow = sourceHistory?.computedLowTemp,
+        computedHighAt = sourceHistory?.computedHighAt,
+        computedLowAt = sourceHistory?.computedLowAt,
+        todayHourly = todayHourly,
+        epochMs = { it.dateTime },
+        temperature = { it.temperature },
+    )
     // Hindcasts (fetched after the extreme was reached) are not forecasts: dropped per side.
-    // Today's extreme times are only the running max/min (not loaded), so today uses the fixed cutoffs.
+    // Today's extreme times are only the running max/min, so today uses the fixed cutoffs — except
+    // a settled low, whose time is final.
     val points = ForecastEvolutionCutoff.points(
         rows = rows.map {
             ForecastEvolutionCutoff.Row(it.dateOfPrediction, it.fetchedAt, it.highTemp, it.lowTemp, it.source)
         },
         targetDate = targetDate,
-        highReachedAt = sourceHistory?.computedHighAt,
-        lowReachedAt = sourceHistory?.computedLowAt,
+        highReachedAt = locationActuals.highReachedAt,
+        lowReachedAt = locationActuals.lowReachedAt,
     )
     // `points` is already filtered to the single selected source (line above) and drawn as one
     // forecast series in one color.
 
-    // Actuals (past days only).
+    // API actuals: past days only.
     var apiHigh: Float? = null
     var apiLow: Float? = null
-    var appHigh: Float? = null
-    var appLow: Float? = null
     if (isPast) {
         // Same nearest-fragment-with-a-complete-pair rule Android uses. A bare `find` took whatever
         // row the DAO happened to return first, so two same-site fragments holding different
@@ -578,9 +616,6 @@ private fun loadHistory(
         )
         apiHigh = apiRow?.apiHighTemp
         apiLow = apiRow?.apiLowTemp
-        val appActual = sourceHistory
-        appHigh = appActual?.computedHighTemp
-        appLow = appActual?.computedLowTemp
     }
 
     val newestFetch = points.maxByOrNull { it.fetchedAt }?.fetchedAt
@@ -611,8 +646,9 @@ private fun loadHistory(
     return HistoryData(
         points = points,
         apiHigh = apiHigh, apiLow = apiLow,
-        appHigh = appHigh, appLow = appLow,
+        appHigh = locationActuals.high, appLow = locationActuals.low,
         isPast = isPast,
+        hasLocationActual = locationActuals.hasAny,
         snapshotCount = points.size,
         newestFetchAgeMs = newestAge,
         accuracySummary = summary,

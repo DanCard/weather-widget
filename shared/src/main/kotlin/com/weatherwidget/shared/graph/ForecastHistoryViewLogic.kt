@@ -2,7 +2,10 @@ package com.weatherwidget.shared.graph
 
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.TempUtils
+import com.weatherwidget.shared.util.TodayLowSettle
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 /**
  * Source-agnostic view-state logic for the forecast-history screen, shared between Android
@@ -47,6 +50,59 @@ object ForecastHistoryViewLogic {
         } else {
             ActualLookupMode.ANY_SOURCE
         }
+
+    /**
+     * The "Location actual" lines (daily_history computed blend) for one day, and the extreme times
+     * [ForecastEvolutionCutoff.points] uses to drop hindcasts.
+     */
+    data class LocationActuals(
+        val high: Float?,
+        val low: Float?,
+        val highReachedAt: Long?,
+        val lowReachedAt: Long?,
+    ) {
+        /** Show the "Location actual" legend entry: something is drawn. */
+        val hasAny: Boolean get() = high != null || low != null
+
+        companion object {
+            val NONE = LocationActuals(null, null, null, null)
+        }
+    }
+
+    /** Whether [locationActuals] needs today's hourly forecast (for the low's settle look-ahead). */
+    fun needsTodayHourly(date: LocalDate, today: LocalDate = LocalDate.now()): Boolean = date == today
+
+    /**
+     * Past day: both extremes, final. Today: the low only, once [TodayLowSettle] settles it — the
+     * same rule and inputs as the widget's today column, so the line appears when the column stops
+     * printing the forecast (user, 2026-10-13); the high is still running. A settled low's time is
+     * final, so it also drops later low hindcasts, as on a past day. Future: nothing.
+     *
+     * [todayHourly] is the source's (plus `GENERIC_GAP`) hourly forecast for today; empty otherwise.
+     */
+    fun <T> locationActuals(
+        date: LocalDate,
+        now: LocalDateTime,
+        zone: ZoneId,
+        lat: Double?,
+        lon: Double?,
+        computedHigh: Float?,
+        computedLow: Float?,
+        computedHighAt: Long?,
+        computedLowAt: Long?,
+        todayHourly: List<T>,
+        epochMs: (T) -> Long,
+        temperature: (T) -> Float,
+    ): LocationActuals {
+        val today = now.toLocalDate()
+        return when {
+            date.isBefore(today) -> LocationActuals(computedHigh, computedLow, computedHighAt, computedLowAt)
+            date == today && computedLow != null &&
+                TodayLowSettle.decide(now, lat, lon, zone, computedLow, todayHourly, epochMs, temperature).settled ->
+                LocationActuals(high = null, low = computedLow, highReachedAt = null, lowReachedAt = computedLowAt)
+            else -> LocationActuals.NONE
+        }
+    }
 
     fun normalizeSource(rawSource: String?): WeatherSource? =
         WeatherSource.fromDisplaySourceOrNull(rawSource)

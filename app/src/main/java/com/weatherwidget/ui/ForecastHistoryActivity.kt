@@ -32,6 +32,7 @@ import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
+import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.WeatherRepository
@@ -56,6 +57,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
     @Inject
     lateinit var dailyHistoryDao: DailyHistoryDao
+
+    @Inject
+    lateinit var hourlyForecastDao: com.weatherwidget.data.local.HourlyForecastDao
 
     @Inject
     lateinit var accuracyCalculator: AccuracyCalculator
@@ -151,7 +155,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private var graphMode = GraphMode.EVOLUTION
     private var cachedSnapshots: List<ForecastEntity> = emptyList()
     private var cachedApiActualRow: DailyHistoryEntity? = null
-    private var cachedAppActual: com.weatherwidget.data.local.DailyHistoryEntity? = null
+    private var cachedLocationActuals = ForecastHistoryViewLogic.LocationActuals.NONE
     private var cachedDate: LocalDate? = null
     private var cachedRequestedSource: WeatherSource? = null
     private lateinit var targetDate: String
@@ -221,7 +225,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
             graphMode = if (graphMode == GraphMode.EVOLUTION) GraphMode.ERROR else GraphMode.EVOLUTION
             updateModeUi()
             if (cachedDate != null) {
-                displayData(cachedSnapshots, cachedApiActualRow, cachedAppActual, cachedDate!!, cachedRequestedSource)
+                displayData(
+                    cachedSnapshots, cachedApiActualRow, cachedLocationActuals, cachedDate!!, cachedRequestedSource,
+                )
             }
         }
         updateModeUi()
@@ -297,9 +303,39 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     com.weatherwidget.shared.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
                 }
                 val appActual = sortedAppActuals.find { it.source == requestedSource?.id }
+                val zone = java.time.ZoneId.systemDefault()
+                val todayHourly =
+                    if (requestedSource != null && ForecastHistoryViewLogic.needsTodayHourly(date)) {
+                        // Raw box read collapsed to one site: a stale GPS-fragment's hours must not
+                        // drive the settle look-ahead (HourlyProximityQueryAllowlistTest).
+                        GraphDataLoader.unifyToNearestSite(
+                            hourlyForecastDao.getHourlyForecastsForSources(
+                                date.atStartOfDay(zone).toInstant().toEpochMilli(),
+                                date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli(),
+                                lat, lon, listOf(requestedSource.id, WeatherSource.GENERIC_GAP.id),
+                            ),
+                            lat, lon,
+                        )
+                    } else {
+                        emptyList()
+                    }
+                val locationActuals = ForecastHistoryViewLogic.locationActuals(
+                    date = date,
+                    now = java.time.LocalDateTime.now(zone),
+                    zone = zone,
+                    lat = lat,
+                    lon = lon,
+                    computedHigh = appActual?.computedHighTemp,
+                    computedLow = appActual?.computedLowTemp,
+                    computedHighAt = appActual?.computedHighAt,
+                    computedLowAt = appActual?.computedLowAt,
+                    todayHourly = todayHourly,
+                    epochMs = { it.dateTime },
+                    temperature = { it.temperature },
+                )
 
                 withContext(Dispatchers.Main) {
-                    displayData(snapshots, apiActualRow, appActual, date, requestedSource)
+                    displayData(snapshots, apiActualRow, locationActuals, date, requestedSource)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading forecast history", e)
@@ -354,27 +390,27 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private fun displayData(
         snapshots: List<ForecastEntity>,
         apiActualRow: DailyHistoryEntity?,
-        appActual: com.weatherwidget.data.local.DailyHistoryEntity?,
+        locationActuals: ForecastHistoryViewLogic.LocationActuals,
         date: LocalDate,
         requestedSource: WeatherSource?,
     ) {
         cachedSnapshots = snapshots
         cachedApiActualRow = apiActualRow
-        cachedAppActual = appActual
+        cachedLocationActuals = locationActuals
         cachedDate = date
         cachedRequestedSource = requestedSource
         updateApiSourceButton()
 
         // Hindcasts (fetched after the extreme was reached) are not forecasts: drop them per side.
-        // Today's extreme times are only the running max/min, so today uses the fixed cutoffs alone.
-        val settledActual = appActual.takeIf { date.isBefore(LocalDate.now()) }
+        // Today's extreme times are only the running max/min, so today uses the fixed cutoffs alone —
+        // except a settled low, whose time is final (ForecastHistoryViewLogic.locationActuals).
         val evolutionPoints = ForecastEvolutionCutoff.points(
             rows = snapshots.map {
                 ForecastEvolutionCutoff.Row(it.dateOfPrediction, it.fetchedAt, it.highTemp, it.lowTemp, it.source)
             },
             targetDate = date,
-            highReachedAt = settledActual?.computedHighAt,
-            lowReachedAt = settledActual?.computedLowAt,
+            highReachedAt = locationActuals.highReachedAt,
+            lowReachedAt = locationActuals.lowReachedAt,
         )
 
         val snapshotSummaryView = findViewById<TextView>(R.id.snapshot_summary_text)
@@ -407,7 +443,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             legendAppActualGroup.visibility = View.VISIBLE
         } else {
             legendActualGroup.visibility = View.GONE
-            legendAppActualGroup.visibility = View.GONE
+            legendAppActualGroup.visibility = if (locationActuals.hasAny) View.VISIBLE else View.GONE
         }
 
         // Single forecast legend (one color for every API), relabeled to the selected API.
@@ -416,8 +452,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         val apiHigh = if (isPastDate) apiActualRow?.apiHighTemp else null
         val apiLow = if (isPastDate) apiActualRow?.apiLowTemp else null
-        val computedHighTemp = if (isPastDate) appActual?.computedHighTemp else null
-        val computedLowTemp = if (isPastDate) appActual?.computedLowTemp else null
+        val computedHighTemp = locationActuals.high
+        val computedLowTemp = locationActuals.low
 
         val actualsLegendCard = findViewById<View>(R.id.actuals_legend_card)
         if ((apiHigh != null && apiLow != null) || (computedHighTemp != null && computedLowTemp != null)) {
