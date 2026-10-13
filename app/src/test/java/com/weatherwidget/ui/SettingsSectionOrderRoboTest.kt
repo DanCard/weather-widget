@@ -24,7 +24,7 @@ import org.robolectric.annotation.Config
  * so the two screens can only drift by editing the enum — which is the decision point.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "en")
+@Config(sdk = [35], qualifiers = "en")
 @Category(LongDuration::class)
 class SettingsSectionOrderRoboTest {
 

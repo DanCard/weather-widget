@@ -27,7 +27,7 @@ import org.robolectric.annotation.Config
  * engine (see `robolectric_no_font_engine`).
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [35], application = Application::class)
 @Category(LongDuration::class)
 class PositionDailyIconsRoboTest {
 

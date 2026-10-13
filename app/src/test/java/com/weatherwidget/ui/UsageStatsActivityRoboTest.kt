@@ -31,7 +31,7 @@ import java.time.ZoneId
  * the button opens [UsageStatsActivity], which draws the requests logged in `api_usage_stats`.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class UsageStatsActivityRoboTest {
     private lateinit var context: Context

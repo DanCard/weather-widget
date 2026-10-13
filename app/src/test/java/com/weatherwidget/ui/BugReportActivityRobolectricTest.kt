@@ -31,7 +31,7 @@ import org.robolectric.shadows.ShadowToast
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class BugReportActivityRobolectricTest {
 

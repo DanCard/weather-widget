@@ -38,7 +38,7 @@ import com.weatherwidget.widget.ActiveLocationResolver
  * Robolectric tests verifying hourly header icon visibility across different view modes.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], application = Application::class)
+@Config(sdk = [35], application = Application::class)
 @Category(LongDuration::class)
 class HistoryIconVisibilityRoboTest {
     private lateinit var context: Context

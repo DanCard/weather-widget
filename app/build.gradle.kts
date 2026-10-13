@@ -263,6 +263,10 @@ tasks.withType<Test> {
     // Measured on 32 cores / 124 GB (2026-08-08), raising the cap 4 -> 8:
     //   Long bucket wall 41s -> 47s, Long CPU time 184s -> 321s (+74%), total wall
     //   54s -> 51-53s (inside run-to-run noise). Strictly more work for no gain.
+    // Reallocating instead of raising (2026-10-13: Short 2, Medium 3, Long 8, Localization 2 —
+    // 15 JVMs, not 16) also failed: total 75s vs 76s/76s uniform; Long 71s -> 68s while Short
+    // 18s -> 24s and Medium 37s -> 45s. Long is not fork-bound — its 244s of CPU would take ~30s
+    // on 8 forks; more forks mostly add per-JVM Robolectric start-up and JIT warm-up.
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 4)
     // Works around a recurring JVM C2 JIT crash (SIGSEGV in Node::uncast, libjvm.so) seen 3x
     // (2026-05-27, 2026-06-17, 2026-07-14 hs_err_pid*.log, gitignored) on long/heavy test runs,

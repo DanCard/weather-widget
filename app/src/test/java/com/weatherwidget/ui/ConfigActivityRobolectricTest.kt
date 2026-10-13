@@ -39,7 +39,7 @@ import org.robolectric.shadows.ShadowDialog
 import org.robolectric.shadows.ShadowToast
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class ConfigActivityRobolectricTest {
     private lateinit var context: Context

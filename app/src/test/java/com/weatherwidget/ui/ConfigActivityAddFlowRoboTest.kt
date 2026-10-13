@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit
  * milliseconds — including the timeout path, which elapses in virtual time.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class ConfigActivityAddFlowRoboTest {
 

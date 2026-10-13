@@ -20,7 +20,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(MediumDuration::class)
 class CurrentTempUnificationIntegrationTest {
 

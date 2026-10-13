@@ -30,7 +30,7 @@ import java.time.ZoneId
 import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [35])
 @Category(LongDuration::class)
 class SourceErrorDetailsActivityRoboTest {
     private lateinit var context: Context
