@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.shared.observations.ObservationOrigin
 
 object SpatialInterpolator {
@@ -18,6 +19,13 @@ object SpatialInterpolator {
     /**
      * Blends temperatures from multiple station observations using Inverse Distance Weighting.
      *
+     * Personal stations are discounted by [personalStationWeight] (the user's "personal station
+     * discount"), by the same three rules as the actual line's blend
+     * (`ActualTemperatureSeriesBuilder.computeWeightedBlend`): at weight 0 they are dropped; within
+     * [NEAR_ZERO_KM] an official station wins over a personal one; otherwise their IDW weight is
+     * multiplied by it. Before 2026-10-13 this blend — the NWS current value on both platforms —
+     * had no discount, so a backyard station next door could set it (user, 2026-10-13).
+     *
      * Returns null if [observations] is empty or all are stale.
      * Returns the observation temperature directly if only one valid observation or a station
      * is within [NEAR_ZERO_KM] of the user.
@@ -26,10 +34,15 @@ object SpatialInterpolator {
         userLat: Double,
         userLon: Double,
         observations: List<ObservationReading>,
+        personalStationWeight: Double,
         nowMs: Long = System.currentTimeMillis(),
     ): Float? {
-        // QC-failed readings are stored for the stations UI but are never blend inputs.
-        val fresh = observations.filter { !it.qcFailed && nowMs - it.timestamp <= MAX_STALENESS_MS }
+        // QC-failed readings are stored for the stations UI but are never blend inputs; a fully
+        // discounted personal station contributes nothing, so it is not an input either.
+        val fresh = observations.filter {
+            !it.qcFailed && nowMs - it.timestamp <= MAX_STALENESS_MS &&
+                (personalStationWeight > 0.0 || it.stationType != StationType.PERSONAL)
+        }
         if (fresh.isEmpty()) return null
 
         // Discard outliers in time — keep only those within MAX_SPREAD_MS of the most recent
@@ -40,7 +53,8 @@ object SpatialInterpolator {
         // If any station is within NEAR_ZERO_KM, snap to it (closest wins)
         val veryClose = cohort.filter { it.distanceKm <= NEAR_ZERO_KM && timeDecayFactor(nowMs - it.timestamp) > 0.0 }
         if (veryClose.isNotEmpty()) {
-            return veryClose.minBy { it.distanceKm }.temperature
+            return (veryClose.filter { it.stationType != StationType.PERSONAL }.minByOrNull { it.distanceKm }
+                ?: veryClose.minBy { it.distanceKm }).temperature
         }
 
         // Single observation — no blending needed, but still check decay
@@ -56,7 +70,8 @@ object SpatialInterpolator {
             val decay = timeDecayFactor(ageMs)
             if (decay <= 0.0) continue
             val d = obs.distanceKm.toDouble()
-            val w = decay / (d * d)
+            val typeWeight = if (obs.stationType == StationType.PERSONAL) personalStationWeight else 1.0
+            val w = typeWeight * decay / (d * d)
             weightedTempSum += w * obs.temperature
             weightSum += w
         }

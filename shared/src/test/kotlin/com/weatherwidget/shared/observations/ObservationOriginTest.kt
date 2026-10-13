@@ -56,7 +56,7 @@ class ObservationOriginTest {
         fun blendOf(ageMs: Long): Float? = SpatialInterpolator.interpolateIDW(
             userLat = 37.0,
             userLon = -122.0,
-            observations = listOf(reading(timestamp = now - ageMs)),
+            observations = listOf(reading(timestamp = now - ageMs)), personalStationWeight = 1.0,
             nowMs = now,
         )
 

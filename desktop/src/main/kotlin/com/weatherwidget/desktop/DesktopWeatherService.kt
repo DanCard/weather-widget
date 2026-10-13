@@ -13,9 +13,8 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
-import com.weatherwidget.shared.observations.MetarSkyCover
 import com.weatherwidget.shared.observations.NwsObservationMapper
-import com.weatherwidget.shared.observations.NwsObservationPlanner
+import com.weatherwidget.shared.observations.NwsStationLatestFetcher
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
@@ -43,7 +42,6 @@ import kotlin.math.*
 import com.weatherwidget.shared.util.ActualsFeedPolicy
 import com.weatherwidget.shared.observations.MetarObservationFetcher
 import com.weatherwidget.shared.observations.SynopticObservationFetcher
-import com.weatherwidget.shared.observations.MetarRawSkyParser
 import com.weatherwidget.shared.util.SynopticBackoffStore
 import com.weatherwidget.shared.util.SynopticFetchGate
 import com.weatherwidget.data.remote.AviationWeatherApi
@@ -65,6 +63,11 @@ class DesktopWeatherService(
     private val injectedSynopticApi: SynopticApi? = null,
     /** Shared Synoptic backoff state; production passes [DesktopSynopticBackoffStore.default]. */
     synopticBackoffStore: SynopticBackoffStore = InMemorySynopticBackoffStore(),
+    /**
+     * The user's personal-station weight for the NWS current blend; production passes
+     * `config.personalStationWeight()`. Defaults to an untouched setting's value.
+     */
+    private val personalStationWeight: Double = DesktopSettings().personalStationWeight(),
 ) : WeatherApiClient {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -136,6 +139,12 @@ class DesktopWeatherService(
     private val synopticApi = injectedSynopticApi
         ?: SynopticApi(httpClient, json) { effectiveKeys["SYNOPTIC"] }
     private val aviationWeatherApi = AviationWeatherApi(httpClient, json)
+
+    /** One station's latest observation + web merge: the step Android runs too (plans/261013-shared-current-conditions-fetch.md). */
+    private val latestFetcher = NwsStationLatestFetcher(
+        latestObservation = { stationId -> nwsApi.getLatestObservationDetailedResult(stationId) },
+        log = { tag, message, level -> weatherDao?.log(tag, message, level) },
+    )
 
     /**
      * METAR fetching, shared verbatim with Android.
@@ -499,8 +508,8 @@ class DesktopWeatherService(
         } ?: emptyList()
         fetchObservationBundles(stations, historyDays).flatMap { bundle ->
             buildList {
-                bundle.latest?.let { add(it.toReading(bundle.station, bundle.latestIsWeb)) }
-                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.historicalIsWeb)) }
+                bundle.latest?.let { add(it) }
+                addAll(bundle.historical)
             }
         }
     }
@@ -647,7 +656,7 @@ class DesktopWeatherService(
         // time-decay weighting (1 - age/3h) so older stations reduce their own contribution
         // automatically. Matching Android which uses a 3-hour staleness window rather than 30 min.
         val allLatestReadings = bundles.mapNotNull { bundle ->
-            bundle.latest?.toReading(bundle.station, bundle.latestIsWeb)
+            bundle.latest
         }
         // Subset used to decide whether a fresh observed temp is available for the header.
         val freshLatestReadings = allLatestReadings.filter {
@@ -656,7 +665,7 @@ class DesktopWeatherService(
 
         // Real-or-nothing blend (shared with Android) for the header value; the forecast fallback
         // below is header-only too.
-        val blend = NwsBlend.build(allLatestReadings, latitude, longitude)
+        val blend = NwsBlend.build(allLatestReadings, latitude, longitude, personalStationWeight)
         val currentTemp = blend?.temperature
             ?: TemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
             ?: hourlyRaw.firstOrNull()?.temperature
@@ -666,16 +675,16 @@ class DesktopWeatherService(
                 latitude, longitude, it.station.lat, it.station.lon,
             )
         }
-        val currentCondition = closestBundle?.latest?.textDescription
+        val currentCondition = closestBundle?.latest?.condition
             ?: hourlyRaw.firstOrNull()?.shortForecast
 
         // All readings (latest + historical) from all successful stations
         val rawObservations = bundles.flatMap { bundle ->
             buildList {
-                bundle.latest?.let { add(it.toReading(bundle.station, bundle.latestIsWeb)) }
-                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.historicalIsWeb)) }
+                bundle.latest?.let { add(it) }
+                addAll(bundle.historical)
                 // Preserved API row when the web reading won the temperature merge (Android parity).
-                bundle.cloudCarrier?.let { add(it.toReading(bundle.station, isWebFallback = false)) }
+                bundle.cloudCarrier?.let { add(it) }
             }
         }
 
@@ -764,7 +773,25 @@ class DesktopWeatherService(
         } else {
             null
         }
-        
+        val web = if (parallelMetarDeferred != null) {
+            NwsStationLatestFetcher.WebSource("aviation_weather") { station, _, _ ->
+                NwsStationLatestFetcher.batchRows(parallelMetarDeferred.await(), station.id, System.currentTimeMillis())
+            }
+        } else {
+            NwsStationLatestFetcher.WebSource("synoptic_test") { station, index, apiNewestMs ->
+                val windowMinutes = if (ObservationFallbackPolicy.shouldFetchWeb(index)) {
+                    ObservationFallbackPolicy.webFallbackWindowMinutes(apiNewestMs, System.currentTimeMillis())
+                } else {
+                    ObservationFallbackPolicy.METRICS_WINDOW_MINUTES
+                }
+                when (val outcome = synopticApi.fetchSynopticObservations(station.id, windowMinutes, station.name)) {
+                    is FetchOutcome.Success -> FetchOutcome.Success(outcome.value.map { it.toReading(station, isWebFallback = true) })
+                    is FetchOutcome.NoData -> FetchOutcome.NoData
+                    is FetchOutcome.Failed -> outcome
+                }
+            }
+        }
+
         val deferreds = stations.take(MAX_OBSERVATION_STATIONS).mapIndexed { index, station ->
             async {
                 // Tri-state, not bestEffort: an empty window (station definitively silent) and a
@@ -796,101 +823,17 @@ class DesktopWeatherService(
 
                 // Latest is fetched regardless of whether the window returned anything (previously
                 // gated on historical.isNotEmpty()). It anchors current temp and can be fresher than
-                // the window's newest row.
-                val latestOutcome = nwsApi.getLatestObservationDetailedResult(station.id)
-                val latest = latestOutcome.valueOrNull()
-
-                val newestObservationMs = latest?.let {
-                    runCatching { ZonedDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrNull()
-                }
-
-                // Fetch-first policy (plan 260721): the nearest WEB_FETCH_STATIONS fetch BOTH sources
-                // every cycle and anchor current temp on prefer-newest (web is often fresher than the
-                // API); stations up to WEB_METRICS_STATIONS also fetch web, but only to log the
-                // freshness metric. Web here uses a modest window (not the wide historyDays one) — the
-                // NWS API window still supplies historical actuals, so web only supplements the latest.
-                var synopticOutcome: FetchOutcome<List<NwsApi.Observation>>? = null
-                var webReadings: List<NwsApi.Observation> = emptyList()
-                val fetchWebForUse = ObservationFallbackPolicy.shouldFetchWeb(index)
-                val logWebMetrics = ObservationFallbackPolicy.shouldLogWebMetrics(index)
-                var bundleLatest = latest
-                var latestIsWeb = false
-                var cloudCarrier: NwsApi.Observation? = null
-                if (fetchWebForUse || logWebMetrics) {
-                    val nowMs = System.currentTimeMillis()
-                    val windowMinutes = if (fetchWebForUse) {
-                        ObservationFallbackPolicy.webFallbackWindowMinutes(newestObservationMs, nowMs)
-                    } else {
-                        ObservationFallbackPolicy.METRICS_WINDOW_MINUTES
-                    }
-                    val transport: String
-                    synopticOutcome = if (parallelMetarDeferred != null) {
-                        transport = "aviation_weather"
-                        when (val batch = parallelMetarDeferred.await()) {
-                            is FetchOutcome.Success -> {
-                                val stationRows = batch.value
-                                    .filter { it.stationId == station.id }
-                                    .filter {
-                                        it.timestamp <= System.currentTimeMillis() +
-                                            ObservationFallbackPolicy.MAX_WEB_FUTURE_SKEW_MS
-                                    }
-                                    .map { it.toNwsObservation() }
-                                if (stationRows.isEmpty()) FetchOutcome.NoData else FetchOutcome.Success(stationRows)
-                            }
-                            is FetchOutcome.NoData -> FetchOutcome.NoData
-                            is FetchOutcome.Failed -> batch
-                        }
-                    } else {
-                        transport = "synoptic_test"
-                        synopticApi.fetchSynopticObservations(station.id, windowMinutes, station.name)
-                    }
-                    webReadings = synopticOutcome.valueOrNull().orEmpty()
-                    val merge = NwsObservationPlanner.mergeLatest(
-                        apiLatest = latest,
-                        apiNewestMs = newestObservationMs,
-                        webReadings = webReadings,
-                        useWebForLatest = fetchWebForUse,
-                        isQcFailed = { it.qcFailed },
-                        observedAtMillis = {
-                            runCatching { ZonedDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrNull()
-                        },
-                        hasLowCloud = { MetarSkyCover.lowPercent(it.cloudLayers) != null },
-                    )
-                    val apiMs = merge.apiNewestMs
-                    val webMs = merge.webNewestMs
-                    val deltaMin = if (apiMs != null && webMs != null) (webMs - apiMs) / 60_000L else null
-                    val webUsableLatest = webReadings.lastOrNull { !it.qcFailed }
-                    val webOutcomeLabel = when (val outcome = requireNotNull(synopticOutcome)) {
-                        is FetchOutcome.Success -> "success"
-                        is FetchOutcome.NoData -> "no_data"
-                        is FetchOutcome.Failed -> "failed:${outcome.reason}"
-                    }
+                // the window's newest row. The latest + web merge is the step Android runs too.
+                val latestResult = latestFetcher.fetch(station, index, latitude, longitude, web)
+                val bundleLatest = latestResult.chosen
+                val webReadings = latestResult.webRows
+                latestResult.cloudCarrier?.let { carrier ->
                     weatherDao?.log(
-                        "OBS_WEB_API_DELTA",
-                        "station=${station.id} index=$index tier=${if (fetchWebForUse) "use" else "metrics"} " +
-                            "transport=$transport outcome=$webOutcomeLabel " +
-                            "apiNewestMs=${merge.apiNewestMs} webNewestMs=${merge.webNewestMs} deltaMin=$deltaMin " +
-                            "apiTempC=${latest?.temperatureCelsius} webTempC=${webUsableLatest?.temperatureCelsius} " +
-                            "webQcFailed=${webReadings.any { it.qcFailed }} chosen=${if (merge.chosenIsWeb) "web" else "api"}",
+                        "OBS_CLOUD_CARRIER",
+                        "station=${station.id} timestamp=${carrier.timestamp} cloudLow=${carrier.cloudCoverLow} " +
+                            "reason=preserve_independent_api_observation",
                         "INFO",
                     )
-                    // Prefer-newest anchors current temp; when the web row wins, the API row is
-                    // preserved as the cloudCarrier (below) rather than discarded.
-                    bundleLatest = merge.chosen
-                    latestIsWeb = merge.chosenIsWeb
-                    // Android's cloudCarrier: the web swap is a TEMPERATURE decision, but it drops
-                    // the API row's sky condition (and 24h extremes/precip). Keep the API row as a
-                    // second observation when it carries sky cover, so the cloud blend still sees it.
-                    merge.cloudCarrier?.let { carrier ->
-                        cloudCarrier = carrier
-                        weatherDao?.log(
-                            "OBS_CLOUD_CARRIER",
-                            "station=${station.id} timestamp=$newestObservationMs " +
-                                "cloudLow=${MetarSkyCover.lowPercent(carrier.cloudLayers)} " +
-                                "reason=preserve_independent_api_observation",
-                            "INFO",
-                        )
-                    }
                 }
 
                 // Android parity (ObservationFallbackPolicy.shouldUseWebFallback): fall back to the
@@ -899,26 +842,16 @@ class DesktopWeatherService(
                 val newestHistoricalMs = historical.mapNotNull {
                     runCatching { ZonedDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrNull()
                 }.maxOrNull()
-                val useWebForHistory = fetchWebForUse && webReadings.isNotEmpty() &&
+                val useWebForHistory = ObservationFallbackPolicy.shouldFetchWeb(index) && webReadings.isNotEmpty() &&
                     ObservationFallbackPolicy.shouldUseWebFallback(index, newestHistoricalMs, System.currentTimeMillis())
 
                 if (historical.isNotEmpty() && !useWebForHistory) {
-                    ObservationBundle(
-                        station, bundleLatest, historical,
-                        latestIsWeb = latestIsWeb, historicalIsWeb = false, cloudCarrier = cloudCarrier,
-                    )
+                    ObservationBundle(station, bundleLatest, historical.map { it.toReading(station) }, latestResult.cloudCarrier)
                 } else if (useWebForHistory) {
                     // NWS history is empty or stale; surface the web readings we already fetched so
                     // the station still contributes. QC-flagged stay in historical for the stations
                     // UI; the chosen usable latest anchors current temp. All-flagged → latest=null.
-                    ObservationBundle(
-                        station,
-                        bundleLatest,
-                        webReadings.filter { it !== bundleLatest },
-                        latestIsWeb = latestIsWeb,
-                        historicalIsWeb = true,
-                        cloudCarrier = cloudCarrier,
-                    )
+                    ObservationBundle(station, bundleLatest, webReadings.filter { it !== bundleLatest }, latestResult.cloudCarrier)
                 } else if (recentOnly && bundleLatest != null) {
                     // Recent-window cycle against a slow station (KPAO can go ~90 min between
                     // reports): an empty window is legitimate, but the latest lookup still holds a
@@ -926,8 +859,8 @@ class DesktopWeatherService(
                     // station for the cycle. Deliberately scoped to recentOnly — on the full 7-day
                     // pull an empty window means a genuinely silent station, which must keep taking
                     // the touch/fail path below.
-                    ObservationBundle(station, bundleLatest, emptyList(), latestIsWeb = latestIsWeb, historicalIsWeb = false)
-                } else if (shouldTouchObservationFetchedAt(historicalOutcome, synopticOutcome)) {
+                    ObservationBundle(station, bundleLatest, emptyList())
+                } else if (shouldTouchObservationFetchedAt(historicalOutcome, latestResult.webOutcome)) {
                     // Attempt completed but the station definitively yielded nothing storable
                     // (e.g. publishing only null-temperature reports). Record the attempt on the
                     // newest stored row so the stations list shows a fresh "Fetched" against an
@@ -939,7 +872,7 @@ class DesktopWeatherService(
                     // Every upstream failed outright — leave fetchedAt frozen (a dead network
                     // must not masquerade as a silent station) and report the failure durably.
                     val nwsReason = (historicalOutcome as? FetchOutcome.Failed)?.reason ?: "unknown"
-                    val synopticReason = (synopticOutcome as? FetchOutcome.Failed)?.reason ?: "not_tried"
+                    val synopticReason = latestResult.webFailureReason ?: "not_tried"
                     weatherDao?.log("NWS_STATION_FAIL", "station=${station.id} nws=$nwsReason synoptic=$synopticReason", "WARN")
                     null
                 }
@@ -948,20 +881,19 @@ class DesktopWeatherService(
         deferreds.mapNotNull { it.await() }
     }
 
+    /**
+     * One station's rows, already as stored readings: [latest] is the merged current reading (web
+     * rows stamped `isWebFallback`), [historical] the API window or the web fallback.
+     */
     private data class ObservationBundle(
         val station: NwsApi.StationInfo,
-        val latest: NwsApi.Observation?,
-        val historical: List<NwsApi.Observation>,
-        // Origin is per-slot, not per-bundle: under the fetch-first policy (plan 260721) the latest
-        // reading can come from web (prefer-newest) while the historical series is still the NWS API
-        // window. A single flag would mislabel one of them in the stations UI.
-        val latestIsWeb: Boolean = false,
-        val historicalIsWeb: Boolean = false,
+        val latest: ObservationReading?,
+        val historical: List<ObservationReading>,
         /**
-         * The API observation to store alongside a web-won latest (Android's `cloudCarrier`): the
-         * web swap is a temperature decision, but Synoptic carries no sky/extremes/precip.
+         * The API observation to store alongside a web-won latest (see
+         * [NwsStationLatestFetcher.StationLatest.cloudCarrier]).
          */
-        val cloudCarrier: NwsApi.Observation? = null,
+        val cloudCarrier: ObservationReading? = null,
     )
 
     /** Shared hardened parse (see [NwsObservationMapper]); retained as a seam for tests. */
@@ -973,19 +905,6 @@ class DesktopWeatherService(
         com.weatherwidget.shared.observations.NwsObservationMapper.toReading(
             this, station, latitude, longitude, isWebFallback,
         )
-
-    /** Presentation copy for the NWS fetch-both merge; standalone METAR rows keep `api=METAR`. */
-    private fun ObservationReading.toNwsObservation() = NwsApi.Observation(
-        timestamp = Instant.ofEpochMilli(timestamp).toString(),
-        temperatureCelsius = (temperature - 32f) / 1.8f,
-        textDescription = condition,
-        stationName = stationName,
-        precipLastHourMm = precipAmountMm,
-        qcFailed = qcFailed,
-        cloudLayers = MetarRawSkyParser.layersFrom(rawMetar),
-        isMetar = isMetar,
-        rawMessage = rawMetar,
-    )
 
     private fun NwsApi.HourlyForecastPeriod.toHourlyForecast() = HourlyForecast(
         dateTime = startTime,
@@ -1110,7 +1029,7 @@ class DesktopWeatherService(
         val bundles = fetchObservationBundles(stations, recentOnly = recentOnly)
         
         val allLatestReadings = bundles.mapNotNull { bundle ->
-            bundle.latest?.toReading(bundle.station, bundle.latestIsWeb)
+            bundle.latest
         }
         val freshLatestReadings = allLatestReadings.filter {
             System.currentTimeMillis() - it.timestamp <= FRESH_OBSERVATION_MS
@@ -1118,22 +1037,20 @@ class DesktopWeatherService(
 
         // Real-or-nothing blend (shared with Android) for the header value; the nearest-station
         // fallback below is header-only too.
-        val blend = NwsBlend.build(allLatestReadings, latitude, longitude)
+        val blend = NwsBlend.build(allLatestReadings, latitude, longitude, personalStationWeight)
         val currentTemp = blend?.temperature
-            ?: bundles.minByOrNull { com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(latitude, longitude, it.station.lat, it.station.lon) }?.latest?.let {
-                (it.temperatureCelsius * 1.8f) + 32f
-            }
+            ?: bundles.minByOrNull { com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(latitude, longitude, it.station.lat, it.station.lon) }?.latest?.temperature
 
         val closestBundle = bundles.minByOrNull { com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(latitude, longitude, it.station.lat, it.station.lon) }
-        val currentCondition = closestBundle?.latest?.textDescription
+        val currentCondition = closestBundle?.latest?.condition
 
         // All readings (latest + historical) from all successful stations
         val rawObservations = bundles.flatMap { bundle ->
             buildList {
-                bundle.latest?.let { add(it.toReading(bundle.station, bundle.latestIsWeb)) }
-                bundle.historical.forEach { add(it.toReading(bundle.station, bundle.historicalIsWeb)) }
+                bundle.latest?.let { add(it) }
+                addAll(bundle.historical)
                 // Preserved API row when the web reading won the temperature merge (Android parity).
-                bundle.cloudCarrier?.let { add(it.toReading(bundle.station, isWebFallback = false)) }
+                bundle.cloudCarrier?.let { add(it) }
             }
         }
 

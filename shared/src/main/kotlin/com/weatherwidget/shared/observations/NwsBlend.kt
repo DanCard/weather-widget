@@ -40,6 +40,7 @@ object NwsBlend {
         readings: List<ObservationReading>,
         latitude: Double,
         longitude: Double,
+        personalStationWeight: Double,
         nowMs: Long,
         rowLatitude: Double = latitude,
         rowLongitude: Double = longitude,
@@ -56,7 +57,7 @@ object NwsBlend {
             apiOf = { it.api },
             fetchedAtOf = { it.fetchedAt },
         )
-        return build(inputs, latitude, longitude, rowLatitude, rowLongitude, nowMs)
+        return build(inputs, latitude, longitude, personalStationWeight, rowLatitude, rowLongitude, nowMs)
     }
 
     /** Each station's newest reading that passed upstream QC, sorted by station id. */
@@ -80,13 +81,15 @@ object NwsBlend {
         readings: List<ObservationReading>,
         latitude: Double,
         longitude: Double,
+        /** The user's personal-station weight ([SpatialInterpolator.interpolateIDW]). */
+        personalStationWeight: Double,
         rowLatitude: Double = latitude,
         rowLongitude: Double = longitude,
         nowMs: Long = System.currentTimeMillis(),
     ): ObservationReading? {
         val usable = latestUsableByStation(readings)
         if (usable.isEmpty()) return null
-        val temperature = SpatialInterpolator.interpolateIDW(latitude, longitude, usable, nowMs) ?: return null
+        val temperature = SpatialInterpolator.interpolateIDW(latitude, longitude, usable, personalStationWeight, nowMs) ?: return null
         return ObservationReading(
             stationId = STATION_ID,
             stationName = STATION_NAME,

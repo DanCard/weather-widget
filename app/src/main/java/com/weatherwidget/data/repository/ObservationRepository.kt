@@ -154,6 +154,7 @@ private fun legacyComponents(
             observationDao,
             appLogDao,
             dailyActualsStore,
+            weightProvider,
         ),
         backfiller = NwsObservationBackfiller(
             source,
@@ -163,6 +164,6 @@ private fun legacyComponents(
             dailyActualsStore,
         ),
         dailyActualsStore = dailyActualsStore,
-        currentReader = CurrentObservationReader(observationDao),
+        currentReader = CurrentObservationReader(observationDao, weightProvider),
     )
 }

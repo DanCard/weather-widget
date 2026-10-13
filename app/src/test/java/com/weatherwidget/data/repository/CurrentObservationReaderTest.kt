@@ -77,7 +77,7 @@ class CurrentObservationReaderTest {
             dao.getLatestNwsObservationCandidatesByStationAllTime(currentLat, currentLon, any())
         } returns listOf(otherNws, currentNws)
 
-        val result = CurrentObservationReader(dao)
+        val result = CurrentObservationReader(dao) { 1.0 }
             .getMainObservationsWithComputedNwsBlend(currentLat, currentLon, sinceMs, nowMs)
 
         assertEquals(listOf("OPEN_METEO_MAIN", "NWS_BLEND"), result.map { it.stationId })
@@ -95,7 +95,7 @@ class CurrentObservationReaderTest {
                 coEvery { dao.getLatestMainObservationsExcludingNws(any(), any(), any()) } returns emptyList()
                 coEvery { dao.getLatestNwsObservationCandidatesByStationAllTime(any(), any(), any()) } returns nwsRows
             },
-        )
+        ) { 1.0 }
 
     /**
      * Callers pass local midnight as sinceMs. At 00:15 a 23:30 reading is 45 minutes old and the IDW

@@ -61,6 +61,15 @@ class MetarObservationSource(
     ): List<ObservationEntity> =
         fetcher.fetchObservations(latitude, longitude, hours, limit).map { it.toEntity() }
 
+    /** The batch as shared readings, for [com.weatherwidget.shared.observations.NwsStationLatestFetcher]. */
+    suspend fun fetchReadingsResult(
+        latitude: Double,
+        longitude: Double,
+        hours: Int = 2,
+        limit: Int = AviationWeatherStationFilter.DEFAULT_LIMIT,
+    ): FetchOutcome<List<com.weatherwidget.data.model.ObservationReading>> =
+        fetcher.fetchObservationsResult(latitude, longitude, hours, limit)
+
     suspend fun fetchObservationsResult(
         latitude: Double,
         longitude: Double,

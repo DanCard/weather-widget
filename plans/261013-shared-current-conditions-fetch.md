@@ -162,3 +162,64 @@ calls (`getCurrent(`, `getFiveMinuteHistory(`, the station-observation endpoints
   written five rows (`_MAIN` + North/South/East/West).
 - **Desktop:** rebuilt and restarted. Desktop displays NWS, so its Open-Meteo path has not run live
   yet; the shared contract test covers it.
+
+### Phase 2 (2026-10-13)
+
+**Scope as built.** `:shared` `NwsStationLatestFetcher` covers the per-station step both platforms
+ran:
+- the API's latest report;
+- the station's web rows (the Aviation Weather batch, filtered by `batchRows`, or desktop's
+  Synoptic test path);
+- `NwsObservationPlanner.mergeLatest`;
+- the cloud carrier;
+- the touch / failure outcome;
+- one `OBS_WEB_API_DELTA` format: `apiTempF` / `webTempF`, where Android and desktop had each logged
+  different fields.
+
+It is the deferred "Phase 3d orchestration" of plans/260909-nws-fetch-unification.md. Desktop's
+history window and web-history fallback stay desktop-side (that plan's 3e). They now read the
+shared `webRows`.
+
+- **Android:** `NwsObservationSource.fetchLatest` + `LatestStationObservation` are deleted; it went
+  from 461 to 273 lines. Their old test-only Synoptic branch went with them (production always
+  passed the parallel batch).
+  - `NwsCurrentObservationUpdater` uses the shared step.
+  - `fetchLatest`'s two tests moved to `:shared` `NwsStationLatestFetcherTest` (7 tests).
+- **Desktop:** `ObservationBundle` now holds shared readings. Gone: the METAR →
+  `NwsApi.Observation` → reading round trip, `toNwsObservation`, and the per-slot `latestIsWeb` /
+  `historicalIsWeb` flags.
+- **Fix found by the replay: a web row is filed at the NWS station's distance.** The Aviation
+  Weather feed has its own station coordinates.
+  - KPAO came out 5.0 km from Mountain View against NWS's 6.0 km. The Fold 4 already stored both
+    (`KPAO isWebFallback=1`: 2 rows at 5.009, 77 at 6.039), so one station got two blend weights.
+  - `asNwsWebRow` now sets the site location and the station's distance on both platforms.
+- **Personal-station discount in the NWS current blend (user, 2026-10-13).**
+  - `SpatialInterpolator.interpolateIDW` (behind `NwsBlend`, i.e. the NWS current value on both
+    platforms) now takes the user's `personalStationWeight`. It applies the actual line's three
+    rules: dropped at weight 0, official wins inside `NEAR_ZERO_KM`, otherwise the weight is
+    multiplied.
+  - Required parameter. Android passes `PersonalStationWeightProvider` (reader, updater); desktop
+    passes `config.personalStationWeight()` at all 5 service constructions and in the repository.
+    The UI's remembered service is now keyed on the weight.
+  - Desktop already used the same IDW (`NwsBlend.build` calls `interpolateIDW`). Its remaining
+    difference is the forecast fallback when no station is usable, which is unchanged.
+- **Old-vs-new replay** (`ObservationFetchReplayHarnessTest`, inert without `REPLAY_DIR`): recorded
+  14 real NWS + Aviation Weather responses at 15:1x, then replayed them through `HEAD` and through
+  the new code.
+  - 1097 rows each, identical except the two web-won rows (KNUQ, KPAO). Those now carry the NWS
+    station name ("Mountain View, Moffett Field", the same as that station's 71 API rows) instead
+    of the METAR feed's ("Moffett Fed Airfld, CA, US").
+  - The current value moved 74.61 → 73.82 °F: the discount on AW020, a personal station.
+- **Tests:**
+  - `SpatialInterpolatorPersonalDiscountTest` (4).
+  - Distance asserted in `NwsStationLatestFetcherTest`.
+  - Existing blend tests pass `personalStationWeight = 1.0`, which keeps their original meaning.
+- **Suites:** `:shared` 2181, app 2501 (2 tests moved to `:shared`), desktop 582 — 0 failures.
+- **Live, both platforms on the new build:**
+  - Desktop at 15:29:17 and the Fold 4 at 15:33:15 logged the same five `OBS_WEB_API_DELTA` lines
+    in the shared format (same stations, tiers, timestamps and temperatures; KNUQ `chosen=web`
+    with `deltaMin=20`, a KNUQ cloud carrier on desktop).
+  - New web rows: KNUQ "Mountain View, Moffett Field" at 3.798 km (desktop) / 3.818 km (Fold).
+    Each matches that platform's own KNUQ API-row distance (their sites differ by about 20 m).
+  - Fold `NWS_IDW` 73.66 °F from 5 stations; `CURR_FETCH_SOURCE_RESULT NWS success=true`.
+- **Replay harness kept** (inert without `REPLAY_DIR`) for Phase 3.

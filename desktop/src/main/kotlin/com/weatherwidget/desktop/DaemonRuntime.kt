@@ -844,7 +844,11 @@ internal class DaemonRuntime(
     fun startFetchLoops(reason: String = STARTUP_REASON) {
         fetchJob?.cancel()
         val config = currentConfig ?: return
-        val svc = DesktopWeatherService(config.lat, config.lon, config.displaySource, config.settings.apiKeys, weatherDao, synopticBackoffStore = DesktopSynopticBackoffStore.default())
+        val svc = DesktopWeatherService(
+            config.lat, config.lon, config.displaySource, config.settings.apiKeys, weatherDao,
+            synopticBackoffStore = DesktopSynopticBackoffStore.default(),
+            personalStationWeight = config.personalStationWeight(),
+        )
         val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.displaySource, config.personalStationWeight())
 
         // 1. Startup refresh, outside fetchJob: a source change leaves the previous one running
@@ -1030,6 +1034,7 @@ internal class DaemonRuntime(
                                 config.settings.apiKeys,
                                 weatherDao,
                                 synopticBackoffStore = DesktopSynopticBackoffStore.default(),
+                                personalStationWeight = config.personalStationWeight(),
                             )
                             val otherRepo = DesktopWeatherRepository(
                                 otherService,
@@ -1095,6 +1100,7 @@ internal class DaemonRuntime(
                                 config.settings.apiKeys,
                                 weatherDao,
                                 synopticBackoffStore = DesktopSynopticBackoffStore.default(),
+                                personalStationWeight = config.personalStationWeight(),
                             )
                             val otherRepo = DesktopWeatherRepository(
                                 otherService,

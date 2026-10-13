@@ -45,13 +45,13 @@ class NwsBlendTest {
     @Test
     fun `no row when every station is too stale to weight`() {
         val stale = listOf(reading("KNUQ", ageMin = 200, temp = 60f, km = 3f), reading("KSJC", ageMin = 240, temp = 62f, km = 12f))
-        assertNull("a stale-only blend must not become an observation", NwsBlend.build(stale, lat, lon, nowMs = now))
+        assertNull("a stale-only blend must not become an observation", NwsBlend.build(stale, lat, lon, personalStationWeight = 1.0, nowMs = now))
     }
 
     @Test
     fun `no row without a usable station`() {
-        assertNull(NwsBlend.build(emptyList(), lat, lon, nowMs = now))
-        assertNull(NwsBlend.build(listOf(reading("KNUQ", 5, 60f, 3f, qcFailed = true)), lat, lon, nowMs = now))
+        assertNull(NwsBlend.build(emptyList(), lat, lon, personalStationWeight = 1.0, nowMs = now))
+        assertNull(NwsBlend.build(listOf(reading("KNUQ", 5, 60f, 3f, qcFailed = true)), lat, lon, personalStationWeight = 1.0, nowMs = now))
     }
 
     @Test
@@ -62,7 +62,7 @@ class NwsBlendTest {
                 reading("KSJC", ageMin = 5, temp = 70f, km = 12f, condition = "Clear"),
             ),
             lat,
-            lon,
+            lon, personalStationWeight = 1.0,
             nowMs = now,
         )
         assertNotNull(blend)
@@ -76,7 +76,7 @@ class NwsBlendTest {
 
     @Test
     fun `row is filed at the storage key, blended at the centre`() {
-        val blend = NwsBlend.build(listOf(reading("KNUQ", 5, 60f, 3f)), lat, lon, rowLatitude = 37.417, rowLongitude = -122.089, nowMs = now)!!
+        val blend = NwsBlend.build(listOf(reading("KNUQ", 5, 60f, 3f)), lat, lon, personalStationWeight = 1.0, rowLatitude = 37.417, rowLongitude = -122.089, nowMs = now)!!
         assertEquals(37.417, blend.locationLat, 0.0)
         assertEquals(-122.089, blend.locationLon, 0.0)
     }
@@ -91,7 +91,7 @@ class NwsBlendTest {
     @Test
     fun `an existing blend row is never a blend input`() {
         val prior = reading(NwsBlend.STATION_ID, ageMin = 1, temp = 99f, km = 0f)
-        val blend = NwsBlend.build(listOf(prior, reading("KNUQ", 5, 60f, 3f)), lat, lon, nowMs = now)!!
+        val blend = NwsBlend.build(listOf(prior, reading("KNUQ", 5, 60f, 3f)), lat, lon, personalStationWeight = 1.0, nowMs = now)!!
         assertEquals(60f, blend.temperature, 0f)
     }
 
@@ -103,7 +103,7 @@ class NwsBlendTest {
             reading("KPAO", ageMin = 200, temp = 90f, km = 6.0f), // past the 3 h decay
             reading("SYN1", ageMin = 5, temp = 99f, km = 1.0f).copy(api = "SYNOPTIC"),
         )
-        val blend = NwsBlend.current(rows, lat, lon, now)!!
+        val blend = NwsBlend.current(rows, lat, lon, personalStationWeight = 1.0, now)!!
         assertEquals(60f, blend.temperature, 0.01f)
         assertEquals(now - 45 * minute, blend.timestamp)
     }
@@ -112,7 +112,7 @@ class NwsBlendTest {
     fun `current merges nearby fetch sites instead of collapsing to the nearest`() {
         val home = reading("KNUQ", ageMin = 70, temp = 60f, km = 3.8f)
         val walk = reading("KNUQ", ageMin = 10, temp = 66f, km = 4.1f).copy(locationLat = lat + 0.007)
-        val blend = NwsBlend.current(listOf(home, walk), lat, lon, now)!!
+        val blend = NwsBlend.current(listOf(home, walk), lat, lon, personalStationWeight = 1.0, now)!!
         assertEquals(66f, blend.temperature, 0.01f)
     }
 }

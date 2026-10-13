@@ -58,7 +58,7 @@ class CurrentTempViewConsistencyTest {
     /** Simulates what getMainObservationsWithComputedNwsBlend() produces. */
     private fun buildCurrentTempsWithBlend(): List<ObservationEntity> {
         val stations = listOf(stationAw020, stationKnuq, stationKsjc)
-        val blendedTemp = SpatialInterpolator.interpolateIDW(com.weatherwidget.testutil.TestData.LAT, com.weatherwidget.testutil.TestData.LON, stations.map { it.toReading() }, nowMs)
+        val blendedTemp = SpatialInterpolator.interpolateIDW(com.weatherwidget.testutil.TestData.LAT, com.weatherwidget.testutil.TestData.LON, stations.map { it.toReading() }, personalStationWeight = 1.0, nowMs)
             ?: return stations
         val nwsBlend = ObservationEntity(
             stationId = "NWS_BLEND",

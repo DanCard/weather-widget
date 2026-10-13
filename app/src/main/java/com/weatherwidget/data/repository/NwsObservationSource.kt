@@ -10,10 +10,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.SynopticApi
-import com.weatherwidget.data.remote.shouldTouchObservationFetchedAt
-import com.weatherwidget.shared.observations.MetarSkyCover
-import com.weatherwidget.shared.observations.LatestObservationMerge
-import com.weatherwidget.shared.observations.NwsObservationPlanner
+import com.weatherwidget.shared.observations.NwsStationLatestFetcher
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.util.SharedPreferencesUtil
 import java.time.OffsetDateTime
@@ -21,43 +18,6 @@ import javax.inject.Singleton
 
 private const val TAG = "NwsObservationSource"
 private const val STATION_CACHE_MAX_AGE_MS = 86_400_000L
-
-internal data class LatestStationObservation(
-    val chosen: ObservationEntity?,
-    val qcFlagged: List<ObservationEntity>,
-    /**
-     * The full NWS API observation, stored *alongside* the chosen Synoptic row when the web reading
-     * won [LatestObservationMerge.preferNewest] on temperature freshness.
-     *
-     * The merge is a TEMPERATURE decision, but it swaps the whole row: Synoptic republishes 20-60
-     * minutes ahead of the API yet carries no 24h extremes and no precipitation (see `SynopticApi` —
-     * both are null). A plain swap therefore discards what the API row knew. Measured 2026-08-21:
-     * KNUQ (Moffett, 3.8 km, the nearest official station) stored 23 consecutive cloud-less rows
-     * while its own METARs read `OVC 400` throughout, leaving the entire cloud blend to KSJC 15.9 km
-     * away.
-     *
-     * Sky condition used to be on that list of things Synoptic "carries none of". It was never true
-     * — Synoptic returns the raw report in `metar_set_1` and the parser simply ignored it, which is
-     * the other half of the same KNUQ measurement. `SynopticApi` now parses it, so a web row carries
-     * its own cloud. This row still earns its place for the extremes and precipitation, and as the
-     * API's independent account of the same hour.
-     *
-     * This is a real observation row, not a cloud-only stub, deliberately: it keeps the API row's
-     * own timestamp (the cloud value must bucket to the API observation hour, not the web row's
-     * newer time) and its temperature / 24h extremes / precipitation, all of which the web swap was
-     * discarding just as surely as the sky. The temperature never wins a "latest" read (the web row
-     * is strictly newer), and the row's own primary key — `(stationId, timestamp, locationLat,
-     * locationLon)` — means a historical backfill that files the same report REPLACEs rather than
-     * duplicates it, so nothing is double-counted.
-     *
-     * Null when the API row was chosen anyway, when there is no API row, or when it carried no
-     * sky condition to preserve.
-     */
-    val cloudCarrier: ObservationEntity?,
-    val shouldTouchFetchedAt: Boolean,
-    val nwsFailureReason: String?,
-    val secondaryFailureReason: String?,
-)
 
 internal data class HistoricalStationObservations(
     val entities: List<ObservationEntity>,
@@ -166,162 +126,14 @@ class NwsObservationSource(
         return FetchOutcome.Success(fetched)
     }
 
-    internal suspend fun fetchLatest(
-        stationInfo: NwsApi.StationInfo,
-        latitude: Double,
-        longitude: Double,
-        stationIndex: Int,
-        parallelWebOutcome: (suspend () -> FetchOutcome<ObservationEntity>)? = null,
-    ): LatestStationObservation {
-        val nwsOutcome = nwsApi.getLatestObservationDetailedResult(stationInfo.id)
-        val apiObservation = nwsOutcome.valueOrNull()
-        val nowMs = System.currentTimeMillis()
-        val apiObservedAtMs = apiObservation.observedAtMillis()
-        val fetchWebForUse = ObservationFallbackPolicy.shouldFetchWeb(stationIndex)
-        val logWebMetrics = ObservationFallbackPolicy.shouldLogWebMetrics(stationIndex)
-
-        // Production supplies one already-started Aviation Weather batch through this seam. Await
-        // it only after the station's NWS request has completed, so both transports overlap while
-        // retaining the existing per-station retry and persistence behavior. Tests and historical
-        // callers that omit it keep the legacy Synoptic path below.
-        if (parallelWebOutcome != null && (fetchWebForUse || logWebMetrics)) {
-            val webOutcome = parallelWebOutcome()
-            val webEntity = webOutcome.valueOrNull()
-            val apiEntity = apiObservation?.let {
-                toEntity(it, stationInfo, latitude, longitude, isWebFallback = false)
-            }
-            val merge = NwsObservationPlanner.mergeLatest(
-                apiLatest = apiEntity,
-                apiNewestMs = apiObservedAtMs,
-                webReadings = listOfNotNull(webEntity),
-                useWebForLatest = fetchWebForUse,
-                isQcFailed = { it.qcFailed },
-                observedAtMillis = { it.timestamp },
-                hasLowCloud = { it.cloudCoverLow != null },
-            )
-            val chosen = if (merge.chosenIsWeb) {
-                merge.chosen?.copy(
-                    api = WeatherSource.NWS.id,
-                    isWebFallback = true,
-                    stationName = stationInfo.name,
-                    stationType = stationInfo.type,
-                )
-            } else {
-                apiEntity
-            }
-            val mergedApiMs = merge.apiNewestMs
-            val mergedWebMs = merge.webNewestMs
-            val deltaMinutes = if (mergedApiMs != null && mergedWebMs != null) {
-                (mergedWebMs - mergedApiMs) / 60_000L
-            } else {
-                null
-            }
-            val outcomeLabel = when (webOutcome) {
-                is FetchOutcome.Success -> "success"
-                is FetchOutcome.NoData -> "no_data"
-                is FetchOutcome.Failed -> "failed:${webOutcome.reason}"
-            }
-            appLogDao.log(
-                "OBS_WEB_API_DELTA",
-                "station=${stationInfo.id} index=$stationIndex " +
-                    "tier=${if (fetchWebForUse) "use" else "metrics"} transport=aviation_weather " +
-                    "outcome=$outcomeLabel apiNewestMs=$mergedApiMs " +
-                    "webNewestMs=$mergedWebMs deltaMin=$deltaMinutes " +
-                    "apiTempC=${apiObservation?.temperatureCelsius} webTempF=${webEntity?.temperature} " +
-                    "webQcFailed=${webEntity?.qcFailed == true} chosen=${if (merge.chosenIsWeb) "web" else "api"}",
-                "INFO",
-            )
-            return LatestStationObservation(
-                chosen = chosen,
-                qcFlagged = listOfNotNull(webEntity?.takeIf { it.qcFailed }?.copy(
-                    api = WeatherSource.NWS.id,
-                    isWebFallback = true,
-                )),
-                cloudCarrier = merge.cloudCarrier,
-                shouldTouchFetchedAt = chosen == null && shouldTouchObservationFetchedAt(nwsOutcome, webOutcome),
-                nwsFailureReason = (nwsOutcome as? FetchOutcome.Failed)?.reason,
-                secondaryFailureReason = (webOutcome as? FetchOutcome.Failed)?.reason,
-            )
-        }
-
-        var chosenIsWeb = false
-        var synopticOutcome: FetchOutcome<List<NwsApi.Observation>>? = null
-        var flaggedEntities = emptyList<ObservationEntity>()
-        var cloudCarrierEntity: ObservationEntity? = null
-        val chosen = if (synopticApi != null && (fetchWebForUse || logWebMetrics)) {
-            val windowMinutes = if (fetchWebForUse) {
-                ObservationFallbackPolicy.webFallbackWindowMinutes(apiObservedAtMs, nowMs)
-            } else {
-                ObservationFallbackPolicy.METRICS_WINDOW_MINUTES
-            }
-            synopticOutcome = synopticApi.fetchSynopticObservations(
-                stationInfo.id,
-                windowMinutes,
-                stationInfo.name,
-            )
-            val webReadings = synopticOutcome.valueOrNull().orEmpty()
-            val merge = NwsObservationPlanner.mergeLatest(
-                apiLatest = apiObservation,
-                apiNewestMs = apiObservedAtMs,
-                webReadings = webReadings,
-                useWebForLatest = fetchWebForUse,
-                isQcFailed = { it.qcFailed },
-                observedAtMillis = { it.observedAtMillis() },
-                hasLowCloud = { MetarSkyCover.lowPercent(it.cloudLayers) != null },
-            )
-            val apiNewestMs = merge.apiNewestMs
-            val webNewestMs = merge.webNewestMs
-            val deltaMinutes = if (apiNewestMs != null && webNewestMs != null) {
-                (webNewestMs - apiNewestMs) / 60_000L
-            } else {
-                null
-            }
-            val webUsableLatest = webReadings.lastOrNull { !it.qcFailed }
-            appLogDao.log(
-                "OBS_WEB_API_DELTA",
-                "station=${stationInfo.id} index=$stationIndex tier=${if (fetchWebForUse) "use" else "metrics"} " +
-                    "apiNewestMs=$apiNewestMs webNewestMs=$webNewestMs " +
-                    "deltaMin=$deltaMinutes apiTempC=${apiObservation?.temperatureCelsius} " +
-                    "webTempC=${webUsableLatest?.temperatureCelsius} " +
-                    "webQcFailed=${webReadings.any { it.qcFailed }} " +
-                    "chosen=${if (merge.chosenIsWeb) "web" else "api"}",
-                "INFO",
-            )
-            if (fetchWebForUse) {
-                flaggedEntities = webReadings
-                    .filter { it.qcFailed }
-                    .map { toEntity(it, stationInfo, latitude, longitude, isWebFallback = true) }
-                chosenIsWeb = merge.chosenIsWeb
-                // A web win is a TEMPERATURE decision, but the swap throws away the whole API row
-                // — sky condition, 24h extremes, and precipitation alike, none of which Synoptic
-                // carries. Keep the API row as a second observation (its own timestamp keeps it a
-                // distinct primary key) so those fields survive; only the temperature stays with the
-                // fresher web row.
-                merge.cloudCarrier?.let { carrier ->
-                    cloudCarrierEntity = toEntity(carrier, stationInfo, latitude, longitude, isWebFallback = false)
-                }
-                merge.chosen
-            } else {
-                apiObservation
-            }
-        } else {
-            apiObservation
-        }
-
-        return LatestStationObservation(
-            chosen = chosen?.let {
-                toEntity(it, stationInfo, latitude, longitude, isWebFallback = chosenIsWeb)
-            },
-            qcFlagged = flaggedEntities,
-            cloudCarrier = cloudCarrierEntity,
-            shouldTouchFetchedAt = chosen == null && shouldTouchObservationFetchedAt(
-                nwsOutcome,
-                synopticOutcome,
-            ),
-            nwsFailureReason = (nwsOutcome as? FetchOutcome.Failed)?.reason,
-            secondaryFailureReason = (synopticOutcome as? FetchOutcome.Failed)?.reason,
-        )
-    }
+    /**
+     * One station's latest observation, merged with its web rows: the step desktop runs too
+     * (`:shared` [NwsStationLatestFetcher]; plans/261013-shared-current-conditions-fetch.md Phase 2).
+     */
+    internal val latestFetcher = NwsStationLatestFetcher(
+        latestObservation = { stationId -> nwsApi.getLatestObservationDetailedResult(stationId) },
+        log = { tag, message, level -> appLogDao.log(tag, message, level) },
+    )
 
     /**
      * Raw `api.weather.gov/stations/{id}/observations?start=&end=` series, with no Synoptic

@@ -16,6 +16,8 @@ private const val TAG = "CurrentObservationRead"
 @Singleton
 class CurrentObservationReader @Inject constructor(
     private val observationDao: ObservationDao,
+    /** The user's personal-station discount, applied by the blend like the actual line's. */
+    private val personalStationWeightProvider: PersonalStationWeightProvider,
 ) {
     suspend fun getMainObservationsWithComputedNwsBlend(
         latitude: Double,
@@ -52,6 +54,7 @@ class CurrentObservationReader @Inject constructor(
             readings,
             latitude,
             longitude,
+            personalStationWeightProvider.currentWeight(),
             nowMs,
             rowLatitude = LocationMatch.quantize(latitude),
             rowLongitude = LocationMatch.quantize(longitude),

@@ -6,9 +6,10 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.remote.FetchOutcome
+import com.weatherwidget.shared.observations.NwsStationLatestFetcher
 import com.weatherwidget.shared.util.SpatialInterpolator
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -27,6 +28,7 @@ class NwsCurrentObservationUpdater private constructor(
     private val appLogDao: AppLogDao,
     private val dailyActualsStore: DailyActualsStore,
     private val metarObservationSource: MetarObservationSource?,
+    private val personalStationWeightProvider: PersonalStationWeightProvider,
     @Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
 ) {
     @Inject
@@ -36,12 +38,14 @@ class NwsCurrentObservationUpdater private constructor(
         appLogDao: AppLogDao,
         dailyActualsStore: DailyActualsStore,
         metarObservationSource: MetarObservationSource,
+        personalStationWeightProvider: PersonalStationWeightProvider,
     ) : this(
         observationSource,
         observationDao,
         appLogDao,
         dailyActualsStore,
         metarObservationSource,
+        personalStationWeightProvider,
         Unit,
     )
 
@@ -51,7 +55,8 @@ class NwsCurrentObservationUpdater private constructor(
         observationDao: ObservationDao,
         appLogDao: AppLogDao,
         dailyActualsStore: DailyActualsStore,
-    ) : this(observationSource, observationDao, appLogDao, dailyActualsStore, null, Unit)
+        personalStationWeightProvider: PersonalStationWeightProvider = PersonalStationWeightProvider { 1.0 },
+    ) : this(observationSource, observationDao, appLogDao, dailyActualsStore, null, personalStationWeightProvider, Unit)
 
     internal suspend fun fetchNwsCurrent(
         latitude: Double,
@@ -64,11 +69,11 @@ class NwsCurrentObservationUpdater private constructor(
 
         val fetchStartMs = System.currentTimeMillis()
         // One token-free Aviation Weather batch starts before any station job. Each station awaits
-        // its own row only after api.weather.gov returns, so the transports overlap rather than the
+        // its own rows only after api.weather.gov returns, so the transports overlap rather than the
         // old per-station NWS-then-Synoptic sequence.
         val parallelWebDeferred = metarObservationSource?.let { source ->
             async {
-                source.fetchObservationsResult(
+                source.fetchReadingsResult(
                     latitude,
                     longitude,
                     hours = PARALLEL_WEB_HOURS,
@@ -76,37 +81,18 @@ class NwsCurrentObservationUpdater private constructor(
                 )
             }
         }
-        suspend fun webOutcomeFor(stationId: String): FetchOutcome<ObservationEntity>? =
-            when (val batch = parallelWebDeferred?.await() ?: return null) {
-                is FetchOutcome.Success -> batch.value
-                    .asSequence()
-                    .filter { it.stationId == stationId }
-                    .filterNot { it.qcFailed }
-                    .filter {
-                        it.timestamp <= System.currentTimeMillis() +
-                            com.weatherwidget.shared.observations.ObservationFallbackPolicy.MAX_WEB_FUTURE_SKEW_MS
-                    }
-                    .maxByOrNull { it.timestamp }
-                    ?.let { FetchOutcome.Success(it) }
-                    ?: FetchOutcome.NoData
-                is FetchOutcome.NoData -> FetchOutcome.NoData
-                is FetchOutcome.Failed -> batch
+        val web = parallelWebDeferred?.let { batch ->
+            NwsStationLatestFetcher.WebSource("aviation_weather") { station, _, _ ->
+                NwsStationLatestFetcher.batchRows(batch.await(), station.id, System.currentTimeMillis())
             }
+        }
 
         // Every station gets exactly one attempt. The old 10s/30s retry targeted stations.first(),
         // which is nearest by distance — often a personal station the blend discounts to ~5% — so
         // it retried the station that mattered least while blocking the whole fetch for up to 40s.
         // The observation loop and the network-restored/resume kicks re-fetch within a cycle.
         val stationDeferreds = stations.mapIndexed { index, station ->
-            async {
-                fetchAndStoreStation(
-                    station,
-                    latitude,
-                    longitude,
-                    stationIndex = index,
-                    parallelWebOutcome = parallelWebDeferred?.let { { webOutcomeFor(station.id)!! } },
-                )
-            }
+            async { fetchAndStoreStation(station, latitude, longitude, stationIndex = index, web = web) }
         }
         val successful = stationDeferreds.mapNotNull { it.await() }
         // Once per fetch, after every station is stored — not once per station. The stations run
@@ -136,6 +122,7 @@ class NwsCurrentObservationUpdater private constructor(
             latitude,
             longitude,
             successful.map { it.toReading() },
+            personalStationWeightProvider.currentWeight(),
         ) ?: return@coroutineScope null
         val closest = successful.minBy { it.distanceKm }
         val stationSummary = successful.joinToString { "${it.stationId}(${it.distanceKm}km)" }
@@ -158,16 +145,10 @@ class NwsCurrentObservationUpdater private constructor(
         latitude: Double,
         longitude: Double,
         stationIndex: Int,
-        parallelWebOutcome: (suspend () -> FetchOutcome<ObservationEntity>)? = null,
+        web: NwsStationLatestFetcher.WebSource?,
     ): ObservationEntity? {
         val result = try {
-            observationSource.fetchLatest(
-                station,
-                latitude,
-                longitude,
-                stationIndex,
-                parallelWebOutcome,
-            )
+            observationSource.latestFetcher.fetch(station, stationIndex, latitude, longitude, web)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -180,30 +161,20 @@ class NwsCurrentObservationUpdater private constructor(
             return null
         }
 
-        if (result.qcFlagged.isNotEmpty()) {
-            observationDao.insertAll(result.qcFlagged)
-            appLogDao.log(
-                "OBS_QC_FLAGGED",
-                "station=${station.id} count=${result.qcFlagged.size} " +
-                    "timestamps=${result.qcFlagged.joinToString(",") { it.timestamp.toString() }} " +
-                    "temps=${result.qcFlagged.joinToString(",") { it.temperature.toString() }}",
-                "WARN",
-            )
-        }
-
         // Stored before the chosen row and independently of it: this is the nearest station's real
         // sky condition, which the freshness-based web swap would otherwise discard entirely.
         result.cloudCarrier?.let { carrier ->
-            observationDao.insertAll(listOf(carrier))
+            val entity = carrier.toEntity()
+            observationDao.insertAll(listOf(entity))
             appLogDao.log(
                 "OBS_CLOUD_CARRIER",
-                "station=${station.id} timestamp=${carrier.timestamp} cloudLow=${carrier.cloudCoverLow} " +
+                "station=${station.id} timestamp=${entity.timestamp} cloudLow=${entity.cloudCoverLow} " +
                     "reason=preserve_independent_api_observation",
                 "INFO",
             )
         }
 
-        val chosen = result.chosen
+        val chosen = result.chosen?.toEntity()
         if (chosen == null) {
             if (result.shouldTouchFetchedAt) {
                 observationDao.touchLatestFetchedAt(
@@ -222,7 +193,7 @@ class NwsCurrentObservationUpdater private constructor(
                     "NWS_STATION_FAIL",
                     "station=${station.id} " +
                         "nws=${result.nwsFailureReason ?: "unknown"} " +
-                        "secondary=${result.secondaryFailureReason ?: "not_tried"}",
+                        "secondary=${result.webFailureReason ?: "not_tried"}",
                     "WARN",
                 )
             }

@@ -274,7 +274,7 @@ class DesktopWeatherRepository(
         // weighted at render time instead of frozen at the last fetch
         // (plans/261009-desktop-stops-storing-nws-blend.md).
         val nwsBlend = if (ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.NWS.id) {
-            NwsBlend.current(observations, latitude, longitude, now)
+            NwsBlend.current(observations, latitude, longitude, personalStationWeight, now)
         } else {
             null
         }
