@@ -300,3 +300,35 @@ shared `webRows`.
   - One feed; no Open-Meteo, no Google.
   - Desktop then ran its displayed-source post-processing
     (`OBS_REFRESH source=GOOGLE_WEATHER obs=35`).
+
+### Phase 4 plan — NWS station history (plan 260909's "3e")
+
+- **Duplicated today.** The per-station history step: fetch `getObservations(start, end)`, decide
+  `ObservationFallbackPolicy.shouldUseWebFallback`, log `fallbackReason`, map the rows, and report
+  the API outcome.
+  - Android: `NwsObservationSource.fetchHistorical`, used by `NwsObservationBackfiller`.
+  - Desktop: the history half of `fetchObservationBundles`.
+- **`:shared` `NwsStationHistoryFetcher`** owns that step. The platform supplies:
+  - the window call (desktop keeps its stall retry);
+  - the web rows for the fallback (transport stays per platform).
+- **Unified behaviour: a fallback that returns nothing keeps the API rows.** Desktop already did
+  this. Android swapped stale API rows for an empty web answer.
+- **Not changed:** the web transport. Android falls back to Synoptic over the backfill window;
+  desktop to the Aviation Weather rows its latest step already fetched (about 2 h). This is noted
+  as a decision for the user, not made here.
+- **Tests:**
+  - A shared contract test.
+  - The existing Android `NwsObservationSourceTest` window-timeout case.
+  - Desktop `DesktopSynopticFallbackTest`.
+  - The replay harness compares old vs new desktop rows.
+
+### Phase 4 (2026-10-13)
+
+- **Built:** `:shared` `NwsStationHistoryFetcher` (6 tests). Android `fetchHistorical` and desktop's
+  history half delegate to it. `NwsObservationSource` went from 273 to 231 lines.
+- **Replay:** the recorded responses gave 965 rows from both `HEAD` and the new code, identical
+  except rounding in the fifth digit of the current temperature.
+- **Tests run:** Android history-path tests (32), desktop suite (582) and the shared tests pass.
+- **Not run before the commit:** the full app and `:shared` suites, and a live device check.
+- **Open decision:** the fallback transport (Android uses Synoptic; desktop uses the Aviation
+  Weather rows it already has).

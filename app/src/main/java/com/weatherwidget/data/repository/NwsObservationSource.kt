@@ -5,15 +5,15 @@ import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.SynopticApi
+import com.weatherwidget.shared.observations.NwsStationHistoryFetcher
 import com.weatherwidget.shared.observations.NwsStationLatestFetcher
-import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.util.SharedPreferencesUtil
-import java.time.OffsetDateTime
 import javax.inject.Singleton
 
 private const val TAG = "NwsObservationSource"
@@ -150,6 +150,12 @@ class NwsObservationSource(
         nwsApi.getObservations(stationInfo.id, startTime, endTime)
             .map { toEntity(it, stationInfo, latitude, longitude) }
 
+    /** One station's history window with the web fallback: the step desktop runs too (`:shared`). */
+    private val historyFetcher = NwsStationHistoryFetcher(
+        observations = { station, start, end -> nwsApi.getObservations(station.id, start, end) },
+        log = { tag, message, level -> appLogDao.log(tag, message, level) },
+    )
+
     internal suspend fun fetchHistorical(
         stationInfo: NwsApi.StationInfo,
         stationIndex: Int,
@@ -160,66 +166,23 @@ class NwsObservationSource(
         webWindowMinutes: Long,
         fallbackLogTag: String,
     ): HistoricalStationObservations {
-        // Held alongside the list because the catch below flattens a failure into an empty result:
-        // downstream, "the request died" and "the station reported nothing" look identical, and the
-        // fallback reason used to assert the second one for both.
-        var apiFailure: String? = null
-        val nwsObservations = try {
-            nwsApi.getObservations(stationInfo.id, startTime, endTime)
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            apiFailure = e::class.simpleName ?: "Exception"
-            appLogDao.log(
-                "NWS_HISTORY_FETCH_FAIL",
-                "station=${stationInfo.id} error=${e::class.simpleName}:${e.message}",
-                "WARN",
-            )
-            Log.w(TAG, "NWS history fetch failed for ${stationInfo.id}", e)
-            emptyList()
+        // Android's fallback transport is Synoptic over the whole window; desktop reuses its
+        // Aviation Weather rows instead (plans/261013-shared-current-conditions-fetch.md Phase 4).
+        val web: (suspend () -> List<com.weatherwidget.data.model.ObservationReading>?)? = synopticApi?.let { api ->
+            {
+                api.fetchSynopticObservations(stationInfo.id, webWindowMinutes, stationInfo.name)
+                    .valueOrNull()
+                    ?.map { com.weatherwidget.shared.observations.NwsObservationMapper.toReading(it, stationInfo, latitude, longitude, isWebFallback = true) }
+            }
         }
-        val newestObservationMs = nwsObservations.mapNotNull { it.observedAtMillis() }.maxOrNull()
-        val useWebFallback = synopticApi != null &&
-            ObservationFallbackPolicy.shouldUseWebFallback(
-                stationIndex,
-                newestObservationMs,
-                System.currentTimeMillis(),
-            )
-        if (!useWebFallback) {
-            return HistoricalStationObservations(
-                nwsObservations.map { toEntity(it, stationInfo, latitude, longitude) },
-                usedWebFallback = false,
-                apiFailure = apiFailure,
-            )
-        }
-
-        val reason = ObservationFallbackPolicy.fallbackReason(
-            nwsObservations.size,
-            apiFetchFailed = apiFailure != null,
+        val history = historyFetcher.fetch(
+            stationInfo, stationIndex, latitude, longitude, startTime, endTime, web, fallbackLogTag,
         )
-        val reasonDetail = apiFailure?.let { "$reason:$it" } ?: reason
-        appLogDao.log(fallbackLogTag, "station=${stationInfo.id} reason=$reasonDetail", "INFO")
-        val webOutcome = synopticApi.fetchSynopticObservations(
-            stationInfo.id,
-            webWindowMinutes,
-            stationInfo.name,
+        return HistoricalStationObservations(
+            history.rows.map { it.toEntity() },
+            usedWebFallback = history.usedWebFallback,
+            apiFailure = history.apiFailure,
         )
-        val webReadings = webOutcome.valueOrNull()
-        return if (webReadings != null) {
-            HistoricalStationObservations(
-                webReadings.map {
-                    toEntity(it, stationInfo, latitude, longitude, isWebFallback = true)
-                },
-                usedWebFallback = true,
-                apiFailure = apiFailure,
-            )
-        } else {
-            HistoricalStationObservations(
-                nwsObservations.map { toEntity(it, stationInfo, latitude, longitude) },
-                usedWebFallback = false,
-                apiFailure = apiFailure,
-            )
-        }
     }
 
     internal fun toEntity(
@@ -265,9 +228,4 @@ class NwsObservationSource(
             cloudVerticalKind = reading.cloudVerticalKind,
         )
     }
-
-    private fun NwsApi.Observation?.observedAtMillis(): Long? =
-        this?.let {
-            runCatching { OffsetDateTime.parse(it.timestamp).toInstant().toEpochMilli() }.getOrNull()
-        }
 }
