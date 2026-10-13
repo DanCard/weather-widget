@@ -233,6 +233,13 @@ emit_results_summary() {
   if [ -n "$task_log" ] && grep -qE "^> Task ${task_path} (UP-TO-DATE|FROM-CACHE)" "$task_log" 2>/dev/null; then
     cached=true
   fi
+  # Results on disk from an EARLIER run: Gradle neither ran the task nor reported it cached (it
+  # failed before the tests, e.g. a compile error). Reporting them as "passed" claimed a test run
+  # that never happened.
+  if [ "$cached" = false ] && [ "${end_epoch:-0}" -lt "$OVERALL_START" ]; then
+    log_and_echo "${YELLOW}${label} tests: not run this time (Gradle stopped before them; results on disk are from $(date -d "@${end_epoch:-0}" +%H:%M 2>/dev/null || echo "?")).${NC}"
+    return 0
+  fi
   if [ "$result_failures" -gt 0 ]; then
     log_and_echo "${test_count} ${label} tests: ${RED}${result_failures} failed.${NC}"
     list_failed_tests "$results_dir" | while IFS= read -r line; do
@@ -301,6 +308,21 @@ start_single_invocation_summary_monitor() {
       for bucket in "${pending[@]:-}"; do
         [ -z "$bucket" ] && continue
         if [ "$bucket" = shared ] || [ "$bucket" = desktop ]; then
+          # Both modules run in ONE background Gradle process, so its exit is when the SLOWER one
+          # ends: :shared (done at 6s) used to print after :desktop (34s) and after :app buckets
+          # that finished at 27s. Report each when its own Test task is done — a report written
+          # by this run, or Gradle said it skipped the task — like the :app buckets below.
+          local module_report="$ROOT_DIR/$bucket/build/reports/tests/test/index.html"
+          local module_done=false
+          if grep -qE "^> Task :${bucket}:test (UP-TO-DATE|FROM-CACHE)" "${shared_desktop_log:-/dev/null}" 2>/dev/null; then
+            module_done=true
+          elif [ -f "$module_report" ] && [ "$(stat -c %Y "$module_report" 2>/dev/null || echo 0)" -ge "$OVERALL_START" ]; then
+            module_done=true
+          fi
+          if [ "$module_done" = true ] && emit_module_summary "$bucket"; then
+            touch "$SINGLE_INVOCATION_REPORTED_DIR/$bucket"
+            continue
+          fi
           if ! kill -0 "$SHARED_DESKTOP_PID" 2>/dev/null; then
             # Exited: report what it left (no XML = it failed before running tests; the
             # post-run block reports that with the Gradle log).
@@ -390,6 +412,15 @@ shared_desktop_log=""
 shared_desktop_status=0
 SHARED_DESKTOP_PID=""
 if [ "$DEFAULT_RUN" = true ]; then
+  # Build :shared ONCE before splitting into two Gradle processes. Both need :shared:jar; when
+  # :shared has changed, the two processes compiled and zipped it concurrently and one failed
+  # with ":shared:jar FAILED — Could not add file … to ZIP" (2026-10-13). Up to date, this costs
+  # about a second (configuration cache).
+  if ! (cd "$ROOT_DIR" && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" :shared:jar --console=plain) >>"$gradle_log" 2>&1; then
+    log_and_echo "${RED}:shared failed to build — see the Gradle output below.${NC}"
+    cat "$gradle_log"
+    exit 1
+  fi
   shared_desktop_log=$(mktemp)
   (
     cd "$ROOT_DIR"

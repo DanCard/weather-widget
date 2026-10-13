@@ -19,6 +19,12 @@ TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 UNIT_LOG_FILE="$LOG_DIR/unit-${TIMESTAMP}.log"
 EMULATOR_LOG_FILE="$LOG_DIR/emulator-${TIMESTAMP}.log"
 EMULATOR_BOOT_LOG="$LOG_DIR/emulator-boot-${TIMESTAMP}.log"
+# The run's timeline: phase starts/ends with elapsed time, plus every summary line the unit and
+# emulator scripts print. The unit log is ~30k lines of per-test Gradle output, and summary lines
+# appended into it can land mid-line ("...PASSEDShort bucket build finished"); this file is the
+# readable record of a run.
+SUMMARY_LOG_FILE="$LOG_DIR/summary-${TIMESTAMP}.log"
+: > "$SUMMARY_LOG_FILE"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -89,6 +95,23 @@ clear_asm_cache() {
 TOTAL_START=$(date +%s)
 BUILD_START=$(date +%s)
 
+# "[+12s 09:36:53] message" — to the terminal and the summary log.
+phase() {
+    local now
+    now=$(date +%s)
+    local line
+    line="[+$((now - TOTAL_START))s $(date +%H:%M:%S)] $*"
+    echo -e "${BLUE}${line}${NC}"
+    echo "$line" >> "$SUMMARY_LOG_FILE"
+}
+
+# Copy a stream to the terminal unchanged and, stripped of colour, to the summary log.
+to_summary() {
+    tee >(sed -u 's/\x1b\[[0-9;]*m//g' >> "$SUMMARY_LOG_FILE")
+}
+
+phase "Unit tests started (log: $UNIT_LOG_FILE)"
+
 # Start unit tests (this will start the first Gradle build)
 # --log-file captures full output for diagnostics; concise summary goes to stdout.
 #
@@ -101,7 +124,7 @@ BUILD_START=$(date +%s)
 # "One or more emulators failed". We defer installDebug to a final step below so it
 # runs after both test phases finish.
 touch "$UNIT_LOG_FILE"
-"$UNIT_SCRIPT" --log-file "$UNIT_LOG_FILE" &
+"$UNIT_SCRIPT" --log-file "$UNIT_LOG_FILE" > >(to_summary) &
 UNIT_PID=$!
 
 # Wait for unit tests to reach execution phase
@@ -119,7 +142,7 @@ if [ -f "$UNIT_LOG_FILE" ]; then
         if grep -q "> Task :app:test" "$UNIT_LOG_FILE"; then
             BUILD_DONE=true
             BUILD_DURATION=$(( $(date +%s) - BUILD_START ))
-            echo -en "${GREEN}Unit test build finished in ${BUILD_DURATION}s.${NC}  "
+            phase "Unit test build finished in ${BUILD_DURATION}s"
             # Give it a tiny bit more time to finish all transformations if they are parallel
             sleep 2
             break
@@ -134,6 +157,7 @@ fi
 
 wait "$UNIT_PID"
 UNIT_STATUS=$?
+phase "Unit tests finished (exit $UNIT_STATUS)"
 
 # Max attempts per emulator before giving up on a transient device disconnect.
 EMULATOR_MAX_ATTEMPTS=3
@@ -175,7 +199,7 @@ run_one_emulator_with_retries() {
             echo -e "${YELLOW}Warning: ${serial} did not report ready before attempt ${attempt}; proceeding anyway${NC}"
         fi
         : > "$serial_log"  # per-attempt log so the transient-failure grep reflects only this attempt
-        EMULATOR_TESTS_TARGET_SERIAL="$serial" "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE" "$serial_log"
+        EMULATOR_TESTS_TARGET_SERIAL="$serial" "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE" "$serial_log" | to_summary
         serial_status=${PIPESTATUS[0]}
         [ "$serial_status" -eq 0 ] && break
         if [ "$attempt" -lt "$EMULATOR_MAX_ATTEMPTS" ] &&
@@ -215,7 +239,7 @@ run_all_emulators_parallel_with_retries() {
             fi
         done
         : > "$EMULATOR_LOG_FILE"  # per-attempt, so the transient grep sees only this attempt
-        "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE"
+        "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE" | to_summary
         run_status=${PIPESTATUS[0]}
         [ "$run_status" -eq 0 ] && break
         if [ "$attempt" -lt "$EMULATOR_MAX_ATTEMPTS" ] &&
@@ -259,7 +283,7 @@ run_emulator_tests_for_staggered() {
             fi
         done
     else
-        "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee "$EMULATOR_LOG_FILE"
+        "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee "$EMULATOR_LOG_FILE" | to_summary
         status=${PIPESTATUS[0]}
     fi
     return "$status"
@@ -267,8 +291,10 @@ run_emulator_tests_for_staggered() {
 
 EMULATOR_STATUS=0
 if [ "$UNIT_STATUS" -eq 0 ]; then
+    phase "Emulator tests started (log: $EMULATOR_LOG_FILE)"
     run_emulator_tests_for_staggered
     EMULATOR_STATUS=$?
+    phase "Emulator tests finished (exit $EMULATOR_STATUS)"
 else
     echo -e "${YELLOW}Skipping emulator tests because unit tests failed.${NC}"
 fi
@@ -278,11 +304,11 @@ fi
 # unit-tests.sh do it concurrently.
 INSTALL_STATUS=0
 if [ "$INSTALL_MODE" = true ] && [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS" -eq 0 ]; then
-    echo -e "${YELLOW}Running deferred installDebug to all connected devices...${NC}"
+    phase "Deferred installDebug started"
     INSTALL_LOG_FILE="$LOG_DIR/install-${TIMESTAMP}.log"
     if JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$PROJECT_DIR/gradlew" installDebug --console=plain > "$INSTALL_LOG_FILE" 2>&1; then
         SUMMARY=$(grep -E "Installed on" "$INSTALL_LOG_FILE" | tail -1)
-        echo -e "${GREEN}installDebug: ${SUMMARY:-OK}${NC}"
+        phase "installDebug: ${SUMMARY:-OK}"
     else
         INSTALL_STATUS=$?
         echo -e "${RED}installDebug failed (exit $INSTALL_STATUS) — see $INSTALL_LOG_FILE${NC}"
@@ -291,6 +317,7 @@ if [ "$INSTALL_MODE" = true ] && [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS
 fi
 
 TOTAL_DURATION=$(( $(date +%s) - TOTAL_START ))
+phase "Done: unit=$UNIT_STATUS emulator=$EMULATOR_STATUS install=$INSTALL_STATUS total=${TOTAL_DURATION}s (summary: $SUMMARY_LOG_FILE)"
 
 if [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS" -eq 0 ] && [ "$INSTALL_STATUS" -eq 0 ]; then
     echo -e "${GREEN}Both unit tests and emulator tests passed${NC} (${TOTAL_DURATION}s)"

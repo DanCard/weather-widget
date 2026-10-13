@@ -566,8 +566,11 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
             while [ ! -f "$emu_log" ] && [ $waited -lt 120 ]; do sleep 1; waited=$((waited + 1)); done
             [ ! -f "$emu_log" ] && return
             while true; do
+                # One '.' per passed test, after "fully.qualified.Class:". Count only those: a bare
+                # grep for '.' also counted the dots in every class name and "Time: 23.319", and
+                # reported "143 passed" for a 104-test run.
                 local dots
-                dots=$(grep -oE '\.' "$emu_log" 2>/dev/null | wc -l)
+                dots=$(grep -oE ':[.EF]+$' "$emu_log" 2>/dev/null | tr -cd '.' | wc -c)
                 if [ "$dots" -gt "$last_count" ] && [ $((SECONDS - last_print)) -ge 7 ]; then
                     local elapsed=$((SECONDS - start_time))
                     printf "%b[%s]%b   ... %d passed in %ds\n" "$color" "$serial" "$NC" "$dots" "$elapsed"
