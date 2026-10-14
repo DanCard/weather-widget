@@ -50,7 +50,16 @@ object WidgetWorkScheduler {
      * twice.
      */
     private const val DEFERRED_OBSERVATION_BACKFILL_TAG = "observation_backfill"
+    /** The current-temp charging loop: delayed heartbeats only. */
     const val WORK_NAME_CURRENT_TEMP = "weather_widget_current_temp"
+
+    /**
+     * Run-now current-temp requests (taps, opportunistic job, screen-on catch-up, Settings refresh).
+     * Never shares a chain with [WORK_NAME_CURRENT_TEMP]: APPEND makes a request a dependent of the
+     * chain's last item, and behind a 16-minute heartbeat "immediate" waited 3+ h on the Pixel
+     * (performance/261014-current-temp-immediate-work-queued-behind-delayed-loop.md).
+     */
+    const val WORK_NAME_CURRENT_TEMP_NOW = "weather_widget_current_temp_now"
     const val WORK_NAME_OBSERVATION_BACKFILL = "weather_widget_observation_backfill"
     const val WORK_NAME_UI = "weather_widget_one_time_ui"
     private const val WORK_NAME_UI_DELAYED_PREFIX = "weather_widget_one_time_ui_delayed_"

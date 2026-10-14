@@ -76,10 +76,13 @@ object CurrentTempUpdateScheduler {
                     .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
-                WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP,
+                // Its own name, never the loop's: appended behind a delayed heartbeat it waited for
+                // that delay, and the chain grew by a heartbeat per run (hours late on the Pixel).
+                WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP_NOW,
                 // APPEND_OR_REPLACE (not REPLACE): never cancel a running current-temp worker — the
                 // cancelled coroutine resume segfaults ART on debuggable builds
-                // ([[samsung_widget_dead_native_sigsegv]]); the fetch still runs, after any in-flight one.
+                // ([[samsung_widget_dead_native_sigsegv]]). This chain holds no delays, so it drains
+                // in seconds; back-to-back duplicates hit CurrentConditionsRun's freshness gate.
                 ExistingWorkPolicy.APPEND_OR_REPLACE,
                 workRequest,
             )
@@ -203,6 +206,8 @@ object CurrentTempUpdateScheduler {
                         // coroutine resume segfaults ART on debuggable builds
                         // ([[samsung_widget_dead_native_sigsegv]]); APPEND_OR_REPLACE runs after instead.
                         ChargingLoopAction.REPLACE_DELAYED -> ExistingWorkPolicy.REPLACE
+                        // Stays on the loop name, unlike enqueueImmediateUpdate: on the run-now name the
+                        // overdue heartbeat would remain, and each run's reschedule would see it again.
                         ChargingLoopAction.REPLACE_IMMEDIATE -> ExistingWorkPolicy.APPEND_OR_REPLACE
                         ChargingLoopAction.KEEP -> ExistingWorkPolicy.KEEP
                     }
@@ -273,6 +278,12 @@ object CurrentTempUpdateScheduler {
             return ChargingLoopDecision(ChargingLoopAction.KEEP, "running", active)
         }
 
+        // A successor already waits behind an unfinished item; appending another grew the chain by
+        // one heartbeat per run (two per cycle on the Pixel, 2026-10-14).
+        if (active.state == WorkInfo.State.BLOCKED) {
+            return ChargingLoopDecision(ChargingLoopAction.KEEP, "blocked_successor", active)
+        }
+
         if (active.state != WorkInfo.State.ENQUEUED) {
             return ChargingLoopDecision(ChargingLoopAction.ENQUEUE_DELAYED, "no_enqueued_or_running_work", active)
         }
@@ -303,6 +314,7 @@ object CurrentTempUpdateScheduler {
         return unfinished.firstOrNull { it.state == WorkInfo.State.RUNNING }
             ?: unfinished.filter { it.state == WorkInfo.State.ENQUEUED }
                 .minByOrNull { it.nextScheduleTimeMs ?: Long.MAX_VALUE }
+            ?: unfinished.firstOrNull { it.state == WorkInfo.State.BLOCKED }
     }
 
     @VisibleForTesting
@@ -343,13 +355,15 @@ object CurrentTempUpdateScheduler {
 
     fun cancel(context: Context) {
         runCatching {
-            WorkManager.getInstance(context).cancelUniqueWork(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP)
+            val workManager = WorkManager.getInstance(context)
+            workManager.cancelUniqueWork(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP)
+            workManager.cancelUniqueWork(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP_NOW)
             logSchedulerEvent(
                 context = context,
                 tag = "CURR_FETCH_WORK_CANCELLED",
-                message = "name=${WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP}",
+                message = "name=${WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP},${WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP_NOW}",
             )
-            Log.d(TAG, "cancel: canceled ${WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP}")
+            Log.d(TAG, "cancel: canceled current-temp loop and run-now work")
         }.onFailure { e ->
             Log.e(TAG, "cancel failed: ${e.message}", e)
         }

@@ -97,8 +97,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         super.onDisabled(context)
         WorkManager.getInstance(context)
             .cancelUniqueWork(WidgetWorkScheduler.WORK_NAME_PERIODIC)
-        WorkManager.getInstance(context)
-            .cancelUniqueWork(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP)
+        CurrentTempUpdateScheduler.cancel(context)
         NonPrimaryObservationScheduler.cancel(context)
 
         val uiScheduler = UIUpdateScheduler(context)

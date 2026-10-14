@@ -167,6 +167,47 @@ class CurrentTempUpdateSchedulerTest {
     }
 
     @Test
+    fun `charging loop keeps a blocked successor instead of appending another heartbeat`() {
+        // After a run, the worker ignores itself; the successor it already appended is BLOCKED.
+        // Treating that as "no active work" appended a second heartbeat per run (Pixel 2026-10-14).
+        val running = workInfo(state = WorkInfo.State.RUNNING, nextScheduleTimeMs = NOW_MS - 5_000L)
+        val successor = workInfo(state = WorkInfo.State.BLOCKED, nextScheduleTimeMs = null)
+
+        val decision =
+            CurrentTempUpdateScheduler.decideChargingLoopWork(
+                workInfos = listOf(running, successor),
+                nowMs = NOW_MS,
+                ignoreRunningWorkId = running.id,
+            )
+
+        assertDecision(
+            decision = decision,
+            action = CurrentTempUpdateScheduler.ChargingLoopAction.KEEP,
+            reason = "blocked_successor",
+            active = successor,
+        )
+    }
+
+    @Test
+    fun `charging loop judges the enqueued head, not a blocked tail`() {
+        val head = workInfo(state = WorkInfo.State.ENQUEUED, nextScheduleTimeMs = NOW_MS + TimeUnit.MINUTES.toMillis(3))
+        val tail = workInfo(state = WorkInfo.State.BLOCKED, nextScheduleTimeMs = null)
+
+        val decision =
+            CurrentTempUpdateScheduler.decideChargingLoopWork(
+                workInfos = listOf(tail, head),
+                nowMs = NOW_MS,
+            )
+
+        assertDecision(
+            decision = decision,
+            action = CurrentTempUpdateScheduler.ChargingLoopAction.KEEP,
+            reasonPrefix = "scheduled_in_ms=",
+            active = head,
+        )
+    }
+
+    @Test
     fun `immediate current temp update does not cancel running work`() {
         CurrentTempUpdateScheduler.enqueueImmediateUpdate(
             context = context,
@@ -176,7 +217,7 @@ class CurrentTempUpdateSchedulerTest {
 
         verify(exactly = 1) {
             mockWorkManager.enqueueUniqueWork(
-                eq(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP),
+                eq(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP_NOW),
                 // APPEND_OR_REPLACE, not REPLACE: cancelling a running current-temp worker segfaults
                 // ART on debuggable builds. Callers are opportunistic (screen-on/power/opportunistic),
                 // so running after an in-flight fetch instead of cancelling it is fine.
@@ -199,7 +240,7 @@ class CurrentTempUpdateSchedulerTest {
 
         verify {
             mockWorkManager.enqueueUniqueWork(
-                eq(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP),
+                eq(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP_NOW),
                 eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
                 capture(requestSlot),
             )
@@ -223,7 +264,7 @@ class CurrentTempUpdateSchedulerTest {
 
         verify {
             mockWorkManager.enqueueUniqueWork(
-                eq(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP),
+                eq(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP_NOW),
                 eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
                 capture(requestSlot),
             )

@@ -167,7 +167,8 @@ class SettingsActivity : AppCompatActivity() {
 
             val workManager = WorkManager.getInstance(this)
             workManager.enqueueUniqueWork(
-                WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP,
+                // Run-now name: on the loop's chain this waited behind the delayed heartbeat.
+                WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP_NOW,
                 ExistingWorkPolicy.APPEND_OR_REPLACE,
                 currentRefreshWork,
             )
