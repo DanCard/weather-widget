@@ -324,6 +324,7 @@ object TemperatureLabelEngine {
             if (candidate.role == TemperatureRole.ACTUAL_HIGH && labelKey !in leftEdgeOrder) {
                 ActualExtremePlacers.place(
                     placeAbove = true,
+                    widthPx = widthPx,
                     heightPx = heightPx,
                     density = density,
                     actualVisiblePoints = actualVisiblePoints,
@@ -353,6 +354,7 @@ object TemperatureLabelEngine {
                 val before = resultPlacements.size
                 ActualExtremePlacers.place(
                     placeAbove = true,
+                    widthPx = widthPx,
                     heightPx = heightPx,
                     density = density,
                     actualVisiblePoints = actualVisiblePoints,
@@ -394,6 +396,7 @@ object TemperatureLabelEngine {
 
             if (candidate.role in CollisionTester.CURVE_AVOIDANCE_ROLES && !isCurveAvoidanceExempt) {
                 placed = CurveFitPlacer.tryExactFit(
+                    widthPx = widthPx,
                     heightPx = heightPx,
                     density = density,
                     avoidanceActualPointsFor = avoidanceActualPointsFor,

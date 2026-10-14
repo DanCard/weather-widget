@@ -24,6 +24,7 @@ internal object CurveFitPlacer {
     }
 
     fun tryExactFit(
+        widthPx: Int,
         heightPx: Int,
         density: Float,
         // Which observed points this role must clear, per direction: ACTUAL_LOW ignores its own
@@ -75,6 +76,7 @@ internal object CurveFitPlacer {
                     if (!placeAbove && candidate.role == TemperatureRole.ACTUAL_LOW) {
                         ActualExtremePlacers.place(
                             placeAbove = false,
+                            widthPx = widthPx,
                             heightPx = heightPx,
                             density = density,
                             actualVisiblePoints = allActualVisiblePoints,

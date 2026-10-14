@@ -9,6 +9,10 @@ import com.weatherwidget.shared.util.Log
  * each substantial blocker via CollisionTester's shared rule, and drop the label if clearing it
  * would push it out of the plot.
  *
+ * A blocker that only clips the label's side — two neighbouring labels a sliver too close in x —
+ * is cleared by sliding the label over instead: stepping a whole label height off its trough for a
+ * sub-pixel touch put the desktop's 48.3° actual low in the hour-label row, ~90 px from its line.
+ *
  * Dropping is the right end state here: a second extreme this close to a placed one comes from
  * near-equal turning points on the same plateau, where it says nothing the survivor does not.
  *
@@ -22,8 +26,13 @@ internal object ActualExtremePlacers {
     private const val ACTUAL_EXTREME_STACK_GAP_DP = 1.5f
     private const val ACTUAL_EXTREME_STACK_MAX_STEPS = 4
 
+    // Largest horizontal overlap (fraction of the label's width) cleared by a side slide; past
+    // this the label would leave its extreme, so it steps vertically as before.
+    internal const val SIDE_SLIDE_MAX_WIDTH_FRACTION = 0.25f
+
     fun place(
         placeAbove: Boolean,
+        widthPx: Int,
         heightPx: Int,
         density: Float,
         actualVisiblePoints: List<Pair<Float, Float>>,
@@ -39,35 +48,37 @@ internal object ActualExtremePlacers {
         resultPlacements: MutableList<PlacedLabel>,
     ) {
         val halfWidth = geometry.textWidth / 2f
-        val left = geometry.clampedX - halfWidth
-        val right = geometry.clampedX + halfWidth
+        var x = geometry.clampedX
 
-        // Extreme of the visible actual LINE across the label's x-span (fall back to the hourly
-        // anchor): above → highest (smallest y), below → lowest (largest y). This clears the jagged
+        // Gap off the visible actual LINE's extreme across [l, r] (falls back to the hourly anchor):
+        // above → highest (smallest y), below → lowest (largest y). This clears the jagged
         // high-resolution observed line rather than the hourly anchor. Measured by interpolating the
         // segments crossing the span, not by testing which vertices land inside it: on a sparsely
         // sampled line the neighbouring vertices sit outside a narrow label, which would leave the
         // label hugging its anchor while the line runs straight through it.
-        var curveExtremeY = geometry.sy
-        val extent = curveYExtentInXSpan(actualVisiblePoints, left, right)
-        if (!extent.isEmpty) {
-            if (placeAbove) {
-                if (extent.minY < curveExtremeY) curveExtremeY = extent.minY
-            } else {
-                if (extent.maxY > curveExtremeY) curveExtremeY = extent.maxY
-            }
-        }
-
         // The observed high rides right on its spike and the low hugs its trough, so use the tighter
         // actual-specific gaps rather than the shared above/below gaps.
         val gapPx = (if (placeAbove) GraphLabelPlacementUtils.TEMP_ACTUAL_HIGH_ABOVE_GAP_DP else GraphLabelPlacementUtils.TEMP_ACTUAL_LOW_BELOW_GAP_DP) * density
-        val placement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
-            pointY = curveExtremeY,
-            placeAbove = placeAbove,
-            gapPx = gapPx,
-            textAscent = labelAscent,
-            textDescent = labelDescent,
-        )
+        fun verticalFor(l: Float, r: Float): GraphLabelPlacementUtils.LabelVerticalPlacement {
+            var curveExtremeY = geometry.sy
+            val extent = curveYExtentInXSpan(actualVisiblePoints, l, r)
+            if (!extent.isEmpty) {
+                if (placeAbove) {
+                    if (extent.minY < curveExtremeY) curveExtremeY = extent.minY
+                } else {
+                    if (extent.maxY > curveExtremeY) curveExtremeY = extent.maxY
+                }
+            }
+            return GraphLabelPlacementUtils.computeLabelVerticalPlacement(
+                pointY = curveExtremeY,
+                placeAbove = placeAbove,
+                gapPx = gapPx,
+                textAscent = labelAscent,
+                textDescent = labelDescent,
+            )
+        }
+
+        val placement = verticalFor(x - halfWidth, x + halfWidth)
         var top = placement.top
         var bottom = placement.bottom
         var baselineY = placement.baselineY
@@ -84,12 +95,42 @@ internal object ActualExtremePlacers {
         }
 
         val labelHeight = labelDescent - labelAscent
-        var bounds = GraphRect(left, top, right, bottom)
+        var bounds = GraphRect(x - halfWidth, top, x + halfWidth, bottom)
         val stackGapPx = ACTUAL_EXTREME_STACK_GAP_DP * density
         var steps = 0
         while (steps++ < ACTUAL_EXTREME_STACK_MAX_STEPS) {
             if (!blocked(candidate.role, bounds, placeAbove, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) break
             val blocker = firstBlockerBounds(bounds, drawnLabelMetas, drawnIconBounds, reservedHardBounds) ?: break
+
+            val overlapX = minOf(bounds.right, blocker.right) - maxOf(bounds.left, blocker.left)
+            if (overlapX <= geometry.textWidth * SIDE_SLIDE_MAX_WIDTH_FRACTION) {
+                val awayFromBlocker = if (bounds.left + bounds.right >= blocker.left + blocker.right) 1f else -1f
+                val slidX = x + awayFromBlocker * (overlapX + stackGapPx)
+                // Re-measure the line under the slid span: it may dip deeper there. Only the
+                // un-stepped slot is re-measured; a stepped box already clears the line.
+                val slidV = if (steps == 1) verticalFor(slidX - halfWidth, slidX + halfWidth) else null
+                val slidTop = when {
+                    slidV == null -> top
+                    placeAbove -> minOf(top, slidV.top)
+                    else -> maxOf(top, slidV.top)
+                }
+                val slid = GraphRect(slidX - halfWidth, slidTop, slidX + halfWidth, slidTop + (bottom - top))
+                val onScreen = slid.left >= 0f && slid.right <= widthPx && slid.top >= 0f && slid.bottom <= heightPx
+                if (onScreen && !blocked(candidate.role, slid, placeAbove, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) {
+                    Log.d(
+                        TAG,
+                        "SideSlide: role=${candidate.role} idx=$idx dx=${String.format("%.1f", slidX - x)} " +
+                            "overlapX=${String.format("%.1f", overlapX)} dy=${String.format("%.1f", slid.top - top)}",
+                    )
+                    baselineY += slid.top - top
+                    top = slid.top
+                    bottom = slid.bottom
+                    x = slidX
+                    bounds = slid
+                    break
+                }
+            }
+
             val shift = if (placeAbove) bounds.bottom - blocker.top + stackGapPx else blocker.bottom - bounds.top + stackGapPx
             if (placeAbove) {
                 top -= shift
@@ -100,7 +141,7 @@ internal object ActualExtremePlacers {
                 bottom += shift
                 baselineY += shift
             }
-            bounds = GraphRect(left, top, right, bottom)
+            bounds = GraphRect(x - halfWidth, top, x + halfWidth, bottom)
         }
 
         val offscreen = if (placeAbove) top < 0f else bottom > heightPx
@@ -123,7 +164,7 @@ internal object ActualExtremePlacers {
                 index = idx,
                 role = candidate.role,
                 text = geometry.label,
-                x = geometry.clampedX,
+                x = x,
                 baselineY = baselineY,
                 placedAbove = placeAbove,
                 drawLeaderLine = drawLeader,
