@@ -1,0 +1,1 @@
+Release 26101401: Faster, more responsive current temperature updates and scheduling; optimized current conditions processing and observation filtering; streamlined hourly and daily forecast sync cadence; graph rendering and today's settled low improvements; overall stability and performance enhancements.
