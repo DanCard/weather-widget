@@ -136,4 +136,32 @@ class DesktopRefreshObservationsTest {
         assertTrue(outcome.suppliedObservations)
         assertEquals(1, outcome.snapshot.raw.rawObservations.size)
     }
+
+    /** The Observations window's Refresh (plans/261014-observations-refresh-fetches-observations-only.md). */
+    @Test
+    fun `observations refresh stores observations and never fetches the forecast`() = runTest {
+        val now = (System.currentTimeMillis() / 3600_000L) * 3600_000L
+        dao.upsertHourlyForecasts(lat, lon, source, listOf(HourlyForecast(now, 72f, "Clear")))
+        coEvery { weatherService.fetchFeedObservations(any(), recentOnly = any()) } returns RawFetch(
+            rawObservations = listOf(
+                ObservationReading(
+                    stationId = "KNUQ", stationName = "Moffett", timestamp = now, temperature = 61f,
+                    condition = "Clear", locationLat = lat, locationLon = lon, api = "NWS",
+                ),
+            ),
+        )
+
+        repository.refreshObservations(reason = "user_refresh:observations")
+
+        io.mockk.coVerify(exactly = 0) { weatherService.fetchForecast(any()) }
+        io.mockk.coVerify(exactly = 0) { weatherService.fetchForecast(any(), any()) }
+        io.mockk.coVerify(exactly = 0) { weatherService.fetchForecast(any(), any(), any<java.time.LocalDate>()) }
+        io.mockk.coVerify(exactly = 0) { weatherService.fetchForecast(any(), any(), any(), any()) }
+        io.mockk.coVerify(exactly = 0) { weatherService.fetchGoogleHistory() }
+        assertEquals(listOf("KNUQ"), dao.getObservationsInRange(now - 3600_000L, now + 3600_000L, lat, lon).map { it.stationId })
+        val logs = dao.getRecentLogs(100)
+        assertTrue(logs.any { it.tag == "CURR_FETCH_START" && "reason=user_refresh:observations" in it.message })
+        assertTrue(logs.any { it.tag == "OBS_REFRESH" })
+        assertTrue("no forecast refresh ran", logs.none { it.tag == "REFRESH_ENTER" || it.tag == "HOURLY_FETCH" })
+    }
 }

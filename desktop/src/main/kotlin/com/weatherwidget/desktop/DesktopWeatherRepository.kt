@@ -825,12 +825,27 @@ class DesktopWeatherRepository(
     }
 
     /**
-     * A previous day's Forecast History refresh: `history/hours` values written over that day's live
-     * Google rows whose forecast went stale ([GoogleHistoryRefill]). Only the live table: the history snapshots keep the as-issued
-     * forecast. Logs `GOOGLE_HISTORY_REFILL` whenever stale hours were found.
+     * The desktop Observations Refresh on a previous day: the [GoogleHistoryRefill] of [day] alone —
+     * one `history/hours` request, no forecast — and only when the displayed source is Google and
+     * the day has stale hours, so nothing is billed when there is nothing to fix
+     * (plans/261014-observations-refresh-fetches-observations-only.md).
      */
-    private fun refillStaleGoogleHours(result: RawFetch, now: Long, day: LocalDate) {
-        if (weatherSource != WeatherSource.GOOGLE_WEATHER.id || result.providerHistoryHourly.isEmpty()) return
+    suspend fun refillGoogleHistory(day: LocalDate) = withContext(Dispatchers.IO) {
+        if (weatherSource != WeatherSource.GOOGLE_WEATHER.id) return@withContext
+        if (staleGoogleHours(currentTimeMillis(), day).isEmpty()) {
+            weatherDao.log(GoogleHistoryRefill.LOG_TAG, "day=$day stale=0 reason=nothing_stale", "INFO")
+            return@withContext
+        }
+        val result = weatherService.fetchGoogleHistory()
+        if (result.providerHistoryHourly.isEmpty()) {
+            weatherDao.log(GoogleHistoryRefill.LOG_TAG, "day=$day reason=history_unavailable", "INFO")
+            return@withContext
+        }
+        refillStaleGoogleHours(result, currentTimeMillis(), day)
+    }
+
+    /** [day]'s live Google hours at this site, within [GoogleWeatherApi.historyWindow], gone stale. */
+    private fun staleGoogleHours(now: Long, day: LocalDate): Set<Long> {
         val window = GoogleWeatherApi.historyWindow(now)
         val lat = LocationMatch.quantize(latitude)
         val lon = LocationMatch.quantize(longitude)
@@ -840,7 +855,17 @@ class DesktopWeatherRepository(
                 val rowLon = row.locationLon
                 rowLat == null || rowLon == null || LocationMatch.sameSite(lat, lon, rowLat, rowLon)
             }
-        val stale = GoogleHistoryRefill.staleHours(live, now, day)
+        return GoogleHistoryRefill.staleHours(live, now, day)
+    }
+
+    /**
+     * A previous day's Forecast History refresh: `history/hours` values written over that day's live
+     * Google rows whose forecast went stale ([GoogleHistoryRefill]). Only the live table: the history snapshots keep the as-issued
+     * forecast. Logs `GOOGLE_HISTORY_REFILL` whenever stale hours were found.
+     */
+    private fun refillStaleGoogleHours(result: RawFetch, now: Long, day: LocalDate) {
+        if (weatherSource != WeatherSource.GOOGLE_WEATHER.id || result.providerHistoryHourly.isEmpty()) return
+        val stale = staleGoogleHours(now, day)
         if (stale.isEmpty()) return
         val refill = GoogleHistoryRefill.select(result.providerHistoryHourly, stale)
         if (refill.isNotEmpty()) weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, refill)

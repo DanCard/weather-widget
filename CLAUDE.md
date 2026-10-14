@@ -136,6 +136,13 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   `history/hours` and writes it over that day's live rows fetched > 6 h before the hour; history
   snapshots untouched. No other refresh or fetch refills (`:shared` `GoogleHistoryRefill`;
   `plans/261010-google-history-refills-stale-elapsed-hours.md`).
+- **Desktop Observations Refresh fetches observations only** (user, 2026-10-14): the displayed
+  source's forced current/recent observations (`refreshObservations`, `reason=user_refresh:observations`),
+  never the forecast; on a previous day also that day's Google refill **alone** — one `history/hours`
+  request (`GoogleWeatherApi.getHistory`), only when the day has stale hours
+  (`DesktopWeatherRepository.refillGoogleHistory`; else `GOOGLE_HISTORY_REFILL reason=nothing_stale`).
+  Every other Refresh is unchanged. Android's Observations Refresh was already observations-only
+  (`plans/261014-observations-refresh-fetches-observations-only.md`).
 - **Background fetching skips sources not viewed in 8 days** (user, 2026-10-10): `:shared`
   `SourceFetchGate` — a source is fetched in the background only if displayed/primary, switched to
   (any trigger, `source_view_days`) within the last 7 days, or while tracking is < 8 days old; the

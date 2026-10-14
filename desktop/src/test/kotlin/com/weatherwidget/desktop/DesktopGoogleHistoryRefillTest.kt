@@ -53,7 +53,8 @@ class DesktopGoogleHistoryRefillTest {
     /** Yesterday 23:00 re-seeded as fetched at 22:30: kept current, so never refilled. */
     private val freshHour = at("2026-10-09T23:00")
 
-    private fun repo() = DesktopWeatherRepository(service, dao, lat, lon, google)
+    private fun repo(source: String = google) =
+        DesktopWeatherRepository(service, dao, lat, lon, source, currentTimeMillis = { now })
 
     /** Raw insert: the DAO's upsert stamps fetchedAt = now, and these rows must be old. */
     private fun insertLive(dateTime: Long, temperature: Float, fetchedAt: Long) {
@@ -156,5 +157,69 @@ class DesktopGoogleHistoryRefillTest {
 
         assertEquals(69.5f, live(staleYesterday.first()).temperature)
         assertEquals(refilledAt, live(staleYesterday.first()).fetchedAt)
+    }
+
+    // The desktop Observations Refresh of a previous day: current observations plus this refill,
+    // never the forecast (plans/261014-observations-refresh-fetches-observations-only.md).
+
+    private fun stubObservationFetches() {
+        coEvery { service.fetchFeedObservations(any(), any()) } returns RawFetch()
+        coEvery { service.fetchObservationsOnly(any()) } returns RawFetch()
+        coEvery { service.fetchGoogleHistory() } returns RawFetch(
+            providerHistoryHourly = staleHours.map { HourlyForecast(it, 69.5f, "Clear") },
+        )
+    }
+
+    private fun noForecastFetched() {
+        coVerify(exactly = 0) { service.fetchForecast(any()) }
+        coVerify(exactly = 0) { service.fetchForecast(any(), any()) }
+        coVerify(exactly = 0) { service.fetchForecast(any(), any(), any<java.time.LocalDate>()) }
+        coVerify(exactly = 0) { service.fetchForecast(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { service.fetchForecastAhead(any()) }
+    }
+
+    @Test
+    fun `observations refresh of yesterday refills stale hours with one history request and no forecast`() = runTest {
+        seed()
+        stubObservationFetches()
+        val repo = repo()
+
+        repo.refreshObservations(reason = "user_refresh:observations")
+        repo.refillGoogleHistory(yesterday)
+
+        coVerify(exactly = 1) { service.fetchGoogleHistory() }
+        noForecastFetched()
+        staleYesterday.filter { it != freshHour }.forEach { assertEquals("stale hour $it refilled", 69.5f, live(it).temperature) }
+        assertEquals("a current hour keeps its forecast", 66f, live(freshHour).temperature)
+        staleToday.forEach { assertEquals("today is not the refreshed day", 71.7f, live(it).temperature) }
+        val snapshot = dao.getHourlyHistory(lat, lon, google, staleYesterday.first(), staleYesterday.first())
+        assertEquals("the as-issued snapshot is untouched", 71.7f, snapshot.single().temperature)
+        val tags = dao.getRecentLogs(200).map { it.tag }
+        assertTrue("OBS_REFRESH" in tags)
+        assertTrue("no forecast refresh ran", "REFRESH_ENTER" !in tags && "HOURLY_FETCH" !in tags)
+    }
+
+    @Test
+    fun `a day with nothing stale bills no history request`() = runTest {
+        seed()
+        stubObservationFetches()
+        val repo = repo()
+        repo.refillGoogleHistory(yesterday)
+
+        repo.refillGoogleHistory(yesterday)
+
+        coVerify(exactly = 1) { service.fetchGoogleHistory() }
+        assertTrue(dao.getRecentLogs(50).any { it.tag == GoogleHistoryRefill.LOG_TAG && "reason=nothing_stale" in it.message })
+    }
+
+    @Test
+    fun `another displayed source never requests Google history`() = runTest {
+        seed()
+        stubObservationFetches()
+
+        repo(WeatherSource.NWS.id).refillGoogleHistory(yesterday)
+
+        coVerify(exactly = 0) { service.fetchGoogleHistory() }
+        staleYesterday.filter { it != freshHour }.forEach { assertEquals(71.7f, live(it).temperature) }
     }
 }

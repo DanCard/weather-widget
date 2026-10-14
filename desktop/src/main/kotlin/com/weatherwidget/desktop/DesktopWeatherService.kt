@@ -925,6 +925,8 @@ class DesktopWeatherService(
         return if (feed != null && feed != source) RawFetch(rawObservations = fetched.rawObservations) else fetched
     }
 
+    override suspend fun fetchGoogleHistory(): RawFetch = googleWeather.getHistory(latitude, longitude)
+
     override suspend fun fetchFeedObservations(feed: WeatherSource, recentOnly: Boolean): RawFetch =
         fetchFeed(feed, recentOnly, userLocationChange = false)
 

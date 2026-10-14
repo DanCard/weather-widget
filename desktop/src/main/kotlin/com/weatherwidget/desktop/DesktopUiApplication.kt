@@ -876,6 +876,60 @@ internal fun runDesktopUiApplication() = application {
         }
 
         /**
+         * The Observations window's Refresh: current observations only — the displayed source's
+         * forced recent-only fetch the current-temp loop makes, never the forecast (user, 2026-10-14).
+         * On a previous day ([refillDay]) also that day's Google `history/hours` refill, alone
+         * (plans/261014-observations-refresh-fetches-observations-only.md).
+         */
+        fun requestObservationsRefresh(refillDay: java.time.LocalDate?) {
+            val origin = "observations"
+            val repo = repository
+            weatherDao.log(
+                "REFRESH_CLICK",
+                "origin=$origin scope=observations refillDay=$refillDay repository=" +
+                    (if (repo == null) "NULL (no-op)" else "present"),
+                "INFO",
+            )
+            if (repo == null || refreshInFlight) {
+                if (refreshInFlight) {
+                    weatherDao.log("REFRESH_CLICK", "origin=$origin suppressed=in_flight", "INFO")
+                }
+                return
+            }
+            refreshInFlight = true
+            // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
+            val refresh = refreshRunner.start("user_refresh:$origin") {
+                val snapshot = repo.refreshObservations(reason = "user_refresh:$origin")
+                if (refillDay == null) {
+                    snapshot
+                } else {
+                    // Reload so the refilled hours are in what the popup draws.
+                    repo.refillGoogleHistory(refillDay)
+                    repo.loadCached() ?: snapshot
+                }
+            }
+            uiScope.launch {
+                try {
+                    forecast = refresh.await()
+                    dataUpdateCount++
+                    notifyRefreshRequested()
+                    weatherDao.log("REFRESH_CLICK", "origin=$origin completed", "INFO")
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    weatherDao.log("REFRESH_CLICK", "origin=$origin refresh cancelled", "WARN")
+                    throw e
+                } catch (e: Exception) {
+                    weatherDao.log(
+                        "REFRESH_CLICK",
+                        "origin=$origin refresh failed ${e::class.simpleName}: ${e.message}",
+                        "WARN",
+                    )
+                } finally {
+                    refreshInFlight = false
+                }
+            }
+        }
+
+        /**
          * History of Forecasts' refresh: the viewed source only (user, 2026-10-09). The displayed
          * source goes through [requestFullRefresh] — this window's repository is built for it — and
          * any other source through a repository of its own, as the daemon's non-active loop does.
@@ -969,8 +1023,7 @@ internal fun runDesktopUiApplication() = application {
                 dataUpdateCount = dataUpdateCount,
                 isRefreshing = refreshInFlight,
                 onRefreshData = {
-                    requestFullRefresh(
-                        "observations",
+                    requestObservationsRefresh(
                         com.weatherwidget.data.remote.GoogleHistoryRefill.refillDay(observationsViewedDate, LocalDate.now()),
                     )
                 },

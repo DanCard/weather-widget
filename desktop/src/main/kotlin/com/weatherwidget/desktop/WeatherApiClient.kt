@@ -52,6 +52,12 @@ interface WeatherApiClient {
     ): RawFetch = fetchForecast(recentObservationsOnly, parts, refillDay)
 
     /**
+     * Google's `history/hours` alone (one billed request), for a previous day's refill that must not
+     * refetch the forecast — the desktop Observations Refresh. Empty for every other client.
+     */
+    suspend fun fetchGoogleHistory(): RawFetch = RawFetch()
+
+    /**
      * The displayed source's forecast for a tapped or panned-to day
      * ([com.weatherwidget.data.remote.HourlyOnDemand]): its normal fetch, [hoursAhead] deep where the
      * source takes a horizon (Google), without the observation window.

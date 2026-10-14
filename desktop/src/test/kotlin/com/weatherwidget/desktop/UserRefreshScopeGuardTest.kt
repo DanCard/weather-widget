@@ -42,4 +42,27 @@ class UserRefreshScopeGuardTest {
             fail("User refresh(es) outside refreshRunner.start { … }:\n" + offenders.joinToString("\n"))
         }
     }
+
+    /**
+     * The Observations window's Refresh fetches observations only (and a past day's Google refill),
+     * not through `refresh(userRefresh = true)`; those calls need the runner too
+     * (plans/261014-observations-refresh-fetches-observations-only.md). UI file only: the daemon's
+     * loops call `refreshObservations` on their own scopes by design.
+     */
+    @Test
+    fun `the observations refresh runs through the UserRefreshRunner`() {
+        val file = listOf(
+            File("src/main/kotlin/com/weatherwidget/desktop/DesktopUiApplication.kt"),
+            File("desktop/src/main/kotlin/com/weatherwidget/desktop/DesktopUiApplication.kt"),
+        ).firstOrNull { it.isFile }
+        assertTrue("could not locate DesktopUiApplication.kt from ${File(".").absolutePath}", file != null)
+        val call = Regex("""\.(refreshObservations|refillGoogleHistory)\(""")
+        val text = file!!.readText()
+
+        assertTrue("expected both observations-refresh calls", UserRefreshCallSites.count(text, call) >= 2)
+        val offenders = UserRefreshCallSites.uncovered(text, call)
+        if (offenders.isNotEmpty()) {
+            fail("Observations refresh call(s) outside refreshRunner.start { … }: lines $offenders")
+        }
+    }
 }
