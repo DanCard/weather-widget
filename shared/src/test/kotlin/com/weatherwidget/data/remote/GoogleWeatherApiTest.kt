@@ -16,6 +16,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
@@ -42,6 +43,9 @@ class GoogleWeatherApiTest {
     private fun fixture(name: String): String =
         requireNotNull(javaClass.classLoader.getResource("google-weather/$name.json")) { name }.readText()
 
+    private fun nextPageToken(name: String): String? =
+        Json.parseToJsonElement(fixture(name)).jsonObject["nextPageToken"]?.jsonPrimitive?.content
+
     private fun MockRequestHandleScope.route(request: HttpRequestData): HttpResponseData {
         requests += request
         val path = request.url.encodedPath
@@ -58,11 +62,17 @@ class GoogleWeatherApiTest {
                 }
             path.endsWith("forecast/hours:lookup") && hoursErrorBody != null ->
                 return respond(hoursErrorBody!!, HttpStatusCode.TooManyRequests)
-            path.endsWith("forecast/hours:lookup") -> {
-                // Pages 1-3 per fetch: page 1 has no token, 2 and 3 chain from the recorded tokens.
-                val n = requests.count { it.url.encodedPath.endsWith("forecast/hours:lookup") }
-                fixture("hours${(n - 1) % 3 + 1}")
-            }
+            // Pages 1-3 per fetch: page 1 has no token, 2 and 3 chain from the recorded tokens. Routed
+            // by token, never by counting `requests`: hours runs beside current/days/history, and
+            // iterating the list while they add can throw ConcurrentModificationException.
+            path.endsWith("forecast/hours:lookup") -> fixture(
+                when (val token = request.url.parameters["pageToken"]) {
+                    null -> "hours1"
+                    nextPageToken("hours1") -> "hours2"
+                    nextPageToken("hours2") -> "hours3"
+                    else -> error("unrecorded forecast/hours pageToken $token")
+                },
+            )
             else -> error("unexpected $path")
         }
         return respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))

@@ -40,12 +40,30 @@ object GoogleWeatherFixtures {
                 path.endsWith("currentConditions:lookup") -> "current"
                 path.endsWith("forecast/days:lookup") -> "days"
                 path.endsWith("history/hours:lookup") -> "history"
-                path.endsWith("forecast/hours:lookup") ->
-                    "hours" + ((requests.count { it.url.encodedPath.endsWith("forecast/hours:lookup") } - 1) % 3 + 1)
+                path.endsWith("forecast/hours:lookup") -> hoursPageFor(request.url.parameters["pageToken"])
                 else -> error("unexpected Google Weather path $path")
             }
             respond(load(name, shift), HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
         }
+    }
+
+    /**
+     * The recorded `forecast/hours` page a request's `pageToken` asks for, as the real API chains
+     * them: none → page 1, page 1's `nextPageToken` → page 2, page 2's → page 3. Never by counting
+     * the shared request list: the hours call runs beside current/days/history, and iterating a
+     * synchronizedList while they add threw ConcurrentModificationException in full runs — the
+     * fetch died after page 1 and the next fetch was served page 2 as its page 1.
+     */
+    fun hoursPageFor(pageToken: String?): String = when (pageToken) {
+        null -> "hours1"
+        nextPageToken("hours1") -> "hours2"
+        nextPageToken("hours2") -> "hours3"
+        else -> error("unrecorded forecast/hours pageToken $pageToken")
+    }
+
+    private fun nextPageToken(name: String): String? {
+        val raw = requireNotNull(javaClass.classLoader.getResource("google-weather/$name.json")) { name }.readText()
+        return (Json.parseToJsonElement(raw) as JsonObject)["nextPageToken"]?.jsonPrimitive?.content
     }
 
     data class Shift(val hours: Long, val days: Long)
