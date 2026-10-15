@@ -274,4 +274,34 @@ class WeatherSourceOrderingTest {
         assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS"), listOf("NWS", "OPEN_WEATHER_MAP")))
         assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS", "SILURIAN"), listOf("SILURIAN")))
     }
+
+    @Test
+    fun `move puts the dragged source at the drop position`() {
+        val ids = listOf("NWS", "OPEN_METEO", "SILURIAN", "TOMORROW_IO")
+        assertEquals(listOf("OPEN_METEO", "SILURIAN", "NWS", "TOMORROW_IO"), WeatherSourceOrdering.move(ids, 0, 2))
+        assertEquals(listOf("SILURIAN", "NWS", "OPEN_METEO", "TOMORROW_IO"), WeatherSourceOrdering.move(ids, 2, 0))
+        assertEquals(listOf("TOMORROW_IO", "NWS", "OPEN_METEO", "SILURIAN"), WeatherSourceOrdering.move(ids, 3, 0))
+        assertEquals(listOf("OPEN_METEO", "SILURIAN", "TOMORROW_IO", "NWS"), WeatherSourceOrdering.move(ids, 0, 3))
+    }
+
+    @Test
+    fun `move with the same or an out-of-range index is a no-op`() {
+        val ids = listOf("NWS", "OPEN_METEO", "SILURIAN")
+        assertEquals(ids, WeatherSourceOrdering.move(ids, 1, 1))
+        assertEquals(ids, WeatherSourceOrdering.move(ids, -1, 0))
+        assertEquals(ids, WeatherSourceOrdering.move(ids, 0, 3))
+        // Indices refer to the sanitized list: the unknown id is gone before the move.
+        assertEquals(listOf("OPEN_METEO", "NWS"), WeatherSourceOrdering.move(listOf("NWS", "BOGUS", "OPEN_METEO"), 1, 0))
+    }
+
+    @Test
+    fun `available is every configurable source not enabled, in catalogue order`() {
+        val enabled = listOf("SILURIAN", "NWS")
+        val available = WeatherSourceOrdering.available(enabled)
+        assertEquals(WeatherSourceOrdering.ALL_CONFIGURABLE.filter { it.id !in enabled }, available)
+        assertEquals(
+            enabled.map(WeatherSource::fromId) + available,
+            WeatherSourceOrdering.ordered(enabled),
+        )
+    }
 }

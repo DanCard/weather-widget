@@ -6,7 +6,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.weatherwidget.test.category.LongDuration
@@ -65,7 +64,7 @@ useCelsius = false),
 
         // 1. The user edits a setting. Use the source list: it is a deterministic click target,
         //    unlike dragging a Slider to an exact value.
-        composeTestRule.onNodeWithTag("source_checkbox_TOMORROW_IO").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("source_remove_TOMORROW_IO").performScrollTo().performClick()
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("Save •").assertIsDisplayed()
 
@@ -109,7 +108,7 @@ useCelsius = false),
         }
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithTag("source_checkbox_TOMORROW_IO").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("source_remove_TOMORROW_IO").performScrollTo().performClick()
         composeTestRule.waitForIdle()
 
         repeat(8) { step ->
@@ -179,8 +178,7 @@ useCelsius = false),
             )
         }
         composeTestRule.waitForIdle()
-        val nwsCheckbox = composeTestRule.onNodeWithTag("source_checkbox_NWS")
-        nwsCheckbox.performScrollTo()
+        composeTestRule.onNodeWithTag("source_remove_NWS").performScrollTo()
         composeTestRule.mainClock.autoAdvance = false
 
         baseline.value = sampleConfig.copy(
@@ -195,7 +193,9 @@ useCelsius = false),
         composeTestRule.mainClock.advanceTimeByFrame()
         composeTestRule.waitForIdle()
 
-        nwsCheckbox.assertIsOff()
+        // NWS left the list, so it is under Available (no ✕, a +).
+        composeTestRule.onNodeWithTag("source_remove_NWS").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("source_add_NWS").assertExists()
         composeTestRule.onNodeWithText("Save").assertIsDisplayed()
 
         composeTestRule.mainClock.advanceTimeBy(testDelay * 5L)

@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 часа</string>
     <string name="hourly_zoom_max">8 часов</string>
     <string name="api_sources_title">Источники данных о погоде</string>
-    <string name="api_sources_description">Включайте/отключайте и переупорядочивайте источники. Отключённые источники исключаются из переключения в виджете и фоновых загрузок, пока их снова не включат.</string>
+    <string name="api_sources_description">Перетащите ≡, чтобы изменить порядок. Первый источник показывается в виджете; нажатие на метку источника в виджете переключает на остальные. Убранные источники не загружаются.</string>
+    <string name="sources_in_rotation">В ротации</string>
+    <string name="sources_available">Доступные</string>
+    <string name="source_add">Добавить %1$s</string>
+    <string name="source_remove">Убрать %1$s</string>
+    <string name="source_drag_handle">Перетащите для изменения порядка</string>
     <string name="must_keep_one_source">Хотя бы один источник должен оставаться включённым</string>
     <string name="source_unavailable_at_location">Недоступно в этом месте</string>
     <string name="api_key_required_to_enable">Для включения %1$s требуется ключ API</string>

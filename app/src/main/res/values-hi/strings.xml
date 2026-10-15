@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 घंटे</string>
     <string name="hourly_zoom_max">8 घंटे</string>
     <string name="api_sources_title">मौसम डेटा स्रोत</string>
-    <string name="api_sources_description">स्रोतों को सक्षम/अक्षम करें और क्रम बदलें। अक्षम स्रोत दोबारा सक्षम होने तक विजेट टॉगल और बैकग्राउंड फ़ेच से बाहर रहते हैं।</string>
+    <string name="api_sources_description">क्रम बदलने के लिए ≡ खींचें। पहला स्रोत वही है जो विजेट दिखाता है; विजेट पर स्रोत के नाम पर टैप करने से बाकी स्रोत बारी-बारी से आते हैं। हटाए गए स्रोतों से डेटा नहीं लाया जाता।</string>
+    <string name="sources_in_rotation">रोटेशन में</string>
+    <string name="sources_available">उपलब्ध</string>
+    <string name="source_add">%1$s जोड़ें</string>
+    <string name="source_remove">%1$s हटाएँ</string>
+    <string name="source_drag_handle">क्रम बदलने के लिए खींचें</string>
     <string name="must_keep_one_source">कम से कम एक स्रोत सक्षम रहना चाहिए</string>
     <string name="source_unavailable_at_location">इस स्थान पर उपलब्ध नहीं</string>
     <string name="api_key_required_to_enable">%1$s को सक्षम करने से पहले एक API कुंजी की आवश्यकता है</string>

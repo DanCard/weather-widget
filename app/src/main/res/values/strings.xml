@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 hours</string>
     <string name="hourly_zoom_max">8 hours</string>
     <string name="api_sources_title">Weather Data Sources</string>
-    <string name="api_sources_description">Enable/disable and reorder sources. Disabled sources are excluded from widget toggles and background fetches until re-enabled.</string>
+    <string name="api_sources_description">Drag ≡ to reorder. The first source is the one the widget shows; tapping the source label on the widget cycles through the rest. Removed sources are not fetched.</string>
+    <string name="sources_in_rotation">In rotation</string>
+    <string name="sources_available">Available</string>
+    <string name="source_add">Add %1$s</string>
+    <string name="source_remove">Remove %1$s</string>
+    <string name="source_drag_handle">Drag to reorder</string>
     <string name="must_keep_one_source">At least one source must remain enabled</string>
     <string name="source_unavailable_at_location">Not available at this location</string>
     <string name="api_key_required_to_enable">%1$s requires an API key before enabling</string>

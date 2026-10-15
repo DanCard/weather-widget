@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4時間</string>
     <string name="hourly_zoom_max">8時間</string>
     <string name="api_sources_title">気象データソース</string>
-    <string name="api_sources_description">ソースの有効/無効と並べ替えができます。無効にしたソースは、再度有効にするまでウィジェットの切り替えとバックグラウンド取得から除外されます。</string>
+    <string name="api_sources_description">≡ をドラッグして並べ替えます。先頭のソースがウィジェットに表示され、ウィジェットのソース表示をタップすると残りのソースに切り替わります。削除したソースは取得されません。</string>
+    <string name="sources_in_rotation">ローテーション中</string>
+    <string name="sources_available">利用可能</string>
+    <string name="source_add">%1$s を追加</string>
+    <string name="source_remove">%1$s を削除</string>
+    <string name="source_drag_handle">ドラッグして並べ替え</string>
     <string name="must_keep_one_source">少なくとも 1 つのソースを有効にしておく必要があります</string>
     <string name="source_unavailable_at_location">この地域では利用できません</string>
     <string name="api_key_required_to_enable">%1$sを有効にするにはAPIキーが必要です</string>

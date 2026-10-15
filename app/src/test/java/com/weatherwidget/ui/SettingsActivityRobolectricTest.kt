@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.lifecycle.Lifecycle
@@ -136,9 +135,10 @@ class SettingsActivityRobolectricTest {
     }
 
     // Pixel 7 Pro, 2026-09-18: returning from the location picker dropped Open-Meteo, Tomorrow.io
-    // and WeatherAPI in one second with no tap. Every row shares R.id.source_checkbox, so
-    // onRestoreInstanceState pushed one row's saved (unticked) state into every checkbox and the
-    // change listener persisted each as a user untoggle. recreate() drives that save/restore path.
+    // and WeatherAPI in one second with no tap — every row's checkbox shared one view id, and state
+    // restore pushed one row's unticked state into all of them. The checkboxes are gone (two groups,
+    // plans/261015-settings-sources-drag-reorder-and-two-groups.md); recreate() still drives that
+    // save/restore path, and must leave the enabled list and its rows alone.
     @Test
     fun `recreating the activity does not untoggle visible sources`() {
         val seeded = listOf(WeatherSource.OPEN_METEO, WeatherSource.SILURIAN, WeatherSource.TOMORROW_IO)
@@ -148,10 +148,12 @@ class SettingsActivityRobolectricTest {
         scenario.recreate()
         scenario.onActivity { activity ->
             assertEquals(seeded, WidgetStateManager(activity).getVisibleSourcesOrder())
-            val container = activity.findViewById<LinearLayout>(R.id.api_sources_container)
-            val checked = (0 until container.childCount)
-                .map { container.getChildAt(it).findViewById<CheckBox>(R.id.source_checkbox).isChecked }
-            assertEquals(listOf(true, true, true, false, false, false, false), checked)
+            assertEquals(seeded.map { it.id }, activity.rotationAdapter.ids)
+            val available = activity.findViewById<LinearLayout>(R.id.api_sources_available)
+            assertEquals(
+                com.weatherwidget.shared.util.WeatherSourceOrdering.ALL_CONFIGURABLE.size - seeded.size,
+                available.childCount,
+            )
         }
         scenario.close()
     }
@@ -289,7 +291,7 @@ class SettingsActivityRobolectricTest {
     // "Set Location…" opens ConfigActivity while this screen is paused; the rows are rebuilt on
     // resume, so the unavailable note must follow the new location.
     @Test
-    fun `NWS stays ticked and is marked unavailable after a move outside coverage`() {
+    fun `NWS stays in rotation and is marked unavailable after a move outside coverage`() {
         WidgetStateManager(context).setVisibleSourcesOrder(
             listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
         )
@@ -297,7 +299,7 @@ class SettingsActivityRobolectricTest {
         val intent = Intent(context, SettingsActivity::class.java)
         val scenario = ActivityScenario.launch<SettingsActivity>(intent)
         scenario.onActivity { activity ->
-            assertTrue("precondition: NWS ticked in Mountain View", activity.nwsRow().isChecked)
+            assertTrue("precondition: NWS in rotation in Mountain View", WeatherSource.NWS.id in activity.rotationAdapter.ids)
             assertFalse(activity.nwsDescription().contains(activity.getString(R.string.source_unavailable_at_location)))
         }
 
@@ -306,32 +308,19 @@ class SettingsActivityRobolectricTest {
         scenario.moveToState(Lifecycle.State.RESUMED)
 
         scenario.onActivity { activity ->
-            // The 2026-09-29 bug came from this row being unticked by a location: a later move
+            // The 2026-09-29 bug came from this row being removed by a location: a later move
             // back had nothing reliable to restore. Coverage now only annotates it.
-            assertTrue("NWS must stay ticked outside coverage", activity.nwsRow().isChecked)
+            assertTrue("NWS must stay in rotation outside coverage", WeatherSource.NWS.id in activity.rotationAdapter.ids)
             assertTrue(activity.nwsDescription().contains(activity.getString(R.string.source_unavailable_at_location)))
         }
     }
 
     private fun SettingsActivity.nwsDescription(): String {
-        val container = findViewById<LinearLayout>(R.id.api_sources_container)
-        for (i in 0 until container.childCount) {
-            val row = container.getChildAt(i)
-            if (row.findViewById<TextView>(R.id.source_name).text == WeatherSource.NWS.displayName) {
-                return row.findViewById<TextView>(R.id.source_description).text.toString()
-            }
-        }
-        throw AssertionError("no NWS row rendered")
-    }
-
-    private fun SettingsActivity.nwsRow(): CheckBox {
-        val container = findViewById<LinearLayout>(R.id.api_sources_container)
-        for (i in 0 until container.childCount) {
-            val row = container.getChildAt(i)
-            if (row.findViewById<TextView>(R.id.source_name).text == WeatherSource.NWS.displayName) {
-                return row.findViewById(R.id.source_checkbox)
-            }
-        }
-        throw AssertionError("no NWS row rendered")
+        val position = rotationAdapter.ids.indexOf(WeatherSource.NWS.id)
+        assertTrue("no NWS row rendered", position >= 0)
+        val recycler = findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.api_sources_rotation)
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        val holder = recycler.findViewHolderForAdapterPosition(position) as SettingsActivity.RotationAdapter.Holder
+        return holder.description.text.toString()
     }
 }

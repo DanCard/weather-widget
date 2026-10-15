@@ -11,7 +11,6 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -20,7 +19,12 @@ import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
@@ -332,140 +336,220 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     /**
-     * Builds the ordered, checkable API source list in the container.
-     * Each row has a checkbox (enable/disable), source name + description, and up/down arrows.
+     * Weather Data Sources in two groups: **In rotation** (the enabled list, in stored order; dragged
+     * by its ≡ handles, ✕ removes) and **Available** (everything else; + or a row tap adds). See
+     * `plans/261015-settings-sources-drag-reorder-and-two-groups.md`.
      */
     private fun setupApiSourcesList() {
-        val container = findViewById<LinearLayout>(R.id.api_sources_container)
-        rebuildSourceRows(container)
+        val recycler = findViewById<RecyclerView>(R.id.api_sources_rotation)
+        recycler.layoutManager = LinearLayoutManager(this)
+        recycler.adapter = rotationAdapter
+        sourceDragHelper.attachToRecyclerView(recycler)
+        rebuildSourceRows()
     }
 
-    private fun rebuildSourceRows(container: LinearLayout) {
-        container.removeAllViews()
+    private fun rebuildSourceRows() {
         // The user's enabled list, unfiltered by location: a source that cannot serve the current
-        // location (NWS outside the US) stays checked and is marked unavailable, not unticked.
-        val visibleSources = widgetStateManager.getEnabledSourcesOrder()
+        // location (NWS outside the US) stays in rotation and is marked unavailable.
+        val enabled = widgetStateManager.getEnabledSourcesOrder()
+        rotationAdapter.submit(enabled.map { it.id })
 
-        // Build full ordered list: visible sources first (in order), then hidden sources
-        val availableSources = WeatherSourceOrdering.ALL_CONFIGURABLE
-        val hiddenSources = availableSources.filter { it !in visibleSources }
-        val orderedSources = visibleSources + hiddenSources
+        val availableContainer = findViewById<LinearLayout>(R.id.api_sources_available)
+        availableContainer.removeAllViews()
+        val available = WeatherSourceOrdering.available(enabled.map { it.id })
+        findViewById<View>(R.id.api_sources_available_header).visibility =
+            if (available.isEmpty()) View.GONE else View.VISIBLE
+        for (source in available) {
+            val row = LayoutInflater.from(this).inflate(R.layout.item_source_available, availableContainer, false)
+            row.findViewById<TextView>(R.id.source_name).text = source.displayName
+            row.findViewById<TextView>(R.id.source_description).text = sourceDescription(source)
+            val addButton = row.findViewById<ImageButton>(R.id.source_add_button)
+            addButton.contentDescription = getString(R.string.source_add, source.displayName)
+            addButton.setOnClickListener { addSource(source) }
+            row.setOnClickListener { addSource(source) }
+            availableContainer.addView(row)
+        }
+    }
 
-        for ((index, source) in orderedSources.withIndex()) {
-            val row = LayoutInflater.from(this).inflate(R.layout.item_api_source, container, false)
+    private fun addSource(source: WeatherSource) {
+        // Gate on the key the fetch path will actually use (user-entered, else the one this build
+        // baked from local.properties) — not on a static per-source flag.
+        if (source.requiresApiKey && !BuiltInApiKeys.hasEffectiveKey(source, widgetStateManager)) {
+            Toast.makeText(
+                this,
+                getString(R.string.api_key_required_to_enable, source.displayName),
+                Toast.LENGTH_LONG,
+            ).show()
+            val scrollView = findViewById<ScrollView>(R.id.settings_scroll_view)
+            val keysContainer = findViewById<View>(R.id.api_keys_container)
+            scrollView?.post {
+                if (keysContainer != null) scrollView.smoothScrollTo(0, keysContainer.top)
+            }
+            return
+        }
+        val currentIds = widgetStateManager.getEnabledSourcesOrder().map { it.id }
+        val updatedIds = WeatherSourceOrdering.toggle(currentIds, source, makeVisible = true) ?: return
+        if (updatedIds == currentIds) return
+        persistSourceOrder("Add: ${source.name}, new list=$updatedIds", updatedIds)
+        // Enabling Google makes it primary and every widget switches to it: fetch it now and say
+        // so, rather than show its empty graph until some unrelated sync runs.
+        WeatherSourceOrdering.newlyPrimary(currentIds, updatedIds)?.let { newPrimary ->
+            val appContext = applicationContext
+            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val started = com.weatherwidget.widget.SourceSwitchFetch.start(appContext, newPrimary, trigger = "settings_enable")
+                com.weatherwidget.widget.RefreshToast.show(appContext, "settings_enable", started.notice)
+            }
+        }
+        rebuildSourceRows()
+    }
 
-            val checkbox = row.findViewById<CheckBox>(R.id.source_checkbox)
-            val nameView = row.findViewById<TextView>(R.id.source_name)
-            val descView = row.findViewById<TextView>(R.id.source_description)
-            val upButton = row.findViewById<ImageButton>(R.id.move_up_button)
-            val downButton = row.findViewById<ImageButton>(R.id.move_down_button)
+    private fun removeSource(source: WeatherSource) {
+        val currentIds = widgetStateManager.getEnabledSourcesOrder().map { it.id }
+        val updatedIds = WeatherSourceOrdering.toggle(currentIds, source, makeVisible = false)
+        if (updatedIds == null) {
+            Toast.makeText(this, getString(R.string.must_keep_one_source), Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (updatedIds == currentIds) return
+        persistSourceOrder("Remove: ${source.name}, new list=$updatedIds", updatedIds)
+        rebuildSourceRows()
+    }
 
-            val isVisible = source in visibleSources
-            // Every row shares R.id.source_checkbox, and Android restores view state by id — so
-            // after this activity is recreated behind the location picker, onRestoreInstanceState
-            // pushes one row's saved (unticked) state into every checkbox, firing the listener
-            // below as if the user had untoggled each source. The rows are rebuilt from prefs in
-            // onResume anyway, so opt them out of state restoration entirely.
-            checkbox.isSaveEnabled = false
-            checkbox.isChecked = isVisible
-            nameView.text = source.displayName
-            descView.text = if (isVisible && widgetStateManager.isSourceUnavailableHere(source)) {
+    /** Moves the In-rotation row at [from] to [to] and saves — the accessibility Move up / Move down. */
+    private fun moveSource(from: Int, to: Int) {
+        val currentIds = widgetStateManager.getEnabledSourcesOrder().map { it.id }
+        val updatedIds = WeatherSourceOrdering.move(currentIds, from, to)
+        if (updatedIds == currentIds) return
+        persistSourceOrder("Move: ${currentIds[from]} $from→$to, new list=$updatedIds", updatedIds)
+        rebuildSourceRows()
+    }
+
+    private fun persistSourceOrder(summary: String, updatedIds: List<String>) {
+        Log.d("SOURCE_ORDER", summary)
+        eventLogger.log("SOURCE_ORDER", summary)
+        widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
+    }
+
+    /** The In-rotation list. Rows move in place while dragged; the order is saved on drop. */
+    @VisibleForTesting
+    internal inner class RotationAdapter : RecyclerView.Adapter<RotationAdapter.Holder>() {
+        var ids: List<String> = emptyList()
+            private set
+
+        inner class Holder(view: View) : RecyclerView.ViewHolder(view) {
+            val name: TextView = view.findViewById(R.id.source_name)
+            val description: TextView = view.findViewById(R.id.source_description)
+            val handle: ImageView = view.findViewById(R.id.source_drag_handle)
+            val remove: ImageButton = view.findViewById(R.id.source_remove_button)
+            val a11yActionIds = mutableListOf<Int>()
+        }
+
+        @android.annotation.SuppressLint("NotifyDataSetChanged")
+        fun submit(newIds: List<String>) {
+            ids = newIds
+            notifyDataSetChanged()
+        }
+
+        /** One drag step: moves the row on screen only. */
+        fun moveRow(from: Int, to: Int) {
+            val moved = WeatherSourceOrdering.move(ids, from, to)
+            if (moved == ids) return
+            ids = moved
+            notifyItemMoved(from, to)
+        }
+
+        override fun getItemCount(): Int = ids.size
+
+        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): Holder =
+            Holder(LayoutInflater.from(parent.context).inflate(R.layout.item_source_rotation, parent, false))
+
+        @android.annotation.SuppressLint("ClickableViewAccessibility")
+        override fun onBindViewHolder(holder: Holder, position: Int) {
+            val source = WeatherSource.fromId(ids[position])
+            holder.name.text = source.displayName
+            holder.description.text = if (widgetStateManager.isSourceUnavailableHere(source)) {
                 "${sourceDescription(source)}\n${getString(R.string.source_unavailable_at_location)}"
             } else {
                 sourceDescription(source)
             }
-
-            // Dim hidden sources
-            row.alpha = if (isVisible) 1.0f else 0.5f
-
-            // Allow clicking the text container to toggle the checkbox
-            val textContainer = nameView.parent as? View
-            textContainer?.setOnClickListener {
-                checkbox.toggle()
+            holder.remove.contentDescription = getString(R.string.source_remove, source.displayName)
+            holder.remove.setOnClickListener { removeSource(source) }
+            holder.handle.setOnTouchListener { _, event ->
+                if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) sourceDragHelper.startDrag(holder)
+                false
             }
 
-            // Up/down only meaningful for visible sources
-            upButton.visibility = if (isVisible && visibleSources.indexOf(source) > 0) View.VISIBLE else View.INVISIBLE
-            downButton.visibility = if (isVisible && visibleSources.indexOf(source) < visibleSources.size - 1) View.VISIBLE else View.INVISIBLE
-
-            checkbox.setOnCheckedChangeListener { _, isChecked ->
-                // Gate on the key the fetch path will actually use (user-entered, else the one this
-                // build baked from local.properties) — not on a static per-source flag.
-                if (isChecked && source.requiresApiKey) {
-                    if (!BuiltInApiKeys.hasEffectiveKey(source, widgetStateManager)) {
-                        checkbox.isChecked = false
-                        Toast.makeText(
-                            this,
-                            getString(R.string.api_key_required_to_enable, source.displayName),
-                            Toast.LENGTH_LONG,
-                        ).show()
-                        val scrollView = findViewById<ScrollView>(R.id.settings_scroll_view)
-                        val keysContainer = findViewById<View>(R.id.api_keys_container)
-                        scrollView?.post {
-                            if (keysContainer != null) {
-                                scrollView.smoothScrollTo(0, keysContainer.top)
-                            }
-                        }
-                        return@setOnCheckedChangeListener
-                    }
-                }
-                val currentIds = widgetStateManager.getEnabledSourcesOrder().map { it.id }
-                // isPressed is true only for a real tap; a programmatic setChecked (state restore,
-                // a stale listener) arrives with it false. Persisted so a source that disappears
-                // without a tap can be traced in the app log rather than guessed at.
-                val trigger = if (checkbox.isPressed) "tap" else "programmatic"
-                if (isChecked == (source.id in currentIds)) {
-                    eventLogger.log(
-                        "SOURCE_ORDER",
-                        "Checkbox no-op: ${source.name} already ${if (isChecked) "enabled" else "disabled"} trigger=$trigger",
-                    )
-                    return@setOnCheckedChangeListener
-                }
-                val updatedIds = WeatherSourceOrdering.toggle(currentIds, source, isChecked)
-                if (updatedIds == null) {
-                    checkbox.isChecked = true
-                    Toast.makeText(this, getString(R.string.must_keep_one_source), Toast.LENGTH_SHORT).show()
-                    return@setOnCheckedChangeListener
-                }
-                val summary = "Checkbox: ${if (isChecked) "enabled" else "disabled"} ${source.name} trigger=$trigger, new list=$updatedIds"
-                Log.d("SOURCE_ORDER", summary)
-                eventLogger.log("SOURCE_ORDER", summary)
-                widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
-                // Enabling Google makes it primary and every widget switches to it: fetch it now and
-                // say so, rather than show its empty graph until some unrelated sync runs.
-                WeatherSourceOrdering.newlyPrimary(currentIds, updatedIds)?.let { newPrimary ->
-                    val appContext = applicationContext
-                    lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                        val started = com.weatherwidget.widget.SourceSwitchFetch.start(appContext, newPrimary, trigger = "settings_enable")
-                        com.weatherwidget.widget.RefreshToast.show(appContext, "settings_enable", started.notice)
-                    }
-                }
-                rebuildSourceRows(container)
-            }
-
-            upButton.setOnClickListener {
-                val currentIds = widgetStateManager.getEnabledSourcesOrder().map { it.id }
-                val updatedIds = WeatherSourceOrdering.moveUp(currentIds, source)
-                if (updatedIds != currentIds) {
-                    Log.d("SOURCE_ORDER", "Move up: ${source.name}, new list=$updatedIds")
-                    widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
-                    rebuildSourceRows(container)
+            // A handle you can only drag is out of reach for TalkBack and switch access; these
+            // actions do the same moves one slot at a time. Positions are read when invoked.
+            holder.a11yActionIds.forEach { ViewCompat.removeAccessibilityAction(holder.itemView, it) }
+            holder.a11yActionIds.clear()
+            if (position > 0) {
+                holder.a11yActionIds += ViewCompat.addAccessibilityAction(holder.itemView, getString(R.string.move_up)) { _, _ ->
+                    val at = holder.bindingAdapterPosition
+                    if (at > 0) moveSource(at, at - 1)
+                    true
                 }
             }
-
-            downButton.setOnClickListener {
-                val currentIds = widgetStateManager.getEnabledSourcesOrder().map { it.id }
-                val updatedIds = WeatherSourceOrdering.moveDown(currentIds, source)
-                if (updatedIds != currentIds) {
-                    Log.d("SOURCE_ORDER", "Move down: ${source.name}, new list=$updatedIds")
-                    widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
-                    rebuildSourceRows(container)
+            if (position < ids.size - 1) {
+                holder.a11yActionIds += ViewCompat.addAccessibilityAction(holder.itemView, getString(R.string.move_down)) { _, _ ->
+                    val at = holder.bindingAdapterPosition
+                    if (at in 0 until ids.size - 1) moveSource(at, at + 1)
+                    true
                 }
             }
-
-            container.addView(row)
         }
     }
+
+    /**
+     * Drags start only from the ≡ handle (long-press drag is off), so scrolling Settings over the
+     * list never picks up a row. Each step moves the row on screen; [clearView] saves once.
+     */
+    @VisibleForTesting
+    internal inner class SourceDragCallback : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
+        private var orderAtDragStart: List<String>? = null
+
+        override fun isLongPressDragEnabled(): Boolean = false
+
+        override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
+            super.onSelectedChanged(viewHolder, actionState)
+            if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && viewHolder != null) {
+                orderAtDragStart = rotationAdapter.ids
+                viewHolder.itemView.elevation = 8f * resources.displayMetrics.density
+            }
+        }
+
+        override fun onMove(
+            recyclerView: RecyclerView,
+            viewHolder: RecyclerView.ViewHolder,
+            target: RecyclerView.ViewHolder,
+        ): Boolean {
+            rotationAdapter.moveRow(viewHolder.bindingAdapterPosition, target.bindingAdapterPosition)
+            return true
+        }
+
+        override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
+
+        override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+            super.clearView(recyclerView, viewHolder)
+            viewHolder.itemView.elevation = 0f
+            val before = orderAtDragStart ?: return
+            orderAtDragStart = null
+            val after = rotationAdapter.ids
+            if (after == before) return
+            persistSourceOrder("Drag: ${before.joinToString(",")} → new list=$after", after)
+            // Rebind so each row's Move up / Move down actions match its new position. Posted:
+            // clearView can run inside a layout pass, where notifyDataSetChanged throws.
+            recyclerView.post { rebuildSourceRows() }
+        }
+    }
+
+    @VisibleForTesting
+    internal val rotationAdapter = RotationAdapter()
+
+    @VisibleForTesting
+    internal val sourceDragCallback = SourceDragCallback()
+
+    private val sourceDragHelper = ItemTouchHelper(sourceDragCallback)
 
     private fun observeRefreshCompletion(
         workManager: WorkManager,
@@ -601,7 +685,7 @@ class SettingsActivity : AppCompatActivity() {
         // site outside NWS coverage retires NWS from the visible list while this screen is paused,
         // and the rows built in onCreate would otherwise keep showing it ticked.
         refreshLocationLabel()
-        rebuildSourceRows(findViewById(R.id.api_sources_container))
+        rebuildSourceRows()
         widgetStateManager.registerPreferenceListener(watchPrefsListener)
         // Catch a fire that landed while this screen was in the background — the listener only
         // covers writes that happen while it is registered.

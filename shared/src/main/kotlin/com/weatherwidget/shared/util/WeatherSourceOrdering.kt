@@ -111,8 +111,27 @@ object WeatherSourceOrdering {
     fun ordered(visibleIds: List<String>): List<WeatherSource> {
         val sanitized = sanitizeVisibleIds(visibleIds)
         val visible = sanitized.mapNotNull { id -> ALL_CONFIGURABLE.find { it.id == id } }
-        val hidden = ALL_CONFIGURABLE.filter { it.id !in sanitized }
-        return visible + hidden
+        return visible + available(sanitized)
+    }
+
+    /**
+     * The sources Settings lists under "Available": every configurable source not in [visibleIds],
+     * in [ALL_CONFIGURABLE] order. The hidden half of [ordered].
+     */
+    fun available(visibleIds: List<String>): List<WeatherSource> {
+        val sanitized = sanitizeVisibleIds(visibleIds)
+        return ALL_CONFIGURABLE.filter { it.id !in sanitized }
+    }
+
+    /**
+     * Returns the list with the source at position [from] moved to position [to] — what one drag in
+     * Settings produces. No-op (returns the sanitized input) if either index is out of range.
+     */
+    fun move(visibleIds: List<String>, from: Int, to: Int): List<String> {
+        val current = sanitizeVisibleIds(visibleIds).toMutableList()
+        if (from !in current.indices || to !in current.indices || from == to) return current
+        current.add(to, current.removeAt(from))
+        return current
     }
 
     /**

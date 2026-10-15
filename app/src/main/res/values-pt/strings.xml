@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 horas</string>
     <string name="hourly_zoom_max">8 horas</string>
     <string name="api_sources_title">Fontes de dados meteorológicos</string>
-    <string name="api_sources_description">Ative/desative e reordene as fontes. Fontes desativadas ficam excluídas dos widgets e das buscas em segundo plano até serem reativadas.</string>
+    <string name="api_sources_description">Arraste ≡ para reordenar. A primeira fonte é a que o widget mostra; tocar no rótulo da fonte no widget alterna entre as demais. Fontes removidas não são buscadas.</string>
+    <string name="sources_in_rotation">Em rotação</string>
+    <string name="sources_available">Disponíveis</string>
+    <string name="source_add">Adicionar %1$s</string>
+    <string name="source_remove">Remover %1$s</string>
+    <string name="source_drag_handle">Arraste para reordenar</string>
     <string name="must_keep_one_source">Pelo menos uma fonte deve permanecer ativada</string>
     <string name="source_unavailable_at_location">Indisponível nesta localização</string>
     <string name="api_key_required_to_enable">%1$s requer uma chave de API antes de ativar</string>

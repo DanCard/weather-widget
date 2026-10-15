@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One row of Settings → Weather Data Sources → In rotation: drag handle, name, remove. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/surface_card"
+    android:gravity="center_vertical"
+    android:minHeight="56dp"
+    android:orientation="horizontal"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <!-- A drag starts only from a touch-down here (ItemTouchHelper long-press drag is off), so
+         scrolling the Settings page over the list never picks up a row. -->
+    <ImageView
+        android:id="@+id/source_drag_handle"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:contentDescription="@string/source_drag_handle"
+        android:padding="8dp"
+        android:scaleType="center"
+        android:src="@drawable/ic_drag_handle" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/source_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/source_description"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/source_remove_button"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@drawable/ic_source_remove" />
+
+</LinearLayout>

@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 години</string>
     <string name="hourly_zoom_max">8 годин</string>
     <string name="api_sources_title">Джерела даних про погоду</string>
-    <string name="api_sources_description">Вмикайте/вимикайте та впорядковуйте джерела. Вимкнені джерела виключаються з віджетів і фонових запитів, доки їх не увімкнути знову.</string>
+    <string name="api_sources_description">Перетягніть ≡, щоб змінити порядок. Перше джерело показується у віджеті; дотик до мітки джерела у віджеті перемикає на інші. Прибрані джерела не завантажуються.</string>
+    <string name="sources_in_rotation">У ротації</string>
+    <string name="sources_available">Доступні</string>
+    <string name="source_add">Додати %1$s</string>
+    <string name="source_remove">Прибрати %1$s</string>
+    <string name="source_drag_handle">Перетягніть, щоб змінити порядок</string>
     <string name="must_keep_one_source">Принаймні одне джерело має залишатися ввімкненим</string>
     <string name="source_unavailable_at_location">Недоступно в цьому місці</string>
     <string name="api_key_required_to_enable">Для ввімкнення %1$s потрібен ключ API</string>

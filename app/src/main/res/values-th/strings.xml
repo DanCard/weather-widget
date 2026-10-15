@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 ชั่วโมง</string>
     <string name="hourly_zoom_max">8 ชั่วโมง</string>
     <string name="api_sources_title">แหล่งข้อมูลสภาพอากาศ</string>
-    <string name="api_sources_description">เปิด/ปิดและจัดลำดับแหล่งข้อมูล แหล่งข้อมูลที่ปิดจะถูกยกเว้นจากการสลับบนวิดเจ็ตและการดึงข้อมูลเบื้องหลังจนกว่าจะเปิดอีกครั้ง</string>
+    <string name="api_sources_description">ลาก ≡ เพื่อจัดลำดับ แหล่งข้อมูลแรกคือสิ่งที่วิดเจ็ตแสดง การแตะป้ายแหล่งข้อมูลบนวิดเจ็ตจะสลับไปยังแหล่งอื่น แหล่งข้อมูลที่นำออกจะไม่ถูกดึงข้อมูล</string>
+    <string name="sources_in_rotation">อยู่ในรอบ</string>
+    <string name="sources_available">ที่มีให้ใช้</string>
+    <string name="source_add">เพิ่ม %1$s</string>
+    <string name="source_remove">นำ %1$s ออก</string>
+    <string name="source_drag_handle">ลากเพื่อจัดลำดับ</string>
     <string name="must_keep_one_source">ต้องเปิดใช้งานอย่างน้อยหนึ่งแหล่งข้อมูล</string>
     <string name="source_unavailable_at_location">ไม่พร้อมใช้งานในตำแหน่งนี้</string>
     <string name="api_key_required_to_enable">%1$s ต้องใช้คีย์ API ก่อนเปิดใช้งาน</string>

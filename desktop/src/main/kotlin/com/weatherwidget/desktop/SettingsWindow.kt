@@ -4,18 +4,32 @@ import androidx.compose.foundation.Image
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -295,36 +309,6 @@ internal fun SettingsWindow(
                             }
                         }
 
-                        // Daily View — Today Column overlay toggles (matches Android's
-                        // "Daily View — Today Column" settings section). All opt-in.
-                        SettingsCard(title = SettingsSection.TODAY_COLUMN.title) {
-                            Text(
-                                "Appears in the Today column only on windows at least 4 rows tall.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            TodayOverlayToggleRow(
-                                label = "Show delta from forecast",
-                                checked = currentConfig.settings.todayOverlayDelta,
-                                testTag = "today_overlay_delta_switch",
-                            ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDelta = it))) }
-                            TodayOverlayToggleRow(
-                                label = "Show dominant station temperature",
-                                checked = currentConfig.settings.todayOverlayDominantTemp,
-                                testTag = "today_overlay_dominant_temp_switch",
-                            ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDominantTemp = it))) }
-                        }
-
-                        // Personal Weather Stations
-                        SettingsCard(title = SettingsSection.PERSONAL_STATIONS.title) {
-                            PersonalStationDiscount(
-                                discountPercent = currentConfig.settings.personalStationDiscount,
-                                onChanged = { newPercent ->
-                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(personalStationDiscount = newPercent)))
-                                }
-                            )
-                        }
-
                         // Weather Data Sources -- title matches Android's
                         // R.string.api_sources_title = "Weather Data Sources".
                         SettingsCard(title = SettingsSection.WEATHER_SOURCES.title) {
@@ -364,6 +348,36 @@ internal fun SettingsWindow(
                                         )
                                     }
                                 },
+                            )
+                        }
+
+                        // Daily View — Today Column overlay toggles (matches Android's
+                        // "Daily View — Today Column" settings section). All opt-in.
+                        SettingsCard(title = SettingsSection.TODAY_COLUMN.title) {
+                            Text(
+                                "Appears in the Today column only on windows at least 4 rows tall.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            TodayOverlayToggleRow(
+                                label = "Show delta from forecast",
+                                checked = currentConfig.settings.todayOverlayDelta,
+                                testTag = "today_overlay_delta_switch",
+                            ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDelta = it))) }
+                            TodayOverlayToggleRow(
+                                label = "Show dominant station temperature",
+                                checked = currentConfig.settings.todayOverlayDominantTemp,
+                                testTag = "today_overlay_dominant_temp_switch",
+                            ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDominantTemp = it))) }
+                        }
+
+                        // Personal Weather Stations
+                        SettingsCard(title = SettingsSection.PERSONAL_STATIONS.title) {
+                            PersonalStationDiscount(
+                                discountPercent = currentConfig.settings.personalStationDiscount,
+                                onChanged = { newPercent ->
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(personalStationDiscount = newPercent)))
+                                }
                             )
                         }
 
@@ -695,104 +709,193 @@ internal fun needsKeyFromUser(source: WeatherSource, userKeys: Map<String, Strin
         userKeys[source.id].isNullOrBlank() &&
         DesktopApiKeys.DEFAULTS[source.id].isNullOrBlank()
 
+/**
+ * Weather Data Sources in two groups, matching Android: **In rotation** (the enabled list in stored
+ * order; ≡ drags, ✕ removes) and **Available** (+ or a row click adds). The drag moves rows in a
+ * local copy and calls [onChanged] once, on release — one config write per drag.
+ * plans/261015-settings-sources-drag-reorder-and-two-groups.md.
+ */
 @Composable
 private fun ApiSourcesList(
     visibleSources: List<String>,
-    // Enabled, but unable to serve the current location (NWS outside the US): stays checked, noted.
+    // Enabled, but unable to serve the current location (NWS outside the US): stays in rotation, noted.
     unavailableHere: Set<String> = emptySet(),
     apiKeys: Map<String, String> = emptyMap(),
     onChanged: (List<String>) -> Unit,
     onMustKeepOne: () -> Unit,
     onRequiresApiKey: (WeatherSource) -> Unit = {},
 ) {
-    val orderedSources = remember(visibleSources) {
-        WeatherSourceOrdering.ordered(visibleSources)
+    val enabled = remember(visibleSources) { WeatherSourceOrdering.sanitizeVisibleIds(visibleSources) }
+    val available = remember(visibleSources) { WeatherSourceOrdering.available(visibleSources) }
+    // The drag's working copy; reset whenever the stored list changes.
+    var order by remember(enabled) { mutableStateOf(enabled) }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val rowHeights = remember { mutableStateMapOf<String, Int>() }
+    val currentEnabled by rememberUpdatedState(enabled)
+    val currentOnChanged by rememberUpdatedState(onChanged)
+    val rowSpacing = 4.dp
+    val rowSpacingPx = with(LocalDensity.current) { rowSpacing.toPx() }
+
+    fun add(source: WeatherSource) {
+        if (needsKeyFromUser(source, apiKeys)) {
+            onRequiresApiKey(source)
+            return
+        }
+        WeatherSourceOrdering.toggle(visibleSources, source, makeVisible = true)?.let(onChanged)
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        orderedSources.forEach { source ->
-            val isVisible = source.id in visibleSources
-            val visibleIndex = visibleSources.indexOf(source.id)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .alpha(if (isVisible) 1f else 0.5f),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = isVisible,
-                    onCheckedChange = { checked ->
-                        if (checked && needsKeyFromUser(source, apiKeys)) {
-                            onRequiresApiKey(source)
-                            return@Checkbox
-                        }
-                        val newList = WeatherSourceOrdering.toggle(visibleSources, source, makeVisible = checked)
-                        if (newList == null) {
-                            // Toggle refused: it would empty the list. Tell the user, and reassert
-                            // the checkbox state so the UI doesn't lie about what persisted.
-                            onMustKeepOne()
-                        } else {
-                            onChanged(newList)
-                        }
-                    },
-                    modifier = Modifier.testTag("source_checkbox_${source.id}"),
-                )
-                Column(
+    fun remove(source: WeatherSource) {
+        // Refused when it would empty the list: say so, change nothing.
+        val newList = WeatherSourceOrdering.toggle(visibleSources, source, makeVisible = false)
+        if (newList == null) onMustKeepOne() else onChanged(newList)
+    }
+
+    fun endDrag() {
+        draggingId = null
+        dragOffset = 0f
+        if (order != currentEnabled) currentOnChanged(order)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(rowSpacing)) {
+        SourceGroupHeader("In rotation")
+        order.forEachIndexed { index, id ->
+            // Keyed by source, not position: a swap mid-drag must move this composition (and the
+            // handle's live pointerInput) with the row, or the gesture is cancelled at the first swap.
+            key(id) {
+                val source = WeatherSource.fromId(id)
+                val dragging = id == draggingId
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .clickable {
-                            // Mirrors Android: tapping the source name toggles the checkbox.
-                            val targetState = !isVisible
-                            if (targetState && needsKeyFromUser(source, apiKeys)) {
-                                onRequiresApiKey(source)
-                                return@clickable
-                            }
-                            val newList = WeatherSourceOrdering.toggle(visibleSources, source, makeVisible = targetState)
-                            if (newList == null) {
-                                onMustKeepOne()
-                            } else {
-                                onChanged(newList)
+                        .fillMaxWidth()
+                        .testTag("source_row_$id")
+                        .onSizeChanged { rowHeights[id] = it.height }
+                        .zIndex(if (dragging) 1f else 0f)
+                        .graphicsLayer { translationY = if (dragging) dragOffset else 0f }
+                        .background(
+                            if (dragging) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent,
+                            RoundedCornerShape(8.dp),
+                        )
+                        // A handle you can only drag is out of reach for a keyboard or screen reader:
+                        // the same moves, one slot at a time.
+                        .semantics {
+                            customActions = buildList {
+                                if (index > 0) {
+                                    add(CustomAccessibilityAction("Move up") { onChanged(WeatherSourceOrdering.move(enabled, index, index - 1)); true })
+                                }
+                                if (index < order.size - 1) {
+                                    add(CustomAccessibilityAction("Move down") { onChanged(WeatherSourceOrdering.move(enabled, index, index + 1)); true })
+                                }
                             }
                         },
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(source.displayName, style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        source.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Icon(
+                        Icons.Default.DragHandle,
+                        contentDescription = "Drag to reorder",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .testTag("source_drag_$id")
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .pointerInput(id) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        draggingId = id
+                                        dragOffset = 0f
+                                    },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        dragOffset += amount.y
+                                        // Swap with a neighbour once the row is past half of it.
+                                        val at = order.indexOf(id)
+                                        val below = order.getOrNull(at + 1)
+                                        val above = order.getOrNull(at - 1)
+                                        if (below != null) {
+                                            val step = (rowHeights[below] ?: 0) + rowSpacingPx
+                                            if (dragOffset > step / 2) {
+                                                order = WeatherSourceOrdering.move(order, at, at + 1)
+                                                dragOffset -= step
+                                                return@detectDragGestures
+                                            }
+                                        }
+                                        if (above != null) {
+                                            val step = (rowHeights[above] ?: 0) + rowSpacingPx
+                                            if (dragOffset < -step / 2) {
+                                                order = WeatherSourceOrdering.move(order, at, at - 1)
+                                                dragOffset += step
+                                            }
+                                        }
+                                    },
+                                    onDragEnd = { endDrag() },
+                                    onDragCancel = { endDrag() },
+                                )
+                            }
+                            .padding(12.dp),
                     )
-                    if (source.id in unavailableHere) {
-                        Text(
-                            "Not available at this location",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.testTag("source_unavailable_${source.id}"),
+                    SourceText(source, unavailable = id in unavailableHere, modifier = Modifier.weight(1f))
+                    IconButton(
+                        onClick = { remove(source) },
+                        modifier = Modifier.testTag("source_remove_$id"),
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Remove ${source.displayName}",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
-                // Phase 4 item 3: hide reorder arrows for hidden sources, matching Android's
-                // View.INVISIBLE on the same buttons (SettingsActivity.kt:293-294).
-                if (isVisible) {
+            }
+        }
+        if (available.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            SourceGroupHeader("Available")
+            available.forEach { source ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("source_row_${source.id}")
+                        .clickable { add(source) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     IconButton(
-                        onClick = { onChanged(WeatherSourceOrdering.moveUp(visibleSources, source)) },
-                        enabled = visibleIndex > 0,
-                        modifier = Modifier.testTag("move_up_${source.id}"),
+                        onClick = { add(source) },
+                        modifier = Modifier.testTag("source_add_${source.id}"),
                     ) {
-                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move Up")
+                        Icon(Icons.Default.Add, contentDescription = "Add ${source.displayName}")
                     }
-                    IconButton(
-                        onClick = { onChanged(WeatherSourceOrdering.moveDown(visibleSources, source)) },
-                        enabled = visibleIndex >= 0 && visibleIndex < visibleSources.size - 1,
-                        modifier = Modifier.testTag("move_down_${source.id}"),
-                    ) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move Down")
-                    }
-                } else {
-                    // Reserve the same horizontal space so visible rows don't shift when reordered.
-                    Spacer(Modifier.width(48.dp))
-                    Spacer(Modifier.width(48.dp))
+                    SourceText(source, unavailable = false, modifier = Modifier.weight(1f))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SourceGroupHeader(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun SourceText(source: WeatherSource, unavailable: Boolean, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(source.displayName, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            source.description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (unavailable) {
+            Text(
+                "Not available at this location",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("source_unavailable_${source.id}"),
+            )
         }
     }
 }

@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 giờ</string>
     <string name="hourly_zoom_max">8 giờ</string>
     <string name="api_sources_title">Nguồn dữ liệu thời tiết</string>
-    <string name="api_sources_description">Bật/tắt và sắp xếp lại các nguồn. Nguồn bị tắt sẽ bị loại khỏi việc chuyển đổi trên tiện ích và tải nền cho đến khi được bật lại.</string>
+    <string name="api_sources_description">Kéo ≡ để sắp xếp lại. Nguồn đầu tiên là nguồn tiện ích hiển thị; chạm vào nhãn nguồn trên tiện ích sẽ chuyển qua các nguồn còn lại. Nguồn đã gỡ sẽ không được tải.</string>
+    <string name="sources_in_rotation">Đang luân phiên</string>
+    <string name="sources_available">Có sẵn</string>
+    <string name="source_add">Thêm %1$s</string>
+    <string name="source_remove">Gỡ %1$s</string>
+    <string name="source_drag_handle">Kéo để sắp xếp</string>
     <string name="must_keep_one_source">Phải giữ ít nhất một nguồn được bật</string>
     <string name="source_unavailable_at_location">Không khả dụng tại vị trí này</string>
     <string name="api_key_required_to_enable">%1$s yêu cầu khóa API trước khi bật</string>

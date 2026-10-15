@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 godziny</string>
     <string name="hourly_zoom_max">8 godzin</string>
     <string name="api_sources_title">Źródła danych pogodowych</string>
-    <string name="api_sources_description">Włączaj/wyłączaj i zmieniaj kolejność źródeł. Wyłączone źródła są pomijane w przełączaniu widżetu i pobieraniu w tle, dopóki nie zostaną ponownie włączone.</string>
+    <string name="api_sources_description">Przeciągnij ≡, aby zmienić kolejność. Pierwsze źródło jest wyświetlane w widżecie; dotknięcie etykiety źródła w widżecie przełącza na pozostałe. Usunięte źródła nie są pobierane.</string>
+    <string name="sources_in_rotation">W rotacji</string>
+    <string name="sources_available">Dostępne</string>
+    <string name="source_add">Dodaj %1$s</string>
+    <string name="source_remove">Usuń %1$s</string>
+    <string name="source_drag_handle">Przeciągnij, aby zmienić kolejność</string>
     <string name="must_keep_one_source">Co najmniej jedno źródło musi pozostać włączone</string>
     <string name="source_unavailable_at_location">Niedostępne w tej lokalizacji</string>
     <string name="api_key_required_to_enable">%1$s wymaga klucza API przed włączeniem</string>

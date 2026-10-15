@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 saat</string>
     <string name="hourly_zoom_max">8 saat</string>
     <string name="api_sources_title">Hava durumu veri kaynakları</string>
-    <string name="api_sources_description">Kaynakları etkinleştirin/devre dışı bırakın ve yeniden sıralayın. Devre dışı kaynaklar yeniden etkinleştirilene kadar widget geçişlerinden ve arka plan indirmelerinden hariç tutulur.</string>
+    <string name="api_sources_description">Sıralamak için ≡ simgesini sürükleyin. İlk kaynak widget\'ta gösterilir; widget\'taki kaynak etiketine dokunmak diğerleri arasında geçiş yapar. Kaldırılan kaynaklardan veri alınmaz.</string>
+    <string name="sources_in_rotation">Rotasyonda</string>
+    <string name="sources_available">Kullanılabilir</string>
+    <string name="source_add">%1$s ekle</string>
+    <string name="source_remove">%1$s kaldır</string>
+    <string name="source_drag_handle">Sıralamak için sürükleyin</string>
     <string name="must_keep_one_source">En az bir kaynak etkin kalmalı</string>
     <string name="source_unavailable_at_location">Bu konumda kullanılamıyor</string>
     <string name="api_key_required_to_enable">%1$s etkinleştirilmeden önce bir API anahtarı gerektirir</string>

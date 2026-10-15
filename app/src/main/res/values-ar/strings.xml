@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 ساعات</string>
     <string name="hourly_zoom_max">8 ساعات</string>
     <string name="api_sources_title">مصادر بيانات الطقس</string>
-    <string name="api_sources_description">فعّل/عطّل المصادر وأعد ترتيبها. تُستبعد المصادر المعطّلة من تبديل الأداة والجلب في الخلفية حتى يُعاد تفعيلها.</string>
+    <string name="api_sources_description">اسحب ≡ لإعادة الترتيب. المصدر الأول هو ما تعرضه الأداة؛ والنقر على اسم المصدر في الأداة ينتقل بين البقية. لا تُجلب بيانات المصادر المُزالة.</string>
+    <string name="sources_in_rotation">قيد التناوب</string>
+    <string name="sources_available">متاحة</string>
+    <string name="source_add">إضافة %1$s</string>
+    <string name="source_remove">إزالة %1$s</string>
+    <string name="source_drag_handle">اسحب لإعادة الترتيب</string>
     <string name="must_keep_one_source">يجب أن يبقى مصدر واحد على الأقل مفعّلًا</string>
     <string name="source_unavailable_at_location">غير متاح في هذا الموقع</string>
     <string name="api_key_required_to_enable">يتطلب %1$s مفتاح API قبل التمكين</string>

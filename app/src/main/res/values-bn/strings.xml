@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 ঘণ্টা</string>
     <string name="hourly_zoom_max">8 ঘণ্টা</string>
     <string name="api_sources_title">আবহাওয়া ডেটা উৎসসমূহ</string>
-    <string name="api_sources_description">উৎস চালু/বন্ধ করুন এবং ক্রম বদলান। বন্ধ করা উৎস আবার চালু না করা পর্যন্ত উইজেট টগল ও ব্যাকগ্রাউন্ড আনা থেকে বাদ থাকে।</string>
+    <string name="api_sources_description">ক্রম বদলাতে ≡ টানুন। প্রথম উৎসটি উইজেটে দেখানো হয়; উইজেটে উৎসের নামে ট্যাপ করলে বাকিগুলো একে একে আসে। সরানো উৎস থেকে ডেটা আনা হয় না।</string>
+    <string name="sources_in_rotation">ঘূর্ণনে</string>
+    <string name="sources_available">উপলব্ধ</string>
+    <string name="source_add">%1$s যোগ করুন</string>
+    <string name="source_remove">%1$s সরান</string>
+    <string name="source_drag_handle">ক্রম বদলাতে টানুন</string>
     <string name="must_keep_one_source">কমপক্ষে একটি উৎস চালু থাকতে হবে</string>
     <string name="source_unavailable_at_location">এই অবস্থানে উপলব্ধ নয়</string>
     <string name="api_key_required_to_enable">%1$s সক্ষম করার আগে একটি API কী প্রয়োজন</string>

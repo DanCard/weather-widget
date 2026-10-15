@@ -519,8 +519,8 @@ currentCondition = "Sunny"),
             )
         }
 
-        // Uncheck NWS
-        composeTestRule.onNodeWithTag("source_checkbox_NWS").performScrollTo().performClick()
+        // Remove NWS
+        composeTestRule.onNodeWithTag("source_remove_NWS").performScrollTo().performClick()
         composeTestRule.onNodeWithTag("save_settings").performClick()
 
         assert(savedConfig?.settings?.visibleSources?.contains("NWS") == false)

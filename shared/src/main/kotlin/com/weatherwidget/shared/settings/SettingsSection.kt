@@ -33,9 +33,9 @@ enum class SettingsSection(
     HOURLY_ZOOM("Hourly Zoom"),
     NOTIFICATIONS("Notifications"),
     UNITS("Units"),
+    WEATHER_SOURCES("Weather Data Sources"),
     TODAY_COLUMN("Daily View — Today Column"),
     PERSONAL_STATIONS("Personal Weather Stations"),
-    WEATHER_SOURCES("Weather Data Sources"),
     ICON_GALLERY("Icon gallery"),
     /** The desktop ships no translations (user-facing text cannot live in `:shared`), so no picker. */
     LANGUAGE("Language", platforms = setOf(Platform.ANDROID)),

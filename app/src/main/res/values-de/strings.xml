@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 Stunden</string>
     <string name="hourly_zoom_max">8 Stunden</string>
     <string name="api_sources_title">Wetterdatenquellen</string>
-    <string name="api_sources_description">Quellen aktivieren/deaktivieren und neu anordnen. Deaktivierte Quellen sind von Widget-Umschaltungen und Hintergrundabrufen ausgeschlossen, bis sie wieder aktiviert werden.</string>
+    <string name="api_sources_description">≡ ziehen, um die Reihenfolge zu ändern. Die erste Quelle zeigt das Widget an; Tippen auf die Quellenbezeichnung im Widget wechselt durch die übrigen. Entfernte Quellen werden nicht abgerufen.</string>
+    <string name="sources_in_rotation">In Rotation</string>
+    <string name="sources_available">Verfügbar</string>
+    <string name="source_add">%1$s hinzufügen</string>
+    <string name="source_remove">%1$s entfernen</string>
+    <string name="source_drag_handle">Zum Anordnen ziehen</string>
     <string name="must_keep_one_source">Mindestens eine Quelle muss aktiviert bleiben</string>
     <string name="source_unavailable_at_location">An diesem Standort nicht verfügbar</string>
     <string name="api_key_required_to_enable">%1$s erfordert vor der Aktivierung einen API-Schlüssel</string>

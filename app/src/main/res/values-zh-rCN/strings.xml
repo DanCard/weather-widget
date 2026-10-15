@@ -57,7 +57,12 @@
     <string name="hourly_zoom_min">4 小时</string>
     <string name="hourly_zoom_max">8 小时</string>
     <string name="api_sources_title">天气数据源</string>
-    <string name="api_sources_description">启用/停用数据源并调整顺序。停用的数据源将从小部件切换和后台获取中排除，直到重新启用。</string>
+    <string name="api_sources_description">拖动 ≡ 调整顺序。第一个数据源显示在小部件上；点按小部件上的数据源标签可切换到其余数据源。已移除的数据源不会获取数据。</string>
+    <string name="sources_in_rotation">轮换中</string>
+    <string name="sources_available">可添加</string>
+    <string name="source_add">添加%1$s</string>
+    <string name="source_remove">移除%1$s</string>
+    <string name="source_drag_handle">拖动以排序</string>
     <string name="must_keep_one_source">至少须保留一个已启用的数据源</string>
     <string name="source_unavailable_at_location">在此位置不可用</string>
     <string name="api_key_required_to_enable">启用 %1$s 前需要 API 密钥</string>
