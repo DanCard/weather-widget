@@ -88,6 +88,19 @@ internal object DesktopSourceViews {
  * popup used to carry three, and a copy that skipped [DesktopSourceViews.record] would silently
  * undercount. No-op with one usable source.
  */
+/**
+ * Switches straight to [sourceId] (a [com.weatherwidget.data.model.WeatherSource] id) when it is a
+ * visible source — the months view's "another source has more history" line. Recorded as a toggle,
+ * like [cycleDisplaySource].
+ */
+internal fun switchDisplaySource(config: DesktopConfig, sourceId: String, onUpdateConfig: (DesktopConfig) -> Unit) {
+    val visibleSources = config.effectiveSources
+    val target = visibleSources.find { com.weatherwidget.data.model.WeatherSource.fromDisplaySource(it).id == sourceId } ?: return
+    if (target == config.displaySource) return
+    onUpdateConfig(config.copy(settings = config.settings.copy(weatherSource = target)))
+    DesktopSourceViews.record(target, visibleSources, config.viewMode, SourceViewTrigger.TOGGLE)
+}
+
 internal fun cycleDisplaySource(config: DesktopConfig, onUpdateConfig: (DesktopConfig) -> Unit) {
     val visibleSources = config.effectiveSources
     if (visibleSources.size <= 1) return

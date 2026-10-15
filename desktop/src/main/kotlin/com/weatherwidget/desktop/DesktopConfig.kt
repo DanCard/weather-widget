@@ -121,6 +121,12 @@ data class DesktopConfig(
     // Daily-view scroll-wheel zoom: extra history days prepended on the left (today + future stay
     // anchored on the right). 0 = default view (~1 history day). encodeDefaults=false omits the 0.
     val dailyExtraHistory: Int = 0,
+    // Months view: the line-graph zoom-out shown in place of the daily columns when true (reached by
+    // scrolling out past the densest daily view). Span in months; right-edge date ISO, null = data end.
+    // plans/261015-months-line-graph-app-screen-zooms-to-daily.md
+    val monthsView: Boolean = false,
+    val monthsSpan: Int = com.weatherwidget.shared.months.MonthsSpan.DEFAULT.months,
+    val monthsEnd: String? = null,
     val hourlyOffset: Int = 0,
     // Continuous zoom: 0 = most zoomed-in (~±2h), 1 = most zoomed-out (6 days back / 1 day forward).
     // Legacy "zoomLevel" string configs are ignored on read (ignoreUnknownKeys) and reset to default.

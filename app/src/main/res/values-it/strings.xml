@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — mostrato come OWM (copertura globale)</string>
     <string name="statistics">Statistiche</string>
     <string name="view_detailed_statistics">Statistiche dettagliate</string>
+    <string name="months_view_title">Mesi</string>
+    <string name="months_view_open">Vista mensile</string>
+    <string name="months_view_hint">Pizzica per lo zoom · trascina per scorrere · tocca un giorno</string>
+    <string name="months_view_empty">Nessuno storico giornaliero in questo periodo</string>
+    <string name="months_view_more_history">%1$s ha uno storico dal %2$s. Tocca per passare.</string>
     <string name="forecast_accuracy_summary_title">Accuratezza delle previsioni (ultimi 30 giorni)</string>
     <string name="loading_accuracy_summary">Caricamento accuratezza previsioni...</string>
     <string name="error_loading_accuracy_summary">Impossibile caricare l\'accuratezza delle previsioni al momento.</string>

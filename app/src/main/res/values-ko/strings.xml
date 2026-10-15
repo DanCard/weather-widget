@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — OWM로 표시 (전 세계 지원)</string>
     <string name="statistics">통계</string>
     <string name="view_detailed_statistics">상세 통계</string>
+    <string name="months_view_title">월별</string>
+    <string name="months_view_open">월별 보기</string>
+    <string name="months_view_hint">핀치하여 확대/축소 · 드래그하여 스크롤 · 날짜를 탭하세요</string>
+    <string name="months_view_empty">이 기간에 일별 기록이 없습니다</string>
+    <string name="months_view_more_history">%1$s은(는) %2$s부터의 기록이 있습니다. 탭하여 전환하세요.</string>
     <string name="forecast_accuracy_summary_title">예보 정확도 (최근 30일)</string>
     <string name="loading_accuracy_summary">예보 정확도 불러오는 중...</string>
     <string name="error_loading_accuracy_summary">지금은 예보 정확도를 불러올 수 없습니다.</string>

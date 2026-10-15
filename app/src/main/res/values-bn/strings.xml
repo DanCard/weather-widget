@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — OWM হিসেবে দেখায় (বিশ্বব্যাপী কভারেজ)</string>
     <string name="statistics">পরিসংখ্যান</string>
     <string name="view_detailed_statistics">বিস্তারিত পরিসংখ্যান</string>
+    <string name="months_view_title">মাস</string>
+    <string name="months_view_open">মাসিক দৃশ্য</string>
+    <string name="months_view_hint">জুম করতে চিমটি দিন · স্ক্রল করতে টানুন · একটি দিনে ট্যাপ করুন</string>
+    <string name="months_view_empty">এই সময়সীমায় কোনো দৈনিক ইতিহাস নেই</string>
+    <string name="months_view_more_history">%1$s-এর ইতিহাস %2$s থেকে আছে। বদলাতে ট্যাপ করুন।</string>
     <string name="forecast_accuracy_summary_title">পূর্বাভাসের নির্ভুলতা (শেষ ৩০ দিন)</string>
     <string name="loading_accuracy_summary">পূর্বাভাসের নির্ভুলতা লোড হচ্ছে...</string>
     <string name="error_loading_accuracy_summary">এখন পূর্বাভাসের নির্ভুলতা লোড করা যাচ্ছে না।</string>

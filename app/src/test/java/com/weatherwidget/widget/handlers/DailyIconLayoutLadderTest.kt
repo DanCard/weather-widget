@@ -28,6 +28,7 @@ class DailyIconLayoutLadderTest {
         wantHome: Boolean,
         baseIconCount: Int = 2,
         apiLeftPx: Float = apiLeft,
+        wantMonths: Boolean = false,
     ) = HeaderWidthChecker.resolveDailyIconLayoutFromBounds(
         widthPx = width,
         leftClusterRight = leftClusterRight,
@@ -38,6 +39,7 @@ class DailyIconLayoutLadderTest {
         inlineFirstMarginPx = inlineMargin,
         baseIconCount = baseIconCount,
         wantHome = wantHome,
+        wantMonths = wantMonths,
     )
 
     @Test
@@ -116,5 +118,70 @@ class DailyIconLayoutLadderTest {
         val result = layout(leftClusterRight = 340f, wantHome = true)
         assertEquals(DailyIconPlacement.HIDDEN, result.placement)
         assertFalse(result.homeShown)
+    }
+
+    // --- the months-view (zoom-out) button: last seat, same rung or nothing ---
+
+    @Test
+    fun `a roomy header seats home and the months button in the centre`() {
+        // Four 40px zones span 140..300; a left cluster ending at 123 clears it.
+        val result = layout(leftClusterRight = 123f, wantHome = true, wantMonths = true)
+        assertEquals(DailyIconPlacement.CENTER, result.placement)
+        assertEquals(4, result.iconCount)
+        assertTrue(result.homeShown)
+        assertTrue(result.monthsShown)
+    }
+
+    @Test
+    fun `the months button never pushes the others from the centre to inline`() {
+        // At 145 three centred zones fit (160..280) but four (140..300) do not; four would fit
+        // inline. The row stays centred and the months button is left out.
+        val result = layout(leftClusterRight = 145f, wantHome = true, wantMonths = true)
+        assertEquals(DailyIconPlacement.CENTER, result.placement)
+        assertEquals(3, result.iconCount)
+        assertTrue(result.homeShown)
+        assertFalse(result.monthsShown)
+    }
+
+    @Test
+    fun `an inline row takes the months button when it still fits inline`() {
+        // 200: the pair is already inline (centre needs <= 174); three inline need <= 266.
+        val result = layout(leftClusterRight = 200f, wantHome = false, wantMonths = true)
+        assertEquals(DailyIconPlacement.INLINE, result.placement)
+        assertEquals(3, result.iconCount)
+        assertTrue(result.monthsShown)
+    }
+
+    @Test
+    fun `a narrow header with no room simply has no months button`() {
+        // 280: only the pair fits inline; the months button is not displayed and the pair keeps
+        // its seat.
+        val result = layout(leftClusterRight = 280f, wantHome = false, wantMonths = true)
+        assertEquals(DailyIconPlacement.INLINE, result.placement)
+        assertEquals(2, result.iconCount)
+        assertFalse(result.monthsShown)
+    }
+
+    @Test
+    fun `home outranks the months button when only one more fits`() {
+        // 240: three inline fit (<= 266), four do not (<= 234).
+        val result = layout(leftClusterRight = 240f, wantHome = true, wantMonths = true)
+        assertEquals(DailyIconPlacement.INLINE, result.placement)
+        assertEquals(3, result.iconCount)
+        assertTrue(result.homeShown)
+        assertFalse(result.monthsShown)
+    }
+
+    @Test
+    fun `the months button is counted, so the painted date yields to it`() {
+        val without = layout(leftClusterRight = 123f, wantHome = false)
+        val with = layout(leftClusterRight = 123f, wantHome = false, wantMonths = true)
+        assertTrue(with.monthsShown)
+        assertEquals(without.iconCount + 1, with.iconCount)
+        // The date's reserved centre slot is dailyCenterIconsWidthDp(iconCount): one zone wider.
+        assertTrue(
+            HeaderWidthChecker.dailyCenterIconsWidthDp(with.iconCount, 440) >
+                HeaderWidthChecker.dailyCenterIconsWidthDp(without.iconCount, 440),
+        )
     }
 }

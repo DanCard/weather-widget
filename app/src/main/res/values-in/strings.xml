@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — ditampilkan sebagai OWM (cakupan global)</string>
     <string name="statistics">Statistik</string>
     <string name="view_detailed_statistics">Statistik terperinci</string>
+    <string name="months_view_title">Bulan</string>
+    <string name="months_view_open">Tampilan bulanan</string>
+    <string name="months_view_hint">Cubit untuk zoom · geser untuk menggulir · ketuk satu hari</string>
+    <string name="months_view_empty">Tidak ada riwayat harian dalam rentang ini</string>
+    <string name="months_view_more_history">%1$s memiliki riwayat sejak %2$s. Ketuk untuk beralih.</string>
     <string name="forecast_accuracy_summary_title">Akurasi prakiraan (30 hari terakhir)</string>
     <string name="loading_accuracy_summary">Memuat akurasi prakiraan...</string>
     <string name="error_loading_accuracy_summary">Tidak dapat memuat akurasi prakiraan saat ini.</string>

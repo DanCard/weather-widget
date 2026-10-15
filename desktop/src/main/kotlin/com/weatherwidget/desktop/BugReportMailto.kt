@@ -38,6 +38,7 @@ fun buildBugReportMailto(config: DesktopConfig): String {
         appendLine("  useCelsius: ${config.settings.useCelsius}")
         appendLine("  personalStationDiscount: ${config.settings.personalStationDiscount}")
         appendLine("  dailyExtraHistory: ${config.dailyExtraHistory}")
+        appendLine("  monthsView: ${config.monthsView} span=${config.monthsSpan} end=${config.monthsEnd}")
         appendLine("  zoomFactor: ${config.zoomFactor}")
         appendLine("  apiKeys: ${if (config.settings.apiKeys.isEmpty()) "(none)" else config.settings.apiKeys.keys.joinToString(", ") { "$it=(redacted)" }}")
     }

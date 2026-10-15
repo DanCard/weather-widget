@@ -111,12 +111,14 @@ class DailyActualsStore @Inject constructor(
         longitude: Double,
         hourlyForecasts: List<HourlyForecastEntity>,
         activeSourceList: List<String>,
+        /** Past days to read; the widget's 30, the months screen the whole record. */
+        lookbackDays: Long = DEFAULT_LOOKBACK_DAYS,
     ): DailyActualsBySource {
         val sources = activeSourceList.map(WeatherSource::fromId)
         if (sources.isEmpty()) return emptyMap()
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now()
-        val startDate = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val startDate = today.minusDays(lookbackDays).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val endDate = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -618,4 +620,8 @@ class DailyActualsStore @Inject constructor(
         }
     }
 
+    companion object {
+        /** The widget's daily view: navigation reaches 30 days back. */
+        const val DEFAULT_LOOKBACK_DAYS = 30L
+    }
 }

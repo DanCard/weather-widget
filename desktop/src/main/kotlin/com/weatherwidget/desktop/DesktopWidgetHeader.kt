@@ -270,7 +270,11 @@ internal fun WidgetHeader(
                     val dateWidthDp = remember(dateText, dateStyle, headerTextMeasurer, density) {
                         with(density) { headerTextMeasurer.measure(dateText, dateStyle).size.width.toDp().value }
                     }
-                    val iconCount = (if (observationsInView) 1 else 0) + (if (showHomeButton) 1 else 0) + 1
+                    // Months view (zoom out), as on Android's daily header; hidden while it is open
+                    // (the home button brings the daily view back).
+                    val showMonthsButton = !config.monthsView
+                    val iconCount = (if (observationsInView) 1 else 0) + (if (showHomeButton) 1 else 0) +
+                        (if (showMonthsButton) 1 else 0) + 1
                     BoxWithConstraints(
                         modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center,
@@ -315,7 +319,8 @@ internal fun WidgetHeader(
                                         if (homeAction == PreferredSourceHome.HomeAction.RECENTER_TODAY) {
                                             // Zoom-out is kept: homeDateOffset already moves the
                                             // window forward by it, so yesterday is the one history day.
-                                            onUpdateConfig(config.copy(dateOffset = homeDateOffset))
+                                            // From the months view this also returns to the daily view.
+                                            onUpdateConfig(config.copy(dateOffset = homeDateOffset, monthsView = false))
                                             return@clickable
                                         }
                                         val preferred =
@@ -334,6 +339,22 @@ internal fun WidgetHeader(
                                             )
                                         }
                                     }.testTag("daily_home_button")
+                                )
+                            }
+                            if (showMonthsButton) {
+                                Icon(
+                                    painter = painterResource("drawable/ic_months_view.xml"),
+                                    contentDescription = "Months view",
+                                    tint = Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(iconSizeDp.dp).clickable {
+                                        onUpdateConfig(
+                                            config.copy(
+                                                monthsView = true,
+                                                monthsSpan = com.weatherwidget.shared.months.MonthsSpan.DEFAULT.months,
+                                                monthsEnd = null,
+                                            ),
+                                        )
+                                    }.testTag("open_months_view_daily")
                                 )
                             }
                             // Opens today while today is on screen, otherwise the viewed date.

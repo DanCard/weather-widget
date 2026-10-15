@@ -121,6 +121,55 @@ object DailyViewHandler : WidgetViewHandler {
         val headerObservations: List<ObservationEntity>?,
     )
 
+    // Build weather map: prefer the selected display source. GENERIC_GAP (climate-normal) filler
+    // is only valid for long-term future days the API does not cover (date > today+2); it must never
+    // stand in for history, today, +1, or +2 — those show real display-source data or render missing.
+    // Shared with the months screen's column view (MonthsViewActivity), so it draws the same rows.
+    internal fun buildWeatherByDate(
+        weatherList: List<ForecastEntity>,
+        displaySource: WeatherSource,
+        today: LocalDate,
+    ): Map<LocalDate, ForecastEntity> =
+        weatherList
+            .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
+            .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
+            .mapNotNull { (date, items) ->
+                val preferred = items.find { it.source == displaySource.id }
+                val allowGapFallback = DailyColumnSource.allowsClimateNormal(date, today)
+
+                val chosen = if (allowGapFallback) {
+                    // Long-term future: fall back to climate normals when the preferred source is
+                    // absent or has missing temps. For Today we'd preserve the preferred source even
+                    // if incomplete, but Today is never long-term so it's handled by the else branch.
+                    if (preferred != null && (preferred.highTemp == null || preferred.lowTemp == null)) {
+                        items.find { it.source == WeatherSource.GENERIC_GAP.id && it.highTemp != null && it.lowTemp != null }
+                            ?: preferred
+                    } else {
+                        // Prefer a complete preferred row; otherwise a complete Climate Normal row;
+                        // otherwise the preferred (even if incomplete). Avoids items.first() which
+                        // is non-deterministic when multiple rows share the same source.
+                        preferred
+                            ?: items.find { it.source == WeatherSource.GENERIC_GAP.id && it.highTemp != null && it.lowTemp != null }
+                            ?: items.firstOrNull()
+                    }
+                } else {
+                    // History / today / +1 / +2: real display-source only, never GENERIC_GAP filler.
+                    // (Today's incomplete-source recovery lives in DailyViewLogic / DailyActualsEstimator.)
+                    preferred
+                }
+                chosen?.let { date to it }
+            }.also { result ->
+                val dropped = weatherList.size - result.size
+                if (dropped > 0) {
+                    Log.i(
+                        TAG,
+                        "weatherByDate: dropped=$dropped entries (kept=${result.size}/${weatherList.size}, " +
+                            "displaySource=${displaySource.id})",
+                    )
+                }
+            }
+            .toMap()
+
     override fun canHandle(
         stateManager: WidgetStateManager,
         appWidgetId: Int,
@@ -290,49 +339,7 @@ object DailyViewHandler : WidgetViewHandler {
             return
         }
 
-        // Build weather map: prefer the selected display source. GENERIC_GAP (climate-normal) filler
-        // is only valid for long-term future days the API does not cover (date > today+2); it must never
-        // stand in for history, today, +1, or +2 — those show real display-source data or render missing.
-        val weatherByDate =
-            weatherList
-                .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
-                .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
-                .mapNotNull { (date, items) ->
-                    val preferred = items.find { it.source == displaySource.id }
-                    val allowGapFallback = DailyColumnSource.allowsClimateNormal(date, today)
-
-                    val chosen = if (allowGapFallback) {
-                        // Long-term future: fall back to climate normals when the preferred source is
-                        // absent or has missing temps. For Today we'd preserve the preferred source even
-                        // if incomplete, but Today is never long-term so it's handled by the else branch.
-                        if (preferred != null && (preferred.highTemp == null || preferred.lowTemp == null)) {
-                            items.find { it.source == WeatherSource.GENERIC_GAP.id && it.highTemp != null && it.lowTemp != null }
-                                ?: preferred
-                        } else {
-                            // Prefer a complete preferred row; otherwise a complete Climate Normal row;
-                            // otherwise the preferred (even if incomplete). Avoids items.first() which
-                            // is non-deterministic when multiple rows share the same source.
-                            preferred
-                                ?: items.find { it.source == WeatherSource.GENERIC_GAP.id && it.highTemp != null && it.lowTemp != null }
-                                ?: items.firstOrNull()
-                        }
-                    } else {
-                        // History / today / +1 / +2: real display-source only, never GENERIC_GAP filler.
-                        // (Today's incomplete-source recovery lives in DailyViewLogic / DailyActualsEstimator.)
-                        preferred
-                    }
-                    chosen?.let { date to it }
-                }.also { result ->
-                    val dropped = weatherList.size - result.size
-                    if (dropped > 0) {
-                        Log.i(
-                            TAG,
-                            "weatherByDate: dropped=$dropped entries (kept=${result.size}/${weatherList.size}, " +
-                                "displaySource=${displaySource.id})",
-                        )
-                    }
-                }
-                .toMap()
+        val weatherByDate = buildWeatherByDate(weatherList, displaySource, today)
 
         val sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon)
 
@@ -846,6 +853,12 @@ object DailyViewHandler : WidgetViewHandler {
          * knowing what it is.
          */
         val showHomeButton: Boolean = false,
+        /**
+         * Whether the header shows the months-view (zoom-out) button: graph mode AND room on the
+         * buttons' current rung ([DailyIconLayout.monthsShown]). Counted in [iconCount], so the
+         * painted date yields to it.
+         */
+        val showMonthsButton: Boolean = false,
         /** What the home button does; non-null exactly when [showHomeButton]. */
         val homeAction: com.weatherwidget.shared.util.PreferredSourceHome.HomeAction? = null,
         /**

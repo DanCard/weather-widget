@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — يظهر باسم OWM (تغطية عالمية)</string>
     <string name="statistics">الإحصاءات</string>
     <string name="view_detailed_statistics">إحصاءات مفصّلة</string>
+    <string name="months_view_title">الأشهر</string>
+    <string name="months_view_open">عرض الأشهر</string>
+    <string name="months_view_hint">اقرص للتكبير · اسحب للتمرير · اضغط على يوم</string>
+    <string name="months_view_empty">لا يوجد سجل يومي في هذه الفترة</string>
+    <string name="months_view_more_history">لدى %1$s سجل منذ %2$s. اضغط للتبديل.</string>
     <string name="forecast_accuracy_summary_title">دقة التوقعات (آخر 30 يومًا)</string>
     <string name="loading_accuracy_summary">جارٍ تحميل دقة التوقعات...</string>
     <string name="error_loading_accuracy_summary">يتعذر تحميل دقة التوقعات حاليًا.</string>

@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — hiển thị là OWM (phủ sóng toàn cầu)</string>
     <string name="statistics">Thống kê</string>
     <string name="view_detailed_statistics">Thống kê chi tiết</string>
+    <string name="months_view_title">Tháng</string>
+    <string name="months_view_open">Xem theo tháng</string>
+    <string name="months_view_hint">Chụm để thu phóng · kéo để cuộn · chạm vào một ngày</string>
+    <string name="months_view_empty">Không có lịch sử hằng ngày trong khoảng này</string>
+    <string name="months_view_more_history">%1$s có lịch sử từ %2$s. Chạm để chuyển.</string>
     <string name="forecast_accuracy_summary_title">Độ chính xác dự báo (30 ngày qua)</string>
     <string name="loading_accuracy_summary">Đang tải độ chính xác dự báo...</string>
     <string name="error_loading_accuracy_summary">Hiện không thể tải độ chính xác dự báo.</string>

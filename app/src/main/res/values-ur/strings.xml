@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — OWM کے نام سے دکھتا ہے (عالمی کوریج)</string>
     <string name="statistics">اعداد و شمار</string>
     <string name="view_detailed_statistics">تفصیلی اعداد و شمار</string>
+    <string name="months_view_title">مہینے</string>
+    <string name="months_view_open">ماہانہ منظر</string>
+    <string name="months_view_hint">زوم کے لیے چٹکی لیں · اسکرول کے لیے گھسیٹیں · کسی دن پر ٹیپ کریں</string>
+    <string name="months_view_empty">اس مدت میں کوئی روزانہ تاریخ نہیں</string>
+    <string name="months_view_more_history">%1$s کی تاریخ %2$s سے موجود ہے۔ تبدیل کرنے کے لیے ٹیپ کریں۔</string>
     <string name="forecast_accuracy_summary_title">پیشن گوئی کی درستگی (آخری 30 دن)</string>
     <string name="loading_accuracy_summary">پیشن گوئی کی درستگی لوڈ ہو رہی ہے...</string>
     <string name="error_loading_accuracy_summary">ابھی پیشن گوئی کی درستگی لوڈ نہیں ہو سکتی۔</string>

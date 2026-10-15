@@ -141,24 +141,18 @@ object DesktopDailyForecastModel {
     }
 
     /**
-     * @param currentTemp the current temperature the header shows — the daemon-published
-     *   `current_status` value, else the snapshot's own. Required, never read from [forecast]: the
-     *   popup's snapshot is resolved once per load while the header re-reads the published value each
-     *   tick, so the two disagreed (header 73.4°, today's bar 71.8°;
-     *   plans/261013-desktop-today-column-uses-published-current-temp.md).
+     * Columns the daily view draws for [config]'s offset and zoom: one fewer while the large Today
+     * overlay is on, which depends on whether today is in view. Cheap and pure, so the months view
+     * can ask it for the window it is about to jump to.
      */
-    fun build(
-        config: DesktopConfig,
-        forecast: ForecastSnapshot,
-        dimensions: DesktopWidgetDimensions,
-        now: LocalDateTime = LocalDateTime.now(),
-        currentTemp: Float?,
-    ): DesktopDailyViewState {
-        val today = now.toLocalDate()
+    fun displayColumns(config: DesktopConfig, dimensions: DesktopWidgetDimensions, today: LocalDate): Int =
+        overlayDecision(config, dimensions, today).displayColumns
+
+    private fun overlayDecision(config: DesktopConfig, dimensions: DesktopWidgetDimensions, today: LocalDate): LargeTodayOverlayPolicy.Decision {
         val skipYesterday = NavigationUtils.shouldSkipYesterday(dimensions.cols)
         val overlayCandidateColumns = (dimensions.cols - 1).coerceAtLeast(1)
         // The eligibility window must be the window the user actually SEES. `getVisibleDateRange`
-        // knows nothing about the zoom-out extra-history columns, which `historyOffsets` below
+        // knows nothing about the zoom-out extra-history columns, which `historyOffsets` in [build]
         // prepends — so the raw range starts `dailyExtraHistory` days later than the rendered one.
         // With a forward dateOffset the two disagreed enough to report today as off-screen while it
         // sat in column 2, and the whole Today overlay switched itself off
@@ -174,14 +168,32 @@ object DesktopDailyForecastModel {
             overlayCandidateRawRange.first.minusDays(
                 config.dailyExtraHistory.coerceAtLeast(0).toLong(),
             ) to overlayCandidateRawRange.second
-        val overlayDecision =
-            LargeTodayOverlayPolicy.resolve(
-                profile = LargeTodayOverlayPolicy.Profile.DESKTOP,
-                availableColumns = dimensions.cols,
-                rows = dimensions.rows,
-                useGraph = dimensions.useGraph,
-                todayVisible = today in overlayCandidateRange.first..overlayCandidateRange.second,
-            )
+        return LargeTodayOverlayPolicy.resolve(
+            profile = LargeTodayOverlayPolicy.Profile.DESKTOP,
+            availableColumns = dimensions.cols,
+            rows = dimensions.rows,
+            useGraph = dimensions.useGraph,
+            todayVisible = today in overlayCandidateRange.first..overlayCandidateRange.second,
+        )
+    }
+
+    /**
+     * @param currentTemp the current temperature the header shows — the daemon-published
+     *   `current_status` value, else the snapshot's own. Required, never read from [forecast]: the
+     *   popup's snapshot is resolved once per load while the header re-reads the published value each
+     *   tick, so the two disagreed (header 73.4°, today's bar 71.8°;
+     *   plans/261013-desktop-today-column-uses-published-current-temp.md).
+     */
+    fun build(
+        config: DesktopConfig,
+        forecast: ForecastSnapshot,
+        dimensions: DesktopWidgetDimensions,
+        now: LocalDateTime = LocalDateTime.now(),
+        currentTemp: Float?,
+    ): DesktopDailyViewState {
+        val today = now.toLocalDate()
+        val skipYesterday = NavigationUtils.shouldSkipYesterday(dimensions.cols)
+        val overlayDecision = overlayDecision(config, dimensions, today)
         val displayColumns = overlayDecision.displayColumns
         val availableDates = buildAvailableDates(forecast)
         val offset = clampOffset(config.dateOffset, today, displayColumns, skipYesterday, availableDates)

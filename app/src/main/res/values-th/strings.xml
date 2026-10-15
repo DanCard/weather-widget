@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — แสดงเป็น OWM (ครอบคลุมทั่วโลก)</string>
     <string name="statistics">สถิติ</string>
     <string name="view_detailed_statistics">สถิติโดยละเอียด</string>
+    <string name="months_view_title">เดือน</string>
+    <string name="months_view_open">มุมมองรายเดือน</string>
+    <string name="months_view_hint">บีบเพื่อซูม · ลากเพื่อเลื่อน · แตะวันที่ต้องการ</string>
+    <string name="months_view_empty">ไม่มีประวัติรายวันในช่วงนี้</string>
+    <string name="months_view_more_history">%1$s มีประวัติย้อนไปถึง %2$s แตะเพื่อสลับ</string>
     <string name="forecast_accuracy_summary_title">ความแม่นยำของพยากรณ์ (30 วันล่าสุด)</string>
     <string name="loading_accuracy_summary">กำลังโหลดความแม่นยำของพยากรณ์...</string>
     <string name="error_loading_accuracy_summary">ไม่สามารถโหลดความแม่นยำของพยากรณ์ได้ในขณะนี้</string>

@@ -20,7 +20,16 @@
             android:textSize="24sp"
             android:textStyle="bold"
             android:gravity="center"
-            android:layout_marginBottom="32dp" />
+            android:layout_marginBottom="16dp" />
+
+        <!-- The months view: reachable from every widget size, including those with no header room. -->
+        <Button
+            android:id="@+id/open_months_view_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:text="@string/months_view_open"
+            android:textAllCaps="false" />
 
         <LinearLayout
             android:layout_width="match_parent"

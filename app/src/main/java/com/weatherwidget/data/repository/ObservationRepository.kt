@@ -100,12 +100,14 @@ class ObservationRepository private constructor(
         longitude: Double,
         hourlyForecasts: List<HourlyForecastEntity>,
         activeSourceList: List<String>,
+        lookbackDays: Long = DailyActualsStore.DEFAULT_LOOKBACK_DAYS,
     ): DailyActualsBySource =
         components.dailyActualsStore.getDailyActualsWithLiveToday(
             latitude,
             longitude,
             hourlyForecasts,
             activeSourceList,
+            lookbackDays,
         )
 
     suspend fun getRecentObservations(sinceMs: Long): List<ObservationEntity> =

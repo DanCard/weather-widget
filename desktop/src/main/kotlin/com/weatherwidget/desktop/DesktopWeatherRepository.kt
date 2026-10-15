@@ -299,7 +299,8 @@ class DesktopWeatherRepository(
         val latestObs = newestObs?.takeIf { now - it.timestamp < FRESH_OBSERVATION_MS }
 
         val resolved = resolveForForecastResult(hourly, observations, now)
-        val actuals = loadDailyActuals(daily, hourly, observations, now)
+        val actualsLoad = loadDailyActuals(daily, hourly, observations, now)
+        val actuals = actualsLoad.actuals
         val snapshots = loadDailySnapshots(daily)
 
         if (hourly.isEmpty() && daily.isEmpty()) {
@@ -313,6 +314,8 @@ class DesktopWeatherRepository(
                 rawObservations = observations,
                 dailyActuals = actuals,
                 dailySnapshots = snapshots,
+                climateNormals = cachedNormalsByMonthDay(),
+                historyDepths = actualsLoad.historyDepths,
             ),
             resolved = ResolvedView(
                 currentTemp = resolved.displayTemp,
@@ -1741,13 +1744,19 @@ class DesktopWeatherRepository(
             nighttimePrecipProbability = nighttimePrecipProbability,
         )
 
+    /** The display source's daily actuals, plus every source's history depth from the same read. */
+    private class DailyActualsLoad(
+        val actuals: Map<String, DailyHistory>,
+        val historyDepths: List<com.weatherwidget.shared.months.SourceDepth>,
+    )
+
     private fun loadDailyActuals(
         daily: List<DailyForecast>,
         hourly: List<HourlyForecast>,
         observations: List<ObservationReading>,
         now: Long,
-    ): Map<String, DailyHistory> {
-        if (daily.isEmpty() && observations.isEmpty()) return emptyMap()
+    ): DailyActualsLoad {
+        if (daily.isEmpty() && observations.isEmpty()) return DailyActualsLoad(emptyMap(), emptyList())
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
         // History reaches back ACTUALS_HISTORY_DAYS for the zoom-out; rows from today on are
@@ -1783,7 +1792,12 @@ class DesktopWeatherRepository(
                 "DEBUG",
             )
         }
-        return result.bySource[displaySource.id].orEmpty().mapKeys { it.key.toString() }
+        return DailyActualsLoad(
+            actuals = result.bySource[displaySource.id].orEmpty().mapKeys { it.key.toString() },
+            // pastRows holds every source in the site box: the months view's "another source has
+            // more history" line (MonthsSourceDepth) needs no read of its own.
+            historyDepths = com.weatherwidget.shared.months.MonthsSourceDepth.depths(pastRows, today),
+        )
     }
 
     private fun loadDailySnapshots(daily: List<DailyForecast>): Map<String, List<DailyForecastSnapshot>> {
@@ -1830,6 +1844,12 @@ class DesktopWeatherRepository(
      * missing until the fetch lands, rather than as climate averages. Read-only (cached normals); no network. The daily
      * model already renders such rows as a green fallback bar, so no model/graph change is needed.
      */
+    /** The site's cached normals by calendar day (months view band); empty until cached. Read-only. */
+    private fun cachedNormalsByMonthDay(): Map<java.time.MonthDay, Pair<Float, Float>> {
+        val (monthlyHigh, monthlyLow) = weatherDao.getClimateNormals(ClimateNormals.locationKey(latitude, longitude))
+        return ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
+    }
+
     private fun appendClimateNormalGaps(daily: List<DailyForecast>, now: Long): List<DailyForecast> {
         val (monthlyHigh, monthlyLow) = weatherDao.getClimateNormals(ClimateNormals.locationKey(latitude, longitude))
         if (monthlyHigh.isEmpty() || monthlyLow.isEmpty()) return daily

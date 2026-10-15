@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — affiché comme OWM (couverture mondiale)</string>
     <string name="statistics">Statistiques</string>
     <string name="view_detailed_statistics">Statistiques détaillées</string>
+    <string name="months_view_title">Mois</string>
+    <string name="months_view_open">Vue par mois</string>
+    <string name="months_view_hint">Pincez pour zoomer · glissez pour défiler · touchez un jour</string>
+    <string name="months_view_empty">Aucun historique quotidien sur cette période</string>
+    <string name="months_view_more_history">%1$s a un historique depuis le %2$s. Touchez pour changer.</string>
     <string name="forecast_accuracy_summary_title">Précision des prévisions (30 derniers jours)</string>
     <string name="loading_accuracy_summary">Chargement de la précision des prévisions...</string>
     <string name="error_loading_accuracy_summary">Impossible de charger la précision des prévisions pour le moment.</string>

@@ -222,6 +222,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
         findViewById<Button>(R.id.detailed_stats_button).setOnClickListener {
             startActivity(Intent(this, StatisticsActivity::class.java))
         }
+        findViewById<Button>(R.id.months_view_button).setOnClickListener {
+            startActivity(MonthsViewActivity.intent(this, cachedRequestedSource, targetLat, targetLon))
+        }
 
         val visibleSources = effectiveVisibleSources()
         cachedRequestedSource = requestedSource?.takeIf { it in visibleSources } ?: visibleSources.firstOrNull()
@@ -739,7 +742,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             R.id.accuracy_card,
             R.id.freshness_card,
         ).forEach { DataScreenStyler.card(findViewById(it)) }
-        listOf(R.id.api_source_button, R.id.graph_mode_button, R.id.detailed_stats_button)
+        listOf(R.id.api_source_button, R.id.graph_mode_button, R.id.detailed_stats_button, R.id.months_view_button)
             .forEach { DataScreenStyler.pillButton(findViewById(it)) }
     }
 

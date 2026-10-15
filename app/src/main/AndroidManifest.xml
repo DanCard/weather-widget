@@ -78,6 +78,12 @@
             android:label="@string/forecast_history" />
 
         <activity
+            android:name=".ui.MonthsViewActivity"
+            android:exported="false"
+            android:taskAffinity=""
+            android:label="@string/months_view_title" />
+
+        <activity
             android:name=".ui.WeatherObservationsActivity"
             android:exported="false"
             android:taskAffinity=""

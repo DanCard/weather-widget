@@ -366,6 +366,47 @@ internal fun setupDailyHomeShortcut(
     )
 }
 
+/**
+ * The daily header's months-view button: opens [com.weatherwidget.ui.MonthsViewActivity] (the daily
+ * view zoomed out to a line graph over months) for this widget's source and site. The widget id
+ * rides along so the screen's column view takes this widget's shape. Seated by
+ * [HeaderWidthChecker.resolveDailyIconLayout] only where the header has room.
+ */
+internal fun setupMonthsViewShortcut(
+    context: Context,
+    views: RemoteViews,
+    appWidgetId: Int,
+    displaySource: WeatherSource,
+    lat: Double,
+    lon: Double,
+    scale: Float = 1.0f,
+) {
+    val intent = com.weatherwidget.ui.MonthsViewActivity.intent(context, displaySource, lat, lon).apply {
+        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    val pendingIntent = PendingIntent.getActivity(
+        context,
+        WidgetRequestCodes.monthsView(appWidgetId),
+        intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    for (viewId in listOf(R.id.months_view_icon, R.id.months_view_icon_inline)) {
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = viewId,
+            iconRes = R.drawable.ic_months_view,
+            sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
+            scale = scale,
+            tintColor = 0xAAFFFFFF.toInt(),
+        )
+    }
+    views.setOnClickPendingIntent(R.id.months_view_icon, pendingIntent)
+    views.setOnClickPendingIntent(R.id.months_view_touch_zone, pendingIntent)
+    views.setOnClickPendingIntent(R.id.months_view_touch_zone_inline, pendingIntent)
+}
+
 internal fun setupWeatherStationsShortcut(
     context: Context,
     views: RemoteViews,
@@ -486,6 +527,11 @@ internal fun positionCenterIcons(
             views.setViewVisibility(id, View.GONE)
         }
     }
+    // Daily-only button sharing this container. Set explicitly: RemoteViews visibility is sticky
+    // across partial pushes, so a daily render's VISIBLE would otherwise survive into hourly.
+    for (id in listOf(R.id.months_view_icon, R.id.months_view_touch_zone, R.id.months_view_touch_zone_inline)) {
+        views.setViewVisibility(id, View.GONE)
+    }
 }
 
 /**
@@ -515,6 +561,7 @@ internal fun positionDailyIcons(
     density: Float,
     scale: Float = 1.0f,
     showHome: Boolean = false,
+    showMonths: Boolean = false,
 ) {
     val floating = placement == DailyIconPlacement.CENTER
     val inline = placement == DailyIconPlacement.INLINE
@@ -534,6 +581,11 @@ internal fun positionDailyIcons(
     views.setViewVisibility(R.id.home_touch_zone, vis(floating && showHome))
     views.setViewVisibility(R.id.home_icon_inline, vis(inline && showHome))
     views.setViewVisibility(R.id.home_touch_zone_inline, vis(inline && showHome))
+
+    views.setViewVisibility(R.id.months_view_icon, vis(floating && showMonths))
+    views.setViewVisibility(R.id.months_view_touch_zone, vis(floating && showMonths))
+    views.setViewVisibility(R.id.months_view_icon_inline, vis(inline && showMonths))
+    views.setViewVisibility(R.id.months_view_touch_zone_inline, vis(inline && showMonths))
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         // Drop the shared container onto the daily view's PAINTED text line. See
@@ -556,10 +608,12 @@ internal fun positionDailyIcons(
             if (inline) listOf(
                 R.id.weather_stations_touch_zone_inline,
                 R.id.home_touch_zone_inline,
+                R.id.months_view_touch_zone_inline,
                 R.id.forecast_history_activity_touch_zone_inline,
             ) else listOf(
                 R.id.weather_stations_touch_zone,
                 R.id.home_touch_zone,
+                R.id.months_view_touch_zone,
                 R.id.forecast_history_activity_touch_zone,
             )
         for (id in ids) {
@@ -570,7 +624,7 @@ internal fun positionDailyIcons(
     Log.d(
         "DailyHeaderIcons",
         "positionDailyIcons: placement=$placement showObservations=$showObservations " +
-            "showHome=$showHome widthDp=$widthDp " +
+            "showHome=$showHome showMonths=$showMonths widthDp=$widthDp " +
             "zoneDp=${HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp)} scale=$scale",
     )
 }

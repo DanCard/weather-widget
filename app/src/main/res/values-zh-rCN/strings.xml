@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — 显示为 OWM（全球覆盖）</string>
     <string name="statistics">统计</string>
     <string name="view_detailed_statistics">详细统计</string>
+    <string name="months_view_title">月</string>
+    <string name="months_view_open">月视图</string>
+    <string name="months_view_hint">双指缩放 · 拖动滚动 · 点按某天</string>
+    <string name="months_view_empty">此时间段内没有每日历史</string>
+    <string name="months_view_more_history">%1$s 有自 %2$s 起的历史记录。点按即可切换。</string>
     <string name="forecast_accuracy_summary_title">预报准确度（最近 30 天）</string>
     <string name="loading_accuracy_summary">正在加载预报准确度...</string>
     <string name="error_loading_accuracy_summary">目前无法加载预报准确度。</string>

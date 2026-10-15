@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — OWM olarak gösterilir (küresel kapsama)</string>
     <string name="statistics">İstatistikler</string>
     <string name="view_detailed_statistics">Ayrıntılı istatistikler</string>
+    <string name="months_view_title">Aylar</string>
+    <string name="months_view_open">Aylık görünüm</string>
+    <string name="months_view_hint">Yakınlaştırmak için sıkıştırın · kaydırmak için sürükleyin · bir güne dokunun</string>
+    <string name="months_view_empty">Bu aralıkta günlük geçmiş yok</string>
+    <string name="months_view_more_history">%1$s geçmişi %2$s tarihine kadar uzanıyor. Geçmek için dokunun.</string>
     <string name="forecast_accuracy_summary_title">Tahmin doğruluğu (son 30 gün)</string>
     <string name="loading_accuracy_summary">Tahmin doğruluğu yükleniyor...</string>
     <string name="error_loading_accuracy_summary">Tahmin doğruluğu şu anda yüklenemiyor.</string>

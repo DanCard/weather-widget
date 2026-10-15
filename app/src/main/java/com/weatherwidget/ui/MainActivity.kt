@@ -107,6 +107,10 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.open_settings_button).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+
+        findViewById<Button>(R.id.open_months_view_button).setOnClickListener {
+            startActivity(MonthsViewActivity.intent(this))
+        }
     }
 
     private fun updatePermissionVisibility() {

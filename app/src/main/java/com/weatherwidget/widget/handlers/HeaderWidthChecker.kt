@@ -45,6 +45,13 @@ data class DailyIconLayout(
     val placement: DailyIconPlacement,
     val iconCount: Int,
     val homeShown: Boolean,
+    /**
+     * The months-view (zoom-out) button. Last seat, and stricter than home: shown only when adding
+     * it leaves the row on the same rung — it never pushes the other buttons from CENTER to INLINE,
+     * and on a header with no room it is simply absent. Like home it is counted in [iconCount], so
+     * the painted date yields to it.
+     */
+    val monthsShown: Boolean = false,
 )
 
 object HeaderWidthChecker {
@@ -349,6 +356,7 @@ object HeaderWidthChecker {
         wantHome: Boolean,
         isIconWidth: Boolean,
         disclosure: HeaderDisclosureLevel,
+        wantMonths: Boolean = false,
     ): DailyIconLayout {
         if (baseIconCount <= 0 || isIconWidth || disclosure == HeaderDisclosureLevel.NONE) {
             return DailyIconLayout(DailyIconPlacement.HIDDEN, baseIconCount, homeShown = false)
@@ -377,6 +385,7 @@ object HeaderWidthChecker {
             inlineFirstMarginPx = dpToPx(context, HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP),
             baseIconCount = baseIconCount,
             wantHome = wantHome,
+            wantMonths = wantMonths,
         )
     }
 
@@ -392,6 +401,7 @@ object HeaderWidthChecker {
         inlineFirstMarginPx: Float,
         baseIconCount: Int,
         wantHome: Boolean,
+        wantMonths: Boolean = false,
     ): DailyIconLayout {
         fun placementFor(iconCount: Int) =
             resolveDailyIconPlacementFromBounds(
@@ -404,13 +414,18 @@ object HeaderWidthChecker {
                 gapPx = gapPx,
             )
 
-        if (wantHome) {
-            val withHome = placementFor(baseIconCount + 1)
-            if (withHome != DailyIconPlacement.HIDDEN) {
-                return DailyIconLayout(withHome, baseIconCount + 1, homeShown = true)
-            }
+        var count = baseIconCount
+        var homeShown = false
+        if (wantHome && placementFor(baseIconCount + 1) != DailyIconPlacement.HIDDEN) {
+            count++
+            homeShown = true
         }
-        return DailyIconLayout(placementFor(baseIconCount), baseIconCount, homeShown = false)
+        val placement = placementFor(count)
+        // The months button only takes room that is already there: same rung or nothing.
+        if (wantMonths && placement != DailyIconPlacement.HIDDEN && placementFor(count + 1) == placement) {
+            return DailyIconLayout(placement, count + 1, homeShown, monthsShown = true)
+        }
+        return DailyIconLayout(placement, count, homeShown)
     }
 
     fun computeHeaderScale(

@@ -332,6 +332,9 @@ internal object DailyGraphRenderer {
         headerState.homeAction?.let { action ->
             setupDailyHomeShortcut(ctx.context, ctx.views, ctx.appWidgetId, action, scale = headerScale)
         }
+        if (headerState.showMonthsButton) {
+            setupMonthsViewShortcut(ctx.context, ctx.views, ctx.appWidgetId, ctx.displaySource, lat, lon, scale = headerScale)
+        }
         positionDailyIcons(
             views = ctx.views,
             placement = headerState.iconPlacement,
@@ -340,6 +343,7 @@ internal object DailyGraphRenderer {
             density = ctx.context.resources.displayMetrics.density,
             scale = headerScale,
             showHome = headerState.showHomeButton,
+            showMonths = headerState.showMonthsButton,
         )
         if (observationsInView != headerState.observationsInView) {
             Log.w(

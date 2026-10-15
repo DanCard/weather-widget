@@ -277,6 +277,8 @@ internal object DailyHeaderResolver {
             wantHome = wantHomeButton,
             isIconWidth = dimensions.isIconWidth,
             disclosure = disclosure,
+            // Graph mode only: the text-mode header has no button row to seat it in.
+            wantMonths = useGraph,
         )
         val iconCount = iconLayout.iconCount
         val iconPlacement = iconLayout.placement
@@ -357,6 +359,7 @@ internal object DailyHeaderResolver {
             iconCount = iconCount,
             iconPlacement = iconPlacement,
             showHomeButton = iconLayout.homeShown,
+            showMonthsButton = iconLayout.monthsShown,
             homeAction = if (iconLayout.homeShown) homeAction else null,
             preferDateOverLabel = preferDateOverLabel,
         )

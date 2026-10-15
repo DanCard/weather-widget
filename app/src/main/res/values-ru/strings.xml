@@ -80,6 +80,11 @@
     <string name="api_source_openweathermap_desc">OpenWeatherMap — отображается как OWM (глобальное покрытие)</string>
     <string name="statistics">Статистика</string>
     <string name="view_detailed_statistics">Подробная статистика</string>
+    <string name="months_view_title">Месяцы</string>
+    <string name="months_view_open">Обзор по месяцам</string>
+    <string name="months_view_hint">Сведите пальцы для масштаба · проведите для прокрутки · коснитесь дня</string>
+    <string name="months_view_empty">Нет ежедневной истории за этот период</string>
+    <string name="months_view_more_history">У %1$s есть история с %2$s. Нажмите, чтобы переключить.</string>
     <string name="forecast_accuracy_summary_title">Точность прогнозов (последние 30 дней)</string>
     <string name="loading_accuracy_summary">Загрузка точности прогнозов...</string>
     <string name="error_loading_accuracy_summary">Не удаётся загрузить точность прогнозов.</string>

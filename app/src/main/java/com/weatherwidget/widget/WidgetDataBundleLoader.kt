@@ -145,6 +145,8 @@ internal class WidgetDataBundleLoader(
         hourlyForecasts: List<HourlyForecastEntity>,
         activeSourceList: List<String>,
         recompute: Boolean = true,
+        /** Past days to read: the widget's 30, the months screen the whole record. */
+        lookbackDays: Long = com.weatherwidget.data.repository.DailyActualsStore.DEFAULT_LOOKBACK_DAYS,
     ): DailyActualsBySource {
         return try {
             if (recompute) {
@@ -152,7 +154,7 @@ internal class WidgetDataBundleLoader(
                 val yesterday = LocalDate.now().minusDays(1)
                 weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, start, yesterday, hourlyForecasts)
             }
-            weatherRepository.getDailyActualsWithLiveToday(lat, lon, hourlyForecasts, activeSourceList)
+            weatherRepository.getDailyActualsWithLiveToday(lat, lon, hourlyForecasts, activeSourceList, lookbackDays)
         } catch (e: Exception) {
             android.util.Log.e(TAG, "Failed to fetch daily actuals", e)
             emptyMap()

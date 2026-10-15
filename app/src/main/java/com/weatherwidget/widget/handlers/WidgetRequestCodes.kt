@@ -37,6 +37,7 @@ object WidgetRequestCodes {
     private const val BASE_SOURCE_HOME = 5300
     private const val BASE_ERROR_PILL = 5400
     private const val BASE_RECENTER_TODAY = 5450
+    private const val BASE_MONTHS_VIEW = 5500
 
     fun navLeft(id: Int) = id * 10000 + BASE_NAV_LEFT
     fun navRight(id: Int) = id * 10000 + BASE_NAV_RIGHT
@@ -86,4 +87,7 @@ object WidgetRequestCodes {
      * base, not [sourceHome], for the same reason [sourceHome] is not [home].
      */
     fun recenterToday(id: Int) = id * 10000 + BASE_RECENTER_TODAY
+
+    /** The daily header's months-view (zoom-out) button. */
+    fun monthsView(id: Int) = id * 10000 + BASE_MONTHS_VIEW
 }

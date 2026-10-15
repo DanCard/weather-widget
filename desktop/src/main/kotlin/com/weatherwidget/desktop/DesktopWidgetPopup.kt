@@ -1,5 +1,7 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.months.MonthsZoomAction
+import com.weatherwidget.shared.months.MonthsZoomController
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -409,7 +411,9 @@ internal fun WidgetPopup(
                             val observationsOnScreen =
                                 dailyState.days.any { it.isToday || it.daysFromToday == -1 }
                             SideEffect {
-                                dailyTodayInView = todayOnScreen
+                                // The months view counts as off today, so the home button shows and
+                                // brings back the daily view on today.
+                                dailyTodayInView = todayOnScreen && !config.monthsView
                                 dailyObservationsInView = observationsOnScreen
                                 dailyHomeDateOffset = dailyState.homeDateOffset
                             }
@@ -437,11 +441,31 @@ internal fun WidgetPopup(
                                     if (target != config.dateOffset) onUpdateConfig(config.copy(dateOffset = target))
                                 }
                             }
+                            // Months view (line-graph zoom-out): the shared zoom rules decide; this only
+                            // maps their actions onto config.
+                            val monthsToday = LocalDate.now()
+                            val applyMonthsAction: (MonthsZoomAction) -> Unit = { action ->
+                                val next = DesktopMonthsModel.apply(action, config, monthsToday, dailyState.dimensions)
+                                if (next != config) {
+                                    Log.d(TAG, "MONTHS_ZOOM action=$action monthsView=${next.monthsView} span=${next.monthsSpan} end=${next.monthsEnd} dateOffset=${next.dateOffset}")
+                                    onUpdateConfig(next)
+                                }
+                            }
                             // Scroll-wheel zoom → extra history days; clamped to model-computed bounds.
+                            // Out past the densest daily view (or the end of its history) → months view.
                             val handleDailyZoom: (Int) -> Unit = { delta ->
-                                val blocked = (delta > 0 && !dailyState.canZoomOut) ||
-                                    (delta < 0 && !dailyState.canZoomIn)
-                                if (!blocked) {
+                                val zoomOutAction = if (delta > 0) {
+                                    MonthsZoomController.dailyZoomOut(
+                                        graphWidthDp = maxWidth.value,
+                                        columns = dailyState.days.size,
+                                        canAddColumn = dailyState.canZoomOut,
+                                        rightEdge = dailyState.days.lastOrNull()?.date ?: monthsToday,
+                                    )
+                                } else null
+                                val blocked = (delta < 0 && !dailyState.canZoomIn)
+                                if (zoomOutAction is MonthsZoomAction.OpenMonths) {
+                                    applyMonthsAction(zoomOutAction)
+                                } else if (!blocked) {
                                     val target = (dailyState.clampedExtraHistory + delta).coerceAtLeast(0)
                                     if (target != config.dailyExtraHistory) {
                                         onUpdateConfig(config.copy(dailyExtraHistory = target))
@@ -453,10 +477,19 @@ internal fun WidgetPopup(
                                 onPanDays = handleDailyPan,
                                 onZoomScroll = handleDailyZoom,
                             )
+                            val monthsState = if (config.monthsView) DesktopMonthsModel.build(config, snapshot, monthsToday) else null
+                            val panMonths: (Int) -> Unit = { days ->
+                                monthsState?.let { st ->
+                                    val next = DesktopMonthsModel.pan(config, st, days)
+                                    if (next != config) onUpdateConfig(next)
+                                }
+                            }
                             // ←/→ step one day, gated by the same data bounds as the nav arrows.
                             SideEffect {
                                 onRegisterArrowKeyHandler { left ->
-                                    if (left && dailyState.canNavigateLeft) {
+                                    if (monthsState != null) {
+                                        panMonths(if (left) -DesktopMonthsModel.KEY_PAN_DAYS else DesktopMonthsModel.KEY_PAN_DAYS); true
+                                    } else if (left && dailyState.canNavigateLeft) {
                                         handleDailyPan(-1); true
                                     } else if (!left && dailyState.canNavigateRight) {
                                         handleDailyPan(1); true
@@ -508,7 +541,17 @@ internal fun WidgetPopup(
 
                             val todayBarTop = dailyState.days.firstOrNull { it.isToday }?.solidHigh
                             val todayBarSemantics = Modifier.semantics { set(TodayColumnSolidHigh, todayBarTop) }
-                            if (dailyState.dimensions.useGraph) {
+                            if (monthsState != null) {
+                                MonthsGraph(
+                                    state = monthsState,
+                                    useCelsius = config.settings.useCelsius,
+                                    scale = uiScale,
+                                    onAction = applyMonthsAction,
+                                    onPanDays = panMonths,
+                                    modifier = Modifier.fillMaxSize(),
+                                    onSwitchSource = { id -> switchDisplaySource(config, id, onUpdateConfig) },
+                                )
+                            } else if (dailyState.dimensions.useGraph) {
                                 DailyForecastGraph(
                                     state = dailyState,
                                     modifier = Modifier.fillMaxSize().then(dailyInput).then(todayBarSemantics),
@@ -525,19 +568,32 @@ internal fun WidgetPopup(
                                 )
                             }
 
-                            NavArrow(
-                                alignment = Alignment.CenterStart,
-                                enabled = dailyState.canNavigateLeft,
-                                testTag = "daily_nav_left",
-                            ) {
-                                onUpdateConfig(config.copy(dateOffset = dailyState.clampedDateOffset - 1))
-                            }
-                            NavArrow(
-                                alignment = Alignment.CenterEnd,
-                                enabled = dailyState.canNavigateRight,
-                                testTag = "daily_nav_right",
-                            ) {
-                                onUpdateConfig(config.copy(dateOffset = dailyState.clampedDateOffset + 1))
+                            if (monthsState != null) {
+                                NavArrow(
+                                    alignment = Alignment.CenterStart,
+                                    enabled = monthsState.bounds?.let { monthsState.window.start.isAfter(it.start) } == true,
+                                    testTag = "months_nav_left",
+                                ) { panMonths(-DesktopMonthsModel.KEY_PAN_DAYS) }
+                                NavArrow(
+                                    alignment = Alignment.CenterEnd,
+                                    enabled = monthsState.bounds?.let { monthsState.window.end.isBefore(it.endInclusive) } == true,
+                                    testTag = "months_nav_right",
+                                ) { panMonths(DesktopMonthsModel.KEY_PAN_DAYS) }
+                            } else {
+                                NavArrow(
+                                    alignment = Alignment.CenterStart,
+                                    enabled = dailyState.canNavigateLeft,
+                                    testTag = "daily_nav_left",
+                                ) {
+                                    onUpdateConfig(config.copy(dateOffset = dailyState.clampedDateOffset - 1))
+                                }
+                                NavArrow(
+                                    alignment = Alignment.CenterEnd,
+                                    enabled = dailyState.canNavigateRight,
+                                    testTag = "daily_nav_right",
+                                ) {
+                                    onUpdateConfig(config.copy(dateOffset = dailyState.clampedDateOffset + 1))
+                                }
                             }
 
                             noHourlyMessage?.let { msg ->

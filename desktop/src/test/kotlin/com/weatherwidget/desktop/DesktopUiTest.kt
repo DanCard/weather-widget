@@ -30,6 +30,7 @@ import com.weatherwidget.shared.util.WeatherConditionResolver
 import com.weatherwidget.shared.util.WeatherTimeUtils
 import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -699,6 +700,30 @@ currentCondition = "Sunny"),
 
         composeTestRule.onNodeWithTag("open_forecast_history_daily").performClick()
         assertEquals(java.time.LocalDate.now(), opened)
+    }
+
+    @Test
+    fun dailyHeaderMonthsButtonOpensTheMonthsLineGraph() {
+        var config by androidx.compose.runtime.mutableStateOf(stubConfig.copy(viewMode = ViewMode.DAILY))
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = config,
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { config = it },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithTag("open_months_view_daily").performClick()
+        composeTestRule.waitForIdle()
+        assertTrue(config.monthsView)
+        assertEquals(com.weatherwidget.shared.months.MonthsSpan.DEFAULT.months, config.monthsSpan)
+        composeTestRule.onNodeWithTag("months_graph").assertExists()
+        // Hidden while the months view is open; the home button is the way back.
+        composeTestRule.onNodeWithTag("open_months_view_daily").assertDoesNotExist()
     }
 
     @Test
