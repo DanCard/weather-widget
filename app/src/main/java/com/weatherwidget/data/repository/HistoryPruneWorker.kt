@@ -23,57 +23,7 @@ class HistoryPruneWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val db = WeatherDatabase.getDatabase(applicationContext)
-        val prefs = SharedPreferencesUtil.getPrefs(applicationContext, PREFS)
-        val startedAt = System.currentTimeMillis()
-        val migrationDone = prefs.getBoolean(KEY_SETTLED_MIGRATION_V1, false)
-        val activeScanWindowMs = (RetentionPolicy.DEFAULT_DAYS + 2) * 24L * 3_600_000L
-        val lastCompleted = prefs.getLong(KEY_LAST_COMPLETED_START_MS, 0L)
-        val since = if (!migrationDone) {
-            0L
-        } else {
-            minOf(lastCompleted, startedAt - activeScanWindowMs)
-        }
-
-        HistorySnapshotPruner(
-            dao = db.hourlyForecastHistoryDao(),
-            appLogDao = db.appLogDao(),
-            freelistBytes = {
-                val sql = db.openHelper.readableDatabase
-                val pages = sql.query("PRAGMA freelist_count").use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
-                val size = sql.query("PRAGMA page_size").use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
-                pages * size
-            },
-        ).prune(touchedSinceFetchedAt = since, nowMs = startedAt)
-
-        val editor = prefs.edit().putLong(KEY_LAST_COMPLETED_START_MS, startedAt)
-        if (!migrationDone) {
-            editor.putBoolean(KEY_SETTLED_MIGRATION_V1, true)
-        }
-        editor.apply()
-
-        // Automated file compaction: if freelist >= 8 MB, run VACUUM while charging + idle
-        try {
-            val freelistBytes = run {
-                val sql = db.openHelper.readableDatabase
-                val pages = sql.query("PRAGMA freelist_count").use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
-                val size = sql.query("PRAGMA page_size").use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
-                pages * size
-            }
-            if (freelistBytes >= HISTORY_VACUUM_MIN_FREE_BYTES) {
-                val startNs = System.nanoTime()
-                db.openHelper.writableDatabase.execSQL("VACUUM")
-                val durationMs = (System.nanoTime() - startNs) / 1_000_000L
-                db.appLogDao().log(
-                    "DB_VACUUM",
-                    "freelistBytes=$freelistBytes durationMs=$durationMs",
-                    "INFO",
-                )
-            }
-        } catch (e: Exception) {
-            android.util.Log.w("HistoryPruneWorker", "VACUUM failed", e)
-        }
-
+        runDirectly(applicationContext)
         return Result.success()
     }
 
@@ -83,6 +33,60 @@ class HistoryPruneWorker(
         private const val KEY_SETTLED_MIGRATION_V1 = "hourly_settled_v1_done"
         private const val HISTORY_VACUUM_MIN_FREE_BYTES = 8L * 1024 * 1024
         const val UNIQUE_WORK_NAME = "history_snapshot_prune"
+
+        /** Force-run pruning directly (e.g. for maintenance or on-device verification). */
+        suspend fun runDirectly(context: Context) {
+            val db = WeatherDatabase.getDatabase(context)
+            val prefs = SharedPreferencesUtil.getPrefs(context, PREFS)
+            val startedAt = System.currentTimeMillis()
+            val migrationDone = prefs.getBoolean(KEY_SETTLED_MIGRATION_V1, false)
+            val activeScanWindowMs = (RetentionPolicy.DEFAULT_DAYS + 2) * 24L * 3_600_000L
+            val lastCompleted = prefs.getLong(KEY_LAST_COMPLETED_START_MS, 0L)
+            val since = if (!migrationDone) {
+                0L
+            } else {
+                minOf(lastCompleted, startedAt - activeScanWindowMs)
+            }
+
+            HistorySnapshotPruner(
+                dao = db.hourlyForecastHistoryDao(),
+                appLogDao = db.appLogDao(),
+                freelistBytes = {
+                    val sql = db.openHelper.readableDatabase
+                    val pages = sql.query("PRAGMA freelist_count").use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+                    val size = sql.query("PRAGMA page_size").use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+                    pages * size
+                },
+            ).prune(touchedSinceFetchedAt = since, nowMs = startedAt)
+
+            val editor = prefs.edit().putLong(KEY_LAST_COMPLETED_START_MS, startedAt)
+            if (!migrationDone) {
+                editor.putBoolean(KEY_SETTLED_MIGRATION_V1, true)
+            }
+            editor.apply()
+
+            // Automated file compaction: if freelist >= 8 MB, run VACUUM while charging + idle
+            try {
+                val freelistBytes = run {
+                    val sql = db.openHelper.readableDatabase
+                    val pages = sql.query("PRAGMA freelist_count").use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+                    val size = sql.query("PRAGMA page_size").use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+                    pages * size
+                }
+                if (freelistBytes >= HISTORY_VACUUM_MIN_FREE_BYTES) {
+                    val startNs = System.nanoTime()
+                    db.openHelper.writableDatabase.execSQL("VACUUM")
+                    val durationMs = (System.nanoTime() - startNs) / 1_000_000L
+                    db.appLogDao().log(
+                        "DB_VACUUM",
+                        "freelistBytes=$freelistBytes durationMs=$durationMs",
+                        "INFO",
+                    )
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("HistoryPruneWorker", "VACUUM failed", e)
+            }
+        }
 
         /** Unique (KEEP): a pending or running prune absorbs any further request. */
         fun enqueue(context: Context) {
