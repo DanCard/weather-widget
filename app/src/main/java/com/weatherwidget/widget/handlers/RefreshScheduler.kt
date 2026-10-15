@@ -112,10 +112,10 @@ object RefreshScheduler {
             return RefreshNotice.Queued(RefreshNotice.Kind.FORECAST)
         }
 
-        // Read before the enqueue: under KEEP a sync already pending or running absorbs this request,
-        // and its target source is not this one's — the toast must not claim a refresh it dropped.
+        // Read before the enqueue: under KEEP a sync already pending or running absorbs an untargeted
+        // request, or one for the source it already fetches — the toast must not claim a new refresh.
         val pending = if (policy == ExistingWorkPolicy.KEEP) WidgetWorkScheduler.pendingOneTimeSync(context) else null
-        WidgetWorkScheduler.enqueueForcedSync(
+        val enqueued = WidgetWorkScheduler.enqueueForcedSync(
             context = context,
             reason = reason,
             policy = policy,
@@ -123,6 +123,10 @@ object RefreshScheduler {
             targetSourceId = targetSourceId,
             hourlyLimited = hourlyLimited,
         )
+        if (enqueued.followUp) {
+            Log.i(TAG, "FORCED_SYNC_FOLLOW_UP reason=$reason target=$targetSourceId id=${enqueued.request.id}")
+            return RefreshNotice.Queued(RefreshNotice.Kind.FORECAST)
+        }
         return pending?.let { RefreshNotice.NotQueued(it) } ?: RefreshNotice.Queued(RefreshNotice.Kind.FORECAST)
     }
 

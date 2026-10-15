@@ -3,7 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
-import com.weatherwidget.data.remote.SynopticApi
+import com.weatherwidget.data.remote.NwsMetarTextApi
 import com.weatherwidget.test.category.MediumDuration
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -43,17 +43,17 @@ class DesktopObservationRecentWindowTest {
 
     private fun serviceWith(
         nwsApi: NwsApi,
-        synopticApi: SynopticApi = mockk(),
+        metarTextApi: NwsMetarTextApi = mockk(),
     ) = DesktopWeatherService(
         lat, lon, "NWS",
         injectedNwsApi = nwsApi,
-        injectedSynopticApi = synopticApi,
+        injectedNwsMetarTextApi = metarTextApi,
     )
 
     @Test
     fun `recentOnly keeps every reading in the window, not just the newest`() = runTest {
         val nws = mockk<NwsApi>()
-        val synoptic = mockk<SynopticApi>()
+        val metarText = mockk<NwsMetarTextApi>()
         val station = station("KSJC", "San Jose", StationType.OFFICIAL)
         val grid = NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
 
@@ -71,11 +71,11 @@ class DesktopObservationRecentWindowTest {
         coEvery { nws.getObservations(any(), any(), any()) } returns window
         coEvery { nws.getLatestObservationDetailedResult(any(), any()) } returns
             FetchOutcome.Success(window.last())
-        // Synoptic fetch-first policy (nearest 3 stations): stub it to a definitive empty answer so
+        // Web leg (NWS METAR text, nearest stations): stub it to a definitive empty answer so
         // the web fallback neither contributes nor fails the cycle.
-        coEvery { synoptic.fetchSynopticObservations(any(), any(), any()) } returns FetchOutcome.NoData
+        coEvery { metarText.fetchLatest(any()) } returns FetchOutcome.NoData
 
-        val result = serviceWith(nws, synoptic).fetchObservationsOnly(recentOnly = true)
+        val result = serviceWith(nws, metarText).fetchObservationsOnly(recentOnly = true)
 
         // All 4 window readings survive to the stored rows. The old latest-only path yielded just
         // one KSJC timestamp here, silently discarding the three older readings — that is the
@@ -95,7 +95,7 @@ class DesktopObservationRecentWindowTest {
     @Test
     fun `recentOnly requests a short window, not the 7-day history`() = runTest {
         val nws = mockk<NwsApi>()
-        val synoptic = mockk<SynopticApi>()
+        val metarText = mockk<NwsMetarTextApi>()
         val station = station("KNUQ", "Moffett Field", StationType.OFFICIAL)
         val grid = NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
 
@@ -104,14 +104,14 @@ class DesktopObservationRecentWindowTest {
         coEvery { nws.getObservations(any(), any(), any()) } returns listOf(freshObservation("KNUQ", 5))
         coEvery { nws.getLatestObservationDetailedResult(any(), any()) } returns
             FetchOutcome.Success(freshObservation("KNUQ", 5))
-        coEvery { synoptic.fetchSynopticObservations(any(), any(), any()) } returns FetchOutcome.NoData
+        coEvery { metarText.fetchLatest(any()) } returns FetchOutcome.NoData
 
         val start = slot<String>()
         val end = slot<String>()
         coEvery { nws.getObservations(any(), capture(start), capture(end)) } returns
             listOf(freshObservation("KNUQ", 5))
 
-        serviceWith(nws, synoptic).fetchObservationsOnly(recentOnly = true)
+        serviceWith(nws, metarText).fetchObservationsOnly(recentOnly = true)
 
         // Exactly one windowed call per station — the CPU win of 2befc157 was dropping the 7-day
         // pull, and that must not creep back in.
@@ -129,7 +129,7 @@ class DesktopObservationRecentWindowTest {
     @Test
     fun `recentOnly still contributes the latest reading when the window is empty`() = runTest {
         val nws = mockk<NwsApi>()
-        val synoptic = mockk<SynopticApi>()
+        val metarText = mockk<NwsMetarTextApi>()
         val station = station("KPAO", "Palo Alto", StationType.OFFICIAL)
         val grid = NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
 
@@ -141,9 +141,9 @@ class DesktopObservationRecentWindowTest {
         coEvery { nws.getObservations(any(), any(), any()) } returns emptyList()
         coEvery { nws.getLatestObservationDetailedResult(any(), any()) } returns
             FetchOutcome.Success(freshObservation("KPAO", 5, 21.0f))
-        coEvery { synoptic.fetchSynopticObservations(any(), any(), any()) } returns FetchOutcome.NoData
+        coEvery { metarText.fetchLatest(any()) } returns FetchOutcome.NoData
 
-        val result = serviceWith(nws, synoptic).fetchObservationsOnly(recentOnly = true)
+        val result = serviceWith(nws, metarText).fetchObservationsOnly(recentOnly = true)
 
         assertEquals(setOf("KPAO"), result.rawObservations.map { it.stationId }.toSet())
         assertEquals((21.0f * 1.8f) + 32f, result.providerCurrentTemp!!, 0.01f)
@@ -152,7 +152,7 @@ class DesktopObservationRecentWindowTest {
     @Test
     fun `full fetch still requests the multi-day history window`() = runTest {
         val nws = mockk<NwsApi>()
-        val synoptic = mockk<SynopticApi>()
+        val metarText = mockk<NwsMetarTextApi>()
         val station = station("KNUQ", "Moffett Field", StationType.OFFICIAL)
         val grid = NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
 
@@ -160,14 +160,14 @@ class DesktopObservationRecentWindowTest {
         coEvery { nws.getObservationStations(any()) } returns listOf(station)
         coEvery { nws.getLatestObservationDetailedResult(any(), any()) } returns
             FetchOutcome.Success(freshObservation("KNUQ", 5))
-        coEvery { synoptic.fetchSynopticObservations(any(), any(), any()) } returns FetchOutcome.NoData
+        coEvery { metarText.fetchLatest(any()) } returns FetchOutcome.NoData
 
         val start = slot<String>()
         val end = slot<String>()
         coEvery { nws.getObservations(any(), capture(start), capture(end)) } returns
             listOf(freshObservation("KNUQ", 60))
 
-        serviceWith(nws, synoptic).fetchObservationsOnly(recentOnly = false)
+        serviceWith(nws, metarText).fetchObservationsOnly(recentOnly = false)
 
         coVerify(exactly = 1) { nws.getObservations(any(), any(), any()) }
         val spanDays = Duration.between(

@@ -10,7 +10,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
-import com.weatherwidget.data.remote.SynopticApi
+import com.weatherwidget.data.remote.NwsMetarTextApi
 import com.weatherwidget.shared.observations.NwsStationHistoryFetcher
 import com.weatherwidget.shared.observations.NwsStationLatestFetcher
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -35,7 +35,8 @@ class NwsObservationSource(
     context: Context,
     private val nwsApi: NwsApi,
     private val appLogDao: AppLogDao,
-    private val synopticApi: SynopticApi? = null,
+    /** The web leg: NWS's own METAR text file (no token). Null = API only. */
+    private val metarTextApi: NwsMetarTextApi? = null,
 ) {
     private val prefs = SharedPreferencesUtil.getPrefs(context, "weather_prefs")
 
@@ -136,7 +137,7 @@ class NwsObservationSource(
     )
 
     /**
-     * Raw `api.weather.gov/stations/{id}/observations?start=&end=` series, with no Synoptic
+     * Raw `api.weather.gov/stations/{id}/observations?start=&end=` series, with no web
      * fallback and no storage. [fetchHistorical] deliberately substitutes web readings when the
      * API looks stale; the NWS *daily extreme* must not, or the value stops being NWS's own.
      */
@@ -166,13 +167,13 @@ class NwsObservationSource(
         webWindowMinutes: Long,
         fallbackLogTag: String,
     ): HistoricalStationObservations {
-        // Android's fallback transport is Synoptic over the whole window; desktop reuses its
-        // Aviation Weather rows instead (plans/261013-shared-current-conditions-fetch.md Phase 4).
-        val web: (suspend () -> List<com.weatherwidget.data.model.ObservationReading>?)? = synopticApi?.let { api ->
+        // The web fallback is NWS's own latest-METAR file, as on desktop: one reading, the newest
+        // (plans/261015-nws-web-leg-from-nws-tgftp-metar-text.md; it was Synoptic, a token service).
+        val web: (suspend () -> List<com.weatherwidget.data.model.ObservationReading>?)? = metarTextApi?.let { api ->
             {
-                api.fetchSynopticObservations(stationInfo.id, webWindowMinutes, stationInfo.name)
+                com.weatherwidget.shared.observations.NwsMetarTextWeb.fetchReading(api, stationInfo, latitude, longitude)
                     .valueOrNull()
-                    ?.map { com.weatherwidget.shared.observations.NwsObservationMapper.toReading(it, stationInfo, latitude, longitude, isWebFallback = true) }
+                    ?.map { com.weatherwidget.shared.observations.NwsStationLatestFetcher.asNwsWebRow(it, stationInfo, latitude, longitude) }
             }
         }
         val history = historyFetcher.fetch(

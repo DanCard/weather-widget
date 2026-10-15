@@ -118,8 +118,13 @@ class DesktopBorrowedMetarObservationsTest {
         }
     }
 
+    /**
+     * NWS for NWS (user, 2026-10-15): even when Aviation Weather holds a newer KNUQ METAR, the NWS path
+     * never asks it — its web leg is NWS's own METAR text file
+     * (plans/261015-nws-web-leg-from-nws-tgftp-metar-text.md; this test used to assert the opposite).
+     */
     @Test
-    fun `NWS runs Aviation Weather in parallel and uses its newer matching METAR`() = runTest {
+    fun `NWS never asks Aviation Weather, even when it holds a newer METAR`() = runTest {
         val hits = mutableListOf<String>()
         val nowSeconds = System.currentTimeMillis() / 1000L
         val recording = MockEngine { request ->
@@ -165,13 +170,13 @@ class DesktopBorrowedMetarObservationsTest {
         try {
             val result = service.fetchObservationsOnly(recentOnly = true)
             val knuq = result.rawObservations.first { it.stationId == "KNUQ" && it.api == "NWS" }
-            assertEquals(nowSeconds * 1000L, knuq.timestamp)
-            assertTrue(knuq.isWebFallback)
-            assertEquals((19f * 1.8f) + 32f, result.providerCurrentTemp!!, 0.01f)
+            assertEquals((nowSeconds - 2 * 3600) * 1000L, knuq.timestamp)
+            assertTrue(!knuq.isWebFallback)
             assertTrue(
-                "NWS fetch-both must reach Aviation Weather; hit $hits",
-                hits.any { it.contains("aviationweather") && it.endsWith("/metar") },
+                "the NWS path must not reach Aviation Weather; hit $hits",
+                hits.none { it.contains("aviationweather") },
             )
+            assertTrue("its web leg is NWS's own file; hit $hits", hits.any { it.startsWith("tgftp.nws.noaa.gov") })
         } finally {
             service.close()
         }

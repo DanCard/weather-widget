@@ -138,6 +138,9 @@ object WidgetWorkScheduler {
             },
         )
 
+    /** What [enqueueForcedSync] enqueued; [followUp] when it was chained behind a sync for another source. */
+    class ForcedSyncEnqueue(val request: OneTimeWorkRequest, val followUp: Boolean)
+
     fun enqueueForcedSync(
         context: Context,
         reason: String,
@@ -145,14 +148,19 @@ object WidgetWorkScheduler {
         initialDelayMs: Long = 0L,
         targetSourceId: String? = null,
         hourlyLimited: Boolean = false,
-    ): OneTimeWorkRequest {
+    ): ForcedSyncEnqueue {
         require(policy != ExistingWorkPolicy.REPLACE) {
             "Running-capable widget work must never use REPLACE"
         }
-        return enqueueFullSync(
+        // KEEP joins whatever one-time sync is pending, and a sync forced for another source never
+        // fetches this one: the request was silently dropped (Samsung 2026-10-15: NWS 375 min old,
+        // absorbed by an Open-Meteo-only sync). A targeted request queues behind it instead.
+        val followUp = policy == ExistingWorkPolicy.KEEP && targetSourceId != null &&
+            unfinishedOneTimeSyncTags(context)?.let { needsForcedFollowUp(it, targetSourceId) } == true
+        val request = enqueueFullSync(
             context = context,
             uniqueName = WORK_NAME_ONE_TIME,
-            policy = policy,
+            policy = if (followUp) ExistingWorkPolicy.APPEND_OR_REPLACE else policy,
             forceRefresh = true,
             reason = reason,
             initialDelayMs = initialDelayMs,
@@ -163,7 +171,31 @@ object WidgetWorkScheduler {
                 null
             },
         )
+        return ForcedSyncEnqueue(request, followUp)
     }
+
+    /** Tag naming which source a forced sync fetches ("all" when untargeted); see [needsForcedFollowUp]. */
+    internal fun forcedTargetTag(targetSourceId: String?): String = "forced_target:${targetSourceId ?: "all"}"
+
+    /**
+     * Whether a forced request for [targetSourceId] must queue behind the pending one-time syncs
+     * (their tags) rather than join them: some are pending and none is forced for this source or for all.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun needsForcedFollowUp(unfinishedTags: List<Set<String>>, targetSourceId: String): Boolean =
+        unfinishedTags.isNotEmpty() &&
+            unfinishedTags.none { forcedTargetTag(null) in it || forcedTargetTag(targetSourceId) in it }
+
+    private fun unfinishedOneTimeSyncTags(context: Context): List<Set<String>>? =
+        runCatching {
+            WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWork(WORK_NAME_ONE_TIME).get(1, TimeUnit.SECONDS)
+                .filterNot { it.state.isFinished }
+                .map { it.tags }
+        }.getOrElse {
+            Log.w(TAG, "One-time sync tag inspect failed: ${it.message}")
+            null
+        }
 
     fun enqueueDelayedStartupSync(
         context: Context,
@@ -517,6 +549,7 @@ object WidgetWorkScheduler {
             OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                 .setInputData(data)
                 .apply {
+                    if (forceRefresh) addTag(forcedTargetTag(targetSourceId))
                     if (initialDelayMs > 0L) {
                         setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
                     }

@@ -23,11 +23,12 @@ class NwsStationLatestFetcher(
 ) {
     /**
      * A station's web rows. [rows] receives the station's index and the API's newest timestamp (null
-     * when none), which a windowed transport (Synoptic) sizes its window from; the Aviation Weather
-     * batch ignores both.
+     * when none); production's NWS text file ([NwsMetarTextWeb]) ignores both. [elapsedMs] is how long
+     * the station's web request took, for the log row, once it has finished.
      */
     class WebSource(
         val transport: String,
+        val elapsedMs: (station: NwsApi.StationInfo) -> Long? = { null },
         val rows: suspend (station: NwsApi.StationInfo, index: Int, apiNewestMs: Long?) -> FetchOutcome<List<ObservationReading>>,
     )
 
@@ -98,8 +99,11 @@ class NwsStationLatestFetcher(
             "station=${station.id} index=$index tier=${if (fetchWebForUse) "use" else "metrics"} " +
                 "transport=${web.transport} outcome=$outcomeLabel apiNewestMs=${merge.apiNewestMs} " +
                 "webNewestMs=${merge.webNewestMs} deltaMin=$deltaMinutes " +
-                "apiTempF=${apiReading?.temperature} webTempF=${webRows.lastOrNull { !it.qcFailed }?.temperature} " +
-                "webQcFailed=${webRows.any { it.qcFailed }} chosen=${if (merge.chosenIsWeb) "web" else "api"}",
+                // The NEWEST usable web row: lastOrNull read whichever row the feed listed last, which
+                // logged 66.2 °F beside a stored 12:35 reading of 73.4 °F (2026-10-15).
+                "apiTempF=${apiReading?.temperature} webTempF=${webRows.filterNot { it.qcFailed }.maxByOrNull { it.timestamp }?.temperature} " +
+                "webQcFailed=${webRows.any { it.qcFailed }} chosen=${if (merge.chosenIsWeb) "web" else "api"} " +
+                "webMs=${web.elapsedMs(station)}",
             "INFO",
         )
         val chosen = merge.chosen
@@ -117,8 +121,8 @@ class NwsStationLatestFetcher(
 
     companion object {
         /**
-         * A web (METAR / Synoptic) row filed as this NWS station's, at the same site and distance as
-         * the station's API rows ([NwsObservationMapper.toReading]). The Aviation Weather feed puts
+         * A web (NWS METAR text) row filed as this NWS station's, at the same site and distance as
+         * the station's API rows ([NwsObservationMapper.toReading]). A METAR feed may put
          * stations at its own coordinates: KPAO 5.0 km from Mountain View against NWS's 6.0 km, so the
          * blend weighted one station two ways depending on which feed won the hour
          * (memory idw_weight_window_dependent_distance; replay 2026-10-13).
@@ -140,8 +144,8 @@ class NwsStationLatestFetcher(
             )
 
         /**
-         * One station's rows out of the Aviation Weather batch both platforms start before the
-         * station jobs, minus any stamped further ahead than [ObservationFallbackPolicy.MAX_WEB_FUTURE_SKEW_MS].
+         * One station's rows out of a web answer, minus any stamped further ahead than
+         * [ObservationFallbackPolicy.MAX_WEB_FUTURE_SKEW_MS].
          */
         fun batchRows(
             batch: FetchOutcome<List<ObservationReading>>,

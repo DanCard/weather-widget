@@ -113,7 +113,7 @@ class NwsCurrentFetchRecomputeOnceTest : RobolectricTest() {
                 )
             }
         }
-        val source = NwsObservationSource(context, api, db.appLogDao(), synopticApi = null)
+        val source = NwsObservationSource(context, api, db.appLogDao(), metarTextApi = null)
         return NwsCurrentObservationUpdater(source, db.observationDao(), db.appLogDao(), dailyStore)
     }
 

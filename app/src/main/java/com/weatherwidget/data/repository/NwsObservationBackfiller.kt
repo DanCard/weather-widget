@@ -84,7 +84,7 @@ class NwsObservationBackfiller @Inject constructor(
                 startTime = startTime,
                 endTime = endTime,
                 webWindowMinutes = WeatherConfig.NWS_BACKFILL_DAYS * 24 * 60L,
-                fallbackLogTag = "NWS_DAILY_SYNOPTIC_FALLBACK",
+                fallbackLogTag = "NWS_DAILY_WEB_FALLBACK",
                 stationLogTag = "NWS_DAILY_BACKFILL_STATION",
             ).entities
             if (entities.isEmpty()) continue
@@ -215,7 +215,7 @@ class NwsObservationBackfiller @Inject constructor(
                 startTime = startTime,
                 endTime = endTime,
                 webWindowMinutes = lookbackHours * 60L,
-                fallbackLogTag = "OBS_HOURLY_SYNOPTIC_FALLBACK",
+                fallbackLogTag = "OBS_HOURLY_WEB_FALLBACK",
                 stationLogTag = "OBS_HOURLY_BACKFILL_STATION",
             )
             if (fetch.failed) failedStations++

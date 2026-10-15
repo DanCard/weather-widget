@@ -81,7 +81,7 @@ class NwsStationLatestFetcherTest {
         assertEquals(NwsObservationMapper.distanceKm(37.417, -122.089, station.lat, station.lon).toFloat(), chosen.distanceKm)
         assertEquals(37.417, chosen.locationLat, 0.0)
         assertTrue(logs.single().startsWith("OBS_WEB_API_DELTA station=KNUQ index=1 tier=use transport=aviation_weather outcome=success"))
-        assertTrue(logs.single(), logs.single().endsWith("deltaMin=80 apiTempF=62.6 webTempF=62.6 webQcFailed=false chosen=web"))
+        assertTrue(logs.single(), logs.single().endsWith("deltaMin=80 apiTempF=62.6 webTempF=62.6 webQcFailed=false chosen=web webMs=null"))
     }
 
     @Test
@@ -115,7 +115,7 @@ class NwsStationLatestFetcherTest {
         assertFalse(result.chosen!!.isWebFallback)
         assertEquals(1, result.webRows.size)
         assertTrue(result.webRows.single().qcFailed)
-        assertTrue(logs.single().endsWith("webTempF=null webQcFailed=true chosen=api"))
+        assertTrue(logs.single().endsWith("webTempF=null webQcFailed=true chosen=api webMs=null"))
     }
 
     @Test

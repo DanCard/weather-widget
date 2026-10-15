@@ -44,7 +44,7 @@ class NwsCloudActualsRoundTripTest {
             RuntimeEnvironment.getApplication(),
             mockk(),
             mockk(relaxed = true),
-            synopticApi = null,
+            metarTextApi = null,
         )
     }
 

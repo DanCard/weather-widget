@@ -6,7 +6,7 @@ import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
-import com.weatherwidget.data.remote.SynopticApi
+import com.weatherwidget.data.remote.NwsMetarTextApi
 import com.weatherwidget.shared.observations.MetarRawSkyParser
 import com.weatherwidget.shared.observations.NwsObservationMapper
 import com.weatherwidget.test.category.LongDuration
@@ -42,7 +42,7 @@ class NwsObservationSourceTest {
             context,
             nwsApi,
             mockk<AppLogDao>(relaxed = true),
-            synopticApi = null,
+            metarTextApi = null,
         )
     }
 
@@ -52,20 +52,16 @@ class NwsObservationSourceTest {
     }
 
     /**
-     * The emulator failure of 2026-08-21, reproduced end to end across [NwsObservationSource],
-     * [ObservationFallbackPolicy], [MetarRawSkyParser] and [NwsObservationMapper].
+     * The emulator failure of 2026-08-21, end to end across [NwsObservationSource],
+     * [ObservationFallbackPolicy], [MetarDecoder] and the NWS web row: KNUQ's 72h window timed out
+     * after 30 s. The reason must name the failure (not "empty"), and the row that covers for it
+     * keeps its sky condition.
      *
-     * KNUQ's 72h window timed out after 30 s. The catch flattened that to an empty list, which the
-     * fallback reason rendered as "empty" — reading as "this station has no history" for a station
-     * that had 196 observations. The Synoptic fallback that covered for it then dropped the sky
-     * condition it was already receiving, so the nearest official station (3.8 km) contributed no
-     * cloud at all and the curve ran off KSJC 15.9 km away.
-     *
-     * Both halves are asserted here: the reason must name the failure, and the stored rows must
-     * carry cloud.
+     * The covering row now comes from NWS's own METAR text file, never Synoptic (user, 2026-10-15;
+     * plans/261015-nws-web-leg-from-nws-tgftp-metar-text.md).
      */
     @Test
-    fun `a timed-out window falls back to Synoptic with cloud intact and says why`() = runTest {
+    fun `a timed-out window falls back to NWS's METAR text with cloud intact and says why`() = runTest {
         val station = NwsApi.StationInfo(
             id = "KNUQ",
             name = "Moffett Federal Airfield",
@@ -77,27 +73,13 @@ class NwsObservationSourceTest {
         val logged = mutableListOf<AppLogEntity>()
         coEvery { logDao.insert(capture(logged)) } returns Unit
 
-        val synopticApi = mockk<SynopticApi>()
-        // Real report bodies; the sky condition is parsed by the production parser, not hand-built.
-        val raws = listOf(
-            "KNUQ 211435Z AUTO 35003KT 10SM OVC012 16/13 A3005 RMK AO2",
-            "KNUQ 211455Z AUTO 01005KT 10SM BKN013 16/13 A3005 RMK AO2",
+        val metarTextApi = mockk<NwsMetarTextApi>()
+        coEvery { metarTextApi.fetchLatest("KNUQ") } returns NwsMetarTextApi.parse(
+            "2026/08/21 14:55\nKNUQ 211455Z AUTO 01005KT 10SM BKN013 16/13 A3005 RMK AO2\n",
+            "KNUQ",
         )
-        coEvery { synopticApi.fetchSynopticObservations(any(), any(), any()) } returns
-            FetchOutcome.Success(
-                raws.mapIndexed { index, raw ->
-                    NwsApi.Observation(
-                        timestamp = "2026-08-21T14:${35 + index * 20}:00Z",
-                        temperatureCelsius = 16f,
-                        textDescription = "Overcast",
-                        stationName = station.name,
-                        cloudLayers = MetarRawSkyParser.layersFrom(raw),
-                        isMetar = true,
-                    )
-                },
-            )
 
-        val sourceWithWeb = NwsObservationSource(context, nwsApi, logDao, synopticApi = synopticApi)
+        val sourceWithWeb = NwsObservationSource(context, nwsApi, logDao, metarTextApi = metarTextApi)
         coEvery { nwsApi.getObservations(any(), any(), any()) } throws
             IOException("Request timeout has expired")
 
@@ -109,21 +91,24 @@ class NwsObservationSourceTest {
             startTime = "2026-08-18T17:00:09Z",
             endTime = "2026-08-21T17:00:09Z",
             webWindowMinutes = 72 * 60L,
-            fallbackLogTag = "OBS_HOURLY_SYNOPTIC_FALLBACK",
+            fallbackLogTag = "OBS_HOURLY_WEB_FALLBACK",
         )
 
         // The failure is named, not laundered into "this station is empty".
-        val fallbackLine = logged.single { it.tag == "OBS_HOURLY_SYNOPTIC_FALLBACK" }.message
+        val fallbackLine = logged.single { it.tag == "OBS_HOURLY_WEB_FALLBACK" }.message
         assertTrue("reason must name the failure, was: $fallbackLine", "fetch_failed" in fallbackLine)
         assertFalse("a timeout is not an empty station", "reason=empty" in fallbackLine)
 
-        // And the rows that covered for it carry sky condition all the way to the entity.
-        assertEquals(2, result.entities.size)
+        // And the row that covered for it carries sky condition all the way to the entity, filed
+        // as NWS's own (web origin), not as a METAR-provider row.
+        val row = result.entities.single()
         assertTrue(result.usedWebFallback)
         assertEquals("IOException", result.apiFailure)
-        assertEquals(listOf(100, 75), result.entities.map { it.cloudCoverLow })
-        assertTrue(result.entities.all { it.isWebFallback })
-        assertTrue(result.entities.all { it.isMetar })
+        assertEquals(75, row.cloudCoverLow)
+        assertEquals("NWS", row.api)
+        assertTrue(row.isWebFallback)
+        assertTrue(row.isMetar)
+        assertEquals(java.time.Instant.parse("2026-08-21T14:55:00Z").toEpochMilli(), row.timestamp)
     }
 
     @Test(expected = CancellationException::class)

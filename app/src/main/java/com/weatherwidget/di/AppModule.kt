@@ -238,8 +238,8 @@ object AppModule {
         @ApplicationContext context: Context,
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
-        synopticApi: SynopticApi,
-    ): NwsObservationSource = NwsObservationSource(context, nwsApi, appLogDao, synopticApi)
+        metarTextApi: com.weatherwidget.data.remote.NwsMetarTextApi,
+    ): NwsObservationSource = NwsObservationSource(context, nwsApi, appLogDao, metarTextApi)
 
     /**
      * Raw airport METARs from aviationweather.gov — the app's only station-observation source

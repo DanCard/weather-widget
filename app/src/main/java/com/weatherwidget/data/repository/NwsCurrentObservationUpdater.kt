@@ -9,6 +9,8 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.NwsMetarTextApi
+import com.weatherwidget.shared.observations.NwsMetarTextWeb
 import com.weatherwidget.shared.observations.NwsStationLatestFetcher
 import com.weatherwidget.shared.util.SpatialInterpolator
 import kotlinx.coroutines.async
@@ -27,7 +29,7 @@ class NwsCurrentObservationUpdater private constructor(
     private val observationDao: ObservationDao,
     private val appLogDao: AppLogDao,
     private val dailyActualsStore: DailyActualsStore,
-    private val metarObservationSource: MetarObservationSource?,
+    private val metarTextApi: NwsMetarTextApi?,
     private val personalStationWeightProvider: PersonalStationWeightProvider,
     @Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
 ) {
@@ -37,19 +39,19 @@ class NwsCurrentObservationUpdater private constructor(
         observationDao: ObservationDao,
         appLogDao: AppLogDao,
         dailyActualsStore: DailyActualsStore,
-        metarObservationSource: MetarObservationSource,
+        metarTextApi: NwsMetarTextApi,
         personalStationWeightProvider: PersonalStationWeightProvider,
     ) : this(
         observationSource,
         observationDao,
         appLogDao,
         dailyActualsStore,
-        metarObservationSource,
+        metarTextApi,
         personalStationWeightProvider,
         Unit,
     )
 
-    /** Compatibility seam for repository tests that exercise only the NWS/Synoptic source. */
+    /** Compatibility seam for repository tests: the API leg only, no web leg. */
     internal constructor(
         observationSource: NwsObservationSource,
         observationDao: ObservationDao,
@@ -68,23 +70,11 @@ class NwsCurrentObservationUpdater private constructor(
         if (stations.isEmpty()) return@coroutineScope null
 
         val fetchStartMs = System.currentTimeMillis()
-        // One token-free Aviation Weather batch starts before any station job. Each station awaits
-        // its own rows only after api.weather.gov returns, so the transports overlap rather than the
-        // old per-station NWS-then-Synoptic sequence.
-        val parallelWebDeferred = metarObservationSource?.let { source ->
-            async {
-                source.fetchReadingsResult(
-                    latitude,
-                    longitude,
-                    hours = PARALLEL_WEB_HOURS,
-                    limit = MAX_NWS_STATIONS,
-                )
-            }
-        }
-        val web = parallelWebDeferred?.let { batch ->
-            NwsStationLatestFetcher.WebSource("aviation_weather") { station, _, _ ->
-                NwsStationLatestFetcher.batchRows(batch.await(), station.id, System.currentTimeMillis())
-            }
+        // The web leg: NWS's own latest-METAR file per station, every request started before any
+        // api.weather.gov answer so the two transports overlap. No token, no third party
+        // (plans/261015-nws-web-leg-from-nws-tgftp-metar-text.md).
+        val web = metarTextApi?.let { api ->
+            NwsMetarTextWeb.start(this, api, stations, latitude, longitude)
         }
 
         // Every station gets exactly one attempt. The old 10s/30s retry targeted stations.first(),
@@ -222,9 +212,5 @@ class NwsCurrentObservationUpdater private constructor(
                 "fetchAgeMin=${(nowMs - observation.fetchedAt) / 60_000L}",
             "INFO",
         )
-    }
-
-    private companion object {
-        const val PARALLEL_WEB_HOURS = 2
     }
 }

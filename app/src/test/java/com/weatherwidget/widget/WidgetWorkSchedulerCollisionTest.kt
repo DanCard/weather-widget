@@ -73,6 +73,43 @@ class WidgetWorkSchedulerCollisionTest {
     }
 
     /**
+     * KEEP used to fold a forced request for one source into a pending sync forced for another, which
+     * never fetches it (Samsung 2026-10-15: NWS 375 min old, absorbed by an Open-Meteo-only sync).
+     * A targeted request now queues behind it; one the pending work already covers still joins it.
+     */
+    @Test
+    fun `a forced sync for another source queues behind the pending one, a covered one joins it`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        fun forced(target: String?) = WidgetWorkScheduler.enqueueForcedSync(
+            context, reason = "test", policy = androidx.work.ExistingWorkPolicy.KEEP, targetSourceId = target,
+            // Held so it stays pending: undelayed work runs (and fails) at once under the test driver.
+            initialDelayMs = 60_000,
+        )
+        fun pendingTargets() = WorkManager.getInstance(context)
+            .getWorkInfosForUniqueWork(WidgetWorkScheduler.WORK_NAME_ONE_TIME).get(5, TimeUnit.SECONDS)
+            .filterNot { it.state.isFinished }
+            .map { info -> info.tags.single { it.startsWith("forced_target:") } }
+
+        assertEquals(false, forced(WeatherSource.OPEN_METEO.id).followUp)
+        assertEquals("another source queues behind", true, forced(WeatherSource.NWS.id).followUp)
+        assertEquals("already queued for NWS", false, forced(WeatherSource.NWS.id).followUp)
+        assertEquals("untargeted keeps KEEP", false, forced(null).followUp)
+        assertEquals(setOf("forced_target:OPEN_METEO", "forced_target:NWS"), pendingTargets().toSet())
+        assertEquals(2, pendingTargets().size)
+    }
+
+    @Test
+    fun `a pending sync forced for all sources covers any target`() {
+        val all = setOf(WidgetWorkScheduler.forcedTargetTag(null))
+        val meteo = setOf(WidgetWorkScheduler.forcedTargetTag("OPEN_METEO"))
+        assertEquals(false, WidgetWorkScheduler.needsForcedFollowUp(emptyList(), "NWS"))
+        assertEquals(false, WidgetWorkScheduler.needsForcedFollowUp(listOf(all), "NWS"))
+        assertEquals(true, WidgetWorkScheduler.needsForcedFollowUp(listOf(meteo), "NWS"))
+        assertEquals("an unforced sync fetches nothing on demand", true, WidgetWorkScheduler.needsForcedFollowUp(listOf(emptySet()), "NWS"))
+        assertEquals(false, WidgetWorkScheduler.needsForcedFollowUp(listOf(meteo), "OPEN_METEO"))
+    }
+
+    /**
      * The backfill is the one carve-out from this class's APPEND_OR_REPLACE rule (plan 260820).
      *
      * It used to append, which makes a pending backfill a *prerequisite* of the next one: a burst

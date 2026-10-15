@@ -208,12 +208,10 @@ internal object WidgetIntentActionHandler {
         } else {
             null
         }
-        // One notice for the tap: the stale check and the source's own window check merged. Toggling
-        // is browsing, so "up to date" is noise and is dropped (user, 2026-10-15); a queued refresh,
-        // a quota block or one already pending still says so.
+        // A source change shows no notice, whatever it queued (user, 2026-10-15): the user is looking
+        // at another source, not asking for data. The outcome is still logged.
         RefreshNotice.merge(refreshContext.refreshNotice, forced)
-            ?.takeUnless { RefreshNotice.isUpToDate(it) }
-            ?.let { RefreshToast.show(context, "widget_toggle_api", it, intArrayOf(appWidgetId)) }
+            ?.let { RefreshToast.logSilent(context, "widget_toggle_api", it) }
         InteractionRenderDispatcher.render(
             viewMode,
             request(
@@ -291,7 +289,9 @@ internal object WidgetIntentActionHandler {
         } else {
             null
         }
-        RefreshNotice.merge(refreshContext.refreshNotice, forced)?.let { RefreshToast.show(context, "widget_reset_source", it, intArrayOf(appWidgetId)) }
+        // A source change, like the toggle: no notice, only the log row.
+        RefreshNotice.merge(refreshContext.refreshNotice, forced)
+            ?.let { RefreshToast.logSilent(context, "widget_reset_source", it) }
         InteractionRenderDispatcher.render(
             viewMode,
             request(

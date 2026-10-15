@@ -89,63 +89,10 @@ class RefreshNoticeStateTest {
     }
 
     @Test
-    fun `source cycle - no fetch yet or older than four hours queues the forecast`() {
-        val now = 100_000_000L
-        assertEquals(Queued(Kind.FORECAST), sourceCycleNotice(false, null, null, "Google", now))
-        assertEquals(
-            Queued(Kind.FORECAST),
-            sourceCycleNotice(true, now, now - 4 * 3_600_000L, "Google", now),
-        )
-    }
-
-    @Test
-    fun `source cycle - a fresh forecast with old observations queues observations`() {
-        val now = 100_000_000L
-        assertEquals(
-            Queued(Kind.OBSERVATIONS),
-            sourceCycleNotice(true, now - 3 * 3_600_000L, now - 3_600_000L, "Google", now),
-        )
-    }
-
-    @Test
-    fun `source cycle - everything fresh is up to date with the forecast's age`() {
-        val now = 100_000_000L
-        assertEquals(
-            NotQueued(Reason.UP_TO_DATE, "Google", ageMs = 3_600_000L),
-            sourceCycleNotice(true, now - 60_000L, now - 3_600_000L, "Google", now),
-        )
-    }
-
-    @Test
-    fun `source cycle agrees with the daemon's launch decision`() {
-        val now = 100_000_000L
-        val forecastAges = listOf(null, 0L, 3_599_999L, 4 * 3_600_000L - 1, 4 * 3_600_000L, 9 * 3_600_000L)
-        val obsAges = listOf(null, 0L, 30 * 60_000L, 3 * 3_600_000L)
-        for (cache in listOf(true, false)) for (fa in forecastAges) for (oa in obsAges) {
-            val lastForecast = fa?.let { now - it }
-            val lastObs = oa?.let { now - it }
-            val daemon = determineLaunchRefreshAction(
-                cache, lastObs, lastForecast, now,
-                launchForecastStaleAfterMs(SOURCE_CYCLE_REASON) { null },
-            )
-            val expected = when (daemon) {
-                LaunchRefreshAction.FULL_FORECAST -> Queued(Kind.FORECAST)
-                LaunchRefreshAction.OBSERVATIONS -> Queued(Kind.OBSERVATIONS)
-                LaunchRefreshAction.NONE -> NotQueued(Reason.UP_TO_DATE, "X", ageMs = fa)
-            }
-            assertEquals("cache=$cache fa=$fa oa=$oa", expected, sourceCycleNotice(cache, lastObs, lastForecast, "X", now))
-        }
-    }
-
-    @Test
-    fun `refresh origins and config writers map to their window`() {
+    fun `refresh origins map to their window`() {
         assertEquals(RefreshNoticeSurface.SETTINGS, refreshNoticeSurface("settings"))
         assertEquals(RefreshNoticeSurface.HISTORY, refreshNoticeSurface("history"))
         assertEquals(RefreshNoticeSurface.OBSERVATIONS, refreshNoticeSurface("observations"))
-        assertEquals(RefreshNoticeSurface.POPUP, sourceCycleNoticeSurface("popup"))
-        assertEquals(RefreshNoticeSurface.OBSERVATIONS, sourceCycleNoticeSurface("observations-window"))
-        assertNull(sourceCycleNoticeSurface("settings"))
-        assertNull(sourceCycleNoticeSurface("location-picker"))
     }
 
     @Test

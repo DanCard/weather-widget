@@ -23,7 +23,8 @@ import java.util.Date
  * is background. The banner never covers a different message already up ("Getting weather for…").
  *
  * At most one per [RefreshNotice.DURATION_MS] ([RefreshNotice.shouldShow]). Every call writes
- * `REFRESH_TOAST`, shown or suppressed: a notice alone leaves no trace after the fact.
+ * `REFRESH_TOAST`, shown or suppressed: a notice alone leaves no trace after the fact. Source changes
+ * show nothing ([logSilent]).
  */
 object RefreshToast {
     @Volatile
@@ -58,6 +59,18 @@ object RefreshToast {
         WeatherDatabase.getDatabase(appContext).appLogDao().log(
             "REFRESH_TOAST",
             "origin=$origin ${RefreshNotice.logDetail(notice)} $outcome",
+            "INFO",
+        )
+    }
+
+    /**
+     * The `REFRESH_TOAST` row alone, for actions that announce nothing: source changes (toggle, the
+     * daily home button), which the user makes to look, not to refresh (user, 2026-10-15).
+     */
+    suspend fun logSilent(context: Context, origin: String, notice: RefreshNotice) {
+        WeatherDatabase.getDatabase(context.applicationContext).appLogDao().log(
+            "REFRESH_TOAST",
+            "origin=$origin ${RefreshNotice.logDetail(notice)} silent",
             "INFO",
         )
     }

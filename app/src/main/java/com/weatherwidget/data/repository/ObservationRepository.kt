@@ -8,7 +8,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.remote.NwsApi
-import com.weatherwidget.data.remote.SynopticApi
+import com.weatherwidget.data.remote.NwsMetarTextApi
 import com.weatherwidget.widget.DailyActualsBySource
 import java.time.LocalDate
 import javax.inject.Singleton
@@ -47,7 +47,7 @@ class ObservationRepository private constructor(
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
         hourlyForecastDao: HourlyForecastDao,
-        synopticApi: SynopticApi? = null,
+        metarTextApi: NwsMetarTextApi? = null,
     ) : this(
         observationDao,
         legacyComponents(
@@ -57,7 +57,7 @@ class ObservationRepository private constructor(
             appLogDao,
             nwsApi,
             hourlyForecastDao,
-            synopticApi,
+            metarTextApi,
         ),
     )
 
@@ -137,7 +137,7 @@ private fun legacyComponents(
     appLogDao: AppLogDao,
     nwsApi: NwsApi,
     hourlyForecastDao: HourlyForecastDao,
-    synopticApi: SynopticApi?,
+    metarTextApi: NwsMetarTextApi?,
 ): ObservationComponents {
     val weightProvider = WidgetPersonalStationWeightProvider(context)
     val dailyActualsStore = DailyActualsStore(
@@ -147,7 +147,7 @@ private fun legacyComponents(
         hourlyForecastDao,
         weightProvider,
     )
-    val source = NwsObservationSource(context, nwsApi, appLogDao, synopticApi)
+    val source = NwsObservationSource(context, nwsApi, appLogDao, metarTextApi)
     return ObservationComponents(
         currentUpdater = NwsCurrentObservationUpdater(
             source,

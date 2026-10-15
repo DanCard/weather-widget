@@ -13,6 +13,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
+import com.weatherwidget.shared.observations.NwsMetarTextWeb
 import com.weatherwidget.shared.observations.NwsObservationMapper
 import com.weatherwidget.shared.observations.NwsStationHistoryFetcher
 import com.weatherwidget.shared.observations.NwsStationLatestFetcher
@@ -62,6 +63,8 @@ class DesktopWeatherService(
     private val injectedHttpClient: HttpClient? = null,
     private val injectedNwsApi: NwsApi? = null,
     private val injectedSynopticApi: SynopticApi? = null,
+    /** The NWS web leg's transport (NWS's own METAR text file); null = the real one. */
+    private val injectedNwsMetarTextApi: NwsMetarTextApi? = null,
     /** Shared Synoptic backoff state; production passes [DesktopSynopticBackoffStore.default]. */
     synopticBackoffStore: SynopticBackoffStore = InMemorySynopticBackoffStore(),
     /**
@@ -135,11 +138,12 @@ class DesktopWeatherService(
         json,
         onRequest = { weatherDao?.log("GOOGLE_REQUEST", it, "INFO") },
     ) { effectiveKeys[WeatherSource.GOOGLE_WEATHER.id] }
-    // "SYNOPTIC" is not a WeatherSource id — it is the NWS web-fallback transport, keyed by a token
-    // minted from the API key. It rides the same baked-keys map purely for the plumbing.
+    // Synoptic: only where the user picked it as a source's actuals provider — never the NWS web leg.
+    // Its token rides the same baked-keys map under "SYNOPTIC" purely for the plumbing.
     private val synopticApi = injectedSynopticApi
         ?: SynopticApi(httpClient, json) { effectiveKeys["SYNOPTIC"] }
     private val aviationWeatherApi = AviationWeatherApi(httpClient, json)
+    private val nwsMetarTextApi = injectedNwsMetarTextApi ?: NwsMetarTextApi(httpClient)
 
     /** One station's latest observation + web merge: the step Android runs too (plans/261013-shared-current-conditions-fetch.md). */
     private val latestFetcher = NwsStationLatestFetcher(
@@ -758,40 +762,16 @@ class DesktopWeatherService(
             end.minus(historyDays, ChronoUnit.DAYS)
         }
 
-        // Production uses one token-free Aviation Weather batch as the current freshness leg. It
-        // starts before the NWS station jobs, so both transports overlap. An explicitly injected
-        // Synoptic test double keeps the legacy test seam without putting Synoptic back in the
-        // production path.
-        val parallelMetarDeferred = if (injectedSynopticApi == null) {
-            async {
-                metarFetcher.fetchObservationsResult(
-                    latitude,
-                    longitude,
-                    hours = RECENT_BORROWED_METAR_HOURS,
-                    limit = MAX_OBSERVATION_STATIONS,
-                )
-            }
-        } else {
-            null
-        }
-        val web = if (parallelMetarDeferred != null) {
-            NwsStationLatestFetcher.WebSource("aviation_weather") { station, _, _ ->
-                NwsStationLatestFetcher.batchRows(parallelMetarDeferred.await(), station.id, System.currentTimeMillis())
-            }
-        } else {
-            NwsStationLatestFetcher.WebSource("synoptic_test") { station, index, apiNewestMs ->
-                val windowMinutes = if (ObservationFallbackPolicy.shouldFetchWeb(index)) {
-                    ObservationFallbackPolicy.webFallbackWindowMinutes(apiNewestMs, System.currentTimeMillis())
-                } else {
-                    ObservationFallbackPolicy.METRICS_WINDOW_MINUTES
-                }
-                when (val outcome = synopticApi.fetchSynopticObservations(station.id, windowMinutes, station.name)) {
-                    is FetchOutcome.Success -> FetchOutcome.Success(outcome.value.map { it.toReading(station, isWebFallback = true) })
-                    is FetchOutcome.NoData -> FetchOutcome.NoData
-                    is FetchOutcome.Failed -> outcome
-                }
-            }
-        }
+        // The web leg: NWS's own latest-METAR file per station, started before the NWS station jobs
+        // so both transports overlap. No token and no third party — not Synoptic, not
+        // aviationweather.gov (plans/261015-nws-web-leg-from-nws-tgftp-metar-text.md).
+        val web = NwsMetarTextWeb.start(
+            this,
+            nwsMetarTextApi,
+            stations.take(MAX_OBSERVATION_STATIONS),
+            latitude,
+            longitude,
+        )
 
         val historyFetcher = NwsStationHistoryFetcher(
             observations = { station, startIso, endIso ->
@@ -870,8 +850,8 @@ class DesktopWeatherService(
                     // Every upstream failed outright — leave fetchedAt frozen (a dead network
                     // must not masquerade as a silent station) and report the failure durably.
                     val nwsReason = (historicalOutcome as? FetchOutcome.Failed)?.reason ?: "unknown"
-                    val synopticReason = latestResult.webFailureReason ?: "not_tried"
-                    weatherDao?.log("NWS_STATION_FAIL", "station=${station.id} nws=$nwsReason synoptic=$synopticReason", "WARN")
+                    val webReason = latestResult.webFailureReason ?: "not_tried"
+                    weatherDao?.log("NWS_STATION_FAIL", "station=${station.id} nws=$nwsReason web=$webReason", "WARN")
                     null
                 }
             }

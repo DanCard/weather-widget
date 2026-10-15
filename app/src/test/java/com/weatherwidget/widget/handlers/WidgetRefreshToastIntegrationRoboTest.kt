@@ -44,8 +44,8 @@ import java.time.ZoneId
 /**
  * Real widget tap handlers + RefreshScheduler + RefreshToast + Room + WorkManager (test driver): each
  * tap shows one two-second notice on the tapped widget's banner (never a Toast — Android drops those
- * from a background app without notification permission) saying what it queued, or why nothing; and
- * browsing taps say nothing when nothing was queued. plans/261015-refresh-queued-toast-all-surfaces.md
+ * from a background app without notification permission) saying what it queued, or why nothing;
+ * browsing taps say nothing when nothing was queued, and source changes say nothing at all. plans/261015-refresh-queued-toast-all-surfaces.md
  */
 @Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
@@ -113,17 +113,26 @@ class WidgetRefreshToastIntegrationRoboTest {
 
     private fun rows() = runBlocking { db.appLogDao().getLogsByTag("REFRESH_TOAST", 20).map { it.message } }
 
+    private fun oneTimeSyncTags(): List<Set<String>> =
+        androidx.work.WorkManager.getInstance(context)
+            .getWorkInfosForUniqueWork(com.weatherwidget.widget.WidgetWorkScheduler.WORK_NAME_ONE_TIME)
+            .get(5, java.util.concurrent.TimeUnit.SECONDS)
+            .filterNot { it.state.isFinished }
+            .map { it.tags }
+
+    // A source change is looking, not asking for data: no notice, whatever it queued (user,
+    // 2026-10-15). The refresh still happens and the row still records it.
+
     @Test
-    fun `toggle onto a source with no data - one toast, forecast and observations queued`() = runBlocking {
+    fun `toggle onto a source with no data queues a refresh but shows nothing`() = runBlocking {
         try { WidgetIntentRouter.handleToggleApi(context, widgetId) } catch (_: Exception) {}
 
-        // The stale check queued BOTH and the window check queued FORECAST: merged into one toast.
-        assertEquals("Forecast and observations refresh queued", banner())
-        assertEquals(listOf("origin=widget_toggle_api queued=BOTH shown banner=1"), rows())
+        assertEquals(null, banner())
+        assertEquals(listOf("origin=widget_toggle_api queued=BOTH silent"), rows())
     }
 
     @Test
-    fun `toggle onto a fresh source says nothing - toggling is browsing`() = runBlocking {
+    fun `toggle onto a fresh source shows nothing`() = runBlocking {
         seedFresh(WeatherSource.OPEN_METEO)
         mockkObject(GraphInteractionRenderer)
         coEvery { GraphInteractionRenderer.selectedSourceNeedsRefresh(any(), any(), any(), any(), any(), any()) } returns false
@@ -131,12 +140,11 @@ class WidgetRefreshToastIntegrationRoboTest {
         try { WidgetIntentRouter.handleToggleApi(context, widgetId) } catch (_: Exception) {}
 
         assertEquals(null, banner())
-        assertEquals(emptyList<String>(), rows())
+        assertTrue(rows().toString(), rows().all { it.startsWith("origin=widget_toggle_api ") && it.endsWith(" silent") })
     }
 
     @Test
-    fun `toggle onto a quota-blocked source - names the source and the block's end`() = runBlocking {
-        // No data at all: only the quota block stops the refresh.
+    fun `toggle onto a quota-blocked source shows nothing`() = runBlocking {
         val until = System.currentTimeMillis() + 3_600_000L
         com.weatherwidget.data.model.ForecastProduct.entries.forEach {
             SourceQuotaBlocks.block(WeatherSource.OPEN_METEO.id, it, until)
@@ -146,8 +154,44 @@ class WidgetRefreshToastIntegrationRoboTest {
 
         try { WidgetIntentRouter.handleToggleApi(context, widgetId) } catch (_: Exception) {}
 
-        val shown = banner()!!
-        assertTrue(shown, shown.startsWith("${WeatherSource.OPEN_METEO.shortDisplayName} limit reached · next refresh after "))
+        assertEquals(null, banner())
+        assertTrue(rows().toString(), rows().single().contains("none=QUOTA") && rows().single().endsWith(" silent"))
+    }
+
+    @Test
+    fun `home button back to a fresh primary source shows nothing`() = runBlocking {
+        // The Pixel, 2026-10-15: "NWS forecast up to date · 85m ago" after the home tap.
+        seedFresh(WeatherSource.NWS)
+        stateManager.setCurrentDisplaySource(widgetId, WeatherSource.OPEN_METEO)
+
+        try { WidgetIntentRouter.handleResetSource(context, widgetId) } catch (_: Exception) {}
+
+        assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(widgetId))
+        assertEquals(null, banner())
+        assertTrue(rows().toString(), rows().all { it.startsWith("origin=widget_reset_source ") && it.endsWith(" silent") })
+    }
+
+    @Test
+    fun `home tap during another source's sync - its refresh queues behind it instead of being dropped`() = runBlocking {
+        // The Samsung, 2026-10-15: toggle to a stale Open-Meteo, home back to a stale NWS 3 s later;
+        // the NWS request joined the Open-Meteo-only sync under KEEP and NWS was never fetched. The
+        // Open-Meteo sync is held by a delay to stay pending (undelayed work runs at once here).
+        com.weatherwidget.widget.WidgetWorkScheduler.enqueueForcedSync(
+            context, "toggle_api_stale", androidx.work.ExistingWorkPolicy.KEEP,
+            initialDelayMs = 60_000, targetSourceId = WeatherSource.OPEN_METEO.id,
+        )
+        stateManager.setCurrentDisplaySource(widgetId, WeatherSource.OPEN_METEO)
+
+        try { WidgetIntentRouter.handleResetSource(context, widgetId) } catch (_: Exception) {}
+
+        val targets = oneTimeSyncTags().map { tags -> tags.single { it.startsWith("forced_target:") } }
+        assertEquals(
+            setOf("forced_target:${WeatherSource.OPEN_METEO.id}", "forced_target:${WeatherSource.NWS.id}"),
+            targets.toSet(),
+        )
+        assertEquals(2, targets.size)
+        assertEquals(null, banner())
+        assertEquals(listOf("origin=widget_reset_source queued=BOTH silent"), rows())
     }
 
     @Test
@@ -198,17 +242,19 @@ class WidgetRefreshToastIntegrationRoboTest {
 
     @Test
     fun `the notice never covers another message already on the widget`() = runBlocking {
+        stateManager.setViewMode(widgetId, ViewMode.TEMPERATURE)
         stateManager.setTransientMessage(widgetId, "Getting weather for Mountain View…", System.currentTimeMillis() + 60_000L)
 
-        try { WidgetIntentRouter.handleToggleApi(context, widgetId) } catch (_: Exception) {}
+        try { WidgetIntentRouter.handleCycleZoom(context, widgetId) } catch (_: Exception) {}
 
         assertEquals("Getting weather for Mountain View…", banner())
-        assertEquals(listOf("origin=widget_toggle_api queued=BOTH suppressed busy"), rows())
+        assertEquals(listOf("origin=widget_zoom queued=BOTH suppressed busy"), rows())
     }
 
     @Test
     fun `the banner clears itself after two seconds`() = runBlocking {
-        try { WidgetIntentRouter.handleToggleApi(context, widgetId) } catch (_: Exception) {}
+        stateManager.setViewMode(widgetId, ViewMode.TEMPERATURE)
+        try { WidgetIntentRouter.handleCycleZoom(context, widgetId) } catch (_: Exception) {}
         assertEquals("Forecast and observations refresh queued", banner())
 
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RefreshNotice.DURATION_MS))

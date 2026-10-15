@@ -76,8 +76,7 @@ class DesktopNwsBlendStaleTest {
             37.4220, -122.0841, "NWS",
             injectedHttpClient = httpClient,
             injectedNwsApi = nwsApi,
-            // Blank token: Synoptic is not configured, so KNUQ is the only station.
-            injectedSynopticApi = SynopticApi(httpClient, Json) { "" },
+            // The NWS METAR text file 404s here: KNUQ's API reading is all there is.
         )
 
         service.fetchObservationsOnly(recentOnly = false)

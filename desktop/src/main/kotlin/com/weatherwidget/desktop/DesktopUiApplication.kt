@@ -337,30 +337,7 @@ internal fun runDesktopUiApplication() = application {
                     val trigger = appDataDir().resolve(CONFIG_CHANGED_TRIGGER)
                     java.nio.file.Files.writeString(trigger, "", java.nio.charset.StandardCharsets.UTF_8)
                 }
-                // A source cycle makes the daemon refresh the new source if it is old enough: say
-                // which (plans/261015-refresh-queued-toast-all-surfaces.md).
-                val cycleSurface = sourceCycleNoticeSurface(source)
-                if (prev != null && cycleSurface != null && prev.displaySource != effective.displaySource) {
-                    uiScope.launch {
-                        val notice = withContext(Dispatchers.IO) {
-                            val shown = WeatherSource.fromDisplaySource(effective.displaySource)
-                            val lastForecast = weatherDao.getLastSuccessfulFetch(shown.id)
-                            sourceCycleNotice(
-                                // The daemon asks loadCached(); a successful fetch is the cheap proxy.
-                                cachePresent = lastForecast != null,
-                                lastObservationFetchMs = weatherDao.getLatestObservationFetchedAt(
-                                    effective.lat,
-                                    effective.lon,
-                                    ActualsProviderResolver.providerIdFor(shown),
-                                ),
-                                lastForecastFetchMs = lastForecast,
-                                sourceName = shown.shortDisplayName,
-                            )
-                        }
-                        // Cycling is browsing: "up to date" is dropped (user, 2026-10-15).
-                        if (!RefreshNotice.isUpToDate(notice)) refreshNotice.show(notice, cycleSurface, "source_cycle:$source")
-                    }
-                }
+                // A source cycle shows no notice, whatever the daemon fetches for it (user, 2026-10-15).
                 Unit
             }
         }
@@ -1285,13 +1262,6 @@ internal fun refreshNoticeSurface(origin: String): RefreshNoticeSurface = when (
     "history" -> RefreshNoticeSurface.HISTORY
     "observations" -> RefreshNoticeSurface.OBSERVATIONS
     else -> RefreshNoticeSurface.SETTINGS
-}
-
-/** Config writers whose source change is the user cycling sources; null for the rest (Settings, picker). */
-internal fun sourceCycleNoticeSurface(configSource: String): RefreshNoticeSurface? = when (configSource) {
-    "popup" -> RefreshNoticeSurface.POPUP
-    "observations", "observations-window" -> RefreshNoticeSurface.OBSERVATIONS
-    else -> null
 }
 
 private fun formatAge(ageMillis: Long): String =

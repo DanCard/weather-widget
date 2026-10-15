@@ -167,7 +167,18 @@ class RefreshToastRoboTest {
     }
 
     @Test
-    fun `refreshIfStale - a sync already waiting absorbs the forecast, only observations are queued`() = runBlocking {
+    fun `refreshIfStale - a sync already forced for the source absorbs the forecast, only observations are queued`() = runBlocking {
+        WidgetWorkScheduler.enqueueForcedSync(
+            context, "earlier", ExistingWorkPolicy.KEEP, initialDelayMs = 3_600_000L, targetSourceId = WeatherSource.NWS.id,
+        )
+
+        val notice = RefreshScheduler.refreshIfStale(context, 0L, "toggle_api", db.appLogDao(), WeatherSource.NWS.id)
+
+        assertEquals(Queued(Kind.OBSERVATIONS), notice)
+    }
+
+    @Test
+    fun `refreshIfStale - a sync waiting for another source does not absorb this one's forecast`() = runBlocking {
         WorkManager.getInstance(context).enqueueUniqueWork(
             WidgetWorkScheduler.WORK_NAME_ONE_TIME,
             ExistingWorkPolicy.KEEP,
@@ -176,7 +187,7 @@ class RefreshToastRoboTest {
 
         val notice = RefreshScheduler.refreshIfStale(context, 0L, "toggle_api", db.appLogDao(), WeatherSource.NWS.id)
 
-        assertEquals(Queued(Kind.OBSERVATIONS), notice)
+        assertEquals(Queued(Kind.BOTH), notice)
     }
 
     @Test
