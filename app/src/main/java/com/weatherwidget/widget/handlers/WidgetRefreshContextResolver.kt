@@ -29,6 +29,8 @@ internal class WidgetRefreshContextResolver(
         val location: Location,
         val displaySource: WeatherSource,
         val latestSuccessfulOrContentAtMs: Long?,
+        /** What this interaction's stale check queued, or why nothing; set by the action handler. */
+        val refreshNotice: com.weatherwidget.shared.util.RefreshNotice? = null,
     )
 
     /** Null when no location is resolvable at all — there is nothing to build a refresh context around. */

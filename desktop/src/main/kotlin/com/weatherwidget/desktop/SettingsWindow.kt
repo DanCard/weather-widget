@@ -485,6 +485,7 @@ internal fun SettingsWindow(
                     hostState = snackbarHostState,
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
+                RefreshNoticePill(RefreshNoticeSurface.SETTINGS, Modifier.align(Alignment.BottomCenter))
             }
         }
     }

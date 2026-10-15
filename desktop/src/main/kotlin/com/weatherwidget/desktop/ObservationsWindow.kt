@@ -317,6 +317,7 @@ internal fun ObservationsWindow(
                 color = ObsStyle.background,
                 contentColor = Color.White
             ) {
+                Box(Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Header
                     Row(
@@ -467,6 +468,8 @@ internal fun ObservationsWindow(
                             else -> LogList(logs)
                         }
                     }
+                }
+                RefreshNoticePill(RefreshNoticeSurface.OBSERVATIONS, Modifier.align(Alignment.BottomCenter))
                 }
             }
         }

@@ -36,7 +36,13 @@ object SourceSwitchFetch {
     const val WORK_TAG = "source_switch_fetch"
 
     /** What [start] did — returned for tests; WorkManager does not expose a request's input. */
-    data class Started(val request: OneTimeWorkRequest, val bannerShown: Boolean, val hadCache: Boolean)
+    data class Started(
+        val request: OneTimeWorkRequest,
+        val bannerShown: Boolean,
+        val hadCache: Boolean,
+        /** For the Settings toast: no cache → a forced fetch was queued; a fresh cache → up to date. */
+        val notice: com.weatherwidget.shared.util.RefreshNotice,
+    )
 
     fun message(context: Context, source: WeatherSource): String =
         context.getString(R.string.widget_fetching_source, source.displayName)
@@ -60,7 +66,24 @@ object SourceSwitchFetch {
                 "widgets=${ids.size} location=${location != null}",
             "INFO",
         )
-        return Started(request, banner, hasCache)
+        val notice = when {
+            location == null -> com.weatherwidget.shared.util.RefreshNotice.NotQueued(
+                com.weatherwidget.shared.util.RefreshNotice.Reason.NO_LOCATION,
+            )
+            // The unforced sync fetches only if the cadence says so; the drawable cache is fresh.
+            hasCache -> com.weatherwidget.shared.util.RefreshNotice.NotQueued(
+                com.weatherwidget.shared.util.RefreshNotice.Reason.UP_TO_DATE,
+                sourceName = source.shortDisplayName,
+                ageMs = com.weatherwidget.widget.handlers.WidgetRefreshContextResolver.freshestAt(
+                    db.forecastDao().getLatestForecastBySource(source.id, location.first, location.second)?.fetchedAt,
+                    com.weatherwidget.data.repository.FetchMetadata
+                        .getLastForecastSourceSuccessTime(context, source.id, location.first, location.second)
+                        .takeIf { it > 0L },
+                )?.let { System.currentTimeMillis() - it },
+            )
+            else -> com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST)
+        }
+        return Started(request, banner, hasCache, notice)
     }
 
     /**

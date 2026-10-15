@@ -31,7 +31,14 @@
     <string name="back">Назад</string>
     <string name="refresh">Обновить</string>
     <string name="refresh_now">Обновить данные</string>
-    <string name="refresh_now_enqueued_toast">Обновление данных поставлено в очередь</string>
+    <string name="refresh_queued_forecast">Обновление прогноза поставлено в очередь</string>
+    <string name="refresh_queued_observations">Обновление наблюдений поставлено в очередь</string>
+    <string name="refresh_queued_both">Обновление прогноза и наблюдений поставлено в очередь</string>
+    <string name="refresh_up_to_date_forecast">Прогноз %1$s актуален · %2$s назад</string>
+    <string name="refresh_up_to_date_observations">Наблюдения %1$s актуальны · %2$s назад</string>
+    <string name="refresh_already_queued">Обновление уже в очереди</string>
+    <string name="refresh_in_progress">Обновление уже выполняется</string>
+    <string name="refresh_quota_blocked">Лимит %1$s исчерпан · следующее обновление после %2$s</string>
     <string name="nav_previous">Предыдущие дни</string>
     <string name="nav_next">Следующие дни</string>
     <string name="weather_icon_desc">Значок погодных условий</string>

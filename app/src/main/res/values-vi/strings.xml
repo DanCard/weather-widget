@@ -31,7 +31,14 @@
     <string name="back">Quay lại</string>
     <string name="refresh">Làm mới</string>
     <string name="refresh_now">Làm mới dữ liệu</string>
-    <string name="refresh_now_enqueued_toast">Đã xếp hàng làm mới dữ liệu</string>
+    <string name="refresh_queued_forecast">Đã xếp hàng làm mới dự báo</string>
+    <string name="refresh_queued_observations">Đã xếp hàng làm mới quan trắc</string>
+    <string name="refresh_queued_both">Đã xếp hàng làm mới dự báo và quan trắc</string>
+    <string name="refresh_up_to_date_forecast">Dự báo %1$s đã cập nhật · %2$s trước</string>
+    <string name="refresh_up_to_date_observations">Quan trắc %1$s đã cập nhật · %2$s trước</string>
+    <string name="refresh_already_queued">Đã có lượt làm mới trong hàng đợi</string>
+    <string name="refresh_in_progress">Đang làm mới</string>
+    <string name="refresh_quota_blocked">Đã đạt giới hạn %1$s · làm mới tiếp theo sau %2$s</string>
     <string name="nav_previous">Những ngày trước</string>
     <string name="nav_next">Những ngày sau</string>
     <string name="weather_icon_desc">Biểu tượng điều kiện thời tiết</string>

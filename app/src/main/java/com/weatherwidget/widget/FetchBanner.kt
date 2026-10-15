@@ -66,6 +66,23 @@ object FetchBanner {
         return cleared
     }
 
+    /**
+     * For a timed notice: hides [text] when its time is up — also once it has already expired, which
+     * [clear] skips. Expiry alone never hides it on screen: banner visibility is sticky across repaints
+     * (memory remoteviews_visibility_is_sticky). A different message that took the slot meanwhile stays.
+     */
+    fun expire(context: Context, text: String, ids: IntArray) {
+        val stateManager = WidgetStateManager(context)
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        ids.forEach { id ->
+            val active = stateManager.getActiveTransientMessage(id)
+            if (active == null || active == text) {
+                if (active != null) stateManager.clearTransientMessage(id)
+                push(context, appWidgetManager, id, null)
+            }
+        }
+    }
+
     private fun push(context: Context, appWidgetManager: AppWidgetManager, id: Int, text: String?) {
         runCatching {
             val views = RemoteViews(context.packageName, R.layout.widget_weather)

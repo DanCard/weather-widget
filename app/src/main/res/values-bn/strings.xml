@@ -31,7 +31,14 @@
     <string name="back">ফিরে যান</string>
     <string name="refresh">রিফ্রেশ</string>
     <string name="refresh_now">ডেটা রিফ্রেশ করুন</string>
-    <string name="refresh_now_enqueued_toast">ডেটা রিফ্রেশ সারিতে যুক্ত হয়েছে</string>
+    <string name="refresh_queued_forecast">পূর্বাভাস রিফ্রেশ সারিতে যুক্ত হয়েছে</string>
+    <string name="refresh_queued_observations">পর্যবেক্ষণ রিফ্রেশ সারিতে যুক্ত হয়েছে</string>
+    <string name="refresh_queued_both">পূর্বাভাস ও পর্যবেক্ষণ রিফ্রেশ সারিতে যুক্ত হয়েছে</string>
+    <string name="refresh_up_to_date_forecast">%1$s পূর্বাভাস হালনাগাদ · %2$s আগে</string>
+    <string name="refresh_up_to_date_observations">%1$s পর্যবেক্ষণ হালনাগাদ · %2$s আগে</string>
+    <string name="refresh_already_queued">রিফ্রেশ ইতিমধ্যে সারিতে আছে</string>
+    <string name="refresh_in_progress">রিফ্রেশ ইতিমধ্যে চলছে</string>
+    <string name="refresh_quota_blocked">%1$s সীমা পূর্ণ · পরের রিফ্রেশ %2$s এর পরে</string>
     <string name="nav_previous">আগের দিনগুলি</string>
     <string name="nav_next">পরের দিনগুলি</string>
     <string name="weather_icon_desc">আবহাওয়া অবস্থার আইকন</string>

@@ -8,6 +8,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.work.ExistingWorkPolicy
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
+import com.weatherwidget.shared.util.RefreshNotice
 import com.weatherwidget.widget.BatteryFetchStrategy
 import com.weatherwidget.widget.CurrentTempUpdateScheduler
 import com.weatherwidget.widget.WidgetWorkScheduler
@@ -104,13 +105,16 @@ object RefreshScheduler {
         targetSourceId: String? = null,
         // Refresh daily and current; hourly only when HourlyCadence says it is due (ForecastParts.forForced).
         hourlyLimited: Boolean = false,
-    ) {
+    ): RefreshNotice {
         if (isRefreshDisabledForTesting) {
             Log.d(TAG, "Skipping forced refresh in test mode (reason=$reason, target=$targetSourceId)")
             lastForcedRefreshForTesting = ForcedRefreshRequest(reason, targetSourceId, hourlyLimited)
-            return
+            return RefreshNotice.Queued(RefreshNotice.Kind.FORECAST)
         }
 
+        // Read before the enqueue: under KEEP a sync already pending or running absorbs this request,
+        // and its target source is not this one's — the toast must not claim a refresh it dropped.
+        val pending = if (policy == ExistingWorkPolicy.KEEP) WidgetWorkScheduler.pendingOneTimeSync(context) else null
         WidgetWorkScheduler.enqueueForcedSync(
             context = context,
             reason = reason,
@@ -119,8 +123,14 @@ object RefreshScheduler {
             targetSourceId = targetSourceId,
             hourlyLimited = hourlyLimited,
         )
+        return pending?.let { RefreshNotice.NotQueued(it) } ?: RefreshNotice.Queued(RefreshNotice.Kind.FORECAST)
     }
 
+    /**
+     * Returns what it did, for the user's toast ([RefreshNotice]): the forced sync plus the current-temp
+     * update (BOTH), only the latter when a pending sync absorbed the former, or why nothing was queued.
+     * Null in test mode.
+     */
     suspend fun refreshIfStale(
         context: Context,
         latestSuccessfulOrContentAtMs: Long?,
@@ -128,9 +138,9 @@ object RefreshScheduler {
         appLogDao: AppLogDao? = null,
         targetSourceId: String? = null,
         hourlyLimited: Boolean = false,
-    ) {
+    ): RefreshNotice? {
         if (isRefreshDisabledForTesting) {
-            return
+            return null
         }
         val nowMs = System.currentTimeMillis()
         val staleReason = "stale_on_$reason"
@@ -141,7 +151,11 @@ object RefreshScheduler {
                 "STALE_REFRESH_SKIP",
                 "reason=$staleReason skip=quota_blocked source=$targetSourceId until=$until",
             )
-            return
+            return RefreshNotice.NotQueued(
+                RefreshNotice.Reason.QUOTA,
+                sourceName = sourceName(targetSourceId),
+                untilMs = until,
+            )
         }
         val prefs = context.getSharedPreferences("widget_refresh", Context.MODE_PRIVATE)
         val lastEnqueueMs = prefs.getLong("last_enqueue_$staleReason", -1L).takeIf { it >= 0L }
@@ -158,11 +172,19 @@ object RefreshScheduler {
                     "reason=${decision.reason} skip=${decision.skipReason}",
                 )
             }
-            return
+            return if (decision.skipReason == "fresh_data") {
+                RefreshNotice.NotQueued(
+                    RefreshNotice.Reason.UP_TO_DATE,
+                    sourceName = sourceName(targetSourceId),
+                    ageMs = latestSuccessfulOrContentAtMs?.let { nowMs - it },
+                )
+            } else {
+                RefreshNotice.NotQueued(RefreshNotice.Reason.ALREADY_QUEUED)
+            }
         }
         val ageMin = (nowMs - (latestSuccessfulOrContentAtMs ?: 0L)) / 1000 / 60
         prefs.edit().putLong("last_enqueue_${decision.reason}", nowMs).apply()
-        enqueueForcedRefresh(
+        val forecast = enqueueForcedRefresh(
             context,
             reason = decision.reason,
             policy = decision.policy,
@@ -185,5 +207,9 @@ object RefreshScheduler {
                     "hourlyLimited=$hourlyLimited",
             )
         }
+        return RefreshNotice.merge(forecast, RefreshNotice.Queued(RefreshNotice.Kind.OBSERVATIONS))
     }
+
+    private fun sourceName(sourceId: String?): String? =
+        sourceId?.let { com.weatherwidget.data.model.WeatherSource.fromId(it).shortDisplayName }
 }

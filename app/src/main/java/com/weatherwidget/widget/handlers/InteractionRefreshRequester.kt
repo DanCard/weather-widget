@@ -5,20 +5,24 @@ import android.util.Log
 import androidx.work.ExistingWorkPolicy
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
+import com.weatherwidget.shared.util.RefreshNotice
 import kotlinx.coroutines.CancellationException
 
 /**
  * Isolates best-effort WorkManager hand-offs from cache-backed widget rendering. Scheduling errors
  * are diagnostic events, not reasons to leave already-mutated widget state visually unapplied.
+ *
+ * Each request returns what it did ([RefreshNotice]) for the user's toast; null when it failed or ran
+ * in test mode — no toast is better than a wrong one.
  */
 internal class InteractionRefreshRequester(
     private val staleRequest:
-        suspend (Context, Long?, String, AppLogDao?, String?, Boolean) -> Unit =
+        suspend (Context, Long?, String, AppLogDao?, String?, Boolean) -> RefreshNotice? =
         { context, freshnessAtMs, reason, appLogDao, targetSourceId, hourlyLimited ->
             RefreshScheduler.refreshIfStale(context, freshnessAtMs, reason, appLogDao, targetSourceId, hourlyLimited)
         },
     private val forcedRequest:
-        (Context, String, ExistingWorkPolicy, Long, String?, Boolean) -> Unit =
+        (Context, String, ExistingWorkPolicy, Long, String?, Boolean) -> RefreshNotice =
         RefreshScheduler::enqueueForcedRefresh,
 ) {
     suspend fun requestIfStale(
@@ -26,8 +30,8 @@ internal class InteractionRefreshRequester(
         refreshContext: WidgetRefreshContextResolver.Resolved,
         reason: String,
         hourlyLimited: Boolean = false,
-    ) {
-        try {
+    ): RefreshNotice? {
+        return try {
             staleRequest(
                 context,
                 refreshContext.latestSuccessfulOrContentAtMs,
@@ -47,6 +51,7 @@ internal class InteractionRefreshRequester(
                 "reason=stale_on_$reason ${e.javaClass.simpleName}: ${e.message}",
                 e,
             )
+            null
         }
     }
 
@@ -56,8 +61,8 @@ internal class InteractionRefreshRequester(
         reason: String,
         targetSourceId: String?,
         hourlyLimited: Boolean = false,
-    ) {
-        try {
+    ): RefreshNotice? {
+        return try {
             forcedRequest(context, reason, ExistingWorkPolicy.KEEP, 0L, targetSourceId, hourlyLimited)
         } catch (e: CancellationException) {
             throw e
@@ -68,6 +73,7 @@ internal class InteractionRefreshRequester(
                 "reason=$reason target=$targetSourceId ${e.javaClass.simpleName}: ${e.message}",
                 e,
             )
+            null
         }
     }
 

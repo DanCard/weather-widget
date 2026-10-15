@@ -31,7 +31,14 @@
     <string name="back">واپس</string>
     <string name="refresh">ریفریش</string>
     <string name="refresh_now">ڈیٹا ریفریش کریں</string>
-    <string name="refresh_now_enqueued_toast">ڈیٹا ریفریش قطار میں شامل ہو گیا</string>
+    <string name="refresh_queued_forecast">پیشگوئی ریفریش قطار میں شامل ہو گیا</string>
+    <string name="refresh_queued_observations">مشاہدات ریفریش قطار میں شامل ہو گیا</string>
+    <string name="refresh_queued_both">پیشگوئی اور مشاہدات ریفریش قطار میں شامل ہو گیا</string>
+    <string name="refresh_up_to_date_forecast">%1$s پیشگوئی تازہ ہے · %2$s پہلے</string>
+    <string name="refresh_up_to_date_observations">%1$s مشاہدات تازہ ہیں · %2$s پہلے</string>
+    <string name="refresh_already_queued">ریفریش پہلے سے قطار میں ہے</string>
+    <string name="refresh_in_progress">ریفریش پہلے سے جاری ہے</string>
+    <string name="refresh_quota_blocked">%1$s کی حد پوری ہو گئی · اگلا ریفریش %2$s کے بعد</string>
     <string name="nav_previous">پچھلے دن</string>
     <string name="nav_next">اگلے دن</string>
     <string name="weather_icon_desc">موسمی حالت کا آئیکن</string>

@@ -173,6 +173,7 @@ internal fun ForecastHistoryWindow(
 
         MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
             Surface(color = ObsStyle.background, contentColor = Color.White) {
+                Box(Modifier.fillMaxSize()) {
                 Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
                 Header(
                     targetDate = targetDate,
@@ -201,6 +202,8 @@ internal fun ForecastHistoryWindow(
                     d == null -> Text("No data.", color = ObsStyle.textSecondary)
                     else -> Content(d, graphMode, source, config.settings.useCelsius)
                 }
+                }
+                RefreshNoticePill(RefreshNoticeSurface.HISTORY, Modifier.align(Alignment.BottomCenter))
             }
         }
         }

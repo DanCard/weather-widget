@@ -13,6 +13,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.RefreshNotice
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
 import kotlinx.coroutines.runBlocking
@@ -111,6 +112,7 @@ class SourceSwitchFetchIntegrationTest {
         assertEquals(WeatherSource.GOOGLE_WEATHER.id, input.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE))
         assertEquals(WeatherSource.GOOGLE_WEATHER.id, input.getString(WeatherWidgetWorker.KEY_SOURCE_SWITCH_ID))
         assertTrue(started.request.workSpec.expedited)
+        assertEquals(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST), started.notice)
         val queued = WorkManager.getInstance(context).getWorkInfosByTag(SourceSwitchFetch.WORK_TAG).get(5, TimeUnit.SECONDS)
         assertEquals(listOf(started.request.id), queued.map { it.id })
     }
@@ -124,6 +126,11 @@ class SourceSwitchFetchIntegrationTest {
         assertFalse(started.bannerShown)
         assertFalse(started.request.workSpec.input.getBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true))
         widgets.forEach { assertNull(WidgetStateManager(context).getActiveTransientMessage(it)) }
+        // The Settings toast: up to date, named, with the cache's age (seeded just now).
+        val notice = started.notice as RefreshNotice.NotQueued
+        assertEquals(RefreshNotice.Reason.UP_TO_DATE, notice.reason)
+        assertEquals(WeatherSource.GOOGLE_WEATHER.shortDisplayName, notice.sourceName)
+        assertTrue("age ${notice.ageMs}", notice.ageMs!! in 0L..60_000L)
     }
 
     @Test

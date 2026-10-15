@@ -368,12 +368,17 @@ class WeatherObservationsActivity : AppCompatActivity() {
             val location = withContext(ioDispatcher) { resolveLocation() }
 
             if (location == null) {
-                android.widget.Toast.makeText(this@WeatherObservationsActivity, getString(R.string.obs_no_location_to_refresh), android.widget.Toast.LENGTH_SHORT).show()
+                com.weatherwidget.widget.RefreshToast.show(
+                    this@WeatherObservationsActivity,
+                    "observations_refresh",
+                    com.weatherwidget.shared.util.RefreshNotice.NotQueued(com.weatherwidget.shared.util.RefreshNotice.Reason.NO_LOCATION),
+                )
                 return@launch
             }
             
             findViewById<View>(R.id.refresh_button).isEnabled = false
             findViewById<View>(R.id.refresh_button).alpha = 0.5f
+            com.weatherwidget.widget.RefreshToast.show(this@WeatherObservationsActivity, "observations_refresh", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.OBSERVATIONS))
             
             // In the app scope, not lifecycleScope: closing this screen mid-fetch cancelled the
             // fetch and stored nothing (Fold 4, 2026-10-13). Leaving now cancels only the waiting.
@@ -486,6 +491,10 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     displaySource = currentSource,
                     chosenProvider = chosen,
                 )
+                // A forced full sync of the displayed source: it re-reads that source's actuals.
+                lifecycleScope.launch {
+                    com.weatherwidget.widget.RefreshToast.show(this@WeatherObservationsActivity, "actuals_provider", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST))
+                }
                 widgetContentChanged = true
                 dialog.dismiss()
                 updateActualsSourceRow()

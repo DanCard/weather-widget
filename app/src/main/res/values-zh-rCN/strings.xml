@@ -31,7 +31,14 @@
     <string name="back">返回</string>
     <string name="refresh">刷新</string>
     <string name="refresh_now">刷新数据</string>
-    <string name="refresh_now_enqueued_toast">数据刷新已加入队列</string>
+    <string name="refresh_queued_forecast">预报刷新已加入队列</string>
+    <string name="refresh_queued_observations">观测刷新已加入队列</string>
+    <string name="refresh_queued_both">预报和观测刷新已加入队列</string>
+    <string name="refresh_up_to_date_forecast">%1$s 预报已是最新 · %2$s前</string>
+    <string name="refresh_up_to_date_observations">%1$s 观测已是最新 · %2$s前</string>
+    <string name="refresh_already_queued">刷新已在队列中</string>
+    <string name="refresh_in_progress">刷新正在进行</string>
+    <string name="refresh_quota_blocked">已达到 %1$s 限额 · 下次刷新在 %2$s 之后</string>
     <string name="nav_previous">前几天</string>
     <string name="nav_next">后几天</string>
     <string name="weather_icon_desc">天气状况图标</string>

@@ -31,7 +31,14 @@
     <string name="back">กลับ</string>
     <string name="refresh">รีเฟรช</string>
     <string name="refresh_now">รีเฟรชข้อมูล</string>
-    <string name="refresh_now_enqueued_toast">จัดคิวรีเฟรชข้อมูลแล้ว</string>
+    <string name="refresh_queued_forecast">จัดคิวรีเฟรชพยากรณ์แล้ว</string>
+    <string name="refresh_queued_observations">จัดคิวรีเฟรชข้อมูลสังเกตการณ์แล้ว</string>
+    <string name="refresh_queued_both">จัดคิวรีเฟรชพยากรณ์และข้อมูลสังเกตการณ์แล้ว</string>
+    <string name="refresh_up_to_date_forecast">พยากรณ์ %1$s เป็นปัจจุบัน · %2$s ที่แล้ว</string>
+    <string name="refresh_up_to_date_observations">ข้อมูลสังเกตการณ์ %1$s เป็นปัจจุบัน · %2$s ที่แล้ว</string>
+    <string name="refresh_already_queued">มีการรีเฟรชอยู่ในคิวแล้ว</string>
+    <string name="refresh_in_progress">กำลังรีเฟรชอยู่</string>
+    <string name="refresh_quota_blocked">ถึงขีดจำกัดของ %1$s · รีเฟรชครั้งถัดไปหลัง %2$s</string>
     <string name="nav_previous">วันก่อนหน้า</string>
     <string name="nav_next">วันถัดไป</string>
     <string name="weather_icon_desc">ไอคอนสภาพอากาศ</string>

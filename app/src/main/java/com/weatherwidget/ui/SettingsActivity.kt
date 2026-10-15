@@ -173,7 +173,13 @@ class SettingsActivity : AppCompatActivity() {
                 currentRefreshWork,
             )
 
-            Toast.makeText(this, getString(R.string.refresh_now_enqueued_toast), Toast.LENGTH_SHORT).show()
+            lifecycleScope.launch {
+                com.weatherwidget.widget.RefreshToast.show(
+                    this@SettingsActivity,
+                    "settings_refresh",
+                    com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.BOTH),
+                )
+            }
             refreshDataButton.isEnabled = false
 
             observeRefreshCompletion(
@@ -430,7 +436,8 @@ class SettingsActivity : AppCompatActivity() {
                 WeatherSourceOrdering.newlyPrimary(currentIds, updatedIds)?.let { newPrimary ->
                     val appContext = applicationContext
                     lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                        com.weatherwidget.widget.SourceSwitchFetch.start(appContext, newPrimary, trigger = "settings_enable")
+                        val started = com.weatherwidget.widget.SourceSwitchFetch.start(appContext, newPrimary, trigger = "settings_enable")
+                        com.weatherwidget.widget.RefreshToast.show(appContext, "settings_enable", started.notice)
                     }
                 }
                 rebuildSourceRows(container)

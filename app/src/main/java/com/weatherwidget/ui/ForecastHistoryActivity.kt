@@ -752,7 +752,12 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val tapContext = "source=${source?.id} date=$targetLocalDate lat=$targetLat lon=$targetLon"
         if (source == null || refreshInFlight) {
             val outcome = if (source == null) "ignored_no_source" else "ignored_in_flight"
-            lifecycleScope.launch { appLogDao.log("HISTORY_REFRESH_TAP", "outcome=$outcome $tapContext", "INFO") }
+            lifecycleScope.launch {
+                appLogDao.log("HISTORY_REFRESH_TAP", "outcome=$outcome $tapContext", "INFO")
+                if (refreshInFlight) {
+                    com.weatherwidget.widget.RefreshToast.show(this@ForecastHistoryActivity, "history_refresh", com.weatherwidget.shared.util.RefreshNotice.NotQueued(com.weatherwidget.shared.util.RefreshNotice.Reason.IN_PROGRESS))
+                }
+            }
             return
         }
         refreshInFlight = true
@@ -761,6 +766,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         refreshButton.alpha = 0.5f
         lifecycleScope.launch {
             appLogDao.log("HISTORY_REFRESH_TAP", "outcome=fetch_started $tapContext", "INFO")
+            com.weatherwidget.widget.RefreshToast.show(this@ForecastHistoryActivity, "history_refresh", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST))
             val startMs = android.os.SystemClock.elapsedRealtime()
             val lat = targetLat
             val lon = targetLon

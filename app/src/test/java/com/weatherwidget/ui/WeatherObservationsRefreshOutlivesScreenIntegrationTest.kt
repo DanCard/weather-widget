@@ -109,6 +109,24 @@ class WeatherObservationsRefreshOutlivesScreenIntegrationTest {
         scenario.close()
     }
 
+    /** The two-second toast says what was queued as the fetch starts (plans/261015-refresh-queued-toast-all-surfaces.md). */
+    @Test
+    fun `refresh toasts observations queued at the start, before the fetch lands`() {
+        com.weatherwidget.widget.RefreshToast.resetForTesting()
+        val release = CompletableDeferred<Unit>()
+        val scenario = launchWithFetch { _, _, _ -> release.await() }
+        scenario.onActivity { it.findViewById<View>(R.id.refresh_button).performClick() }
+        waitUntil { org.robolectric.shadows.ShadowToast.shownToastCount() >= 1 }
+
+        assertEquals("Observations refresh queued", org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
+        val rows = runBlocking { database.appLogDao().getLogsByTag("REFRESH_TOAST", 10) }.map { it.message }
+        assertEquals(listOf("origin=observations_refresh queued=OBSERVATIONS shown"), rows)
+
+        release.complete(Unit)
+        waitUntil { scenario.buttonEnabled() }
+        scenario.close()
+    }
+
     private fun launchWithFetch(
         fetch: suspend (Double, Double, WeatherSource) -> Unit,
     ): ActivityScenario<WeatherObservationsActivity> {

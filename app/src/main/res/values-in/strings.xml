@@ -31,7 +31,14 @@
     <string name="back">Kembali</string>
     <string name="refresh">Segarkan</string>
     <string name="refresh_now">Segarkan data</string>
-    <string name="refresh_now_enqueued_toast">Penyegaran data dimasukkan ke antrean</string>
+    <string name="refresh_queued_forecast">Penyegaran prakiraan dimasukkan ke antrean</string>
+    <string name="refresh_queued_observations">Penyegaran observasi dimasukkan ke antrean</string>
+    <string name="refresh_queued_both">Penyegaran prakiraan dan observasi dimasukkan ke antrean</string>
+    <string name="refresh_up_to_date_forecast">Prakiraan %1$s terbaru · %2$s lalu</string>
+    <string name="refresh_up_to_date_observations">Observasi %1$s terbaru · %2$s lalu</string>
+    <string name="refresh_already_queued">Penyegaran sudah dalam antrean</string>
+    <string name="refresh_in_progress">Penyegaran sedang berlangsung</string>
+    <string name="refresh_quota_blocked">Batas %1$s tercapai · penyegaran berikutnya setelah %2$s</string>
     <string name="nav_previous">Hari sebelumnya</string>
     <string name="nav_next">Hari berikutnya</string>
     <string name="weather_icon_desc">Ikon kondisi cuaca</string>

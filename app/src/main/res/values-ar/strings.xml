@@ -31,7 +31,14 @@
     <string name="back">رجوع</string>
     <string name="refresh">تحديث</string>
     <string name="refresh_now">تحديث البيانات</string>
-    <string name="refresh_now_enqueued_toast">تمت جدولة تحديث البيانات</string>
+    <string name="refresh_queued_forecast">تمت جدولة تحديث التوقعات</string>
+    <string name="refresh_queued_observations">تمت جدولة تحديث الملاحظات</string>
+    <string name="refresh_queued_both">تمت جدولة تحديث التوقعات والملاحظات</string>
+    <string name="refresh_up_to_date_forecast">توقعات %1$s محدّثة · قبل %2$s</string>
+    <string name="refresh_up_to_date_observations">ملاحظات %1$s محدّثة · قبل %2$s</string>
+    <string name="refresh_already_queued">التحديث مجدول بالفعل</string>
+    <string name="refresh_in_progress">التحديث قيد التنفيذ بالفعل</string>
+    <string name="refresh_quota_blocked">تم بلوغ حد %1$s · التحديث التالي بعد %2$s</string>
     <string name="nav_previous">الأيام السابقة</string>
     <string name="nav_next">الأيام التالية</string>
     <string name="weather_icon_desc">رمز حالة الطقس</string>

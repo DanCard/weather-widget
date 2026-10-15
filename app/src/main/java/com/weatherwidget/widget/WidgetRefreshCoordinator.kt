@@ -1,5 +1,7 @@
 package com.weatherwidget.widget
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.os.PowerManager
 import android.util.Log
@@ -7,6 +9,7 @@ import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.util.RefreshNotice
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
 
 /** Owns cache repaint, freshness decisions, and widget heartbeat recovery. */
@@ -29,12 +32,13 @@ internal object WidgetRefreshCoordinator {
                 "isDataStale=$isDataStale targetWidget=${requestedWidgetId ?: "all"} $freshnessSummary",
             "INFO",
         )
-        repaintFromCache(context, repository, requestedWidgetId)
+        val cacheNotice = repaintFromCache(context, repository, requestedWidgetId)
         Log.d(
             TAG,
             "Direct cache repaint target=${requestedWidgetId ?: "all"} uiOnly=$uiOnly stale=$isDataStale",
         )
-        if (WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
+        val syncNotice = if (WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
+            val pending = WidgetWorkScheduler.pendingOneTimeSync(context)
             // Not forced: "stale" now means some source is due under the cadence, and a normal sync
             // fetches exactly the due sources. Forcing refetched every source, fresh or not.
             WidgetWorkScheduler.enqueueRedundantImmediateSync(
@@ -42,6 +46,19 @@ internal object WidgetRefreshCoordinator {
                 forceRefresh = false,
                 reason = "refresh_action_stale",
             )
+            pending?.let { RefreshNotice.NotQueued(it) } ?: RefreshNotice.Queued(RefreshNotice.Kind.FORECAST)
+        } else {
+            null
+        }
+        // "Tap to refresh" is the user asking for data, so it says what happened either way. The
+        // ui-only repaints app screens send on close stay silent.
+        if (!uiOnly) {
+            RefreshNotice.merge(cacheNotice, syncNotice)?.let { notice ->
+                val ids = requestedWidgetId?.let { intArrayOf(it) }
+                    ?: AppWidgetManager.getInstance(context)
+                        .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
+                RefreshToast.show(context, "widget_tap_to_refresh", notice, ids)
+            }
         }
     }
 
@@ -69,13 +86,12 @@ internal object WidgetRefreshCoordinator {
         context: Context,
         repository: WeatherRepository,
         requestedWidgetId: Int?,
-    ) {
+    ): RefreshNotice? =
         if (requestedWidgetId == null) {
             WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
         } else {
             WidgetIntentRouter.renderWidgetFromCache(context, requestedWidgetId, repository)
         }
-    }
 
     private const val TAG = "WidgetRefreshCoordinator"
 }

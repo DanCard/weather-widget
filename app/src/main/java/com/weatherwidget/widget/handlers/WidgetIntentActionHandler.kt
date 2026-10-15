@@ -10,6 +10,8 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.RefreshNotice
+import com.weatherwidget.widget.RefreshToast
 import com.weatherwidget.widget.SourceViewRecorder
 import com.weatherwidget.shared.sourceview.SourceViewTrigger
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -32,13 +34,13 @@ internal object WidgetIntentActionHandler {
     suspend fun renderAllWidgetsFromCache(
         context: Context,
         repository: WeatherRepository?,
-    ) {
+    ): RefreshNotice? {
         val ids =
             AppWidgetManager.getInstance(context)
                 .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
                 .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
                 .toIntArray()
-        renderWidgetsFromCache(context, ids, repository)
+        return renderWidgetsFromCache(context, ids, repository)
     }
 
     suspend fun renderWidgetFromCache(
@@ -47,11 +49,13 @@ internal object WidgetIntentActionHandler {
         repository: WeatherRepository?,
     ) = renderWidgetsFromCache(context, intArrayOf(appWidgetId), repository)
 
+    /** Returns what the widgets' stale checks queued, merged — for "Tap to refresh"'s toast. */
     private suspend fun renderWidgetsFromCache(
         context: Context,
         ids: IntArray,
         repository: WeatherRepository?,
-    ) {
+    ): RefreshNotice? {
+        var notice: RefreshNotice? = null
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
         WidgetInteractionCoordinator.forEachWidgetIsolated(
             ids,
@@ -66,7 +70,7 @@ internal object WidgetIntentActionHandler {
             },
         ) { id ->
             WidgetInteractionCoordinator.withWidgetLock(id) {
-                refreshWidget(
+                notice = RefreshNotice.merge(notice, refreshWidget(
                     context,
                     id,
                     "refresh_action_cache_first",
@@ -74,9 +78,10 @@ internal object WidgetIntentActionHandler {
                     actionTag = "REFRESH",
                     partialPush = true,
                     origin = WidgetPushDispatcher.Origin.ACTION_REFRESH,
-                )
+                ))
             }
         }
+        return notice
     }
 
     suspend fun navigate(
@@ -93,6 +98,7 @@ internal object WidgetIntentActionHandler {
                 appWidgetId,
                 if (viewMode.isGraphMode) "graph_nav" else "daily_nav",
             ) ?: return
+        announceIfQueued(context, appWidgetId, "widget_nav", refreshContext)
         val request =
             request(
                 context,
@@ -131,6 +137,7 @@ internal object WidgetIntentActionHandler {
         }
         val startMs = SystemClock.elapsedRealtime()
         val refreshContext = prepareContext(context, appWidgetId, "cycle_zoom") ?: return
+        announceIfQueued(context, appWidgetId, "widget_zoom", refreshContext)
         GraphInteractionRenderer.cycleZoom(
             InteractionRenderDispatcher.graphRequest(
                 request(
@@ -181,7 +188,7 @@ internal object WidgetIntentActionHandler {
     ) {
         val refreshContext = prepareContext(context, appWidgetId, "toggle_api", hourlyLimited = hourlyLimited) ?: return
         val now = LocalDateTime.now()
-        if (
+        val forced = if (
             GraphInteractionRenderer.selectedSourceNeedsRefresh(
                 context,
                 appWidgetId,
@@ -198,7 +205,15 @@ internal object WidgetIntentActionHandler {
                 targetSourceId = newSource.id,
                 hourlyLimited = hourlyLimited,
             )
+        } else {
+            null
         }
+        // One notice for the tap: the stale check and the source's own window check merged. Toggling
+        // is browsing, so "up to date" is noise and is dropped (user, 2026-10-15); a queued refresh,
+        // a quota block or one already pending still says so.
+        RefreshNotice.merge(refreshContext.refreshNotice, forced)
+            ?.takeUnless { RefreshNotice.isUpToDate(it) }
+            ?.let { RefreshToast.show(context, "widget_toggle_api", it, intArrayOf(appWidgetId)) }
         InteractionRenderDispatcher.render(
             viewMode,
             request(
@@ -257,7 +272,7 @@ internal object WidgetIntentActionHandler {
     ) {
         val refreshContext = prepareContext(context, appWidgetId, "reset_source") ?: return
         val now = LocalDateTime.now()
-        if (
+        val forced = if (
             GraphInteractionRenderer.selectedSourceNeedsRefresh(
                 context,
                 appWidgetId,
@@ -273,7 +288,10 @@ internal object WidgetIntentActionHandler {
                 reason = "reset_source_stale",
                 targetSourceId = preferred.id,
             )
+        } else {
+            null
         }
+        RefreshNotice.merge(refreshContext.refreshNotice, forced)?.let { RefreshToast.show(context, "widget_reset_source", it, intArrayOf(appWidgetId)) }
         InteractionRenderDispatcher.render(
             viewMode,
             request(
@@ -403,6 +421,7 @@ internal object WidgetIntentActionHandler {
         deferActuals: Boolean = false,
     ) {
         val refreshContext = prepareContext(context, appWidgetId, staleReason) ?: return
+        announceIfQueued(context, appWidgetId, "widget_$staleReason", refreshContext)
         InteractionRenderDispatcher.render(
             viewMode,
             request(
@@ -429,8 +448,8 @@ internal object WidgetIntentActionHandler {
         extraMetadata: String = "",
         partialPush: Boolean = true,
         origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.ACTION_REFRESH,
-    ) {
-        val refreshContext = prepareContext(context, appWidgetId, reason) ?: return
+    ): RefreshNotice? {
+        val refreshContext = prepareContext(context, appWidgetId, reason) ?: return null
         val viewMode = WidgetStateManager(context).getViewMode(appWidgetId)
         InteractionRenderDispatcher.render(
             viewMode,
@@ -451,6 +470,22 @@ internal object WidgetIntentActionHandler {
             "WIDGET_RENDER_OK",
             "widget=$appWidgetId view=$viewMode path=$reason action=$actionTag",
         )
+        return refreshContext.refreshNotice
+    }
+
+    /**
+     * Browsing taps (arrows, zoom, view switches) announce only a refresh they queued: they check
+     * staleness as a side effect, and "up to date" on every one would be noise. "Nothing refreshed"
+     * is for actions whose purpose is fresh data (plans/261015-refresh-queued-toast-all-surfaces.md).
+     */
+    private suspend fun announceIfQueued(
+        context: Context,
+        appWidgetId: Int,
+        origin: String,
+        refreshContext: WidgetRefreshContextResolver.Resolved,
+    ) {
+        val notice = refreshContext.refreshNotice as? RefreshNotice.Queued ?: return
+        RefreshToast.show(context, origin, notice, intArrayOf(appWidgetId))
     }
 
     /**
@@ -482,7 +517,7 @@ internal object WidgetIntentActionHandler {
             )
             return null
         }
-        refreshRequester.requestIfStale(context, resolved, reason, hourlyLimited)
+        val notice = refreshRequester.requestIfStale(context, resolved, reason, hourlyLimited)
         val endMs = SystemClock.elapsedRealtime()
         if (endMs - prepareStartMs >= PREPARE_SLOW_MS) {
             Log.i(
@@ -492,7 +527,7 @@ internal object WidgetIntentActionHandler {
                     "staleCheck=${endMs - afterResolveMs}ms",
             )
         }
-        return resolved
+        return resolved.copy(refreshNotice = notice)
     }
 
     private fun request(

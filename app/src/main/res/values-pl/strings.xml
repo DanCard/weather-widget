@@ -31,7 +31,14 @@
     <string name="back">Wstecz</string>
     <string name="refresh">Odśwież</string>
     <string name="refresh_now">Odśwież dane</string>
-    <string name="refresh_now_enqueued_toast">Odświeżanie danych w kolejce</string>
+    <string name="refresh_queued_forecast">Odświeżanie prognozy w kolejce</string>
+    <string name="refresh_queued_observations">Odświeżanie obserwacji w kolejce</string>
+    <string name="refresh_queued_both">Odświeżanie prognozy i obserwacji w kolejce</string>
+    <string name="refresh_up_to_date_forecast">Prognoza %1$s aktualna · %2$s temu</string>
+    <string name="refresh_up_to_date_observations">Obserwacje %1$s aktualne · %2$s temu</string>
+    <string name="refresh_already_queued">Odświeżanie już w kolejce</string>
+    <string name="refresh_in_progress">Odświeżanie już trwa</string>
+    <string name="refresh_quota_blocked">Osiągnięto limit %1$s · następne odświeżenie po %2$s</string>
     <string name="nav_previous">Poprzednie dni</string>
     <string name="nav_next">Następne dni</string>
     <string name="weather_icon_desc">Ikona warunków pogodowych</string>

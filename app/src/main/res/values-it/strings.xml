@@ -31,7 +31,14 @@
     <string name="back">Indietro</string>
     <string name="refresh">Aggiorna</string>
     <string name="refresh_now">Aggiorna dati</string>
-    <string name="refresh_now_enqueued_toast">Aggiornamento dati in coda</string>
+    <string name="refresh_queued_forecast">Aggiornamento previsioni in coda</string>
+    <string name="refresh_queued_observations">Aggiornamento osservazioni in coda</string>
+    <string name="refresh_queued_both">Aggiornamento previsioni e osservazioni in coda</string>
+    <string name="refresh_up_to_date_forecast">Previsioni %1$s aggiornate · %2$s fa</string>
+    <string name="refresh_up_to_date_observations">Osservazioni %1$s aggiornate · %2$s fa</string>
+    <string name="refresh_already_queued">Aggiornamento già in coda</string>
+    <string name="refresh_in_progress">Aggiornamento già in corso</string>
+    <string name="refresh_quota_blocked">Limite %1$s raggiunto · prossimo aggiornamento dopo le %2$s</string>
     <string name="nav_previous">Giorni precedenti</string>
     <string name="nav_next">Giorni successivi</string>
     <string name="weather_icon_desc">Icona delle condizioni meteo</string>

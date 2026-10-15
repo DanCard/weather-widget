@@ -74,6 +74,40 @@ class SettingsActivityRobolectricTest {
         )
     }
 
+    /** plans/261015-refresh-queued-toast-all-surfaces.md: Refresh data queues a sync and a current-temp update. */
+    @Test
+    fun `refresh data toasts forecast and observations queued and logs it`() {
+        androidx.work.testing.WorkManagerTestInitHelper.initializeTestWorkManager(
+            context,
+            androidx.work.Configuration.Builder().setExecutor { _ -> }
+                .setTaskExecutor(androidx.work.testing.SynchronousExecutor()).build(),
+        )
+        com.weatherwidget.data.local.WeatherDatabase.setIsTesting(true)
+        val db = com.weatherwidget.testutil.TestDatabase.create()
+        com.weatherwidget.data.local.WeatherDatabase.setDatabaseForTesting(db)
+        com.weatherwidget.widget.RefreshToast.resetForTesting()
+        try {
+            ActivityScenario.launch<SettingsActivity>(Intent(context, SettingsActivity::class.java)).use { scenario ->
+                scenario.onActivity { it.findViewById<Button>(R.id.refresh_data_button).performClick() }
+                val deadline = System.currentTimeMillis() + 5_000
+                while (org.robolectric.shadows.ShadowToast.shownToastCount() == 0) {
+                    assertTrue("no toast", System.currentTimeMillis() < deadline)
+                    shadowOf(android.os.Looper.getMainLooper()).idle()
+                    Thread.sleep(10)
+                }
+                assertEquals(
+                    "Forecast and observations refresh queued",
+                    org.robolectric.shadows.ShadowToast.getTextOfLatestToast(),
+                )
+                val rows = kotlinx.coroutines.runBlocking { db.appLogDao().getLogsByTag("REFRESH_TOAST", 10) }
+                assertEquals(listOf("origin=settings_refresh queued=BOTH shown"), rows.map { it.message })
+            }
+        } finally {
+            com.weatherwidget.data.local.WeatherDatabase.resetInstanceForTesting()
+            com.weatherwidget.data.local.WeatherDatabase.setIsTesting(false)
+        }
+    }
+
     @Test
     fun `set location button opens the shared setup screen in global mode`() {
         val intent = Intent(context, SettingsActivity::class.java)

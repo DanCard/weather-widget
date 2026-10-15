@@ -31,7 +31,14 @@
     <string name="back">Retour</string>
     <string name="refresh">Actualiser</string>
     <string name="refresh_now">Actualiser les données</string>
-    <string name="refresh_now_enqueued_toast">Actualisation des données en file d\'attente</string>
+    <string name="refresh_queued_forecast">Actualisation des prévisions en file d\'attente</string>
+    <string name="refresh_queued_observations">Actualisation des observations en file d\'attente</string>
+    <string name="refresh_queued_both">Actualisation des prévisions et des observations en file d\'attente</string>
+    <string name="refresh_up_to_date_forecast">Prévisions %1$s à jour · il y a %2$s</string>
+    <string name="refresh_up_to_date_observations">Observations %1$s à jour · il y a %2$s</string>
+    <string name="refresh_already_queued">Actualisation déjà en file d\'attente</string>
+    <string name="refresh_in_progress">Actualisation déjà en cours</string>
+    <string name="refresh_quota_blocked">Limite %1$s atteinte · prochaine actualisation après %2$s</string>
     <string name="nav_previous">Jours précédents</string>
     <string name="nav_next">Jours suivants</string>
     <string name="weather_icon_desc">Icône de condition météo</string>

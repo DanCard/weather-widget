@@ -253,6 +253,26 @@ object WidgetWorkScheduler {
             true
         }
 
+    /**
+     * Whether a one-time sync is already running or waiting, which a KEEP enqueue would join instead
+     * of queuing its own. Blocking (bounded): callers are on worker or receiver coroutines, never main.
+     * Null when there is none, or when WorkManager cannot be asked.
+     */
+    internal fun pendingOneTimeSync(context: Context): com.weatherwidget.shared.util.RefreshNotice.Reason? =
+        runCatching {
+            val infos = WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWork(WORK_NAME_ONE_TIME).get(1, TimeUnit.SECONDS)
+            when {
+                infos.any { it.state == androidx.work.WorkInfo.State.RUNNING } ->
+                    com.weatherwidget.shared.util.RefreshNotice.Reason.IN_PROGRESS
+                infos.any { !it.state.isFinished } -> com.weatherwidget.shared.util.RefreshNotice.Reason.ALREADY_QUEUED
+                else -> null
+            }
+        }.getOrElse {
+            Log.w(TAG, "One-time sync inspect failed: ${it.message}")
+            null
+        }
+
     /** A backfill parked in the startup-deferred lane (see [DEFERRED_OBSERVATION_BACKFILL_TAG]). */
     private fun hasDeferredObservationBackfill(workManager: WorkManager): Boolean =
         workManager.getWorkInfosForUniqueWork(WORK_NAME_STARTUP_DEFERRED).get()

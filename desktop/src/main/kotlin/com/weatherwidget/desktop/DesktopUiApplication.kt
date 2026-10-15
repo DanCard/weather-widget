@@ -79,6 +79,9 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import javax.swing.SwingUtilities
+import androidx.compose.runtime.CompositionLocalProvider
+import com.weatherwidget.shared.util.RefreshNotice
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import kotlin.math.roundToInt
 
 private const val TAG = "Main"
@@ -115,6 +118,9 @@ internal fun runDesktopUiApplication() = application {
         val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
         val weatherDao = remember { DesktopWeatherDao(weatherDb) }
         remember(weatherDao) { DesktopSourceViews.install(weatherDao) }
+        // The two-second refresh toast every window shows (plans/261015-refresh-queued-toast-all-surfaces.md).
+        val refreshNotice = remember { RefreshNoticeState(log = { weatherDao.log("REFRESH_TOAST", it, "INFO") }) }
+        RefreshNoticeExpiry(refreshNotice)
 
         remember(weatherDao) {
             com.weatherwidget.widget.CurrentTemperatureResolver.dbLogger = { tag, message, level ->
@@ -330,6 +336,30 @@ internal fun runDesktopUiApplication() = application {
                 runCatching {
                     val trigger = appDataDir().resolve(CONFIG_CHANGED_TRIGGER)
                     java.nio.file.Files.writeString(trigger, "", java.nio.charset.StandardCharsets.UTF_8)
+                }
+                // A source cycle makes the daemon refresh the new source if it is old enough: say
+                // which (plans/261015-refresh-queued-toast-all-surfaces.md).
+                val cycleSurface = sourceCycleNoticeSurface(source)
+                if (prev != null && cycleSurface != null && prev.displaySource != effective.displaySource) {
+                    uiScope.launch {
+                        val notice = withContext(Dispatchers.IO) {
+                            val shown = WeatherSource.fromDisplaySource(effective.displaySource)
+                            val lastForecast = weatherDao.getLastSuccessfulFetch(shown.id)
+                            sourceCycleNotice(
+                                // The daemon asks loadCached(); a successful fetch is the cheap proxy.
+                                cachePresent = lastForecast != null,
+                                lastObservationFetchMs = weatherDao.getLatestObservationFetchedAt(
+                                    effective.lat,
+                                    effective.lon,
+                                    ActualsProviderResolver.providerIdFor(shown),
+                                ),
+                                lastForecastFetchMs = lastForecast,
+                                sourceName = shown.shortDisplayName,
+                            )
+                        }
+                        // Cycling is browsing: "up to date" is dropped (user, 2026-10-15).
+                        if (!RefreshNotice.isUpToDate(notice)) refreshNotice.show(notice, cycleSurface, "source_cycle:$source")
+                    }
                 }
                 Unit
             }
@@ -826,14 +856,21 @@ internal fun runDesktopUiApplication() = application {
                         ?: "null"),
                 "INFO",
             )
+            val surface = refreshNoticeSurface(origin)
             if (repo == null || refreshInFlight) {
                 if (refreshInFlight) {
                     weatherDao.log("REFRESH_CLICK", "origin=$origin suppressed=in_flight", "INFO")
                 }
+                refreshNotice.show(
+                    RefreshNotice.NotQueued(if (refreshInFlight) RefreshNotice.Reason.IN_PROGRESS else RefreshNotice.Reason.NO_LOCATION),
+                    surface,
+                    origin,
+                )
                 return
             }
 
             refreshInFlight = true
+            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST), surface, origin)
             // Through the shared runner on the application-owned scope: removing either child window
             // from composition cannot cancel the fetch or discard its result.
             val refresh = refreshRunner.start("user_refresh:$origin") {
@@ -894,9 +931,15 @@ internal fun runDesktopUiApplication() = application {
                 if (refreshInFlight) {
                     weatherDao.log("REFRESH_CLICK", "origin=$origin suppressed=in_flight", "INFO")
                 }
+                refreshNotice.show(
+                    RefreshNotice.NotQueued(if (refreshInFlight) RefreshNotice.Reason.IN_PROGRESS else RefreshNotice.Reason.NO_LOCATION),
+                    RefreshNoticeSurface.OBSERVATIONS,
+                    origin,
+                )
                 return
             }
             refreshInFlight = true
+            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.OBSERVATIONS), RefreshNoticeSurface.OBSERVATIONS, origin)
             // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
             val refresh = refreshRunner.start("user_refresh:$origin") {
                 val snapshot = repo.refreshObservations(reason = "user_refresh:$origin")
@@ -943,9 +986,11 @@ internal fun runDesktopUiApplication() = application {
             weatherDao.log("REFRESH_CLICK", "origin=$origin source=${source.id}", "INFO")
             if (refreshInFlight) {
                 weatherDao.log("REFRESH_CLICK", "origin=$origin suppressed=in_flight", "INFO")
+                refreshNotice.show(RefreshNotice.NotQueued(RefreshNotice.Reason.IN_PROGRESS), refreshNoticeSurface(origin), origin)
                 return
             }
             refreshInFlight = true
+            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST), refreshNoticeSurface(origin), origin)
             // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
             val refresh = refreshRunner.start("user_refresh:$origin:${source.id}") {
                 val service = DesktopWeatherService(
@@ -990,7 +1035,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         if (historyVisible && currentConfig != null) {
-            ForecastHistoryWindow(
+            CompositionLocalProvider(LocalRefreshNotice provides refreshNotice) { ForecastHistoryWindow(
                 weatherDao = weatherDao,
                 config = currentConfig,
                 showRequestId = historyShowRequestId,
@@ -1010,11 +1055,11 @@ internal fun runDesktopUiApplication() = application {
                     settingsVisible = true
                     settingsShowRequestId++
                 },
-            )
+            ) }
         }
 
         if (observationsVisible && currentConfig != null && repository != null) {
-            ObservationsWindow(
+            CompositionLocalProvider(LocalRefreshNotice provides refreshNotice) { ObservationsWindow(
                 weatherDao = weatherDao,
                 config = currentConfig,
                 showRequestId = obsShowRequestId,
@@ -1031,7 +1076,7 @@ internal fun runDesktopUiApplication() = application {
                 onConfigUpdate = { newConfig ->
                     saveConfigAndNotify(newConfig, "observations-window")
                 }
-            )
+            ) }
         }
 
         if (iconGalleryVisible) {
@@ -1077,7 +1122,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         if (settingsVisible && config != null) {
-            SettingsWindowHost(
+            CompositionLocalProvider(LocalRefreshNotice provides refreshNotice) { SettingsWindowHost(
                 config = config!!,
                 icon = appIcon,
                 isRefreshing = refreshInFlight,
@@ -1104,7 +1149,7 @@ internal fun runDesktopUiApplication() = application {
                     appLogsVisible = true
                     appLogsShowRequestId++
                 },
-            )
+            ) }
         }
 
         if (popupVisible && currentConfig != null) {
@@ -1147,7 +1192,9 @@ internal fun runDesktopUiApplication() = application {
                     weatherDao.log("CLICK_DAILY", message, "DEBUG")
                 },
                 onHourlyAudit = { tag, message -> weatherDao.log(tag, message, "INFO") },
-                transientMessage = locationBanner?.text ?: historyFetchToast,
+                transientMessage = locationBanner?.text
+                    ?: refreshNotice.textFor(RefreshNoticeSurface.POPUP)
+                    ?: historyFetchToast,
                 currentTempFetchError = currentTempFetchError,
                 currentTempFetchPill = currentTempFetchPill,
                 currentTempFetchIsWarmup = currentTempFetchIsWarmup,
@@ -1232,6 +1279,20 @@ private fun DataUpdateWatcher(
     }
 }
 
+
+/** Which window's Refresh asked, for its notice. */
+internal fun refreshNoticeSurface(origin: String): RefreshNoticeSurface = when (origin) {
+    "history" -> RefreshNoticeSurface.HISTORY
+    "observations" -> RefreshNoticeSurface.OBSERVATIONS
+    else -> RefreshNoticeSurface.SETTINGS
+}
+
+/** Config writers whose source change is the user cycling sources; null for the rest (Settings, picker). */
+internal fun sourceCycleNoticeSurface(configSource: String): RefreshNoticeSurface? = when (configSource) {
+    "popup" -> RefreshNoticeSurface.POPUP
+    "observations", "observations-window" -> RefreshNoticeSurface.OBSERVATIONS
+    else -> null
+}
 
 private fun formatAge(ageMillis: Long): String =
     com.weatherwidget.shared.util.AgeFormatter.formatAgeOld(ageMillis)

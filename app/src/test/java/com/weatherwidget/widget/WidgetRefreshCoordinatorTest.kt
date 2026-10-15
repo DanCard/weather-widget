@@ -23,8 +23,8 @@ class WidgetRefreshCoordinatorTest {
     @Before
     fun setUp() {
         mockkObject(WidgetIntentRouter)
-        coEvery { WidgetIntentRouter.renderAllWidgetsFromCache(any(), any()) } returns Unit
-        coEvery { WidgetIntentRouter.renderWidgetFromCache(any(), any(), any()) } returns Unit
+        coEvery { WidgetIntentRouter.renderAllWidgetsFromCache(any(), any()) } returns null
+        coEvery { WidgetIntentRouter.renderWidgetFromCache(any(), any(), any()) } returns null
     }
 
     @After

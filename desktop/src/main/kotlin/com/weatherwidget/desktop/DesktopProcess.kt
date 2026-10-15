@@ -188,6 +188,39 @@ fun determineLaunchRefreshAction(
 }
 
 /**
+ * What cycling the popup onto a source will make the daemon fetch, as the popup's two-second toast
+ * says it (plans/261015-refresh-queued-toast-all-surfaces.md). The daemon decides in its own process
+ * ([SOURCE_CYCLE_REASON] → [determineLaunchRefreshAction] with [launchForecastStaleAfterMs]); the popup
+ * asks the same two functions with the same inputs, so the toast and the fetch cannot disagree.
+ */
+fun sourceCycleNotice(
+    cachePresent: Boolean,
+    lastObservationFetchMs: Long?,
+    lastForecastFetchMs: Long?,
+    sourceName: String,
+    nowMs: Long = System.currentTimeMillis(),
+): com.weatherwidget.shared.util.RefreshNotice {
+    val action = determineLaunchRefreshAction(
+        cachePresent = cachePresent,
+        lastObservationFetchMs = lastObservationFetchMs,
+        lastForecastFetchMs = lastForecastFetchMs,
+        nowMs = nowMs,
+        forecastStaleAfterMs = launchForecastStaleAfterMs(SOURCE_CYCLE_REASON) { null },
+    )
+    return when (action) {
+        LaunchRefreshAction.FULL_FORECAST ->
+            com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST)
+        LaunchRefreshAction.OBSERVATIONS ->
+            com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.OBSERVATIONS)
+        LaunchRefreshAction.NONE -> com.weatherwidget.shared.util.RefreshNotice.NotQueued(
+            com.weatherwidget.shared.util.RefreshNotice.Reason.UP_TO_DATE,
+            sourceName = sourceName,
+            ageMs = lastForecastFetchMs?.let { nowMs - it },
+        )
+    }
+}
+
+/**
  * True when a logind `PrepareForSleep` D-Bus signal line indicates the machine is *waking*
  * (`false` = resuming; `true` = about to sleep). Matches `gdbus monitor` output lines such as
  * `/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (false)`.
