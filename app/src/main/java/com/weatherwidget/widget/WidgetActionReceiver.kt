@@ -104,6 +104,12 @@ class WidgetActionReceiver : BroadcastReceiver() {
                 WidgetRefreshCoordinator.restartHeartbeats(context)
             }
         },
+        WidgetActions.ACTION_RECENTER_TODAY to { context, intent, receivedAtElapsedMs ->
+            launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
+                WidgetIntentRouter.handleRecenterToday(context, appWidgetId, repository)
+                WidgetRefreshCoordinator.restartHeartbeats(context)
+            }
+        },
         WidgetActions.ACTION_TOGGLE_VIEW to { context, intent, receivedAtElapsedMs ->
             launchForValidWidget(context, intent, receivedAtElapsedMs) { appWidgetId ->
                 val startMs = SystemClock.elapsedRealtime()

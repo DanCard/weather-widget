@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.PreferredSourceHome.HomeAction
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
@@ -311,29 +312,38 @@ internal fun setupHomeShortcut(
 }
 
 /**
- * The DAILY view's home button: same `ic_home` glyph and the same two zones, but the tap resets the
- * display SOURCE instead of the view mode.
+ * The DAILY view's home button: same `ic_home` glyph and the same two zones, but the tap never
+ * changes the view mode — the daily view is already home in that sense, so [setupHomeShortcut]'s
+ * ACTION_SET_VIEW would be a no-op here. It exits whichever other axis the widget is off home on
+ * ([com.weatherwidget.shared.util.PreferredSourceHome.homeAction]):
  *
- * The daily view is already home in the view sense, so [setupHomeShortcut]'s ACTION_SET_VIEW would
- * be a no-op here. What the button exits is the other axis a widget can be off home on — the API
- * indicator having been tapped away from the preferred source. It is bound only while that is true
- * (see [com.weatherwidget.shared.util.PreferredSourceHome]), so the icon appearing is itself the
- * message that the shown source is not the one the user put first.
+ * - [HomeAction.RESET_SOURCE]: the API indicator was tapped away from the preferred source.
+ * - [HomeAction.RECENTER_TODAY]: on the preferred source, today was panned off screen; the tap
+ *   brings back yesterday + today.
+ *
+ * Bound only while there is such an axis, so the icon appearing is itself the message.
  */
-internal fun setupSourceHomeShortcut(
+internal fun setupDailyHomeShortcut(
     context: Context,
     views: RemoteViews,
     appWidgetId: Int,
+    homeAction: HomeAction,
     scale: Float = 1.0f,
 ) {
-    val resetIntent = Intent(context, WidgetActionReceiver::class.java).apply {
-        action = WidgetActions.ACTION_RESET_SOURCE
+    val (action, requestCode) = when (homeAction) {
+        HomeAction.RESET_SOURCE ->
+            WidgetActions.ACTION_RESET_SOURCE to WidgetRequestCodes.sourceHome(appWidgetId)
+        HomeAction.RECENTER_TODAY ->
+            WidgetActions.ACTION_RECENTER_TODAY to WidgetRequestCodes.recenterToday(appWidgetId)
+    }
+    val homeIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+        this.action = action
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
     }
     val pendingIntent = PendingIntent.getBroadcast(
         context,
-        WidgetRequestCodes.sourceHome(appWidgetId),
-        resetIntent,
+        requestCode,
+        homeIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
     for (viewId in listOf(R.id.home_icon, R.id.home_icon_inline)) {
@@ -352,8 +362,7 @@ internal fun setupSourceHomeShortcut(
     views.setOnClickPendingIntent(R.id.home_touch_zone_inline, pendingIntent)
     Log.d(
         "HomeShortcut",
-        "setupSourceHomeShortcut: widget=$appWidgetId " +
-            "requestCode=${WidgetRequestCodes.sourceHome(appWidgetId)} -> ACTION_RESET_SOURCE",
+        "setupDailyHomeShortcut: widget=$appWidgetId requestCode=$requestCode -> ${homeAction.name}",
     )
 }
 
@@ -491,7 +500,7 @@ internal fun positionCenterIcons(
  *
  * [showHome] is the source-reset button, not a view switch: the daily view is always home in the
  * view sense, but it can still be showing a source the user did not put first. See
- * [setupSourceHomeShortcut] and [com.weatherwidget.shared.util.PreferredSourceHome]. It is the one
+ * [setupDailyHomeShortcut] and [com.weatherwidget.shared.util.PreferredSourceHome]. It is the one
  * daily button that gets dropped when the header cannot hold three
  * ([HeaderWidthChecker.resolveDailyIconLayout]) — the pair is never sacrificed for it.
  *

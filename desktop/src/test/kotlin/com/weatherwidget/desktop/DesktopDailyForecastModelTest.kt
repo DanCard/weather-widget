@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.util.PreferredSourceHome
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.*
 import com.weatherwidget.test.category.ShortDuration
@@ -598,6 +599,37 @@ settings = DesktopSettings(weatherSource = "NWS"),
                     )
                     assertEquals("$label: Today overlay", a.largeTodayOverlayEnabled, b.largeTodayOverlayEnabled)
                 }
+            }
+        }
+    }
+
+    @Test
+    fun `home offset shows yesterday then today at every width`() {
+        // The daily home button's recentre target (plans/261015-daily-home-button-recentres-today.md).
+        val now = LocalDateTime.parse("2026-10-02T12:00:00")
+        val forecast = snapshot(
+            daily = forecastRange("2026-09-12", 45),
+            dailyActuals = actualsRange("2026-09-12", 21),
+        )
+        val today = now.toLocalDate()
+        for (widthDp in listOf(200, 300, 420, 600, 800)) {
+            for (extra in 0..4) {
+                val dims = DesktopDailyForecastModel.dimensions(widthDp, 400)
+                val zoomed = config.copy(dailyExtraHistory = extra)
+                val probe = buildModel(zoomed.copy(dateOffset = 12), forecast, dims, now)
+                val label = "width=$widthDp cols=${dims.cols} extra=$extra"
+                assertEquals("$label: today off screen at +12", -1, probe.days.indexOfFirst { it.isToday })
+                val home = buildModel(zoomed.copy(dateOffset = probe.homeDateOffset), forecast, dims, now)
+                assertEquals("$label: first column", today.minusDays(1), home.days.first().date)
+                assertEquals("$label: today column", 1, home.days.indexOfFirst { it.isToday })
+                assertEquals("$label: zoom kept", extra, home.clampedExtraHistory)
+                // Today on screen may switch the large-Today overlay on (one column fewer at 9
+                // cols) — that is the zoom-0 home view's count too; zoom adds exactly its days.
+                val unzoomedHome = buildModel(
+                    config.copy(dateOffset = PreferredSourceHome.homeDateOffset(home.days.size - extra, home.skipYesterday)),
+                    forecast, dims, now,
+                )
+                assertEquals("$label: zoom adds its days", unzoomedHome.days.size + extra, home.days.size)
             }
         }
     }

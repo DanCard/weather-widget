@@ -2,6 +2,9 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.shared.util.PreferredSourceHome.HomeAction
+import com.weatherwidget.util.NavigationUtils
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -56,5 +59,60 @@ class PreferredSourceHomeTest {
         assertFalse(PreferredSourceHome.shouldShowHomeButton(WeatherSource.SILURIAN.id, order))
         assertFalse(PreferredSourceHome.shouldShowHomeButton(WeatherSource.NWS.id, emptyList()))
         assertFalse(PreferredSourceHome.shouldShowHomeButton(null, order))
+    }
+
+    @Test
+    fun `non-preferred source resets the source whether or not today is in view`() {
+        for (todayInView in listOf(true, false)) {
+            assertEquals(
+                HomeAction.RESET_SOURCE,
+                PreferredSourceHome.homeAction(WeatherSource.OPEN_METEO.id, order, todayInView),
+            )
+        }
+    }
+
+    @Test
+    fun `preferred source with today off screen recentres`() {
+        assertEquals(
+            HomeAction.RECENTER_TODAY,
+            PreferredSourceHome.homeAction(WeatherSource.NWS.id, order, todayInView = false),
+        )
+    }
+
+    @Test
+    fun `preferred source with today on screen offers no button`() {
+        assertNull(PreferredSourceHome.homeAction(WeatherSource.NWS.id, order, todayInView = true))
+    }
+
+    @Test
+    fun `no order or unknown source offers no button`() {
+        assertNull(PreferredSourceHome.homeAction(WeatherSource.NWS.id, emptyList(), todayInView = false))
+        assertNull(PreferredSourceHome.homeAction("not_a_source", order, todayInView = false))
+        assertNull(PreferredSourceHome.homeAction(null, order, todayInView = false))
+    }
+
+    @Test
+    fun `home offset shows yesterday then today at every width`() {
+        val today = LocalDate.of(2026, 10, 15)
+        for (cols in listOf(3, 4, 5, 6, 8, 9, 10, 12, 16)) {
+            val offset = PreferredSourceHome.homeDateOffset(cols)
+            val (from, to) = NavigationUtils.getVisibleDateRange(
+                today, offset, cols, NavigationUtils.shouldSkipYesterday(cols),
+            )
+            assertEquals("cols=$cols leftmost", today.minusDays(1), from)
+            assertEquals("cols=$cols width", cols.toLong() - 1, java.time.temporal.ChronoUnit.DAYS.between(from, to))
+        }
+    }
+
+    @Test
+    fun `one and two columns go to offset zero - today first`() {
+        val today = LocalDate.of(2026, 10, 15)
+        for (cols in listOf(1, 2)) {
+            assertEquals(0, PreferredSourceHome.homeDateOffset(cols))
+            val (from, _) = NavigationUtils.getVisibleDateRange(
+                today, 0, cols, NavigationUtils.shouldSkipYesterday(cols),
+            )
+            assertEquals("cols=$cols", today, from)
+        }
     }
 }

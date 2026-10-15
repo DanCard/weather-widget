@@ -10,6 +10,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.util.PreferredSourceHome
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.CurrentTemperatureResolver
@@ -163,6 +164,27 @@ internal object DailyInteractionRenderer {
             request.copy(actionTag = "DAILY_NAV", extraMetadata = "dir=$direction"),
             cachedData,
         )
+    }
+
+    /**
+     * The daily home button on the preferred source: jump to the window that starts at yesterday
+     * with today second ([PreferredSourceHome.homeDateOffset]). Cache-only, like the arrows.
+     * See `plans/261015-daily-home-button-recentres-today.md`.
+     */
+    suspend fun recenterToday(request: DailyRenderRequest) {
+        val context = request.context
+        val appWidgetId = request.appWidgetId
+        val stateManager = WidgetStateManager(context)
+        val currentOffset = stateManager.getDateOffset(appWidgetId)
+        val numColumns =
+            WidgetSizeCalculator.getWidgetSize(context, AppWidgetManager.getInstance(context), appWidgetId).cols
+        val homeOffset = PreferredSourceHome.homeDateOffset(numColumns)
+        stateManager.setDateOffset(appWidgetId, homeOffset)
+        request.refreshContext.database.appLogDao().log(
+            "DAILY_RECENTER_TODAY",
+            "widget=$appWidgetId offset=$currentOffset->$homeOffset cols=$numColumns",
+        )
+        render(request.copy(actionTag = "DAILY_RECENTER_TODAY", extraMetadata = "offset=$homeOffset"))
     }
 
     suspend fun render(

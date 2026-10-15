@@ -144,6 +144,21 @@ object WidgetIntentRouter {
         WidgetIntentActionHandler.resetSource(context, appWidgetId, repository)
     }
 
+    suspend fun handleRecenterToday(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository? = null,
+    ) = runInteraction(
+        context,
+        appWidgetId,
+        "RECENTER_TODAY",
+        metadata = {
+            fixedMetadata("from=${WidgetStateManager(context).getDateOffset(appWidgetId)}")
+        },
+    ) {
+        WidgetIntentActionHandler.recenterToday(context, appWidgetId, repository)
+    }
+
     suspend fun handleToggleView(
         context: Context,
         appWidgetId: Int,

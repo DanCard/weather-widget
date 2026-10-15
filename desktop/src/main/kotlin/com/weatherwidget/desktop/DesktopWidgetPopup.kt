@@ -101,6 +101,7 @@ internal fun WidgetPopup(
                 // first frame shows both buttons rather than flashing one in.
                 var dailyTodayInView by remember { mutableStateOf(true) }
                 var dailyObservationsInView by remember { mutableStateOf(true) }
+                var dailyHomeDateOffset by remember { mutableStateOf(0) }
                 val toggleWeatherSource = { cycleDisplaySource(config, onUpdateConfig) }
                 Column(modifier = Modifier.fillMaxSize().padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 2.dp)) {
                     WidgetHeader(
@@ -117,6 +118,7 @@ internal fun WidgetPopup(
                         scale = uiScale,
                         todayInView = dailyTodayInView,
                         observationsInView = dailyObservationsInView,
+                        homeDateOffset = dailyHomeDateOffset,
                     )
 
                     Spacer(Modifier.height(4.dp))
@@ -409,6 +411,7 @@ internal fun WidgetPopup(
                             SideEffect {
                                 dailyTodayInView = todayOnScreen
                                 dailyObservationsInView = observationsOnScreen
+                                dailyHomeDateOffset = dailyState.homeDateOffset
                             }
 
                             // Sync both clamped values in one write so a simultaneous offset+zoom clamp

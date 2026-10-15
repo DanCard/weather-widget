@@ -184,6 +184,51 @@ currentCondition = "Sunny"),
     }
 
     @Test
+    fun testDailyHomeButtonRecentresOnTheMainSourceWhenTodayIsOffScreen() {
+        // On the preferred source the button appears only while today is panned off screen, and
+        // brings back yesterday + today (plans/261015-daily-home-button-recentres-today.md).
+        val today = java.time.LocalDate.now()
+        val forecast = stubForecast.copy(
+            raw = stubForecast.raw.copy(
+                daily = (-10L..25L).map {
+                    DailyForecast(today.plusDays(it).toString(), 75f, 55f, "Sunny", precipProbability = 0)
+                },
+            ),
+        )
+        var config by mutableStateOf(
+            stubConfig.copy(
+                settings = stubConfig.settings.copy(
+                    visibleSources = listOf(WeatherSource.NWS.id, WeatherSource.OPEN_METEO.id),
+                    weatherSource = WeatherSource.NWS.id,
+                ),
+                dateOffset = 10,
+                // Zoomed out: the recentre keeps it and shifts the window instead.
+                dailyExtraHistory = 2,
+            ),
+        )
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = config,
+                forecast = forecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { config = it },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithTag("daily_home_button").performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals(WeatherSource.NWS.id, config.settings.weatherSource)
+        // Home offset (−1 narrow / 0 wide) + the 2 zoom-out days.
+        assert(config.dateOffset in 1..2) { "dateOffset=${config.dateOffset}" }
+        assertEquals("zoom-out kept", 2, config.dailyExtraHistory)
+        composeTestRule.onNodeWithTag("daily_home_button").assertDoesNotExist()
+    }
+
+    @Test
     fun testDailyHomeButtonAbsentOnThePreferredSource() {
         composeTestRule.setContent {
             WidgetPopup(

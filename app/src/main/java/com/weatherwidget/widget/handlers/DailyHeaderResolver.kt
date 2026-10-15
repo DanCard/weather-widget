@@ -253,13 +253,15 @@ internal object DailyHeaderResolver {
         val (visibleFrom, visibleTo) =
             NavigationUtils.getVisibleDateRange(today, dateOffset, numColumns, skipYesterday)
         val observationsInView = NavigationUtils.isTodayOrYesterdayInRange(today, visibleFrom, visibleTo)
-        // The home button is the daily view's way back to the preferred source. It is offered only
-        // when the widget is showing some OTHER source — the daily view is always home in the view
-        // sense, so nothing else here could make it mean anything.
-        val wantHomeButton = PreferredSourceHome.shouldShowHomeButton(
+        // The home button: back to the preferred source when another is shown, else — on the
+        // preferred source with today panned off screen — back to yesterday + today.
+        val todayInView = !today.isBefore(visibleFrom) && !today.isAfter(visibleTo)
+        val homeAction = PreferredSourceHome.homeAction(
             currentSourceId = displaySource.id,
             visibleSourceIds = stateManager.getVisibleSourcesOrder().map { it.id },
+            todayInView = todayInView,
         )
+        val wantHomeButton = homeAction != null
         val iconLayout = HeaderWidthChecker.resolveDailyIconLayout(
             context = context,
             widthDp = dimensions.widthDp,
@@ -355,6 +357,7 @@ internal object DailyHeaderResolver {
             iconCount = iconCount,
             iconPlacement = iconPlacement,
             showHomeButton = iconLayout.homeShown,
+            homeAction = if (iconLayout.homeShown) homeAction else null,
             preferDateOverLabel = preferDateOverLabel,
         )
         return HeaderResolution(headerState, headerPrecipPlacement)

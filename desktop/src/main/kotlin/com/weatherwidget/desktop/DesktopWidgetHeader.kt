@@ -42,6 +42,8 @@ internal fun WidgetHeader(
     todayInView: Boolean = true,
     /** Whether today or yesterday is on screen; drives the current-observations button. */
     observationsInView: Boolean = true,
+    /** The daily window the home button's recentre goes to, zoom kept (`DesktopDailyViewState.homeDateOffset`). */
+    homeDateOffset: Int = 0,
 ) {
     val showWeatherSummary = config.viewMode.isHourly
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()) }
@@ -253,13 +255,15 @@ internal fun WidgetHeader(
                     // this order rather than disagreeing.
                     val iconSizeDp = 15 * scale
                     val spacingDp = 10 * scale
-                    // The home button here resets the SOURCE, not the view: the daily view is
-                    // already home in the view sense, and the one axis it can still be off home on
-                    // is the API indicator having been tapped away from the preferred source.
-                    val showHomeButton = PreferredSourceHome.shouldShowHomeButton(
+                    // The home button never changes the view (the daily view is already home in
+                    // that sense). It resets the SOURCE when another one is shown, else — on the
+                    // preferred source with today panned off screen — brings back yesterday + today.
+                    val homeAction = PreferredSourceHome.homeAction(
                         currentSourceId = config.displaySource,
                         visibleSourceIds = config.effectiveSources,
+                        todayInView = todayInView,
                     )
+                    val showHomeButton = homeAction != null
                     val dateText = targetHour.format(dateFormatter)
                     val dateStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (12 * scale).sp)
                     val density = LocalDensity.current
@@ -300,9 +304,20 @@ internal fun WidgetHeader(
                             if (showHomeButton) {
                                 Icon(
                                     painter = painterResource("drawable/ic_home.xml"),
-                                    contentDescription = "Back to the preferred weather source",
+                                    contentDescription =
+                                        if (homeAction == PreferredSourceHome.HomeAction.RECENTER_TODAY) {
+                                            "Back to today"
+                                        } else {
+                                            "Back to the preferred weather source"
+                                        },
                                     tint = Color.White.copy(alpha = 0.6f),
                                     modifier = Modifier.size(iconSizeDp.dp).clickable {
+                                        if (homeAction == PreferredSourceHome.HomeAction.RECENTER_TODAY) {
+                                            // Zoom-out is kept: homeDateOffset already moves the
+                                            // window forward by it, so yesterday is the one history day.
+                                            onUpdateConfig(config.copy(dateOffset = homeDateOffset))
+                                            return@clickable
+                                        }
                                         val preferred =
                                             PreferredSourceHome.preferredSourceId(config.effectiveSources)
                                         if (preferred != null) {

@@ -7,6 +7,7 @@ object WidgetActions {
     const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
     /** Daily-view home button: put the display source back to the preferred (first) source. */
     const val ACTION_RESET_SOURCE = "com.weatherwidget.ACTION_RESET_SOURCE"
+    const val ACTION_RECENTER_TODAY = "com.weatherwidget.ACTION_RECENTER_TODAY"
     const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
     const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
     const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"

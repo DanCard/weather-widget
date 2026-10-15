@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.util.PreferredSourceHome
 import com.weatherwidget.shared.util.PartialForecastDays
 import com.weatherwidget.shared.util.PastDayForecastOverlay
 import com.weatherwidget.shared.util.PriorDayForecast
@@ -95,6 +96,11 @@ data class DesktopDailyViewState(
     val canNavigateRight: Boolean,
     val skipYesterday: Boolean,
     val clampedDateOffset: Int,
+    /**
+     * Where the daily home button's recentre goes: yesterday, then today (`PreferredSourceHome`),
+     * with the current zoom-out kept — its columns shift to the forecast side.
+     */
+    val homeDateOffset: Int = 0,
     /** Scroll-zoom: extra history days actually shown after clamping to available data + the cap. */
     val clampedExtraHistory: Int,
     /** True when more history can be revealed by zooming out (data + cap permitting). */
@@ -255,6 +261,7 @@ object DesktopDailyForecastModel {
             canNavigateRight = canNavigate(today, offset + 1, displayColumns, skipYesterday, availableDates, left = false),
             skipYesterday = skipYesterday,
             clampedDateOffset = offset,
+            homeDateOffset = PreferredSourceHome.homeDateOffset(displayColumns, skipYesterday, extraHistory),
             clampedExtraHistory = extraHistory,
             canZoomOut = extraHistory < maxExtra,
             canZoomIn = extraHistory > 0,

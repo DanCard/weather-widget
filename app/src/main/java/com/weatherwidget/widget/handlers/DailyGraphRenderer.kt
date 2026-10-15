@@ -327,11 +327,10 @@ internal object DailyGraphRenderer {
             scale = headerScale,
         )
         setupWeatherStationsShortcut(ctx.context, ctx.views, ctx.appWidgetId, scale = headerScale)
-        // Bound only when shown: the daily home button resets the display SOURCE, so leaving its
-        // PendingIntent behind on a header that has gone back to the preferred source would arm a
-        // no-op tap target under a hidden zone.
-        if (headerState.showHomeButton) {
-            setupSourceHomeShortcut(ctx.context, ctx.views, ctx.appWidgetId, scale = headerScale)
+        // Bound only when shown: leaving the home PendingIntent behind on a header that no longer
+        // offers it would arm a no-op tap target under a hidden zone.
+        headerState.homeAction?.let { action ->
+            setupDailyHomeShortcut(ctx.context, ctx.views, ctx.appWidgetId, action, scale = headerScale)
         }
         positionDailyIcons(
             views = ctx.views,

@@ -62,7 +62,7 @@ internal object DailyVisibilityManager {
         views.setViewVisibility(R.id.nav_right, View.GONE)
         views.setViewVisibility(R.id.nav_right_zone, View.GONE)
         // Starts GONE; positionDailyIcons re-shows it when the daily header is offering the
-        // source-reset home button (displayed source != preferred). See setupSourceHomeShortcut.
+        // home button (PreferredSourceHome.homeAction). See setupDailyHomeShortcut.
         Log.d("HomeShortcut", "DailyVisibilityManager.setTextModeViews: setting home_touch_zone=GONE (daily text mode)")
         hideUnusedDailyViews(views)
 

@@ -125,6 +125,33 @@ internal object WidgetIntentActionHandler {
         }
     }
 
+    suspend fun recenterToday(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository?,
+    ) {
+        if (WidgetStateManager(context).getViewMode(appWidgetId) != ViewMode.DAILY) {
+            Log.w(TAG, "Ignoring stale recenter-today PendingIntent for non-daily widget $appWidgetId")
+            return
+        }
+        val startMs = SystemClock.elapsedRealtime()
+        val refreshContext = prepareContext(context, appWidgetId, "daily_recenter_today") ?: return
+        DailyInteractionRenderer.recenterToday(
+            InteractionRenderDispatcher.dailyRequest(
+                request(
+                    context,
+                    appWidgetId,
+                    refreshContext,
+                    LocalDateTime.now(),
+                    repository,
+                    startMs,
+                    "RECENTER_TODAY",
+                    deferActuals = true,
+                ),
+            ),
+        )
+    }
+
     suspend fun cycleZoom(
         context: Context,
         appWidgetId: Int,

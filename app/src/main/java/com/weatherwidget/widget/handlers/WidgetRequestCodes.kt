@@ -36,6 +36,7 @@ object WidgetRequestCodes {
     private const val BASE_ERROR_REFRESH = 5200
     private const val BASE_SOURCE_HOME = 5300
     private const val BASE_ERROR_PILL = 5400
+    private const val BASE_RECENTER_TODAY = 5450
 
     fun navLeft(id: Int) = id * 10000 + BASE_NAV_LEFT
     fun navRight(id: Int) = id * 10000 + BASE_NAV_RIGHT
@@ -79,4 +80,10 @@ object WidgetRequestCodes {
 
     /** The failure watermark pill touch target on graphs. */
     fun errorPill(id: Int) = id * 10000 + BASE_ERROR_PILL
+
+    /**
+     * The daily home button when it brings today back (preferred source, today off screen). Its own
+     * base, not [sourceHome], for the same reason [sourceHome] is not [home].
+     */
+    fun recenterToday(id: Int) = id * 10000 + BASE_RECENTER_TODAY
 }
