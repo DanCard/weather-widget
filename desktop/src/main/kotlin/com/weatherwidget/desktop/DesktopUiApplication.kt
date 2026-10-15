@@ -118,7 +118,7 @@ internal fun runDesktopUiApplication() = application {
         val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
         val weatherDao = remember { DesktopWeatherDao(weatherDb) }
         remember(weatherDao) { DesktopSourceViews.install(weatherDao) }
-        // The two-second refresh toast every window shows (plans/261015-refresh-queued-toast-all-surfaces.md).
+        // The four-second refresh toast every window shows (plans/261015-refresh-queued-toast-all-surfaces.md).
         val refreshNotice = remember { RefreshNoticeState(log = { weatherDao.log("REFRESH_TOAST", it, "INFO") }) }
         RefreshNoticeExpiry(refreshNotice)
 

@@ -16,15 +16,15 @@ import org.junit.experimental.categories.Category
 class RefreshNoticeTest {
 
     @Test
-    fun `duration is two seconds, Android's LENGTH_SHORT`() {
-        assertEquals(2_000L, RefreshNotice.DURATION_MS)
+    fun `duration is four seconds`() {
+        assertEquals(4_000L, RefreshNotice.DURATION_MS)
     }
 
     @Test
-    fun `gate shows the first notice and one per two seconds`() {
+    fun `gate shows the first notice and one per four seconds`() {
         assertTrue(RefreshNotice.shouldShow(lastShownMs = null, nowMs = 10_000L))
-        assertFalse(RefreshNotice.shouldShow(lastShownMs = 10_000L, nowMs = 11_999L))
-        assertTrue(RefreshNotice.shouldShow(lastShownMs = 10_000L, nowMs = 12_000L))
+        assertFalse(RefreshNotice.shouldShow(lastShownMs = 10_000L, nowMs = 13_999L))
+        assertTrue(RefreshNotice.shouldShow(lastShownMs = 10_000L, nowMs = 14_000L))
     }
 
     @Test

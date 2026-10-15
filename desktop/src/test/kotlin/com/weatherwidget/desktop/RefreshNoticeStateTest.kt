@@ -48,7 +48,7 @@ class RefreshNoticeStateTest {
     }
 
     @Test
-    fun `a second notice within two seconds is suppressed and logged`() {
+    fun `a second notice within four seconds is suppressed and logged`() {
         state.show(Queued(Kind.OBSERVATIONS), RefreshNoticeSurface.OBSERVATIONS, "observations")
         nowMs += 500L
         state.show(NotQueued(Reason.IN_PROGRESS), RefreshNoticeSurface.OBSERVATIONS, "observations")
@@ -56,13 +56,13 @@ class RefreshNoticeStateTest {
         assertEquals("Observations refresh queued", state.textFor(RefreshNoticeSurface.OBSERVATIONS))
         assertEquals("origin=observations none=IN_PROGRESS suppressed", logged.last())
 
-        nowMs += 2_000L
+        nowMs += RefreshNotice.DURATION_MS
         state.show(NotQueued(Reason.IN_PROGRESS), RefreshNoticeSurface.OBSERVATIONS, "observations")
         assertEquals("Refresh already in progress", state.textFor(RefreshNoticeSurface.OBSERVATIONS))
     }
 
     @Test
-    fun `a notice clears at exactly two seconds`() = runTest {
+    fun `a notice clears at exactly four seconds`() = runTest {
         state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.HISTORY, "history")
         launch { state.expire(state.current!!) }
 
@@ -78,7 +78,7 @@ class RefreshNoticeStateTest {
     fun `an older expiry never clears a newer notice`() = runTest {
         state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.HISTORY, "history")
         val first = state.current!!
-        nowMs += 2_000L
+        nowMs += RefreshNotice.DURATION_MS
         state.show(Queued(Kind.OBSERVATIONS), RefreshNoticeSurface.OBSERVATIONS, "observations")
 
         launch { state.expire(first) }

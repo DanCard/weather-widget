@@ -102,22 +102,22 @@ class RefreshToastRoboTest {
     }
 
     @Test
-    fun `a notice shows a two second toast and writes a row`() {
+    fun `a notice shows a long toast and writes a row`() {
         show(Queued(Kind.FORECAST), origin = "widget_toggle_api")
 
         assertEquals(1, ShadowToast.shownToastCount())
         assertEquals("Forecast refresh queued", ShadowToast.getTextOfLatestToast())
-        assertEquals(android.widget.Toast.LENGTH_SHORT, ShadowToast.getLatestToast().duration)
+        assertEquals(android.widget.Toast.LENGTH_LONG, ShadowToast.getLatestToast().duration)
         val row = toastRows().single()
         assertEquals("origin=widget_toggle_api queued=FORECAST shown", row.message)
     }
 
     @Test
-    fun `a second notice within two seconds is suppressed but logged`() {
+    fun `a second notice within four seconds is suppressed but logged`() {
         show(Queued(Kind.FORECAST))
         clockMs += 500L
         show(NotQueued(Reason.UP_TO_DATE, "NWS", ageMs = 60_000L))
-        clockMs += 2_000L
+        clockMs += RefreshNotice.DURATION_MS
         show(Queued(Kind.OBSERVATIONS))
 
         assertEquals(2, ShadowToast.shownToastCount())

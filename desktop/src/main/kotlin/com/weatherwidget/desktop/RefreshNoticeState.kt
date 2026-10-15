@@ -27,8 +27,8 @@ import java.time.format.FormatStyle
 enum class RefreshNoticeSurface { POPUP, SETTINGS, HISTORY, OBSERVATIONS }
 
 /**
- * The desktop's two-second refresh toast ([RefreshNotice]; plans/261015-refresh-queued-toast-all-surfaces.md):
- * what a user's refresh queued, or why nothing. Android's `Toast.LENGTH_SHORT` is the same 2 s.
+ * The desktop's four-second refresh toast ([RefreshNotice]; plans/261015-refresh-queued-toast-all-surfaces.md):
+ * what a user's refresh queued, or why nothing. Android app screens show it for 3.5 s (`LENGTH_LONG`).
  *
  * One per process at a time, at most one per [RefreshNotice.DURATION_MS] ([RefreshNotice.shouldShow]).
  * Each [show] writes `REFRESH_TOAST` through [log], shown or suppressed.

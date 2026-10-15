@@ -188,7 +188,7 @@ fun determineLaunchRefreshAction(
 }
 
 /**
- * What cycling the popup onto a source will make the daemon fetch, as the popup's two-second toast
+ * What cycling the popup onto a source will make the daemon fetch, as the popup's four-second toast
  * says it (plans/261015-refresh-queued-toast-all-surfaces.md). The daemon decides in its own process
  * ([SOURCE_CYCLE_REASON] → [determineLaunchRefreshAction] with [launchForecastStaleAfterMs]); the popup
  * asks the same two functions with the same inputs, so the toast and the fetch cannot disagree.

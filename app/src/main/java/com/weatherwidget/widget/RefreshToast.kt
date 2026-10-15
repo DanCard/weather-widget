@@ -13,11 +13,11 @@ import com.weatherwidget.shared.util.RefreshNotice
 import java.util.Date
 
 /**
- * The two-second notice after a user's refresh action: what it queued, or why nothing
+ * The four-second notice after a user's refresh action: what it queued, or why nothing
  * ([RefreshNotice]; plans/261015-refresh-queued-toast-all-surfaces.md). User actions only — never a
  * background fetch.
  *
- * App screens get a Toast. Widget taps ([widgetIds] set) get the widget's own message banner instead
+ * App screens get a Toast, `LENGTH_LONG` (3.5 s, the longest Android allows). Widget taps ([widgetIds] set) get the widget's own message banner instead
  * (user, 2026-10-15): Android drops a toast from a background app without notification permission
  * (`NotificationService: Suppressing toast … by user request`, emulator and Fold 4), and a widget tap
  * is background. The banner never covers a different message already up ("Getting weather for…").
@@ -50,7 +50,7 @@ object RefreshToast {
             else -> {
                 val text = text(appContext, notice)
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(appContext, text, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(appContext, text, Toast.LENGTH_LONG).show()
                 }
                 "shown"
             }

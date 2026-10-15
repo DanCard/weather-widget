@@ -31,8 +31,11 @@ sealed interface RefreshNotice {
     ) : RefreshNotice
 
     companion object {
-        /** Android's `Toast.LENGTH_SHORT` is exactly this (AOSP `SHORT_DELAY`); desktop matches it. */
-        const val DURATION_MS = 2_000L
+        /**
+         * Four seconds (user, 2026-10-15: two was easy to miss). Widget banner and desktop use it exactly;
+         * an Android Toast cannot, so app screens use `LENGTH_LONG`, the platform's longest (3.5 s).
+         */
+        const val DURATION_MS = 4_000L
 
         /** At most one notice per [DURATION_MS]: fast cycling through stale sources must not stack toasts. */
         fun shouldShow(lastShownMs: Long?, nowMs: Long): Boolean =
