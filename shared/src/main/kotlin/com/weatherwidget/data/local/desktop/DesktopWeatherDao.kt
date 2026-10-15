@@ -784,7 +784,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             conn.createStatement().use { stmt ->
                 stmt.execute("DELETE FROM forecasts WHERE fetchedAt < $defaultCutoff")
                 stmt.execute("DELETE FROM hourly_forecasts WHERE fetchedAt < $defaultCutoff")
-                stmt.execute("DELETE FROM hourly_forecast_history WHERE fetchedAt < $defaultCutoff")
+                val historyCutoff = policy.daysAgo(nowMs, policy.HOURLY_HISTORY_SETTLED_DAYS)
+                stmt.execute("DELETE FROM hourly_forecast_history WHERE dateTime < $historyCutoff OR fetchedAt < $historyCutoff")
                 stmt.execute("DELETE FROM observations WHERE fetchedAt < ${policy.daysAgo(nowMs, policy.OBSERVATION_DAYS)}")
                 stmt.execute("DELETE FROM daily_history WHERE updatedAt < ${policy.daysAgo(nowMs, policy.DAILY_HISTORY_DAYS)}")
                 stmt.execute("DELETE FROM station_cache WHERE updatedAt < $defaultCutoff")

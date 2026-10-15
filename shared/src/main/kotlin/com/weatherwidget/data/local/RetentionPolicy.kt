@@ -14,7 +14,13 @@ package com.weatherwidget.data.local
 object RetentionPolicy {
     const val DAILY_HISTORY_DAYS = 547L
 
-    /** forecasts, hourly_forecasts, hourly_forecast_history, current_status, station_cache. */
+    /**
+     * hourly_forecast_history keeps 1 settled row per hour up to 18 months (matching daily_history),
+     * while retaining multi-snapshot variants within [DEFAULT_DAYS].
+     */
+    const val HOURLY_HISTORY_SETTLED_DAYS = DAILY_HISTORY_DAYS
+
+    /** forecasts, hourly_forecasts, current_status, station_cache; hourly_forecast_history active window. */
     const val DEFAULT_DAYS = 30L
 
     /** Raw station readings; the daily actuals they feed live on in daily_history. */

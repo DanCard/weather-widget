@@ -35,6 +35,9 @@ object HistorySnapshotRetention {
     /** Matches `PriorDayBandForecast.LEAD_MS`. */
     const val BAND_LEAD_MS = 24L * 3_600_000L
 
+    /** Active window where multi-snapshot rules run (30 days); older hours are settled to 1 row per hour per city cluster. */
+    const val ACTIVE_WINDOW_MS = RetentionPolicy.DEFAULT_DAYS * 24L * 3_600_000L
+
     data class Row(
         val source: String,
         val dateTime: Long,
@@ -60,27 +63,81 @@ object HistorySnapshotRetention {
         Row::precipProbability, Row::precipAmountMm,
     )
 
-    fun keptKeys(rows: List<Row>, zone: ZoneId): Set<Key> {
+    fun keptKeys(
+        rows: List<Row>,
+        zone: ZoneId,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Set<Key> {
         val kept = HashSet<Key>()
-        rows.groupBy { GroupKey(it.source, it.dateTime, it.lat, it.lon) }.forEach { (_, group) ->
-            // 1. newest, both ways (ties: keep every tied row — readers break ties arbitrarily)
-            keepMax(group, kept) { it.bucket }
-            keepMax(group, kept) { it.fetchedAt }
-            // 2. newest non-null per coalesced field
-            for (field in coalescedFields) keepMax(group.filter { field(it) != null }, kept) { it.bucket }
-            // 3. prior-day band
-            val hour = group.first().dateTime
-            keepMax(
-                group.filter { it.bucket <= hour - BAND_LEAD_MS && (it.cloudCoverMid != null || it.cloudCoverHigh != null) },
-                kept,
-            ) { it.bucket }
-            // 4. captured on the previous local calendar day
-            val day = Instant.ofEpochMilli(hour).atZone(zone).toLocalDate()
-            val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
-            val prevDayStart = day.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-            keepMax(group.filter { it.bucket in prevDayStart until dayStart }, kept) { it.bucket }
+        if (rows.isEmpty()) return kept
+
+        val cutoffActiveMs = nowMs - ACTIVE_WINDOW_MS
+        val (activeRows, settledRows) = rows.partition { it.dateTime >= cutoffActiveMs }
+
+        // Tier 1: Active 30-day window
+        if (activeRows.isNotEmpty()) {
+            val clusterMap = clusterCenters(activeRows, LocationMatch.SAME_SITE_TOLERANCE_DEG)
+            activeRows.groupBy {
+                val cluster = clusterMap[it.lat to it.lon] ?: (it.lat to it.lon)
+                GroupKey(it.source, it.dateTime, cluster.first, cluster.second)
+            }.forEach { (_, group) ->
+                // 1. newest, both ways (ties: keep every tied row — readers break ties arbitrarily)
+                keepMax(group, kept) { it.bucket }
+                keepMax(group, kept) { it.fetchedAt }
+                // 2. newest non-null per coalesced field
+                for (field in coalescedFields) keepMax(group.filter { field(it) != null }, kept) { it.bucket }
+                // 3. prior-day band
+                val hour = group.first().dateTime
+                keepMax(
+                    group.filter { it.bucket <= hour - BAND_LEAD_MS && (it.cloudCoverMid != null || it.cloudCoverHigh != null) },
+                    kept,
+                ) { it.bucket }
+                // 4. captured on the previous local calendar day
+                val day = Instant.ofEpochMilli(hour).atZone(zone).toLocalDate()
+                val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+                val prevDayStart = day.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                keepMax(group.filter { it.bucket in prevDayStart until dayStart }, kept) { it.bucket }
+            }
         }
+
+        // Tier 2: Settled archive (30 days to 18 months)
+        if (settledRows.isNotEmpty()) {
+            val clusterMap = clusterCenters(settledRows, LocationMatch.TOLERANCE_DEG)
+            settledRows.groupBy {
+                val cluster = clusterMap[it.lat to it.lon] ?: (it.lat to it.lon)
+                GroupKey(it.source, it.dateTime, cluster.first, cluster.second)
+            }.forEach { (_, group) ->
+                // Keep strictly one row per hour per source per city cluster.
+                // The snapshot fetched latest (closest to or after the hour occurred) wins; break ties with latest bucket.
+                val maxFetched = group.maxOf { it.fetchedAt }
+                val fetchedWinners = group.filter { it.fetchedAt == maxFetched }
+                val maxBucket = fetchedWinners.maxOf { it.bucket }
+                val winner = fetchedWinners.first { it.bucket == maxBucket }
+                kept += winner.key
+            }
+        }
+
         return kept
+    }
+
+    private fun clusterCenters(rows: List<Row>, toleranceDeg: Double): Map<Pair<Double, Double>, Pair<Double, Double>> {
+        val freq = rows.groupingBy { it.lat to it.lon }.eachCount()
+        val sortedPoints = freq.keys.sortedByDescending { freq[it] ?: 0 }
+        val centers = mutableListOf<Pair<Double, Double>>()
+        val mapping = mutableMapOf<Pair<Double, Double>, Pair<Double, Double>>()
+        for (pt in sortedPoints) {
+            val matched = centers.firstOrNull { (cLat, cLon) ->
+                kotlin.math.abs(pt.first - cLat) <= toleranceDeg &&
+                    kotlin.math.abs(pt.second - cLon) <= toleranceDeg
+            }
+            if (matched != null) {
+                mapping[pt] = matched
+            } else {
+                centers += pt
+                mapping[pt] = pt
+            }
+        }
+        return mapping
     }
 
     private data class GroupKey(val source: String, val dateTime: Long, val lat: Double, val lon: Double)

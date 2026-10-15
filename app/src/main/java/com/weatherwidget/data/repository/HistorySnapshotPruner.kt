@@ -36,7 +36,7 @@ internal class HistorySnapshotPruner(
      *   so after the first full pass (0) a daily run skips the settled past. The first pass on the
      *   Pixel scanned 78 days / 250k rows.
      */
-    suspend fun prune(touchedSinceFetchedAt: Long = 0L): Result {
+    suspend fun prune(touchedSinceFetchedAt: Long = 0L, nowMs: Long = System.currentTimeMillis()): Result {
         val startMs = SystemClock.elapsedRealtime()
         val zone = zone()
         val min = dao.minDateTime(touchedSinceFetchedAt) ?: return logged(Result(0, 0, 0, 0))
@@ -51,7 +51,7 @@ internal class HistorySnapshotPruner(
             val to = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
             val rows = dao.getAllInDateTimeRange(from, to)
             if (rows.isNotEmpty()) {
-                val keep = HistorySnapshotRetention.keptKeys(rows.map { it.toRetentionRow() }, zone)
+                val keep = HistorySnapshotRetention.keptKeys(rows.map { it.toRetentionRow() }, zone, nowMs)
                 val doomed = rows.filter { it.toRetentionRow().key !in keep }
                 // Chunked: one statement per row inside Room's transaction; keeps each transaction short.
                 doomed.chunked(DELETE_CHUNK).forEach { dao.deleteRows(it) }

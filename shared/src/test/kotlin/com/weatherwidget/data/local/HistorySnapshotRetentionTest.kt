@@ -117,4 +117,36 @@ class HistorySnapshotRetentionTest {
         val row = HistorySnapshotRetention.Row("OPEN_METEO", t0, 52.0, 21.0, t0 - hourMs, t0 - hourMs)
         assertEquals(setOf(row.key), HistorySnapshotRetention.keptKeys(listOf(row), zone))
     }
+
+    @Test
+    fun `hours past 30 days are collapsed to strictly one row per hour per city cluster`() {
+        val pastHour = t0 - 40 * 24 * hourMs // 40 days in the past
+        // 5 snapshots for the same past hour, across slightly different coordinates in the same city
+        val rows = listOf(
+            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.841, 24.031, pastHour - 5 * hourMs, pastHour - 4 * hourMs),
+            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.843, 24.032, pastHour - 3 * hourMs, pastHour - 2 * hourMs),
+            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.840, 24.029, pastHour - 1 * hourMs, pastHour + 10_000L), // latest fetchedAt winner
+            HistorySnapshotRetention.Row("NWS", pastHour, 49.841, 24.031, pastHour - 5 * hourMs, pastHour - 4 * hourMs),
+            HistorySnapshotRetention.Row("NWS", pastHour, 49.842, 24.030, pastHour - 1 * hourMs, pastHour + 20_000L), // NWS winner
+        )
+        val keep = HistorySnapshotRetention.keptKeys(rows, zone, nowMs = t0)
+        // Exactly 2 rows kept: 1 for OPEN_METEO and 1 for NWS
+        assertEquals(2, keep.size)
+        assertTrue(keep.contains(rows[2].key))
+        assertTrue(keep.contains(rows[4].key))
+    }
+
+    @Test
+    fun `settled archive keeps distinct city clusters that are far apart`() {
+        val pastHour = t0 - 45 * 24 * hourMs
+        // Lviv (49.84, 24.03) vs Kyiv (50.45, 30.52) - hundreds of km apart
+        val rows = listOf(
+            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.841, 24.031, pastHour - 2 * hourMs, pastHour + 1000L),
+            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 50.451, 30.521, pastHour - 2 * hourMs, pastHour + 2000L),
+        )
+        val keep = HistorySnapshotRetention.keptKeys(rows, zone, nowMs = t0)
+        assertEquals(2, keep.size)
+        assertTrue(keep.contains(rows[0].key))
+        assertTrue(keep.contains(rows[1].key))
+    }
 }

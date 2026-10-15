@@ -251,7 +251,7 @@ interface HourlyForecastHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(history: List<HourlyForecastHistoryEntity>)
 
-    @Query("DELETE FROM hourly_forecast_history WHERE fetchedAt < :cutoffTime")
+    @Query("DELETE FROM hourly_forecast_history WHERE dateTime < :cutoffTime OR fetchedAt < :cutoffTime")
     suspend fun deleteOldHistory(cutoffTime: Long)
 
     /** Every snapshot of every hour in [startDateTime, endDateTime), all sites and sources: the prune's day chunk. */

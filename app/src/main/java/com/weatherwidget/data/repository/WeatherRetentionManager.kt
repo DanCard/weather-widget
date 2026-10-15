@@ -38,7 +38,7 @@ internal class WeatherRetentionManager(
         forecastDao.deleteOldForecasts(defaultCutoff)
         forecastDao.deleteClimateNormalRows(WeatherSource.GENERIC_GAP.id)
         hourlyForecastDao.deleteOldForecasts(defaultCutoff)
-        hourlyForecastHistoryDao.deleteOldHistory(defaultCutoff)
+        hourlyForecastHistoryDao.deleteOldHistory(RetentionPolicy.daysAgo(now, RetentionPolicy.HOURLY_HISTORY_SETTLED_DAYS))
         observationDao.deleteOldObservations(RetentionPolicy.daysAgo(now, RetentionPolicy.OBSERVATION_DAYS))
         dailyHistoryDao.deleteOldExtremes(RetentionPolicy.daysAgo(now, RetentionPolicy.DAILY_HISTORY_DAYS))
         // Best-effort: usage bookkeeping must never fail a sync.

@@ -46,7 +46,7 @@ class DesktopRetentionPolicyTest {
         when (table) {
             "forecasts" -> exec("INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, source, batchFetchedAt, fetchedAt) VALUES ($id, $id, 1, 1, 1, 1, 'c', 'NWS', $t, $t)")
             "hourly_forecasts" -> exec("INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, fetchedAt) VALUES ($id, 1, 1, 1, 'c', 'NWS', $t)")
-            "hourly_forecast_history" -> exec("INSERT INTO hourly_forecast_history (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, fetchedAt) VALUES ($id, 1, 1, 1, 'c', 'NWS', $id, $t)")
+            "hourly_forecast_history" -> exec("INSERT INTO hourly_forecast_history (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, fetchedAt) VALUES ($t, 1, 1, 1, 'c', 'NWS', $id, $t)")
             "observations" -> exec("INSERT INTO observations (stationId, stationName, timestamp, temperature, condition, locationLat, locationLon, fetchedAt, api) VALUES ('S$id', 'S', $id, 1, 'c', 1, 1, $t, 'NWS')")
             "daily_history" -> exec("INSERT INTO daily_history (date, locationLat, locationLon, source, condition, updatedAt) VALUES ($id, 1, 1, 'NWS', 'c', $t)")
             "station_cache" -> exec("INSERT INTO station_cache (cacheKey, stations, updatedAt) VALUES ('k$id', '[]', $t)")
@@ -59,7 +59,7 @@ class DesktopRetentionPolicyTest {
     @Test
     fun `each table keeps rows inside its window and drops rows outside it`() {
         val windows = mapOf(
-            "forecasts" to 30.0, "hourly_forecasts" to 30.0, "hourly_forecast_history" to 30.0,
+            "forecasts" to 30.0, "hourly_forecasts" to 30.0, "hourly_forecast_history" to 547.0,
             "station_cache" to 30.0, "current_status" to 30.0,
             "observations" to 10.0, "daily_history" to 547.0, "network_usage" to 90.0,
         )
