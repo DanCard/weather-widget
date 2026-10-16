@@ -121,13 +121,19 @@ class GoogleWeatherApi(
         try {
             request()
         } catch (e: ApiAccessException) {
-            if (!GoogleQuota.isDailyQuotaExhausted(e)) throw e
-            val until = GoogleQuota.nextResetMs(nowMs())
-            productBlocks[product] = ProductBlock(until, e.detail)
-            SourceQuotaBlocks.block(WeatherSource.GOOGLE_WEATHER.id, product, until)
-            Log.w(TAG, "$product daily quota exhausted; that product skipped until $until")
+            if (!blockIfDailyQuota(product, e)) throw e
             null
         }
+
+    /** Blocks [product] until the quota reset when [e] is a daily-quota 429; true when it was. */
+    private fun blockIfDailyQuota(product: ForecastProduct, e: ApiAccessException): Boolean {
+        if (!GoogleQuota.isDailyQuotaExhausted(e)) return false
+        val until = GoogleQuota.nextResetMs(nowMs())
+        productBlocks[product] = ProductBlock(until, e.detail)
+        SourceQuotaBlocks.block(WeatherSource.GOOGLE_WEATHER.id, product, until)
+        Log.w(TAG, "$product daily quota exhausted; that product skipped until $until")
+        return true
+    }
 
     /**
      * The last [getForecast]'s `forecast/hours` paging, e.g. `pages=1 reason=unchanged …`, for the
@@ -307,11 +313,26 @@ class GoogleWeatherApi(
         var pagingReason = if (storedHours == null) "no_stored_hours_given" else "single_page"
         var pageToken: String? = null
         var pages = 0
+        var partial: String? = null
         do {
-            val page = fetchJson(apiKey, "/forecast/hours:lookup", lat, lon) {
-                parameter("hours", hoursAhead)
-                parameter("pageSize", PAGE_SIZE)
-                pageToken?.let { parameter("pageToken", it) }
+            // A later page failing keeps the pages already received: a LONG fetch's page 7 hitting the
+            // per-minute limit (10/min) threw away days 1–6 (2026-10-16,
+            // plans/261016-google-hour-pages-kept-when-a-later-page-fails.md). Page 1 still fails.
+            val page = try {
+                fetchJson(apiKey, "/forecast/hours:lookup", lat, lon) {
+                    parameter("hours", hoursAhead)
+                    parameter("pageSize", PAGE_SIZE)
+                    pageToken?.let { parameter("pageToken", it) }
+                }
+            } catch (e: ApiAccessException) {
+                if (pages == 0) throw e
+                blockIfDailyQuota(ForecastProduct.HOURLY, e)
+                partial = e.statusCode?.toString() ?: "error"
+                break
+            } catch (e: java.io.IOException) {
+                if (pages == 0) throw e
+                partial = "io"
+                break
             }
             pages++
             page["forecastHours"]?.jsonArray?.mapTo(hours) { it.jsonObject }
@@ -327,7 +348,9 @@ class GoogleWeatherApi(
                 if (!decision.fetchRest) break
             }
         } while (pageToken != null && pages < maxPages)
-        lastHoursPaging = "pages=$pages reason=$pagingReason" + if (hoursAhead != FORECAST_HOURS) " hours=$hoursAhead" else ""
+        lastHoursPaging = "pages=$pages reason=$pagingReason" +
+            (if (hoursAhead != FORECAST_HOURS) " hours=$hoursAhead" else "") +
+            (partial?.let { " partial=$it" } ?: "")
         Log.i(TAG, "forecast/hours $lastHoursPaging")
         return hours
     }

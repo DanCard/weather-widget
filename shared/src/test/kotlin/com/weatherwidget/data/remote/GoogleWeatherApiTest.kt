@@ -38,6 +38,10 @@ class GoogleWeatherApiTest {
     private var historyStatus = HttpStatusCode.OK
     private var hoursErrorBody: String? = null
     private var daysErrorBody: String? = null
+
+    /** From this hour page on (1-based), answer [laterPageErrorBody] as a 429, or throw an IOException when null. */
+    private var failFromPage: Int? = null
+    private var laterPageErrorBody: String? = null
     private var clockMs = java.time.Instant.parse("2026-10-06T18:00:00Z").toEpochMilli()
 
     private fun fixture(name: String): String =
@@ -65,14 +69,20 @@ class GoogleWeatherApiTest {
             // Pages 1-3 per fetch: page 1 has no token, 2 and 3 chain from the recorded tokens. Routed
             // by token, never by counting `requests`: hours runs beside current/days/history, and
             // iterating the list while they add can throw ConcurrentModificationException.
-            path.endsWith("forecast/hours:lookup") -> fixture(
-                when (val token = request.url.parameters["pageToken"]) {
+            path.endsWith("forecast/hours:lookup") -> {
+                val pageName = when (val token = request.url.parameters["pageToken"]) {
                     null -> "hours1"
                     nextPageToken("hours1") -> "hours2"
                     nextPageToken("hours2") -> "hours3"
                     else -> error("unrecorded forecast/hours pageToken $token")
-                },
-            )
+                }
+                val failFrom = failFromPage
+                if (failFrom != null && pageName.removePrefix("hours").toInt() >= failFrom) {
+                    val body = laterPageErrorBody ?: throw java.io.IOException("connection reset on $pageName")
+                    return respond(body, HttpStatusCode.TooManyRequests)
+                }
+                fixture(pageName)
+            }
             else -> error("unexpected $path")
         }
         return respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
@@ -485,6 +495,62 @@ class GoogleWeatherApiTest {
         hoursErrorBody = null
         requests.clear() // the mock picks hour pages by counting prior hour requests
         assertEquals(72, api.getForecast(37.422, -122.084, includeHistory = false).hourly.size)
+    }
+
+    // plans/261016-google-hour-pages-kept-when-a-later-page-fails.md
+    @Test
+    fun `a per-minute 429 on a later hour page keeps the pages that arrived`() = runBlocking {
+        failFromPage = 3
+        laterPageErrorBody = quota429("1/min/{project}/{user}")
+        val api = api()
+
+        val result = api.getForecast(37.422, -122.084, includeHistory = false, hoursAhead = 192)
+
+        assertEquals("pages 1-2", 48, result.hourly.size)
+        assertEquals(10, result.daily.size)
+        assertNotNull("current conditions unaffected", result.providerCurrentTemp)
+        assertTrue("a per-minute limit blocks nothing", result.quotaRefused.isEmpty())
+        assertFalse(SourceQuotaBlocks.isFullyBlocked(WeatherSource.GOOGLE_WEATHER.id, clockMs))
+        assertEquals("pages=2 reason=no_stored_hours_given hours=192 partial=429", api.lastHoursPaging)
+
+        failFromPage = null
+        requests.clear()
+        assertEquals("the next fetch tries every page again", 72, api.getForecast(37.422, -122.084, includeHistory = false).hourly.size)
+    }
+
+    @Test
+    fun `a daily-quota 429 on a later hour page keeps the pages and blocks hours`() = runBlocking {
+        failFromPage = 3
+        laterPageErrorBody = quota429("1/d/{project}")
+        val api = api()
+
+        val result = api.getForecast(37.422, -122.084, includeHistory = false, hoursAhead = 192)
+
+        assertEquals(48, result.hourly.size)
+        assertEquals(setOf(com.weatherwidget.data.model.ForecastProduct.HOURLY), result.quotaRefused.keys)
+        val before = hoursCalls()
+        api.getForecast(37.422, -122.084, includeHistory = false)
+        assertEquals("no request into the exhausted hours quota", before, hoursCalls())
+    }
+
+    @Test
+    fun `a dropped connection on page 2 keeps page 1`() = runBlocking {
+        failFromPage = 2
+        laterPageErrorBody = null
+        val api = api()
+
+        val result = api.getForecast(37.422, -122.084, includeHistory = false, hoursAhead = 192)
+
+        assertEquals(24, result.hourly.size)
+        assertTrue(api.lastHoursPaging!!.endsWith("partial=io"))
+    }
+
+    @Test
+    fun `a failure on page 1 still fails the hours`() = runBlocking {
+        failFromPage = 1
+        laterPageErrorBody = quota429("1/min/{project}/{user}")
+        val failure = runCatching { api().getForecast(37.422, -122.084, includeHistory = false) }.exceptionOrNull()
+        assertTrue("$failure", failure is ApiAccessException && !GoogleQuota.isDailyQuotaExhausted(failure))
     }
 
     @Test

@@ -40,7 +40,9 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   quota-theft risk; usage is tracked in `api_usage_stats`) — **except Google Weather**, billed per
   request, whose key is baked into debug builds only (release `BuildConfig` field is `""`).
   Google is forecast-only (borrows actuals); one full fetch = 4–6 requests (`forecast/hours` page 1, then
-  pages 2–3 only if page 1 changed — `GoogleHourPaging`), current temp = 1. Google's day runs
+  pages 2–3 only if page 1 changed — `GoogleHourPaging`), current temp = 1. A later page failing (e.g. the
+  10/min per-user limit) keeps the pages that arrived (`lastHoursPaging … partial=429`;
+  `plans/261016-google-hour-pages-kept-when-a-later-page-fails.md`). Google's day runs
   07:00→07:00, so its `minTemperature` is the next morning's: day D takes day D−1's min, like NWS
   (`GoogleWeatherApi.lowsFiledUnderTheirMorning`); a fetch with no low for today keeps the newest
   stored one ≤ 24 h old (`SameDayExtremeCutoff.keptTodayLow`, both platforms;
