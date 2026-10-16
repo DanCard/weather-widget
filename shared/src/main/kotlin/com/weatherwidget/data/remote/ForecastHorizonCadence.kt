@@ -15,8 +15,9 @@ import java.time.LocalDate
  * | < 70 % | on or off | every 24 h | none |
  *
  * A LONG fetch downloads the source's whole reach (Google: [LONG_ASK_HOURS]) and stores every daily
- * row; a SHORT one asks [SHORT_HOURS] and stores only the next [SHORT_DAYS] days of daily rows. Both
- * store [HourlyHorizons.ROUTINE_HOURS] of hourly. A LONG fetch also counts as a SHORT one.
+ * row and up to 8 days of live hourly ([HourlyHorizon.longHours]); a SHORT one asks [SHORT_HOURS] and
+ * stores only the next [SHORT_DAYS] days of daily rows and [HourlyHorizons.ROUTINE_HOURS] of hourly.
+ * Snapshots keep [HourlyHorizons.ROUTINE_HOURS] either way. A LONG fetch also counts as a SHORT one.
  *
  * No displayed-vs-other split, no view-age bands, no per-provider case. "Due" is measured from two
  * per-source + site markers ([Marker]), never from the rows' `fetchedAt`.
@@ -43,7 +44,7 @@ object ForecastHorizonCadence {
     const val SHORT_DAYS = 3
 
     /** 8 days: what a LONG fetch asks a source that bills per day for (capped by its reach). */
-    const val LONG_ASK_HOURS = 192
+    const val LONG_ASK_HOURS = HourlyHorizons.LONG_HOURS
 
     /**
      * How much older than the newest fetch a day's row may be and still be shown: a SHORT fetch leaves
@@ -138,8 +139,18 @@ object ForecastHorizonCadence {
         }
     }
 
-    /** Hours of hourly a fetch of [sourceId] stores: the routine 72 h either way. */
+    /**
+     * Hours of live hourly a fetch of [sourceId] stores: a LONG fetch its whole download up to 8 days
+     * ([HourlyHorizon.longHours]), a SHORT one the routine 72 h — days 4+ stay the last LONG fetch's.
+     * Snapshots keep the routine 72 h either way ([snapshotHours]).
+     */
     fun storeHours(sourceId: String, horizon: Horizon): Int = when (horizon) {
+        Horizon.SHORT -> minOf(SHORT_HOURS, HourlyHorizons.of(sourceId).routineHours)
+        Horizon.LONG -> HourlyHorizons.of(sourceId).longHours
+    }
+
+    /** Hours of hourly a fetch of [sourceId] snapshots into history: the routine 72 h either way. */
+    fun snapshotHours(sourceId: String, horizon: Horizon): Int = when (horizon) {
         Horizon.SHORT -> minOf(SHORT_HOURS, HourlyHorizons.of(sourceId).routineHours)
         Horizon.LONG -> HourlyHorizons.of(sourceId).routineHours
     }

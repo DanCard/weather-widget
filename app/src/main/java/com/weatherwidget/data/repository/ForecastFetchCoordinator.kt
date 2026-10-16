@@ -248,16 +248,17 @@ internal class ForecastFetchCoordinator(
      * `if` guards did.
      */
     /**
-     * Last instant (exclusive) of hourly a fetch of [source] stores: 72 h routinely, deeper for the
-     * on-demand day it was asked for ([HourlyOnDemand.hoursAhead]). Past it, only the daily row's
-     * summaries are kept ([DailyHourlySummaries]).
+     * Last instants (exclusive) of hourly a fetch of [source] stores, live and snapshot: 72 h
+     * routinely, a LONG fetch's 8 days live, deeper for the on-demand day it was asked for
+     * ([HourlyOnDemand.keep]). Past them, only the daily row's summaries are kept
+     * ([DailyHourlySummaries]).
      */
     private fun hourlyKeepUntilMs(
         source: WeatherSource,
         fetchContext: ForecastFetchContext?,
         horizon: ForecastHorizonCadence.Horizon? = null,
-    ): Long =
-        DailyHourlySummaries.keepUntilMs(clock(), HourlyOnDemand.hoursAhead(source.id, fetchContext?.hourlyAhead, horizon))
+    ): HourlyOnDemand.KeepUntil =
+        HourlyOnDemand.keep(source.id, fetchContext?.hourlyAhead, horizon).untilMs(clock())
 
     /**
      * LONG or SHORT for a fetch of [source] at the site ([ForecastHorizonCadence.forced]: a user's
@@ -587,7 +588,7 @@ internal class ForecastFetchCoordinator(
     suspend fun fetchFromNws(
         latitude: Double,
         longitude: Double,
-        keepUntilMs: Long = hourlyKeepUntilMs(WeatherSource.NWS, null),
+        keepUntilMs: HourlyOnDemand.KeepUntil = hourlyKeepUntilMs(WeatherSource.NWS, null),
         parts: ForecastParts = ForecastParts.BOTH,
     ): List<ForecastEntity> {
         val (forecastEntities, hourlyEntities, elapsedHourly) =
@@ -688,7 +689,7 @@ internal class ForecastFetchCoordinator(
     private suspend fun fetchFromSilurian(
         latitude: Double,
         longitude: Double,
-        keepUntilMs: Long,
+        keepUntilMs: HourlyOnDemand.KeepUntil,
         parts: ForecastParts = ForecastParts.BOTH,
     ): List<ForecastEntity> {
         val result = silurianApi.getForecast(latitude, longitude, parts)
@@ -737,7 +738,7 @@ internal class ForecastFetchCoordinator(
         latitude: Double,
         longitude: Double,
         source: WeatherSource,
-        keepUntilMs: Long,
+        keepUntilMs: HourlyOnDemand.KeepUntil,
         fetch: suspend () -> RawFetch?,
     ): List<ForecastEntity>? {
         val result = fetch() ?: return null

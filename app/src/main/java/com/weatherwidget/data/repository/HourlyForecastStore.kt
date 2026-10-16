@@ -40,20 +40,25 @@ internal class HourlyForecastStore(
     )
 
     /**
-     * [keepUntilMs]: hours at or past it are not stored, live or snapshot — the fetch's horizon
-     * (72 h routinely, deeper for an on-demand day). The daily view keeps what it needs from them on
-     * the forecast row ([com.weatherwidget.shared.util.DailyHourlySummaries]); the caller computes
-     * that from the whole download before calling here.
-     * `performance/261010-daily-view-summaries-instead-of-far-hourly.md`
+     * [keepUntilMs]: hours at or past [HourlyOnDemand.KeepUntil.liveMs] are not stored live, at or past
+     * [HourlyOnDemand.KeepUntil.snapshotMs] not snapshotted — the fetch's horizon (72 h routinely, a
+     * LONG fetch's 8 days live, deeper for an on-demand day). The daily view keeps what it needs from
+     * the rest on the forecast row ([com.weatherwidget.shared.util.DailyHourlySummaries]); the caller
+     * computes that from the whole download before calling here.
+     * `performance/261010-daily-view-summaries-instead-of-far-hourly.md`,
+     * `performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md`
      */
-    suspend fun saveHourlyEntities(rawEntities: List<HourlyForecastEntity>, keepUntilMs: Long? = null) {
+    suspend fun saveHourlyEntities(rawEntities: List<HourlyForecastEntity>, keepUntilMs: HourlyOnDemand.KeepUntil? = null) {
         if (rawEntities.isEmpty()) return
-        val kept = if (keepUntilMs == null) rawEntities else rawEntities.filter { it.dateTime < keepUntilMs }
-        if (kept.size < rawEntities.size) {
+        val kept = if (keepUntilMs == null) rawEntities else rawEntities.filter { it.dateTime < keepUntilMs.liveMs }
+        val snapshotUntilMs = keepUntilMs?.snapshotMs ?: Long.MAX_VALUE
+        if (kept.size < rawEntities.size || kept.any { it.dateTime >= snapshotUntilMs }) {
             appLogDao?.log(
                 "HOURLY_TRIM",
-                "source=${rawEntities.first().source} kept=${kept.size} dropped=${rawEntities.size - kept.size} " +
-                    "horizonH=${keepUntilMs?.let { (it - clock()) / 3_600_000L }}",
+                "source=${rawEntities.first().source} kept=${kept.size} " +
+                    "snapshotKept=${kept.count { it.dateTime < snapshotUntilMs }} dropped=${rawEntities.size - kept.size} " +
+                    "horizonH=${keepUntilMs?.let { (it.liveMs - clock()) / 3_600_000L }} " +
+                    "snapshotH=${keepUntilMs?.let { (it.snapshotMs - clock()) / 3_600_000L }}",
                 "VERBOSE",
             )
         }
@@ -97,7 +102,7 @@ internal class HourlyForecastStore(
             hourlyForecastDao.insertAll(changedEntities)
         }
 
-        val historyRows = mergedEntities.map { entity ->
+        val historyRows = mergedEntities.filter { it.dateTime < snapshotUntilMs }.map { entity ->
             HourlyForecastHistoryEntity(
                 dateTime = entity.dateTime,
                 locationLat = entity.locationLat,
@@ -151,7 +156,7 @@ internal class HourlyForecastStore(
         longitude: Double,
         sourceId: String,
         historicalData: List<HourlyForecast> = hourlyData,
-        keepUntilMs: Long? = null,
+        keepUntilMs: HourlyOnDemand.KeepUntil? = null,
     ): HistoricalActualsWriteSummary {
         val now = clock()
         // Deliberately drops elapsed hours: `hourly_forecasts` is a forecast archive, and letting a

@@ -444,7 +444,7 @@ class DesktopWeatherRepository(
             val forecastHours = persistForecastResult(
                 result,
                 now,
-                hoursAhead = HourlyOnDemand.hoursAhead(weatherSource, HourlyOnDemand.Request(weatherSource, hours)),
+                keep = HourlyOnDemand.keep(weatherSource, HourlyOnDemand.Request(weatherSource, hours)),
             )
             val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
             weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, forecastHours)
@@ -651,7 +651,7 @@ class DesktopWeatherRepository(
             val forecastHours = persistForecastResult(
                 result,
                 now,
-                hoursAhead = HourlyOnDemand.hoursAhead(weatherSource, null, fetchHorizon),
+                keep = HourlyOnDemand.keep(weatherSource, null, fetchHorizon),
                 horizon = fetchHorizon,
             )
             markHorizon(fetchHorizon, result)
@@ -756,7 +756,7 @@ class DesktopWeatherRepository(
         val forecastHours = persistForecastResult(
             result.copy(daily = emptyList(), rawObservations = emptyList()),
             now,
-            hoursAhead = HourlyOnDemand.hoursAhead(weatherSource, null, horizon),
+            keep = HourlyOnDemand.keep(weatherSource, null, horizon),
         )
         markHorizon(horizon, result)
         val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
@@ -939,13 +939,14 @@ class DesktopWeatherRepository(
     /**
      * Persists the just-fetched [result]: the elapsed-hour forecast rows, the daily forecast, and
      * any observations (with the `BACKFILL_CLOUD` diagnostic that separates "backfill produced no
-     * cloud" from "the write dropped it"). Returns the filtered [forecastHours] so [refresh] can
-     * reuse it for the hourly-history snapshot.
+     * cloud" from "the write dropped it"). Returns the hours to snapshot (to
+     * [HourlyOnDemand.Keep.snapshotHours]) so [refresh] can reuse them for the hourly-history snapshot.
      */
     private suspend fun persistForecastResult(
         result: RawFetch,
         now: Long,
-        hoursAhead: Int = HourlyOnDemand.hoursAhead(weatherSource, null),
+        /** Live and snapshot horizons: a LONG fetch keeps 8 days live, 72 h snapshotted. */
+        keep: HourlyOnDemand.Keep = HourlyOnDemand.keep(weatherSource, null),
         /** A SHORT fetch stores only the next [ForecastHorizonCadence.SHORT_DAYS] daily rows. */
         horizon: ForecastHorizonCadence.Horizon? = null,
     ): List<HourlyForecast> {
@@ -953,16 +954,20 @@ class DesktopWeatherRepository(
         // Preserve the forecast that was actually shown for elapsed hours. Tomorrow's Timeline
         // response also contains a revised six-hour lookback; that slice belongs only in
         // observations and must not rewrite either live forecast storage or its snapshots.
-        // Hourly is stored to the fetch's horizon only — 72 h routinely, deeper for an on-demand
-        // day; the daily rows keep what the daily view needs from the rest (DailyHourlySummaries,
-        // performance/261010-daily-view-summaries-instead-of-far-hourly.md).
-        val keepUntilMs = DailyHourlySummaries.keepUntilMs(now, hoursAhead)
+        // Hourly is stored to the fetch's horizon only — 72 h routinely, a LONG fetch's 8 days live,
+        // deeper for an on-demand day; snapshots to 72 h unless on demand. The daily rows keep what the
+        // daily view needs from the rest (DailyHourlySummaries,
+        // performance/261010-daily-view-summaries-instead-of-far-hourly.md,
+        // performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md).
+        val keepUntil = keep.untilMs(now)
         val upcoming = result.hourly.filter { it.dateTime >= now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
-        val forecastHours = upcoming.filter { it.dateTime < keepUntilMs }
-        if (forecastHours.size < upcoming.size) {
+        val forecastHours = upcoming.filter { it.dateTime < keepUntil.liveMs }
+        val snapshotHours = forecastHours.filter { it.dateTime < keepUntil.snapshotMs }
+        if (forecastHours.size < upcoming.size || snapshotHours.size < forecastHours.size) {
             weatherDao.log(
                 tag = "HOURLY_TRIM",
-                message = "source=$weatherSource kept=${forecastHours.size} dropped=${upcoming.size - forecastHours.size} horizonH=$hoursAhead",
+                message = "source=$weatherSource kept=${forecastHours.size} snapshotKept=${snapshotHours.size} " +
+                    "dropped=${upcoming.size - forecastHours.size} horizonH=${keep.liveHours} snapshotH=${keep.snapshotHours}",
                 level = "VERBOSE",
             )
         }
@@ -1005,7 +1010,7 @@ class DesktopWeatherRepository(
                 tomorrowWindowHours = TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS,
             )
         }
-        return forecastHours
+        return snapshotHours
     }
 
     /**

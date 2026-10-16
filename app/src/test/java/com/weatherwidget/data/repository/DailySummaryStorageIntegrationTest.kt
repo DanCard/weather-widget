@@ -211,6 +211,55 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
         )
     }
 
+    /** A routine fetch on a charger with the screen on: LONG when due, else SHORT. */
+    private val routineContext = ForecastFetchContext(
+        isCharging = true,
+        isScreenInteractive = true,
+        batteryLevel = 100,
+        activeSourceIds = setOf(om.id),
+    )
+
+    /** `performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md` */
+    @Test
+    fun `a LONG fetch keeps 8 days of live hourly and snapshots 72 h`() = runTest {
+        fetch(download(seed = 5), routineContext)
+
+        val hourMs = (clockMs / hour) * hour
+        val live = liveHourly()
+        assertTrue("live reaches day 8: ${live.maxOf { it.dateTime }}", live.maxOf { it.dateTime } == hourMs + 191 * hour)
+        val history = db.hourlyForecastHistoryDao().getHistoryInRangeAllSnapshots(clockMs, clockMs + 400 * hour, lat, lon)
+        assertTrue(history.isNotEmpty() && history.maxOf { it.dateTime } < hourMs + 72 * hour)
+    }
+
+    @Test
+    fun `a SHORT fetch after a LONG one leaves the hours past 72 h as the LONG fetch stored them`() = runTest {
+        fetch(download(seed = 5), routineContext)
+        val probe = (clockMs / hour) * hour + 150 * hour
+        val before = liveHourly().single { it.dateTime == probe }
+
+        clockMs += 5 * hour // SHORT due (4 h), LONG not (8 h)
+        fetch(download(seed = 40), routineContext)
+
+        val after = liveHourly().single { it.dateTime == probe }
+        assertEquals(before.cloudCover, after.cloudCover)
+        assertEquals(before.fetchedAt, after.fetchedAt)
+        val nearProbe = (clockMs / hour) * hour + 10 * hour
+        assertEquals("inside 72 h the SHORT fetch wrote", (40 + nearProbe.let { ms ->
+            val first = at(today, 0)
+            ((ms - first) / (24 * hour)).toInt() * 7 + ((ms - first) / hour % 24).toInt()
+        }) % 100, liveHourly().single { it.dateTime == nearProbe }.cloudCover)
+    }
+
+    @Test
+    fun `after a LONG fetch, day 5 in the hourly view needs no on-demand fetch`() = runTest {
+        fetch(download(seed = 5), routineContext)
+        val stored = liveHourly().map { it.toHourlyForecast() }
+
+        assertEquals(null, HourlyOnDemand.hoursToCover(om.id, today.plusDays(4), zone, clockMs, stored))
+        clockMs += 30 * hour
+        assertEquals("30 h later the LONG rows still vouch", null, HourlyOnDemand.hoursToCover(om.id, today.plusDays(5), zone, clockMs, stored))
+    }
+
     /** The widget's daily paint reads the 72 h store and the rows; it must draw what the full download drew. */
     @Test
     fun `the daily view resolves the same noon cloud and rain chances as from the full download`() = runTest {

@@ -125,11 +125,64 @@ class ForecastHorizonCadenceTest {
     }
 
     @Test
-    fun `Google asks 72 h SHORT and 8 days LONG, both store 72 h`() {
+    fun `Google asks 72 h SHORT and 8 days LONG, keeps them live, snapshots 72 h`() {
         assertEquals(72, ForecastHorizonCadence.askHours(google, Horizon.SHORT))
         assertEquals(192, ForecastHorizonCadence.askHours(google, Horizon.LONG))
         assertEquals(72, ForecastHorizonCadence.storeHours(google, Horizon.SHORT))
-        assertEquals(72, ForecastHorizonCadence.storeHours(google, Horizon.LONG))
+        assertEquals(192, ForecastHorizonCadence.storeHours(google, Horizon.LONG))
+        assertEquals(72, ForecastHorizonCadence.snapshotHours(google, Horizon.SHORT))
+        assertEquals(72, ForecastHorizonCadence.snapshotHours(google, Horizon.LONG))
+    }
+
+    @Test
+    fun `a LONG fetch keeps each source's download live to 8 days, a SHORT one 72 h`() {
+        val expected = mapOf(
+            WeatherSource.GOOGLE_WEATHER to 192,
+            WeatherSource.OPEN_METEO to 192,
+            WeatherSource.SILURIAN to 192,
+            WeatherSource.NWS to 156,
+            WeatherSource.TOMORROW_IO to 120,
+            WeatherSource.OPEN_WEATHER_MAP to 120,
+            WeatherSource.WEATHER_API to 72,
+        )
+        expected.forEach { (source, hours) ->
+            assertEquals(source.id, hours, HourlyHorizons.of(source.id).longHours)
+            assertEquals(source.id, hours, ForecastHorizonCadence.storeHours(source.id, Horizon.LONG))
+            assertEquals(source.id, 72, ForecastHorizonCadence.storeHours(source.id, Horizon.SHORT))
+            assertEquals(source.id, 72, ForecastHorizonCadence.snapshotHours(source.id, Horizon.LONG))
+        }
+        WeatherSource.entries.forEach {
+            val h = HourlyHorizons.of(it.id)
+            assertTrue(it.id, h.longHours in h.routineHours..h.maxHours)
+        }
+    }
+
+    @Test
+    fun `keep splits live from snapshot only for a LONG routine fetch`() {
+        assertEquals(HourlyOnDemand.Keep(192, 72), HourlyOnDemand.keep(google, null, Horizon.LONG))
+        assertEquals(HourlyOnDemand.Keep(72, 72), HourlyOnDemand.keep(google, null, Horizon.SHORT))
+        assertEquals(HourlyOnDemand.Keep(72, 72), HourlyOnDemand.keep(google, null, null))
+        assertEquals(HourlyOnDemand.Keep(192, 72), HourlyOnDemand.keep(openMeteo, null, Horizon.LONG))
+        assertEquals(HourlyOnDemand.Keep(156, 72), HourlyOnDemand.keep(WeatherSource.NWS.id, null, Horizon.LONG))
+    }
+
+    @Test
+    fun `an on-demand fetch keeps its depth both live and snapshot, as before`() {
+        assertEquals(HourlyOnDemand.Keep(120, 120), HourlyOnDemand.keep(google, HourlyOnDemand.Request(google, 120), Horizon.LONG))
+        assertEquals(HourlyOnDemand.Keep(216, 216), HourlyOnDemand.keep(google, HourlyOnDemand.Request(google, 216)))
+        val om = HourlyOnDemand.Request(openMeteo, 96)
+        assertEquals(
+            HourlyOnDemand.Keep(HourlyOnDemand.REACH_HOURS, HourlyOnDemand.REACH_HOURS),
+            HourlyOnDemand.keep(openMeteo, om),
+        )
+    }
+
+    @Test
+    fun `keep until is measured from the current hour`() {
+        val now = 1_000L * hour + 25 * 60_000L
+        val until = HourlyOnDemand.Keep(192, 72).untilMs(now)
+        assertEquals(1_192L * hour, until.liveMs)
+        assertEquals(1_072L * hour, until.snapshotMs)
     }
 
     @Test
@@ -157,7 +210,7 @@ class ForecastHorizonCadenceTest {
         assertEquals(120, HourlyOnDemand.hoursAhead(google, request, Horizon.SHORT))
         assertEquals(120, HourlyOnDemand.askHours(google, request, Horizon.LONG))
         assertEquals(192, HourlyOnDemand.askHours(google, null, Horizon.LONG))
-        assertEquals(72, HourlyOnDemand.hoursAhead(google, null, Horizon.LONG))
+        assertEquals("a LONG fetch keeps its 8 days live", 192, HourlyOnDemand.hoursAhead(google, null, Horizon.LONG))
     }
 
     @Test

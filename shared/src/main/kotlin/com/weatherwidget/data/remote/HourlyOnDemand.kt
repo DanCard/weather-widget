@@ -12,8 +12,9 @@ import kotlin.math.ceil
  * (`plans/261009-on-demand-hourly-shared-single-source-fetch.md`).
  *
  * Every source stores 72 h routinely ([HourlyHorizons.ROUTINE_HOURS]; the daily view keeps its far
- * days' noon cloud and rain maxima on the forecast row, `DailyHourlySummaries`), so later hours are
- * fetched only when someone opens that day. Google serves 240 h at a billed page per 24 h; the free
+ * days' noon cloud and rain maxima on the forecast row, `DailyHourlySummaries`), and a LONG fetch keeps
+ * its download live to 8 days ([HourlyHorizon.longHours]), so later hours are fetched only when someone
+ * opens that day. Google serves 240 h at a billed page per 24 h; the free
  * sources return their whole horizon in one call and the save keeps it out to the requested day
  * (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`).
  *
@@ -43,11 +44,41 @@ object HourlyOnDemand {
     /** A fetch's deeper horizon for a tapped day's source; null on every other fetch. */
     data class Request(val sourceId: String, val hours: Int)
 
+    /** How far one fetch keeps hourly: in the live table, and in the history snapshot. */
+    data class Keep(val liveHours: Int, val snapshotHours: Int) {
+        /** The instants (exclusive) a fetch made at [nowMs] keeps hours until. */
+        fun untilMs(nowMs: Long): KeepUntil = KeepUntil(
+            liveMs = currentHourMs(nowMs) + liveHours * HOUR_MS,
+            snapshotMs = currentHourMs(nowMs) + snapshotHours * HOUR_MS,
+        )
+    }
+
+    /** [Keep] as instants: hours at or past [liveMs] are not stored live, at or past [snapshotMs] not snapshotted. */
+    data class KeepUntil(val liveMs: Long, val snapshotMs: Long)
+
     /**
-     * The horizon a fetch of [sourceId] asks for and stores: what the source stores routinely, or for
-     * an on-demand [request] — [request]'s depth where reaching further costs requests (Google), else
-     * the source's whole horizon. A free source's one call returns all of it anyway, and keeping it
-     * all is what lets [hoursToCover] know a recent on-demand fetch already brought everything.
+     * [hoursAhead] for the live table and the history snapshot. They differ only for a LONG routine
+     * fetch, which keeps its 8-day download live but snapshots the routine 72 h — the snapshot table
+     * copies every hour on every fetch, the live one overwrites in place
+     * (`performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md`).
+     */
+    fun keep(
+        sourceId: String,
+        request: Request?,
+        fetchHorizon: ForecastHorizonCadence.Horizon? = null,
+    ): Keep {
+        val live = hoursAhead(sourceId, request, fetchHorizon)
+        val onDemand = request?.sourceId == sourceId
+        val snapshot = if (onDemand || fetchHorizon == null) live else ForecastHorizonCadence.snapshotHours(sourceId, fetchHorizon)
+        return Keep(live, snapshot)
+    }
+
+    /**
+     * The live horizon a fetch of [sourceId] stores: what the source stores routinely (a LONG fetch:
+     * [HourlyHorizon.longHours]), or for an on-demand [request] — [request]'s depth where reaching
+     * further costs requests (Google), else the source's whole horizon. A free source's one call
+     * returns all of it anyway, and keeping it all is what lets [hoursToCover] know a recent on-demand
+     * fetch already brought everything.
      */
     fun hoursAhead(
         sourceId: String,
@@ -85,16 +116,25 @@ object HourlyOnDemand {
     }
 
     /**
+     * How old hours a LONG fetch stored past the routine window may be and still cover a day: the age
+     * the daily view accepts for that day's row ([ForecastHorizonCadence.MAX_CARRIED_ROW_AGE_HOURS]),
+     * since only LONG fetches (every 8–24 h) refresh them.
+     */
+    const val MAX_LONG_ROW_AGE_MS = ForecastHorizonCadence.MAX_CARRIED_ROW_AGE_HOURS * HOUR_MS
+
+    /**
      * The horizon that covers [date] to its last hour, or null when no fetch is needed or none can
      * help:
      * - a past day, or one starting past the source's [HourlyHorizon.maxHours];
      * - a day [storedHourly] covers (this source's rows at the site: a row at or past the day's last
-     *   wanted hour, fetched within [MAX_EXTENSION_AGE_MS] when it lies past the routine window);
+     *   wanted hour — any age inside the routine window, fetched within [MAX_LONG_ROW_AGE_MS] out to
+     *   [HourlyHorizon.longHours], within [MAX_EXTENSION_AGE_MS] past that);
      * - a day inside the routine window when the source was fetched within [MAX_EXTENSION_AGE_MS]: its
      *   fresh data simply ends sooner, and fetching again would not change that;
-     * - for a source whose extra days are free, any day once an on-demand fetch within
-     *   [MAX_EXTENSION_AGE_MS] stored hours past the routine window: that fetch kept the source's whole
-     *   horizon ([hoursAhead]), so its data ends where the API's does (NWS: ~150 h).
+     * - for a source whose extra days are free, any day once a fetch within [MAX_EXTENSION_AGE_MS]
+     *   stored hours past what a LONG fetch keeps (or past the routine window, for a source whose whole
+     *   horizon fits in a LONG fetch): that fetch kept the source's whole horizon ([hoursAhead]), so
+     *   its data ends where the API's does (NWS: ~150 h).
      */
     fun hoursToCover(
         sourceId: String,
@@ -112,16 +152,22 @@ object HourlyOnDemand {
         // The last hour that must be stored: the day's final hour, or the source's last.
         val lastWantedMs = minOf(dayEndMs, maxEndMs) - HOUR_MS
         val routineEndMs = currentHour + horizon.routineHours * HOUR_MS
+        val longEndMs = currentHour + horizon.longHours * HOUR_MS
         val covered = storedHourly.any { row ->
-            row.dateTime >= lastWantedMs &&
-                (row.dateTime < routineEndMs || nowMs - row.fetchedAt <= MAX_EXTENSION_AGE_MS)
+            row.dateTime >= lastWantedMs && when {
+                row.dateTime < routineEndMs -> true
+                row.dateTime < longEndMs -> nowMs - row.fetchedAt <= MAX_LONG_ROW_AGE_MS
+                else -> nowMs - row.fetchedAt <= MAX_EXTENSION_AGE_MS
+            }
         }
         if (covered) return null
         val newestFetchMs = storedHourly.maxOfOrNull { it.fetchedAt }
         val fetchedRecently = newestFetchMs != null && nowMs - newestFetchMs <= MAX_EXTENSION_AGE_MS
         if (lastWantedMs < routineEndMs && fetchedRecently) return null
+        // A LONG fetch keeps hours to longHours; only a fetch that kept the whole horizon reaches past.
+        val wholeHorizonStartMs = if (horizon.longHours >= horizon.maxHours) routineEndMs else longEndMs
         val wholeHorizonFresh = !horizon.costsPerExtraDay && storedHourly.any { row ->
-            row.dateTime >= routineEndMs && nowMs - row.fetchedAt <= MAX_EXTENSION_AGE_MS
+            row.dateTime >= wholeHorizonStartMs && nowMs - row.fetchedAt <= MAX_EXTENSION_AGE_MS
         }
         if (wholeHorizonFresh) return null
         val hours = ceil((lastWantedMs - currentHour).toDouble() / HOUR_MS).toInt() + 1

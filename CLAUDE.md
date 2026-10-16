@@ -75,13 +75,17 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   month · Last month · 90 days), `:shared` `ApiUsageSummary`
   (`plans/261008-settings-usage-stats-screen-api-calls-per-source.md`).
 - **Hourly is stored to 72 h for every source** (2026-10-10; `HourlyHorizons.ROUTINE_HOURS`), live
-  and snapshot. The daily view's far days read noon cloud and the 8am–8pm / 8pm–8am rain maxima from
+  and snapshot — **except that a LONG fetch keeps its download live to 8 days**
+  (`HourlyHorizon.longHours` = min(192 h, source reach); snapshots stay 72 h; `HourlyOnDemand.keep`;
+  2026-10-16, `performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md`). Those hours count
+  as covering a day for 36 h (`MAX_LONG_ROW_AGE_MS`), so a day-4–8 tap after a LONG fetch needs no
+  on-demand fetch (Google no longer pays twice). The daily view's far days read noon cloud and the 8am–8pm / 8pm–8am rain maxima from
   the `forecasts` row (`noonCloudPercent`, `hourlyDay/NightPrecipMax`; Room 78 / desktop 31), computed
   from each fetch's whole download before the trim (`:shared` `DailyHourlySummaries`). **A window the
   download does not cover keeps the previous row's value — never blanked.** Display order: the row,
   else stored hourly (rows written before the columns), else the provider's period value — hours
-  past 72 h may be older than the row, so they never come first. Days past 72 h in
-  the hourly view are on demand for every source; a free source's on-demand fetch keeps its whole
+  past 72 h may be older than the row, so they never come first. Days past what is stored (72 h, or
+  a recent LONG fetch's 8 days) in the hourly view are on demand for every source; a free source's on-demand fetch keeps its whole
   horizon, so a fresh one means "nothing more to fetch". Expected to free ~25 MB of the Pixel's 72 MB DB
   (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`).
 - **One forecast cadence for every source, daily and hourly together: LONG ≈ 8 days, SHORT 3 days**
@@ -95,7 +99,7 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   | < 70 % | on or off | every 24 h | none |
 
   A LONG fetch downloads the source's whole reach (Google asks 192 h) and stores every daily row plus
-  72 h of hourly; a SHORT one asks 72 h and stores today + 2 days of daily rows plus 72 h of hourly,
+  8 days of live hourly (72 h snapshotted); a SHORT one asks 72 h and stores today + 2 days of daily rows plus 72 h of hourly,
   so days 4+ keep the last LONG fetch's rows and far-day summaries. A LONG fetch also counts as SHORT.
   **No displayed-vs-other split and no view-age bands** — every source the 8-day gate lets through
   (`SourceFetchGate`, below) is on this table. Both platforms' daily reads take **each day's newest

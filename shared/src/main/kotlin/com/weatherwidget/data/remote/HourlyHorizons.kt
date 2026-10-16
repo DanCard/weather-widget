@@ -18,6 +18,13 @@ data class HourlyHorizon(
 ) {
     /** True when a fetch stores less than the source can serve: hours past [routineHours] are on-demand only. */
     val hasOnDemandRange: Boolean get() = routineHours < maxHours
+
+    /**
+     * What a LONG fetch keeps in the live table: its whole download, up to [HourlyHorizons.LONG_HOURS]
+     * (`performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md`). Snapshots stay at
+     * [routineHours].
+     */
+    val longHours: Int get() = maxOf(routineHours, minOf(HourlyHorizons.LONG_HOURS, maxHours))
 }
 
 object HourlyHorizons {
@@ -33,6 +40,13 @@ object HourlyHorizons {
      * (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`).
      */
     const val ROUTINE_HOURS = 72
+
+    /**
+     * 8 days: how far a LONG fetch reaches and keeps live (2026-10-16). The live table is keyed by
+     * hour, so this costs one row per hour per source per site, overwritten in place; the snapshot
+     * table, which copies every hour on every fetch, stays at [ROUTINE_HOURS].
+     */
+    const val LONG_HOURS = 192
 
     fun of(sourceId: String): HourlyHorizon {
         val reach = HourlyOnDemand.REACH_HOURS

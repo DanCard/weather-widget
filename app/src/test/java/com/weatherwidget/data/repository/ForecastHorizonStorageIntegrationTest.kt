@@ -30,7 +30,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * [ForecastFetchCoordinator] + stores + Room: a LONG fetch stores every daily row and 72 h of hourly
+ * [ForecastFetchCoordinator] + stores + Room: a LONG fetch stores every daily row and 8 days of live
+ * hourly (72 h snapshotted; `performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md`)
  * and sets both markers; a SHORT fetch rewrites only the next 3 days' daily rows, leaves days 4+
  * (and their far-day summaries) as the last LONG fetch left them, and sets only the SHORT marker.
  * performance/261016-unified-long-short-forecast-horizons.md
@@ -132,7 +133,7 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
     }
 
     @Test
-    fun `the first fetch is LONG - every daily row, 72 h of hourly, both markers`() = runTest {
+    fun `the first fetch is LONG - every daily row, 8 days of live hourly, both markers`() = runTest {
         assertNull(widgetStateManager.getLastLongFetch(om.id, lat, lon))
 
         fetch(seed = 1, high)
@@ -141,8 +142,8 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
         assertTrue("all 16 days stored", (0L until 16L).all { it in rows })
         assertTrue(rows.values.all { it.batchFetchedAt == clockMs })
         val hours = liveHourly()
-        assertTrue("stored past 72 h", hours.all { it.dateTime < clockMs + 72 * hour })
-        assertTrue("reaches into hours 48-72", hours.any { it.dateTime >= clockMs + 48 * hour })
+        assertTrue("not stored past 8 days", hours.all { it.dateTime < clockMs + 192 * hour })
+        assertTrue("reaches into day 8", hours.any { it.dateTime >= clockMs + 168 * hour })
         assertEquals(clockMs, widgetStateManager.getLastLongFetch(om.id, lat, lon))
         assertEquals(clockMs, widgetStateManager.getLastShortFetch(om.id, lat, lon))
     }

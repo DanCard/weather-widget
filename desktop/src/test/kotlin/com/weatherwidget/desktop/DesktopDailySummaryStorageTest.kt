@@ -82,14 +82,17 @@ class DesktopDailySummaryStorageTest {
     }
 
     @Test
-    fun `a 16-day fetch stores hourly to 72 h and every day's summary on its row`() = runTest {
+    fun `a 16-day LONG fetch keeps 8 days of live hourly, snapshots 72 h, and every day's summary on its row`() = runTest {
         refreshWith(download(seed = 5))
 
-        val keepUntil = DailyHourlySummaries.keepUntilMs(now, 72)
+        // performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md
         val live = dao.getHourlyForecasts(lat, lon, om, now - 48 * hour, now + 400 * hour)
-        assertTrue("live hourly ends before now + 72 h", live.isNotEmpty() && live.maxOf { it.dateTime } < keepUntil)
+        assertEquals("live hourly reaches 8 days", DailyHourlySummaries.keepUntilMs(now, 192) - hour, live.maxOf { it.dateTime })
         val snapshots = dao.getHourlyHistory(lat, lon, om, now, now + 400 * hour)
-        assertTrue("snapshots end there too", snapshots.isNotEmpty() && snapshots.maxOf { it.dateTime } < keepUntil)
+        assertTrue(
+            "snapshots end before now + 72 h",
+            snapshots.isNotEmpty() && snapshots.maxOf { it.dateTime } < DailyHourlySummaries.keepUntilMs(now, 72),
+        )
 
         val stored = rows()
         days.drop(1).dropLast(1).forEach { day ->
