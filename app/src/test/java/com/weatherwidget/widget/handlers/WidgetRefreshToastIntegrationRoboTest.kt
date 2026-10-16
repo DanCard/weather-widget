@@ -44,8 +44,10 @@ import java.time.ZoneId
 /**
  * Real widget tap handlers + RefreshScheduler + RefreshToast + Room + WorkManager (test driver): each
  * tap shows one two-second notice on the tapped widget's banner (never a Toast — Android drops those
- * from a background app without notification permission) saying what it queued, or why nothing;
- * browsing taps say nothing when nothing was queued, and source changes say nothing at all. plans/261015-refresh-queued-toast-all-surfaces.md
+ * from a background app without notification permission) saying what it queued, or why nothing.
+ * Only a refresh request shows one: browsing taps and source changes say nothing at all, whatever
+ * they queued. plans/261015-refresh-queued-toast-all-surfaces.md,
+ * plans/261016-refresh-notice-only-on-refresh-requests.md
  */
 @Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
@@ -205,13 +207,39 @@ class WidgetRefreshToastIntegrationRoboTest {
         assertEquals(emptyList<String>(), rows())
     }
 
+    // Browsing is looking, not asking for data (user, 2026-10-16: an arrow tap on 240-min-old NWS
+    // showed "Forecast and observations refresh queued"). The refresh happens; the row records it.
+
     @Test
-    fun `zoom on stale data says what it queued`() = runBlocking {
+    fun `zoom on stale data queues a refresh but shows nothing`() = runBlocking {
         stateManager.setViewMode(widgetId, ViewMode.TEMPERATURE)
 
         try { WidgetIntentRouter.handleCycleZoom(context, widgetId) } catch (_: Exception) {}
 
-        assertEquals("Forecast and observations refresh queued", banner())
+        assertEquals(null, banner())
+        assertEquals(listOf("origin=widget_zoom queued=BOTH silent"), rows())
+    }
+
+    @Test
+    fun `daily arrow on stale data queues a refresh but shows nothing`() = runBlocking {
+        try { WidgetIntentRouter.handleNavigation(context, widgetId, isLeft = false) } catch (_: Exception) {}
+
+        assertEquals(null, banner())
+        assertEquals(listOf("origin=widget_nav queued=BOTH silent"), rows())
+    }
+
+    @Test
+    fun `view switch on stale data queues a refresh but shows nothing`() = runBlocking {
+        try { WidgetIntentRouter.handleToggleView(context, widgetId) } catch (_: Exception) {}
+
+        assertEquals(null, banner())
+        assertTrue(rows().toString(), rows().isNotEmpty() && rows().all { it.endsWith(" silent") })
+    }
+
+    private fun mockStaleTapToRefresh() {
+        mockkObject(WidgetIntentRouter, DataFreshness)
+        coEvery { WidgetIntentRouter.renderWidgetFromCache(any(), any(), any()) } returns null
+        coEvery { DataFreshness.isDataStale(any()) } returns true
     }
 
     @Test
@@ -242,20 +270,20 @@ class WidgetRefreshToastIntegrationRoboTest {
 
     @Test
     fun `the notice never covers another message already on the widget`() = runBlocking {
-        stateManager.setViewMode(widgetId, ViewMode.TEMPERATURE)
+        mockStaleTapToRefresh()
         stateManager.setTransientMessage(widgetId, "Getting weather for Mountain View…", System.currentTimeMillis() + 60_000L)
 
-        try { WidgetIntentRouter.handleCycleZoom(context, widgetId) } catch (_: Exception) {}
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, mockk(relaxed = true), widgetId)
 
         assertEquals("Getting weather for Mountain View…", banner())
-        assertEquals(listOf("origin=widget_zoom queued=BOTH suppressed busy"), rows())
+        assertEquals(listOf("origin=widget_tap_to_refresh queued=FORECAST suppressed busy"), rows())
     }
 
     @Test
     fun `the banner clears itself after two seconds`() = runBlocking {
-        stateManager.setViewMode(widgetId, ViewMode.TEMPERATURE)
-        try { WidgetIntentRouter.handleCycleZoom(context, widgetId) } catch (_: Exception) {}
-        assertEquals("Forecast and observations refresh queued", banner())
+        mockStaleTapToRefresh()
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, mockk(relaxed = true), widgetId)
+        assertEquals("Forecast refresh queued", banner())
 
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RefreshNotice.DURATION_MS))
 

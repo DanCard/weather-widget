@@ -13,9 +13,10 @@ import com.weatherwidget.shared.util.RefreshNotice
 import java.util.Date
 
 /**
- * The four-second notice after a user's refresh action: what it queued, or why nothing
- * ([RefreshNotice]; plans/261015-refresh-queued-toast-all-surfaces.md). User actions only — never a
- * background fetch.
+ * The four-second notice after the user asks for a refresh: what it queued, or why nothing
+ * ([RefreshNotice]; plans/261015-refresh-queued-toast-all-surfaces.md). Refresh requests (Refresh
+ * buttons, "Tap to refresh"), plus enabling a new primary source and an actuals-provider pick — never
+ * a background fetch or a browsing tap (plans/261016-refresh-notice-only-on-refresh-requests.md).
  *
  * App screens get a Toast, `LENGTH_LONG` (3.5 s, the longest Android allows). Widget taps ([widgetIds] set) get the widget's own message banner instead
  * (user, 2026-10-15): Android drops a toast from a background app without notification permission
@@ -24,7 +25,7 @@ import java.util.Date
  *
  * At most one per [RefreshNotice.DURATION_MS] ([RefreshNotice.shouldShow]). Every call writes
  * `REFRESH_TOAST`, shown or suppressed: a notice alone leaves no trace after the fact. Source changes
- * show nothing ([logSilent]).
+ * and browsing taps (arrows, zoom, view switches) show nothing ([logSilent]).
  */
 object RefreshToast {
     @Volatile
@@ -65,7 +66,8 @@ object RefreshToast {
 
     /**
      * The `REFRESH_TOAST` row alone, for actions that announce nothing: source changes (toggle, the
-     * daily home button), which the user makes to look, not to refresh (user, 2026-10-15).
+     * daily home button) and browsing taps, which the user makes to look, not to refresh (user,
+     * 2026-10-15 / 2026-10-16).
      */
     suspend fun logSilent(context: Context, origin: String, notice: RefreshNotice) {
         WeatherDatabase.getDatabase(context.applicationContext).appLogDao().log(

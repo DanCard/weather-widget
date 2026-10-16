@@ -98,7 +98,7 @@ internal object WidgetIntentActionHandler {
                 appWidgetId,
                 if (viewMode.isGraphMode) "graph_nav" else "daily_nav",
             ) ?: return
-        announceIfQueued(context, appWidgetId, "widget_nav", refreshContext)
+        logIfQueued(context, "widget_nav", refreshContext)
         val request =
             request(
                 context,
@@ -164,7 +164,7 @@ internal object WidgetIntentActionHandler {
         }
         val startMs = SystemClock.elapsedRealtime()
         val refreshContext = prepareContext(context, appWidgetId, "cycle_zoom") ?: return
-        announceIfQueued(context, appWidgetId, "widget_zoom", refreshContext)
+        logIfQueued(context, "widget_zoom", refreshContext)
         GraphInteractionRenderer.cycleZoom(
             InteractionRenderDispatcher.graphRequest(
                 request(
@@ -448,7 +448,7 @@ internal object WidgetIntentActionHandler {
         deferActuals: Boolean = false,
     ) {
         val refreshContext = prepareContext(context, appWidgetId, staleReason) ?: return
-        announceIfQueued(context, appWidgetId, "widget_$staleReason", refreshContext)
+        logIfQueued(context, "widget_$staleReason", refreshContext)
         InteractionRenderDispatcher.render(
             viewMode,
             request(
@@ -501,18 +501,17 @@ internal object WidgetIntentActionHandler {
     }
 
     /**
-     * Browsing taps (arrows, zoom, view switches) announce only a refresh they queued: they check
-     * staleness as a side effect, and "up to date" on every one would be noise. "Nothing refreshed"
-     * is for actions whose purpose is fresh data (plans/261015-refresh-queued-toast-all-surfaces.md).
+     * Browsing taps (arrows, zoom, view switches) show no notice, even for a refresh they queued: a
+     * notice is for a refresh the user asked for (user, 2026-10-16;
+     * plans/261016-refresh-notice-only-on-refresh-requests.md). A queued refresh still logs its row.
      */
-    private suspend fun announceIfQueued(
+    private suspend fun logIfQueued(
         context: Context,
-        appWidgetId: Int,
         origin: String,
         refreshContext: WidgetRefreshContextResolver.Resolved,
     ) {
         val notice = refreshContext.refreshNotice as? RefreshNotice.Queued ?: return
-        RefreshToast.show(context, origin, notice, intArrayOf(appWidgetId))
+        RefreshToast.logSilent(context, origin, notice)
     }
 
     /**
