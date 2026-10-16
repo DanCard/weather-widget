@@ -5,7 +5,13 @@ import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.Configuration
 import androidx.work.WorkManager
+import androidx.work.Worker
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
+import androidx.work.testing.SynchronousExecutor
+import androidx.work.testing.WorkManagerTestInitHelper
 import com.weatherwidget.test.RobolectricTest
 import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.ui.ConfigActivity
@@ -48,6 +54,22 @@ class LocationLatencyBudgetTest : RobolectricTest() {
     @Before
     fun setUp() {
         SharedPreferencesUtil.getPrefs(context, "weather_prefs").edit().clear().commit()
+        // A synchronous test WorkManager with a factory that stands in a no-op worker: what is
+        // asserted is how the refresh was scheduled, not what the worker does. Without it the
+        // outcome depended on which WorkManager an earlier test left behind — under the full suite
+        // the real worker was attempted, could not be built (it needs the app's Hilt factory) and
+        // read FAILED.
+        WorkManagerTestInitHelper.initializeTestWorkManager(
+            context,
+            Configuration.Builder()
+                .setExecutor(SynchronousExecutor())
+                .setTaskExecutor(SynchronousExecutor())
+                .setWorkerFactory(object : WorkerFactory() {
+                    override fun createWorker(appContext: Context, workerClassName: String, params: WorkerParameters) =
+                        NoOpWorker(appContext, params)
+                })
+                .build(),
+        )
     }
 
     /**
@@ -110,11 +132,17 @@ class LocationLatencyBudgetTest : RobolectricTest() {
             .get()
         assertEquals("a detected move must enqueue exactly one refresh", 1, work.size)
         assertEquals(
-            "the refresh must be ENQUEUED, not BLOCKED or delayed — any wait here is added to " +
-                "every arrival",
-            androidx.work.WorkInfo.State.ENQUEUED,
+            "the refresh must run at once, not be BLOCKED behind other work or delayed — any wait " +
+                "here is added to every arrival",
+            androidx.work.WorkInfo.State.SUCCEEDED,
             work.first().state,
         )
+        assertEquals("no initial delay on the post-move refresh", 0L, work.first().initialDelayMillis)
+    }
+
+    /** Stands in for [WeatherWidgetWorker], which only the app's Hilt factory can build. */
+    class NoOpWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
+        override fun doWork(): Result = Result.success()
     }
 
     private fun bindWidget(id: Int, lat: Double, lon: Double) {
