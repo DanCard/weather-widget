@@ -369,6 +369,15 @@ internal fun SettingsWindow(
                                 checked = currentConfig.settings.todayOverlayDominantTemp,
                                 testTag = "today_overlay_dominant_temp_switch",
                             ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(todayOverlayDominantTemp = it))) }
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            )
+                            TodayOverlayToggleRow(
+                                label = "Show zoom-out button in header",
+                                checked = currentConfig.settings.showDailyZoomOutButton,
+                                testTag = "daily_zoom_out_header_switch",
+                            ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(showDailyZoomOutButton = it))) }
                         }
 
                         // Personal Weather Stations

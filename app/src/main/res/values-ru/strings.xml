@@ -242,6 +242,8 @@
     <string name="today_overlay_delta_label">Показать отклонение от прогноза</string>
     <string name="today_overlay_dominant_temp_label">Показать температуру основной станции</string>
     <string name="today_overlay_dominant_temp_description">Отображается в столбце «Сегодня» только в виджетах высотой не менее 4 строк.</string>
+    <string name="daily_zoom_out_header_label">Показывать кнопку уменьшения масштаба в заголовке</string>
+    <string name="daily_zoom_out_header_description">Показывать кнопку в заголовке ежедневного прогноза для перехода к обзору по месяцам</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Язык</string>

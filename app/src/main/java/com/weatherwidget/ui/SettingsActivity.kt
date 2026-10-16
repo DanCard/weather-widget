@@ -249,6 +249,13 @@ class SettingsActivity : AppCompatActivity() {
             repaintWidgets()
         }
 
+        val dailyZoomOutSwitch = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.daily_zoom_out_header_switch)
+        dailyZoomOutSwitch.isChecked = widgetStateManager.showDailyZoomOutButton()
+        dailyZoomOutSwitch.setOnCheckedChangeListener { _, isChecked ->
+            widgetStateManager.setShowDailyZoomOutButton(isChecked)
+            repaintWidgets()
+        }
+
         // Notifications — one-shot dominant-station temperature watch.
         notifyDominantTempSwitch = findViewById(R.id.notify_dominant_temp_change_switch)
         notifyDominantTempSwitch.isChecked = widgetStateManager.notifyOnDominantTempChange()

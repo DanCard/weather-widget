@@ -211,6 +211,8 @@ class SettingsActivityRobolectricTest {
                     { m: WidgetStateManager -> m.showTodayOverlayDelta() }, "delta"),
                 Triple(R.id.today_overlay_dominant_temp_switch,
                     { m: WidgetStateManager -> m.showTodayOverlayDominantTemp() }, "dominant temp"),
+                Triple(R.id.daily_zoom_out_header_switch,
+                    { m: WidgetStateManager -> m.showDailyZoomOutButton() }, "daily zoom out header"),
             )
         val intent = Intent(context, SettingsActivity::class.java)
         ActivityScenario.launch<SettingsActivity>(intent).onActivity { activity ->

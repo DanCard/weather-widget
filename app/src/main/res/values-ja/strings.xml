@@ -242,6 +242,8 @@
     <string name="today_overlay_delta_label">予報との差を表示</string>
     <string name="today_overlay_dominant_temp_label">優勢な観測所の気温を表示</string>
     <string name="today_overlay_dominant_temp_description">今日の列には、高さ4行以上のウィジェットでのみ表示されます。</string>
+    <string name="daily_zoom_out_header_label">ヘッダーに縮小ボタンを表示</string>
+    <string name="daily_zoom_out_header_description">日別予報のヘッダーに月表示を開くボタンを表示します</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">言語</string>

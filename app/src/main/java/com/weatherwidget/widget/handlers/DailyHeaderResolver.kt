@@ -277,8 +277,8 @@ internal object DailyHeaderResolver {
             wantHome = wantHomeButton,
             isIconWidth = dimensions.isIconWidth,
             disclosure = disclosure,
-            // Graph mode only: the text-mode header has no button row to seat it in.
-            wantMonths = useGraph,
+            // Graph mode only and when enabled in settings (disabled by default):
+            wantMonths = useGraph && stateManager.showDailyZoomOutButton(),
         )
         val iconCount = iconLayout.iconCount
         val iconPlacement = iconLayout.placement

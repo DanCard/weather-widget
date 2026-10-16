@@ -193,7 +193,7 @@ internal fun WidgetHeader(
             ) {
                 if (isHourly) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy((8 * scale).dp),
+                        horizontalArrangement = Arrangement.spacedBy((12 * scale).dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Cycling graph selector
@@ -254,7 +254,7 @@ internal fun WidgetHeader(
                     // left cluster reaches past it on real widgets), so both platforms settle on
                     // this order rather than disagreeing.
                     val iconSizeDp = 15 * scale
-                    val spacingDp = 10 * scale
+                    val spacingDp = 14 * scale
                     // The home button never changes the view (the daily view is already home in
                     // that sense). It resets the SOURCE when another one is shown, else — on the
                     // preferred source with today panned off screen — brings back yesterday + today.
@@ -271,8 +271,8 @@ internal fun WidgetHeader(
                         with(density) { headerTextMeasurer.measure(dateText, dateStyle).size.width.toDp().value }
                     }
                     // Months view (zoom out), as on Android's daily header; hidden while it is open
-                    // (the home button brings the daily view back).
-                    val showMonthsButton = !config.monthsView
+                    // (the home button brings the daily view back) or disabled in settings.
+                    val showMonthsButton = !config.monthsView && config.settings.showDailyZoomOutButton
                     val iconCount = (if (observationsInView) 1 else 0) + (if (showHomeButton) 1 else 0) +
                         (if (showMonthsButton) 1 else 0) + 1
                     BoxWithConstraints(

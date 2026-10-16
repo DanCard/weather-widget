@@ -242,6 +242,8 @@
     <string name="today_overlay_delta_label">Tampilkan selisih dari prakiraan</string>
     <string name="today_overlay_dominant_temp_label">Tampilkan suhu stasiun dominan</string>
     <string name="today_overlay_dominant_temp_description">Muncul di kolom hari ini hanya pada widget dengan tinggi setidaknya 4 baris.</string>
+    <string name="daily_zoom_out_header_label">Tampilkan tombol perkecil di header</string>
+    <string name="daily_zoom_out_header_description">Tampilkan tombol di header prakiraan harian untuk membuka tampilan bulanan</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Bahasa</string>

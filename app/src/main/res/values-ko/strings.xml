@@ -242,6 +242,8 @@
     <string name="today_overlay_delta_label">예보와의 차이 표시</string>
     <string name="today_overlay_dominant_temp_label">주요 관측소 온도 표시</string>
     <string name="today_overlay_dominant_temp_description">오늘 열은 높이가 4행 이상인 위젯에만 표시됩니다.</string>
+    <string name="daily_zoom_out_header_label">헤더에 축소 버튼 표시</string>
+    <string name="daily_zoom_out_header_description">일별 예보 헤더에 월별 보기를 여는 버튼을 표시합니다</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">언어</string>

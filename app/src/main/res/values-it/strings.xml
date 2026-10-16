@@ -242,6 +242,8 @@
     <string name="today_overlay_delta_label">Mostra scostamento dalle previsioni</string>
     <string name="today_overlay_dominant_temp_label">Mostra temperatura della stazione dominante</string>
     <string name="today_overlay_dominant_temp_description">Appare nella colonna di oggi solo nei widget alti almeno 4 righe.</string>
+    <string name="daily_zoom_out_header_label">Mostra pulsante di zoom indietro nell’intestazione</string>
+    <string name="daily_zoom_out_header_description">Mostra un pulsante nell’intestazione delle previsioni giornaliere per aprire la vista mensile</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Lingua</string>

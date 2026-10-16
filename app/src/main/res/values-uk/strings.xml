@@ -238,6 +238,8 @@
     <string name="today_overlay_delta_label">Показати відхилення від прогнозу</string>
     <string name="today_overlay_dominant_temp_label">Показати температуру основної станції</string>
     <string name="today_overlay_dominant_temp_description">З\'являється в стовпці «Сьогодні» лише у віджетах заввишки щонайменше 4 рядки.</string>
+    <string name="daily_zoom_out_header_label">Показувати кнопку зменшення масштабу в заголовку</string>
+    <string name="daily_zoom_out_header_description">Показувати кнопку в заголовку щоденного прогнозу для відкриття перегляду за місяцями</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Мова</string>

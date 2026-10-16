@@ -168,6 +168,11 @@ class PositionDailyIconsRoboTest {
             HeaderWidthChecker.dailyCenterIconZoneWidthDp(440),
             0.01f,
         )
+        assertEquals(
+            HeaderConstants.DAILY_CENTER_ICON_ZONE_EXTRA_WIDE_DP,
+            HeaderWidthChecker.dailyCenterIconZoneWidthDp(500),
+            0.01f,
+        )
         assertTrue(
             "every rung must clear the 20dp glyph with room to spare",
             HeaderConstants.DAILY_CENTER_ICON_ZONE_MEDIUM_DP >=

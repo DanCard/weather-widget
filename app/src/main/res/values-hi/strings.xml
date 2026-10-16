@@ -242,6 +242,8 @@
     <string name="today_overlay_delta_label">पूर्वानुमान से अंतर दिखाएं</string>
     <string name="today_overlay_dominant_temp_label">प्रमुख स्टेशन का तापमान दिखाएं</string>
     <string name="today_overlay_dominant_temp_description">केवल कम से कम 4 पंक्तियों वाले विजेट में आज के कॉलम में दिखाई देता है।</string>
+    <string name="daily_zoom_out_header_label">हेडर में ज़ूम-आउट बटन दिखाएं</string>
+    <string name="daily_zoom_out_header_description">मासिक दृश्य खोलने के लिए दैनिक पूर्वानुमान हेडर में एक बटन दिखाएं</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">भाषा</string>

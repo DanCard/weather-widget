@@ -37,6 +37,7 @@ class TodayOverlaySettingsRoboTest {
     fun `today overlay toggles default to off`() {
         assertFalse(stateManager.showTodayOverlayDelta())
         assertFalse(stateManager.showTodayOverlayDominantTemp())
+        assertFalse(stateManager.showDailyZoomOutButton())
     }
 
     @Test
@@ -44,12 +45,20 @@ class TodayOverlaySettingsRoboTest {
         stateManager.setShowTodayOverlayDelta(true)
         assertTrue(stateManager.showTodayOverlayDelta())
         assertFalse(stateManager.showTodayOverlayDominantTemp())
+        assertFalse(stateManager.showDailyZoomOutButton())
 
         stateManager.setShowTodayOverlayDominantTemp(true)
         assertTrue(stateManager.showTodayOverlayDominantTemp())
 
+        stateManager.setShowDailyZoomOutButton(true)
+        assertTrue(stateManager.showDailyZoomOutButton())
+
         stateManager.setShowTodayOverlayDelta(false)
         assertFalse(stateManager.showTodayOverlayDelta())
         assertTrue(stateManager.showTodayOverlayDominantTemp())
+        assertTrue(stateManager.showDailyZoomOutButton())
+
+        stateManager.setShowDailyZoomOutButton(false)
+        assertFalse(stateManager.showDailyZoomOutButton())
     }
 }

@@ -126,6 +126,12 @@ class WidgetStateManager internal constructor(
         displayPreferences.setShowTodayOverlayDominantTemp(value)
     }
 
+    fun showDailyZoomOutButton(): Boolean = displayPreferences.showDailyZoomOutButton()
+
+    fun setShowDailyZoomOutButton(value: Boolean) {
+        displayPreferences.setShowDailyZoomOutButton(value)
+    }
+
     /**
      * One-shot watch: notify once when the dominant station behind the primary source reports a
      * different temperature, then clear itself. See

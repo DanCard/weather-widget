@@ -242,6 +242,8 @@
     <string name="today_overlay_delta_label">পূর্বাভাস থেকে পার্থক্য দেখান</string>
     <string name="today_overlay_dominant_temp_label">প্রধান স্টেশনের তাপমাত্রা দেখান</string>
     <string name="today_overlay_dominant_temp_description">শুধুমাত্র কমপক্ষে ৪ সারি উচ্চতার উইজেটে আজকের কলামে দেখা যায়।</string>
+    <string name="daily_zoom_out_header_label">হেডারে জুম-আউট বোতাম দেখান</string>
+    <string name="daily_zoom_out_header_description">মাসিক দৃশ্য খুলতে দৈনিক পূর্বাভাস হেডারে একটি বোতাম দেখান</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">ভাষা</string>

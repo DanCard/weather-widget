@@ -242,6 +242,8 @@
     <string name="today_overlay_delta_label">إظهار الفرق عن التوقعات</string>
     <string name="today_overlay_dominant_temp_label">إظهار درجة حرارة المحطة المسيطرة</string>
     <string name="today_overlay_dominant_temp_description">تظهر في عمود اليوم فقط في الأدوات التي يبلغ ارتفاعها 4 صفوف على الأقل.</string>
+    <string name="daily_zoom_out_header_label">إظهار زر التصغير في العنوان</string>
+    <string name="daily_zoom_out_header_description">إظهار زر في رأس التوقعات اليومية لفتح عرض الأشهر</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">اللغة</string>

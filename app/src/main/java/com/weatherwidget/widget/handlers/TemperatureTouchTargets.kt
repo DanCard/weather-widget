@@ -514,7 +514,11 @@ internal fun positionCenterIcons(
     }
 
     if (floatingVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val touchWidthDp = if (widthDp >= 450) 56 else 24
+        val touchWidthDp = when {
+            widthDp >= 450 -> 56
+            widthDp >= 420 -> 40
+            else -> 24
+        }
         val touchWidthPx = (touchWidthDp * density).toInt()
         for (id in listOf(R.id.graph_selector_touch_zone, R.id.weather_stations_touch_zone, R.id.home_touch_zone, R.id.forecast_history_activity_touch_zone)) {
             views.setViewLayoutWidth(id, touchWidthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)

@@ -44,6 +44,7 @@ data class DesktopSettings(
     // Daily-view large-Today-column overlay texts. All opt-in (default off).
     val todayOverlayDelta: Boolean = false,
     val todayOverlayDominantTemp: Boolean = false,
+    val showDailyZoomOutButton: Boolean = false,
     // Per-source override for the feed that supplies a forecast-only source's actuals, keyed by
     // WeatherSource.id -> provider WeatherSource.id. Mirrors Android's `actuals_provider_<SOURCE>`
     // SharedPreferences keys. An ABSENT entry means "use the default"

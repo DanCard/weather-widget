@@ -242,6 +242,8 @@
     <string name="today_overlay_delta_label">Hiển thị chênh lệch so với dự báo</string>
     <string name="today_overlay_dominant_temp_label">Hiển thị nhiệt độ trạm chính</string>
     <string name="today_overlay_dominant_temp_description">Hiển thị trong cột Hôm nay chỉ trên tiện ích cao ít nhất 4 hàng.</string>
+    <string name="daily_zoom_out_header_label">Hiển thị nút thu nhỏ ở thanh tiêu đề</string>
+    <string name="daily_zoom_out_header_description">Hiển thị nút trong thanh tiêu đề dự báo hằng ngày để mở xem theo tháng</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Ngôn ngữ</string>

@@ -242,6 +242,8 @@
     <string name="today_overlay_delta_label">显示与预报的差值</string>
     <string name="today_overlay_dominant_temp_label">显示主导站点温度</string>
     <string name="today_overlay_dominant_temp_description">仅在至少 4 行高的小组件中显示于“今天”列。</string>
+    <string name="daily_zoom_out_header_label">在页眉显示缩小按钮</string>
+    <string name="daily_zoom_out_header_description">在每日预报页眉中显示打开月视图的按钮</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">语言</string>

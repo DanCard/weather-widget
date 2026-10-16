@@ -72,14 +72,15 @@ object HeaderConstants {
     // Wide headers can afford the airy zone; narrow ones cannot — every dp of zone is a dp taken
     // from the gap the date has to fit into on the right, and 40dp zones cost that gap 16dp, which
     // is the difference between the date showing and being dropped on a ~350dp widget.
-    // Three rungs, not two. The 24dp zone leaves a 20dp icon just 4dp of air, which reads as one
-    // control rather than several — reported on Samsung for the pair, and again on a Pixel 7 Pro
-    // (~412dp, one dp bracket below the airy cutoff) once the home button made it three. The middle
-    // rung buys 12dp of air there without spending the 16dp per zone the airy rung costs the date.
+    // Four rungs: extra-wide / wide / medium / narrow. Wide widgets (>=450dp) get 52dp zones
+    // so adjacent buttons have 32dp of air, avoiding accidental misclicks.
+    const val DAILY_CENTER_ICON_ZONE_EXTRA_WIDE_DP = 52f
     const val DAILY_CENTER_ICON_ZONE_WIDE_DP = 40f
     const val DAILY_CENTER_ICON_ZONE_MEDIUM_DP = 32f
     const val DAILY_CENTER_ICON_ZONE_NARROW_DP = 24f
     const val DAILY_CENTER_ICON_ZONE_XML_WIDTH_DP = 24f
+    /** At or above this width the daily buttons use the spacious extra-wide zone. */
+    const val DAILY_EXTRA_WIDE_HEADER_MIN_WIDTH_DP = 450
     /** At or above this width the daily buttons use the airy zone. Mirrors the inline-nav cutoff. */
     const val DAILY_WIDE_HEADER_MIN_WIDTH_DP = 420
     /** At or above this width they get the middle zone; below it the header cannot spare the air. */

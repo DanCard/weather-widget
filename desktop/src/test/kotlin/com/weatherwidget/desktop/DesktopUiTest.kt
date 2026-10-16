@@ -703,8 +703,29 @@ currentCondition = "Sunny"),
     }
 
     @Test
+    fun dailyHeaderMonthsButtonHiddenByDefault() {
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.DAILY),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("open_months_view_daily").assertDoesNotExist()
+    }
+
+    @Test
     fun dailyHeaderMonthsButtonOpensTheMonthsLineGraph() {
-        var config by androidx.compose.runtime.mutableStateOf(stubConfig.copy(viewMode = ViewMode.DAILY))
+        var config by androidx.compose.runtime.mutableStateOf(
+            stubConfig.copy(
+                viewMode = ViewMode.DAILY,
+                settings = stubConfig.settings.copy(showDailyZoomOutButton = true),
+            ),
+        )
         composeTestRule.setContent {
             WidgetPopup(
                 config = config,

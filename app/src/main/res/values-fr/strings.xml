@@ -238,6 +238,8 @@
     <string name="today_overlay_delta_label">Afficher l’écart par rapport aux prévisions</string>
     <string name="today_overlay_dominant_temp_label">Afficher la température de la station dominante</string>
     <string name="today_overlay_dominant_temp_description">Apparaît dans la colonne du jour uniquement pour les widgets d\'au moins 4 lignes de haut.</string>
+    <string name="daily_zoom_out_header_label">Afficher le bouton de zoom arrière dans l’en-tête</string>
+    <string name="daily_zoom_out_header_description">Afficher un bouton dans l’en-tête des prévisions quotidiennes pour ouvrir la vue par mois</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Langue</string>

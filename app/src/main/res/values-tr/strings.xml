@@ -242,6 +242,8 @@
     <string name="today_overlay_delta_label">Tahminden sapmayı göster</string>
     <string name="today_overlay_dominant_temp_label">Baskın istasyon sıcaklığını göster</string>
     <string name="today_overlay_dominant_temp_description">Bugün sütununda yalnızca en az 4 satır yüksekliğinde widget\'larda görünür.</string>
+    <string name="daily_zoom_out_header_label">Başlıkta uzaklaştırma düğmesini göster</string>
+    <string name="daily_zoom_out_header_description">Aylık görünümü açmak için günlük tahmin başlığında bir düğme göster</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Dil</string>

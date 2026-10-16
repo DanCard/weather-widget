@@ -238,6 +238,8 @@ object HeaderWidthChecker {
             return HeaderConstants.DAILY_CENTER_ICON_ZONE_NARROW_DP
         }
         return when {
+            widthDp >= HeaderConstants.DAILY_EXTRA_WIDE_HEADER_MIN_WIDTH_DP ->
+                HeaderConstants.DAILY_CENTER_ICON_ZONE_EXTRA_WIDE_DP
             widthDp >= HeaderConstants.DAILY_WIDE_HEADER_MIN_WIDTH_DP ->
                 HeaderConstants.DAILY_CENTER_ICON_ZONE_WIDE_DP
             widthDp >= HeaderConstants.DAILY_MEDIUM_HEADER_MIN_WIDTH_DP ->
