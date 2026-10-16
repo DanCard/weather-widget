@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 Tidak dapat diproses</string>
     <string name="watermark_http_429">429 Batas tercapai</string>
     <string name="updates_paused">PEMBARUAN DIJEDA</string>
+    <string name="updates_rate_limited">BATAS LAJU</string>
+    <string name="watermark_rate_limited">Terlalu banyak permintaan</string>
+    <string name="watermark_rate_limited_partial">Prakiraan per jam tidak lengkap</string>
     <string name="watermark_quota_daily">Kuota harian habis · reset pukul %1$s</string>
     <string name="watermark_quota_daily_short">Kuota harian habis</string>
     <string name="watermark_quota_hourly_forecast">Kuota prakiraan per jam habis · reset pukul %1$s</string>

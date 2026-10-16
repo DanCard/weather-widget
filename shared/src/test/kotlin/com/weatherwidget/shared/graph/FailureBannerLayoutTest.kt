@@ -70,6 +70,17 @@ class FailureBannerLayoutTest {
         assertEquals("Hourly forecast quota used · resets 12 AM", p.detailText)
     }
 
+    // plans/261016-quota-refusals-always-show-a-banner.md
+    @Test
+    fun `a per-minute refusal reads rate limited, the partial one names the incomplete hours`() {
+        val whole = placed(pill(errorCode = com.weatherwidget.data.remote.RateLimitNotice.ERROR_CODE))
+        assertEquals("⚠ GOOGLE RATE LIMITED", whole.mainText)
+        assertEquals("Too many requests · 2:34 PM", whole.detailText)
+        val partial = placed(pill(errorCode = com.weatherwidget.data.remote.RateLimitNotice.ERROR_CODE_PARTIAL))
+        assertEquals("⚠ GOOGLE RATE LIMITED", partial.mainText)
+        assertEquals("Hourly forecast incomplete · 2:34 PM", partial.detailText)
+    }
+
     @Test
     fun `ordinary failure reads updates failing with code and time`() {
         val p = placed(pill(errorCode = "HTTP_429"))

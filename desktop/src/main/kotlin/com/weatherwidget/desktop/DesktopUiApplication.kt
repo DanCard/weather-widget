@@ -51,6 +51,8 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
 import com.weatherwidget.data.local.desktop.ProductQuotaLog
+import com.weatherwidget.data.local.desktop.RateLimitLog
+import com.weatherwidget.data.remote.RateLimitNotice
 import com.weatherwidget.data.remote.QuotaNotice
 import com.weatherwidget.data.remote.FetchErrorCode
 import com.weatherwidget.data.remote.GoogleQuota
@@ -633,6 +635,8 @@ internal fun runDesktopUiApplication() = application {
             val repo = repository ?: return@LaunchedEffect
             val activeConfig = config ?: return@LaunchedEffect
             var graceJob: Job? = null
+            // Takes a rate-limit banner down when its minute is up (RateLimitNotice.SHOW_MS).
+            var rateLimitExpiryJob: Job? = null
 
             fun logBannerTransition() {
                 val state = when {
@@ -665,13 +669,28 @@ internal fun runDesktopUiApplication() = application {
                 val isHourly = activeConfig.viewMode.isHourly
                 val src = WeatherSource.fromDisplaySource(activeConfig.displaySource).id
                 val status = weatherDao.getLatestCurrentTempStatus(src)
+                val statusNow = System.currentTimeMillis()
+                rateLimitExpiryJob?.cancel()
+                fun expireRateLimitBannerAfter(atMs: Long) {
+                    val remaining = RateLimitNotice.remainingMs(atMs, statusNow) ?: return
+                    rateLimitExpiryJob = this@LaunchedEffect.launch {
+                        delay(remaining)
+                        updateStatus()
+                        logBannerTransition()
+                    }
+                }
                 // The daily view shows a source-wide failure only when it is a quota (it says when
-                // updates resume); other current-temp failures stay on the hourly graphs.
+                // updates resume); other current-temp failures stay on the hourly graphs. A per-minute
+                // 429 shows on every view, for a minute (plans/261016-quota-refusals-always-show-a-banner.md).
                 val sourceFailure = status?.takeIf { !it.ok && it.timestamp > dismissedErrorTimestamp }?.takeIf {
-                    isHourly || desktopFetchErrorPresentation(
+                    val presentation = desktopFetchErrorPresentation(
                         "", CurrentTempStatusLog.parseFailureClassName(it.message),
                         CurrentTempStatusLog.parseFailureDetail(it.message), it.timestamp,
-                    ).quota
+                    )
+                    when {
+                        presentation.rateLimit -> RateLimitNotice.isShowing(it.timestamp, statusNow)
+                        else -> isHourly || presentation.quota
+                    }
                 }
                 if (status != null && sourceFailure != null) {
                     val timeFmt = DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault())
@@ -711,6 +730,7 @@ internal fun runDesktopUiApplication() = application {
                     currentTempFetchIsWarmup = false
 
                     val presentation = desktopFetchErrorPresentation(displayName, className, detail, status.timestamp)
+                    if (presentation.rateLimit) expireRateLimitBannerAfter(status.timestamp)
                     val lastSuccessfulUpdateMs = weatherDao.getLastSuccessfulFetch(src)
                     val lastSuccessfulLine = if (lastSuccessfulUpdateMs != null) {
                         val timeStr = timeFmt.format(Instant.ofEpochMilli(lastSuccessfulUpdateMs))
@@ -723,7 +743,7 @@ internal fun runDesktopUiApplication() = application {
                     val attemptTimeStr = attemptFmt.format(Instant.ofEpochMilli(status.timestamp))
                     currentTempFetchPill = DesktopFailurePill(
                         sourceLabel = displayName,
-                        errorCode = FetchErrorCode.fromLogged(className, detail),
+                        errorCode = if (presentation.rateLimit) RateLimitNotice.ERROR_CODE else FetchErrorCode.fromLogged(className, detail),
                         failureTimeMs = status.timestamp,
                     )
                     currentTempFetchError = buildList {
@@ -741,15 +761,38 @@ internal fun runDesktopUiApplication() = application {
                     // the other keeps updating, so the refresh succeeded but these days/hours are not
                     // (user, 2026-10-07).
                     val productQuota = productQuotaBanner(src)
-                    currentTempFetchError = productQuota?.second
-                    currentTempFetchPill = productQuota?.let { (loggedAt, _) ->
-                        DesktopFailurePill(
-                            sourceLabel = WeatherSource.fromId(src).displayName,
-                            errorCode = GoogleQuota.errorCodeFor(QuotaNotice.productOf(activeConfig.viewMode)),
-                            failureTimeMs = loggedAt,
-                        )
+                    // Else hourly pages a per-minute limit cut short, on every view for a minute.
+                    val partialRateLimit = if (productQuota != null) null else weatherDao.getLatestRateLimit(src)
+                        ?.takeIf { (loggedAt, _) -> loggedAt > dismissedErrorTimestamp && RateLimitNotice.isShowing(loggedAt, statusNow) }
+                    val displayName = WeatherSource.fromId(src).displayName
+                    when {
+                        productQuota != null -> {
+                            currentTempFetchError = productQuota.second
+                            currentTempFetchPill = DesktopFailurePill(
+                                sourceLabel = displayName,
+                                errorCode = GoogleQuota.errorCodeFor(QuotaNotice.productOf(activeConfig.viewMode)),
+                                failureTimeMs = productQuota.first,
+                            )
+                            currentTempFetchTimestamp = productQuota.first
+                        }
+                        partialRateLimit != null -> {
+                            val (loggedAt, msg) = partialRateLimit
+                            val presentation = desktopPartialRateLimitPresentation(displayName, RateLimitLog.parseDetail(msg))
+                            currentTempFetchError = (listOf(presentation.title) + presentation.bodyLines + listOf("", presentation.retryLine))
+                                .joinToString("\n")
+                            currentTempFetchPill = DesktopFailurePill(
+                                sourceLabel = displayName,
+                                errorCode = RateLimitNotice.ERROR_CODE_PARTIAL,
+                                failureTimeMs = loggedAt,
+                            )
+                            currentTempFetchTimestamp = loggedAt
+                            expireRateLimitBannerAfter(loggedAt)
+                        }
+                        else -> {
+                            currentTempFetchError = null
+                            currentTempFetchPill = null
+                        }
                     }
-                    productQuota?.let { currentTempFetchTimestamp = it.first }
                 }
             }
 

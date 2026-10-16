@@ -16,6 +16,7 @@ import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.GoogleQuota
 import com.weatherwidget.data.remote.QuotaNotice
+import com.weatherwidget.data.remote.RateLimitNotice
 import com.weatherwidget.data.remote.ProviderErrorDetails
 import com.weatherwidget.widget.GraphFailureWatermarkRenderer
 import com.weatherwidget.widget.WidgetStateManager
@@ -148,16 +149,20 @@ internal data class SourceErrorDetailsContent(
             val count = state.getSourceFailureCount(source)
             // No source-wide failure: the pill may be one product's quota block (hourly views or the
             // daily view), recorded apart from the failure streak.
+            // Else a per-minute refusal from the last minute (its pill shows with no streak).
             val productBlock = if (count > 0) {
                 null
             } else {
                 ForecastProduct.entries.firstNotNullOfOrNull { product ->
                     state.getProductQuota(source, product, nowMs)?.let { product to it }
-                } ?: return null
+                }
             }
-            val code = productBlock?.let { GoogleQuota.errorCodeFor(it.first) } ?: state.getSourceLastErrorCode(source)
-            val failedAt = productBlock?.second?.sinceMs ?: state.getSourceLastFailureTime(source)
-            val detail = productBlock?.second?.detail ?: state.getSourceLastFailureDetail(source)
+            val rateLimit = if (count > 0 || productBlock != null) null else state.getRateLimit(source, nowMs) ?: return null
+            val code = productBlock?.let { GoogleQuota.errorCodeFor(it.first) }
+                ?: rateLimit?.let { RateLimitNotice.errorCode(it.partial) }
+                ?: state.getSourceLastErrorCode(source)
+            val failedAt = productBlock?.second?.sinceMs ?: rateLimit?.atMs ?: state.getSourceLastFailureTime(source)
+            val detail = productBlock?.second?.detail ?: rateLimit?.detail ?: state.getSourceLastFailureDetail(source)
             val details = ProviderErrorDetails.parse(detail)
             val quota = productBlock
                 ?.let { (product, block) -> QuotaNotice.forProductBlock(product, block.untilMs, detail) }
@@ -167,7 +172,7 @@ internal data class SourceErrorDetailsContent(
 
             val explanation = when {
                 resetText != null -> context.getString(R.string.error_details_explain_quota, resetText)
-                code == "HTTP_429" -> context.getString(R.string.error_details_explain_rate_limit)
+                code == "HTTP_429" || RateLimitNotice.isErrorCode(code) -> context.getString(R.string.error_details_explain_rate_limit)
                 code in AUTH_CODES -> context.getString(R.string.error_details_explain_auth)
                 code == "DATA_RESTRICTED" -> context.getString(R.string.error_details_explain_data)
                 else -> context.getString(R.string.error_details_explain_generic)
@@ -202,7 +207,13 @@ internal data class SourceErrorDetailsContent(
             }
 
             val headline = "${source.displayName.uppercase(locale)} " +
-                context.getString(if (quota != null) R.string.updates_paused else R.string.updates_failing)
+                context.getString(
+                    when {
+                        quota != null -> R.string.updates_paused
+                        RateLimitNotice.isErrorCode(code) -> R.string.updates_rate_limited
+                        else -> R.string.updates_failing
+                    },
+                )
             return SourceErrorDetailsContent(
                 headline = headline,
                 summary = when {

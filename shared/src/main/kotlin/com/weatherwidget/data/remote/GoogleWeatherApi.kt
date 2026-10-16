@@ -217,7 +217,8 @@ class GoogleWeatherApi(
 
         val current = currentDeferred.await()
         val days = daysDeferred.await()
-        val forecastHours = hoursDeferred.await()
+        val hourPages = hoursDeferred.await()
+        val forecastHours = hourPages?.hours
         val history = historyDeferred?.await()
         if (!requestHistory) {
             Log.d(TAG, "history skipped included=$includeHistory blockedUntil=$historyBlockedUntilMs")
@@ -248,7 +249,10 @@ class GoogleWeatherApi(
             forecastHours.orEmpty(),
             // Elapsed hours only make sense beside a forecast-hours payload.
             if (forecastHours == null) emptyList() else history?.get("historyHours")?.jsonArray.orEmpty(),
-        ).copy(quotaRefused = refused.mapValues { QuotaRefusal(it.value.untilMs, it.value.detail) })
+        ).copy(
+            quotaRefused = refused.mapValues { QuotaRefusal(it.value.untilMs, it.value.detail) },
+            partialRateLimitDetail = hourPages?.rateLimitDetail,
+        )
     }
 
     private suspend fun fetchHistoryOrNull(apiKey: String, lat: Double, lon: Double): JsonObject? =
@@ -305,8 +309,9 @@ class GoogleWeatherApi(
         lon: Double,
         storedHours: List<HourlyForecast>?,
         hoursAhead: Int,
-    ): List<JsonObject> {
+    ): HourPages {
         val hours = mutableListOf<JsonObject>()
+        var rateLimitDetail: String? = null
         // Guards a misbehaving token chain: one page per 24 h asked for (72 h = 3).
         val maxPages = (hoursAhead + PAGE_SIZE - 1) / PAGE_SIZE
         val startMs = nowMs()
@@ -327,6 +332,7 @@ class GoogleWeatherApi(
             } catch (e: ApiAccessException) {
                 if (pages == 0) throw e
                 blockIfDailyQuota(ForecastProduct.HOURLY, e)
+                if (RateLimitNotice.isRateLimit(e)) rateLimitDetail = e.detail
                 partial = e.statusCode?.toString() ?: "error"
                 break
             } catch (e: java.io.IOException) {
@@ -352,8 +358,11 @@ class GoogleWeatherApi(
             (if (hoursAhead != FORECAST_HOURS) " hours=$hoursAhead" else "") +
             (partial?.let { " partial=$it" } ?: "")
         Log.i(TAG, "forecast/hours $lastHoursPaging")
-        return hours
+        return HourPages(hours, rateLimitDetail)
     }
+
+    /** The hour pages received; [rateLimitDetail] is the 429 body when a per-minute limit cut them short. */
+    private class HourPages(val hours: List<JsonObject>, val rateLimitDetail: String?)
 
     internal fun parse(
         current: JsonObject?,

@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 Nieprzetwarzalne</string>
     <string name="watermark_http_429">429 Limit osiągnięty</string>
     <string name="updates_paused">AKTUALIZACJE WSTRZYMANE</string>
+    <string name="updates_rate_limited">LIMIT ZAPYTAŃ</string>
+    <string name="watermark_rate_limited">Zbyt wiele zapytań</string>
+    <string name="watermark_rate_limited_partial">Prognoza godzinowa niepełna</string>
     <string name="watermark_quota_daily">Dzienny limit wyczerpany · reset o %1$s</string>
     <string name="watermark_quota_daily_short">Dzienny limit wyczerpany</string>
     <string name="watermark_quota_hourly_forecast">Limit prognozy godzinowej wyczerpany · reset o %1$s</string>

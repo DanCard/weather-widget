@@ -512,6 +512,11 @@ internal class ForecastFetchCoordinator(
      * 2026-10-07: an hours-only 429 put "quota used" on the daily view).
      */
     private suspend fun recordProductQuotas(source: WeatherSource, result: RawFetch) {
+        result.partialRateLimitDetail?.let { detail ->
+            // Hours kept up to a per-minute refusal: bannered as incomplete for a minute.
+            widgetStateManager.recordRateLimit(source, partial = true, detail = ApiKeyRedaction.redact(detail))
+            appLogDao.log("FETCH_RATE_LIMITED", "source=${source.id} partial=true", "WARN")
+        }
         for (product in ForecastProduct.entries) {
             val refusal = result.quotaRefused[product]
             if (refusal == null) {

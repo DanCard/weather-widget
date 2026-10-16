@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 غير قابل للمعالجة</string>
     <string name="watermark_http_429">429 تجاوز الحد</string>
     <string name="updates_paused">التحديثات متوقفة مؤقتًا</string>
+    <string name="updates_rate_limited">تم تقييد المعدل</string>
+    <string name="watermark_rate_limited">طلبات كثيرة جدًا</string>
+    <string name="watermark_rate_limited_partial">توقعات الساعات غير مكتملة</string>
     <string name="watermark_quota_daily">نفدت الحصة اليومية · تُعاد في %1$s</string>
     <string name="watermark_quota_daily_short">نفدت الحصة اليومية</string>
     <string name="watermark_quota_hourly_forecast">نفدت حصة التوقعات بالساعة · تُعاد في %1$s</string>

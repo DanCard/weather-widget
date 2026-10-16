@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 Необрабатываемый</string>
     <string name="watermark_http_429">429 Превышен лимит</string>
     <string name="updates_paused">ОБНОВЛЕНИЯ ПРИОСТАНОВЛЕНЫ</string>
+    <string name="updates_rate_limited">ОГРАНИЧЕНИЕ ЧАСТОТЫ</string>
+    <string name="watermark_rate_limited">Слишком много запросов</string>
+    <string name="watermark_rate_limited_partial">Почасовой прогноз неполный</string>
     <string name="watermark_quota_daily">Дневной лимит исчерпан · сброс в %1$s</string>
     <string name="watermark_quota_daily_short">Дневной лимит исчерпан</string>
     <string name="watermark_quota_hourly_forecast">Лимит почасового прогноза исчерпан · сброс в %1$s</string>

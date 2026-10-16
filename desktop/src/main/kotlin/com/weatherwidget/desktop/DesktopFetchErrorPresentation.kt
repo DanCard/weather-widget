@@ -2,6 +2,8 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.remote.QuotaNotice
 import com.weatherwidget.data.remote.QuotaNoticeText
+import com.weatherwidget.data.remote.ProviderErrorDetails
+import com.weatherwidget.data.remote.RateLimitNoticeText
 
 /** What the shared failure pill ([com.weatherwidget.shared.graph.FailureBannerLayout]) is worded from. */
 internal data class DesktopFailurePill(
@@ -16,6 +18,8 @@ internal data class DesktopFetchErrorPresentation(
     val retryLine: String,
     /** A daily-quota refusal ([desktopQuotaPresentation]): the daily view shows these, and only these. */
     val quota: Boolean = false,
+    /** A short-window (per-minute) 429 ([RateLimitNotice]): every view shows it, for a minute. */
+    val rateLimit: Boolean = false,
 )
 
 /** Converts persisted fetch-failure details into honest, user-facing desktop banner copy. */
@@ -43,14 +47,16 @@ internal fun desktopFetchErrorPresentation(
 
     return when (statusCode) {
         429 -> DesktopFetchErrorPresentation(
-            title = "$titleName REQUEST LIMIT REACHED",
+            title = RateLimitNoticeText.headline(sourceDisplayName),
             bodyLines = listOf(
                 "$sourceDisplayName rejected this request because its API rate limit was reached.",
                 "HTTP 429 — Too Many Requests",
+            ) + QuotaNoticeText.detailLines(ProviderErrorDetails.parse(detail)) + listOf(
                 "Cached $sourceDisplayName weather is still being displayed.",
                 "No other weather provider was substituted.",
             ),
-            retryLine = "The next scheduled refresh will try again.",
+            retryLine = "The limit is per minute: Refresh works again shortly.",
+            rateLimit = true,
         )
 
         401 -> DesktopFetchErrorPresentation(
@@ -124,3 +130,20 @@ internal fun desktopQuotaPresentation(
         quota = true,
     )
 }
+
+/**
+ * A fetch whose later hourly pages a per-minute limit refused: the earlier pages were stored
+ * (`plans/261016-quota-refusals-always-show-a-banner.md`).
+ */
+internal fun desktopPartialRateLimitPresentation(
+    sourceDisplayName: String,
+    detail: String,
+): DesktopFetchErrorPresentation = DesktopFetchErrorPresentation(
+    title = RateLimitNoticeText.headline(sourceDisplayName),
+    bodyLines = listOf(
+        "${RateLimitNoticeText.short(partial = true)}: $sourceDisplayName refused the later hourly pages.",
+        "The hours received were saved; later hours keep their earlier forecast.",
+    ) + QuotaNoticeText.detailLines(ProviderErrorDetails.parse(detail)),
+    retryLine = "The limit is per minute: Refresh works again shortly.",
+    rateLimit = true,
+)

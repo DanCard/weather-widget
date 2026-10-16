@@ -487,6 +487,9 @@ class WidgetStateManager internal constructor(
 
     fun recordSourceFetchFailure(source: WeatherSource, errorCode: String? = null, detail: String? = null) {
         fetchStateStore.recordSourceFetchFailure(source, errorCode, SOURCE_FAILURE_WATERMARK_THRESHOLD, detail)
+        // A 429 that is not a daily quota (that one is QUOTA_DAILY, FetchErrorCode) is a short-window
+        // limit: bannered at once for a minute, not after the 3-failure streak.
+        if (errorCode == "HTTP_429") fetchStateStore.recordRateLimit(source, partial = false, detail = detail)
     }
 
     fun getSourceLastErrorCode(source: WeatherSource): String? =
@@ -510,10 +513,18 @@ class WidgetStateManager internal constructor(
     internal fun getProductQuota(source: WeatherSource, product: ForecastProduct, nowMs: Long = System.currentTimeMillis()) =
         fetchStateStore.productQuota(source, product, nowMs)
 
+    fun recordRateLimit(source: WeatherSource, partial: Boolean, detail: String?) =
+        fetchStateStore.recordRateLimit(source, partial, detail)
+
+    internal fun getRateLimit(source: WeatherSource, nowMs: Long = System.currentTimeMillis()) =
+        fetchStateStore.rateLimit(source, nowMs)
+
     /**
      * The failure pill a view of [product] draws for [source]: a source-wide failure streak first
-     * (it affects every view), else that product's own quota block. An hourly-only quota block
-     * therefore leaves the daily view clean (user, 2026-10-07).
+     * (it affects every view), else that product's own quota block, else a rate-limit refusal from the
+     * last minute — on every view, the first refusal, no streak needed (user, 2026-10-16:
+     * plans/261016-quota-refusals-always-show-a-banner.md). An hourly-only quota block leaves the
+     * daily view clean (user, 2026-10-07).
      */
     fun viewWatermark(
         source: WeatherSource,
@@ -528,7 +539,15 @@ class WidgetStateManager internal constructor(
                 bannerSinceMs = getSourceBannerSince(source),
             )
         }
-        val quota = getProductQuota(source, product, nowMs) ?: return ViewWatermark.NONE
+        val quota = getProductQuota(source, product, nowMs)
+            ?: return getRateLimit(source, nowMs)?.let {
+                ViewWatermark(
+                    show = true,
+                    errorCode = com.weatherwidget.data.remote.RateLimitNotice.errorCode(it.partial),
+                    failureTimeMs = it.atMs,
+                    bannerSinceMs = it.atMs,
+                )
+            } ?: ViewWatermark.NONE
         return ViewWatermark(
             show = true,
             errorCode = com.weatherwidget.data.remote.GoogleQuota.errorCodeFor(product),

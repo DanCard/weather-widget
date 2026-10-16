@@ -353,6 +353,9 @@
     <string name="watermark_http_422">422 No procesable</string>
     <string name="watermark_http_429">429 Límite de solicitudes</string>
     <string name="updates_paused">ACTUALIZACIONES EN PAUSA</string>
+    <string name="updates_rate_limited">LÍMITE DE FRECUENCIA</string>
+    <string name="watermark_rate_limited">Demasiadas solicitudes</string>
+    <string name="watermark_rate_limited_partial">Pronóstico por horas incompleto</string>
     <string name="watermark_quota_daily">Cuota diaria agotada · se reinicia a las %1$s</string>
     <string name="watermark_quota_daily_short">Cuota diaria agotada</string>
     <string name="watermark_quota_hourly_forecast">Cuota de pronóstico por horas agotada · se reinicia a las %1$s</string>

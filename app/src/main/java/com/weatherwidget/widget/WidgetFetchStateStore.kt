@@ -156,6 +156,31 @@ internal class WidgetFetchStateStore(
         return ProductQuota(until, prefs.getLong("$key$SINCE", nowMs), prefs.getString("$key$DETAIL", null))
     }
 
+    /**
+     * A short-window quota refusal of [source] ([com.weatherwidget.data.remote.RateLimitNotice]): the
+     * whole fetch, or ([partial]) a later hourly page after the earlier ones were kept. Bannered on
+     * every view for a minute; it simply ages out, so nothing clears it.
+     */
+    @Synchronized
+    fun recordRateLimit(source: WeatherSource, partial: Boolean, detail: String?) {
+        val key = "$KEY_RATE_LIMIT_PREFIX${source.id}_"
+        val editor = prefs.edit()
+            .putLong("$key$SINCE", clock.millis())
+            .putBoolean("$key$PARTIAL", partial)
+        if (detail.isNullOrBlank()) editor.remove("$key$DETAIL") else editor.putString("$key$DETAIL", detail.take(MAX_DETAIL_CHARS))
+        editor.apply()
+    }
+
+    data class RateLimit(val atMs: Long, val partial: Boolean, val detail: String?)
+
+    /** [source]'s rate-limit refusal while its banner is still up at [nowMs], else null. */
+    fun rateLimit(source: WeatherSource, nowMs: Long): RateLimit? {
+        val key = "$KEY_RATE_LIMIT_PREFIX${source.id}_"
+        val at = prefs.getLong("$key$SINCE", 0L).takeIf { it > 0L } ?: return null
+        if (!com.weatherwidget.data.remote.RateLimitNotice.isShowing(at, nowMs)) return null
+        return RateLimit(at, prefs.getBoolean("$key$PARTIAL", false), prefs.getString("$key$DETAIL", null))
+    }
+
     private fun productKey(source: WeatherSource, product: ForecastProduct) =
         "$KEY_PRODUCT_QUOTA_PREFIX${source.id}_${product.name}_"
 
@@ -186,6 +211,8 @@ internal class WidgetFetchStateStore(
         const val KEY_SOURCE_FAILURE_DETAIL_PREFIX = "source_fail_detail_"
         const val MAX_DETAIL_CHARS = 8_000
         const val KEY_PRODUCT_QUOTA_PREFIX = "source_quota_"
+        const val KEY_RATE_LIMIT_PREFIX = "source_rate_limit_"
+        const val PARTIAL = "partial"
         const val UNTIL = "until"
         const val SINCE = "since"
         const val DETAIL = "detail"

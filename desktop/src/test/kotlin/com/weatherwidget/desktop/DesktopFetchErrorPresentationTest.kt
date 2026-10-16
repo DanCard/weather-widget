@@ -21,11 +21,13 @@ class DesktopFetchErrorPresentationTest {
             failureMs = FAILURE_MS,
         )
 
-        assertEquals("TOMORROW.IO REQUEST LIMIT REACHED", result.title)
+        // Worded like the pill (RateLimitNoticeText), plans/261016-quota-refusals-always-show-a-banner.md
+        assertEquals("TOMORROW.IO RATE LIMITED", result.title)
         assertTrue(result.bodyLines.any { it == "HTTP 429 — Too Many Requests" })
         assertTrue(result.bodyLines.any { it.contains("Cached Tomorrow.io weather") })
         assertTrue(result.bodyLines.any { it.contains("No other weather provider") })
-        assertEquals("The next scheduled refresh will try again.", result.retryLine)
+        assertEquals("The limit is per minute: Refresh works again shortly.", result.retryLine)
+        assertTrue(result.rateLimit)
     }
 
     @Test
@@ -80,15 +82,16 @@ class DesktopFetchErrorPresentationTest {
     }
 
     @Test
-    fun `a per-minute 429 stays a request-limit banner`() {
+    fun `a per-minute 429 stays a rate-limit banner`() {
         val result = desktopFetchErrorPresentation(
             sourceDisplayName = "Google Weather",
             className = "ApiAccessException",
             detail = "status 429. Detail: " + dailyQuotaBody.replace("1/d/", "1/min/"),
             failureMs = FAILURE_MS,
         )
-        assertEquals("GOOGLE WEATHER REQUEST LIMIT REACHED", result.title)
+        assertEquals("GOOGLE WEATHER RATE LIMITED", result.title)
         assertFalse(result.quota)
+        assertTrue(result.rateLimit)
     }
 
     private companion object {

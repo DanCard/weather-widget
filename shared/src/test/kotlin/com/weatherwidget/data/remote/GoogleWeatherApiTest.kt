@@ -512,6 +512,7 @@ class GoogleWeatherApiTest {
         assertTrue("a per-minute limit blocks nothing", result.quotaRefused.isEmpty())
         assertFalse(SourceQuotaBlocks.isFullyBlocked(WeatherSource.GOOGLE_WEATHER.id, clockMs))
         assertEquals("pages=2 reason=no_stored_hours_given hours=192 partial=429", api.lastHoursPaging)
+        assertTrue("reported for the banner", result.partialRateLimitDetail!!.contains("1/min/"))
 
         failFromPage = null
         requests.clear()
@@ -528,6 +529,7 @@ class GoogleWeatherApiTest {
 
         assertEquals(48, result.hourly.size)
         assertEquals(setOf(com.weatherwidget.data.model.ForecastProduct.HOURLY), result.quotaRefused.keys)
+        assertNull("a daily quota is the quota notice, not a rate limit", result.partialRateLimitDetail)
         val before = hoursCalls()
         api.getForecast(37.422, -122.084, includeHistory = false)
         assertEquals("no request into the exhausted hours quota", before, hoursCalls())
@@ -543,6 +545,7 @@ class GoogleWeatherApiTest {
 
         assertEquals(24, result.hourly.size)
         assertTrue(api.lastHoursPaging!!.endsWith("partial=io"))
+        assertNull("not a quota refusal", result.partialRateLimitDetail)
     }
 
     @Test

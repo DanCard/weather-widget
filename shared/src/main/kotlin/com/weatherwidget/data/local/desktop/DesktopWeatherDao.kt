@@ -1272,6 +1272,20 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
+    /** The newest [RateLimitLog] row for [source]: (timestamp, message). */
+    fun getLatestRateLimit(source: String): Pair<Long, String>? {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT timestamp, message FROM app_logs WHERE tag = '${RateLimitLog.TAG}' AND message LIKE ? ORDER BY timestamp DESC LIMIT 1"
+            ).use { stmt ->
+                stmt.setString(1, "source=$source %")
+                val rs = stmt.executeQuery()
+                if (rs.next()) return rs.getLong("timestamp") to rs.getString("message")
+            }
+        }
+        return null
+    }
+
     fun getRecentLogs(limit: Int = 200): List<DesktopLogEntity> {
         val result = mutableListOf<DesktopLogEntity>()
         db.getConnection().use { conn ->

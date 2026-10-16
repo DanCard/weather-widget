@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 Nicht verarbeitbar</string>
     <string name="watermark_http_429">429 Limit erreicht</string>
     <string name="updates_paused">AKTUALISIERUNGEN PAUSIERT</string>
+    <string name="updates_rate_limited">RATENLIMIT</string>
+    <string name="watermark_rate_limited">Zu viele Anfragen</string>
+    <string name="watermark_rate_limited_partial">Stündliche Vorhersage unvollständig</string>
     <string name="watermark_quota_daily">Tageskontingent aufgebraucht · zurückgesetzt um %1$s</string>
     <string name="watermark_quota_daily_short">Tageskontingent aufgebraucht</string>
     <string name="watermark_quota_hourly_forecast">Kontingent für Stundenprognose aufgebraucht · zurückgesetzt um %1$s</string>

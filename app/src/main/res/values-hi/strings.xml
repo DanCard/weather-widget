@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 प्रक्रिया योग्य नहीं</string>
     <string name="watermark_http_429">429 दर सीमित</string>
     <string name="updates_paused">अपडेट रुके</string>
+    <string name="updates_rate_limited">दर सीमित</string>
+    <string name="watermark_rate_limited">बहुत अधिक अनुरोध</string>
+    <string name="watermark_rate_limited_partial">प्रति घंटा पूर्वानुमान अधूरा</string>
     <string name="watermark_quota_daily">दैनिक कोटा समाप्त · %1$s पर रीसेट</string>
     <string name="watermark_quota_daily_short">दैनिक कोटा समाप्त</string>
     <string name="watermark_quota_hourly_forecast">घंटेवार पूर्वानुमान कोटा समाप्त · %1$s पर रीसेट</string>

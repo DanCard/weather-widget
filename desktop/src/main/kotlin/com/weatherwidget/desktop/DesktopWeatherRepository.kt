@@ -890,6 +890,10 @@ class DesktopWeatherRepository(
      * daily view (user, 2026-10-07).
      */
     private fun recordProductQuotas(result: RawFetch, now: Long) {
+        // Hours kept up to a per-minute refusal: the popup banners them as incomplete for a minute.
+        result.partialRateLimitDetail?.let { detail ->
+            weatherDao.log(RateLimitLog.TAG, RateLimitLog.partial(weatherSource, ApiKeyRedaction.redact(detail)), "WARN")
+        }
         for (product in ForecastProduct.entries) {
             val refusal = result.quotaRefused[product]
             val latestUntil = weatherDao.getLatestProductQuota(weatherSource, product)

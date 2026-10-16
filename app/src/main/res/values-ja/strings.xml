@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 処理できません</string>
     <string name="watermark_http_429">429 リクエスト制限</string>
     <string name="updates_paused">更新を一時停止</string>
+    <string name="updates_rate_limited">レート制限</string>
+    <string name="watermark_rate_limited">リクエストが多すぎます</string>
+    <string name="watermark_rate_limited_partial">時間別予報が不完全です</string>
     <string name="watermark_quota_daily">1日の上限に到達 · %1$sにリセット</string>
     <string name="watermark_quota_daily_short">1日の上限に到達</string>
     <string name="watermark_quota_hourly_forecast">1時間予報の上限に到達 · %1$sにリセット</string>

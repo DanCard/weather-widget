@@ -3,6 +3,8 @@ package com.weatherwidget.shared.graph
 import com.weatherwidget.data.remote.QuotaNotice
 import com.weatherwidget.data.remote.QuotaNoticeText
 import com.weatherwidget.data.remote.QuotaScope
+import com.weatherwidget.data.remote.RateLimitNotice
+import com.weatherwidget.data.remote.RateLimitNoticeText
 import com.weatherwidget.shared.util.FailureBannerStage
 import java.time.Instant
 import java.time.ZoneId
@@ -79,6 +81,7 @@ object FailureBannerLayout {
         stage: FailureBannerStage = FailureBannerStage.FULL,
         pausedText: String = "UPDATES PAUSED",
         quotaText: (QuotaScope, String) -> String = QuotaNoticeText::summary,
+        rateLimitedText: String = "RATE LIMITED",
         measureMain: (String, Float) -> Float,
         measureDetail: (String, Float) -> Float,
         mainMetrics: (Float) -> Pair<Float, Float>,
@@ -93,7 +96,11 @@ object FailureBannerLayout {
         if (maxPillWidth <= 0f || availableTextWidth <= 0f) return null
 
         val quota = QuotaNotice.forSourceFailure(errorCode, failureTimeMs, detail = null)
-        val headline = if (quota != null) pausedText else failingText
+        val headline = when {
+            quota != null -> pausedText
+            RateLimitNotice.isErrorCode(errorCode) -> rateLimitedText
+            else -> failingText
+        }
         val source =
             sourceLabel
                 ?.takeIf { it.isNotBlank() }
@@ -178,6 +185,8 @@ object FailureBannerLayout {
     /** English error-code phrases (Android substitutes its localized resources). */
     fun humanReadableErrorCode(code: String): String =
         QuotaScope.ofErrorCode(code)?.let(QuotaNoticeText::short) ?: when (code) {
+            RateLimitNotice.ERROR_CODE -> RateLimitNoticeText.short(partial = false)
+            RateLimitNotice.ERROR_CODE_PARTIAL -> RateLimitNoticeText.short(partial = true)
             "HTTP_400" -> "400 Bad Request"
             "HTTP_401" -> "401 Unauthorized"
             "HTTP_403" -> "403 Forbidden"

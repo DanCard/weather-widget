@@ -383,6 +383,9 @@
     <string name="watermark_http_422">422 Unprocessable</string>
     <string name="watermark_http_429">429 Rate Limited</string>
     <string name="updates_paused">UPDATES PAUSED</string>
+    <string name="updates_rate_limited">RATE LIMITED</string>
+    <string name="watermark_rate_limited">Too many requests</string>
+    <string name="watermark_rate_limited_partial">Hourly forecast incomplete</string>
     <string name="watermark_quota_daily">Daily quota used · resets %1$s</string>
     <string name="watermark_quota_daily_short">Daily quota used</string>
     <string name="watermark_quota_hourly_forecast">Hourly forecast quota used · resets %1$s</string>

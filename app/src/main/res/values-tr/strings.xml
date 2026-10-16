@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 İşlenemez</string>
     <string name="watermark_http_429">429 İstek sınırı</string>
     <string name="updates_paused">GÜNCELLEMELER DURAKLATILDI</string>
+    <string name="updates_rate_limited">HIZ SINIRI</string>
+    <string name="watermark_rate_limited">Çok fazla istek</string>
+    <string name="watermark_rate_limited_partial">Saatlik tahmin eksik</string>
     <string name="watermark_quota_daily">Günlük kota doldu · %1$s sıfırlanır</string>
     <string name="watermark_quota_daily_short">Günlük kota doldu</string>
     <string name="watermark_quota_hourly_forecast">Saatlik tahmin kotası doldu · %1$s sıfırlanır</string>

@@ -218,6 +218,12 @@ data class RawFetch(
      * spent while `forecast/days` still answers. Views show only their own product's block.
      */
     val quotaRefused: Map<ForecastProduct, QuotaRefusal> = emptyMap(),
+    /**
+     * The 429 body when a short-window limit (per minute) refused a later hourly page and the pages
+     * before it were kept ([com.weatherwidget.data.remote.RateLimitNotice]): the fetch succeeded, but
+     * is bannered as incomplete for a minute.
+     */
+    val partialRateLimitDetail: String? = null,
     /** Desktop: the site's cached climate normals by calendar day, for the months view's band. */
     val climateNormals: Map<java.time.MonthDay, Pair<Float, Float>> = emptyMap(),
     /** Desktop: how far back each source's daily history reaches at this site (months view hint). */

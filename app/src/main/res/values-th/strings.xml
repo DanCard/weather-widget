@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 ไม่สามารถประมวลผล</string>
     <string name="watermark_http_429">429 เกินขีดจำกัด</string>
     <string name="updates_paused">หยุดอัปเดตชั่วคราว</string>
+    <string name="updates_rate_limited">จำกัดอัตรา</string>
+    <string name="watermark_rate_limited">คำขอมากเกินไป</string>
+    <string name="watermark_rate_limited_partial">พยากรณ์รายชั่วโมงไม่ครบ</string>
     <string name="watermark_quota_daily">ใช้โควตารายวันหมดแล้ว · รีเซ็ต %1$s</string>
     <string name="watermark_quota_daily_short">ใช้โควตารายวันหมดแล้ว</string>
     <string name="watermark_quota_hourly_forecast">ใช้โควตาพยากรณ์รายชั่วโมงหมดแล้ว · รีเซ็ต %1$s</string>

@@ -54,6 +54,19 @@ object CurrentTempStatusLog {
  * depend on the `source=<id> product=<HOURLY|DAILY> ` prefix ([DesktopWeatherDao.getLatestProductQuota]'s
  * LIKE filter), `until=<epoch ms>` (0 = cleared) and the trailing `detail=` (the 429 body).
  */
+/**
+ * A short-window quota refusal that cut a fetch's hourly pages short
+ * ([com.weatherwidget.data.remote.RateLimitNotice]); the popup banners it for a minute. A refusal of
+ * the whole fetch is already its `CURRENT_TEMP_STATUS` failure row.
+ */
+object RateLimitLog {
+    const val TAG = "FETCH_RATE_LIMITED"
+
+    fun partial(sourceId: String, detail: String): String = "source=$sourceId partial=true detail=$detail"
+
+    fun parseDetail(message: String): String = message.substringAfter("detail=", "")
+}
+
 object ProductQuotaLog {
     const val TAG = "PRODUCT_QUOTA"
 

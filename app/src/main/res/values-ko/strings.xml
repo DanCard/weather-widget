@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 처리할 수 없음</string>
     <string name="watermark_http_429">429 요청 한도</string>
     <string name="updates_paused">업데이트 일시 중지</string>
+    <string name="updates_rate_limited">요청 속도 제한</string>
+    <string name="watermark_rate_limited">요청이 너무 많습니다</string>
+    <string name="watermark_rate_limited_partial">시간별 예보가 불완전합니다</string>
     <string name="watermark_quota_daily">일일 할당량 소진 · %1$s 초기화</string>
     <string name="watermark_quota_daily_short">일일 할당량 소진</string>
     <string name="watermark_quota_hourly_forecast">시간별 예보 할당량 소진 · %1$s 초기화</string>

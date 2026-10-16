@@ -29,7 +29,13 @@ internal object ErrorPillTouchTargetHelper {
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
             return
         }
-        FailureBannerRepaint.scheduleNextStage(context, appWidgetId, bannerSinceMs)
+        FailureBannerRepaint.scheduleNextStage(
+            context,
+            appWidgetId,
+            bannerSinceMs,
+            expiresAfterMs = com.weatherwidget.data.remote.RateLimitNotice.SHOW_MS
+                .takeIf { com.weatherwidget.data.remote.RateLimitNotice.isErrorCode(errorCode) },
+        )
 
         views.setViewVisibility(R.id.error_pill_touch_zone, View.VISIBLE)
         // The tiny pill is a third of the full one's height; a full-height target under it would

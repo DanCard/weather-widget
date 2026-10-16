@@ -353,6 +353,9 @@
     <string name="watermark_http_422">422 Non traitable</string>
     <string name="watermark_http_429">429 Limite atteinte</string>
     <string name="updates_paused">MISES À JOUR EN PAUSE</string>
+    <string name="updates_rate_limited">LIMITE DE DÉBIT</string>
+    <string name="watermark_rate_limited">Trop de requêtes</string>
+    <string name="watermark_rate_limited_partial">Prévisions horaires incomplètes</string>
     <string name="watermark_quota_daily">Quota quotidien épuisé · réinitialisé à %1$s</string>
     <string name="watermark_quota_daily_short">Quota quotidien épuisé</string>
     <string name="watermark_quota_hourly_forecast">Quota des prévisions horaires épuisé · réinitialisé à %1$s</string>

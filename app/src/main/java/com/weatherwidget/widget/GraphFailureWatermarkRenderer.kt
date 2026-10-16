@@ -45,6 +45,7 @@ internal object GraphFailureWatermarkRenderer {
         bannerSinceMs: Long? = null,
         pausedText: String = "UPDATES PAUSED",
         quotaText: (QuotaScope, String) -> String = QuotaNoticeText::summary,
+        rateLimitedText: String = "RATE LIMITED",
         nowMs: Long = System.currentTimeMillis(),
     ) {
         val stage = stageFor(bannerSinceMs, nowMs)
@@ -63,6 +64,7 @@ internal object GraphFailureWatermarkRenderer {
             stage = stage,
             pausedText = pausedText,
             quotaText = quotaText,
+            rateLimitedText = rateLimitedText,
             measureMain = { text, textSize ->
                 mainPaint.textSize = textSize
                 mainPaint.measureText(text)
@@ -140,6 +142,7 @@ internal object GraphFailureWatermarkRenderer {
         bannerSinceMs = bannerSinceMs,
         pausedText = context.getString(R.string.updates_paused),
         quotaText = { code, resetTime -> localizedQuotaText(context, code, resetTime) },
+        rateLimitedText = context.getString(R.string.updates_rate_limited),
     )
 
     @androidx.annotation.VisibleForTesting
@@ -158,6 +161,7 @@ internal object GraphFailureWatermarkRenderer {
         stage: FailureBannerStage = FailureBannerStage.FULL,
         pausedText: String = "UPDATES PAUSED",
         quotaText: (QuotaScope, String) -> String = QuotaNoticeText::summary,
+        rateLimitedText: String = "RATE LIMITED",
         measureMain: (String, Float) -> Float,
         measureDetail: (String, Float) -> Float,
         mainMetrics: (Float) -> Pair<Float, Float>,
@@ -165,7 +169,7 @@ internal object GraphFailureWatermarkRenderer {
     ): FailureWatermarkLayout? =
         FailureBannerLayout.calculate(
             width, height, density, sourceLabel, errorCode, failureTimeMs, nowMs, locale, zoneId,
-            failingText, errorCodeText, stage, pausedText, quotaText,
+            failingText, errorCodeText, stage, pausedText, quotaText, rateLimitedText,
             measureMain, measureDetail, mainMetrics, detailMetrics,
         )?.let { pill ->
             FailureWatermarkLayout(
@@ -212,6 +216,8 @@ internal object GraphFailureWatermarkRenderer {
     @androidx.annotation.VisibleForTesting
     internal fun localizedErrorCodeText(context: Context, code: String): String =
         QuotaScope.ofErrorCode(code)?.let { localizedQuotaShort(context, it) } ?: when (code) {
+            com.weatherwidget.data.remote.RateLimitNotice.ERROR_CODE -> context.getString(R.string.watermark_rate_limited)
+            com.weatherwidget.data.remote.RateLimitNotice.ERROR_CODE_PARTIAL -> context.getString(R.string.watermark_rate_limited_partial)
             "HTTP_400" -> context.getString(R.string.watermark_http_400)
             "HTTP_401" -> context.getString(R.string.watermark_http_401)
             "HTTP_403" -> context.getString(R.string.watermark_http_403)

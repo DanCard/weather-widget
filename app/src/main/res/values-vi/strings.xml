@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 Không thể xử lý</string>
     <string name="watermark_http_429">429 Giới hạn yêu cầu</string>
     <string name="updates_paused">CẬP NHẬT TẠM DỪNG</string>
+    <string name="updates_rate_limited">GIỚI HẠN TẦN SUẤT</string>
+    <string name="watermark_rate_limited">Quá nhiều yêu cầu</string>
+    <string name="watermark_rate_limited_partial">Dự báo theo giờ chưa đầy đủ</string>
     <string name="watermark_quota_daily">Hết hạn mức ngày · đặt lại lúc %1$s</string>
     <string name="watermark_quota_daily_short">Hết hạn mức ngày</string>
     <string name="watermark_quota_hourly_forecast">Hết hạn mức dự báo theo giờ · đặt lại lúc %1$s</string>

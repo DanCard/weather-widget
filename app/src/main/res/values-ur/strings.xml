@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 ناقابل عمل</string>
     <string name="watermark_http_429">429 شرح محدود</string>
     <string name="updates_paused">اپ ڈیٹ موقوف</string>
+    <string name="updates_rate_limited">شرح محدود</string>
+    <string name="watermark_rate_limited">بہت زیادہ درخواستیں</string>
+    <string name="watermark_rate_limited_partial">گھنٹہ وار پیشگوئی نامکمل</string>
     <string name="watermark_quota_daily">یومیہ کوٹا ختم · %1$s پر دوبارہ</string>
     <string name="watermark_quota_daily_short">یومیہ کوٹا ختم</string>
     <string name="watermark_quota_hourly_forecast">گھنٹہ وار پیش گوئی کا کوٹا ختم · %1$s پر دوبارہ</string>

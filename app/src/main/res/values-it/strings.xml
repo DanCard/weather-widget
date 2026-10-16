@@ -368,6 +368,9 @@
     <string name="watermark_http_422">422 Non elaborabile</string>
     <string name="watermark_http_429">429 Limite raggiunto</string>
     <string name="updates_paused">AGGIORNAMENTI IN PAUSA</string>
+    <string name="updates_rate_limited">LIMITE DI FREQUENZA</string>
+    <string name="watermark_rate_limited">Troppe richieste</string>
+    <string name="watermark_rate_limited_partial">Previsioni orarie incomplete</string>
     <string name="watermark_quota_daily">Quota giornaliera esaurita · si azzera alle %1$s</string>
     <string name="watermark_quota_daily_short">Quota giornaliera esaurita</string>
     <string name="watermark_quota_hourly_forecast">Quota previsioni orarie esaurita · si azzera alle %1$s</string>
