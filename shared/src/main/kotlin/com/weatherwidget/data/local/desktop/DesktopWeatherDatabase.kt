@@ -15,14 +15,12 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
 
     fun getConnection(): Connection {
         val url = "jdbc:sqlite:${dbPath.toAbsolutePath()}"
-        val conn = DriverManager.getConnection(url)
-        // WAL lets the genmon reader and the app writer access the file concurrently without
-        // "database is locked"; busy_timeout gives a writer up to 5s to wait out a competing lock.
-        conn.createStatement().use { stmt ->
-            stmt.execute("PRAGMA busy_timeout = 5000")
-            stmt.execute("PRAGMA journal_mode = WAL")
+        val config = org.sqlite.SQLiteConfig().apply {
+            setTransactionMode(org.sqlite.SQLiteConfig.TransactionMode.IMMEDIATE)
+            setBusyTimeout(5000)
+            setJournalMode(org.sqlite.SQLiteConfig.JournalMode.WAL)
         }
-        return conn
+        return config.createConnection(url)
     }
 
     fun initialize() {

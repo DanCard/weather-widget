@@ -138,7 +138,8 @@ class NwsCurrentWebLegIntegrationTest : RobolectricTest() {
         assertFalse("no METAR file for a RAWS station", loac1.isWebFallback)
 
         assertTrue(requested.toString(), requested.all { it.startsWith(NwsMetarTextApi.BASE_URL + "/") })
-        assertEquals(stations.map { it.id }.toSet(), requested.map { it.substringAfterLast('/').removeSuffix(".TXT") }.toSet())
+        val expectedRequested = stations.filter { it.type != StationType.PERSONAL && it.type != StationType.RAWS }.map { it.id }.toSet()
+        assertEquals(expectedRequested, requested.map { it.substringAfterLast('/').removeSuffix(".TXT") }.toSet())
 
         val deltas = db.appLogDao().getLogsByTag("OBS_WEB_API_DELTA", 20).map { it.message }
         assertTrue(deltas.toString(), deltas.any { "station=KNUQ" in it && "transport=nws_metar_text" in it && "chosen=web" in it })

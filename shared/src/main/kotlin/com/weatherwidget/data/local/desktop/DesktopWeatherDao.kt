@@ -40,7 +40,16 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     companion object {
         /** Marker in the NOT NULL `condition` column of prior-run cloud rows; never displayed. */
         private const val PRIOR_CLOUD_CONDITION = "prior-run cloud"
+
+        /**
+         * Global in-process write lock across all [DesktopWeatherDao] instances.
+         * Serializes multi-statement write transactions in memory so concurrent coroutines
+         * within this JVM never collide or compete for SQLite lock escalation.
+         */
+        val writeLock = Any()
     }
+
+    inline fun <T> withWriteLock(block: () -> T): T = synchronized(writeLock) { block() }
 
     /**
      * Desktop executor for [RetiredProductCleanup] (Android: `RetiredProductCleanupRunner`): retires
@@ -101,7 +110,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
 
-    fun upsertHourlyForecasts(locationLat: Double, locationLon: Double, source: String, hourly: List<HourlyForecast>) {
+    fun upsertHourlyForecasts(locationLat: Double, locationLon: Double, source: String, hourly: List<HourlyForecast>) = withWriteLock {
         db.getConnection().use { conn ->
             conn.autoCommit = false
             try {
@@ -440,7 +449,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         source: String,
         daily: List<DailyForecast>,
         nowMs: Long = System.currentTimeMillis(),
-    ) {
+    ) = withWriteLock {
         // app_logs writes use their own connection; never call log() inside this transaction.
         val pendingLogs = mutableListOf<Pair<String, String>>()
         db.getConnection().use { conn ->
@@ -617,7 +626,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
-    fun upsertObservations(observations: List<DesktopObservationEntity>) {
+    fun upsertObservations(observations: List<DesktopObservationEntity>) = withWriteLock {
         db.getConnection().use { conn ->
             conn.autoCommit = false
             try {

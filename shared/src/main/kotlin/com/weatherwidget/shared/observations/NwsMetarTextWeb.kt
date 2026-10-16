@@ -17,6 +17,15 @@ import kotlinx.coroutines.async
 object NwsMetarTextWeb {
     const val TRANSPORT = "nws_metar_text"
 
+    /**
+     * Only official airport stations publish ICAO METAR reports to NOAA's METAR dissemination server
+     * (`tgftp.nws.noaa.gov/data/observations/metar/stations/{ID}.TXT`). Personal weather stations (CWOP/MADIS)
+     * and RAWS fire weather stations never have METAR files there; querying them causes hangs/timeouts.
+     */
+    fun isMetarStation(station: NwsApi.StationInfo): Boolean =
+        station.type == com.weatherwidget.data.model.StationType.OFFICIAL ||
+            (station.type == com.weatherwidget.data.model.StationType.UNKNOWN && station.id.length == 4 && (station.id.startsWith("K") || station.id.startsWith("P") || station.id.startsWith("T")))
+
     fun start(
         scope: CoroutineScope,
         api: NwsMetarTextApi,
@@ -30,8 +39,12 @@ object NwsMetarTextWeb {
             .filter { ObservationFallbackPolicy.shouldLogWebMetrics(it.index) }
             .associate { (_, station) ->
                 station.id to scope.async {
-                    val startMs = nowMs()
-                    fetchReading(api, station, siteLat, siteLon).also { elapsed[station.id] = nowMs() - startMs }
+                    if (!isMetarStation(station)) {
+                        FetchOutcome.NoData
+                    } else {
+                        val startMs = nowMs()
+                        fetchReading(api, station, siteLat, siteLon).also { elapsed[station.id] = nowMs() - startMs }
+                    }
                 }
             }
         return NwsStationLatestFetcher.WebSource(
@@ -50,15 +63,19 @@ object NwsMetarTextWeb {
         siteLat: Double,
         siteLon: Double,
     ): FetchOutcome<List<ObservationReading>> =
-        when (val outcome = api.fetchLatest(station.id)) {
-            is FetchOutcome.Success -> MetarObservationMapper.toReading(
-                outcome.value,
-                // Distance is re-measured from NWS's station coordinates by asNwsWebRow.
-                AviationWeatherStationFilter.RankedStation(station, distanceKm = 0.0, elevationMeters = null),
-                siteLat,
-                siteLon,
-            )?.let { FetchOutcome.Success(listOf(it)) } ?: FetchOutcome.NoData
-            is FetchOutcome.NoData -> FetchOutcome.NoData
-            is FetchOutcome.Failed -> outcome
+        if (!isMetarStation(station)) {
+            FetchOutcome.NoData
+        } else {
+            when (val outcome = api.fetchLatest(station.id)) {
+                is FetchOutcome.Success -> MetarObservationMapper.toReading(
+                    outcome.value,
+                    // Distance is re-measured from NWS's station coordinates by asNwsWebRow.
+                    AviationWeatherStationFilter.RankedStation(station, distanceKm = 0.0, elevationMeters = null),
+                    siteLat,
+                    siteLon,
+                )?.let { FetchOutcome.Success(listOf(it)) } ?: FetchOutcome.NoData
+                is FetchOutcome.NoData -> FetchOutcome.NoData
+                is FetchOutcome.Failed -> outcome
+            }
         }
 }

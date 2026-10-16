@@ -97,6 +97,25 @@ class NwsMetarTextWebTest {
 
         assertEquals(false, result.chosen!!.isWebFallback)
         assertEquals(FetchOutcome.NoData, result.webOutcome)
+        // Non-official stations (RAWS, PERSONAL) must never hit the network
+        assertTrue("LOAC1 should not be requested: ${api.requested}", api.requested.isEmpty())
+    }
+
+    @Test
+    fun `non-official stations are skipped while official stations are requested`() = runBlocking {
+        val api = FixtureApi(emptyMap())
+        val stations = listOf(
+            station("KNUQ", StationType.OFFICIAL),
+            station("AW020", StationType.PERSONAL),
+            station("LOAC1", StationType.RAWS),
+            station("KSJC", StationType.OFFICIAL),
+        )
+
+        coroutineScope {
+            NwsMetarTextWeb.start(this, api, stations, siteLat, siteLon)
+            kotlinx.coroutines.yield()
+            assertEquals(setOf("KNUQ", "KSJC"), api.requested.toSet())
+        }
     }
 
     @Test

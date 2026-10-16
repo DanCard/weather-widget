@@ -27,12 +27,17 @@ open class NwsMetarTextApi @Inject constructor(
 ) {
     open suspend fun fetchLatest(stationId: String): FetchOutcome<AviationWeatherApi.MetarRow> =
         try {
-            val response = httpClient.get("$BASE_URL/${stationId.uppercase()}.TXT")
-            when (val status = response.status.value) {
-                in 200..299 -> parse(response.bodyAsText(), stationId)
-                301, 302, 404 -> FetchOutcome.NoData
-                else -> FetchOutcome.Failed.of("HTTP $status")
+            kotlinx.coroutines.withTimeout(REQUEST_TIMEOUT_MS) {
+                val response = httpClient.get("$BASE_URL/${stationId.uppercase()}.TXT")
+                when (val status = response.status.value) {
+                    in 200..299 -> parse(response.bodyAsText(), stationId)
+                    301, 302, 404 -> FetchOutcome.NoData
+                    else -> FetchOutcome.Failed.of("HTTP $status")
+                }
             }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            Log.w(TAG, "metar text timed out for $stationId after ${REQUEST_TIMEOUT_MS}ms")
+            FetchOutcome.Failed.of("Timeout after ${REQUEST_TIMEOUT_MS}ms")
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -43,6 +48,9 @@ open class NwsMetarTextApi @Inject constructor(
     companion object {
         private const val TAG = "NwsMetarTextApi"
         const val BASE_URL = "https://tgftp.nws.noaa.gov/data/observations/metar/stations"
+        const val REQUEST_TIMEOUT_MS = 6_000L
+        const val CONNECT_TIMEOUT_MS = 4_000L
+        const val SOCKET_TIMEOUT_MS = 6_000L
 
         private val HEADER_FORMAT = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")
         private val HEADER_REGEX = Regex("""^\d{4}/\d{2}/\d{2} \d{2}:\d{2}$""")
