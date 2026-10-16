@@ -31,7 +31,6 @@ import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.util.ViewingRefreshPolicy
 import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.widget.DataFreshness
-import com.weatherwidget.widget.ForecastFetchPolicy
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
@@ -645,12 +644,11 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             FetchMetadata.getLastCurrentTempFetchTime(context)
         }.takeIf { it > 0L }
         val intervalMs = forecastIntervalMs ?: DataFreshness.deviceFetchContext(context, stateManager).let {
-            ForecastFetchPolicy.intervalMinutes(
+            com.weatherwidget.data.remote.ForecastHorizonCadence.soonestIntervalMs(
                 isCharging = it.isCharging,
-                isScreenInteractive = it.isScreenInteractive,
-                isActiveSource = true,
                 batteryLevel = it.batteryLevel,
-            )?.times(60_000L)
+                isScreenOn = it.isScreenInteractive,
+            )
         }
         val decision = ViewingRefreshPolicy.decide(actualsAtMs, lastForecastAtMs, intervalMs, nowMs)
         if (!decision.any) return decision
@@ -674,7 +672,6 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 context = context,
                 reason = "viewing_forecast_due",
                 targetSourceId = displaySource.id,
-                hourlyLimited = true,
             )
         }
         if (decision.refreshActuals) {

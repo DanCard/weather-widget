@@ -1,43 +1,43 @@
-# Hourly Forecast Update Cadence
+# Forecast Update Cadence
 
-How often hourly temperature forecast data is refetched from providers, on both Android
-(`:app`) and Linux desktop (`:desktop`).
+How often each source's forecast — daily and hourly together — is refetched from providers, on
+both Android (`:app`) and Linux desktop (`:desktop`).
 
-Source of truth: `shared/src/main/kotlin/com/weatherwidget/shared/util/ForecastCadence.kt`,
-with battery thresholds in `BatteryTier.kt`. One rule for every provider — the split is
-displayed source vs. other source, never per provider.
+Source of truth: `shared/src/main/kotlin/com/weatherwidget/data/remote/ForecastHorizonCadence.kt`
+(user, 2026-10-16; `performance/261016-unified-long-short-forecast-horizons.md`). One rule for every
+source and provider: no displayed-vs-other split, no view-age bands. It replaced `ForecastCadence`
+(daily), `HourlyCadence` (hourly by view age) and `HourlyWindowPolicy` (48 h / 8-day windows).
 
-## Scheduled refetch intervals
+## Two horizons
 
-### On charger (or battery ≥ 80%, treated as charging)
+| Battery | Screen | LONG (≈ 8 days) | SHORT (3 days) |
+|---|---|---|---|
+| ≥ 70 % or charging | on | every 8 h | every 4 h |
+| ≥ 70 % or charging | off | every 24 h | every 8 h |
+| < 70 % | on or off | every 24 h | none |
 
-| Condition | Interval |
-|---|---|
-| Displayed source, screen on | **4 h** (240 min) |
-| Displayed source, screen off | **6 h** (360 min) |
-| Other source, screen on | **8 h** (480 min) |
-| Other source, screen off | **12 h** (720 min) |
+- **LONG**: the source's whole reach (Google asks 192 h); every daily row is stored, plus 72 h of
+  hourly. The far-day summaries (noon cloud, day/night rain maxima) are computed from the whole
+  download.
+- **SHORT**: asks 72 h; stores today + 2 days of daily rows and 72 h of hourly. Days 4+ keep the last
+  LONG fetch's rows, which is why both platforms' daily reads take each day's newest row.
+- A LONG fetch also counts as SHORT. "Due" is measured per source + site from two markers (Android
+  prefs, desktop `app_logs` rows), with a 2-minute grace.
+- A forced fetch (screen-on catch-up, source switch, location change) takes what is due, at least
+  SHORT; the user's Refresh is LONG (`ForecastHorizonCadence.forced`).
 
-### Off charger
-
-| Battery | Displayed source | Other sources (× `OFF_CHARGER_OTHER_MULTIPLIER` = 2) |
-|---|---|---|
-| > 70% | 4 h | 8 h |
-| > 50% | 8 h | 16 h |
-| ≤ 50% | no scheduled fetch | no scheduled fetch |
-
-Interval selection is elapsed time since the source's own last successful fetch (no clock
-slots). Android wraps this in `ForecastFetchPolicy.intervalMinutes`; desktop calls
-`ForecastCadence.intervalMinutes` directly.
+Sources not viewed in 8 days are not fetched in the background at all (`SourceFetchGate`).
 
 ### Periodic worker tick (not a fetch interval)
 
-`ForecastFetchPolicy.periodicTickMinutes` only decides when the worker *wakes* and evaluates
-which sources are due (and resamples location):
+`ForecastFetchPolicy.periodicTickMinutes` only decides when Android's worker *wakes* and asks which
+sources are due (and resamples location):
 
-- Charging / treated-as-charging: **60 min**
-- Off charger with a valid battery-tier interval: that interval
-- Off charger below 50%: **24 h** fallback tick (still no forecast fetch if none is due)
+- Charging / ≥ 80 %: **60 min**
+- 70–79 %: **240 min** (the SHORT screen-on interval)
+- 50–69 %: **480 min**; below 50 %: **24 h**
+
+Desktop sleeps until the next due horizon instead (`ForecastSchedule`, `DesktopForecastPlanner`).
 
 ## Sooner-than-scheduled refreshes
 
@@ -62,24 +62,27 @@ refetch the hourly forecast series (`CurrentTempFetchPolicy`):
 | On battery, screen on, battery ≥ 70% | 20 min |
 | Otherwise | 45 min opportunistic only (no dedicated loop) |
 
-"Now" stays fresh through observations and current temperature; the hourly series itself is
-on the slower `ForecastCadence` schedule.
+"Now" stays fresh through observations and current temperature; the forecast itself is on the
+slower `ForecastHorizonCadence` schedule.
 
 ## Why these intervals
 
-Charger values were previously 60/120 min for the displayed source. That spent a provider's
-per-project daily `forecast/hours` quota by ~03:16. User decision 2026-10-07: slow the
-charger cadence. See `plans/261007-google-hours-one-page-and-slower-charger-cadence.md`
-and `notes/261007-hourly-forecast-update-cadence.md`.
+The user's table, 2026-10-16: refresh the near term (3 days) often while the battery is high and
+the screen is on, the full 8 days every 8 h with the screen on (12 h at first, changed the same day), and nothing but a daily LONG fetch below 70 %.
+Earlier history: charger values were once 60/120 min for the displayed source, which spent a
+provider's per-project daily `forecast/hours` quota by ~03:16
+(`plans/261007-google-hours-one-page-and-slower-charger-cadence.md`).
 
 ## Related code
 
 | Piece | Location |
 |---|---|
-| Forecast refetch intervals | `shared/.../util/ForecastCadence.kt` |
+| Forecast cadence (LONG / SHORT) | `shared/.../data/remote/ForecastHorizonCadence.kt` |
 | Battery thresholds / base intervals | `shared/.../util/BatteryTier.kt` |
 | Android scheduling wrapper | `app/.../widget/ForecastFetchPolicy.kt` |
 | Android battery helper | `app/.../widget/BatteryFetchStrategy.kt` |
 | Current-temp loop cadence | `app/.../widget/CurrentTempFetchPolicy.kt` |
-| Interval table tests | `app/src/test/.../ForecastFetchPolicyTest.kt` |
-| Shared cadence tests | `shared/src/test/.../ForecastCadenceTest.kt` |
+| Periodic tick tests | `app/src/test/.../ForecastFetchPolicyTest.kt` |
+| Shared cadence tests | `shared/src/test/.../ForecastHorizonCadenceTest.kt` |
+| Android plan / storage tests | `ForecastHorizonPlanRoboTest`, `ForecastHorizonStorageIntegrationTest` |
+| Desktop plan / storage tests | `DesktopForecastPlannerTest`, `DesktopForecastHorizonStorageTest` |

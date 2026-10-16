@@ -1533,31 +1533,53 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     fun getDailyForecasts(locationLat: Double, locationLon: Double, source: String): List<DailyForecast> {
         val result = mutableListOf<DailyForecast>()
         db.getConnection().use { conn ->
-            // Get the latest batch
-            val latestBatchSql = "SELECT MAX(batchFetchedAt) FROM forecasts WHERE ${LocationMatch.JDBC_WHERE} AND source = ?"
-            val latestBatch = conn.prepareStatement(latestBatchSql).use { stmt ->
+            // The newest fetch: its site (the box can hold more than one quantized site) and its
+            // first day, below which nothing is read — as when only that batch was read.
+            val latestSiteSql = """
+                SELECT locationLat, locationLon, batchFetchedAt FROM forecasts
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
+                ORDER BY batchFetchedAt DESC LIMIT 1
+            """.trimIndent()
+            val (site, latestBatch) = conn.prepareStatement(latestSiteSql).use { stmt ->
                 stmt.setDouble(1, locationLat)
                 stmt.setDouble(2, locationLon)
                 stmt.setString(3, source)
+                val rs = stmt.executeQuery()
+                if (rs.next()) (rs.getDouble(1) to rs.getDouble(2)) to rs.getLong(3) else null
+            } ?: return emptyList()
+            val firstDay = conn.prepareStatement(
+                "SELECT MIN(targetDate) FROM forecasts WHERE locationLat = ? AND locationLon = ? AND source = ? AND batchFetchedAt = ?",
+            ).use { stmt ->
+                stmt.setDouble(1, site.first)
+                stmt.setDouble(2, site.second)
+                stmt.setString(3, source)
+                stmt.setLong(4, latestBatch)
                 val rs = stmt.executeQuery()
                 if (rs.next()) rs.getLong(1) else 0L
             }
 
-            if (latestBatch == 0L) return emptyList()
-
+            // The newest row per day at that site, as Android's reads: a SHORT fetch rewrites only
+            // the next 3 days, and days past them keep the last LONG fetch's rows
+            // (performance/261016-unified-long-short-forecast-horizons.md). Reading only the newest
+            // batch would drop them.
             val sql = """
-                SELECT * FROM forecasts 
-                WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND batchFetchedAt = ?
-                ORDER BY targetDate ASC
+                SELECT * FROM forecasts
+                WHERE locationLat = ? AND locationLon = ? AND source = ? AND targetDate >= ?
+                ORDER BY targetDate ASC, batchFetchedAt DESC, fetchedAt DESC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setDouble(1, locationLat)
-                stmt.setDouble(2, locationLon)
+                stmt.setDouble(1, site.first)
+                stmt.setDouble(2, site.second)
                 stmt.setString(3, source)
-                stmt.setLong(4, latestBatch)
+                stmt.setLong(4, firstDay)
                 val rs = stmt.executeQuery()
+                var lastTargetDate: Long? = null
                 while (rs.next()) {
                     val targetDate = rs.getLong("targetDate")
+                    if (targetDate == lastTargetDate) continue
+                    lastTargetDate = targetDate
+                    // Too old beside the newest fetch: the day is left to the climate normal.
+                    if (!com.weatherwidget.data.remote.ForecastHorizonCadence.showsCarriedRow(rs.getLong("batchFetchedAt"), latestBatch)) continue
                     val dateStr = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(targetDate), ZoneOffset.UTC).toString()
                     result.add(DailyForecast(
                         date = dateStr,
@@ -1623,7 +1645,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         }
                     }
                 }
-                // The batch row ranks newest: it came from the batch every stored row predates.
+                // The newest row for today ranks newest: every other stored row for today predates it.
                 val chosen = PartialForecastDays.todayRow(
                     batchRow?.let { it to Long.MAX_VALUE },
                     stored,
@@ -1674,6 +1696,35 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 val rs = stmt.executeQuery()
                 if (rs.next()) rs.getLong(1) else 0L
             }
+            // The rows the daily view shows ([getDailyForecasts]): from the newest batch's first day
+            // on, each day's newest batch. Skipped here, so these are the older forecasts. A SHORT
+            // fetch leaves days past its 3 in an older batch, which is then the one shown.
+            val shownBatchByDate: Map<Long, Long> = conn.prepareStatement(
+                """
+                SELECT targetDate, MAX(batchFetchedAt) FROM forecasts
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
+                    AND targetDate >= (
+                        SELECT MIN(targetDate) FROM forecasts
+                        WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND batchFetchedAt = ?
+                    )
+                GROUP BY targetDate
+                """.trimIndent(),
+            ).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                stmt.setDouble(4, locationLat)
+                stmt.setDouble(5, locationLon)
+                stmt.setString(6, source)
+                stmt.setLong(7, latestBatch)
+                val rs = stmt.executeQuery()
+                buildMap {
+                    while (rs.next()) {
+                        val batch = rs.getLong(2)
+                        if (com.weatherwidget.data.remote.ForecastHorizonCadence.showsCarriedRow(batch, latestBatch)) put(rs.getLong(1), batch)
+                    }
+                }
+            }
 
             val sql = """
                 SELECT targetDate, highTemp, lowTemp, condition, nativeDailyIconToken,
@@ -1692,13 +1743,13 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setLong(5, endEpoch)
                 val rs = stmt.executeQuery()
                 while (rs.next()) {
-                    if (latestBatch != 0L && rs.getLong("batchFetchedAt") == latestBatch) continue
                     val targetDate = rs.getLong("targetDate")
+                    if (shownBatchByDate[targetDate] == rs.getLong("batchFetchedAt")) continue
                     val dateStr = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(targetDate), ZoneOffset.UTC).toString()
                     result.getOrPut(dateStr) { mutableListOf() }.add(
                         DailyForecastSnapshot(
                             date = dateStr,
-                            // This query intentionally skips the newest batch, so it surfaces older
+                            // This query intentionally skips the rows shown, so it surfaces older
                             // rows — including any that predate the NWS sentinel filter.
                             highTemp = rs.getNullableFloat("highTemp").orNullIfImplausibleTempF(),
                             lowTemp = rs.getNullableFloat("lowTemp").orNullIfImplausibleTempF(),

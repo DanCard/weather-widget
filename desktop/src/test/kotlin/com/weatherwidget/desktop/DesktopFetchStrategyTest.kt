@@ -84,24 +84,7 @@ class DesktopFetchStrategyTest {
         assertEquals(false, DesktopFetchStrategy.shouldCatchUpOnKick("genmon:click", now - 5 * MS_PER_MINUTE, true, 20, now))
     }
 
-    @Test
-    fun `getForecastRefreshDelayMs on AC - displayed 4 h screen on, 6 h screen off`() {
-        assertEquals(240 * MS_PER_MINUTE, DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging = true, batteryLevel = 50, isActiveSource = true))
-        assertEquals(360 * MS_PER_MINUTE, DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging = true, batteryLevel = 50, isActiveSource = true, screenOn = false))
-    }
-
-    @Test
-    fun `getForecastRefreshDelayMs on AC - other sources 8 h screen on, 12 h screen off`() {
-        assertEquals(480 * MS_PER_MINUTE, DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging = true, batteryLevel = 50, isActiveSource = false))
-        assertEquals(720 * MS_PER_MINUTE, DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging = true, batteryLevel = 50, isActiveSource = false, screenOn = false))
-    }
-
-    @Test
-    fun `getForecastRefreshDelayMs follows same battery tiers as observations`() {
-        assertEquals(240 * MS_PER_MINUTE, DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging = false, batteryLevel = 75, isActiveSource = true))
-        assertEquals(480 * MS_PER_MINUTE, DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging = false, batteryLevel = 60, isActiveSource = true))
-        assertNull(DesktopFetchStrategy.getForecastRefreshDelayMs(isCharging = false, batteryLevel = 40, isActiveSource = true))
-    }
+    // Forecast cadence: ForecastHorizonCadence (`:shared`, ForecastHorizonCadenceTest).
 
     @Test
     fun `getNonPrimaryObservationDelayMs returns 30 min only when charging and screen on`() {

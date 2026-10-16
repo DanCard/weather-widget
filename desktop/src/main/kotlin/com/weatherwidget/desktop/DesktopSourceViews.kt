@@ -55,7 +55,7 @@ internal object DesktopSourceViews {
         executor.execute {
             runCatching {
                 target.recordSourceSwitch(switch)
-                // The one timestamp kept: this source's last view (HourlyCadence's view age).
+                // The one timestamp kept: this source's last view (read by nothing since the 2026-10-16 horizon cadence; kept as a record).
                 target.recordLastView(toSourceId, nowMs)
             }
                 .onFailure { Log.w(TAG, "source view record failed trigger=$trigger source=$toSourceId: ${it.message}") }

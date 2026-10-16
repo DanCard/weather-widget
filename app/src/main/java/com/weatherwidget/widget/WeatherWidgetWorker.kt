@@ -681,12 +681,9 @@ class WeatherWidgetWorker
              */
             const val KEY_SOURCE_SWITCH_ID = "source_switch_id"
 
-            /** An hourly-limited forced sync ([com.weatherwidget.data.model.ForecastParts.forForced]). */
-            const val KEY_HOURLY_LIMITED = "hourly_limited"
-
             /**
-             * The user's manual Refresh: the displayed source fetches the FULL hourly window
-             * ([com.weatherwidget.data.remote.HourlyWindowPolicy]) without starting its FULL interval.
+             * The user's manual Refresh: the displayed source makes a LONG fetch
+             * ([com.weatherwidget.data.remote.ForecastHorizonCadence.forced]).
              */
             const val KEY_USER_REFRESH = "user_refresh"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L

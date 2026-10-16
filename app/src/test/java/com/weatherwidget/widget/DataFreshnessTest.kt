@@ -11,7 +11,7 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class DataFreshnessTest {
 
-    // NWS displayed: due after 4 h on a charger with the screen on; others after 8 h (ForecastCadence).
+    // Any source: due after 4 h on a charger with the screen on (ForecastHorizonCadence.soonestIntervalMs).
     private val chargingScreenOn = ForecastFetchContext(
         isCharging = true,
         isScreenInteractive = true,
@@ -36,16 +36,20 @@ class DataFreshnessTest {
     }
 
     @Test
-    fun `a non-displayed source at 5 hours is not stale - it waits 8 hours`() {
+    fun `a non-displayed source follows the same 4-h rule as the displayed one`() {
         val now = System.currentTimeMillis()
-        assertFalse(
-            DataFreshness.isStaleForSources(
-                listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO),
-                mapOf(WeatherSource.NWS.id to now - 10 * 60_000L, WeatherSource.OPEN_METEO.id to now - 5 * 3_600_000L),
-                now,
-                chargingScreenOn,
-            ),
-        )
+        val fresh = mapOf(WeatherSource.NWS.id to now - 10 * 60_000L, WeatherSource.OPEN_METEO.id to now - 3 * 3_600_000L)
+        assertFalse(DataFreshness.isStaleForSources(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO), fresh, now, chargingScreenOn))
+        val stale = fresh + (WeatherSource.OPEN_METEO.id to now - 5 * 3_600_000L)
+        org.junit.Assert.assertTrue(DataFreshness.isStaleForSources(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO), stale, now, chargingScreenOn))
+    }
+
+    @Test
+    fun `below 70 percent a source is stale only after 24 h`() {
+        val now = System.currentTimeMillis()
+        val low = chargingScreenOn.copy(isCharging = false, batteryLevel = 60)
+        assertFalse(DataFreshness.isStaleForSources(listOf(WeatherSource.NWS), mapOf(WeatherSource.NWS.id to now - 23 * 3_600_000L), now, low))
+        org.junit.Assert.assertTrue(DataFreshness.isStaleForSources(listOf(WeatherSource.NWS), mapOf(WeatherSource.NWS.id to now - 24 * 3_600_000L), now, low))
     }
 
     /**

@@ -52,26 +52,27 @@ object HourlyOnDemand {
     fun hoursAhead(
         sourceId: String,
         request: Request?,
-        window: HourlyWindowPolicy.Window? = null,
+        fetchHorizon: ForecastHorizonCadence.Horizon? = null,
     ): Int {
         val horizon = HourlyHorizons.of(sourceId)
         val requested = request?.takeIf { it.sourceId == sourceId }
-            ?: return window?.let { HourlyWindowPolicy.storeHours(sourceId, it) } ?: horizon.routineHours
+            ?: return fetchHorizon?.let { ForecastHorizonCadence.storeHours(sourceId, it) } ?: horizon.routineHours
         return if (horizon.costsPerExtraDay) requested.hours else horizon.maxHours
     }
 
     /**
      * The horizon a fetch of [sourceId] *asks* a billed source for, which may exceed what it stores
-     * ([hoursAhead]): a FULL routine fetch downloads 8 days so the far days' summaries refresh, and
-     * stores 72 h. Same as [hoursAhead] for an on-demand [request] or no [window].
+     * ([hoursAhead]): a LONG routine fetch downloads 8 days so the far days' daily rows and summaries
+     * refresh, and stores 72 h ([ForecastHorizonCadence]). Same as [hoursAhead] for an on-demand
+     * [request] or no [fetchHorizon].
      */
     fun askHours(
         sourceId: String,
         request: Request?,
-        window: HourlyWindowPolicy.Window? = null,
+        fetchHorizon: ForecastHorizonCadence.Horizon? = null,
     ): Int {
-        if (request?.sourceId == sourceId || window == null) return hoursAhead(sourceId, request)
-        return HourlyWindowPolicy.askHours(sourceId, window)
+        if (request?.sourceId == sourceId || fetchHorizon == null) return hoursAhead(sourceId, request)
+        return ForecastHorizonCadence.askHours(sourceId, fetchHorizon)
     }
 
     /**

@@ -1,7 +1,6 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.shared.util.BatteryTier
-import com.weatherwidget.shared.util.ForecastCadence
 import com.weatherwidget.shared.util.NonPrimaryObservationPolicy
 
 /**
@@ -13,8 +12,6 @@ data class ForecastFetchContext(
     val isScreenInteractive: Boolean,
     val batteryLevel: Int,
     val activeSourceIds: Set<String>,
-    /** Refresh daily/current; hourly only when due ([com.weatherwidget.data.model.ForecastParts.forForced]). */
-    val hourlyLimited: Boolean = false,
     /**
      * A tapped day past Google's routine 72 h: the deeper `forecast/hours` horizon that reaches it
      * ([com.weatherwidget.data.remote.HourlyOnDemand]); null on every other sync.
@@ -27,44 +24,40 @@ data class ForecastFetchContext(
      */
     val historyRefillDay: java.time.LocalDate? = null,
     /**
-     * The user's manual Refresh: the displayed sources ([activeSourceIds]) fetch the FULL hourly
-     * window and do not start its interval ([com.weatherwidget.data.remote.HourlyWindowPolicy.marksFull]).
+     * The user's manual Refresh: the displayed sources ([activeSourceIds]) make a LONG fetch
+     * ([com.weatherwidget.data.remote.ForecastHorizonCadence.forced]).
      */
     val userRefresh: Boolean = false,
 )
 
 /**
- * Pure decision functions for scheduling per-source forecast fetches.
- *
- * The intervals are [ForecastCadence] (`:shared`, also used by desktop): displayed vs. other source,
- * screen on vs. off, battery tier — the same rule for every provider.
+ * Pure decision functions for scheduling per-source forecast fetches. Which horizon is due is
+ * [com.weatherwidget.data.remote.ForecastHorizonCadence] (`:shared`, also used by desktop).
  */
 object ForecastFetchPolicy {
     /**
      * How often the periodic worker wakes on a charger. Not a fetch interval: each tick fetches only
-     * the sources [ForecastCadence] says are due, and also resamples location.
+     * the sources whose horizon is due, and also resamples location.
      */
     const val CHARGING_TICK_MINUTES = 60L
+
+    /**
+     * Off a charger with a high battery: the SHORT screen-on interval, so a 4-h SHORT fetch is never
+     * held to a longer tick.
+     */
+    const val HIGH_BATTERY_TICK_MINUTES = com.weatherwidget.data.remote.ForecastHorizonCadence.SHORT_SCREEN_ON_HOURS * 60L
 
     private const val OFF_CHARGER_LOW_BATTERY_TICK_MINUTES = 24 * 60L
 
     private const val DEFAULT_GRACE_MS = 120_000L
 
-    fun intervalMinutes(
-        isCharging: Boolean,
-        isScreenInteractive: Boolean,
-        isActiveSource: Boolean,
-        batteryLevel: Int,
-    ): Long? = ForecastCadence.intervalMinutes(
-        isCharging = isCharging,
-        isScreenOn = isScreenInteractive,
-        isDisplayedSource = isActiveSource,
-        batteryLevel = batteryLevel,
-    )
-
     fun periodicTickMinutes(isCharging: Boolean, batteryLevel: Int): Long {
-        val treatAsCharging = BatteryTier.treatAsCharging(isCharging, batteryLevel)
-        if (treatAsCharging) return CHARGING_TICK_MINUTES
+        if (BatteryTier.treatAsCharging(isCharging, batteryLevel)) return CHARGING_TICK_MINUTES
+        if (com.weatherwidget.data.remote.ForecastHorizonCadence.isHighBattery(isCharging, batteryLevel)) {
+            return HIGH_BATTERY_TICK_MINUTES
+        }
+        // Below the high level only the 24-h LONG fetch is scheduled, but the tick also resamples
+        // location, so it keeps its battery-tier pace.
         return BatteryFetchStrategy.computeFetchInterval(isCharging = false, batteryLevel = batteryLevel)
             ?: OFF_CHARGER_LOW_BATTERY_TICK_MINUTES
     }

@@ -40,15 +40,15 @@ interface WeatherApiClient {
         fetchForecast(recentObservationsOnly, parts)
 
     /**
-     * [hourlyWindow]: the NEAR/FULL window the caller chose ([com.weatherwidget.data.remote.HourlyWindowPolicy]),
-     * so what a billed source is asked for matches what the caller stores — a user Refresh is FULL
+     * [horizon]: the LONG/SHORT fetch the caller chose ([com.weatherwidget.data.remote.ForecastHorizonCadence]),
+     * so what a billed source is asked for matches what the caller stores — a user Refresh is LONG
      * whatever the markers say. Clients whose request does not follow the horizon ignore it.
      */
     suspend fun fetchForecast(
         recentObservationsOnly: Boolean,
         parts: ForecastParts,
         refillDay: LocalDate?,
-        hourlyWindow: com.weatherwidget.data.remote.HourlyWindowPolicy.Window?,
+        horizon: com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon?,
     ): RawFetch = fetchForecast(recentObservationsOnly, parts, refillDay)
 
     /**

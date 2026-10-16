@@ -93,14 +93,6 @@ class DesktopApiUsageAndRefreshGateTest {
         assertEquals(LaunchRefreshAction.FULL_FORECAST, atStartup(forecastAgeMin = 7 * 60))
         assertEquals(LaunchRefreshAction.FULL_FORECAST, atStartup(forecastAgeMin = 40, cachePresent = false))
         assertEquals(LaunchRefreshAction.FULL_FORECAST, atStartup(forecastAgeMin = null))
-        // Not hourly-limited: when the cadence says due, startup fetches the whole forecast.
-        assertFalse(launchHourlyLimited(STARTUP_REASON, ViewMode.DAILY))
-    }
-
-    @Test
-    fun `wake and network restore refresh daily but not hourly`() {
-        assertTrue(launchHourlyLimited("network:restored", ViewMode.TEMPERATURE))
-        assertTrue(launchHourlyLimited("resume:logind", ViewMode.DAILY))
     }
 
     @Test
@@ -141,14 +133,6 @@ class DesktopApiUsageAndRefreshGateTest {
             LaunchRefreshAction.FULL_FORECAST,
             determineLaunchRefreshAction(false, null, null, 1_000_000_000L, staleAfter),
         )
-    }
-
-    @Test
-    fun `source cycling limits hourly only in the daily view`() {
-        assertTrue(launchHourlyLimited(SOURCE_CYCLE_REASON, ViewMode.DAILY))
-        assertFalse(launchHourlyLimited(SOURCE_CYCLE_REASON, ViewMode.TEMPERATURE))
-        assertFalse(launchHourlyLimited("startup", ViewMode.DAILY))
-        assertFalse(launchHourlyLimited("source_or_location_change", ViewMode.DAILY))
     }
 
     @Test

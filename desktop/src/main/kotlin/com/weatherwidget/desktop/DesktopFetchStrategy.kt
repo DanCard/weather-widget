@@ -2,7 +2,6 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.shared.util.BatteryTier
 import com.weatherwidget.shared.util.CurrentTempCadence
-import com.weatherwidget.shared.util.ForecastCadence
 import com.weatherwidget.shared.util.NonPrimaryObservationPolicy
 
 /**
@@ -55,22 +54,6 @@ object DesktopFetchStrategy {
         } else {
             shouldCatchUpObservations(lastObservationFetchMs, nowMs)
         }
-
-    /**
-     * Returns the delay in MS for the next forecast fetch, or null if fetches should be suspended.
-     * Same rule as Android: [ForecastCadence] (displayed vs. other source, screen on vs. off).
-     */
-    fun getForecastRefreshDelayMs(
-        isCharging: Boolean,
-        batteryLevel: Int,
-        isActiveSource: Boolean,
-        screenOn: Boolean = true,
-    ): Long? = ForecastCadence.intervalMinutes(
-        isCharging = isCharging,
-        isScreenOn = screenOn,
-        isDisplayedSource = isActiveSource,
-        batteryLevel = batteryLevel,
-    )?.times(MS_PER_MINUTE)
 
     /**
      * Returns the delay in MS for the next non-primary (non-displayed) source actuals fetch, or

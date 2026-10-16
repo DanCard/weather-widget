@@ -82,16 +82,16 @@ class DailyViewApiToggleIntegrationRoboTest {
     }
 
     /**
-     * Cycling sources in the daily view still refreshes a stale source, but hourly-limited (user,
-     * 2026-10-08): daily and current conditions, not the hourly forecast (3 billed Google pages).
+     * Cycling sources in the daily view still refreshes a stale source, targeted at it; the fetch's
+     * horizon is the cadence's (ForecastHorizonCadence.forced), not a property of the request.
      */
     @Test
-    fun dailyView_apiToggle_refreshIsHourlyLimited() = runBlocking {
+    fun dailyView_apiToggle_refreshesTheNewSourceOnly() = runBlocking {
         RefreshScheduler.lastForcedRefreshForTesting = null
         try { WidgetIntentRouter.handleToggleApi(context, testWidgetId) } catch (_: Exception) {}
         val request = RefreshScheduler.lastForcedRefreshForTesting
         assertNotNull("Daily-view toggle should still refresh a source with no data", request)
-        assertTrue("Daily-view toggle must not refresh the hourly forecast", request!!.hourlyLimited)
+        assertEquals("toggle_api_stale", request!!.reason)
     }
 
     /**
@@ -118,7 +118,6 @@ class DailyViewApiToggleIntegrationRoboTest {
                 request!!.targetSourceId,
             )
             assertEquals("Toggle ${index + 1} should be attributed to the toggle path", "toggle_api_stale", request.reason)
-            assertFalse("Hourly-view toggle fetches the hourly forecast too", request.hourlyLimited)
         }
     }
 }

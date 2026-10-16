@@ -2,13 +2,12 @@ package com.weatherwidget.data.model
 
 /**
  * Which parts of a source's forecast one fetch asks for and stores: the daily rows, the hourly rows,
- * or both. Hourly runs on its own cadence ([com.weatherwidget.data.remote.HourlyCadence]); daily,
- * current and actuals keep the forecast cadence (user, 2026-10-11 —
- * performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md).
+ * or both. Every scheduled or forced forecast fetch takes both
+ * ([com.weatherwidget.data.remote.ForecastHorizonCadence]: daily and hourly share one cadence, user
+ * 2026-10-16) — less only when a quota refuses one product ([unblocked]).
  *
  * A source whose API can leave one part out of the request ([splits]) does so. The others always
- * make their one full request: [DAILY] then stores everything, exactly as before; [HOURLY] stores the
- * hourly rows only, so their daily rows stay on the daily cadence.
+ * make their one full request: [HOURLY] then stores the hourly rows only.
  */
 enum class ForecastParts(val daily: Boolean, val hourly: Boolean) {
     BOTH(daily = true, hourly = true),
@@ -50,55 +49,21 @@ enum class ForecastParts(val daily: Boolean, val hourly: Boolean) {
             if (splits(source)) parts else BOTH
 
         /**
-         * A forced fetch (Refresh, a source switch, a location change, screen on): both parts, except
-         * an [hourlyLimited] one (screen on / wake, a daily-view toggle), which takes hourly only when
-         * [hourlyDue]. Null [hourlyDue] (not judged) takes it.
+         * The parts a fetch takes: both, less any product refused until a known time ([blocked],
+         * [com.weatherwidget.data.remote.SourceQuotaBlocks.blockedProducts]); null when both are. A
+         * blocked `forecast/hours` once stayed due and made every 1-min desktop wake a billed request
+         * (performance/261012-forecast-loop-quota-blocked-part-is-not-due.md).
          */
-        fun forForced(hourlyLimited: Boolean, hourlyDue: Boolean?): ForecastParts =
-            if (hourlyLimited && hourlyDue == false) DAILY else BOTH
+        fun unblocked(blocked: Set<ForecastProduct>): ForecastParts? =
+            of(ForecastProduct.DAILY !in blocked, ForecastProduct.HOURLY !in blocked)
 
         /**
-         * A scheduled fetch: daily when [dailyDue] (the forecast cadence), hourly when [hourlyDue]
-         * ([com.weatherwidget.data.remote.HourlyCadence]), null when neither. Null [hourlyDue] (not
-         * judged: no context or site) lets the daily fetch carry the hours, as before the split. Hourly
-         * due in a FULL window takes daily too ([withFullWindow]).
-         *
-         * A product in [blocked] (refused until a known time,
-         * [com.weatherwidget.data.remote.SourceQuotaBlocks.blockedProducts]) is not due, and never
-         * pulls the other part along. Required, with no default, so no platform can plan around it: a
-         * blocked `forecast/hours` once stayed due and, in a FULL window, made every 1-min wake a
-         * billed daily + current request (performance/261012-forecast-loop-quota-blocked-part-is-not-due.md).
+         * `FETCH_PLAN` app_logs message, both platforms: `parts=NWS:BOTH,OPEN_METEO:BOTH
+         * horizons=NWS:SHORT(long=8h/3h,short=4h/4h),…` — what is fetched, and each source's horizon
+         * decision ([com.weatherwidget.data.remote.ForecastHorizonCadence.logFragment]).
          */
-        fun forRoutine(
-            dailyDue: Boolean,
-            hourlyDue: Boolean?,
-            isFull: Boolean,
-            blocked: Set<ForecastProduct>,
-        ): ForecastParts? {
-            val dailyBlocked = ForecastProduct.DAILY in blocked
-            val hourlyBlocked = ForecastProduct.HOURLY in blocked
-            val daily = dailyDue && !dailyBlocked
-            if (hourlyDue == null) return if (!daily) null else if (hourlyBlocked) DAILY else BOTH
-            val parts = of(daily, hourlyDue && !hourlyBlocked)
-            return if (dailyBlocked) parts else withFullWindow(parts, isFull)
-        }
-
-        /**
-         * `FETCH_PLAN` app_logs message, both platforms: `parts=NWS:BOTH,OPEN_METEO:HOURLY
-         * hourly=NWS:4h(view=…,lastHourly=…,due=…),…` — what is fetched, and each source's hourly cadence
-         * ([com.weatherwidget.data.remote.HourlyCadence.logFragment]).
-         */
-        fun planLogLine(plan: Map<String, ForecastParts>, hourlyFragments: List<String>): String =
+        fun planLogLine(plan: Map<String, ForecastParts>, horizonFragments: List<String>): String =
             "parts=${plan.entries.joinToString(",") { "${it.key}:${it.value}" }.ifEmpty { "none" }} " +
-                "hourly=${hourlyFragments.joinToString(",").ifEmpty { "unjudged" }}"
-
-        /**
-         * Hourly due inside a FULL window ([com.weatherwidget.data.remote.HourlyWindowPolicy]) takes
-         * the daily rows too: the far days' noon cloud and rain maxima, the reason for FULL, live on
-         * the daily rows ([com.weatherwidget.shared.util.DailyHourlySummaries]), and an hourly-only
-         * fetch writes none.
-         */
-        fun withFullWindow(parts: ForecastParts?, isFull: Boolean): ForecastParts? =
-            if (parts == HOURLY && isFull) BOTH else parts
+                "horizons=${horizonFragments.joinToString(",").ifEmpty { "unjudged" }}"
     }
 }

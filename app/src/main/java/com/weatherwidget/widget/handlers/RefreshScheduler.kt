@@ -37,7 +37,6 @@ object RefreshScheduler {
     internal data class ForcedRefreshRequest(
         val reason: String,
         val targetSourceId: String?,
-        val hourlyLimited: Boolean = false,
     )
 
     @Volatile
@@ -103,12 +102,10 @@ object RefreshScheduler {
         // When null the repository forces every enabled source; set this to confine the forced
         // fetch to one provider (avoids burning quota on the key-based sources).
         targetSourceId: String? = null,
-        // Refresh daily and current; hourly only when HourlyCadence says it is due (ForecastParts.forForced).
-        hourlyLimited: Boolean = false,
     ): RefreshNotice {
         if (isRefreshDisabledForTesting) {
             Log.d(TAG, "Skipping forced refresh in test mode (reason=$reason, target=$targetSourceId)")
-            lastForcedRefreshForTesting = ForcedRefreshRequest(reason, targetSourceId, hourlyLimited)
+            lastForcedRefreshForTesting = ForcedRefreshRequest(reason, targetSourceId)
             return RefreshNotice.Queued(RefreshNotice.Kind.FORECAST)
         }
 
@@ -121,7 +118,6 @@ object RefreshScheduler {
             policy = policy,
             initialDelayMs = initialDelayMs,
             targetSourceId = targetSourceId,
-            hourlyLimited = hourlyLimited,
         )
         if (enqueued.followUp) {
             Log.i(TAG, "FORCED_SYNC_FOLLOW_UP reason=$reason target=$targetSourceId id=${enqueued.request.id}")
@@ -141,7 +137,6 @@ object RefreshScheduler {
         reason: String,
         appLogDao: AppLogDao? = null,
         targetSourceId: String? = null,
-        hourlyLimited: Boolean = false,
     ): RefreshNotice? {
         if (isRefreshDisabledForTesting) {
             return null
@@ -193,7 +188,6 @@ object RefreshScheduler {
             reason = decision.reason,
             policy = decision.policy,
             targetSourceId = targetSourceId,
-            hourlyLimited = hourlyLimited,
         )
         // The full sync above fetches weather/hourly, not current observations. The user is looking
         // at the widget, so also refresh the current temperature immediately and bypass the battery
@@ -207,8 +201,7 @@ object RefreshScheduler {
         appLogDao?.let {
             it.log(
                 "STALE_REFRESH_ENQUEUE",
-                "reason=${decision.reason} policy=${decision.policy.name} ageMin=$ageMin target=${targetSourceId ?: "all"} " +
-                    "hourlyLimited=$hourlyLimited",
+                "reason=${decision.reason} policy=${decision.policy.name} ageMin=$ageMin target=${targetSourceId ?: "all"}",
             )
         }
         return RefreshNotice.merge(forecast, RefreshNotice.Queued(RefreshNotice.Kind.OBSERVATIONS))

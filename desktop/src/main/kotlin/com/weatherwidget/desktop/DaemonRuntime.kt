@@ -3,8 +3,7 @@ package com.weatherwidget.desktop
 import kotlinx.coroutines.withTimeoutOrNull
 import com.weatherwidget.shared.util.BatteryTier
 import com.weatherwidget.data.remote.ForecastSchedule
-import com.weatherwidget.data.remote.HourlyWindowPolicy
-import com.weatherwidget.data.remote.HourlyCadence
+import com.weatherwidget.data.remote.ForecastHorizonCadence
 import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.ForecastSnapshot
 import com.weatherwidget.data.model.DataStatus
@@ -536,12 +535,10 @@ internal class DaemonRuntime(
     // then fetch exactly what is stale. Forecast freshness belongs to the displayed source; actual
     // temperature freshness belongs to that source's resolved provider at this location.
     // [reason] is for log provenance only.
-    /** The displayed source's normal forecast cadence now; null when low battery suspends it. */
-    private fun activeForecastCadenceMs(): Long? {
+    /** The soonest the displayed source's forecast comes due again now ([ForecastHorizonCadence]). */
+    private fun activeForecastCadenceMs(): Long {
         val (isCharging, level) = PowerDetector.getPowerState()
-        return DesktopFetchStrategy.getForecastRefreshDelayMs(
-            isCharging, level, isActiveSource = true, screenOn = ScreenStateDetector.isScreenOn(),
-        )
+        return ForecastHorizonCadence.soonestIntervalMs(isCharging, level, ScreenStateDetector.isScreenOn())
     }
 
     suspend fun runLaunchRefresh(activeRepo: DesktopWeatherRepository, config: DesktopConfig, reason: String) {
@@ -565,7 +562,6 @@ internal class DaemonRuntime(
                 locationLon = config.lon,
                 providerId = actualsProvider,
             )
-            val hourlyLimited = launchHourlyLimited(reason, config.viewMode)
             val forecastStaleAfterMs = launchForecastStaleAfterMs(reason) { activeForecastCadenceMs() }
             val launchRefreshAction = determineLaunchRefreshAction(
                 cachePresent = cached != null,
@@ -587,7 +583,7 @@ internal class DaemonRuntime(
                 message = "reason=$reason source=${displaySource.id} actualsProvider=$actualsProvider " +
                     "cachePresent=${cached != null} action=$launchRefreshAction " +
                     "lastForecastFetch=$lastForecastFetch forecastAgeMs=${lastForecastFetch?.let { now - it }} " +
-                    "hourlyLimited=$hourlyLimited forecastStaleAfterMs=$forecastStaleAfterMs " +
+                    "forecastStaleAfterMs=$forecastStaleAfterMs " +
                     "lastObservationFetch=$lastObservationFetch observationAgeMs=${lastObservationFetch?.let { now - it }}",
                 level = "INFO"
             )
@@ -613,7 +609,6 @@ internal class DaemonRuntime(
                                     activeRepo.refreshWithOutcome(
                                         deferObservationWindow = true,
                                         reason = "launch:$reason",
-                                        hourlyLimited = hourlyLimited,
                                     ).snapshot
                                         .also { observationWindowDeferred = true }
                                 }
@@ -916,7 +911,7 @@ internal class DaemonRuntime(
                         if (ViewingRefreshPolicy.forecastDue(lastForecast, activeForecastCadenceMs(), System.currentTimeMillis())) {
                             try {
                                 Log.i(TAG, "Viewing: forecast due by cadence for ${config.displaySource}; refreshing now.")
-                                val outcome = newRepo.refreshWithOutcome(reason = "viewing_forecast_due", hourlyLimited = true)
+                                val outcome = newRepo.refreshWithOutcome(reason = "viewing_forecast_due")
                                 fullRefreshSuppliedObservations = outcome.suppliedObservations
                                 panelPublisher.publishForecastState(outcome.snapshot)
                                 notifyDataUpdated()
@@ -977,11 +972,10 @@ internal class DaemonRuntime(
                 }
             }
 
-            // 3c. Forecast fetch loop. Sleeps until the earliest daily or hourly due time across the
+            // 3c. Forecast fetch loop. Sleeps until the earliest LONG or SHORT due time across the
             // sources (shared ForecastSchedule), capped at 2 h, and is woken sooner by a power-tier change
-            // or the screen coming on. Every wake re-plans each source's parts (ForecastParts.forRoutine):
-            // daily on ForecastCadence, hourly on HourlyCadence by how recently the source was viewed.
-            // performance/261011-desktop-forecast-loop-sleep-until-due.md
+            // or the screen coming on. Every wake re-plans each source (ForecastHorizonCadence, one rule
+            // for every source). performance/261016-unified-long-short-forecast-horizons.md
             launch {
                 // The launch refresh owns the first minutes; planning now would fetch beside it.
                 delay(FORECAST_LOOP_STARTUP_SETTLE_MS)
@@ -992,24 +986,28 @@ internal class DaemonRuntime(
                     // Slower forecast fetch for other APIs — only those viewed in the last 8 days;
                     // the rest are fetched when the user switches to them (SourceFetchGate).
                     val nonActiveSources = DesktopSourceFetchGate.otherSources(weatherDao, config)
-                    val sources = listOf(activeSource to true) + nonActiveSources.map { it to false }
+                    val sources = listOf(activeSource) + nonActiveSources
 
                     val planner = DesktopForecastPlanner(
                         weatherDao, config.lat, config.lon, PowerDetector.PowerState(isCharging, level), screenOn,
                     )
 
                     val planNow = System.currentTimeMillis()
-                    val plans = sources.associate { (source, isDisplayed) -> source to planner.plan(source, isDisplayed, planNow) }
-                    val due = plans.mapNotNull { (source, plan) -> plan.parts?.let { source to it } }.toMap()
+                    val plans = sources.associateWith { planner.plan(it, planNow) }
+                    val due = plans.filterValues { it.parts != null }
                     if (due.isNotEmpty()) {
-                        weatherDao.log("FETCH_PLAN", ForecastParts.planLogLine(due, plans.values.mapNotNull { it.hourlyLog }), "INFO")
+                        weatherDao.log(
+                            "FETCH_PLAN",
+                            ForecastParts.planLogLine(due.mapValues { it.value.parts!! }, plans.values.map { it.horizonLog }),
+                            "INFO",
+                        )
                     }
                     var fetchFailed = false
 
-                    due[activeSource]?.let { parts ->
+                    due[activeSource]?.let { plan ->
                         try {
-                            Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource parts=$parts (charging=$isCharging, level=$level%)...")
-                            val result = newRepo.refresh(reason = "forecast_loop", parts = parts)
+                            Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource parts=${plan.parts} horizon=${plan.horizon} (charging=$isCharging, level=$level%)...")
+                            val result = newRepo.refresh(reason = "forecast_loop", parts = plan.parts, horizon = plan.horizon)
                             panelPublisher.publishForecastState(result)
                             dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
                             notifyDataUpdated()
@@ -1035,9 +1033,9 @@ internal class DaemonRuntime(
                     }
 
                     for (otherSource in nonActiveSources) {
-                        val parts = due[otherSource] ?: continue
+                        val plan = due[otherSource] ?: continue
                         try {
-                            Log.i(TAG, "Refreshing forecast for non-active source: $otherSource parts=$parts...")
+                            Log.i(TAG, "Refreshing forecast for non-active source: $otherSource parts=${plan.parts} horizon=${plan.horizon}...")
                             val otherService = DesktopWeatherService(
                                 config.lat,
                                 config.lon,
@@ -1055,7 +1053,7 @@ internal class DaemonRuntime(
                                 otherSource,
                                 config.personalStationWeight()
                             )
-                            otherRepo.refresh(reason = "forecast_loop_other", parts = parts)
+                            otherRepo.refresh(reason = "forecast_loop_other", parts = plan.parts, horizon = plan.horizon)
                             otherService.close()
                             Log.i(TAG, "Non-active source $otherSource forecast refresh successful.")
                             notifyDataUpdated()

@@ -4,13 +4,13 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastParts
+import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon
 import com.weatherwidget.data.remote.ForecastSchedule
-import com.weatherwidget.data.remote.ForecastSchedule.Part
 import com.weatherwidget.data.remote.SourceQuotaBlocks
-import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.test.category.ShortDuration
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -26,10 +26,10 @@ import java.nio.file.Files
 import java.time.LocalDate
 
 /**
- * The desktop forecast loop's planning against a real DB: [DesktopWeatherRepository] moves the
- * `REFRESH` / `HOURLY_FETCH` markers, [DesktopForecastPlanner] reads them back into what is due now and
- * when each part is next due, and [ForecastSchedule] turns that into the sleep.
- * performance/261011-desktop-forecast-loop-sleep-until-due.md
+ * The desktop forecast loop's planning against a real DB: [DesktopWeatherRepository] writes the
+ * LONG / SHORT markers, [DesktopForecastPlanner] reads them back into what is due now and when the
+ * source is next due, and [ForecastSchedule] turns that into the sleep. One rule for every source.
+ * performance/261016-unified-long-short-forecast-horizons.md
  */
 @Category(ShortDuration::class)
 class DesktopForecastPlannerTest {
@@ -39,6 +39,7 @@ class DesktopForecastPlannerTest {
     private val service = mockk<WeatherApiClient>(relaxed = true)
     private val om = WeatherSource.OPEN_METEO.id
     private val nws = WeatherSource.NWS.id
+    private val google = WeatherSource.GOOGLE_WEATHER.id
     private val lat = 37.4220
     private val lon = -122.0841
     private val minute = 60_000L
@@ -50,8 +51,14 @@ class DesktopForecastPlannerTest {
         hourly = (1..5).map { HourlyForecast(dateTime = (System.currentTimeMillis() / hour + it) * hour, temperature = 60f, condition = "Cloudy") },
     )
 
-    private fun planner(charging: Boolean = true, level: Int = 90, screenOn: Boolean = true) =
+    /** Battery 90 %, unplugged, screen on unless given: LONG 8 h, SHORT 4 h. */
+    private fun planner(charging: Boolean = false, level: Int = 90, screenOn: Boolean = true) =
         DesktopForecastPlanner(dao, lat, lon, PowerDetector.PowerState(charging, level), screenOn)
+
+    private suspend fun fetch(source: String = om, horizon: Horizon = Horizon.LONG) {
+        coEvery { service.fetchForecast(any()) } returns raw
+        DesktopWeatherRepository(service, dao, lat, lon, source).refresh(reason = "test", horizon = horizon)
+    }
 
     @After
     fun teardown() {
@@ -61,121 +68,116 @@ class DesktopForecastPlannerTest {
     }
 
     @Test
-    fun `never fetched is due now for both parts`() {
+    fun `never fetched is LONG, due now, both parts`() {
         val now = System.currentTimeMillis()
-        val plan = planner().plan(om, isDisplayed = true, nowMs = now)
+        val plan = planner().plan(om, now)
         assertEquals(ForecastParts.BOTH, plan.parts)
-        assertEquals(listOf(Part.DAILY to now, Part.HOURLY to now), plan.dues.map { it.part to it.atMs })
+        assertEquals(Horizon.LONG, plan.horizon)
+        assertEquals(now, plan.due.atMs)
     }
 
     @Test
-    fun `after a full refresh nothing is due and the loop sleeps the 2 h cap`() = runTest {
-        coEvery { service.fetchForecast(false) } returns raw
-        DesktopWeatherRepository(service, dao, lat, lon, om).refresh(reason = "test")
+    fun `after a LONG fetch nothing is due, SHORT comes due in 4 h and the loop sleeps the 2 h cap`() = runTest {
+        fetch()
         val now = System.currentTimeMillis()
 
-        val plan = planner().plan(om, isDisplayed = true, nowMs = now)
+        val plan = planner().plan(om, now)
         assertNull(plan.parts)
-        val next = planner().next(listOf(om to true), now)!!
+        assertNull(plan.horizon)
+        val next = planner().next(listOf(om), now)!!
+        assertEquals(Horizon.SHORT, next.horizon)
         assertTrue("next due ≈ 4 h out", next.atMs in now + 4 * hour - grace - minute..now + 4 * hour)
         assertEquals(ForecastSchedule.Reason.CAP, ForecastSchedule.sleep(next, now, fetchFailed = false).reason)
     }
 
     @Test
-    fun `screen off lengthens the displayed daily to 6 h on the charger, hourly stays 4 h`() = runTest {
-        coEvery { service.fetchForecast(false) } returns raw
-        DesktopWeatherRepository(service, dao, lat, lon, om).refresh(reason = "test")
+    fun `five hours after a LONG fetch SHORT is due, nine hours after LONG is`() = runTest {
+        fetch()
         val now = System.currentTimeMillis()
-
-        val dues = planner(screenOn = false).plan(om, isDisplayed = true, nowMs = now).dues.associate { it.part to it.atMs - now }
-        assertTrue(dues.getValue(Part.DAILY) in 6 * hour - grace - minute..6 * hour)
-        assertTrue(dues.getValue(Part.HOURLY) in 4 * hour - grace - minute..4 * hour)
+        assertEquals(Horizon.SHORT, planner().plan(om, now + 5 * hour).horizon)
+        assertEquals(Horizon.LONG, planner().plan(om, now + 9 * hour).horizon)
     }
 
     @Test
-    fun `an hourly-only refresh moves the hourly due time and leaves daily due`() = runTest {
-        coEvery { service.fetchForecast(true, ForecastParts.HOURLY) } returns raw
-        DesktopWeatherRepository(service, dao, lat, lon, om).refresh(reason = "test", parts = ForecastParts.HOURLY)
+    fun `a SHORT fetch moves SHORT only`() = runTest {
+        fetch(horizon = Horizon.LONG)
+        fetch(horizon = Horizon.SHORT)
         val now = System.currentTimeMillis()
-
-        val plan = planner().plan(om, isDisplayed = true, nowMs = now)
-        assertEquals(ForecastParts.DAILY, plan.parts)
-        val hourlyDue = plan.dues.single { it.part == Part.HOURLY }.atMs
-        assertTrue(hourlyDue > now + 3 * hour)
+        assertNull("SHORT just ran", planner().plan(om, now + 3 * hour).horizon)
+        assertEquals("LONG still 8 h after the LONG fetch", Horizon.LONG, planner().plan(om, now + 8 * hour).horizon)
     }
 
     @Test
-    fun `at or below 50 percent an unviewed other source has nothing scheduled`() {
+    fun `screen off makes SHORT 8 h`() = runTest {
+        fetch()
         val now = System.currentTimeMillis()
-        dao.recordLastView(nws, now - 100 * hour)
-        val plan = planner(charging = false, level = 40).plan(nws, isDisplayed = false, nowMs = now)
-        assertNull(plan.parts)
-        assertTrue("no daily cadence, no hourly cadence", plan.dues.isEmpty())
-        assertEquals(ForecastSchedule.Reason.CAP, ForecastSchedule.sleep(planner(false, 40).next(listOf(nws to false), now), now, false).reason)
+        val next = planner(screenOn = false).next(listOf(om), now)!!
+        assertEquals(Horizon.SHORT, next.horizon)
+        assertTrue(next.atMs - now in 8 * hour - grace - minute..8 * hour)
     }
 
-    private val google = WeatherSource.GOOGLE_WEATHER.id
+    @Test
+    fun `below 70 percent only LONG, a day apart`() = runTest {
+        fetch()
+        val now = System.currentTimeMillis()
+        val next = planner(level = 60).next(listOf(om), now)!!
+        assertEquals(Horizon.LONG, next.horizon)
+        assertTrue(next.atMs - now in 24 * hour - grace - minute..24 * hour)
+        assertNull(planner(level = 60).plan(om, now + 23 * hour).horizon)
+    }
 
-    /** Google with a fresh daily row and its hours never fetched: hourly due now, daily not. */
-    private suspend fun googleDailyFreshHourlyOverdue() {
-        coEvery { service.fetchForecast(any(), any()) } returns raw.copy(hourly = emptyList())
-        coEvery { service.fetchForecast(any(), any(), any()) } returns raw.copy(hourly = emptyList())
-        DesktopWeatherRepository(service, dao, lat, lon, google).refresh(reason = "test", parts = ForecastParts.DAILY)
+    @Test
+    fun `every source follows the same rule, judged by its own markers`() = runTest {
+        fetch(source = om)
+        val now = System.currentTimeMillis()
+        assertNull(planner().plan(om, now).parts)
+        assertEquals(Horizon.LONG, planner().plan(nws, now).horizon)
     }
 
     /** performance/261012-forecast-loop-quota-blocked-part-is-not-due.md */
     @Test
-    fun `a quota-blocked hourly part is not planned and is next due when the block ends`() = runTest {
-        googleDailyFreshHourlyOverdue()
-        val now = System.currentTimeMillis()
-        assertEquals("unblocked, FULL window: hourly due takes daily too", ForecastParts.BOTH, planner().plan(google, true, now).parts)
-
-        SourceQuotaBlocks.block(google, ForecastProduct.HOURLY, now + 3 * hour)
-        val plan = planner().plan(google, isDisplayed = true, nowMs = now)
-        assertNull("blocked hourly is not due and does not drag daily along", plan.parts)
-        assertEquals(now + 3 * hour, plan.dues.single { it.part == Part.HOURLY }.atMs)
-        assertTrue(plan.hourlyLog!!.contains("quotaHeldMin=180"))
-    }
-
-    @Test
-    fun `a quota-blocked hourly part leaves a due daily part to run alone`() {
+    fun `a quota-blocked product is dropped from the fetch`() {
         val now = System.currentTimeMillis()
         SourceQuotaBlocks.block(google, ForecastProduct.HOURLY, now + 3 * hour)
-        assertEquals(ForecastParts.DAILY, planner().plan(google, isDisplayed = true, nowMs = now).parts)
-    }
-
-    @Test
-    fun `a quota-blocked daily part leaves a due hourly part to run alone, never upgraded to both`() {
-        val now = System.currentTimeMillis()
+        assertEquals(ForecastParts.DAILY, planner().plan(google, now).parts)
+        SourceQuotaBlocks.reset()
         SourceQuotaBlocks.block(google, ForecastProduct.DAILY, now + 3 * hour)
-        val plan = planner().plan(google, isDisplayed = true, nowMs = now)
-        assertEquals(ForecastParts.HOURLY, plan.parts)
-        assertEquals(now + 3 * hour, plan.dues.single { it.part == Part.DAILY }.atMs)
+        assertEquals(ForecastParts.HOURLY, planner().plan(google, now).parts)
+    }
+
+    @Test
+    fun `a source refused every product is not planned and is next due when the block ends`() {
+        val now = System.currentTimeMillis()
+        SourceQuotaBlocks.block(google, ForecastProduct.HOURLY, now + 3 * hour)
+        SourceQuotaBlocks.block(google, ForecastProduct.DAILY, now + 3 * hour)
+        val plan = planner().plan(google, now)
+        assertNull(plan.parts)
+        assertEquals(now + 3 * hour, plan.due.atMs)
+        assertTrue(plan.horizonLog, plan.horizonLog.contains("quotaHeldMin=180"))
     }
 
     /**
-     * Replays 2026-10-11 21:36: charging, Google displayed, hours overdue in a FULL window,
-     * `forecast/hours` refused until midnight PT. The loop slept 1 min and paid for daily + current on
-     * every wake; now it sleeps toward the block's end.
+     * Replays 2026-10-11 21:36 in the new terms: a source refused everything once made the loop wake
+     * every minute to plan a fetch it could not make; now it sleeps toward the block's end.
      */
     @Test
-    fun `replay - a blocked hourly part no longer spins the loop every minute`() = runTest {
-        googleDailyFreshHourlyOverdue()
+    fun `replay - a fully blocked source no longer spins the loop every minute`() {
         val now = System.currentTimeMillis()
         SourceQuotaBlocks.block(google, ForecastProduct.HOURLY, now + 145 * minute)
+        SourceQuotaBlocks.block(google, ForecastProduct.DAILY, now + 145 * minute)
 
-        val sleep = ForecastSchedule.sleep(planner().next(listOf(google to true), now), now, fetchFailed = false)
+        val sleep = ForecastSchedule.sleep(planner().next(listOf(google), now), now, fetchFailed = false)
         assertTrue("slept ${sleep.ms / minute} min", sleep.ms >= 60 * minute)
         assertFalse(sleep.reason == ForecastSchedule.Reason.RETRY)
     }
 
     @Test
-    fun `once the block ends the hourly part is due again`() = runTest {
-        googleDailyFreshHourlyOverdue()
+    fun `once the block ends the source is due again`() {
         val now = System.currentTimeMillis()
         SourceQuotaBlocks.block(google, ForecastProduct.HOURLY, now + hour)
-        assertNull(planner().plan(google, true, now).parts)
-        assertEquals(ForecastParts.BOTH, planner().plan(google, true, now + hour).parts)
+        SourceQuotaBlocks.block(google, ForecastProduct.DAILY, now + hour)
+        assertNull(planner().plan(google, now).parts)
+        assertEquals(ForecastParts.BOTH, planner().plan(google, now + hour).parts)
     }
 
     @Test

@@ -18,8 +18,9 @@ object DataFreshness {
     private const val TAG = "DataFreshness"
 
     /**
-     * True when any visible source is due under the fetch cadence ([ForecastFetchPolicy], the same
-     * rule the sync itself uses) and is not refused until a known time ([SourceQuotaBlocks]).
+     * True when any visible source's newest fetch is older than the soonest horizon interval
+     * ([com.weatherwidget.data.remote.ForecastHorizonCadence.soonestIntervalMs]; the sync then picks
+     * the horizon from its markers) and it is not refused until a known time ([SourceQuotaBlocks]).
      *
      * This used rank thresholds (60/90/120 min by list position) that disagreed with the cadence, and
      * counted a quota-blocked source as stale — so on 2026-10-07 every refresh action forced a fetch
@@ -34,7 +35,7 @@ object DataFreshness {
         dueState(source, batchFetchedAtBySource[source.id], nowMs, fetchContext) == DueState.DUE
     }
 
-    internal enum class DueState { DUE, FRESH, BLOCKED, SUSPENDED }
+    internal enum class DueState { DUE, FRESH, BLOCKED }
 
     internal fun dueState(
         source: WeatherSource,
@@ -44,17 +45,16 @@ object DataFreshness {
     ): DueState {
         if (SourceQuotaBlocks.isFullyBlocked(source.id, nowMs)) return DueState.BLOCKED
         if (batchFetchedAt == null) return DueState.DUE
-        val interval = intervalMinutes(source, fetchContext) ?: return DueState.SUSPENDED
+        val interval = intervalMinutes(fetchContext)
         return if (ForecastFetchPolicy.isDue(batchFetchedAt, interval, nowMs)) DueState.DUE else DueState.FRESH
     }
 
-    private fun intervalMinutes(source: WeatherSource, fetchContext: ForecastFetchContext): Long? =
-        ForecastFetchPolicy.intervalMinutes(
+    private fun intervalMinutes(fetchContext: ForecastFetchContext): Long =
+        com.weatherwidget.data.remote.ForecastHorizonCadence.soonestIntervalMs(
             isCharging = fetchContext.isCharging,
-            isScreenInteractive = fetchContext.isScreenInteractive,
-            isActiveSource = source.id in fetchContext.activeSourceIds,
             batteryLevel = fetchContext.batteryLevel,
-        )
+            isScreenOn = fetchContext.isScreenInteractive,
+        ) / 60_000L
 
     internal fun deviceFetchContext(context: Context, stateManager: WidgetStateManager): ForecastFetchContext {
         val snapshot = BatterySnapshotProvider.snapshot(context)
@@ -71,7 +71,7 @@ object DataFreshness {
      * Check if the weather data is stale and needs refreshing.
      *
      * @param context Application context
-     * @return true if any visible source is due under [ForecastFetchPolicy] and not quota-blocked
+     * @return true if any visible source is due ([isStaleForSources]) and not quota-blocked
      */
     suspend fun isDataStale(context: Context): Boolean {
         return try {
@@ -135,7 +135,7 @@ object DataFreshness {
                     "${source.id}:missing"
                 } else {
                     val ageMinutes = (nowMs - latestForSource.batchFetchedAt) / 60000L
-                    val interval = intervalMinutes(source, fetchContext)?.let { "${it}m" } ?: "off"
+                    val interval = "${intervalMinutes(fetchContext)}m"
                     val state = dueState(source, latestForSource.batchFetchedAt, nowMs, fetchContext)
                         .name.lowercase()
                     "${source.id}:${ageMinutes}m/$interval:$state"

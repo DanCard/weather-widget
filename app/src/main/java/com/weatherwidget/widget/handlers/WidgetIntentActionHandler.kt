@@ -191,14 +191,10 @@ internal object WidgetIntentActionHandler {
         val stateManager = WidgetStateManager(context)
         val newSource = stateManager.toggleDisplaySource(appWidgetId)
         val viewMode = stateManager.getViewMode(appWidgetId)
-        // Cycling sources is browsing (user, 2026-10-08): in the daily view a stale source refreshes
-        // its daily forecast and current conditions but not the hourly forecast; only while an
-        // hourly view is showing does a stale source refetch everything. ForecastParts.forForced.
-        val hourlyLimited = !viewMode.isGraphMode
         // The switch is counted after the paint, so the tap's latency doesn't pay for it, and in
         // `finally`, so a failed paint still counts what the user chose (source_view_days).
         try {
-            showSwitchedSource(context, appWidgetId, repository, newSource, viewMode, startMs, hourlyLimited)
+            showSwitchedSource(context, appWidgetId, repository, newSource, viewMode, startMs)
         } finally {
             SourceViewRecorder.record(context, newSource, viewMode, SourceViewTrigger.TOGGLE)
         }
@@ -211,9 +207,8 @@ internal object WidgetIntentActionHandler {
         newSource: WeatherSource,
         viewMode: ViewMode,
         startMs: Long,
-        hourlyLimited: Boolean,
     ) {
-        val refreshContext = prepareContext(context, appWidgetId, "toggle_api", hourlyLimited = hourlyLimited) ?: return
+        val refreshContext = prepareContext(context, appWidgetId, "toggle_api") ?: return
         val now = LocalDateTime.now()
         val forced = if (
             GraphInteractionRenderer.selectedSourceNeedsRefresh(
@@ -230,7 +225,6 @@ internal object WidgetIntentActionHandler {
                 refreshContext.database.appLogDao(),
                 reason = "toggle_api_stale",
                 targetSourceId = newSource.id,
-                hourlyLimited = hourlyLimited,
             )
         } else {
             null
@@ -523,8 +517,6 @@ internal object WidgetIntentActionHandler {
         context: Context,
         appWidgetId: Int,
         reason: String,
-        /** Passed to the stale-data refresh: see [com.weatherwidget.data.model.ForecastParts.forForced]. */
-        hourlyLimited: Boolean = false,
     ): WidgetRefreshContextResolver.Resolved? {
         // The largest untimed span on the click path as of 2026-09-06: this runs
         // ActiveLocationResolver and forecastDao.getLatestForecastBySource before
@@ -543,7 +535,7 @@ internal object WidgetIntentActionHandler {
             )
             return null
         }
-        val notice = refreshRequester.requestIfStale(context, resolved, reason, hourlyLimited)
+        val notice = refreshRequester.requestIfStale(context, resolved, reason)
         val endMs = SystemClock.elapsedRealtime()
         if (endMs - prepareStartMs >= PREPARE_SLOW_MS) {
             Log.i(

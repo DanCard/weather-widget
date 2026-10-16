@@ -91,13 +91,12 @@ class ViewingRefreshRoboTest {
     }
 
     @Test
-    fun `forecast due by the cadence gets a targeted hourly-limited refresh`() = runBlocking {
+    fun `forecast due by the cadence gets a targeted refresh`() = runBlocking {
         run(forecastAt = now - cadence - 60_000L)
 
         val request = RefreshScheduler.lastForcedRefreshForTesting
         assertEquals("viewing_forecast_due", request?.reason)
         assertEquals(source.id, request?.targetSourceId)
-        assertTrue(request!!.hourlyLimited)
     }
 
     @Test

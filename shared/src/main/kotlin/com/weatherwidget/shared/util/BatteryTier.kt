@@ -66,17 +66,13 @@ object BatteryTier {
         isCharging || batteryLevel >= TREAT_AS_CHARGING_THRESHOLD
 
     /**
-     * Which forecast-cadence band the power state is in: every threshold `ForecastCadence` and
-     * `HourlyCadence` read (treat-as-charging, > [TIER_HIGH_THRESHOLD], > [TIER_MEDIUM_THRESHOLD]).
-     * Equal tiers mean equal cadences, so a power event that leaves the tier unchanged — UPower reports
-     * every percent — need not wake a forecast loop (performance/261011-desktop-forecast-loop-sleep-until-due.md).
+     * Which forecast-cadence band the power state is in: the one threshold
+     * `ForecastHorizonCadence` reads (charging or ≥ its high-battery level). Equal tiers mean equal
+     * cadences, so a power event that leaves the tier unchanged — UPower reports every percent — need
+     * not wake a forecast loop (performance/261011-desktop-forecast-loop-sleep-until-due.md).
      */
-    fun cadenceTier(isCharging: Boolean, batteryLevel: Int): Int = when {
-        treatAsCharging(isCharging, batteryLevel) -> 3
-        batteryLevel > TIER_HIGH_THRESHOLD -> 2
-        batteryLevel > TIER_MEDIUM_THRESHOLD -> 1
-        else -> 0
-    }
+    fun cadenceTier(isCharging: Boolean, batteryLevel: Int): Int =
+        if (com.weatherwidget.data.remote.ForecastHorizonCadence.isHighBattery(isCharging, batteryLevel)) 1 else 0
 
     /**
      * Returns the fetch interval in minutes based on battery state,

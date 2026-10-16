@@ -17,19 +17,18 @@ import kotlinx.coroutines.CancellationException
  */
 internal class InteractionRefreshRequester(
     private val staleRequest:
-        suspend (Context, Long?, String, AppLogDao?, String?, Boolean) -> RefreshNotice? =
-        { context, freshnessAtMs, reason, appLogDao, targetSourceId, hourlyLimited ->
-            RefreshScheduler.refreshIfStale(context, freshnessAtMs, reason, appLogDao, targetSourceId, hourlyLimited)
+        suspend (Context, Long?, String, AppLogDao?, String?) -> RefreshNotice? =
+        { context, freshnessAtMs, reason, appLogDao, targetSourceId ->
+            RefreshScheduler.refreshIfStale(context, freshnessAtMs, reason, appLogDao, targetSourceId)
         },
     private val forcedRequest:
-        (Context, String, ExistingWorkPolicy, Long, String?, Boolean) -> RefreshNotice =
+        (Context, String, ExistingWorkPolicy, Long, String?) -> RefreshNotice =
         RefreshScheduler::enqueueForcedRefresh,
 ) {
     suspend fun requestIfStale(
         context: Context,
         refreshContext: WidgetRefreshContextResolver.Resolved,
         reason: String,
-        hourlyLimited: Boolean = false,
     ): RefreshNotice? {
         return try {
             staleRequest(
@@ -40,7 +39,6 @@ internal class InteractionRefreshRequester(
                 // Only the displayed source is known to be stale here; the sync still fetches any
                 // other source its cadence says is due, but does not force them.
                 refreshContext.displaySource.id,
-                hourlyLimited,
             )
         } catch (e: CancellationException) {
             throw e
@@ -60,10 +58,9 @@ internal class InteractionRefreshRequester(
         appLogDao: AppLogDao,
         reason: String,
         targetSourceId: String?,
-        hourlyLimited: Boolean = false,
     ): RefreshNotice? {
         return try {
-            forcedRequest(context, reason, ExistingWorkPolicy.KEEP, 0L, targetSourceId, hourlyLimited)
+            forcedRequest(context, reason, ExistingWorkPolicy.KEEP, 0L, targetSourceId)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

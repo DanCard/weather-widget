@@ -137,8 +137,10 @@ class WeatherGapIntegrationTest {
     @Test
     fun `getCachedDataBySource keeps old source history but current selection follows newest shorter same-day horizon`() = runTest {
         seedNormals()
-        val olderBatchFetchedAt = 1_000L
-        val newerBatchFetchedAt = 2_000L
+        // More than ForecastHorizonCadence.MAX_CARRIED_ROW_AGE_HOURS apart: the older rows are too old
+        // to stand in past the newer fetch's horizon.
+        val newerBatchFetchedAt = 200 * 3_600_000L
+        val olderBatchFetchedAt = newerBatchFetchedAt - 40 * 3_600_000L
         val sameDayForecastDate = todayStr
 
         db.forecastDao().insertAll(
@@ -164,6 +166,34 @@ class WeatherGapIntegrationTest {
         // read-time climate-normal fill (never a leftover persisted gap row).
         assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == dateEpoch(dayAfterTomorrowStr) }.source)
         assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == dateEpoch(threeDaysOutStr) }.source)
+    }
+
+    /**
+     * A SHORT fetch rewrites only the next 3 days; the days past it keep the last LONG fetch's rows
+     * (performance/261016-unified-long-short-forecast-horizons.md) — not the climate normal.
+     */
+    @Test
+    fun `getCachedDataBySource shows a recent longer fetch's rows past a newer shorter one`() = runTest {
+        seedNormals()
+        val newerBatchFetchedAt = 200 * 3_600_000L
+        val olderBatchFetchedAt = newerBatchFetchedAt - 4 * 3_600_000L
+
+        db.forecastDao().insertAll(
+            listOf(
+                forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_000L),
+                forecast(dayAfterTomorrowStr, WeatherSource.SILURIAN, 72f, 52f, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_002L),
+                forecast(threeDaysOutStr, WeatherSource.SILURIAN, 73f, 53f, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_003L),
+                forecast(todayStr, WeatherSource.SILURIAN, 74f, 54f, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_000L),
+                forecast(tomorrowStr, WeatherSource.SILURIAN, 75f, 55f, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_001L),
+            ),
+        )
+
+        val result = repository.getCachedDataBySource(lat, lon, WeatherSource.SILURIAN)
+
+        assertEquals(74f, result.first { it.targetDate == dateEpoch(todayStr) }.highTemp)
+        assertEquals(75f, result.first { it.targetDate == dateEpoch(tomorrowStr) }.highTemp)
+        assertEquals(72f, result.first { it.targetDate == dateEpoch(dayAfterTomorrowStr) }.highTemp)
+        assertEquals(WeatherSource.SILURIAN.id, result.first { it.targetDate == dateEpoch(threeDaysOutStr) }.source)
     }
 
     private fun forecast(

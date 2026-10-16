@@ -293,6 +293,25 @@ internal class ForecastSnapshotStore(
         return gapFiller.appendGaps(rows, latitude, longitude, today, CACHE_FORECAST_DAYS)
     }
 
+    /**
+     * The rows the daily view shows: at the newest fetch's site, from its first day on, each day's
+     * newest batch. A SHORT fetch rewrites only the next 3 days; days past them keep the last LONG
+     * fetch's rows (performance/261016-unified-long-short-forecast-horizons.md) — reading only the
+     * newest batch filled them with climate normals. A day whose newest row is more than
+     * [ForecastHorizonCadence.MAX_CARRIED_ROW_AGE_HOURS] older than the newest fetch is left to the
+     * climate normal, as when a newer fetch covers fewer days. [rows] are ordered newest first per day.
+     */
+    internal fun shownRows(rows: List<ForecastEntity>): List<ForecastEntity> {
+        val newest = rows.maxByOrNull { it.batchFetchedAt } ?: return emptyList()
+        val atSite = rows.filter { it.locationLat == newest.locationLat && it.locationLon == newest.locationLon }
+        val firstDay = atSite.filter { it.batchFetchedAt == newest.batchFetchedAt }.minOf { it.targetDate }
+        val shownBatch = atSite.filter { it.targetDate >= firstDay }
+            .groupBy { it.targetDate }
+            .mapValues { (_, day) -> day.maxOf { it.batchFetchedAt } }
+            .filterValues { com.weatherwidget.data.remote.ForecastHorizonCadence.showsCarriedRow(it, newest.batchFetchedAt) }
+        return atSite.filter { shownBatch[it.targetDate] == it.batchFetchedAt }
+    }
+
     suspend fun getCachedDataBySource(
         latitude: Double,
         longitude: Double,
@@ -309,9 +328,7 @@ internal class ForecastSnapshotStore(
             source.id,
         )
         val latestBatchFetchedAt = sourceData.maxOfOrNull { it.batchFetchedAt }
-        val liveSourceData = latestBatchFetchedAt?.let { batch ->
-            sourceData.filter { it.batchFetchedAt == batch }
-        }.orEmpty()
+        val liveSourceData = shownRows(sourceData)
 
         if (source == WeatherSource.NWS) {
             appLogDao.log(

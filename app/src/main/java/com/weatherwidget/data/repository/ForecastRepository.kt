@@ -203,31 +203,28 @@ class ForecastRepository
             set(value) = FetchMetadata.setLastFullFetchTime(context, value)
 
         /**
-         * `FETCH_PLAN parts=NWS:BOTH,GOOGLE_WEATHER:DAILY hourly=NWS:4h(view=…,lastHourly=…,due=…)…`:
-         * what this sync fetches and each visible source's hourly cadence
-         * (performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md).
+         * `FETCH_PLAN parts=NWS:BOTH horizons=NWS:SHORT(long=8h/5h,short=4h/4h),…`: what this sync
+         * fetches and each visible source's horizon decision
+         * (performance/261016-unified-long-short-forecast-horizons.md).
          */
         private suspend fun logFetchPlan(
             plan: Map<com.weatherwidget.data.model.WeatherSource, com.weatherwidget.data.model.ForecastParts>,
             fetchContext: ForecastFetchContext?,
-            recency: com.weatherwidget.shared.sourceview.SourceLastView.Recency,
             latitude: Double,
             longitude: Double,
         ) {
             val nowMs = System.currentTimeMillis()
-            val hourly = widgetStateManager.getVisibleSourcesOrder().mapNotNull { source ->
-                fetchCoordinator.hourlyDecision(source, fetchContext, recency, latitude, longitude)?.let {
-                    com.weatherwidget.data.remote.HourlyCadence.logFragment(
-                        source.id, it.intervalHours, it.viewAgeMs, it.lastHourlyFetchMs, nowMs, it.due,
-                        hourlyBlockedUntilMs = com.weatherwidget.data.remote.SourceQuotaBlocks.blockedUntil(
-                            source.id, com.weatherwidget.data.model.ForecastProduct.HOURLY, nowMs,
-                        ),
+            val horizons = widgetStateManager.getVisibleSourcesOrder().mapNotNull { source ->
+                fetchCoordinator.horizonDecision(source, fetchContext, latitude, longitude)?.let {
+                    com.weatherwidget.data.remote.ForecastHorizonCadence.logFragment(
+                        source.id, it, nowMs,
+                        fullyBlockedUntilMs = com.weatherwidget.data.remote.SourceQuotaBlocks.fullyBlockedUntil(source.id, nowMs),
                     )
                 }
             }
             appLogDao.log(
                 "FETCH_PLAN",
-                com.weatherwidget.data.model.ForecastParts.planLogLine(plan.mapKeys { it.key.id }, hourly),
+                com.weatherwidget.data.model.ForecastParts.planLogLine(plan.mapKeys { it.key.id }, horizons),
                 "INFO",
             )
         }
@@ -250,17 +247,12 @@ class ForecastRepository
                 val gate = com.weatherwidget.widget.SourceFetchGateLoader.load(
                     context, widgetStateManager, latitude, longitude,
                 )
-                // Hourly runs on its own cadence, by how recently each source was viewed (HourlyCadence).
-                val recency = com.weatherwidget.widget.SourceFetchGateLoader.loadRecency(
-                    context, widgetStateManager.getVisibleSourcesOrder().map { it.id },
-                )
                 if (
                     !forceRefresh &&
                     !fetchCoordinator.requiresNetworkFetch(
                         cachedForecasts,
                         fetchContext,
                         gate?.forecasts,
-                        recency,
                         latitude,
                         longitude,
                     )
@@ -277,7 +269,6 @@ class ForecastRepository
                             cachedForecasts,
                             fetchContext,
                             gate?.forecasts,
-                            recency,
                             latitude,
                             longitude,
                         )
@@ -347,12 +338,11 @@ class ForecastRepository
                         targetSourceId = targetSourceId,
                         fetchContext = fetchContext,
                         backgroundSources = gate?.forecasts,
-                        recency = recency,
                         latitude = latitude,
                         longitude = longitude,
                     )
                     val sourcesToFetch = fetchPlan.keys
-                    logFetchPlan(fetchPlan, fetchContext, recency, latitude, longitude)
+                    logFetchPlan(fetchPlan, fetchContext, latitude, longitude)
                     fetchCoordinator.fetchFromAllApis(
                         latitude,
                         longitude,

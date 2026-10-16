@@ -33,51 +33,28 @@ class ForecastPartsTest {
         assertEquals(ForecastParts.DAILY, ForecastParts.requested(WeatherSource.OPEN_METEO, ForecastParts.DAILY))
     }
 
-    @Test
-    fun `hourly inside a FULL window takes the daily rows too`() {
-        assertEquals(ForecastParts.BOTH, ForecastParts.withFullWindow(ForecastParts.HOURLY, isFull = true))
-        assertEquals(ForecastParts.HOURLY, ForecastParts.withFullWindow(ForecastParts.HOURLY, isFull = false))
-        assertEquals(ForecastParts.DAILY, ForecastParts.withFullWindow(ForecastParts.DAILY, isFull = true))
-        assertNull(ForecastParts.withFullWindow(null, isFull = true))
-    }
-
-    @Test
-    fun `a forced fetch takes both, an hourly-limited one only the parts due`() {
-        assertEquals(ForecastParts.BOTH, ForecastParts.forForced(hourlyLimited = false, hourlyDue = false))
-        assertEquals(ForecastParts.DAILY, ForecastParts.forForced(hourlyLimited = true, hourlyDue = false))
-        assertEquals(ForecastParts.BOTH, ForecastParts.forForced(hourlyLimited = true, hourlyDue = true))
-        assertEquals(ForecastParts.BOTH, ForecastParts.forForced(hourlyLimited = true, hourlyDue = null))
-    }
-
-    @Test
-    fun `a scheduled fetch takes what is due, and daily carries hours when hourly is not judged`() {
-        assertEquals(ForecastParts.HOURLY, ForecastParts.forRoutine(dailyDue = false, hourlyDue = true, isFull = false, blocked = none))
-        assertEquals(ForecastParts.BOTH, ForecastParts.forRoutine(dailyDue = false, hourlyDue = true, isFull = true, blocked = none))
-        assertEquals(ForecastParts.DAILY, ForecastParts.forRoutine(dailyDue = true, hourlyDue = false, isFull = true, blocked = none))
-        assertNull(ForecastParts.forRoutine(dailyDue = false, hourlyDue = false, isFull = true, blocked = none))
-        assertEquals(ForecastParts.BOTH, ForecastParts.forRoutine(dailyDue = true, hourlyDue = null, isFull = false, blocked = none))
-        assertNull(ForecastParts.forRoutine(dailyDue = false, hourlyDue = null, isFull = false, blocked = none))
-    }
-
     private val none = emptySet<ForecastProduct>()
     private val hoursBlocked = setOf(ForecastProduct.HOURLY)
     private val daysBlocked = setOf(ForecastProduct.DAILY)
 
-    /** performance/261012-forecast-loop-quota-blocked-part-is-not-due.md */
     @Test
-    fun `a quota-blocked hourly part is not due and never drags daily along in a FULL window`() {
-        // 2026-10-11 21:36: hourly overdue, FULL window, forecast/hours refused → was BOTH every minute.
-        assertNull(ForecastParts.forRoutine(dailyDue = false, hourlyDue = true, isFull = true, blocked = hoursBlocked))
-        assertEquals(ForecastParts.DAILY, ForecastParts.forRoutine(dailyDue = true, hourlyDue = true, isFull = true, blocked = hoursBlocked))
-        assertEquals(ForecastParts.DAILY, ForecastParts.forRoutine(dailyDue = true, hourlyDue = null, isFull = false, blocked = hoursBlocked))
-        assertNull(ForecastParts.forRoutine(dailyDue = false, hourlyDue = null, isFull = false, blocked = hoursBlocked))
+    fun `a fetch takes both parts, less any product a quota refuses`() {
+        assertEquals(ForecastParts.BOTH, ForecastParts.unblocked(none))
+        // 2026-10-11 21:36: forecast/hours refused → the fetch is daily only, never a billed hours retry.
+        assertEquals(ForecastParts.DAILY, ForecastParts.unblocked(hoursBlocked))
+        assertEquals(ForecastParts.HOURLY, ForecastParts.unblocked(daysBlocked))
+        assertNull("both refused: nothing to fetch", ForecastParts.unblocked(daysBlocked + hoursBlocked))
     }
 
     @Test
-    fun `a quota-blocked daily part is not due and FULL does not upgrade hourly to both`() {
-        assertEquals(ForecastParts.HOURLY, ForecastParts.forRoutine(dailyDue = true, hourlyDue = true, isFull = true, blocked = daysBlocked))
-        assertEquals(ForecastParts.HOURLY, ForecastParts.forRoutine(dailyDue = false, hourlyDue = true, isFull = true, blocked = daysBlocked))
-        assertNull(ForecastParts.forRoutine(dailyDue = true, hourlyDue = null, isFull = false, blocked = daysBlocked))
-        assertNull(ForecastParts.forRoutine(dailyDue = true, hourlyDue = true, isFull = true, blocked = daysBlocked + hoursBlocked))
+    fun `plan log line names each source's parts and horizon decision`() {
+        assertEquals(
+            "parts=NWS:BOTH,GOOGLE_WEATHER:DAILY horizons=NWS:SHORT(x),GOOGLE_WEATHER:LONG(y)",
+            ForecastParts.planLogLine(
+                linkedMapOf("NWS" to ForecastParts.BOTH, "GOOGLE_WEATHER" to ForecastParts.DAILY),
+                listOf("NWS:SHORT(x)", "GOOGLE_WEATHER:LONG(y)"),
+            ),
+        )
+        assertEquals("parts=none horizons=unjudged", ForecastParts.planLogLine(emptyMap(), emptyList()))
     }
 }

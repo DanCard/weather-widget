@@ -64,10 +64,9 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   **Toggling sources refreshes the new source only when > 4 h old** (or it has no data), daily and
   hourly views alike (`:shared` `SourceToggleRefreshPolicy`; was 15 min). See
   `plans/261008-source-toggle-refreshes-only-past-four-hours.md`.
-  **Hourly-limited refreshes** (user, 2026-10-08): those screen-on forecast refreshes and source
-  cycling in the daily view refresh daily and current but skip the hourly forecast unless it is due by
-  the hourly cadence (`:shared` `ForecastParts.forForced`, `HourlyCadence`; was Google-only
-  `HourlyFetchGate`, deleted 2026-10-11). Every billed request logs
+  A forced fetch (screen-on catch-up, a source switch, a location change) takes the horizon the
+  cadence says is due, at least SHORT; the user's Refresh is LONG (`ForecastHorizonCadence.forced`;
+  the old "hourly-limited" refresh is gone, 2026-10-16). Every billed request logs
   `GOOGLE_REQUEST`; `api_usage_stats` is per (date, source, endpoint) on both platforms, Google rows
   filed by the **Pacific** day (`ApiUsageClassifier.usageDayMs`), others by the local day.
   `scripts/google_usage_today.py` totals one PT day across desktop and attached devices. See
@@ -85,51 +84,40 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   the hourly view are on demand for every source; a free source's on-demand fetch keeps its whole
   horizon, so a fresh one means "nothing more to fetch". Expected to free ~25 MB of the Pixel's 72 MB DB
   (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`).
-- **Hourly has its own cadence, by how recently each source was viewed** (user, 2026-10-11; `:shared`
-  `HourlyCadence`). Daily, current and actuals keep `ForecastCadence` unchanged.
+- **One forecast cadence for every source, daily and hourly together: LONG ≈ 8 days, SHORT 3 days**
+  (user, 2026-10-16; `:shared` `ForecastHorizonCadence`; replaced `ForecastCadence`, `HourlyCadence`
+  and `HourlyWindowPolicy`).
 
-  | Battery | Displayed | Other sources, by time since last view |
-  |---|---|---|
-  | Charging (or ≥ 80 %) | 4 h | ≤ 24 h → 4 h · ≤ 36 h → 6 h · ≤ 48 h → 8 h · ≤ 72 h → 12 h · older → none |
-  | > 50 % | 8 h | ≤ 24 h → 8 h · older → none |
-  | ≤ 50 % | 24 h | none |
+  | Battery | Screen | LONG (≈ 8 days) | SHORT (3 days) |
+  |---|---|---|---|
+  | ≥ 70 % or charging | on | every 8 h | every 4 h |
+  | ≥ 70 % or charging | off | every 24 h | every 8 h |
+  | < 70 % | on or off | every 24 h | none |
 
-  Each scheduled check plans daily and hourly apart per source (`ForecastParts.forRoutine`): both,
-  daily-only, hourly-only or nothing. Google, NWS, Silurian, Open-Meteo and Tomorrow.io drop the
-  other part from the request (`ForecastParts.splits`; NWS daily-only loses its hourly cross-check —
-  user's call); WeatherAPI (past hours feed actuals) and OWM (daily built from 3-hourly) always make
-  the full request, and an hourly-only fetch of them stores the hours only. Open-Meteo keeps
-  `current` + `minutely_15` (actuals) in every request. Hourly due inside a FULL window takes daily
-  too (the far-day summaries live on the daily row). "Last view" = `source_last_view` (one timestamp
-  per source, overwritten; else the end of its newest `source_view_days` day); 3-day grace for a
-  fresh install. "Due" is measured from a per-source+site marker (Android prefs, desktop `HOURLY_FETCH`
-  app_logs row), not the rows' `fetchedAt`. **A quota-blocked part is not due** until its block ends
-  (`forRoutine`'s required `blocked` = `SourceQuotaBlocks.blockedProducts`; desktop due times held
-  past the block, `ForecastSchedule.heldPast`). A blocked `forecast/hours` once kept hourly due and
-  spun the desktop loop every minute on billed daily + current
-  (`performance/261012-forecast-loop-quota-blocked-part-is-not-due.md`). Logged as
-  `FETCH_PLAN parts=… hourly=…` (`quotaHeldMin=N` when held); desktop's
-  hourly-only refresh logs `REFRESH_HOURLY`, never `REFRESH` (that row is the daily age). See
-  `performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md`.
-  **Desktop forecast loop sleeps until the next due part** (`:shared` `ForecastSchedule`; desktop
+  A LONG fetch downloads the source's whole reach (Google asks 192 h) and stores every daily row plus
+  72 h of hourly; a SHORT one asks 72 h and stores today + 2 days of daily rows plus 72 h of hourly,
+  so days 4+ keep the last LONG fetch's rows and far-day summaries. A LONG fetch also counts as SHORT.
+  **No displayed-vs-other split and no view-age bands** — every source the 8-day gate lets through
+  (`SourceFetchGate`, below) is on this table. Both platforms' daily reads take **each day's newest
+  row**, not the newest batch (Android `ForecastSnapshotStore.shownRows`, desktop
+  `DesktopWeatherDao.getDailyForecasts`; the older-forecasts reader skips exactly those rows). "Due" is
+  measured from per-source+site markers (Android prefs `forecast_long_fetch_` / `forecast_short_fetch_`,
+  desktop `FORECAST_LONG_FETCH` / `FORECAST_SHORT_FETCH` app_logs rows), not the rows' `fetchedAt`.
+  Every fetch takes both parts; **a quota-blocked product is dropped** (`ForecastParts.unblocked`), and a
+  source refused everything is not due until its block ends (desktop due times held past it,
+  `ForecastSchedule.heldPast`; `performance/261012-forecast-loop-quota-blocked-part-is-not-due.md`).
+  Google, NWS, Silurian, Open-Meteo and Tomorrow.io can drop a part from the request
+  (`ForecastParts.splits`); WeatherAPI and OWM always make the full request. Logged as
+  `FETCH_PLAN parts=… horizons=NWS:SHORT(long=8h/5h,short=4h/4h),…` (`quotaHeldMin=N` when held) and
+  `FORECAST_HORIZON source=… horizon=…` after each fetch; desktop's hourly-only refresh (daily refused)
+  logs `REFRESH_HOURLY`, never `REFRESH`. See `performance/261016-unified-long-short-forecast-horizons.md`.
+  **Desktop forecast loop sleeps until the next due horizon** (`:shared` `ForecastSchedule`; desktop
   `DesktopForecastPlanner`), not a fixed tick: capped at 2 h, ≥ 1 min, ≥ 15 min after a failed fetch,
   and woken early (`FORECAST_LOOP_WAKE reason=power|screen`) by a UPower cadence-tier change
   (`BatteryTier.cadenceTier`; `POWER_DETECT`) or the ScreenSaver unblanking. Resume / network restore
   restart the loops. First plan 5 min after (re)start, so it never fetches beside the launch refresh.
   Logged `FORECAST_LOOP_SLEEP sleepMin=… reason=DUE|CAP|RETRY next=…`
   (`performance/261011-desktop-forecast-loop-sleep-until-due.md`).
-- **Routine hourly fetch has two windows** (user, 2026-10-10; `:shared` `HourlyWindowPolicy`):
-  **NEAR** stores 48 h; **FULL** downloads 8 days (Google asks 192 h =
-  8 pages) and stores 72 h, at most once per **20 h** per source+site (20, not 24, so a nightly 3 am
-  charge never misses a night to clock drift; user, 2026-10-11) and only while charging (or ≥ 80 %).
-  Off charger is NEAR only. **A manual Refresh is FULL** for the displayed source, any battery, and
-  writes no FULL marker, so a daytime tap never holds off the night's charger FULL (user, 2026-10-12;
-  `HourlyWindowPolicy.choose(userRefresh)` / `marksFull`; desktop Refresh buttons, Android Settings →
-  Refresh data and the History Refresh; `plans/261012-manual-refresh-fetches-full-window-of-current-source.md`).
-  48 h, not 24: the history readers need the previous day's copy of every
-  hour of today. Summaries on the `forecasts` row come from the whole download and carry forward, so a
-  NEAR fetch never blanks a far day. On-demand days and unknown context are unchanged. See
-  `performance/261010-hourly-near-window-often-full-eight-days-daily.md`.
 - **Google past-day hourly refill** (user, 2026-10-10): `forecast/hours` never re-sends a passed
   hour, so a day of refused hourly fetches freezes that day's line. Refresh on a **previous day** —
   Forecast History (both platforms) or desktop Observations opened from that day — requests
@@ -349,7 +337,8 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
   platforms compute it on read.
 - Main tables: `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `daily_history`,
   `observations`, `climate_normals`, `app_logs`, `api_usage_stats`, `source_view_days`,
-  `source_last_view` (one row per source: its last view, the only view timestamp kept — hourly cadence)
+  `source_last_view` (one row per source: its last view, the only view timestamp kept; read by nothing
+  since the 2026-10-16 horizon cadence)
 - `source_view_days` counts the user's source switches per local day — `(date, sourceId, viewKind
   DAILY|HOURLY, triggerKind TOGGLE|HOME|OBSERVATIONS, wasPrimary)` → `switches`; no timestamps
   (privacy, user 2026-10-10); every switch is a view (no dwell filter). `source_view_tracking` holds
@@ -389,16 +378,17 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 | Screen Unlock | **Never fires** | N/A | `ScreenOnReceiver` declares `USER_PRESENT` in the manifest and measured zero deliveries over three days on two devices. `ACTION_SCREEN_ON` is not registered at all, and cannot be from a manifest (`FLAG_RECEIVER_REGISTERED_ONLY`; see `android/content/Intent.java`). Do not "fix" this by adding `SCREEN_ON` to the manifest — it will silently do nothing. |
 
 **Data Fetch Intervals** (battery-aware via WorkManager). Authoritative values are
-`BatteryTier`/`ForecastFetchPolicy`; the thresholds are on **battery level**, not a 20/50 split:
+`ForecastHorizonCadence` (which horizon is due) and `ForecastFetchPolicy.periodicTickMinutes` (how often
+Android's periodic worker wakes to ask); the threshold is **70 % battery**, or charging:
 
-| Condition | Interval | Constant |
+| Condition | Forecast (every source) | Periodic tick |
 |-----------|----------|----------|
-| Charging (or ≥80%) | displayed 240 / 360 min, others 480 / 720 (screen on / off) | `ForecastCadence` (`:shared`, both platforms) |
-| Battery > 70% | 240 min (others ×2) | `BatteryTier.INTERVAL_HIGH_MINUTES` |
-| Battery 50-70% | 480 min (others ×2) | `BatteryTier.INTERVAL_MEDIUM_MINUTES` |
-| Battery ≤ 50% | 1440 min | `computeFetchInterval` returns null → `OFF_CHARGER_LOW_BATTERY_TICK_MINUTES` |
+| Charging (or ≥ 80 %) | LONG 8 h / 24 h, SHORT 4 h / 8 h (screen on / off) | 60 min (`CHARGING_TICK_MINUTES`) |
+| Battery 70–79 % | same as charging | 240 min (`HIGH_BATTERY_TICK_MINUTES`) |
+| Battery 50–69 % | LONG 24 h, no SHORT | 480 min (`BatteryTier.INTERVAL_MEDIUM_MINUTES`) |
+| Battery < 50 % | LONG 24 h, no SHORT | 1440 min (`OFF_CHARGER_LOW_BATTERY_TICK_MINUTES`) |
 
-This table read 60/120/240/480 until 2026-08-28 — wrong in the flattering direction, and off by up
+An older version of this table read 60/120/240/480 until 2026-08-28 — wrong in the flattering direction, and off by up
 to 3× at the bottom. That mattered: it hid how long the app can go without noticing a location
 change off-charger, which is the gap
 `plans/260828-detect-the-move-when-the-user-is-looking.md` exists to close. **The periodic tick is

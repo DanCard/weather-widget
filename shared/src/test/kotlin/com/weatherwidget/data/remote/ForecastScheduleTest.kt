@@ -1,7 +1,7 @@
 package com.weatherwidget.data.remote
 
 import com.weatherwidget.data.remote.ForecastSchedule.Due
-import com.weatherwidget.data.remote.ForecastSchedule.Part
+import com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon
 import com.weatherwidget.data.remote.ForecastSchedule.Reason
 import com.weatherwidget.shared.util.BatteryTier
 import com.weatherwidget.test.category.ShortDuration
@@ -29,44 +29,43 @@ class ForecastScheduleTest {
     }
 
     @Test
-    fun `the earliest part across sources is next`() {
+    fun `the earliest due across sources is next`() {
         val next = ForecastSchedule.next(
-            listOf(Due("NWS", Part.DAILY, now + 3 * hour), Due("OPEN_METEO", Part.HOURLY, now + hour), Due("NWS", Part.HOURLY, now + 2 * hour)),
+            listOf(Due("NWS", Horizon.LONG, now + 3 * hour), Due("OPEN_METEO", Horizon.SHORT, now + hour), Due("NWS", Horizon.SHORT, now + 2 * hour)),
         )
-        assertEquals(Due("OPEN_METEO", Part.HOURLY, now + hour), next)
+        assertEquals(Due("OPEN_METEO", Horizon.SHORT, now + hour), next)
         assertNull(ForecastSchedule.next(emptyList()))
     }
 
     @Test
     fun `sleep until due, capped at 2 h, floored at 1 min`() {
-        assertEquals(ForecastSchedule.Sleep(37 * minute, Reason.DUE, Due("NWS", Part.HOURLY, now + 37 * minute)),
-            ForecastSchedule.sleep(Due("NWS", Part.HOURLY, now + 37 * minute), now, fetchFailed = false))
-        assertEquals(2 * hour, ForecastSchedule.sleep(Due("NWS", Part.DAILY, now + 5 * hour), now, false).ms)
+        assertEquals(ForecastSchedule.Sleep(37 * minute, Reason.DUE, Due("NWS", Horizon.SHORT, now + 37 * minute)),
+            ForecastSchedule.sleep(Due("NWS", Horizon.SHORT, now + 37 * minute), now, fetchFailed = false))
+        assertEquals(2 * hour, ForecastSchedule.sleep(Due("NWS", Horizon.LONG, now + 5 * hour), now, false).ms)
         assertEquals(Reason.CAP, ForecastSchedule.sleep(null, now, false).reason)
-        assertEquals(minute, ForecastSchedule.sleep(Due("NWS", Part.DAILY, now - hour), now, false).ms)
+        assertEquals(minute, ForecastSchedule.sleep(Due("NWS", Horizon.LONG, now - hour), now, false).ms)
     }
 
     @Test
     fun `after a failed fetch a still-due source waits 15 min, a later one its own time`() {
-        val stillDue = ForecastSchedule.sleep(Due("NWS", Part.DAILY, now - minute), now, fetchFailed = true)
+        val stillDue = ForecastSchedule.sleep(Due("NWS", Horizon.LONG, now - minute), now, fetchFailed = true)
         assertEquals(15 * minute, stillDue.ms)
         assertEquals(Reason.RETRY, stillDue.reason)
-        assertEquals(40 * minute, ForecastSchedule.sleep(Due("NWS", Part.DAILY, now + 40 * minute), now, true).ms)
+        assertEquals(40 * minute, ForecastSchedule.sleep(Due("NWS", Horizon.LONG, now + 40 * minute), now, true).ms)
     }
 
     @Test
-    fun `log line names the reason and the next part`() {
-        assertEquals("sleepMin=37 reason=DUE next=NWS:HOURLY",
-            ForecastSchedule.sleep(Due("NWS", Part.HOURLY, now + 37 * minute), now, false).logLine())
+    fun `log line names the reason and the next horizon`() {
+        assertEquals("sleepMin=37 reason=DUE next=NWS:SHORT",
+            ForecastSchedule.sleep(Due("NWS", Horizon.SHORT, now + 37 * minute), now, false).logLine())
         assertEquals("sleepMin=120 reason=CAP", ForecastSchedule.sleep(null, now, false).logLine())
     }
 
     @Test
-    fun `cadence tier changes only at the thresholds the cadences read`() {
-        assertEquals(BatteryTier.cadenceTier(false, 79), BatteryTier.cadenceTier(false, 71))
-        assertTrue(BatteryTier.cadenceTier(false, 80) != BatteryTier.cadenceTier(false, 79))
-        assertTrue(BatteryTier.cadenceTier(false, 70) != BatteryTier.cadenceTier(false, 71))
-        assertTrue(BatteryTier.cadenceTier(false, 50) != BatteryTier.cadenceTier(false, 51))
+    fun `cadence tier changes only at the high-battery threshold the horizon cadence reads`() {
+        assertEquals(BatteryTier.cadenceTier(false, 95), BatteryTier.cadenceTier(false, 70))
+        assertTrue(BatteryTier.cadenceTier(false, 70) != BatteryTier.cadenceTier(false, 69))
+        assertEquals(BatteryTier.cadenceTier(false, 69), BatteryTier.cadenceTier(false, 10))
         assertEquals(BatteryTier.cadenceTier(true, 10), BatteryTier.cadenceTier(false, 95))
     }
 

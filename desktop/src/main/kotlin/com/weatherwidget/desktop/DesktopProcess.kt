@@ -130,16 +130,6 @@ const val REPLACED_CLIENT_CLOSE_GRACE_MS = 60_000L
 const val RESUME_KICK_DELAY_MS = 15_000L
 const val RESUME_KICK_JITTER_MS = 10_000L
 
-/**
- * Whether a [runLaunchRefresh]-style catch-up refreshes only daily and current, not the hourly
- * forecast ([com.weatherwidget.data.model.ForecastParts.forForced]; user, 2026-10-08):
- * - wake / link-up (`resume:*`, `network:*`): automatic, nobody asked;
- * - cycling the displayed source ([SOURCE_CYCLE_REASON]) while the daily view is showing.
- * Startup, location change, settings changes and a source cycle in an hourly view fetch everything.
- */
-fun launchHourlyLimited(reason: String, viewMode: com.weatherwidget.widget.ViewMode): Boolean =
-    isAutomaticCatchUp(reason) || (reason == SOURCE_CYCLE_REASON && !viewMode.isGraphMode)
-
 /** Wake / link-up catch-ups (`resume:*`, `network:*`): screen on, nobody asked for a forecast. */
 fun isAutomaticCatchUp(reason: String): Boolean = reason.startsWith("resume:") || reason.startsWith("network:")
 

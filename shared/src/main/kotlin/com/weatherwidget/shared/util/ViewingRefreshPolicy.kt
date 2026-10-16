@@ -7,7 +7,7 @@ package com.weatherwidget.shared.util
  * - **Current temp / actuals** of the viewed source refresh once older than
  *   [ACTUALS_STALE_WHILE_VIEWING_MS]. That is what the 15 minutes was always for.
  * - **The forecast** refreshes only once it is due by the normal background cadence (the interval the
- *   caller passes, from `ForecastCadence`) — never sooner because the screen is on. Screen-on can then
+ *   caller passes: `ForecastHorizonCadence.soonestIntervalMs`) — never sooner because the screen is on. Screen-on can then
  *   only stand in for a scheduled fetch that was missed (a sleeping laptop), never add one.
  *
  * Until 2026-10-08 the forecast used the 15 minutes too ("cloud-while-viewing"), which fetched the
@@ -27,7 +27,7 @@ object ViewingRefreshPolicy {
      * @param lastForecastAtMs last forecast fetch for the viewed source. Null is **not** due: "no
      *   forecast yet" belongs to the missing-data paths, and treating it as due would fetch on every
      *   paint of a source with nothing to show.
-     * @param forecastIntervalMs the normal cadence now; null when the battery tier suspends fetching.
+     * @param forecastIntervalMs the normal cadence now; null when nothing is scheduled.
      */
     fun decide(
         lastActualsAtMs: Long?,
