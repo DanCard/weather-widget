@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.shared.util.RefreshNotice
+import com.weatherwidget.shared.util.RefreshOutcome
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.ZoneId
@@ -53,6 +54,18 @@ class RefreshNoticeState(
         }
         if (shown) current = Shown(RefreshNotice.text(notice, formatTime), surface, ++serial)
         log("origin=$origin ${RefreshNotice.logDetail(notice)} ${if (shown) "shown" else "suppressed"}")
+    }
+
+    /**
+     * How a Forecast History Refresh ended ([RefreshOutcome.text]). It answers the same tap as the
+     * "queued" notice, so it replaces that one inside the [RefreshNotice.shouldShow] window rather
+     * than being suppressed, and restarts the four seconds
+     * (plans/261016-history-refresh-outcome-shared-desktop-parity.md).
+     */
+    fun showOutcome(outcome: RefreshOutcome, sourceName: String, surface: RefreshNoticeSurface, origin: String) {
+        synchronized(this) { lastShownMs = clock() }
+        current = Shown(RefreshOutcome.text(outcome, sourceName, formatTime), surface, ++serial)
+        log("origin=$origin done=${outcome::class.simpleName}${RefreshOutcome.logDetail(outcome)} shown")
     }
 
     /** Clears [shown] after [RefreshNotice.DURATION_MS], unless a newer notice replaced it meanwhile. */

@@ -6,7 +6,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import com.weatherwidget.data.remote.QuotaScope
 import com.weatherwidget.shared.util.RefreshNotice
+import com.weatherwidget.shared.util.RefreshOutcome
 import com.weatherwidget.shared.util.RefreshNotice.Kind
 import com.weatherwidget.shared.util.RefreshNotice.NotQueued
 import com.weatherwidget.shared.util.RefreshNotice.Queued
@@ -110,5 +112,28 @@ class RefreshNoticeStateTest {
         compose.onNodeWithText("Refresh already in progress").assertIsDisplayed()
         compose.onNodeWithTag("refresh_notice_settings").assertIsDisplayed()
         compose.onNodeWithTag("refresh_notice_history").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a refresh outcome replaces the queued notice inside the window and restarts it`() {
+        state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.HISTORY, "history")
+        nowMs += 500
+        state.showOutcome(
+            RefreshOutcome.Refused(QuotaScope.HOURLY_FORECAST, 42L),
+            "Google",
+            RefreshNoticeSurface.HISTORY,
+            "history",
+        )
+
+        assertEquals(
+            "Refreshed Google · Hourly forecast quota used · resets T42",
+            state.textFor(RefreshNoticeSurface.HISTORY),
+        )
+        assertEquals("origin=history done=Refused refused=HOURLY_FORECAST until=42 shown", logged.last())
+
+        // The four seconds restart at the outcome: a notice 3.9 s later is still suppressed.
+        nowMs += RefreshNotice.DURATION_MS - 100
+        state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.HISTORY, "history")
+        assertEquals(true, logged.last().endsWith("suppressed"))
     }
 }

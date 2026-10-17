@@ -83,6 +83,7 @@ import java.util.Locale
 import javax.swing.SwingUtilities
 import androidx.compose.runtime.CompositionLocalProvider
 import com.weatherwidget.shared.util.RefreshNotice
+import com.weatherwidget.shared.util.RefreshOutcome
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import kotlin.math.roundToInt
 
@@ -865,6 +866,22 @@ internal fun runDesktopUiApplication() = application {
         }
 
         /** [refillDay]: see [DesktopWeatherRepository.refresh]; set only by a past day's History refresh. */
+        /**
+         * A Forecast History Refresh's ending, on the History window: "Refreshed Google · Hourly
+         * forecast quota used · resets 12 AM" — the shared rule Android's History screen uses
+         * (plans/261016-history-refresh-outcome-shared-desktop-parity.md). Other origins announce nothing.
+         */
+        fun announceHistoryRefreshDone(origin: String, sourceId: String, ok: Boolean, startedAtMs: Long) {
+            if (origin != "history") return
+            val outcome = historyRefreshOutcome(weatherDao, sourceId, ok, startedAtMs)
+            weatherDao.log(
+                "HISTORY_REFRESH_DONE",
+                "ok=$ok source=$sourceId ms=${System.currentTimeMillis() - startedAtMs}${RefreshOutcome.logDetail(outcome)}",
+                if (ok) "INFO" else "WARN",
+            )
+            refreshNotice.showOutcome(outcome, WeatherSource.fromId(sourceId).shortDisplayName, refreshNoticeSurface(origin), origin)
+        }
+
         fun requestFullRefresh(origin: String, refillDay: java.time.LocalDate? = null) {
             val repo = repository
             weatherDao.log(
@@ -891,6 +908,8 @@ internal fun runDesktopUiApplication() = application {
 
             refreshInFlight = true
             refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST), surface, origin)
+            val startedAtMs = System.currentTimeMillis()
+            val refreshedSourceId = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").id
             // Through the shared runner on the application-owned scope: removing either child window
             // from composition cannot cancel the fetch or discard its result.
             val refresh = refreshRunner.start("user_refresh:$origin") {
@@ -916,6 +935,7 @@ internal fun runDesktopUiApplication() = application {
                         "origin=$origin notifyRefreshRequested() sent",
                         "INFO",
                     )
+                    announceHistoryRefreshDone(origin, refreshedSourceId, ok = true, startedAtMs)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     weatherDao.log("REFRESH_CLICK", "origin=$origin refresh cancelled", "WARN")
                     throw e
@@ -926,6 +946,7 @@ internal fun runDesktopUiApplication() = application {
                         "origin=$origin refresh failed ${e::class.simpleName}: ${e.message}",
                         "WARN",
                     )
+                    announceHistoryRefreshDone(origin, refreshedSourceId, ok = false, startedAtMs)
                 } finally {
                     refreshInFlight = false
                 }
@@ -1011,6 +1032,7 @@ internal fun runDesktopUiApplication() = application {
             }
             refreshInFlight = true
             refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST), refreshNoticeSurface(origin), origin)
+            val startedAtMs = System.currentTimeMillis()
             // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
             val refresh = refreshRunner.start("user_refresh:$origin:${source.id}") {
                 val service = DesktopWeatherService(
@@ -1031,6 +1053,7 @@ internal fun runDesktopUiApplication() = application {
                     dataUpdateCount++
                     notifyRefreshRequested()
                     weatherDao.log("REFRESH_CLICK", "origin=$origin source=${source.id} completed", "INFO")
+                    announceHistoryRefreshDone(origin, source.id, ok = true, startedAtMs)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -1039,6 +1062,7 @@ internal fun runDesktopUiApplication() = application {
                         "origin=$origin source=${source.id} failed ${e::class.simpleName}: ${e.message}",
                         "WARN",
                     )
+                    announceHistoryRefreshDone(origin, source.id, ok = false, startedAtMs)
                 } finally {
                     refreshInFlight = false
                 }

@@ -30,6 +30,9 @@ import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.model.ForecastProduct
+import com.weatherwidget.data.remote.QuotaScope
+import com.weatherwidget.shared.util.RefreshOutcome
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
 import com.weatherwidget.widget.handlers.GraphDataLoader
@@ -94,6 +97,31 @@ class ForecastHistoryActivity : AppCompatActivity() {
         const val EXTRA_LON = "longitude"
         const val EXTRA_SOURCE = "source"
         private const val TAG = "ForecastHistoryActivity"
+
+        /**
+         * The localized [RefreshOutcome.text]: "Refreshed Google · Hourly forecast quota used · resets
+         * 12 AM", from existing strings only (plans/261016-history-refresh-outcome-shared-desktop-parity.md).
+         */
+        fun refreshOutcomeText(context: android.content.Context, outcome: RefreshOutcome, sourceName: String): String {
+            if (outcome == RefreshOutcome.Failed) return context.getString(R.string.forecast_history_refresh_failed, sourceName)
+            val refreshed = context.getString(R.string.obs_refreshed_source, sourceName)
+            val refused = when (outcome) {
+                is RefreshOutcome.Refused -> {
+                    val reset = android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(outcome.untilMs))
+                    context.getString(
+                        when (outcome.scope) {
+                            QuotaScope.SOURCE -> R.string.watermark_quota_daily
+                            QuotaScope.HOURLY_FORECAST -> R.string.watermark_quota_hourly_forecast
+                            QuotaScope.DAILY_FORECAST -> R.string.watermark_quota_daily_forecast
+                        },
+                        reset,
+                    )
+                }
+                RefreshOutcome.HourlyIncomplete -> context.getString(R.string.watermark_rate_limited_partial)
+                else -> return refreshed
+            }
+            return "$refreshed · $refused"
+        }
 
 
         /**
@@ -776,6 +804,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             appLogDao.log("HISTORY_REFRESH_TAP", "outcome=fetch_started $tapContext", "INFO")
             com.weatherwidget.widget.RefreshToast.show(this@ForecastHistoryActivity, "history_refresh", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST))
             val startMs = android.os.SystemClock.elapsedRealtime()
+            val startedAtMs = System.currentTimeMillis()
             val lat = targetLat
             val lon = targetLon
             // A past day may refill its stale Google hours from history/hours.
@@ -807,13 +836,24 @@ class ForecastHistoryActivity : AppCompatActivity() {
             }
             refreshInFlight = false
             refreshButton.alpha = 1.0f
+            val nowMs = System.currentTimeMillis()
+            val outcome = RefreshOutcome.of(
+                ok = ok,
+                hourlyBlockedUntilMs = widgetStateManager.getProductQuota(source, ForecastProduct.HOURLY, nowMs)?.untilMs,
+                dailyBlockedUntilMs = widgetStateManager.getProductQuota(source, ForecastProduct.DAILY, nowMs)?.untilMs,
+                partialRateLimitAtMs = widgetStateManager.getRateLimit(source, nowMs)?.takeIf { it.partial }?.atMs,
+                startedAtMs = startedAtMs,
+            )
             appLogDao.log(
                 "HISTORY_REFRESH_DONE",
-                "ok=$ok $tapContext ms=${android.os.SystemClock.elapsedRealtime() - startMs}",
+                "ok=$ok $tapContext ms=${android.os.SystemClock.elapsedRealtime() - startMs}${RefreshOutcome.logDetail(outcome)}",
                 if (ok) "INFO" else "WARN",
             )
-            val message = if (ok) R.string.obs_refreshed_source else R.string.forecast_history_refresh_failed
-            Toast.makeText(this@ForecastHistoryActivity, getString(message, source.shortDisplayName), Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this@ForecastHistoryActivity,
+                refreshOutcomeText(this@ForecastHistoryActivity, outcome, source.shortDisplayName),
+                Toast.LENGTH_LONG,
+            ).show()
             if (!ok) return@launch
             loadData(targetDate, targetLat, targetLon, targetLocalDate, source)
             sendUiOnlyWidgetRefresh(appContext, widgetId)
