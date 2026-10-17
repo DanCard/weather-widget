@@ -16,7 +16,7 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import io.mockk.coEvery
 import io.mockk.mockk
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -37,7 +37,7 @@ import org.junit.experimental.categories.Category
 class DesktopNwsWebLegTest {
 
     @Test
-    fun `a stale NWS API is overtaken by NWS's own METAR text, and no other web host is asked`() = runTest {
+    fun `a stale NWS API is overtaken by NWS's own METAR text, and no other web host is asked`() = runBlocking {
         val mockNwsApi = mockk<NwsApi>()
         val station = NwsApi.StationInfo("KNUQ", "Moffett Field", 37.4058, -122.0480, StationType.OFFICIAL)
 

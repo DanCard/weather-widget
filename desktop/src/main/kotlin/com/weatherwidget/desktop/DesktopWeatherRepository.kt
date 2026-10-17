@@ -986,7 +986,7 @@ class DesktopWeatherRepository(
             },
             result.hourly,
         )
-        weatherDao.upsertForecasts(latitude, longitude, weatherSource, forecastDaily)
+        weatherDao.upsertForecasts(latitude, longitude, weatherSource, forecastDaily, nowMs = now)
 
         // NWS api actuals are NOT written here. The gridpoint maxTemperature/minTemperature
         // this used to store are the raw NDFD *forecast* grid, so every past day's "actual"

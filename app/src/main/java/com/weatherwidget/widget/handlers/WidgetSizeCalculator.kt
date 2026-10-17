@@ -10,6 +10,7 @@ import android.hardware.display.DisplayManager
 import android.util.TypedValue
 import android.view.Display
 import android.view.Surface
+import com.weatherwidget.shared.graph.DailyLayoutConstants
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -37,26 +38,29 @@ data class WidgetDimensions(
  */
 object WidgetSizeCalculator {
     // Per-column width assumption (dp). Deliberately tighter than a launcher grid cell so the daily
-    // view packs more days at every size — e.g. Pixel 7 Pro (~373dp) shows 7 days and the Fold
-    // full-width (~574dp) shows 10. Lowering this densifies all widgets uniformly.
-    private const val CELL_WIDTH_DP = 60
-    private const val CELL_HEIGHT_DP = 90
-    private const val ICON_WIDTH_THRESHOLD_DP = 130
+    // view packs more days at every size — e.g. Samsung Fold 4 cover display (~337dp) shows 7 columns
+    // (6 days with Today overlay), Pixel 7 Pro (~373dp) shows 7 columns, and the Fold full-width
+    // (~574dp) shows 11. Lowering this densifies all widgets uniformly.
+    const val CELL_WIDTH_DP = DailyLayoutConstants.CELL_WIDTH_DP
+    const val CELL_HEIGHT_DP = DailyLayoutConstants.CELL_HEIGHT_DP
+    const val ICON_WIDTH_THRESHOLD_DP = DailyLayoutConstants.ICON_WIDTH_THRESHOLD_DP
 
     /**
      * Bias added to the reported widget width before dividing by [CELL_WIDTH_DP].
      *
      * Combined with round-to-nearest (not floor), this rounds UP a widget that is within ~(this
      * many) dp of the next column, fitting one more forecast day. With the current [CELL_WIDTH_DP]
-     * the 5→6 boundary lands at width >= 300dp, 6→7 at >= 360dp, and 9→10 at >= 540dp.
+     * the 5→6 boundary lands at width >= 273dp, 6→7 at >= 328dp, 7→8 at >= 383dp, and 10→11 at >= 548dp.
      *
      * Density is governed mainly by [CELL_WIDTH_DP]; this bias just nudges borderline widgets up.
-     * Representative results: Pixel 7 Pro (~373dp) → 7 days, Samsung Fold 4 full-width (~574dp) →
-     * 10 days. Days shown == columns (see NavigationUtils.getDayOffsets).
+     * Representative results: Samsung Fold 4 cover (~337dp) → 7 columns (6 days with large Today
+     * overlay), Pixel 7 Pro (~373dp) → 7 days, Samsung Fold 4 full-width (~574dp) → 11 days.
+     * Days shown == columns (see NavigationUtils.getDayOffsets), minus one when the detailed Today
+     * overlay spans two slots.
      *
      * Data backing the rightmost columns: at >8 columns the narrow skip-yesterday rule is off
-     * (NavigationUtils.NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD), so a 10-column window is
-     * yesterday..+8. Every fetch requests ForecastHorizon.MAX_DAYS, so Open-Meteo covers
+     * (NavigationUtils.NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD), so an 11-column window is
+     * yesterday..+9. Every fetch requests ForecastHorizon.MAX_DAYS, so Open-Meteo covers
      * through today+15 while NWS reaches ~today+6; columns past a source's real coverage
      * render the climate-normal filler, which is the intended terminal state (no on-demand
      * extension exists — a gap a max-depth fetch didn't fill is unfillable).

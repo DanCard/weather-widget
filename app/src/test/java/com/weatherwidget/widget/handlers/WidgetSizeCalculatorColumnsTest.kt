@@ -23,12 +23,12 @@ import org.junit.experimental.categories.Category
 class WidgetSizeCalculatorColumnsTest {
     @Test
     fun columns_matchDocumentedSizeTable() {
-        // Representative widths under the current density (CELL_WIDTH_DP=60, bias=30).
+        // Representative widths under the current density (CELL_WIDTH_DP=55, bias=30).
         assertEquals(1, WidgetSizeCalculator.columnsForWidthDp(40))
         assertEquals(3, WidgetSizeCalculator.columnsForWidthDp(130))
         assertEquals(4, WidgetSizeCalculator.columnsForWidthDp(210))
-        assertEquals(5, WidgetSizeCalculator.columnsForWidthDp(280))
-        assertEquals(6, WidgetSizeCalculator.columnsForWidthDp(350))
+        assertEquals(6, WidgetSizeCalculator.columnsForWidthDp(280))
+        assertEquals(7, WidgetSizeCalculator.columnsForWidthDp(350))
     }
 
     @Test
@@ -39,11 +39,18 @@ class WidgetSizeCalculatorColumnsTest {
     }
 
     @Test
-    fun columns_foldFullWidthFitsTenDays() {
-        // Samsung Fold 4 full-width (6-span) widget reports ~574dp -> 10 columns
-        // (window -1..+8; +8 and NWS's +7 use the climate-normal / extension fallback).
-        // Verified against live device options on RFCT71FR9NT.
-        assertEquals(10, WidgetSizeCalculator.columnsForWidthDp(574))
+    fun columns_foldCoverFitsSevenSlotsForSixDaysWithOverlay() {
+        // Samsung Fold 4 cover display reports ~337dp -> 7 columns (slots).
+        // With the detailed Today overlay active (span=2), this yields 6 rendered days (Today + 5).
+        // Verified on live device RFCT70G352Y.
+        assertEquals(7, WidgetSizeCalculator.columnsForWidthDp(337))
+    }
+
+    @Test
+    fun columns_foldFullWidthFitsElevenDays() {
+        // Samsung Fold 4 full-width (6-span) widget reports ~574dp -> 11 columns
+        // (window -1..+9; +8..+9 use the climate-normal / extension fallback).
+        assertEquals(11, WidgetSizeCalculator.columnsForWidthDp(574))
     }
 
     @Test
@@ -65,17 +72,17 @@ class WidgetSizeCalculatorColumnsTest {
 
     @Test
     fun columns_roundUpBias_atSixToSevenBoundary() {
-        // The 6->7 boundary (the one that gives the Pixel 7 Pro its 7th day) sits at width >= 360dp.
+        // The 6->7 boundary sits at width >= 328dp.
         // Pinning both sides keeps the density a deliberate, stable choice.
-        assertEquals(6, WidgetSizeCalculator.columnsForWidthDp(359))
-        assertEquals(7, WidgetSizeCalculator.columnsForWidthDp(360))
+        assertEquals(6, WidgetSizeCalculator.columnsForWidthDp(327))
+        assertEquals(7, WidgetSizeCalculator.columnsForWidthDp(328))
     }
 
     @Test
     fun columns_roundUpBias_atFiveToSixBoundary() {
-        // With the current density the 5->6 boundary sits at width >= 300dp.
-        assertEquals(5, WidgetSizeCalculator.columnsForWidthDp(299))
-        assertEquals(6, WidgetSizeCalculator.columnsForWidthDp(300))
+        // With the current density the 5->6 boundary sits at width >= 273dp.
+        assertEquals(5, WidgetSizeCalculator.columnsForWidthDp(272))
+        assertEquals(6, WidgetSizeCalculator.columnsForWidthDp(273))
     }
 
     @Test

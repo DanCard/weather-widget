@@ -40,8 +40,8 @@ class DesktopForecastHorizonStorageTest {
     private val lat = 37.4220
     private val lon = -122.0841
     private val hour = 3_600_000L
-    private val now = System.currentTimeMillis()
     private val today = LocalDate.now()
+    private val now = today.atTime(10, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 
     private fun daily(high: Float) = (0 until 8).map { DailyForecast(today.plusDays(it.toLong()).toString(), high, 50f, "Cloudy") }
     private val hourly = (1..5).map { HourlyForecast(dateTime = (now / hour + it) * hour, temperature = 60f, condition = "Cloudy") }

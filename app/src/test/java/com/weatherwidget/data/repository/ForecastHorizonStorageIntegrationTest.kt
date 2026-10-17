@@ -47,8 +47,8 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
     private val lon = -122.089
     private val hour = 3_600_000L
     private val zone = ZoneId.systemDefault()
-    private var clockMs = (System.currentTimeMillis() / hour) * hour + 10 * 60_000L
     private val today = LocalDate.now(zone)
+    private var clockMs = today.atTime(8, 10).atZone(zone).toInstant().toEpochMilli()
     private val daily = (0 until 16).map { DailyForecast(today.plusDays(it.toLong()).toString(), 70f, 50f, "Cloudy", precipProbability = 20) }
 
     /** Battery 85 %, screen on: LONG every 8 h, SHORT every 4 h. */

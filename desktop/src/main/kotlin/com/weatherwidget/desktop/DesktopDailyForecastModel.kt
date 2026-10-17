@@ -12,6 +12,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContent
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContentResolver
+import com.weatherwidget.shared.graph.DailyLayoutConstants
 import com.weatherwidget.shared.graph.LargeTodayOverlayPolicy
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.util.NavigationUtils
@@ -113,9 +114,9 @@ data class DesktopDailyViewState(
 )
 
 object DesktopDailyForecastModel {
-    private const val CELL_WIDTH_DP = 60
-    private const val CELL_HEIGHT_DP = 90
-    private const val ICON_WIDTH_THRESHOLD_DP = 130
+    const val CELL_WIDTH_DP = DailyLayoutConstants.CELL_WIDTH_DP
+    const val CELL_HEIGHT_DP = DailyLayoutConstants.CELL_HEIGHT_DP
+    const val ICON_WIDTH_THRESHOLD_DP = DailyLayoutConstants.ICON_WIDTH_THRESHOLD_DP
     private const val MAX_DESKTOP_DAILY_COLUMNS = 9
     /**
      * Upper bound on how many extra history days scroll-zoom may prepend on the left. History is the
