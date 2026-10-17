@@ -42,17 +42,31 @@ object DailyRainLabels {
     const val NIGHT_TUCK_ROOM_MIN_DP = 10f
     const val NIGHT_TUCK_ROOM_MAX_DP = 22f
     const val NIGHT_TUCK_OVERLAP_BASE_DP = 5.0f
-    const val NIGHT_TUCK_NUDGE_BASE_DP = 1.5f
-    const val NIGHT_TUCK_NUDGE_RANGE_DP = 1.5f
 
     /**
-     * When there is room below the low-temp band, the night rain % is pushed off its snug tuck a
-     * couple px to the RIGHT and DOWN so it reads as its own label instead of hugging the low temp.
-     * Each is scaled by roomFraction = 1 - tightFraction, so a cramped column keeps the snug tuck
-     * (offset collapses to 0) while a roomy column gets the full nudge.
+     * When there is room below the low-temp band, the night rain % drops a couple px below its snug
+     * tuck so it reads as its own label. Scaled by roomFraction = 1 - tightFraction, so a cramped
+     * column keeps the snug tuck. Horizontal position is not offset: the label starts at the gap
+     * midpoint and only moves sideways to clear an obstacle (DailyRainLabelPlanner.placeNightLabel).
      */
-    const val NIGHT_TUCK_ROOMY_RIGHT_DP = 2.5f
     const val NIGHT_TUCK_ROOMY_DOWN_DP = 2.5f
+
+    // Night rain label collision nudge (DailyRainLabelPlanner.placeNightLabel).
+    /** Search step, both axes. */
+    const val NIGHT_NUDGE_STEP_DP = 1f
+    /** Furthest sideways move, as a fraction of the column width. */
+    const val NIGHT_NUDGE_MAX_SHIFT_FRACTION = 0.3f
+    /** Furthest downward move below the home tuck. */
+    const val NIGHT_NUDGE_MAX_DOWN_DP = 12f
+    /** An intrusion this shallow (either axis) is a slight overlap and costs nothing. */
+    const val NIGHT_SLIGHT_OVERLAP_DP = 1.5f
+    /** An intrusion covering at most this fraction of the label's area is also slight. */
+    const val NIGHT_SLIGHT_OVERLAP_AREA_FRACTION = 0.15f
+    /**
+     * The raised ° of a low-temp label fills only this top fraction of the label's text box; the
+     * pocket under it is blank, so a night label may sit there (DailyRainLabelPlanner.lowLabelObstacles).
+     */
+    const val DEGREE_SIGN_HEIGHT_FRACTION = 0.5f
 
     // ── Rain-label font scaling (shared so Android and desktop size labels identically) ───────────
 

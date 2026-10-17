@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.RectF
 import androidx.core.content.ContextCompat
+import com.weatherwidget.shared.graph.DailyRainLabelPlanner
 import com.weatherwidget.shared.util.DailyDayValueResolver
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DailyRainLabelPlacement
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DayData
@@ -15,6 +16,8 @@ internal object DailyColumnRenderer {
         val dayLabel: RectF,
         val icon: RectF?,
         val lowLabel: RectF?,
+        /** Ink-shaped icon + low label (° split off), for the night rain label placer. */
+        val nightObstacles: List<DailyRainLabelPlanner.Box> = emptyList(),
     )
 
     private val COLOR_LABEL_GRAY = 0xFFAAAAAA.toInt()
@@ -27,7 +30,6 @@ internal object DailyColumnRenderer {
         canvas: Canvas,
         context: Context,
         day: DayData,
-        rightNeighbor: DayData?,
         centerX: Float,
         layout: DailyGraphLayoutInfo,
         paints: DailyGraphPaintSet,
@@ -62,7 +64,8 @@ internal object DailyColumnRenderer {
         val anchorLow = resolveIconAnchorLow(day)
         val displayLow = resolveBottomStackLow(day)
         val lowY = anchorLow?.let(layout::tempToY)
-        var ownLowLabelBox: DailyForecastRainLabelRenderer.LowLabelBox? = null
+        var lowLabelBounds: RectF? = null
+        var lowLabelObstacles: List<DailyRainLabelPlanner.Box> = emptyList()
         var iconBounds: RectF? = null
 
         if (lowY != null) {
@@ -126,13 +129,21 @@ internal object DailyColumnRenderer {
 
                 val lowHalfWidth =
                     DailyTemperatureLabelRenderer.measureTextWidth(tempPaint, lowLabelText) / 2f
-                ownLowLabelBox =
-                    DailyForecastRainLabelRenderer.LowLabelBox(
-                        left = centerX - lowHalfWidth,
-                        top = lowTempY + TemperatureGraphStyle.fontAscent(tempPaint),
-                        right = centerX + lowHalfWidth,
-                        bottom = lowTempY + TemperatureGraphStyle.fontDescent(tempPaint),
-                        baseline = lowTempY,
+                lowLabelBounds =
+                    RectF(
+                        centerX - lowHalfWidth,
+                        lowTempY + TemperatureGraphStyle.fontAscent(tempPaint),
+                        centerX + lowHalfWidth,
+                        lowTempY + TemperatureGraphStyle.fontDescent(tempPaint),
+                    )
+                lowLabelObstacles =
+                    DailyRainLabelPlanner.lowLabelObstacles(
+                        text = lowLabelText,
+                        left = lowLabelBounds.left,
+                        top = lowLabelBounds.top,
+                        right = lowLabelBounds.right,
+                        bottom = lowLabelBounds.bottom,
+                        degreeWidth = DailyTemperatureLabelRenderer.measureTextWidth(tempPaint, "°"),
                     )
             }
         }
@@ -145,23 +156,16 @@ internal object DailyColumnRenderer {
             onRainLabelDrawn,
             canvas,
         )
-        DailyForecastRainLabelRenderer.drawNightRainLabel(
-            day,
-            rightNeighbor,
-            centerX,
-            layout,
-            paints,
-            ownLowLabelBox,
-            onRainLabelDrawn,
-            canvas,
-        )
+        // The night rain label is drawn by the facade's second pass, once the right neighbour's
+        // low label and icon exist to collide with (DailyForecastRainLabelRenderer.drawNightRainLabels).
         return DrawnBounds(
             dayLabel = dayLabelBounds,
             icon = iconBounds,
-            lowLabel =
-                ownLowLabelBox?.let { box ->
-                    RectF(box.left, box.top, box.right, box.bottom)
-                },
+            lowLabel = lowLabelBounds,
+            nightObstacles =
+                listOfNotNull(
+                    iconBounds?.let { DailyRainLabelPlanner.Box(it.left, it.top, it.right, it.bottom) },
+                ) + lowLabelObstacles,
         )
     }
 

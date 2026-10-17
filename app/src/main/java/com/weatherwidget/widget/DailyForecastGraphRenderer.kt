@@ -303,13 +303,13 @@ object DailyForecastGraphRenderer {
         val todayBars = mutableListOf<BarDrawnDebug>()
         val todayHighLabelBounds = mutableListOf<RectF>()
         var todayColumnBounds: DailyColumnRenderer.DrawnBounds? = null
+        val columnBoundsByColumn = mutableMapOf<Int, DailyColumnRenderer.DrawnBounds>()
 
         normalized.days.forEach { normalizedDay ->
             job?.ensureActive()
             val day = normalizedDay.day
             val columnIndex = normalizedDay.resolvedColumn
             val centerX = layout.columnCenter(columnIndex)
-            val rightNeighbor = daysByColumn[columnIndex + 1]
 
             // Frosted-glass focal panel BEHIND today's triple-bar column (drawn before the bars so it
             // sits underneath them and their labels).
@@ -335,7 +335,6 @@ object DailyForecastGraphRenderer {
                 canvas,
                 context,
                 day,
-                rightNeighbor,
                 centerX,
                 layout,
                 paints,
@@ -343,7 +342,19 @@ object DailyForecastGraphRenderer {
                 onDayLabelDrawn,
             )
             if (day.isToday) todayColumnBounds = drawnColumnBounds
+            columnBoundsByColumn[columnIndex] = drawnColumnBounds
         }
+        // Second pass: night rain labels sit between two columns, so they are placed once both
+        // neighbours' low labels and icons are drawn.
+        DailyForecastRainLabelRenderer.drawNightRainLabels(
+            normalized.days.map { it.resolvedColumn to it.day },
+            daysByColumn,
+            columnBoundsByColumn,
+            layout,
+            paints,
+            collectAndEmitRainLabel,
+            canvas,
+        )
 
         val todayOverlayPlacements =
             if (useLargeTodayOverlay && todayOverlayData != null) {

@@ -858,6 +858,44 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun renderGraph_nightRainLabelIsCentredBetweenColumnsWhenNothingIsInTheWay() {
+        // 2026-10-17 Fold 4: "20%" drew ~2 dp right of the Mon/Tue gap from blind offsets. With no
+        // obstacle in the way (Robolectric text measures 0 wide) it must sit exactly midway between
+        // the two day labels' centres.
+        val rain = mutableListOf<DailyForecastGraphRenderer.DailyRainLabelPlacement>()
+        val dayLabels = mutableListOf<DailyForecastGraphRenderer.DayLabelDrawnDebug>()
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = listOf(
+                    DailyForecastGraphRenderer.DayData(
+                        date = LocalDate.of(2026, 10, 19),
+                        label = "Mon",
+                        solidLineHigh = 66f,
+                        solidLineLow = 54f,
+                        rainData = DailyForecastGraphRenderer.RainLabelData(nighttimePrecipProbability = 20, nightRainLabelText = "20%"),
+                    ),
+                    DailyForecastGraphRenderer.DayData(
+                        date = LocalDate.of(2026, 10, 20),
+                        label = "Tue",
+                        solidLineHigh = 68f,
+                        solidLineLow = 51f,
+                    ),
+                ),
+                widthPx = 800,
+                heightPx = 500,
+                onRainLabelDrawn = { rain.add(it) },
+                onDayLabelDrawn = { dayLabels.add(it) },
+                useCelsius = false,
+            )
+        }
+        val night = rain.single { it.kind == DailyForecastGraphRenderer.RainLabelKind.NIGHT }
+        val mon = dayLabels.single { it.text == "Mon" }.centerX
+        val tue = dayLabels.single { it.text == "Tue" }.centerX
+        assertEquals((mon + tue) / 2f, night.centerX, 0.01f)
+    }
+
+    @Test
     fun renderGraph_nightRainLabelIsDrawnWhenDayRainLabelExists() {
         val labels = renderRainLabels(
             days = listOf(

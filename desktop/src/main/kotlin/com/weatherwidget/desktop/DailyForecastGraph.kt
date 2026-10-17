@@ -190,6 +190,11 @@ fun DailyForecastGraph(
 
         fun yAt(temp: Float): Float = top + graphHeight * (1f - (temp - minTemp) / range)
 
+        // Each column's icon and low label, obstacles for the night rain labels. Those labels sit
+        // between two columns, so they are drawn after the loop, once both neighbours exist.
+        val nightLabelObstacles = mutableMapOf<Int, MutableList<DailyRainLabelPlanner.Box>>()
+        val deferredNightLabels = mutableListOf<() -> Unit>()
+
         fun resolveLowLabelY(idx: Int): Float? {
             val d = displayDays.getOrNull(idx) ?: return null
             val lowVal = d.lowForLabel() ?: return null
@@ -535,6 +540,8 @@ fun DailyForecastGraph(
                     with(painters[index]) { draw(Size(iconSize, iconSize)) }
                 }
                 recordTodayObstacle(centerX - iconSize / 2f, iconTop, centerX + iconSize / 2f, iconTop + iconSize)
+                nightLabelObstacles.getOrPut(index, ::mutableListOf) +=
+                    DailyRainLabelPlanner.Box(centerX - iconSize / 2f, iconTop, centerX + iconSize / 2f, iconTop + iconSize)
 
                 val lowLabelY = iconTop + iconSize + 2f * scale
                 val lowTopLeft = Offset(centerX - lowText.size.width / 2f, lowLabelY)
@@ -546,6 +553,15 @@ fun DailyForecastGraph(
                     lowTopLeft.x + lowText.size.width,
                     lowTopLeft.y + lowText.size.height,
                 )
+                nightLabelObstacles.getOrPut(index, ::mutableListOf) +=
+                    DailyRainLabelPlanner.lowLabelObstacles(
+                        text = lowLabelText,
+                        left = lowTopLeft.x,
+                        top = lowTopLeft.y,
+                        right = lowTopLeft.x + lowText.size.width,
+                        bottom = lowTopLeft.y + lowText.size.height,
+                        degreeWidth = textMeasurer.measure("°", TextStyle(fontSize = lowSize.sp)).size.width.toFloat(),
+                    )
             }
 
             val dayText = textMeasurer.measure(
@@ -601,14 +617,15 @@ fun DailyForecastGraph(
                 )
             }
 
-            // Nighttime rain label: tucked between this column and the next (Android shifts it
-            // +dayWidth/2 toward the neighbor), smaller, in the low-temp band.
+            // Nighttime rain label: centred between this column and the next, smaller, in the
+            // low-temp band; drawn after the loop (deferredNightLabels) so the right neighbour's
+            // icon and low label are obstacles too. Same shared placer as Android.
             val nightText = day.nightRainLabelText
             if (nightText != null && lowForLabel != null) {
                 val leftLowY = resolveLowLabelY(index)
                 val rightLowY = resolveLowLabelY(index + 1)
 
-                if (leftLowY != null) {
+                if (leftLowY != null) deferredNightLabels += {
                     val anchorLowY = if (rightLowY != null) minOf(leftLowY, rightLowY) else leftLowY
 
                     // Measure the low text of the left day to know its height/bottom
@@ -626,22 +643,11 @@ fun DailyForecastGraph(
                     val roomBelowPx = (size.height - dayLabelBand - anchorBottomY).coerceAtLeast(0f)
                     val roomBelowDp = roomBelowPx / scale
 
-                    val isLeftTempLower = rightLowY != null && leftLowY > rightLowY
-                    val tuck = DailyRainLabelPlanner.calculateNightTuck(
-                        roomBelowDp = roomBelowDp,
-                        isLeftTempLower = isLeftTempLower,
-                    )
-
-                    val roomyRightPx = tuck.roomyRightDp * scale
+                    val tuck = DailyRainLabelPlanner.calculateNightTuck(roomBelowDp = roomBelowDp)
                     val roomyDownPx = tuck.roomyDownDp * scale
-                    val hNudgePx = tuck.effectiveNudgeDp * scale
-                    val shiftedCenterX = DailyRainLabelPlanner.calculateNightShiftedCenterX(
-                        columnCenterX = centerX,
-                        columnWidth = columnWidth,
-                        effectiveNudgePx = hNudgePx,
-                        roomyRightPx = roomyRightPx,
-                        scalePx = 1f * scale,
-                    )
+                    val gapCenterX = columns.centers.getOrNull(index + 1)
+                        ?.let { (centerX + it) / 2f }
+                        ?: (centerX + columnWidth / 2f)
 
                     // Base rain layout. Same probability/distance font scaling as the day label,
                     // times NIGHT_SCALE (history = probability only, no distance term).
@@ -651,45 +657,45 @@ fun DailyForecastGraph(
                     val edgeMargin = 2f * scale
                     val halfWidth = finalLayout.size.width / 2f
 
-                    var finalX = shiftedCenterX - halfWidth
+                    var homeCenterX = gapCenterX
 
-                    val canShiftStandard = (shiftedCenterX + halfWidth <= size.width - edgeMargin) && (shiftedCenterX - halfWidth >= edgeMargin)
+                    val canShiftStandard = (gapCenterX + halfWidth <= size.width - edgeMargin) && (gapCenterX - halfWidth >= edgeMargin)
                     if (!canShiftStandard) {
                         // Try reduced scaling (extraScale = 0.85f)
                         val reducedStyle = TextStyle(fontSize = (DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale * DailyRainLabels.NIGHT_SCALE * nightFontScale * 0.85f).sp, color = COLOR_FORECAST_RAINY)
                         val reducedLayout = textMeasurer.measure(nightText, reducedStyle)
                         val reducedHalfWidth = reducedLayout.size.width / 2f
-                        if (shiftedCenterX + reducedHalfWidth <= size.width - edgeMargin && shiftedCenterX - reducedHalfWidth >= edgeMargin) {
+                        if (gapCenterX + reducedHalfWidth <= size.width - edgeMargin && gapCenterX - reducedHalfWidth >= edgeMargin) {
                             finalPaintStyle = reducedStyle
                             finalLayout = reducedLayout
-                            finalX = shiftedCenterX - reducedHalfWidth
                         } else {
-                            // Fallback to centered
-                            finalX = (centerX - finalLayout.size.width / 2f).coerceIn(edgeMargin, size.width - finalLayout.size.width - edgeMargin)
+                            // Fallback to centered on the column
+                            homeCenterX = centerX.coerceIn(
+                                edgeMargin + halfWidth,
+                                (size.width - edgeMargin - halfWidth).coerceAtLeast(edgeMargin + halfWidth),
+                            )
                         }
                     }
 
                     val dynamicOverlapPx = tuck.dynamicOverlapDp * scale
-                    val nightTopY = anchorBottomY - dynamicOverlapPx
-
-                    // Collision check with the left low label
-                    val leftLowX = centerX - lowText.size.width / 2f
-                    val rightLowX = centerX + lowText.size.width / 2f
-
-                    val finalNightTopY = DailyRainLabelPlanner.resolveNightCollisionTop(
-                        nightLeft = finalX,
-                        nightTop = nightTopY,
-                        nightWidth = finalLayout.size.width.toFloat(),
-                        nightHeight = finalLayout.size.height.toFloat(),
-                        ownLeft = leftLowX,
-                        ownTop = leftLowY,
-                        ownRight = rightLowX,
-                        ownBottom = leftLowY + leftLowHeight,
-                    )
+                    val homeTop = anchorBottomY - dynamicOverlapPx + roomyDownPx
 
                     // Keep clear of the day-name row
                     val hardBottomLimit = size.height - dayLabelBand
-                    val drawnTopY = finalNightTopY + roomyDownPx
+                    val placed = DailyRainLabelPlanner.placeNightLabel(
+                        homeCenterX = homeCenterX,
+                        homeTop = homeTop,
+                        width = finalLayout.size.width.toFloat(),
+                        height = finalLayout.size.height.toFloat(),
+                        obstacles = nightLabelObstacles[index].orEmpty() + nightLabelObstacles[index + 1].orEmpty(),
+                        maxShiftPx = columnWidth * DailyRainLabels.NIGHT_NUDGE_MAX_SHIFT_FRACTION,
+                        maxBottom = hardBottomLimit,
+                        minLeft = edgeMargin,
+                        maxRight = size.width - edgeMargin,
+                        density = scale,
+                    )
+                    val finalX = placed.centerX - finalLayout.size.width / 2f
+                    val drawnTopY = placed.top
                     if (drawnTopY + finalLayout.size.height <= hardBottomLimit) {
                         drawOutlinedText(textMeasurer, finalLayout, Offset(finalX, drawnTopY))
                         recordTodayObstacle(
@@ -702,6 +708,7 @@ fun DailyForecastGraph(
                 }
             }
         }
+        deferredNightLabels.forEach { it() }
 
         val overlayContent = state.todayOverlay
         if (

@@ -21,9 +21,6 @@ internal object DailyForecastRainLabelRenderer {
     private const val NIGHT_TUCK_ROOM_MIN_DP = DailyRainLabels.NIGHT_TUCK_ROOM_MIN_DP
     private const val NIGHT_TUCK_ROOM_MAX_DP = DailyRainLabels.NIGHT_TUCK_ROOM_MAX_DP
     private const val NIGHT_TUCK_OVERLAP_BASE_DP = DailyRainLabels.NIGHT_TUCK_OVERLAP_BASE_DP
-    private const val NIGHT_TUCK_NUDGE_BASE_DP = DailyRainLabels.NIGHT_TUCK_NUDGE_BASE_DP
-    private const val NIGHT_TUCK_NUDGE_RANGE_DP = DailyRainLabels.NIGHT_TUCK_NUDGE_RANGE_DP
-    private const val NIGHT_TUCK_ROOMY_RIGHT_DP = DailyRainLabels.NIGHT_TUCK_ROOMY_RIGHT_DP
     private const val NIGHT_TUCK_ROOMY_DOWN_DP = DailyRainLabels.NIGHT_TUCK_ROOMY_DOWN_DP
 
     internal enum class RainLabelType {
@@ -35,10 +32,8 @@ internal object DailyForecastRainLabelRenderer {
         val leftBaseline: Float,
         val rightNeighborBaseline: Float?,
         val dynamicOverlapDp: Float,
-        val effectiveNudgeDp: Float,
         val tightFraction: Float,
         val roomBelowDp: Float,
-        val isLeftTempLower: Boolean,
         val tempMetrics: Paint.FontMetrics,
     )
 
@@ -46,21 +41,6 @@ internal object DailyForecastRainLabelRenderer {
         val centerX: Float,
         val paint: Paint,
         val placementType: String,
-    )
-
-    internal data class NightCollisionResult(
-        val centerX: Float,
-        val baseline: Float,
-        val resolution: String, // "none" | "down"
-    )
-
-    /** This day's drawn low-temp label, used as an obstacle for the night rain label. */
-    internal data class LowLabelBox(
-        val left: Float,
-        val top: Float,
-        val right: Float,
-        val bottom: Float,
-        val baseline: Float,
     )
 
     internal data class ResolvedDailyRainLabel(
@@ -188,76 +168,92 @@ internal object DailyForecastRainLabelRenderer {
         )
     }
 
+    /**
+     * Second pass of the daily graph: draws every night rain label once all columns are drawn, so
+     * both neighbours' low labels and icons are known obstacles.
+     */
+    fun drawNightRainLabels(
+        days: List<Pair<Int, DayData>>,
+        daysByColumn: Map<Int, DayData>,
+        boundsByColumn: Map<Int, DailyColumnRenderer.DrawnBounds>,
+        layout: DailyGraphLayoutInfo,
+        paints: DailyGraphPaintSet,
+        onRainLabelDrawn: ((DailyRainLabelPlacement) -> Unit)?,
+        canvas: Canvas,
+    ) {
+        days.forEach { (column, day) ->
+            val rightNeighbor = daysByColumn[column + 1]
+            val obstacles = listOfNotNull(boundsByColumn[column], boundsByColumn[column + 1])
+                .flatMap { it.nightObstacles }
+            val centerX = layout.columnCenter(column)
+            val gapCenterX =
+                if (column + 1 < layout.columnLefts.size) {
+                    (centerX + layout.columnCenter(column + 1)) / 2f
+                } else {
+                    centerX + layout.columnWidth(column) / 2f
+                }
+            drawNightRainLabel(
+                day, rightNeighbor, centerX, gapCenterX, layout.columnWidth(column),
+                layout, paints, obstacles, onRainLabelDrawn, canvas,
+            )
+        }
+    }
+
     fun drawNightRainLabel(
         day: DayData,
         rightNeighbor: DayData?,
         centerX: Float,
+        gapCenterX: Float,
+        columnWidth: Float,
         layout: DailyGraphLayoutInfo,
         paints: DailyGraphPaintSet,
-        ownLowLabel: LowLabelBox?,
+        obstacles: List<DailyRainLabelPlanner.Box>,
         onRainLabelDrawn: ((DailyRainLabelPlacement) -> Unit)?,
         canvas: Canvas,
     ) {
         val rainText = day.rainData.nightRainLabelText ?: return
 
         val tuck = resolveNightAnchorBaseline(day, rightNeighbor, layout, paints) ?: return
-        // When roomy, push the label a couple px right + down off its snug tuck; collapses to 0 when
-        // cramped so a tight column keeps the existing tuck under the low temp.
-        val roomFraction = 1f - tuck.tightFraction
-        val roomyRightPx = (NIGHT_TUCK_ROOMY_RIGHT_DP * roomFraction).toPx(layout.density)
-        val roomyDownPx = (NIGHT_TUCK_ROOMY_DOWN_DP * roomFraction).toPx(layout.density)
-        // Existing fit subtracts hNudgePx (leftward); subtracting the right nudge shifts it back right.
-        val hNudgePx = (tuck.effectiveNudgeDp).toPx(layout.density) - roomyRightPx
-        val fit = resolveNightHorizontalFit(day, rainText, centerX, layout, hNudgePx, paints) ?: return
+        // When roomy, drop the label a couple px below its snug tuck; collapses to 0 when cramped.
+        val roomyDownPx = (NIGHT_TUCK_ROOMY_DOWN_DP * (1f - tuck.tightFraction)).toPx(layout.density)
+        val fit = resolveNightHorizontalFit(day, rainText, centerX, gapCenterX, layout, paints) ?: return
 
         val metrics = fit.paint.fontMetrics
         val hardBottomLimit = layout.heightPx - (DailyColumnRenderer.DAY_LABEL_BOTTOM_MARGIN_DP * layout.density)
 
         val finalTopOverlap = (tuck.dynamicOverlapDp).toPx(layout.density)
-        val finalTopY = tuck.anchorBaseline + tuck.tempMetrics.descent - finalTopOverlap
-        val finalBaseline = finalTopY - metrics.ascent
+        val homeTop = tuck.anchorBaseline + tuck.tempMetrics.descent - finalTopOverlap + roomyDownPx
 
-        // The interstitial anchor (min of this day's and the neighbor's low baseline) can land the
-        // label right next to this day's own low label, clipping its degree symbol. When that
-        // happens, nudge the label straight DOWN to share the low label's baseline so it sits beside
-        // the number (e.g. "56° 12%"), clear of the degree symbol above. No horizontal move; the
-        // interstitial anchor in resolveNightAnchorBaseline is intentionally untouched.
+        // Start centred in the gap under the low temps; nudge left, right or down only when a
+        // neighbour's low label or icon is in the way (slight overlap is fine).
         val nightTextWidth = fit.paint.measureText(rainText)
         val nightHalfWidth = nightTextWidth / 2f
-        var resolvedCenterX = fit.centerX
-        var resolvedBaseline = finalBaseline
-        var resolution = "none"
-
-        if (ownLowLabel != null) {
-            val collision = resolveNightCollision(
-                nightCenterX = resolvedCenterX,
-                nightBaseline = resolvedBaseline,
-                nightHalfWidth = nightHalfWidth,
-                ascent = metrics.ascent,
-                descent = metrics.descent,
-                ownLeft = ownLowLabel.left,
-                ownTop = ownLowLabel.top,
-                ownRight = ownLowLabel.right,
-                ownBottom = ownLowLabel.bottom,
-                ownBaseline = ownLowLabel.baseline,
-            )
-            resolvedCenterX = collision.centerX
-            resolvedBaseline = collision.baseline
-            resolution = collision.resolution
-        }
-
-        // Roomy down-nudge applied on top of any collision snap (0 when cramped).
-        resolvedBaseline += roomyDownPx
-
+        val textHeight = metrics.descent - metrics.ascent
+        val edgeMargin = RAIN_LABEL_EDGE_MARGIN_DP.toPx(layout.density)
+        val placed = DailyRainLabelPlanner.placeNightLabel(
+            homeCenterX = fit.centerX,
+            homeTop = homeTop,
+            width = nightTextWidth,
+            height = textHeight,
+            obstacles = obstacles,
+            maxShiftPx = columnWidth * DailyRainLabels.NIGHT_NUDGE_MAX_SHIFT_FRACTION,
+            maxBottom = hardBottomLimit,
+            minLeft = edgeMargin,
+            maxRight = layout.widthPx - edgeMargin,
+            density = layout.density,
+        )
+        val resolvedCenterX = placed.centerX
+        val resolvedBaseline = placed.top - metrics.ascent
         val resolvedBottom = resolvedBaseline + metrics.descent
 
         Log.v(TAG, "nightRainLabel position: date=${day.date} text=\"$rainText\"" +
             " anchorBaseline=${tuck.anchorBaseline} tightFraction=${tuck.tightFraction}" +
-            " dynamicOverlapDp=${tuck.dynamicOverlapDp} finalTopOverlap=${finalTopOverlap}px" +
-            " finalTopY=$finalTopY finalBaseline=$finalBaseline resolvedBaseline=$resolvedBaseline" +
-            " resolvedCenterX=$resolvedCenterX resolution=$resolution finalBottom=$resolvedBottom" +
-            " hardBottomLimit=$hardBottomLimit roomBelowDp=${tuck.roomBelowDp}" +
-            " tempDescent=${tuck.tempMetrics.descent}")
+            " dynamicOverlapDp=${tuck.dynamicOverlapDp} gapCenterX=$gapCenterX homeTop=$homeTop" +
+            " resolvedCenterX=$resolvedCenterX resolvedBaseline=$resolvedBaseline" +
+            " placement=${placed.placement}" +
+            " offsetDp=(${placed.dxPx / layout.density},${placed.dyPx / layout.density})" +
+            " overlapDp=${placed.overlapPx / layout.density} obstacles=${obstacles.size}" +
+            " finalBottom=$resolvedBottom hardBottomLimit=$hardBottomLimit roomBelowDp=${tuck.roomBelowDp}")
 
         if (resolvedBottom <= hardBottomLimit) {
             canvas.drawText(rainText, resolvedCenterX, resolvedBaseline, fit.paint)
@@ -280,42 +276,6 @@ internal object DailyForecastRainLabelRenderer {
         }
 
         Log.d(TAG, "nightRainLabel skipped: bottom overflow: date=${day.date} baseline=$resolvedBaseline")
-    }
-
-    /**
-     * Resolves a collision between the night rain label and this day's own low-temp label
-     * (degree symbol included). When the two overlap, nudge the rain label straight DOWN so its
-     * baseline matches the low label's — it then sits beside the number ("56° 12%") and clears the
-     * degree symbol above. Only ever moves down, and never further than the shared baseline, so the
-     * label stays by the side of the temperature rather than dropping into the empty space below.
-     * Pure float math (no Paint/RectF) so it is unit-testable in a renderer environment where font
-     * metrics are stubbed to zero.
-     */
-    internal fun resolveNightCollision(
-        nightCenterX: Float,
-        nightBaseline: Float,
-        nightHalfWidth: Float,
-        ascent: Float,
-        descent: Float,
-        ownLeft: Float,
-        ownTop: Float,
-        ownRight: Float,
-        ownBottom: Float,
-        ownBaseline: Float,
-    ): NightCollisionResult {
-        val result = DailyRainLabelPlanner.resolveNightCollision(
-            nightCenterX = nightCenterX,
-            nightBaseline = nightBaseline,
-            nightHalfWidth = nightHalfWidth,
-            ascent = ascent,
-            descent = descent,
-            ownLeft = ownLeft,
-            ownTop = ownTop,
-            ownRight = ownRight,
-            ownBottom = ownBottom,
-            ownBaseline = ownBaseline,
-        )
-        return NightCollisionResult(result.centerX, result.baseline, result.resolution)
     }
 
     internal fun resolveRainAboveHighPlacement(
@@ -378,21 +338,15 @@ internal object DailyForecastRainLabelRenderer {
         val roomBelowPx = (hardBottomLimit - anchorBaseline).coerceAtLeast(0f)
         val roomBelowDp = roomBelowPx / layout.density
 
-        val isLeftTempLower = rightNeighborBaseline != null && leftBaseline > rightNeighborBaseline
-        val tuck = DailyRainLabelPlanner.calculateNightTuck(
-            roomBelowDp = roomBelowDp,
-            isLeftTempLower = isLeftTempLower,
-        )
+        val tuck = DailyRainLabelPlanner.calculateNightTuck(roomBelowDp = roomBelowDp)
 
         return NightTuckParams(
             anchorBaseline = anchorBaseline,
             leftBaseline = leftBaseline,
             rightNeighborBaseline = rightNeighborBaseline,
             dynamicOverlapDp = tuck.dynamicOverlapDp,
-            effectiveNudgeDp = tuck.effectiveNudgeDp,
             tightFraction = tuck.tightFraction,
             roomBelowDp = roomBelowDp,
-            isLeftTempLower = isLeftTempLower,
             tempMetrics = tempMetrics,
         )
     }
@@ -401,13 +355,13 @@ internal object DailyForecastRainLabelRenderer {
         day: DayData,
         rainText: String,
         centerX: Float,
+        gapCenterX: Float,
         layout: DailyGraphLayoutInfo,
-        hNudgePx: Float,
         paints: DailyGraphPaintSet,
     ): NightHorizontalFit? {
         val currentPaint = createScaledRainPaint(day, day.rainData.nighttimePrecipProbability, RainLabelType.NIGHT, layout.density, paints)
         val textWidth = currentPaint.measureText(rainText)
-        val shiftedCenterX = centerX + layout.dayWidth / 2f - hNudgePx + (1.0f).toPx(layout.density)
+        val shiftedCenterX = gapCenterX
         val halfWidth = textWidth / 2f
         val edgeMargin = (RAIN_LABEL_EDGE_MARGIN_DP).toPx(layout.density)
         val canShiftStandard = (shiftedCenterX + halfWidth <= layout.widthPx - edgeMargin) && (shiftedCenterX - halfWidth >= edgeMargin)

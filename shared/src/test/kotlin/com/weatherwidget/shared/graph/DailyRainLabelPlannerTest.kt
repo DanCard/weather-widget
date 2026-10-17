@@ -131,110 +131,172 @@ class DailyRainLabelPlannerTest {
     }
 
     @Test
-    fun `calculateNightTuck computes correct fractions and nudges`() {
+    fun `calculateNightTuck computes correct fractions`() {
         // Roomy column (roomBelowDp = 25 >= max 22)
-        val roomy = DailyRainLabelPlanner.calculateNightTuck(roomBelowDp = 25f, isLeftTempLower = false)
+        val roomy = DailyRainLabelPlanner.calculateNightTuck(roomBelowDp = 25f)
         assertEquals(0f, roomy.tightFraction, 0.001f)
         assertEquals(1f, roomy.roomFraction, 0.001f)
-        assertEquals(2.5f, roomy.roomyRightDp, 0.001f)
         assertEquals(2.5f, roomy.roomyDownDp, 0.001f)
         assertEquals(0f, roomy.dynamicOverlapDp, 0.001f)
-        assertEquals(1.5f, roomy.dynamicNudgeDp, 0.001f)
-        assertEquals(1.5f, roomy.effectiveNudgeDp, 0.001f)
 
         // Cramped column (roomBelowDp = 5 <= min 10)
-        val cramped = DailyRainLabelPlanner.calculateNightTuck(roomBelowDp = 5f, isLeftTempLower = false)
+        val cramped = DailyRainLabelPlanner.calculateNightTuck(roomBelowDp = 5f)
         assertEquals(1f, cramped.tightFraction, 0.001f)
         assertEquals(0f, cramped.roomFraction, 0.001f)
-        assertEquals(0f, cramped.roomyRightDp, 0.001f)
         assertEquals(0f, cramped.roomyDownDp, 0.001f)
         assertEquals(5.0f, cramped.dynamicOverlapDp, 0.001f)
-        assertEquals(3.0f, cramped.dynamicNudgeDp, 0.001f)
-        assertEquals(3.0f, cramped.effectiveNudgeDp, 0.001f)
+    }
 
-        // When left temp is lower than right neighbor, nudge is collapsed
-        val leftLower = DailyRainLabelPlanner.calculateNightTuck(roomBelowDp = 5f, isLeftTempLower = true)
-        assertEquals(0f, leftLower.effectiveNudgeDp, 0.001f)
+    // ── placeNightLabel ─────────────────────────────────────────────────────────────────────────
+    // Density 1 (1 px = 1 dp) unless stated. Label 20×8 at home centre 100, top 50.
+
+    private fun place(
+        obstacles: List<DailyRainLabelPlanner.Box>,
+        maxBottom: Float = 200f,
+        maxShift: Float = 15f,
+        density: Float = 1f,
+        homeCenterX: Float = 100f,
+        width: Float = 20f,
+        height: Float = 8f,
+        homeTop: Float = 50f,
+    ) = DailyRainLabelPlanner.placeNightLabel(
+        homeCenterX = homeCenterX,
+        homeTop = homeTop,
+        width = width,
+        height = height,
+        obstacles = obstacles,
+        maxShiftPx = maxShift,
+        maxBottom = maxBottom,
+        minLeft = 0f,
+        maxRight = 1000f,
+        density = density,
+    )
+
+    @Test
+    fun `nothing in the way - label stays exactly at the gap midpoint`() {
+        val p = place(emptyList())
+        assertEquals("home", p.placement)
+        assertEquals(100f, p.centerX, 0.001f)
+        assertEquals(50f, p.top, 0.001f)
     }
 
     @Test
-    fun `calculateNightShiftedCenterX shifts label correctly toward neighbor`() {
-        val shifted = DailyRainLabelPlanner.calculateNightShiftedCenterX(
-            columnCenterX = 100f,
-            columnWidth = 40f,
-            effectiveNudgePx = 3f,
-            roomyRightPx = 2.5f,
-            scalePx = 1f,
-        )
-        // 100 + 20 - 3 + 2.5 + 1 = 120.5
-        assertEquals(120.5f, shifted, 0.001f)
+    fun `right neighbour's low label intruding moves the label left, not down`() {
+        // Label spans 90..110; the right day's "51°" starts at 104 (6 px in), same height.
+        val p = place(listOf(DailyRainLabelPlanner.Box(104f, 45f, 150f, 62f)))
+        assertEquals("left", p.placement)
+        assertEquals(50f, p.top, 0.001f)
+        assertTrue("moved left", p.centerX < 100f)
+        // 6 px intrusion; a 3 × 8 px sliver is 15 % of the 160 px² label (slight), so 3 px clears.
+        assertEquals(97f, p.centerX, 0.001f)
     }
 
     @Test
-    fun `resolveNightCollision nudges down to own baseline on intersection`() {
-        val result = DailyRainLabelPlanner.resolveNightCollision(
-            nightCenterX = 200f,
-            nightBaseline = 100f,
-            nightHalfWidth = 12f,
-            ascent = -14f,
-            descent = 4f,
-            ownLeft = 180f,
-            ownTop = 95f,
-            ownRight = 205f,
-            ownBottom = 140f,
-            ownBaseline = 135f,
-        )
-
-        assertEquals("down", result.resolution)
-        assertEquals(135f, result.baseline, 0.01f)
-        assertEquals(200f, result.centerX, 0.01f)
+    fun `left day's low label and degree sign intruding moves the label right`() {
+        val p = place(listOf(DailyRainLabelPlanner.Box(40f, 45f, 96f, 62f)))
+        assertEquals("right", p.placement)
+        assertTrue(p.centerX > 100f)
+        assertEquals(50f, p.top, 0.001f)
     }
 
     @Test
-    fun `resolveNightCollision leaves baseline when no collision`() {
-        val result = DailyRainLabelPlanner.resolveNightCollision(
-            nightCenterX = 260f,
-            nightBaseline = 100f,
-            nightHalfWidth = 12f,
-            ascent = -14f,
-            descent = 4f,
-            ownLeft = 180f,
-            ownTop = 95f,
-            ownRight = 205f,
-            ownBottom = 140f,
-            ownBaseline = 135f,
+    fun `both sides blocked - label moves down`() {
+        val p = place(
+            listOf(
+                DailyRainLabelPlanner.Box(40f, 45f, 96f, 60f),
+                DailyRainLabelPlanner.Box(104f, 45f, 160f, 60f),
+            ),
         )
-
-        assertEquals("none", result.resolution)
-        assertEquals(100f, result.baseline, 0.01f)
+        assertEquals("down", p.placement)
+        assertEquals(100f, p.centerX, 0.001f)
+        // Each side intrudes 4 px wide; once the slivers are slight (≤ 15 % of the label area,
+        // ~4–6 px down) it stops — well short of clearing the labels' full height (10 px).
+        assertTrue("moved down a little, was ${p.top}", p.top > 52f && p.top <= 56f)
     }
 
     @Test
-    fun `resolveNightCollisionTop resolves bounding box collisions`() {
-        // Intersecting: nightTop is 100, ownTop is 120 (lower down / larger Y)
-        val snapped = DailyRainLabelPlanner.resolveNightCollisionTop(
-            nightLeft = 190f,
-            nightTop = 100f,
-            nightWidth = 24f,
-            nightHeight = 16f,
-            ownLeft = 180f,
-            ownTop = 110f,
-            ownRight = 205f,
-            ownBottom = 140f,
-        )
-        assertEquals(110f, snapped, 0.01f)
+    fun `a slight touch is accepted at home`() {
+        // 1 px into the label's right edge: within the 1.5 dp allowance.
+        val p = place(listOf(DailyRainLabelPlanner.Box(109f, 45f, 150f, 62f)))
+        assertEquals("home", p.placement)
+        assertTrue(p.overlapPx > 0f)
+    }
 
-        // Non-intersecting: nightLeft is far to the right
-        val untouched = DailyRainLabelPlanner.resolveNightCollisionTop(
-            nightLeft = 250f,
-            nightTop = 100f,
-            nightWidth = 24f,
-            nightHeight = 16f,
-            ownLeft = 180f,
-            ownTop = 110f,
-            ownRight = 205f,
-            ownBottom = 140f,
+    @Test
+    fun `a corner overlap under 15 percent of the label area is accepted`() {
+        // 4×3 = 12 px² of a 160 px² label (7.5 %), deeper than 1.5 px on both axes.
+        val p = place(listOf(DailyRainLabelPlanner.Box(106f, 55f, 150f, 80f)))
+        assertEquals("home", p.placement)
+    }
+
+    @Test
+    fun `never goes below maxBottom or further sideways than maxShift`() {
+        // A wall covering everything reachable: the least-overlap candidate is kept inside the limits.
+        val p = place(listOf(DailyRainLabelPlanner.Box(0f, 0f, 1000f, 1000f)), maxBottom = 62f, maxShift = 10f)
+        assertTrue(p.top + 8f <= 62f + 0.001f)
+        assertTrue(kotlin.math.abs(p.centerX - 100f) <= 10f + 0.001f)
+    }
+
+    @Test
+    fun `never moves up`() {
+        val p = place(listOf(DailyRainLabelPlanner.Box(0f, 0f, 1000f, 56f)))
+        assertTrue(p.top >= 50f)
+    }
+
+    @Test
+    fun `Fold 4 Mon-Tue 20 percent no longer lands right of the gap midpoint`() {
+        // Bitmap geometry from the 2026-10-17 Fold 4 logs (density ≈ 2.63 px/dp): Mon/Tue gap midpoint
+        // 288.3, "20%" ≈ 15×8 px at top 350.6, Tue's "51°" low label ≈ 290..332 × 347..365, Mon's
+        // "54°" ≈ 244..286 × 330..348, Tue's icon ≈ 297..325 × 316..344. The old code drew it at 293.5.
+        val p = place(
+            obstacles = listOf(
+                DailyRainLabelPlanner.Box(290f, 347f, 332f, 365f),
+                DailyRainLabelPlanner.Box(244f, 330f, 286f, 348f),
+                DailyRainLabelPlanner.Box(297f, 316f, 325f, 344f),
+            ),
+            homeCenterX = 288.3f,
+            width = 15f,
+            height = 8f,
+            density = 2.63f,
+            maxShift = 46f * 0.3f,
+            maxBottom = 395f,
+            homeTop = 350.6f,
         )
-        assertEquals(100f, untouched, 0.01f)
+        assertTrue("at or left of the midpoint, was ${p.centerX}", p.centerX <= 288.3f + 0.001f)
+    }
+
+    @Test
+    fun `lowLabelObstacles splits the degree sign to the top of the box`() {
+        val boxes = DailyRainLabelPlanner.lowLabelObstacles("52°", left = 60f, top = 30f, right = 100f, bottom = 50f, degreeWidth = 10f)
+        assertEquals(
+            listOf(
+                DailyRainLabelPlanner.Box(60f, 30f, 90f, 50f),
+                DailyRainLabelPlanner.Box(90f, 30f, 100f, 40f),
+            ),
+            boxes,
+        )
+        // No ° (or nothing measured): one full box.
+        assertEquals(1, DailyRainLabelPlanner.lowLabelObstacles("52", 60f, 30f, 100f, 50f, 10f).size)
+        assertEquals(1, DailyRainLabelPlanner.lowLabelObstacles("52°", 60f, 30f, 100f, 50f, 0f).size)
+    }
+
+    @Test
+    fun `night label under the blank pocket below a degree sign stays home`() {
+        // 2026-10-17 Fold 4, Silurian: Tue's "52°" ends 6 px into the label's left side; the label
+        // sits in the lower half, under the °. As one box this pushed "20%" right under Wed's number.
+        val lowLabel = DailyRainLabelPlanner.lowLabelObstacles("52°", left = 50f, top = 36f, right = 96f, bottom = 60f, degreeWidth = 10f)
+        val p = place(lowLabel)
+        assertEquals("home", p.placement)
+        assertEquals(100f, p.centerX, 0.001f)
+        // The same label against the old single box moves.
+        assertTrue(place(listOf(DailyRainLabelPlanner.Box(50f, 36f, 96f, 60f))).placement != "home")
+    }
+
+    @Test
+    fun `night label hitting the degree sign itself still moves`() {
+        // Label top 50 reaches into the ° (36..46 would not; push the ° down so it overlaps).
+        val lowLabel = DailyRainLabelPlanner.lowLabelObstacles("52°", left = 50f, top = 44f, right = 96f, bottom = 70f, degreeWidth = 10f)
+        val p = place(lowLabel)
+        assertTrue("moved off the °, was ${p.placement}", p.placement != "home")
     }
 }
