@@ -1,0 +1,1 @@
+Release 26101701: Improved daily forecast layout and column density for foldable/narrow displays; expanded interactive tap zones for daily slots; smarter rain label placement with collision detection; unified forecast bar split logic; setting for zoom-out header icon; better error and quota reporting; general stability and performance improvements.
