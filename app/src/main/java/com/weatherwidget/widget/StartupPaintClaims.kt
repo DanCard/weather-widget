@@ -10,31 +10,51 @@ import java.util.concurrent.ConcurrentHashMap
  * `APPWIDGET_UPDATE` — plans/260804-samsung-package-update-widget-rebind.md) and
  * [WeatherWidgetProvider.onUpdate] (which Pixel sends *as well*). On the Pixel both ran, back to
  * back, on a cold interpreter: three widgets × two full paints, ~35 s of the post-install storm
- * (`performance/260910-post-install-cold-start-storm.md`). The second paint shows nothing the
+ * (`performance/260910-post-install-cold-start-storm.md`). The partner's paint shows nothing the
  * first did not.
  *
- * A claim is held for [CLAIM_WINDOW_MS] from when it was made. That is long enough to cover the
- * second startup trigger (which arrives seconds later, serialized behind the first's broadcast)
- * and short enough that an `onUpdate` for a resize or the periodic host update, minutes or hours
- * later, paints as it always has.
+ * A claim is held for [CLAIM_WINDOW_MS] from when it was made, and suppresses only the **other**
+ * trigger, **once**. Within the window:
+ * - the other trigger's first paint is refused ([Decision.Skip]) and the claim is spent;
+ * - the same trigger again is a new host request, not the partner's duplicate, and paints
+ *   ([Decision.Repeat]). A Samsung fold/unfold re-adds the widgets with no views and sends
+ *   `onUpdate` again; refusing that left the Fold's inner widget on the layout defaults
+ *   (plans/261017-startup-paint-claim-skips-host-rebind.md);
+ * - a spent claim refuses nothing more.
+ * Past the window an `onUpdate` for a resize or the periodic host update paints as it always has.
  */
 internal object StartupPaintClaims {
     const val CLAIM_WINDOW_MS = 30_000L
 
-    private data class Claim(val via: String, val atElapsedMs: Long)
+    sealed interface Decision {
+        /** Nothing held this widget (or the claim had expired or was spent): paint. */
+        data object Granted : Decision
+
+        /** The same trigger asked again inside the window: paint. */
+        data class Repeat(val holderAgeMs: Long) : Decision
+
+        /** The other trigger already painted this widget inside the window: skip. */
+        data class Skip(val holder: String) : Decision
+    }
+
+    private data class Claim(val via: String, val atElapsedMs: Long, val spent: Boolean = false)
 
     private val claims = ConcurrentHashMap<Int, Claim>()
 
-    /**
-     * Claims the startup paint of [appWidgetId] for [via]. Returns null when the claim is granted,
-     * or the holder's `via` when another trigger painted this widget inside the window.
-     */
-    fun claim(appWidgetId: Int, via: String, nowElapsedMs: Long): String? {
+    /** Claims the startup paint of [appWidgetId] for [via]; see the class doc for the rule. */
+    fun claim(appWidgetId: Int, via: String, nowElapsedMs: Long): Decision {
         val fresh = Claim(via, nowElapsedMs)
         while (true) {
-            val existing = claims.putIfAbsent(appWidgetId, fresh) ?: return null
-            if (nowElapsedMs - existing.atElapsedMs < CLAIM_WINDOW_MS) return existing.via
-            if (claims.replace(appWidgetId, existing, fresh)) return null
+            val existing = claims.putIfAbsent(appWidgetId, fresh) ?: return Decision.Granted
+            val ageMs = nowElapsedMs - existing.atElapsedMs
+            val decision =
+                when {
+                    ageMs >= CLAIM_WINDOW_MS || existing.spent -> Decision.Granted
+                    existing.via == via -> Decision.Repeat(ageMs)
+                    else -> Decision.Skip(existing.via)
+                }
+            val next = if (decision is Decision.Skip) existing.copy(spent = true) else fresh
+            if (claims.replace(appWidgetId, existing, next)) return decision
         }
     }
 

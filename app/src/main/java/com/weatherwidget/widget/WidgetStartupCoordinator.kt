@@ -150,7 +150,8 @@ internal class WidgetStartupCoordinator(
             } else {
                 // One startup cache paint per widget: PackageReplacedReceiver may already have
                 // painted these seconds ago (see StartupPaintClaims). Painting them again costs a
-                // second cold full render and shows nothing new. The staleness check and the
+                // second cold full render and shows nothing new; a repeat of this same trigger
+                // (a host re-add, e.g. a Fold unfold) still paints. The staleness check and the
                 // periodic schedule below are this path's own job and still run.
                 val unpaintedIds = claimStartupPaints(validWidgetIds, claimVia, appLogDao)
                 if (unpaintedIds.isNotEmpty()) {
@@ -507,15 +508,25 @@ internal class WidgetStartupCoordinator(
     ): IntArray {
         val now = elapsedRealtime()
         return appWidgetIds.filter { appWidgetId ->
-            val holder = StartupPaintClaims.claim(appWidgetId, claimVia, now)
-            if (holder != null) {
-                appLogDao.log(
-                    "STARTUP_PAINT_SKIP",
-                    "widget=$appWidgetId via=$claimVia holder=$holder",
-                    "INFO",
-                )
+            when (val decision = StartupPaintClaims.claim(appWidgetId, claimVia, now)) {
+                StartupPaintClaims.Decision.Granted -> true
+                is StartupPaintClaims.Decision.Repeat -> {
+                    appLogDao.log(
+                        "STARTUP_PAINT_REPEAT",
+                        "widget=$appWidgetId via=$claimVia holderAgeMs=${decision.holderAgeMs}",
+                        "INFO",
+                    )
+                    true
+                }
+                is StartupPaintClaims.Decision.Skip -> {
+                    appLogDao.log(
+                        "STARTUP_PAINT_SKIP",
+                        "widget=$appWidgetId via=$claimVia holder=${decision.holder}",
+                        "INFO",
+                    )
+                    false
+                }
             }
-            holder == null
         }.toIntArray()
     }
 
