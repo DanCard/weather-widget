@@ -613,6 +613,54 @@
                 android:layout_weight="1"
                 android:background="@android:color/transparent"
                 android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day11_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day12_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day13_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day14_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day15_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day16_top_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- Lower half: spans H/2..H, children stop above the icon band. -->
@@ -699,6 +747,54 @@
 
             <FrameLayout
                 android:id="@+id/graph_day10_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day11_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day12_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day13_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day14_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day15_zone"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/graph_day16_zone"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
@@ -948,6 +1044,54 @@
 
         <FrameLayout
             android:id="@+id/graph_bottom_day10_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_day11_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_day12_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_day13_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_day14_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_day15_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_day16_zone"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"

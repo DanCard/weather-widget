@@ -21,6 +21,49 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 internal object DailyClickHandlerFactory {
+    /**
+     * Tap zones per band (upper, middle, bottom) in `widget_weather.xml`. The zones are equal-weight
+     * children of a horizontal LinearLayout, so every drawn slot needs its own zone: with fewer, the
+     * visible zones stretch across the width and drift off the columns they are wired to (13 slots on
+     * 10 zones sent the left half of Today to yesterday on the Fold inner screen,
+     * plans/261017-daily-tap-zones-fewer-than-drawn-slots.md). Raising this needs matching zones in
+     * all three bands of the layout; DailyTapZoneCoverageTest pins both.
+     */
+    const val DAILY_TAP_ZONE_COUNT = 16
+
+    /** Widest widget (dp) the zones are sized for; DailyTapZoneCoverageTest checks it fits. */
+    const val MAX_SUPPORTED_WIDTH_DP = 850
+
+    const val LOG_TAG_TAP_ZONES_SHORT = "DAILY_TAP_ZONES_SHORT"
+
+    internal val UPPER_ZONE_IDS =
+        listOf(
+            R.id.graph_day1_top_zone, R.id.graph_day2_top_zone, R.id.graph_day3_top_zone, R.id.graph_day4_top_zone,
+            R.id.graph_day5_top_zone, R.id.graph_day6_top_zone, R.id.graph_day7_top_zone, R.id.graph_day8_top_zone,
+            R.id.graph_day9_top_zone, R.id.graph_day10_top_zone, R.id.graph_day11_top_zone, R.id.graph_day12_top_zone,
+            R.id.graph_day13_top_zone, R.id.graph_day14_top_zone, R.id.graph_day15_top_zone, R.id.graph_day16_top_zone,
+        )
+
+    internal val MIDDLE_ZONE_IDS =
+        listOf(
+            R.id.graph_day1_zone, R.id.graph_day2_zone, R.id.graph_day3_zone, R.id.graph_day4_zone,
+            R.id.graph_day5_zone, R.id.graph_day6_zone, R.id.graph_day7_zone, R.id.graph_day8_zone,
+            R.id.graph_day9_zone, R.id.graph_day10_zone, R.id.graph_day11_zone, R.id.graph_day12_zone,
+            R.id.graph_day13_zone, R.id.graph_day14_zone, R.id.graph_day15_zone, R.id.graph_day16_zone,
+        )
+
+    internal val BOTTOM_ZONE_IDS =
+        listOf(
+            R.id.graph_bottom_day1_zone, R.id.graph_bottom_day2_zone, R.id.graph_bottom_day3_zone, R.id.graph_bottom_day4_zone,
+            R.id.graph_bottom_day5_zone, R.id.graph_bottom_day6_zone, R.id.graph_bottom_day7_zone, R.id.graph_bottom_day8_zone,
+            R.id.graph_bottom_day9_zone, R.id.graph_bottom_day10_zone, R.id.graph_bottom_day11_zone, R.id.graph_bottom_day12_zone,
+            R.id.graph_bottom_day13_zone, R.id.graph_bottom_day14_zone, R.id.graph_bottom_day15_zone, R.id.graph_bottom_day16_zone,
+        )
+
+    /** Launcher slots the daily graph draws: one per column, plus Today's extra slot when wide. */
+    fun visibleSlotCount(numColumns: Int, useLargeTodayOverlay: Boolean, todayVisible: Boolean): Int =
+        numColumns +
+            if (useLargeTodayOverlay && todayVisible) DailyLargeTodayOverlayPolicy.TODAY_SLOT_SPAN - 1 else 0
 
 
 
@@ -100,11 +143,7 @@ internal object DailyClickHandlerFactory {
         useLargeTodayOverlay: Boolean = false,
         hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
     ) {
-        val zoneIds = listOf(
-            R.id.graph_day1_zone, R.id.graph_day2_zone, R.id.graph_day3_zone, R.id.graph_day4_zone,
-            R.id.graph_day5_zone, R.id.graph_day6_zone, R.id.graph_day7_zone, R.id.graph_day8_zone,
-            R.id.graph_day9_zone, R.id.graph_day10_zone
-        )
+        val zoneIds = MIDDLE_ZONE_IDS
         setupGraphZoneClickHandlers(
             context = context,
             views = views,
@@ -155,12 +194,7 @@ internal object DailyClickHandlerFactory {
         useLargeTodayOverlay: Boolean = false,
         hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
     ) {
-        val zoneIds = listOf(
-            R.id.graph_day1_top_zone, R.id.graph_day2_top_zone, R.id.graph_day3_top_zone,
-            R.id.graph_day4_top_zone, R.id.graph_day5_top_zone, R.id.graph_day6_top_zone,
-            R.id.graph_day7_top_zone, R.id.graph_day8_top_zone, R.id.graph_day9_top_zone,
-            R.id.graph_day10_top_zone,
-        )
+        val zoneIds = UPPER_ZONE_IDS
         setupGraphZoneClickHandlers(
             context = context,
             views = views,
@@ -193,11 +227,7 @@ internal object DailyClickHandlerFactory {
         useLargeTodayOverlay: Boolean = false,
         hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
     ) {
-        val zoneIds = listOf(
-            R.id.graph_bottom_day1_zone, R.id.graph_bottom_day2_zone, R.id.graph_bottom_day3_zone, R.id.graph_bottom_day4_zone,
-            R.id.graph_bottom_day5_zone, R.id.graph_bottom_day6_zone, R.id.graph_bottom_day7_zone, R.id.graph_bottom_day8_zone,
-            R.id.graph_bottom_day9_zone, R.id.graph_bottom_day10_zone,
-        )
+        val zoneIds = BOTTOM_ZONE_IDS
         setupGraphZoneClickHandlers(
             context = context,
             views = views,
@@ -241,13 +271,7 @@ internal object DailyClickHandlerFactory {
                 todayFlags = days.map { it.isToday },
                 enabled = useLargeTodayOverlay,
             )
-        val visibleSlotCount =
-            numColumns +
-                if (useLargeTodayOverlay && days.any { it.isToday }) {
-                    DailyLargeTodayOverlayPolicy.TODAY_SLOT_SPAN - 1
-                } else {
-                    0
-                }
+        val visibleSlotCount = visibleSlotCount(numColumns, useLargeTodayOverlay, days.any { it.isToday })
         for (i in zoneIds.indices) {
             val zoneId = zoneIds[i]
             if (i < visibleSlotCount) {

@@ -421,6 +421,89 @@ class DailyViewGraphClickAlignmentTest {
         )
     }
 
+    @Test
+    fun `Fold inner widget - every tap zone opens the column drawn under it, Today's whole width included`() = runBlocking {
+        // 662dp x 465dp (5 rows): 12 days with the wide Today overlay = 13 drawn slots. With 10 zones
+        // the left 45% of Today opened yesterday (plans/261017-daily-tap-zones-fewer-than-drawn-slots.md).
+        val widgetId = 40
+        val now = LocalDateTime.of(2026, 3, 20, 12, 0)
+        val today = now.toLocalDate()
+
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(widgetId)
+        stateManager.setZoomLevel(widgetId, ZoomStage.WIDE)
+        stateManager.setViewMode(widgetId, com.weatherwidget.widget.ViewMode.DAILY)
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 662)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 662)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 465)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 465)
+        }
+        every { appWidgetManager.getAppWidgetOptions(widgetId) } returns options
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(widgetId, capture(viewsSlot)) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = widgetId,
+            weatherData = WeatherData(
+                weatherList = (-3L..14L).map { createWeather(today.plusDays(it).format(DateTimeFormatter.ISO_LOCAL_DATE)) },
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(),
+            now = now,
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
+        )
+
+        val applied = viewsSlot.captured.apply(context, FrameLayout(context) as ViewGroup)
+        applied.measure(
+            MeasureSpec.makeMeasureSpec(1300, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(900, MeasureSpec.EXACTLY),
+        )
+        applied.layout(0, 0, applied.measuredWidth, applied.measuredHeight)
+        val broadcasts = shadowOf(context as android.app.Application).broadcastIntents
+        val expectedSlots = 13
+
+        val bands = mapOf(
+            "upper" to DailyClickHandlerFactory.UPPER_ZONE_IDS,
+            "middle" to DailyClickHandlerFactory.MIDDLE_ZONE_IDS,
+            "bottom" to DailyClickHandlerFactory.BOTTOM_ZONE_IDS,
+        )
+        for ((band, ids) in bands) {
+            val visible = ids.map { applied.findViewById<View>(it) }.filter { it.visibility == View.VISIBLE }
+            assertEquals("$band: one visible zone per drawn slot", expectedSlots, visible.size)
+
+            // Equal widths: the zones split the band exactly as the bitmap splits its slots.
+            val widths = visible.map { it.width }
+            assertTrue("$band: zone widths must be equal, got $widths", widths.max() - widths.min() <= 1)
+
+            val dates = visible.map { zone ->
+                val before = broadcasts.size
+                zone.performClick()
+                assertEquals("$band zone ${visible.indexOf(zone)} must fire a click", before + 1, broadcasts.size)
+                assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
+                LocalDate.parse(broadcasts.last().getStringExtra("date"))
+            }
+
+            // Today covers two adjacent slots; every other slot is its own day, consecutive left to right.
+            val todayZones = dates.indices.filter { dates[it] == today }
+            assertEquals("$band: Today must own exactly two adjacent zones, dates=$dates", 2, todayZones.size)
+            assertEquals("$band: Today's zones must be adjacent", todayZones[0] + 1, todayZones[1])
+            val distinct = dates.distinct()
+            assertEquals("$band: dates=$dates", expectedSlots - 1, distinct.size)
+            distinct.zipWithNext().forEach { (a, b) ->
+                assertEquals("$band: consecutive days left to right, dates=$dates", a.plusDays(1), b)
+            }
+            assertEquals("$band: the zone left of Today is yesterday", today.minusDays(1), dates[todayZones[0] - 1])
+        }
+    }
+
     private fun createWeather(date: String): ForecastEntity {
         return ForecastEntity(
             targetDate = dateEpoch(date),

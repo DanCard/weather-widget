@@ -355,6 +355,21 @@ internal object DailyGraphRenderer {
             )
         }
 
+        val tapSlots =
+            DailyClickHandlerFactory.visibleSlotCount(
+                displayDays.size,
+                ctx.largeTodayOverlayEnabled,
+                displayDays.any { it.isToday },
+            )
+        if (tapSlots > DailyClickHandlerFactory.DAILY_TAP_ZONE_COUNT) {
+            // Fewer zones than drawn slots misroutes taps across the whole width, not just the overflow.
+            ctx.appLogDao.log(
+                DailyClickHandlerFactory.LOG_TAG_TAP_ZONES_SHORT,
+                "widget=${ctx.appWidgetId} slots=$tapSlots zones=${DailyClickHandlerFactory.DAILY_TAP_ZONE_COUNT} " +
+                    "widthDp=${dimensions.widthDp}",
+                "WARN",
+            )
+        }
         DailyClickHandlerFactory.setupGraphDayClickHandlers(
             ctx.context,
             ctx.views,
