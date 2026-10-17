@@ -253,4 +253,24 @@ class ForecastSnapshotDeduplicationTest {
         val batchLogs = db.appLogDao().getLogsByTag("NWS_BATCH_SAVE_SUMMARY", 5)
         assertTrue(batchLogs.any { it.message.contains("savedMaxDate=$dayAfterTomorrow") })
     }
+
+    @Test
+    fun `userRefresh creates a snapshot even when forecast values are identical`() = runTest {
+        val weather = listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f, condition = "Sunny"))
+        // First fetch
+        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", batchFetchedAt = 1_000L, nowMs = 1_000L, userRefresh = false)
+        assertEquals(1, db.forecastDao().getCount())
+
+        // Routine background sync with identical data: skipped
+        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", batchFetchedAt = 70_000L, nowMs = 70_000L, userRefresh = false)
+        assertEquals(1, db.forecastDao().getCount())
+
+        // User-initiated refresh: creates a new snapshot without deleting the earlier one
+        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", batchFetchedAt = 150_000L, nowMs = 150_000L, userRefresh = true)
+        assertEquals(2, db.forecastDao().getCount())
+
+        // Rapid double-tap within 60s: debounced
+        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", batchFetchedAt = 170_000L, nowMs = 170_000L, userRefresh = true)
+        assertEquals(2, db.forecastDao().getCount())
+    }
 }

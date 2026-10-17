@@ -109,7 +109,8 @@ class WeatherRepository
             sourceId: String,
             batchFetchedAt: Long = forecastRepository.clock(),
             nowMs: Long = forecastRepository.clock(),
-        ) = forecastRepository.saveForecastSnapshot(weatherForecasts, latitude, longitude, sourceId, batchFetchedAt, nowMs)
+            userRefresh: Boolean = false,
+        ) = forecastRepository.saveForecastSnapshot(weatherForecasts, latitude, longitude, sourceId, batchFetchedAt, nowMs, userRefresh)
         
         /** See [ForecastRepository.fetchSourceOnDemand]. */
         suspend fun fetchSourceOnDemand(

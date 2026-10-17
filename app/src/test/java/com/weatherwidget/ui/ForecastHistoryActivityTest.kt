@@ -241,4 +241,20 @@ class ForecastHistoryActivityTest {
         assertEquals(3000L, selected?.fetchedAt)
     }
 
+    // --- resolveForecastFetchTime ---
+
+    @Test
+    fun `resolveForecastFetchTime - source success time present - prefers source success time`() {
+        assertEquals(5000L, ForecastHistoryActivity.resolveForecastFetchTime(sourceSuccessMs = 5000L, lastFullFetchMs = 1000L))
+    }
+
+    @Test
+    fun `resolveForecastFetchTime - source success time zero - falls back to last full fetch time`() {
+        assertEquals(1000L, ForecastHistoryActivity.resolveForecastFetchTime(sourceSuccessMs = 0L, lastFullFetchMs = 1000L))
+    }
+
+    @Test
+    fun `resolveForecastFetchTime - both zero - returns zero`() {
+        assertEquals(0L, ForecastHistoryActivity.resolveForecastFetchTime(sourceSuccessMs = 0L, lastFullFetchMs = 0L))
+    }
 }

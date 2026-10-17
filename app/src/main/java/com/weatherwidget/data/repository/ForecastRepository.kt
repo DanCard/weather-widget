@@ -504,6 +504,7 @@ class ForecastRepository
             sourceId: String,
             batchFetchedAt: Long = clock(),
             nowMs: Long = clock(),
+            userRefresh: Boolean = false,
         ) {
             snapshotStore.saveForecastSnapshot(
                 weatherForecasts,
@@ -512,6 +513,7 @@ class ForecastRepository
                 sourceId,
                 batchFetchedAt,
                 nowMs,
+                userRefresh,
             )
         }
 

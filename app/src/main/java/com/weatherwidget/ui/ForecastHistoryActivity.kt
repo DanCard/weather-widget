@@ -127,6 +127,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
             hasLonExtra: Boolean,
         ): Boolean = targetDate != null && hasLatExtra && hasLonExtra
 
+        fun resolveForecastFetchTime(
+            sourceSuccessMs: Long,
+            lastFullFetchMs: Long,
+        ): Long = if (sourceSuccessMs > 0L) sourceSuccessMs else lastFullFetchMs
+
         internal fun normalizeSource(rawSource: String?): WeatherSource? =
             WeatherSource.fromDisplaySourceOrNull(rawSource)
 
@@ -874,11 +879,13 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val displayedDataView = findViewById<TextView>(R.id.freshness_displayed_data)
 
         val nowMs = System.currentTimeMillis()
-        val lastFullFetchMs = FetchMetadata.getLastFullFetchTime(this)
+        val source = cachedRequestedSource ?: firstVisibleSource() ?: WeatherSource.NWS
+        val sourceSuccessMs = FetchMetadata.getLastForecastSourceSuccessTime(this, source.id, targetLat, targetLon)
+        val lastFetchMs = resolveForecastFetchTime(sourceSuccessMs, FetchMetadata.getLastFullFetchTime(this))
 
-        // Last full forecast fetch
-        forecastFetchView.text = if (lastFullFetchMs > 0L) {
-            getString(R.string.freshness_forecast_fetch_ago, formatRelativeTime(nowMs - lastFullFetchMs))
+        // Last forecast fetch
+        forecastFetchView.text = if (lastFetchMs > 0L) {
+            getString(R.string.freshness_forecast_fetch_ago, formatRelativeTime(nowMs - lastFetchMs))
         } else {
             getString(R.string.freshness_forecast_fetch_never)
         }

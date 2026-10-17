@@ -76,9 +76,11 @@ internal class ForecastSnapshotStore(
         latitude: Double,
         longitude: Double,
         sourceId: String,
-        batchFetchedAt: Long = clock(),
+        batchFetchedAt: Long? = null,
         nowMs: Long = clock(),
+        userRefresh: Boolean = false,
     ) {
+        val effectiveBatchFetchedAt = batchFetchedAt ?: nowMs
         val now = Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault())
         val todayDate = PredictionDate.of(nowMs)
         val todayEpoch = PredictionDate.epochMs(nowMs)
@@ -183,8 +185,8 @@ internal class ForecastSnapshotStore(
                 daytimePrecipProbability = periods.day,
                 nighttimePrecipProbability = periods.night,
                 precipAmountMm = forecast.precipAmountMm,
-                batchFetchedAt = batchFetchedAt,
-                fetchedAt = System.currentTimeMillis(),
+                batchFetchedAt = effectiveBatchFetchedAt,
+                fetchedAt = nowMs,
                 hindcastHighTemp = hindcastHigh,
                 hindcastLowTemp = hindcastLow,
             ).withHourlySummary(summary)
@@ -211,7 +213,9 @@ internal class ForecastSnapshotStore(
                     (existing.highTemp == null && newlyFetched.highTemp != null) ||
                         (existing.lowTemp == null && newlyFetched.lowTemp != null)
                 )
-            if (fieldsMatch && !newDataIsStrictlyBetter) {
+            val isUnchanged = fieldsMatch && !newDataIsStrictlyBetter
+            val recentDuplicate = existing != null && (nowMs - existing.fetchedAt in 0 until 60_000L)
+            if (isUnchanged && (!userRefresh || recentDuplicate)) {
                 appLogDao.log(
                     "SNAPSHOT_SKIP",
                     "date=${newlyFetched.targetDate} source=$sourceId " +
@@ -221,7 +225,7 @@ internal class ForecastSnapshotStore(
                         "existing_precip=${existing.precipProbability} " +
                         "new_precip=${newlyFetched.precipProbability}",
                 )
-                unchangedBatchRows += existing.copy(batchFetchedAt = batchFetchedAt)
+                unchangedBatchRows += existing.copy(batchFetchedAt = effectiveBatchFetchedAt)
                 false
             } else {
                 if (existing != null && newDataIsStrictlyBetter) {
@@ -234,7 +238,8 @@ internal class ForecastSnapshotStore(
                 }
                 appLogDao.log(
                     "SNAPSHOT_SAVE",
-                    "date=${newlyFetched.targetDate} source=$sourceId",
+                    "date=${newlyFetched.targetDate} source=$sourceId" +
+                        if (isUnchanged && userRefresh) " user_refresh=true" else "",
                 )
                 true
             }
@@ -244,7 +249,7 @@ internal class ForecastSnapshotStore(
             appLogDao.log(
                 "NWS_BATCH_SAVE_SUMMARY",
                 buildNwsBatchSaveSummary(
-                    batchFetchedAt = batchFetchedAt,
+                    batchFetchedAt = effectiveBatchFetchedAt,
                     rawForecasts = weatherForecasts,
                     forecastsToSave = forecastsToSave,
                     changedForecasts = changedForecasts,
@@ -252,10 +257,10 @@ internal class ForecastSnapshotStore(
             )
         }
 
-        if (changedForecasts.isNotEmpty()) {
+        if (changedForecasts.isNotEmpty() && !userRefresh) {
             val prioritySourceIds = widgetStateManager.getActiveDisplaySourceIds()
             val bucketStart = ForecastHistoryPolicy.timestampToGroupPredictions(
-                System.currentTimeMillis(),
+                nowMs,
                 sourceId,
                 prioritySourceIds,
             )

@@ -441,7 +441,7 @@ internal class ForecastFetchCoordinator(
         fetchedBySource.forEach { (source, forecasts) ->
             forecasts?.let {
                 val parts = plan.getValue(source)
-                if (parts.daily) saveDailyBatch(it, latitude, longitude, source, horizons[source])
+                if (parts.daily) saveDailyBatch(it, latitude, longitude, source, horizons[source], userRefresh = isUserRefreshOf(source, fetchContext))
                 markHorizon(horizons[source], source, latitude, longitude)
             }
         }
@@ -474,7 +474,7 @@ internal class ForecastFetchCoordinator(
         val entry = buildFetchRegistry(fetchContext, mapOf(source to horizon))[source] ?: return false
         val forecasts = safeFetch(entry.tag, source, latitude, longitude) { entry.fetch(latitude, longitude) }
             ?: return false
-        saveDailyBatch(forecasts, latitude, longitude, source, horizon)
+        saveDailyBatch(forecasts, latitude, longitude, source, horizon, userRefresh = isUserRefreshOf(source, fetchContext))
         markHorizon(horizon, source, latitude, longitude)
         return true
     }
@@ -489,6 +489,7 @@ internal class ForecastFetchCoordinator(
         longitude: Double,
         source: WeatherSource,
         horizon: ForecastHorizonCadence.Horizon?,
+        userRefresh: Boolean = false,
     ) {
         val nowMs = clock()
         val today = java.time.Instant.ofEpochMilli(nowMs).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
@@ -502,6 +503,7 @@ internal class ForecastFetchCoordinator(
             source.id,
             batchFetchedAt = nowMs,
             nowMs = nowMs,
+            userRefresh = userRefresh,
         )
     }
 
