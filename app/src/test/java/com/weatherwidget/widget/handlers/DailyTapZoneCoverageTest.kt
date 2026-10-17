@@ -59,9 +59,11 @@ class DailyTapZoneCoverageTest {
 
     @Test
     fun `the Fold inner widget fits`() {
-        // 662dp, the widget that showed the bug: 13 slots.
-        assertEquals(13, WidgetSizeCalculator.columnsForWidthDp(662))
-        assertTrue(13 <= DailyClickHandlerFactory.DAILY_TAP_ZONE_COUNT)
+        // 662dp, the widget that showed the bug: 13 slots then, 12 since the wide cell width
+        // (plans/261017-daily-density-narrow-only.md) — still more than the old 10 zones.
+        val slots = WidgetSizeCalculator.columnsForWidthDp(662)
+        assertEquals(12, slots)
+        assertTrue(slots <= DailyClickHandlerFactory.DAILY_TAP_ZONE_COUNT)
     }
 
     @Test

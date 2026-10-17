@@ -13,9 +13,10 @@ import org.junit.experimental.categories.Category
 /**
  * Pure-function tests for the width->columns (and height->rows) mapping.
  *
- * These pin the column density: the Pixel 7 Pro (~373dp) shows 7 days and the Samsung Fold 4
- * full-width widget (~574dp) shows 10. Density is set by CELL_WIDTH_DP plus the COLUMN_FIT_BIAS_DP
- * round-up; see WidgetSizeCalculator.
+ * These pin the column density: the Fold 4 cover (~337dp) and Pixel 7 Pro (~373dp) get 7 slots, the
+ * Fold 4 full-width widget (~574dp) 10 and the Fold 4 inner widget (~662dp) 12. Density is set by
+ * DailyLayoutConstants.cellWidthDp (55dp narrow, 60dp from 436dp) plus the COLUMN_FIT_BIAS_DP
+ * round-up; see WidgetSizeCalculator and plans/261017-daily-density-narrow-only.md.
  *
  * Kept as plain JUnit (no Robolectric) since the math is decoupled from Android plumbing.
  */
@@ -23,7 +24,7 @@ import org.junit.experimental.categories.Category
 class WidgetSizeCalculatorColumnsTest {
     @Test
     fun columns_matchDocumentedSizeTable() {
-        // Representative widths under the current density (CELL_WIDTH_DP=55, bias=30).
+        // Representative widths: 55dp cells below 436dp, 60dp from there; bias 30.
         assertEquals(1, WidgetSizeCalculator.columnsForWidthDp(40))
         assertEquals(3, WidgetSizeCalculator.columnsForWidthDp(130))
         assertEquals(4, WidgetSizeCalculator.columnsForWidthDp(210))
@@ -47,10 +48,37 @@ class WidgetSizeCalculatorColumnsTest {
     }
 
     @Test
-    fun columns_foldFullWidthFitsElevenDays() {
-        // Samsung Fold 4 full-width (6-span) widget reports ~574dp -> 11 columns
-        // (window -1..+9; +8..+9 use the climate-normal / extension fallback).
-        assertEquals(11, WidgetSizeCalculator.columnsForWidthDp(574))
+    fun columns_foldFullWidthFitsTenColumns() {
+        // Samsung Fold 4 full-width (6-span) widget reports ~574dp -> 10 columns (60dp cells).
+        assertEquals(10, WidgetSizeCalculator.columnsForWidthDp(574))
+    }
+
+    @Test
+    fun columns_foldInnerWidgetFitsTwelveSlotsForElevenDays() {
+        // Fold 4 inner widget 345 reports 662dp. 55dp cells made it 13 slots (12 days), too dense;
+        // 60dp cells give 12 slots = 11 days with the Today overlay. Verified on RFCT70G352Y.
+        assertEquals(12, WidgetSizeCalculator.columnsForWidthDp(662))
+        // 11->12 boundary under the wide cell.
+        assertEquals(11, WidgetSizeCalculator.columnsForWidthDp(659))
+        assertEquals(12, WidgetSizeCalculator.columnsForWidthDp(660))
+    }
+
+    @Test
+    fun columns_switchToWideCellsKeepsTheCount() {
+        // Both cell widths give 8 columns either side of the 436dp switch.
+        assertEquals(8, WidgetSizeCalculator.columnsForWidthDp(435))
+        assertEquals(8, WidgetSizeCalculator.columnsForWidthDp(436))
+    }
+
+    @Test
+    fun columns_neverDecreaseAsWidthGrows() {
+        // A cell-width switch at the wrong width would give a wider widget fewer columns.
+        var previous = WidgetSizeCalculator.columnsForWidthDp(0)
+        for (widthDp in 1..1000) {
+            val columns = WidgetSizeCalculator.columnsForWidthDp(widthDp)
+            assertTrue("${widthDp}dp -> $columns columns, ${widthDp - 1}dp -> $previous", columns >= previous)
+            previous = columns
+        }
     }
 
     @Test

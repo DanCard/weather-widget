@@ -114,7 +114,6 @@ data class DesktopDailyViewState(
 )
 
 object DesktopDailyForecastModel {
-    const val CELL_WIDTH_DP = DailyLayoutConstants.CELL_WIDTH_DP
     const val CELL_HEIGHT_DP = DailyLayoutConstants.CELL_HEIGHT_DP
     const val ICON_WIDTH_THRESHOLD_DP = DailyLayoutConstants.ICON_WIDTH_THRESHOLD_DP
     private const val MAX_DESKTOP_DAILY_COLUMNS = 9
@@ -125,10 +124,14 @@ object DesktopDailyForecastModel {
      */
     private const val DAILY_MAX_EXTRA_HISTORY = 14
 
-    fun dimensions(widthDp: Int, heightDp: Int): DesktopWidgetDimensions {
-        val cols = ((widthDp + 15).toFloat() / CELL_WIDTH_DP).roundToInt()
+    /** Day columns for a popup [widthDp] wide; the cell width is shared with Android. */
+    fun columnsForWidthDp(widthDp: Int): Int =
+        ((widthDp + 15).toFloat() / DailyLayoutConstants.cellWidthDp(widthDp)).roundToInt()
             .coerceAtLeast(1)
             .coerceAtMost(MAX_DESKTOP_DAILY_COLUMNS)
+
+    fun dimensions(widthDp: Int, heightDp: Int): DesktopWidgetDimensions {
+        val cols = columnsForWidthDp(widthDp)
         val rows = ((heightDp + 25).toFloat() / CELL_HEIGHT_DP).roundToInt().coerceAtLeast(1)
         val rawRows = (heightDp + 25).toFloat() / CELL_HEIGHT_DP
         return DesktopWidgetDimensions(

@@ -423,8 +423,9 @@ class DailyViewGraphClickAlignmentTest {
 
     @Test
     fun `Fold inner widget - every tap zone opens the column drawn under it, Today's whole width included`() = runBlocking {
-        // 662dp x 465dp (5 rows): 12 days with the wide Today overlay = 13 drawn slots. With 10 zones
-        // the left 45% of Today opened yesterday (plans/261017-daily-tap-zones-fewer-than-drawn-slots.md).
+        // 662dp x 465dp (5 rows): 11 days with the wide Today overlay = 12 drawn slots (13 before
+        // plans/261017-daily-density-narrow-only.md). With 10 zones the left of Today opened
+        // yesterday (plans/261017-daily-tap-zones-fewer-than-drawn-slots.md).
         val widgetId = 40
         val now = LocalDateTime.of(2026, 3, 20, 12, 0)
         val today = now.toLocalDate()
@@ -468,7 +469,8 @@ class DailyViewGraphClickAlignmentTest {
         )
         applied.layout(0, 0, applied.measuredWidth, applied.measuredHeight)
         val broadcasts = shadowOf(context as android.app.Application).broadcastIntents
-        val expectedSlots = 13
+        val expectedSlots = WidgetSizeCalculator.columnsForWidthDp(662)
+        assertEquals(12, expectedSlots)
 
         val bands = mapOf(
             "upper" to DailyClickHandlerFactory.UPPER_ZONE_IDS,
