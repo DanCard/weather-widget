@@ -60,10 +60,8 @@ object WeatherConditionColors {
     internal fun resolveMixedBarSplit(iconRes: Int, cloudRatioOverride: Float? = null): MixedBarSplit? {
         // Delegate the split math/colors to the shared single source of truth (keeps Android and
         // desktop identical); Android only supplies its resource-ID inputs.
-        val ratio = cloudRatioOverride ?: cloudRatio(iconRes)
-        val isChanceOfRain = WeatherIconMapper.iconResToName(iconRes)
-            ?.let(WeatherConditionResolver::isChanceOfRainIcon) ?: false
-        val shared = WeatherColors.mixedBarSplit(ratio, isChanceOfRain) ?: return null
+        val iconName = WeatherIconMapper.iconResToName(iconRes)
+        val shared = WeatherColors.resolveMixedBarSplit(iconName, cloudRatioOverride) ?: return null
         return MixedBarSplit(
             ratio = shared.ratio,
             topColor = shared.topColorArgb,

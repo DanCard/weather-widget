@@ -56,4 +56,40 @@ class MixedBarSplitTest {
         assertEquals(false, WeatherConditionResolver.isChanceOfRainIcon(WeatherConditionResolver.IC_PARTLY_CLOUDY_SLIGHT_CHANCE_RAIN))
         assertEquals(false, WeatherConditionResolver.isChanceOfRainIcon(WeatherConditionResolver.IC_RAIN))
     }
+
+    @Test
+    fun resolveMixedBarSplitResolvesBlueForChanceOfRain() {
+        // With explicit cloud ratio override
+        val split = WeatherColors.resolveMixedBarSplit(
+            iconName = WeatherConditionResolver.IC_CLOUDY_CHANCE_RAIN,
+            cloudCoverRatio = 0.99f,
+        )!!
+        assertEquals(WeatherColors.FORECAST_RAINY, split.bottomColorArgb)
+        assertEquals(WeatherColors.FORECAST_SUNNY, split.topColorArgb)
+        assertEquals(0.99f, split.ratio, 1e-6f)
+        assertEquals(0.01f, split.topFraction, 1e-6f)
+
+        // Without override, falls back to canonical icon cloud ratio (0.65 for cloudy_chance_rain)
+        val fallbackSplit = WeatherColors.resolveMixedBarSplit(
+            iconName = WeatherConditionResolver.IC_CLOUDY_CHANCE_RAIN,
+            cloudCoverRatio = null,
+        )!!
+        assertEquals(WeatherColors.FORECAST_RAINY, fallbackSplit.bottomColorArgb)
+        assertEquals(0.65f, fallbackSplit.ratio, 1e-6f)
+
+        // Non-chance-rain icon resolves grey
+        val greySplit = WeatherColors.resolveMixedBarSplit(
+            iconName = WeatherConditionResolver.IC_CLOUDY,
+            cloudCoverRatio = 0.85f,
+        )!!
+        assertEquals(WeatherColors.FORECAST_CLOUDY, greySplit.bottomColorArgb)
+    }
+
+    @Test
+    fun shouldDrawAdaptiveBarMatchesContract() {
+        assertTrue(WeatherColors.shouldDrawAdaptiveBar(isMixed = true, cloudCoverRatio = null))
+        assertTrue(WeatherColors.shouldDrawAdaptiveBar(isMixed = false, cloudCoverRatio = 0.5f))
+        assertEquals(false, WeatherColors.shouldDrawAdaptiveBar(isMixed = false, cloudCoverRatio = 0f))
+        assertEquals(false, WeatherColors.shouldDrawAdaptiveBar(isMixed = false, cloudCoverRatio = null))
+    }
 }

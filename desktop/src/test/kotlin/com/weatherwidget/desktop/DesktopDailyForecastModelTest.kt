@@ -820,4 +820,27 @@ settings = config.settings.copy(useCelsius = false)),
         assertFalse(state.canNavigateLeft) // Already at the earliest date (June 1st)
         assertFalse(state.canNavigateRight) // No data past today
     }
+
+    @Test
+    fun `future day with chance of rain resolves chance rain icon`() {
+        val now = LocalDateTime.parse("2026-10-17T07:00:00")
+        val forecast = snapshot(
+            daily = listOf(
+                DailyForecast("2026-10-17", 80f, 60f, "Sunny"),
+                DailyForecast("2026-10-21", 68f, 51f, "Rain Showers", precipProbability = 65, noonCloudPercent = 99),
+            ),
+        )
+        val state = buildModel(config, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
+        val wed = state.days.single { it.date == LocalDate.parse("2026-10-21") }
+        assertEquals("ic_weather_cloudy_chance_rain", wed.iconName)
+        assertEquals(0.99f, wed.cloudCoverRatio)
+
+        val split = com.weatherwidget.shared.util.WeatherColors.resolveMixedBarSplit(wed.iconName, wed.cloudCoverRatio)
+        assertNotNull("Bar split must resolve for chance-rain day", split)
+        assertEquals(
+            "Bottom segment must be FORECAST_RAINY (Steel Blue)",
+            com.weatherwidget.shared.util.WeatherColors.FORECAST_RAINY,
+            split!!.bottomColorArgb,
+        )
+    }
 }

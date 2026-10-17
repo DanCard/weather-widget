@@ -64,4 +64,21 @@ object WeatherColors {
             topFraction = (1f - r).coerceIn(0f, 1f),
         )
     }
+
+    /**
+     * Resolves the weather-adaptive bar split from an icon name and optional cloud cover override.
+     * Single source of truth shared by Android and desktop.
+     */
+    fun resolveMixedBarSplit(iconName: String?, cloudCoverRatio: Float? = null): MixedBarSplit? {
+        val ratio = cloudCoverRatio ?: iconName?.let(WeatherConditionResolver::cloudRatioFromIcon)
+        val isChanceOfRain = iconName?.let(WeatherConditionResolver::isChanceOfRainIcon) ?: false
+        return mixedBarSplit(ratio, isChanceOfRain)
+    }
+
+    /**
+     * Decides whether a bar should draw adaptive segments (gold top + cloud/rain bottom) vs a solid bar.
+     * Shared across Android and desktop.
+     */
+    fun shouldDrawAdaptiveBar(isMixed: Boolean, cloudCoverRatio: Float?): Boolean =
+        isMixed || (cloudCoverRatio ?: 0f) > 0f
 }

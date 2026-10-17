@@ -63,6 +63,7 @@ data class DesktopDailyDay(
      * so the displayed icon (and its painter/colors/tap-routing) match Android.
      */
     val iconName: String,
+    val snapshotIconName: String? = null,
     val isToday: Boolean,
     val isPast: Boolean,
     /** True when this past day's solid line is a promoted forecast (no actuals) — render as forecast. */
@@ -525,7 +526,6 @@ object DesktopDailyForecastModel {
                     displaySourceId = displaySourceId,
                     rowSourceId = rowSourceId,
                 )
-        val noonCloudPercentForBar = measuredNoonCloudPercent ?: 0
         val rawCondition = forecast?.condition ?: actual?.condition ?: displaySnapshot?.condition
         // Daily icon noon is daytime (isNight = false). Thread the measured noon cloud % in, then
         // apply the daily partly-cloudy floor: worded "partly cloudy" needs ≥25% noon cloud to stand.
@@ -538,6 +538,21 @@ object DesktopDailyForecastModel {
         val gatedIconName = com.weatherwidget.shared.util.WeatherConditionResolver.applyDailyPartlyCloudyFloor(
             baseIconName, measuredNoonCloudPercent, isNight = false,
         )
+        val snapshotIconName = when {
+            isToday && displaySnapshot != null -> {
+                val base = com.weatherwidget.shared.util.WeatherConditionResolver.resolveIconName(
+                    condition = displaySnapshot.condition,
+                    isNight = false,
+                    cloudCover = measuredNoonCloudPercent,
+                    precipProbability = displaySnapshot.precipProbability,
+                )
+                com.weatherwidget.shared.util.WeatherConditionResolver.applyDailyPartlyCloudyFloor(
+                    base, measuredNoonCloudPercent, isNight = false,
+                )
+            }
+            isPast && (pastPrior?.high != null || displaySnapshot?.highTemp != null) -> gatedIconName
+            else -> null
+        }
 
         return DesktopDailyDay(
             date = date,
@@ -563,6 +578,7 @@ object DesktopDailyForecastModel {
             },
             iconCondition = rawCondition,
             iconName = gatedIconName,
+            snapshotIconName = snapshotIconName,
             isToday = isToday,
             isPast = isPast,
             solidIsForecastFallback = solidIsForecastFallback,
@@ -573,7 +589,7 @@ object DesktopDailyForecastModel {
                 ),
             forecastIsFallback = forecastIsFallback,
             actualsFromOtherSite = isPast && !solidIsForecastFallback && actual?.isActualsBorrowed == true,
-            cloudCoverRatio = noonCloudPercentForBar / 100f,
+            cloudCoverRatio = (measuredNoonCloudPercent ?: 0) / 100f,
             dailyRainLabelText = dailyRainLabelText,
             nightRainLabelText = nightRainLabelText,
             dayPrecipProbability = resolvedPrecip.dayPrecip,

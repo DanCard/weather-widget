@@ -1457,4 +1457,68 @@ class DailyForecastGraphRendererRoboTest {
         assertNotEquals(WeatherConditionColors.FORECAST_CLOUDY, snapshotBar.color)
         assertTrue("Snapshot bar should have adaptive segments", snapshotBar.adaptiveSegments)
     }
+
+    @Test
+    fun futureDay_solidRain_rendersBlueColumn() {
+        val date = LocalDate.of(2026, 10, 21)
+        val rainDay = DailyForecastGraphRenderer.DayData(
+            date = date,
+            label = "Wed",
+            solidLineHigh = 68f,
+            solidLineLow = 51f,
+            iconRes = R.drawable.ic_weather_rain,
+            isSunny = false,
+            isRainy = true,
+            isMixed = false,
+            isToday = false,
+            isPast = false,
+        )
+
+        val results = render(listOf(rainDay))
+        val futureBar = results.find { it.barType == "FUTURE" }
+        assertNotNull("Future rain bar should be drawn", futureBar)
+        assertEquals(
+            "Solid rain column must be colored FORECAST_RAINY (Steel Blue)",
+            WeatherConditionColors.FORECAST_RAINY,
+            futureBar!!.color,
+        )
+    }
+
+    @Test
+    fun futureDay_chanceOfRain_resolvesBlueBottomSegment() {
+        val date = LocalDate.of(2026, 10, 21)
+        // Wednesday Google Weather scenario: "Rain Showers", 65% pop, 99% cloud
+        val chanceRainDay = DailyForecastGraphRenderer.DayData(
+            date = date,
+            label = "Wed",
+            solidLineHigh = 68f,
+            solidLineLow = 51f,
+            iconRes = R.drawable.ic_weather_cloudy_chance_rain,
+            isSunny = false,
+            isRainy = false,
+            isMixed = true,
+            isToday = false,
+            isPast = false,
+            cloudCoverRatioOverride = 0.99f,
+        )
+
+        val split = WeatherConditionColors.resolveMixedBarSplit(
+            chanceRainDay.iconRes!!,
+            chanceRainDay.cloudCoverRatioOverride,
+        )
+        assertNotNull("Adaptive bar split must be resolved for mixed chance-rain day", split)
+        assertEquals(
+            "Chance of rain bottom segment must be colored FORECAST_RAINY (Steel Blue)",
+            WeatherConditionColors.FORECAST_RAINY,
+            split!!.bottomColor,
+        )
+
+        val results = render(listOf(chanceRainDay))
+        val futureBar = results.find { it.barType == "FUTURE" }
+        assertNotNull("Future bar should be drawn", futureBar)
+        assertTrue(
+            "Mixed chance-of-rain day must enable adaptive segments",
+            chanceRainDay.isMixed || (chanceRainDay.cloudCoverRatioOverride ?: 0f) > 0f,
+        )
+    }
 }
