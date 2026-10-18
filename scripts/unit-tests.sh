@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-GRADLEW="$ROOT_DIR/gradlew"
+GRADLEW="${GRADLEW:-$ROOT_DIR/gradlew}"  # override: scripts/tests/ctrl-c-stops-children.sh
 RUN_MODE=""
 STREAM_OUTPUT=false
 LOG_FILE=""
@@ -114,6 +114,20 @@ cleanup() {
 }
 
 trap cleanup EXIT
+
+# shellcheck source=lib/proc-tree.sh
+source "$ROOT_DIR/scripts/lib/proc-tree.sh"
+
+# Ctrl-C (or SIGTERM from staggered-tests.sh, which started us with SIGINT ignored) stops the
+# parallel :shared/:desktop Gradle run too — it was started with `&`, so it ignores SIGINT.
+on_interrupt() {
+  trap - INT TERM
+  echo -e "\n${YELLOW}Interrupted — stopping unit tests.${NC}" >&2
+  # shellcheck disable=SC2046  # one pid per word
+  stop_tree $(own_children)
+  exit 130
+}
+trap on_interrupt INT TERM
 
 # Elapsed time since the script started, e.g. "45s" or "1m02s".
 format_elapsed() {

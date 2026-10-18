@@ -11,6 +11,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 UNIT_SCRIPT="$SCRIPT_DIR/unit-tests.sh"
+# shellcheck source=lib/proc-tree.sh
+source "$SCRIPT_DIR/lib/proc-tree.sh"
 EMULATOR_SCRIPT="$SCRIPT_DIR/emulator-tests.sh"
 LOG_DIR="$PROJECT_DIR/logs/staggered-tests"
 mkdir -p "$LOG_DIR"
@@ -284,6 +286,19 @@ phase "Unit tests started (log: $UNIT_LOG_FILE)$([ "$OVERLAP" = true ] && echo "
 # "One or more emulators failed". We defer installDebug to a final step below so it
 # runs after both test phases finish.
 touch "$UNIT_LOG_FILE"
+
+# Ctrl-C: the unit and early emulator phases run with `&`, which starts them with SIGINT ignored,
+# so without this they kept running after the script exited (user, 2026-10-18). SIGTERM them.
+on_interrupt() {
+    trap - INT TERM
+    echo -e "\n${YELLOW}Interrupted — stopping unit and emulator tests.${NC}"
+    # shellcheck disable=SC2046  # one pid per word
+    stop_tree $(own_children)
+    phase "Interrupted"
+    exit 130
+}
+trap on_interrupt INT TERM
+
 "$UNIT_SCRIPT" "${UNIT_ARGS[@]}" > >(to_summary) &
 UNIT_PID=$!
 
