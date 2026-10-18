@@ -201,6 +201,66 @@ class DailyHourlySummariesTest {
     }
 
     @Test
+    fun `the day peak is the first hour of the max, a plateau's start`() {
+        val rows = series(at(start, 0), at(start.plusDays(1), 12), pop = { ms ->
+            when (ms) {
+                at(start, 11), at(start, 12), at(start, 13) -> 45
+                at(start, 22) -> 90 // night: not the day's peak
+                else -> 10
+            }
+        })
+        val s = DailyHourlySummaries.forDate(rows, start, source, zone)
+        assertEquals(45, s.dayPrecipMax)
+        assertEquals(at(start, 11), s.dayPrecipPeakAt)
+    }
+
+    @Test
+    fun `a 3-hourly series peaks at its own step`() {
+        val rows = series(at(start, 0), at(start.plusDays(1), 12), stepH = 3, pop = { ms -> if (ms == at(start, 15)) 55 else 10 })
+        assertEquals(at(start, 15), DailyHourlySummaries.forDate(rows, start, source, zone).dayPrecipPeakAt)
+    }
+
+    @Test
+    fun `an uncovered day window has neither max nor peak`() {
+        val rows = series(at(start, 13), at(start.plusDays(1), 12), pop = { 60 })
+        val s = DailyHourlySummaries.forDate(rows, start, source, zone)
+        assertNull(s.dayPrecipMax)
+        assertNull(s.dayPrecipPeakAt)
+    }
+
+    @Test
+    fun `carry forward moves the day max and its peak together`() {
+        val prior = DailyHourlySummaries.Summary(dayPrecipMax = 40, nightPrecipMax = 20, dayPrecipPeakAt = at(start, 9))
+        assertEquals(
+            "no incoming day max: the prior's max and hour",
+            prior.copy(noonCloudPercent = 10),
+            DailyHourlySummaries.carryForward(DailyHourlySummaries.Summary(noonCloudPercent = 10), prior),
+        )
+        val incoming = DailyHourlySummaries.Summary(dayPrecipMax = 60, dayPrecipPeakAt = at(start, 15))
+        val merged = DailyHourlySummaries.carryForward(incoming, prior)
+        assertEquals(60, merged.dayPrecipMax)
+        assertEquals("never the older fetch's hour beside the new max", at(start, 15), merged.dayPrecipPeakAt)
+    }
+
+    @Test
+    fun `display peak follows the max it is shown with`() {
+        val day2 = start.plusDays(2)
+        val stored = series(at(start, 0), at(start.plusDays(3), 12), pop = { ms -> if (ms == at(day2, 16)) 35 else 5 })
+        val fromRow = DailyHourlySummaries.liveDayNight(stored, day2, 35, 5, storedDayPeakAt = at(day2, 10), zoneId = zone)
+        assertEquals("the row's own hour", at(day2, 10), fromRow.dayPeakAt)
+
+        val oldRow = DailyHourlySummaries.liveDayNight(stored, day2, 35, 5, storedDayPeakAt = null, zoneId = zone)
+        assertEquals("pre-column row: the hours' peak, same max", at(day2, 16), oldRow.dayPeakAt)
+
+        val disagreeing = DailyHourlySummaries.liveDayNight(stored, day2, 50, 5, storedDayPeakAt = null, zoneId = zone)
+        assertNull("hours peak at another value: no hour rather than a wrong one", disagreeing.dayPeakAt)
+
+        val noRow = DailyHourlySummaries.liveDayNight(stored, day2, null, null, zoneId = zone)
+        assertEquals(35, noRow.dayMax)
+        assertEquals(at(day2, 16), noRow.dayPeakAt)
+    }
+
+    @Test
     fun `keep-until is the current hour plus the horizon`() {
         val now = at(start, 9) + 24 * 60_000L
         assertEquals(at(start, 9) + 72 * 3_600_000L, DailyHourlySummaries.keepUntilMs(now, 72))

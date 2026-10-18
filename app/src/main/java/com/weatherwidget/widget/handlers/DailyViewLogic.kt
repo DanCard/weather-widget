@@ -312,6 +312,7 @@ object DailyViewLogic {
         currentTemp: Float? = null,
         observedAt: Long? = null,
         allowTodayRainChanceLabel: Boolean = false,
+        use24HourClock: Boolean = com.weatherwidget.shared.util.DailyRainLabels.localeUses24HourClock(),
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = ::entityRainSummary,
         todayLabel: String,
         centerLat: Double? = null,
@@ -338,6 +339,7 @@ object DailyViewLogic {
                 currentTemp = currentTemp,
                 observedAt = observedAt,
                 allowTodayRainChanceLabel = allowTodayRainChanceLabel,
+                use24HourClock = use24HourClock,
                 rainSummaryProvider = rainSummaryProvider,
                 todayLabel = todayLabel,
                 centerLat = centerLat,
@@ -365,6 +367,7 @@ object DailyViewLogic {
         currentTemp: Float? = null,
         observedAt: Long? = null,
         allowTodayRainChanceLabel: Boolean = false,
+        use24HourClock: Boolean = com.weatherwidget.shared.util.DailyRainLabels.localeUses24HourClock(),
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = ::entityRainSummary,
         todayLabel: String,
         centerLat: Double? = null,
@@ -391,6 +394,7 @@ object DailyViewLogic {
                 currentTemp = currentTemp,
                 observedAt = observedAt,
                 allowTodayRainChanceLabel = allowTodayRainChanceLabel,
+                use24HourClock = use24HourClock,
                 rainSummaryProvider = rainSummaryProvider,
                 todayLabel = todayLabel,
                 centerLat = centerLat,
@@ -649,6 +653,24 @@ object DailyViewLogic {
                 ),
             )
 
+            val dailyRainPeakLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildDailyRainPeakLabel(
+                date = date,
+                today = today,
+                isPastDate = isPastDate,
+                dailyRainLabelText = dailyRainLabelText,
+                dayPrecipProbability = dayPrecipForIcon,
+                dayPeakAt = resolvedPrecip.dayPeakAt,
+                nowMs = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                use24HourClock = request.use24HourClock,
+            )
+            if (dailyRainLabelText != null && dayPrecipForIcon != null && dayPrecipForIcon > com.weatherwidget.shared.util.DailyRainLabels.PEAK_HOUR_MIN_EXCLUSIVE_PERCENT) {
+                Log.v(
+                    TAG,
+                    "rainPeakLabel: date=$date day=$dayPrecipForIcon peakAt=${resolvedPrecip.dayPeakAt} " +
+                        "label=\"$dailyRainLabelText\" peak=$dailyRainPeakLabelText",
+                )
+            }
+
             days.add(
                 PreparedGraphDay(
                     renderDay = DailyForecastGraphRenderer.DayData(
@@ -672,6 +694,7 @@ object DailyViewLogic {
                             dailyPrecipProbability = dayPrecipForIcon,
                             nighttimePrecipProbability = nightPrecipForIcon,
                             dailyRainLabelText = dailyRainLabelText,
+                            dailyRainPeakLabelText = dailyRainPeakLabelText,
                             nightRainLabelText = buildNightRainLabel(
                                 date = date,
                                 today = today,

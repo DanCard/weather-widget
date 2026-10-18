@@ -209,6 +209,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                     addDailyHistoryPriorForecastColumns(stmt)
                     addForecastHindcastColumns(stmt)
                     addForecastHourlySummaryColumns(stmt)
+                    addColumnIfMissing(stmt, "forecasts", FORECAST_DAY_PRECIP_PEAK_COLUMN, "INTEGER")
                     stmt.execute("PRAGMA user_version = $SCHEMA_VERSION")
                 } else {
                     migrate(conn, currentVersion, SCHEMA_VERSION)
@@ -609,6 +610,11 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             // v33: `source_last_view`, created by initialize()'s CREATE TABLE IF NOT EXISTS before
             // migrate() runs; nothing to move. Room MIGRATION_79_80.
             // performance/261011-hourly-cadence-by-last-view-and-fuzzy-full-window.md
+            // v34: forecasts.hourlyDayPrecipPeakAt, the hour the day's rain chance peaks.
+            // Room MIGRATION_80_81. plans/261018-daily-rain-chance-peak-hour.md
+            if (from < 34) {
+                addColumnIfMissing(stmt, "forecasts", FORECAST_DAY_PRECIP_PEAK_COLUMN, "INTEGER")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -743,7 +749,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 33
+        const val SCHEMA_VERSION = 34
 
         /**
          * Requests per local day, source and endpoint ([com.weatherwidget.data.remote.ApiUsageClassifier]).
@@ -784,6 +790,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * MIGRATION_77_78.
          */
         val FORECAST_HOURLY_SUMMARY_COLUMNS = listOf("noonCloudPercent", "hourlyDayPrecipMax", "hourlyNightPrecipMax")
+        const val FORECAST_DAY_PRECIP_PEAK_COLUMN = "hourlyDayPrecipPeakAt"
 
         /**
          * One-time repair matching `GoogleWeatherApi.lowsFiledUnderTheirMorning`: Google's daily low

@@ -33,6 +33,14 @@ object DailyRainLabels {
      */
     const val RAIN_HIGH_TEMP_GAP_DP = -3f
 
+    /**
+     * The peak-hour label ("1pm") above the day rain %: its font relative to the % label's, and the
+     * gap (dp) between its bottom and the % label's top (negative = tucked into the %'s ascent
+     * padding, as [RAIN_HIGH_TEMP_GAP_DP]). Drawn in the % label's own blue (user, 2026-10-18).
+     */
+    const val RAIN_PEAK_FONT_SCALE = 0.75f
+    const val RAIN_PEAK_GAP_DP = -2f
+
     /** Edge margin (dp) keeping a rain label inside the widget bounds. */
     const val RAIN_LABEL_EDGE_MARGIN_DP = 4f
 
@@ -128,10 +136,14 @@ object DailyRainLabels {
         return probScale * distanceScale
     }
 
-    /** Max precip probability over the daytime (8am–8pm) and nighttime (8pm–8am) windows. */
+    /**
+     * Max precip probability over the daytime (8am–8pm) and nighttime (8pm–8am) windows.
+     * [dayPeakAt] is the epoch-ms start of the first hour holding [dayMax] (a plateau's first hour).
+     */
     data class DayNightPrecip(
         val dayMax: Int?,
         val nightMax: Int?,
+        val dayPeakAt: Long? = null,
     )
 
     /**
@@ -215,13 +227,23 @@ object DailyRainLabels {
             .filter { it.dateTime in start until end }
             .mapNotNull { it.precipProbability }
             .maxOrNull()
-        return DayNightPrecip(dayMax = maxIn(dayStartMs, dayEndMs), nightMax = maxIn(dayEndMs, nightEndMs))
+        val dayMax = maxIn(dayStartMs, dayEndMs)
+        val dayPeakAt = dayMax?.let { max ->
+            rows.filter { it.dateTime in dayStartMs until dayEndMs && it.precipProbability == max }
+                .minOfOrNull { it.dateTime }
+        }
+        return DayNightPrecip(dayMax = dayMax, nightMax = maxIn(dayEndMs, nightEndMs), dayPeakAt = dayPeakAt)
     }
 
-    /** The day/night precip % chosen for the daily label + icon (see [resolveDailyLabelPrecip]). */
+    /**
+     * The day/night precip % chosen for the daily label + icon (see [resolveDailyLabelPrecip]).
+     * [dayPeakAt] is when [dayPrecip] peaks — set only when [dayPrecip] came from hourly data (the
+     * row's stored max or the stored hours), never for a provider period value or a past day.
+     */
     data class ResolvedDailyPrecip(
         val dayPrecip: Int?,
         val nightPrecip: Int?,
+        val dayPeakAt: Long? = null,
     )
 
     /**
@@ -315,11 +337,13 @@ object DailyRainLabels {
             date = targetDate,
             storedDayMax = hourlySummary?.dayPrecipMax,
             storedNightMax = hourlySummary?.nightPrecipMax,
+            storedDayPeakAt = hourlySummary?.dayPrecipPeakAt,
             zoneId = zoneId,
         )
         return ResolvedDailyPrecip(
             dayPrecip = dayNight.dayMax ?: daytimePrecipProbability ?: precipProbability,
             nightPrecip = dayNight.nightMax ?: nighttimePrecipProbability,
+            dayPeakAt = dayNight.dayPeakAt.takeIf { dayNight.dayMax != null },
         )
     }
 
@@ -518,4 +542,58 @@ object DailyRainLabels {
 
         return "$probability%"
     }
+
+    /** Lowest daytime chance (exclusive) that gets its peak hour written above the % (user, 2026-10-18). */
+    const val PEAK_HOUR_MIN_EXCLUSIVE_PERCENT = 30
+
+    /**
+     * The hour the daytime chance peaks ("1pm" / "13:00"), drawn above the day rain label.
+     * Only when that label shows a percentage above [PEAK_HOUR_MIN_EXCLUSIVE_PERCENT] — so never on
+     * past days, nor when the label is an amount (≥ 95 % today / ≥ 99 % later) — and, for today,
+     * only until the peak hour is over. [dayPeakAt] is [ResolvedDailyPrecip.dayPeakAt].
+     */
+    fun buildDailyRainPeakLabel(
+        date: LocalDate,
+        today: LocalDate,
+        isPastDate: Boolean,
+        dailyRainLabelText: String?,
+        dayPrecipProbability: Int?,
+        dayPeakAt: Long?,
+        nowMs: Long,
+        use24HourClock: Boolean,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        locale: Locale = Locale.getDefault(),
+    ): String? {
+        if (isPastDate || date.isBefore(today)) return null
+        if (dailyRainLabelText == null || !dailyRainLabelText.endsWith("%")) return null
+        val probability = dayPrecipProbability ?: return null
+        if (probability <= PEAK_HOUR_MIN_EXCLUSIVE_PERCENT || probability >= 100) return null
+        val peakAt = dayPeakAt ?: return null
+        if (date == today && nowMs >= peakAt + HOUR_MS) return null
+        val time = Instant.ofEpochMilli(peakAt).atZone(zoneId).toLocalTime()
+        return formatPeakHour(time.hour, use24HourClock, locale)
+    }
+
+    /** "1pm" on a 12-hour clock (as the hourly view's labels); the locale's short time ("13:00") on 24. */
+    fun formatPeakHour(hour: Int, use24HourClock: Boolean, locale: Locale = Locale.getDefault()): String =
+        if (use24HourClock) {
+            java.time.format.DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT)
+                .withLocale(locale)
+                .format(java.time.LocalTime.of(hour, 0))
+        } else {
+            HourLabelFormatter.hourLabel(hour) + "m"
+        }
+
+    /** True when [locale]'s short time pattern is a 24-hour clock (no `h`/`K` hour field). */
+    fun localeUses24HourClock(locale: Locale = Locale.getDefault()): Boolean {
+        val pattern = java.time.format.DateTimeFormatterBuilder.getLocalizedDateTimePattern(
+            null,
+            java.time.format.FormatStyle.SHORT,
+            java.time.chrono.IsoChronology.INSTANCE,
+            locale,
+        )
+        return 'h' !in pattern && 'K' !in pattern
+    }
+
+    private const val HOUR_MS = 3_600_000L
 }

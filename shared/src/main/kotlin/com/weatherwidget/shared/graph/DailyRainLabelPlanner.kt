@@ -118,6 +118,24 @@ object DailyRainLabelPlanner {
     }
 
     /**
+     * The peak-hour label sits on the day rain label as that label sits on the high: bottom at
+     * `rainTop - gap`. [ceiling] is the hard top; a label that would cross it is not drawn
+     * (`fits = false`) — the % never moves down to make room.
+     */
+    fun resolvePeakAboveRainPlacement(
+        rainTop: Float,
+        peakMetrics: TextMetrics,
+        ceiling: Float,
+        gap: Float,
+    ): RainAboveAnchorPlacement = resolveRainAboveAnchorPlacement(
+        anchorTop = rainTop,
+        ascent = peakMetrics.ascent,
+        descent = peakMetrics.descent,
+        topMargin = ceiling,
+        gap = gap,
+    )
+
+    /**
      * Resolves daytime rain label top coordinate for bounding-box layout systems (e.g. Compose Desktop).
      */
     fun resolveRainAboveAnchorTop(

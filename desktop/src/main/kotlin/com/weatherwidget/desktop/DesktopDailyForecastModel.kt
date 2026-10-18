@@ -71,6 +71,8 @@ data class DesktopDailyDay(
     val cloudCoverRatio: Float?,
     /** Daytime rain label drawn on top of the bar (observed amount, forecast amount, or prob%). */
     val dailyRainLabelText: String?,
+    /** When the daytime chance peaks ("1pm"), drawn above [dailyRainLabelText]; null = none. */
+    val dailyRainPeakLabelText: String? = null,
     /** Nighttime rain label tucked between columns (observed amount or prob%). */
     val nightRainLabelText: String?,
     /** Resolved day/night precip chance driving the rain-label FONT SIZE (shared scaling rule). */
@@ -501,6 +503,16 @@ object DesktopDailyForecastModel {
                     totalMm = actual?.precipAmountMm,
                 ),
         )
+        val dailyRainPeakLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildDailyRainPeakLabel(
+            date = date,
+            today = today,
+            isPastDate = isPast,
+            dailyRainLabelText = dailyRainLabelText,
+            dayPrecipProbability = resolvedPrecip.dayPrecip,
+            dayPeakAt = resolvedPrecip.dayPeakAt,
+            nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            use24HourClock = com.weatherwidget.shared.util.DailyRainLabels.localeUses24HourClock(),
+        )
         val nightRainLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildNightRainLabel(
             date = date,
             today = today,
@@ -591,6 +603,7 @@ object DesktopDailyForecastModel {
             actualsFromOtherSite = isPast && !solidIsForecastFallback && actual?.isActualsBorrowed == true,
             cloudCoverRatio = (measuredNoonCloudPercent ?: 0) / 100f,
             dailyRainLabelText = dailyRainLabelText,
+            dailyRainPeakLabelText = dailyRainPeakLabelText,
             nightRainLabelText = nightRainLabelText,
             dayPrecipProbability = resolvedPrecip.dayPrecip,
             nightPrecipProbability = resolvedPrecip.nightPrecip,

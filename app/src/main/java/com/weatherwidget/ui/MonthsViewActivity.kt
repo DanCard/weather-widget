@@ -356,6 +356,7 @@ class MonthsViewActivity : AppCompatActivity(), MonthsScreenView.Listener {
             currentTemp = observed?.temperature,
             observedAt = observed?.observedAt,
             allowTodayRainChanceLabel = true,
+            use24HourClock = android.text.format.DateFormat.is24HourFormat(this),
             todayLabel = getString(R.string.today),
             centerLat = data.lat,
             centerLon = data.lon,

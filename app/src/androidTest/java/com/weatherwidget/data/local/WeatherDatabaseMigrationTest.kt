@@ -905,4 +905,25 @@ class WeatherDatabaseMigrationTest {
             assertFalse("one row per source", c.moveToNext())
         }
     }
+
+    /** The day rain chance's peak hour: a new nullable column, existing rows untouched. */
+    @Test
+    fun migrate80To81_addsForecastDayPrecipPeakColumn() {
+        helper.createDatabase(testDb, 80).apply {
+            execSQL(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
+                    "condition, isClimateNormal, source, batchFetchedAt, fetchedAt, hourlyDayPrecipMax) VALUES " +
+                    "(1791244800000, 1791244800000, 37.417, -122.089, 70.0, 50.0, 'Clear', 0, 'OPEN_METEO', 5, 5, 45)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 81, true, WeatherDatabase.MIGRATION_80_81)
+
+        db.query("SELECT hourlyDayPrecipMax, hourlyDayPrecipPeakAt FROM forecasts").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(45, c.getInt(0))
+            assertTrue(c.isNull(1))
+        }
+    }
 }

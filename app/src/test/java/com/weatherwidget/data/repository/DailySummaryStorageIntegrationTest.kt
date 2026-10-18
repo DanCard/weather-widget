@@ -14,6 +14,7 @@ import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.shared.util.DailyHourlySummaries
 import com.weatherwidget.shared.util.DailyNoonCloudCover
+import com.weatherwidget.shared.util.DailyRainLabels
 import com.weatherwidget.test.RobolectricTest
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
@@ -139,7 +140,8 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
 
     @Test
     fun `a 16-day fetch stores hourly to 72 h, live and snapshot, and every day's summary on its row`() = runTest {
-        fetch(download(seed = 5))
+        val peakSource = download(seed = 5)
+        fetch(peakSource)
 
         val keepUntil = DailyHourlySummaries.keepUntilMs(clockMs, 72)
         val live = liveHourly()
@@ -153,6 +155,9 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
             assertNotNull("$day noon", row.noonCloudPercent)
             assertNotNull("$day day", row.hourlyDayPrecipMax)
             assertNotNull("$day night", row.hourlyNightPrecipMax)
+            // The download's own peak — its first hour is 8am, but on a DST day its 24 h "night" bump
+            // lands at 19:00, inside the day window.
+            assertEquals("$day peak", DailyRainLabels.periodMaxima(peakSource, day, zone).dayPeakAt, row.hourlyDayPrecipPeakAt)
             assertEquals("no provider period: the stored chance is the hourly max", row.hourlyDayPrecipMax, row.daytimePrecipProbability)
             assertEquals(row.hourlyNightPrecipMax, row.nighttimePrecipProbability)
         }
@@ -278,7 +283,7 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
                     ?: DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(live.map { it.toHourlyForecast() }, day, om.id),
             )
             val before = DailyForecastIconResolver.resolveDailyLabelPrecip(
-                weather = row.copy(noonCloudPercent = null, hourlyDayPrecipMax = null, hourlyNightPrecipMax = null),
+                weather = row.copy(noonCloudPercent = null, hourlyDayPrecipMax = null, hourlyNightPrecipMax = null, hourlyDayPrecipPeakAt = null),
                 hourlyForecasts = fullAsStored.map {
                     com.weatherwidget.data.local.HourlyForecastEntity(
                         dateTime = it.dateTime,

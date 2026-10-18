@@ -83,7 +83,8 @@ class DesktopDailySummaryStorageTest {
 
     @Test
     fun `a 16-day LONG fetch keeps 8 days of live hourly, snapshots 72 h, and every day's summary on its row`() = runTest {
-        refreshWith(download(seed = 5))
+        val peakSource = download(seed = 5)
+        refreshWith(peakSource)
 
         // performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md
         val live = dao.getHourlyForecasts(lat, lon, om, now - 48 * hour, now + 400 * hour)
@@ -100,6 +101,9 @@ class DesktopDailySummaryStorageTest {
             assertNotNull("$day noon", row.noonCloudPercent)
             assertNotNull("$day day", row.hourlyDayPrecipMax)
             assertNotNull("$day night", row.hourlyNightPrecipMax)
+            // The download's own peak — its first hour is 8am, but on a DST day its 24 h "night" bump
+            // lands at 19:00, inside the day window.
+            assertEquals("$day peak", DailyRainLabels.periodMaxima(peakSource, day, zone).dayPeakAt, row.hourlyDayPrecipPeakAt)
             assertEquals("no provider period: stored chance is the hourly max", row.hourlyDayPrecipMax, row.daytimePrecipProbability)
             assertEquals(row.hourlyNightPrecipMax, row.nighttimePrecipProbability)
         }

@@ -385,7 +385,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         targetDate: Long,
     ): LatestForecast? {
         val sql = """
-            SELECT highTemp, lowTemp, fetchedAt, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax FROM forecasts
+            SELECT highTemp, lowTemp, fetchedAt, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt FROM forecasts
             WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate = ?
             ORDER BY batchFetchedAt DESC, fetchedAt DESC
             LIMIT 1
@@ -405,6 +405,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
                     dayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
                     nightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
+                    dayPrecipPeakAt = rs.getNullableLong("hourlyDayPrecipPeakAt"),
                 ),
             )
         }
@@ -460,8 +461,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition,
                      nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm,
                      daytimePrecipProbability, nighttimePrecipProbability, batchFetchedAt, fetchedAt,
-                     hindcastHighTemp, hindcastLowTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     hindcastHighTemp, hindcastLowTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax,
+                     hourlyDayPrecipPeakAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = nowMs
@@ -543,6 +545,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableInt(19, summary.noonCloudPercent)
                         stmt.setNullableInt(20, summary.dayPrecipMax)
                         stmt.setNullableInt(21, summary.nightPrecipMax)
+                        stmt.setNullableLong(22, summary.dayPrecipPeakAt)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -1610,6 +1613,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
                         hourlyDayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
                         hourlyNightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
+                        hourlyDayPrecipPeakAt = rs.getNullableLong("hourlyDayPrecipPeakAt"),
                     ))
                 }
             }

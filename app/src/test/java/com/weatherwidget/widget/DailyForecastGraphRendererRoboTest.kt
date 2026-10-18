@@ -1521,4 +1521,58 @@ class DailyForecastGraphRendererRoboTest {
             chanceRainDay.isMixed || (chanceRainDay.cloudCoverRatioOverride ?: 0f) > 0f,
         )
     }
+
+    private fun peakDays(highOfRainyDay: Float) = listOf(
+        DailyForecastGraphRenderer.DayData(
+            date = LocalDate.of(2026, 2, 2),
+            label = "Sun",
+            solidLineHigh = 100f,
+            solidLineLow = 80f,
+        ),
+        DailyForecastGraphRenderer.DayData(
+            date = LocalDate.of(2026, 2, 3),
+            label = "Mon",
+            solidLineHigh = highOfRainyDay,
+            solidLineLow = 50f,
+            rainData = DailyForecastGraphRenderer.RainLabelData(
+                dailyPrecipProbability = 65,
+                dailyRainLabelText = "65%",
+                dailyRainPeakLabelText = "1pm",
+            ),
+        ),
+    )
+
+    /** plans/261018-daily-rain-chance-peak-hour.md: "1pm" sits on top of the rain %, centred on it. */
+    @Test
+    fun renderGraph_drawsPeakHourOnTopOfTheRainChance() {
+        val labels = renderRainLabels(days = peakDays(highOfRainyDay = 70f), widthPx = 800, heightPx = 500, numColumns = 4)
+
+        val rain = labels.single { it.kind == DailyForecastGraphRenderer.RainLabelKind.DAY }
+        val peak = labels.single { it.kind == DailyForecastGraphRenderer.RainLabelKind.PEAK }
+        assertEquals("1pm", peak.text)
+        assertEquals(rain.centerX, peak.centerX, 0.01f)
+        assertTrue("peak above the %: peak.baseline=${peak.baselineY} rain.baseline=${rain.baselineY}", peak.baselineY < rain.baselineY)
+        assertTrue("peak bottom tucks onto the %'s top", peak.bottomY <= rain.topY + 3f * context.resources.displayMetrics.density)
+        assertTrue("smaller than the %", peak.rightX - peak.leftX < rain.rightX - rain.leftX + 1f)
+    }
+
+    @Test
+    fun renderGraph_peakHourInTheRainLabelsOwnBlue() {
+        val rainPaint = Paint().apply { color = Color.rgb(90, 160, 255); textSize = 40f }
+        val peakPaint = DailyForecastRainLabelRenderer.createPeakPaint(rainPaint)
+        assertEquals(rainPaint.color, peakPaint.color)
+        assertEquals(40f * com.weatherwidget.shared.util.DailyRainLabels.RAIN_PEAK_FONT_SCALE, peakPaint.textSize, 0.01f)
+    }
+
+    @Test
+    fun renderGraph_peakHourThatWouldLeaveTheBitmapIsSkippedAndTheChanceStays() {
+        val labels = renderRainLabels(days = peakDays(highOfRainyDay = 100f), widthPx = 300, heightPx = 70, numColumns = 2)
+
+        val rain = labels.single { it.kind == DailyForecastGraphRenderer.RainLabelKind.DAY }
+        val peak = labels.singleOrNull { it.kind == DailyForecastGraphRenderer.RainLabelKind.PEAK }
+        if (peak != null) {
+            assertTrue("a drawn peak never leaves the bitmap: top=${peak.topY}", peak.topY >= 0f)
+        }
+        assertEquals("65%", rain.text)
+    }
 }

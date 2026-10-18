@@ -104,6 +104,7 @@ internal object DailyGraphRenderer {
             currentTemp = ctx.currentTemp,
             observedAt = ctx.observedAt,
             allowTodayRainChanceLabel = true,
+            use24HourClock = android.text.format.DateFormat.is24HourFormat(ctx.context),
             todayLabel = ctx.context.getString(R.string.today),
             centerLat = ctx.centerLat,
             centerLon = ctx.centerLon,

@@ -162,6 +162,6 @@ class DesktopForecastHorizonStorageTest {
     fun `the last-view table exists at the current schema version`() {
         dao.recordLastView(om, 1L)
         assertEquals(mapOf(om to 1L), dao.lastViews())
-        assertEquals(33, DesktopWeatherDatabase.SCHEMA_VERSION)
+        assertTrue("source_last_view arrived in v33", DesktopWeatherDatabase.SCHEMA_VERSION >= 33)
     }
 }

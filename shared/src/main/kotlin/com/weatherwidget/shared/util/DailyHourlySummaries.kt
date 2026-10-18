@@ -21,6 +21,8 @@ object DailyHourlySummaries {
         val noonCloudPercent: Int? = null,
         val dayPrecipMax: Int? = null,
         val nightPrecipMax: Int? = null,
+        // Epoch-ms start of the first hour holding [dayPrecipMax]; set and carried with it, never alone.
+        val dayPrecipPeakAt: Long? = null,
     ) {
         val isEmpty: Boolean get() = noonCloudPercent == null && dayPrecipMax == null && nightPrecipMax == null
     }
@@ -63,6 +65,7 @@ object DailyHourlySummaries {
                 zone = zoneId,
             ),
             dayPrecipMax = maxima.dayMax.takeIf { windowCovered(rows, dayStart, dayEnd) },
+            dayPrecipPeakAt = maxima.dayPeakAt.takeIf { windowCovered(rows, dayStart, dayEnd) },
             nightPrecipMax = maxima.nightMax.takeIf { windowCovered(rows, dayEnd, nightEnd) },
         )
     }
@@ -82,13 +85,18 @@ object DailyHourlySummaries {
         prior = if (secondary.isEmpty()) null else forDate(secondary, date, sourceId, zoneId),
     )
 
-    /** Per field: [incoming] when present, else [prior]'s. Never null over a value. */
+    /**
+     * Per field: [incoming] when present, else [prior]'s. Never null over a value. The day max and
+     * its peak hour move as a pair, so a new max never shows an older fetch's hour.
+     */
     fun carryForward(incoming: Summary, prior: Summary?): Summary {
         if (prior == null) return incoming
+        val day = if (incoming.dayPrecipMax != null) incoming else prior
         return Summary(
             noonCloudPercent = incoming.noonCloudPercent ?: prior.noonCloudPercent,
-            dayPrecipMax = incoming.dayPrecipMax ?: prior.dayPrecipMax,
+            dayPrecipMax = day.dayPrecipMax,
             nightPrecipMax = incoming.nightPrecipMax ?: prior.nightPrecipMax,
+            dayPrecipPeakAt = day.dayPrecipPeakAt,
         )
     }
 
@@ -107,12 +115,22 @@ object DailyHourlySummaries {
         date: LocalDate,
         storedDayMax: Int?,
         storedNightMax: Int?,
+        storedDayPeakAt: Long? = null,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): DailyRainLabels.DayNightPrecip {
-        val maxima = if (storedDayMax != null && storedNightMax != null) null else DailyRainLabels.periodMaxima(sitedRows, date, zoneId)
+        val storedComplete = storedDayMax != null && storedNightMax != null && storedDayPeakAt != null
+        val maxima = if (storedComplete) null else DailyRainLabels.periodMaxima(sitedRows, date, zoneId)
+        // A row written before the peak column has a max but no hour: the stored hours' peak stands
+        // in only when it is the same max, so the hour shown always belongs to the % shown.
+        val dayPeakAt = if (storedDayMax != null) {
+            storedDayPeakAt ?: maxima?.dayPeakAt?.takeIf { maxima.dayMax == storedDayMax }
+        } else {
+            maxima?.dayPeakAt
+        }
         return DailyRainLabels.DayNightPrecip(
             dayMax = storedDayMax ?: maxima?.dayMax,
             nightMax = storedNightMax ?: maxima?.nightMax,
+            dayPeakAt = dayPeakAt,
         )
     }
 

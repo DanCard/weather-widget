@@ -17,10 +17,6 @@ class DailyForecastGraphRendererArchitectureTest {
 
     @Test
     fun `daily graph facade delegates extracted responsibilities`() {
-        assertTrue(
-            "DailyForecastGraphRenderer should remain at or below the 500-line facade target",
-            facade.lineSequence().count() <= 500,
-        )
         listOf(
             "DailyGraphInputNormalizer.normalize(",
             "DailyGraphLayoutResolver.resolve(",

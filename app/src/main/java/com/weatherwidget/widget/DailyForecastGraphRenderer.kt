@@ -46,6 +46,8 @@ object DailyForecastGraphRenderer {
     enum class RainLabelKind {
         DAY,
         NIGHT,
+        /** The day label's peak hour ("1pm"), drawn on top of it. */
+        PEAK,
     }
 
     data class DailyRainLabelPlacement(
@@ -118,6 +120,8 @@ object DailyForecastGraphRenderer {
         /** Nighttime precipitation probability, 0–100 (percentage). Divided by 100 internally for font scaling. */
         val nighttimePrecipProbability: Int? = null,
         val dailyRainLabelText: String? = null,
+        /** When the daytime chance peaks ("1pm"), drawn above [dailyRainLabelText]; null = none. */
+        val dailyRainPeakLabelText: String? = null,
         val nightRainLabelText: String? = null,
     )
 
@@ -399,6 +403,7 @@ object DailyForecastGraphRenderer {
                 paints,
                 widthPx,
                 drawnDailyRainLabelByDate,
+                rainLabelPlacements.filter { it.kind == RainLabelKind.PEAK },
             )
         }
         if (finalHeaderData != null) {
@@ -435,6 +440,7 @@ object DailyForecastGraphRenderer {
         // Daily rain labels actually drawn on the canvas, indexed by date. An empty map retains the
         // isolated-test fallback that resolves placement without a preceding draw pass.
         drawnDailyRainLabelByDate: Map<java.time.LocalDate, DailyRainLabelPlacement> = emptyMap(),
+        drawnPeakLabels: List<DailyRainLabelPlacement> = emptyList(),
     ): HeaderRenderData {
         if (headerData.dateText.isNullOrBlank()) return headerData
         val padding = COLUMN_EDGE_MARGIN_DP.dp(layout.density)
@@ -458,15 +464,18 @@ object DailyForecastGraphRenderer {
                     paints = paints,
                 )?.debug
                 ?: return@forEach
-            val rainBounds = RectF(rainLabel.leftX, rainLabel.topY, rainLabel.rightX, rainLabel.bottomY)
-            if (hasMeaningfulHeaderRainOverlap(dateBounds, rainBounds, layout.density)) {
-                Log.d(
-                    TAG,
-                    "suppressHeaderDateForRainOverlap: dateText=${headerData.dateText} rainDate=${day.date}" +
-                        " rainText=${rainLabel.text} dateBounds=$dateBounds rainBounds=$rainBounds" +
-                        " fromCache=${drawnDailyRainLabelByDate.containsKey(day.date)}",
-                )
-                return headerData.copy(dateText = null)
+            // The peak hour ("1pm") drawn above the % reaches higher still; either one hides the date.
+            (listOf(rainLabel) + drawnPeakLabels.filter { it.date == day.date }).forEach { label ->
+                val bounds = RectF(label.leftX, label.topY, label.rightX, label.bottomY)
+                if (hasMeaningfulHeaderRainOverlap(dateBounds, bounds, layout.density)) {
+                    Log.d(
+                        TAG,
+                        "suppressHeaderDateForRainOverlap: dateText=${headerData.dateText} rainDate=${day.date}" +
+                            " rainText=${label.text} dateBounds=$dateBounds rainBounds=$bounds" +
+                            " fromCache=${drawnDailyRainLabelByDate.containsKey(day.date)}",
+                    )
+                    return headerData.copy(dateText = null)
+                }
             }
         }
         return headerData

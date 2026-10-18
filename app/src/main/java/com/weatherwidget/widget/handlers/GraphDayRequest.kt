@@ -34,6 +34,8 @@ data class GraphDayRequest(
     val currentTemp: Float? = null,
     val observedAt: Long? = null,
     val allowTodayRainChanceLabel: Boolean = false,
+    /** Clock for the peak-hour label ("1pm" / "13:00"); Android callers pass the device setting. */
+    val use24HourClock: Boolean = com.weatherwidget.shared.util.DailyRainLabels.localeUses24HourClock(),
     val rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = DailyViewLogic::entityRainSummary,
     val todayLabel: String,
     val centerLat: Double? = null,

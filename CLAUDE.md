@@ -93,6 +93,10 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   a recent LONG fetch's 8 days) in the hourly view are on demand for every source; a free source's on-demand fetch keeps its whole
   horizon, so a fresh one means "nothing more to fetch". Expected to free ~25 MB of the Pixel's 72 MB DB
   (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`).
+  The day maximum's hour is kept beside it (`forecasts.hourlyDayPrecipPeakAt`, Room 81 / desktop 34,
+  carried forward as a pair) and drawn above the day rain % when it is > 30 % and < 100 % — "1pm", or
+  the locale's 24 h time — in the %'s blue; today drops it once that hour is over; a plateau shows its
+  first hour (`DailyRainLabels.buildDailyRainPeakLabel`; `plans/261018-daily-rain-chance-peak-hour.md`).
 - **One forecast cadence for every source, daily and hourly together: LONG ≈ 8 days, SHORT 3 days**
   (user, 2026-10-16; `:shared` `ForecastHorizonCadence`; replaced `ForecastCadence`, `HourlyCadence`
   and `HourlyWindowPolicy`).
@@ -337,7 +341,7 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 
 ## Database Schema
 
-- **Version**: Room 80 / desktop 33 as of 2026-10-11. Authoritative: `WeatherDatabase.kt`
+- **Version**: Room 81 / desktop 34 as of 2026-10-18. Authoritative: `WeatherDatabase.kt`
   `version` and `DesktopWeatherDatabase.SCHEMA_VERSION`, which move in pairs — this line goes stale
   fast; trust the code.
 - `observations.stationType` is an INTEGER `StationType.dbCode` (0 UNKNOWN, 1 OFFICIAL, 2 PERSONAL,

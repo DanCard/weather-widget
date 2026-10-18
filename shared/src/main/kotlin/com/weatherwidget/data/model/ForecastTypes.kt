@@ -60,14 +60,17 @@ data class DailyForecast(
     val noonCloudPercent: Int? = null,
     val hourlyDayPrecipMax: Int? = null,
     val hourlyNightPrecipMax: Int? = null,
+    // Epoch ms of the first hour holding hourlyDayPrecipMax (the daily view's peak-hour label).
+    val hourlyDayPrecipPeakAt: Long? = null,
 ) {
     val hourlySummary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary
-        get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax)
+        get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt)
 
     fun withHourlySummary(summary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary): DailyForecast = copy(
         noonCloudPercent = summary.noonCloudPercent,
         hourlyDayPrecipMax = summary.dayPrecipMax,
         hourlyNightPrecipMax = summary.nightPrecipMax,
+        hourlyDayPrecipPeakAt = summary.dayPrecipPeakAt,
     )
 }
 

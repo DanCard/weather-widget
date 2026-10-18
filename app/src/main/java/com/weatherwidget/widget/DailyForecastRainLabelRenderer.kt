@@ -16,6 +16,7 @@ internal object DailyForecastRainLabelRenderer {
     private const val TAG = "DailyRainLabelRenderer"
     // Placement + font-scale constants live in :shared so Android and desktop stay identical.
     private const val RAIN_HIGH_TEMP_GAP_DP = DailyRainLabels.RAIN_HIGH_TEMP_GAP_DP
+    private const val RAIN_PEAK_GAP_DP = DailyRainLabels.RAIN_PEAK_GAP_DP
     private const val RAIN_LABEL_EDGE_MARGIN_DP = DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP
     private const val NIGHT_SCALE = DailyRainLabels.NIGHT_SCALE
     private const val NIGHT_TUCK_ROOM_MIN_DP = DailyRainLabels.NIGHT_TUCK_ROOM_MIN_DP
@@ -109,7 +110,57 @@ internal object DailyForecastRainLabelRenderer {
 
         canvas.drawText(rainText, centerX, placement.debug.baselineY, localRainPaint)
         onRainLabelDrawn?.invoke(placement.debug)
+        drawDailyRainPeakLabel(day, centerX, placement.debug.topY, layout, localRainPaint, onRainLabelDrawn, canvas)
     }
+
+    /**
+     * The hour the daytime chance peaks ("1pm"), on top of the rain %: smaller, in the %'s own paint
+     * (same blue). Skipped when it would leave the bitmap; the % keeps its place.
+     */
+    private fun drawDailyRainPeakLabel(
+        day: DayData,
+        centerX: Float,
+        rainTop: Float,
+        layout: DailyGraphLayoutInfo,
+        rainPaint: Paint,
+        onRainLabelDrawn: ((DailyRainLabelPlacement) -> Unit)?,
+        canvas: Canvas,
+    ) {
+        val peakText = day.rainData.dailyRainPeakLabelText ?: return
+        val peakPaint = createPeakPaint(rainPaint)
+        val halfWidth = peakPaint.measureText(peakText) / 2f
+        val placement = DailyRainLabelPlanner.resolvePeakAboveRainPlacement(
+            rainTop = rainTop,
+            peakMetrics = textMetrics(peakPaint).let { DailyRainLabelPlanner.TextMetrics(it.ascent, it.descent) },
+            ceiling = 0f,
+            gap = (RAIN_PEAK_GAP_DP * layout.bitmapScale.coerceAtMost(1f)).toPx(layout.density),
+        )
+        if (!placement.fits) {
+            Log.d(TAG, "rainPeakLabel skipped reason=top_margin date=${day.date} text=\"$peakText\" top=${placement.top}")
+            return
+        }
+        Log.v(TAG, "rainPeakLabel placement: date=${day.date} text=\"$peakText\" baseline=${placement.baseline} top=${placement.top}")
+        canvas.drawText(peakText, centerX, placement.baseline, peakPaint)
+        onRainLabelDrawn?.invoke(
+            DailyRainLabelPlacement(
+                date = day.date,
+                text = peakText,
+                placement = "ABOVE_RAIN",
+                kind = RainLabelKind.PEAK,
+                centerX = centerX,
+                leftX = centerX - halfWidth,
+                rightX = centerX + halfWidth,
+                baselineY = placement.baseline,
+                topY = placement.top,
+                bottomY = placement.bottom,
+                anchorTopY = rainTop,
+            ),
+        )
+    }
+
+    @VisibleForTesting
+    internal fun createPeakPaint(rainPaint: Paint): Paint =
+        Paint(rainPaint).apply { textSize = rainPaint.textSize * DailyRainLabels.RAIN_PEAK_FONT_SCALE }
 
     internal fun resolveDailyRainLabelPlacement(
         day: DayData,

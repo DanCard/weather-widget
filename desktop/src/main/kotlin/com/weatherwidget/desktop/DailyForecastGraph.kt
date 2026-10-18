@@ -618,6 +618,31 @@ fun DailyForecastGraph(
                     rainTopLeft.x + rainLayout.size.width,
                     rainTopLeft.y + rainLayout.size.height,
                 )
+
+                // Peak hour ("1pm") on top of the %, smaller, same blue. Same shared gap and
+                // ceiling rule as Android: skipped past the header bleed, never moving the %.
+                val peakText = day.dailyRainPeakLabelText
+                if (peakText != null) {
+                    val peakLayout = textMeasurer.measure(
+                        peakText,
+                        TextStyle(fontSize = (11.7f * scale * rainScale * DailyRainLabels.RAIN_PEAK_FONT_SCALE).sp, color = COLOR_FORECAST_RAINY),
+                    )
+                    val peakY = DailyRainLabelPlanner.resolveRainAboveAnchorTop(
+                        anchorTop = rainTopLeft.y,
+                        rainHeight = peakLayout.size.height.toFloat(),
+                        gapPx = DailyRainLabels.RAIN_PEAK_GAP_DP * scale,
+                    )
+                    if (peakY >= -headerBleed - peakLayout.size.height) {
+                        val peakTopLeft = Offset(centerX - peakLayout.size.width / 2f, peakY)
+                        drawOutlinedText(textMeasurer, peakLayout, peakTopLeft)
+                        recordTodayObstacle(
+                            peakTopLeft.x,
+                            peakTopLeft.y,
+                            peakTopLeft.x + peakLayout.size.width,
+                            peakTopLeft.y + peakLayout.size.height,
+                        )
+                    }
+                }
             }
 
             // Nighttime rain label: centred between this column and the next, smaller, in the
