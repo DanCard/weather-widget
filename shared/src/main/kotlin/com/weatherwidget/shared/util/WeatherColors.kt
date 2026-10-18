@@ -66,12 +66,28 @@ object WeatherColors {
     }
 
     /**
-     * Resolves the weather-adaptive bar split from an icon name and optional cloud cover override.
-     * Single source of truth shared by Android and desktop.
+     * Daily-bar rain gate. The daily icon is resolved from the whole-day (24h) precip %, but a daily
+     * column's bar stands for the daytime — overnight rain has its own between-column label. So a
+     * rain icon only paints the bar blue when the daytime precip % also clears the "chance rain"
+     * bar ([WeatherConditionResolver.CHANCE_RAIN_MIN_PRECIP]); e.g. 65% overnight but 15% by day
+     * stays cloud-grey. A null [dayPrecipProbability] (unknown) leaves the icon's verdict alone.
      */
-    fun resolveMixedBarSplit(iconName: String?, cloudCoverRatio: Float? = null): MixedBarSplit? {
+    fun isDaytimeRain(dayPrecipProbability: Int?): Boolean =
+        dayPrecipProbability == null || dayPrecipProbability >= WeatherConditionResolver.CHANCE_RAIN_MIN_PRECIP
+
+    /**
+     * Resolves the weather-adaptive bar split from an icon name and optional cloud cover override.
+     * Single source of truth shared by Android and desktop. Pass the column's [dayPrecipProbability]
+     * for a daily forecast bar (see [isDaytimeRain]); leave it null for snapshot bars.
+     */
+    fun resolveMixedBarSplit(
+        iconName: String?,
+        cloudCoverRatio: Float? = null,
+        dayPrecipProbability: Int? = null,
+    ): MixedBarSplit? {
         val ratio = cloudCoverRatio ?: iconName?.let(WeatherConditionResolver::cloudRatioFromIcon)
-        val isChanceOfRain = iconName?.let(WeatherConditionResolver::isChanceOfRainIcon) ?: false
+        val isChanceOfRain = (iconName?.let(WeatherConditionResolver::isChanceOfRainIcon) ?: false) &&
+            isDaytimeRain(dayPrecipProbability)
         return mixedBarSplit(ratio, isChanceOfRain)
     }
 

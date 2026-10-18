@@ -98,6 +98,9 @@ object WeatherConditionResolver {
     private const val FULLY_CLOUDY_THRESHOLD = 97
     private const val MOSTLY_CLOUDY_UPPER_THRESHOLD = 90
 
+    /** Minimum precip probability (%) for a "chance rain" (vs "slight chance") icon. */
+    const val CHANCE_RAIN_MIN_PRECIP = 60
+
     // ── Condition flags ───────────────────────────────────────────────────
 
     data class ConditionFlags(
@@ -340,7 +343,7 @@ object WeatherConditionResolver {
         if (precipProbability == null || precipProbability >= 80) return baseRainIcon
         if (precipProbability < 8) return getCloudCoverIcon(isNight, cloudCover)
 
-        val isChance = precipProbability >= 60
+        val isChance = precipProbability >= CHANCE_RAIN_MIN_PRECIP
         val cloudPct = cloudCover ?: 50
 
         return when {

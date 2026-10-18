@@ -10,6 +10,7 @@ import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.StandInBarStyle
 import com.weatherwidget.shared.graph.TodayColumnHighlight
 import com.weatherwidget.shared.graph.TodayThermostat
+import com.weatherwidget.shared.util.WeatherColors
 import com.weatherwidget.util.WeatherConditionColors
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer.BarDrawnDebug
@@ -130,7 +131,7 @@ internal object DailyBarRenderer {
                 val (hY, effectiveLowY) = endpoints
                 val condColor = WeatherConditionColors.forecastColor(
                     day.isSunny,
-                    day.isRainy,
+                    isBarRainy(day),
                     day.isMixed,
                     isNight = false,
                 )
@@ -184,7 +185,7 @@ internal object DailyBarRenderer {
             val forecastX = centerX + comparisonOffset(day, layout)
             val condColor = WeatherConditionColors.forecastColor(
                 day.isSunny,
-                day.isRainy,
+                isBarRainy(day),
                 day.isMixed,
                 isNight = false,
             )
@@ -256,7 +257,7 @@ internal object DailyBarRenderer {
         ) {
             val condColor = WeatherConditionColors.forecastColor(
                 day.isSunny,
-                day.isRainy,
+                isBarRainy(day),
                 day.isMixed,
                 isNight = false,
             )
@@ -381,6 +382,7 @@ internal object DailyBarRenderer {
             logPrefix = barType.lowercase(),
             allowAdaptiveSegments = true,
             dashed = day.snapshotIsStale,
+            dayPrecipProbability = null,
         )
         onBarDrawn?.invoke(
             BarDrawnDebug(
@@ -430,7 +432,7 @@ internal object DailyBarRenderer {
 
         val condColor = WeatherConditionColors.forecastColor(
             day.isSunny,
-            day.isRainy,
+            isBarRainy(day),
             day.isMixed,
             isNight = false,
         )
@@ -514,6 +516,8 @@ internal object DailyBarRenderer {
         allowAdaptiveSegments: Boolean = true,
         /** A stand-in bar (StandInBarStyle): same colors, dashed. */
         dashed: Boolean = false,
+        /** Gates the chance-rain blue segment (WeatherColors.isDaytimeRain); null for snapshot bars. */
+        dayPrecipProbability: Int? = day.rainData.dailyPrecipProbability,
     ) {
         @Suppress("NAME_SHADOWING")
         val paint = if (dashed) standInDashed(paint) else paint
@@ -523,7 +527,7 @@ internal object DailyBarRenderer {
         }
 
         val split =
-            WeatherConditionColors.resolveMixedBarSplit(day.iconRes, day.cloudCoverRatioOverride)
+            WeatherConditionColors.resolveMixedBarSplit(day.iconRes, day.cloudCoverRatioOverride, dayPrecipProbability)
         if (split == null) {
             canvas.drawLine(centerX, topY, centerX, bottomY, paint)
             return
@@ -563,6 +567,14 @@ internal object DailyBarRenderer {
     // Both split segments are cloned from this paint and start at topY, so their dashes line up.
     private fun standInDashed(paint: Paint): Paint =
         Paint(paint).apply { pathEffect = DashPathEffect(StandInBarStyle.intervals(paint.strokeWidth), 0f) }
+
+    /**
+     * A rain icon colors the day's forecast bar blue only when its daytime precip also reads as rain
+     * (shared WeatherColors.isDaytimeRain) — overnight-only rain has its own between-column label.
+     * Bar/label color only: [DayData.isRainy] still drives the icon's (untinted) rendering.
+     */
+    private fun isBarRainy(day: DayData): Boolean =
+        day.isRainy && WeatherColors.isDaytimeRain(day.rainData.dailyPrecipProbability)
 
     private fun shouldUseAdaptiveSegments(day: DayData): Boolean =
         day.isMixed || (day.cloudCoverRatioOverride ?: 0f) > 0f

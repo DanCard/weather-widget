@@ -86,6 +86,29 @@ class MixedBarSplitTest {
     }
 
     @Test
+    fun overnightOnlyRainKeepsDailyBarGrey() {
+        // Google Tue 10/20: "Light Rain", 24h 65% (overnight) -> chance-rain icon, but 15% by day.
+        val icon = WeatherConditionResolver.resolveIconName("Light Rain", isNight = false, cloudCover = 49, precipProbability = 65)
+        assertEquals(WeatherConditionResolver.IC_PARTLY_CLOUDY_CHANCE_RAIN, icon)
+        val dayDry = WeatherColors.resolveMixedBarSplit(icon, 0.49f, dayPrecipProbability = 15)!!
+        assertEquals(WeatherColors.FORECAST_CLOUDY, dayDry.bottomColorArgb)
+
+        val dayWet = WeatherColors.resolveMixedBarSplit(icon, 0.49f, dayPrecipProbability = 60)!!
+        assertEquals(WeatherColors.FORECAST_RAINY, dayWet.bottomColorArgb)
+
+        // Unknown day precip (snapshot bars) leaves the icon's verdict alone.
+        val unknown = WeatherColors.resolveMixedBarSplit(icon, 0.49f, dayPrecipProbability = null)!!
+        assertEquals(WeatherColors.FORECAST_RAINY, unknown.bottomColorArgb)
+    }
+
+    @Test
+    fun isDaytimeRainThreshold() {
+        assertTrue(WeatherColors.isDaytimeRain(null))
+        assertTrue(WeatherColors.isDaytimeRain(WeatherConditionResolver.CHANCE_RAIN_MIN_PRECIP))
+        assertEquals(false, WeatherColors.isDaytimeRain(WeatherConditionResolver.CHANCE_RAIN_MIN_PRECIP - 1))
+    }
+
+    @Test
     fun shouldDrawAdaptiveBarMatchesContract() {
         assertTrue(WeatherColors.shouldDrawAdaptiveBar(isMixed = true, cloudCoverRatio = null))
         assertTrue(WeatherColors.shouldDrawAdaptiveBar(isMixed = false, cloudCoverRatio = 0.5f))

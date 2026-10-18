@@ -252,7 +252,7 @@ fun DailyForecastGraph(
 
                 // Both today bars carry today's cloud-cover ratio (same day); the rain-vs-cloud
                 // bottom color follows each bar's own condition (live forecast vs 24h-prior snapshot).
-                drawAdaptiveBar(centerX + compactTodayTripleOffset, day.forecastHigh, day.forecastLow, ::yAt, compactTodayBarWidth, baseColor, day.cloudCoverRatio, day.iconName)
+                drawAdaptiveBar(centerX + compactTodayTripleOffset, day.forecastHigh, day.forecastLow, ::yAt, compactTodayBarWidth, baseColor, day.cloudCoverRatio, day.iconName, day.dayPrecipProbability)
                 drawAdaptiveBar(
                     centerX - compactTodayTripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, compactTodayBarWidth,
                     snapshotColor, day.cloudCoverRatio, day.snapshotIconName,
@@ -307,6 +307,7 @@ fun DailyForecastGraph(
                     baseColor = forecastColor(day),
                     cloudCoverRatio = day.cloudCoverRatio,
                     iconName = day.iconName,
+                    dayPrecipProbability = day.dayPrecipProbability,
                     pathEffect = standInDash(pastTripleWidth).takeIf { day.forecastIsFallback },
                 )
                 val solidBarColor = if (day.solidIsForecastFallback) forecastColor(day) else COLOR_OBSERVED
@@ -319,7 +320,7 @@ fun DailyForecastGraph(
                 val low = day.solidLow
                 if (high != null && low != null) {
                     val color = if (day.isClimateNormal) COLOR_GAP_FALLBACK else baseColor
-                    drawAdaptiveBar(centerX, high, low, ::yAt, barWidth, color, day.cloudCoverRatio, day.iconName)
+                    drawAdaptiveBar(centerX, high, low, ::yAt, barWidth, color, day.cloudCoverRatio, day.iconName, day.dayPrecipProbability)
                 }
             }
 
@@ -930,6 +931,8 @@ private fun DrawScope.drawAdaptiveBar(
     baseColor: Color,
     cloudCoverRatio: Float?,
     iconName: String?,
+    /** Gates the chance-rain blue segment (WeatherColors.isDaytimeRain); null for snapshot bars. */
+    dayPrecipProbability: Int? = null,
     /** Stand-in bar ([standInDash]); both split segments start at highY, so their dashes line up. */
     pathEffect: PathEffect? = null,
 ) {
@@ -937,7 +940,7 @@ private fun DrawScope.drawAdaptiveBar(
     val highY = yAt(high)
     val lowY = yAt(low)
 
-    val split = com.weatherwidget.shared.util.WeatherColors.resolveMixedBarSplit(iconName, cloudCoverRatio)
+    val split = com.weatherwidget.shared.util.WeatherColors.resolveMixedBarSplit(iconName, cloudCoverRatio, dayPrecipProbability)
 
     if (split == null) {
         drawLine(
@@ -981,10 +984,11 @@ private fun standInDash(strokeWidth: Float): PathEffect =
     PathEffect.dashPathEffect(com.weatherwidget.shared.graph.StandInBarStyle.intervals(strokeWidth), 0f)
 
 private fun forecastColor(day: DesktopDailyDay): Color {
-    // Derive flags from the resolved+gated icon name so the bar color matches the displayed icon.
+    // Derive flags from the resolved+gated icon name so the bar color matches the displayed icon,
+    // except rain also needs the daytime precip to read as rain (shared WeatherColors.isDaytimeRain).
     val flags = WeatherConditionResolver.getConditionFlags(day.iconName)
     return when {
-        flags.isRainy -> COLOR_FORECAST_RAINY
+        flags.isRainy && com.weatherwidget.shared.util.WeatherColors.isDaytimeRain(day.dayPrecipProbability) -> COLOR_FORECAST_RAINY
         flags.isMixed -> COLOR_FORECAST_SUNNY
         flags.isSunny -> COLOR_FORECAST_SUNNY
         day.cloudCoverRatio != null && day.cloudCoverRatio < 0.6f -> COLOR_FORECAST_SUNNY
