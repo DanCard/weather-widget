@@ -1,0 +1,1 @@
+Release 26101702: Refined daily forecast bar coloring to accurately reflect daytime precipitation conditions; general stability and performance improvements.
