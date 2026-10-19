@@ -65,9 +65,12 @@ class MixedBarSplitTest {
             cloudCoverRatio = 0.99f,
         )!!
         assertEquals(WeatherColors.FORECAST_RAINY, split.bottomColorArgb)
+        // Unknown day % sizes blue by cloud; the 1 % cap is split 1 % gold / 99 % grey.
         assertEquals(WeatherColors.FORECAST_SUNNY, split.topColorArgb)
+        assertTrue(split.topOverridesBar)
         assertEquals(0.99f, split.ratio, 1e-6f)
-        assertEquals(0.01f, split.topFraction, 1e-6f)
+        assertEquals(0.01f * 0.01f, split.topFraction, 1e-6f)
+        assertEquals(0.01f * 0.99f, split.midFraction, 1e-6f)
 
         // Without override, falls back to canonical icon cloud ratio (0.65 for cloudy_chance_rain)
         val fallbackSplit = WeatherColors.resolveMixedBarSplit(
@@ -102,33 +105,50 @@ class MixedBarSplitTest {
     }
 
     @Test
-    fun rainDayIsGreyCapOverBlueSizedByDaytimeRain() {
+    fun rainyBarIsSkyCapOverBlueSizedByDaytimeRain() {
         // Silurian Wed 10/21: "Rain", 85 % by day, 99 % noon cloud -> full rain icon. Was a grey bar.
-        val wed = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_RAIN, 0.99f, dayPrecipProbability = 85)!!
-        assertEquals(WeatherColors.FORECAST_CLOUDY, wed.topColorArgb)
-        assertEquals(WeatherColors.FORECAST_RAINY, wed.bottomColorArgb)
-        assertTrue(wed.topOverridesBar)
-        assertEquals(0.85f, wed.ratio, 1e-6f)
-        assertEquals(0.15f, wed.topFraction, 1e-6f)
+        val silurian = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_RAIN, 0.99f, dayPrecipProbability = 85)!!
+        assertSegments(silurian, gold = 0.15f * 0.01f, grey = 0.15f * 0.99f, blue = 0.85f)
 
-        // Storm and snow are rain days too.
-        assertTrue(WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_STORM, 0.5f, 70)!!.topOverridesBar)
-        assertTrue(WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_SNOW, 0.5f, 70)!!.topOverridesBar)
+        // Open-Meteo Wed: 61 %, 100 % cloud, cloudy-chance-rain icon. Was solid blue (blue = cloud share).
+        val meteo = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_CLOUDY_CHANCE_RAIN, 1.0f, 61)!!
+        assertSegments(meteo, gold = 0f, grey = 0.39f, blue = 0.61f)
 
-        // Unknown day % (snapshot bars): the blue height falls back to the cloud ratio.
+        // Google Wed: "Light Rain", 70 %, 67 % cloud, partly-cloudy-chance-rain icon. Was gold over blue.
+        val google = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_PARTLY_CLOUDY_CHANCE_RAIN, 0.67f, 70)!!
+        assertSegments(google, gold = 0.30f * 0.33f, grey = 0.30f * 0.67f, blue = 0.70f)
+
+        // Storm and snow are rainy bars too.
+        assertEquals(WeatherColors.FORECAST_RAINY, WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_STORM, 0.5f, 70)!!.bottomColorArgb)
+        assertEquals(WeatherColors.FORECAST_RAINY, WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_SNOW, 0.5f, 70)!!.bottomColorArgb)
+
+        // A rain icon with no cloud figure: all-grey cap.
+        val noCloud = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_RAIN, null, 80)!!
+        assertSegments(noCloud, gold = 0f, grey = 0.20f, blue = 0.80f)
+
+        // Unknown day % (snapshot bars): blue falls back to the cloud ratio.
         val snapshot = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_RAIN, 0.7f, dayPrecipProbability = null)!!
         assertEquals(0.7f, snapshot.ratio, 1e-6f)
-        assertEquals(WeatherColors.FORECAST_CLOUDY, snapshot.topColorArgb)
 
-        // Rain overnight only (day % under 60): not a rain day — the ordinary grey split.
+        // Under 60 % by day: no blue, the ordinary two-segment cloud split.
         val dryDay = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_RAIN, 0.99f, dayPrecipProbability = 15)!!
         assertEquals(false, dryDay.topOverridesBar)
+        assertEquals(0f, dryDay.midFraction, 1e-6f)
         assertEquals(WeatherColors.FORECAST_CLOUDY, dryDay.bottomColorArgb)
+        val dryChance = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_CLOUDY_CHANCE_RAIN, 1.0f, 35)!!
+        assertEquals(WeatherColors.FORECAST_CLOUDY, dryChance.bottomColorArgb)
+        assertEquals(1.0f, dryChance.ratio, 1e-6f)
+    }
 
-        // Chance-rain icons keep their gold top in the bar's own colour.
-        val chance = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_CLOUDY_CHANCE_RAIN, 0.99f, 70)!!
-        assertEquals(false, chance.topOverridesBar)
-        assertEquals(WeatherColors.FORECAST_SUNNY, chance.topColorArgb)
+    private fun assertSegments(split: WeatherColors.MixedBarSplit, gold: Float, grey: Float, blue: Float) {
+        assertEquals(WeatherColors.FORECAST_SUNNY, split.topColorArgb)
+        assertEquals(WeatherColors.FORECAST_CLOUDY, split.midColorArgb)
+        assertEquals(WeatherColors.FORECAST_RAINY, split.bottomColorArgb)
+        assertTrue(split.topOverridesBar)
+        assertEquals(gold, split.topFraction, 1e-5f)
+        assertEquals(grey, split.midFraction, 1e-5f)
+        assertEquals(blue, split.ratio, 1e-5f)
+        assertEquals(1f, split.topFraction + split.midFraction + split.ratio, 1e-5f)
     }
 
     @Test

@@ -550,6 +550,15 @@ internal object DailyBarRenderer {
         }
 
         canvas.drawLine(centerX, topY, centerX, bottomY, bottomPaint)
+        // A rainy bar's grey middle: the cloudy part of the sky above the rain (WeatherColors.rainDaySplit).
+        val midSegmentEndY = (topSegmentEndY + barHeight * split.midFraction).coerceIn(topY, bottomY)
+        if (abs(midSegmentEndY - topSegmentEndY) > 0.5f) {
+            val midPaint = Paint(paint).apply {
+                color = split.midColor
+                shader = null
+            }
+            canvas.drawLine(centerX, topY, centerX, midSegmentEndY, midPaint)
+        }
         if (abs(topSegmentEndY - topY) > 0.5f) {
             canvas.drawLine(centerX, topY, centerX, topSegmentEndY, topPaint)
         }
@@ -557,7 +566,7 @@ internal object DailyBarRenderer {
         debug {
             "$logPrefix mixed bar geometry: date=${day.date} centerX=$centerX" +
                 " topY=$topY bottomY=$bottomY height=$barHeight" +
-                " splitRatio=${split.ratio} topFraction=${split.topFraction}" +
+                " splitRatio=${split.ratio} topFraction=${split.topFraction} midFraction=${split.midFraction}" +
                 " topEndY=$topSegmentEndY" +
                 " topColor=${String.format("#%08X", split.topColor)}" +
                 " bottomColor=${String.format("#%08X", split.bottomColor)}"

@@ -42,14 +42,15 @@ class DailyForecastGraphRendererRobolectricTest {
     }
 
     @Test
-    fun `mixed chance rain day draws split bar`() {
+    fun `mixed chance rain day draws three-segment rainy bar`() {
         val paintColors = capturePrimaryBarPaintColors(
             iconRes = R.drawable.ic_weather_partly_cloudy_chance_rain,
             isMixed = true,
             cloudCoverRatioOverride = 0.66f,
         )
-        // Blue bottom is asserted in WeatherConditionColorsTest; here only the split structure.
-        assertEquals(2, paintColors.size)
+        // A rainy bar (WeatherColors.rainDaySplit): blue bottom, then the sky cap split gold over grey
+        // by cloud share — three drawLine calls. Colors are asserted in MixedBarSplitTest.
+        assertEquals(3, paintColors.size)
     }
 
     @Test

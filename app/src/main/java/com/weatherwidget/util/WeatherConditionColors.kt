@@ -22,6 +22,8 @@ object WeatherConditionColors {
         val bottomColor: Int,
         val topFraction: Float,
         val topOverridesBar: Boolean = false,
+        val midFraction: Float = 0f,
+        val midColor: Int = WeatherColors.FORECAST_CLOUDY,
     )
 
     // Re-export the shared ARGB constants so existing callers/tests keep their names.
@@ -73,6 +75,8 @@ object WeatherConditionColors {
             bottomColor = shared.bottomColorArgb,
             topFraction = shared.topFraction,
             topOverridesBar = shared.topOverridesBar,
+            midFraction = shared.midFraction,
+            midColor = shared.midColorArgb,
         )
     }
 
