@@ -12,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * Re-arms [PreWakeFetchScheduler] when the user's next alarm changes. The action is on the framework's
+ * Re-arms [PreWakeFetchScheduler] when the user's next alarm changes (an alarm overrides a learned wake). The action is on the framework's
  * implicit-broadcast exemption list, but so the docs said of nothing this app has seen delivered
  * (`USER_PRESENT`, `ACTION_POWER_DISCONNECTED`), so every delivery logs a `PRE_WAKE_FETCH
  * action=alarm_changed` row: their absence on a device means it never arrives, and the hourly charging

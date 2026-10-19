@@ -55,6 +55,7 @@ class PowerConnectedJobService : JobService() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     PowerConnectedRefresh.writeLog(applicationContext, outcome, source = "job")
+                    ChargeSessionTracker.observe(applicationContext, isCharging = true)
                     PreWakeFetchScheduler.arm(applicationContext, trigger = "power_connected")?.let {
                         WeatherDatabase.getDatabase(applicationContext).appLogDao()
                             .log(PreWakeFetchScheduler.LOG_TAG, it, "INFO")

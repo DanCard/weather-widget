@@ -64,7 +64,7 @@ object DataFreshness {
             isScreenInteractive = powerManager.isInteractive,
             batteryLevel = snapshot.batteryLevel,
             activeSourceIds = stateManager.getActiveDisplaySourceIds(),
-            wakeAtMs = PreWakeFetchScheduler.nextAlarmMs(context),
+            wakeAtMs = PreWakeFetchScheduler.nextWake(context)?.atMs,
         )
     }
 

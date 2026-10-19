@@ -115,7 +115,13 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   `ForecastHorizonCadence.preWakeAtMs`). Android arms a charging-only sync 40 min before it
   (`PreWakeFetchScheduler`, `PRE_WAKE_FETCH`); desktop has no alarm (null, unchanged). Same LONG count
   at glance-level screen use, at most +1/day with the screen on all day
-  (`performance/261019-pre-alarm-long-fetch-while-charging.md`).
+  (`performance/261019-pre-alarm-long-fetch-while-charging.md`). **No alarm → learned unplug time**:
+  `ChargeSessionTracker` records overnight charges (≥ 4 h and through 03:00 — not a desk's all-day USB)
+  from the runtime `ChargeStateReceiver` (exact) or the last charging sighting; `:shared`
+  `UnplugRoutine` predicts the 25th-percentile unplug for weekday/weekend separately (≥ 4 in 21 days,
+  IQR ≤ 60 min). On a charger with the screen off, **SHORT is skipped** while the pre-wake comes within
+  8 h. Logs `UNPLUG_RECORDED`, `UNPLUG_ROUTINE`, `PRE_WAKE_FETCH … wake=alarm|learned`
+  (`performance/261019-learned-unplug-time-and-overnight-short-skip.md`).
   **No displayed-vs-other split and no view-age bands** — every source the 8-day gate lets through
   (`SourceFetchGate`, below) is on this table. Both platforms' daily reads take **each day's newest
   row**, not the newest batch (Android `ForecastSnapshotStore.shownRows`, desktop

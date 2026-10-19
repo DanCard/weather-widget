@@ -304,7 +304,7 @@ class ForecastHorizonCadenceTest {
         val wake = now + 30 * minute
         val d = preWake(wakeAt = wake, lastLong = now - 9 * hour)
         val hhmm = java.time.Instant.ofEpochMilli(wake - ForecastHorizonCadence.PRE_WAKE_LEAD_MS).atZone(ZoneOffset.UTC).toLocalTime()
-        assertEquals("NWS:LONG(long=24h/9h,short=8h/2h,preWake=$hhmm)",
+        assertEquals("NWS:LONG(long=24h/9h,short=skip(preWake)/2h,preWake=$hhmm)",
             ForecastHorizonCadence.logFragment("NWS", d, now, zone = ZoneOffset.UTC))
     }
 
@@ -314,6 +314,8 @@ class ForecastHorizonCadenceTest {
      * on all 16 waking hours, starting the day's 8 h LONG chain 45 min earlier fits a third before bed:
      * at most one more per day, never more.
      */
+    private var lastShortCounts: List<Int> = emptyList()
+
     @Test
     fun `steady state - an alarm re-phases LONG at glances, at most one more with the screen always on`() {
         val allDay: (Long) -> Boolean = { tod -> tod in (6 * hour + 30 * minute) until (22 * hour + 30 * minute) }
@@ -327,6 +329,7 @@ class ForecastHorizonCadenceTest {
             var lastLong: Long? = null
             var lastShort: Long? = null
             val perDay = IntArray(8)
+            val shortPerDay = IntArray(8)
             var t = start
             while (t < start + 8 * day) {
                 val tod = t % day
@@ -337,17 +340,23 @@ class ForecastHorizonCadenceTest {
                     wakeAtMs = nextAlarm.takeIf { withAlarm })
                 when (d.due) {
                     Horizon.LONG -> { lastLong = t; lastShort = t; perDay[(t / day).toInt()]++ }
-                    Horizon.SHORT -> lastShort = t
+                    Horizon.SHORT -> { lastShort = t; shortPerDay[(t / day).toInt()]++ }
                     null -> {}
                 }
                 t += 5 * minute
             }
+            lastShortCounts = shortPerDay.drop(1)
             return perDay.drop(1) // day 0 starts from nothing
         }
         val glancesWith = longFetchesPerDay(true, glances)
+        val shortWith = lastShortCounts
         val glancesWithout = longFetchesPerDay(false, glances)
+        val shortWithout = lastShortCounts
         println("LONG fetches/day, glances: with alarm=$glancesWith without=$glancesWithout")
+        println("SHORT fetches/day, glances: with alarm=$shortWith without=$shortWithout")
         assertEquals(glancesWithout, glancesWith)
+        // The overnight SHORT the pre-wake LONG would overwrite is skipped: fewer fetches in all.
+        assertTrue("short with=$shortWith without=$shortWithout", shortWith.sum() < shortWithout.sum())
         val with = longFetchesPerDay(withAlarm = true)
         val without = longFetchesPerDay(withAlarm = false)
         println("LONG fetches/day, screen always on: with alarm=$with without=$without")
@@ -367,5 +376,27 @@ class ForecastHorizonCadenceTest {
         val wake = now + 8 * hour
         val checkAt = ForecastHorizonCadence.preWakeCheckAtMs(wake, now)!!
         assertEquals(Horizon.LONG, preWake(wakeAt = wake, lastLong = now - 9 * hour, at = checkAt).due)
+    }
+
+    @Test
+    fun `charging, screen off - SHORT is skipped while the pre-wake comes within 8 h`() {
+        val longAgo = now - 20 * hour
+        // SHORT 9 h old would be due; the pre-wake LONG is 6 h away: skipped.
+        val d = ForecastHorizonCadence.decide(true, 85, false, lastLongMs = longAgo, lastShortMs = now - 9 * hour, nowMs = now,
+            wakeAtMs = now + 6 * hour)
+        assertTrue(d.shortSkippedForPreWake)
+        assertNull(d.shortDueAtMs)
+        assertNull(d.due)
+        // Pre-wake more than 8 h away: SHORT as usual.
+        val far = ForecastHorizonCadence.decide(true, 85, false, longAgo, now - 9 * hour, now, wakeAtMs = now + 9 * hour)
+        assertEquals(Horizon.SHORT, far.due)
+        // Screen on (awake at 2 am): screen-on rules, SHORT due.
+        val awake = ForecastHorizonCadence.decide(true, 85, true, now - 7 * hour, now - 5 * hour, now, wakeAtMs = now + 6 * hour)
+        assertEquals(Horizon.SHORT, awake.due)
+        // A LONG due by its own interval still runs.
+        val longDue = ForecastHorizonCadence.decide(true, 85, false, now - 25 * hour, now - 9 * hour, now, wakeAtMs = now + 6 * hour)
+        assertEquals(Horizon.LONG, longDue.due)
+        // On battery (no pre-wake): unchanged.
+        assertEquals(Horizon.SHORT, ForecastHorizonCadence.decide(false, 85, false, longAgo, now - 9 * hour, now, wakeAtMs = now + 6 * hour).due)
     }
 }

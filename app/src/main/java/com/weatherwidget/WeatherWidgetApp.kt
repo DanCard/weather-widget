@@ -68,6 +68,8 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
             // ACTION_SCREEN_ON is runtime-only (see ScreenOnReceiver): a manifest entry silently
             // never fires. Registered here so it lives exactly as long as the process does.
             com.weatherwidget.widget.ScreenOnReceiver.registerScreenReceiver(this)
+            // Exact plug/unplug times for the learned unplug routine; runtime-only for the same reason.
+            com.weatherwidget.widget.ChargeStateReceiver.register(this)
         }
     }
 

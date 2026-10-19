@@ -367,8 +367,11 @@ internal class FullSyncPipeline(
                         // the value captured at startup / the last power transition and never
                         // self-corrects as the battery level drifts (see code-review M3).
                         WidgetWorkScheduler.schedulePeriodicSync(context)
-                        PreWakeFetchScheduler.arm(context, device.wakeAtMs, trigger = "sync")?.let {
+                        PreWakeFetchScheduler.arm(context, trigger = "sync")?.let {
                             appLogDao.log(PreWakeFetchScheduler.LOG_TAG, it, "INFO")
+                        }
+                        PreWakeFetchScheduler.dailyRoutineLog(context)?.let {
+                            appLogDao.log(PreWakeFetchScheduler.ROUTINE_LOG_TAG, it, "INFO")
                         }
                     } else {
                         WidgetLoopScheduler.manageCurrentTempLoopAfterRun(context, appLogDao, device)

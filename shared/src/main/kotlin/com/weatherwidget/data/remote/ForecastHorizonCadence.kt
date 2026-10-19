@@ -28,6 +28,9 @@ import java.time.ZoneId
  * LONG also comes due in the [PRE_WAKE_LEAD_MS] before the user's next alarm ([decide]'s `wakeAtMs`),
  * so the first glance of the morning sees a forecast fetched minutes ago. It re-phases the overnight
  * LONG fetch rather than adding one: the markers it resets keep the 24 h one from coming due at night.
+ * The SHORT fetch it would overwrite before anyone looks is skipped: on a charger with the screen off,
+ * SHORT is not due while the pre-wake comes within [SHORT_SCREEN_OFF_HOURS]
+ * (performance/261019-learned-unplug-time-and-overnight-short-skip.md).
  */
 object ForecastHorizonCadence {
     enum class Horizon { SHORT, LONG }
@@ -111,6 +114,8 @@ object ForecastHorizonCadence {
         val due: Horizon?,
         /** When LONG comes due ahead of its interval for the alarm; null when the pre-wake rule is off. */
         val preWakeAtMs: Long? = null,
+        /** SHORT is off tonight: the pre-wake LONG comes first ([shortDueAtMs] is then null). */
+        val shortSkippedForPreWake: Boolean = false,
     ) {
         /** The earlier of the two due instants. */
         val nextDueAtMs: Long get() = shortDueAtMs?.let { minOf(it, longDueAtMs) } ?: longDueAtMs
@@ -131,13 +136,15 @@ object ForecastHorizonCadence {
         val lastShort = listOfNotNull(lastShortMs, lastLongMs).maxOrNull()
         val preWakeAt = preWakeAtMs(isCharging, lastLongMs, wakeAtMs, nowMs)
         val longDueAt = dueAtMs(lastLongMs, longH, nowMs).let { if (preWakeAt != null) minOf(it, preWakeAt) else it }
-        val shortDueAt = shortH?.let { dueAtMs(lastShort, it, nowMs) }
+        val skipShort = shortH != null && isCharging && !isScreenOn && preWakeAt != null &&
+            preWakeAt - nowMs <= SHORT_SCREEN_OFF_HOURS * HOUR_MS
+        val shortDueAt = shortH?.takeUnless { skipShort }?.let { dueAtMs(lastShort, it, nowMs) }
         val due = when {
             nowMs >= longDueAt -> Horizon.LONG
             shortDueAt != null && nowMs >= shortDueAt -> Horizon.SHORT
             else -> null
         }
-        return Decision(longH, shortH, lastLongMs, lastShort, longDueAt, shortDueAt, due, preWakeAt)
+        return Decision(longH, shortH, lastLongMs, lastShort, longDueAt, shortDueAt, due, preWakeAt, skipShort)
     }
 
     /**
@@ -225,7 +232,8 @@ object ForecastHorizonCadence {
         fun age(ms: Long?) = ms?.let { "${(nowMs - it) / HOUR_MS}h" } ?: "none"
         return "$sourceId:${decision.due ?: "none"}" +
             "(long=${decision.longIntervalHours}h/${age(decision.lastLongMs)}," +
-            "short=${decision.shortIntervalHours?.let { "${it}h" } ?: "off"}/${age(decision.lastShortMs)}" +
+            "short=${if (decision.shortSkippedForPreWake) "skip(preWake)" else decision.shortIntervalHours?.let { "${it}h" } ?: "off"}" +
+            "/${age(decision.lastShortMs)}" +
             (fullyBlockedUntilMs?.let { ",quotaHeldMin=${(it - nowMs) / 60_000L}" } ?: "") +
             (decision.preWakeAtMs?.let { ",preWake=" + Instant.ofEpochMilli(it).atZone(zone).toLocalTime().withSecond(0).withNano(0) } ?: "") + ")"
     }
