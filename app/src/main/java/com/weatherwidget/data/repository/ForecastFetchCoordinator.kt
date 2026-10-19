@@ -228,6 +228,7 @@ internal class ForecastFetchCoordinator(
             lastLongMs = widgetStateManager.getLastLongFetch(source.id, latitude, longitude),
             lastShortMs = widgetStateManager.getLastShortFetch(source.id, latitude, longitude),
             nowMs = clock(),
+            wakeAtMs = fetchContext.wakeAtMs,
         )
     }
 

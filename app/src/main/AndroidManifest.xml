@@ -153,6 +153,15 @@
             </intent-filter>
         </receiver>
 
+        <!-- Re-arms the pre-alarm fetch (PreWakeFetchScheduler). Implicit-broadcast exempt. -->
+        <receiver
+            android:name=".widget.NextAlarmChangedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.app.action.NEXT_ALARM_CLOCK_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".widget.UIUpdateReceiver"
             android:exported="false" />

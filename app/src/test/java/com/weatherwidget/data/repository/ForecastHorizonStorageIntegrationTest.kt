@@ -254,4 +254,22 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
     fun `a day at 85 percent with the screen off is 1 LONG and 2 SHORT fetches`() = runTest {
         assertEquals(mapOf("LONG" to 1, "SHORT" to 2), simulateDay(high.copy(isScreenInteractive = false)))
     }
+
+    @Test
+    fun `charging overnight - the alarm makes LONG due before it, the fetch stores far days, then nothing is due`() = runTest {
+        val night = high.copy(isCharging = true, isScreenInteractive = false)
+        fetch(seed = 1, night)
+        clockMs += 9 * hour
+        val alarm = clockMs + 30 * 60_000L
+        val beforeAlarm = night.copy(wakeAtMs = alarm)
+        assertNull("no alarm: LONG not due at 9 h of 24", coordinator.horizonDecision(om, night, lat, lon)?.due?.takeIf { it.name == "LONG" })
+
+        assertEquals("LONG", coordinator.horizonDecision(om, beforeAlarm, lat, lon)?.due?.name)
+        fetch(seed = 50, beforeAlarm)
+
+        assertEquals("LONG stored the far day", clockMs, dailyRows().getValue(10L).batchFetchedAt)
+        assertEquals(clockMs, widgetStateManager.getLastLongFetch(om.id, lat, lon))
+        clockMs += 10 * 60_000L
+        assertNull("snoozed: nothing due", coordinator.horizonDecision(om, night.copy(wakeAtMs = alarm + 9 * 60_000L), lat, lon)?.due)
+    }
 }

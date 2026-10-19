@@ -10,6 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.time.LocalDate
+import java.time.ZoneOffset
 
 /** The user's table, 2026-10-16 (performance/261016-unified-long-short-forecast-horizons.md). */
 @Category(ShortDuration::class)
@@ -230,5 +231,141 @@ class ForecastHorizonCadenceTest {
         val low = decide(60, true, null, null)
         assertEquals("NWS:LONG(long=24h/none,short=off/none,quotaHeldMin=30)",
             ForecastHorizonCadence.logFragment("NWS", low, now, fullyBlockedUntilMs = now + 30 * minute))
+    }
+
+    // --- Pre-wake: LONG before the alarm while charging (performance/261019-pre-alarm-long-fetch-while-charging.md)
+
+    private fun preWake(wakeAt: Long?, lastLong: Long?, charging: Boolean = true, screenOn: Boolean = false, at: Long = now) =
+        ForecastHorizonCadence.decide(charging, 85, screenOn, lastLong, lastShortMs = at - 2 * hour, nowMs = at, wakeAtMs = wakeAt)
+
+    @Test
+    fun `charging - LONG is due in the lead before the alarm though its interval is not`() {
+        val d = preWake(wakeAt = now + 30 * minute, lastLong = now - 9 * hour)
+        assertEquals(Horizon.LONG, d.due)
+        assertEquals(now + 30 * minute - ForecastHorizonCadence.PRE_WAKE_LEAD_MS, d.preWakeAtMs)
+    }
+
+    @Test
+    fun `before the lead - not due yet, but the due time is pulled forward to it`() {
+        val wake = now + 2 * hour
+        val d = preWake(wakeAt = wake, lastLong = now - 9 * hour)
+        assertNull(d.due)
+        assertEquals(wake - ForecastHorizonCadence.PRE_WAKE_LEAD_MS, d.longDueAtMs)
+        assertEquals(wake - ForecastHorizonCadence.PRE_WAKE_LEAD_MS, d.nextDueAtMs)
+    }
+
+    @Test
+    fun `at or after the alarm the rule is off`() {
+        assertNull(preWake(wakeAt = now, lastLong = now - 9 * hour).preWakeAtMs)
+        assertNull(preWake(wakeAt = now - minute, lastLong = now - 9 * hour).due)
+    }
+
+    @Test
+    fun `on battery the rule never applies`() {
+        val d = preWake(wakeAt = now + 30 * minute, lastLong = now - 9 * hour, charging = false)
+        assertNull(d.preWakeAtMs)
+        assertNull(d.due)
+    }
+
+    @Test
+    fun `an alarm more than 14 h away is not tonight's wake`() {
+        val far = now + (ForecastHorizonCadence.PRE_WAKE_MAX_AHEAD_HOURS + 1) * hour
+        assertNull(preWake(wakeAt = far, lastLong = now - 9 * hour).preWakeAtMs)
+        val near = now + ForecastHorizonCadence.PRE_WAKE_MAX_AHEAD_HOURS * hour
+        assertEquals(near - ForecastHorizonCadence.PRE_WAKE_LEAD_MS, preWake(wakeAt = near, lastLong = now - 9 * hour).preWakeAtMs)
+    }
+
+    @Test
+    fun `a LONG fetch within 3 h before the alarm already serves it - a snooze never fetches twice`() {
+        val wake = now + 30 * minute
+        assertNull(preWake(wakeAt = wake, lastLong = wake - 3 * hour).due)
+        assertEquals(Horizon.LONG, preWake(wakeAt = wake, lastLong = wake - 3 * hour - minute).due)
+        // Fetched at 06:00 for a 06:30 alarm, snoozed to 06:39: not due again.
+        val fetched = now - 10 * minute
+        val snoozed = preWake(wakeAt = now + 29 * minute, lastLong = fetched)
+        assertNull(snoozed.preWakeAtMs)
+        assertNull(snoozed.due)
+    }
+
+    @Test
+    fun `no alarm - every table decision is unchanged`() {
+        for (charging in listOf(true, false)) for (level in listOf(40, 69, 70, 85)) for (screenOn in listOf(true, false))
+            for (age in listOf(null, 1L, 5L, 9L, 25L)) {
+                val last = age?.let { now - it * hour }
+                val plain = ForecastHorizonCadence.decide(charging, level, screenOn, last, last, now)
+                val noAlarm = ForecastHorizonCadence.decide(charging, level, screenOn, last, last, now, wakeAtMs = null)
+                assertEquals(plain, noAlarm)
+                assertNull(noAlarm.preWakeAtMs)
+            }
+    }
+
+    @Test
+    fun `log fragment names the pre-wake time`() {
+        val wake = now + 30 * minute
+        val d = preWake(wakeAt = wake, lastLong = now - 9 * hour)
+        val hhmm = java.time.Instant.ofEpochMilli(wake - ForecastHorizonCadence.PRE_WAKE_LEAD_MS).atZone(ZoneOffset.UTC).toLocalTime()
+        assertEquals("NWS:LONG(long=24h/9h,short=8h/2h,preWake=$hhmm)",
+            ForecastHorizonCadence.logFragment("NWS", d, now, zone = ZoneOffset.UTC))
+    }
+
+    /**
+     * A week of "charge 22:30–06:50, alarm 06:30", checked every 5 min. With the screen on at glances
+     * (morning, lunch, evening) the pre-wake fetch re-phases a LONG, it does not add one. With the screen
+     * on all 16 waking hours, starting the day's 8 h LONG chain 45 min earlier fits a third before bed:
+     * at most one more per day, never more.
+     */
+    @Test
+    fun `steady state - an alarm re-phases LONG at glances, at most one more with the screen always on`() {
+        val allDay: (Long) -> Boolean = { tod -> tod in (6 * hour + 30 * minute) until (22 * hour + 30 * minute) }
+        val glances: (Long) -> Boolean = { tod ->
+            tod in (6 * hour + 30 * minute) until (7 * hour + 30 * minute) || tod in (12 * hour) until (13 * hour) ||
+                tod in (19 * hour) until (22 * hour + 30 * minute)
+        }
+        fun longFetchesPerDay(withAlarm: Boolean, screen: (Long) -> Boolean = allDay): List<Int> {
+            val day = 24 * hour
+            val start = 0L
+            var lastLong: Long? = null
+            var lastShort: Long? = null
+            val perDay = IntArray(8)
+            var t = start
+            while (t < start + 8 * day) {
+                val tod = t % day
+                val charging = tod >= 22 * hour + 30 * minute || tod < 6 * hour + 50 * minute
+                val screenOn = screen(tod)
+                val nextAlarm = (t / day) * day + 6 * hour + 30 * minute + (if (tod >= 6 * hour + 30 * minute) day else 0)
+                val d = ForecastHorizonCadence.decide(charging, 85, screenOn, lastLong, lastShort, t,
+                    wakeAtMs = nextAlarm.takeIf { withAlarm })
+                when (d.due) {
+                    Horizon.LONG -> { lastLong = t; lastShort = t; perDay[(t / day).toInt()]++ }
+                    Horizon.SHORT -> lastShort = t
+                    null -> {}
+                }
+                t += 5 * minute
+            }
+            return perDay.drop(1) // day 0 starts from nothing
+        }
+        val glancesWith = longFetchesPerDay(true, glances)
+        val glancesWithout = longFetchesPerDay(false, glances)
+        println("LONG fetches/day, glances: with alarm=$glancesWith without=$glancesWithout")
+        assertEquals(glancesWithout, glancesWith)
+        val with = longFetchesPerDay(withAlarm = true)
+        val without = longFetchesPerDay(withAlarm = false)
+        println("LONG fetches/day, screen always on: with alarm=$with without=$without")
+        with.zip(without).forEach { (w, wo) -> assertTrue("with=$with without=$without", w <= wo + 1) }
+    }
+
+    @Test
+    fun `timed check - 40 min before the alarm, now inside the lead, none when passed or far`() {
+        val lead = ForecastHorizonCadence.PRE_WAKE_LEAD_MS
+        val slack = ForecastHorizonCadence.PRE_WAKE_CHECK_SLACK_MS
+        assertEquals(now + 8 * hour - lead + slack, ForecastHorizonCadence.preWakeCheckAtMs(now + 8 * hour, now))
+        assertEquals(now, ForecastHorizonCadence.preWakeCheckAtMs(now + 20 * minute, now))
+        assertNull(ForecastHorizonCadence.preWakeCheckAtMs(now, now))
+        assertNull(ForecastHorizonCadence.preWakeCheckAtMs(now + 15 * hour, now))
+        assertNull(ForecastHorizonCadence.preWakeCheckAtMs(null, now))
+        // The check lands where decide() says LONG is due.
+        val wake = now + 8 * hour
+        val checkAt = ForecastHorizonCadence.preWakeCheckAtMs(wake, now)!!
+        assertEquals(Horizon.LONG, preWake(wakeAt = wake, lastLong = now - 9 * hour, at = checkAt).due)
     }
 }

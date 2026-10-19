@@ -581,6 +581,7 @@ class WeatherWidgetWorker
                 batteryLevel = snapshot.batteryLevel,
                 isScreenInteractive = isScreenInteractive,
                 lastFullFetchAgeSeconds = lastFullFetchAge,
+                wakeAtMs = PreWakeFetchScheduler.nextAlarmMs(context),
             )
         }
 

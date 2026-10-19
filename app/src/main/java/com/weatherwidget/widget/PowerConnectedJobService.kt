@@ -10,6 +10,8 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.annotation.VisibleForTesting
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
 import com.weatherwidget.di.RepositoryEntryPoint
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
@@ -53,6 +55,10 @@ class PowerConnectedJobService : JobService() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     PowerConnectedRefresh.writeLog(applicationContext, outcome, source = "job")
+                    PreWakeFetchScheduler.arm(applicationContext, trigger = "power_connected")?.let {
+                        WeatherDatabase.getDatabase(applicationContext).appLogDao()
+                            .log(PreWakeFetchScheduler.LOG_TAG, it, "INFO")
+                    }
                     // Independent of the current-temp debounce: putting the phone on the charger is
                     // the moment it has most likely just finished moving.
                     resampleLocation(applicationContext, "power_connected")

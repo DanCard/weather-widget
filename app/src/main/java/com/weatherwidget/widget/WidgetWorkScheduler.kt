@@ -62,6 +62,9 @@ object WidgetWorkScheduler {
     const val WORK_NAME_CURRENT_TEMP_NOW = "weather_widget_current_temp_now"
     const val WORK_NAME_OBSERVATION_BACKFILL = "weather_widget_observation_backfill"
     const val WORK_NAME_UI = "weather_widget_one_time_ui"
+
+    /** The sync [PreWakeFetchScheduler] arms before the user's alarm; its own name, so no other sync replaces it. */
+    const val WORK_NAME_PRE_WAKE = "weather_widget_pre_wake"
     private const val WORK_NAME_UI_DELAYED_PREFIX = "weather_widget_one_time_ui_delayed_"
     private const val WORK_NAME_FAILURE_BANNER_STAGE_PREFIX = "weather_widget_failure_banner_stage_"
 
@@ -115,6 +118,29 @@ object WidgetWorkScheduler {
             reason = reason,
             targetSourceId = targetSourceId,
         )
+
+    /**
+     * An unforced sync [delayMs] from now, on a charger with a network — the cadence makes it LONG
+     * when it lands in the lead before the alarm ([PreWakeFetchScheduler]). REPLACE: a moved alarm
+     * moves the check.
+     */
+    fun enqueuePreWakeSync(context: Context, delayMs: Long): OneTimeWorkRequest =
+        enqueueFullSync(
+            context = context,
+            uniqueName = WORK_NAME_PRE_WAKE,
+            policy = ExistingWorkPolicy.REPLACE,
+            forceRefresh = false,
+            reason = "pre_wake",
+            initialDelayMs = delayMs,
+            constraints = Constraints.Builder()
+                .setRequiresCharging(true)
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build(),
+        )
+
+    fun cancelPreWakeSync(context: Context) {
+        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME_PRE_WAKE)
+    }
 
     fun enqueueRequiredImmediateSync(
         context: Context,
@@ -525,6 +551,7 @@ object WidgetWorkScheduler {
         initialDelayMs: Long = 0L,
         targetSourceId: String? = null,
         extraInput: (Data.Builder.() -> Unit)? = null,
+        constraints: Constraints? = null,
     ): OneTimeWorkRequest {
         val data =
             Data.Builder()
@@ -544,6 +571,7 @@ object WidgetWorkScheduler {
                 .setInputData(data)
                 .apply {
                     if (forceRefresh) addTag(forcedTargetTag(targetSourceId))
+                    constraints?.let { setConstraints(it) }
                     if (initialDelayMs > 0L) {
                         setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
                     }

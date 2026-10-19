@@ -110,6 +110,12 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   A LONG fetch downloads the source's whole reach (Google asks 192 h) and stores every daily row plus
   8 days of live hourly (72 h snapshotted); a SHORT one asks 72 h and stores today + 2 days of daily rows plus 72 h of hourly,
   so days 4+ keep the last LONG fetch's rows and far-day summaries. A LONG fetch also counts as SHORT.
+  **Pre-alarm LONG** (2026-10-19): on a charger, LONG is also due in the 45 min before the user's
+  next alarm (`AlarmManager.nextAlarmClock`, ≤ 14 h away, no LONG in the 3 h before it;
+  `ForecastHorizonCadence.preWakeAtMs`). Android arms a charging-only sync 40 min before it
+  (`PreWakeFetchScheduler`, `PRE_WAKE_FETCH`); desktop has no alarm (null, unchanged). Same LONG count
+  at glance-level screen use, at most +1/day with the screen on all day
+  (`performance/261019-pre-alarm-long-fetch-while-charging.md`).
   **No displayed-vs-other split and no view-age bands** — every source the 8-day gate lets through
   (`SourceFetchGate`, below) is on this table. Both platforms' daily reads take **each day's newest
   row**, not the newest batch (Android `ForecastSnapshotStore.shownRows`, desktop

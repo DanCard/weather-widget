@@ -28,6 +28,11 @@ data class ForecastFetchContext(
      * ([com.weatherwidget.data.remote.ForecastHorizonCadence.forced]).
      */
     val userRefresh: Boolean = false,
+    /**
+     * The user's next alarm: on a charger, LONG comes due in the lead before it
+     * ([com.weatherwidget.data.remote.ForecastHorizonCadence.preWakeAtMs]). Null when none is set.
+     */
+    val wakeAtMs: Long? = null,
 )
 
 /**

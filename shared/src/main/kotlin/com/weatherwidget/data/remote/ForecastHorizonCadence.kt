@@ -1,7 +1,9 @@
 package com.weatherwidget.data.remote
 
 import com.weatherwidget.data.local.LocationMatch
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * How often each source's forecast is fetched, and how far ahead — ONE rule for every source, daily
@@ -21,6 +23,11 @@ import java.time.LocalDate
  *
  * No displayed-vs-other split, no view-age bands, no per-provider case. "Due" is measured from two
  * per-source + site markers ([Marker]), never from the rows' `fetchedAt`.
+ *
+ * **Pre-wake** (2026-10-19; performance/261019-pre-alarm-long-fetch-while-charging.md): on a charger,
+ * LONG also comes due in the [PRE_WAKE_LEAD_MS] before the user's next alarm ([decide]'s `wakeAtMs`),
+ * so the first glance of the morning sees a forecast fetched minutes ago. It re-phases the overnight
+ * LONG fetch rather than adding one: the markers it resets keep the 24 h one from coming due at night.
  */
 object ForecastHorizonCadence {
     enum class Horizon { SHORT, LONG }
@@ -52,6 +59,18 @@ object ForecastHorizonCadence {
      * the climate normal, as when a newer fetch covers fewer days ([showsCarriedRow]).
      */
     const val MAX_CARRIED_ROW_AGE_HOURS = 36
+
+    /** How long before the alarm a charging phone fetches LONG. */
+    const val PRE_WAKE_LEAD_MS = 45 * 60_000L
+
+    /** An alarm further away than this (a weekend with no alarm set) is not this night's wake. */
+    const val PRE_WAKE_MAX_AHEAD_HOURS = 14
+
+    /** A LONG fetch this close before the alarm already serves it (a snooze never fetches twice). */
+    const val PRE_WAKE_MIN_GAP_HOURS = 3
+
+    /** Where inside the lead a timed check aims: 5 min in, so a check a little late still lands in it. */
+    const val PRE_WAKE_CHECK_SLACK_MS = 5 * 60_000L
 
     /** A check that lands a moment early still counts. */
     const val DUE_GRACE_MS = 120_000L
@@ -90,6 +109,8 @@ object ForecastHorizonCadence {
         val shortDueAtMs: Long?,
         /** What a scheduled check fetches now: LONG when due, else SHORT when due, else null. */
         val due: Horizon?,
+        /** When LONG comes due ahead of its interval for the alarm; null when the pre-wake rule is off. */
+        val preWakeAtMs: Long? = null,
     ) {
         /** The earlier of the two due instants. */
         val nextDueAtMs: Long get() = shortDueAtMs?.let { minOf(it, longDueAtMs) } ?: longDueAtMs
@@ -102,23 +123,49 @@ object ForecastHorizonCadence {
         lastLongMs: Long?,
         lastShortMs: Long?,
         nowMs: Long,
+        wakeAtMs: Long? = null,
     ): Decision {
         val longH = longIntervalHours(isCharging, batteryLevel, isScreenOn)
         val shortH = shortIntervalHours(isCharging, batteryLevel, isScreenOn)
         // A LONG fetch is also a SHORT one.
         val lastShort = listOfNotNull(lastShortMs, lastLongMs).maxOrNull()
-        val longDueAt = dueAtMs(lastLongMs, longH, nowMs)
+        val preWakeAt = preWakeAtMs(isCharging, lastLongMs, wakeAtMs, nowMs)
+        val longDueAt = dueAtMs(lastLongMs, longH, nowMs).let { if (preWakeAt != null) minOf(it, preWakeAt) else it }
         val shortDueAt = shortH?.let { dueAtMs(lastShort, it, nowMs) }
         val due = when {
             nowMs >= longDueAt -> Horizon.LONG
             shortDueAt != null && nowMs >= shortDueAt -> Horizon.SHORT
             else -> null
         }
-        return Decision(longH, shortH, lastLongMs, lastShort, longDueAt, shortDueAt, due)
+        return Decision(longH, shortH, lastLongMs, lastShort, longDueAt, shortDueAt, due, preWakeAt)
+    }
+
+    /**
+     * When LONG comes due for the alarm at [wakeAtMs]: [PRE_WAKE_LEAD_MS] before it, on a charger,
+     * for an alarm within [PRE_WAKE_MAX_AHEAD_HOURS] that no LONG fetch has served yet (none within
+     * [PRE_WAKE_MIN_GAP_HOURS] before it). Null once the alarm has passed — on battery it never applies.
+     */
+    fun preWakeAtMs(isCharging: Boolean, lastLongMs: Long?, wakeAtMs: Long?, nowMs: Long): Long? {
+        val wake = wakeAtMs ?: return null
+        if (!isCharging || nowMs >= wake || wake - nowMs > PRE_WAKE_MAX_AHEAD_HOURS * HOUR_MS) return null
+        if (lastLongMs != null && lastLongMs >= wake - PRE_WAKE_MIN_GAP_HOURS * HOUR_MS) return null
+        return wake - PRE_WAKE_LEAD_MS
     }
 
     private fun dueAtMs(lastMs: Long?, intervalHours: Int, nowMs: Long): Long =
         lastMs?.let { it + intervalHours * HOUR_MS - DUE_GRACE_MS } ?: nowMs
+
+    /**
+     * When a platform should wake to check the pre-wake rule for the alarm at [wakeAtMs] — a timed
+     * check, because a periodic tick longer than the lead can miss it. Now when already inside the
+     * lead; null when there is no alarm, it has passed, or it is more than [PRE_WAKE_MAX_AHEAD_HOURS]
+     * away. Whether that check then fetches is [decide]'s call, not this one's.
+     */
+    fun preWakeCheckAtMs(wakeAtMs: Long?, nowMs: Long): Long? {
+        val wake = wakeAtMs ?: return null
+        if (nowMs >= wake || wake - nowMs > PRE_WAKE_MAX_AHEAD_HOURS * HOUR_MS) return null
+        return maxOf(nowMs, wake - PRE_WAKE_LEAD_MS + PRE_WAKE_CHECK_SLACK_MS)
+    }
 
     /**
      * The horizon of a fetch the user or an event asked for (Refresh, a source switch, a location
@@ -168,12 +215,19 @@ object ForecastHorizonCadence {
         newestBatchMs - rowBatchMs <= MAX_CARRIED_ROW_AGE_HOURS * HOUR_MS
 
     /** `FETCH_PLAN` fragment for one source: `NWS:SHORT(long=8h/3h,short=4h/0h)` — interval / age of last fetch. */
-    fun logFragment(sourceId: String, decision: Decision, nowMs: Long, fullyBlockedUntilMs: Long? = null): String {
+    fun logFragment(
+        sourceId: String,
+        decision: Decision,
+        nowMs: Long,
+        fullyBlockedUntilMs: Long? = null,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String {
         fun age(ms: Long?) = ms?.let { "${(nowMs - it) / HOUR_MS}h" } ?: "none"
         return "$sourceId:${decision.due ?: "none"}" +
             "(long=${decision.longIntervalHours}h/${age(decision.lastLongMs)}," +
             "short=${decision.shortIntervalHours?.let { "${it}h" } ?: "off"}/${age(decision.lastShortMs)}" +
-            (fullyBlockedUntilMs?.let { ",quotaHeldMin=${(it - nowMs) / 60_000L}" } ?: "") + ")"
+            (fullyBlockedUntilMs?.let { ",quotaHeldMin=${(it - nowMs) / 60_000L}" } ?: "") +
+            (decision.preWakeAtMs?.let { ",preWake=" + Instant.ofEpochMilli(it).atZone(zone).toLocalTime().withSecond(0).withNano(0) } ?: "") + ")"
     }
 
     /**
