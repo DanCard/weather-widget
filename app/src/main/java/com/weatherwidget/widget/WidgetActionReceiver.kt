@@ -10,13 +10,19 @@ import android.widget.Toast
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.WeatherWidgetApp
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.widget.handlers.InteractionLatency
+import com.weatherwidget.widget.handlers.InteractionTrace
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 
 /** Non-exported receiver for app-owned widget commands and PendingIntents. */
 @dagger.hilt.android.AndroidEntryPoint
@@ -289,6 +295,9 @@ class WidgetActionReceiver : BroadcastReceiver() {
     ) {
         val appWidgetId = widgetId(intent)
         val action = intent.action?.substringAfterLast('.') ?: "unknown"
+        val ordinal = tapsInProcess.incrementAndGet()
+        val processAgeAtReceiptMs = WeatherWidgetApp.processAgeMs(receivedAtElapsedMs)
+        val trace = InteractionTrace()
         val job = launchAsync(context, CoroutineStart.LAZY) {
             val startedAtMs = SystemClock.elapsedRealtime()
             // Emitted at START as well as completion, deliberately. A single line in `finally`
@@ -301,18 +310,40 @@ class WidgetActionReceiver : BroadcastReceiver() {
                 "action=$action widget=$appWidgetId phase=start queue=${startedAtMs - receivedAtElapsedMs}ms",
             )
             try {
-                block()
+                withContext(trace) { block() }
             } finally {
                 val doneAtMs = SystemClock.elapsedRealtime()
+                val e2eMs = doneAtMs - receivedAtElapsedMs
                 // Logcat, not app_logs: this fires on every tap, and a diagnostic's own write must
                 // never land on the path it is measuring. Same rule as OBS_RANGE_READ.
                 Log.i(
                     "INTERACTION_E2E",
                     "action=$action widget=$appWidgetId phase=done " +
-                        "e2e=${doneAtMs - receivedAtElapsedMs}ms " +
+                        "e2e=${e2eMs}ms " +
                         "queue=${startedAtMs - receivedAtElapsedMs}ms " +
                         "work=${doneAtMs - startedAtMs}ms",
                 )
+                // The persisted copy, for the taps worth keeping. Written after the paint was
+                // pushed, so it lands after the span it measures, not inside it.
+                if (InteractionLatency.shouldPersist(ordinal, e2eMs)) {
+                    withContext(NonCancellable) {
+                        runCatching {
+                            WeatherDatabase.getDatabase(context).appLogDao().log(
+                                InteractionLatency.TAG,
+                                InteractionLatency.format(
+                                    action = action,
+                                    appWidgetId = appWidgetId,
+                                    ordinal = ordinal,
+                                    processAgeAtReceiptMs = processAgeAtReceiptMs,
+                                    queueMs = startedAtMs - receivedAtElapsedMs,
+                                    lockWaitMs = trace.lockWaitMs,
+                                    workMs = doneAtMs - startedAtMs,
+                                    e2eMs = e2eMs,
+                                ),
+                            )
+                        }.onFailure { Log.w(TAG, "INTERACTION_E2E row write failed", it) }
+                    }
+                }
             }
         }
         WidgetActionJobRegistry.track(appWidgetId, job)
@@ -352,5 +383,8 @@ class WidgetActionReceiver : BroadcastReceiver() {
 
     private companion object {
         const val TAG = "WidgetActionReceiver"
+
+        /** Widget taps since this process started; receivers are per-broadcast, this is not. */
+        val tapsInProcess = AtomicInteger(0)
     }
 }

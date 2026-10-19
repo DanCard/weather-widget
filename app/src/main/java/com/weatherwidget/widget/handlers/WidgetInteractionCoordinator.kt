@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.log
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -43,6 +44,7 @@ internal object WidgetInteractionCoordinator {
         val alreadyHeld = mutex.isLocked
         return mutex.withLock {
             val waitedMs = android.os.SystemClock.elapsedRealtime() - waitStartMs
+            currentCoroutineContext()[InteractionTrace]?.let { it.lockWaitMs += waitedMs }
             if (waitedMs >= LOCK_WAIT_SLOW_MS) {
                 Log.i(TAG, "INTERACTION_LOCK_PERF widget=$appWidgetId waited=${waitedMs}ms contended=$alreadyHeld")
             }
