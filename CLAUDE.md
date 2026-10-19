@@ -140,7 +140,12 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   `DesktopForecastPlanner`), not a fixed tick: capped at 2 h, ≥ 1 min, ≥ 15 min after a failed fetch,
   and woken early (`FORECAST_LOOP_WAKE reason=power|screen`) by a UPower cadence-tier change
   (`BatteryTier.cadenceTier`; `POWER_DETECT`) or the ScreenSaver unblanking. Resume / network restore
-  restart the loops. First plan 5 min after (re)start, so it never fetches beside the launch refresh.
+  restart the loops. First plan once the launch refresh is done (startup, resume, network restore;
+  ≤ 5 min, `awaitLaunch`, `FORECAST_LOOP_START`) or a fixed 5 min after a source/location change, so it
+  never fetches beside the launch refresh. **A resume / network catch-up refetches the displayed
+  forecast once it is > 8 h old, whatever the battery** (`CATCH_UP_FORECAST_MAX_AGE_MS`; the cadence's
+  24 h on battery < 70 % left a notebook opened at a café 18 h stale;
+  `performance/261019-desktop-notebook-morning-forecast.md`).
   Logged `FORECAST_LOOP_SLEEP sleepMin=… reason=DUE|CAP|RETRY next=…`
   (`performance/261011-desktop-forecast-loop-sleep-until-due.md`).
 - **Google past-day hourly refill** (user, 2026-10-10): `forecast/hours` never re-sends a passed

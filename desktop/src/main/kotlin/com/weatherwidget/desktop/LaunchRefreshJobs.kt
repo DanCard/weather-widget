@@ -6,6 +6,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -46,6 +47,9 @@ internal class LaunchRefreshJobs(private val scope: CoroutineScope) {
         return previous
     }
 
+    /** The launch refresh started last, for the forecast loop to wait on ([awaitLaunch]). */
+    fun current(): Job? = latest
+
     /** Config cleared: nothing to fetch for. */
     fun cancel() {
         latest?.cancel()
@@ -82,4 +86,17 @@ internal class LaunchRefreshJobs(private val scope: CoroutineScope) {
     companion object {
         fun key(config: DesktopConfig): String = "${config.displaySource}@${config.lat},${config.lon}"
     }
+}
+
+/**
+ * The forecast loop's first wait after a (re)start with [reason]: until [launch] finishes, at most
+ * [settleMs], when [forecastLoopWaitsForLaunch]; otherwise the whole [settleMs]. Returns what ended
+ * the wait, for `FORECAST_LOOP_START`: `launch_done` or `settle`.
+ */
+internal suspend fun awaitLaunch(reason: String, launch: Job?, settleMs: Long = FORECAST_LOOP_STARTUP_SETTLE_MS): String {
+    if (!forecastLoopWaitsForLaunch(reason)) {
+        delay(settleMs)
+        return "settle"
+    }
+    return if (withTimeoutOrNull(settleMs) { launch?.join() ?: Unit } != null) "launch_done" else "settle"
 }

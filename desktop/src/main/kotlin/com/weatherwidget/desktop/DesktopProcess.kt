@@ -85,8 +85,29 @@ const val SUSPEND_RECHECK_INTERVAL_MS = 5 * 60 * 1000L
 /**
  * The forecast loop's first plan waits this long after (re)start: the launch / catch-up refresh that
  * runs beside it owns the first minutes, and planning at once would fetch the same source twice.
+ * After a startup or an automatic catch-up the loop plans as soon as that refresh finishes instead
+ * ([forecastLoopWaitsForLaunch]); this is then only the cap.
  */
 const val FORECAST_LOOP_STARTUP_SETTLE_MS = 5 * 60 * 1000L
+
+/**
+ * Whether the forecast loop's first plan follows the launch refresh's end rather than the fixed
+ * [FORECAST_LOOP_STARTUP_SETTLE_MS] (2026-10-19, performance/261019-desktop-notebook-morning-forecast.md):
+ * after a resume the other sources waited 5 min — a source switch in that time showed last night's
+ * forecast. Only for [STARTUP_REASON] and automatic catch-ups: a source or location change keeps the
+ * fixed settle, because clicking through sources restarts the loop each time and a loop fetch begun
+ * between two clicks would be cancelled half-billed.
+ */
+fun forecastLoopWaitsForLaunch(reason: String): Boolean = reason == STARTUP_REASON || isAutomaticCatchUp(reason)
+
+/**
+ * Oldest forecast an automatic catch-up (resume, network restore) leaves alone, whatever the battery
+ * (2026-10-19, performance/261019-desktop-notebook-morning-forecast.md). Below 70 % the cadence is
+ * 24 h, so a notebook opened on battery could show an 18 h-old forecast; a resume is the user arriving
+ * with the screen on, not a background wake, and one fetch of the displayed source costs little
+ * beside the screen. The background loops keep the cadence.
+ */
+const val CATCH_UP_FORECAST_MAX_AGE_MS = 8 * 3_600_000L
 
 /**
  * Cadence of the current-status tick: the daemon re-resolves + republishes `current_status`, and the
@@ -138,8 +159,9 @@ const val STARTUP_REASON = "startup"
 
 /**
  * How old the forecast may be before a launch catch-up refetches it:
- * - automatic catch-up and [STARTUP_REASON]: the normal cadence ([cadenceMs]; null = suspended →
- *   never). A launch is not a request for a forecast: it used to refetch anything 15 min old, ~3
+ * - automatic catch-up: the normal cadence ([cadenceMs]), but never more than
+ *   [CATCH_UP_FORECAST_MAX_AGE_MS] — the user is arriving, whatever the battery;
+ * - [STARTUP_REASON]: the normal cadence ([cadenceMs]; null = suspended → never). A launch is not a request for a forecast: it used to refetch anything 15 min old, ~3
  *   Google requests per restart (plans/261008-desktop-startup-respects-forecast-cadence.md). A launch
  *   with no cache still fetches (`cachePresent`), and observations still catch up;
  * - cycling the displayed source ([SOURCE_CYCLE_REASON]): [SourceToggleRefreshPolicy.STALE_MS], 4 h,
@@ -147,7 +169,8 @@ const val STARTUP_REASON = "startup"
  * - otherwise the user-present [FORECAST_FRESHNESS_THRESHOLD_MS].
  */
 fun launchForecastStaleAfterMs(reason: String, cadenceMs: () -> Long?): Long = when {
-    isAutomaticCatchUp(reason) || reason == STARTUP_REASON -> cadenceMs() ?: Long.MAX_VALUE
+    isAutomaticCatchUp(reason) -> minOf(cadenceMs() ?: Long.MAX_VALUE, CATCH_UP_FORECAST_MAX_AGE_MS)
+    reason == STARTUP_REASON -> cadenceMs() ?: Long.MAX_VALUE
     reason == SOURCE_CYCLE_REASON -> com.weatherwidget.shared.util.SourceToggleRefreshPolicy.STALE_MS
     else -> FORECAST_FRESHNESS_THRESHOLD_MS
 }

@@ -110,7 +110,8 @@ class DesktopApiUsageAndRefreshGateTest {
             forecastStaleAfterMs = staleAfter,
         )
         assertEquals(LaunchRefreshAction.OBSERVATIONS, action)
-        assertEquals(Long.MAX_VALUE, launchForecastStaleAfterMs("resume:logind") { null })
+        // A catch-up never leaves a forecast older than 8 h, even with the cadence off.
+        assertEquals(CATCH_UP_FORECAST_MAX_AGE_MS, launchForecastStaleAfterMs("resume:logind") { null })
         // A source or location the user just picked still refetches past the user-present 15 min.
         assertEquals(FORECAST_FRESHNESS_THRESHOLD_MS, launchForecastStaleAfterMs("source_or_location_change") { cadence })
     }
@@ -141,5 +142,27 @@ class DesktopApiUsageAndRefreshGateTest {
         val switched = before.copy(settings = before.settings.copy(weatherSource = "GOOGLE_WEATHER"))
         assertEquals(SOURCE_CYCLE_REASON, daemonFetchRestartReason(before, switched))
         assertEquals("source_or_location_change", daemonFetchRestartReason(before, switched.copy(lat = 40.0)))
+    }
+
+    @Test
+    fun `a notebook resumed on low battery refetches a forecast older than 8 h, not 24 h`() {
+        val hour = 3_600_000L
+        val lowBatteryCadence = 24 * hour
+        for (reason in listOf("resume:logind", "network:restored")) {
+            val staleAfter = launchForecastStaleAfterMs(reason) { lowBatteryCadence }
+            assertEquals(8 * hour, staleAfter)
+            val action = determineLaunchRefreshAction(
+                cachePresent = true,
+                lastObservationFetchMs = 0L,
+                lastForecastFetchMs = 0L,
+                nowMs = 18 * hour,
+                forecastStaleAfterMs = staleAfter,
+            )
+            assertEquals(LaunchRefreshAction.FULL_FORECAST, action)
+        }
+        // A shorter cadence still wins (high battery: 4 h).
+        assertEquals(4 * hour, launchForecastStaleAfterMs("resume:logind") { 4 * hour })
+        // The daemon's own launch keeps the cadence: a restart is not the user arriving.
+        assertEquals(lowBatteryCadence, launchForecastStaleAfterMs(STARTUP_REASON) { lowBatteryCadence })
     }
 }

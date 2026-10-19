@@ -849,6 +849,7 @@ internal class DaemonRuntime(
         // 1. Startup refresh, outside fetchJob: a source change leaves the previous one running
         // (launchRefreshSurvivesRestart); every other restart cancels it.
         val previousLaunch = launchRefreshJobs.start(reason) { runLaunchRefresh(newRepo, config, reason) }
+        val launchJob = launchRefreshJobs.current()
         // Close the replaced client after a grace, not now: a caller still holding the old repo
         // (an observation catch-up, a non-loop refresh, a launch refresh left running past a source
         // change) would otherwise fail mid-request on "client closed" and surface a false error.
@@ -977,8 +978,15 @@ internal class DaemonRuntime(
             // or the screen coming on. Every wake re-plans each source (ForecastHorizonCadence, one rule
             // for every source). performance/261016-unified-long-short-forecast-horizons.md
             launch {
-                // The launch refresh owns the first minutes; planning now would fetch beside it.
-                delay(FORECAST_LOOP_STARTUP_SETTLE_MS)
+                // The launch refresh owns the first minutes; planning now would fetch beside it. After
+                // a startup or a resume the loop plans as soon as it is done (forecastLoopWaitsForLaunch).
+                val startMs = System.currentTimeMillis()
+                val endedBy = awaitLaunch(reason, launchJob)
+                weatherDao.log(
+                    "FORECAST_LOOP_START",
+                    "reason=$reason endedBy=$endedBy waitedSec=${(System.currentTimeMillis() - startMs) / 1000}",
+                    "INFO",
+                )
                 while (true) {
                     val (isCharging, level) = PowerDetector.getPowerState()
                     val screenOn = ScreenStateDetector.isScreenOn()
