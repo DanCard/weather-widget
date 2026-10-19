@@ -224,6 +224,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
      */
     private fun handleScreenOn(context: Context) {
         Log.d(TAG, "Screen on - resampling location")
+        UsageHoursTracker.sight(context.applicationContext)
         resampleLocationAsync(context, trigger = "screen_on")
         startBatteryScreenOnLoop(context)
 
@@ -246,8 +247,9 @@ class ScreenOnReceiver : BroadcastReceiver() {
      * than 20 minutes, which is most of them, would never see a fetch. This is the one place
      * screen-on reaches the network; the loop's interval still bounds how often.
      *
-     * Charging is left alone: the charging loop is already running. Screen-off on battery cancels
-     * the loop ([handleScreenOff]).
+     * On a charger the loop is already running; screen-on fetches only when the last fetch is
+     * ≥ 15 min old, since screen-off spaces the charging loop 30 min apart (2026-10-19). Screen-off on
+     * battery cancels the loop ([handleScreenOff]).
      */
     private fun startBatteryScreenOnLoop(context: Context) {
         val battery = getBatteryState(context)
@@ -267,7 +269,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
                 // The run's post-run loop management schedules the next one 20 minutes out.
                 CurrentTempUpdateScheduler.enqueueImmediateUpdate(
                     context = context,
-                    reason = "battery_screen_on_catchup",
+                    reason = if (battery.isCharging) "charging_screen_on_catchup" else "battery_screen_on_catchup",
                     opportunistic = false,
                     targetSourceId = WidgetStateManager(context.applicationContext).getPrimarySource().id,
                     expedited = true,
@@ -281,7 +283,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
                 )
             com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.NONE -> Unit
         }
-        logScreenOnLoop(context, decision, battery.batteryLevel, ageMin)
+        logScreenOnLoop(context, decision, battery.batteryLevel, ageMin, battery.isCharging)
     }
 
     private fun logScreenOnLoop(
@@ -289,14 +291,16 @@ class ScreenOnReceiver : BroadcastReceiver() {
         decision: com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp,
         batteryLevel: Int,
         lastFetchAgeMin: String,
+        isCharging: Boolean,
     ) {
         val pendingResult = goAsync()
         CoroutineScope(ioDispatcher).launch {
             try {
                 WeatherDatabase.getDatabase(context).appLogDao().log(
                     "SCREEN_ON_OBS_LOOP",
-                    "outcome=${decision.name.lowercase()} battery=$batteryLevel lastFetchAgeMin=$lastFetchAgeMin " +
-                        "intervalMin=${CurrentTempFetchPolicy.BATTERY_SCREEN_ON_INTERVAL_MINUTES}",
+                    "outcome=${decision.name.lowercase()} battery=$batteryLevel charging=$isCharging " +
+                        "lastFetchAgeMin=$lastFetchAgeMin " +
+                        "intervalMin=${if (isCharging) CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES else CurrentTempFetchPolicy.BATTERY_SCREEN_ON_INTERVAL_MINUTES}",
                     "INFO",
                 )
             } catch (e: Exception) {

@@ -18,10 +18,10 @@ class CurrentTempCadenceTest {
         CurrentTempCadence.intervalMinutes(charging, screenOn, battery)
 
     @Test
-    fun `charging is 10 min screen on and 16 min screen off at any battery`() {
+    fun `charging is 10 min screen on and 30 min screen off at any battery`() {
         assertEquals(10L, interval(true, true, 5))
-        assertEquals(16L, interval(true, false, 5))
-        assertEquals(16L, interval(true, false, 100))
+        assertEquals(30L, interval(true, false, 5))
+        assertEquals(30L, interval(true, false, 100))
     }
 
     @Test
@@ -61,7 +61,13 @@ class CurrentTempCadenceTest {
         assertEquals(ScreenOnCatchUp.FETCH_NOW, CurrentTempCadence.screenOnCatchUp(false, 80, now - 20 * minute, now))
         assertEquals(ScreenOnCatchUp.SCHEDULE, CurrentTempCadence.screenOnCatchUp(false, 80, now - 19 * minute, now))
         assertEquals(ScreenOnCatchUp.NONE, CurrentTempCadence.screenOnCatchUp(false, 69, 0L, now))
-        assertEquals(ScreenOnCatchUp.NONE, CurrentTempCadence.screenOnCatchUp(true, 90, 0L, now))
+    }
+
+    @Test
+    fun `screen-on catch-up on a charger fetches once 15 min have passed, never schedules`() {
+        assertEquals(ScreenOnCatchUp.FETCH_NOW, CurrentTempCadence.screenOnCatchUp(true, 90, 0L, now))
+        assertEquals(ScreenOnCatchUp.FETCH_NOW, CurrentTempCadence.screenOnCatchUp(true, 30, now - 15 * minute, now))
+        assertEquals(ScreenOnCatchUp.NONE, CurrentTempCadence.screenOnCatchUp(true, 90, now - 14 * minute, now))
     }
 
     @Test

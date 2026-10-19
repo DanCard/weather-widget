@@ -20,9 +20,9 @@ class DesktopFetchStrategyTest {
     }
 
     @Test
-    fun `getObservationRefreshDelayMs returns 16 min when charging and screen off`() {
-        assertEquals(16 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 20, screenOn = false))
-        assertEquals(16 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 90, screenOn = false))
+    fun `getObservationRefreshDelayMs returns 30 min when charging and screen off`() {
+        assertEquals(30 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 20, screenOn = false))
+        assertEquals(30 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 90, screenOn = false))
     }
 
     @Test
@@ -79,7 +79,10 @@ class DesktopFetchStrategyTest {
         assertEquals(true, DesktopFetchStrategy.shouldCatchUpOnKick(wake, now - 20 * MS_PER_MINUTE, false, 80, now))
         assertEquals(false, DesktopFetchStrategy.shouldCatchUpOnKick(wake, now - 15 * MS_PER_MINUTE, false, 80, now))
         assertEquals("below 70 %", false, DesktopFetchStrategy.shouldCatchUpOnKick(wake, null, false, 69, now))
-        assertEquals("charging has its 10-min loop", false, DesktopFetchStrategy.shouldCatchUpOnKick(wake, null, true, 90, now))
+        // On AC the screen-off loop runs 30 min apart: an unblank fetches once 15 min have passed.
+        assertEquals("on AC, never fetched", true, DesktopFetchStrategy.shouldCatchUpOnKick(wake, null, true, 90, now))
+        assertEquals("on AC, 15 min old", true, DesktopFetchStrategy.shouldCatchUpOnKick(wake, now - 15 * MS_PER_MINUTE, true, 90, now))
+        assertEquals("on AC, 14 min old", false, DesktopFetchStrategy.shouldCatchUpOnKick(wake, now - 14 * MS_PER_MINUTE, true, 90, now))
         assertEquals(true, DesktopFetchStrategy.shouldCatchUpOnKick("genmon:click", now - 10 * MS_PER_MINUTE, true, 20, now))
         assertEquals(false, DesktopFetchStrategy.shouldCatchUpOnKick("genmon:click", now - 5 * MS_PER_MINUTE, true, 20, now))
     }

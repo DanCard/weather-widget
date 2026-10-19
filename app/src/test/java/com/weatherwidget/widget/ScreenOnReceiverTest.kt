@@ -288,15 +288,25 @@ class ScreenOnReceiverTest {
     }
 
     @Test
-    fun `SCREEN_ON below 70 percent or while charging leaves the loop alone`() {
+    fun `SCREEN_ON below 70 percent, or charging after a recent fetch, leaves the loop alone`() {
         stubScreenOnLoop(level = 69, charging = false, lastFetchMs = 0L)
         receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
 
         every { BatterySnapshotProvider.snapshot(any()) } returns BatterySnapshot(isCharging = true, batteryLevel = 100)
+        com.weatherwidget.data.repository.FetchMetadata.setLastCurrentTempFetchTime(context, System.currentTimeMillis() - 10 * 60_000L)
         receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
 
         verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any(), any()) }
         verify(exactly = 0) { CurrentTempUpdateScheduler.scheduleNextChargingUpdate(any<Context>(), any<Boolean>(), any<Long>(), any<Long>()) }
+    }
+
+    @Test
+    fun `SCREEN_ON on a charger with a fetch 15 min old catches up now`() {
+        stubScreenOnLoop(level = 100, charging = true, lastFetchMs = System.currentTimeMillis() - 16 * 60_000L)
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+        verify(exactly = 1) {
+            CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), "charging_screen_on_catchup", any(), any(), any(), any(), any())
+        }
     }
 
     @Test
@@ -307,7 +317,7 @@ class ScreenOnReceiverTest {
 
         val logs = WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("SCREEN_ON_OBS_LOOP", 10)
         assertEquals(1, logs.size)
-        assertTrue(logs.single().message, logs.single().message.startsWith("outcome=fetch_now battery=80 lastFetchAgeMin=never"))
+        assertTrue(logs.single().message, logs.single().message.startsWith("outcome=fetch_now battery=80 charging=false lastFetchAgeMin=never"))
     }
 
     @Test

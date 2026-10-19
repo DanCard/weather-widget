@@ -71,6 +71,18 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
             // Exact plug/unplug times for the learned unplug routine; runtime-only for the same reason.
             com.weatherwidget.widget.ChargeStateReceiver.register(this)
         }
+        // An activity coming to the front is use of the device (UsageHoursTracker, log-only).
+        // SharedPreferences only, and only when it happens — nothing runs here at startup.
+        registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(activity: android.app.Activity) =
+                com.weatherwidget.widget.UsageHoursTracker.sight(activity.applicationContext)
+            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) = Unit
+            override fun onActivityStarted(activity: android.app.Activity) = Unit
+            override fun onActivityPaused(activity: android.app.Activity) = Unit
+            override fun onActivityStopped(activity: android.app.Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
+            override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+        })
     }
 
     /**

@@ -154,6 +154,13 @@ const val RESUME_KICK_JITTER_MS = 10_000L
 /** Wake / link-up catch-ups (`resume:*`, `network:*`): screen on, nobody asked for a forecast. */
 fun isAutomaticCatchUp(reason: String): Boolean = reason.startsWith("resume:") || reason.startsWith("network:")
 
+/**
+ * A network-restore catch-up while nobody is at the machine fetches nothing: a Wi-Fi blip at 3 am on
+ * an unattended workstation is not someone arriving. A resume is (someone opened the lid), and so is
+ * every user-asked refresh (performance/261019-desktop-away-state-no-fetching-while-nobody-is-there.md).
+ */
+fun launchRefreshSkippedWhileAway(reason: String, away: Boolean): Boolean = away && reason.startsWith("network:")
+
 /** The daemon's own launch (login autostart, a rebuild/restart, the time-zone relaunch). */
 const val STARTUP_REASON = "startup"
 

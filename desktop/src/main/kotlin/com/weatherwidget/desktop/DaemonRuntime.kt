@@ -69,6 +69,19 @@ internal class DaemonRuntime(
     fun wakeForecastLoop(reason: String) {
         forecastLoopWake.trySend(reason)
     }
+
+    /** Away state: no background fetching while nobody is at the machine (DesktopPresence). */
+    private val presence = DesktopPresence()
+
+    /** Logs an away ↔ present change; a return catches up observations now and wakes the forecast loop. */
+    private fun onPresenceTransition(transition: DesktopPresence.Transition?) {
+        transition ?: return
+        weatherDao.log(DesktopPresence.LOG_TAG, transition.line, "INFO")
+        if (!transition.away) {
+            kickObservationCatchUp("presence:return")
+            wakeForecastLoop("return")
+        }
+    }
     private var screensaverMonitor: Process? = null
     private var fetchJob: Job? = null
     // Launch refreshes live beside fetchJob, not in it: a source change restarts the loops but
@@ -165,6 +178,7 @@ internal class DaemonRuntime(
                             when (name) {
                                 SHOW_TRIGGER -> {
                                     Log.i(TAG, "WatchService: .show trigger detected.")
+                                    onPresenceTransition(presence.markPresent("panel"))
                                     kickObservationCatchUp("genmon:click")
                                     runCatching { Files.deleteIfExists(appDir.resolve(SHOW_TRIGGER)) }
                                     if (uiProcess?.isAlive == true) {
@@ -341,6 +355,7 @@ internal class DaemonRuntime(
                 proc.inputStream.bufferedReader().useLines { lines ->
                     for (line in lines) {
                         if (isScreenWakeSignalLine(line)) {
+                            onPresenceTransition(presence.markPresent("unblank"))
                             kickObservationCatchUp("screensaver:wake")
                             // Screen on shortens the displayed daily cadence (6 h → 4 h).
                             wakeForecastLoop("screen")
@@ -563,13 +578,17 @@ internal class DaemonRuntime(
                 providerId = actualsProvider,
             )
             val forecastStaleAfterMs = launchForecastStaleAfterMs(reason) { activeForecastCadenceMs() }
-            val launchRefreshAction = determineLaunchRefreshAction(
-                cachePresent = cached != null,
-                lastObservationFetchMs = lastObservationFetch,
-                lastForecastFetchMs = lastForecastFetch,
-                nowMs = now,
-                forecastStaleAfterMs = forecastStaleAfterMs,
-            )
+            val launchRefreshAction = if (launchRefreshSkippedWhileAway(reason, presence.isAway)) {
+                LaunchRefreshAction.NONE
+            } else {
+                determineLaunchRefreshAction(
+                    cachePresent = cached != null,
+                    lastObservationFetchMs = lastObservationFetch,
+                    lastForecastFetchMs = lastForecastFetch,
+                    nowMs = now,
+                    forecastStaleAfterMs = forecastStaleAfterMs,
+                )
+            }
 
             Log.i(
                 TAG,
@@ -727,6 +746,8 @@ internal class DaemonRuntime(
             return
         }
         lastResumeKickMs = now
+        // Someone opened the lid.
+        onPresenceTransition(presence.markPresent("resume"))
         val pauseMs = RESUME_KICK_DELAY_MS + kotlin.random.Random.nextLong(RESUME_KICK_JITTER_MS)
         weatherDao.log(WakeEventLog.TAG, WakeEventLog.message("resume:$reason"), "INFO")
         weatherDao.log("RESUME_DETECT", "resume detected ($reason) — catch-up refresh in ${pauseMs}ms", "INFO")
@@ -869,6 +890,14 @@ internal class DaemonRuntime(
         )
 
         fetchJob = daemonScope.launch {
+            // 3-. Presence: read the screen every minute for the away state (DesktopPresence).
+            launch(Dispatchers.IO) {
+                while (true) {
+                    delay(DesktopPresence.CHECK_INTERVAL_MS)
+                    onPresenceTransition(presence.evaluate())
+                }
+            }
+
             // 3a. Panel/status refresh loop: re-resolve the published current_status each
             // STATUS_TICK_MS (single owner keeps the interpolation smooth), then re-render the panel
             // from it. Boundary-aligned and phase-locked with the UI ticker in Main.kt — see
@@ -901,6 +930,10 @@ internal class DaemonRuntime(
                     }
 
                     delay(delayMs)
+                    if (presence.isAway) {
+                        presence.countSkippedObservation()
+                        continue
+                    }
 
                     // Screen on: this loop refreshes the viewed source's current temp and actuals below.
                     // The forecast only when it is due by the normal cadence — never sooner because the
@@ -1003,6 +1036,18 @@ internal class DaemonRuntime(
                     val planNow = System.currentTimeMillis()
                     val plans = sources.associateWith { planner.plan(it, planNow) }
                     val due = plans.filterValues { it.parts != null }
+                    if (presence.isAway) {
+                        // Nobody is here: fetch nothing; the return wakes this loop (onPresenceTransition).
+                        presence.countSkippedForecasts(due.size)
+                        weatherDao.log(
+                            "FORECAST_LOOP_SLEEP",
+                            "sleepMin=${ForecastSchedule.MAX_SLEEP_MS / 60_000L} reason=AWAY due=${due.keys.joinToString(",")}",
+                            "INFO",
+                        )
+                        val wokeBy = withTimeoutOrNull(ForecastSchedule.MAX_SLEEP_MS) { forecastLoopWake.receive() }
+                        if (wokeBy != null) weatherDao.log("FORECAST_LOOP_WAKE", "reason=$wokeBy", "INFO")
+                        continue
+                    }
                     if (due.isNotEmpty()) {
                         weatherDao.log(
                             "FETCH_PLAN",

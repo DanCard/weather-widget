@@ -138,7 +138,7 @@ class CurrentTempFetchPolicyTest {
     @Test
     fun `loop interval table - charging 10 or 16, battery screen-on at 70 or more 20, else none`() {
         assertEquals(10L, CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = true, isScreenInteractive = true, batteryLevel = 5))
-        assertEquals(16L, CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = true, isScreenInteractive = false, batteryLevel = 5))
+        assertEquals(30L, CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = true, isScreenInteractive = false, batteryLevel = 5))
         assertEquals(20L, CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = false, isScreenInteractive = true, batteryLevel = 70))
         assertEquals(20L, CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = false, isScreenInteractive = true, batteryLevel = 100))
         assertNull(CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = false, isScreenInteractive = true, batteryLevel = 69))
@@ -204,11 +204,11 @@ class CurrentTempFetchPolicyTest {
     }
 
     @Test
-    fun `screen-on catch-up does nothing while charging or below 70 percent`() {
+    fun `screen-on catch-up does nothing on a charger after a recent fetch or below 70 percent`() {
         val now = 10_000_000_000L
         assertEquals(
             com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.NONE,
-            CurrentTempFetchPolicy.screenOnCatchUp(isCharging = true, batteryLevel = 100, lastFetchMs = 0L, nowMs = now),
+            CurrentTempFetchPolicy.screenOnCatchUp(isCharging = true, batteryLevel = 100, lastFetchMs = now - 10 * 60_000L, nowMs = now),
         )
         assertEquals(
             com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.NONE,
@@ -231,8 +231,8 @@ class CurrentTempFetchPolicyTest {
     }
 
     @Test
-    fun `charging interval is 16 minutes when screen is off`() {
-        assertEquals(16L, CurrentTempFetchPolicy.chargingIntervalMinutes(isScreenInteractive = false))
+    fun `charging interval is 30 minutes when screen is off`() {
+        assertEquals(30L, CurrentTempFetchPolicy.chargingIntervalMinutes(isScreenInteractive = false))
     }
 
     @Test

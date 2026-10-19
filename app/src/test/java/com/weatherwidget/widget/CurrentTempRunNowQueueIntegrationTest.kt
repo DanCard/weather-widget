@@ -68,7 +68,7 @@ class CurrentTempRunNowQueueIntegrationTest {
         }
         val heartbeat = workManager.infos(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP).single()
         assertEquals(WorkInfo.State.ENQUEUED, heartbeat.state)
-        assertEquals(TimeUnit.MINUTES.toMillis(16), heartbeat.initialDelayMillis)
+        assertEquals(TimeUnit.MINUTES.toMillis(30), heartbeat.initialDelayMillis)
 
         CurrentTempUpdateScheduler.enqueueImmediateUpdate(
             context = context,

@@ -8,9 +8,11 @@ import java.util.concurrent.TimeUnit
  * fetch loop (don't poll other sources while the user isn't looking at the screen).
  *
  * In the project's fire-and-forget shell-out style (cf. `notify-send` / `gdbus` in
- * [DesktopProcess]): tries X11 DPMS via `xset -q`, falls back to logind lock state via `loginctl`,
- * and **fails open** (returns true) when neither tool is usable — a missing probe must never
- * silently freeze the non-primary data.
+ * [DesktopProcess]). A **locked session is off**, whatever the monitor says (2026-10-19: a workstation
+ * locked overnight with its monitor never powered down read as on all night); otherwise X11 DPMS via
+ * `xset -q`, else logind's lock state. [screenState] reports null when neither tool answers;
+ * [isScreenOn] then **fails open** (true) — a missing probe must never silently freeze data — while
+ * the away rule treats it as unknown ([com.weatherwidget.shared.util.UserPresence]).
  */
 object ScreenStateDetector {
     private const val TAG = "ScreenStateDetector"
@@ -18,16 +20,38 @@ object ScreenStateDetector {
 
     @Volatile private var failOpenWarned = false
 
-    /** True if the display appears powered on. Best-effort; fail-open (true) when undetectable. */
+    /** True if the display appears on and unlocked. Best-effort; fail-open (true) when undetectable. */
     fun isScreenOn(): Boolean {
-        parseXsetMonitorState(runCommand("xset", "-q"))?.let { return it }
-        parseLoginctlLocked(runCommand("loginctl", "show-session", "self", "-p", "LockedHint"))?.let { return it }
+        screenState()?.let { return it }
         if (!failOpenWarned) {
             failOpenWarned = true
             Log.w(TAG, "Screen-state probe unavailable (xset/loginctl) — assuming screen on (fail-open).")
         }
         return true
     }
+
+    /** True when on and unlocked, false when off or locked, null when neither probe answers. */
+    fun screenState(): Boolean? = combine(
+        unlocked = parseLoginctlLocked(lockedHintOutput()),
+        monitorOn = parseXsetMonitorState(runCommand("xset", "-q")),
+    )
+
+    /** Pure: a lock wins ([unlocked] false → off); else the monitor; else the lock state; else unknown. */
+    fun combine(unlocked: Boolean?, monitorOn: Boolean?): Boolean? = when {
+        unlocked == false -> false
+        monitorOn != null -> monitorOn
+        else -> unlocked
+    }
+
+    /**
+     * `LockedHint` of this session: `self` when the daemon runs inside it (autostart), else the
+     * user's display session (`loginctl show-user … -p Display`), as from a shell outside it.
+     */
+    private fun lockedHintOutput(): String? =
+        runCommand("loginctl", "show-session", "self", "-p", "LockedHint")
+            ?: runCommand("loginctl", "show-user", System.getProperty("user.name") ?: "", "-p", "Display", "--value")
+                ?.trim()?.takeIf { it.isNotEmpty() }
+                ?.let { runCommand("loginctl", "show-session", it, "-p", "LockedHint") }
 
     /**
      * Pure parser for `xset -q` output. Returns true when the monitor is on, false when it is

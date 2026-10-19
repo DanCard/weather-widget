@@ -88,6 +88,7 @@ class WeatherWidgetWorker
             deferForStartupCooldown(requested)?.let { return it }
             val input = dropSatisfiedForce(requested)
             val device = measureDeviceContext()
+            if (device.isScreenInteractive) UsageHoursTracker.sight(context) else UsageHoursTracker.advance(context)
             ChargeSessionTracker.observe(context, device.isCharging)?.let {
                 appLogDao.log(ChargeSessionTracker.LOG_TAG, it, "INFO")
             }

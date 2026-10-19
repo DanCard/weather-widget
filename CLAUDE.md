@@ -136,6 +136,19 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   `FETCH_PLAN parts=… horizons=NWS:SHORT(long=8h/5h,short=4h/4h),…` (`quotaHeldMin=N` when held) and
   `FORECAST_HORIZON source=… horizon=…` after each fetch; desktop's hourly-only refresh (daily refused)
   logs `REFRESH_HOURLY`, never `REFRESH`. See `performance/261016-unified-long-short-forecast-horizons.md`.
+  **Desktop away state** (2026-10-19): screen off **or session locked** (a lock wins over `xset`'s
+  monitor state) for ≥ 60 min → the observation and forecast loops fetch nothing, and a network-restore
+  catch-up fetches nothing; unblank / unlock / panel / resume ends it and catches up at once
+  (`:shared` `UserPresence`, `DesktopPresence`, checked every minute). Screen state unreadable (no `xset`,
+  no `loginctl`) → away only 00:00–05:00 local after an hour unused (`basis=night_fallback`). Logs
+  `AWAY_STATE away=true|false … skippedObs=… skippedForecast=…`, `FORECAST_LOOP_SLEEP reason=AWAY`
+  (`performance/261019-desktop-away-state-no-fetching-while-nobody-is-there.md`).
+  **Android usage hours** (2026-10-19, phase 1 **log-only**): `:shared` `UsageHours`, 168 hour-of-week
+  usage probabilities (EWMA α 0.25, night prior 00:00–05:00 = 0.05, aggregates only, no timestamps) in
+  prefs `usage_hours_prefs`, fed by screen-on, interactive worker runs, widget actions and activity
+  resumes (`UsageHoursTracker`); logs `USAGE_HOURS` daily and `USAGE_PREDICTION_CHECK` (hours called
+  unused, and use in them). Nothing acts on it yet — phase 2 on approval
+  (`performance/261019-android-usage-hours-slow-fetching-when-unused.md`).
   **Desktop forecast loop sleeps until the next due horizon** (`:shared` `ForecastSchedule`; desktop
   `DesktopForecastPlanner`), not a fixed tick: capped at 2 h, ≥ 1 min, ≥ 15 min after a failed fetch,
   and woken early (`FORECAST_LOOP_WAKE reason=power|screen`) by a UPower cadence-tier change
@@ -402,7 +415,7 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 |-------------|-----------|--------|---------|
 | Current Temp UI | 15-60 min (temp-based) | No (opportunistic) | Update interpolated temp from cache |
 | Data Fetch | 240-1440 min (battery-aware) | Yes (controlled) | Fetch from APIs |
-| Recent observations | Charging 10 min (screen off 16); battery ≥ 70 % screen on 20 min, screen off 45 min; 66–69 % screen on 45 min, screen off none; ≤ 65 % none. Screen-on catch-up on battery ≥ 70 % when ≥ 20 min old. Primary source only on battery | No (Android: charging WorkManager loop; battery screen-on a non-wakeup `setAndAllowWhileIdle` RTC alarm ⇒ ~14–25 min + expedited fetch, so it runs under Pixel Adaptive Battery Saver, on whenever unplugged; 45-min screen-blind JobScheduler job that asks `opportunisticAllowed` at run; desktop: one loop) | `:shared` `CurrentTempCadence` is the one rule, both platforms (`performance/261011-unify-current-temp-cadence-shared.md`) |
+| Recent observations | Charging 10 min (screen off 30 — was 16 until 2026-10-19); battery ≥ 70 % screen on 20 min, screen off 45 min; 66–69 % screen on 45 min, screen off none; ≤ 65 % none. Screen-on catch-up on battery ≥ 70 % when ≥ 20 min old, **on a charger when ≥ 15 min old** (desktop unblank too). Primary source only on battery | No (Android: charging WorkManager loop; battery screen-on a non-wakeup `setAndAllowWhileIdle` RTC alarm ⇒ ~14–25 min + expedited fetch, so it runs under Pixel Adaptive Battery Saver, on whenever unplugged; 45-min screen-blind JobScheduler job that asks `opportunisticAllowed` at run; desktop: one loop) | `:shared` `CurrentTempCadence` is the one rule, both platforms (`performance/261011-unify-current-temp-cadence-shared.md`) |
 | User Interaction | Immediate | N/A | Instant UI + conditional fetch |
 | Charger plug-in | Immediate | JobScheduler charging constraint | `PowerConnectedJobService`: refresh + location resample |
 | Screen Unlock | **Never fires** | N/A | `ScreenOnReceiver` declares `USER_PRESENT` in the manifest and measured zero deliveries over three days on two devices. `ACTION_SCREEN_ON` is not registered at all, and cannot be from a manifest (`FLAG_RECEIVER_REGISTERED_ONLY`; see `android/content/Intent.java`). Do not "fix" this by adding `SCREEN_ON` to the manifest — it will silently do nothing. |

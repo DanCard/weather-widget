@@ -47,4 +47,15 @@ class ScreenStateDetectorTest {
         assertNull(ScreenStateDetector.parseLoginctlLocked("IdleHint=no"))
         assertNull(ScreenStateDetector.parseLoginctlLocked(null))
     }
+
+    @Test
+    fun `a locked session is off whatever the monitor says`() {
+        assertEquals(false, ScreenStateDetector.combine(unlocked = false, monitorOn = true))
+        assertEquals(false, ScreenStateDetector.combine(unlocked = false, monitorOn = null))
+        assertEquals(true, ScreenStateDetector.combine(unlocked = true, monitorOn = true))
+        assertEquals(false, ScreenStateDetector.combine(unlocked = true, monitorOn = false))
+        assertEquals("no lock state: the monitor decides", false, ScreenStateDetector.combine(unlocked = null, monitorOn = false))
+        assertEquals("no monitor state: the lock decides", true, ScreenStateDetector.combine(unlocked = true, monitorOn = null))
+        assertEquals("neither: unknown", null, ScreenStateDetector.combine(unlocked = null, monitorOn = null))
+    }
 }

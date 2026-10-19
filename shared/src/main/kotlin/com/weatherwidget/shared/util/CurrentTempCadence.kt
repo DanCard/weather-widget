@@ -6,7 +6,7 @@ package com.weatherwidget.shared.util
  *
  * | Power | Screen on | Screen off |
  * |---|---|---|
- * | Charging (plugged in) | 10 min | 16 min |
+ * | Charging (plugged in) | 10 min | 30 min |
  * | Battery ≥ 70 % | 20 min | 45 min |
  * | Battery 66–69 % | 45 min | none |
  * | Battery ≤ 65 % | none | none |
@@ -16,10 +16,18 @@ package com.weatherwidget.shared.util
  * (charging) or an RTC alarm (battery, screen on) and the 45-min band as a screen-blind JobScheduler
  * job that asks [opportunisticAllowed] when it runs; desktop runs [intervalMinutes] on one loop.
  * Other sources' observations: [NonPrimaryObservationPolicy].
+ *
+ * Charging screen-off was 16 min until 2026-10-19 (user): ~730 NWS requests a day on a phone left on
+ * AC, nearly all unseen. At 30 min, the screen coming on while charging catches up when the last fetch
+ * is ≥ [CHARGING_SCREEN_ON_CATCH_UP_MINUTES] old ([screenOnCatchUp]);
+ * performance/261019-android-usage-hours-slow-fetching-when-unused.md (Part 0).
  */
 object CurrentTempCadence {
     const val CHARGING_SCREEN_ON_MINUTES = 10L
-    const val CHARGING_SCREEN_OFF_MINUTES = 16L
+    const val CHARGING_SCREEN_OFF_MINUTES = 30L
+
+    /** On a charger, screen-on fetches when the last fetch is at least this old. */
+    const val CHARGING_SCREEN_ON_CATCH_UP_MINUTES = 15L
     const val BATTERY_SCREEN_ON_MINUTES = BatteryTier.SCREEN_ON_OBSERVATION_INTERVAL_MINUTES
     const val OPPORTUNISTIC_MINUTES = 45L
 
@@ -49,7 +57,7 @@ object CurrentTempCadence {
             ?: OPPORTUNISTIC_MINUTES.takeIf { opportunisticAllowed(batteryLevel, screenOn) }
 
     enum class ScreenOnCatchUp {
-        /** Charging, or battery below the cutoff: screen-on does not touch the loop. */
+        /** A recent fetch on a charger, or battery below the cutoff: screen-on does not touch the loop. */
         NONE,
 
         /** Last fetch is at least one interval old: fetch now; the run reschedules the loop. */
@@ -60,12 +68,17 @@ object CurrentTempCadence {
     }
 
     /**
-     * What the screen coming on does on battery. Without the catch-up the loop's first run is a full
+     * What the screen coming on does. On battery: without the catch-up the loop's first run is a full
      * interval after screen-on, and a typical session is shorter than that, so it would rarely fetch.
-     * [lastFetchMs] is the last **current-temperature** fetch (≤ 0 = none).
+     * On a charger the loop is already running, but screen-off spaces it [CHARGING_SCREEN_OFF_MINUTES]
+     * apart: fetch now when the last one is ≥ [CHARGING_SCREEN_ON_CATCH_UP_MINUTES] old, else leave
+     * the loop be. [lastFetchMs] is the last **current-temperature** fetch (≤ 0 = none).
      */
     fun screenOnCatchUp(isCharging: Boolean, batteryLevel: Int, lastFetchMs: Long, nowMs: Long): ScreenOnCatchUp {
-        if (isCharging) return ScreenOnCatchUp.NONE
+        if (isCharging) {
+            val stale = lastFetchMs <= 0L || nowMs - lastFetchMs >= CHARGING_SCREEN_ON_CATCH_UP_MINUTES * MINUTE_MS
+            return if (stale) ScreenOnCatchUp.FETCH_NOW else ScreenOnCatchUp.NONE
+        }
         if (!BatteryTier.screenOnObservationAllowed(batteryLevel, isScreenOn = true)) return ScreenOnCatchUp.NONE
         val ageMs = nowMs - lastFetchMs
         return if (lastFetchMs <= 0L || ageMs >= BATTERY_SCREEN_ON_MINUTES * MINUTE_MS) {

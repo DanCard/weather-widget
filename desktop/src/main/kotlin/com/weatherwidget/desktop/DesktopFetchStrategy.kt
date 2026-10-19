@@ -37,8 +37,8 @@ object DesktopFetchStrategy {
 
     /**
      * Whether a catch-up kick fetches observations now. Screen wake (`screensaver:*`) follows the shared
-     * [CurrentTempCadence.screenOnCatchUp] (battery ≥ 70 %, last fetch ≥ 20 min; charging has its own
-     * 10-min loop); a panel click is user interaction and keeps [shouldCatchUpObservations].
+     * [CurrentTempCadence.screenOnCatchUp] (battery ≥ 70 %, last fetch ≥ 20 min; on AC ≥ 15 min, since
+     * screen-off spaces the loop 30 min apart); a panel click is user interaction and keeps [shouldCatchUpObservations].
      * [lastObservationFetchMs] is the observations' own last fetch, never the forecast's.
      */
     fun shouldCatchUpOnKick(

@@ -32,6 +32,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
         intent: Intent,
     ) {
         val receivedAtElapsedMs = SystemClock.elapsedRealtime()
+        UsageHoursTracker.sight(context.applicationContext)
         Log.d(TAG, "onReceive action=${intent.action}")
         com.weatherwidget.WeatherWidgetApp.logFirstTriggerOnce(
             "WidgetActionReceiver:${intent.action}",

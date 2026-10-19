@@ -373,6 +373,7 @@ internal class FullSyncPipeline(
                         PreWakeFetchScheduler.dailyRoutineLog(context)?.let {
                             appLogDao.log(PreWakeFetchScheduler.ROUTINE_LOG_TAG, it, "INFO")
                         }
+                        UsageHoursTracker.dailyLogLines(context).forEach { (tag, line) -> appLogDao.log(tag, line, "INFO") }
                     } else {
                         WidgetLoopScheduler.manageCurrentTempLoopAfterRun(context, appLogDao, device)
                     }
