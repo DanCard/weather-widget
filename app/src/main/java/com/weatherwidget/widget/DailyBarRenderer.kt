@@ -545,7 +545,7 @@ internal object DailyBarRenderer {
             shader = null
         }
         val topPaint = Paint(paint).apply {
-            color = paint.color
+            color = if (split.topOverridesBar) split.topColor else paint.color
             shader = null
         }
 

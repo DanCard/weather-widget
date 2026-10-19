@@ -33,12 +33,15 @@ object WeatherColors {
      * A weather-adaptive forecast bar split into a clear (gold) top and a cloud/rain bottom.
      * Bar height encodes the temperature range; this split encodes the weather: the bottom
      * segment's *height* is the cloud-cover [ratio] and its *color* is rain (blue) vs cloud (grey).
+     * A rain day ([rainDaySplit]) is grey over blue instead, the blue [ratio] being the daytime rain %.
      */
     data class MixedBarSplit(
         val ratio: Float,
-        val topColorArgb: Int,     // FORECAST_SUNNY
-        val bottomColorArgb: Int,  // FORECAST_RAINY (chance of rain) or FORECAST_CLOUDY
+        val topColorArgb: Int,     // FORECAST_SUNNY, or FORECAST_CLOUDY on a rain day
+        val bottomColorArgb: Int,  // FORECAST_RAINY (chance of rain / rain day) or FORECAST_CLOUDY
         val topFraction: Float,    // 1 - ratio (height of the clear/top segment)
+        /** The top segment is drawn in [topColorArgb]; otherwise in the bar's own colour (e.g. snapshot yellow). */
+        val topOverridesBar: Boolean = false,
     )
 
     /**
@@ -66,6 +69,22 @@ object WeatherColors {
     }
 
     /**
+     * A rain day's bar (user, 2026-10-19): grey cap over blue, with no gold — the icon shows no sun.
+     * The blue height is the daytime rain % when known (so it reads like the % label above the bar),
+     * else the cloud ratio. Its grey top overrides the bar's own (rain-blue) colour.
+     */
+    fun rainDaySplit(cloudRatio: Float?, dayPrecipProbability: Int?): MixedBarSplit? {
+        val r = (dayPrecipProbability?.let { it / 100f } ?: cloudRatio ?: return null).coerceIn(0f, 1f)
+        return MixedBarSplit(
+            ratio = r,
+            topColorArgb = FORECAST_CLOUDY,
+            bottomColorArgb = FORECAST_RAINY,
+            topFraction = (1f - r).coerceIn(0f, 1f),
+            topOverridesBar = true,
+        )
+    }
+
+    /**
      * Daily-bar rain gate. The daily icon is resolved from the whole-day (24h) precip %, but a daily
      * column's bar stands for the daytime — overnight rain has its own between-column label. So a
      * rain icon only paints the bar blue when the daytime precip % also clears the "chance rain"
@@ -86,6 +105,9 @@ object WeatherColors {
         dayPrecipProbability: Int? = null,
     ): MixedBarSplit? {
         val ratio = cloudCoverRatio ?: iconName?.let(WeatherConditionResolver::cloudRatioFromIcon)
+        if (iconName != null && WeatherConditionResolver.isPrecipitation(iconName) && isDaytimeRain(dayPrecipProbability)) {
+            return rainDaySplit(ratio, dayPrecipProbability)
+        }
         val isChanceOfRain = (iconName?.let(WeatherConditionResolver::isChanceOfRainIcon) ?: false) &&
             isDaytimeRain(dayPrecipProbability)
         return mixedBarSplit(ratio, isChanceOfRain)

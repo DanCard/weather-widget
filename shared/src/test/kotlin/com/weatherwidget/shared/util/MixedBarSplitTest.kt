@@ -102,6 +102,36 @@ class MixedBarSplitTest {
     }
 
     @Test
+    fun rainDayIsGreyCapOverBlueSizedByDaytimeRain() {
+        // Silurian Wed 10/21: "Rain", 85 % by day, 99 % noon cloud -> full rain icon. Was a grey bar.
+        val wed = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_RAIN, 0.99f, dayPrecipProbability = 85)!!
+        assertEquals(WeatherColors.FORECAST_CLOUDY, wed.topColorArgb)
+        assertEquals(WeatherColors.FORECAST_RAINY, wed.bottomColorArgb)
+        assertTrue(wed.topOverridesBar)
+        assertEquals(0.85f, wed.ratio, 1e-6f)
+        assertEquals(0.15f, wed.topFraction, 1e-6f)
+
+        // Storm and snow are rain days too.
+        assertTrue(WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_STORM, 0.5f, 70)!!.topOverridesBar)
+        assertTrue(WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_SNOW, 0.5f, 70)!!.topOverridesBar)
+
+        // Unknown day % (snapshot bars): the blue height falls back to the cloud ratio.
+        val snapshot = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_RAIN, 0.7f, dayPrecipProbability = null)!!
+        assertEquals(0.7f, snapshot.ratio, 1e-6f)
+        assertEquals(WeatherColors.FORECAST_CLOUDY, snapshot.topColorArgb)
+
+        // Rain overnight only (day % under 60): not a rain day — the ordinary grey split.
+        val dryDay = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_RAIN, 0.99f, dayPrecipProbability = 15)!!
+        assertEquals(false, dryDay.topOverridesBar)
+        assertEquals(WeatherColors.FORECAST_CLOUDY, dryDay.bottomColorArgb)
+
+        // Chance-rain icons keep their gold top in the bar's own colour.
+        val chance = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_CLOUDY_CHANCE_RAIN, 0.99f, 70)!!
+        assertEquals(false, chance.topOverridesBar)
+        assertEquals(WeatherColors.FORECAST_SUNNY, chance.topColorArgb)
+    }
+
+    @Test
     fun isDaytimeRainThreshold() {
         assertTrue(WeatherColors.isDaytimeRain(null))
         assertTrue(WeatherColors.isDaytimeRain(WeatherConditionResolver.CHANCE_RAIN_MIN_PRECIP))

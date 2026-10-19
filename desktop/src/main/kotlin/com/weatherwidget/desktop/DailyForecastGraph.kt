@@ -983,7 +983,8 @@ private fun DrawScope.drawAdaptiveBar(
     val topEndY = (highY + barHeight * split.topFraction).coerceIn(highY, lowY)
     // Bottom (grey/blue) full-height first, then the clear (baseColor) top painted over it —
     // matches Android's two-segment draw order. Top color is the bar's own baseColor (e.g. the
-    // bright snapshot yellow), not the split's gold, exactly as Android keeps its paint color.
+    // bright snapshot yellow), not the split's gold, exactly as Android keeps its paint color —
+    // except a rain day's grey cap (split.topOverridesBar), which must win over the bar's blue.
     drawLine(
         color = Color(split.bottomColorArgb),
         start = Offset(centerX, highY),
@@ -994,7 +995,7 @@ private fun DrawScope.drawAdaptiveBar(
     )
     if (topEndY - highY > 0.5f) {
         drawLine(
-            color = baseColor,
+            color = if (split.topOverridesBar) Color(split.topColorArgb) else baseColor,
             start = Offset(centerX, highY),
             end = Offset(centerX, topEndY),
             strokeWidth = width,
