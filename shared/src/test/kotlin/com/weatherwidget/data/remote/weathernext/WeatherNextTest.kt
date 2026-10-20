@@ -85,6 +85,25 @@ class WeatherNextTest {
             "2026-10-20T17:00:00Z",
             zoneId = ZoneId.of("America/Los_Angeles"),
         )
-        assertEquals("Tue Oct 20, 10:00 AM PDT", formatted)
+        // CLDR puts a narrow no-break space before AM/PM.
+        assertEquals("Tue, Oct 20, 10:00 AM", formatted.replace('\u202f', ' '))
+    }
+
+    @Test
+    fun `every app locale gets its own order, no year, no zone, and the requested clock`() {
+        val tags = listOf("en-US", "de", "es", "fr", "it", "pt", "pl", "ru", "uk", "tr", "in", "vi", "ja", "ko", "zh-CN", "th", "hi", "bn", "ar", "ur")
+        val la = ZoneId.of("America/Los_Angeles")
+        for (tag in tags) {
+            val locale = java.util.Locale.forLanguageTag(tag)
+            val h24 = WeatherNextForecastClient.formatUtcToLocal("2026-10-21T03:00:00Z", la, locale, use24HourClock = true)
+            val h12 = WeatherNextForecastClient.formatUtcToLocal("2026-10-21T03:00:00Z", la, locale, use24HourClock = false)
+            println("$tag | $h24 | $h12")
+            assertTrue("$tag has no year: $h24", "2026" !in h24)
+            assertTrue("$tag has no zone: $h24", "GMT" !in h24 && "PDT" !in h24)
+            assertTrue("$tag 24h shows 20:00: $h24", "20:00" in h24 || "20.00" in h24)
+            assertTrue("$tag 12h shows 8:00: $h12", "8:00" in h12 && "20:00" !in h12)
+            assertTrue("$tag day of month: $h24", "20" in h24)
+            assertTrue("$tag no year suffix: $h24", "г." !in h24 && "р." !in h24)
+        }
     }
 }

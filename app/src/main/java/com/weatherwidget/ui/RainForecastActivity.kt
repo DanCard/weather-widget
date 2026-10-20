@@ -298,7 +298,7 @@ class RainForecastActivity : AppCompatActivity() {
                 .onSuccess { parsed ->
                     WeatherNextGoneStore.clear(this@RainForecastActivity)
                     manifest = parsed
-                    tvModelRun.text = getString(R.string.rain_loop_model_run, WeatherNextForecastClient.formatUtcToLocal(parsed.init ?: parsed.run))
+                    tvModelRun.text = getString(R.string.rain_loop_model_run, WeatherNextForecastClient.formatUtcToLocal(parsed.init ?: parsed.run, use24HourClock = android.text.format.DateFormat.is24HourFormat(this@RainForecastActivity)))
                     filterFramesForLayer()
                 }
                 .onFailure {
@@ -430,7 +430,7 @@ class RainForecastActivity : AppCompatActivity() {
 
         // Update HUD
         val lead = framesForLayer[idx1].lead
-        val validLocal = WeatherNextForecastClient.formatUtcToLocal(framesForLayer[idx1].valid)
+        val validLocal = WeatherNextForecastClient.formatUtcToLocal(framesForLayer[idx1].valid, use24HourClock = android.text.format.DateFormat.is24HourFormat(this))
         tvHudTitle.text = "${getString(selectedLayer.titleRes())} · F+${String.format("%03d", lead)}h"
         tvHudTime.text = getString(R.string.rain_loop_valid, validLocal)
     }
