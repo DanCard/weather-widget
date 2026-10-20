@@ -170,6 +170,7 @@ internal fun runDesktopUiApplication() = application {
         var iconGalleryShowRequestId by remember { mutableStateOf(0) }
         var usageStatsVisible by remember { mutableStateOf(false) }
         var usageStatsShowRequestId by remember { mutableStateOf(0) }
+        var simLoopVisible by remember { mutableStateOf(false) }
         // Owned here rather than in either child window: full refresh work runs on uiScope and
         // survives closing Settings or Stations/Observations.
         var refreshInFlight by remember { mutableStateOf(false) }
@@ -427,7 +428,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         // Exit on close logic:
-        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || historyVisible || observationsVisible || appLogsVisible || iconGalleryVisible
+        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || historyVisible || observationsVisible || appLogsVisible || iconGalleryVisible || simLoopVisible
         LaunchedEffect(anyWindowOpen) {
             if (!anyWindowOpen) {
                 Log.i(TAG, "All windows closed. Ephemeral UI process exiting...")
@@ -1229,6 +1230,9 @@ internal fun runDesktopUiApplication() = application {
                     historyVisible = true
                     historyShowRequestId++
                 },
+                onOpenSimLoop = {
+                    simLoopVisible = true
+                },
                 onNeedHistory = onNeedHistory,
                 onNeedHourlyRefresh = onNeedHourlyRefresh,
                 onDayClickAudit = { message ->
@@ -1247,6 +1251,14 @@ internal fun runDesktopUiApplication() = application {
                     currentTempFetchError = null
                     currentTempFetchPill = null
                 },
+            )
+        }
+
+        if (simLoopVisible && currentConfig != null) {
+            RainForecastWindow(
+                config = currentConfig,
+                httpClient = desktopClients.httpClient,
+                onClose = { simLoopVisible = false },
             )
         }
     }

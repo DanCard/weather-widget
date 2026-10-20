@@ -194,6 +194,8 @@ HeaderRemoteViewsBinder.applyDisclosure(
         HeaderTapTargetHelper.bindToggleTemperatureHeader(context, views, appWidgetId)
         HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
 
+        views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
+
         // 5. Graph
         if (state.graph.useGraph && state.graph.bitmap != null) {
             views.setViewVisibility(R.id.text_container, View.GONE)

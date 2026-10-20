@@ -69,6 +69,7 @@ internal fun WidgetPopup(
     onOpenSettings: () -> Unit,
     onOpenObservations: (java.time.LocalDate) -> Unit,
     onOpenHistory: (viewedDate: LocalDate) -> Unit = {},
+    onOpenSimLoop: () -> Unit = {},
     onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
     onNeedHistory: (Int) -> Unit = {},
     onNeedHourlyRefresh: (date: LocalDate, onComplete: (List<HourlyForecast>) -> Unit) -> Unit = { _, _ -> },
@@ -321,6 +322,7 @@ internal fun WidgetPopup(
                                     onToggleZoom = handleToggleZoom,
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,
+                                    onOpenSimLoop = onOpenSimLoop,
                                 )
                             } else {
                                 TemperatureGraph(

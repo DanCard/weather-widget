@@ -190,7 +190,35 @@ class PrecipTouchRoutingRoboTest {
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_view).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_zone).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_hour_zones).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.sim_loop_touch_zone).visibility)
         assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_container).visibility)
+    }
+
+    @Test
+    fun `precipitation graph sim loop touch zone is visible and launches RainForecastActivity`() = runBlocking {
+        val views = renderPrecipWidget(
+            options = graphOptions(),
+            configureState = {
+                it.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
+                it.setWidgetLocations(intArrayOf(appWidgetId), 37.42, -122.09)
+            },
+        )
+
+        val applied = applyViews(views)
+        val simLoopZone = applied.findViewById<View>(R.id.sim_loop_touch_zone)
+        assertNotNull(simLoopZone)
+        assertEquals(View.VISIBLE, simLoopZone.visibility)
+
+        val shadowApp = shadowOf(app)
+        simLoopZone.performClick()
+        val startedIntent = shadowApp.nextStartedActivity
+        assertNotNull("Sim loop zone should launch an activity", startedIntent)
+        assertEquals(
+            com.weatherwidget.ui.RainForecastActivity::class.java.name,
+            startedIntent.component?.className,
+        )
+        assertEquals(37.42, startedIntent.getDoubleExtra(com.weatherwidget.ui.RainForecastActivity.EXTRA_LAT, 0.0), 0.001)
+        assertEquals(-122.09, startedIntent.getDoubleExtra(com.weatherwidget.ui.RainForecastActivity.EXTRA_LON, 0.0), 0.001)
     }
 
     private suspend fun renderPrecipWidget(

@@ -2,7 +2,17 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.shared.observations.NwsBlend
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -19,6 +29,7 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,6 +72,7 @@ fun PrecipitationGraph(
     onToggleZoom: (clickedOffset: Int) -> Unit = {},
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit = { _, _ -> },
     onPan: (deltaHours: Int) -> Unit = {},
+    onOpenSimLoop: () -> Unit = {},
 ) {
     val textMeasurer = rememberTextMeasurer()
     val setup = rememberHourlyGraphSetup(hourly, centerOffsetHours, zoomFactor) ?: return
@@ -75,8 +87,9 @@ fun PrecipitationGraph(
 
     val watermarkPainter = painterResource("drawable/ic_weather_rain.xml")
 
-    Canvas(
-        modifier = modifier.hourlyGraphTapInput(
+    Box(modifier = modifier) {
+        Canvas(
+            modifier = Modifier.fillMaxSize().hourlyGraphTapInput(
             start = start,
             cutoff = cutoff,
             nowMs = now,
@@ -302,6 +315,33 @@ fun PrecipitationGraph(
             drawnLabels = drawnLabels,
             xAt = xAt,
         )
+    }
+
+    // "Sim loop" pill button in upper right unused space
+    Row(
+        modifier = Modifier
+            .align(Alignment.TopEnd)
+            .padding(end = 12.dp * scale, top = 8.dp * scale)
+            .background(
+                color = Color(0x3C5AC8FA),
+                shape = RoundedCornerShape(12.dp * scale),
+            )
+            .border(
+                width = 1.dp * scale,
+                color = Color(0x825AC8FA),
+                shape = RoundedCornerShape(12.dp * scale),
+            )
+            .clickable { onOpenSimLoop() }
+            .padding(horizontal = 8.dp * scale, vertical = 3.dp * scale),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "🌧️ Sim loop",
+            color = Color.White,
+            fontSize = 11.sp * scale,
+            fontWeight = FontWeight.Bold,
+        )
+    }
     }
 }
 

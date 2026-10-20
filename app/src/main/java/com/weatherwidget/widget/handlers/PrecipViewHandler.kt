@@ -406,7 +406,26 @@ object PrecipViewHandler {
                 bannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
                 sourceId = displaySource.id,
             )
+
+            // "Sim loop" pill button tap target
+            views.setViewVisibility(R.id.sim_loop_touch_zone, View.VISIBLE)
+            val simLoopIntent = Intent(context, com.weatherwidget.ui.RainForecastActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                stateManager.getWidgetLocation(appWidgetId)?.let { (lat, lon) ->
+                    putExtra(com.weatherwidget.ui.RainForecastActivity.EXTRA_LAT, lat)
+                    putExtra(com.weatherwidget.ui.RainForecastActivity.EXTRA_LON, lon)
+                }
+                putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val simLoopPending = PendingIntent.getActivity(
+                context,
+                WidgetRequestCodes.simLoop(appWidgetId),
+                simLoopIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.sim_loop_touch_zone, simLoopPending)
         } else {
+            views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)

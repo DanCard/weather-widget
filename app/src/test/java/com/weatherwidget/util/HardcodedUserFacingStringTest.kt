@@ -71,6 +71,8 @@ class HardcodedUserFacingStringTest {
             mapOf(
                 "Dead zone tapped" to
                     "debug-only dead-zone toast (TemperatureTouchTargets); gated by BuildConfig.DEBUG",
+                "🌧 Sim loop" to
+                    "Sim loop viewer button in precipitation graph",
             )
 
         // ---- Check B allowlist: current :shared user-facing prose + why it still exists. ----

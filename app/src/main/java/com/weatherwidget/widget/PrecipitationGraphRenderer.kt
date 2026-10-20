@@ -715,6 +715,35 @@ object PrecipitationGraphRenderer {
                     errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
                 )
         }
+
+        // "Sim loop" pill button in top-right unused space
+        val simDensity = context.resources.displayMetrics.density * bitmapScale
+        val simPillRight = widthPx - 8f * simDensity
+        val simPillTop = 6f * simDensity
+        val simPillHeight = 20f * simDensity
+        val simPillWidth = 66f * simDensity
+        val simPillRect = android.graphics.RectF(simPillRight - simPillWidth, simPillTop, simPillRight, simPillTop + simPillHeight)
+        val pillBgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.argb(60, 90, 200, 250)
+            style = android.graphics.Paint.Style.FILL
+        }
+        val pillStrokePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.argb(130, 90, 200, 250)
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = 1f * simDensity
+        }
+        val pillTextPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.WHITE
+            textSize = 10f * simDensity
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        val cornerRadius = simPillHeight / 2f
+        canvas.drawRoundRect(simPillRect, cornerRadius, cornerRadius, pillBgPaint)
+        canvas.drawRoundRect(simPillRect, cornerRadius, cornerRadius, pillStrokePaint)
+        val textY = simPillRect.centerY() - (pillTextPaint.descent() + pillTextPaint.ascent()) / 2f
+        canvas.drawText("🌧 Sim loop", simPillRect.centerX(), textY, pillTextPaint)
+
         return bitmap
     }
 

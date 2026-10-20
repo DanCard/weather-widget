@@ -38,6 +38,7 @@ object WidgetRequestCodes {
     private const val BASE_ERROR_PILL = 5400
     private const val BASE_RECENTER_TODAY = 5450
     private const val BASE_MONTHS_VIEW = 5500
+    private const val BASE_SIM_LOOP = 5600
 
     fun navLeft(id: Int) = id * 10000 + BASE_NAV_LEFT
     fun navRight(id: Int) = id * 10000 + BASE_NAV_RIGHT
@@ -90,4 +91,7 @@ object WidgetRequestCodes {
 
     /** The daily header's months-view (zoom-out) button. */
     fun monthsView(id: Int) = id * 10000 + BASE_MONTHS_VIEW
+
+    /** The precipitation graph's "Sim loop" button opening RainForecastActivity. */
+    fun simLoop(id: Int) = id * 10000 + BASE_SIM_LOOP
 }
