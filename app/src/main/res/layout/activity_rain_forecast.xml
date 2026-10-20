@@ -40,7 +40,7 @@
                     android:id="@+id/tv_location"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="📍 Current Location"
+                    android:text="@string/rain_loop_current_location"
                     android:textColor="#FFFFFF"
                     android:textSize="15sp"
                     android:textStyle="bold" />
@@ -49,7 +49,7 @@
                     android:id="@+id/tv_model_run"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Loading forecast..."
+                    android:text="@string/rain_loop_loading"
                     android:textColor="#94A3B8"
                     android:textSize="11sp" />
             </LinearLayout>
@@ -73,7 +73,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
                     android:layout_marginEnd="6dp"
-                    android:text="⏱ 1-Hour Rain"
+                    android:text="@string/rain_loop_chip_rate"
                     android:textSize="11sp"
                     android:textAllCaps="false"
                     android:backgroundTint="#2563EB"
@@ -84,7 +84,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
                     android:layout_marginEnd="6dp"
-                    android:text="🌧 6-Hour Fronts"
+                    android:text="@string/rain_loop_chip_fronts"
                     android:textSize="11sp"
                     android:textAllCaps="false"
                     android:backgroundTint="#334155"
@@ -95,7 +95,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
                     android:layout_marginEnd="6dp"
-                    android:text="💧 Total Rain"
+                    android:text="@string/rain_loop_chip_total"
                     android:textSize="11sp"
                     android:textAllCaps="false"
                     android:backgroundTint="#334155"
@@ -105,7 +105,7 @@
                     android:id="@+id/btn_layer_ivt"
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
-                    android:text="🌊 Water Vapor"
+                    android:text="@string/rain_loop_chip_vapor"
                     android:textSize="11sp"
                     android:textAllCaps="false"
                     android:backgroundTint="#334155"
@@ -118,7 +118,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Color: Rain expected in this 1-hour window (inches/hr)"
+            android:text="@string/rain_loop_subtitle_rate"
             android:textColor="#38BDF8"
             android:textSize="11sp" />
     </LinearLayout>
@@ -158,7 +158,7 @@
                 android:id="@+id/tv_hud_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="1-Hour Rain Rate · F+001h"
+                android:text="@string/rain_loop_title_rate"
                 android:textColor="#38BDF8"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -167,7 +167,7 @@
                 android:id="@+id/tv_hud_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Valid: --"
+                android:text=""
                 android:textColor="#FFFFFF"
                 android:textSize="11sp" />
         </LinearLayout>
@@ -186,7 +186,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="SCALE: "
+            android:text="@string/rain_loop_scale_label"
             android:textColor="#94A3B8"
             android:textSize="11sp"
             android:textStyle="bold" />
@@ -227,7 +227,7 @@
                 android:id="@+id/btn_play_pause"
                 android:layout_width="wrap_content"
                 android:layout_height="38dp"
-                android:text="⏸ Pause"
+                android:text="@string/rain_loop_pause"
                 android:textSize="12sp"
                 android:backgroundTint="#0284C7"
                 android:textColor="#FFFFFF" />
@@ -264,7 +264,7 @@
                     android:id="@+id/tv_speed_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Speed: "
+                    android:text="@string/rain_loop_speed_label"
                     android:textColor="#94A3B8"
                     android:textSize="11sp" />
 
@@ -274,7 +274,7 @@
                     android:layout_height="wrap_content"
                     android:paddingHorizontal="8dp"
                     android:paddingVertical="4dp"
-                    android:text="1.0x (Snappy)"
+                    android:text="@string/rain_loop_speed_1_0"
                     android:textColor="#38BDF8"
                     android:textSize="12sp"
                     android:textStyle="bold" />

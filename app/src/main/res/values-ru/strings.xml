@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 Анимация</string>
     <string name="sim_loop_no_location">Местоположение не задано — сначала выберите его в приложении.</string>
     <string name="sim_loop_load_failed">Не удалось загрузить анимацию осадков. Нажмите, чтобы повторить.</string>
+    <string name="rain_loop_current_location">Текущее местоположение</string>
+    <string name="rain_loop_loading">Загрузка прогноза…</string>
+    <string name="rain_loop_model_run">Прогон модели: %1$s</string>
+    <string name="rain_loop_valid">Действует: %1$s</string>
+    <string name="rain_loop_play">▶ Воспроизвести</string>
+    <string name="rain_loop_pause">⏸ Пауза</string>
+    <string name="rain_loop_speed_label">Скорость:</string>
+    <string name="rain_loop_scale_label">Шкала:</string>
+    <string name="rain_loop_speed_0_5">0,5× (Плавно)</string>
+    <string name="rain_loop_speed_1_0">1,0× (Бодро)</string>
+    <string name="rain_loop_speed_1_5">1,5× (Быстро)</string>
+    <string name="rain_loop_speed_2_5">2,5× (Стремительно)</string>
+    <string name="rain_loop_chip_rate">⏱ Дождь за 1 ч</string>
+    <string name="rain_loop_chip_fronts">🌧 Фронты за 6 ч</string>
+    <string name="rain_loop_chip_total">💧 Сумма осадков</string>
+    <string name="rain_loop_chip_vapor">🌊 Водяной пар</string>
+    <string name="rain_loop_title_rate">Интенсивность и время дождя (1 ч)</string>
+    <string name="rain_loop_title_fronts">Дождь, давление и фронты (6 ч)</string>
+    <string name="rain_loop_title_total">Общая сумма осадков</string>
+    <string name="rain_loop_title_vapor">Интегральный перенос водяного пара</string>
+    <string name="rain_loop_subtitle_rate">Цвет: ожидаемый дождь в этом часовом окне (дюйм/ч) · по часам на 48 часов</string>
+    <string name="rain_loop_subtitle_fronts">Цвет: дождь за последние 6 ч (дюймы) · Чёрные линии: давление (гПа) · Красные линии: температура фронта на 850 гПа (°C)</string>
+    <string name="rain_loop_subtitle_total">Цвет: сумма дождя с начала прогона (дюймы) · ожидаемая сумма за непогоду</string>
+    <string name="rain_loop_subtitle_vapor">Цвет: поток влаги 1000–300 гПа (кг/м/с) · Линии показывают, куда переносится влага</string>
+    <string name="rain_loop_legend_rate">Интенсивность осадков (дюйм/ч)</string>
+    <string name="rain_loop_legend_fronts">Чёрный = давление (гПа) | Красный = темп. 850 гПа (°C)</string>
+    <string name="rain_loop_legend_total">Общая сумма за непогоду (дюймы)</string>
+    <string name="rain_loop_legend_vapor">Стрелки: поток влаги</string>
+    <string name="rain_loop_domain_ca">Калифорния и Западное побережье</string>
+    <string name="rain_loop_domain_pnw">Тихоокеанский Северо-Запад</string>
+    <string name="rain_loop_domain_wide">Северная Америка и Тихий океан</string>
 </resources>

@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 सिम लूप</string>
     <string name="sim_loop_no_location">कोई स्थान सेट नहीं — पहले ऐप में एक चुनें।</string>
     <string name="sim_loop_load_failed">बारिश लूप लोड नहीं हो सका। फिर से कोशिश करने के लिए टैप करें।</string>
+    <string name="rain_loop_current_location">वर्तमान स्थान</string>
+    <string name="rain_loop_loading">पूर्वानुमान लोड हो रहा है…</string>
+    <string name="rain_loop_model_run">मॉडल रन: %1$s</string>
+    <string name="rain_loop_valid">मान्य: %1$s</string>
+    <string name="rain_loop_play">▶ चलाएँ</string>
+    <string name="rain_loop_pause">⏸ रोकें</string>
+    <string name="rain_loop_speed_label">गति:</string>
+    <string name="rain_loop_scale_label">पैमाना:</string>
+    <string name="rain_loop_speed_0_5">0.5× (सहज)</string>
+    <string name="rain_loop_speed_1_0">1.0× (फुर्तीला)</string>
+    <string name="rain_loop_speed_1_5">1.5× (तेज़)</string>
+    <string name="rain_loop_speed_2_5">2.5× (बहुत तेज़)</string>
+    <string name="rain_loop_chip_rate">⏱ 1 घंटे की बारिश</string>
+    <string name="rain_loop_chip_fronts">🌧 6 घंटे के फ्रंट</string>
+    <string name="rain_loop_chip_total">💧 कुल बारिश</string>
+    <string name="rain_loop_chip_vapor">🌊 जलवाष्प</string>
+    <string name="rain_loop_title_rate">1 घंटे की बारिश की दर और समय</string>
+    <string name="rain_loop_title_fronts">6 घंटे की बारिश, दाब और फ्रंट</string>
+    <string name="rain_loop_title_total">कुल संचित बारिश</string>
+    <string name="rain_loop_title_vapor">एकीकृत वाष्प परिवहन</string>
+    <string name="rain_loop_subtitle_rate">रंग: इस 1 घंटे में अपेक्षित बारिश (इंच/घंटा) · 48 घंटे तक हर घंटे</string>
+    <string name="rain_loop_subtitle_fronts">रंग: पिछले 6 घंटे की बारिश (इंच) · काली रेखाएँ: दाब (hPa) · लाल रेखाएँ: 850 hPa फ्रंट तापमान (°C)</string>
+    <string name="rain_loop_subtitle_total">रंग: रन शुरू होने से कुल बारिश (इंच) · तूफ़ान का अपेक्षित कुल</string>
+    <string name="rain_loop_subtitle_vapor">रंग: नमी प्रवाह 1000–300 hPa (kg/m/s) · धारा-रेखाएँ दिखाती हैं नमी किधर जा रही है</string>
+    <string name="rain_loop_legend_rate">वर्षा की तीव्रता (इंच/घंटा)</string>
+    <string name="rain_loop_legend_fronts">काला = दाब (hPa) | लाल = 850 hPa तापमान (°C)</string>
+    <string name="rain_loop_legend_total">तूफ़ान का कुल संचय (इंच)</string>
+    <string name="rain_loop_legend_vapor">तीर: नमी का प्रवाह</string>
+    <string name="rain_loop_domain_ca">कैलिफ़ोर्निया और पश्चिमी तट</string>
+    <string name="rain_loop_domain_pnw">प्रशांत उत्तर-पश्चिम</string>
+    <string name="rain_loop_domain_wide">उत्तरी अमेरिका और प्रशांत</string>
 </resources>

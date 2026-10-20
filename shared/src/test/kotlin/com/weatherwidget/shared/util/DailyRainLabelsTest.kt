@@ -103,6 +103,26 @@ class DailyRainLabelsTest {
         assertEquals("12mm", DailyRainLabels.formatPrecipAmount(12.4f))
     }
 
+    @Test
+    fun wholeMillimetreAmountsKeepTheirZeros() {
+        Locale.setDefault(Locale.FRANCE)
+        assertEquals("20mm", DailyRainLabels.formatPrecipAmount(20f))
+        assertEquals("100mm", DailyRainLabels.formatPrecipAmount(100.2f))
+        Locale.setDefault(Locale.US)
+        assertEquals("10in", DailyRainLabels.formatPrecipAmount(254f))
+    }
+
+    @Test
+    fun amountTooSmallToShowNeverPrintsABareUnit() {
+        Locale.setDefault(Locale.US)
+        assertEquals("<.001in", DailyRainLabels.formatPrecipAmount(0.01f)) // 0.0004in — was "in"
+        assertEquals("0in", DailyRainLabels.formatPrecipAmount(0f))
+        Locale.setDefault(Locale.FRANCE)
+        assertEquals("<0.1mm", DailyRainLabels.formatPrecipAmount(0.04f)) // was "mm"
+        assertEquals(".5mm", DailyRainLabels.formatPrecipAmount(0.5f))
+        assertEquals("0mm", DailyRainLabels.formatPrecipAmount(0f))
+    }
+
     // ---- buildDailyRainLabel ----
 
     @Test

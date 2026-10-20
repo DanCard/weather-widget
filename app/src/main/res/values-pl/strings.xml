@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 Pętla sym.</string>
     <string name="sim_loop_no_location">Nie ustawiono lokalizacji — najpierw wybierz ją w aplikacji.</string>
     <string name="sim_loop_load_failed">Nie udało się wczytać pętli opadów. Dotknij, aby ponowić.</string>
+    <string name="rain_loop_current_location">Bieżąca lokalizacja</string>
+    <string name="rain_loop_loading">Wczytywanie prognozy…</string>
+    <string name="rain_loop_model_run">Przebieg modelu: %1$s</string>
+    <string name="rain_loop_valid">Ważne: %1$s</string>
+    <string name="rain_loop_play">▶ Odtwórz</string>
+    <string name="rain_loop_pause">⏸ Pauza</string>
+    <string name="rain_loop_speed_label">Tempo:</string>
+    <string name="rain_loop_scale_label">Skala:</string>
+    <string name="rain_loop_speed_0_5">0,5× (Płynnie)</string>
+    <string name="rain_loop_speed_1_0">1,0× (Żwawo)</string>
+    <string name="rain_loop_speed_1_5">1,5× (Szybko)</string>
+    <string name="rain_loop_speed_2_5">2,5× (Błyskawicznie)</string>
+    <string name="rain_loop_chip_rate">⏱ Deszcz 1 h</string>
+    <string name="rain_loop_chip_fronts">🌧 Fronty 6 h</string>
+    <string name="rain_loop_chip_total">💧 Suma opadów</string>
+    <string name="rain_loop_chip_vapor">🌊 Para wodna</string>
+    <string name="rain_loop_title_rate">Natężenie i czas deszczu (1 h)</string>
+    <string name="rain_loop_title_fronts">Deszcz, ciśnienie i fronty (6 h)</string>
+    <string name="rain_loop_title_total">Łączna suma opadów</string>
+    <string name="rain_loop_title_vapor">Zintegrowany transport pary</string>
+    <string name="rain_loop_subtitle_rate">Kolor: deszcz oczekiwany w tym oknie 1 h (cal/h) · godzina po godzinie do 48 godzin</string>
+    <string name="rain_loop_subtitle_fronts">Kolor: deszcz z ostatnich 6 h (cale) · Czarne linie: ciśnienie (hPa) · Czerwone linie: temperatura frontowa na 850 hPa (°C)</string>
+    <string name="rain_loop_subtitle_total">Kolor: łączny deszcz od początku przebiegu (cale) · oczekiwana suma burzy</string>
+    <string name="rain_loop_subtitle_vapor">Kolor: strumień wilgoci 1000–300 hPa (kg/m/s) · Linie pokazują, dokąd płynie wilgoć</string>
+    <string name="rain_loop_legend_rate">Natężenie opadów (cal/h)</string>
+    <string name="rain_loop_legend_fronts">Czarne = ciśnienie (hPa) | Czerwone = temp. 850 hPa (°C)</string>
+    <string name="rain_loop_legend_total">Łączna suma burzy (cale)</string>
+    <string name="rain_loop_legend_vapor">Strzałki: przepływ wilgoci</string>
+    <string name="rain_loop_domain_ca">Kalifornia i Zachodnie Wybrzeże</string>
+    <string name="rain_loop_domain_pnw">Północno-zachodni Pacyfik</string>
+    <string name="rain_loop_domain_wide">Ameryka Północna i Pacyfik</string>
 </resources>

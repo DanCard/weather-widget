@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 Loop sim</string>
     <string name="sim_loop_no_location">Lokasi belum diatur — pilih dulu di aplikasi.</string>
     <string name="sim_loop_load_failed">Gagal memuat loop hujan. Ketuk untuk mencoba lagi.</string>
+    <string name="rain_loop_current_location">Lokasi saat ini</string>
+    <string name="rain_loop_loading">Memuat prakiraan…</string>
+    <string name="rain_loop_model_run">Run model: %1$s</string>
+    <string name="rain_loop_valid">Berlaku: %1$s</string>
+    <string name="rain_loop_play">▶ Putar</string>
+    <string name="rain_loop_pause">⏸ Jeda</string>
+    <string name="rain_loop_speed_label">Kecepatan:</string>
+    <string name="rain_loop_scale_label">Skala:</string>
+    <string name="rain_loop_speed_0_5">0,5× (Halus)</string>
+    <string name="rain_loop_speed_1_0">1,0× (Gesit)</string>
+    <string name="rain_loop_speed_1_5">1,5× (Cepat)</string>
+    <string name="rain_loop_speed_2_5">2,5× (Kilat)</string>
+    <string name="rain_loop_chip_rate">⏱ Hujan 1 Jam</string>
+    <string name="rain_loop_chip_fronts">🌧 Front 6 Jam</string>
+    <string name="rain_loop_chip_total">💧 Total Hujan</string>
+    <string name="rain_loop_chip_vapor">🌊 Uap Air</string>
+    <string name="rain_loop_title_rate">Intensitas &amp; Waktu Hujan 1 Jam</string>
+    <string name="rain_loop_title_fronts">Hujan, Tekanan &amp; Front 6 Jam</string>
+    <string name="rain_loop_title_total">Akumulasi Total Hujan</string>
+    <string name="rain_loop_title_vapor">Transpor Uap Terintegrasi</string>
+    <string name="rain_loop_subtitle_rate">Warna: hujan yang diperkirakan dalam jendela 1 jam ini (inci/jam) · per jam hingga 48 jam</string>
+    <string name="rain_loop_subtitle_fronts">Warna: hujan 6 jam terakhir (inci) · Garis hitam: tekanan (hPa) · Garis merah: suhu front 850 hPa (°C)</string>
+    <string name="rain_loop_subtitle_total">Warna: total hujan sejak run dimulai (inci) · perkiraan total badai</string>
+    <string name="rain_loop_subtitle_vapor">Warna: fluks kelembapan 1000–300 hPa (kg/m/dtk) · Garis arus menunjukkan arah kelembapan dibawa</string>
+    <string name="rain_loop_legend_rate">Intensitas presipitasi (inci/jam)</string>
+    <string name="rain_loop_legend_fronts">Hitam = tekanan (hPa) | Merah = suhu 850 hPa (°C)</string>
+    <string name="rain_loop_legend_total">Akumulasi total badai (inci)</string>
+    <string name="rain_loop_legend_vapor">Panah: aliran kelembapan</string>
+    <string name="rain_loop_domain_ca">California &amp; Pantai Barat</string>
+    <string name="rain_loop_domain_pnw">Pasifik Barat Laut</string>
+    <string name="rain_loop_domain_wide">Amerika Utara &amp; Pasifik</string>
 </resources>

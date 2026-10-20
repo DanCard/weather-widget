@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 Sim döngüsü</string>
     <string name="sim_loop_no_location">Konum ayarlanmadı — önce uygulamada bir konum seçin.</string>
     <string name="sim_loop_load_failed">Yağmur döngüsü yüklenemedi. Yeniden denemek için dokunun.</string>
+    <string name="rain_loop_current_location">Geçerli konum</string>
+    <string name="rain_loop_loading">Tahmin yükleniyor…</string>
+    <string name="rain_loop_model_run">Model çalıştırması: %1$s</string>
+    <string name="rain_loop_valid">Geçerli: %1$s</string>
+    <string name="rain_loop_play">▶ Oynat</string>
+    <string name="rain_loop_pause">⏸ Duraklat</string>
+    <string name="rain_loop_speed_label">Hız:</string>
+    <string name="rain_loop_scale_label">Ölçek:</string>
+    <string name="rain_loop_speed_0_5">0,5× (Yumuşak)</string>
+    <string name="rain_loop_speed_1_0">1,0× (Çevik)</string>
+    <string name="rain_loop_speed_1_5">1,5× (Hızlı)</string>
+    <string name="rain_loop_speed_2_5">2,5× (Çok hızlı)</string>
+    <string name="rain_loop_chip_rate">⏱ 1 Saatlik Yağmur</string>
+    <string name="rain_loop_chip_fronts">🌧 6 Saatlik Cepheler</string>
+    <string name="rain_loop_chip_total">💧 Toplam Yağmur</string>
+    <string name="rain_loop_chip_vapor">🌊 Su Buharı</string>
+    <string name="rain_loop_title_rate">1 Saatlik Yağmur Şiddeti ve Zamanlaması</string>
+    <string name="rain_loop_title_fronts">6 Saatlik Yağmur, Basınç ve Cepheler</string>
+    <string name="rain_loop_title_total">Toplam Yağmur Birikimi</string>
+    <string name="rain_loop_title_vapor">Entegre Buhar Taşınımı</string>
+    <string name="rain_loop_subtitle_rate">Renk: bu 1 saatlik aralıkta beklenen yağmur (inç/sa) · 48 saate kadar saat saat</string>
+    <string name="rain_loop_subtitle_fronts">Renk: son 6 saatteki yağmur (inç) · Siyah çizgiler: basınç (hPa) · Kırmızı çizgiler: 850 hPa cephe sıcaklığı (°C)</string>
+    <string name="rain_loop_subtitle_total">Renk: çalıştırma başından beri toplam yağmur (inç) · beklenen fırtına toplamı</string>
+    <string name="rain_loop_subtitle_vapor">Renk: nem akısı 1000–300 hPa (kg/m/s) · Akım çizgileri nemin nereye taşındığını gösterir</string>
+    <string name="rain_loop_legend_rate">Yağış şiddeti (inç/sa)</string>
+    <string name="rain_loop_legend_fronts">Siyah = basınç (hPa) | Kırmızı = 850 hPa sıcaklık (°C)</string>
+    <string name="rain_loop_legend_total">Toplam fırtına birikimi (inç)</string>
+    <string name="rain_loop_legend_vapor">Oklar: nem akışı</string>
+    <string name="rain_loop_domain_ca">Kaliforniya ve Batı Kıyısı</string>
+    <string name="rain_loop_domain_pnw">Pasifik Kuzeybatı</string>
+    <string name="rain_loop_domain_wide">Kuzey Amerika ve Pasifik</string>
 </resources>

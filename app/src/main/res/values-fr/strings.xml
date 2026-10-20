@@ -443,4 +443,35 @@
     <string name="sim_loop_button">🌧 Boucle sim.</string>
     <string name="sim_loop_no_location">Aucun lieu défini — choisissez-en un dans l\'app.</string>
     <string name="sim_loop_load_failed">Impossible de charger la boucle de pluie. Touchez pour réessayer.</string>
+    <string name="rain_loop_current_location">Position actuelle</string>
+    <string name="rain_loop_loading">Chargement des prévisions…</string>
+    <string name="rain_loop_model_run">Run du modèle : %1$s</string>
+    <string name="rain_loop_valid">Valide : %1$s</string>
+    <string name="rain_loop_play">▶ Lecture</string>
+    <string name="rain_loop_pause">⏸ Pause</string>
+    <string name="rain_loop_speed_label">Vitesse :</string>
+    <string name="rain_loop_scale_label">Échelle :</string>
+    <string name="rain_loop_speed_0_5">0,5× (Doux)</string>
+    <string name="rain_loop_speed_1_0">1,0× (Vif)</string>
+    <string name="rain_loop_speed_1_5">1,5× (Rapide)</string>
+    <string name="rain_loop_speed_2_5">2,5× (Fulgurant)</string>
+    <string name="rain_loop_chip_rate">⏱ Pluie 1 h</string>
+    <string name="rain_loop_chip_fronts">🌧 Fronts 6 h</string>
+    <string name="rain_loop_chip_total">💧 Pluie totale</string>
+    <string name="rain_loop_chip_vapor">🌊 Vapeur d\'eau</string>
+    <string name="rain_loop_title_rate">Intensité et horaire de la pluie (1 h)</string>
+    <string name="rain_loop_title_fronts">Pluie, pression et fronts (6 h)</string>
+    <string name="rain_loop_title_total">Cumul total de pluie</string>
+    <string name="rain_loop_title_vapor">Transport intégré de vapeur</string>
+    <string name="rain_loop_subtitle_rate">Couleur : pluie prévue dans cette fenêtre de 1 h (po/h) · heure par heure jusqu\'à 48 heures</string>
+    <string name="rain_loop_subtitle_fronts">Couleur : pluie des 6 dernières h (po) · Lignes noires : pression (hPa) · Lignes rouges : température frontale à 850 hPa (°C)</string>
+    <string name="rain_loop_subtitle_total">Couleur : pluie totale depuis le début du run (po) · cumul attendu de l\'épisode</string>
+    <string name="rain_loop_subtitle_vapor">Couleur : flux d\'humidité 1000–300 hPa (kg/m/s) · Les lignes montrent où l\'humidité est transportée</string>
+    <string name="rain_loop_legend_rate">Intensité des précipitations (po/h)</string>
+    <string name="rain_loop_legend_fronts">Noir = pression (hPa) | Rouge = temp. à 850 hPa (°C)</string>
+    <string name="rain_loop_legend_total">Cumul total de l\'épisode (po)</string>
+    <string name="rain_loop_legend_vapor">Flèches : flux d\'humidité</string>
+    <string name="rain_loop_domain_ca">Californie et côte Ouest</string>
+    <string name="rain_loop_domain_pnw">Nord-Ouest Pacifique</string>
+    <string name="rain_loop_domain_wide">Amérique du Nord et Pacifique</string>
 </resources>

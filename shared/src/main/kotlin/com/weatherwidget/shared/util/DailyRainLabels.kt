@@ -175,18 +175,28 @@ object DailyRainLabels {
             amountInches < 1f -> 2
             else -> 1
         }
-        val formatted = String.format(Locale.US, "%.${precision}f", amountInches)
-            .trimEnd('0')
-            .trimEnd('.')
-        return "${formatted.removePrefix("0")}in"
+        return compact(amountInches, precision, smallest = ".001", unit = "in")
     }
 
     private fun formatMillimeters(amountMm: Float): String {
         val precision = if (amountMm < 10f) 1 else 0
-        val formatted = String.format(Locale.US, "%.${precision}f", amountMm)
-            .trimEnd('0')
-            .trimEnd('.')
-        return "${formatted.removePrefix("0")}mm"
+        return compact(amountMm, precision, smallest = "0.1", unit = "mm")
+    }
+
+    /**
+     * Trailing and leading zeros trimmed (".08in", "3mm"). An amount that rounds away entirely used
+     * to trim to nothing and print a bare unit — "Pred in" on the Pixel's precip graph (2026-10-20)
+     * for a 0.0004in total. Zero now reads "0in"; anything above zero but below the display
+     * precision reads "<.001in" / "<0.1mm". Zeros are trimmed only after a decimal point.
+     */
+    private fun compact(value: Float, precision: Int, smallest: String, unit: String): String {
+        if (value <= 0f) return "0$unit"
+        val fixed = String.format(Locale.US, "%.${precision}f", value)
+        // Only fractional zeros are padding: "20" is twenty, not "2" (whole-mm amounts ≥ 10mm used to
+        // print "2mm" for 20mm).
+        val trimmed = if ('.' in fixed) fixed.trimEnd('0').trimEnd('.') else fixed
+        val formatted = trimmed.removePrefix("0")
+        return if (formatted.isEmpty()) "<$smallest$unit" else "$formatted$unit"
     }
 
     /**

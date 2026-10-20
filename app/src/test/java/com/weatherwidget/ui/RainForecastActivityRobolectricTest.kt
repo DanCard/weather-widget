@@ -72,10 +72,7 @@ class RainForecastActivityRobolectricTest {
             shadowOf(context.mainLooper).idle()
 
             val tvChartSubtitle = activity.findViewById<TextView>(R.id.tv_chart_subtitle)
-            assertTrue(
-                "Layer description should describe 6-hour rain",
-                tvChartSubtitle.text.toString().contains("6-hour") || tvChartSubtitle.text.toString().contains("Rain"),
-            )
+            assertEquals(context.getString(R.string.rain_loop_subtitle_fronts), tvChartSubtitle.text.toString())
         }
     }
 

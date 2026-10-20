@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 Sim-Schleife</string>
     <string name="sim_loop_no_location">Kein Standort festgelegt – wähle zuerst einen in der App.</string>
     <string name="sim_loop_load_failed">Regenschleife konnte nicht geladen werden. Zum Wiederholen tippen.</string>
+    <string name="rain_loop_current_location">Aktueller Standort</string>
+    <string name="rain_loop_loading">Vorhersage wird geladen…</string>
+    <string name="rain_loop_model_run">Modelllauf: %1$s</string>
+    <string name="rain_loop_valid">Gültig: %1$s</string>
+    <string name="rain_loop_play">▶ Abspielen</string>
+    <string name="rain_loop_pause">⏸ Pause</string>
+    <string name="rain_loop_speed_label">Tempo:</string>
+    <string name="rain_loop_scale_label">Skala:</string>
+    <string name="rain_loop_speed_0_5">0,5× (Sanft)</string>
+    <string name="rain_loop_speed_1_0">1,0× (Flott)</string>
+    <string name="rain_loop_speed_1_5">1,5× (Schnell)</string>
+    <string name="rain_loop_speed_2_5">2,5× (Rasant)</string>
+    <string name="rain_loop_chip_rate">⏱ 1-Std.-Regen</string>
+    <string name="rain_loop_chip_fronts">🌧 6-Std.-Fronten</string>
+    <string name="rain_loop_chip_total">💧 Gesamtregen</string>
+    <string name="rain_loop_chip_vapor">🌊 Wasserdampf</string>
+    <string name="rain_loop_title_rate">Regenrate &amp; Timing (1 Std.)</string>
+    <string name="rain_loop_title_fronts">6-Std.-Regen, Luftdruck &amp; Fronten</string>
+    <string name="rain_loop_title_total">Gesamte Regenmenge</string>
+    <string name="rain_loop_title_vapor">Integrierter Wasserdampftransport</string>
+    <string name="rain_loop_subtitle_rate">Farbe: erwarteter Regen in diesem 1-Std.-Fenster (Zoll/Std.) · stündlich bis 48 Stunden</string>
+    <string name="rain_loop_subtitle_fronts">Farbe: Regen der letzten 6 Std. (Zoll) · Schwarze Linien: Luftdruck (hPa) · Rote Linien: Frontentemperatur in 850 hPa (°C)</string>
+    <string name="rain_loop_subtitle_total">Farbe: Gesamtregen seit Beginn des Modelllaufs (Zoll) · erwartete Sturmsumme</string>
+    <string name="rain_loop_subtitle_vapor">Farbe: Feuchtefluss 1000–300 hPa (kg/m/s) · Stromlinien zeigen, wohin die Feuchte zieht</string>
+    <string name="rain_loop_legend_rate">Niederschlagsintensität (Zoll/Std.)</string>
+    <string name="rain_loop_legend_fronts">Schwarz = Luftdruck (hPa) | Rot = 850-hPa-Temp. (°C)</string>
+    <string name="rain_loop_legend_total">Gesamtsumme des Sturms (Zoll)</string>
+    <string name="rain_loop_legend_vapor">Pfeile: Feuchtefluss</string>
+    <string name="rain_loop_domain_ca">Kalifornien &amp; Westküste</string>
+    <string name="rain_loop_domain_pnw">Pazifischer Nordwesten</string>
+    <string name="rain_loop_domain_wide">Nordamerika &amp; Pazifik</string>
 </resources>

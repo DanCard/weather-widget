@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 模拟动画</string>
     <string name="sim_loop_no_location">尚未设置位置——请先在应用中选择。</string>
     <string name="sim_loop_load_failed">无法加载降雨动画。点按重试。</string>
+    <string name="rain_loop_current_location">当前位置</string>
+    <string name="rain_loop_loading">正在加载预报…</string>
+    <string name="rain_loop_model_run">模式运行:%1$s</string>
+    <string name="rain_loop_valid">有效时间:%1$s</string>
+    <string name="rain_loop_play">▶ 播放</string>
+    <string name="rain_loop_pause">⏸ 暂停</string>
+    <string name="rain_loop_speed_label">速度:</string>
+    <string name="rain_loop_scale_label">色标:</string>
+    <string name="rain_loop_speed_0_5">0.5×(平滑)</string>
+    <string name="rain_loop_speed_1_0">1.0×(轻快)</string>
+    <string name="rain_loop_speed_1_5">1.5×(快速)</string>
+    <string name="rain_loop_speed_2_5">2.5×(极速)</string>
+    <string name="rain_loop_chip_rate">⏱ 1小时降雨</string>
+    <string name="rain_loop_chip_fronts">🌧 6小时锋面</string>
+    <string name="rain_loop_chip_total">💧 总降雨</string>
+    <string name="rain_loop_chip_vapor">🌊 水汽</string>
+    <string name="rain_loop_title_rate">1小时降雨强度与时间</string>
+    <string name="rain_loop_title_fronts">6小时降雨、气压与锋面</string>
+    <string name="rain_loop_title_total">总累计降雨</string>
+    <string name="rain_loop_title_vapor">整层水汽输送</string>
+    <string name="rain_loop_subtitle_rate">颜色:此1小时内的预计降雨(英寸/小时)· 逐小时至48小时</string>
+    <string name="rain_loop_subtitle_fronts">颜色:过去6小时降雨(英寸)· 黑线:气压(hPa)· 红线:850 hPa锋面温度(°C)</string>
+    <string name="rain_loop_subtitle_total">颜色:自本次运行开始的总降雨(英寸)· 预计的风暴总量</string>
+    <string name="rain_loop_subtitle_vapor">颜色:水汽通量 1000–300 hPa(kg/m/s)· 流线显示水汽输送方向</string>
+    <string name="rain_loop_legend_rate">降水强度(英寸/小时)</string>
+    <string name="rain_loop_legend_fronts">黑 = 气压(hPa)| 红 = 850 hPa 温度(°C)</string>
+    <string name="rain_loop_legend_total">风暴总累计量(英寸)</string>
+    <string name="rain_loop_legend_vapor">箭头:水汽流向</string>
+    <string name="rain_loop_domain_ca">加利福尼亚及西海岸</string>
+    <string name="rain_loop_domain_pnw">太平洋西北地区</string>
+    <string name="rain_loop_domain_wide">北美及太平洋</string>
 </resources>

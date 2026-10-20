@@ -45,6 +45,14 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+/**
+ * When the WeatherNext host last answered 404/410 ([WeatherNextAvailability]). In memory only: the
+ * desktop app runs for days, and after a restart the pill shows and the next click re-checks.
+ */
+internal object WeatherNextDesktopState {
+    @Volatile var goneAtMs: Long? = null
+}
+
 private val WEATHER_NEXT_JSON = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
 @Composable
@@ -114,10 +122,12 @@ private fun RainForecastContent(
         statusText = "Loading forecast manifest..."
         client.fetchManifest(domain)
             .onSuccess {
+                WeatherNextDesktopState.goneAtMs = null
                 manifest = it
                 statusText = "Model Run: ${WeatherNextForecastClient.formatUtcToLocal(it.init ?: it.run)}"
             }
             .onFailure {
+                if (it is WeatherNextGoneException) WeatherNextDesktopState.goneAtMs = System.currentTimeMillis()
                 manifestFailed = true
                 statusText = "Couldn't load the rain loop. Click to retry."
             }

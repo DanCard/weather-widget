@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 ลูปจำลอง</string>
     <string name="sim_loop_no_location">ยังไม่ได้ตั้งตำแหน่ง — เลือกในแอปก่อน</string>
     <string name="sim_loop_load_failed">โหลดลูปฝนไม่ได้ แตะเพื่อลองอีกครั้ง</string>
+    <string name="rain_loop_current_location">ตำแหน่งปัจจุบัน</string>
+    <string name="rain_loop_loading">กำลังโหลดพยากรณ์…</string>
+    <string name="rain_loop_model_run">รอบการรันโมเดล: %1$s</string>
+    <string name="rain_loop_valid">มีผล: %1$s</string>
+    <string name="rain_loop_play">▶ เล่น</string>
+    <string name="rain_loop_pause">⏸ หยุดชั่วคราว</string>
+    <string name="rain_loop_speed_label">ความเร็ว:</string>
+    <string name="rain_loop_scale_label">สเกล:</string>
+    <string name="rain_loop_speed_0_5">0.5× (นุ่มนวล)</string>
+    <string name="rain_loop_speed_1_0">1.0× (กระฉับกระเฉง)</string>
+    <string name="rain_loop_speed_1_5">1.5× (เร็ว)</string>
+    <string name="rain_loop_speed_2_5">2.5× (เร็วมาก)</string>
+    <string name="rain_loop_chip_rate">⏱ ฝน 1 ชม.</string>
+    <string name="rain_loop_chip_fronts">🌧 แนวปะทะ 6 ชม.</string>
+    <string name="rain_loop_chip_total">💧 ฝนรวม</string>
+    <string name="rain_loop_chip_vapor">🌊 ไอน้ำ</string>
+    <string name="rain_loop_title_rate">อัตราและเวลาฝน 1 ชม.</string>
+    <string name="rain_loop_title_fronts">ฝน ความกดอากาศ และแนวปะทะ 6 ชม.</string>
+    <string name="rain_loop_title_total">ปริมาณฝนสะสมรวม</string>
+    <string name="rain_loop_title_vapor">การขนส่งไอน้ำแบบรวม</string>
+    <string name="rain_loop_subtitle_rate">สี: ฝนที่คาดในช่วง 1 ชม. นี้ (นิ้ว/ชม.) · รายชั่วโมงถึง 48 ชั่วโมง</string>
+    <string name="rain_loop_subtitle_fronts">สี: ฝนใน 6 ชม. ที่ผ่านมา (นิ้ว) · เส้นดำ: ความกดอากาศ (hPa) · เส้นแดง: อุณหภูมิแนวปะทะที่ 850 hPa (°C)</string>
+    <string name="rain_loop_subtitle_total">สี: ฝนรวมตั้งแต่เริ่มรอบการรัน (นิ้ว) · ปริมาณรวมที่คาดของพายุ</string>
+    <string name="rain_loop_subtitle_vapor">สี: ฟลักซ์ความชื้น 1000–300 hPa (กก./ม./วิ) · เส้นกระแสแสดงทิศที่ความชื้นถูกพาไป</string>
+    <string name="rain_loop_legend_rate">ความรุนแรงของหยาดน้ำฟ้า (นิ้ว/ชม.)</string>
+    <string name="rain_loop_legend_fronts">ดำ = ความกดอากาศ (hPa) | แดง = อุณหภูมิ 850 hPa (°C)</string>
+    <string name="rain_loop_legend_total">ปริมาณสะสมรวมของพายุ (นิ้ว)</string>
+    <string name="rain_loop_legend_vapor">ลูกศร: การไหลของความชื้น</string>
+    <string name="rain_loop_domain_ca">แคลิฟอร์เนียและชายฝั่งตะวันตก</string>
+    <string name="rain_loop_domain_pnw">แปซิฟิกตะวันตกเฉียงเหนือ</string>
+    <string name="rain_loop_domain_wide">อเมริกาเหนือและแปซิฟิก</string>
 </resources>

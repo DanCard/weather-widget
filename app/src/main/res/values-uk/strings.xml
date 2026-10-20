@@ -443,4 +443,35 @@
     <string name="sim_loop_button">🌧 Анімація</string>
     <string name="sim_loop_no_location">Місцезнаходження не задано — спершу виберіть його в застосунку.</string>
     <string name="sim_loop_load_failed">Не вдалося завантажити анімацію опадів. Торкніться, щоб повторити.</string>
+    <string name="rain_loop_current_location">Поточне місцезнаходження</string>
+    <string name="rain_loop_loading">Завантаження прогнозу…</string>
+    <string name="rain_loop_model_run">Прогін моделі: %1$s</string>
+    <string name="rain_loop_valid">Дійсно: %1$s</string>
+    <string name="rain_loop_play">▶ Відтворити</string>
+    <string name="rain_loop_pause">⏸ Пауза</string>
+    <string name="rain_loop_speed_label">Швидкість:</string>
+    <string name="rain_loop_scale_label">Шкала:</string>
+    <string name="rain_loop_speed_0_5">0,5× (Плавно)</string>
+    <string name="rain_loop_speed_1_0">1,0× (Жваво)</string>
+    <string name="rain_loop_speed_1_5">1,5× (Швидко)</string>
+    <string name="rain_loop_speed_2_5">2,5× (Стрімко)</string>
+    <string name="rain_loop_chip_rate">⏱ Дощ за 1 год</string>
+    <string name="rain_loop_chip_fronts">🌧 Фронти за 6 год</string>
+    <string name="rain_loop_chip_total">💧 Сума опадів</string>
+    <string name="rain_loop_chip_vapor">🌊 Водяна пара</string>
+    <string name="rain_loop_title_rate">Інтенсивність і час дощу (1 год)</string>
+    <string name="rain_loop_title_fronts">Дощ, тиск і фронти (6 год)</string>
+    <string name="rain_loop_title_total">Загальна сума опадів</string>
+    <string name="rain_loop_title_vapor">Інтегральне перенесення водяної пари</string>
+    <string name="rain_loop_subtitle_rate">Колір: очікуваний дощ у цьому годинному вікні (дюйм/год) · щогодини на 48 годин</string>
+    <string name="rain_loop_subtitle_fronts">Колір: дощ за останні 6 год (дюйми) · Чорні лінії: тиск (гПа) · Червоні лінії: температура фронту на 850 гПа (°C)</string>
+    <string name="rain_loop_subtitle_total">Колір: сума дощу від початку прогону (дюйми) · очікувана сума за негоду</string>
+    <string name="rain_loop_subtitle_vapor">Колір: потік вологи 1000–300 гПа (кг/м/с) · Лінії показують, куди переноситься волога</string>
+    <string name="rain_loop_legend_rate">Інтенсивність опадів (дюйм/год)</string>
+    <string name="rain_loop_legend_fronts">Чорний = тиск (гПа) | Червоний = темп. 850 гПа (°C)</string>
+    <string name="rain_loop_legend_total">Загальна сума за негоду (дюйми)</string>
+    <string name="rain_loop_legend_vapor">Стрілки: потік вологи</string>
+    <string name="rain_loop_domain_ca">Каліфорнія та Західне узбережжя</string>
+    <string name="rain_loop_domain_pnw">Тихоокеанський Північний Захід</string>
+    <string name="rain_loop_domain_wide">Північна Америка та Тихий океан</string>
 </resources>

@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 সিমুলেশন লুপ</string>
     <string name="sim_loop_no_location">কোনো অবস্থান সেট নেই — আগে অ্যাপে একটি বেছে নিন।</string>
     <string name="sim_loop_load_failed">বৃষ্টির লুপ লোড করা যায়নি। আবার চেষ্টা করতে ট্যাপ করুন।</string>
+    <string name="rain_loop_current_location">বর্তমান অবস্থান</string>
+    <string name="rain_loop_loading">পূর্বাভাস লোড হচ্ছে…</string>
+    <string name="rain_loop_model_run">মডেল রান: %1$s</string>
+    <string name="rain_loop_valid">বৈধ: %1$s</string>
+    <string name="rain_loop_play">▶ চালান</string>
+    <string name="rain_loop_pause">⏸ বিরতি</string>
+    <string name="rain_loop_speed_label">গতি:</string>
+    <string name="rain_loop_scale_label">স্কেল:</string>
+    <string name="rain_loop_speed_0_5">0.5× (মসৃণ)</string>
+    <string name="rain_loop_speed_1_0">1.0× (চটপটে)</string>
+    <string name="rain_loop_speed_1_5">1.5× (দ্রুত)</string>
+    <string name="rain_loop_speed_2_5">2.5× (অতি দ্রুত)</string>
+    <string name="rain_loop_chip_rate">⏱ ১ ঘণ্টার বৃষ্টি</string>
+    <string name="rain_loop_chip_fronts">🌧 ৬ ঘণ্টার ফ্রন্ট</string>
+    <string name="rain_loop_chip_total">💧 মোট বৃষ্টি</string>
+    <string name="rain_loop_chip_vapor">🌊 জলীয় বাষ্প</string>
+    <string name="rain_loop_title_rate">১ ঘণ্টার বৃষ্টির হার ও সময়</string>
+    <string name="rain_loop_title_fronts">৬ ঘণ্টার বৃষ্টি, চাপ ও ফ্রন্ট</string>
+    <string name="rain_loop_title_total">মোট সঞ্চিত বৃষ্টি</string>
+    <string name="rain_loop_title_vapor">সমন্বিত বাষ্প পরিবহন</string>
+    <string name="rain_loop_subtitle_rate">রং: এই ১ ঘণ্টায় প্রত্যাশিত বৃষ্টি (ইঞ্চি/ঘণ্টা) · ৪৮ ঘণ্টা পর্যন্ত প্রতি ঘণ্টায়</string>
+    <string name="rain_loop_subtitle_fronts">রং: গত ৬ ঘণ্টার বৃষ্টি (ইঞ্চি) · কালো রেখা: চাপ (hPa) · লাল রেখা: 850 hPa ফ্রন্টের তাপমাত্রা (°C)</string>
+    <string name="rain_loop_subtitle_total">রং: রান শুরু থেকে মোট বৃষ্টি (ইঞ্চি) · ঝড়ের প্রত্যাশিত মোট</string>
+    <string name="rain_loop_subtitle_vapor">রং: আর্দ্রতা প্রবাহ 1000–300 hPa (kg/m/s) · রেখাগুলো দেখায় আর্দ্রতা কোথায় যাচ্ছে</string>
+    <string name="rain_loop_legend_rate">বৃষ্টিপাতের তীব্রতা (ইঞ্চি/ঘণ্টা)</string>
+    <string name="rain_loop_legend_fronts">কালো = চাপ (hPa) | লাল = 850 hPa তাপমাত্রা (°C)</string>
+    <string name="rain_loop_legend_total">ঝড়ের মোট সঞ্চয় (ইঞ্চি)</string>
+    <string name="rain_loop_legend_vapor">তীর: আর্দ্রতার প্রবাহ</string>
+    <string name="rain_loop_domain_ca">ক্যালিফোর্নিয়া ও পশ্চিম উপকূল</string>
+    <string name="rain_loop_domain_pnw">প্রশান্ত মহাসাগরীয় উত্তর-পশ্চিম</string>
+    <string name="rain_loop_domain_wide">উত্তর আমেরিকা ও প্রশান্ত মহাসাগর</string>
 </resources>

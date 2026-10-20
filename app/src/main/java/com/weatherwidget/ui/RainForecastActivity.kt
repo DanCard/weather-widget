@@ -16,6 +16,7 @@ import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.widget.ActiveLocationResolver
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.handlers.WeatherNextGoneStore
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -174,9 +175,9 @@ class RainForecastActivity : AppCompatActivity() {
         lon = loc.second
         val label = ActiveLocationResolver.chosenLabel(this)
             ?: FriendlyLocationName.cached(this, lat, lon)
-        locationLabel = label?.split(",")?.firstOrNull()?.trim() ?: "Current Location"
+        locationLabel = label?.split(",")?.firstOrNull()?.trim() ?: getString(R.string.rain_loop_current_location)
         domain = WeatherNextDomain.resolve(lat, lon)
-        tvLocation.text = "📍 $locationLabel  ·  ${domain.title}"
+        tvLocation.text = "📍 $locationLabel  ·  ${getString(domain.titleRes())}"
     }
 
     companion object {
@@ -189,7 +190,7 @@ class RainForecastActivity : AppCompatActivity() {
 
         btnPlayPause.setOnClickListener {
             isPlaying = !isPlaying
-            btnPlayPause.text = if (isPlaying) "⏸ Pause" else "▶ Play"
+            btnPlayPause.setText(if (isPlaying) R.string.rain_loop_pause else R.string.rain_loop_play)
         }
 
         btnPrev.setOnClickListener {
@@ -211,13 +212,14 @@ class RainForecastActivity : AppCompatActivity() {
         btnSpeedToggle.setOnClickListener {
             speedIndex = (speedIndex + 1) % speeds.size
             speedMultiplier = speeds[speedIndex]
-            val desc = when {
-                speedMultiplier <= 0.5f -> "0.5x (Smooth)"
-                speedMultiplier == 1.0f -> "1.0x (Snappy)"
-                speedMultiplier == 1.5f -> "1.5x (Fast)"
-                else -> "2.5x (Blazing)"
-            }
-            btnSpeedToggle.text = desc
+            btnSpeedToggle.setText(
+                when {
+                    speedMultiplier <= 0.5f -> R.string.rain_loop_speed_0_5
+                    speedMultiplier == 1.0f -> R.string.rain_loop_speed_1_0
+                    speedMultiplier == 1.5f -> R.string.rain_loop_speed_1_5
+                    else -> R.string.rain_loop_speed_2_5
+                },
+            )
         }
 
         btnLayerQpf1.setOnClickListener { selectLayer(WeatherNextLayer.QPF1_IMERG) }
@@ -254,7 +256,7 @@ class RainForecastActivity : AppCompatActivity() {
         btnLayerQpfAcc.backgroundTintList = android.content.res.ColorStateList.valueOf(if (selectedLayer == WeatherNextLayer.QPF_ACC) activeBg else inactiveBg)
         btnLayerIvt.backgroundTintList = android.content.res.ColorStateList.valueOf(if (selectedLayer == WeatherNextLayer.IVT) activeBg else inactiveBg)
 
-        tvChartSubtitle.text = selectedLayer.subtitle
+        tvChartSubtitle.setText(selectedLayer.subtitleRes())
     }
 
     private fun rebuildLegend() {
@@ -280,7 +282,7 @@ class RainForecastActivity : AppCompatActivity() {
         }
 
         val noteTv = TextView(this).apply {
-            text = "• ${selectedLayer.legendNote}"
+            text = "• ${getString(selectedLayer.legendRes())}"
             textSize = 10f
             setTextColor(0xFF94A3B8.toInt())
             setPadding((6 * density).toInt(), 0, 0, 0)
@@ -294,11 +296,14 @@ class RainForecastActivity : AppCompatActivity() {
         lifecycleScope.launch {
             weatherNextClient.fetchManifest(domain)
                 .onSuccess { parsed ->
+                    WeatherNextGoneStore.clear(this@RainForecastActivity)
                     manifest = parsed
-                    tvModelRun.text = "Model Run: ${WeatherNextForecastClient.formatUtcToLocal(parsed.init ?: parsed.run)}"
+                    tvModelRun.text = getString(R.string.rain_loop_model_run, WeatherNextForecastClient.formatUtcToLocal(parsed.init ?: parsed.run))
                     filterFramesForLayer()
                 }
                 .onFailure {
+                    // 404/410: the host dropped the loop; the widget hides its pill for a day.
+                    if (it is WeatherNextGoneException) WeatherNextGoneStore.markGone(this@RainForecastActivity)
                     // Third-party host (GitHub Pages): it can vanish or change; say so and offer a retry.
                     progressLoading.visibility = View.GONE
                     tvModelRun.text = getString(R.string.sim_loop_load_failed)
@@ -426,7 +431,35 @@ class RainForecastActivity : AppCompatActivity() {
         // Update HUD
         val lead = framesForLayer[idx1].lead
         val validLocal = WeatherNextForecastClient.formatUtcToLocal(framesForLayer[idx1].valid)
-        tvHudTitle.text = "${selectedLayer.shortTitle} · F+${String.format("%03d", lead)}h"
-        tvHudTime.text = "Valid: $validLocal"
+        tvHudTitle.text = "${getString(selectedLayer.titleRes())} · F+${String.format("%03d", lead)}h"
+        tvHudTime.text = getString(R.string.rain_loop_valid, validLocal)
     }
+}
+
+// The shared enums carry English for desktop; Android shows the translated resources.
+private fun WeatherNextLayer.titleRes(): Int = when (this) {
+    WeatherNextLayer.QPF1_IMERG -> R.string.rain_loop_title_rate
+    WeatherNextLayer.PCP6 -> R.string.rain_loop_title_fronts
+    WeatherNextLayer.QPF_ACC -> R.string.rain_loop_title_total
+    WeatherNextLayer.IVT -> R.string.rain_loop_title_vapor
+}
+
+private fun WeatherNextLayer.subtitleRes(): Int = when (this) {
+    WeatherNextLayer.QPF1_IMERG -> R.string.rain_loop_subtitle_rate
+    WeatherNextLayer.PCP6 -> R.string.rain_loop_subtitle_fronts
+    WeatherNextLayer.QPF_ACC -> R.string.rain_loop_subtitle_total
+    WeatherNextLayer.IVT -> R.string.rain_loop_subtitle_vapor
+}
+
+private fun WeatherNextLayer.legendRes(): Int = when (this) {
+    WeatherNextLayer.QPF1_IMERG -> R.string.rain_loop_legend_rate
+    WeatherNextLayer.PCP6 -> R.string.rain_loop_legend_fronts
+    WeatherNextLayer.QPF_ACC -> R.string.rain_loop_legend_total
+    WeatherNextLayer.IVT -> R.string.rain_loop_legend_vapor
+}
+
+private fun WeatherNextDomain.titleRes(): Int = when (this) {
+    WeatherNextDomain.CA -> R.string.rain_loop_domain_ca
+    WeatherNextDomain.PNW -> R.string.rain_loop_domain_pnw
+    WeatherNextDomain.WIDE -> R.string.rain_loop_domain_wide
 }

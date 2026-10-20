@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 حلقة المحاكاة</string>
     <string name="sim_loop_no_location">لم يتم تحديد موقع — اختر موقعًا في التطبيق أولاً.</string>
     <string name="sim_loop_load_failed">تعذّر تحميل حلقة المطر. انقر لإعادة المحاولة.</string>
+    <string name="rain_loop_current_location">الموقع الحالي</string>
+    <string name="rain_loop_loading">جارٍ تحميل التوقعات…</string>
+    <string name="rain_loop_model_run">تشغيل النموذج: %1$s</string>
+    <string name="rain_loop_valid">صالح: %1$s</string>
+    <string name="rain_loop_play">▶ تشغيل</string>
+    <string name="rain_loop_pause">⏸ إيقاف مؤقت</string>
+    <string name="rain_loop_speed_label">السرعة:</string>
+    <string name="rain_loop_scale_label">المقياس:</string>
+    <string name="rain_loop_speed_0_5">0.5× (سلس)</string>
+    <string name="rain_loop_speed_1_0">1.0× (نشيط)</string>
+    <string name="rain_loop_speed_1_5">1.5× (سريع)</string>
+    <string name="rain_loop_speed_2_5">2.5× (خاطف)</string>
+    <string name="rain_loop_chip_rate">⏱ مطر ساعة</string>
+    <string name="rain_loop_chip_fronts">🌧 جبهات 6 ساعات</string>
+    <string name="rain_loop_chip_total">💧 إجمالي المطر</string>
+    <string name="rain_loop_chip_vapor">🌊 بخار الماء</string>
+    <string name="rain_loop_title_rate">شدة المطر وتوقيته (ساعة)</string>
+    <string name="rain_loop_title_fronts">المطر والضغط والجبهات (6 ساعات)</string>
+    <string name="rain_loop_title_total">إجمالي تراكم المطر</string>
+    <string name="rain_loop_title_vapor">نقل بخار الماء المتكامل</string>
+    <string name="rain_loop_subtitle_rate">اللون: المطر المتوقع في هذه الساعة (بوصة/ساعة) · ساعة بساعة حتى 48 ساعة</string>
+    <string name="rain_loop_subtitle_fronts">اللون: مطر آخر 6 ساعات (بوصة) · الخطوط السوداء: الضغط (hPa) · الخطوط الحمراء: حرارة الجبهة عند 850 hPa (°م)</string>
+    <string name="rain_loop_subtitle_total">اللون: إجمالي المطر منذ بدء التشغيل (بوصة) · الإجمالي المتوقع للعاصفة</string>
+    <string name="rain_loop_subtitle_vapor">اللون: تدفق الرطوبة 1000–300 hPa (كغ/م/ث) · تُظهر الخطوط اتجاه انتقال الرطوبة</string>
+    <string name="rain_loop_legend_rate">شدة الهطول (بوصة/ساعة)</string>
+    <string name="rain_loop_legend_fronts">أسود = الضغط (hPa) | أحمر = حرارة 850 hPa (°م)</string>
+    <string name="rain_loop_legend_total">إجمالي تراكم العاصفة (بوصة)</string>
+    <string name="rain_loop_legend_vapor">الأسهم: تدفق الرطوبة</string>
+    <string name="rain_loop_domain_ca">كاليفورنيا والساحل الغربي</string>
+    <string name="rain_loop_domain_pnw">شمال غرب المحيط الهادئ</string>
+    <string name="rain_loop_domain_wide">أمريكا الشمالية والمحيط الهادئ</string>
 </resources>

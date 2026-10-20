@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 予報ループ</string>
     <string name="sim_loop_no_location">場所が設定されていません。先にアプリで選択してください。</string>
     <string name="sim_loop_load_failed">雨のループを読み込めませんでした。タップして再試行。</string>
+    <string name="rain_loop_current_location">現在地</string>
+    <string name="rain_loop_loading">予報を読み込み中…</string>
+    <string name="rain_loop_model_run">モデル実行: %1$s</string>
+    <string name="rain_loop_valid">有効時刻: %1$s</string>
+    <string name="rain_loop_play">▶ 再生</string>
+    <string name="rain_loop_pause">⏸ 一時停止</string>
+    <string name="rain_loop_speed_label">速度:</string>
+    <string name="rain_loop_scale_label">目盛り:</string>
+    <string name="rain_loop_speed_0_5">0.5×(なめらか)</string>
+    <string name="rain_loop_speed_1_0">1.0×(きびきび)</string>
+    <string name="rain_loop_speed_1_5">1.5×(速い)</string>
+    <string name="rain_loop_speed_2_5">2.5×(超高速)</string>
+    <string name="rain_loop_chip_rate">⏱ 1時間雨量</string>
+    <string name="rain_loop_chip_fronts">🌧 6時間前線</string>
+    <string name="rain_loop_chip_total">💧 総雨量</string>
+    <string name="rain_loop_chip_vapor">🌊 水蒸気</string>
+    <string name="rain_loop_title_rate">1時間降水強度とタイミング</string>
+    <string name="rain_loop_title_fronts">6時間雨量・気圧・前線</string>
+    <string name="rain_loop_title_total">総降水量</string>
+    <string name="rain_loop_title_vapor">鉛直積算水蒸気輸送量</string>
+    <string name="rain_loop_subtitle_rate">色: この1時間枠の予想雨量(インチ/時)· 48時間先まで1時間ごと</string>
+    <string name="rain_loop_subtitle_fronts">色: 過去6時間の雨量(インチ)· 黒線: 気圧(hPa)· 赤線: 850hPa前線気温(°C)</string>
+    <string name="rain_loop_subtitle_total">色: 実行開始からの総雨量(インチ)· 予想される総雨量</string>
+    <string name="rain_loop_subtitle_vapor">色: 水蒸気フラックス 1000–300hPa(kg/m/s)· 流線は水蒸気の運ばれる方向</string>
+    <string name="rain_loop_legend_rate">降水強度(インチ/時)</string>
+    <string name="rain_loop_legend_fronts">黒 = 気圧(hPa)| 赤 = 850hPa気温(°C)</string>
+    <string name="rain_loop_legend_total">総雨量(インチ)</string>
+    <string name="rain_loop_legend_vapor">矢印: 水蒸気の流れ</string>
+    <string name="rain_loop_domain_ca">カリフォルニア・西海岸</string>
+    <string name="rain_loop_domain_pnw">太平洋岸北西部</string>
+    <string name="rain_loop_domain_wide">北米・太平洋</string>
 </resources>

@@ -44,12 +44,16 @@ class WeatherNextForecastClient
         suspend fun fetchManifest(domain: WeatherNextDomain): Result<WeatherNextManifest> =
             runCatching {
                 val url = "$BASE_URL/${domain.id}/manifest.json"
-                val responseText = httpClient.get(url).bodyAsText()
-                json.decodeFromString<WeatherNextManifest>(responseText)
+                val response = httpClient.get(url)
+                val status = response.status.value
+                if (status == 404 || status == 410) throw WeatherNextGoneException(status)
+                if (status !in 200..299) throw java.io.IOException("WeatherNext manifest HTTP $status")
+                json.decodeFromString<WeatherNextManifest>(response.bodyAsText())
             }.onSuccess {
                 Log.i(TAG, "WEATHERNEXT_FETCH outcome=manifest domain=${domain.id} run=${it.run ?: it.init} frames=${it.frames.size}")
             }.onFailure {
-                Log.w(TAG, "WEATHERNEXT_FETCH outcome=manifest_failed domain=${domain.id} error=${it.message}")
+                val outcome = if (it is WeatherNextGoneException) "gone" else "manifest_failed"
+                Log.w(TAG, "WEATHERNEXT_FETCH outcome=$outcome domain=${domain.id} error=${it.message}")
             }
 
         fun getFrameUrl(domain: WeatherNextDomain, relativePath: String): String {

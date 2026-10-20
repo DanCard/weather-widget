@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 Loop sim.</string>
     <string name="sim_loop_no_location">Nenhum local definido — escolha um no app primeiro.</string>
     <string name="sim_loop_load_failed">Não foi possível carregar o loop de chuva. Toque para tentar de novo.</string>
+    <string name="rain_loop_current_location">Local atual</string>
+    <string name="rain_loop_loading">Carregando previsão…</string>
+    <string name="rain_loop_model_run">Rodada do modelo: %1$s</string>
+    <string name="rain_loop_valid">Válido: %1$s</string>
+    <string name="rain_loop_play">▶ Reproduzir</string>
+    <string name="rain_loop_pause">⏸ Pausar</string>
+    <string name="rain_loop_speed_label">Velocidade:</string>
+    <string name="rain_loop_scale_label">Escala:</string>
+    <string name="rain_loop_speed_0_5">0,5× (Suave)</string>
+    <string name="rain_loop_speed_1_0">1,0× (Ágil)</string>
+    <string name="rain_loop_speed_1_5">1,5× (Rápido)</string>
+    <string name="rain_loop_speed_2_5">2,5× (Veloz)</string>
+    <string name="rain_loop_chip_rate">⏱ Chuva 1 h</string>
+    <string name="rain_loop_chip_fronts">🌧 Frentes 6 h</string>
+    <string name="rain_loop_chip_total">💧 Chuva total</string>
+    <string name="rain_loop_chip_vapor">🌊 Vapor d\'água</string>
+    <string name="rain_loop_title_rate">Intensidade e horário da chuva (1 h)</string>
+    <string name="rain_loop_title_fronts">Chuva, pressão e frentes (6 h)</string>
+    <string name="rain_loop_title_total">Acúmulo total de chuva</string>
+    <string name="rain_loop_title_vapor">Transporte integrado de vapor</string>
+    <string name="rain_loop_subtitle_rate">Cor: chuva prevista nesta janela de 1 h (pol/h) · hora a hora até 48 horas</string>
+    <string name="rain_loop_subtitle_fronts">Cor: chuva das últimas 6 h (pol) · Linhas pretas: pressão (hPa) · Linhas vermelhas: temperatura frontal em 850 hPa (°C)</string>
+    <string name="rain_loop_subtitle_total">Cor: chuva total desde o início da rodada (pol) · total esperado da tempestade</string>
+    <string name="rain_loop_subtitle_vapor">Cor: fluxo de umidade 1000–300 hPa (kg/m/s) · As linhas mostram para onde a umidade é levada</string>
+    <string name="rain_loop_legend_rate">Intensidade da precipitação (pol/h)</string>
+    <string name="rain_loop_legend_fronts">Preto = pressão (hPa) | Vermelho = temp. em 850 hPa (°C)</string>
+    <string name="rain_loop_legend_total">Acúmulo total da tempestade (pol)</string>
+    <string name="rain_loop_legend_vapor">Setas: fluxo de umidade</string>
+    <string name="rain_loop_domain_ca">Califórnia e costa oeste</string>
+    <string name="rain_loop_domain_pnw">Noroeste do Pacífico</string>
+    <string name="rain_loop_domain_wide">América do Norte e Pacífico</string>
 </resources>

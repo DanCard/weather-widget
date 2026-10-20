@@ -326,7 +326,10 @@ fun PrecipitationGraph(
         val pillStyle = TextStyle(fontSize = (11 * scale).sp, color = Color.White, fontWeight = FontWeight.Bold)
         val pillText = textMeasurer.measure(SIM_LOOP_LABEL, pillStyle)
         val plotRect = GraphRect(0f, graphTop, w, graphBottom)
-        val pillPlacement = SimLoopPill.place(
+        val simLoopOffered = com.weatherwidget.data.remote.weathernext.WeatherNextAvailability.showPill(
+            latitude, longitude, WeatherNextDesktopState.goneAtMs, System.currentTimeMillis(),
+        )
+        val pillPlacement = if (!simLoopOffered) null else SimLoopPill.place(
             plot = plotRect,
             curvePoints = coords.map { it.x to it.y },
             drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },

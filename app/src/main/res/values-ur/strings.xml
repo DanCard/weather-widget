@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 سم لوپ</string>
     <string name="sim_loop_no_location">کوئی مقام سیٹ نہیں — پہلے ایپ میں ایک منتخب کریں۔</string>
     <string name="sim_loop_load_failed">بارش کا لوپ لوڈ نہیں ہو سکا۔ دوبارہ کوشش کے لیے تھپتھپائیں۔</string>
+    <string name="rain_loop_current_location">موجودہ مقام</string>
+    <string name="rain_loop_loading">پیش گوئی لوڈ ہو رہی ہے…</string>
+    <string name="rain_loop_model_run">ماڈل رن: %1$s</string>
+    <string name="rain_loop_valid">مؤثر: %1$s</string>
+    <string name="rain_loop_play">▶ چلائیں</string>
+    <string name="rain_loop_pause">⏸ روکیں</string>
+    <string name="rain_loop_speed_label">رفتار:</string>
+    <string name="rain_loop_scale_label">پیمانہ:</string>
+    <string name="rain_loop_speed_0_5">0.5× (ہموار)</string>
+    <string name="rain_loop_speed_1_0">1.0× (چست)</string>
+    <string name="rain_loop_speed_1_5">1.5× (تیز)</string>
+    <string name="rain_loop_speed_2_5">2.5× (بہت تیز)</string>
+    <string name="rain_loop_chip_rate">⏱ 1 گھنٹے کی بارش</string>
+    <string name="rain_loop_chip_fronts">🌧 6 گھنٹے کے فرنٹ</string>
+    <string name="rain_loop_chip_total">💧 کل بارش</string>
+    <string name="rain_loop_chip_vapor">🌊 آبی بخارات</string>
+    <string name="rain_loop_title_rate">1 گھنٹے کی بارش کی شرح اور وقت</string>
+    <string name="rain_loop_title_fronts">6 گھنٹے کی بارش، دباؤ اور فرنٹ</string>
+    <string name="rain_loop_title_total">کل جمع شدہ بارش</string>
+    <string name="rain_loop_title_vapor">مربوط بخارات کی ترسیل</string>
+    <string name="rain_loop_subtitle_rate">رنگ: اس 1 گھنٹے میں متوقع بارش (انچ/گھنٹہ) · 48 گھنٹے تک ہر گھنٹے</string>
+    <string name="rain_loop_subtitle_fronts">رنگ: پچھلے 6 گھنٹے کی بارش (انچ) · سیاہ لکیریں: دباؤ (hPa) · سرخ لکیریں: 850 hPa فرنٹ کا درجہ حرارت (°C)</string>
+    <string name="rain_loop_subtitle_total">رنگ: رن کے آغاز سے کل بارش (انچ) · طوفان کا متوقع مجموعہ</string>
+    <string name="rain_loop_subtitle_vapor">رنگ: نمی کا بہاؤ 1000–300 hPa (kg/m/s) · لکیریں دکھاتی ہیں نمی کہاں جا رہی ہے</string>
+    <string name="rain_loop_legend_rate">بارش کی شدت (انچ/گھنٹہ)</string>
+    <string name="rain_loop_legend_fronts">سیاہ = دباؤ (hPa) | سرخ = 850 hPa درجہ حرارت (°C)</string>
+    <string name="rain_loop_legend_total">طوفان کا کل مجموعہ (انچ)</string>
+    <string name="rain_loop_legend_vapor">تیر: نمی کا بہاؤ</string>
+    <string name="rain_loop_domain_ca">کیلیفورنیا اور مغربی ساحل</string>
+    <string name="rain_loop_domain_pnw">بحرالکاہل شمال مغرب</string>
+    <string name="rain_loop_domain_wide">شمالی امریکہ اور بحرالکاہل</string>
 </resources>

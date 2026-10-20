@@ -361,6 +361,11 @@ object PrecipViewHandler {
             }
             val renderStartMs = SystemClock.elapsedRealtime()
             val renderLogs = mutableListOf<String>()
+            val simLoopLocation = stateManager.getWidgetLocation(appWidgetId)
+            val simLoopOffered = SimLoopTouchTarget.supported() &&
+                com.weatherwidget.data.remote.weathernext.WeatherNextAvailability.showPill(
+                    simLoopLocation?.first, simLoopLocation?.second, WeatherNextGoneStore.goneAtMs(context), System.currentTimeMillis(),
+                )
             var simLoopPill: android.graphics.RectF? = null
             var simLoopPlotBottom = 0f
             val bitmap = PrecipitationGraphRenderer.renderGraph(
@@ -382,7 +387,7 @@ object PrecipViewHandler {
                 errorCode = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).errorCode,
                 errorFailureTimeMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).failureTimeMs,
                 errorBannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
-                simLoopLabel = context.getString(R.string.sim_loop_button).takeIf { SimLoopTouchTarget.supported() },
+                simLoopLabel = context.getString(R.string.sim_loop_button).takeIf { simLoopOffered },
                 onSimLoopPlaced = { pill, plotBottom ->
                     simLoopPill = pill
                     simLoopPlotBottom = plotBottom
@@ -424,12 +429,12 @@ object PrecipViewHandler {
                 bitmapHeightPx = bitmapDims.heightPx,
                 widgetWidthDp = dimensions.widthDp,
                 widgetHeightDp = dimensions.heightDp,
-                location = stateManager.getWidgetLocation(appWidgetId),
+                location = simLoopLocation,
             )
             appLogDao.log(
                 "PrecipGraph",
                 "SIM_LOOP_PILL zoneDp=${simLoopZone?.let { "${it.left.toInt()},${it.top.toInt()},${it.right.toInt()},${it.bottom.toInt()}" }} " +
-                    "reason=${when { !SimLoopTouchTarget.supported() -> "api<31"; simLoopPill == null -> "no_space"; else -> "placed" }}",
+                    "reason=${when { !SimLoopTouchTarget.supported() -> "api<31"; !simLoopOffered -> "unavailable"; simLoopPill == null -> "no_space"; else -> "placed" }}",
             )
         } else {
             views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)

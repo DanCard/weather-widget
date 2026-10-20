@@ -458,4 +458,35 @@
     <string name="sim_loop_button">🌧 Vòng mô phỏng</string>
     <string name="sim_loop_no_location">Chưa đặt vị trí — hãy chọn trong ứng dụng trước.</string>
     <string name="sim_loop_load_failed">Không tải được vòng lặp mưa. Nhấn để thử lại.</string>
+    <string name="rain_loop_current_location">Vị trí hiện tại</string>
+    <string name="rain_loop_loading">Đang tải dự báo…</string>
+    <string name="rain_loop_model_run">Lượt chạy mô hình: %1$s</string>
+    <string name="rain_loop_valid">Hiệu lực: %1$s</string>
+    <string name="rain_loop_play">▶ Phát</string>
+    <string name="rain_loop_pause">⏸ Tạm dừng</string>
+    <string name="rain_loop_speed_label">Tốc độ:</string>
+    <string name="rain_loop_scale_label">Thang:</string>
+    <string name="rain_loop_speed_0_5">0,5× (Mượt)</string>
+    <string name="rain_loop_speed_1_0">1,0× (Nhanh nhẹn)</string>
+    <string name="rain_loop_speed_1_5">1,5× (Nhanh)</string>
+    <string name="rain_loop_speed_2_5">2,5× (Rất nhanh)</string>
+    <string name="rain_loop_chip_rate">⏱ Mưa 1 giờ</string>
+    <string name="rain_loop_chip_fronts">🌧 Front 6 giờ</string>
+    <string name="rain_loop_chip_total">💧 Tổng lượng mưa</string>
+    <string name="rain_loop_chip_vapor">🌊 Hơi nước</string>
+    <string name="rain_loop_title_rate">Cường độ &amp; thời điểm mưa 1 giờ</string>
+    <string name="rain_loop_title_fronts">Mưa, khí áp &amp; front 6 giờ</string>
+    <string name="rain_loop_title_total">Tổng lượng mưa tích lũy</string>
+    <string name="rain_loop_title_vapor">Vận chuyển hơi nước tích hợp</string>
+    <string name="rain_loop_subtitle_rate">Màu: lượng mưa dự kiến trong khung 1 giờ này (inch/giờ) · từng giờ đến 48 giờ</string>
+    <string name="rain_loop_subtitle_fronts">Màu: mưa 6 giờ qua (inch) · Đường đen: khí áp (hPa) · Đường đỏ: nhiệt độ front ở 850 hPa (°C)</string>
+    <string name="rain_loop_subtitle_total">Màu: tổng mưa từ khi bắt đầu lượt chạy (inch) · tổng lượng dự kiến của cơn bão</string>
+    <string name="rain_loop_subtitle_vapor">Màu: thông lượng ẩm 1000–300 hPa (kg/m/s) · Đường dòng cho thấy hơi ẩm được đưa đi đâu</string>
+    <string name="rain_loop_legend_rate">Cường độ giáng thủy (inch/giờ)</string>
+    <string name="rain_loop_legend_fronts">Đen = khí áp (hPa) | Đỏ = nhiệt độ 850 hPa (°C)</string>
+    <string name="rain_loop_legend_total">Tổng lượng của cơn bão (inch)</string>
+    <string name="rain_loop_legend_vapor">Mũi tên: dòng hơi ẩm</string>
+    <string name="rain_loop_domain_ca">California &amp; Bờ Tây</string>
+    <string name="rain_loop_domain_pnw">Tây Bắc Thái Bình Dương</string>
+    <string name="rain_loop_domain_wide">Bắc Mỹ &amp; Thái Bình Dương</string>
 </resources>
