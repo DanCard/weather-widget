@@ -361,6 +361,8 @@ object PrecipViewHandler {
             }
             val renderStartMs = SystemClock.elapsedRealtime()
             val renderLogs = mutableListOf<String>()
+            var simLoopPill: android.graphics.RectF? = null
+            var simLoopPlotBottom = 0f
             val bitmap = PrecipitationGraphRenderer.renderGraph(
                 context = context,
                 hours = hours,
@@ -380,6 +382,11 @@ object PrecipViewHandler {
                 errorCode = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).errorCode,
                 errorFailureTimeMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).failureTimeMs,
                 errorBannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
+                simLoopLabel = context.getString(R.string.sim_loop_button).takeIf { SimLoopTouchTarget.supported() },
+                onSimLoopPlaced = { pill, plotBottom ->
+                    simLoopPill = pill
+                    simLoopPlotBottom = plotBottom
+                },
             )
             renderLogs.forEach { appLogDao.log("PrecipGraph", it) }
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
@@ -407,23 +414,23 @@ object PrecipViewHandler {
                 sourceId = displaySource.id,
             )
 
-            // "Sim loop" pill button tap target
-            views.setViewVisibility(R.id.sim_loop_touch_zone, View.VISIBLE)
-            val simLoopIntent = Intent(context, com.weatherwidget.ui.RainForecastActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                stateManager.getWidgetLocation(appWidgetId)?.let { (lat, lon) ->
-                    putExtra(com.weatherwidget.ui.RainForecastActivity.EXTRA_LAT, lat)
-                    putExtra(com.weatherwidget.ui.RainForecastActivity.EXTRA_LON, lon)
-                }
-                putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-            val simLoopPending = PendingIntent.getActivity(
-                context,
-                WidgetRequestCodes.simLoop(appWidgetId),
-                simLoopIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            val simLoopZone = SimLoopTouchTarget.apply(
+                context = context,
+                views = views,
+                appWidgetId = appWidgetId,
+                pillPx = simLoopPill,
+                plotBottomPx = simLoopPlotBottom,
+                bitmapWidthPx = bitmapDims.widthPx,
+                bitmapHeightPx = bitmapDims.heightPx,
+                widgetWidthDp = dimensions.widthDp,
+                widgetHeightDp = dimensions.heightDp,
+                location = stateManager.getWidgetLocation(appWidgetId),
             )
-            views.setOnClickPendingIntent(R.id.sim_loop_touch_zone, simLoopPending)
+            appLogDao.log(
+                "PrecipGraph",
+                "SIM_LOOP_PILL zoneDp=${simLoopZone?.let { "${it.left.toInt()},${it.top.toInt()},${it.right.toInt()},${it.bottom.toInt()}" }} " +
+                    "reason=${when { !SimLoopTouchTarget.supported() -> "api<31"; simLoopPill == null -> "no_space"; else -> "placed" }}",
+            )
         } else {
             views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)

@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">Liczy każde żądanie wysłane z tego urządzenia, w tym ponowienia i błędy. Przechowywane przez %1$d dni.</string>
     <string name="usage_stats_empty">Brak zarejestrowanych wywołań API.</string>
     <string name="usage_stats_loading">Wczytywanie…</string>
+    <string name="sim_loop_button">🌧 Pętla sym.</string>
+    <string name="sim_loop_no_location">Nie ustawiono lokalizacji — najpierw wybierz ją w aplikacji.</string>
+    <string name="sim_loop_load_failed">Nie udało się wczytać pętli opadów. Dotknij, aby ponowić.</string>
 </resources>

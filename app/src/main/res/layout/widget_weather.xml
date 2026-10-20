@@ -1992,14 +1992,17 @@
         android:focusable="true"
         android:visibility="gone" />
 
-    <!-- Sim loop pill touch target — overlays the "Sim loop" pill drawn on the precipitation graph. -->
+    <!-- Sim loop pill touch target. The pill is drawn into the precipitation bitmap wherever there is
+         empty space, so SimLoopTouchTarget sizes this zone and moves it (start/top margins) onto the
+         pill on every render (API 31+). Declared after the zoom/nav zones so it wins on the pill;
+         SimLoopTouchTarget keeps it off the header buttons and nav arrows. -->
     <FrameLayout
         android:id="@+id/sim_loop_touch_zone"
-        android:layout_width="80dp"
-        android:layout_height="40dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="26dp"
-        android:layout_marginEnd="6dp"
+        android:layout_width="64dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|start"
+        android:layout_marginTop="48dp"
+        android:layout_marginStart="0dp"
         android:background="@android:color/transparent"
         android:clickable="true"
         android:focusable="true"

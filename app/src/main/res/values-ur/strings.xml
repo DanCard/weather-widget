@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">اس آلے سے بھیجی گئی ہر درخواست شمار ہوتی ہے، بشمول دوبارہ کوششیں اور ناکامیاں۔ %1$d دن تک رکھی جاتی ہے۔</string>
     <string name="usage_stats_empty">ابھی تک کوئی API کال درج نہیں ہوئی۔</string>
     <string name="usage_stats_loading">لوڈ ہو رہا ہے…</string>
+    <string name="sim_loop_button">🌧 سم لوپ</string>
+    <string name="sim_loop_no_location">کوئی مقام سیٹ نہیں — پہلے ایپ میں ایک منتخب کریں۔</string>
+    <string name="sim_loop_load_failed">بارش کا لوپ لوڈ نہیں ہو سکا۔ دوبارہ کوشش کے لیے تھپتھپائیں۔</string>
 </resources>

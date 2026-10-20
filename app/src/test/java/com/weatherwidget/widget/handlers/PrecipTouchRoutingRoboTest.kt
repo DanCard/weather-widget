@@ -24,6 +24,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -45,6 +46,8 @@ class PrecipTouchRoutingRoboTest {
     private lateinit var context: Context
     private lateinit var app: Application
     private val appWidgetId = 731
+    private val SIM_W = 400
+    private val SIM_H = 240
 
     @Before
     fun setup() {
@@ -195,19 +198,27 @@ class PrecipTouchRoutingRoboTest {
     }
 
     @Test
-    fun `precipitation graph sim loop touch zone is visible and launches RainForecastActivity`() = runBlocking {
+    fun `sim loop zone sits in the plot, is a real tap target, and launches RainForecastActivity`() = runBlocking {
         val views = renderPrecipWidget(
-            options = graphOptions(),
+            options = sizedOptions(SIM_W, SIM_H),
             configureState = {
                 it.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
                 it.setWidgetLocations(intArrayOf(appWidgetId), 37.42, -122.09)
             },
         )
 
-        val applied = applyViews(views)
+        val applied = applyViews(views, SIM_W, SIM_H)
         val simLoopZone = applied.findViewById<View>(R.id.sim_loop_touch_zone)
-        assertNotNull(simLoopZone)
         assertEquals(View.VISIBLE, simLoopZone.visibility)
+
+        // Robolectric runs at density 1, so px == dp here.
+        val zone = rectIn(applied, simLoopZone)
+        assertTrue("zone is at least 48dp tall: $zone", zone.height() >= 47)
+        for (id in listOf(R.id.api_touch_zone, R.id.settings_touch_zone)) {
+            val header = rectIn(applied, applied.findViewById(id))
+            assertFalse("sim loop zone $zone must not overlap header button $header", android.graphics.Rect.intersects(zone, header))
+        }
+        assertTrue("zone starts below the header row: $zone", zone.top >= 8 + SimLoopTouchTarget.HEADER_TOUCH_BOTTOM_DP.toInt())
 
         val shadowApp = shadowOf(app)
         simLoopZone.performClick()
@@ -219,6 +230,18 @@ class PrecipTouchRoutingRoboTest {
         )
         assertEquals(37.42, startedIntent.getDoubleExtra(com.weatherwidget.ui.RainForecastActivity.EXTRA_LAT, 0.0), 0.001)
         assertEquals(-122.09, startedIntent.getDoubleExtra(com.weatherwidget.ui.RainForecastActivity.EXTRA_LON, 0.0), 0.001)
+    }
+
+    private fun rectIn(root: View, view: View): android.graphics.Rect {
+        var x = 0
+        var y = 0
+        var v: View? = view
+        while (v != null && v !== root) {
+            x += v.left
+            y += v.top
+            v = v.parent as? View
+        }
+        return android.graphics.Rect(x, y, x + view.width, y + view.height)
     }
 
     private suspend fun renderPrecipWidget(
@@ -249,11 +272,11 @@ class PrecipTouchRoutingRoboTest {
         return viewsSlot.captured
     }
 
-    private fun applyViews(views: RemoteViews): View {
+    private fun applyViews(views: RemoteViews, widthPx: Int = 600, heightPx: Int = 400): View {
         val root = FrameLayout(context)
         val applied = views.apply(context, root as ViewGroup)
-        val widthSpec = MeasureSpec.makeMeasureSpec(600, MeasureSpec.EXACTLY)
-        val heightSpec = MeasureSpec.makeMeasureSpec(400, MeasureSpec.EXACTLY)
+        val widthSpec = MeasureSpec.makeMeasureSpec(widthPx, MeasureSpec.EXACTLY)
+        val heightSpec = MeasureSpec.makeMeasureSpec(heightPx, MeasureSpec.EXACTLY)
         applied.measure(widthSpec, heightSpec)
         applied.layout(0, 0, applied.measuredWidth, applied.measuredHeight)
         return applied
@@ -264,6 +287,14 @@ class PrecipTouchRoutingRoboTest {
         putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
         putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
         putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
+    }
+
+    /** A Pixel-like 5x2 precipitation graph: room for the pill above a low curve. */
+    private fun sizedOptions(widthDp: Int, heightDp: Int): Bundle = Bundle().apply {
+        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
+        putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
+        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, heightDp)
+        putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, heightDp)
     }
 
     private fun textOptions(): Bundle = Bundle().apply {

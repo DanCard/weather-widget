@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">このデバイスが送信したすべてのリクエストを再試行・失敗も含めて数えます。%1$d 日間保存されます。</string>
     <string name="usage_stats_empty">API 呼び出しの記録はまだありません。</string>
     <string name="usage_stats_loading">読み込み中…</string>
+    <string name="sim_loop_button">🌧 予報ループ</string>
+    <string name="sim_loop_no_location">場所が設定されていません。先にアプリで選択してください。</string>
+    <string name="sim_loop_load_failed">雨のループを読み込めませんでした。タップして再試行。</string>
 </resources>

@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">Bu cihazın gönderdiği her isteği, yeniden denemeler ve hatalar dahil sayar. %1$d gün saklanır.</string>
     <string name="usage_stats_empty">Henüz kayıtlı API çağrısı yok.</string>
     <string name="usage_stats_loading">Yükleniyor…</string>
+    <string name="sim_loop_button">🌧 Sim döngüsü</string>
+    <string name="sim_loop_no_location">Konum ayarlanmadı — önce uygulamada bir konum seçin.</string>
+    <string name="sim_loop_load_failed">Yağmur döngüsü yüklenemedi. Yeniden denemek için dokunun.</string>
 </resources>

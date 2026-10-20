@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">统计此设备发出的每个请求，包括重试和失败。保留 %1$d 天。</string>
     <string name="usage_stats_empty">尚无 API 调用记录。</string>
     <string name="usage_stats_loading">正在加载…</string>
+    <string name="sim_loop_button">🌧 模拟动画</string>
+    <string name="sim_loop_no_location">尚未设置位置——请先在应用中选择。</string>
+    <string name="sim_loop_load_failed">无法加载降雨动画。点按重试。</string>
 </resources>

@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">Zählt jede Anfrage dieses Geräts, einschließlich Wiederholungen und Fehlern. %1$d Tage gespeichert.</string>
     <string name="usage_stats_empty">Noch keine API-Aufrufe erfasst.</string>
     <string name="usage_stats_loading">Wird geladen…</string>
+    <string name="sim_loop_button">🌧 Sim-Schleife</string>
+    <string name="sim_loop_no_location">Kein Standort festgelegt – wähle zuerst einen in der App.</string>
+    <string name="sim_loop_load_failed">Regenschleife konnte nicht geladen werden. Zum Wiederholen tippen.</string>
 </resources>

@@ -440,4 +440,7 @@
     <string name="usage_stats_footer_format">Враховується кожен запит із цього пристрою, включно з повторами та збоями. Зберігається %1$d днів.</string>
     <string name="usage_stats_empty">Викликів API ще немає.</string>
     <string name="usage_stats_loading">Завантаження…</string>
+    <string name="sim_loop_button">🌧 Анімація</string>
+    <string name="sim_loop_no_location">Місцезнаходження не задано — спершу виберіть його в застосунку.</string>
+    <string name="sim_loop_load_failed">Не вдалося завантажити анімацію опадів. Торкніться, щоб повторити.</string>
 </resources>

@@ -351,6 +351,14 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideWeatherNextForecastClient(
+        httpClient: HttpClient,
+        json: Json,
+    ): com.weatherwidget.data.remote.weathernext.WeatherNextForecastClient =
+        com.weatherwidget.data.remote.weathernext.WeatherNextForecastClient(httpClient, json)
+
+    @Provides
+    @Singleton
     fun provideOpenMeteoApi(
         httpClient: HttpClient,
         json: Json,

@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">Учитывается каждый запрос с этого устройства, включая повторы и сбои. Хранится %1$d дней.</string>
     <string name="usage_stats_empty">Вызовов API пока нет.</string>
     <string name="usage_stats_loading">Загрузка…</string>
+    <string name="sim_loop_button">🌧 Анимация</string>
+    <string name="sim_loop_no_location">Местоположение не задано — сначала выберите его в приложении.</string>
+    <string name="sim_loop_load_failed">Не удалось загрузить анимацию осадков. Нажмите, чтобы повторить.</string>
 </resources>

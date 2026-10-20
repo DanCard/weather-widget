@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">Conta ogni richiesta inviata da questo dispositivo, compresi tentativi ripetuti ed errori. Conservati %1$d giorni.</string>
     <string name="usage_stats_empty">Nessuna chiamata API registrata finora.</string>
     <string name="usage_stats_loading">Caricamento…</string>
+    <string name="sim_loop_button">🌧 Loop sim.</string>
+    <string name="sim_loop_no_location">Nessuna posizione impostata: scegline una nell\'app.</string>
+    <string name="sim_loop_load_failed">Impossibile caricare il loop della pioggia. Tocca per riprovare.</string>
 </resources>

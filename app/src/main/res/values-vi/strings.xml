@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">Đếm mọi yêu cầu thiết bị này đã gửi, kể cả lần thử lại và lỗi. Lưu %1$d ngày.</string>
     <string name="usage_stats_empty">Chưa ghi nhận lệnh gọi API nào.</string>
     <string name="usage_stats_loading">Đang tải…</string>
+    <string name="sim_loop_button">🌧 Vòng mô phỏng</string>
+    <string name="sim_loop_no_location">Chưa đặt vị trí — hãy chọn trong ứng dụng trước.</string>
+    <string name="sim_loop_load_failed">Không tải được vòng lặp mưa. Nhấn để thử lại.</string>
 </resources>

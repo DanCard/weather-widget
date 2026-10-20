@@ -78,4 +78,18 @@ class RainForecastActivityRobolectricTest {
             )
         }
     }
+
+    @Test
+    fun `no location - says so and never invents one`() {
+        // No extras, no stored widget location, no active location: there is no default (CLAUDE.md).
+        val intent = Intent(context, RainForecastActivity::class.java)
+        ActivityScenario.launch<RainForecastActivity>(intent).onActivity { activity ->
+            shadowOf(context.mainLooper).idle()
+            assertEquals(
+                context.getString(R.string.sim_loop_no_location),
+                activity.findViewById<TextView>(R.id.tv_model_run).text.toString(),
+            )
+            assertTrue(activity.findViewById<TextView>(R.id.tv_location).text.isEmpty())
+        }
+    }
 }

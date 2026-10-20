@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">นับทุกคำขอที่อุปกรณ์นี้ส่ง รวมการลองใหม่และที่ล้มเหลว เก็บไว้ %1$d วัน</string>
     <string name="usage_stats_empty">ยังไม่มีการเรียก API ที่บันทึกไว้</string>
     <string name="usage_stats_loading">กำลังโหลด…</string>
+    <string name="sim_loop_button">🌧 ลูปจำลอง</string>
+    <string name="sim_loop_no_location">ยังไม่ได้ตั้งตำแหน่ง — เลือกในแอปก่อน</string>
+    <string name="sim_loop_load_failed">โหลดลูปฝนไม่ได้ แตะเพื่อลองอีกครั้ง</string>
 </resources>

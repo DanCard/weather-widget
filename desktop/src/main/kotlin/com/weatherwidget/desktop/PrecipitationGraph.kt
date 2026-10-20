@@ -2,18 +2,18 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.shared.observations.NwsBlend
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -31,6 +31,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.HourlyForecast
@@ -86,6 +88,8 @@ fun PrecipitationGraph(
     val smoothIterations = setup.smoothIterations
 
     val watermarkPainter = painterResource("drawable/ic_weather_rain.xml")
+    // Where the canvas drew the "Sim loop" pill (px), so the clickable overlay can sit on it.
+    var simLoopPill by remember { mutableStateOf<Rect?>(null) }
 
     Box(modifier = modifier) {
         Canvas(
@@ -288,6 +292,7 @@ fun PrecipitationGraph(
                         }
                     }
                     watermarkPlaced = true
+                    drawnLabels.add(bounds)
                     break
                 }
             }
@@ -315,35 +320,54 @@ fun PrecipitationGraph(
             drawnLabels = drawnLabels,
             xAt = xAt,
         )
+
+        // "Sim loop" pill in the plot's empty space — same shared search as Android's bitmap.
+        val pxPerDp = 1.dp.toPx() * scale
+        val pillStyle = TextStyle(fontSize = (11 * scale).sp, color = Color.White, fontWeight = FontWeight.Bold)
+        val pillText = textMeasurer.measure(SIM_LOOP_LABEL, pillStyle)
+        val plotRect = GraphRect(0f, graphTop, w, graphBottom)
+        val pillPlacement = SimLoopPill.place(
+            plot = plotRect,
+            curvePoints = coords.map { it.x to it.y },
+            drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+            vetoBounds = (if (now in windowStart..windowEnd) nowLineVetoBounds(markerX, graphTop, graphHeight, scale) else emptyList()) +
+                navArrowVetoBounds(plotRect, scale),
+            pillWidthPx = SimLoopPill.pillWidthPx(pillText.size.width.toFloat(), pxPerDp),
+            density = pxPerDp,
+        )
+        val pillRect = pillPlacement?.box?.let { Rect(it.left, it.top, it.right, it.bottom) }
+        if (pillRect != null) {
+            val radius = CornerRadius(pillRect.height / 2f)
+            drawRoundRect(SIM_LOOP_FILL, pillRect.topLeft, pillRect.size, radius)
+            drawRoundRect(SIM_LOOP_STROKE, pillRect.topLeft, pillRect.size, radius, style = Stroke(width = pxPerDp))
+            drawText(
+                pillText,
+                topLeft = Offset(pillRect.center.x - pillText.size.width / 2f, pillRect.center.y - pillText.size.height / 2f),
+            )
+        }
+        if (pillRect != simLoopPill) simLoopPill = pillRect
     }
 
-    // "Sim loop" pill button in upper right unused space
-    Row(
-        modifier = Modifier
-            .align(Alignment.TopEnd)
-            .padding(end = 12.dp * scale, top = 8.dp * scale)
-            .background(
-                color = Color(0x3C5AC8FA),
-                shape = RoundedCornerShape(12.dp * scale),
+    simLoopPill?.let { pill ->
+        // Clickable area a few dp past the drawn pill; the canvas below keeps its own tap handling.
+        val density = LocalDensity.current
+        val padPx = with(density) { 4.dp.toPx() } * scale
+        val hit = pill.inflate(padPx)
+        with(density) {
+            Box(
+                Modifier
+                    .offset { IntOffset(hit.left.roundToInt(), hit.top.roundToInt()) }
+                    .size(hit.width.toDp(), hit.height.toDp())
+                    .clickable { onOpenSimLoop() },
             )
-            .border(
-                width = 1.dp * scale,
-                color = Color(0x825AC8FA),
-                shape = RoundedCornerShape(12.dp * scale),
-            )
-            .clickable { onOpenSimLoop() }
-            .padding(horizontal = 8.dp * scale, vertical = 3.dp * scale),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "🌧️ Sim loop",
-            color = Color.White,
-            fontSize = 11.sp * scale,
-            fontWeight = FontWeight.Bold,
-        )
+        }
     }
     }
 }
+
+private const val SIM_LOOP_LABEL = "🌧 Sim loop"
+private val SIM_LOOP_FILL = Color(0x465AC8FA)
+private val SIM_LOOP_STROKE = Color(0x965AC8FA)
 
 private fun buildCurve(coords: List<Offset>): Path = DesktopGraphUtils.buildCurve(coords)
 

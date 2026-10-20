@@ -13,6 +13,7 @@ object PrecipitationGraphStyle {
     private const val COLOR_RAIN_AMOUNT = "#FFFFFF"
     private const val COLOR_ACTUAL_RAIN_AMOUNT = "#FF9F0A"
     private const val RAIN_AMOUNT_TEXT_SIZE_DP = 18.0f
+    private const val SIM_LOOP_TEXT_SIZE_DP = 11.0f
 
     // Day/night divider line (8a / 8p boundaries). Dimmer + finer than the NOW line so the two
     // never read as the same marker.
@@ -36,6 +37,9 @@ object PrecipitationGraphStyle {
         val todayDayLabelPaint: Paint,
         val rainAmountPaint: Paint,
         val actualRainAmountPaint: Paint,
+        val simLoopFillPaint: Paint,
+        val simLoopStrokePaint: Paint,
+        val simLoopTextPaint: Paint,
     )
 
     @Volatile
@@ -97,6 +101,23 @@ object PrecipitationGraphStyle {
                 color = Color.parseColor(COLOR_ACTUAL_RAIN_AMOUNT)
             }
 
+            // "Sim loop" pill: translucent curve-blue fill, brighter rim, white bold label.
+            val simLoopFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.argb(70, 90, 200, 250)
+                style = Paint.Style.FILL
+            }
+            val simLoopStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.argb(150, 90, 200, 250)
+                style = Paint.Style.STROKE
+                strokeWidth = dpToPx(context, 1f * labelScale)
+            }
+            val simLoopTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                textSize = dpToPx(context, SIM_LOOP_TEXT_SIZE_DP * labelScale)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+
             val paints = PaintSet(
                 density = density,
                 labelScale = labelScale,
@@ -112,6 +133,9 @@ object PrecipitationGraphStyle {
                 todayDayLabelPaint = todayDayLabelPaint,
                 rainAmountPaint = rainAmountPaint,
                 actualRainAmountPaint = actualRainAmountPaint,
+                simLoopFillPaint = simLoopFillPaint,
+                simLoopStrokePaint = simLoopStrokePaint,
+                simLoopTextPaint = simLoopTextPaint,
             )
             cachedPaints = paints
             paints

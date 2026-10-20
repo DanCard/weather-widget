@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">এই ডিভাইস থেকে পাঠানো প্রতিটি অনুরোধ গণনা করে, পুনঃচেষ্টা ও ব্যর্থতা সহ। %1$d দিন রাখা হয়।</string>
     <string name="usage_stats_empty">এখনও কোনো API কল রেকর্ড হয়নি।</string>
     <string name="usage_stats_loading">লোড হচ্ছে…</string>
+    <string name="sim_loop_button">🌧 সিমুলেশন লুপ</string>
+    <string name="sim_loop_no_location">কোনো অবস্থান সেট নেই — আগে অ্যাপে একটি বেছে নিন।</string>
+    <string name="sim_loop_load_failed">বৃষ্টির লুপ লোড করা যায়নি। আবার চেষ্টা করতে ট্যাপ করুন।</string>
 </resources>

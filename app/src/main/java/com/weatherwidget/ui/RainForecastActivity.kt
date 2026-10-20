@@ -20,16 +20,16 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.File
-import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
 import kotlin.math.max
 import kotlin.math.min
 
 @AndroidEntryPoint
 class RainForecastActivity : AppCompatActivity() {
+
+    @Inject lateinit var weatherNextClient: WeatherNextForecastClient
 
     private lateinit var ivMap: ImageView
     private lateinit var progressLoading: ProgressBar
@@ -53,13 +53,18 @@ class RainForecastActivity : AppCompatActivity() {
 
     private var domain = WeatherNextDomain.CA
     private var selectedLayer = WeatherNextLayer.QPF1_IMERG
-    private var lat: Double = 37.4166
-    private var lon: Double = -122.0888
-    private var locationLabel: String = "Mountain View"
+    // No default location (CLAUDE.md): with none, the viewer says so and fetches nothing.
+    private var lat: Double = Double.NaN
+    private var lon: Double = Double.NaN
+    private var locationLabel: String = ""
 
     private var manifest: WeatherNextManifest? = null
     private var framesForLayer: List<WeatherNextFrame> = emptyList()
-    private val cachedBitmaps = mutableMapOf<Int, Bitmap>()
+    // Written by the prefetch coroutine (IO), read by the ticker (main).
+    private val cachedBitmaps = ConcurrentHashMap<Int, Bitmap>()
+    /** Two reusable output buffers, alternated so the ImageView never draws one mid-update. */
+    private val outputBuffers = arrayOfNulls<Bitmap>(2)
+    private var outputIndex = 0
 
     private var currentPos = 0.0
     // AUTO-PLAY: starts playing automatically
@@ -99,7 +104,21 @@ class RainForecastActivity : AppCompatActivity() {
         updateLayerChipsUi()
         rebuildLegend()
 
+        if (lat.isNaN()) {
+            tvModelRun.text = getString(R.string.sim_loop_no_location)
+            progressLoading.visibility = View.GONE
+            return
+        }
         fetchManifest()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        handler.removeCallbacks(tickerRunnable)
+        ivMap.setImageDrawable(null)
+        cachedBitmaps.values.forEach { it.recycle() }
+        cachedBitmaps.clear()
+        outputBuffers.forEach { it?.recycle() }
     }
 
     override fun onResume() {
@@ -147,10 +166,12 @@ class RainForecastActivity : AppCompatActivity() {
                     appWidgetIds.toList().firstNotNullOfOrNull { stateManager.getStoredWidgetLocation(it) }
                 }
         }
-        if (loc != null) {
-            lat = loc.first
-            lon = loc.second
+        if (loc == null) {
+            tvLocation.text = ""
+            return
         }
+        lat = loc.first
+        lon = loc.second
         val label = ActiveLocationResolver.chosenLabel(this)
             ?: FriendlyLocationName.cached(this, lat, lon)
         locationLabel = label?.split(",")?.firstOrNull()?.trim() ?: "Current Location"
@@ -269,52 +290,20 @@ class RainForecastActivity : AppCompatActivity() {
 
     private fun fetchManifest() {
         progressLoading.visibility = View.VISIBLE
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val url = URL("${WeatherNextForecastClient.BASE_URL}/${domain.id}/manifest.json")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.connectTimeout = 10000
-                conn.readTimeout = 10000
-                val text = conn.inputStream.bufferedReader().use { it.readText() }
-
-                val json = JSONObject(text)
-                val runInit = json.optString("init", "")
-                val framesArray = json.optJSONArray("frames") ?: org.json.JSONArray()
-
-                val framesList = mutableListOf<WeatherNextFrame>()
-                for (i in 0 until framesArray.length()) {
-                    val item = framesArray.getJSONObject(i)
-                    val lead = item.getInt("lead")
-                    val valid = item.getString("valid")
-                    val filesObj = item.getJSONObject("files")
-                    val filesMap = mutableMapOf<String, String>()
-                    val keys = filesObj.keys()
-                    while (keys.hasNext()) {
-                        val k = keys.next()
-                        filesMap[k] = filesObj.getString(k)
-                    }
-                    framesList.add(WeatherNextFrame(lead = lead, valid = valid, files = filesMap))
-                }
-
-                val parsedManifest = WeatherNextManifest(
-                    run = json.optString("run"),
-                    init = runInit,
-                    source = json.optString("source"),
-                    frames = framesList,
-                )
-
-                withContext(Dispatchers.Main) {
-                    manifest = parsedManifest
-                    val localInit = WeatherNextForecastClient.formatUtcToLocal(runInit)
-                    tvModelRun.text = "Model Run: $localInit"
+        tvModelRun.setOnClickListener(null)
+        lifecycleScope.launch {
+            weatherNextClient.fetchManifest(domain)
+                .onSuccess { parsed ->
+                    manifest = parsed
+                    tvModelRun.text = "Model Run: ${WeatherNextForecastClient.formatUtcToLocal(parsed.init ?: parsed.run)}"
                     filterFramesForLayer()
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
+                .onFailure {
+                    // Third-party host (GitHub Pages): it can vanish or change; say so and offer a retry.
                     progressLoading.visibility = View.GONE
-                    tvModelRun.text = "Failed to load forecast: ${e.message}"
+                    tvModelRun.text = getString(R.string.sim_loop_load_failed)
+                    tvModelRun.setOnClickListener { fetchManifest() }
                 }
-            }
         }
     }
 
@@ -322,6 +311,7 @@ class RainForecastActivity : AppCompatActivity() {
         val m = manifest ?: return
         val layerId = selectedLayer.id
         framesForLayer = m.frames.filter { it.files.containsKey(layerId) }
+        cachedBitmaps.values.forEach { it.recycle() }
         cachedBitmaps.clear()
         currentPos = 0.0
 
@@ -337,48 +327,43 @@ class RainForecastActivity : AppCompatActivity() {
     }
 
     private fun prefetchFrames() {
+        val m = manifest ?: return
         val layerId = selectedLayer.id
         val snapshot = ArrayList(framesForLayer)
-        val cacheDir = File(cacheDir, "forecast_loops").apply { mkdirs() }
+        val loopDir = File(cacheDir, "forecast_loops").apply { mkdirs() }
+        val maxSide = maxOf(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels)
 
         lifecycleScope.launch(Dispatchers.IO) {
+            WeatherNextFrameCache.pruneOtherRuns(loopDir, domain, layerId, m)
             for (idx in snapshot.indices) {
                 if (selectedLayer.id != layerId) return@launch
-                val frame = snapshot[idx]
-                val relPath = frame.files[layerId] ?: continue
-                val lead = frame.lead
-                val cacheFile = File(cacheDir, "${domain.id}_${layerId}_${String.format("%03d", lead)}.jpg")
-
-                if (!cacheFile.exists() || cacheFile.length() < 1000) {
-                    try {
-                        val fileUrl = URL("${WeatherNextForecastClient.BASE_URL}/${domain.id}/$relPath")
-                        val conn = fileUrl.openConnection() as HttpURLConnection
-                        conn.connectTimeout = 12000
-                        conn.readTimeout = 12000
-                        val bytes = conn.inputStream.use { it.readBytes() }
-                        cacheFile.writeBytes(bytes)
-                    } catch (_: Exception) {
-                        continue
+                val file = weatherNextClient.cachedFrame(loopDir, domain, layerId, m, snapshot[idx]).getOrNull() ?: continue
+                val bmp = decodeScaled(file, maxSide) ?: continue
+                if (selectedLayer.id != layerId) {
+                    bmp.recycle()
+                    return@launch
+                }
+                cachedBitmaps.put(idx, bmp)?.recycle()
+                if (idx == 0) {
+                    withContext(Dispatchers.Main) {
+                        progressLoading.visibility = View.GONE
+                        renderFrame(0.0)
                     }
                 }
-
-                try {
-                    val bmp = BitmapFactory.decodeFile(cacheFile.absolutePath)
-                    if (bmp != null) {
-                        cachedBitmaps[idx] = bmp
-                        if (idx == 0) {
-                            withContext(Dispatchers.Main) {
-                                progressLoading.visibility = View.GONE
-                                renderFrame(0.0)
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
             }
             withContext(Dispatchers.Main) {
                 progressLoading.visibility = View.GONE
             }
         }
+    }
+
+    /** Decodes [file] no larger than needed for a [maxSide]-pixel screen. */
+    private fun decodeScaled(file: File, maxSide: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxSide) sample *= 2
+        return BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply { inSampleSize = sample })
     }
 
     private fun renderFrame(pos: Double) {
@@ -393,8 +378,14 @@ class RainForecastActivity : AppCompatActivity() {
         // Create display bitmap with marker & HUD overlay
         val w = bmp1.width
         val h = bmp1.height
-        val output = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        outputIndex = 1 - outputIndex
+        val output = outputBuffers[outputIndex]?.takeIf { it.width == w && it.height == h }
+            ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also {
+                outputBuffers[outputIndex]?.recycle()
+                outputBuffers[outputIndex] = it
+            }
         val canvas = Canvas(output)
+        canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 

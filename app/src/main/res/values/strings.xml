@@ -472,4 +472,8 @@
     <string name="usage_stats_footer_format">Counts every request this device sent, including retries and failures. Kept %1$d days.</string>
     <string name="usage_stats_empty">No API calls recorded yet.</string>
     <string name="usage_stats_loading">Loading…</string>
+    <!-- Precipitation graph pill that opens the WeatherNext rain simulation loop. -->
+    <string name="sim_loop_button">🌧 Sim loop</string>
+    <string name="sim_loop_no_location">No location set — choose one in the app first.</string>
+    <string name="sim_loop_load_failed">Couldn\'t load the rain loop. Tap to retry.</string>
 </resources>

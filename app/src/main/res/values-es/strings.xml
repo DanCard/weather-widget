@@ -440,4 +440,7 @@
     <string name="usage_stats_footer_format">Cuenta cada solicitud que envió este dispositivo, incluidos reintentos y fallos. Se guardan %1$d días.</string>
     <string name="usage_stats_empty">Aún no hay llamadas a la API registradas.</string>
     <string name="usage_stats_loading">Cargando…</string>
+    <string name="sim_loop_button">🌧 Bucle sim.</string>
+    <string name="sim_loop_no_location">No hay ubicación: elige una en la app primero.</string>
+    <string name="sim_loop_load_failed">No se pudo cargar el bucle de lluvia. Toca para reintentar.</string>
 </resources>

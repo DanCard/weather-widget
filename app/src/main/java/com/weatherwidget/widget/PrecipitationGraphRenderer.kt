@@ -1,6 +1,9 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.shared.graph.GraphRect
+import com.weatherwidget.shared.graph.NavArrowGeometry
+import com.weatherwidget.shared.graph.NowIndicatorGeometry
+import com.weatherwidget.shared.graph.SimLoopPill
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.ValueLabelEngine
 import com.weatherwidget.shared.graph.HourlyTimelineGeometry
@@ -166,6 +169,8 @@ object PrecipitationGraphRenderer {
         val watermarkPlacement: WatermarkPlacementDebug? = null,
         val iconBounds: List<PrecipRect> = emptyList(),
         val dayNightBoundaryXs: List<Float> = emptyList(),
+        /** Every label, day label and the watermark — what a free-floating control must not cover. */
+        val occupiedBounds: List<PrecipRect> = emptyList(),
     )
 
     fun calculateLayout(
@@ -417,6 +422,7 @@ object PrecipitationGraphRenderer {
                     if (overlayBounds.any { it.intersects(bounds) }) continue
 
                     watermarkPlacement = WatermarkPlacementDebug(x = bounds.left, y = bounds.top, xFrac = xFrac, yFrac = yFrac)
+                    overlayBounds.add(bounds)
                     placed = true
                     break
                 }
@@ -440,6 +446,7 @@ object PrecipitationGraphRenderer {
             watermarkPlacement = watermarkPlacement,
             iconBounds = drawnIconBounds,
             dayNightBoundaryXs = dayNightBoundaryXs,
+            occupiedBounds = overlayBounds + drawnIconBounds,
         )
     }
 
@@ -517,6 +524,10 @@ object PrecipitationGraphRenderer {
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
         errorBannerSinceMs: Long? = null,
+        /** The "Sim loop" pill's label; null draws no pill. */
+        simLoopLabel: String? = null,
+        /** Where the pill was drawn (bitmap px; null when no empty space fit it) and the plot's bottom. */
+        onSimLoopPlaced: ((pill: RectF?, plotBottomPx: Float) -> Unit)? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -716,33 +727,16 @@ object PrecipitationGraphRenderer {
                 )
         }
 
-        // "Sim loop" pill button in top-right unused space
-        val simDensity = context.resources.displayMetrics.density * bitmapScale
-        val simPillRight = widthPx - 8f * simDensity
-        val simPillTop = 6f * simDensity
-        val simPillHeight = 20f * simDensity
-        val simPillWidth = 66f * simDensity
-        val simPillRect = android.graphics.RectF(simPillRight - simPillWidth, simPillTop, simPillRight, simPillTop + simPillHeight)
-        val pillBgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.argb(60, 90, 200, 250)
-            style = android.graphics.Paint.Style.FILL
+        if (simLoopLabel != null) {
+            val pill = drawSimLoopPill(canvas, layout, paints, simLoopLabel, widthPx, density * labelScale)
+            val logMsg = if (pill != null) {
+                "SIM_LOOP_PILL placed rect=${pill.left.toInt()},${pill.top.toInt()},${pill.right.toInt()},${pill.bottom.toInt()} bitmap=${widthPx}x${heightPx}"
+            } else {
+                "SIM_LOOP_PILL reason=no_space bitmap=${widthPx}x${heightPx}"
+            }
+            Log.d(TAG, logMsg) // persisted by the caller with the tap zone it chose
+            onSimLoopPlaced?.invoke(pill, layout.graphBottom)
         }
-        val pillStrokePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.argb(130, 90, 200, 250)
-            style = android.graphics.Paint.Style.STROKE
-            strokeWidth = 1f * simDensity
-        }
-        val pillTextPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.WHITE
-            textSize = 10f * simDensity
-            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-            textAlign = android.graphics.Paint.Align.CENTER
-        }
-        val cornerRadius = simPillHeight / 2f
-        canvas.drawRoundRect(simPillRect, cornerRadius, cornerRadius, pillBgPaint)
-        canvas.drawRoundRect(simPillRect, cornerRadius, cornerRadius, pillStrokePaint)
-        val textY = simPillRect.centerY() - (pillTextPaint.descent() + pillTextPaint.ascent()) / 2f
-        canvas.drawText("🌧 Sim loop", simPillRect.centerX(), textY, pillTextPaint)
 
         return bitmap
     }
@@ -752,6 +746,46 @@ object PrecipitationGraphRenderer {
      * [PrecipViewHandler] has already nulled it for hours that have not elapsed, and that gate is
      * what keeps an "Act" label out of the future.
      */
+    /**
+     * Draws the "Sim loop" pill in the plot's empty space ([SimLoopPill]) and returns its rect, or
+     * null when nothing fits. Over the curve only when nothing clear exists; the fill is translucent. The plot starts at graphTop (44dp), below the header buttons, so the
+     * search never offers the pill a slot under them.
+     */
+    private fun drawSimLoopPill(
+        canvas: Canvas,
+        layout: PrecipGraphLayout,
+        paints: PrecipitationGraphStyle.PaintSet,
+        label: String,
+        widthPx: Int,
+        pxPerDp: Float,
+    ): RectF? {
+        val plot = GraphRect(0f, layout.graphTop, widthPx.toFloat(), layout.graphBottom)
+        val veto = buildList {
+            layout.nowX?.let {
+                add(NowIndicatorGeometry.nowLineBounds(it, layout.graphTop, layout.graphHeight, paints.currentTimePaint.strokeWidth.coerceAtLeast(1f)))
+            }
+            addAll(NavArrowGeometry.arrowBounds(plot, pxPerDp, NavArrowGeometry.Visibility.BOTH))
+        }
+        val placement = SimLoopPill.place(
+            plot = plot,
+            curvePoints = layout.points,
+            drawnBounds = layout.occupiedBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) },
+            vetoBounds = veto,
+            pillWidthPx = SimLoopPill.pillWidthPx(paints.simLoopTextPaint.measureText(label), pxPerDp),
+            density = pxPerDp,
+        ) ?: return null
+        val rect = placement.box
+        val pill = RectF(rect.left, rect.top, rect.right, rect.bottom)
+        Log.d(TAG, "SIM_LOOP_PILL overCurve=${placement.overCurve}")
+        val radius = pill.height() / 2f
+        canvas.drawRoundRect(pill, radius, radius, paints.simLoopFillPaint)
+        canvas.drawRoundRect(pill, radius, radius, paints.simLoopStrokePaint)
+        val textPaint = paints.simLoopTextPaint
+        val baseline = pill.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
+        canvas.drawText(label, pill.centerX(), baseline, textPaint)
+        return pill
+    }
+
     private fun List<PrecipHourData>.toRainHours(): List<RainPeriodSelection.RainHour> = map {
         RainPeriodSelection.RainHour(
             dateTime = it.dateTime,

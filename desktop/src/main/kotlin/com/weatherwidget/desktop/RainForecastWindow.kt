@@ -30,9 +30,6 @@ import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.data.remote.weathernext.*
 import io.ktor.client.*
-import io.ktor.client.call.body
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -103,24 +100,27 @@ private fun RainForecastContent(
     var speedMultiplier by remember { mutableStateOf(1.0f) }
     var zoomLevel by remember { mutableStateOf(1.0f) }
     var statusText by remember { mutableStateOf("Loading forecast manifest...") }
+    var manifestFailed by remember { mutableStateOf(false) }
+    var manifestAttempt by remember { mutableStateOf(0) }
+    val client = remember(httpClient) { WeatherNextForecastClient(httpClient, WEATHER_NEXT_JSON) }
 
     val cacheDir = remember {
         File(System.getProperty("user.home"), ".cache/weather-widget/forecast_loops").apply { mkdirs() }
     }
 
-    // Load manifest on launch
-    LaunchedEffect(domain) {
-        withContext(Dispatchers.IO) {
-            try {
-                val url = "${WeatherNextForecastClient.BASE_URL}/${domain.id}/manifest.json"
-                val jsonText = httpClient.get(url).bodyAsText()
-                val parsed = WEATHER_NEXT_JSON.decodeFromString<WeatherNextManifest>(jsonText)
-                manifest = parsed
-                statusText = "Model Run: ${WeatherNextForecastClient.formatUtcToLocal(parsed.init)}"
-            } catch (e: Exception) {
-                statusText = "Failed to load manifest: ${e.message}"
+    // Load manifest on launch (and on retry: the host is a third-party GitHub Pages site).
+    LaunchedEffect(domain, manifestAttempt) {
+        manifestFailed = false
+        statusText = "Loading forecast manifest..."
+        client.fetchManifest(domain)
+            .onSuccess {
+                manifest = it
+                statusText = "Model Run: ${WeatherNextForecastClient.formatUtcToLocal(it.init ?: it.run)}"
             }
-        }
+            .onFailure {
+                manifestFailed = true
+                statusText = "Couldn't load the rain loop. Click to retry."
+            }
     }
 
     // Filter frames when layer or manifest changes
@@ -132,28 +132,13 @@ private fun RainForecastContent(
         cachedBitmaps.clear()
         currentPos = 0.0
 
-        // Background prefetch frames for this layer
+        // Background prefetch frames for this layer; frames are cached per model run.
         scope.launch(Dispatchers.IO) {
+            WeatherNextFrameCache.pruneOtherRuns(cacheDir, domain, layerId, m)
             filtered.forEachIndexed { idx, frame ->
-                val relPath = frame.files[layerId] ?: return@forEachIndexed
-                val lead = frame.lead
-                val cacheFile = File(cacheDir, "${domain.id}_${layerId}_${String.format("%03d", lead)}.jpg")
-
-                if (!cacheFile.exists() || cacheFile.length() < 1000) {
-                    try {
-                        val fileUrl = "${WeatherNextForecastClient.BASE_URL}/${domain.id}/$relPath"
-                        val bytes = httpClient.get(fileUrl).body<ByteArray>()
-                        cacheFile.writeBytes(bytes)
-                    } catch (e: Exception) {
-                        return@forEachIndexed
-                    }
-                }
-
+                val file = client.cachedFrame(cacheDir, domain, layerId, m, frame).getOrNull() ?: return@forEachIndexed
                 try {
-                    val bytes = cacheFile.readBytes()
-                    val skiaImg = Image.makeFromEncoded(bytes)
-                    val composeBitmap = skiaImg.toComposeImageBitmap()
-                    cachedBitmaps[idx] = composeBitmap
+                    cachedBitmaps[idx] = Image.makeFromEncoded(file.readBytes()).toComposeImageBitmap()
                 } catch (_: Exception) {}
             }
         }
@@ -204,8 +189,9 @@ private fun RainForecastContent(
                 }
                 Text(
                     text = statusText,
-                    color = Color(0xFF64748B),
+                    color = if (manifestFailed) Color(0xFFF59E0B) else Color(0xFF64748B),
                     fontSize = 11.sp,
+                    modifier = if (manifestFailed) Modifier.clickable { manifestAttempt++ } else Modifier,
                 )
             }
 

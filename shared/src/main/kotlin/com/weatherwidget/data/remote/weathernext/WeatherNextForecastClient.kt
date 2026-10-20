@@ -46,11 +46,32 @@ class WeatherNextForecastClient
                 val url = "$BASE_URL/${domain.id}/manifest.json"
                 val responseText = httpClient.get(url).bodyAsText()
                 json.decodeFromString<WeatherNextManifest>(responseText)
+            }.onSuccess {
+                Log.i(TAG, "WEATHERNEXT_FETCH outcome=manifest domain=${domain.id} run=${it.run ?: it.init} frames=${it.frames.size}")
+            }.onFailure {
+                Log.w(TAG, "WEATHERNEXT_FETCH outcome=manifest_failed domain=${domain.id} error=${it.message}")
             }
 
         fun getFrameUrl(domain: WeatherNextDomain, relativePath: String): String {
             val clean = relativePath.removePrefix("/")
             return "$BASE_URL/${domain.id}/$clean"
+        }
+
+        /**
+         * The cached file for [frame] of [layerId], downloading it when this run's copy is not on disk.
+         * Old runs are never reused — see [WeatherNextFrameCache].
+         */
+        suspend fun cachedFrame(
+            cacheDir: File,
+            domain: WeatherNextDomain,
+            layerId: String,
+            manifest: WeatherNextManifest,
+            frame: WeatherNextFrame,
+        ): Result<File> {
+            val relativePath = frame.files[layerId]
+                ?: return Result.failure(IllegalArgumentException("frame ${frame.lead} has no $layerId"))
+            val file = File(cacheDir, WeatherNextFrameCache.fileName(domain, layerId, manifest, frame))
+            return downloadFrame(domain, relativePath, file)
         }
 
         suspend fun downloadFrame(
@@ -59,13 +80,20 @@ class WeatherNextForecastClient
             destinationFile: File,
         ): Result<File> =
             runCatching {
+                // Safe to reuse: the name carries the model run (WeatherNextFrameCache).
                 if (destinationFile.exists() && destinationFile.length() > 1000) {
                     return Result.success(destinationFile)
                 }
                 val url = getFrameUrl(domain, relativePath)
                 val bytes = httpClient.get(url).body<ByteArray>()
                 destinationFile.parentFile?.mkdirs()
-                destinationFile.writeBytes(bytes)
+                // Write then rename so a cancelled download never leaves a truncated frame behind.
+                val partial = File(destinationFile.parentFile, destinationFile.name + ".part")
+                partial.writeBytes(bytes)
+                if (!partial.renameTo(destinationFile)) {
+                    partial.delete()
+                    error("could not move ${partial.name} into place")
+                }
                 destinationFile
-            }
+            }.onFailure { Log.w(TAG, "WEATHERNEXT_FETCH outcome=frame_failed domain=${domain.id} path=$relativePath error=${it.message}") }
     }

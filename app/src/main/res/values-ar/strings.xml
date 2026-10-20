@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">يحسب كل طلب أرسله هذا الجهاز، بما في ذلك إعادة المحاولات والإخفاقات. يُحتفظ به %1$d يومًا.</string>
     <string name="usage_stats_empty">لا توجد استدعاءات API مسجلة بعد.</string>
     <string name="usage_stats_loading">جارٍ التحميل…</string>
+    <string name="sim_loop_button">🌧 حلقة المحاكاة</string>
+    <string name="sim_loop_no_location">لم يتم تحديد موقع — اختر موقعًا في التطبيق أولاً.</string>
+    <string name="sim_loop_load_failed">تعذّر تحميل حلقة المطر. انقر لإعادة المحاولة.</string>
 </resources>

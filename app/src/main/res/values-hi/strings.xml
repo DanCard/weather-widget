@@ -455,4 +455,7 @@
     <string name="usage_stats_footer_format">इस डिवाइस से भेजे गए हर अनुरोध की गिनती, पुनः प्रयास और विफलताओं सहित। %1$d दिन तक रखा जाता है।</string>
     <string name="usage_stats_empty">अभी तक कोई API कॉल दर्ज नहीं हुई।</string>
     <string name="usage_stats_loading">लोड हो रहा है…</string>
+    <string name="sim_loop_button">🌧 सिम लूप</string>
+    <string name="sim_loop_no_location">कोई स्थान सेट नहीं — पहले ऐप में एक चुनें।</string>
+    <string name="sim_loop_load_failed">बारिश लूप लोड नहीं हो सका। फिर से कोशिश करने के लिए टैप करें।</string>
 </resources>

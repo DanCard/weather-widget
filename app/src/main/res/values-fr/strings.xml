@@ -440,4 +440,7 @@
     <string name="usage_stats_footer_format">Compte chaque requête envoyée par cet appareil, y compris les nouvelles tentatives et les échecs. Conservé %1$d jours.</string>
     <string name="usage_stats_empty">Aucun appel d\'API enregistré pour l\'instant.</string>
     <string name="usage_stats_loading">Chargement…</string>
+    <string name="sim_loop_button">🌧 Boucle sim.</string>
+    <string name="sim_loop_no_location">Aucun lieu défini — choisissez-en un dans l\'app.</string>
+    <string name="sim_loop_load_failed">Impossible de charger la boucle de pluie. Touchez pour réessayer.</string>
 </resources>
