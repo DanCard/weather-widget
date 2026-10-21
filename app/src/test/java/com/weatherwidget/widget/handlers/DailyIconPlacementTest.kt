@@ -118,4 +118,13 @@ class DailyIconPlacementTest {
             0.01f,
         )
     }
+
+    @Test
+    fun `inline buttons leave no room for the header date`() {
+        // Inline buttons run through both of the date's slots; the date was painted over the
+        // thermometer / home / history row on a 360dp emulator widget (2026-10-21).
+        assertEquals(false, placement(leftClusterRight = 177f).allowsHeaderDate())
+        assertEquals(true, placement(leftClusterRight = 123f).allowsHeaderDate())
+        assertEquals(true, DailyIconPlacement.HIDDEN.allowsHeaderDate())
+    }
 }

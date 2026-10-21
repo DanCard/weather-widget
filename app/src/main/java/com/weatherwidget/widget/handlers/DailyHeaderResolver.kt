@@ -295,7 +295,10 @@ internal object DailyHeaderResolver {
             if (useGraph) stateManager.nextHeaderLabelSwap(appWidgetId) % 2 == 0 else true
 
         val widthDpForPrecip = dimensions.widthDp - GRAPH_CONTENT_PADDING_DP
-        val dateText = if (numColumns >= HeaderConstants.DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
+        val dateText =
+            if (numColumns >= HeaderConstants.DATE_MIN_COLUMNS && iconPlacement.allowsHeaderDate()) {
+                today.format(headerDateFormatter)
+            } else null
         val headerPrecipPlacement = DailyHeaderBinder.resolveHeaderPrecipPlacement(
             context = context,
             widthDp = widthDpForPrecip,

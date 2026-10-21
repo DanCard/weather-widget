@@ -34,6 +34,17 @@ enum class DailyIconPlacement {
 }
 
 /**
+ * Whether the painted header date may be drawn beside buttons placed this way.
+ *
+ * INLINE is chosen only when the centre slot collides with the left cluster, so the buttons then
+ * run from the end of the rain % toward the API label — through both of the date's slots (centre
+ * and the right anchor). The bitmap renderer cannot see the RemoteViews row (its zones carry
+ * padding the painted text does not), so it painted the date straight over the buttons
+ * (emulator, 360dp, 2026-10-21). A crowded header drops the date instead.
+ */
+fun DailyIconPlacement.allowsHeaderDate(): Boolean = this != DailyIconPlacement.INLINE
+
+/**
  * The daily header's button row after the home button has been offered the last seat.
  *
  * [homeShown] is not simply "the caller wanted it": the home button is the only daily button that

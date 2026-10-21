@@ -164,7 +164,10 @@ internal object DailyGraphRenderer {
         }
 
         val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(ctx.context, dimensions.widthDp, dimensions.heightDp)
-        val dateText = if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS) ctx.today.format(DailyViewHandler.headerDateFormatter()) else null
+        val dateText =
+            if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS && headerState.iconPlacement.allowsHeaderDate()) {
+                ctx.today.format(DailyViewHandler.headerDateFormatter())
+            } else null
 
         val graphRefreshDecisions = computeMissingDataRefreshes(
             today = ctx.today,
@@ -250,8 +253,8 @@ internal object DailyGraphRenderer {
                 showDelta = deltaVisible && disclosure.showsDelta(),
                 showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
                 headerScale = headerScale,
-                // Non-zero only when the buttons are CENTER-placed: inline buttons are already
-                // folded into the left cluster, so the painted date must not step aside for them.
+                // Non-zero only when the buttons are CENTER-placed. Inline buttons get no slot: the
+                // date is not painted at all then (DailyIconPlacement.allowsHeaderDate).
                 centerIconsWidthDp = if (headerState.iconPlacement == DailyIconPlacement.CENTER) {
                     HeaderWidthChecker.dailyCenterIconsWidthDp(headerState.iconCount, dimensions.widthDp)
                 } else 0f,
