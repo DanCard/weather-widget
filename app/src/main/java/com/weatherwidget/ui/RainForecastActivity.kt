@@ -11,6 +11,9 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.weatherwidget.R
+import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.log
+import com.weatherwidget.shared.rainmap.RainLoopLoadError
 import com.weatherwidget.data.remote.weathernext.*
 import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.widget.ActiveLocationResolver
@@ -31,6 +34,7 @@ import kotlin.math.min
 class RainForecastActivity : AppCompatActivity() {
 
     @Inject lateinit var weatherNextClient: WeatherNextForecastClient
+    @Inject lateinit var appLogDao: AppLogDao
 
     private lateinit var ivMap: ImageView
     private lateinit var progressLoading: ProgressBar
@@ -46,6 +50,10 @@ class RainForecastActivity : AppCompatActivity() {
     private lateinit var btnNext: ImageButton
     private lateinit var btnSpeedToggle: TextView
     private lateinit var btnBack: ImageButton
+    private lateinit var errorPanel: LinearLayout
+    private lateinit var tvErrorMessage: TextView
+    private lateinit var btnErrorRetry: Button
+    private lateinit var btnUseOpenMeteo: Button
 
     private lateinit var btnLayerQpf1: Button
     private lateinit var btnLayerPcp6: Button
@@ -147,6 +155,10 @@ class RainForecastActivity : AppCompatActivity() {
         btnNext = findViewById(R.id.btn_next)
         btnSpeedToggle = findViewById(R.id.btn_speed_toggle)
         btnBack = findViewById(R.id.btn_back)
+        errorPanel = findViewById(R.id.error_panel)
+        tvErrorMessage = findViewById(R.id.tv_error_message)
+        btnErrorRetry = findViewById(R.id.btn_error_retry)
+        btnUseOpenMeteo = findViewById(R.id.btn_use_open_meteo)
 
         btnLayerQpf1 = findViewById(R.id.btn_layer_qpf1)
         btnLayerPcp6 = findViewById(R.id.btn_layer_pcp6)
@@ -291,8 +303,13 @@ class RainForecastActivity : AppCompatActivity() {
     }
 
     private fun fetchManifest() {
+        hideLoadError()
+        // A 404/410 within the last day still stands: say so without asking the host again.
+        if (WeatherNextAvailability.knownGone(WeatherNextGoneStore.goneAtMs(this), System.currentTimeMillis())) {
+            showLoadError(RainLoopLoadError.gone(WeatherNextAvailability.HOST, WeatherNextGoneStore.goneStatus(this)))
+            return
+        }
         progressLoading.visibility = View.VISIBLE
-        tvModelRun.setOnClickListener(null)
         lifecycleScope.launch {
             weatherNextClient.fetchManifest(domain)
                 .onSuccess { parsed ->
@@ -302,12 +319,9 @@ class RainForecastActivity : AppCompatActivity() {
                     filterFramesForLayer()
                 }
                 .onFailure {
-                    // 404/410: the host dropped the loop; the widget hides its pill for a day.
-                    if (it is WeatherNextGoneException) WeatherNextGoneStore.markGone(this@RainForecastActivity)
-                    // Third-party host (GitHub Pages): it can vanish or change; say so and offer a retry.
-                    progressLoading.visibility = View.GONE
-                    tvModelRun.text = getString(R.string.sim_loop_load_failed)
-                    tvModelRun.setOnClickListener { fetchManifest() }
+                    // 404/410: the host dropped the loop; for a day the viewer opens straight into this.
+                    if (it is WeatherNextGoneException) WeatherNextGoneStore.markGone(this@RainForecastActivity, it.status)
+                    showLoadError(WeatherNextAvailability.loadError(it))
                 }
         }
     }
@@ -323,8 +337,9 @@ class RainForecastActivity : AppCompatActivity() {
         sbTimeline.max = max(0, framesForLayer.size - 1)
         sbTimeline.progress = 0
 
+        hideLoadError()
         if (framesForLayer.isEmpty()) {
-            progressLoading.visibility = View.GONE
+            showLoadError(RainLoopLoadError.noFrames(WeatherNextAvailability.HOST, 0))
             return
         }
 
@@ -340,10 +355,12 @@ class RainForecastActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             WeatherNextFrameCache.pruneOtherRuns(loopDir, domain, layerId, m)
+            var loaded = 0
             for (idx in snapshot.indices) {
                 if (selectedLayer.id != layerId) return@launch
                 val file = weatherNextClient.cachedFrame(loopDir, domain, layerId, m, snapshot[idx]).getOrNull() ?: continue
                 val bmp = decodeScaled(file, maxSide) ?: continue
+                loaded++
                 if (selectedLayer.id != layerId) {
                     bmp.recycle()
                     return@launch
@@ -358,8 +375,44 @@ class RainForecastActivity : AppCompatActivity() {
             }
             withContext(Dispatchers.Main) {
                 progressLoading.visibility = View.GONE
+                // Some frames missing: the loop plays the rest. None at all: say so.
+                if (loaded == 0 && selectedLayer.id == layerId) showLoadError(RainLoopLoadError.noFrames(WeatherNextAvailability.HOST, snapshot.size))
             }
         }
+    }
+
+    /** Says what failed, and offers Retry (unless the host is gone) and the Open-Meteo rain map. */
+    internal fun showLoadError(error: RainLoopLoadError) {
+        progressLoading.visibility = View.GONE
+        tvModelRun.text = getString(R.string.sim_loop_model_run_unavailable)
+        tvErrorMessage.text = rainLoopErrorText(this, error)
+        btnErrorRetry.visibility = if (error.retryable) View.VISIBLE else View.GONE
+        btnErrorRetry.setOnClickListener { fetchManifest() }
+        btnUseOpenMeteo.setOnClickListener { openOpenMeteo(error) }
+        errorPanel.visibility = View.VISIBLE
+        logAsync("SIM_LOOP_ERROR", "${error.logFields()} domain=${domain.id}", "WARN")
+    }
+
+    private fun hideLoadError() {
+        errorPanel.visibility = View.GONE
+    }
+
+
+    /** Same coordinates, Open-Meteo's own rain map; this viewer closes. */
+    private fun openOpenMeteo(error: RainLoopLoadError) {
+        logAsync("SIM_LOOP_FALLBACK", "from=weathernext kind=${error.kind} to=open_meteo", "INFO")
+        startActivity(
+            android.content.Intent(this, OpenMeteoRainLoopActivity::class.java).apply {
+                putExtra(OpenMeteoRainLoopActivity.EXTRA_LAT, lat)
+                putExtra(OpenMeteoRainLoopActivity.EXTRA_LON, lon)
+            },
+        )
+        finish()
+    }
+
+    private fun logAsync(tag: String, message: String, level: String) {
+        // NonCancellable: the fallback logs and then finishes, which would cancel a lifecycle child.
+        lifecycleScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) { runCatching { appLogDao.log(tag, message, level) } }
     }
 
     /** Decodes [file] no larger than needed for a [maxSide]-pixel screen. */

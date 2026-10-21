@@ -171,6 +171,48 @@
                 android:textColor="#FFFFFF"
                 android:textSize="11sp" />
         </LinearLayout>
+
+        <!-- Load error: what failed, plus Retry (not for a gone host) and the Open-Meteo rain map -->
+        <LinearLayout
+            android:id="@+id/error_panel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginHorizontal="24dp"
+            android:background="#EE1E293B"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_error_message"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textColor="#FDE68A"
+                android:textSize="14sp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btn_error_retry"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:text="@string/sim_loop_retry" />
+
+                <Button
+                    android:id="@+id/btn_use_open_meteo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/sim_loop_use_open_meteo" />
+            </LinearLayout>
+        </LinearLayout>
     </FrameLayout>
 
     <!-- Legend Bar -->

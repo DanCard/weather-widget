@@ -94,12 +94,15 @@ class RainGridRepository(
             retry { noRetry() }
         }
         val status = response.status.value
-        if (status !in 200..299) throw java.io.IOException("rain grid HTTP $status")
+        if (status !in 200..299) throw RainLoopHttpException(status, "rain grid")
         return response.bodyAsText()
     }
 
     companion object {
         const val URL = "https://api.open-meteo.com/v1/forecast"
+
+        /** Named in the viewer's error text. */
+        val HOST: String = RainLoopLoadError.hostOf(URL)
         const val MAX_AGE_MS = 60L * 60 * 1000
         const val REQUEST_TIMEOUT_MS = 45_000L
         private const val CACHE_PREFIX = "rain_grid_"

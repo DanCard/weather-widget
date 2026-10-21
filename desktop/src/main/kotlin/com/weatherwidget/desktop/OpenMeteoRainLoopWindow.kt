@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,6 +55,8 @@ import com.weatherwidget.shared.rainmap.RainGridRaster
 import com.weatherwidget.shared.rainmap.RainGridRepository
 import com.weatherwidget.shared.rainmap.RainGridSpec
 import com.weatherwidget.shared.rainmap.RainLayer
+import com.weatherwidget.shared.rainmap.RainLoopLoadError
+import com.weatherwidget.shared.rainmap.RainLoopSpeed
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -78,6 +81,7 @@ internal fun OpenMeteoRainLoopWindow(
     config: DesktopConfig,
     httpClient: HttpClient,
     onClose: () -> Unit,
+    onSpeedChosen: (Float) -> Unit = {},
 ) {
     Window(
         onCloseRequest = onClose,
@@ -86,18 +90,16 @@ internal fun OpenMeteoRainLoopWindow(
     ) {
         MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
             Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF0F172A)) {
-                OpenMeteoRainLoopContent(config, httpClient)
+                OpenMeteoRainLoopContent(config, httpClient, onSpeedChosen)
             }
         }
     }
 }
 
 private const val TICK_MS = 35L
-private const val FRAME_MS = 400f
-private val SPEEDS = listOf(0.5f, 1.0f, 1.5f, 2.5f)
 
 @Composable
-private fun OpenMeteoRainLoopContent(config: DesktopConfig, httpClient: HttpClient) {
+private fun OpenMeteoRainLoopContent(config: DesktopConfig, httpClient: HttpClient, onSpeedChosen: (Float) -> Unit) {
     val place = shortPlace(config.label) ?: "Current location"
     val useInches = Locale.getDefault().country.uppercase(Locale.US) in setOf("US", "GB")
     val repo = remember(httpClient) {
@@ -111,7 +113,7 @@ private fun OpenMeteoRainLoopContent(config: DesktopConfig, httpClient: HttpClie
     var pos by remember { mutableStateOf(0.0) }
     var nowPos by remember { mutableStateOf(0.0) }
     var playing by remember { mutableStateOf(true) }
-    var speedIndex by remember { mutableStateOf(1) }
+    var secondsPerHour by remember { mutableStateOf(RainLoopSpeed.clamp(config.rainMapSecondsPerHour)) }
     // Wide (±8°) start ↔ detail (±2°) around the pin; each zoom is its own cached grid.
     var detail by remember { mutableStateOf(false) }
 
@@ -130,15 +132,15 @@ private fun OpenMeteoRainLoopContent(config: DesktopConfig, httpClient: HttpClie
             }
             .onFailure {
                 failed = true
-                status = "Couldn't load the rain map. Click to retry."
+                status = rainLoopErrorText(RainLoopLoadError.of(it, RainGridRepository.HOST)) + " Click to retry."
             }
     }
 
-    LaunchedEffect(playing, speedIndex, grid) {
+    LaunchedEffect(playing, secondsPerHour, grid) {
         val g = grid ?: return@LaunchedEffect
         while (isActive && playing && g.times.size > 1) {
             delay(TICK_MS)
-            var next = pos + TICK_MS * SPEEDS[speedIndex] / FRAME_MS
+            var next = pos + RainLoopSpeed.hoursPerTick(TICK_MS, secondsPerHour)
             // Loop from now to the end, then back to now.
             if (next > g.times.size - 1) next = nowPos
             pos = next
@@ -215,11 +217,20 @@ private fun OpenMeteoRainLoopContent(config: DesktopConfig, httpClient: HttpClie
                 Button(onClick = { playing = !playing }) { Text(if (playing) "⏸ Pause" else "▶ Play") }
                 Spacer(Modifier.width(8.dp))
                 Button(onClick = { pos = nowPos }) { Text("Now") }
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(16.dp))
+                // Speed: slow 🐢 left, fast 🐇 right; live while dragging, saved when let go.
+                Text("🐢", fontSize = 16.sp)
+                Slider(
+                    value = RainLoopSpeed.fractionOf(secondsPerHour),
+                    onValueChange = { secondsPerHour = RainLoopSpeed.secondsAt(it) },
+                    onValueChangeFinished = { onSpeedChosen(secondsPerHour) },
+                    modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+                )
+                Text("🐇", fontSize = 16.sp)
                 Text(
-                    listOf("0.5× (Smooth)", "1.0× (Snappy)", "1.5× (Fast)", "2.5× (Blazing)")[speedIndex],
+                    "${RainLoopSpeed.formatSeconds(secondsPerHour)} s/h",
                     color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { speedIndex = (speedIndex + 1) % SPEEDS.size }.padding(8.dp),
+                    modifier = Modifier.widthIn(min = 56.dp).padding(start = 8.dp),
                 )
             }
         }

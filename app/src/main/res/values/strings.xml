@@ -475,7 +475,22 @@
     <!-- Precipitation graph pill that opens the WeatherNext rain simulation loop. -->
     <string name="sim_loop_button">🌧 Sim loop</string>
     <string name="sim_loop_no_location">No location set — choose one in the app first.</string>
-    <string name="sim_loop_load_failed">Couldn\'t load the rain loop. Tap to retry.</string>
+    <string name="sim_loop_error_gone">%1$s no longer serves the rain loop (HTTP %2$d). It may have been taken down.</string>
+    <string name="sim_loop_error_rate_limited">%1$s refused the request: too many requests (HTTP 429). Try again later.</string>
+    <string name="sim_loop_error_http">%1$s answered HTTP %2$d.</string>
+    <string name="sim_loop_error_timeout">%1$s didn\'t answer in time.</string>
+    <string name="sim_loop_error_offline">Couldn\'t reach %1$s — check the network connection.</string>
+    <string name="sim_loop_error_bad_data">The data from %1$s couldn\'t be read (unexpected format).</string>
+    <string name="sim_loop_error_no_layer_frames">This model run has no images for this layer.</string>
+    <string name="sim_loop_error_no_frames">None of the rain loop\'s %1$d images downloaded from %2$s.</string>
+    <string name="sim_loop_error_other">The rain loop from %1$s couldn\'t be loaded.</string>
+    <string name="sim_loop_error_tap_retry">%1$s Tap to retry.</string>
+    <string name="sim_loop_retry">Retry</string>
+    <string name="sim_loop_use_open_meteo">Use Open-Meteo rain map</string>
+    <string name="sim_loop_model_run_unavailable">Model run unavailable</string>
+    <string name="rain_map_speed_slower">Slower</string>
+    <string name="rain_map_speed_faster">Faster</string>
+    <string name="rain_map_speed_value">%1$s s/h</string>
     <!-- Rain simulation loop viewer (RainForecastActivity). -->
     <string name="rain_loop_current_location">Current location</string>
     <string name="rain_loop_loading">Loading forecast…</string>

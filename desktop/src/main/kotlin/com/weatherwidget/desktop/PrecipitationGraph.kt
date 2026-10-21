@@ -329,7 +329,7 @@ fun PrecipitationGraph(
         // Open-Meteo shown → its own rain map (global); any other source → WeatherNext's rule.
         val simLoopOffered = displaySourceId == com.weatherwidget.data.model.WeatherSource.OPEN_METEO.id ||
             com.weatherwidget.data.remote.weathernext.WeatherNextAvailability.showPill(
-                latitude, longitude, WeatherNextDesktopState.goneAtMs, System.currentTimeMillis(),
+                latitude, longitude,
             )
         val pillPlacement = if (!simLoopOffered) null else SimLoopPill.place(
             plot = plotRect,

@@ -363,12 +363,12 @@ object PrecipViewHandler {
             val renderLogs = mutableListOf<String>()
             val simLoopLocation = stateManager.getWidgetLocation(appWidgetId)
             // Open-Meteo shown → its own rain map (global, pin = graph); any other source → WeatherNext,
-            // offered only on its map and while its host answers.
+            // offered only on its map (a gone host still shows it: the viewer offers Open-Meteo).
             val simLoopIsOpenMeteo = displaySource == WeatherSource.OPEN_METEO
             val simLoopOffered = SimLoopTouchTarget.supported() && simLoopLocation != null && (
                 simLoopIsOpenMeteo ||
                     com.weatherwidget.data.remote.weathernext.WeatherNextAvailability.showPill(
-                        simLoopLocation.first, simLoopLocation.second, WeatherNextGoneStore.goneAtMs(context), System.currentTimeMillis(),
+                        simLoopLocation.first, simLoopLocation.second,
                     )
                 )
             var simLoopPill: android.graphics.RectF? = null

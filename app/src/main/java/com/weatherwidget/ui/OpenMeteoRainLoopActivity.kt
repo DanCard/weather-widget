@@ -22,7 +22,10 @@ import com.weatherwidget.shared.rainmap.RainGrid
 import com.weatherwidget.shared.rainmap.RainGridRepository
 import com.weatherwidget.shared.rainmap.RainGridSpec
 import com.weatherwidget.shared.rainmap.RainLayer
+import com.weatherwidget.shared.rainmap.RainLoopLoadError
+import com.weatherwidget.shared.rainmap.RainLoopSpeed
 import com.weatherwidget.util.FriendlyLocationName
+import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.ActiveLocationResolver
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
@@ -58,7 +61,8 @@ class OpenMeteoRainLoopActivity : AppCompatActivity() {
     private lateinit var btnPlay: Button
     private lateinit var btnAmount: Button
     private lateinit var btnChance: Button
-    private lateinit var btnSpeed: TextView
+    private lateinit var sbSpeed: SeekBar
+    private lateinit var tvSpeed: TextView
     private lateinit var btnZoom: Button
     private var location: Pair<Double, Double>? = null
     private var detail = false
@@ -68,8 +72,7 @@ class OpenMeteoRainLoopActivity : AppCompatActivity() {
     private var pos = 0.0
     private var playing = true
     private var layer = RainLayer.AMOUNT
-    private val speeds = listOf(0.5f, 1.0f, 1.5f, 2.5f)
-    private var speedIndex = 1
+    private var secondsPerHour = RainLoopSpeed.DEFAULT_SECONDS
     private val useInches = Locale.getDefault().country.uppercase(Locale.US) in setOf("US", "GB")
 
     private val handler = Handler(Looper.getMainLooper())
@@ -77,7 +80,7 @@ class OpenMeteoRainLoopActivity : AppCompatActivity() {
         override fun run() {
             val g = grid
             if (playing && g != null && g.times.size > 1) {
-                pos += TICK_MS * speeds[speedIndex] / FRAME_MS
+                pos += RainLoopSpeed.hoursPerTick(TICK_MS, secondsPerHour)
                 // Loop from now to the end, then back to now: hours already past are not news.
                 if (pos > g.times.size - 1) pos = nowPos
                 show()
@@ -100,7 +103,8 @@ class OpenMeteoRainLoopActivity : AppCompatActivity() {
         btnPlay = findViewById(R.id.btn_play_pause)
         btnAmount = findViewById(R.id.btn_layer_amount)
         btnChance = findViewById(R.id.btn_layer_chance)
-        btnSpeed = findViewById(R.id.btn_speed_toggle)
+        sbSpeed = findViewById(R.id.sb_speed)
+        tvSpeed = findViewById(R.id.tv_speed_value)
         btnZoom = findViewById(R.id.btn_zoom)
         btnZoom.backgroundTintList = ColorStateList.valueOf(0xFF334155.toInt())
         btnZoom.setOnClickListener {
@@ -119,12 +123,24 @@ class OpenMeteoRainLoopActivity : AppCompatActivity() {
             pos = nowPos
             show()
         }
-        btnSpeed.setOnClickListener {
-            speedIndex = (speedIndex + 1) % speeds.size
-            btnSpeed.setText(
-                listOf(R.string.rain_loop_speed_0_5, R.string.rain_loop_speed_1_0, R.string.rain_loop_speed_1_5, R.string.rain_loop_speed_2_5)[speedIndex],
-            )
-        }
+        secondsPerHour = RainLoopSpeed.clamp(
+            SharedPreferencesUtil.getPrefs(this@OpenMeteoRainLoopActivity, PREFS).getFloat(KEY_SECONDS_PER_HOUR, RainLoopSpeed.DEFAULT_SECONDS),
+        )
+        sbSpeed.progress = (RainLoopSpeed.fractionOf(secondsPerHour) * sbSpeed.max).roundToInt()
+        showSpeed()
+        // Live while dragging, saved when let go; never pauses or moves the timeline.
+        sbSpeed.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    secondsPerHour = RainLoopSpeed.secondsAt(progress / sbSpeed.max.toFloat())
+                    showSpeed()
+                }
+            }
+            override fun onStartTrackingTouch(bar: SeekBar?) {}
+            override fun onStopTrackingTouch(bar: SeekBar?) {
+                SharedPreferencesUtil.getPrefs(this@OpenMeteoRainLoopActivity, PREFS).edit().putFloat(KEY_SECONDS_PER_HOUR, secondsPerHour).apply()
+            }
+        })
         btnAmount.setOnClickListener { selectLayer(RainLayer.AMOUNT) }
         btnChance.setOnClickListener { selectLayer(RainLayer.CHANCE) }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -194,7 +210,7 @@ class OpenMeteoRainLoopActivity : AppCompatActivity() {
                 }
                 .onFailure {
                     progress.visibility = View.GONE
-                    tvSource.text = getString(R.string.sim_loop_load_failed)
+                    tvSource.text = getString(R.string.sim_loop_error_tap_retry, rainLoopErrorText(this@OpenMeteoRainLoopActivity, RainLoopLoadError.of(it, RainGridRepository.HOST)))
                     if (!firstLoad) {
                         // A failed zoom switch keeps the map on screen; put the button back to match it.
                         detail = !detail
@@ -269,13 +285,17 @@ class OpenMeteoRainLoopActivity : AppCompatActivity() {
         }
     }
 
+    private fun showSpeed() {
+        tvSpeed.text = getString(R.string.rain_map_speed_value, RainLoopSpeed.formatSeconds(secondsPerHour))
+    }
+
     companion object {
         const val EXTRA_LAT = "extra_lat"
         const val EXTRA_LON = "extra_lon"
         private const val TICK_MS = 35L
 
-        /** One hour of map per this long at 1×. */
-        private const val FRAME_MS = 400f
+        internal const val PREFS = "weather_prefs"
+        internal const val KEY_SECONDS_PER_HOUR = "rain_map_seconds_per_hour"
         private const val SEEK_STEPS_PER_HOUR = 10
     }
 }

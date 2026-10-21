@@ -29,6 +29,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.data.remote.weathernext.*
+import com.weatherwidget.shared.rainmap.RainLoopLoadError
 import io.ktor.client.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -46,11 +47,33 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * When the WeatherNext host last answered 404/410 ([WeatherNextAvailability]). In memory only: the
- * desktop app runs for days, and after a restart the pill shows and the next click re-checks.
+ * When the WeatherNext host last answered 404/410, and which ([WeatherNextAvailability.knownGone]).
+ * In memory only: the desktop app runs for days, and after a restart the next click re-checks.
  */
 internal object WeatherNextDesktopState {
     @Volatile var goneAtMs: Long? = null
+    @Volatile var goneStatus: Int = 404
+}
+
+/**
+ * A rain loop's error line (WeatherNext or the Open-Meteo map): what failed, explicitly, naming the
+ * host. Retry / "Use Open-Meteo rain map" are separate buttons.
+ */
+internal fun rainLoopErrorText(error: RainLoopLoadError): String {
+    val host = error.host
+    return when (error.kind) {
+        RainLoopLoadError.Kind.GONE ->
+            "$host no longer serves the rain loop (HTTP ${error.status}). It may have been taken down."
+        RainLoopLoadError.Kind.RATE_LIMITED -> "$host refused the request: too many requests (HTTP 429). Try again later."
+        RainLoopLoadError.Kind.HTTP -> "$host answered HTTP ${error.status}."
+        RainLoopLoadError.Kind.TIMEOUT -> "$host didn't answer in time."
+        RainLoopLoadError.Kind.OFFLINE -> "Couldn't reach $host — check the network connection."
+        RainLoopLoadError.Kind.BAD_DATA -> "The data from $host couldn't be read (unexpected format)."
+        RainLoopLoadError.Kind.NO_FRAMES ->
+            if (error.frameCount == 0) "This model run has no images for this layer."
+            else "None of the rain loop's ${error.frameCount} images downloaded from $host."
+        RainLoopLoadError.Kind.OTHER -> "The rain loop from $host couldn't be loaded."
+    }
 }
 
 private val WEATHER_NEXT_JSON = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
@@ -60,6 +83,8 @@ internal fun RainForecastWindow(
     config: DesktopConfig,
     httpClient: HttpClient,
     onClose: () -> Unit,
+    onError: (RainLoopLoadError) -> Unit = {},
+    onUseOpenMeteo: (RainLoopLoadError) -> Unit = {},
 ) {
     val state = rememberWindowState(
         width = 1040.dp,
@@ -79,6 +104,8 @@ internal fun RainForecastWindow(
                 RainForecastContent(
                     config = config,
                     httpClient = httpClient,
+                    onError = onError,
+                    onUseOpenMeteo = onUseOpenMeteo,
                 )
             }
         }
@@ -89,6 +116,8 @@ internal fun RainForecastWindow(
 private fun RainForecastContent(
     config: DesktopConfig,
     httpClient: HttpClient,
+    onError: (RainLoopLoadError) -> Unit,
+    onUseOpenMeteo: (RainLoopLoadError) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val lat = config.lat
@@ -108,7 +137,7 @@ private fun RainForecastContent(
     var speedMultiplier by remember { mutableStateOf(1.0f) }
     var zoomLevel by remember { mutableStateOf(1.0f) }
     var statusText by remember { mutableStateOf("Loading forecast manifest...") }
-    var manifestFailed by remember { mutableStateOf(false) }
+    var loadError by remember { mutableStateOf<RainLoopLoadError?>(null) }
     var manifestAttempt by remember { mutableStateOf(0) }
     val client = remember(httpClient) { WeatherNextForecastClient(httpClient, WEATHER_NEXT_JSON) }
 
@@ -118,7 +147,13 @@ private fun RainForecastContent(
 
     // Load manifest on launch (and on retry: the host is a third-party GitHub Pages site).
     LaunchedEffect(domain, manifestAttempt) {
-        manifestFailed = false
+        loadError = null
+        // A 404/410 within the last day still stands: say so without asking the host again.
+        if (WeatherNextAvailability.knownGone(WeatherNextDesktopState.goneAtMs, System.currentTimeMillis())) {
+            RainLoopLoadError.gone(WeatherNextAvailability.HOST, WeatherNextDesktopState.goneStatus).let { loadError = it; onError(it) }
+            statusText = "Model run unavailable"
+            return@LaunchedEffect
+        }
         statusText = "Loading forecast manifest..."
         client.fetchManifest(domain)
             .onSuccess {
@@ -127,9 +162,12 @@ private fun RainForecastContent(
                 statusText = "Model Run: ${WeatherNextForecastClient.formatUtcToLocal(it.init ?: it.run)}"
             }
             .onFailure {
-                if (it is WeatherNextGoneException) WeatherNextDesktopState.goneAtMs = System.currentTimeMillis()
-                manifestFailed = true
-                statusText = "Couldn't load the rain loop. Click to retry."
+                if (it is WeatherNextGoneException) {
+                    WeatherNextDesktopState.goneAtMs = System.currentTimeMillis()
+                    WeatherNextDesktopState.goneStatus = it.status
+                }
+                WeatherNextAvailability.loadError(it).let { e -> loadError = e; onError(e) }
+                statusText = "Model run unavailable"
             }
     }
 
@@ -143,13 +181,24 @@ private fun RainForecastContent(
         currentPos = 0.0
 
         // Background prefetch frames for this layer; frames are cached per model run.
+        loadError = null
+        if (filtered.isEmpty()) {
+            RainLoopLoadError.noFrames(WeatherNextAvailability.HOST, 0).let { loadError = it; onError(it) }
+            return@LaunchedEffect
+        }
         scope.launch(Dispatchers.IO) {
             WeatherNextFrameCache.pruneOtherRuns(cacheDir, domain, layerId, m)
+            var loaded = 0
             filtered.forEachIndexed { idx, frame ->
                 val file = client.cachedFrame(cacheDir, domain, layerId, m, frame).getOrNull() ?: return@forEachIndexed
                 try {
                     cachedBitmaps[idx] = Image.makeFromEncoded(file.readBytes()).toComposeImageBitmap()
+                    loaded++
                 } catch (_: Exception) {}
+            }
+            // Some frames missing: the loop plays the rest. None at all: say so.
+            if (loaded == 0 && selectedLayer.id == layerId) {
+                RainLoopLoadError.noFrames(WeatherNextAvailability.HOST, filtered.size).let { withContext(Dispatchers.Main) { loadError = it; onError(it) } }
             }
         }
     }
@@ -199,9 +248,8 @@ private fun RainForecastContent(
                 }
                 Text(
                     text = statusText,
-                    color = if (manifestFailed) Color(0xFFF59E0B) else Color(0xFF64748B),
+                    color = if (loadError != null) Color(0xFFF59E0B) else Color(0xFF64748B),
                     fontSize = 11.sp,
-                    modifier = if (manifestFailed) Modifier.clickable { manifestAttempt++ } else Modifier,
                 )
             }
 
@@ -370,6 +418,15 @@ private fun RainForecastContent(
                 }
             }
 
+            loadError?.let { error ->
+                SimLoopErrorPanel(
+                    error = error,
+                    onRetry = { manifestAttempt++ },
+                    onUseOpenMeteo = { onUseOpenMeteo(error) },
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
+
             // Top-left HUD badge on map
             val lead = framesForLayer.getOrNull(idx1)?.lead ?: 0
             val validIso = framesForLayer.getOrNull(idx1)?.valid
@@ -534,6 +591,36 @@ private fun RainForecastContent(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SimLoopErrorPanel(
+    error: RainLoopLoadError,
+    onRetry: () -> Unit,
+    onUseOpenMeteo: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .widthIn(max = 520.dp)
+            .background(Color(0xEE1E293B), RoundedCornerShape(10.dp))
+            .border(1.dp, Color(0xFFF59E0B), RoundedCornerShape(10.dp))
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = rainLoopErrorText(error),
+            color = Color(0xFFFDE68A),
+            fontSize = 14.sp,
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (error.retryable) {
+                OutlinedButton(onClick = onRetry) { Text("Retry") }
+            }
+            Button(onClick = onUseOpenMeteo) { Text("Use Open-Meteo rain map") }
         }
     }
 }

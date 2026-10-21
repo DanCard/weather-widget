@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.remote.weathernext.WeatherNextDomain
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -171,6 +172,8 @@ internal fun runDesktopUiApplication() = application {
         var usageStatsVisible by remember { mutableStateOf(false) }
         var usageStatsShowRequestId by remember { mutableStateOf(0) }
         var simLoopVisible by remember { mutableStateOf(false) }
+        // Set by the WeatherNext viewer's "Use Open-Meteo rain map"; cleared when the loop closes.
+        var simLoopForceOpenMeteo by remember { mutableStateOf(false) }
         // Owned here rather than in either child window: full refresh work runs on uiScope and
         // survives closing Settings or Stations/Observations.
         var refreshInFlight by remember { mutableStateOf(false) }
@@ -1255,18 +1258,37 @@ internal fun runDesktopUiApplication() = application {
         }
 
         if (simLoopVisible && currentConfig != null) {
-            // Open-Meteo shown → its own rain map (pin = graph); any other source → WeatherNext.
-            if (currentConfig.displaySource == com.weatherwidget.data.model.WeatherSource.OPEN_METEO.id) {
+            val closeSimLoop = {
+                simLoopVisible = false
+                simLoopForceOpenMeteo = false
+            }
+            if (simLoopOpensOpenMeteo(currentConfig.displaySource, simLoopForceOpenMeteo)) {
                 OpenMeteoRainLoopWindow(
                     config = currentConfig,
                     httpClient = desktopClients.httpClient,
-                    onClose = { simLoopVisible = false },
+                    onClose = closeSimLoop,
+                    onSpeedChosen = { seconds ->
+                        if (currentConfig.rainMapSecondsPerHour != seconds) {
+                            saveConfigAndNotify(currentConfig.copy(rainMapSecondsPerHour = seconds), "rain-map-window")
+                        }
+                    },
                 )
             } else {
                 RainForecastWindow(
                     config = currentConfig,
                     httpClient = desktopClients.httpClient,
-                    onClose = { simLoopVisible = false },
+                    onClose = closeSimLoop,
+                    onError = { error ->
+                        val message = "${error.logFields()} domain=${WeatherNextDomain.resolve(currentConfig.lat, currentConfig.lon).id}"
+                        Log.w("SIM_LOOP_ERROR", message)
+                        weatherDao.log("SIM_LOOP_ERROR", message, "WARN")
+                    },
+                    onUseOpenMeteo = { error ->
+                        val message = "from=weathernext kind=${error.kind} to=open_meteo"
+                        Log.i("SIM_LOOP_FALLBACK", message)
+                        weatherDao.log("SIM_LOOP_FALLBACK", message, "INFO")
+                        simLoopForceOpenMeteo = true
+                    },
                 )
             }
         }
@@ -1355,3 +1377,9 @@ internal fun refreshNoticeSurface(origin: String): RefreshNoticeSurface = when (
 private fun formatAge(ageMillis: Long): String =
     com.weatherwidget.shared.util.AgeFormatter.formatAgeOld(ageMillis)
 
+/**
+ * Which rain loop the pill opens: Open-Meteo's map when Open-Meteo is shown, or when the WeatherNext
+ * viewer's error offered it and the user took it ([forcedOpenMeteo]); WeatherNext otherwise.
+ */
+internal fun simLoopOpensOpenMeteo(displaySourceId: String, forcedOpenMeteo: Boolean): Boolean =
+    forcedOpenMeteo || displaySourceId == com.weatherwidget.data.model.WeatherSource.OPEN_METEO.id

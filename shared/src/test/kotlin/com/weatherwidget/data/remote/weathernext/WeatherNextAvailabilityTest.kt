@@ -19,18 +19,21 @@ class WeatherNextAvailabilityTest {
 
     @Test
     fun `covered places show the pill, off-map places do not`() {
-        assertTrue(WeatherNextAvailability.showPill(37.42, -122.09, null, now)) // Mountain View
-        assertTrue(WeatherNextAvailability.showPill(40.71, -74.0, null, now)) // New York
-        assertTrue(WeatherNextAvailability.showPill(21.3, -157.8, null, now)) // Honolulu
-        assertFalse(WeatherNextAvailability.showPill(50.45, 30.52, null, now)) // Kyiv
-        assertFalse(WeatherNextAvailability.showPill(-33.9, 151.2, null, now)) // Sydney
-        assertFalse(WeatherNextAvailability.showPill(null, null, null, now))
+        assertTrue(WeatherNextAvailability.showPill(37.42, -122.09)) // Mountain View
+        assertTrue(WeatherNextAvailability.showPill(40.71, -74.0)) // New York
+        assertTrue(WeatherNextAvailability.showPill(21.3, -157.8)) // Honolulu
+        assertFalse(WeatherNextAvailability.showPill(50.45, 30.52)) // Kyiv
+        assertFalse(WeatherNextAvailability.showPill(-33.9, 151.2)) // Sydney
+        assertFalse(WeatherNextAvailability.showPill(null, null))
     }
 
     @Test
-    fun `site gone hides the pill for a day, then it comes back to re-check`() {
-        assertFalse(WeatherNextAvailability.showPill(37.42, -122.09, now - 2 * hour, now))
-        assertTrue(WeatherNextAvailability.showPill(37.42, -122.09, now - 25 * hour, now))
+    fun `a gone site is remembered for a day without hiding the pill`() {
+        // The pill stays (user, 2026-10-20): the viewer explains and offers Open-Meteo.
+        assertTrue(WeatherNextAvailability.showPill(37.42, -122.09))
+        assertTrue(WeatherNextAvailability.knownGone(now - 2 * hour, now))
+        assertFalse(WeatherNextAvailability.knownGone(now - 25 * hour, now))
+        assertFalse(WeatherNextAvailability.knownGone(null, now))
     }
 
     private fun clientAnswering(status: HttpStatusCode) =

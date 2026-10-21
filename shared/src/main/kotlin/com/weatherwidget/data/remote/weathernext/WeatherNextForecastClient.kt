@@ -103,7 +103,7 @@ class WeatherNextForecastClient
                 val response = httpClient.get(url)
                 val status = response.status.value
                 if (status == 404 || status == 410) throw WeatherNextGoneException(status)
-                if (status !in 200..299) throw java.io.IOException("WeatherNext manifest HTTP $status")
+                if (status !in 200..299) throw WeatherNextHttpException(status)
                 json.decodeFromString<WeatherNextManifest>(response.bodyAsText())
             }.onSuccess {
                 Log.i(TAG, "WEATHERNEXT_FETCH outcome=manifest domain=${domain.id} run=${it.run ?: it.init} frames=${it.frames.size}")
@@ -145,7 +145,10 @@ class WeatherNextForecastClient
                     return Result.success(destinationFile)
                 }
                 val url = getFrameUrl(domain, relativePath)
-                val bytes = httpClient.get(url).body<ByteArray>()
+                val response = httpClient.get(url)
+                // Without this an error page (GitHub's 404 HTML) was written to disk as the frame.
+                if (response.status.value !in 200..299) throw WeatherNextHttpException(response.status.value)
+                val bytes = response.body<ByteArray>()
                 destinationFile.parentFile?.mkdirs()
                 // Write then rename so a cancelled download never leaves a truncated frame behind.
                 val partial = File(destinationFile.parentFile, destinationFile.name + ".part")

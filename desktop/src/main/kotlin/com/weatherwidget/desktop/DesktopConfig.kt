@@ -137,6 +137,8 @@ data class DesktopConfig(
     val obsWindowWidth: Float? = null,
     val obsWindowHeight: Float? = null,
     val obsSelectedTab: Int = TAB_OBSERVATIONS,
+    // Open-Meteo rain map playback, seconds per forecast hour (`RainLoopSpeed`, clamped on read).
+    val rainMapSecondsPerHour: Float = com.weatherwidget.shared.rainmap.RainLoopSpeed.DEFAULT_SECONDS,
     val historyWindowX: Float? = null,
     val historyWindowY: Float? = null,
     val historyWindowWidth: Float? = null,
