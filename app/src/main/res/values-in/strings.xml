@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">Belum ada panggilan API yang tercatat.</string>
     <string name="usage_stats_loading">Memuat…</string>
     <string name="sim_loop_button">🌧 Loop sim</string>
+    <string name="radar_button">📡 Radar</string>
+    <string name="radar_attribution">Radar: %1$s · teramati, 2 jam terakhir</string>
+    <string name="radar_frame_time">%1$s · %2$d mnt lalu</string>
+    <string name="radar_no_echoes">Tidak ada hujan di radar sekitar saat ini.</string>
+    <string name="radar_latest">Terbaru</string>
     <string name="sim_loop_no_location">Lokasi belum diatur — pilih dulu di aplikasi.</string>
     <string name="sim_loop_error_gone">%1$s tidak lagi menyediakan animasi hujan (HTTP %2$d). Mungkin sudah dihapus.</string>
     <string name="sim_loop_error_rate_limited">%1$s menolak permintaan: terlalu banyak permintaan (HTTP 429). Coba lagi nanti.</string>

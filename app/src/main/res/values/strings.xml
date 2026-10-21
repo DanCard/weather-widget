@@ -474,6 +474,12 @@
     <string name="usage_stats_loading">Loading…</string>
     <!-- Precipitation graph pill that opens the WeatherNext rain simulation loop. -->
     <string name="sim_loop_button">🌧 Sim loop</string>
+    <string name="radar_button">📡 Radar</string>
+    <string name="radar_attribution">Radar: %1$s · observed, past 2 h</string>
+    <string name="radar_frame_time">%1$s · %2$d min ago</string>
+    <string name="radar_no_echoes">No rain on radar nearby right now.</string>
+    <string name="radar_latest">Latest</string>
+    <string name="radar_legend_unit" translatable="false">dBZ</string>
     <string name="sim_loop_no_location">No location set — choose one in the app first.</string>
     <string name="sim_loop_error_gone">%1$s no longer serves the rain loop (HTTP %2$d). It may have been taken down.</string>
     <string name="sim_loop_error_rate_limited">%1$s refused the request: too many requests (HTTP 429). Try again later.</string>

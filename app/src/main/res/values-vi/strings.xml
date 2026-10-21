@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">Chưa ghi nhận lệnh gọi API nào.</string>
     <string name="usage_stats_loading">Đang tải…</string>
     <string name="sim_loop_button">🌧 Vòng mô phỏng</string>
+    <string name="radar_button">📡 Radar</string>
+    <string name="radar_attribution">Radar: %1$s · quan trắc, 2 giờ qua</string>
+    <string name="radar_frame_time">%1$s · %2$d phút trước</string>
+    <string name="radar_no_echoes">Hiện không có mưa trên radar ở gần.</string>
+    <string name="radar_latest">Mới nhất</string>
     <string name="sim_loop_no_location">Chưa đặt vị trí — hãy chọn trong ứng dụng trước.</string>
     <string name="sim_loop_error_gone">%1$s không còn cung cấp vòng lặp mưa (HTTP %2$d). Có thể nó đã bị gỡ.</string>
     <string name="sim_loop_error_rate_limited">%1$s từ chối yêu cầu: quá nhiều yêu cầu (HTTP 429). Hãy thử lại sau.</string>

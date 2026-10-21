@@ -501,6 +501,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
 
             views.setImageViewBitmap(R.id.graph_view, bitmap)
             views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
+            views.setViewVisibility(R.id.radar_touch_zone, View.GONE)
 
             // Cloud-cover body taps always zoom; bottom zones still route by icon.
             val hourIcons = hours.map { it.iconRes }

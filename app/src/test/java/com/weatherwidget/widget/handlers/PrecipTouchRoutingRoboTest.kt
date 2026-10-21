@@ -195,6 +195,7 @@ class PrecipTouchRoutingRoboTest {
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_zone).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_hour_zones).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.sim_loop_touch_zone).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.radar_touch_zone).visibility)
         assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_container).visibility)
     }
 
@@ -231,6 +232,51 @@ class PrecipTouchRoutingRoboTest {
         )
         assertEquals(37.42, startedIntent.getDoubleExtra(com.weatherwidget.ui.RainForecastActivity.EXTRA_LAT, 0.0), 0.001)
         assertEquals(-122.09, startedIntent.getDoubleExtra(com.weatherwidget.ui.RainForecastActivity.EXTRA_LON, 0.0), 0.001)
+    }
+
+    @Test
+    fun `radar zone sits in the plot apart from the sim loop zone and launches RadarActivity`() = runBlocking {
+        val views = renderPrecipWidget(
+            options = sizedOptions(SIM_W, SIM_H),
+            configureState = {
+                it.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
+                it.setWidgetLocations(intArrayOf(appWidgetId), 37.42, -122.09)
+            },
+        )
+
+        val applied = applyViews(views, SIM_W, SIM_H)
+        val radarZone = applied.findViewById<View>(R.id.radar_touch_zone)
+        assertEquals(View.VISIBLE, radarZone.visibility)
+        val zone = rectIn(applied, radarZone)
+        assertTrue("zone is at least 48dp tall: $zone", zone.height() >= 47)
+        for (id in listOf(R.id.api_touch_zone, R.id.settings_touch_zone)) {
+            val header = rectIn(applied, applied.findViewById(id))
+            assertFalse("radar zone $zone must not overlap header button $header", android.graphics.Rect.intersects(zone, header))
+        }
+        val simLoopZone = applied.findViewById<View>(R.id.sim_loop_touch_zone)
+        if (simLoopZone.visibility == View.VISIBLE) {
+            val sim = rectIn(applied, simLoopZone)
+            assertFalse("radar zone $zone and sim loop zone $sim share taps", android.graphics.Rect.intersects(zone, sim))
+        }
+
+        radarZone.performClick()
+        val startedIntent = shadowOf(app).nextStartedActivity
+        assertEquals(com.weatherwidget.ui.RadarActivity::class.java.name, startedIntent.component?.className)
+        assertEquals(37.42, startedIntent.getDoubleExtra(com.weatherwidget.ui.RadarActivity.EXTRA_LAT, 0.0), 0.001)
+        assertEquals(-122.09, startedIntent.getDoubleExtra(com.weatherwidget.ui.RadarActivity.EXTRA_LON, 0.0), 0.001)
+    }
+
+    @Test
+    fun `radar is offered for every source, Kyiv included`() = runBlocking {
+        val views = renderPrecipWidget(
+            options = sizedOptions(SIM_W, SIM_H),
+            configureState = {
+                it.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
+                it.setWidgetLocations(intArrayOf(appWidgetId), 50.45, 30.52)
+            },
+            sources = listOf(WeatherSource.SILURIAN, WeatherSource.NWS, WeatherSource.OPEN_METEO),
+        )
+        assertEquals(View.VISIBLE, applyViews(views, SIM_W, SIM_H).findViewById<View>(R.id.radar_touch_zone).visibility)
     }
 
     private suspend fun simLoopTarget(source: WeatherSource, lat: Double, lon: Double): String? {

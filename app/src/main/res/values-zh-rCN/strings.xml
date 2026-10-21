@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">尚无 API 调用记录。</string>
     <string name="usage_stats_loading">正在加载…</string>
     <string name="sim_loop_button">🌧 模拟动画</string>
+    <string name="radar_button">📡 雷达</string>
+    <string name="radar_attribution">雷达：%1$s · 实测，过去 2 小时</string>
+    <string name="radar_frame_time">%1$s · %2$d 分钟前</string>
+    <string name="radar_no_echoes">附近雷达目前没有降雨。</string>
+    <string name="radar_latest">最新</string>
     <string name="sim_loop_no_location">尚未设置位置——请先在应用中选择。</string>
     <string name="sim_loop_error_gone">%1$s 已不再提供降雨动画 (HTTP %2$d)。它可能已被移除。</string>
     <string name="sim_loop_error_rate_limited">%1$s 拒绝了请求：请求过多 (HTTP 429)。请稍后重试。</string>

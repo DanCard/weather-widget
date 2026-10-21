@@ -57,7 +57,11 @@ class WidgetActivityPendingIntentFlagsGuardTest {
             "errorPill" to Pinned(5750, Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
             "monthsView" to Pinned(5800, Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
             "simLoop" to Pinned(5600, Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            "radar" to Pinned(5850, Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
         )
+
+        /** Entries bound through another entry's call site (`SimLoopTouchTarget.apply` serves both pills). */
+        val SHARED_CALL_SITE = setOf("radar")
 
         /** Bases whose old flags may still be held by installed launchers; never reuse them. */
         val RETIRED_BASES = setOf(800, 5400, 5500)
@@ -103,6 +107,23 @@ class WidgetActivityPendingIntentFlagsGuardTest {
                 location = 37.42 to -122.08,
             )
         },
+        "radar" to captured {
+            SimLoopTouchTarget.apply(
+                context = app,
+                views = it,
+                appWidgetId = widgetId,
+                pillPx = RectF(100f, 100f, 200f, 140f),
+                plotBottomPx = 400f,
+                bitmapWidthPx = 800,
+                bitmapHeightPx = 500,
+                widgetWidthDp = 400,
+                widgetHeightDp = 250,
+                location = 37.42 to -122.08,
+                target = com.weatherwidget.ui.RadarActivity::class.java,
+                zoneId = R.id.radar_touch_zone,
+                requestCode = com.weatherwidget.widget.handlers.WidgetRequestCodes.radar(widgetId),
+            )
+        },
     )
 
     @Test
@@ -145,7 +166,7 @@ class WidgetActivityPendingIntentFlagsGuardTest {
             .toList()
         assertEquals(
             "widget PendingIntent.getActivity call sites changed: $sites — add each new one to PINNED and capturedIntents()",
-            PINNED.size,
+            PINNED.size - SHARED_CALL_SITE.size,
             sites.size,
         )
     }

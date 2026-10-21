@@ -16,7 +16,8 @@ import com.weatherwidget.shared.graph.SimLoopPill
 import com.weatherwidget.ui.RainForecastActivity
 
 /**
- * The "Sim loop" pill's tap target. The pill is drawn into the graph bitmap wherever
+ * The precipitation graph's pill tap targets — "Sim loop" and "Radar" (`radar_touch_zone`,
+ * `plans/261021-radar-button-on-precip-graph.md`), one helper for both. The pill is drawn into the graph bitmap wherever
  * [SimLoopPill] finds empty space, so its RemoteViews touch zone is sized and moved to match on
  * every render — the first version was a fixed 80×40dp box that started where the pill ended, so a
  * tap on the pill landed on the source toggle or settings gear (Pixel 7 Pro, 2026-10-20).
@@ -67,6 +68,8 @@ internal object SimLoopTouchTarget {
         plotBottomDp: Float,
         contentWidthDp: Float,
         contentHeightDp: Float,
+        /** Another pill's zone already placed: the two never share a tap. */
+        avoidDp: GraphRect? = null,
     ): GraphRect {
         val arrowW = NavArrowGeometry.ARROW_WIDTH_DP
         val arrowTop = (contentHeightDp - NavArrowGeometry.ARROW_HEIGHT_DP) / 2f
@@ -75,14 +78,19 @@ internal object SimLoopTouchTarget {
             pill = pillDp,
             density = 1f,
             container = GraphRect(0f, HEADER_TOUCH_BOTTOM_DP, contentWidthDp, plotBottomDp),
-            avoid = listOf(
+            avoid = listOfNotNull(
                 GraphRect(0f, arrowTop, arrowW, arrowBottom),
                 GraphRect(contentWidthDp - arrowW, arrowTop, contentWidthDp, arrowBottom),
+                avoidDp,
             ),
         )
     }
 
-    fun hide(views: RemoteViews) = views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
+    /** Hides both pills' zones (every non-graph view). */
+    fun hide(views: RemoteViews) {
+        views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.radar_touch_zone, View.GONE)
+    }
 
     /** Shows the zone over the drawn pill, or hides it when no pill was drawn. Returns the zone (content dp). */
     fun apply(
@@ -96,24 +104,28 @@ internal object SimLoopTouchTarget {
         widgetWidthDp: Int,
         widgetHeightDp: Int,
         location: Pair<Double, Double>?,
-        /** [RainForecastActivity] (WeatherNext) or the Open-Meteo rain map; both read the same extras. */
+        /** [RainForecastActivity] (WeatherNext), the Open-Meteo rain map or the radar; all read the same extras. */
         target: Class<*> = RainForecastActivity::class.java,
+        zoneId: Int = R.id.sim_loop_touch_zone,
+        requestCode: Int = WidgetRequestCodes.simLoop(appWidgetId),
+        /** The other pill's zone (content dp), kept out of this one. */
+        avoidDp: GraphRect? = null,
     ): GraphRect? {
         if (pillPx == null || !supported()) {
-            hide(views)
+            views.setViewVisibility(zoneId, View.GONE)
             return null
         }
         val (viewW, viewH) = graphViewSizeDp(widgetWidthDp, widgetHeightDp)
         fun map(r: GraphRect) = bitmapToContentDp(r, bitmapWidthPx, bitmapHeightPx, viewW, viewH)
         val pillDp = map(GraphRect(pillPx.left, pillPx.top, pillPx.right, pillPx.bottom))
         val plotBottomDp = map(GraphRect(0f, plotBottomPx, 0f, plotBottomPx)).bottom
-        val zone = zoneDp(pillDp, plotBottomDp, widgetWidthDp - 2 * ROOT_PADDING_DP, widgetHeightDp - 2 * ROOT_PADDING_DP)
+        val zone = zoneDp(pillDp, plotBottomDp, widgetWidthDp - 2 * ROOT_PADDING_DP, widgetHeightDp - 2 * ROOT_PADDING_DP, avoidDp)
 
-        views.setViewVisibility(R.id.sim_loop_touch_zone, View.VISIBLE)
-        views.setViewLayoutWidth(R.id.sim_loop_touch_zone, zone.width, TypedValue.COMPLEX_UNIT_DIP)
-        views.setViewLayoutHeight(R.id.sim_loop_touch_zone, zone.height, TypedValue.COMPLEX_UNIT_DIP)
-        views.setViewLayoutMargin(R.id.sim_loop_touch_zone, RemoteViews.MARGIN_START, zone.left, TypedValue.COMPLEX_UNIT_DIP)
-        views.setViewLayoutMargin(R.id.sim_loop_touch_zone, RemoteViews.MARGIN_TOP, zone.top, TypedValue.COMPLEX_UNIT_DIP)
+        views.setViewVisibility(zoneId, View.VISIBLE)
+        views.setViewLayoutWidth(zoneId, zone.width, TypedValue.COMPLEX_UNIT_DIP)
+        views.setViewLayoutHeight(zoneId, zone.height, TypedValue.COMPLEX_UNIT_DIP)
+        views.setViewLayoutMargin(zoneId, RemoteViews.MARGIN_START, zone.left, TypedValue.COMPLEX_UNIT_DIP)
+        views.setViewLayoutMargin(zoneId, RemoteViews.MARGIN_TOP, zone.top, TypedValue.COMPLEX_UNIT_DIP)
 
         val intent = Intent(context, target).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -125,11 +137,11 @@ internal object SimLoopTouchTarget {
         }
         val pending = PendingIntent.getActivity(
             context,
-            WidgetRequestCodes.simLoop(appWidgetId),
+            requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        views.setOnClickPendingIntent(R.id.sim_loop_touch_zone, pending)
+        views.setOnClickPendingIntent(zoneId, pending)
         return zone
     }
 }

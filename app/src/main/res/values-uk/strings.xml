@@ -441,6 +441,11 @@
     <string name="usage_stats_empty">Викликів API ще немає.</string>
     <string name="usage_stats_loading">Завантаження…</string>
     <string name="sim_loop_button">🌧 Анімація</string>
+    <string name="radar_button">📡 Радар</string>
+    <string name="radar_attribution">Радар: %1$s · спостереження, останні 2 год</string>
+    <string name="radar_frame_time">%1$s · %2$d хв тому</string>
+    <string name="radar_no_echoes">Зараз на радарі поблизу немає опадів.</string>
+    <string name="radar_latest">Останній</string>
     <string name="sim_loop_no_location">Місцезнаходження не задано — спершу виберіть його в застосунку.</string>
     <string name="sim_loop_error_gone">%1$s більше не надає анімацію опадів (HTTP %2$d). Можливо, її видалили.</string>
     <string name="sim_loop_error_rate_limited">%1$s відхилив запит: забагато запитів (HTTP 429). Спробуйте пізніше.</string>

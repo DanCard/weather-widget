@@ -10,10 +10,12 @@ def dp(pts, tol):
     if len(pts) < 3: return pts
     keep=[False]*len(pts); keep[0]=keep[-1]=True; stack=[(0,len(pts)-1)]
     while stack:
-        a,b=stack.pop(); (x1,y1),(x2,y2)=pts[a],pts[b]; dx,dy=x2-x1,y2-y1; L=(dx*dx+dy*dy)**.5 or 1e-12
+        a,b=stack.pop(); (x1,y1),(x2,y2)=pts[a],pts[b]; dx,dy=x2-x1,y2-y1; L=(dx*dx+dy*dy)**.5
         best,bi=-1,-1
         for i in range(a+1,b):
-            x,y=pts[i]; d=abs(dy*x-dx*y+x2*y1-y2*x1)/L
+            # A closed ring (island, lake) starts and ends on one point: its "segment" has no length,
+            # so measure from that point. Dividing by ~0 instead dropped every island (2026-10-21).
+            x,y=pts[i]; d=abs(dy*x-dx*y+x2*y1-y2*x1)/L if L>1e-9 else ((x-x1)**2+(y-y1)**2)**.5
             if d>best: best,bi=d,i
         if best>tol: keep[bi]=True; stack+= [(a,bi),(bi,b)]
     return [p for p,k in zip(pts,keep) if k]

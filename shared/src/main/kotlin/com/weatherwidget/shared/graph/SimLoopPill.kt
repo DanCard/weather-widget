@@ -77,6 +77,31 @@ object SimLoopPill {
         )?.let { Placement(it.box, overCurve = true) }
     }
 
+    /** Where both of the graph's pills went; null = not offered or no room. */
+    data class Pills(val radar: Placement?, val simLoop: Placement?)
+
+    /**
+     * The precipitation graph's two pills: **"Radar" first**, then "Sim loop" in the space left,
+     * clear of the radar pill. Radar goes first because it works wherever the graph has a location
+     * (`plans/261021-radar-button-on-precip-graph.md`); Sim loop is source/region-limited, so when
+     * only one fits it is the one dropped. A null width = that pill is not offered.
+     */
+    fun placeRadarAndSimLoop(
+        plot: GraphRect,
+        curvePoints: List<Pair<Float, Float>>,
+        drawnBounds: List<GraphRect>,
+        vetoBounds: List<GraphRect>,
+        radarWidthPx: Float?,
+        simLoopWidthPx: Float?,
+        density: Float,
+    ): Pills {
+        val radar = radarWidthPx?.let { place(plot, curvePoints, drawnBounds, vetoBounds, it, density) }
+        val simLoop = simLoopWidthPx?.let {
+            place(plot, curvePoints, drawnBounds + listOfNotNull(radar?.box), vetoBounds, it, density)
+        }
+        return Pills(radar, simLoop)
+    }
+
     /**
      * The tap target for a placed [pill]: grown to the minimum touch size around its centre, then
      * kept inside [container] and clear of [avoid] (header buttons) by trimming the side that hits

@@ -102,6 +102,12 @@
             android:label="Rain Map Loop" />
 
         <activity
+            android:name=".ui.RadarActivity"
+            android:exported="false"
+            android:taskAffinity=""
+            android:label="Radar" />
+
+        <activity
             android:name=".ui.PrivacyPolicyActivity"
             android:exported="false"
             android:label="@string/privacy_policy_title" />

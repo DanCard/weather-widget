@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">Noch keine API-Aufrufe erfasst.</string>
     <string name="usage_stats_loading">Wird geladen…</string>
     <string name="sim_loop_button">🌧 Sim-Schleife</string>
+    <string name="radar_button">📡 Radar</string>
+    <string name="radar_attribution">Radar: %1$s · beobachtet, letzte 2 Std.</string>
+    <string name="radar_frame_time">%1$s · vor %2$d Min.</string>
+    <string name="radar_no_echoes">Derzeit kein Regen auf dem Radar in der Nähe.</string>
+    <string name="radar_latest">Neuestes</string>
     <string name="sim_loop_no_location">Kein Standort festgelegt – wähle zuerst einen in der App.</string>
     <string name="sim_loop_error_gone">%1$s stellt die Regenschleife nicht mehr bereit (HTTP %2$d). Sie wurde möglicherweise entfernt.</string>
     <string name="sim_loop_error_rate_limited">%1$s hat die Anfrage abgelehnt: zu viele Anfragen (HTTP 429). Später erneut versuchen.</string>

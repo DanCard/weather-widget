@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">API 呼び出しの記録はまだありません。</string>
     <string name="usage_stats_loading">読み込み中…</string>
     <string name="sim_loop_button">🌧 予報ループ</string>
+    <string name="radar_button">📡 レーダー</string>
+    <string name="radar_attribution">レーダー: %1$s · 観測値、過去2時間</string>
+    <string name="radar_frame_time">%1$s · %2$d分前</string>
+    <string name="radar_no_echoes">現在、付近のレーダーに雨はありません。</string>
+    <string name="radar_latest">最新</string>
     <string name="sim_loop_no_location">場所が設定されていません。先にアプリで選択してください。</string>
     <string name="sim_loop_error_gone">%1$s は雨のループを提供しなくなりました (HTTP %2$d)。削除された可能性があります。</string>
     <string name="sim_loop_error_rate_limited">%1$s がリクエストを拒否しました: リクエストが多すぎます (HTTP 429)。後でもう一度お試しください。</string>

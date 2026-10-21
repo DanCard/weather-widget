@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">Brak zarejestrowanych wywołań API.</string>
     <string name="usage_stats_loading">Wczytywanie…</string>
     <string name="sim_loop_button">🌧 Pętla sym.</string>
+    <string name="radar_button">📡 Radar</string>
+    <string name="radar_attribution">Radar: %1$s · obserwacje, ostatnie 2 godz.</string>
+    <string name="radar_frame_time">%1$s · %2$d min temu</string>
+    <string name="radar_no_echoes">Obecnie brak opadów na radarze w pobliżu.</string>
+    <string name="radar_latest">Najnowsza</string>
     <string name="sim_loop_no_location">Nie ustawiono lokalizacji — najpierw wybierz ją w aplikacji.</string>
     <string name="sim_loop_error_gone">%1$s nie udostępnia już animacji opadów (HTTP %2$d). Mogła zostać usunięta.</string>
     <string name="sim_loop_error_rate_limited">%1$s odrzucił żądanie: zbyt wiele żądań (HTTP 429). Spróbuj później.</string>

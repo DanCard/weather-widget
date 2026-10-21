@@ -32,6 +32,9 @@ object ApiUsageClassifier {
         host.contains("weatherapi.com") -> "WEATHER_API"
         host == "weather.googleapis.com" -> "GOOGLE_WEATHER"
         host.contains("synopticdata.com") -> "SYNOPTIC"
+        // The radar view's NWS mosaics (opengeo.ncep.noaa.gov) count as NWS.
+        host.endsWith("ncep.noaa.gov") -> "NWS"
+        host.endsWith("rainviewer.com") -> RAINVIEWER
         else -> null
     }
 
@@ -53,6 +56,7 @@ object ApiUsageClassifier {
      */
     fun classify(host: String, path: String, query: String = ""): Key? =
         sourceForHost(host)?.let { source ->
+            radarEndpoint(host, query)?.let { return Key(source, it) }
             val endpoint = endpointForPath(path)
             val openMeteoForecast = source == "OPEN_METEO" && endpoint == "forecast"
             Key(
@@ -64,6 +68,23 @@ object ApiUsageClassifier {
                 },
             )
         }
+
+    const val RAINVIEWER = "RAINVIEWER"
+
+    /** Usage rows for ids that are not a [com.weatherwidget.data.model.WeatherSource]. */
+    val NON_SOURCE_NAMES = mapOf(RAINVIEWER to "RainViewer")
+
+    /**
+     * The radar view (`shared.radar`): `radar/list` for a feed's frame list, `radar/frame` for a
+     * frame (NWS `GetMap`, RainViewer tile). Tile and WMS paths are otherwise all ids.
+     */
+    private fun radarEndpoint(host: String, query: String): String? = when {
+        host.endsWith("ncep.noaa.gov") ->
+            if (query.contains("request=GetCapabilities", ignoreCase = true)) "radar/list" else "radar/frame"
+        host == "api.rainviewer.com" -> "radar/list"
+        host.endsWith("rainviewer.com") -> "radar/frame"
+        else -> null
+    }
 
     private val NOWCAST_QUERY = Regex("""(^|&)forecast_minutely_15=""")
 

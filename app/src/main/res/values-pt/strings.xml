@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">Nenhuma chamada de API registrada ainda.</string>
     <string name="usage_stats_loading">Carregando…</string>
     <string name="sim_loop_button">🌧 Loop sim.</string>
+    <string name="radar_button">📡 Radar</string>
+    <string name="radar_attribution">Radar: %1$s · observado, últimas 2 h</string>
+    <string name="radar_frame_time">%1$s · há %2$d min</string>
+    <string name="radar_no_echoes">Sem chuva no radar por perto agora.</string>
+    <string name="radar_latest">Mais recente</string>
     <string name="sim_loop_no_location">Nenhum local definido — escolha um no app primeiro.</string>
     <string name="sim_loop_error_gone">%1$s não fornece mais o loop de chuva (HTTP %2$d). Ele pode ter sido removido.</string>
     <string name="sim_loop_error_rate_limited">%1$s recusou a solicitação: solicitações demais (HTTP 429). Tente mais tarde.</string>

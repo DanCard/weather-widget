@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">अभी तक कोई API कॉल दर्ज नहीं हुई।</string>
     <string name="usage_stats_loading">लोड हो रहा है…</string>
     <string name="sim_loop_button">🌧 सिम लूप</string>
+    <string name="radar_button">📡 रडार</string>
+    <string name="radar_attribution">रडार: %1$s · प्रेक्षित, पिछले 2 घंटे</string>
+    <string name="radar_frame_time">%1$s · %2$d मिनट पहले</string>
+    <string name="radar_no_echoes">अभी आस-पास रडार पर कोई बारिश नहीं।</string>
+    <string name="radar_latest">नवीनतम</string>
     <string name="sim_loop_no_location">कोई स्थान सेट नहीं — पहले ऐप में एक चुनें।</string>
     <string name="sim_loop_error_gone">%1$s अब बारिश लूप उपलब्ध नहीं कराता (HTTP %2$d)। शायद इसे हटा दिया गया है।</string>
     <string name="sim_loop_error_rate_limited">%1$s ने अनुरोध अस्वीकार किया: बहुत अधिक अनुरोध (HTTP 429)। बाद में फिर कोशिश करें।</string>

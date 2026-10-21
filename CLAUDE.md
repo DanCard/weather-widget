@@ -188,6 +188,13 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   `:shared` `com.weatherwidget.shared.nowcast`; logs `NOWCAST_FETCH`, `NOWCAST_SUMMARY`; usage row
   `forecast/nowcast`. Other free sources for later phases: `notes/261021-free-radar-nowcast-sources.md`
   (`plans/261021-open-meteo-15-min-nowcast.md`).
+- **Radar** (user, 2026-10-21): a "📡 Radar" pill on the precipitation graph (both platforms, placed
+  before "Sim loop" by `SimLoopPill.placeRadarAndSimLoop`; Android `radar_touch_zone`, API 31+)
+  opens `RadarActivity` / desktop `RadarWindow`: the last 2 h of **observed** radar over the offline
+  base map — NWS `*_bref_qcd` WMS inside `NwsCoverage` (four regional mosaics), RainViewer elsewhere
+  (free tier: zoom ≤ 7, past only, 100 req/IP/min → zoom 6 × 512-px tiles, disk cache, no retry).
+  On demand only. `:shared` `com.weatherwidget.shared.radar`; logs `RADAR_FETCH`, `RADAR_PILL`;
+  usage `radar/list`, `radar/frame` (`plans/261021-radar-button-on-precip-graph.md`).
 - **Desktop Observations Refresh fetches observations only** (user, 2026-10-14): the displayed
   source's forced current/recent observations (`refreshObservations`, `reason=user_refresh:observations`),
   never the forecast; on a previous day also that day's Google refill **alone** — one `history/hours`

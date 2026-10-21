@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">Henüz kayıtlı API çağrısı yok.</string>
     <string name="usage_stats_loading">Yükleniyor…</string>
     <string name="sim_loop_button">🌧 Sim döngüsü</string>
+    <string name="radar_button">📡 Radar</string>
+    <string name="radar_attribution">Radar: %1$s · gözlem, son 2 saat</string>
+    <string name="radar_frame_time">%1$s · %2$d dk önce</string>
+    <string name="radar_no_echoes">Şu anda yakında radarda yağmur yok.</string>
+    <string name="radar_latest">En son</string>
     <string name="sim_loop_no_location">Konum ayarlanmadı — önce uygulamada bir konum seçin.</string>
     <string name="sim_loop_error_gone">%1$s artık yağış döngüsünü sunmuyor (HTTP %2$d). Kaldırılmış olabilir.</string>
     <string name="sim_loop_error_rate_limited">%1$s isteği reddetti: çok fazla istek (HTTP 429). Daha sonra tekrar deneyin.</string>

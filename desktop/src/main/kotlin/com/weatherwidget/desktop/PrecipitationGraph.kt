@@ -77,6 +77,7 @@ fun PrecipitationGraph(
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit = { _, _ -> },
     onPan: (deltaHours: Int) -> Unit = {},
     onOpenSimLoop: () -> Unit = {},
+    onOpenRadar: () -> Unit = {},
     /** Open-Meteo's next 2 h at 15 min (`:shared` NowcastDisplay.bandSlots); empty draws no band. */
     nowcastSlots: List<com.weatherwidget.shared.nowcast.NowcastSlot> = emptyList(),
 ) {
@@ -92,8 +93,9 @@ fun PrecipitationGraph(
     val smoothIterations = setup.smoothIterations
 
     val watermarkPainter = painterResource("drawable/ic_weather_rain.xml")
-    // Where the canvas drew the "Sim loop" pill (px), so the clickable overlay can sit on it.
+    // Where the canvas drew the "Sim loop" and "Radar" pills (px), so the clickable overlays can sit on them.
     var simLoopPill by remember { mutableStateOf<Rect?>(null) }
+    var radarPill by remember { mutableStateOf<Rect?>(null) }
 
     Box(modifier = modifier) {
         Canvas(
@@ -342,49 +344,59 @@ fun PrecipitationGraph(
             xAt = xAt,
         )
 
-        // "Sim loop" pill in the plot's empty space — same shared search as Android's bitmap.
+        // "Radar" then "Sim loop" pills in the plot's empty space — same shared rule as Android's bitmap.
         val pxPerDp = 1.dp.toPx() * scale
         val pillStyle = TextStyle(fontSize = (11 * scale).sp, color = Color.White, fontWeight = FontWeight.Bold)
         val pillText = textMeasurer.measure(SIM_LOOP_LABEL, pillStyle)
+        val radarText = textMeasurer.measure(RADAR_LABEL, pillStyle)
         val plotRect = GraphRect(0f, graphTop, w, graphBottom)
         // Open-Meteo shown → its own rain map (global); any other source → WeatherNext's rule.
         val simLoopOffered = displaySourceId == com.weatherwidget.data.model.WeatherSource.OPEN_METEO.id ||
             com.weatherwidget.data.remote.weathernext.WeatherNextAvailability.showPill(
                 latitude, longitude,
             )
-        val pillPlacement = if (!simLoopOffered) null else SimLoopPill.place(
+        // Radar is observed and source-independent: offered wherever the popup has a location.
+        val radarOffered = latitude != 0.0 || longitude != 0.0
+        val pills = SimLoopPill.placeRadarAndSimLoop(
             plot = plotRect,
             curvePoints = coords.map { it.x to it.y },
             drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
             vetoBounds = (if (now in windowStart..windowEnd) nowLineVetoBounds(markerX, graphTop, graphHeight, scale) else emptyList()) +
                 navArrowVetoBounds(plotRect, scale),
-            pillWidthPx = SimLoopPill.pillWidthPx(pillText.size.width.toFloat(), pxPerDp),
+            radarWidthPx = if (radarOffered) SimLoopPill.pillWidthPx(radarText.size.width.toFloat(), pxPerDp) else null,
+            simLoopWidthPx = if (simLoopOffered) SimLoopPill.pillWidthPx(pillText.size.width.toFloat(), pxPerDp) else null,
             density = pxPerDp,
         )
-        val pillRect = pillPlacement?.box?.let { Rect(it.left, it.top, it.right, it.bottom) }
-        if (pillRect != null) {
+        fun drawPill(placement: SimLoopPill.Placement?, text: androidx.compose.ui.text.TextLayoutResult): Rect? {
+            val pillRect = placement?.box?.let { Rect(it.left, it.top, it.right, it.bottom) } ?: return null
             val radius = CornerRadius(pillRect.height / 2f)
             drawRoundRect(SIM_LOOP_FILL, pillRect.topLeft, pillRect.size, radius)
             drawRoundRect(SIM_LOOP_STROKE, pillRect.topLeft, pillRect.size, radius, style = Stroke(width = pxPerDp))
             drawText(
-                pillText,
-                topLeft = Offset(pillRect.center.x - pillText.size.width / 2f, pillRect.center.y - pillText.size.height / 2f),
+                text,
+                topLeft = Offset(pillRect.center.x - text.size.width / 2f, pillRect.center.y - text.size.height / 2f),
             )
+            return pillRect
         }
+        val radarRect = drawPill(pills.radar, radarText)
+        val pillRect = drawPill(pills.simLoop, pillText)
         if (pillRect != simLoopPill) simLoopPill = pillRect
+        if (radarRect != radarPill) radarPill = radarRect
     }
 
-    simLoopPill?.let { pill ->
+    for ((pill, onOpen) in listOf(simLoopPill to onOpenSimLoop, radarPill to onOpenRadar)) {
+        if (pill == null) continue
         // Clickable area a few dp past the drawn pill; the canvas below keeps its own tap handling.
+        // The shared placement keeps the pills ≥ CLEARANCE_DP (6 dp) apart, so 3 dp margins never overlap.
         val density = LocalDensity.current
-        val padPx = with(density) { 4.dp.toPx() } * scale
+        val padPx = with(density) { (SimLoopPill.CLEARANCE_DP / 2f).dp.toPx() } * scale
         val hit = pill.inflate(padPx)
         with(density) {
             Box(
                 Modifier
                     .offset { IntOffset(hit.left.roundToInt(), hit.top.roundToInt()) }
                     .size(hit.width.toDp(), hit.height.toDp())
-                    .clickable { onOpenSimLoop() },
+                    .clickable { onOpen() },
             )
         }
     }
@@ -392,6 +404,7 @@ fun PrecipitationGraph(
 }
 
 private const val SIM_LOOP_LABEL = "🌧 Sim loop"
+private const val RADAR_LABEL = "📡 Radar"
 private val SIM_LOOP_FILL = Color(0x465AC8FA)
 private val SIM_LOOP_STROKE = Color(0x965AC8FA)
 

@@ -171,6 +171,7 @@ internal fun runDesktopUiApplication() = application {
         var usageStatsVisible by remember { mutableStateOf(false) }
         var usageStatsShowRequestId by remember { mutableStateOf(0) }
         var simLoopVisible by remember { mutableStateOf(false) }
+        var radarVisible by remember { mutableStateOf(false) }
         // Set by the WeatherNext viewer's "Use Open-Meteo rain map"; cleared when the loop closes.
         var simLoopForceOpenMeteo by remember { mutableStateOf(false) }
         // Owned here rather than in either child window: full refresh work runs on uiScope and
@@ -430,7 +431,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         // Exit on close logic:
-        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || historyVisible || observationsVisible || appLogsVisible || iconGalleryVisible || simLoopVisible
+        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || historyVisible || observationsVisible || appLogsVisible || iconGalleryVisible || simLoopVisible || radarVisible
         LaunchedEffect(anyWindowOpen) {
             if (!anyWindowOpen) {
                 Log.i(TAG, "All windows closed. Ephemeral UI process exiting...")
@@ -1233,6 +1234,9 @@ internal fun runDesktopUiApplication() = application {
                 onOpenSimLoop = {
                     simLoopVisible = true
                 },
+                onOpenRadar = {
+                    radarVisible = true
+                },
                 onNeedHistory = onNeedHistory,
                 onNeedHourlyRefresh = onNeedHourlyRefresh,
                 onDayClickAudit = { message ->
@@ -1251,6 +1255,14 @@ internal fun runDesktopUiApplication() = application {
                     currentTempFetchError = null
                     currentTempFetchPill = null
                 },
+            )
+        }
+
+        if (radarVisible && currentConfig != null) {
+            RadarWindow(
+                config = currentConfig,
+                httpClient = desktopClients.httpClient,
+                onClose = { radarVisible = false },
             )
         }
 

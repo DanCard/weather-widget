@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">এখনও কোনো API কল রেকর্ড হয়নি।</string>
     <string name="usage_stats_loading">লোড হচ্ছে…</string>
     <string name="sim_loop_button">🌧 সিমুলেশন লুপ</string>
+    <string name="radar_button">📡 রাডার</string>
+    <string name="radar_attribution">রাডার: %1$s · পর্যবেক্ষিত, গত 2 ঘণ্টা</string>
+    <string name="radar_frame_time">%1$s · %2$d মিনিট আগে</string>
+    <string name="radar_no_echoes">এখন কাছাকাছি রাডারে কোনো বৃষ্টি নেই।</string>
+    <string name="radar_latest">সর্বশেষ</string>
     <string name="sim_loop_no_location">কোনো অবস্থান সেট নেই — আগে অ্যাপে একটি বেছে নিন।</string>
     <string name="sim_loop_error_gone">%1$s আর বৃষ্টির লুপ দেয় না (HTTP %2$d)। হয়তো এটি সরিয়ে ফেলা হয়েছে।</string>
     <string name="sim_loop_error_rate_limited">%1$s অনুরোধ প্রত্যাখ্যান করেছে: অনেক বেশি অনুরোধ (HTTP 429)। পরে আবার চেষ্টা করুন।</string>

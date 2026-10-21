@@ -528,8 +528,10 @@ object PrecipitationGraphRenderer {
         errorBannerSinceMs: Long? = null,
         /** The "Sim loop" pill's label; null draws no pill. */
         simLoopLabel: String? = null,
-        /** Where the pill was drawn (bitmap px; null when no empty space fit it) and the plot's bottom. */
-        onSimLoopPlaced: ((pill: RectF?, plotBottomPx: Float) -> Unit)? = null,
+        /** The "Radar" pill's label; null draws no pill. Placed before Sim loop (`SimLoopPill.placeRadarAndSimLoop`). */
+        radarLabel: String? = null,
+        /** Where each pill was drawn (bitmap px; null when not offered or no space fit it) and the plot's bottom. */
+        onPillsPlaced: ((radar: RectF?, simLoop: RectF?, plotBottomPx: Float) -> Unit)? = null,
         /** Open-Meteo's next 2 h at 15 min (`:shared` NowcastDisplay.bandSlots); empty draws no band. */
         nowcastSlots: List<com.weatherwidget.shared.nowcast.NowcastSlot> = emptyList(),
     ): Bitmap {
@@ -732,15 +734,17 @@ object PrecipitationGraphRenderer {
                 )
         }
 
-        if (simLoopLabel != null) {
-            val pill = drawSimLoopPill(canvas, layout, paints, simLoopLabel, widthPx, density * labelScale)
-            val logMsg = if (pill != null) {
-                "SIM_LOOP_PILL placed rect=${pill.left.toInt()},${pill.top.toInt()},${pill.right.toInt()},${pill.bottom.toInt()} bitmap=${widthPx}x${heightPx}"
-            } else {
-                "SIM_LOOP_PILL reason=no_space bitmap=${widthPx}x${heightPx}"
+        if (simLoopLabel != null || radarLabel != null) {
+            val (radar, simLoop) = drawPills(canvas, layout, paints, radarLabel, simLoopLabel, widthPx, density * labelScale)
+            fun describe(name: String, label: String?, pill: RectF?) = when {
+                label == null -> "${name}_PILL reason=not_offered"
+                pill == null -> "${name}_PILL reason=no_space bitmap=${widthPx}x${heightPx}"
+                else -> "${name}_PILL placed rect=${pill.left.toInt()},${pill.top.toInt()},${pill.right.toInt()},${pill.bottom.toInt()} bitmap=${widthPx}x${heightPx}"
             }
-            Log.d(TAG, logMsg) // persisted by the caller with the tap zone it chose
-            onSimLoopPlaced?.invoke(pill, layout.graphBottom)
+            // Persisted by the caller with the tap zones it chose.
+            Log.d(TAG, describe("RADAR", radarLabel, radar))
+            Log.d(TAG, describe("SIM_LOOP", simLoopLabel, simLoop))
+            onPillsPlaced?.invoke(radar, simLoop, layout.graphBottom)
         }
 
         return bitmap
@@ -750,11 +754,6 @@ object PrecipitationGraphRenderer {
      * Maps the renderer's row type onto the shared one. The actual field is passed through as-is:
      * [PrecipViewHandler] has already nulled it for hours that have not elapsed, and that gate is
      * what keeps an "Act" label out of the future.
-     */
-    /**
-     * Draws the "Sim loop" pill in the plot's empty space ([SimLoopPill]) and returns its rect, or
-     * null when nothing fits. Over the curve only when nothing clear exists; the fill is translucent. The plot starts at graphTop (44dp), below the header buttons, so the
-     * search never offers the pill a slot under them.
      */
     /**
      * The 15-minute nowcast as bars along the plot's bottom, over the chance fill and under every
@@ -784,14 +783,21 @@ object PrecipitationGraphRenderer {
         onDebugLog?.invoke(msg)
     }
 
-    private fun drawSimLoopPill(
+    /**
+     * Draws the "Radar" and "Sim loop" pills in the plot's empty space ([SimLoopPill]) and returns
+     * their rects (radar, sim loop), null for one not offered or not fitting. Over the curve only
+     * when nothing clear exists; the fill is translucent. The plot starts at graphTop (44dp), below
+     * the header buttons, so the search never offers a pill a slot under them.
+     */
+    private fun drawPills(
         canvas: Canvas,
         layout: PrecipGraphLayout,
         paints: PrecipitationGraphStyle.PaintSet,
-        label: String,
+        radarLabel: String?,
+        simLoopLabel: String?,
         widthPx: Int,
         pxPerDp: Float,
-    ): RectF? {
+    ): Pair<RectF?, RectF?> {
         val plot = GraphRect(0f, layout.graphTop, widthPx.toFloat(), layout.graphBottom)
         val veto = buildList {
             layout.nowX?.let {
@@ -799,24 +805,29 @@ object PrecipitationGraphRenderer {
             }
             addAll(NavArrowGeometry.arrowBounds(plot, pxPerDp, NavArrowGeometry.Visibility.BOTH))
         }
-        val placement = SimLoopPill.place(
+        val textPaint = paints.simLoopTextPaint
+        val pills = SimLoopPill.placeRadarAndSimLoop(
             plot = plot,
             curvePoints = layout.points,
             drawnBounds = layout.occupiedBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) },
             vetoBounds = veto,
-            pillWidthPx = SimLoopPill.pillWidthPx(paints.simLoopTextPaint.measureText(label), pxPerDp),
+            radarWidthPx = radarLabel?.let { SimLoopPill.pillWidthPx(textPaint.measureText(it), pxPerDp) },
+            simLoopWidthPx = simLoopLabel?.let { SimLoopPill.pillWidthPx(textPaint.measureText(it), pxPerDp) },
             density = pxPerDp,
-        ) ?: return null
-        val rect = placement.box
-        val pill = RectF(rect.left, rect.top, rect.right, rect.bottom)
-        Log.d(TAG, "SIM_LOOP_PILL overCurve=${placement.overCurve}")
-        val radius = pill.height() / 2f
-        canvas.drawRoundRect(pill, radius, radius, paints.simLoopFillPaint)
-        canvas.drawRoundRect(pill, radius, radius, paints.simLoopStrokePaint)
-        val textPaint = paints.simLoopTextPaint
-        val baseline = pill.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
-        canvas.drawText(label, pill.centerX(), baseline, textPaint)
-        return pill
+        )
+        fun draw(placement: SimLoopPill.Placement?, label: String?): RectF? {
+            if (placement == null || label == null) return null
+            val rect = placement.box
+            val pill = RectF(rect.left, rect.top, rect.right, rect.bottom)
+            val radius = pill.height() / 2f
+            canvas.drawRoundRect(pill, radius, radius, paints.simLoopFillPaint)
+            canvas.drawRoundRect(pill, radius, radius, paints.simLoopStrokePaint)
+            val baseline = pill.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
+            canvas.drawText(label, pill.centerX(), baseline, textPaint)
+            return pill
+        }
+        Log.d(TAG, "GRAPH_PILLS radarOverCurve=${pills.radar?.overCurve} simLoopOverCurve=${pills.simLoop?.overCurve}")
+        return draw(pills.radar, radarLabel) to draw(pills.simLoop, simLoopLabel)
     }
 
     private fun List<PrecipHourData>.toRainHours(): List<RainPeriodSelection.RainHour> = map {

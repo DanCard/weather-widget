@@ -122,4 +122,34 @@ class SimLoopPillTest {
         val touch = SimLoopPill.touchBounds(pill, density, container)
         assertTrue(touch.top >= 0f && touch.right <= 800f)
     }
+
+    @Test
+    fun `radar and sim loop - both placed, never overlapping, radar takes the preferred right slot`() {
+        val pills = SimLoopPill.placeRadarAndSimLoop(
+            plot, curve(400f, 400f, 400f, 400f, 400f), emptyList(), emptyList(),
+            radarWidthPx = pillWidth, simLoopWidthPx = pillWidth, density = density,
+        )
+        val radar = pills.radar!!.box
+        val sim = pills.simLoop!!.box
+        assertFalse("radar $radar overlaps sim loop $sim", radar.intersects(sim))
+        assertEquals(SimLoopPill.place(plot, curve(400f, 400f, 400f, 400f, 400f), emptyList(), emptyList(), pillWidth, density)!!.box, radar)
+    }
+
+    @Test
+    fun `room for one pill only - radar is kept, sim loop dropped`() {
+        // A plot just big enough for one pill: no room beside it or above it.
+        val narrow = GraphRect(0f, 88f, pillWidth + 4 * pad, 88f + 1.8f * SimLoopPill.HEIGHT_DP * density)
+        val points = listOf(0f to narrow.bottom, narrow.right to narrow.bottom)
+        val pills = SimLoopPill.placeRadarAndSimLoop(narrow, points, emptyList(), emptyList(), pillWidth, pillWidth, density)
+        assertNotNull(pills.radar)
+        assertNull(pills.simLoop)
+    }
+
+    @Test
+    fun `sim loop not offered - radar alone, same slot sim loop used to get`() {
+        val points = curve(400f, 400f, 400f, 400f, 400f)
+        val pills = SimLoopPill.placeRadarAndSimLoop(plot, points, emptyList(), emptyList(), pillWidth, null, density)
+        assertNull(pills.simLoop)
+        assertEquals(place(points), pills.radar!!.box)
+    }
 }

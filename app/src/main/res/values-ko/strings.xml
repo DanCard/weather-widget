@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">아직 기록된 API 호출이 없습니다.</string>
     <string name="usage_stats_loading">불러오는 중…</string>
     <string name="sim_loop_button">🌧 예보 루프</string>
+    <string name="radar_button">📡 레이더</string>
+    <string name="radar_attribution">레이더: %1$s · 관측, 최근 2시간</string>
+    <string name="radar_frame_time">%1$s · %2$d분 전</string>
+    <string name="radar_no_echoes">현재 주변 레이더에 비가 없습니다.</string>
+    <string name="radar_latest">최신</string>
     <string name="sim_loop_no_location">위치가 설정되지 않았습니다. 먼저 앱에서 선택하세요.</string>
     <string name="sim_loop_error_gone">%1$s에서 더 이상 강수 루프를 제공하지 않습니다(HTTP %2$d). 삭제되었을 수 있습니다.</string>
     <string name="sim_loop_error_rate_limited">%1$s에서 요청을 거부했습니다: 요청이 너무 많습니다(HTTP 429). 나중에 다시 시도하세요.</string>

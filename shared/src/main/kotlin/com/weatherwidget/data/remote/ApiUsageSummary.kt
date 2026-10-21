@@ -95,7 +95,8 @@ object ApiUsageSummary {
             .sortedWith(compareBy<EndpointUsage> { it.endpoint.isEmpty() }.thenByDescending { it.counts.last90Days }.thenBy { it.endpoint })
         return SourceUsage(
             sourceId = source,
-            displayName = WeatherSource.entries.firstOrNull { it.id == source }?.displayName ?: source,
+            displayName = WeatherSource.entries.firstOrNull { it.id == source }?.displayName
+                ?: ApiUsageClassifier.NON_SOURCE_NAMES[source] ?: source,
             counts = endpoints.fold(UsageCounts()) { acc, e -> acc + e.counts },
             errors = inWindow.sumOf { it.errorCount },
             quotaRefused = inWindow.sumOf { it.quotaRefusedCount },

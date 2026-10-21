@@ -42,6 +42,7 @@ object WidgetRequestCodes {
     private const val BASE_WEATHER_STATIONS = 5700
     private const val BASE_ERROR_PILL = 5750
     private const val BASE_MONTHS_VIEW = 5800
+    private const val BASE_RADAR = 5850
 
     fun navLeft(id: Int) = id * 10000 + BASE_NAV_LEFT
     fun navRight(id: Int) = id * 10000 + BASE_NAV_RIGHT
@@ -103,4 +104,7 @@ object WidgetRequestCodes {
 
     /** The precipitation graph's "Sim loop" button opening RainForecastActivity. */
     fun simLoop(id: Int) = id * 10000 + BASE_SIM_LOOP
+
+    /** The precipitation graph's "Radar" button opening RadarActivity. */
+    fun radar(id: Int) = id * 10000 + BASE_RADAR
 }

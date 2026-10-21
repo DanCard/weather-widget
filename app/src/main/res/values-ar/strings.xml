@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">لا توجد استدعاءات API مسجلة بعد.</string>
     <string name="usage_stats_loading">جارٍ التحميل…</string>
     <string name="sim_loop_button">🌧 حلقة المحاكاة</string>
+    <string name="radar_button">📡 رادار</string>
+    <string name="radar_attribution">الرادار: %1$s · مرصود، آخر ساعتين</string>
+    <string name="radar_frame_time">%1$s · قبل %2$d دقيقة</string>
+    <string name="radar_no_echoes">لا أمطار على الرادار بالقرب منك الآن.</string>
+    <string name="radar_latest">الأحدث</string>
     <string name="sim_loop_no_location">لم يتم تحديد موقع — اختر موقعًا في التطبيق أولاً.</string>
     <string name="sim_loop_error_gone">لم يعد %1$s يقدّم حلقة الأمطار (HTTP %2$d). ربما أُزيلت.</string>
     <string name="sim_loop_error_rate_limited">رفض %1$s الطلب: طلبات كثيرة جدًا (HTTP 429). حاول لاحقًا.</string>

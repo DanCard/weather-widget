@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">Nessuna chiamata API registrata finora.</string>
     <string name="usage_stats_loading">Caricamento…</string>
     <string name="sim_loop_button">🌧 Loop sim.</string>
+    <string name="radar_button">📡 Radar</string>
+    <string name="radar_attribution">Radar: %1$s · osservato, ultime 2 ore</string>
+    <string name="radar_frame_time">%1$s · %2$d min fa</string>
+    <string name="radar_no_echoes">Nessuna pioggia sul radar nelle vicinanze al momento.</string>
+    <string name="radar_latest">Ultimo</string>
     <string name="sim_loop_no_location">Nessuna posizione impostata: scegline una nell\'app.</string>
     <string name="sim_loop_error_gone">%1$s non fornisce più l\'animazione della pioggia (HTTP %2$d). Potrebbe essere stata rimossa.</string>
     <string name="sim_loop_error_rate_limited">%1$s ha rifiutato la richiesta: troppe richieste (HTTP 429). Riprova più tardi.</string>

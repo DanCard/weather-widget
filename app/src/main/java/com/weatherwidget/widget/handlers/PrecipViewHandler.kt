@@ -350,7 +350,10 @@ object PrecipViewHandler {
                         simLoopLocation.first, simLoopLocation.second,
                     )
                 )
+            // Radar: observed, source-independent — offered wherever the graph has a location.
+            val radarOffered = SimLoopTouchTarget.supported() && simLoopLocation != null
             var simLoopPill: android.graphics.RectF? = null
+            var radarPill: android.graphics.RectF? = null
             var simLoopPlotBottom = 0f
             val bitmap = PrecipitationGraphRenderer.renderGraph(
                 context = context,
@@ -372,8 +375,10 @@ object PrecipViewHandler {
                 errorFailureTimeMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).failureTimeMs,
                 errorBannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
                 simLoopLabel = context.getString(R.string.sim_loop_button).takeIf { simLoopOffered },
-                onSimLoopPlaced = { pill, plotBottom ->
-                    simLoopPill = pill
+                radarLabel = context.getString(R.string.radar_button).takeIf { radarOffered },
+                onPillsPlaced = { radar, simLoop, plotBottom ->
+                    radarPill = radar
+                    simLoopPill = simLoop
                     simLoopPlotBottom = plotBottom
                 },
                 nowcastSlots = nowcastBandSlots(context, lat, lon, displaySource),
@@ -404,6 +409,21 @@ object PrecipViewHandler {
                 sourceId = displaySource.id,
             )
 
+            val radarZone = SimLoopTouchTarget.apply(
+                context = context,
+                views = views,
+                appWidgetId = appWidgetId,
+                pillPx = radarPill,
+                plotBottomPx = simLoopPlotBottom,
+                bitmapWidthPx = bitmapDims.widthPx,
+                bitmapHeightPx = bitmapDims.heightPx,
+                widgetWidthDp = dimensions.widthDp,
+                widgetHeightDp = dimensions.heightDp,
+                location = simLoopLocation,
+                target = com.weatherwidget.ui.RadarActivity::class.java,
+                zoneId = R.id.radar_touch_zone,
+                requestCode = WidgetRequestCodes.radar(appWidgetId),
+            )
             val simLoopZone = SimLoopTouchTarget.apply(
                 context = context,
                 views = views,
@@ -416,6 +436,12 @@ object PrecipViewHandler {
                 widgetHeightDp = dimensions.heightDp,
                 location = simLoopLocation,
                 target = if (simLoopIsOpenMeteo) com.weatherwidget.ui.OpenMeteoRainLoopActivity::class.java else com.weatherwidget.ui.RainForecastActivity::class.java,
+                avoidDp = radarZone,
+            )
+            appLogDao.log(
+                "PrecipGraph",
+                "RADAR_PILL zoneDp=${radarZone?.let { "${it.left.toInt()},${it.top.toInt()},${it.right.toInt()},${it.bottom.toInt()}" }} " +
+                    "reason=${when { !SimLoopTouchTarget.supported() -> "api<31"; !radarOffered -> "no_location"; radarPill == null -> "no_space"; else -> "placed" }}",
             )
             appLogDao.log(
                 "PrecipGraph",
@@ -424,6 +450,7 @@ object PrecipViewHandler {
             )
         } else {
             views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
+            views.setViewVisibility(R.id.radar_touch_zone, View.GONE)
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)

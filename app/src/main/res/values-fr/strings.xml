@@ -441,6 +441,11 @@
     <string name="usage_stats_empty">Aucun appel d\'API enregistré pour l\'instant.</string>
     <string name="usage_stats_loading">Chargement…</string>
     <string name="sim_loop_button">🌧 Boucle sim.</string>
+    <string name="radar_button">📡 Radar</string>
+    <string name="radar_attribution">Radar : %1$s · observé, 2 dernières h</string>
+    <string name="radar_frame_time">%1$s · il y a %2$d min</string>
+    <string name="radar_no_echoes">Pas de pluie sur le radar à proximité pour l\'instant.</string>
+    <string name="radar_latest">Dernière</string>
     <string name="sim_loop_no_location">Aucun lieu défini — choisissez-en un dans l\'app.</string>
     <string name="sim_loop_error_gone">%1$s ne fournit plus la boucle de pluie (HTTP %2$d). Elle a peut-être été retirée.</string>
     <string name="sim_loop_error_rate_limited">%1$s a refusé la requête : trop de requêtes (HTTP 429). Réessayez plus tard.</string>

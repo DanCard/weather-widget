@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">Вызовов API пока нет.</string>
     <string name="usage_stats_loading">Загрузка…</string>
     <string name="sim_loop_button">🌧 Анимация</string>
+    <string name="radar_button">📡 Радар</string>
+    <string name="radar_attribution">Радар: %1$s · наблюдения, последние 2 ч</string>
+    <string name="radar_frame_time">%1$s · %2$d мин назад</string>
+    <string name="radar_no_echoes">Сейчас на радаре поблизости нет осадков.</string>
+    <string name="radar_latest">Последний</string>
     <string name="sim_loop_no_location">Местоположение не задано — сначала выберите его в приложении.</string>
     <string name="sim_loop_error_gone">%1$s больше не предоставляет анимацию осадков (HTTP %2$d). Возможно, её удалили.</string>
     <string name="sim_loop_error_rate_limited">%1$s отклонил запрос: слишком много запросов (HTTP 429). Повторите позже.</string>

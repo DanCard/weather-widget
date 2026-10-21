@@ -260,7 +260,7 @@ private fun RainMapCanvas(grid: RainGrid, layer: RainLayer, pos: Double, place: 
     val lines = remember(grid) { BaseMap.linesFor(grid) }
     val size = RainGridRaster.DEFAULT_SIZE_PX
     val pixels = remember { IntArray(size * size) }
-    val image = rasterImage(RainGridRaster.render(grid, layer, pos, size, size, pixels), size)
+    val image = argbImageBitmap(RainGridRaster.render(grid, layer, pos, size, size, pixels), size, size)
     val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
     // Compose does not clip a Canvas to its bounds: without this, coastlines ran past the map square.
     Canvas(modifier.clipToBounds()) {
@@ -295,8 +295,8 @@ private fun RainMapCanvas(grid: RainGrid, layer: RainLayer, pos: Double, place: 
     }
 }
 
-/** ARGB ints → a Skia image (BGRA bytes on little-endian N32). */
-private fun rasterImage(argb: IntArray, side: Int): ImageBitmap {
+/** ARGB ints → a Skia image (BGRA bytes on little-endian N32). Also the radar window's frames. */
+internal fun argbImageBitmap(argb: IntArray, width: Int, height: Int): ImageBitmap {
     val bytes = ByteArray(argb.size * 4)
     for (i in argb.indices) {
         val p = argb[i]
@@ -305,6 +305,6 @@ private fun rasterImage(argb: IntArray, side: Int): ImageBitmap {
         bytes[i * 4 + 2] = (p ushr 16 and 0xFF).toByte()
         bytes[i * 4 + 3] = (p ushr 24 and 0xFF).toByte()
     }
-    return Image.makeRaster(ImageInfo(side, side, ColorType.BGRA_8888, ColorAlphaType.UNPREMUL), bytes, side * 4)
+    return Image.makeRaster(ImageInfo(width, height, ColorType.BGRA_8888, ColorAlphaType.UNPREMUL), bytes, width * 4)
         .toComposeImageBitmap()
 }

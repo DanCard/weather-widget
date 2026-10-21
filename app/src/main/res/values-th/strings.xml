@@ -456,6 +456,11 @@
     <string name="usage_stats_empty">ยังไม่มีการเรียก API ที่บันทึกไว้</string>
     <string name="usage_stats_loading">กำลังโหลด…</string>
     <string name="sim_loop_button">🌧 ลูปจำลอง</string>
+    <string name="radar_button">📡 เรดาร์</string>
+    <string name="radar_attribution">เรดาร์: %1$s · ข้อมูลตรวจวัด 2 ชม. ล่าสุด</string>
+    <string name="radar_frame_time">%1$s · %2$d นาทีที่แล้ว</string>
+    <string name="radar_no_echoes">ขณะนี้ไม่มีฝนบนเรดาร์ใกล้เคียง</string>
+    <string name="radar_latest">ล่าสุด</string>
     <string name="sim_loop_no_location">ยังไม่ได้ตั้งตำแหน่ง — เลือกในแอปก่อน</string>
     <string name="sim_loop_error_gone">%1$s ไม่ให้บริการภาพเคลื่อนไหวฝนอีกต่อไป (HTTP %2$d) อาจถูกนำออกแล้ว</string>
     <string name="sim_loop_error_rate_limited">%1$s ปฏิเสธคำขอ: คำขอมากเกินไป (HTTP 429) โปรดลองอีกครั้งภายหลัง</string>

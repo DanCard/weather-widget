@@ -196,6 +196,8 @@ HeaderRemoteViewsBinder.applyDisclosure(
 
         views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
 
+        views.setViewVisibility(R.id.radar_touch_zone, View.GONE)
+
         // 5. Graph
         if (state.graph.useGraph && state.graph.bitmap != null) {
             views.setViewVisibility(R.id.text_container, View.GONE)

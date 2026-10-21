@@ -70,6 +70,7 @@ internal fun WidgetPopup(
     onOpenObservations: (java.time.LocalDate) -> Unit,
     onOpenHistory: (viewedDate: LocalDate) -> Unit = {},
     onOpenSimLoop: () -> Unit = {},
+    onOpenRadar: () -> Unit = {},
     onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
     onNeedHistory: (Int) -> Unit = {},
     onNeedHourlyRefresh: (date: LocalDate, onComplete: (List<HourlyForecast>) -> Unit) -> Unit = { _, _ -> },
@@ -323,6 +324,7 @@ internal fun WidgetPopup(
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,
                                     onOpenSimLoop = onOpenSimLoop,
+                                    onOpenRadar = onOpenRadar,
                                     nowcastSlots = remember(snapshot.raw, config.displaySource, config.lat, config.lon) {
                                         val nowMs = System.currentTimeMillis()
                                         com.weatherwidget.shared.nowcast.NowcastDisplay.bandSlots(DesktopNowcastView.series(config, nowMs = nowMs), nowMs)
