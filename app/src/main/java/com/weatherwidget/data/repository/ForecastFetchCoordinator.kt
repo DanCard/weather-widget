@@ -19,6 +19,7 @@ import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WidgetConstants
+import com.weatherwidget.shared.util.DailyHourlyConsistency
 import com.weatherwidget.shared.util.DailyHourlySummaries
 import com.weatherwidget.shared.util.DailyPrecipPeriods
 import com.weatherwidget.data.local.hourlySummary
@@ -569,6 +570,17 @@ internal class ForecastFetchCoordinator(
         }
     }
 
+    /** `DAILY_HOURLY_MISMATCH` ([DailyHourlyConsistency]): this fetch's daily extremes vs its own hourly. */
+    private suspend fun logDailyHourlyMismatches(forecasts: List<ForecastEntity>, payload: List<HourlyForecast>, sourceId: String) {
+        val days = forecasts.map {
+            DailyHourlyConsistency.Day(LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY), it.highTemp, it.lowTemp)
+        }
+        val mismatches = DailyHourlyConsistency.check(days, payload, LocalDate.now())
+        if (mismatches.isNotEmpty()) {
+            appLogDao.log(DailyHourlyConsistency.LOG_TAG, DailyHourlyConsistency.logMessage(sourceId, mismatches), "WARN")
+        }
+    }
+
     /** [forecasts] with each day's summary from this fetch's whole hourly [payload], before any trim. */
     private suspend fun withPayloadSummaries(
         forecasts: List<ForecastEntity>,
@@ -578,6 +590,7 @@ internal class ForecastFetchCoordinator(
         sourceId: String,
     ): List<ForecastEntity> {
         if (forecasts.isEmpty() || payload.isEmpty()) return forecasts
+        logDailyHourlyMismatches(forecasts, payload, sourceId)
         val summarized = forecasts.map { entity ->
             val date = LocalDate.ofEpochDay(entity.targetDate / WidgetConstants.MS_IN_A_DAY)
             entity.withHourlySummary(DailyHourlySummaries.forDate(payload, date, sourceId))

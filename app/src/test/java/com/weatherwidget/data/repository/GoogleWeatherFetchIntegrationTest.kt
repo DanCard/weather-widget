@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.shared.util.DailyHourlyConsistency
 import com.weatherwidget.shared.util.ForecastTempRounding
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.GoogleWeatherFixtures
@@ -161,6 +162,30 @@ class GoogleWeatherFetchIntegrationTest {
         // 72 forecast hours always hold at least two whole mornings.
         assertTrue("expected ≥ 2 covered mornings, checked $checked", checked >= 2)
         assertTrue("expected days past the hourly reach", lows.size > checked)
+    }
+
+    /** A daily high its own hourly never reaches is logged as DAILY_HOURLY_MISMATCH (WARN), per fetch. */
+    @Test
+    fun `a daily high far from the fetch's own hourly is logged as a mismatch`() = runTest {
+        daysTransform = { days -> days.replace(Regex("""("maxTemperature":\{[^}]*"degrees":)[0-9.]+""")) { it.groupValues[1] + "120" } }
+        repository().getWeatherData(lat, lon, forceRefresh = true)
+
+        val logs = db.openHelper.readableDatabase
+            .query("SELECT level, message FROM app_logs WHERE tag = ?", arrayOf<Any>(DailyHourlyConsistency.LOG_TAG))
+            .use { c -> buildList { while (c.moveToNext()) add(c.getString(0) to c.getString(1)) } }
+        assertEquals("one line per fetch", 1, logs.size)
+        val (level, message) = logs.single()
+        assertEquals("WARN", level)
+        assertTrue(message, message.startsWith("source=$source "))
+        // Every fully covered day after today: 72 forecast hours hold at least two.
+        assertTrue(message, Regex(""":high daily=120\.0 hourly=""").findAll(message).count() >= 2)
+        assertTrue("lows come from the hourly morning, so none mismatch: $message", ":low " !in message)
+    }
+
+    @Test
+    fun `a fetch whose daily agrees with its hourly logs no mismatch`() = runTest {
+        repository().getWeatherData(lat, lon, forceRefresh = true)
+        assertEquals(0L, count("SELECT COUNT(*) FROM app_logs WHERE tag = ?", DailyHourlyConsistency.LOG_TAG))
     }
 
     @Test

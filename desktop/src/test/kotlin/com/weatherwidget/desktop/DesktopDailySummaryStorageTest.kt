@@ -6,6 +6,7 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.DailyHourlyConsistency
 import com.weatherwidget.shared.util.DailyHourlySummaries
 import com.weatherwidget.shared.util.DailyNoonCloudCover
 import com.weatherwidget.shared.util.DailyRainLabels
@@ -107,6 +108,35 @@ class DesktopDailySummaryStorageTest {
             assertEquals("no provider period: stored chance is the hourly max", row.hourlyDayPrecipMax, row.daytimePrecipProbability)
             assertEquals(row.hourlyNightPrecipMax, row.nighttimePrecipProbability)
         }
+    }
+
+    /**
+     * DAILY_HOURLY_MISMATCH, desktop side ([DailyHourlyConsistency], same check as Android): this
+     * fixture's daily 70/50 never meets its flat 60° hourly, so every fully covered day after today
+     * is logged, high and low, in one WARN line per fetch.
+     */
+    @Test
+    fun `a fetch whose daily disagrees with its own hourly logs one mismatch line`() = runTest {
+        refreshWith(download(seed = 5))
+
+        val logs = dao.getRecentLogs(500).filter { it.tag == DailyHourlyConsistency.LOG_TAG }
+        assertEquals("one line per fetch", 1, logs.size)
+        val log = logs.single()
+        assertEquals("WARN", log.level)
+        assertTrue(log.message, log.message.startsWith("source=$om "))
+        val tomorrow = today.plusDays(1)
+        assertTrue(log.message, "$tomorrow:high daily=70.0 hourly=60.0" in log.message)
+        assertTrue(log.message, "$tomorrow:low daily=50.0 hourly=60.0 day=60.0" in log.message)
+        assertTrue("today is never checked: ${log.message}", "$today:" !in log.message)
+    }
+
+    @Test
+    fun `a fetch whose daily agrees with its hourly logs no mismatch`() = runTest {
+        val agreeing = days.map { DailyForecast(it.toString(), 60f, 60f, "Cloudy", precipProbability = 20) }
+        coEvery { service.fetchForecast(false) } returns RawFetch(daily = agreeing, hourly = download(seed = 5))
+        repo().refresh(now = now, reason = "test", horizon = com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon.LONG)
+
+        assertTrue(dao.getRecentLogs(500).none { it.tag == DailyHourlyConsistency.LOG_TAG })
     }
 
     @Test

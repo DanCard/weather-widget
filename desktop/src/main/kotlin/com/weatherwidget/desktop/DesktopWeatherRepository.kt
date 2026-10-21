@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.shared.observations.CurrentConditionsRun
 import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.shared.util.DailyPrecipPeriods
+import com.weatherwidget.shared.util.DailyHourlyConsistency
 import com.weatherwidget.shared.util.DailyHourlySummaries
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.*
@@ -923,6 +924,14 @@ class DesktopWeatherRepository(
     private fun withHourlySummaries(daily: List<DailyForecast>, payload: List<HourlyForecast>): List<DailyForecast> {
         val dated = daily.mapNotNull { day -> runCatching { java.time.LocalDate.parse(day.date) }.getOrNull()?.let { day to it } }
         if (dated.isEmpty()) return daily
+        // `DAILY_HOURLY_MISMATCH`: this fetch's daily extremes vs its own hourly (same check as Android).
+        DailyHourlyConsistency.check(
+            dated.map { (day, date) -> DailyHourlyConsistency.Day(date, day.highTemp, day.lowTemp) },
+            payload,
+            java.time.LocalDate.now(),
+        ).takeIf { it.isNotEmpty() }?.let {
+            weatherDao.log(DailyHourlyConsistency.LOG_TAG, DailyHourlyConsistency.logMessage(displaySource.id, it), "WARN")
+        }
         val stored = DailyPrecipPeriods.atSite(
             weatherDao.getHourlyForecasts(
                 LocationMatch.quantize(latitude),
