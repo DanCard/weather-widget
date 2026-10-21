@@ -16,6 +16,14 @@
   `performance/` is a sibling of `plans/`, not a subdirectory. It exists because `plans/` has grown
   past 650 files and a performance investigation is the kind that accumulates related-but-separate
   entries over months; interleaved with everything else, that thread is unfollowable.
+- **Android ↔ desktop logic is written once, in `:shared`, as a runner with a platform Host**
+  (user, 2026-10-21, after repeated parity bugs). The shared code owns the whole rule — windows, source
+  scope, which rows, gates, log tags and levels; each platform only implements the Host's reads and
+  writes (`DailyHistoryRun`, `CurrentConditionsRun`, `GoogleHistoryRun`, `QuotaState`,
+  `ForecastHorizonMarkers`, `ElapsedForecastBackfill.Store`). A shared *planner* fed by per-platform
+  glue is not enough — the glue drifted (`plans/261021-android-desktop-shared-code-audit.md`).
+  `:desktop` `CrossPlatformDuplicateNamesTest` fails on a function declared in both `app` and
+  `desktop` but not `:shared`; fix it by moving the logic, not by growing the allowlist.
 - **Debugging workflow**: When investigating widget bugs, proactively pull device logs (`adb logcat`), grab the database from the device (`adb pull`), query the DB, and capture screenshots — don't just read source code.
 - **Screenshots**: `adb` can prepend warning text to PNG output, making the file unreadable. Always convert to JPG before reading:
   ```bash
@@ -380,6 +388,10 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 | `climate_normals` | current location only |
 
 - `hourly_forecast_history` is also pruned daily to the snapshots something reads (below).
+- `daily_history` upkeep (`:shared` `DailyHistoryRun`): after every fetch only the rain-chance freeze
+  and yesterday's forecast-only rows (`afterFetch`); the month-wide passes — forecast-only rows, the
+  one-time backfills, settle + "yesterday's forecast" — once per 24 h **on a charger** (`upkeepIfDue`,
+  logs `DAILY_HISTORY_UPKEEP`; user, 2026-10-21). Both platforms, every source at the site.
 - Widget navigation allows browsing up to 30 days of history.
 
 ## Database Schema

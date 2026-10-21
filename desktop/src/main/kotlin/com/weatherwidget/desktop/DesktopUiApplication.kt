@@ -51,8 +51,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
-import com.weatherwidget.data.local.desktop.ProductQuotaLog
-import com.weatherwidget.data.local.desktop.RateLimitLog
+import com.weatherwidget.data.local.desktop.DesktopQuotaState
 import com.weatherwidget.data.remote.RateLimitNotice
 import com.weatherwidget.data.remote.QuotaNotice
 import com.weatherwidget.data.remote.FetchErrorCode
@@ -659,12 +658,10 @@ internal fun runDesktopUiApplication() = application {
             // rule the widget uses): hourly graphs the hourly forecast, the daily view the daily one.
             fun productQuotaBanner(src: String): Pair<Long, String>? {
                 val product = QuotaNotice.productOf(activeConfig.viewMode)
-                val (loggedAt, msg) = weatherDao.getLatestProductQuota(src, product)
-                    ?.takeIf { (loggedAt, msg) ->
-                        loggedAt > dismissedErrorTimestamp &&
-                            ProductQuotaLog.parseUntilMs(msg) > System.currentTimeMillis()
-                    } ?: return null
-                val notice = QuotaNotice.forProductBlock(product, ProductQuotaLog.parseUntilMs(msg), ProductQuotaLog.parseDetail(msg))
+                val quota = DesktopQuotaState(weatherDao).productQuota(src, product, System.currentTimeMillis())
+                    ?.takeIf { it.sinceMs > dismissedErrorTimestamp } ?: return null
+                val loggedAt = quota.sinceMs
+                val notice = QuotaNotice.forProductBlock(product, quota.untilMs, quota.detail)
                 val presentation = desktopQuotaPresentation(WeatherSource.fromId(src).displayName, notice)
                 return loggedAt to (listOf(presentation.title) + presentation.bodyLines + listOf("", presentation.retryLine))
                     .joinToString("\n")
@@ -767,8 +764,8 @@ internal fun runDesktopUiApplication() = application {
                     // (user, 2026-10-07).
                     val productQuota = productQuotaBanner(src)
                     // Else hourly pages a per-minute limit cut short, on every view for a minute.
-                    val partialRateLimit = if (productQuota != null) null else weatherDao.getLatestRateLimit(src)
-                        ?.takeIf { (loggedAt, _) -> loggedAt > dismissedErrorTimestamp && RateLimitNotice.isShowing(loggedAt, statusNow) }
+                    val partialRateLimit = if (productQuota != null) null else DesktopQuotaState(weatherDao).partialRateLimit(src, statusNow)
+                        ?.takeIf { it.atMs > dismissedErrorTimestamp }
                     val displayName = WeatherSource.fromId(src).displayName
                     when {
                         productQuota != null -> {
@@ -781,8 +778,8 @@ internal fun runDesktopUiApplication() = application {
                             currentTempFetchTimestamp = productQuota.first
                         }
                         partialRateLimit != null -> {
-                            val (loggedAt, msg) = partialRateLimit
-                            val presentation = desktopPartialRateLimitPresentation(displayName, RateLimitLog.parseDetail(msg))
+                            val loggedAt = partialRateLimit.atMs
+                            val presentation = desktopPartialRateLimitPresentation(displayName, partialRateLimit.detail.orEmpty())
                             currentTempFetchError = (listOf(presentation.title) + presentation.bodyLines + listOf("", presentation.retryLine))
                                 .joinToString("\n")
                             currentTempFetchPill = DesktopFailurePill(

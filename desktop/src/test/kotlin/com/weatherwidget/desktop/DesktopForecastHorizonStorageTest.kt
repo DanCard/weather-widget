@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import kotlinx.coroutines.runBlocking
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.DailyForecast
@@ -146,7 +147,7 @@ class DesktopForecastHorizonStorageTest {
 
     @Test
     fun `markers are per source and per site`() {
-        markers().mark(Horizon.LONG)
+        runBlocking { markers().mark(Horizon.LONG) }
         assertNotNull(markers().lastLongFetch())
         assertNull(markers(source = WeatherSource.NWS.id).lastLongFetch())
         assertNull(markers(la = 50.45, lo = 30.52).lastLongFetch())

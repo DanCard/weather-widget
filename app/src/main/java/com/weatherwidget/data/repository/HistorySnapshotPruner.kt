@@ -77,14 +77,6 @@ internal class HistorySnapshotPruner(
 
     companion object {
         private const val DELETE_CHUNK = 500
-        const val MIN_INTERVAL_MS = 24L * 3_600_000L
-
-        /**
-         * Once a day at most (retention runs after every fetch), and never before the one-shot repairs
-         * that read *every* snapshot have run — they would lose their input.
-         */
-        fun shouldPrune(nowMs: Long, lastPruneMs: Long, repairsDone: Boolean): Boolean =
-            repairsDone && nowMs - lastPruneMs >= MIN_INTERVAL_MS
     }
 }
 

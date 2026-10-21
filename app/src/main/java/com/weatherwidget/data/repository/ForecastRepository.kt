@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.local.HistoryPruneSchedule
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import android.content.Context
 import androidx.annotation.VisibleForTesting
@@ -180,16 +181,15 @@ class ForecastRepository
             val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs")
             val repairsDone = HISTORY_PRUNE_PREREQUISITE_FLAGS.all { prefs.getBoolean(it, false) }
             val now = System.currentTimeMillis()
-            val lastMs = prefs.getLong(KEY_HISTORY_PRUNE_LAST_MS, 0L)
-            // Due check first, so a pending repair is logged once a day, not after every fetch.
-            if (!HistorySnapshotPruner.shouldPrune(now, lastMs, repairsDone = true)) return
+            val decision = HistoryPruneSchedule.decide(now, prefs.getLong(KEY_HISTORY_PRUNE_LAST_MS, 0L), repairsDone)
+            if (decision == HistoryPruneSchedule.Decision.NOT_DUE) return
             prefs.edit().putLong(KEY_HISTORY_PRUNE_LAST_MS, now).apply()
-            if (!repairsDone) {
-                appLogDao.log("HISTORY_PRUNE", "skipped=repairs_pending", "INFO")
+            if (decision == HistoryPruneSchedule.Decision.PREREQUISITES_PENDING) {
+                appLogDao.log(HistoryPruneSchedule.LOG_TAG, HistoryPruneSchedule.SKIPPED_PREREQUISITES, "INFO")
                 return
             }
             HistoryPruneWorker.enqueue(context)
-            appLogDao.log("HISTORY_PRUNE", "enqueued=true", "INFO")
+            appLogDao.log(HistoryPruneSchedule.LOG_TAG, "enqueued=true", "INFO")
         }
         private val climateNormalsRepository = ClimateNormalsRepository(
             climateNormalDao = climateNormalDao,
@@ -400,6 +400,12 @@ class ForecastRepository
                 }
             }
         }
+
+        internal suspend fun dailyHistoryAfterFetch(latitude: Double, longitude: Double) =
+            dailyHistorySnapshotter.afterFetch(latitude, longitude)
+
+        internal suspend fun dailyHistoryUpkeepIfDue(latitude: Double, longitude: Double, isCharging: Boolean) =
+            dailyHistorySnapshotter.upkeepIfDue(latitude, longitude, isCharging)
 
         internal suspend fun snapshotDisplayedRainChance(
             latitude: Double,

@@ -1438,6 +1438,43 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
+    /** Live hourly rows at the site in [startMs]..[endMs], every source (Android `HourlyForecastDao.getHourlyForecasts`). */
+    fun getHourlyForecastsAllSources(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long): List<HourlyForecast> {
+        val result = mutableListOf<HourlyForecast>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT * FROM hourly_forecasts
+                WHERE ${LocationMatch.JDBC_WHERE} AND dateTime >= ? AND dateTime <= ?
+                ORDER BY dateTime ASC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setLong(3, startMs)
+                stmt.setLong(4, endMs)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(HourlyForecast(
+                        dateTime = rs.getLong("dateTime"),
+                        temperature = rs.getFloat("temperature"),
+                        condition = rs.getString("condition"),
+                        precipProbability = rs.getNullableInt("precipProbability"),
+                        cloudCover = rs.getNullableInt("cloudCover"),
+                        cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
+                        cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
+                        cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        source = rs.getString("source"),
+                        fetchedAt = rs.getLong("fetchedAt"),
+                        locationLat = rs.getDouble("locationLat"),
+                        locationLon = rs.getDouble("locationLon"),
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
     fun getHourlyHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, nowMs: Long = System.currentTimeMillis()): List<HourlyForecast> {
         val result = mutableListOf<HourlyForecast>()
         db.getConnection().use { conn ->
@@ -2016,6 +2053,75 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
         return result
+    }
+
+    /**
+     * Every stored `forecasts` row at the site in [startEpoch]..[endEpoch] (UTC-midnight
+     * `targetDate`), all sources, every fetch — Android's `ForecastDao.getAllForecastsInRange`.
+     */
+    fun getForecastFetchesInRange(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double): List<DesktopForecastRow> {
+        val result = mutableListOf<DesktopForecastRow>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT targetDate, dateOfPrediction, source, highTemp, lowTemp, fetchedAt, batchFetchedAt,
+                    locationLat, locationLon, condition, precipAmountMm, isClimateNormal,
+                    precipProbability, daytimePrecipProbability, nighttimePrecipProbability FROM forecasts
+                WHERE ${LocationMatch.JDBC_WHERE} AND targetDate >= ? AND targetDate <= ?
+                ORDER BY targetDate ASC, batchFetchedAt DESC, fetchedAt DESC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setLong(3, startEpoch)
+                stmt.setLong(4, endEpoch)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(DesktopForecastRow(
+                        targetDate = rs.getLong("targetDate"),
+                        dateOfPrediction = rs.getLong("dateOfPrediction"),
+                        source = rs.getString("source"),
+                        highTemp = rs.getNullableFloat("highTemp").orNullIfImplausibleTempF(),
+                        lowTemp = rs.getNullableFloat("lowTemp").orNullIfImplausibleTempF(),
+                        fetchedAt = rs.getLong("fetchedAt"),
+                        condition = rs.getString("condition"),
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        isClimateNormal = rs.getInt("isClimateNormal") == 1,
+                        locationLat = rs.getDouble("locationLat"),
+                        locationLon = rs.getDouble("locationLon"),
+                        batchFetchedAt = rs.getLong("batchFetchedAt"),
+                        precipProbability = rs.getNullableInt("precipProbability"),
+                        daytimePrecipProbability = rs.getNullableInt("daytimePrecipProbability"),
+                        nighttimePrecipProbability = rs.getNullableInt("nighttimePrecipProbability"),
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
+    /** Field-limited: only the forecast overlay and `lastWriter` of an existing row (Room `DailyHistoryDao.updateForecastOverlay`). */
+    fun updateForecastOverlay(row: DailyHistory) = updateDailyHistoryPair(row, "forecastHighTemp", "forecastLowTemp", row.forecastHighTemp, row.forecastLowTemp)
+
+    /** Field-limited: only "yesterday's forecast" and `lastWriter` of an existing row (Room `DailyHistoryDao.updatePriorForecast`). */
+    fun updatePriorForecast(row: DailyHistory) = updateDailyHistoryPair(row, "priorForecastHighTemp", "priorForecastLowTemp", row.priorForecastHighTemp, row.priorForecastLowTemp)
+
+    private fun updateDailyHistoryPair(row: DailyHistory, highColumn: String, lowColumn: String, high: Float?, low: Float?) {
+        db.getConnection().use { conn ->
+            val sql = """
+                UPDATE daily_history SET $highColumn = ?, $lowColumn = ?, lastWriter = ?
+                WHERE date = ? AND source = ? AND locationLat = ? AND locationLon = ?
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setNullableFloat(1, high)
+                stmt.setNullableFloat(2, low)
+                stmt.setString(3, row.lastWriter)
+                stmt.setLong(4, row.date)
+                stmt.setString(5, row.source)
+                stmt.setDouble(6, row.locationLat)
+                stmt.setDouble(7, row.locationLon)
+                stmt.executeUpdate()
+            }
+        }
     }
 
     /**

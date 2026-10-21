@@ -509,16 +509,10 @@ object PrecipViewHandler {
         // Narrow widgets widen the marker cadence to fit the inline footer groups: WIDE 6h vs 4h,
         // and NARROW every other hour once its span is widened past 6h. Wide widgets keep the
         // default at both zooms. Matches the temperature graph.
-        val labelInterval = when {
-            !com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns) ->
-                zoom.labelInterval
-            zoom.stage == com.weatherwidget.widget.ZoomStage.WIDE ->
-                com.weatherwidget.shared.graph.HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
-            zoom.stage == com.weatherwidget.widget.ZoomStage.NARROW ->
-                com.weatherwidget.shared.graph.HourlyZoomRules
-                    .narrowWidgetLabelInterval(zoom.totalSpanHours.toInt())
-            else -> zoom.labelInterval
-        }
+        val labelInterval = com.weatherwidget.shared.graph.HourlyZoomRules.footerLabelInterval(
+            zoom,
+            narrowWidget = com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns),
+        )
         var currentHour = startHour
         var hourIndex = 0
         val zoneId = ZoneId.systemDefault()

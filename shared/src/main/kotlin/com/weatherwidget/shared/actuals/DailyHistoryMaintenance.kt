@@ -23,9 +23,8 @@ import java.time.ZoneId
  * 3. the one-time chance and frozen-display backfills
  *    ([planChanceBackfill], [planFrozenDisplayBackfill]).
  *
- * The *rules* live here so the two platforms agree exactly; each platform keeps its own DAO reads,
- * entity mapping, one-time gate (Android SharedPreferences / desktop `app_logs` marker) and log
- * sinks. This follows [ForecastOnlyHistoryPlanner]'s "pure planner + platform writer" shape.
+ * The *rules* live here; [DailyHistoryRun] owns the rest of each pass (windows, source scope, which
+ * forecast rows, one-time gates, logs) behind a narrow platform Host, so the platforms cannot drift.
  *
  * Before this existed the two implementations had already drifted (a degenerate high==low filter
  * applied on desktop only, missing `lastWriter` stamps on desktop, and Android-only hourly
@@ -59,6 +58,8 @@ object DailyHistoryMaintenance {
         val precipProbability: Int? = null,
         val daytimePrecipProbability: Int? = null,
         val nighttimePrecipProbability: Int? = null,
+        /** The fetch batch this row came from; [DailyHistoryRun] picks each day's newest batch by it. */
+        val batchFetchedAt: Long = fetchedAt,
     )
 
     /** Result of [planSnapshotDisplayedRainChance]: rows to write plus the log lines they imply. */

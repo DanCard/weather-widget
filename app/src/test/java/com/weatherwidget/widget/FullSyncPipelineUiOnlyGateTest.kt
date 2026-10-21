@@ -142,10 +142,8 @@ class FullSyncPipelineUiOnlyGateTest {
         assertFalse("uiOnly must never force a refresh", forceRefresh.captured)
 
         // Stored data must not be rewritten by a repaint.
-        coVerify(exactly = 0) { weatherRepository.ensureForecastOnlyHistoryRows(any(), any()) }
-        coVerify(exactly = 0) { weatherRepository.snapshotDisplayedRainChance(any(), any()) }
-        coVerify(exactly = 0) { weatherRepository.backfillForecastChanceSnapshotsIfNeeded(any(), any()) }
-        coVerify(exactly = 0) { weatherRepository.backfillFrozenDisplayColumnsIfNeeded(any(), any()) }
+        coVerify(exactly = 0) { weatherRepository.dailyHistoryAfterFetch(any(), any()) }
+        coVerify(exactly = 0) { weatherRepository.dailyHistoryUpkeepIfDue(any(), any(), any()) }
         coVerify(exactly = 0) { weatherRepository.repairFrozenRainChanceIfNeeded(any(), any()) }
 
         // GPS resampling piggybacks on full syncs only — it is a location write, not a repaint.
@@ -204,10 +202,8 @@ class FullSyncPipelineUiOnlyGateTest {
         }
         assertTrue("a full sync is allowed on the network", networkAllowed.captured)
 
-        coVerify(exactly = 1) { weatherRepository.ensureForecastOnlyHistoryRows(any(), any()) }
-        coVerify(exactly = 1) { weatherRepository.snapshotDisplayedRainChance(any(), any()) }
-        coVerify(exactly = 1) { weatherRepository.backfillForecastChanceSnapshotsIfNeeded(any(), any()) }
-        coVerify(exactly = 1) { weatherRepository.backfillFrozenDisplayColumnsIfNeeded(any(), any()) }
+        coVerify(exactly = 1) { weatherRepository.dailyHistoryAfterFetch(any(), any()) }
+        coVerify(exactly = 1) { weatherRepository.dailyHistoryUpkeepIfDue(any(), any(), any()) }
         coVerify(exactly = 1) { weatherRepository.repairFrozenRainChanceIfNeeded(any(), any()) }
 
         coVerify(exactly = 1) { gpsResampler.maybeResample(any(), any()) }

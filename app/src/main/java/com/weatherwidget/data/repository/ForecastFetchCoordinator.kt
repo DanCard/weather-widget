@@ -1,11 +1,13 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.shared.util.WeatherSourceOrdering
-import com.weatherwidget.data.remote.GoogleHistoryRefill
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.remote.ForecastHorizonCadence
 import com.weatherwidget.data.remote.HourlyOnDemand
+import com.weatherwidget.data.remote.ForecastHorizonMarkers
+import com.weatherwidget.data.remote.GoogleHistoryRun
+import com.weatherwidget.data.remote.QuotaState
 import com.weatherwidget.data.remote.SourceQuotaBlocks
 import com.weatherwidget.shared.util.SourceCoverage
 import android.content.Context
@@ -15,6 +17,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
@@ -226,8 +229,8 @@ internal class ForecastFetchCoordinator(
             isCharging = fetchContext.isCharging,
             batteryLevel = fetchContext.batteryLevel,
             isScreenOn = fetchContext.isScreenInteractive,
-            lastLongMs = widgetStateManager.getLastLongFetch(source.id, latitude, longitude),
-            lastShortMs = widgetStateManager.getLastShortFetch(source.id, latitude, longitude),
+            lastLongMs = horizonMarkers(source, latitude, longitude).lastLongMs(),
+            lastShortMs = horizonMarkers(source, latitude, longitude).lastShortMs(),
             nowMs = clock(),
             wakeAtMs = fetchContext.wakeAtMs,
         )
@@ -293,13 +296,16 @@ internal class ForecastFetchCoordinator(
         source: WeatherSource,
         latitude: Double,
         longitude: Double,
-    ) {
-        val nowMs = clock()
-        widgetStateManager.markShortFetch(source.id, latitude, longitude, nowMs)
-        if (horizon == ForecastHorizonCadence.Horizon.LONG) {
-            widgetStateManager.markLongFetch(source.id, latitude, longitude, nowMs)
-        }
-        appLogDao.log("FORECAST_HORIZON", "source=${source.id} horizon=${horizon ?: "unjudged"}", "INFO")
+    ) = ForecastHorizonMarkers.mark(horizonMarkers(source, latitude, longitude), source.id, horizon, clock()) { tag, message, level ->
+        appLogDao.log(tag, message, level)
+    }
+
+    /** [source]'s horizon markers at the site, in the widget's prefs. */
+    private fun horizonMarkers(source: WeatherSource, latitude: Double, longitude: Double) = object : ForecastHorizonMarkers {
+        override fun lastLongMs() = widgetStateManager.getLastLongFetch(source.id, latitude, longitude)
+        override fun lastShortMs() = widgetStateManager.getLastShortFetch(source.id, latitude, longitude)
+        override suspend fun markLong(nowMs: Long) = widgetStateManager.markLongFetch(source.id, latitude, longitude, nowMs)
+        override suspend fun markShort(nowMs: Long) = widgetStateManager.markShortFetch(source.id, latitude, longitude, nowMs)
     }
 
     private fun buildFetchRegistry(
@@ -512,33 +518,11 @@ internal class ForecastFetchCoordinator(
         )
     }
 
-    /**
-     * Per-product quota state for the views: a product the provider refused is recorded (the hourly
-     * views or the daily view show it), one that answered is cleared. The fetch itself is a success
-     * for the source — the other product was saved — so no source failure is counted (user,
-     * 2026-10-07: an hours-only 429 put "quota used" on the daily view).
-     */
-    private suspend fun recordProductQuotas(source: WeatherSource, result: RawFetch) {
-        result.partialRateLimitDetail?.let { detail ->
-            // Hours kept up to a per-minute refusal: bannered as incomplete for a minute.
-            widgetStateManager.recordRateLimit(source, partial = true, detail = ApiKeyRedaction.redact(detail))
-            appLogDao.log("FETCH_RATE_LIMITED", "source=${source.id} partial=true", "WARN")
-        }
-        for (product in ForecastProduct.entries) {
-            val refusal = result.quotaRefused[product]
-            if (refusal == null) {
-                widgetStateManager.clearProductQuota(source, product)
-            } else {
-                widgetStateManager.recordProductQuota(
-                    source,
-                    product,
-                    refusal.untilMs,
-                    detail = ApiKeyRedaction.redact(refusal.detail),
-                )
-                appLogDao.log("FETCH_PRODUCT_QUOTA", "source=${source.id} product=$product until=${refusal.untilMs}", "WARN")
-            }
-        }
-    }
+    /** The views' quota banners: the shared [QuotaState.record] rule over the widget's prefs. */
+    private suspend fun recordProductQuotas(source: WeatherSource, result: RawFetch) =
+        QuotaState.record(quotaState, source.id, result, clock())
+
+    private val quotaState by lazy { com.weatherwidget.widget.AndroidQuotaState(widgetStateManager, appLogDao) }
 
     /**
      * The daily view's hourly-derived values for each row ([DailyHourlySummaries], shared with
@@ -654,60 +638,51 @@ internal class ForecastFetchCoordinator(
             )
             return
         }
+        summary ?: return
         appLogDao.log(
-            "HOURLY_HISTORY_BACKFILL",
-            "source=${source.id} site=${LocationMatch.quantize(latitude)},${LocationMatch.quantize(longitude)} " +
-                "offered=${summary.offered} covered=${summary.covered} stored=${summary.stored}",
-            if (summary.stored > 0) "INFO" else "VERBOSE",
+            ElapsedForecastBackfill.LOG_TAG,
+            ElapsedForecastBackfill.logMessage(source.id, latitude, longitude, summary),
+            ElapsedForecastBackfill.logLevel(summary),
         )
     }
 
-    /**
-     * Google's `history/hours` has a small per-project daily quota (Cloud Console setting), so it is
-     * requested for a site with no Google history hours in the last day (`GoogleWeatherApi.needsHistory`)
-     * — read through the same site match the elapsed backfill uses — or, for a previous day refreshed
-     * on the Forecast History screen ([refillDay]), when that day's elapsed hours went stale
-     * ([GoogleHistoryRefill]). Any other fetch leaves stale hours and logs `reason=not_requested`.
-     */
+    /** [GoogleHistoryRun.needsHistory] at this site; without a history DAO, always. */
     private suspend fun googleNeedsHistory(latitude: Double, longitude: Double, refillDay: java.time.LocalDate?): Boolean {
-        val dao = hourlyForecastHistoryDao ?: return true
-        val nowMs = clock()
-        val window = GoogleWeatherApi.historyWindow(nowMs)
-        val keyLat = LocationMatch.quantize(latitude)
-        val keyLon = LocationMatch.quantize(longitude)
-        val covered = dao.getHistoryInRangeForBucketWindow(
-            startDateTime = window.first,
-            endDateTime = window.last + 1,
-            bucketStart = Long.MIN_VALUE,
-            bucketEnd = Long.MAX_VALUE,
-            lat = keyLat,
-            lon = keyLon,
-            source = WeatherSource.GOOGLE_WEATHER.id,
-        ).filter { LocationMatch.sameSite(keyLat, keyLon, it.locationLat, it.locationLon) }
-            .map { it.dateTime }
-        val needsHistory = GoogleWeatherApi.needsHistory(covered, nowMs)
-        val stale = GoogleHistoryRefill.staleHours(googleLiveHours(latitude, longitude, nowMs), nowMs, refillDay)
-        if (refillDay == null && !needsHistory && stale.isNotEmpty()) {
-            appLogDao.log(GoogleHistoryRefill.LOG_TAG, "stale=${stale.size} reason=not_requested", "VERBOSE")
-        }
-        return GoogleHistoryRefill.shouldRequest(needsHistory, stale, refillDay)
+        val run = googleHistory(latitude, longitude) ?: return true
+        return run.needsHistory(refillDay, clock())
     }
 
-    /** Google's live rows at this site inside [GoogleWeatherApi.historyWindow]. */
-    private suspend fun googleLiveHours(latitude: Double, longitude: Double, nowMs: Long) =
-        GoogleWeatherApi.historyWindow(nowMs).let { window ->
-            hourlyStore.storedHourlyForSite(latitude, longitude, WeatherSource.GOOGLE_WEATHER.id, window.first, window.last)
-        }
-
-    /** A past day's History refresh: write `history/hours` over that day's stale live hours ([GoogleHistoryRefill]). */
+    /** A past day's History refresh: [GoogleHistoryRun.refill]. */
     private suspend fun refillStaleGoogleHours(result: RawFetch, latitude: Double, longitude: Double, day: java.time.LocalDate) {
-        if (result.providerHistoryHourly.isEmpty()) return
-        val nowMs = clock()
-        val stale = GoogleHistoryRefill.staleHours(googleLiveHours(latitude, longitude, nowMs), nowMs, day)
-        if (stale.isEmpty()) return
-        val refill = GoogleHistoryRefill.select(result.providerHistoryHourly, stale)
-        hourlyStore.saveRefillHours(refill, latitude, longitude, WeatherSource.GOOGLE_WEATHER.id)
-        appLogDao.log(GoogleHistoryRefill.LOG_TAG, GoogleHistoryRefill.logMessage(day, stale, refill), "INFO")
+        googleHistory(latitude, longitude)?.refill(result.providerHistoryHourly, day, clock())
+    }
+
+    private fun googleHistory(latitude: Double, longitude: Double): GoogleHistoryRun? {
+        val dao = hourlyForecastHistoryDao ?: return null
+        val keyLat = LocationMatch.quantize(latitude)
+        val keyLon = LocationMatch.quantize(longitude)
+        val google = WeatherSource.GOOGLE_WEATHER.id
+        return GoogleHistoryRun(object : GoogleHistoryRun.Host {
+            override suspend fun coveredHistoryHours(startMs: Long, endMs: Long) =
+                dao.getHistoryInRangeForBucketWindow(
+                    startDateTime = startMs,
+                    endDateTime = endMs,
+                    bucketStart = Long.MIN_VALUE,
+                    bucketEnd = Long.MAX_VALUE,
+                    lat = keyLat,
+                    lon = keyLon,
+                    source = google,
+                ).filter { LocationMatch.sameSite(keyLat, keyLon, it.locationLat, it.locationLon) }
+                    .map { it.dateTime }
+
+            override suspend fun liveHours(startMs: Long, endMs: Long) =
+                hourlyStore.storedHourlyForSite(latitude, longitude, google, startMs, endMs)
+
+            override suspend fun saveRefill(rows: List<HourlyForecast>) =
+                hourlyStore.saveRefillHours(rows, latitude, longitude, google)
+
+            override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
+        })
     }
 
     private suspend fun fetchFromSilurian(

@@ -260,12 +260,13 @@ internal class FullSyncPipeline(
                     val afterRecomputeMs = SystemClock.elapsedRealtime()
 
                     if (!input.uiOnlyRefresh) {
-                        weatherRepository.ensureForecastOnlyHistoryRows(location.first, location.second)
-                        weatherRepository.snapshotDisplayedRainChance(location.first, location.second)
-                        weatherRepository.backfillForecastChanceSnapshotsIfNeeded(location.first, location.second)
-                        weatherRepository.backfillFrozenDisplayColumnsIfNeeded(location.first, location.second)
+                        weatherRepository.dailyHistoryAfterFetch(location.first, location.second)
                         weatherRepository.repairFrozenRainChanceIfNeeded(location.first, location.second)
-                        weatherRepository.settlePastForecastOverlays(location.first, location.second)
+                        weatherRepository.dailyHistoryUpkeepIfDue(
+                            location.first,
+                            location.second,
+                            isCharging = BatterySnapshotProvider.snapshot(context).isCharging,
+                        )
                     }
                     val afterRepairsMs = SystemClock.elapsedRealtime()
 

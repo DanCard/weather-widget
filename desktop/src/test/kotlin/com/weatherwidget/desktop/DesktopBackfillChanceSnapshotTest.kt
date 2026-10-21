@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import kotlinx.coroutines.runBlocking
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.DailyHistory
@@ -76,8 +77,7 @@ class DesktopBackfillChanceSnapshotTest {
             ),
         )
 
-        repository.backfillForecastChanceSnapshotsIfNeeded(System.currentTimeMillis())
-
+        runBlocking { repository.backfillForecastChanceSnapshotsIfNeeded(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(yesterdayStart, yesterdayStart, lat, lon).first { it.source == source }
         assertEquals(14, stored.forecastNightPrecipChance)
     }
@@ -98,8 +98,7 @@ class DesktopBackfillChanceSnapshotTest {
         )
         // No hourly_forecast_history rows seeded — best-effort must leave chances null, not crash.
 
-        repository.backfillForecastChanceSnapshotsIfNeeded(System.currentTimeMillis())
-
+        runBlocking { repository.backfillForecastChanceSnapshotsIfNeeded(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(yesterdayStart, yesterdayStart, lat, lon).first { it.source == source }
         assertNull(stored.forecastDayPrecipChance)
         assertNull(stored.forecastNightPrecipChance)
@@ -119,7 +118,7 @@ class DesktopBackfillChanceSnapshotTest {
                 ),
             ),
         )
-        repository.backfillForecastChanceSnapshotsIfNeeded(System.currentTimeMillis())
+        runBlocking { repository.backfillForecastChanceSnapshotsIfNeeded(System.currentTimeMillis()) }
         assertTrue(dao.getRecentLogsByTags(listOf("CHANCE_BACKFILL_DONE")).isNotEmpty())
 
         // History data shows up AFTER the guarded scan already ran once — the marker must prevent a
@@ -133,8 +132,7 @@ class DesktopBackfillChanceSnapshotTest {
                 ),
             ),
         )
-        repository.backfillForecastChanceSnapshotsIfNeeded(System.currentTimeMillis())
-
+        runBlocking { repository.backfillForecastChanceSnapshotsIfNeeded(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(yesterdayStart, yesterdayStart, lat, lon).first { it.source == source }
         assertNull("Second call must be a no-op even though matching history now exists", stored.forecastNightPrecipChance)
     }

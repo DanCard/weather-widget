@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.ForecastHorizonCadence
+import com.weatherwidget.data.remote.ForecastHorizonMarkers
 
 /**
  * The desktop's inputs to the shared [ForecastHorizonCadence] for [weatherSource] at the site: the
@@ -22,13 +23,25 @@ internal class DesktopForecastHorizon(
     longitude: Double,
     private val powerState: () -> PowerDetector.PowerState = { PowerDetector.getPowerState() },
     private val screenOn: () -> Boolean = { ScreenStateDetector.isScreenOn() },
-) {
+) : ForecastHorizonMarkers {
     private val siteKey = "${LocationMatch.quantize(latitude)},${LocationMatch.quantize(longitude)}"
     private val prefix = "source=$weatherSource site=$siteKey"
 
     fun lastLongFetch(): Long? = weatherDao?.getLatestLogByTagAndMessagePrefix(LONG_TAG, prefix)?.timestamp
 
     fun lastShortFetch(): Long? = weatherDao?.getLatestLogByTagAndMessagePrefix(SHORT_TAG, prefix)?.timestamp
+
+    override fun lastLongMs(): Long? = lastLongFetch()
+
+    override fun lastShortMs(): Long? = lastShortFetch()
+
+    override suspend fun markLong(nowMs: Long) {
+        weatherDao?.log(tag = LONG_TAG, message = prefix, level = "INFO")
+    }
+
+    override suspend fun markShort(nowMs: Long) {
+        weatherDao?.log(tag = SHORT_TAG, message = prefix, level = "INFO")
+    }
 
     /** [ForecastHorizonCadence.decide] for this source now; null without a DB (not judged). */
     fun decision(nowMs: Long): ForecastHorizonCadence.Decision? {
@@ -53,11 +66,10 @@ internal class DesktopForecastHorizon(
         return ForecastHorizonCadence.forced(if (userRefresh) null else decision(nowMs), userRefresh)
     }
 
-    /** A fetch of [horizon] answered: restart SHORT, and LONG too for a LONG fetch. */
-    fun mark(horizon: ForecastHorizonCadence.Horizon?) {
+    /** A fetch of [horizon] answered ([ForecastHorizonMarkers.mark], shared with Android). */
+    suspend fun mark(horizon: ForecastHorizonCadence.Horizon?, nowMs: Long = System.currentTimeMillis()) {
         val dao = weatherDao ?: return
-        dao.log(tag = SHORT_TAG, message = prefix, level = "INFO")
-        if (horizon == ForecastHorizonCadence.Horizon.LONG) dao.log(tag = LONG_TAG, message = prefix, level = "INFO")
+        ForecastHorizonMarkers.mark(this, weatherSource, horizon, nowMs) { tag, message, level -> dao.log(tag, message, level) }
     }
 
     companion object {

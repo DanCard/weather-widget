@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.local.HistoryPruneSchedule
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.AppLogEntity
@@ -158,9 +159,9 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
 
     @Test
     fun `gate - once a day, and only after the one-shot repairs`() {
-        val day = HistorySnapshotPruner.MIN_INTERVAL_MS
-        assertTrue(HistorySnapshotPruner.shouldPrune(nowMs = 10 * day, lastPruneMs = 0, repairsDone = true))
-        assertFalse(HistorySnapshotPruner.shouldPrune(nowMs = 10 * day, lastPruneMs = 10 * day - 1, repairsDone = true))
-        assertFalse(HistorySnapshotPruner.shouldPrune(nowMs = 10 * day, lastPruneMs = 0, repairsDone = false))
+        val day = HistoryPruneSchedule.MIN_INTERVAL_MS
+        assertEquals(HistoryPruneSchedule.Decision.RUN, HistoryPruneSchedule.decide(nowMs = 10 * day, lastMs = 0, prerequisitesDone = true))
+        assertEquals(HistoryPruneSchedule.Decision.NOT_DUE, HistoryPruneSchedule.decide(nowMs = 10 * day, lastMs = 10 * day - 1, prerequisitesDone = true))
+        assertEquals(HistoryPruneSchedule.Decision.PREREQUISITES_PENDING, HistoryPruneSchedule.decide(nowMs = 10 * day, lastMs = 0, prerequisitesDone = false))
     }
 }

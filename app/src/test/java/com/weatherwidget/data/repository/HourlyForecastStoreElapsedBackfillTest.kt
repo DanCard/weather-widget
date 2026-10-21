@@ -77,7 +77,7 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
 
     @Test
     fun `fresh site - elapsed hours are filed as history and the live table is untouched`() = runTest {
-        val summary = store.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now)
+        val summary = store.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now)!!
 
         val elapsed = payload().filter { it.dateTime < now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
         assertEquals(elapsed.size, summary.offered)
@@ -95,7 +95,7 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
         store.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now)
         val before = historyRows()
 
-        val again = store.backfillElapsedHistory(payload().map { it.copy(temperature = 0f) }, lat, lon, source, nowMs = now)
+        val again = store.backfillElapsedHistory(payload().map { it.copy(temperature = 0f) }, lat, lon, source, nowMs = now)!!
 
         assertEquals(0, again.stored)
         assertEquals(before.size, again.covered)
@@ -117,7 +117,7 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
         )
         db.hourlyForecastHistoryDao().insertAll(listOf(genuine))
 
-        val summary = store.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now)
+        val summary = store.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now)!!
 
         assertEquals(1, summary.covered)
         val rowsForHour = historyRows().filter { it.dateTime == snapshotted }
@@ -136,7 +136,7 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
         db.hourlyForecastHistoryDao().insertAll(listOf(rowAt(LocationMatch.quantize(lat) + 0.001, LocationMatch.quantize(lon))))
         db.hourlyForecastHistoryDao().insertAll(listOf(rowAt(lat + 0.05, lon).copy(dateTime = t - h)))
 
-        val summary = store.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now)
+        val summary = store.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now)!!
 
         val stored = historyRows().filter { it.locationLat == LocationMatch.quantize(lat) }.map { it.dateTime }
         assertTrue("jitter fragment covers $t", t !in stored)

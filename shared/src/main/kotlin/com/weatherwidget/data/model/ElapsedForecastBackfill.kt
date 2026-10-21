@@ -1,5 +1,7 @@
 package com.weatherwidget.data.model
 
+import com.weatherwidget.data.local.LocationMatch
+
 /**
  * Which already-elapsed hours of a fetched hourly payload may be filed into
  * `hourly_forecast_history`.
@@ -47,4 +49,36 @@ object ElapsedForecastBackfill {
             .values
             .sortedBy { it.dateTime }
     }
+
+    /** One backfill's outcome: hours the payload offered in the window, those already covered, rows written. */
+    data class Summary(val offered: Int, val covered: Int, val stored: Int)
+
+    /** One source's `hourly_forecast_history` at one site. */
+    interface Store {
+        /** Hours with a history row at the site (same-site match, any bucket) in [startMs, endMs). */
+        suspend fun coveredHours(startMs: Long, endMs: Long): Set<Long>
+
+        /** Files [rows] under the platform's snapshot bucket for this fetch. */
+        suspend fun insert(rows: List<HourlyForecast>)
+    }
+
+    /** Files [fetched]'s uncovered elapsed hours into [store] ([select]); null when it offered none in the window. */
+    suspend fun backfill(fetched: List<HourlyForecast>, nowMs: Long, store: Store): Summary? {
+        val range = window(nowMs)
+        val offered = fetched.filter { it.dateTime in range }
+        if (offered.isEmpty()) return null
+        val covered = store.coveredHours(offered.minOf { it.dateTime }, offered.maxOf { it.dateTime } + 1)
+        val selected = select(offered, nowMs, covered)
+        if (selected.isNotEmpty()) store.insert(selected)
+        return Summary(offered.size, covered.size, selected.size)
+    }
+
+    const val LOG_TAG = "HOURLY_HISTORY_BACKFILL"
+
+    fun logMessage(sourceId: String, latitude: Double, longitude: Double, summary: Summary): String =
+        "source=$sourceId site=${LocationMatch.quantize(latitude)},${LocationMatch.quantize(longitude)} " +
+            "offered=${summary.offered} covered=${summary.covered} stored=${summary.stored}"
+
+    /** INFO only when something was written: in steady state this runs every fetch and stores nothing. */
+    fun logLevel(summary: Summary): String = if (summary.stored > 0) "INFO" else "VERBOSE"
 }

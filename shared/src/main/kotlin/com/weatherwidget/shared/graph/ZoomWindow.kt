@@ -67,6 +67,19 @@ object HourlyZoomRules {
      * keep labelling every hour.
      */
     fun narrowWidgetLabelInterval(spanHours: Int): Int = if (spanHours >= 6) 2 else 1
+
+    /**
+     * The footer clock-label cadence of [zoom] on a widget [narrowWidget] or not: wide widgets keep
+     * [ZoomWindow.labelInterval]; a narrow one thins WIDE to [HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL]
+     * and NARROW per [narrowWidgetLabelInterval], so its `<hour><icon>` groups don't crowd. One rule
+     * for the temperature, precipitation and cloud graphs.
+     */
+    fun footerLabelInterval(zoom: ZoomWindow, narrowWidget: Boolean): Int = when {
+        !narrowWidget -> zoom.labelInterval
+        zoom.stage == ZoomStage.WIDE -> HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
+        zoom.stage == ZoomStage.NARROW -> narrowWidgetLabelInterval(zoom.totalSpanHours.toInt())
+        else -> zoom.labelInterval
+    }
 }
 
 /**

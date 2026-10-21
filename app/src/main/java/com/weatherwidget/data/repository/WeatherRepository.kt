@@ -183,6 +183,14 @@ class WeatherRepository
         ) = observationRepository.getMainObservationsWithComputedNwsBlend(latitude, longitude, sinceMs)
         suspend fun getRecentObservations(sinceMs: Long) = observationRepository.getRecentObservations(sinceMs)
 
+        /** After every fetch: the rain-chance freeze and yesterday's forecast-only rows (DailyHistoryRun.afterFetch). */
+        suspend fun dailyHistoryAfterFetch(latitude: Double, longitude: Double) =
+            forecastRepository.dailyHistoryAfterFetch(latitude, longitude)
+
+        /** The month-wide daily-history passes, once a day on a charger (DailyHistoryRun.upkeepIfDue). */
+        suspend fun dailyHistoryUpkeepIfDue(latitude: Double, longitude: Double, isCharging: Boolean) =
+            forecastRepository.dailyHistoryUpkeepIfDue(latitude, longitude, isCharging)
+
         suspend fun snapshotDisplayedRainChance(latitude: Double, longitude: Double) =
             forecastRepository.snapshotDisplayedRainChance(latitude, longitude)
 

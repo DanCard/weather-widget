@@ -10,13 +10,13 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
-import com.weatherwidget.data.local.getForecastsInRange
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toDailyHistory
 import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.local.toHourlyForecast
-import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.shared.actuals.DailyHistoryMaintenance
+import com.weatherwidget.shared.actuals.DailyHistoryRun
 import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.shared.util.FrozenRainChanceRepair
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -29,9 +29,8 @@ private const val TAG = "DailyHistorySnapshotter"
 /**
  * Owns daily-history freeze windows and one-time repair/backfill policies.
  *
- * The planning rules live in [DailyHistoryMaintenance] (`:shared`) so Android and desktop agree
- * exactly; this class is the Android adapter that loads DAO rows, maps them to the shared row
- * types, and writes the planned rows back. [repairFrozenRainChanceIfNeeded] is Android-only (a
+ * The passes are [DailyHistoryRun] (`:shared`), the same run desktop makes; this class is its Room
+ * and prefs [DailyHistoryRun.Host]. [repairFrozenRainChanceIfNeeded] is Android-only (a
  * one-time repair of rows written before the site-aware chance resolution existed).
  */
 internal class DailyHistorySnapshotter(
@@ -46,171 +45,27 @@ internal class DailyHistorySnapshotter(
         SharedPreferencesUtil.getPrefs(context, "weather_prefs")
     }
 
-    /**
-     * Creates forecast-only `daily_history` rows (DailyHistoryWriter.FORECAST_ONLY_ROW) for past
-     * (date, source) pairs that have a complete forecast batch but no row at all — Open-Meteo
-     * (no actuals product), Tomorrow.io before its actuals tracking started, or any source whose
-     * actuals write never landed. Without these rows the daily widget/desktop history columns
-     * lose their high/low labels and depend on the forecasts table's rolling retention.
-     *
-     * Idempotent: existing (date, source) rows are skipped, so this runs on every sync like the
-     * freeze pass and covers both the one-time backfill and each day rollover.
-     */
-    suspend fun ensureForecastOnlyHistoryRows(
-        latitude: Double,
-        longitude: Double,
-    ) {
-        val zoneId = ZoneId.systemDefault()
-        val today = LocalDate.now(zoneId)
-        val startMs = today.minusDays(DailyHistoryMaintenance.FORECAST_ONLY_LOOKBACK_DAYS)
-            .toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val endMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+    private val run = DailyHistoryRun(RoomHost())
 
-        val forecastRows = forecastDao.getForecastsInRange(
-            startMs,
-            endMs + WidgetConstants.MS_IN_A_DAY,
-            latitude,
-            longitude,
-        )
-        if (forecastRows.isEmpty()) return
+    /** [DailyHistoryRun.afterFetch]. */
+    suspend fun afterFetch(latitude: Double, longitude: Double) =
+        run.afterFetch(latitude, longitude, System.currentTimeMillis())
 
-        val existing = dailyHistoryDao.getExtremesInRange(
-            startMs,
-            endMs,
-            latitude,
-            longitude,
-        ).map { it.date to it.source }.toSet()
+    /** [DailyHistoryRun.upkeepIfDue]. */
+    suspend fun upkeepIfDue(latitude: Double, longitude: Double, isCharging: Boolean) =
+        run.upkeepIfDue(latitude, longitude, System.currentTimeMillis(), isCharging)
 
-        val rows = DailyHistoryMaintenance.planForecastOnlyRows(
-            forecastRows = forecastRows.map { it.toMaintenanceRow() },
-            existingKeys = existing,
-            todayMs = endMs,
-            nowMs = System.currentTimeMillis(),
-        )
-        if (rows.isEmpty()) return
+    /** [DailyHistoryRun.ensureForecastOnlyHistoryRows]. */
+    suspend fun ensureForecastOnlyHistoryRows(latitude: Double, longitude: Double) =
+        run.ensureForecastOnlyHistoryRows(latitude, longitude, System.currentTimeMillis())
 
-        val entities = rows.map { it.toEntity() }
-        dailyHistoryDao.insertAll(entities)
-        Log.i(TAG, "ensureForecastOnlyHistoryRows: created ${entities.size} rows " +
-            "sources=${entities.map { it.source }.distinct()} dates=${entities.minOf { it.date }}..${entities.maxOf { it.date }}")
-        appLogDao.log(
-            "FORECAST_ONLY_HISTORY",
-            "created=${entities.size} sources=${entities.map { it.source }.distinct()} " +
-                "first=${entities.minOf { it.date }} last=${entities.maxOf { it.date }}",
-        )
-    }
+    /** [DailyHistoryRun.settlePastForecastOverlays]. */
+    suspend fun settlePastForecastOverlays(latitude: Double, longitude: Double) =
+        run.settlePastForecastOverlays(latitude, longitude, System.currentTimeMillis())
 
-    /**
-     * Settles each past day's forecast overlay to the last forecast fetched before that day's high
-     * (low) was reached — every source, the retained ~30 days. The rule is shared with desktop
-     * ([DailyHistoryMaintenance.planSettledForecastOverlays]); this only loads and writes, with a
-     * field-limited UPDATE so a concurrent blend write is never clobbered. Also freezes each day's
-     * "yesterday's forecast" ([DailyHistoryMaintenance.planPriorForecasts]) from the same rows.
-     */
-    suspend fun settlePastForecastOverlays(
-        latitude: Double,
-        longitude: Double,
-    ) {
-        val zoneId = ZoneId.systemDefault()
-        val today = LocalDate.now(zoneId)
-        val startMs = today.minusDays(DailyHistoryMaintenance.FORECAST_ONLY_LOOKBACK_DAYS)
-            .toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val todayMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        // Through today: the "yesterday's forecast" freeze covers today's row too (its anchors are
-        // already past); the settle below only ever touches days before today.
-        val rowsThroughToday = dailyHistoryDao.getExtremesInRange(startMs, todayMs, latitude, longitude)
-            .map { it.toDailyHistory() }
-        if (rowsThroughToday.isEmpty()) return
-        val existing = rowsThroughToday
-            .filter { it.date < todayMs && (it.computedHighAt != null || it.computedLowAt != null) }
-        // Every stored fetch, not getForecastsInRange: that returns only each day's newest batch,
-        // which is exactly the post-extreme hindcast this step exists to look past.
-        val forecastRows = forecastDao.getAllForecastsInRange(startMs, todayMs, latitude, longitude)
-        if (forecastRows.isEmpty()) return
-        val maintenanceRows = forecastRows.map { it.toMaintenanceRow() }
-
-        val priorPlan = DailyHistoryMaintenance.planPriorForecasts(
-            forecastRows = maintenanceRows,
-            existing = rowsThroughToday,
-            todayMs = todayMs,
-            zoneId = zoneId,
-        )
-        priorPlan.rows.forEach { row ->
-            dailyHistoryDao.updatePriorForecast(
-                date = row.date,
-                source = row.source,
-                locationLat = row.locationLat,
-                locationLon = row.locationLon,
-                priorForecastHighTemp = row.priorForecastHighTemp,
-                priorForecastLowTemp = row.priorForecastLowTemp,
-                lastWriter = row.lastWriter,
-            )
-        }
-        priorPlan.logs.forEach { appLogDao.log("PRIOR_FORECAST_FREEZE", it, "INFO") }
-
-        val plan = DailyHistoryMaintenance.planSettledForecastOverlays(
-            forecastRows = maintenanceRows,
-            existing = existing,
-            todayMs = todayMs,
-        )
-        plan.rows.forEach { row ->
-            dailyHistoryDao.updateForecastOverlay(
-                date = row.date,
-                source = row.source,
-                locationLat = row.locationLat,
-                locationLon = row.locationLon,
-                forecastHighTemp = row.forecastHighTemp,
-                forecastLowTemp = row.forecastLowTemp,
-                lastWriter = row.lastWriter,
-            )
-        }
-        plan.logs.forEach { appLogDao.log("FORECAST_OVERLAY_SETTLED", it, "INFO") }
-    }
-
-    suspend fun snapshotDisplayedRainChance(
-        latitude: Double,
-        longitude: Double,
-    ) {
-        val zoneId = ZoneId.systemDefault()
-        val nowMs = System.currentTimeMillis()
-        val today = LocalDate.now(zoneId)
-        val yesterday = today.minusDays(1)
-        val startMs = yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val endMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val dailyRows = forecastDao.getForecastsInRange(
-            startMs,
-            endMs,
-            latitude,
-            longitude,
-        )
-        if (dailyRows.isEmpty()) return
-
-        val hourlyRows = hourlyForecastDao.getHourlyForecasts(
-            yesterday.atStartOfDay(zoneId).toInstant().toEpochMilli(),
-            today.plusDays(2).atStartOfDay(zoneId).toInstant().toEpochMilli(),
-            latitude,
-            longitude,
-        ).map { it.toHourlyForecast() }
-        val existing = dailyHistoryDao.getExtremesInRange(
-            startMs,
-            endMs,
-            latitude,
-            longitude,
-        ).map { it.toDailyHistory() }
-
-        val plan = DailyHistoryMaintenance.planSnapshotDisplayedRainChance(
-            dailyRows = dailyRows.map { it.toMaintenanceRow() },
-            hourly = hourlyRows,
-            existing = existing,
-            centerLat = latitude,
-            centerLon = longitude,
-            nowMs = nowMs,
-            zoneId = zoneId,
-        )
-        plan.traces.forEach { Log.v(TAG, it) }
-        plan.chanceChangeLogs.forEach { appLogDao.log("FREEZE_RAIN_CHANCE", it) }
-        if (plan.rows.isNotEmpty()) dailyHistoryDao.insertAll(plan.rows.map { it.toEntity() })
-    }
+    /** [DailyHistoryRun.snapshotDisplayedRainChance]. */
+    suspend fun snapshotDisplayedRainChance(latitude: Double, longitude: Double) =
+        run.snapshotDisplayedRainChance(latitude, longitude, System.currentTimeMillis())
 
     suspend fun repairFrozenRainChanceIfNeeded(
         latitude: Double,
@@ -283,127 +138,105 @@ internal class DailyHistorySnapshotter(
         prefs.edit().putBoolean(PREF_CHANCE_REPAIR_DONE, true).apply()
     }
 
-    suspend fun backfillForecastChanceSnapshotsIfNeeded(
-        latitude: Double,
-        longitude: Double,
-    ) {
-        if (prefs.getBoolean(PREF_CHANCE_BACKFILL_DONE, false)) return
-        val zoneId = ZoneId.systemDefault()
-        val today = LocalDate.now(zoneId)
-        val startMs = today.minusDays(CHANCE_BACKFILL_LOOKBACK_DAYS)
-            .toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val endMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val rowsNeedingBackfill = dailyHistoryDao.getExtremesInRange(
-            startMs,
-            endMs,
-            latitude,
-            longitude,
-        ).filter {
-            it.forecastDayPrecipChance == null &&
-                it.forecastNightPrecipChance == null
-        }.map { it.toDailyHistory() }
+    /** [DailyHistoryRun.backfillForecastChanceSnapshotsIfNeeded]. */
+    suspend fun backfillForecastChanceSnapshotsIfNeeded(latitude: Double, longitude: Double) =
+        run.backfillForecastChanceSnapshotsIfNeeded(latitude, longitude, System.currentTimeMillis())
 
-        val rows = DailyHistoryMaintenance.planChanceBackfill(
-            rowsNeedingBackfill = rowsNeedingBackfill,
-            historyFor = { date, source ->
-                historyRowsForDate(date, 8, latitude, longitude, source, zoneId)
-            },
-            centerLat = latitude,
-            centerLon = longitude,
-            nowMs = System.currentTimeMillis(),
-            zoneId = zoneId,
-        )
-        if (rows.isNotEmpty()) dailyHistoryDao.insertAll(rows.map { it.toEntity() })
-        prefs.edit().putBoolean(PREF_CHANCE_BACKFILL_DONE, true).apply()
-    }
+    /** [DailyHistoryRun.backfillFrozenDisplayColumnsIfNeeded]. */
+    suspend fun backfillFrozenDisplayColumnsIfNeeded(latitude: Double, longitude: Double) =
+        run.backfillFrozenDisplayColumnsIfNeeded(latitude, longitude, System.currentTimeMillis())
 
-    suspend fun backfillFrozenDisplayColumnsIfNeeded(
-        latitude: Double,
-        longitude: Double,
-    ) {
-        if (prefs.getBoolean(PREF_FROZEN_DISPLAY_BACKFILL_DONE, false)) return
-        val zoneId = ZoneId.systemDefault()
-        val today = LocalDate.now(zoneId)
-        val startMs = today.minusDays(CHANCE_BACKFILL_LOOKBACK_DAYS)
-            .toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val endMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val rowsNeedingBackfill = dailyHistoryDao.getExtremesInRange(
-            startMs,
-            endMs,
-            latitude,
-            longitude,
-        ).filter {
-            (it.forecastHighTemp == null && it.forecastLowTemp == null) ||
-                it.noonCloudPercent == null
-        }.map { it.toDailyHistory() }
-        if (rowsNeedingBackfill.isEmpty()) {
-            prefs.edit().putBoolean(PREF_FROZEN_DISPLAY_BACKFILL_DONE, true).apply()
-            return
+    /** Room + prefs side of [DailyHistoryRun]. */
+    private inner class RoomHost : DailyHistoryRun.Host {
+        override suspend fun dailyHistory(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
+            dailyHistoryDao.getExtremesInRange(startMs, endMs, latitude, longitude).map { it.toDailyHistory() }
+
+        override suspend fun forecastFetches(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
+            forecastDao.getAllForecastsInRange(startMs, endMs, latitude, longitude).map { it.toMaintenanceRow() }
+
+        override suspend fun hourlyForecasts(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
+            hourlyForecastDao.getHourlyForecasts(startMs, endMs, latitude, longitude).map { it.toHourlyForecast() }
+
+        override suspend fun hourlyHistory(startMs: Long, endMs: Long, latitude: Double, longitude: Double, source: String) =
+            hourlyForecastHistoryDao.getHistoryInRangeForBucketWindow(
+                startDateTime = startMs,
+                endDateTime = endMs,
+                bucketStart = Long.MIN_VALUE,
+                bucketEnd = Long.MAX_VALUE,
+                lat = latitude,
+                lon = longitude,
+                source = source,
+            ).map {
+                HourlyForecastEntity(
+                    dateTime = it.dateTime,
+                    locationLat = it.locationLat,
+                    locationLon = it.locationLon,
+                    temperature = it.temperature,
+                    condition = it.condition,
+                    source = it.source,
+                    precipProbability = it.precipProbability,
+                    cloudCover = it.cloudCover,
+                    cloudCoverLow = it.cloudCoverLow,
+                    cloudCoverMid = it.cloudCoverMid,
+                    cloudCoverHigh = it.cloudCoverHigh,
+                    precipAmountMm = it.precipAmountMm,
+                    fetchedAt = it.fetchedAt,
+                ).toHourlyForecast()
+            }
+
+        override suspend fun insertDailyHistory(rows: List<DailyHistory>) {
+            dailyHistoryDao.insertAll(rows.map { it.toEntity() })
         }
 
-        val snapshots = forecastDao.getAllForecastsInRange(
-            startMs,
-            endMs,
-            latitude,
-            longitude,
-        ).map { it.toMaintenanceRow() }
+        override suspend fun updateForecastOverlay(row: DailyHistory) {
+            dailyHistoryDao.updateForecastOverlay(
+                date = row.date,
+                source = row.source,
+                locationLat = row.locationLat,
+                locationLon = row.locationLon,
+                forecastHighTemp = row.forecastHighTemp,
+                forecastLowTemp = row.forecastLowTemp,
+                lastWriter = row.lastWriter,
+            )
+        }
 
-        val rows = DailyHistoryMaintenance.planFrozenDisplayBackfill(
-            rowsNeedingBackfill = rowsNeedingBackfill,
-            snapshots = snapshots,
-            historyFor = { date, source ->
-                historyRowsForDate(date, 0, latitude, longitude, source, zoneId)
-            },
-            centerLat = latitude,
-            centerLon = longitude,
-            nowMs = System.currentTimeMillis(),
-            zoneId = zoneId,
-        )
-        if (rows.isNotEmpty()) dailyHistoryDao.insertAll(rows.map { it.toEntity() })
-        appLogDao.log(
-            "FROZEN_DISPLAY_BACKFILL",
-            "backfilled=${rows.size} scanned=${rowsNeedingBackfill.size}",
-        )
-        prefs.edit().putBoolean(PREF_FROZEN_DISPLAY_BACKFILL_DONE, true).apply()
+        override suspend fun updatePriorForecast(row: DailyHistory) {
+            dailyHistoryDao.updatePriorForecast(
+                date = row.date,
+                source = row.source,
+                locationLat = row.locationLat,
+                locationLon = row.locationLon,
+                priorForecastHighTemp = row.priorForecastHighTemp,
+                priorForecastLowTemp = row.priorForecastLowTemp,
+                lastWriter = row.lastWriter,
+            )
+        }
+
+        override suspend fun isDone(marker: DailyHistoryRun.Marker) = prefs.getBoolean(marker.prefKey, false)
+
+        override suspend fun markDone(marker: DailyHistoryRun.Marker, summary: String) {
+            appLogDao.log(marker.name, summary, "INFO")
+            prefs.edit().putBoolean(marker.prefKey, true).apply()
+        }
+
+        override suspend fun lastUpkeepMs() = prefs.getLong(PREF_UPKEEP_LAST_MS, 0L)
+
+        override suspend fun markUpkeep(nowMs: Long) {
+            prefs.edit().putLong(PREF_UPKEEP_LAST_MS, nowMs).apply()
+        }
+
+        override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
     }
 
-    private suspend fun historyRowsForDate(
-        date: LocalDate,
-        endHourNextDay: Int,
-        latitude: Double,
-        longitude: Double,
-        source: String,
-        zoneId: ZoneId,
-    ): List<HourlyForecast> =
-        hourlyForecastHistoryDao.getHistoryInRangeForBucketWindow(
-            startDateTime = date.atStartOfDay(zoneId).toInstant().toEpochMilli(),
-            endDateTime = date.plusDays(1).atTime(endHourNextDay, 0).atZone(zoneId)
-                .toInstant().toEpochMilli(),
-            bucketStart = Long.MIN_VALUE,
-            bucketEnd = Long.MAX_VALUE,
-            lat = latitude,
-            lon = longitude,
-            source = source,
-        ).map {
-            HourlyForecastEntity(
-                dateTime = it.dateTime,
-                locationLat = it.locationLat,
-                locationLon = it.locationLon,
-                temperature = it.temperature,
-                condition = it.condition,
-                source = it.source,
-                precipProbability = it.precipProbability,
-                cloudCover = it.cloudCover,
-                cloudCoverLow = it.cloudCoverLow,
-                cloudCoverMid = it.cloudCoverMid,
-                cloudCoverHigh = it.cloudCoverHigh,
-                precipAmountMm = it.precipAmountMm,
-                fetchedAt = it.fetchedAt,
-            ).toHourlyForecast()
+    private val DailyHistoryRun.Marker.prefKey: String
+        get() = when (this) {
+            DailyHistoryRun.Marker.CHANCE_BACKFILL -> PREF_CHANCE_BACKFILL_DONE
+            DailyHistoryRun.Marker.FROZEN_DISPLAY_BACKFILL -> PREF_FROZEN_DISPLAY_BACKFILL_DONE
         }
 
     companion object {
         private const val PREF_CHANCE_BACKFILL_DONE = "rain_chance_backfill_done"
+        private const val PREF_UPKEEP_LAST_MS = "daily_history_upkeep_last_ms"
         private const val PREF_CHANCE_REPAIR_DONE = "rain_chance_site_repair_done_v1"
         private const val PREF_FROZEN_DISPLAY_BACKFILL_DONE =
             "frozen_display_backfill_done"
@@ -427,4 +260,5 @@ internal fun ForecastEntity.toMaintenanceRow() =
         precipProbability = precipProbability,
         daytimePrecipProbability = daytimePrecipProbability,
         nighttimePrecipProbability = nighttimePrecipProbability,
+        batchFetchedAt = batchFetchedAt,
     )

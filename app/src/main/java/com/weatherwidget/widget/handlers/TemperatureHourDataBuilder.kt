@@ -243,13 +243,10 @@ internal fun buildHourDataResult(
     // Narrow widgets space hour markers further apart so the wider inline <hour><icon><a|p> footer
     // groups don't crowd: WIDE every 6h vs 4h, and NARROW every other hour once the user widens its
     // span past 6h. Wide widgets keep the default cadence at both zooms.
-    val labelInterval = when {
-        !HourlyFooterRenderer.isNarrowWidget(numColumns) -> zoom.labelInterval
-        zoom.stage == ZoomStage.WIDE -> HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
-        zoom.stage == ZoomStage.NARROW ->
-            HourlyZoomRules.narrowWidgetLabelInterval(zoom.totalSpanHours.toInt())
-        else -> zoom.labelInterval
-    }
+    val labelInterval = com.weatherwidget.shared.graph.HourlyZoomRules.footerLabelInterval(
+        zoom,
+        narrowWidget = com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns),
+    )
 
     // Once the window spans multiple days, bare "12a/12p" footer labels can't tell you which day a
     // region is. Switch to one date label per day, centered under that day: for each visible local

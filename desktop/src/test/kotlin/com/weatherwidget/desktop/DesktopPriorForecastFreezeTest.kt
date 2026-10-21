@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import kotlinx.coroutines.runBlocking
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.DailyHistory
@@ -85,8 +86,7 @@ class DesktopPriorForecastFreezeTest {
         dao.upsertDailyHistory(listOf(pastRow()))
         val repository = DesktopWeatherRepository(DesktopWeatherService(lat, lon, "OPEN_METEO"), dao, lat, lon, "OPEN_METEO")
 
-        repository.settlePastForecastOverlays(System.currentTimeMillis())
-
+        runBlocking { repository.settlePastForecastOverlays(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(dateMs, dateMs, lat, lon).single()
         assertEquals(92f, stored.priorForecastHighTemp)
         assertEquals(56f, stored.priorForecastLowTemp)

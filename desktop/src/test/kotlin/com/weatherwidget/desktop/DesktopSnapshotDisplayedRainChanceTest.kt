@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import kotlinx.coroutines.runBlocking
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.desktop.DesktopObservationEntity
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
@@ -84,8 +85,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             ),
         )
 
-        repository.snapshotDisplayedRainChance(System.currentTimeMillis())
-
+        runBlocking { repository.snapshotDisplayedRainChance(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(today.toEpochDay() * 86_400_000L, today.toEpochDay() * 86_400_000L, lat, lon)
             .first { it.source == source }
         assertEquals(14, stored.forecastNightPrecipChance)
@@ -103,8 +103,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             ),
         )
 
-        repository.snapshotDisplayedRainChance(System.currentTimeMillis())
-
+        runBlocking { repository.snapshotDisplayedRainChance(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(today.toEpochDay() * 86_400_000L, today.toEpochDay() * 86_400_000L, lat, lon)
         assertNull(stored.firstOrNull { it.source == source })
     }
@@ -140,8 +139,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             ),
         )
 
-        repository.snapshotDisplayedRainChance(System.currentTimeMillis())
-
+        runBlocking { repository.snapshotDisplayedRainChance(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(yesterday.toEpochDay() * 86_400_000L, yesterday.toEpochDay() * 86_400_000L, lat, lon)
             .first { it.source == source }
         assertEquals("Closed day window must not be overwritten by drifted hourly data", 5, stored.forecastDayPrecipChance)
@@ -179,8 +177,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             ),
         )
 
-        repository.snapshotDisplayedRainChance(morningMs)
-
+        runBlocking { repository.snapshotDisplayedRainChance(morningMs) }
         val stored = dao.getExtremesInRange(today.toEpochDay() * 86_400_000L, today.toEpochDay() * 86_400_000L, lat, lon)
             .first { it.source == source }
         assertEquals(80f, stored.forecastHighTemp!!, 0.01f)
@@ -216,8 +213,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             ),
         )
 
-        repository.snapshotDisplayedRainChance(System.currentTimeMillis())
-
+        runBlocking { repository.snapshotDisplayedRainChance(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(today.toEpochDay() * 86_400_000L, today.toEpochDay() * 86_400_000L, lat, lon)
             .first { it.source == source }
         assertEquals(75f, stored.forecastHighTemp!!, 0.01f)
@@ -250,8 +246,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             ),
         )
 
-        repository.snapshotDisplayedRainChance(System.currentTimeMillis())
-
+        runBlocking { repository.snapshotDisplayedRainChance(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(yesterday.toEpochDay() * 86_400_000L, yesterday.toEpochDay() * 86_400_000L, lat, lon)
             .first { it.source == source }
         assertEquals("Closed overlay window must keep the archived high", 75f, stored.forecastHighTemp!!, 0.01f)
@@ -301,8 +296,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             ),
         )
 
-        repository.backfillFrozenDisplayColumnsIfNeeded(System.currentTimeMillis())
-
+        runBlocking { repository.backfillFrozenDisplayColumnsIfNeeded(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(pastStart, pastStart, lat, lon).first { it.source == source }
         assertEquals(71f, stored.forecastHighTemp!!, 0.01f)
         assertEquals(53f, stored.forecastLowTemp!!, 0.01f)
@@ -310,7 +304,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
         assertEquals(45, stored.noonCloudPercent)
 
         // Second run is a no-op (one-shot marker), even for still-null rows.
-        repository.backfillFrozenDisplayColumnsIfNeeded(System.currentTimeMillis())
+        runBlocking { repository.backfillFrozenDisplayColumnsIfNeeded(System.currentTimeMillis()) }
     }
 
     @Test
@@ -351,8 +345,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             ),
         )
 
-        repository.backfillFrozenDisplayColumnsIfNeeded(System.currentTimeMillis())
-
+        runBlocking { repository.backfillFrozenDisplayColumnsIfNeeded(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(pastStart, pastStart, lat, lon).first { it.source == source }
         assertEquals(79f, stored.forecastHighTemp!!, 0.01f)
         assertEquals(57f, stored.forecastLowTemp!!, 0.01f)

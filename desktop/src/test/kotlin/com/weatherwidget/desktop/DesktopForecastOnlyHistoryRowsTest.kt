@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import kotlinx.coroutines.runBlocking
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.DailyForecast
@@ -60,8 +61,7 @@ class DesktopForecastOnlyHistoryRowsTest {
             ),
         )
 
-        repository.ensureForecastOnlyHistoryRows(System.currentTimeMillis())
-
+        runBlocking { repository.ensureForecastOnlyHistoryRows(System.currentTimeMillis()) }
         val rows = dao.getExtremesInRange(epochDay(yesterday), epochDay(today), lat, lon)
         val row = rows.single { it.source == source && it.date == epochDay(yesterday) }
         assertNull("no actual may be fabricated", row.computedHighTemp)
@@ -92,9 +92,8 @@ class DesktopForecastOnlyHistoryRowsTest {
             ),
         )
 
-        repository.ensureForecastOnlyHistoryRows(System.currentTimeMillis())
-        repository.ensureForecastOnlyHistoryRows(System.currentTimeMillis())
-
+        runBlocking { repository.ensureForecastOnlyHistoryRows(System.currentTimeMillis()) }
+        runBlocking { repository.ensureForecastOnlyHistoryRows(System.currentTimeMillis()) }
         val rows = dao.getExtremesInRange(epochDay(yesterday), epochDay(yesterday), lat, lon)
         assertEquals("one Meteo row + the untouched NWS row, no duplicates", 2, rows.size)
         assertEquals(70f, rows.single { it.source == "NWS" }.computedHighTemp)
