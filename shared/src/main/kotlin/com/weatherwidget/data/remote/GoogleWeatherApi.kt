@@ -7,6 +7,7 @@ import com.weatherwidget.data.model.QuotaRefusal
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.DailyHourlySummaries
 import com.weatherwidget.shared.util.Log
 import io.ktor.client.HttpClient
 import io.ktor.client.request.HttpRequestBuilder
@@ -27,6 +28,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 private const val TAG = "GoogleWeatherApi"
 
@@ -70,6 +72,9 @@ class GoogleWeatherApi(
 
 
         private const val INCHES_TO_MM = 25.4f
+
+        /** A day's own morning, for its low from hourly: 00:00 until this hour. */
+        private const val MORNING_LOW_END_HOUR = 9
 
         /** The elapsed part of the last 24 h — what one `history/hours` call can fill. */
         fun historyWindow(nowMs: Long): LongRange = (nowMs - HISTORY_HOURS * 3_600_000L) until (nowMs - 3_600_000L)
@@ -381,6 +386,8 @@ class GoogleWeatherApi(
 
         val daily = lowsFiledUnderTheirMorning(
             days?.get("forecastDays")?.jsonArray.orEmpty().mapNotNull { parseDay(it.jsonObject) },
+            // Forecast hours only: elapsed history hours are what happened, not this fetch's forecast.
+            forecast,
         )
 
         Log.d(
@@ -423,13 +430,41 @@ class GoogleWeatherApi(
      * row), and the last Google day's min — the morning after the horizon — is dropped. Only an
      * adjacent previous day lends its low; a gap in the response leaves the next day without one.
      * `plans/261010-google-daily-low-filed-under-the-morning-it-ends.md`
+     *
+     * That min covers the **whole** window, D−1's own 07:00 included: after a cold morning and a mild
+     * night it is D−1's morning (Wed 2026-10-21 showed Tue's 51°; the night's hourly min was 57.5°).
+     * So when the fetch's forecast [hourly] covers D 00:00–09:00 completely, D's low is that window's
+     * minimum; the shifted min is only the fallback past the hourly reach. Forecast hours start at the
+     * current hour, so today still gets no low from a fetch.
+     * `plans/261021-google-daily-low-from-hourly-morning.md`
      */
-    internal fun lowsFiledUnderTheirMorning(days: List<DailyForecast>): List<DailyForecast> {
+    internal fun lowsFiledUnderTheirMorning(
+        days: List<DailyForecast>,
+        hourly: List<HourlyForecast> = emptyList(),
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): List<DailyForecast> {
         val byDate = days.associateBy { it.date }
-        return days.map { day ->
-            val previous = runCatching { LocalDate.parse(day.date).minusDays(1).toString() }.getOrNull()
-            day.copy(lowTemp = previous?.let { byDate[it]?.lowTemp })
+        var fromHourly = 0
+        var shifted = 0
+        val result = days.map { day ->
+            val date = runCatching { LocalDate.parse(day.date) }.getOrNull()
+            val morningLow = date?.let { morningLow(it, hourly, zoneId) }
+            val previousLow = date?.minusDays(1)?.toString()?.let { byDate[it]?.lowTemp }
+            when {
+                morningLow != null -> fromHourly++
+                previousLow != null -> shifted++
+            }
+            day.copy(lowTemp = morningLow ?: previousLow)
         }
+        if (days.isNotEmpty()) Log.d(TAG, "GOOGLE_DAILY_LOW from_hourly=$fromHourly shifted=$shifted")
+        return result
+    }
+
+    private fun morningLow(date: LocalDate, hourly: List<HourlyForecast>, zoneId: ZoneId): Float? {
+        val startMs = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val endMs = date.atTime(MORNING_LOW_END_HOUR, 0).atZone(zoneId).toInstant().toEpochMilli()
+        if (!DailyHourlySummaries.windowCovered(hourly, startMs, endMs)) return null
+        return hourly.filter { it.dateTime in startMs until endMs }.minOfOrNull { it.temperature }
     }
 
     private fun parseDay(obj: JsonObject): DailyForecast? {

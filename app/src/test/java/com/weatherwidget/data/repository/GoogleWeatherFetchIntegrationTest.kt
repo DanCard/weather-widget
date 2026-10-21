@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.shared.util.ForecastTempRounding
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.GoogleWeatherFixtures
 import com.weatherwidget.testutil.TestDatabase
@@ -52,11 +53,12 @@ class GoogleWeatherFetchIntegrationTest {
     fun tearDown() = db.close()
 
     private var hoursErrorBody: String? = null
+    private var daysTransform: ((String) -> String)? = null
     private lateinit var widgetStateManager: WidgetStateManager
 
     private fun repository(): ForecastRepository {
         val google = GoogleWeatherApi(
-            HttpClient(GoogleWeatherFixtures.engine(requests, hoursErrorBody = hoursErrorBody)),
+            HttpClient(GoogleWeatherFixtures.engine(requests, hoursErrorBody = hoursErrorBody, daysTransform = daysTransform)),
             Json { ignoreUnknownKeys = true },
         ) { "test-key" }
         val nwsApi = mockk<NwsApi>()
@@ -120,6 +122,45 @@ class GoogleWeatherFetchIntegrationTest {
 
         // Forecast-only: neither the forecast nor its history is ever re-filed as observations.
         assertEquals(0L, count("SELECT COUNT(*) FROM observations WHERE api = ?", source))
+    }
+
+    /**
+     * plans/261021-google-daily-low-from-hourly-morning.md: Google's day minimum (07:00 → 07:00) can
+     * be the previous morning's 07:00, so a day whose 00:00–09:00 is in the download takes its low
+     * from those forecast hours — through the real parse, coordinator and Room. The recording's day
+     * minima already match its mornings, so every day minimum is replaced with 40°: a covered morning
+     * must store its hourly minimum, a day past the hours the shifted 40°.
+     */
+    @Test
+    fun `stored daily lows of covered mornings equal the stored hourly morning minimum`() = runTest {
+        daysTransform = { days -> days.replace(Regex("""("minTemperature":\{[^}]*"degrees":)[0-9.]+""")) { it.groupValues[1] + "40" } }
+        repository().getWeatherData(lat, lon, forceRefresh = true)
+
+        val zone = java.time.ZoneId.systemDefault()
+        val hourly = db.openHelper.readableDatabase
+            .query("SELECT dateTime, temperature FROM hourly_forecasts WHERE source = ?", arrayOf<Any>(source))
+            .use { c -> buildList { while (c.moveToNext()) add(c.getLong(0) to c.getFloat(1)) } }
+        val lows = db.openHelper.readableDatabase
+            .query("SELECT targetDate, lowTemp FROM forecasts WHERE source = ? AND lowTemp IS NOT NULL", arrayOf<Any>(source))
+            .use { c -> buildList { while (c.moveToNext()) add(java.time.LocalDate.ofEpochDay(c.getLong(0) / 86_400_000L) to c.getFloat(1)) } }
+
+        var checked = 0
+        lows.forEach { (date, low) ->
+            val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
+            val end = date.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+            val morning = hourly.filter { it.first in start until end }
+            if (morning.size == 9) {
+                // Stored like every non-today forecast temperature: whole degrees.
+                val expected = ForecastTempRounding.forStorage(morning.minOf { it.second }, isToday = false)
+                assertEquals("$date low vs its 00:00–09:00 hourly minimum", expected!!, low, 0.01f)
+                checked++
+            } else {
+                assertEquals("$date is past the hours: Google's shifted day minimum", 40f, low, 0.01f)
+            }
+        }
+        // 72 forecast hours always hold at least two whole mornings.
+        assertTrue("expected ≥ 2 covered mornings, checked $checked", checked >= 2)
+        assertTrue("expected days past the hourly reach", lows.size > checked)
     }
 
     @Test

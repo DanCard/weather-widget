@@ -36,6 +36,8 @@ object GoogleWeatherFixtures {
         requests: MutableList<HttpRequestData>,
         now: Instant = Instant.now(),
         hoursErrorBody: String? = null,
+        /** Rewrites the `forecast/days` reply (after the time shift), for cases the recording lacks. */
+        daysTransform: ((String) -> String)? = null,
     ): MockEngine {
         val shift = shiftFor(now)
         return MockEngine { request ->
@@ -51,7 +53,8 @@ object GoogleWeatherFixtures {
                 path.endsWith("forecast/hours:lookup") -> hoursPageFor(request.url.parameters["pageToken"])
                 else -> error("unexpected Google Weather path $path")
             }
-            respond(load(name, shift), HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            val body = load(name, shift).let { if (name == "days" && daysTransform != null) daysTransform(it) else it }
+            respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
         }
     }
 

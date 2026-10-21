@@ -243,6 +243,7 @@ class GoogleWeatherApiTest {
         val today = result.daily.first()
         assertEquals("2026-10-06", today.date)
         assertEquals(81.9f, today.highTemp!!, 0.01f)
+        // history/hours covers this morning, but elapsed hours are what happened, not a forecast low.
         assertNull("today's morning low began yesterday: not in this response", today.lowTemp)
         assertTrue("low is °F, not °C", result.daily[1].lowTemp!! > 45f)
         assertEquals(WeatherSource.GOOGLE_WEATHER.id, today.source)
@@ -603,5 +604,93 @@ class GoogleWeatherApiTest {
         fun day(date: String, low: Float) = com.weatherwidget.data.model.DailyForecast(date, 70f, low, "Clear")
         val shifted = api().lowsFiledUnderTheirMorning(listOf(day("2026-10-10", 49f), day("2026-10-12", 48f), day("2026-10-13", 47f)))
         assertEquals(listOf(null, null, 48f), shifted.map { it.lowTemp })
+    }
+
+    // ---- daily low from Google's own hourly morning (plans/261021-google-daily-low-from-hourly-morning.md) ----
+
+    private val pacific = java.time.ZoneId.of("America/Los_Angeles")
+
+    private fun lowDay(date: String, min: Float) = com.weatherwidget.data.model.DailyForecast(date, 70f, min, "Clear")
+
+    /** Hourly rows from [from] (local, [zone]) one per hour, temperatures from [temps]. */
+    private fun hours(from: String, temps: List<Float>, zone: java.time.ZoneId = pacific) =
+        temps.mapIndexed { i, t ->
+            com.weatherwidget.data.model.HourlyForecast(
+                dateTime = java.time.LocalDateTime.parse(from).plusHours(i.toLong()).atZone(zone).toInstant().toEpochMilli(),
+                temperature = t,
+                condition = "Clear",
+                source = WeatherSource.GOOGLE_WEATHER.id,
+            )
+        }
+
+    /**
+     * Emulator 2026-10-21: Google day Tue (07:00 → 07:00) min 51 was Tue 07:00 itself (50.9); the
+     * night to Wed bottomed at 57.5. The shift filed 51 under Wed; the hourly morning says 57.5.
+     */
+    @Test
+    fun `a cold start of Google's day is not filed as the next morning's low`() {
+        // Tue 07:00 50.9, warming to 66, cooling overnight to 57.5 at Wed 04:00, then on to Thu 09:00.
+        val tue07ToWed09 = listOf(50.9f, 54f, 58f, 62f, 65f, 66f, 66f, 65f, 64f, 63f, 62f, 61f, 60f, 59.5f, 59f, 58.6f,
+            58.3f, 58f, 57.8f, 57.6f, 57.5f, 58f, 59f, 60f, 61f, 63f)
+        val wed09ToThu09 = List(15) { 64f } + listOf(60f, 59f, 58.4f, 58f, 57.6f, 57.3f, 57f, 57.2f, 58f, 60f)
+        val daily = api().lowsFiledUnderTheirMorning(
+            listOf(lowDay("2026-10-20", 51f), lowDay("2026-10-21", 57f), lowDay("2026-10-22", 56f)),
+            hours("2026-10-20T07:00", tue07ToWed09 + wed09ToThu09),
+            pacific,
+        )
+        assertEquals(listOf(null, 57.5f, 57f), daily.map { it.lowTemp })
+    }
+
+    @Test
+    fun `a cooling night gives the same low as the shifted day minimum`() {
+        // The 261010 shape: Oct 10's Google min 49.2 is Oct 11 05:00.
+        val oct10_07ToOct11_09 = List(22) { 56f - it * 0.3f } + listOf(49.2f, 49.4f, 50f, 52f, 54f)
+        val daily = api().lowsFiledUnderTheirMorning(
+            listOf(lowDay("2026-10-10", 49.2f), lowDay("2026-10-11", 50.1f)),
+            hours("2026-10-10T07:00", oct10_07ToOct11_09),
+            pacific,
+        )
+        assertEquals(listOf(null, 49.2f), daily.map { it.lowTemp })
+    }
+
+    @Test
+    fun `days past the hourly reach keep the shifted day minimum`() {
+        val daily = api().lowsFiledUnderTheirMorning(
+            listOf(lowDay("2026-10-21", 51f), lowDay("2026-10-22", 57f), lowDay("2026-10-23", 56f), lowDay("2026-10-24", 49f)),
+            hours("2026-10-21T00:00", List(24) { 60f } + List(18) { 58f }), // to Oct 22 17:00
+            pacific,
+        )
+        assertEquals("Oct 22 from hourly; 23, 24 shifted", listOf(60f, 58f, 57f, 56f), daily.map { it.lowTemp })
+    }
+
+    @Test
+    fun `a morning only partly in the download gives no hourly low`() {
+        // Fetched at 05:57: today's hours start at 05:00, so 00:00–04:00 are missing.
+        val daily = api().lowsFiledUnderTheirMorning(
+            listOf(lowDay("2026-10-21", 57f), lowDay("2026-10-22", 56f)),
+            hours("2026-10-21T05:00", List(4) { 62f } + List(24) { 59f }),
+            pacific,
+        )
+        assertEquals("today none (partial-today completes it); tomorrow from hourly", listOf(null, 59f), daily.map { it.lowTemp })
+    }
+
+    @Test
+    fun `parse takes the hourly morning low from the forecast hours`() {
+        val zone = java.time.ZoneId.systemDefault()
+        fun hour(local: java.time.LocalDateTime, t: Float) = """
+            {"interval": {"startTime": "${local.atZone(zone).toInstant()}"}, "temperature": {"degrees": $t}}
+        """
+        val start = java.time.LocalDateTime.parse("2026-10-20T17:00")
+        val temps = List(11) { 62f - it * 0.4f } + listOf(57.5f, 58f, 58.5f, 59f, 59.5f, 60f, 61f) // to Wed 10:00
+        val hoursJson = temps.mapIndexed { i, t -> Json.parseToJsonElement(hour(start.plusHours(i.toLong()), t)).jsonObject }
+        fun day(d: Int, min: Int) = """
+            {"displayDate": {"year": 2026, "month": 10, "day": $d},
+             "maxTemperature": {"degrees": 67}, "minTemperature": {"degrees": $min}}
+        """
+        val days = Json.parseToJsonElement("""{"forecastDays": [${day(20, 51)}, ${day(21, 57)}]}""").jsonObject
+
+        val daily = api().parse(current = null, days = days, forecastHours = hoursJson, historyHours = emptyList()).daily
+
+        assertEquals(listOf(null, 57.5f), daily.map { it.lowTemp })
     }
 }

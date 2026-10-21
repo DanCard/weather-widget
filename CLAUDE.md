@@ -47,7 +47,10 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   per-minute 429 — whole fetch or a later page — as "RATE LIMITED" for **one minute**
   (`:shared` `RateLimitNotice`; `plans/261016-quota-refusals-always-show-a-banner.md`). Google's day runs
   07:00→07:00, so its `minTemperature` is the next morning's: day D takes day D−1's min, like NWS
-  (`GoogleWeatherApi.lowsFiledUnderTheirMorning`); a fetch with no low for today keeps the newest
+  (`GoogleWeatherApi.lowsFiledUnderTheirMorning`) — **but a day whose 00:00–09:00 is in the fetch's
+  forecast hours takes that window's hourly minimum**, since Google's minimum also includes its own
+  07:00 (a cold morning was filed under the next day, 2026-10-21;
+  `plans/261021-google-daily-low-from-hourly-morning.md`); a fetch with no low for today keeps the newest
   stored one ≤ 24 h old (`SameDayExtremeCutoff.keptTodayLow`, both platforms;
   `plans/261010-google-daily-low-filed-under-the-morning-it-ends.md`). A daily-view tap on a day
   past the stored hourly opens its hourly view at once (empty) under "Fetching hourly forecast for
