@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">Калифорния и Западное побережье</string>
     <string name="rain_loop_domain_pnw">Тихоокеанский Северо-Запад</string>
     <string name="rain_loop_domain_wide">Северная Америка и Тихий океан</string>
+    <string name="rain_map_back">Назад</string>
+    <string name="rain_map_layer_amount">Количество</string>
+    <string name="rain_map_layer_chance">Вероятность</string>
+    <string name="rain_map_now">Сейчас</string>
+    <string name="rain_map_source_fetched">Карта: Open-Meteo · загружена %1$s</string>
+    <string name="rain_map_here">Здесь: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">мм/ч</string>
+    <string name="rain_map_unit_in">дюйм/ч</string>
+    <string name="rain_map_zoom_in">Приблизить</string>
+    <string name="rain_map_zoom_out">Отдалить</string>
 </resources>

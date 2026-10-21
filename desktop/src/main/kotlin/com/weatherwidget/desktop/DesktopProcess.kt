@@ -348,6 +348,13 @@ class DesktopClients(private val weatherDao: com.weatherwidget.data.local.deskto
                     }.getOrDefault(0L)
                     val totalBytes = bodyBytes + 500L
                     weatherDao.recordNetworkUsage(totalBytes, isForeground = true)
+                    // This client serves geocoding and the rain viewers; the Open-Meteo rain map grid
+                    // is a provider call, so count it in Usage stats as the daemon's client does.
+                    val url = response.call.request.url
+                    com.weatherwidget.data.remote.ApiUsageClassifier.classify(url.host, url.encodedPath, url.encodedQuery)?.let { key ->
+                        val day = com.weatherwidget.data.remote.ApiUsageClassifier.usageDayMs(key.source, java.time.Instant.now(), java.time.ZoneId.systemDefault())
+                        runCatching { weatherDao.logApiCall(day, key.source, key.endpoint, response.status.value) }
+                    }
                 }
             }
         }

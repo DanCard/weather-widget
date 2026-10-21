@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">कैलिफ़ोर्निया और पश्चिमी तट</string>
     <string name="rain_loop_domain_pnw">प्रशांत उत्तर-पश्चिम</string>
     <string name="rain_loop_domain_wide">उत्तरी अमेरिका और प्रशांत</string>
+    <string name="rain_map_back">वापस</string>
+    <string name="rain_map_layer_amount">मात्रा</string>
+    <string name="rain_map_layer_chance">संभावना</string>
+    <string name="rain_map_now">अभी</string>
+    <string name="rain_map_source_fetched">नक्शा: Open-Meteo · प्राप्त %1$s</string>
+    <string name="rain_map_here">यहाँ: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">मिमी/घंटा</string>
+    <string name="rain_map_unit_in">इंच/घंटा</string>
+    <string name="rain_map_zoom_in">ज़ूम इन</string>
+    <string name="rain_map_zoom_out">ज़ूम आउट</string>
 </resources>

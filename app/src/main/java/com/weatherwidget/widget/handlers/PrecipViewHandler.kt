@@ -362,9 +362,14 @@ object PrecipViewHandler {
             val renderStartMs = SystemClock.elapsedRealtime()
             val renderLogs = mutableListOf<String>()
             val simLoopLocation = stateManager.getWidgetLocation(appWidgetId)
-            val simLoopOffered = SimLoopTouchTarget.supported() &&
-                com.weatherwidget.data.remote.weathernext.WeatherNextAvailability.showPill(
-                    simLoopLocation?.first, simLoopLocation?.second, WeatherNextGoneStore.goneAtMs(context), System.currentTimeMillis(),
+            // Open-Meteo shown → its own rain map (global, pin = graph); any other source → WeatherNext,
+            // offered only on its map and while its host answers.
+            val simLoopIsOpenMeteo = displaySource == WeatherSource.OPEN_METEO
+            val simLoopOffered = SimLoopTouchTarget.supported() && simLoopLocation != null && (
+                simLoopIsOpenMeteo ||
+                    com.weatherwidget.data.remote.weathernext.WeatherNextAvailability.showPill(
+                        simLoopLocation.first, simLoopLocation.second, WeatherNextGoneStore.goneAtMs(context), System.currentTimeMillis(),
+                    )
                 )
             var simLoopPill: android.graphics.RectF? = null
             var simLoopPlotBottom = 0f
@@ -430,11 +435,12 @@ object PrecipViewHandler {
                 widgetWidthDp = dimensions.widthDp,
                 widgetHeightDp = dimensions.heightDp,
                 location = simLoopLocation,
+                target = if (simLoopIsOpenMeteo) com.weatherwidget.ui.OpenMeteoRainLoopActivity::class.java else com.weatherwidget.ui.RainForecastActivity::class.java,
             )
             appLogDao.log(
                 "PrecipGraph",
                 "SIM_LOOP_PILL zoneDp=${simLoopZone?.let { "${it.left.toInt()},${it.top.toInt()},${it.right.toInt()},${it.bottom.toInt()}" }} " +
-                    "reason=${when { !SimLoopTouchTarget.supported() -> "api<31"; !simLoopOffered -> "unavailable"; simLoopPill == null -> "no_space"; else -> "placed" }}",
+                    "reason=${when { !SimLoopTouchTarget.supported() -> "api<31"; !simLoopOffered -> "unavailable"; simLoopPill == null -> "no_space"; else -> "placed" }} map=${if (simLoopIsOpenMeteo) "open_meteo" else "weathernext"}",
             )
         } else {
             views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)

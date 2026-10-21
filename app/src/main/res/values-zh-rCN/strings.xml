@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">加利福尼亚及西海岸</string>
     <string name="rain_loop_domain_pnw">太平洋西北地区</string>
     <string name="rain_loop_domain_wide">北美及太平洋</string>
+    <string name="rain_map_back">返回</string>
+    <string name="rain_map_layer_amount">雨量</string>
+    <string name="rain_map_layer_chance">概率</string>
+    <string name="rain_map_now">现在</string>
+    <string name="rain_map_source_fetched">地图:Open-Meteo · 获取于 %1$s</string>
+    <string name="rain_map_here">此处:%1$s · %2$s</string>
+    <string name="rain_map_unit_mm">毫米/小时</string>
+    <string name="rain_map_unit_in">英寸/小时</string>
+    <string name="rain_map_zoom_in">放大</string>
+    <string name="rain_map_zoom_out">缩小</string>
 </resources>

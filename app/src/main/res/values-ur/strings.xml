@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">کیلیفورنیا اور مغربی ساحل</string>
     <string name="rain_loop_domain_pnw">بحرالکاہل شمال مغرب</string>
     <string name="rain_loop_domain_wide">شمالی امریکہ اور بحرالکاہل</string>
+    <string name="rain_map_back">واپس</string>
+    <string name="rain_map_layer_amount">مقدار</string>
+    <string name="rain_map_layer_chance">امکان</string>
+    <string name="rain_map_now">ابھی</string>
+    <string name="rain_map_source_fetched">نقشہ: Open-Meteo · حاصل کیا %1$s</string>
+    <string name="rain_map_here">یہاں: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">ملی میٹر/گھنٹہ</string>
+    <string name="rain_map_unit_in">انچ/گھنٹہ</string>
+    <string name="rain_map_zoom_in">زوم اِن</string>
+    <string name="rain_map_zoom_out">زوم آؤٹ</string>
 </resources>

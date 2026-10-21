@@ -105,7 +105,7 @@ class DesktopWeatherService(
                     val totalBytes = bodyBytes + 500L
                     weatherDao.recordNetworkUsage(totalBytes, isForeground)
                     val url = response.call.request.url
-                    ApiUsageClassifier.classify(url.host, url.encodedPath)?.let { key ->
+                    ApiUsageClassifier.classify(url.host, url.encodedPath, url.encodedQuery)?.let { key ->
                         val day = ApiUsageClassifier.usageDayMs(key.source, java.time.Instant.now(), java.time.ZoneId.systemDefault())
                         runCatching { weatherDao.logApiCall(day, key.source, key.endpoint, response.status.value) }
                     }

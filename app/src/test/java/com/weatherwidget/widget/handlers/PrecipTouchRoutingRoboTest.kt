@@ -26,6 +26,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -232,6 +233,33 @@ class PrecipTouchRoutingRoboTest {
         assertEquals(-122.09, startedIntent.getDoubleExtra(com.weatherwidget.ui.RainForecastActivity.EXTRA_LON, 0.0), 0.001)
     }
 
+    private suspend fun simLoopTarget(source: WeatherSource, lat: Double, lon: Double): String? {
+        val views = renderPrecipWidget(
+            options = sizedOptions(SIM_W, SIM_H),
+            configureState = {
+                it.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
+                it.setWidgetLocations(intArrayOf(appWidgetId), lat, lon)
+            },
+            sources = listOf(source) + listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO).filter { it != source },
+        )
+        val zone = applyViews(views, SIM_W, SIM_H).findViewById<View>(R.id.sim_loop_touch_zone)
+        if (zone.visibility != View.VISIBLE) return null
+        zone.performClick()
+        return shadowOf(app).nextStartedActivity?.component?.className
+    }
+
+    @Test
+    fun `Open-Meteo shown - pill opens the Open-Meteo rain map, even where WeatherNext has no map`() = runBlocking {
+        assertEquals(com.weatherwidget.ui.OpenMeteoRainLoopActivity::class.java.name, simLoopTarget(WeatherSource.OPEN_METEO, 37.42, -122.09))
+        assertEquals(com.weatherwidget.ui.OpenMeteoRainLoopActivity::class.java.name, simLoopTarget(WeatherSource.OPEN_METEO, 50.45, 30.52)) // Kyiv
+    }
+
+    @Test
+    fun `other sources - pill opens WeatherNext as before, and stays hidden off its map`() = runBlocking {
+        assertEquals(com.weatherwidget.ui.RainForecastActivity::class.java.name, simLoopTarget(WeatherSource.NWS, 37.42, -122.09))
+        assertNull(simLoopTarget(WeatherSource.SILURIAN, 50.45, 30.52)) // Kyiv: off WeatherNext's map
+    }
+
     private fun rectIn(root: View, view: View): android.graphics.Rect {
         var x = 0
         var y = 0
@@ -247,10 +275,11 @@ class PrecipTouchRoutingRoboTest {
     private suspend fun renderPrecipWidget(
         options: Bundle,
         configureState: (WidgetStateManager) -> Unit,
+        sources: List<WeatherSource> = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
     ): RemoteViews {
         val stateManager = WidgetStateManager(context)
         // Debug builds default to Google Weather as primary (2026-10-06); routing here is about NWS icons.
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
+        stateManager.setVisibleSourcesOrder(sources)
         configureState(stateManager)
 
         val appWidgetManager = mockk<AppWidgetManager>()
@@ -264,7 +293,7 @@ class PrecipTouchRoutingRoboTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = appWidgetId,
-            hourlyForecasts = sampleHourlyForecasts(now),
+            hourlyForecasts = sampleHourlyForecasts(now, sources.first()),
             centerTime = now,
             precipProbability = 10,
         )
@@ -304,7 +333,7 @@ class PrecipTouchRoutingRoboTest {
         putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
     }
 
-    private fun sampleHourlyForecasts(now: LocalDateTime): List<HourlyForecastEntity> {
+    private fun sampleHourlyForecasts(now: LocalDateTime, source: WeatherSource = WeatherSource.NWS): List<HourlyForecastEntity> {
         val start = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS).minusHours(8)
         return (0..24).map { index ->
             val time = start.plusHours(index.toLong())
@@ -314,7 +343,7 @@ class PrecipTouchRoutingRoboTest {
                 locationLon = -122.0,
                 temperature = 60f + index,
                 condition = if (index % 3 == 0) "Cloudy" else "Clear",
-                source = WeatherSource.NWS.id,
+                source = source.id,
                 precipProbability = if (index % 4 == 0) 20 else 0,
                 fetchedAt = System.currentTimeMillis(),
             )

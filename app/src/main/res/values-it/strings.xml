@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">California e costa ovest</string>
     <string name="rain_loop_domain_pnw">Pacifico nord-occidentale</string>
     <string name="rain_loop_domain_wide">Nord America e Pacifico</string>
+    <string name="rain_map_back">Indietro</string>
+    <string name="rain_map_layer_amount">Quantità</string>
+    <string name="rain_map_layer_chance">Probabilità</string>
+    <string name="rain_map_now">Ora</string>
+    <string name="rain_map_source_fetched">Mappa: Open-Meteo · scaricata %1$s</string>
+    <string name="rain_map_here">Qui: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">mm/h</string>
+    <string name="rain_map_unit_in">poll/h</string>
+    <string name="rain_map_zoom_in">Ingrandisci</string>
+    <string name="rain_map_zoom_out">Riduci</string>
 </resources>

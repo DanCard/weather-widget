@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">แคลิฟอร์เนียและชายฝั่งตะวันตก</string>
     <string name="rain_loop_domain_pnw">แปซิฟิกตะวันตกเฉียงเหนือ</string>
     <string name="rain_loop_domain_wide">อเมริกาเหนือและแปซิฟิก</string>
+    <string name="rain_map_back">กลับ</string>
+    <string name="rain_map_layer_amount">ปริมาณ</string>
+    <string name="rain_map_layer_chance">โอกาส</string>
+    <string name="rain_map_now">ตอนนี้</string>
+    <string name="rain_map_source_fetched">แผนที่: Open-Meteo · ดึงเมื่อ %1$s</string>
+    <string name="rain_map_here">ที่นี่: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">มม./ชม.</string>
+    <string name="rain_map_unit_in">นิ้ว/ชม.</string>
+    <string name="rain_map_zoom_in">ซูมเข้า</string>
+    <string name="rain_map_zoom_out">ซูมออก</string>
 </resources>

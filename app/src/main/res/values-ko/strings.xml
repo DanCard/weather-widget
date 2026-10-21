@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">캘리포니아·서부 해안</string>
     <string name="rain_loop_domain_pnw">태평양 북서부</string>
     <string name="rain_loop_domain_wide">북미·태평양</string>
+    <string name="rain_map_back">뒤로</string>
+    <string name="rain_map_layer_amount">강수량</string>
+    <string name="rain_map_layer_chance">확률</string>
+    <string name="rain_map_now">지금</string>
+    <string name="rain_map_source_fetched">지도: Open-Meteo · 가져옴 %1$s</string>
+    <string name="rain_map_here">여기: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">mm/시</string>
+    <string name="rain_map_unit_in">인치/시</string>
+    <string name="rain_map_zoom_in">확대</string>
+    <string name="rain_map_zoom_out">축소</string>
 </resources>

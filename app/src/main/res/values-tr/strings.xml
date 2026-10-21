@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">Kaliforniya ve Batı Kıyısı</string>
     <string name="rain_loop_domain_pnw">Pasifik Kuzeybatı</string>
     <string name="rain_loop_domain_wide">Kuzey Amerika ve Pasifik</string>
+    <string name="rain_map_back">Geri</string>
+    <string name="rain_map_layer_amount">Miktar</string>
+    <string name="rain_map_layer_chance">Olasılık</string>
+    <string name="rain_map_now">Şimdi</string>
+    <string name="rain_map_source_fetched">Harita: Open-Meteo · alındı %1$s</string>
+    <string name="rain_map_here">Burada: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">mm/sa</string>
+    <string name="rain_map_unit_in">inç/sa</string>
+    <string name="rain_map_zoom_in">Yakınlaştır</string>
+    <string name="rain_map_zoom_out">Uzaklaştır</string>
 </resources>

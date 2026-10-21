@@ -148,7 +148,7 @@ object AppModule {
             }
         }.apply {
             plugin(HttpSend).intercept { request ->
-                val key = ApiUsageClassifier.classify(request.url.host, request.url.build().encodedPath)
+                val key = ApiUsageClassifier.classify(request.url.host, request.url.build().encodedPath, request.url.build().encodedQuery)
                     ?: return@intercept execute(request)
                 val date = ApiUsageClassifier.usageDayMs(key.source, java.time.Instant.now(), java.time.ZoneId.systemDefault())
                 val call = try {

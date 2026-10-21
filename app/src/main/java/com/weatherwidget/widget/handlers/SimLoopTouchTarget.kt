@@ -96,6 +96,8 @@ internal object SimLoopTouchTarget {
         widgetWidthDp: Int,
         widgetHeightDp: Int,
         location: Pair<Double, Double>?,
+        /** [RainForecastActivity] (WeatherNext) or the Open-Meteo rain map; both read the same extras. */
+        target: Class<*> = RainForecastActivity::class.java,
     ): GraphRect? {
         if (pillPx == null || !supported()) {
             hide(views)
@@ -113,7 +115,7 @@ internal object SimLoopTouchTarget {
         views.setViewLayoutMargin(R.id.sim_loop_touch_zone, RemoteViews.MARGIN_START, zone.left, TypedValue.COMPLEX_UNIT_DIP)
         views.setViewLayoutMargin(R.id.sim_loop_touch_zone, RemoteViews.MARGIN_TOP, zone.top, TypedValue.COMPLEX_UNIT_DIP)
 
-        val intent = Intent(context, RainForecastActivity::class.java).apply {
+        val intent = Intent(context, target).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             location?.let { (lat, lon) ->
                 putExtra(RainForecastActivity.EXTRA_LAT, lat)

@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">California &amp; Pantai Barat</string>
     <string name="rain_loop_domain_pnw">Pasifik Barat Laut</string>
     <string name="rain_loop_domain_wide">Amerika Utara &amp; Pasifik</string>
+    <string name="rain_map_back">Kembali</string>
+    <string name="rain_map_layer_amount">Jumlah</string>
+    <string name="rain_map_layer_chance">Peluang</string>
+    <string name="rain_map_now">Sekarang</string>
+    <string name="rain_map_source_fetched">Peta: Open-Meteo · diambil %1$s</string>
+    <string name="rain_map_here">Di sini: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">mm/jam</string>
+    <string name="rain_map_unit_in">inci/jam</string>
+    <string name="rain_map_zoom_in">Perbesar</string>
+    <string name="rain_map_zoom_out">Perkecil</string>
 </resources>

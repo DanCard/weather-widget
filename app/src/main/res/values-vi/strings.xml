@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">California &amp; Bờ Tây</string>
     <string name="rain_loop_domain_pnw">Tây Bắc Thái Bình Dương</string>
     <string name="rain_loop_domain_wide">Bắc Mỹ &amp; Thái Bình Dương</string>
+    <string name="rain_map_back">Quay lại</string>
+    <string name="rain_map_layer_amount">Lượng mưa</string>
+    <string name="rain_map_layer_chance">Khả năng</string>
+    <string name="rain_map_now">Bây giờ</string>
+    <string name="rain_map_source_fetched">Bản đồ: Open-Meteo · lấy lúc %1$s</string>
+    <string name="rain_map_here">Tại đây: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">mm/giờ</string>
+    <string name="rain_map_unit_in">inch/giờ</string>
+    <string name="rain_map_zoom_in">Phóng to</string>
+    <string name="rain_map_zoom_out">Thu nhỏ</string>
 </resources>

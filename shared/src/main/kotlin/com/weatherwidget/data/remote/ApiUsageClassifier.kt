@@ -44,8 +44,19 @@ object ApiUsageClassifier {
             .take(MAX_SEGMENTS)
             .joinToString("/")
 
-    fun classify(host: String, path: String): Key? =
-        sourceForHost(host)?.let { Key(it, endpointForPath(path)) }
+    /**
+     * [query] (encoded) only separates the Open-Meteo rain map grid — one multi-location
+     * `/v1/forecast` call (`latitude=a,b,c…`) — from the ordinary forecast fetch on the same path, so
+     * Usage stats shows it as its own `forecast/grid` row.
+     */
+    fun classify(host: String, path: String, query: String = ""): Key? =
+        sourceForHost(host)?.let { source ->
+            val endpoint = endpointForPath(path)
+            val isGrid = source == "OPEN_METEO" && endpoint == "forecast" && GRID_LATITUDES.containsMatchIn(query)
+            Key(source, if (isGrid) "forecast/grid" else endpoint)
+        }
+
+    private val GRID_LATITUDES = Regex("""(^|&)latitude=[^&]*(,|%2C)""", RegexOption.IGNORE_CASE)
 
     /** The zone whose midnight starts [source]'s quota day; null when the provider publishes none. */
     fun quotaZone(source: String): ZoneId? = if (source == "GOOGLE_WEATHER") GoogleQuota.ZONE else null

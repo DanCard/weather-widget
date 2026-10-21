@@ -1255,11 +1255,20 @@ internal fun runDesktopUiApplication() = application {
         }
 
         if (simLoopVisible && currentConfig != null) {
-            RainForecastWindow(
-                config = currentConfig,
-                httpClient = desktopClients.httpClient,
-                onClose = { simLoopVisible = false },
-            )
+            // Open-Meteo shown → its own rain map (pin = graph); any other source → WeatherNext.
+            if (currentConfig.displaySource == com.weatherwidget.data.model.WeatherSource.OPEN_METEO.id) {
+                OpenMeteoRainLoopWindow(
+                    config = currentConfig,
+                    httpClient = desktopClients.httpClient,
+                    onClose = { simLoopVisible = false },
+                )
+            } else {
+                RainForecastWindow(
+                    config = currentConfig,
+                    httpClient = desktopClients.httpClient,
+                    onClose = { simLoopVisible = false },
+                )
+            }
         }
     }
 }

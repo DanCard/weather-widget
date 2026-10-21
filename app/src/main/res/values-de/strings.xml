@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">Kalifornien &amp; Westküste</string>
     <string name="rain_loop_domain_pnw">Pazifischer Nordwesten</string>
     <string name="rain_loop_domain_wide">Nordamerika &amp; Pazifik</string>
+    <string name="rain_map_back">Zurück</string>
+    <string name="rain_map_layer_amount">Menge</string>
+    <string name="rain_map_layer_chance">Wahrscheinlichkeit</string>
+    <string name="rain_map_now">Jetzt</string>
+    <string name="rain_map_source_fetched">Karte: Open-Meteo · abgerufen %1$s</string>
+    <string name="rain_map_here">Hier: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">mm/h</string>
+    <string name="rain_map_unit_in">in/h</string>
+    <string name="rain_map_zoom_in">Vergrößern</string>
+    <string name="rain_map_zoom_out">Verkleinern</string>
 </resources>

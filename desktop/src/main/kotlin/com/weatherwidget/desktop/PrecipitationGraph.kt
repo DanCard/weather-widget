@@ -326,9 +326,11 @@ fun PrecipitationGraph(
         val pillStyle = TextStyle(fontSize = (11 * scale).sp, color = Color.White, fontWeight = FontWeight.Bold)
         val pillText = textMeasurer.measure(SIM_LOOP_LABEL, pillStyle)
         val plotRect = GraphRect(0f, graphTop, w, graphBottom)
-        val simLoopOffered = com.weatherwidget.data.remote.weathernext.WeatherNextAvailability.showPill(
-            latitude, longitude, WeatherNextDesktopState.goneAtMs, System.currentTimeMillis(),
-        )
+        // Open-Meteo shown → its own rain map (global); any other source → WeatherNext's rule.
+        val simLoopOffered = displaySourceId == com.weatherwidget.data.model.WeatherSource.OPEN_METEO.id ||
+            com.weatherwidget.data.remote.weathernext.WeatherNextAvailability.showPill(
+                latitude, longitude, WeatherNextDesktopState.goneAtMs, System.currentTimeMillis(),
+            )
         val pillPlacement = if (!simLoopOffered) null else SimLoopPill.place(
             plot = plotRect,
             curvePoints = coords.map { it.x to it.y },

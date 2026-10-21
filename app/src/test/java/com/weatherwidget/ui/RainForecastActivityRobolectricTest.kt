@@ -89,4 +89,15 @@ class RainForecastActivityRobolectricTest {
             assertTrue(activity.findViewById<TextView>(R.id.tv_location).text.isEmpty())
         }
     }
+
+    @Test
+    fun `Open-Meteo rain map - no location says so and fetches nothing`() {
+        ActivityScenario.launch<OpenMeteoRainLoopActivity>(Intent(context, OpenMeteoRainLoopActivity::class.java)).onActivity { activity ->
+            shadowOf(context.mainLooper).idle()
+            assertEquals(
+                context.getString(R.string.sim_loop_no_location),
+                activity.findViewById<TextView>(R.id.tv_source).text.toString(),
+            )
+        }
+    }
 }

@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">Kalifornia i Zachodnie Wybrzeże</string>
     <string name="rain_loop_domain_pnw">Północno-zachodni Pacyfik</string>
     <string name="rain_loop_domain_wide">Ameryka Północna i Pacyfik</string>
+    <string name="rain_map_back">Wstecz</string>
+    <string name="rain_map_layer_amount">Ilość</string>
+    <string name="rain_map_layer_chance">Szansa</string>
+    <string name="rain_map_now">Teraz</string>
+    <string name="rain_map_source_fetched">Mapa: Open-Meteo · pobrano %1$s</string>
+    <string name="rain_map_here">Tutaj: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">mm/h</string>
+    <string name="rain_map_unit_in">cal/h</string>
+    <string name="rain_map_zoom_in">Przybliż</string>
+    <string name="rain_map_zoom_out">Oddal</string>
 </resources>

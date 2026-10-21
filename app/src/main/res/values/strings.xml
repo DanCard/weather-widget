@@ -508,4 +508,15 @@
     <string name="rain_loop_domain_ca">California &amp; West Coast</string>
     <string name="rain_loop_domain_pnw">Pacific Northwest</string>
     <string name="rain_loop_domain_wide">North America &amp; Pacific</string>
+    <!-- Open-Meteo rain map loop (OpenMeteoRainLoopActivity). -->
+    <string name="rain_map_back">Back</string>
+    <string name="rain_map_layer_amount">Amount</string>
+    <string name="rain_map_layer_chance">Chance</string>
+    <string name="rain_map_now">Now</string>
+    <string name="rain_map_source_fetched">Map: Open-Meteo · fetched %1$s</string>
+    <string name="rain_map_here">Here: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">mm/h</string>
+    <string name="rain_map_unit_in">in/h</string>
+    <string name="rain_map_zoom_in">Zoom in</string>
+    <string name="rain_map_zoom_out">Zoom out</string>
 </resources>

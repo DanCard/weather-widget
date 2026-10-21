@@ -489,4 +489,14 @@
     <string name="rain_loop_domain_ca">كاليفورنيا والساحل الغربي</string>
     <string name="rain_loop_domain_pnw">شمال غرب المحيط الهادئ</string>
     <string name="rain_loop_domain_wide">أمريكا الشمالية والمحيط الهادئ</string>
+    <string name="rain_map_back">رجوع</string>
+    <string name="rain_map_layer_amount">الكمية</string>
+    <string name="rain_map_layer_chance">الاحتمال</string>
+    <string name="rain_map_now">الآن</string>
+    <string name="rain_map_source_fetched">الخريطة: Open-Meteo · جُلبت %1$s</string>
+    <string name="rain_map_here">هنا: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">مم/ساعة</string>
+    <string name="rain_map_unit_in">بوصة/ساعة</string>
+    <string name="rain_map_zoom_in">تكبير</string>
+    <string name="rain_map_zoom_out">تصغير</string>
 </resources>

@@ -474,4 +474,14 @@
     <string name="rain_loop_domain_ca">Каліфорнія та Західне узбережжя</string>
     <string name="rain_loop_domain_pnw">Тихоокеанський Північний Захід</string>
     <string name="rain_loop_domain_wide">Північна Америка та Тихий океан</string>
+    <string name="rain_map_back">Назад</string>
+    <string name="rain_map_layer_amount">Кількість</string>
+    <string name="rain_map_layer_chance">Імовірність</string>
+    <string name="rain_map_now">Зараз</string>
+    <string name="rain_map_source_fetched">Карта: Open-Meteo · завантажено %1$s</string>
+    <string name="rain_map_here">Тут: %1$s · %2$s</string>
+    <string name="rain_map_unit_mm">мм/год</string>
+    <string name="rain_map_unit_in">дюйм/год</string>
+    <string name="rain_map_zoom_in">Наблизити</string>
+    <string name="rain_map_zoom_out">Віддалити</string>
 </resources>
