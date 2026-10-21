@@ -105,6 +105,34 @@ class MixedBarSplitTest {
     }
 
     @Test
+    fun highDaytimeRainIsRainyBarUnderNonRainIcon() {
+        // Google Thu 10/22: "Mostly Cloudy", 85 % by day, 76 % noon cloud -> partly-cloudy icon. Was grey.
+        val icon = WeatherConditionResolver.resolveIconName("Mostly Cloudy", isNight = false, cloudCover = 76, precipProbability = 85)
+        assertEquals(false, WeatherConditionResolver.isPrecipitation(icon) || WeatherConditionResolver.isChanceOfRainIcon(icon))
+        val google = WeatherColors.resolveMixedBarSplit(icon, 0.76f, dayPrecipProbability = 85)!!
+        assertSegments(google, gold = 0.15f * 0.24f, grey = 0.15f * 0.76f, blue = 0.85f)
+
+        // Below the gate it stays the ordinary cloud split; unknown % (snapshot bars) too.
+        assertEquals(WeatherColors.FORECAST_CLOUDY, WeatherColors.resolveMixedBarSplit(icon, 0.76f, 59)!!.bottomColorArgb)
+        assertEquals(WeatherColors.FORECAST_CLOUDY, WeatherColors.resolveMixedBarSplit(icon, 0.76f, null)!!.bottomColorArgb)
+    }
+
+    @Test
+    fun segmentEdgesMeasureThePaintedInkIncludingRoundCaps() {
+        // Thu 10/22 desktop: 85 % rain, 76 % cloud; endpoints 100..300 px, 20 px stroke (radius 10).
+        // Ink is 90..310 (220 px): gold 3.6 % = 7.9 px, not 3.6 % of 200 plus a whole stroke width.
+        val split = WeatherColors.rainDaySplit(0.76f, 85)!!
+        val edges = WeatherColors.segmentEdges(split.topFraction, split.midFraction, 100f, 300f, 10f)
+        assertEquals(90f + 220f * 0.15f * 0.24f, edges.topEndY, 1e-3f)
+        assertEquals(90f + 220f * 0.15f, edges.midEndY, 1e-3f)
+
+        // No stroke: the bare endpoints, as before.
+        val bare = WeatherColors.segmentEdges(0.25f, 0f, 0f, 100f, 0f)
+        assertEquals(25f, bare.topEndY, 1e-6f)
+        assertEquals(25f, bare.midEndY, 1e-6f)
+    }
+
+    @Test
     fun rainyBarIsSkyCapOverBlueSizedByDaytimeRain() {
         // Silurian Wed 10/21: "Rain", 85 % by day, 99 % noon cloud -> full rain icon. Was a grey bar.
         val silurian = WeatherColors.resolveMixedBarSplit(WeatherConditionResolver.IC_RAIN, 0.99f, dayPrecipProbability = 85)!!

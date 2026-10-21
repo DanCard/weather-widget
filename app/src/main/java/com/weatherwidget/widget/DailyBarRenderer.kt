@@ -539,7 +539,9 @@ internal object DailyBarRenderer {
             return
         }
 
-        val topSegmentEndY = (topY + barHeight * split.topFraction).coerceIn(topY, bottomY)
+        val inkRadius = paint.strokeWidth / 2f
+        val edges = WeatherColors.segmentEdges(split.topFraction, split.midFraction, topY, bottomY, inkRadius)
+        val topSegmentEndY = edges.topEndY
         val bottomPaint = Paint(paint).apply {
             color = split.bottomColor
             shader = null
@@ -549,18 +551,26 @@ internal object DailyBarRenderer {
             shader = null
         }
 
+        // Each upper segment is the full bar clipped at its edge: it keeps the round top cap, but its
+        // own cap never spills below the edge (shared WeatherColors.segmentEdges).
+        fun segment(segmentPaint: Paint, endY: Float) {
+            canvas.save()
+            canvas.clipRect(centerX - paint.strokeWidth, topY - paint.strokeWidth, centerX + paint.strokeWidth, endY)
+            canvas.drawLine(centerX, topY, centerX, bottomY, segmentPaint)
+            canvas.restore()
+        }
+
         canvas.drawLine(centerX, topY, centerX, bottomY, bottomPaint)
         // A rainy bar's grey middle: the cloudy part of the sky above the rain (WeatherColors.rainDaySplit).
-        val midSegmentEndY = (topSegmentEndY + barHeight * split.midFraction).coerceIn(topY, bottomY)
-        if (abs(midSegmentEndY - topSegmentEndY) > 0.5f) {
+        if (edges.midEndY - topSegmentEndY > 0.5f) {
             val midPaint = Paint(paint).apply {
                 color = split.midColor
                 shader = null
             }
-            canvas.drawLine(centerX, topY, centerX, midSegmentEndY, midPaint)
+            segment(midPaint, edges.midEndY)
         }
-        if (abs(topSegmentEndY - topY) > 0.5f) {
-            canvas.drawLine(centerX, topY, centerX, topSegmentEndY, topPaint)
+        if (topSegmentEndY - (topY - inkRadius) > 0.5f) {
+            segment(topPaint, topSegmentEndY)
         }
 
         debug {

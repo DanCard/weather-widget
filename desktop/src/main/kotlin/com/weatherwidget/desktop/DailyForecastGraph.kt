@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
@@ -979,12 +980,25 @@ private fun DrawScope.drawAdaptiveBar(
         return
     }
 
-    val barHeight = lowY - highY
-    val topEndY = (highY + barHeight * split.topFraction).coerceIn(highY, lowY)
-    // Bottom (grey/blue) full-height first, then the clear (baseColor) top painted over it —
-    // matches Android's two-segment draw order. Top color is the bar's own baseColor (e.g. the
-    // bright snapshot yellow), not the split's gold, exactly as Android keeps its paint color —
-    // except a rainy bar's gold (split.topOverridesBar), which must win over the bar's blue.
+    val edges = com.weatherwidget.shared.util.WeatherColors.segmentEdges(
+        split.topFraction, split.midFraction, highY, lowY, inkRadius = width / 2f,
+    )
+    // Bottom (grey/blue) full-height first, then the grey middle and the clear top painted over it —
+    // matches Android's draw order. Each upper segment is the full bar clipped at its edge, so it
+    // keeps the round top cap but its own cap never spills below the edge (shared segmentEdges).
+    // Top color is the bar's own baseColor (e.g. the bright snapshot yellow), not the split's gold,
+    // exactly as Android keeps its paint color — except a rainy bar's gold (split.topOverridesBar),
+    // which must win over the bar's blue.
+    fun segment(color: Color, endY: Float) = clipRect(top = highY - width, bottom = endY) {
+        drawLine(
+            color = color,
+            start = Offset(centerX, highY),
+            end = Offset(centerX, lowY),
+            strokeWidth = width,
+            cap = StrokeCap.Round,
+            pathEffect = pathEffect,
+        )
+    }
     drawLine(
         color = Color(split.bottomColorArgb),
         start = Offset(centerX, highY),
@@ -994,26 +1008,9 @@ private fun DrawScope.drawAdaptiveBar(
         pathEffect = pathEffect,
     )
     // A rainy bar's grey middle: the cloudy part of the sky above the rain (WeatherColors.rainDaySplit).
-    val midEndY = (topEndY + barHeight * split.midFraction).coerceIn(highY, lowY)
-    if (midEndY - topEndY > 0.5f) {
-        drawLine(
-            color = Color(split.midColorArgb),
-            start = Offset(centerX, highY),
-            end = Offset(centerX, midEndY),
-            strokeWidth = width,
-            cap = StrokeCap.Round,
-            pathEffect = pathEffect,
-        )
-    }
-    if (topEndY - highY > 0.5f) {
-        drawLine(
-            color = if (split.topOverridesBar) Color(split.topColorArgb) else baseColor,
-            start = Offset(centerX, highY),
-            end = Offset(centerX, topEndY),
-            strokeWidth = width,
-            cap = StrokeCap.Round,
-            pathEffect = pathEffect,
-        )
+    if (edges.midEndY - edges.topEndY > 0.5f) segment(Color(split.midColorArgb), edges.midEndY)
+    if (edges.topEndY - (highY - width / 2f) > 0.5f) {
+        segment(if (split.topOverridesBar) Color(split.topColorArgb) else baseColor, edges.topEndY)
     }
 }
 

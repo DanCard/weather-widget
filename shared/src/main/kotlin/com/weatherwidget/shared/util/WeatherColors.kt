@@ -93,6 +93,24 @@ object WeatherColors {
         )
     }
 
+    /** Y where a split bar's ([MixedBarSplit]) top and middle segments end; see [segmentEdges]. */
+    data class SegmentEdges(val topEndY: Float, val midEndY: Float)
+
+    /**
+     * Where a split bar changes colour, measured over its painted ink: a round cap reaches
+     * [inkRadius] past [highY] and [lowY], so fractions of the bare endpoints left the top segment
+     * a full stroke width taller than its share (an 85 %-rain bar's 4 % gold cap read as ~12 %).
+     * Each platform draws a segment clipped at its edge, so its own round cap never spills below.
+     */
+    fun segmentEdges(topFraction: Float, midFraction: Float, highY: Float, lowY: Float, inkRadius: Float): SegmentEdges {
+        val inkTop = highY - inkRadius
+        val inkBottom = lowY + inkRadius
+        val ink = inkBottom - inkTop
+        val topEndY = (inkTop + ink * topFraction).coerceIn(inkTop, inkBottom)
+        val midEndY = (topEndY + ink * midFraction).coerceIn(topEndY, inkBottom)
+        return SegmentEdges(topEndY, midEndY)
+    }
+
     /**
      * Daily-bar rain gate. The daily icon is resolved from the whole-day (24h) precip %, but a daily
      * column's bar stands for the daytime — overnight rain has its own between-column label. So a
@@ -106,7 +124,9 @@ object WeatherColors {
     /**
      * Resolves the weather-adaptive bar split from an icon name and optional cloud cover override.
      * Single source of truth shared by Android and desktop. Pass the column's [dayPrecipProbability]
-     * for a daily forecast bar (see [isDaytimeRain]); leave it null for snapshot bars.
+     * for a daily forecast bar (see [isDaytimeRain]); leave it null for snapshot bars. A daytime %
+     * of at least [WeatherConditionResolver.CHANCE_RAIN_MIN_PRECIP] is a rainy bar even under a
+     * non-rain icon.
      */
     fun resolveMixedBarSplit(
         iconName: String?,
@@ -118,6 +138,11 @@ object WeatherColors {
             if (WeatherConditionResolver.isPrecipitation(iconName) || WeatherConditionResolver.isChanceOfRainIcon(iconName)) {
                 return rainDaySplit(ratio, dayPrecipProbability)
             }
+        }
+        // A known daytime rain chance past the gate is a rainy bar whatever the provider's word:
+        // Google files 85 % by day under "Mostly Cloudy", whose icon is partly cloudy.
+        if (dayPrecipProbability != null && dayPrecipProbability >= WeatherConditionResolver.CHANCE_RAIN_MIN_PRECIP) {
+            return rainDaySplit(ratio, dayPrecipProbability)
         }
         return mixedBarSplit(ratio, isChanceOfRain = false)
     }
