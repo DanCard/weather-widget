@@ -833,6 +833,8 @@ object DailyViewHandler : WidgetViewHandler {
         val precipProb: Int?,
         val isPrecipVisible: Boolean,
         val precipTextSizeDp: Float?,
+        /** The header's rain text — "40%", or with the nowcast "40% 14:15–"; null when hidden. */
+        val precipText: String? = null,
         val apiSourceText: String,
         val apiTextSizeDp: Float,
         val disclosure: HeaderDisclosureLevel,

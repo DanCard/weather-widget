@@ -43,6 +43,20 @@ class DailyIconLayoutLadderTest {
     )
 
     @Test
+    fun `clusters are compared at the header scale they are painted at`() {
+        // A left cluster ending at 140 unscaled clears the centred row (160..280); painted at the
+        // wide header's 1.35 it ends at 189 and runs under it — the nowcast's "20% 10am–" on the
+        // emulator, 2026-10-21. The buttons must leave the centre.
+        val (left, api) = HeaderWidthChecker.scaledClusterEdges(leftClusterRight = 140f, apiLeft = apiLeft, widthPx = width, headerScale = 1.35f)
+        assertEquals(189f, left, 0.01f)
+        assertEquals(width - (width - apiLeft) * 1.35f, api, 0.01f)
+        assertEquals(DailyIconPlacement.CENTER, layout(leftClusterRight = 140f, wantHome = true).placement)
+        assertTrue(layout(leftClusterRight = left, wantHome = true, apiLeftPx = api).placement != DailyIconPlacement.CENTER)
+        // Scale 1 changes nothing.
+        assertEquals(140f to apiLeft, HeaderWidthChecker.scaledClusterEdges(140f, apiLeft, width, 1f))
+    }
+
+    @Test
     fun `a roomy header seats all three buttons in the centre`() {
         // Three 40px zones span 160..280; a left cluster ending at 123 clears it.
         val result = layout(leftClusterRight = 123f, wantHome = true)

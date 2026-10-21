@@ -323,6 +323,10 @@ internal fun WidgetPopup(
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,
                                     onOpenSimLoop = onOpenSimLoop,
+                                    nowcastSlots = remember(snapshot.raw, config.displaySource, config.lat, config.lon) {
+                                        val nowMs = System.currentTimeMillis()
+                                        com.weatherwidget.shared.nowcast.NowcastDisplay.bandSlots(DesktopNowcastView.series(config, nowMs = nowMs), nowMs)
+                                    },
                                 )
                             } else {
                                 TemperatureGraph(

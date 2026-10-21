@@ -321,7 +321,10 @@ internal class ForecastFetchCoordinator(
         }
         put(WeatherSource.OPEN_METEO, SourceFetchEntry(WeatherSource.OPEN_METEO) { lat, lon ->
             fetchAndSaveSharedForecast(lat, lon, WeatherSource.OPEN_METEO, hourlyKeepUntilMs(WeatherSource.OPEN_METEO, fetchContext, horizons[WeatherSource.OPEN_METEO])) {
-                openMeteoApi.getForecast(lat, lon, historyDays = 7, parts = parts(WeatherSource.OPEN_METEO))
+                openMeteoApi.getForecast(lat, lon, historyDays = 7, parts = parts(WeatherSource.OPEN_METEO)).also { raw ->
+                    // The same reply's next 3 h of 15-minute precipitation: the nowcast, for free.
+                    raw.nowcast?.let { com.weatherwidget.widget.AndroidNowcast.store(context).saveSeries(lat, lon, it) }
+                }
             }.also {
                 // Only Open-Meteo has a previous-runs product, and this rides its fetch so
                 // the call is never spent when Open-Meteo is not being fetched at all.

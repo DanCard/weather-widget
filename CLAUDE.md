@@ -170,6 +170,16 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   `history/hours` and writes it over that day's live rows fetched > 6 h before the hour; history
   snapshots untouched. No other refresh or fetch refills (`:shared` `GoogleHistoryRefill`;
   `plans/261010-google-history-refills-stale-elapsed-hours.md`).
+- **Open-Meteo 15-minute rain nowcast** (user, 2026-10-21, phase 1): the daily header's rain % gains
+  `14:15–` (rain from) / `–15:30` (until), and the hourly precip view a 15-min bar band for the next
+  2 h — **only while Open-Meteo is displayed** and only where Open-Meteo has a **native** 15-min
+  model (learned by a `models=` probe per site, kept 30 days; Kyiv has none → nothing shown). Slots
+  come free with every Open-Meteo fetch (`RawFetch.nowcast`) plus a ~1 KB refetch that rides
+  Android's current-temp run / desktop's observation loop when hourly chance ≥ 30 % in the next
+  3 h (any source) and the series is ≥ 15 min old — **no new wakeup**. Disk cache only, no schema.
+  `:shared` `com.weatherwidget.shared.nowcast`; logs `NOWCAST_FETCH`, `NOWCAST_SUMMARY`; usage row
+  `forecast/nowcast`. Other free sources for later phases: `notes/261021-free-radar-nowcast-sources.md`
+  (`plans/261021-open-meteo-15-min-nowcast.md`).
 - **Desktop Observations Refresh fetches observations only** (user, 2026-10-14): the displayed
   source's forced current/recent observations (`refreshObservations`, `reason=user_refresh:observations`),
   never the forecast; on a previous day also that day's Google refill **alone** — one `history/hours`

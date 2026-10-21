@@ -47,14 +47,25 @@ object ApiUsageClassifier {
     /**
      * [query] (encoded) only separates the Open-Meteo rain map grid — one multi-location
      * `/v1/forecast` call (`latitude=a,b,c…`) — from the ordinary forecast fetch on the same path, so
-     * Usage stats shows it as its own `forecast/grid` row.
+     * Usage stats shows it as its own `forecast/grid` row — and the 15-minute nowcast and its
+     * coverage probe (`forecast_minutely_15=`, which the forecast fetch never sends) as
+     * `forecast/nowcast`.
      */
     fun classify(host: String, path: String, query: String = ""): Key? =
         sourceForHost(host)?.let { source ->
             val endpoint = endpointForPath(path)
-            val isGrid = source == "OPEN_METEO" && endpoint == "forecast" && GRID_LATITUDES.containsMatchIn(query)
-            Key(source, if (isGrid) "forecast/grid" else endpoint)
+            val openMeteoForecast = source == "OPEN_METEO" && endpoint == "forecast"
+            Key(
+                source,
+                when {
+                    openMeteoForecast && GRID_LATITUDES.containsMatchIn(query) -> "forecast/grid"
+                    openMeteoForecast && NOWCAST_QUERY.containsMatchIn(query) -> "forecast/nowcast"
+                    else -> endpoint
+                },
+            )
         }
+
+    private val NOWCAST_QUERY = Regex("""(^|&)forecast_minutely_15=""")
 
     private val GRID_LATITUDES = Regex("""(^|&)latitude=[^&]*(,|%2C)""", RegexOption.IGNORE_CASE)
 

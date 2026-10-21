@@ -1,6 +1,9 @@
 package com.weatherwidget.widget.handlers
 
 import android.content.Context
+import com.weatherwidget.shared.nowcast.NowcastDisplay
+import com.weatherwidget.shared.nowcast.NowcastSummary
+import com.weatherwidget.widget.AndroidNowcast
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
@@ -104,6 +107,25 @@ internal object DailyHeaderResolver {
         return resolution
     }
 
+    /**
+     * The nowcast's compact form for the header ("14:15–" / "–15:30"), or null: Open-Meteo
+     * displayed, native 15-minute coverage, rain inside 2 h (`:shared` NowcastDisplay).
+     */
+    private fun resolveNowcastText(
+        context: Context,
+        lat: Double,
+        lon: Double,
+        displaySource: WeatherSource,
+        now: LocalDateTime,
+    ): String? {
+        val nowMs = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val series = NowcastDisplay.series(AndroidNowcast.store(context), lat, lon, displaySource.id, nowMs)
+        return NowcastSummary.headerText(
+            NowcastDisplay.summary(series, nowMs),
+            use24HourClock = android.text.format.DateFormat.is24HourFormat(context),
+        )
+    }
+
     @Suppress("LongParameterList")
     internal fun resolveState(
         context: Context,
@@ -198,6 +220,11 @@ internal object DailyHeaderResolver {
             )
         } else null
 
+        // The 15-minute nowcast rides the rain % text ("40% 14:15–"), so every width fit below
+        // measures it and the date-vs-rain-% priority rule applies to it unchanged.
+        val nowcastText = resolveNowcastText(context, lat, lon, displaySource, now)
+        val headerPrecipText = if (isPrecipVisible) NowcastDisplay.headerPrecipText(precipProb ?: 0, nowcastText) else null
+
         // Forecast delta (observed − forecast): kept on the state for the ghost line and the
         // today-column overlay. The HEADER shows the yesterday delta instead (always visible when
         // it exists and clears the noise threshold — no graph-window gate).
@@ -219,7 +246,7 @@ internal object DailyHeaderResolver {
         val apiSourceText = displaySource.shortDisplayName
         val apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows)
         val deltaTextForFit = if (deltaVisible) String.format("%+.1f", deltaFromYesterday) else null
-        val precipTextForFit = if (isPrecipVisible) "${precipProb}%" else null
+        val precipTextForFit = headerPrecipText
 
         val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
             context = context,
@@ -279,6 +306,7 @@ internal object DailyHeaderResolver {
             disclosure = disclosure,
             // Graph mode only and when enabled in settings (disabled by default):
             wantMonths = useGraph && stateManager.showDailyZoomOutButton(),
+            headerScale = headerScale,
         )
         val iconCount = iconLayout.iconCount
         val iconPlacement = iconLayout.placement
@@ -305,7 +333,7 @@ internal object DailyHeaderResolver {
             numColumns = numColumns,
             currentTempText = formattedTemp,
             deltaText = if (deltaVisible && disclosure.showsDelta()) String.format("%+.1f", deltaFromYesterday) else null,
-            precipText = if (isPrecipVisible) "$precipProb%" else null,
+            precipText = headerPrecipText,
             precipTextSizeDp = precipTextSizeDp,
             apiSourceText = apiSourceText,
             apiTextSizeDp = apiTextSizeDp,
@@ -353,6 +381,7 @@ internal object DailyHeaderResolver {
             precipProb = precipProb,
             isPrecipVisible = isPrecipVisible,
             precipTextSizeDp = precipTextSizeDp,
+            precipText = headerPrecipText,
             apiSourceText = apiSourceText,
             apiTextSizeDp = apiTextSizeDp,
             disclosure = disclosure,
@@ -441,7 +470,7 @@ internal object DailyHeaderResolver {
         HeaderRemoteViewsBinder.bindPrecipProbability(
             context = context,
             views = views,
-            precipText = if (state.isPrecipVisible) "${state.precipProb ?: 0}%" else null,
+            precipText = if (state.isPrecipVisible) state.precipText ?: "${state.precipProb ?: 0}%" else null,
             textSizeDp = state.precipTextSizeDp ?: 0f,
             scale = state.headerScale,
         )

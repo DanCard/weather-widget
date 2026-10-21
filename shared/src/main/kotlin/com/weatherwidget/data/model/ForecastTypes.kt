@@ -203,6 +203,8 @@ data class RawFetch(
     val providerHistoryHourly: List<HourlyForecast> = emptyList(),
     /** Optional provider history at its native sub-hour cadence, when provenance permits actuals. */
     val subHourly: List<HourlyForecast> = emptyList(),
+    /** Open-Meteo: the next ~3 h of 15-minute precipitation (the nowcast), from the same reply. */
+    val nowcast: com.weatherwidget.shared.nowcast.NowcastSeries? = null,
     val daily: List<DailyForecast> = emptyList(),
     val rawObservations: List<ObservationReading> = emptyList(),
     val dailyActuals: Map<String, DailyHistory> = emptyMap(),

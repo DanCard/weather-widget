@@ -397,6 +397,7 @@ object PrecipViewHandler {
                     simLoopPill = pill
                     simLoopPlotBottom = plotBottom
                 },
+                nowcastSlots = nowcastBandSlots(context, lat, lon, displaySource),
             )
             renderLogs.forEach { appLogDao.log("PrecipGraph", it) }
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
@@ -601,6 +602,21 @@ object PrecipViewHandler {
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
         return alignedCenter.minusHours(zoom.backHours) to alignedCenter.plusHours(zoom.forwardHours)
+    }
+
+    /** Open-Meteo's 15-minute nowcast for the band; empty unless Open-Meteo is displayed with native coverage. */
+    private fun nowcastBandSlots(
+        context: Context,
+        lat: Double,
+        lon: Double,
+        displaySource: WeatherSource,
+    ): List<com.weatherwidget.shared.nowcast.NowcastSlot> {
+        if (lat.isNaN() || lon.isNaN()) return emptyList()
+        val nowMs = System.currentTimeMillis()
+        val series = com.weatherwidget.shared.nowcast.NowcastDisplay.series(
+            com.weatherwidget.widget.AndroidNowcast.store(context), lat, lon, displaySource.id, nowMs,
+        )
+        return com.weatherwidget.shared.nowcast.NowcastDisplay.bandSlots(series, nowMs)
     }
 
     private suspend fun loadActualPrecipByHourForGraph(

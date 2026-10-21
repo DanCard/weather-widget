@@ -108,5 +108,11 @@ interface WeatherApiClient {
 
     suspend fun fetchHistoricalDailyTemps(startDate: String, endDate: String): List<DailyForecast>
 
+    /**
+     * Open-Meteo's 15-minute nowcast at this client's site (`:shared` NowcastFetcher), whatever
+     * source the client was built for; null when the client keeps no nowcast store.
+     */
+    suspend fun refreshNowcast(): com.weatherwidget.shared.nowcast.NowcastFetcher.Outcome? = null
+
     fun close()
 }

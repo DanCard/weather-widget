@@ -92,6 +92,11 @@ internal fun WidgetHeader(
     }
     val precipProb = headerPrecipitation.probability
     val precipFontScale = headerPrecipitation.fontScale
+    // The 15-minute nowcast beside the rain % (daily view, Open-Meteo, native coverage only).
+    // Keyed on the forecast too: a nowcast fetch ends in the same data-updated reload.
+    val nowcastText = remember(forecast.raw, displaySource, nowLocal, isHourly, config.lat, config.lon) {
+        if (isHourly) null else DesktopNowcastView.headerText(config)
+    }
 
     val toggleWeatherSource = { cycleDisplaySource(config, onUpdateConfig) }
 
@@ -164,7 +169,7 @@ internal fun WidgetHeader(
                 if (precipProb != null && precipFontScale != null) {
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "$precipProb%",
+                        text = com.weatherwidget.shared.nowcast.NowcastDisplay.headerPrecipText(precipProb, nowcastText),
                         style = MaterialTheme.typography.labelMedium,
                         fontSize = (DesktopHeaderPrecipitationResolver.HEADER_TEMP_BASE_SP * precipFontScale * scale).sp,
                         color = Color(0xFF4FC3F7),
@@ -264,7 +269,7 @@ internal fun WidgetHeader(
                         todayInView = todayInView,
                     )
                     val showHomeButton = homeAction != null
-                    val dateText = targetHour.format(dateFormatter)
+                    val dateText = DesktopHeaderDate.dailyDate(nowLocal).format(dateFormatter)
                     val dateStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (12 * scale).sp)
                     val density = LocalDensity.current
                     val dateWidthDp = remember(dateText, dateStyle, headerTextMeasurer, density) {
@@ -420,4 +425,13 @@ internal fun WidgetHeader(
             }
         }
     }
+}
+
+/**
+ * The daily header's date: always today, as on Android (`DailyHeaderResolver`: `today.format(...)`).
+ * Not the header's `headerTime`, which is now + the HOURLY view's pan offset: a saved 27 h hourly
+ * pan printed "Thu 22" over Wednesday's daily view (2026-10-21).
+ */
+internal object DesktopHeaderDate {
+    fun dailyDate(now: LocalDateTime): LocalDate = now.toLocalDate()
 }

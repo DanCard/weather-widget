@@ -109,6 +109,17 @@ settings = DesktopSettings(useCelsius = false),
     }
 
     @Test
+    fun `nowcast text shows in blue after the temperature, nothing without it`() {
+        val with = PanelIpcServer.buildPanelMarkup(
+            body = "61.0°", color = PanelIpcServer.LIVE_COLOR, deltaText = null,
+            tooltip = "t", clickCmd = "#", nowcastText = "14:15–",
+        )
+        assertTrue("nowcast span missing: $with", with.contains("foreground='${PanelIpcServer.NOWCAST_COLOR}'") && with.contains("☂14:15–"))
+        assertTrue("span must sit inside <txt>", with.indexOf("☂14:15–") < with.indexOf("</txt>"))
+        assertFalse(markup(null).contains(PanelIpcServer.NOWCAST_COLOR))
+    }
+
+    @Test
     fun `buildPanelMarkup with custom font sizes applies them to spans`() {
         val m = PanelIpcServer.buildPanelMarkup(
             body = "68.8°",

@@ -37,6 +37,8 @@ object PrecipitationGraphRenderer {
 
     private const val COLOR_CURVE_FILL_TOP = "#445AC8FA"
     private const val COLOR_CURVE_FILL_BOTTOM = "#005AC8FA"
+    /** The 15-minute nowcast bars: the curve's blue, opaque enough to read over its fill. */
+    private const val COLOR_NOWCAST_BAND = "#B34FC3F7"
 
     private const val GRAPH_TOP_PADDING_DP = 44f
     private const val FAR_OUT_DATA_HOURS_THRESHOLD = 72L
@@ -528,6 +530,8 @@ object PrecipitationGraphRenderer {
         simLoopLabel: String? = null,
         /** Where the pill was drawn (bitmap px; null when no empty space fit it) and the plot's bottom. */
         onSimLoopPlaced: ((pill: RectF?, plotBottomPx: Float) -> Unit)? = null,
+        /** Open-Meteo's next 2 h at 15 min (`:shared` NowcastDisplay.bandSlots); empty draws no band. */
+        nowcastSlots: List<com.weatherwidget.shared.nowcast.NowcastSlot> = emptyList(),
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -644,6 +648,7 @@ object PrecipitationGraphRenderer {
         val (curvePath, fillPath) = AndroidCurvePathBuilder.buildSmoothCurveAndFillPaths(layout.points, layout.graphBottom)
         canvas.drawPath(fillPath, paints.gradientPaint)
         canvas.drawPath(curvePath, paints.curvePaint)
+        drawNowcastBand(canvas, hours, layout, nowcastSlots, onDebugLog)
 
         // --- Draw labels and current-time indicator ---
         HourlyFooterRenderer.drawPlan(
@@ -751,6 +756,34 @@ object PrecipitationGraphRenderer {
      * null when nothing fits. Over the curve only when nothing clear exists; the fill is translucent. The plot starts at graphTop (44dp), below the header buttons, so the
      * search never offers the pill a slot under them.
      */
+    /**
+     * The 15-minute nowcast as bars along the plot's bottom, over the chance fill and under every
+     * label (`plans/261021-open-meteo-15-min-nowcast.md`). Geometry is `:shared` NowcastBand.
+     */
+    private fun drawNowcastBand(
+        canvas: Canvas,
+        hours: List<PrecipHourData>,
+        layout: PrecipGraphLayout,
+        slots: List<com.weatherwidget.shared.nowcast.NowcastSlot>,
+        onDebugLog: ((String) -> Unit)?,
+    ) {
+        if (slots.isEmpty() || hours.isEmpty()) return
+        val firstHourMs = hours.first().dateTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val bars = com.weatherwidget.shared.nowcast.NowcastBand.bars(slots, firstHourMs, layout.hourWidth)
+        if (bars.isEmpty()) return
+        val maxHeight = layout.graphHeight * com.weatherwidget.shared.nowcast.NowcastBand.BAND_HEIGHT_FRACTION
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(COLOR_NOWCAST_BAND)
+            style = Paint.Style.FILL
+        }
+        for (bar in bars) {
+            canvas.drawRect(bar.leftX, layout.graphBottom - maxHeight * bar.heightFraction, bar.rightX, layout.graphBottom, paint)
+        }
+        val msg = "nowcastBand: bars=${bars.size} x=${bars.first().leftX.toInt()}..${bars.last().rightX.toInt()}"
+        Log.d(TAG, msg)
+        onDebugLog?.invoke(msg)
+    }
+
     private fun drawSimLoopPill(
         canvas: Canvas,
         layout: PrecipGraphLayout,

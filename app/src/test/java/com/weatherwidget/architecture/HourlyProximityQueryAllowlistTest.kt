@@ -55,6 +55,8 @@ class HourlyProximityQueryAllowlistTest {
         "NwsStationActualsStore.kt" to "NWS actuals blend context read is immediately wrapped in unifyToNearestSite",
         "UIUpdateScheduler.kt" to "pre-existing; audit before touching (update cadence heuristics)",
         "DataFreshness.kt" to "staleness check; freshest row wins regardless of site",
+        "NowcastRefresher.kt" to
+            "rain-plausibility gate takes the MAX chance; a fragment can only add one ~1 KB request, never a drawn value",
         // Corrected 2026-08-06. This entry previously read "same sameSite filter + stitcher logic",
         // which was FALSE and is how the today-column -13.7 delta shipped: the loader re-centred on
         // the QUANTIZED nearest site (admitting a fragment the raw centre excluded) and collapsed

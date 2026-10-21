@@ -242,7 +242,7 @@ internal object DailyGraphRenderer {
                     !(isPrecipVisible && headerPrecipPlacement.showHeaderPrecip)) {
                     ctx.context.getString(R.string.header_delta_from_yesterday)
                 } else null,
-                precipText = if (isPrecipVisible) "${ctx.precipProb}%" else null,
+                precipText = if (isPrecipVisible) headerState.precipText ?: "${ctx.precipProb}%" else null,
                 precipTextSizeDp = headerState.precipTextSizeDp
                     ?: HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
                 dateText = dateText,

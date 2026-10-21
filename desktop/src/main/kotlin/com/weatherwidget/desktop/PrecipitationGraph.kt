@@ -48,6 +48,8 @@ import kotlin.math.roundToInt
 private typealias RainPeriod = RainPeriodSelection.RainPeriod
 
 private val COLOR_PRECP_CURVE = Color(0xFF5AC8FA)
+/** The 15-minute nowcast bars: the header rain %'s blue, opaque enough to read over the fill. */
+private val COLOR_NOWCAST_BAND = Color(0xB34FC3F7)
 private val COLOR_PRECP_FILL_START = Color(0xFF5AC8FA).copy(alpha = 0.27f)
 private val COLOR_PRECP_FILL_END = Color.Transparent
 private val COLOR_RAIN_AMOUNT = Color(0xFFFFFFFF)
@@ -75,6 +77,8 @@ fun PrecipitationGraph(
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit = { _, _ -> },
     onPan: (deltaHours: Int) -> Unit = {},
     onOpenSimLoop: () -> Unit = {},
+    /** Open-Meteo's next 2 h at 15 min (`:shared` NowcastDisplay.bandSlots); empty draws no band. */
+    nowcastSlots: List<com.weatherwidget.shared.nowcast.NowcastSlot> = emptyList(),
 ) {
     val textMeasurer = rememberTextMeasurer()
     val setup = rememberHourlyGraphSetup(hourly, centerOffsetHours, zoomFactor) ?: return
@@ -150,6 +154,23 @@ fun PrecipitationGraph(
             endY = graphBottom
         )
         drawPath(fillPath, brush = fillBrush)
+
+        // The 15-minute nowcast: bars along the plot's bottom, over the fill, under every label
+        // (`:shared` NowcastBand, the same geometry as Android's).
+        if (nowcastSlots.isNotEmpty() && points.isNotEmpty()) {
+            val t0 = points.first().dateTime
+            val x0 = xAtTime(t0)
+            val hourPx = xAtTime(t0 + 60 * 60 * 1000L) - x0
+            val bandMax = graphHeight * com.weatherwidget.shared.nowcast.NowcastBand.BAND_HEIGHT_FRACTION
+            for (bar in com.weatherwidget.shared.nowcast.NowcastBand.bars(nowcastSlots, t0, hourPx)) {
+                val top = graphBottom - bandMax * bar.heightFraction
+                drawRect(
+                    color = COLOR_NOWCAST_BAND,
+                    topLeft = Offset(x0 + bar.leftX, top),
+                    size = androidx.compose.ui.geometry.Size(bar.rightX - bar.leftX, graphBottom - top),
+                )
+            }
+        }
 
         val markerX = xAtTime(now)
 

@@ -862,7 +862,7 @@ internal class DaemonRuntime(
         val config = currentConfig ?: return
         val svc = DesktopWeatherService(
             config.lat, config.lon, config.displaySource, config.settings.apiKeys, weatherDao,
-            synopticBackoffStore = DesktopSynopticBackoffStore.default(),
+            synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store,
             personalStationWeight = config.personalStationWeight(),
         )
         val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.displaySource, config.personalStationWeight())
@@ -955,6 +955,20 @@ internal class DaemonRuntime(
                                 Log.i(TAG, "Viewing forecast refresh failed: ${e.message}")
                             }
                         }
+                    }
+
+                    // The 15-minute nowcast rides this tick (no timer of its own); it gates itself on
+                    // Open-Meteo displayed + rain plausible (NowcastRefreshPolicy).
+                    try {
+                        val nowcast = newRepo.refreshNowcastIfDue(DesktopNowcast.store, config.effectiveSources, "obs_loop")
+                        if (nowcast != null) {
+                            panelPublisher.triggerPanelRefresh()
+                            notifyDataUpdated()
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.i(TAG, "Nowcast refresh failed: ${e.message}")
                     }
 
                     if (fullRefreshSuppliedObservations) {
@@ -1095,7 +1109,7 @@ internal class DaemonRuntime(
                                 otherSource,
                                 config.settings.apiKeys,
                                 weatherDao,
-                                synopticBackoffStore = DesktopSynopticBackoffStore.default(),
+                                synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store,
                                 personalStationWeight = config.personalStationWeight(),
                             )
                             val otherRepo = DesktopWeatherRepository(
@@ -1161,7 +1175,7 @@ internal class DaemonRuntime(
                                 otherSource,
                                 config.settings.apiKeys,
                                 weatherDao,
-                                synopticBackoffStore = DesktopSynopticBackoffStore.default(),
+                                synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store,
                                 personalStationWeight = config.personalStationWeight(),
                             )
                             val otherRepo = DesktopWeatherRepository(

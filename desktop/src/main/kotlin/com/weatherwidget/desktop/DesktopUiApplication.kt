@@ -236,7 +236,7 @@ internal fun runDesktopUiApplication() = application {
 
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.apiKeys, currentConfig?.personalStationWeight()) {
             currentConfig?.let {
-                DesktopWeatherService(it.lat, it.lon, it.displaySource, it.settings.apiKeys, weatherDao, isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(), personalStationWeight = it.personalStationWeight())
+                DesktopWeatherService(it.lat, it.lon, it.displaySource, it.settings.apiKeys, weatherDao, isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store, personalStationWeight = it.personalStationWeight())
             }
         }
         val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.personalStationDiscount) {
@@ -1041,7 +1041,7 @@ internal fun runDesktopUiApplication() = application {
             val refresh = refreshRunner.start("user_refresh:$origin:${source.id}") {
                 val service = DesktopWeatherService(
                     cfg.lat, cfg.lon, source.id, cfg.settings.apiKeys, weatherDao,
-                    isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(),
+                    isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store,
                     personalStationWeight = cfg.personalStationWeight(),
                 )
                 try {

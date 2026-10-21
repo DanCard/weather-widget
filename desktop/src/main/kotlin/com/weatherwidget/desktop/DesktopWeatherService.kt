@@ -72,6 +72,8 @@ class DesktopWeatherService(
      * `config.personalStationWeight()`. Defaults to an untouched setting's value.
      */
     private val personalStationWeight: Double = DesktopSettings().personalStationWeight(),
+    /** Where an Open-Meteo fetch leaves its 15-minute nowcast; production passes [DesktopNowcast.store]. */
+    private val nowcastStore: com.weatherwidget.shared.nowcast.NowcastStore? = null,
 ) : WeatherApiClient {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -437,6 +439,7 @@ class DesktopWeatherService(
             historyDays = ACTUALS_HISTORY_DAYS,
             parts = parts,
         )
+        forecast.nowcast?.let { nowcastStore?.saveSeries(latitude, longitude, it) }
         val observation = forecast.providerCurrentTemp?.let { temp ->
             val timestamp = forecast.providerCurrentObservedAt ?: System.currentTimeMillis()
             ObservationReading(
@@ -1048,6 +1051,9 @@ class DesktopWeatherService(
             rawObservations = observations
         )
     }
+
+    override suspend fun refreshNowcast(): com.weatherwidget.shared.nowcast.NowcastFetcher.Outcome? =
+        nowcastStore?.let { com.weatherwidget.shared.nowcast.NowcastFetcher(httpClient, it).refresh(latitude, longitude) }
 
     override fun close() = httpClient.close()
 

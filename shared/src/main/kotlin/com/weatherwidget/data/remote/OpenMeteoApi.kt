@@ -312,6 +312,9 @@ class OpenMeteoApi
                 daily = dailyForecasts,
                 hourly = hourlyForecasts,
                 subHourly = parseSubHourlyHistory(response),
+                nowcast = System.currentTimeMillis().let { now ->
+                    com.weatherwidget.shared.nowcast.NowcastParser.parseSeries(response, fetchedAtMs = now, nowMs = now)
+                },
             )
         }
 

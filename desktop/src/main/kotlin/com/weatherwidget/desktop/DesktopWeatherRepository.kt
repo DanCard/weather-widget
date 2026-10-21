@@ -45,6 +45,10 @@ import com.weatherwidget.shared.history.ProviderHistoryDecision
 import com.weatherwidget.shared.history.ProviderHistoryFailureClass
 import com.weatherwidget.shared.history.ProviderHistoryPolicy
 import com.weatherwidget.shared.util.TemperatureInterpolator
+import com.weatherwidget.shared.nowcast.NowcastFetcher
+import com.weatherwidget.shared.nowcast.NowcastRefreshPolicy
+import com.weatherwidget.shared.nowcast.NowcastStore
+import com.weatherwidget.shared.nowcast.NowcastSummary
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import kotlinx.coroutines.Dispatchers
@@ -1187,6 +1191,42 @@ class DesktopWeatherRepository(
                 "detail=$detail retryAtMs=$retryAtMs",
             "WARN",
         )
+    }
+
+    /**
+     * Open-Meteo's 15-minute nowcast, when [NowcastRefreshPolicy] says it is worth a request: Open-Meteo
+     * displayed, native coverage (or not yet probed), the series ≥ 15 min old, and rain plausible —
+     * any of [sources]' hourly chance ≥ 30 % in the next 3 h, or the series itself shows rain. Rides
+     * the observation loop; adds no timer. `plans/261021-open-meteo-15-min-nowcast.md`.
+     */
+    suspend fun refreshNowcastIfDue(
+        store: NowcastStore,
+        sources: List<String>,
+        reason: String,
+    ): NowcastFetcher.Outcome? = withContext(Dispatchers.IO) {
+        val nowMs = currentTimeMillis()
+        val hourly = sources.distinct().flatMap {
+            weatherDao.getHourlyForecasts(latitude, longitude, it, nowMs - 60 * 60 * 1000L, nowMs + NowcastRefreshPolicy.PLAUSIBLE_WINDOW_MS)
+        }
+        val maxPop = NowcastRefreshPolicy.maxPopNext3h(hourly, nowMs)
+        val skip = NowcastRefreshPolicy.skipReason(
+            openMeteoDisplayed = displaySource == WeatherSource.OPEN_METEO,
+            nativeCoverage = store.loadCoverage(latitude, longitude, nowMs),
+            cached = store.loadSeries(latitude, longitude, nowMs),
+            maxPopNext3h = maxPop,
+            nowMs = nowMs,
+        )
+        if (skip != null) {
+            Log.d(TAG, "NOWCAST_SKIP reason=${skip.logName} trigger=$reason maxPop=$maxPop")
+            return@withContext null
+        }
+        val outcome = weatherService.refreshNowcast() ?: return@withContext null
+        weatherDao.log("NOWCAST_FETCH", "trigger=$reason maxPop=$maxPop ${outcome.logLine}", if (outcome is NowcastFetcher.Outcome.Failed) "WARN" else "INFO")
+        if (outcome is NowcastFetcher.Outcome.Fetched) {
+            val summary = NowcastSummary.summarize(store.loadSeries(latitude, longitude, nowMs) ?: return@withContext outcome, nowMs)
+            weatherDao.log("NOWCAST_SUMMARY", "text=${NowcastSummary.describe(summary, use24HourClock = true) ?: "dry"}")
+        }
+        outcome
     }
 
     /**

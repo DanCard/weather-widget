@@ -370,6 +370,13 @@ object HeaderWidthChecker {
         isIconWidth: Boolean,
         disclosure: HeaderDisclosureLevel,
         wantMonths: Boolean = false,
+        /**
+         * [computeHeaderScale]'s result. The left cluster and the API label are drawn at it, the
+         * button zones are not ([positionDailyIcons] sizes them in plain dp), so the clusters are
+         * compared at the scale they are painted. Measured unscaled, a 1.35× header let a longer
+         * rain text ("20% 10am–", the nowcast) run under the centred buttons (emulator, 2026-10-21).
+         */
+        headerScale: Float = 1f,
     ): DailyIconLayout {
         if (baseIconCount <= 0 || isIconWidth || disclosure == HeaderDisclosureLevel.NONE) {
             return DailyIconLayout(DailyIconPlacement.HIDDEN, baseIconCount, homeShown = false)
@@ -388,10 +395,16 @@ object HeaderWidthChecker {
             includeIcon = includeIcon,
             currentTempSizeDp = currentTempSizeDp,
         )
-        return resolveDailyIconLayoutFromBounds(
-            widthPx = widthPx,
+        val (scaledLeftRight, scaledApiLeft) = scaledClusterEdges(
             leftClusterRight = leftClusterRight,
             apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp),
+            widthPx = widthPx,
+            headerScale = headerScale,
+        )
+        return resolveDailyIconLayoutFromBounds(
+            widthPx = widthPx,
+            leftClusterRight = scaledLeftRight,
+            apiLeft = scaledApiLeft,
             gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP),
             centerZoneWidthPx = dpToPx(context, dailyCenterIconZoneWidthDp(widthDp)),
             inlineZoneWidthPx = dpToPx(context, HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP),
@@ -401,6 +414,14 @@ object HeaderWidthChecker {
             wantMonths = wantMonths,
         )
     }
+
+    /**
+     * The left cluster's right edge and the API label's left edge as painted at [headerScale]: the
+     * left cluster grows rightward from the widget's left edge, the right cluster leftward from its
+     * right edge. Pure, for tests (Robolectric has no font engine).
+     */
+    fun scaledClusterEdges(leftClusterRight: Float, apiLeft: Float, widthPx: Float, headerScale: Float): Pair<Float, Float> =
+        leftClusterRight * headerScale to widthPx - (widthPx - apiLeft) * headerScale
 
     /** Pure ladder for [resolveDailyIconLayout] — same font-engine-free contract as
      * [resolveDailyIconPlacementFromBounds]. */

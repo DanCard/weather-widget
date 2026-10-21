@@ -51,6 +51,8 @@ class WeatherWidgetWorker
             SynopticObservationRefresher(context, synopticObservationSource, widgetStateManager, appLogDao)
         }
 
+        private val nowcastRefresher by lazy { NowcastRefresher(context, widgetStateManager, appLogDao) }
+
         // ---- orchestration ----
 
         override suspend fun doWork(): Result {
@@ -342,6 +344,8 @@ class WeatherWidgetWorker
                 // Hoisted out of the fetch branch below so the dominant-temp watch can reuse the
                 // location this run actually fetched for; null means no fetch happened.
                 var fetchedLocation: Pair<Double, Double>? = null
+                // A fetched nowcast changes what the header shows even when no source was attempted.
+                var nowcastFetched = false
 
                 if (!CurrentTempFetchPolicy.shouldFetchNow(
                         isCharging = device.isCharging,
@@ -382,6 +386,13 @@ class WeatherWidgetWorker
                         setOf(com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.PRIMARY), location.first, location.second,
                         reason = input.currentTempReason,
                     )
+                    try {
+                        nowcastFetched = nowcastRefresher.refreshIfDue(location.first, location.second, reason = input.currentTempReason)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        appLogDao.logException("NOWCAST_FETCH", "refresh failed (current_temp_only)", e)
+                    }
                     refreshResult.fold(
                         onSuccess = { attempted ->
                             attemptedSourceCount = attempted
@@ -416,7 +427,7 @@ class WeatherWidgetWorker
                     }
                 }
 
-                val skipRepaint = CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
+                val skipRepaint = !nowcastFetched && CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
                     policyBlocked = resultMessage == "skipped_policy_blocked",
                     fetchFailed = resultMessage.startsWith("fetch_failure"),
                     attemptedSourceCount = attemptedSourceCount,

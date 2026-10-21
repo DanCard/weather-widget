@@ -80,6 +80,9 @@ interface RepositoryEntryPoint {
 
     /** For plain (non-@AndroidEntryPoint) receivers that resample location on system events. */
     fun gpsResampler(): GpsResampler
+
+    /** The app client (usage-counted) for fetches made outside an injected class: the nowcast. */
+    fun httpClient(): io.ktor.client.HttpClient
 }
 
 @Module
