@@ -9,12 +9,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.ForecastSnapshot
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.HeaderContent
+import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.PreferredSourceHome
 import java.time.Instant
 import java.time.LocalDate
@@ -61,41 +64,33 @@ internal fun WidgetHeader(
         WeatherSource.fromDisplaySource(config.displaySource)
     }
     val displayTemp = resolvedCurrentTemp ?: forecast.resolved.currentTemp
-    // The header shows the DELTA FROM YESTERDAY (observed vs blended actual 24h earlier). It is
-    // pan-independent, so it always shows when it exists and clears the noise threshold — no
-    // graph-window gate, matching Android's post-swap header.
     val deltaVal = resolvedDeltaFromYesterday ?: forecast.resolved.deltaFromYesterday
-    val deltaTemp = deltaVal?.takeIf { kotlin.math.abs(it) >= 0.1f }
-
-    val todayForecast = remember(forecast.raw.daily, nowLocal) {
-        forecast.raw.daily.firstOrNull { it.date == nowLocal.toLocalDate().toString() }
-    }
     val isHourly = config.viewMode.isHourly
-    val headerPrecipitation = remember(
-        forecast.raw.hourly,
-        displaySource,
-        todayForecast,
-        nowLocal,
-        isHourly,
-        config.lat,
-        config.lon,
-    ) {
-        DesktopHeaderPrecipitationResolver.resolve(
-            hourlyForecasts = forecast.raw.hourly,
-            displaySource = displaySource,
-            fallbackDailyProbability = todayForecast?.precipProbability,
-            referenceTime = nowLocal,
-            latitude = config.lat,
-            longitude = config.lon,
-            isDailyView = !isHourly,
-        )
-    }
-    val precipProb = headerPrecipitation.probability
-    val precipFontScale = headerPrecipitation.fontScale
     // The 15-minute nowcast beside the rain % (daily view, Open-Meteo, native coverage only).
     // Keyed on the forecast too: a nowcast fetch ends in the same data-updated reload.
     val nowcastText = remember(forecast.raw, displaySource, nowLocal, isHourly, config.lat, config.lon) {
         if (isHourly) null else DesktopNowcastView.headerText(config)
+    }
+    val windowInfo = LocalWindowInfo.current
+    val density = LocalDensity.current
+    val headerWidthDp = with(density) { windowInfo.containerSize.width.toDp().value.toInt() }
+    // Icon, temp, delta, rain % and source label: the shared header rule Android's headers use
+    // (plans/261021-header-shared-content-audit.md).
+    val content = remember(forecast.raw, displaySource, displayTemp, deltaVal, nowLocal, targetHour, config.viewMode, config.lat, config.lon, config.settings.useCelsius, nowcastText, headerWidthDp) {
+        desktopHeaderContent(
+            forecast = forecast,
+            displaySourceId = displaySource.id,
+            viewMode = config.viewMode,
+            currentTemp = displayTemp,
+            deltaFromYesterday = deltaVal,
+            now = nowLocal,
+            centerTime = targetHour,
+            lat = config.lat,
+            lon = config.lon,
+            useCelsius = config.settings.useCelsius,
+            widthDp = headerWidthDp,
+            nowcastText = nowcastText,
+        )
     }
 
     val toggleWeatherSource = { cycleDisplaySource(config, onUpdateConfig) }
@@ -131,22 +126,24 @@ internal fun WidgetHeader(
                         onUpdateConfig(config.copy(viewMode = targetMode))
                     }.testTag("current_temp_toggle")
                 ) {
-                    androidx.compose.foundation.Image(
-                        painter = WeatherIcon.painter(forecast.resolved.currentCondition),
-                        contentDescription = null,
-                        modifier = Modifier.size((22 * scale).dp).padding(end = 4.dp)
-                    )
+                    // No icon when an hourly view's source has no row for this hour (HeaderContent).
+                    content.iconName?.let { iconName ->
+                        androidx.compose.foundation.Image(
+                            painter = WeatherIcon.painterForIconName(iconName),
+                            contentDescription = null,
+                            modifier = Modifier.size((22 * scale).dp).padding(end = 4.dp)
+                        )
+                    }
                     Text(
-                        text = displayTemp?.let { formatTrayTemperature(it, config.settings.useCelsius) + "°" } ?: "—",
+                        text = content.tempText ?: "—",
                         style = MaterialTheme.typography.displaySmall,
                         fontSize = (15 * scale).sp
                     )
                 }
-                if (deltaTemp != null) {
+                content.deltaText?.let { deltaText ->
                     Spacer(Modifier.width(2.dp))
-                    val displayDelta = if (config.settings.useCelsius) deltaTemp / 1.8f else deltaTemp
                     Text(
-                        text = String.format(Locale.US, "%+.1f", displayDelta),
+                        text = deltaText,
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = (11 * scale).sp,
                         color = Color(0xFFFF6B35),
@@ -166,12 +163,14 @@ internal fun WidgetHeader(
                         modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
                     )
                 }
-                if (precipProb != null && precipFontScale != null) {
+                val precipText = content.precipText
+                val precipFontScale = content.precipFontScale
+                if (precipText != null && precipFontScale != null) {
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = com.weatherwidget.shared.nowcast.NowcastDisplay.headerPrecipText(precipProb, nowcastText),
+                        text = precipText,
                         style = MaterialTheme.typography.labelMedium,
-                        fontSize = (DesktopHeaderPrecipitationResolver.HEADER_TEMP_BASE_SP * precipFontScale * scale).sp,
+                        fontSize = (HEADER_TEMP_BASE_SP * precipFontScale * scale).sp,
                         color = Color(0xFF4FC3F7),
                         maxLines = 1,
                         softWrap = false,
@@ -271,7 +270,6 @@ internal fun WidgetHeader(
                     val showHomeButton = homeAction != null
                     val dateText = DesktopHeaderDate.dailyDate(nowLocal).format(dateFormatter)
                     val dateStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (12 * scale).sp)
-                    val density = LocalDensity.current
                     val dateWidthDp = remember(dateText, dateStyle, headerTextMeasurer, density) {
                         with(density) { headerTextMeasurer.measure(dateText, dateStyle).size.width.toDp().value }
                     }
@@ -396,7 +394,7 @@ internal fun WidgetHeader(
                 val visibleSources = config.effectiveSources
                 // Show the shared short label (e.g. "Meteo"), matching Android's API indicator, rather
                 // than the raw stored id ("OPEN_METEO"). One source of truth: WeatherSource.shortDisplayName.
-                val sourceLabel = WeatherSource.fromDisplaySource(config.displaySource).shortDisplayName
+                val sourceLabel = content.sourceLabel
                 if (visibleSources.size > 1) {
                     Text(
                         text = sourceLabel,
@@ -434,4 +432,74 @@ internal fun WidgetHeader(
  */
 internal object DesktopHeaderDate {
     fun dailyDate(now: LocalDateTime): LocalDate = now.toLocalDate()
+}
+
+/** Base size (sp) the header's rain % scales from — the current temp's size. */
+internal const val HEADER_TEMP_BASE_SP = 15f
+
+/**
+ * The header's content from the shared [HeaderContent] rule, as Android's headers build it. The daily
+ * view falls back to today's daily row for the icon when the source has no hourly row for the hour;
+ * hourly views have no fallback, as on Android.
+ */
+@Suppress("LongParameterList")
+internal fun desktopHeaderContent(
+    forecast: ForecastSnapshot,
+    displaySourceId: String,
+    viewMode: ViewMode,
+    currentTemp: Float?,
+    deltaFromYesterday: Float?,
+    now: LocalDateTime,
+    centerTime: LocalDateTime,
+    lat: Double,
+    lon: Double,
+    useCelsius: Boolean,
+    widthDp: Int,
+    nowcastText: String? = null,
+): HeaderContent.Content {
+    val view = when (viewMode) {
+        ViewMode.DAILY -> HeaderContent.View.DAILY
+        ViewMode.PRECIPITATION -> HeaderContent.View.PRECIPITATION
+        ViewMode.CLOUD_COVER -> HeaderContent.View.CLOUD_COVER
+        else -> HeaderContent.View.TEMPERATURE
+    }
+    val today = forecast.raw.daily.firstOrNull { it.date == now.toLocalDate().toString() }
+    val content = HeaderContent.build(
+        view = view,
+        hourly = forecast.raw.hourly,
+        displaySourceId = displaySourceId,
+        dailyFallback = today?.takeIf { view == HeaderContent.View.DAILY }?.let {
+            HeaderContent.DailyFallback(it.source ?: displaySourceId, it.iconToken, it.condition, it.precipProbability)
+        },
+        fallbackDailyPrecip = today?.precipProbability,
+        currentTemp = currentTemp,
+        isStaleEstimate = false,
+        // The popup is always wider than a one-column widget: one decimal, like Android's ≥ 2 columns.
+        numColumns = DESKTOP_HEADER_COLUMNS,
+        deltaFromYesterday = deltaFromYesterday,
+        now = now,
+        centerTime = centerTime,
+        lat = lat,
+        lon = lon,
+        useCelsius = useCelsius,
+        widthDp = widthDp,
+        nowcastText = nowcastText,
+    )
+    HeaderContentLog.changed(displaySourceId, view, content)
+    return content
+}
+
+private const val DESKTOP_HEADER_COLUMNS = 5
+
+/** `HEADER_CONTENT` once per change (recomposition repeats the same). */
+private object HeaderContentLog {
+    @Volatile private var last: String? = null
+
+    fun changed(sourceId: String, view: HeaderContent.View, c: HeaderContent.Content) {
+        val line = "source=$sourceId view=$view icon=${c.iconName} temp=${c.tempText} delta=${c.deltaText} " +
+            "precip=${c.precipText} label=${c.sourceLabel}"
+        if (line == last) return
+        last = line
+        Log.i("HEADER_CONTENT", line)
+    }
 }

@@ -12,19 +12,14 @@ import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.shared.util.HeaderContent
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.util.HeaderFormatter
 import com.weatherwidget.shared.util.HourLabelFormatter
-import com.weatherwidget.util.HeaderPrecipCalculator
-import com.weatherwidget.util.SunPhase
-import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
-import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.CloudCoverGraphRenderer
-import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
-import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.graph.CloudActualSeries
 import com.weatherwidget.shared.graph.CloudSeriesBuilder
 import com.weatherwidget.shared.graph.DominantStationLabel
@@ -40,12 +35,8 @@ import com.weatherwidget.widget.ObservationWatermark
 import kotlinx.coroutines.Job
 import kotlin.coroutines.coroutineContext
 import java.time.Instant
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.TextStyle
-import java.util.Locale
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 
 /**
@@ -239,12 +230,6 @@ object CloudCoverViewHandler {
             return
         }
 
-        val sourceIndicator = HeaderFormatter.formatSourceIndicator(
-            centerTime = centerTime,
-            now = LocalDateTime.now(),
-            sourceName = effectiveDisplaySource.shortDisplayName,
-            widthDp = dimensions.widthDp
-        )
 
         val now = LocalDateTime.now()
         // NaN, never a hardcoded coordinate: this is derived from the rows about to be drawn, so it
@@ -252,16 +237,6 @@ object CloudCoverViewHandler {
         // UNKNOWN_LOCATION, IDW distance weights drop out) instead of silently rendering Google HQ.
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: Double.NaN
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
-        val sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon)
-        val currentHourForecast = WeatherTimeUtils.getCurrentHourForecast(hourlyForecasts, effectiveDisplaySource)
-        val iconRes = WeatherIconMapper.getIconResource(
-            condition = currentHourForecast?.condition,
-            isNight = sunInfo.isNight,
-            cloudCover = currentHourForecast?.cloudCover,
-            precipProbability = currentHourForecast?.precipProbability,
-            isTwilight = sunInfo.phase == SunPhase.TWILIGHT,
-            isSunBoundary = sunInfo.isSunBoundary,
-        )
 
         // Weather icon + bottom zone → back to temperature view
         val goTempIconIntent = Intent(context, WidgetActionReceiver::class.java).apply {
@@ -291,23 +266,30 @@ object CloudCoverViewHandler {
                 lon = lon,
             )
         val currentTemp = currentTempResolution.displayTemp
-        val formattedTemp = if (currentTemp != null) {
-            CurrentTemperatureResolver.formatDisplayTemperature(
-                temp = currentTemp,
-                numColumns = numColumns,
-                isStaleEstimate = currentTempResolution.isStaleEstimate,
-                useCelsius = stateManager.useCelsius(),
-            )
-        } else null
-
-        val headerPrecipProbability = HeaderPrecipCalculator.getNext6HourPrecipProbability(
-            hourlyForecasts = hourlyForecasts,
-            displaySource = effectiveDisplaySource,
-            fallbackDailyProbability = precipProbability,
-            referenceTime = centerTime,
+        // Icon, temp and rain %: the shared header rule (desktop draws the same content).
+        val content = HeaderContent.build(
+            view = HeaderContent.View.CLOUD_COVER,
+            hourly = hourlyForecasts.map(HourlyForecastEntity::toHourlyForecast),
+            displaySourceId = effectiveDisplaySource.id,
+            dailyFallback = null,
+            fallbackDailyPrecip = precipProbability,
+            currentTemp = currentTemp,
+            isStaleEstimate = currentTempResolution.isStaleEstimate,
+            numColumns = numColumns,
+            deltaFromYesterday = null,
+            now = now,
+            centerTime = centerTime,
+            lat = lat,
+            lon = lon,
+            useCelsius = stateManager.useCelsius(),
+            widthDp = dimensions.widthDp,
         )
-        val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(headerPrecipProbability)
-        val precipTextSizeDp = if (headerPrecipProbability != null) HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability) else null
+        val iconRes = content.iconName?.let(WeatherIconMapper::fromIconName) ?: 0
+        val sourceIndicator = content.sourceLabel
+        val formattedTemp = content.tempText
+        val headerPrecipProbability = content.precipProbability
+        val isPrecipVisible = headerPrecipProbability != null
+        val precipTextSizeDp = content.precipFontScale?.let { HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP * it }
 
         val today = LocalDateTime.now().toLocalDate()
         val isToday = centerTime.toLocalDate() == today

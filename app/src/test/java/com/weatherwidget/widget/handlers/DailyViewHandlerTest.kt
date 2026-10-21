@@ -1643,41 +1643,6 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `resolveTodayHeaderForecast prefers next hour over current hour`() {
-        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
-        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
-
-        val forecast = DailyHeaderBinder.resolveTodayHeaderForecast(
-            now = now,
-            hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, null, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L),
-            ),
-            displaySource = WeatherSource.NWS,
-        )
-
-        assertEquals("Clear", forecast?.condition)
-        assertEquals(epoch("${todayStr}T13:00"), forecast?.dateTime)
-    }
-
-    @Test
-    fun `resolveTodayHeaderForecast falls back to current hour when next hour missing`() {
-        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
-        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
-
-        val forecast = DailyHeaderBinder.resolveTodayHeaderForecast(
-            now = now,
-            hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Partly Cloudy", WeatherSource.NWS.id, 0, 40, null, 1L),
-            ),
-            displaySource = WeatherSource.NWS,
-        )
-
-        assertEquals("Partly Cloudy", forecast?.condition)
-        assertEquals(epoch("${todayStr}T12:00"), forecast?.dateTime)
-    }
-
-    @Test
     fun `updateWidget daily header icon prefers current hourly forecast for today`() = runBlocking {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)

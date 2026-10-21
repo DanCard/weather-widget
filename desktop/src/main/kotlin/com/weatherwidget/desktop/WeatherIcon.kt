@@ -20,6 +20,10 @@ object WeatherIcon {
         return painterResource(getIconResource(condition))
     }
 
+    /** A resolved icon name (e.g. from shared `HeaderConditionIcon`) as a painter. */
+    @Composable
+    fun painterForIconName(iconName: String): Painter = painterResource("drawable/$iconName.xml")
+
     fun getConditionFlags(condition: String?, isNight: Boolean = false): ConditionFlags {
         val iconName = WeatherConditionResolver.resolveIconName(condition, isNight = isNight)
         return WeatherConditionResolver.getConditionFlags(iconName, isNight)

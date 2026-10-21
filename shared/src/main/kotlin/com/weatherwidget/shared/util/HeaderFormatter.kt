@@ -7,9 +7,8 @@ import java.util.Locale
 /**
  * Formats the widget header's source indicator (e.g. "Wednesday • NWS") based on available width.
  *
- * Pure Kotlin, shared by the Android widget. Desktop's header intentionally shows only the short
- * source label — its date is rendered separately in the center cluster — so it does not consume
- * this formatter.
+ * Pure Kotlin; both platforms' hourly headers reach it through [HeaderContent]. The daily header
+ * shows the bare short label (its date is drawn beside the buttons).
  */
 object HeaderFormatter {
     private const val WIDTH_THRESHOLD_FULL_DAY = 380

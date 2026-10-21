@@ -4,26 +4,23 @@ import android.content.Context
 import com.weatherwidget.shared.nowcast.NowcastDisplay
 import com.weatherwidget.shared.nowcast.NowcastSummary
 import com.weatherwidget.widget.AndroidNowcast
-import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.shared.util.HeaderContent
 import com.weatherwidget.shared.util.PreferredSourceHome
-import com.weatherwidget.util.DailyForecastIconResolver
+import com.weatherwidget.shared.util.WeatherConditionResolver
 import com.weatherwidget.util.NavigationUtils
-import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunInfo
 import com.weatherwidget.util.WeatherIconMapper
-import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDateTime
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.util.Locale
-import kotlin.math.abs
 
 /**
  * Header resolve-and-bind logic for the daily view, extracted from `DailyViewHandler`.
@@ -153,29 +150,6 @@ internal object DailyHeaderResolver {
     ): HeaderResolution {
         val today = now.toLocalDate()
 
-        val todayHeaderForecast = DailyHeaderBinder.resolveTodayHeaderForecast(
-            now = now,
-            hourlyForecasts = hourlyForecasts,
-            displaySource = displaySource,
-        )
-        val iconRes =
-            if (todayHeaderForecast != null) {
-                WeatherIconMapper.getIconResource(
-                    condition = todayHeaderForecast.condition,
-                    isNight = sunInfo.isNight,
-                    cloudCover = todayHeaderForecast.cloudCover,
-                    precipProbability = todayHeaderForecast.precipProbability,
-                )
-            } else {
-                DailyForecastIconResolver.resolveIcon(
-                    weather = weatherByDate[today],
-                    targetDate = today,
-                    now = now,
-                    latitude = lat,
-                    longitude = lon,
-                )
-            }
-
         val (currentTempResolution, resolveMs) =
             CurrentTempResolutionHelper.resolveAndPersistDelta(
                 now = now,
@@ -191,61 +165,45 @@ internal object DailyHeaderResolver {
             )
         val currentTemp = currentTempResolution.displayTemp
 
-        val formattedTemp =
-            currentTemp?.let {
-                CurrentTemperatureResolver.formatDisplayTemperature(
-                    temp = it,
-                    numColumns = numColumns,
-                    isStaleEstimate = currentTempResolution.isStaleEstimate,
-                    useCelsius = stateManager.useCelsius(),
-                )
-            }
-
+        // Icon, temp, rain % and delta: the shared header rule (desktop draws the same content).
         val todayWeather = weatherByDate[today]
-        val headerPrecip = HeaderPrecipCalculator.resolve(
-            hourlyForecasts = hourlyForecasts,
-            displaySource = displaySource,
-            fallbackDailyProbability = todayWeather?.precipProbability,
-            referenceTime = now,
-            sunriseHour = sunInfo.sunTimes.sunriseHour,
-            sunsetHour = sunInfo.sunTimes.sunsetHour,
+        val content = HeaderContent.build(
+            view = HeaderContent.View.DAILY,
+            hourly = hourlyForecasts.map(HourlyForecastEntity::toHourlyForecast),
+            displaySourceId = displaySource.id,
+            dailyFallback = todayWeather?.headerDailyFallback(),
+            fallbackDailyPrecip = todayWeather?.precipProbability,
+            currentTemp = currentTemp,
+            isStaleEstimate = currentTempResolution.isStaleEstimate,
+            numColumns = numColumns,
+            deltaFromYesterday = deltaFromYesterday,
+            now = now,
+            centerTime = now,
+            lat = lat,
+            lon = lon,
+            useCelsius = stateManager.useCelsius(),
+            widthDp = dimensions.widthDp,
+            // The 15-minute nowcast rides the rain % text ("40% 14:15–"), so every width fit below
+            // measures it and the date-vs-rain-% priority rule applies to it unchanged.
+            nowcastText = resolveNowcastText(context, lat, lon, displaySource, now),
         )
-        val precipProb = headerPrecip.probability
-        val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(precipProb)
-        val precipTextSizeDp = if (precipProb != null) {
-            HeaderPrecipCalculator.getPrecipTextSize(
-                precipProb = precipProb,
-                isDailyView = true,
-                isNightPrecip = headerPrecip.isPredominantlyNight,
-            )
-        } else null
-
-        // The 15-minute nowcast rides the rain % text ("40% 14:15–"), so every width fit below
-        // measures it and the date-vs-rain-% priority rule applies to it unchanged.
-        val nowcastText = resolveNowcastText(context, lat, lon, displaySource, now)
-        val headerPrecipText = if (isPrecipVisible) NowcastDisplay.headerPrecipText(precipProb ?: 0, nowcastText) else null
+        val iconRes = WeatherIconMapper.fromIconName(content.iconName ?: WeatherConditionResolver.IC_UNKNOWN)
+        val formattedTemp = content.tempText
+        val precipProb = content.computedPrecipProbability
+        val isPrecipVisible = content.precipProbability != null
+        val precipTextSizeDp = content.precipFontScale?.let { HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP * it }
+        val headerPrecipText = content.precipText
 
         // Forecast delta (observed − forecast): kept on the state for the ghost line and the
-        // today-column overlay. The HEADER shows the yesterday delta instead (always visible when
-        // it exists and clears the noise threshold — no graph-window gate).
+        // today-column overlay. The HEADER shows the yesterday delta instead.
         val delta = currentTempResolution.appliedDelta
-        val deltaVisible =
-            currentTemp != null &&
-            deltaFromYesterday != null &&
-            abs(deltaFromYesterday) >= DailyHeaderBinder.DELTA_VISIBILITY_THRESHOLD
-        // Compute the unit-corrected, display-formatted delta string here alongside
-        // formattedTemp (which also uses stateManager.useCelsius() at the same point in
-        // time) so resolve and bind share one unit snapshot. Avoids re-instantiating
-        // WidgetStateManager (SharedPreferences hit) inside the per-render bind path.
-        val deltaText = if (deltaFromYesterday != null && deltaVisible) {
-            val displayDelta = if (stateManager.useCelsius()) deltaFromYesterday / 1.8f else deltaFromYesterday
-            String.format("%+.1f", displayDelta)
-        } else null
+        val deltaText = content.deltaText
+        val deltaVisible = deltaText != null
 
         // Pick API label
-        val apiSourceText = displaySource.shortDisplayName
+        val apiSourceText = content.sourceLabel
         val apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows)
-        val deltaTextForFit = if (deltaVisible) String.format("%+.1f", deltaFromYesterday) else null
+        val deltaTextForFit = deltaText
         val precipTextForFit = headerPrecipText
 
         val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
@@ -332,7 +290,7 @@ internal object DailyHeaderResolver {
             widthDp = widthDpForPrecip,
             numColumns = numColumns,
             currentTempText = formattedTemp,
-            deltaText = if (deltaVisible && disclosure.showsDelta()) String.format("%+.1f", deltaFromYesterday) else null,
+            deltaText = if (disclosure.showsDelta()) deltaText else null,
             precipText = headerPrecipText,
             precipTextSizeDp = precipTextSizeDp,
             apiSourceText = apiSourceText,
@@ -502,3 +460,12 @@ internal object DailyHeaderResolver {
         }
     }
 }
+
+/** Today's daily row as the header icon's no-hourly fallback (shared [HeaderContent]). */
+internal fun ForecastEntity.headerDailyFallback(): HeaderContent.DailyFallback =
+    HeaderContent.DailyFallback(
+        sourceId = source,
+        nativeToken = nativeDailyIconToken,
+        condition = condition,
+        precipProbability = precipProbability,
+    )

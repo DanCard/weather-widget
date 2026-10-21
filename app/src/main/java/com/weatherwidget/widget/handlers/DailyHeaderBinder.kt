@@ -3,14 +3,12 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import android.util.TypedValue
 import androidx.annotation.VisibleForTesting
-import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.util.WeatherTimeUtils
-import java.time.LocalDateTime
+import com.weatherwidget.shared.util.HeaderContent
 
 internal object DailyHeaderBinder {
 
-    internal const val DELTA_VISIBILITY_THRESHOLD = 0.1f
+    internal const val DELTA_VISIBILITY_THRESHOLD = HeaderContent.DELTA_VISIBILITY_THRESHOLD
 
     /**
      * Where the header date *would* sit, if it is shown at all.
@@ -205,26 +203,6 @@ internal object DailyHeaderBinder {
             HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
             context.resources.displayMetrics,
         )
-
-    @VisibleForTesting
-    internal fun resolveTodayHeaderForecast(
-        now: LocalDateTime,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        displaySource: WeatherSource,
-    ): HourlyForecastEntity? {
-        val today = now.toLocalDate()
-        val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
-
-        val candidateTimes =
-            listOf(
-                now.plusHours(1).takeIf { it.toLocalDate() == today },
-                now,
-            ).filterNotNull()
-
-        return candidateTimes.firstNotNullOfOrNull { candidateTime ->
-            forecastsByTime[WeatherTimeUtils.toHourlyForecastKeyMs(candidateTime)]
-        }
-    }
 
     internal fun dailyDeltaHiddenReason(
         currentTemp: Float?,

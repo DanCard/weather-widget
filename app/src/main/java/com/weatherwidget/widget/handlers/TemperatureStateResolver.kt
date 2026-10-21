@@ -2,7 +2,6 @@ package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.data.model.ForecastProduct
 import android.content.Context
-import android.graphics.Color
 import android.util.Log
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
@@ -20,23 +19,12 @@ import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.shared.util.HeaderFormatter
-import com.weatherwidget.util.HeaderPrecipCalculator
-import com.weatherwidget.util.SunPhase
-import com.weatherwidget.util.SunInfo
-import com.weatherwidget.util.SunPositionUtils
-import com.weatherwidget.util.WeatherIconMapper
-import com.weatherwidget.util.WeatherTimeUtils
-import com.weatherwidget.widget.CurrentTemperatureDeltaState
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.FetchDotDebug
-import com.weatherwidget.widget.WidgetPerfLogger
-import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.WidgetWorkScheduler
 import com.weatherwidget.widget.ZoomWindow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -45,7 +33,6 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.abs
 
 internal data class MissingForecastHours(
     val missingCount: Int,
@@ -76,7 +63,6 @@ internal data class MissingForecastHours(
 internal object TemperatureStateResolver {
     private const val TAG = "TemperatureStateResolver"
     private const val CELL_HEIGHT_DP = 90
-    private const val DELTA_VISIBILITY_THRESHOLD = 0.1f
     private const val GRAPH_MIN_ROWS = 1.4f
     private const val DELTA_COLOR_HEX = "#FF6B35"
     private const val MAX_PERSISTED_BLEND_DEBUG_LINES = 12
@@ -188,7 +174,6 @@ internal object TemperatureStateResolver {
                 "WARN",
             )
         }
-        val sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon)
 
         val zoom = stateManager.getZoomWindow(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
@@ -309,7 +294,8 @@ internal object TemperatureStateResolver {
             dimensions = dimensions,
             hourlyForecasts = hourlyForecasts,
             currentTempHourlyForecasts = currentTempHourlyForecasts,
-            sunInfo = sunInfo,
+            lat = lat,
+            lon = lon,
             precipProbability = precipProbability,
             useCelsius = useCelsius,
         )

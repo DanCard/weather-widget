@@ -62,6 +62,9 @@ object WeatherIconMapper {
 
     fun iconResToName(iconRes: Int): String? = RES_TO_NAME[iconRes]
 
+    /** A shared icon name (e.g. from `DailyIconName` / `HeaderContent`) as a drawable. */
+    fun fromIconName(iconName: String): Int = iconNameToRes(iconName)
+
     fun getIconResource(
         condition: String?,
         isNight: Boolean = false,

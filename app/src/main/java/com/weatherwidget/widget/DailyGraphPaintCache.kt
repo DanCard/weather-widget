@@ -128,14 +128,14 @@ internal object DailyGraphPaintCache {
             DailyGraphPaintSet(
                 barPaint = createBarPaint(DailyBarRenderer.COLOR_FORECAST, barWidth),
                 todayObservedRedPaint =
-                    createBarPaint(DailyBarRenderer.COLOR_OBSERVED_RED, tripleBarWidth),
+                    createBarPaint(DailyBarRenderer.COLOR_MERCURY, tripleBarWidth),
                 todayObservedGhostPaint =
-                    createBarPaint(DailyBarRenderer.COLOR_OBSERVED_RED, tripleBarWidth).apply {
+                    createBarPaint(DailyBarRenderer.COLOR_MERCURY, tripleBarWidth).apply {
                         alpha = TodayThermostat.GHOST_ALPHA_255
                     },
                 todayObservedRedBulbPaint =
                     Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = DailyBarRenderer.COLOR_OBSERVED_RED
+                        color = DailyBarRenderer.COLOR_MERCURY
                         style = Paint.Style.FILL
                     },
                 todaySnapshotYellowPaint =
@@ -143,7 +143,7 @@ internal object DailyGraphPaintCache {
                 todayForecastBluePaint =
                     createBarPaint(DailyBarRenderer.COLOR_FORECAST, tripleBarWidth),
                 historyBarPaint =
-                    createBarPaint(DailyBarRenderer.COLOR_OBSERVED_RED, pastTripleBarWidth),
+                    createBarPaint(DailyBarRenderer.COLOR_MERCURY, pastTripleBarWidth),
                 // The settled-forecast overlay only exists on past days (future days never compare).
                 forecastBarPaint =
                     createBarPaint(DailyBarRenderer.COLOR_FORECAST, pastTripleBarWidth),

@@ -45,6 +45,7 @@ internal object DailyBarRenderer {
 
     internal val COLOR_FORECAST = 0xFF5AC8FA.toInt()
     internal val COLOR_OBSERVED_RED = WeatherConditionColors.OBSERVED
+    internal val COLOR_MERCURY = WeatherColors.MERCURY
     internal val COLOR_TODAY_HIGHLIGHT = 0xFFFFFF00.toInt()
     internal val COLOR_GAP_FALLBACK = 0xFF34C759.toInt()
 

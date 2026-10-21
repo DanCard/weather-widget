@@ -48,6 +48,7 @@ private val COLOR_FORECAST_SUNNY = Color(com.weatherwidget.shared.util.WeatherCo
 private val COLOR_FORECAST_CLOUDY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_CLOUDY)
 private val COLOR_FORECAST_RAINY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_RAINY)
 private val COLOR_OBSERVED = Color(com.weatherwidget.shared.util.WeatherColors.OBSERVED)
+private val COLOR_MERCURY = Color(com.weatherwidget.shared.util.WeatherColors.MERCURY)
 private val COLOR_LABEL_GRAY = Color(0xFFAAAAAA)
 private val COLOR_GAP_FALLBACK = Color(0xFF34C759)
 // Mirrors Android's BULB_RADIUS_SCALE/BULB_VERTICAL_CENTER_FRACTION (DailyForecastGraphRenderer).
@@ -264,15 +265,15 @@ fun DailyForecastGraph(
                 // mercury top. Drawn last so the mercury and bulb sit on top of the forecast/snapshot bars.
                 val thermostat = TodayThermostat.segments(day.barTopHigh, day.solidLow, day.ghostHigh)
                 thermostat.ghostTop?.let { ghostTop ->
-                    drawRangeLine(centerX, ghostTop, thermostat.mercuryTop, ::yAt, COLOR_OBSERVED.copy(alpha = TodayThermostat.GHOST_ALPHA), compactTodayBarWidth)
+                    drawRangeLine(centerX, ghostTop, thermostat.mercuryTop, ::yAt, COLOR_MERCURY.copy(alpha = TodayThermostat.GHOST_ALPHA), compactTodayBarWidth)
                 }
                 val barTop = thermostat.top
                 val mercuryLow = thermostat.mercuryBottom
-                drawRangeLine(centerX, thermostat.mercuryTop, mercuryLow, ::yAt, COLOR_OBSERVED, compactTodayBarWidth)
+                drawRangeLine(centerX, thermostat.mercuryTop, mercuryLow, ::yAt, COLOR_MERCURY, compactTodayBarWidth)
                 mercuryLow?.let { low ->
                     val bulbRadius = compactTodayBarWidth * BULB_RADIUS_SCALE
                     drawCircle(
-                        color = COLOR_OBSERVED,
+                        color = COLOR_MERCURY,
                         radius = bulbRadius,
                         center = Offset(centerX, yAt(low) + bulbRadius * BULB_VERTICAL_CENTER_FRACTION),
                     )
@@ -311,7 +312,7 @@ fun DailyForecastGraph(
                     dayPrecipProbability = day.dayPrecipProbability,
                     pathEffect = standInDash(pastTripleWidth).takeIf { day.forecastIsFallback },
                 )
-                val solidBarColor = if (day.solidIsForecastFallback) forecastColor(day) else COLOR_OBSERVED
+                val solidBarColor = if (day.solidIsForecastFallback) forecastColor(day) else COLOR_MERCURY
                 drawRangeLine(
                     centerX, day.solidHigh, day.solidLow, ::yAt, solidBarColor, pastTripleWidth,
                     pathEffect = standInDash(pastTripleWidth).takeIf { day.actualsFromOtherSite },

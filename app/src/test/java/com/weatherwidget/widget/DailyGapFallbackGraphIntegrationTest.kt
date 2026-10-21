@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.util.WeatherColors
 import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.ForecastEntity
@@ -217,7 +218,7 @@ class DailyGapFallbackGraphIntegrationTest {
         val historyBar = drawnBars.single { it.date == yesterday && it.barType == "HISTORY" }
         assertEquals(
             "A real-actuals past day must render as observed red, not a forecast",
-            WeatherConditionColors.OBSERVED,
+            WeatherColors.MERCURY,
             historyBar.color,
         )
     }
@@ -253,9 +254,8 @@ class DailyGapFallbackGraphIntegrationTest {
         }
 
         val todayBar = drawnBars.single { it.date == today && it.barType == "TODAY" }
-        // Today actual bar uses the observed color; assert against the constant so future OBSERVED
-        // tweaks don't break this (was a hardcoded -52378 = old #FF3366).
-        assertEquals(WeatherConditionColors.OBSERVED, todayBar.color)
+        // Today's actual bar is the thermostat's mercury red, not the lighter label colour (OBSERVED).
+        assertEquals(WeatherColors.MERCURY, todayBar.color)
     }
 
     @Test
