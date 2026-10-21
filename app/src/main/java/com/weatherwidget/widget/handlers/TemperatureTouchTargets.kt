@@ -383,7 +383,9 @@ internal fun setupMonthsViewShortcut(
 ) {
     val intent = com.weatherwidget.ui.MonthsViewActivity.intent(context, displaySource, lat, lon).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        // CLEAR_TASK: this screen reads its source only in onCreate; NEW_TASK alone would bring a
+        // still-alive copy to the front unchanged (see ForecastHistory launch).
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }
     val pendingIntent = PendingIntent.getActivity(
         context,
@@ -416,7 +418,9 @@ internal fun setupWeatherStationsShortcut(
 ) {
     val obsIntent = Intent(context, WeatherObservationsActivity::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        // CLEAR_TASK: this screen reads its source only in onCreate; NEW_TASK alone would bring a
+        // still-alive copy to the front unchanged (see ForecastHistory launch).
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }
 
     val pendingIntent = PendingIntent.getActivity(

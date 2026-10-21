@@ -121,7 +121,9 @@ class SourceErrorDetailsActivity : AppCompatActivity() {
         fun intent(context: Context, sourceId: String?): Intent =
             Intent(context, SourceErrorDetailsActivity::class.java)
                 .putExtra(EXTRA_SOURCE_ID, sourceId)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // CLEAR_TASK: the page is built once in onCreate; NEW_TASK alone would bring an
+                // earlier source's still-alive page to the front unchanged.
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }
 }
 

@@ -23,7 +23,7 @@ object WidgetRequestCodes {
     private const val BASE_SET_CLOUD_COVER = 610
     private const val BASE_SET_PRECIP = 620
     private const val BASE_HISTORY = 700
-    private const val BASE_WEATHER_STATIONS = 800
+    // 800 retired: see weatherStations.
     private const val BASE_ICON_VIEW_TOGGLE = 900
     private const val BASE_HOME = 850
     private const val BASE_SETTINGS = 950
@@ -35,10 +35,13 @@ object WidgetRequestCodes {
     private const val BASE_SET_LOCATION = 5100
     private const val BASE_ERROR_REFRESH = 5200
     private const val BASE_SOURCE_HOME = 5300
-    private const val BASE_ERROR_PILL = 5400
+    // 5400 retired: see errorPill.
     private const val BASE_RECENTER_TODAY = 5450
-    private const val BASE_MONTHS_VIEW = 5500
+    // 5500 retired: see monthsView.
     private const val BASE_SIM_LOOP = 5600
+    private const val BASE_WEATHER_STATIONS = 5700
+    private const val BASE_ERROR_PILL = 5750
+    private const val BASE_MONTHS_VIEW = 5800
 
     fun navLeft(id: Int) = id * 10000 + BASE_NAV_LEFT
     fun navRight(id: Int) = id * 10000 + BASE_NAV_RIGHT
@@ -51,6 +54,12 @@ object WidgetRequestCodes {
     fun setCloudCover(id: Int) = id * 10000 + BASE_SET_CLOUD_COVER
     fun setPrecipitation(id: Int) = id * 10000 + BASE_SET_PRECIP
     fun history(id: Int) = id * 10000 + BASE_HISTORY
+    /**
+     * The Observations shortcut. Moved off 800 when its intent gained FLAG_ACTIVITY_CLEAR_TASK
+     * (2026-10-21): FLAG_UPDATE_CURRENT replaces only the extras of a PendingIntent the launcher
+     * still holds — the old flags survive repaints and app updates — so a flag change needs a new code.
+     * Same for [errorPill] (was 5400) and [monthsView] (was 5500).
+     */
     fun weatherStations(id: Int) = id * 10000 + BASE_WEATHER_STATIONS
     fun iconViewToggle(id: Int) = id * 10000 + BASE_ICON_VIEW_TOGGLE
     fun home(id: Int) = id * 10000 + BASE_HOME

@@ -338,7 +338,9 @@ internal object WidgetDayClickCoordinator {
                     intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE).orEmpty(),
                 )
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // CLEAR_TASK: the screen reads its extras only in onCreate, and NEW_TASK alone brings a
+                // still-alive history task to the front unchanged — showing its old source and day.
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
         context.startActivity(historyIntent)
         logTiming(database, appWidgetId, "history", date, receiveTimeMs)

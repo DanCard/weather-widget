@@ -328,7 +328,8 @@ object WidgetRenderer {
      * completing a widget-add handshake that nobody started here. The widget id still rides along so
      * the CONFIG breadcrumb attributes the visit.
      */
-    private fun setLocationIntent(context: Context, appWidgetId: Int): PendingIntent =
+    @androidx.annotation.VisibleForTesting
+    internal fun setLocationIntent(context: Context, appWidgetId: Int): PendingIntent =
         PendingIntent.getActivity(
             context,
             WidgetRequestCodes.setLocation(appWidgetId),
