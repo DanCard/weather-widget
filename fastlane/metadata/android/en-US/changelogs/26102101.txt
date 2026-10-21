@@ -1,0 +1,1 @@
+Release 26102101: Added precipitation simulation radar loop viewer; improved rain map controls and Open-Meteo fallback; refined daily forecast bars and rain timing indicators; enhanced source consistency across widget views; smart pre-alarm charging forecast sync; general stability and performance improvements.
