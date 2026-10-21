@@ -821,6 +821,41 @@ settings = config.settings.copy(useCelsius = false)),
         assertFalse(state.canNavigateRight) // No data past today
     }
 
+    // A8: the column icon is Android's rule (:shared DailyIconName), not the condition text alone.
+    @Test
+    fun `column icon follows the provider's native token over its condition text`() {
+        val now = LocalDateTime.parse("2026-10-17T07:00:00")
+        val forecast = snapshot(
+            daily = listOf(
+                DailyForecast("2026-10-17", 80f, 60f, "Sunny"),
+                DailyForecast("2026-10-20", 70f, 52f, "Mostly Cloudy", iconToken = "Sunny", source = "NWS"),
+            ),
+        )
+        val state = buildModel(config, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
+        val day = state.days.single { it.date == LocalDate.parse("2026-10-20") }
+        assertEquals("ic_weather_clear", day.iconName)
+    }
+
+    @Test
+    fun `rain icon becomes cloud when the day and night chances are both low`() {
+        val now = LocalDateTime.parse("2026-10-17T07:00:00")
+        val forecast = snapshot(
+            daily = listOf(
+                DailyForecast("2026-10-17", 80f, 60f, "Sunny"),
+                DailyForecast(
+                    "2026-10-20", 70f, 52f, "Rain", precipProbability = 60, source = "NWS",
+                    daytimePrecipProbability = 5, nighttimePrecipProbability = 5,
+                ),
+            ),
+        )
+        val state = buildModel(config, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
+        val day = state.days.single { it.date == LocalDate.parse("2026-10-20") }
+        assertFalse(
+            "5 % by day and night is not a rain icon (Android parity): ${day.iconName}",
+            com.weatherwidget.shared.util.WeatherConditionResolver.isRainIndicator(day.iconName),
+        )
+    }
+
     @Test
     fun `future day with chance of rain resolves chance rain icon`() {
         val now = LocalDateTime.parse("2026-10-17T07:00:00")

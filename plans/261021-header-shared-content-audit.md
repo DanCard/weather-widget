@@ -67,9 +67,11 @@ Not started in code — usage limit reached while reading. Found while reading:
   display units (°C users), not °F.
 - Verified live on desktop: daily `85%`, `+1.8 from yest`; hourly panned 27 h → `Thursday • Silur`, 75 %.
 
-## A8 — not done (follow-up)
-Desktop's **daily columns** still pick icons from the condition text
-(`DesktopDailyForecastModel.gatedIconName`: `resolveIconName` + partly-cloudy floor), while Android's
-columns use `DailyIconName` (native token, rain suppression when day and night chances are low). A
-column can show rain on one platform and cloud on the other. Next: desktop columns call
-`DailyIconName.resolve` with the same day/night chances and noon cloud %.
+## A8 — done 2026-10-21
+Desktop's daily columns pick icons with `:shared` `DailyIconName`, as Android's columns:
+- today/future: the live row (native token, day/night chances from `resolveDailyLabelPrecipAtSite`,
+  noon cloud %, partly-cloudy floor; today draws night after dark — desktop always drew day);
+- past days: the day's **newest** stored row (Android's newest-row-per-day read) — desktop used the
+  observed condition first; observed condition only when no forecast row exists;
+- today's left bar: its own row's chances, no cloud % (desktop passed the noon cloud %).
+Tests: `DesktopDailyForecastModelTest` native-token and low-chance rain cases (both fail on the old code).

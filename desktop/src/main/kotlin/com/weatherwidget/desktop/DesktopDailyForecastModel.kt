@@ -539,29 +539,47 @@ object DesktopDailyForecastModel {
                     rowSourceId = rowSourceId,
                 )
         val rawCondition = forecast?.condition ?: actual?.condition ?: displaySnapshot?.condition
-        // Daily icon noon is daytime (isNight = false). Thread the measured noon cloud % in, then
-        // apply the daily partly-cloudy floor: worded "partly cloudy" needs ≥25% noon cloud to stand.
-        val baseIconName = com.weatherwidget.shared.util.WeatherConditionResolver.resolveIconName(
-            condition = rawCondition,
-            isNight = false,
-            cloudCover = measuredNoonCloudPercent,
-            precipProbability = forecast?.precipProbability,
-        )
-        val gatedIconName = com.weatherwidget.shared.util.WeatherConditionResolver.applyDailyPartlyCloudyFloor(
-            baseIconName, measuredNoonCloudPercent, isNight = false,
-        )
+        // The column icon is Android's rule (:shared DailyIconName): the day's forecast row — today and
+        // future the live row, a past day its newest stored row, as Android's newest-row-per-day read —
+        // with its native token, the day/night rain chances (a rain icon both fall below becomes
+        // cloud), the noon cloud % and the partly-cloudy floor; today draws night after dark. Only a
+        // day with no forecast row at all falls back to the observed condition.
+        val iconRow = forecast?.let { DailyIconRow(it.source ?: displaySourceId, it.iconToken, it.condition, it.precipProbability) }
+            ?: snapshots.takeIf { isPast }?.maxByOrNull { it.fetchedAt }
+                ?.let { DailyIconRow(displaySourceId, it.iconToken, it.condition, it.precipProbability) }
+        val gatedIconName = if (iconRow != null) {
+            com.weatherwidget.shared.util.DailyIconName.resolve(
+                sourceId = iconRow.sourceId,
+                nativeToken = iconRow.nativeToken,
+                condition = iconRow.condition,
+                precipProbability = iconRow.precipProbability,
+                targetDate = date,
+                now = now,
+                latitude = centerLat,
+                longitude = centerLon,
+                dayPrecipProbability = resolvedPrecip.dayPrecip,
+                nightPrecipProbability = resolvedPrecip.nightPrecip,
+                cloudCover = measuredNoonCloudPercent,
+            )
+        } else {
+            com.weatherwidget.shared.util.WeatherConditionResolver.resolveIconName(
+                condition = actual?.condition ?: displaySnapshot?.condition,
+            )
+        }
+        // Today's left bar ("yesterday's forecast"): its own row's chances, no cloud %, as Android.
         val snapshotIconName = when {
-            isToday && displaySnapshot != null -> {
-                val base = com.weatherwidget.shared.util.WeatherConditionResolver.resolveIconName(
-                    condition = displaySnapshot.condition,
-                    isNight = false,
-                    cloudCover = measuredNoonCloudPercent,
-                    precipProbability = displaySnapshot.precipProbability,
-                )
-                com.weatherwidget.shared.util.WeatherConditionResolver.applyDailyPartlyCloudyFloor(
-                    base, measuredNoonCloudPercent, isNight = false,
-                )
-            }
+            isToday && displaySnapshot != null -> com.weatherwidget.shared.util.DailyIconName.resolve(
+                sourceId = displaySourceId,
+                nativeToken = displaySnapshot.iconToken,
+                condition = displaySnapshot.condition,
+                precipProbability = displaySnapshot.precipProbability,
+                targetDate = date,
+                now = now,
+                latitude = centerLat,
+                longitude = centerLon,
+                dayPrecipProbability = displaySnapshot.daytimePrecipProbability ?: displaySnapshot.precipProbability,
+                nightPrecipProbability = displaySnapshot.nighttimePrecipProbability,
+            )
             isPast && (pastPrior?.high != null || displaySnapshot?.highTemp != null) -> gatedIconName
             else -> null
         }
@@ -660,3 +678,11 @@ object DesktopDailyForecastModel {
     }
 
 }
+
+/** The fields of a daily forecast row the shared daily icon rule reads. */
+private data class DailyIconRow(
+    val sourceId: String,
+    val nativeToken: String?,
+    val condition: String?,
+    val precipProbability: Int?,
+)
