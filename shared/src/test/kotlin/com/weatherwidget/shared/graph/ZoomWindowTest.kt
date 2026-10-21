@@ -37,12 +37,23 @@ class ZoomWindowTest {
     }
 
     @Test
-    fun `narrow keeps per-hour labels and light smoothing at every span`() {
+    fun `narrow reads the span table — per-hour and crisp to 6h, every 2h and smoothed at 7-8h`() {
+        // One table for both platforms (user, 2026-10-21): NARROW 7–8h now matches desktop at that span.
+        val expected = mapOf(4 to (1 to 1), 5 to (1 to 1), 6 to (1 to 1), 7 to (2 to 3), 8 to (2 to 3))
         for (span in HourlyZoomRules.MIN_NARROW_SPAN_HOURS..HourlyZoomRules.MAX_NARROW_SPAN_HOURS) {
             val window = ZoomStage.NARROW.window(span)
-            assertEquals("labelInterval at span=$span", 1, window.labelInterval)
-            assertEquals("smoothIterations at span=$span", 1, window.smoothIterations)
+            assertEquals("labelInterval at span=$span", expected.getValue(span).first, window.labelInterval)
+            assertEquals("smoothIterations at span=$span", expected.getValue(span).second, window.smoothIterations)
             assertEquals(ZoomStage.NARROW, window.stage)
+        }
+    }
+
+    @Test
+    fun `every stage reads the same span table desktop's continuous zoom does`() {
+        for (window in listOf(ZoomStage.WIDE.window(), ZoomStage.TWO_DAY.window()) + (4..8).map { ZoomStage.NARROW.window(it) }) {
+            val span = window.totalSpanHours.toInt()
+            assertEquals(HourlyZoomRules.labelIntervalForSpan(span), window.labelInterval)
+            assertEquals(HourlyZoomRules.smoothIterationsForSpan(span), window.smoothIterations)
         }
     }
 
@@ -82,7 +93,7 @@ class ZoomWindowTest {
             assertEquals(12L, twoDay.forwardHours)
             assertEquals(8, twoDay.navJump)
             assertEquals(6, twoDay.labelInterval)
-            assertEquals(3, twoDay.smoothIterations)
+            assertEquals(4, twoDay.smoothIterations)
         }
     }
 

@@ -74,8 +74,8 @@ enum class ZoomStage {
             // A sixth of the span, like TWO_DAY's 8h of 48h — see HourlyZoomRules.navJumpHours,
             // which desktop's continuous zoom reads.
             navJump = 3,
-            labelInterval = 4,
-            smoothIterations = 3,
+            labelInterval = HourlyZoomRules.labelIntervalForSpan(18), // 4
+            smoothIterations = HourlyZoomRules.smoothIterationsForSpan(18), // 3
         )
 
         NARROW -> {
@@ -85,8 +85,9 @@ enum class ZoomStage {
                 backHours = ((span + 1) / 2).toLong(),
                 forwardHours = (span / 2).toLong(),
                 navJump = HourlyZoomRules.navJumpHours(span),
-                labelInterval = 1,
-                smoothIterations = 1,
+                // 1 below 7h; a 7–8h span labels every 2h and smooths 3 passes, like desktop at that span.
+                labelInterval = HourlyZoomRules.labelIntervalForSpan(span),
+                smoothIterations = HourlyZoomRules.smoothIterationsForSpan(span),
             )
         }
 
@@ -98,10 +99,9 @@ enum class ZoomStage {
             // A sixth of the span, matching HourlyZoomRules.navJumpHours(48).
             navJump = 8,
             // Only consulted below the date-footer threshold; at 48h the footer is in date mode
-            // (HourlyZoomRules.isDateMode) and labels one date per day instead. Kept aligned with
-            // desktop's labelIntervalFor(48) so the two agree if the threshold ever moves.
-            labelInterval = 6,
-            smoothIterations = 3,
+            // (HourlyZoomRules.isDateMode) and labels one date per day instead.
+            labelInterval = HourlyZoomRules.labelIntervalForSpan(48), // 6
+            smoothIterations = HourlyZoomRules.smoothIterationsForSpan(48), // 4
         )
     }
 

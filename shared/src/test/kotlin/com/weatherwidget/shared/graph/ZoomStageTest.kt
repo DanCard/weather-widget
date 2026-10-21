@@ -98,6 +98,6 @@ class ZoomStageTest {
         assertEquals(48L, twoDay.totalSpanHours)
         assertEquals(8, twoDay.navJump)
         assertEquals(6, twoDay.labelInterval)
-        assertEquals(3, twoDay.smoothIterations)
+        assertEquals(4, twoDay.smoothIterations) // span table, like desktop at 48h (user, 2026-10-21)
     }
 }

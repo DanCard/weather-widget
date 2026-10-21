@@ -79,12 +79,9 @@ internal object DesktopGraphUtils {
      * instead makes each stage exact on desktop, while the wheel keeps moving through the same
      * monotone, order-of-magnitude range in between.
      *
-     * Since 2026-08-16 both fixed stages carry the *same* forward span (6h — TWO_DAY deliberately
-     * holds WIDE's forward horizon and buys history only), so the curve is flat at 6h from WIDE's
-     * factor (~0.30) to TWO_DAY's (~0.52) before climbing to [MAX_FORWARD_HOURS]. The anchor list
-     * stays monotone non-decreasing, so this is a deliberate plateau, not a degenerate case:
-     * wheeling out holds the right edge still across that band. Add an interior anchor if that
-     * middle stretch ever needs to open up sooner.
+     * The anchors follow the stages as [ZoomStage.window] defines them (WIDE 9h forward, TWO_DAY 12h),
+     * so the forward half climbs gently from WIDE's factor to TWO_DAY's before rising to
+     * [MAX_FORWARD_HOURS]; the anchor list only has to stay monotone non-decreasing.
      */
     fun forwardHoursFor(zoomFactor: Float): Int {
         val z = zoomFactor.coerceIn(0f, 1f)
@@ -233,14 +230,7 @@ internal object DesktopGraphUtils {
     const val DATE_LABEL_SPAN_THRESHOLD_HOURS = HourlyZoomRules.DATE_FOOTER_MIN_SPAN_HOURS
 
     /** Clock-hour label cadence (must divide 24, since labels gate on `localHour % interval`). */
-    fun labelIntervalFor(totalSpanHours: Int): Int = when {
-        totalSpanHours <= 6 -> 1
-        totalSpanHours <= 14 -> 2
-        totalSpanHours <= 28 -> 4
-        totalSpanHours <= 56 -> 6
-        totalSpanHours <= 96 -> 12
-        else -> 24
-    }
+    fun labelIntervalFor(totalSpanHours: Int): Int = HourlyZoomRules.labelIntervalForSpan(totalSpanHours)
 
     /**
      * Clock-friendly hour steps for the width-aware cadence, ascending (densest first). Every value
@@ -262,12 +252,8 @@ internal object DesktopGraphUtils {
         return LABEL_INTERVAL_STEPS.firstOrNull { step -> spanHours / step + 1 <= maxLabels } ?: 24
     }
 
-    /** Curve smoothing scales up with span: tight views stay crisp, wide views read as a trend. */
-    fun smoothIterationsFor(totalSpanHours: Int): Int = when {
-        totalSpanHours <= 6 -> 1
-        totalSpanHours <= 36 -> 3
-        else -> 4
-    }
+    /** [HourlyZoomRules.smoothIterationsForSpan], the table the widget's stages read too. */
+    fun smoothIterationsFor(totalSpanHours: Int): Int = HourlyZoomRules.smoothIterationsForSpan(totalSpanHours)
 
     /** Maps a legacy persisted zoom string to a continuous factor (one-time migration on read). */
     fun zoomFactorFromLegacy(level: String?): Float = if (level == "NARROW") 0f else DEFAULT_ZOOM_FACTOR

@@ -40,6 +40,29 @@ object HourlyZoomRules {
     fun isDateMode(totalSpanHours: Long): Boolean = totalSpanHours >= DATE_FOOTER_MIN_SPAN_HOURS
 
     /**
+     * Footer clock-label cadence for a visible span of [spanHours], every value a divisor of 24 so
+     * `hour % interval == 0` lands on tidy clock hours. One table for both platforms, keyed by span
+     * rather than stage: the widget's tap stages read it through their span ([ZoomStage.window]),
+     * desktop's continuous zoom calls it directly (user, 2026-10-21; was a per-stage table on Android
+     * and this table on desktop, and they disagreed at NARROW 7–8h).
+     */
+    fun labelIntervalForSpan(spanHours: Int): Int = when {
+        spanHours <= 6 -> 1
+        spanHours <= 14 -> 2
+        spanHours <= 28 -> 4
+        spanHours <= 56 -> 6
+        spanHours <= 96 -> 12
+        else -> 24
+    }
+
+    /** Curve smoothing passes for a visible span: tight views stay crisp, wide ones read as a trend. Both platforms. */
+    fun smoothIterationsForSpan(spanHours: Int): Int = when {
+        spanHours <= 6 -> 1
+        spanHours <= 36 -> 3
+        else -> 4
+    }
+
+    /**
      * How many hours a left/right nav press shifts the view. Single source of truth for Android's
      * [ZoomWindow.navJump] and desktop's continuous `DesktopGraphUtils.navJumpHours`.
      *
