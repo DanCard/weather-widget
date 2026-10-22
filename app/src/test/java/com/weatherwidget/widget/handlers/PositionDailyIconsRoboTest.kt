@@ -265,13 +265,32 @@ class PositionDailyIconsRoboTest {
         }
     }
 
+    /** The hourly header's four 25dp buttons in a [widthDp] row, on [seam]. */
+    private fun hourlyRow(widthDp: Int, seam: HeaderFit.Seam): Pair<HeaderFit.Measured, HeaderFit.Plan> {
+        val density = context.resources.displayMetrics.density
+        val measured = HeaderFit.Measured(
+            width = widthDp * density, rightCluster = 0f, gap = 0f,
+            seamOffset = HeaderFit.SEAM_OFFSET_DP * density, baseButtons = 4, centreButton = 25f * density,
+        )
+        return measured to HeaderFit.Plan(placement = HeaderFit.ButtonPlacement.CENTER, buttons = 4, seam = seam)
+    }
+
     @Test
-    fun `the hourly header puts the shared container back on centre`() {
-        // A reapply keeps the margins the daily update set; the hourly view must undo the shift.
+    fun `the hourly header writes its own offset over the daily one`() {
+        // A reapply keeps the margins the daily update set; the hourly view must always set its own.
+        val density = context.resources.displayMetrics.density
         val view = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true, centreOffsetDp = 37f)
-        val hourly = RemoteViews(context.packageName, R.layout.widget_weather)
-        positionCenterIcons(hourly, 440, context.resources.displayMetrics.density, isPrecipVisible = false)
-        hourly.reapply(context, view)
+        val (middleMeasured, middle) = hourlyRow(440, HeaderFit.Seam.MIDDLE)
+        RemoteViews(context.packageName, R.layout.widget_weather).apply {
+            positionCenterIcons(this, 440, density, isPrecipVisible = false, measured = middleMeasured, fit = middle)
+        }.reapply(context, view)
         assertEquals(0, view.containerLeftMargin())
+
+        // On the line: four 25dp buttons end 70dp right of the middle, so their centre is 20dp right.
+        val (lineMeasured, line) = hourlyRow(440, HeaderFit.Seam.RIGHT_OF_MIDDLE)
+        RemoteViews(context.packageName, R.layout.widget_weather).apply {
+            positionCenterIcons(this, 440, density, isPrecipVisible = false, measured = lineMeasured, fit = line)
+        }.reapply(context, view)
+        assertEquals(20f * density, view.containerLeftMargin().toFloat(), 1f)
     }
 }

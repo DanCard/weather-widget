@@ -207,3 +207,28 @@ when home button is shown … Maybe on wide widgets move the home buttons more t
   appearing left of history. Fold (`HEADER_FIT`): graph widgets show icon, both buttons and the date.
   HeaderFitTest 15 (Fold measurements: date at 1133 with and without home and with the
   observations button panned away). Suites: shared 2516, desktop 653, app 2599.
+
+## Phase 3 — hourly headers, both platforms (2026-10-22)
+
+- `HeaderFit` gains INLINE squeezing (`minInlineButton`, `minTextScale`; `Plan.inlineZone`,
+  `Plan.textScale`): zones narrow, then icon + temperature shrink, before anything drops — only
+  beside INLINE buttons, only where the platform passes the floors (Android hourly: 28dp, 0.8; the
+  user's 2026-10-09 rule, not generalised to daily or desktop). "From yest" is offered only if it
+  changes neither.
+- Android: `HeaderWidthChecker.measureHeader(…, hourly = true)` (was `measureDailyHeader`) drives
+  `TemperatureViewBinder` and `HourlyHeaderBinder` (cloud / precip); `HEADER_FIT view=hourly` logged.
+  `positionCenterIcons(measured, fit)`: CENTER / INLINE / HIDDEN from the fit instead of the old
+  `widthDp < 420` cutoff; CENTER buttons end on the shared line (container MARGIN_LEFT), so history
+  stays put switching daily ↔ hourly. `applyFit` replaces `applyDisclosure` for every header.
+- Deleted: `HourlyHeaderFit`, `fitHourlyHeader`, `resolveHeaderDisclosure`, `HeaderDisclosureLevel`,
+  `deltaLabelFitsInHeader`, `inlineNavRowWidthDp`, `INLINE_NAV_MAX_WIDTH_DP`; `HourlyHeaderFitTest`
+  (cases ported to HeaderFitTest), most of `HeaderWidthCheckerTest` (computeHeaderScale kept);
+  `HeaderWidthCheckerHourlyFitTest` rewritten on measureHeader + HeaderFit (NATIVE fonts).
+- Behaviour change by the drop order: when even the squeezed inline row cannot fit, the buttons go
+  before the delta (delta ranks above buttons); the old ladder dropped icon, delta, rain % first.
+- Desktop: hourly uses the same fit (four buttons, the emoji measured), buttons an overlay ending on
+  the line; the weighted middle is a spacer. "From yest" no longer beside a rain % in hourly either
+  (`HeaderRainChanceNoWrapTest` updated). `DesktopDailyHeaderFitTest` → `DesktopHeaderFitTest`.
+- Verified: emulator 360dp hourly — everything kept, four buttons centred on the line (previously
+  inline below 420dp); desktop daily ↔ hourly — history at the same x. Suites: shared 2521,
+  desktop 654, app 2577 (fewer: deleted/merged hourly tests).

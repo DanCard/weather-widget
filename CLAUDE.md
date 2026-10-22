@@ -335,8 +335,9 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   (`HeaderFit.SEAM_OFFSET_DP`; the left side is the crowded one) and grow leftwards; the date starts
   just after it, so a source switch (home appearing) never moves it. Fallback: the true middle, then
   inline. One rule in `:shared`
-  `HeaderFit`; both daily headers use it (Android measures in `HeaderWidthChecker.measureDailyHeader`),
-  the hourly headers move to it next (`plans/261022-shared-header-fit-priority.md`).
+  `HeaderFit` for every header, daily and hourly, both platforms (Android measures in
+  `HeaderWidthChecker.measureHeader`); the hourly inline zones squeeze to 28dp, then the icon and
+  temperature to 80 %, before anything drops (`plans/261022-shared-header-fit-priority.md`).
 
 ## Temperature Display
 

@@ -308,7 +308,7 @@ object CloudCoverViewHandler {
             showStations = isToday,
         )
         val headerScale = headerResult.headerScale
-        val disclosure = headerResult.disclosure
+        val fit = headerResult.fit
 
         setupHomeShortcut(context, views, appWidgetId, scale = headerScale)
         if (!isIconWidth) {
@@ -323,7 +323,7 @@ object CloudCoverViewHandler {
             appWidgetId = appWidgetId,
             currentViewMode = com.weatherwidget.widget.ViewMode.CLOUD_COVER,
             widthDp = dimensions.widthDp,
-            isPrecipVisible = isPrecipVisible && disclosure.showsPrecip(),
+            isPrecipVisible = isPrecipVisible && fit.showRain,
             scale = headerScale,
         )
 
@@ -332,7 +332,7 @@ object CloudCoverViewHandler {
             setupApiToggle(context, views, appWidgetId, numRows, scale = headerScale)
         }
 
-        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && disclosure.showsPrecip(), isToday, headerResult.inlineZoneWidthDp)
+        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && fit.showRain, isToday, headerResult.measured, fit)
 
 val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f

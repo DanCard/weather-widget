@@ -34,12 +34,10 @@ import org.junit.experimental.categories.Category
  * `uiScale` grows the fonts while that third does not grow with them — the cluster overflowed: the
  * rain chance, its last child, was squeezed to a one-glyph column and stacked as "1 / 5 / %".
  *
- * The left cluster is content-sized now, so both guards below must hold:
- *  - the rain chance renders on one line (shape-based: a single line is wider than it is tall, a
- *    per-character stack is far taller than it is wide — true across fonts and densities);
- *  - the "from yest" caption is not truncated, checked by rendering the same header a second time
- *    at double the width and requiring the caption to measure identically. The wide copy has room
- *    to spare, so any narrowing in the crowded copy is truncation.
+ * The left cluster is content-sized now, so the rain chance renders on one line (shape-based: a
+ * single line is wider than it is tall, a per-character stack is far taller than it is wide — true
+ * across fonts and densities), and its width matches a roomy copy rendered at double the width.
+ * The "from yest" caption never sits beside a rain chance (`HeaderFit`, user 2026-10-22).
  */
 @Category(LongDuration::class)
 class HeaderRainChanceNoWrapTest {
@@ -116,9 +114,8 @@ class HeaderRainChanceNoWrapTest {
         // Both headers render the same texts, so every lookup is a two-element list: index 0 is
         // the crowded header, index 1 the roomy reference.
         val rainChances = boundsOf("15%")
-        val captions = boundsOf("from yest")
         assertEquals("Expected the rain chance in both headers", 2, rainChances.size)
-        assertEquals("Expected the caption in both headers", 2, captions.size)
+        assertEquals("No \"from yest\" beside a rain chance", 0, boundsOf("from yest").size)
 
         val crowdedRain = rainChances[0]
         assertTrue(
@@ -127,10 +124,10 @@ class HeaderRainChanceNoWrapTest {
             crowdedRain.width > crowdedRain.height,
         )
         assertEquals(
-            "\"from yest\" is truncated in the crowded header (${captions[0].width} vs " +
-                "${captions[1].width} with room to spare)",
-            captions[1].width.value,
-            captions[0].width.value,
+            "Rain chance is truncated in the crowded header (${crowdedRain.width} vs " +
+                "${rainChances[1].width} with room to spare)",
+            rainChances[1].width.value,
+            crowdedRain.width.value,
             0.5f,
         )
     }

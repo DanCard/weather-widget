@@ -23,6 +23,10 @@ package com.weatherwidget.shared.util
  * which cannot see the RemoteViews button row, and it was painted straight over them (emulator,
  * 360dp, 2026-10-21). Desktop has no INLINE rung.
  *
+ * INLINE buttons compress before anything drops (Android's hourly header, user 2026-10-09): the
+ * zones narrow toward [Measured.minInlineButton], then the weather icon and temperature shrink
+ * together toward [Measured.minTextScale]; "from yest" is kept only where it needs neither.
+ *
  * Pure: widths come in already measured, in any one unit (Android px, desktop dp), each including
  * its own leading margin. Each platform measures and draws; this only decides.
  */
@@ -74,6 +78,10 @@ object HeaderFit {
         val inlineButton: Float = 0f,
         /** Margin before the first inline zone. */
         val inlineLead: Float = 0f,
+        /** Narrowest an inline zone may be squeezed to; 0 = not at all. */
+        val minInlineButton: Float = 0f,
+        /** Smallest scale for the weather icon and temperature beside INLINE buttons; 1 = none. */
+        val minTextScale: Float = 1f,
     )
 
     data class Plan(
@@ -90,6 +98,10 @@ object HeaderFit {
         val placement: ButtonPlacement = ButtonPlacement.HIDDEN,
         /** Which line CENTER buttons hang off. */
         val seam: Seam = Seam.RIGHT_OF_MIDDLE,
+        /** The inline zone width used (≤ [Measured.inlineButton] when squeezed); 0 unless INLINE. */
+        val inlineZone: Float = 0f,
+        /** Scale for the weather icon and temperature (< 1 only when squeezed beside INLINE buttons). */
+        val textScale: Float = 1f,
     )
 
     fun resolve(m: Measured): Plan {
@@ -102,8 +114,13 @@ object HeaderFit {
         offerButtons(m, plan)?.let { plan = it }
         if (m.icon > 0f) offer(plan.copy(showIcon = true))
         if (m.date > 0f) offer(plan.copy(showDate = true))
-        if (m.caption > 0f && plan.showDelta && !plan.showRain) offer(plan.copy(showCaption = true))
-        return plan
+        if (m.caption > 0f && plan.showDelta && !plan.showRain) {
+            // Only where it fits as laid out: it never narrows the zones or shrinks the temperature.
+            val withCaption = plan.copy(showCaption = true)
+            if (squeeze(m, withCaption) == squeeze(m, plan)) offer(withCaption)
+        }
+        val (zone, scale) = squeeze(m, plan) ?: (0f to 1f)
+        return plan.copy(inlineZone = zone, textScale = scale)
     }
 
     /**
@@ -134,13 +151,33 @@ object HeaderFit {
         return placed
     }
 
-    /** Whether [plan] fits the row as [m] measures it. */
-    fun fits(m: Measured, plan: Plan): Boolean {
+    /** Whether [plan] fits the row as [m] measures it, squeezing INLINE buttons if it must. */
+    fun fits(m: Measured, plan: Plan): Boolean = squeeze(m, plan) != null
+
+    /**
+     * The inline zone width and icon/temperature scale [plan] needs, nominal first (0 zone when not
+     * INLINE); null when it does not fit even fully squeezed.
+     */
+    private fun squeeze(m: Measured, plan: Plan): Pair<Float, Float>? {
         val inline = plan.placement == ButtonPlacement.INLINE && plan.buttons > 0
+        if (!inline) return if (fitsAsLaidOut(m, plan)) 0f to 1f else null
+        if (plan.showDate && m.date > 0f) return null
+        val available = m.width - m.rightCluster - m.gap
+        val scalable = (if (plan.showIcon) m.icon else 0f) + (if (plan.showTemp) m.temp else 0f)
+        val fixed = leftClusterWidth(m, plan.copy(showIcon = false, showTemp = false, placement = ButtonPlacement.HIDDEN)) + m.inlineLead
+        val zoneRoom = (available - fixed - scalable) / plan.buttons
+        if (zoneRoom >= m.inlineButton) return m.inlineButton to 1f
+        val minZone = if (m.minInlineButton > 0f) minOf(m.minInlineButton, m.inlineButton) else m.inlineButton
+        if (zoneRoom >= minZone) return zoneRoom to 1f
+        if (scalable <= 0f || m.minTextScale >= 1f) return null
+        val scale = (available - fixed - plan.buttons * minZone) / scalable
+        return if (scale >= m.minTextScale) minZone to scale else null
+    }
+
+    private fun fitsAsLaidOut(m: Measured, plan: Plan): Boolean {
         val left = leftClusterWidth(m, plan)
         val rightEdge = m.width - m.rightCluster
         if (left > 0f && left + m.gap > rightEdge) return false
-        if (inline && plan.showDate && m.date > 0f) return false
         buttonsSpan(m, plan)?.let { (slotLeft, slotRight) ->
             if (slotLeft < left + m.gap || slotRight > rightEdge - m.gap) return false
         }

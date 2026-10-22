@@ -7,7 +7,7 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * The daily header button zones' widths, which feed `HeaderWidthChecker.measureDailyHeader` and
+ * The daily header button zones' widths, which feed `HeaderWidthChecker.measureHeader` and
  * `positionDailyIcons` alike. Which buttons show and where is `HeaderFitTest` (`:shared`).
  */
 @Category(ShortDuration::class)

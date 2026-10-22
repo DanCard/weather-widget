@@ -5,20 +5,6 @@ import android.graphics.Paint
 import android.util.TypedValue
 import com.weatherwidget.shared.util.HeaderFit
 
-enum class HeaderDisclosureLevel {
-    FULL,
-    NO_ICON,
-    NO_ICON_NO_DELTA,
-    MINIMAL,
-    NONE,
-}
-
-fun HeaderDisclosureLevel.showsIcon(): Boolean = this == HeaderDisclosureLevel.FULL
-
-fun HeaderDisclosureLevel.showsDelta(): Boolean = this == HeaderDisclosureLevel.FULL || this == HeaderDisclosureLevel.NO_ICON
-
-fun HeaderDisclosureLevel.showsPrecip(): Boolean = this == HeaderDisclosureLevel.FULL || this == HeaderDisclosureLevel.NO_ICON || this == HeaderDisclosureLevel.NO_ICON_NO_DELTA
-
 object HeaderWidthChecker {
     internal val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -33,27 +19,16 @@ object HeaderWidthChecker {
     private const val WIDE_HEADER_OCCUPANCY_THRESHOLD = 0.50f
     private const val WIDE_HEADER_MIN_WIDTH_DP = 450
 
-    /** Below this width the hourly header appends the inline nav icon row (graph selector |
-     * stations | home | history) to the left cluster. Mirrors positionCenterIcons. */
-    const val INLINE_NAV_MAX_WIDTH_DP = 420
+    /** Narrowest the hourly header's inline zones squeeze to: the 20 dp icon plus 4 dp either side. */
+    const val HOURLY_MIN_INLINE_ZONE_DP = 28f
+
+    /** Smallest scale for the hourly header's weather icon and temperature beside inline buttons. */
+    const val HOURLY_MIN_TEXT_SCALE = 0.8f
+
     private const val INLINE_NAV_ZONE_XML_WIDTH_DP = 36
     private const val INLINE_NAV_FIRST_ZONE_MARGIN_DP = 1
 
-    /**
-     * Width in dp of the inline nav icon row appended to the header's left cluster on narrow
-     * widgets. Mirrors the visibility and touch-zone widths applied by positionCenterIcons
-     * (TemperatureTouchTargets.kt): 0 at [INLINE_NAV_MAX_WIDTH_DP] and above; per-zone width is
-     * the 36dp XML default below API 31, resized to 32/40/48dp on API 31+. The stations zone is
-     * hidden when [showStations] is false (non-today graphs); the graph-selector zone adds a
-     * 1dp marginStart.
-     */
-    fun inlineNavRowWidthDp(widthDp: Int, showStations: Boolean = true): Float {
-        if (widthDp >= INLINE_NAV_MAX_WIDTH_DP) return 0f
-        val zoneCount = if (showStations) 4 else 3
-        return nominalInlineZoneWidthDp(widthDp) * zoneCount + INLINE_NAV_FIRST_ZONE_MARGIN_DP
-    }
-
-    /** The inline nav touch zone's width before any compression ([HourlyHeaderFit]). */
+    /** The hourly header's inline nav zone width before any squeezing ([HeaderFit]). */
     fun nominalInlineZoneWidthDp(widthDp: Int): Float =
         if (canResizeInlineZones()) {
             when {
@@ -70,123 +45,9 @@ object HeaderWidthChecker {
         android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
 
     /**
-     * What the hourly header shows and at what size. [inlineZoneWidthDp] is null when there is no
-     * inline nav row (wide widgets) — [positionCenterIcons] then keeps its own widths.
-     */
-    data class HourlyHeaderLayout(
-        val disclosure: HeaderDisclosureLevel,
-        val inlineZoneWidthDp: Float?,
-        val textScale: Float,
-        val showDeltaLabel: Boolean,
-    )
-
-    /**
-     * Fits the hourly header's left cluster — weather icon, current temperature, delta and its
-     * "from yest" caption, rain %, and on narrow widgets the inline nav row — before the API label.
-     * Narrow widgets compress before dropping ([HourlyHeaderFit]); at each [HeaderDisclosureLevel]
-     * the zones narrow, then the icon and temperature shrink, and only then the next level is
-     * tried. The caption is the first thing dropped: shown only when it fits without narrowing the
-     * zones or shrinking the temperature, and never beside a rain chance.
-     */
-    fun fitHourlyHeader(
-        context: Context,
-        widthDp: Int,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-        currentTempText: String?,
-        deltaText: String?,
-        deltaLabelText: String?,
-        precipText: String?,
-        precipTextSizeDp: Float?,
-        showStations: Boolean,
-        currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
-    ): HourlyHeaderLayout {
-        if (widthDp >= INLINE_NAV_MAX_WIDTH_DP) {
-            val disclosure = resolveHeaderDisclosure(
-                context, widthDp, apiSourceText, apiTextSizeDp, currentTempText, deltaText,
-                precipText, precipTextSizeDp, currentTempSizeDp,
-            )
-            val label = deltaText != null && deltaLabelText != null && disclosure.showsDelta() &&
-                deltaLabelFitsInHeader(
-                    context = context,
-                    widthDp = widthDp,
-                    apiSourceText = apiSourceText,
-                    apiTextSizeDp = apiTextSizeDp,
-                    currentTempText = currentTempText,
-                    deltaText = deltaText,
-                    deltaLabelText = deltaLabelText,
-                    precipText = if (disclosure.showsPrecip()) precipText else null,
-                    precipTextSizeDp = precipTextSizeDp,
-                    includeIcon = disclosure.showsIcon(),
-                    currentTempSizeDp = currentTempSizeDp,
-                )
-            return HourlyHeaderLayout(disclosure, null, 1f, label)
-        }
-
-        val widthPx = dpToPx(context, widthDp.toFloat())
-        val availablePx = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp) -
-            dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
-        val nominalZonePx = dpToPx(context, nominalInlineZoneWidthDp(widthDp))
-        val minZonePx = if (canResizeInlineZones()) {
-            dpToPx(context, HourlyHeaderFit.MIN_ZONE_DP).coerceAtMost(nominalZonePx)
-        } else {
-            nominalZonePx
-        }
-        val zoneCount = if (showStations) 4 else 3
-        val iconPx = dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP)
-        val tempPx = if (currentTempText.isNullOrBlank()) 0f else currentTempTextWidthPx(context, currentTempText, currentTempSizeDp)
-        val deltaPx = if (deltaText.isNullOrBlank()) 0f else
-            dpToPx(context, HeaderConstants.DELTA_MARGIN_START_DP) + textWidthPx(context, deltaText, HeaderConstants.DELTA_TEXT_SIZE_DP)
-        val labelPx = if (deltaLabelText.isNullOrBlank()) 0f else
-            dpToPx(context, HeaderConstants.DELTA_LABEL_MARGIN_START_DP) + textWidthPx(context, deltaLabelText, HeaderConstants.DELTA_LABEL_TEXT_SIZE_DP)
-        val precipPx = if (precipText.isNullOrBlank() || precipTextSizeDp == null) 0f else
-            dpToPx(context, HeaderConstants.PRECIP_MARGIN_START_DP) + textWidthPx(context, precipText, precipTextSizeDp)
-        val firstZoneMarginPx = dpToPx(context, INLINE_NAV_FIRST_ZONE_MARGIN_DP.toFloat())
-
-        fun plan(icon: Boolean, delta: Boolean, label: Boolean, precip: Boolean) = HourlyHeaderFit.plan(
-            HourlyHeaderFit.Input(
-                availablePx = availablePx,
-                scalablePx = (if (icon) iconPx else 0f) + tempPx,
-                fixedPx = (if (delta) deltaPx else 0f) + (if (label) labelPx else 0f) +
-                    (if (precip) precipPx else 0f) + firstZoneMarginPx,
-                zoneCount = zoneCount,
-                nominalZonePx = nominalZonePx,
-                minZonePx = minZonePx,
-            ),
-        )
-
-        val levels = listOf(
-            HeaderDisclosureLevel.FULL,
-            HeaderDisclosureLevel.NO_ICON,
-            HeaderDisclosureLevel.NO_ICON_NO_DELTA,
-            HeaderDisclosureLevel.MINIMAL,
-        )
-        for (level in levels) {
-            val delta = deltaPx > 0f && level.showsDelta()
-            val precip = precipPx > 0f && level.showsPrecip()
-            val base = plan(level.showsIcon(), delta, label = false, precip = precip)
-            if (!base.fits) continue
-            // The caption is the first thing dropped (user, 2026-10-09): only where there is room
-            // for it as laid out — it never narrows the nav zones or shrinks the temperature, and
-            // never sits beside a rain chance.
-            val withLabel = if (delta && labelPx > 0f && !precip) plan(level.showsIcon(), true, label = true, precip = false) else null
-            val chosen = withLabel?.takeIf {
-                it.fits && it.textScale >= 1f && it.zoneWidthPx >= base.zoneWidthPx - 0.01f
-            } ?: base
-            return HourlyHeaderLayout(
-                disclosure = level,
-                inlineZoneWidthDp = chosen.zoneWidthPx / context.resources.displayMetrics.density,
-                textScale = chosen.textScale,
-                showDeltaLabel = chosen === withLabel,
-            )
-        }
-        return HourlyHeaderLayout(HeaderDisclosureLevel.NONE, null, 1f, showDeltaLabel = false)
-    }
-
-    /**
      * Width of the daily header button pair when centred, in dp, for [iconCount] buttons.
-     * Unscaled, like every other measurement on this side of the header (resolveHeaderDisclosure,
-     * resolveLeftClusterRightPx); the bitmap renderer applies its own labelScale.
+     * Unscaled, like the zones [positionDailyIcons] lays out; the bitmap renderer applies its own
+     * labelScale.
      */
     fun dailyCenterIconsWidthDp(iconCount: Int, widthDp: Int): Float =
         if (iconCount <= 0) 0f else dailyCenterIconZoneWidthDp(widthDp) * iconCount
@@ -220,20 +81,25 @@ object HeaderWidthChecker {
             HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP
 
     /**
-     * The daily header's pieces measured for the shared drop order ([HeaderFit],
+     * A header's pieces measured for the shared drop order ([HeaderFit],
      * `plans/261022-shared-header-fit-priority.md`); the caller resolves and logs both.
      *
      * Text, the weather icon and the API label are measured at [headerScale], the size they are
-     * painted; the button zones are not scaled ([positionDailyIcons] sizes them in plain dp). A null
-     * text or a zero [baseButtons] means that piece is absent, not dropped.
+     * drawn; the button zones are not scaled ([positionDailyIcons] / [positionCenterIcons] size them
+     * in plain dp). A null text or a zero [baseButtons] means that piece is absent, not dropped.
+     *
+     * [hourly]: the hourly header's button zones, and its compression — inline zones narrow to
+     * [HOURLY_MIN_INLINE_ZONE_DP], then the icon and temperature shrink to [HOURLY_MIN_TEXT_SCALE]
+     * before anything drops (user, 2026-10-09; the daily header never shrinks).
      */
-    fun measureDailyHeader(
+    fun measureHeader(
         context: Context,
         widthDp: Int,
         headerScale: Float,
         apiSourceText: String,
         apiTextSizeDp: Float,
         currentTempText: String?,
+        currentTempSizeDp: Float,
         deltaText: String?,
         deltaLabelText: String?,
         precipText: String?,
@@ -243,6 +109,7 @@ object HeaderWidthChecker {
         baseButtons: Int,
         wantHome: Boolean,
         wantMonths: Boolean,
+        hourly: Boolean = false,
     ): HeaderFit.Measured {
         val widthPx = dpToPx(context, widthDp.toFloat())
         fun scaledDp(dp: Float) = dpToPx(context, dp) * headerScale
@@ -258,7 +125,7 @@ object HeaderWidthChecker {
                 scaledDp(HeaderFit.SEAM_OFFSET_DP)
             } else null,
             temp = if (currentTempText.isNullOrBlank()) 0f
-                else currentTempTextWidthPx(context, currentTempText, HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP) * headerScale,
+                else currentTempTextWidthPx(context, currentTempText, currentTempSizeDp) * headerScale,
             rain = if (precipTextSizeDp == null) 0f
                 else scaledText(precipText, precipTextSizeDp, HeaderConstants.PRECIP_MARGIN_START_DP),
             delta = scaledText(deltaText, HeaderConstants.DELTA_TEXT_SIZE_DP, HeaderConstants.DELTA_MARGIN_START_DP),
@@ -268,10 +135,19 @@ object HeaderWidthChecker {
             baseButtons = baseButtons,
             wantHome = wantHome,
             wantMonths = wantMonths,
-            centreButton = dpToPx(context, dailyCenterIconZoneWidthDp(widthDp)),
-            inlineButton = dpToPx(context, HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP),
-            inlineLead = dpToPx(context, HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP),
+            centreButton = dpToPx(context, if (hourly) hourlyCenterIconZoneWidthDp(widthDp) else dailyCenterIconZoneWidthDp(widthDp)),
+            inlineButton = dpToPx(context, if (hourly) nominalInlineZoneWidthDp(widthDp) else HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP),
+            inlineLead = dpToPx(context, if (hourly) INLINE_NAV_FIRST_ZONE_MARGIN_DP.toFloat() else HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP),
+            minInlineButton = if (hourly && canResizeInlineZones()) dpToPx(context, HOURLY_MIN_INLINE_ZONE_DP) else 0f,
+            minTextScale = if (hourly) HOURLY_MIN_TEXT_SCALE else 1f,
         )
+    }
+
+    /** The hourly header's centred zone width [positionCenterIcons] applies (API 31+). */
+    fun hourlyCenterIconZoneWidthDp(widthDp: Int): Float = when {
+        widthDp >= 450 -> 56f
+        widthDp >= 420 -> 40f
+        else -> 24f
     }
 
     fun computeHeaderScale(
@@ -309,77 +185,6 @@ object HeaderWidthChecker {
         return if (occupancy < WIDE_HEADER_OCCUPANCY_THRESHOLD) WIDE_HEADER_SCALE else 1f
     }
 
-    fun resolveHeaderDisclosure(
-        context: Context,
-        widthDp: Int,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-        currentTempText: String?,
-        deltaText: String?,
-        precipText: String?,
-        precipTextSizeDp: Float?,
-        currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
-): HeaderDisclosureLevel {
-    val widthPx = dpToPx(context, widthDp.toFloat())
-
-        val leftClusterRightFull = resolveLeftClusterRightPx(
-            context = context,
-            currentTempText = currentTempText,
-            deltaText = deltaText,
-            precipText = precipText,
-            precipTextSizeDp = precipTextSizeDp,
-            includeIcon = true,
-            currentTempSizeDp = currentTempSizeDp,
-        )
-        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
-        val gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
-
-        if (leftClusterRightFull + gapPx <= apiLeft) {
-            return HeaderDisclosureLevel.FULL
-        }
-
-        val leftClusterRightNoIcon = resolveLeftClusterRightPx(
-            context = context,
-            currentTempText = currentTempText,
-            deltaText = deltaText,
-            precipText = precipText,
-            precipTextSizeDp = precipTextSizeDp,
-            includeIcon = false,
-            currentTempSizeDp = currentTempSizeDp,
-        )
-        if (leftClusterRightNoIcon + gapPx <= apiLeft) {
-            return HeaderDisclosureLevel.NO_ICON
-        }
-
-        val leftClusterRightNoIconNoDelta = resolveLeftClusterRightPx(
-            context = context,
-            currentTempText = currentTempText,
-            deltaText = null,
-            precipText = precipText,
-            precipTextSizeDp = precipTextSizeDp,
-            includeIcon = false,
-            currentTempSizeDp = currentTempSizeDp,
-        )
-        if (leftClusterRightNoIconNoDelta + gapPx <= apiLeft) {
-            return HeaderDisclosureLevel.NO_ICON_NO_DELTA
-        }
-
-        val leftClusterRightMinimal = resolveLeftClusterRightPx(
-            context = context,
-            currentTempText = currentTempText,
-            deltaText = null,
-            precipText = null,
-            precipTextSizeDp = null,
-            includeIcon = false,
-            currentTempSizeDp = currentTempSizeDp,
-        )
-        if (leftClusterRightMinimal + gapPx <= apiLeft) {
-            return HeaderDisclosureLevel.MINIMAL
-        }
-
-        return HeaderDisclosureLevel.NONE
-    }
-
     internal fun resolveLeftClusterRightPx(
         context: Context,
         currentTempText: String?,
@@ -410,56 +215,6 @@ object HeaderWidthChecker {
             width += textWidthPx(context, precipText, precipTextSizeDp)
         }
         return width
-    }
-
-    /**
-     * Whether the small "from yest" caption fits after the delta in the RemoteViews header.
-     * The label is purely opportunistic: it never affects disclosure/scale decisions and is
-     * shown only when the full left cluster (icon/temp/delta/label/precip, plus the inline
-     * nav icon row on narrow widgets) still clears the API source label on the right with
-     * the standard gap.
-     *
-     * [inlineNavWidthDp] must be [inlineNavRowWidthDp] for hourly views: the inline nav
-     * icons live in the same left LinearLayout after precip, and ignoring them lets the
-     * caption stay visible while the history icon is pushed over the API label (observed
-     * on Pixel 7 Pro at widthDp=373). Daily view passes the default 0 (its inline zones
-     * are always GONE).
-     *
-     * A visible rain chance always suppresses the caption (product rule): the precip %
-     * has display priority over "from yest". Callers pass [precipText] only when the
-     * precip % would actually be shown, so a non-blank value here means "rain in header".
-     */
-    fun deltaLabelFitsInHeader(
-        context: Context,
-        widthDp: Int,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-        currentTempText: String?,
-        deltaText: String?,
-        deltaLabelText: String?,
-        precipText: String?,
-        precipTextSizeDp: Float?,
-        includeIcon: Boolean,
-        currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
-        inlineNavWidthDp: Float = 0f,
-    ): Boolean {
-        if (deltaText.isNullOrBlank() || deltaLabelText.isNullOrBlank()) return false
-        if (!precipText.isNullOrBlank()) return false
-        val widthPx = dpToPx(context, widthDp.toFloat())
-        if (widthPx <= 0f) return false
-        val leftClusterRight = resolveLeftClusterRightPx(
-            context = context,
-            currentTempText = currentTempText,
-            deltaText = deltaText,
-            precipText = precipText,
-            precipTextSizeDp = precipTextSizeDp,
-            includeIcon = includeIcon,
-            currentTempSizeDp = currentTempSizeDp,
-            deltaLabelText = deltaLabelText,
-        ) + dpToPx(context, inlineNavWidthDp)
-        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
-        val gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
-        return leftClusterRight + gapPx <= apiLeft
     }
 
     internal fun resolveApiLeftPx(

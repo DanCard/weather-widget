@@ -26,12 +26,12 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 /**
- * The desktop daily header asks the shared drop order (`HeaderFit`) instead of keeping every item
+ * The desktop header (daily and hourly) asks the shared drop order (`HeaderFit`) instead of keeping every item
  * and squeezing the centre (`plans/261022-shared-header-fit-priority.md`). One header per width,
  * from roomy to far too narrow; each item is counted across them.
  */
 @Category(LongDuration::class)
-class DesktopDailyHeaderFitTest {
+class DesktopHeaderFitTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
@@ -134,5 +134,29 @@ class DesktopDailyHeaderFitTest {
         val date = composeTestRule.onAllNodesWithTag("daily_header_date", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
         assertTrue("date at ${date.left} after the buttons' ${bounds.right}", date.left > bounds.right)
+    }
+
+    @Test
+    fun hourlyButtonsEndOnTheSameLineSoHistoryStaysPutAcrossViews() {
+        composeTestRule.setContent {
+            Box(Modifier.requiredWidth(800.dp)) {
+                WidgetHeader(
+                    config = config.copy(viewMode = ViewMode.TEMPERATURE),
+                    forecast = snapshot(),
+                    resolvedCurrentTemp = 64f,
+                    resolvedDeltaFromYesterday = 2.2f,
+                    onUpdateConfig = {},
+                    onOpenSettings = {},
+                    onOpenObservations = {},
+                    onUpdateLocation = {},
+                )
+            }
+        }
+        composeTestRule.waitForIdle()
+        val history = composeTestRule.onAllNodesWithTag("open_forecast_history", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+        val rightDp = with(composeTestRule.density) { history.right.toDp().value }
+        assertEquals(400f + HeaderFit.SEAM_OFFSET_DP, rightDp, 1f)
+        composeTestRule.onAllNodesWithTag("graph_selector", useUnmergedTree = true).fetchSemanticsNodes().single()
     }
 }

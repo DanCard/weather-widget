@@ -61,7 +61,7 @@ object HeaderConstants {
     const val CENTER_ICON_SIZE_DP = 20f
     // Daily-view header buttons (current observations / forecast history). Zone widths are FIXED
     // rather than following the hourly view's width-dependent 32/40/48 ladder, so one constant
-    // feeds both the fit math (HeaderWidthChecker.measureDailyHeader) and the layout
+    // feeds both the fit math (HeaderWidthChecker.measureHeader) and the layout
     // (positionDailyIcons).
     //
     // The hourly header packs FOUR icons into 24dp zones, which reads fine as a row. Two icons at

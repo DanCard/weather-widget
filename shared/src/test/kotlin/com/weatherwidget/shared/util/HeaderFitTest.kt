@@ -242,6 +242,55 @@ class HeaderFitTest {
         assertEquals(256f, HeaderFit.dateLeft(crowded, HeaderFit.resolve(crowded))!!, 0.01f)
     }
 
+    /**
+     * Android's narrow hourly header: four inline zones, nominal 40, floor 28; a 100 temperature
+     * (shrinks with the icon) and a 20 delta (does not). Centred buttons cannot fit at all.
+     */
+    private fun squeezable(width: Float, minZone: Float = 28f, caption: Float = 0f) = Measured(
+        width = width, rightCluster = 0f, gap = 0f, temp = 100f, delta = 20f, caption = caption,
+        baseButtons = 4, centreButton = 1000f, inlineButton = 40f, minInlineButton = minZone, minTextScale = 0.8f,
+    )
+
+    @Test
+    fun `inline zones compress before the temperature shrinks`() {
+        assertEquals(40f to 1f, HeaderFit.resolve(squeezable(300f)).let { it.inlineZone to it.textScale })
+        // 100 + 20 + 4 × 34 = 256
+        assertEquals(34f to 1f, HeaderFit.resolve(squeezable(256f)).let { it.inlineZone to it.textScale })
+    }
+
+    @Test
+    fun `the temperature shrinks only once the zones are at their floor`() {
+        // Zones at 28: 20 + 112 = 132; 90 left for the 100 temperature.
+        val plan = HeaderFit.resolve(squeezable(222f))
+        assertEquals(28f, plan.inlineZone, 0f)
+        assertEquals(0.9f, plan.textScale, 0.001f)
+        assertEquals(4, plan.buttons)
+    }
+
+    @Test
+    fun `below both floors the buttons go, not the delta that outranks them`() {
+        // Needs 20 + 112 + 80 = 212 at the floors.
+        val plan = HeaderFit.resolve(squeezable(211f))
+        assertEquals(ButtonPlacement.HIDDEN, plan.placement)
+        assertTrue(plan.showTemp && plan.showDelta)
+        assertEquals(1f, plan.textScale, 0f)
+    }
+
+    @Test
+    fun `zones that cannot be resized go straight to shrinking text`() {
+        // Below API 31 the floor is the nominal width.
+        val plan = HeaderFit.resolve(squeezable(270f, minZone = 0f))
+        assertEquals(40f, plan.inlineZone, 0f)
+        assertEquals(0.9f, plan.textScale, 0.001f)
+    }
+
+    @Test
+    fun `"from yest" never narrows the zones or shrinks the temperature`() {
+        // 100 + 20 + 160 = 280 fits 300 as laid out; a 30 caption would need 37.5 zones.
+        assertFalse(HeaderFit.resolve(squeezable(300f, caption = 30f)).showCaption)
+        assertTrue(HeaderFit.resolve(squeezable(310f, caption = 30f)).showCaption)
+    }
+
     @Test
     fun `every width keeps the priority - a higher item drops only if it cannot fit above the lower ones`() {
         for (inline in listOf(true, false)) for (rain in listOf(0f, 40f)) {
@@ -253,6 +302,7 @@ class HeaderFitTest {
                 assertTrue("plan must fit ($where): $plan", HeaderFit.fits(m, plan))
                 assertPriorityHeld(m, plan, where)
                 assertCentreGroupInBounds(m, plan, where)
+                assertEquals("no squeezing without a floor ($where)", 1f, plan.textScale, 0f)
                 w += 1f
             }
         }

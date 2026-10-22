@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.data.model.ForecastProduct
 import android.appwidget.AppWidgetManager
 import android.content.Context
@@ -66,28 +67,30 @@ internal object TemperatureViewBinder {
 
         Log.d("TemperatureViewBinder", "isToday check: today=$today firstHour=$firstHour lastHour=$lastHour centerTime=$centerTime -> isToday=$isToday")
 
-        // Narrow widgets compress the inline nav row, then the icon and temperature, before
-        // anything is dropped (HourlyHeaderFit); the "from yest" caption only when it fits.
+        // The shared drop order (HeaderFit): inline nav zones squeeze, then the icon and
+        // temperature shrink, before anything drops; "from yest" only where it needs neither.
         val deltaLabelText = context.getString(R.string.header_delta_from_yesterday)
-        val fit = HeaderWidthChecker.fitHourlyHeader(
+        val measured = HeaderWidthChecker.measureHeader(
             context = context,
             widthDp = state.widthDp,
+            headerScale = headerScale,
             apiSourceText = header.sourceIndicator,
             apiTextSizeDp = HeaderConstants.apiTextSizeDp(state.numRows),
             currentTempText = header.currentTemp,
+            currentTempSizeDp = header.currentTempSizeDp,
             deltaText = if (header.isDeltaVisible) header.deltaText else null,
             deltaLabelText = deltaLabelText,
             precipText = if (header.isPrecipVisible) header.precipProbability else null,
             precipTextSizeDp = header.precipTextSizeDp,
-            showStations = isToday,
-            currentTempSizeDp = header.currentTempSizeDp,
+            dateText = null,
+            includeIcon = true,
+            baseButtons = if (isToday) 4 else 3,
+            wantHome = false,
+            wantMonths = false,
+            hourly = true,
         )
-        val disclosure = fit.disclosure
-        Log.d(
-            "TemperatureViewBinder",
-            "HEADER_FIT widthDp=${state.widthDp} disclosure=$disclosure zoneDp=${fit.inlineZoneWidthDp} " +
-                "textScale=${fit.textScale} deltaLabel=${fit.showDeltaLabel}",
-        )
+        val fit = HeaderFit.resolve(measured)
+        Log.d("TemperatureViewBinder", "HEADER_FIT view=hourly widthDp=${state.widthDp} scale=$headerScale $fit $measured")
 
         // Explicitly set VISIBLE because DailyViewHandler sets these to INVISIBLE
         // when rendering the source label into the bitmap — RemoteViews updates are
@@ -135,7 +138,7 @@ internal object TemperatureViewBinder {
             scale = headerScale,
         )
 
-        val isDeltaLabelVisible = header.isDeltaVisible && fit.showDeltaLabel
+        val isDeltaLabelVisible = header.isDeltaVisible && fit.showCaption
         HeaderRemoteViewsBinder.bindDeltaLabel(
             context = context,
             views = views,
@@ -153,14 +156,13 @@ internal object TemperatureViewBinder {
         )
 HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVisible)
 
-// Apply progressive disclosure for narrow widgets (computed above, before the header binds)
-HeaderRemoteViewsBinder.applyDisclosure(
-    views,
-    disclosure,
-    isDeltaVisible = header.isDeltaVisible,
-    isPrecipVisible = header.isPrecipVisible,
-    isDeltaLabelVisible = isDeltaLabelVisible,
-)
+        // What the fit kept (computed above, before the header binds).
+        HeaderRemoteViewsBinder.applyFit(
+            views,
+            fit,
+            isDeltaVisible = header.isDeltaVisible,
+            isPrecipVisible = header.isPrecipVisible,
+        )
 
 // 3. Center Icons & Navigation (isToday computed above, before the header fit)
 
@@ -181,13 +183,13 @@ HeaderRemoteViewsBinder.applyDisclosure(
             appWidgetId = appWidgetId,
             currentViewMode = com.weatherwidget.widget.ViewMode.TEMPERATURE,
             widthDp = state.widthDp,
-            isPrecipVisible = header.isPrecipVisible && disclosure.showsPrecip(),
+            isPrecipVisible = header.isPrecipVisible && fit.showRain,
             scale = headerScale,
         )
 
         positionCenterIcons(
             views, state.widthDp, context.resources.displayMetrics.density,
-            header.isPrecipVisible && disclosure.showsPrecip(), isToday, fit.inlineZoneWidthDp,
+            header.isPrecipVisible && fit.showRain, isToday, measured, fit,
         )
 
         

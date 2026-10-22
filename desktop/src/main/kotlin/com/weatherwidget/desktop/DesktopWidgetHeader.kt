@@ -112,9 +112,17 @@ internal fun WidgetHeader(
     )
     val sourceStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (10 * scale).sp)
     val dateStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (12 * scale).sp)
-    // The shared drop order (`HeaderFit`, plans/261022-shared-header-fit-priority.md); daily only
-    // for now — the hourly header keeps everything until phase 3.
-    val dailyMeasured = if (isHourly) null else remember(content, scale, homeAction, wantMonthsButton, observationsInView, dateText, headerTextMeasurer, density) {
+    // The shared drop order (`HeaderFit`, plans/261022-shared-header-fit-priority.md), daily and
+    // hourly alike: the hourly row is the graph selector and three icons, no date, no home/months.
+    val hourlySpacingDp = 12 * scale
+    // Cycling graph selector: the emoji names the view it switches to.
+    val (graphSelectorEmoji, graphSelectorNextView) = when (config.viewMode) {
+        ViewMode.CLOUD_COVER -> "🌧️" to ViewMode.PRECIPITATION
+        ViewMode.PRECIPITATION -> "🌡️" to ViewMode.TEMPERATURE
+        else -> "☁️" to ViewMode.CLOUD_COVER
+    }
+    val graphSelectorStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = (13 * scale).sp)
+    val headerMeasured = remember(content, scale, isHourly, graphSelectorEmoji, homeAction, wantMonthsButton, observationsInView, dateText, headerTextMeasurer, density) {
         fun widthDp(text: String, style: androidx.compose.ui.text.TextStyle) =
             with(density) { headerTextMeasurer.measure(text, style).size.width.toDp().value }
         HeaderFit.Measured(
@@ -127,13 +135,15 @@ internal fun WidgetHeader(
                 ?.let { PRECIP_MARGIN_DP + widthDp(it, precipStyle) } ?: 0f,
             delta = content.deltaText?.let { DELTA_MARGIN_DP + widthDp(it, deltaStyle) } ?: 0f,
             icon = if (content.iconName != null) 18 * scale else 0f,
-            date = widthDp(dateText, dateStyle),
+            date = if (isHourly) 0f else widthDp(dateText, dateStyle),
             caption = if (content.deltaText != null) CAPTION_MARGIN_DP + widthDp(DELTA_CAPTION, captionStyle) else 0f,
-            baseButtons = (if (observationsInView) 1 else 0) + 1,
-            wantHome = homeAction != null,
-            wantMonths = wantMonthsButton,
-            centreButton = iconSizeDp,
-            centreButtonSpacing = spacingDp,
+            baseButtons = if (isHourly) 4 else (if (observationsInView) 1 else 0) + 1,
+            wantHome = !isHourly && homeAction != null,
+            wantMonths = !isHourly && wantMonthsButton,
+            // The hourly row's emoji is not icon-sized: the average keeps the row's true width, so it
+            // ends on the line.
+            centreButton = if (isHourly) (widthDp(graphSelectorEmoji, graphSelectorStyle) + 3 * iconSizeDp) / 4 else iconSizeDp,
+            centreButtonSpacing = if (isHourly) hourlySpacingDp else spacingDp,
         )
     }
 
@@ -146,15 +156,15 @@ internal fun WidgetHeader(
             ) { toggleWeatherSource() }
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val measured = dailyMeasured?.copy(width = maxWidth.value)
+            val measured = headerMeasured.copy(width = maxWidth.value)
             val fit = remember(measured) {
-                measured?.let { HeaderFit.resolve(it).also(DailyHeaderFitLog::changed) } ?: SHOW_ALL
+                HeaderFit.resolve(measured).also { HeaderFitLog.changed(if (isHourly) "hourly" else "daily", it) }
             }
-            // The daily buttons end on HeaderFit's line right of the middle and the date starts just
+            // The buttons end on HeaderFit's line right of the middle and the daily date starts just
             // after it, so neither the temperature's width nor home appearing on a source switch
-            // moves the date.
-            val buttonsSpan = measured?.let { HeaderFit.buttonsSpan(it, fit) }
-            val dateLeft = measured?.let { HeaderFit.dateLeft(it, fit) }
+            // moves the date — and history stays put when switching daily ↔ hourly.
+            val buttonsSpan = HeaderFit.buttonsSpan(measured, fit)
+            val dateLeft = HeaderFit.dateLeft(measured, fit)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -232,79 +242,12 @@ internal fun WidgetHeader(
                     }
                 }
 
-                // Center cluster: the hourly view-switch icons (the daily buttons are an overlay at
-                // HeaderFit's anchor, below).
-                //
-                // The only weighted cluster, so it takes whatever the two content-sized clusters leave
-                // and centres itself in THAT span — i.e. it sits at the true window centre when the
-                // header is uncrowded, and slides right as the left cluster grows. Giving the icons'
-                // slack away is what buys the left cluster its full width.
-                Row(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (isHourly) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy((12 * scale).dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Cycling graph selector
-                            val currentView = config.viewMode
-                            val (nextEmoji, nextView) = when (currentView) {
-                                ViewMode.CLOUD_COVER -> "🌧️" to ViewMode.PRECIPITATION
-                                ViewMode.PRECIPITATION -> "🌡️" to ViewMode.TEMPERATURE
-                                else -> "☁️" to ViewMode.CLOUD_COVER
-                            }
-                            Text(
-                                text = nextEmoji,
-                                fontSize = (13 * scale).sp,
-                                color = Color.White,
-                                modifier = Modifier.clickable {
-                                    onUpdateConfig(config.copy(viewMode = nextView))
-                                }.testTag("graph_selector")
-                            )
-                            // Station observations button — ports Android's ic_thermometer drawable
-                            // (drawable/ic_thermometer.xml, tinted dim white like TemperatureTouchTargets'
-                            // 0xAAFFFFFF) instead of the 🌡️ emoji, so it no longer collides with the graph
-                            // selector's HOURLY (🌡️) cycle hint.
-                            Icon(
-                                painter = painterResource("drawable/ic_thermometer.xml"),
-                                contentDescription = "Weather station observations",
-                                tint = Color.White.copy(alpha = 0.67f),
-                                modifier = Modifier.size((15 * scale).dp).clickable {
-                                    onOpenObservations(targetHour.toLocalDate())
-                                }.testTag("open_observations_header")
-                            )
-                            // Home/Daily view mode — ports Android's ic_home line icon
-                            // (drawable/ic_home.xml) instead of the 🏠 emoji for parity.
-                            Icon(
-                                painter = painterResource("drawable/ic_home.xml"),
-                                contentDescription = "Daily view",
-                                tint = Color.White.copy(alpha = 0.6f),
-                                modifier = Modifier.size((15 * scale).dp).clickable {
-                                    onUpdateConfig(config.copy(viewMode = ViewMode.DAILY))
-                                }.testTag("switch_to_daily")
-                            )
-                            // Forecast history (how each day's forecast evolved) — ports Android's
-                            // rising line-chart icon (drawable/ic_forecast_history_line.xml),
-                            // shown right of the home icon on the hourly graph. Opens on the viewed
-                            // window's center date (Android: centerTime.toLocalDate()), so panning
-                            // back to Wednesday and tapping opens Wednesday, not today.
-                            Icon(
-                                painter = painterResource("drawable/ic_forecast_history_line.xml"),
-                                contentDescription = "Forecast history",
-                                tint = Color.White.copy(alpha = 0.6f),
-                                modifier = Modifier.size((15 * scale).dp).clickable {
-                                    onOpenHistory(targetHour.toLocalDate())
-                                }.testTag("open_forecast_history")
-                            )
-                        }
-                    }
-                }
+                // The middle: room the two content-sized clusters leave. The buttons (and the daily
+                // date) are overlays at HeaderFit's positions, below.
+                Spacer(Modifier.weight(1f))
 
                 // Right cluster: API source + Settings gear. Content-sized, like the left cluster —
-                // it is pinned to the right edge by the centre cluster's weight, not by a width share.
+                // it is pinned to the right edge by the spacer's weight, not by a width share.
                 Row(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
@@ -340,9 +283,61 @@ internal fun WidgetHeader(
                     )
                 }
             }
+            // Hourly view: graph selector, observations, daily, history, ending on HeaderFit's line.
+            if (isHourly) buttonsSpan?.let { (groupLeft, _) ->
+                Row(
+                    modifier = Modifier.align(Alignment.CenterStart).offset(x = groupLeft.dp),
+                    horizontalArrangement = Arrangement.spacedBy(hourlySpacingDp.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = graphSelectorEmoji,
+                        style = graphSelectorStyle,
+                        color = Color.White,
+                        modifier = Modifier.clickable {
+                            onUpdateConfig(config.copy(viewMode = graphSelectorNextView))
+                        }.testTag("graph_selector")
+                    )
+                    // Station observations button — ports Android's ic_thermometer drawable
+                    // (drawable/ic_thermometer.xml, tinted dim white like TemperatureTouchTargets'
+                    // 0xAAFFFFFF) instead of the 🌡️ emoji, so it no longer collides with the graph
+                    // selector's HOURLY (🌡️) cycle hint.
+                    Icon(
+                        painter = painterResource("drawable/ic_thermometer.xml"),
+                        contentDescription = "Weather station observations",
+                        tint = Color.White.copy(alpha = 0.67f),
+                        modifier = Modifier.size((15 * scale).dp).clickable {
+                            onOpenObservations(targetHour.toLocalDate())
+                        }.testTag("open_observations_header")
+                    )
+                    // Home/Daily view mode — ports Android's ic_home line icon
+                    // (drawable/ic_home.xml) instead of the 🏠 emoji for parity.
+                    Icon(
+                        painter = painterResource("drawable/ic_home.xml"),
+                        contentDescription = "Daily view",
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size((15 * scale).dp).clickable {
+                            onUpdateConfig(config.copy(viewMode = ViewMode.DAILY))
+                        }.testTag("switch_to_daily")
+                    )
+                    // Forecast history (how each day's forecast evolved) — ports Android's
+                    // rising line-chart icon (drawable/ic_forecast_history_line.xml),
+                    // shown right of the home icon on the hourly graph. Opens on the viewed
+                    // window's center date (Android: centerTime.toLocalDate()), so panning
+                    // back to Wednesday and tapping opens Wednesday, not today.
+                    Icon(
+                        painter = painterResource("drawable/ic_forecast_history_line.xml"),
+                        contentDescription = "Forecast history",
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size((15 * scale).dp).clickable {
+                            onOpenHistory(targetHour.toLocalDate())
+                        }.testTag("open_forecast_history")
+                    )
+                }
+            }
             // Daily view: buttons ending on HeaderFit's line, then the date (Android places both the
             // same way). Sizes/tints copied from the hourly branch so the two headers match.
-            buttonsSpan?.let { (groupLeft, _) ->
+            if (!isHourly) buttonsSpan?.let { (groupLeft, _) ->
                 Row(
                     modifier = Modifier.align(Alignment.CenterStart).offset(x = groupLeft.dp),
                     horizontalArrangement = Arrangement.spacedBy(spacingDp.dp),
@@ -462,19 +457,15 @@ private const val PRECIP_MARGIN_DP = 6f
 private const val SOURCE_LABEL_END_PADDING_DP = 6f
 private const val DELTA_CAPTION = "from yest"
 
-/** The hourly header until phase 3: everything shown, as before the shared fit. */
-private val SHOW_ALL = HeaderFit.Plan(
-    showTemp = true, showRain = true, showDelta = true, showIcon = true, showCaption = true,
-)
-
 /** `HEADER_FIT` once per change (recomposition and resizes repeat the same plan). */
-private object DailyHeaderFitLog {
-    @Volatile private var last: HeaderFit.Plan? = null
+private object HeaderFitLog {
+    @Volatile private var last: String? = null
 
-    fun changed(plan: HeaderFit.Plan) {
-        if (plan == last) return
-        last = plan
-        Log.i("HEADER_FIT", "view=daily $plan")
+    fun changed(view: String, plan: HeaderFit.Plan) {
+        val line = "view=$view $plan"
+        if (line == last) return
+        last = line
+        Log.i("HEADER_FIT", line)
     }
 }
 

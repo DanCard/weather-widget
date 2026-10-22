@@ -94,7 +94,7 @@ internal object HeaderRemoteViewsBinder {
 
     /**
      * Binds the small "from yest" caption next to the delta. Like [bindDelta], visibility set
-     * here can be overridden later by [applyDisclosure]; the caption only ever appears when
+     * here can be overridden later by [applyFit]; the caption only ever appears when
      * the delta itself is visible.
      */
     fun bindDeltaLabel(
@@ -218,11 +218,11 @@ internal object HeaderRemoteViewsBinder {
     }
 
     /**
-     * The daily header's RemoteViews row (touch targets under the painted header, and the inline
-     * buttons' anchor) follows the shared fit piece by piece; a backfilled item may show while a
-     * higher one is dropped, which the disclosure ladder cannot express.
+     * The header's RemoteViews row follows the shared fit piece by piece — the hourly header as
+     * drawn, the daily one as touch targets under its painted header and the inline buttons'
+     * anchor. A backfilled item may show while a higher one is dropped.
      */
-    fun applyDailyFit(
+    fun applyFit(
         views: RemoteViews,
         fit: HeaderFit.Plan,
         isDeltaVisible: Boolean,
@@ -241,25 +241,5 @@ internal object HeaderRemoteViewsBinder {
         }
     }
 
-    fun applyDisclosure(
-        views: RemoteViews,
-        disclosure: HeaderDisclosureLevel,
-        isDeltaVisible: Boolean = false,
-        isPrecipVisible: Boolean = false,
-        isDeltaLabelVisible: Boolean = false,
-    ) {
-        views.setViewVisibility(R.id.weather_icon, if (disclosure.showsIcon()) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.current_temp_delta, if (isDeltaVisible && disclosure.showsDelta()) View.VISIBLE else View.GONE)
-        views.setViewVisibility(
-            R.id.current_temp_delta_label,
-            if (isDeltaVisible && isDeltaLabelVisible && disclosure.showsDelta()) View.VISIBLE else View.GONE,
-        )
-        val precipVis = if (isPrecipVisible && disclosure.showsPrecip()) View.VISIBLE else View.GONE
-        views.setViewVisibility(R.id.precip_probability, precipVis)
-        views.setViewVisibility(R.id.precip_touch_zone, precipVis)
-        if (disclosure == HeaderDisclosureLevel.NONE) {
-            views.setViewVisibility(R.id.current_weather_container, View.GONE)
-        }
-    }
 }
 

@@ -3,15 +3,16 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import android.widget.RemoteViews
 import com.weatherwidget.R
+import com.weatherwidget.shared.util.HeaderFit
 
 internal object HourlyHeaderBinder {
 
     data class HeaderResult(
-        val disclosure: HeaderDisclosureLevel,
+        /** What the header shows ([HeaderFit]); [measured] is what it was resolved from. */
+        val fit: HeaderFit.Plan,
+        val measured: HeaderFit.Measured,
         val isPrecipVisible: Boolean,
         val headerScale: Float,
-        /** Fitted inline nav zone width for [positionCenterIcons]; null on wide widgets. */
-        val inlineZoneWidthDp: Float?,
     )
 
     fun bindHourlyHeader(
@@ -41,21 +42,29 @@ internal object HourlyHeaderBinder {
         )
 
         val precipText = if (isPrecipVisible && headerPrecipProbability != null) "$headerPrecipProbability%" else null
-        // Narrow widgets compress the inline nav row, then the icon and temperature, before
-        // anything is dropped (HourlyHeaderFit).
-        val fit = HeaderWidthChecker.fitHourlyHeader(
+        // The shared drop order (HeaderFit): inline nav zones squeeze, then the icon and
+        // temperature shrink, before anything drops.
+        val measured = HeaderWidthChecker.measureHeader(
             context = context,
             widthDp = widthDp,
+            headerScale = headerScale,
             apiSourceText = safeSourceIndicator,
             apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
             currentTempText = formattedTemp,
+            currentTempSizeDp = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
             deltaText = null,
             deltaLabelText = null,
             precipText = precipText,
             precipTextSizeDp = precipTextSizeDp,
-            showStations = showStations,
+            dateText = null,
+            includeIcon = true,
+            baseButtons = if (showStations) 4 else 3,
+            wantHome = false,
+            wantMonths = false,
+            hourly = true,
         )
-        val disclosure = fit.disclosure
+        val fit = HeaderFit.resolve(measured)
+        android.util.Log.d("HourlyHeaderBinder", "HEADER_FIT view=hourly widthDp=$widthDp scale=$headerScale $fit $measured")
 
         HeaderRemoteViewsBinder.bindApiSource(
             context = context,
@@ -101,13 +110,13 @@ internal object HourlyHeaderBinder {
         )
         HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
-        HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isPrecipVisible)
+        HeaderRemoteViewsBinder.applyFit(views, fit, isDeltaVisible = false, isPrecipVisible = isPrecipVisible)
 
         return HeaderResult(
-            disclosure = disclosure,
+            fit = fit,
+            measured = measured,
             isPrecipVisible = isPrecipVisible,
             headerScale = headerScale,
-            inlineZoneWidthDp = fit.inlineZoneWidthDp,
         )
     }
 }

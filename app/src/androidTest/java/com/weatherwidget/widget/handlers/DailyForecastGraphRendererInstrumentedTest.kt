@@ -59,6 +59,8 @@ class DailyForecastGraphRendererInstrumentedTest {
                 headerData =
                     DailyForecastGraphRenderer.HeaderRenderData(
                         dateText = "Thu, Jul 30",
+                        // Where HeaderFit.dateLeft would put it; the renderer only draws it there.
+                        dateLeftFraction = 0.2f,
                     ),
                 onHeaderDrawn = headerDraws::add,
                 useCelsius = false,

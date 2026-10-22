@@ -207,13 +207,14 @@ internal object DailyHeaderResolver {
         // What the header shows: the shared drop order (temp > rain % > delta > buttons > weather
         // icon > date > "from yest"). The date and weather icon are painted in graph mode only.
         val deltaLabel = context.getString(R.string.header_delta_from_yesterday)
-        val measured = HeaderWidthChecker.measureDailyHeader(
+        val measured = HeaderWidthChecker.measureHeader(
             context = context,
             widthDp = dimensions.widthDp,
             headerScale = headerScale,
             apiSourceText = apiSourceText,
             apiTextSizeDp = apiTextSizeDp,
             currentTempText = formattedTemp,
+            currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
             deltaText = deltaText,
             deltaLabelText = deltaLabel,
             precipText = headerPrecipText,
@@ -360,7 +361,7 @@ internal object DailyHeaderResolver {
         )
 
         if (useGraph) {
-            HeaderRemoteViewsBinder.applyDailyFit(
+            HeaderRemoteViewsBinder.applyFit(
                 views,
                 state.fit,
                 isDeltaVisible = state.deltaVisible,

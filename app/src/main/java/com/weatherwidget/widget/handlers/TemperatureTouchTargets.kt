@@ -371,7 +371,7 @@ internal fun setupDailyHomeShortcut(
  * The daily header's months-view button: opens [com.weatherwidget.ui.MonthsViewActivity] (the daily
  * view zoomed out to a line graph over months) for this widget's source and site. The widget id
  * rides along so the screen's column view takes this widget's shape. Seated by
- * [HeaderWidthChecker.measureDailyHeader] only where the header has room.
+ * [HeaderWidthChecker.measureHeader] only where the header has room.
  */
 internal fun setupMonthsViewShortcut(
     context: Context,
@@ -485,19 +485,21 @@ internal fun positionCenterIcons(
     density: Float,
     isPrecipVisible: Boolean,
     isToday: Boolean = true,
-    /** The fitted inline zone width ([HeaderWidthChecker.fitHourlyHeader]); null = the nominal width. */
-    inlineZoneWidthDp: Float? = null,
+    /** What [fit] was resolved from: where the CENTER buttons sit ([HeaderFit.buttonsSpan]). */
+    measured: HeaderFit.Measured,
+    /** CENTER (on HeaderFit's line or the middle), INLINE (zones of [HeaderFit.Plan.inlineZone]) or HIDDEN. */
+    fit: HeaderFit.Plan,
 ) {
-    val useInline = widthDp < 420
-    val floatingVis = if (useInline) View.GONE else View.VISIBLE
-    val inlineVis = if (useInline) View.VISIBLE else View.GONE
-    Log.d("HomeShortcut", "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible useInline=$useInline isToday=$isToday -> home_touch_zone=${if (floatingVis == View.VISIBLE) "VISIBLE" else "GONE"} home_touch_zone_inline=${if (inlineVis == View.VISIBLE) "VISIBLE" else "GONE"}")
+    val floatingVis = if (fit.placement == HeaderFit.ButtonPlacement.CENTER) View.VISIBLE else View.GONE
+    val inlineVis = if (fit.placement == HeaderFit.ButtonPlacement.INLINE) View.VISIBLE else View.GONE
+    Log.d("HomeShortcut", "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible placement=${fit.placement} isToday=$isToday -> home_touch_zone=${if (floatingVis == View.VISIBLE) "VISIBLE" else "GONE"} home_touch_zone_inline=${if (inlineVis == View.VISIBLE) "VISIBLE" else "GONE"}")
     for (id in listOf(R.id.home_icon, R.id.home_touch_zone, R.id.history_icon, R.id.forecast_history_activity_touch_zone, R.id.weather_stations_icon, R.id.weather_stations_touch_zone, R.id.graph_selector_icon, R.id.graph_selector_touch_zone)) {
         views.setViewVisibility(id, floatingVis)
     }
     for (id in listOf(R.id.home_touch_zone_inline, R.id.forecast_history_activity_touch_zone_inline, R.id.weather_stations_touch_zone_inline, R.id.graph_selector_touch_zone_inline)) {
         views.setViewVisibility(id, inlineVis)
     }
+    val inlineZoneWidthDp = fit.inlineZone.takeIf { it > 0f }?.let { it / density }
 
     if (inlineVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val touchWidthDp = inlineZoneWidthDp ?: HeaderWidthChecker.nominalInlineZoneWidthDp(widthDp)
@@ -509,28 +511,28 @@ internal fun positionCenterIcons(
     }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        // Restore the hourly line and centre explicitly; the daily view moves this same container
-        // (and a reapply keeps whatever margins the last update set).
+        // Restore the hourly line explicitly; the daily view moves this same container.
         views.setViewLayoutMargin(
             R.id.hourly_center_header_container,
             RemoteViews.MARGIN_TOP,
             HeaderConstants.HOURLY_ICON_CONTAINER_MARGIN_TOP_DP,
             android.util.TypedValue.COMPLEX_UNIT_DIP,
         )
+        // Centred buttons end on HeaderFit's line (as the daily ones do, so history stays put when
+        // switching views) unless only the middle had room; a reapply keeps whatever margin the
+        // last update set, so it is always written.
+        val centreOffsetDp = HeaderFit.buttonsSpan(measured, fit)
+            ?.let { (l, r) -> ((l + r) / 2f - measured.width / 2f) / density } ?: 0f
         views.setViewLayoutMargin(
             R.id.hourly_center_header_container,
             RemoteViews.MARGIN_LEFT,
-            0f,
+            centreOffsetDp,
             android.util.TypedValue.COMPLEX_UNIT_DIP,
         )
     }
 
     if (floatingVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val touchWidthDp = when {
-            widthDp >= 450 -> 56
-            widthDp >= 420 -> 40
-            else -> 24
-        }
+        val touchWidthDp = HeaderWidthChecker.hourlyCenterIconZoneWidthDp(widthDp)
         val touchWidthPx = (touchWidthDp * density).toInt()
         for (id in listOf(R.id.graph_selector_touch_zone, R.id.weather_stations_touch_zone, R.id.home_touch_zone, R.id.forecast_history_activity_touch_zone)) {
             views.setViewLayoutWidth(id, touchWidthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)
@@ -557,14 +559,14 @@ internal fun positionCenterIcons(
  * which only cycle hourly graphs.
  *
  * [showObservations] is false when neither today nor yesterday is on screen, so a navigated header
- * shows the history button alone; the reserved width in [HeaderWidthChecker.measureDailyHeader]
+ * shows the history button alone; the reserved width in [HeaderWidthChecker.measureHeader]
  * follows the same count.
  *
  * [showHome] is the source-reset button, not a view switch: the daily view is always home in the
  * view sense, but it can still be showing a source the user did not put first. See
  * [setupDailyHomeShortcut] and [com.weatherwidget.shared.util.PreferredSourceHome]. It is the one
  * daily button that gets dropped when the header cannot hold three
- * ([HeaderWidthChecker.measureDailyHeader]) — the pair is never sacrificed for it.
+ * ([HeaderWidthChecker.measureHeader]) — the pair is never sacrificed for it.
  *
  * Inline zone widths are set from the same fixed [HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP]
  * the fit math used, rather than the hourly ladder, so layout and measurement cannot drift.
