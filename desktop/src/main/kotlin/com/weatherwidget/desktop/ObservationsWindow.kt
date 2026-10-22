@@ -45,6 +45,7 @@ import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.BlendTable
 import com.weatherwidget.shared.actuals.BlendTableFormatter
+import com.weatherwidget.shared.observations.ActualsPickerLabels
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
@@ -442,6 +443,12 @@ internal fun ObservationsWindow(
                                     ActualsSourceRow(
                                         source = currentSource,
                                         active = ActualsProviderResolver.providerIdFor(currentSource),
+                                        options = ActualsProviderResolver.candidateOptions(
+                                            defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource),
+                                            // Synoptic's token rides the baked-keys map under "SYNOPTIC" (DesktopWeatherService).
+                                            synopticConfigured = !DesktopApiKeys.DEFAULTS["SYNOPTIC"].isNullOrBlank() ||
+                                                !config.settings.apiKeys["SYNOPTIC"].isNullOrBlank(),
+                                        ) { !needsKeyFromUser(it, config.settings.apiKeys) },
                                         onChoose = { chosen ->
                                             val defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource)
                                             val updatedSettings = DesktopActualsPreference.withChoice(
@@ -536,18 +543,18 @@ internal fun ObservationRefreshButton(
  *
  * Mirrors the Android row in `WeatherObservationsActivity`. Tier is shown inline rather than as a
  * section header: presenting Tomorrow.io's six-hour analysis window as equivalent to a thermometer
- * is the one thing this picker must not do.
+ * is the one thing this picker must not do. Rows that cannot serve here stay in place, disabled
+ * with the reason, so the list does not reshuffle as the user travels.
  */
 @Composable
-private fun ActualsSourceRow(
+internal fun ActualsSourceRow(
     source: WeatherSource,
     active: String,
+    options: List<ActualsProviderResolver.Candidate>,
     onChoose: (WeatherSource) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val candidates = remember { ActualsProviderResolver.candidates() }
-    if (candidates.isEmpty()) return
-    val defaultProvider = ActualsProviderResolver.defaultProviderFor(source)
+    if (options.isEmpty()) return
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
@@ -556,34 +563,36 @@ private fun ActualsSourceRow(
         Text("Actuals source", fontSize = 13.sp, color = ObsStyle.textSecondary)
         Spacer(Modifier.width(8.dp))
         Box {
-            TextButton(onClick = { expanded = true }) {
+            TextButton(onClick = {
+                ActualsProviderResolver.logPickerOpen(source, options)
+                expanded = true
+            }) {
                 Text(
-                    WeatherSource.fromId(active).displayName,
+                    ActualsPickerLabels.value(active, ActualsProviderResolver.overriddenChoice(source)),
                     fontSize = 13.sp,
                     color = ObsStyle.accent,
                 )
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                candidates.forEach { candidate ->
-                    val marks = buildList {
-                        if (candidate == defaultProvider) add("default")
-                        when (ActualsProviderResolver.tierOf(candidate)) {
-                            ActualsProviderResolver.Tier.MEASURED -> add("measured")
-                            ActualsProviderResolver.Tier.DERIVED -> add("derived")
-                            null -> Unit
-                        }
-                    }
+                options.forEach { option ->
+                    val usable = option.unavailable == null
                     DropdownMenuItem(
                         text = {
                             Text(
-                                "${candidate.displayName}  (${marks.joinToString(", ")})",
+                                ActualsPickerLabels.row(option),
                                 fontSize = 13.sp,
-                                color = if (candidate.id == active) ObsStyle.accent else Color.White,
+                                color = when {
+                                    !usable -> ObsStyle.textSecondary
+                                    option.source.id == active -> ObsStyle.accent
+                                    else -> Color.White
+                                },
                             )
                         },
+                        enabled = usable,
+                        modifier = Modifier.testTag("actuals_candidate_${option.source.id}"),
                         onClick = {
                             expanded = false
-                            onChoose(candidate)
+                            onChoose(option.source)
                         },
                     )
                 }

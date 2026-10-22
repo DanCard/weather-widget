@@ -26,8 +26,9 @@ object ActualsFeedPolicy {
 
     /**
      * The feed that supplies [source]'s actuals at this location, or null when no feed can serve
-     * it here. Today the only such case is NWS outside [NwsCoverage]: the stored preference is the
-     * user's choice and is never rewritten for coverage, so it is filtered here, every time it is read.
+     * it here. A stored NWS choice abroad already resolves to the borrower default
+     * ([ActualsProviderResolver.servesHere]); the null left is NWS displaying itself outside
+     * [NwsCoverage], which `SourceCoverage` keeps off screen anyway.
      */
     fun feedFor(
         source: WeatherSource,
@@ -36,7 +37,7 @@ object ActualsFeedPolicy {
         actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
     ): WeatherSource? {
         val feed = WeatherSource.fromId(ActualsProviderResolver.providerIdAt(source, latitude, longitude, actualsPreference))
-        if (feed == WeatherSource.NWS && !NwsCoverage.covers(latitude, longitude)) return null
+        if (!ActualsProviderResolver.servesHere(feed, latitude to longitude)) return null
         return feed
     }
 

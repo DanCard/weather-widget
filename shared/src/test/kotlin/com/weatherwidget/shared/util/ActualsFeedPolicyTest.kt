@@ -49,9 +49,31 @@ class ActualsFeedPolicyTest {
         assertEquals(WeatherSource.METAR, ActualsFeedPolicy.feedFor(WeatherSource.GOOGLE_WEATHER, kyivLat, kyivLon, prefs()))
     }
 
+    /** Was null (nothing fetched, blank actuals) before plans/261021-actuals-source-picker-marks-unusable-feeds.md. */
     @Test
-    fun `NWS feed outside coverage is no feed, preference untouched`() {
-        assertNull(ActualsFeedPolicy.feedFor(WeatherSource.GOOGLE_WEATHER, kyivLat, kyivLon, googleNws))
+    fun `NWS choice outside coverage feeds the borrower default, preference untouched`() {
+        assertEquals(WeatherSource.METAR, ActualsFeedPolicy.feedFor(WeatherSource.GOOGLE_WEATHER, kyivLat, kyivLon, googleNws))
+        assertEquals(WeatherSource.NWS, ActualsFeedPolicy.feedFor(WeatherSource.GOOGLE_WEATHER, usLat, usLon, googleNws))
+    }
+
+    @Test
+    fun `NWS displaying itself outside coverage is still no feed`() {
+        assertNull(ActualsFeedPolicy.feedFor(WeatherSource.NWS, kyivLat, kyivLon, prefs()))
+    }
+
+    /** Resolver + feed policy + METAR refresher's consumer list: abroad, the NWS choice still gets measured actuals. */
+    @Test
+    fun `abroad, a source set to NWS actuals is a METAR consumer`() {
+        ActualsProviderResolver.installLocationSource { kyivLat to kyivLon }
+        try {
+            assertTrue(ActualsFeedPolicy.requiresFeed(WeatherSource.METAR, listOf(WeatherSource.GOOGLE_WEATHER), kyivLat, kyivLon, googleNws))
+            assertEquals(
+                listOf(WeatherSource.GOOGLE_WEATHER),
+                ActualsFeedPolicy.borrowers(WeatherSource.METAR, listOf(WeatherSource.GOOGLE_WEATHER), googleNws),
+            )
+        } finally {
+            ActualsProviderResolver.resetLocationSource()
+        }
     }
 
     // --- fullRefreshFetch: exhaustive over every source x every provider it accepts ---
@@ -117,8 +139,11 @@ class ActualsFeedPolicyTest {
     }
 
     @Test
-    fun `borrowed NWS outside coverage fetches nothing`() {
-        assertNull(ActualsFeedPolicy.fullRefreshFetch(WeatherSource.GOOGLE_WEATHER, kyivLat, kyivLon, false, null, now, googleNws))
+    fun `borrowed NWS outside coverage fetches the borrower default instead`() {
+        assertEquals(
+            ActualsFeedPolicy.ObservationFetch(WeatherSource.METAR, recentOnly = false),
+            ActualsFeedPolicy.fullRefreshFetch(WeatherSource.GOOGLE_WEATHER, kyivLat, kyivLon, false, null, now, googleNws),
+        )
     }
 
     @Test

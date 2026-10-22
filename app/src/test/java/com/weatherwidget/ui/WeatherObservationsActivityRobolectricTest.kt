@@ -184,6 +184,50 @@ class WeatherObservationsActivityRobolectricTest {
         scenario.close()
     }
 
+    /**
+     * Abroad, a stored NWS actuals choice cannot serve: the row says what is read instead, and the
+     * picker lists NWS greyed — a click on it changes nothing
+     * (plans/261021-actuals-source-picker-marks-unusable-feeds.md). Desktop's half: `ActualsSourcePickerTest`.
+     */
+    @Test
+    fun `abroad the actuals picker greys NWS and keeps the stored choice`() {
+        stateManager.setActualsProvider(WeatherSource.OPEN_METEO, WeatherSource.NWS)
+        val scenario = launchActivity()
+        try {
+            scenario.onActivity { activity ->
+                com.weatherwidget.shared.observations.ActualsProviderResolver.installLocationSource { 50.45 to 30.524 }
+                activity.findViewById<TextView>(R.id.api_source_button).performClick() // NWS -> Open-Meteo
+            }
+            shadowOf(Looper.getMainLooper()).idle()
+            scenario.onActivity { activity ->
+                assertEquals(
+                    "${WeatherSource.OPEN_METEO.displayName} (${WeatherSource.NWS.displayName} not available here)",
+                    activity.findViewById<TextView>(R.id.actuals_source_value).text.toString(),
+                )
+                activity.findViewById<View>(R.id.actuals_source_row).performClick()
+            }
+            shadowOf(Looper.getMainLooper()).idle()
+
+            val dialog = org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog() as android.app.AlertDialog
+            val list = dialog.listView
+            val adapter = list.adapter
+            val labels = (0 until adapter.count).map { adapter.getItem(it).toString() }
+            val nws = labels.indexOfFirst { it.startsWith("${WeatherSource.NWS.displayName} ") }
+            val metar = labels.indexOfFirst { it.startsWith("${WeatherSource.METAR.displayName} ") }
+            assertTrue(labels.toString(), labels[nws].endsWith("— not available at this location"))
+            assertFalse(adapter.isEnabled(nws))
+            assertTrue(adapter.isEnabled(metar))
+
+            list.performItemClick(list, nws, nws.toLong())
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue("a greyed row keeps the dialog open", dialog.isShowing)
+            assertEquals(WeatherSource.NWS, stateManager.getActualsProvider(WeatherSource.OPEN_METEO))
+        } finally {
+            com.weatherwidget.shared.observations.ActualsProviderResolver.resetLocationSource()
+            scenario.close()
+        }
+    }
+
     @Test
     fun `nws mode excludes silurian rows and shows current fetch logs`() {
         val scenario = launchActivity()

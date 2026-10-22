@@ -376,4 +376,81 @@ class ActualsProviderResolverTest {
         val visible = listOf(WeatherSource.GOOGLE_WEATHER, WeatherSource.NWS, WeatherSource.SILURIAN)
         assertEquals(emptyList<WeatherSource>(), com.weatherwidget.shared.util.MetarFetchPolicy.consumers(visible))
     }
+    // ---- picker rows that cannot serve here (plans/261021-actuals-source-picker-marks-unusable-feeds.md) ----
+
+    private val allKeys: (WeatherSource) -> Boolean = { true }
+
+    private fun options(
+        default: WeatherSource,
+        location: Pair<Double, Double>?,
+        keys: (WeatherSource) -> Boolean,
+    ) = ActualsProviderResolver.candidateOptions(default, location, synopticConfigured = keys(WeatherSource.SYNOPTIC), hasKey = keys)
+
+    @Test
+    fun `NWS is greyed abroad, nothing is greyed at home with every key`() {
+        val abroad = options(WeatherSource.METAR, kyiv, allKeys)
+        assertEquals(
+            ActualsProviderResolver.Unavailable.OUTSIDE_COVERAGE,
+            abroad.single { it.source == WeatherSource.NWS }.unavailable,
+        )
+        assertEquals(listOf(WeatherSource.NWS), abroad.filter { it.unavailable != null }.map { it.source })
+        val home = options(WeatherSource.NWS, mountainView, allKeys)
+        assertTrue(home.all { it.unavailable == null })
+        assertTrue(home.single { it.source == WeatherSource.NWS }.isDefault)
+    }
+
+    @Test
+    fun `unknown location leaves NWS usable`() {
+        val rows = options(WeatherSource.METAR, null, allKeys)
+        assertNull(rows.single { it.source == WeatherSource.NWS }.unavailable)
+    }
+
+    @Test
+    fun `no credentials greys the keyed feeds and never the keyless ones`() {
+        val rows = options(WeatherSource.NWS, mountainView) { false }
+        assertEquals(
+            setOf(WeatherSource.TOMORROW_IO, WeatherSource.WEATHER_API, WeatherSource.SYNOPTIC),
+            rows.filter { it.unavailable == ActualsProviderResolver.Unavailable.NO_KEY }.map { it.source }.toSet(),
+        )
+        for (keyless in listOf(WeatherSource.NWS, WeatherSource.METAR, WeatherSource.OPEN_METEO)) {
+            assertNull(keyless.id, rows.single { it.source == keyless }.unavailable)
+        }
+    }
+
+    @Test
+    fun `picker rows are the candidates in the same order at every location`() {
+        for (location in listOf(mountainView, kyiv, null)) {
+            assertEquals(
+                ActualsProviderResolver.candidates(location),
+                options(WeatherSource.METAR, location) { false }.map { it.source },
+            )
+        }
+    }
+
+    /** Failed on the old resolver: it returned NWS in Kyiv and the actuals line was blank. */
+    @Test
+    fun `a stored NWS choice abroad reads the default and is kept for home`() {
+        var asked = 0
+        val pref: (WeatherSource) -> WeatherSource? = { asked++; WeatherSource.NWS }
+        assertEquals("NWS", ActualsProviderResolver.providerIdAt(WeatherSource.GOOGLE_WEATHER, mountainView.first, mountainView.second, pref))
+        assertEquals("METAR", ActualsProviderResolver.providerIdAt(WeatherSource.GOOGLE_WEATHER, kyiv.first, kyiv.second, pref))
+        assertEquals(
+            "a redirected non-borrower falls back to itself",
+            "OPEN_METEO",
+            ActualsProviderResolver.providerIdAt(WeatherSource.OPEN_METEO, kyiv.first, kyiv.second, pref),
+        )
+        assertTrue(asked > 0)
+        assertEquals(WeatherSource.NWS, ActualsProviderResolver.overriddenChoice(WeatherSource.GOOGLE_WEATHER, pref, kyiv))
+        assertNull(ActualsProviderResolver.overriddenChoice(WeatherSource.GOOGLE_WEATHER, pref, mountainView))
+    }
+
+    @Test
+    fun `row labels name the reason`() {
+        val rows = options(WeatherSource.METAR, kyiv) { false }
+        assertEquals("METAR  (default, measured)", ActualsPickerLabels.row(rows.single { it.source == WeatherSource.METAR }))
+        assertTrue(ActualsPickerLabels.row(rows.single { it.source == WeatherSource.NWS }).endsWith("— not available at this location"))
+        assertTrue(ActualsPickerLabels.row(rows.single { it.source == WeatherSource.TOMORROW_IO }).endsWith("(derived) — needs API key"))
+        assertEquals("METAR (NWS not available here)", ActualsPickerLabels.value("METAR", WeatherSource.NWS))
+        assertEquals("NWS", ActualsPickerLabels.value("NWS", null))
+    }
 }

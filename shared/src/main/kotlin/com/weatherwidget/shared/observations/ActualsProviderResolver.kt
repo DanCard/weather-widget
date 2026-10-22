@@ -2,6 +2,7 @@ package com.weatherwidget.shared.observations
 
 import com.weatherwidget.data.model.HistoricalDataKind
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.NwsCoverage
 
 /**
@@ -167,8 +168,8 @@ object ActualsProviderResolver {
      *
      * Exposed for the picker so the option list cannot drift from what the resolver accepts.
      */
-    fun candidates(): List<WeatherSource> {
-        val default = borrowerDefault()
+    fun candidates(location: Pair<Double, Double>? = installedLocation()): List<WeatherSource> {
+        val default = borrowerDefault(location)
         return WeatherSource.entries
             .filter(::canProvide)
             .sortedWith(
@@ -179,6 +180,67 @@ object ActualsProviderResolver {
                 ),
             )
     }
+
+    /**
+     * True when [source] can serve actuals at [location]. Today the only "no" is NWS outside
+     * [NwsCoverage]; an unknown location is "yes", since there is nothing to judge it by.
+     *
+     * The one coverage test for actuals: the picker greys with it, [resolve] falls back with it, and
+     * `ActualsFeedPolicy.feedFor` guards with it.
+     */
+    fun servesHere(source: WeatherSource, location: Pair<Double, Double>?): Boolean =
+        source != WeatherSource.NWS || location == null || NwsCoverage.covers(location.first, location.second)
+
+    /** Why a picker row cannot be chosen here. */
+    enum class Unavailable { OUTSIDE_COVERAGE, NO_KEY }
+
+    /** One picker row: [unavailable] is null when the feed can serve this location and build. */
+    data class Candidate(
+        val source: WeatherSource,
+        val tier: Tier,
+        val isDefault: Boolean,
+        val unavailable: Unavailable?,
+    )
+
+    /**
+     * The picker's rows: exactly [candidates], same order, with the ones that cannot serve here
+     * marked rather than dropped — the list never reshuffles as the user travels, the same principle
+     * as Settings' "Not available at this location"
+     * (plans/261021-actuals-source-picker-marks-unusable-feeds.md).
+     *
+     * The platform supplies only its reads: [hasKey] is its effective-key resolver (Android
+     * `BuiltInApiKeys.hasEffectiveKey`, desktop `!needsKeyFromUser`), asked only for
+     * [WeatherSource.requiresApiKey] feeds; [synopticConfigured] is whether this build carries a
+     * Synoptic token. Keyless feeds (NWS, METAR, Open-Meteo) always pass.
+     */
+    fun candidateOptions(
+        defaultProvider: WeatherSource,
+        location: Pair<Double, Double>? = installedLocation(),
+        synopticConfigured: Boolean,
+        hasKey: (WeatherSource) -> Boolean,
+    ): List<Candidate> = candidates(location).map { source ->
+        Candidate(
+            source = source,
+            tier = tierOf(source)!!,
+            isDefault = source == defaultProvider,
+            unavailable = when {
+                !servesHere(source, location) -> Unavailable.OUTSIDE_COVERAGE
+                source == WeatherSource.SYNOPTIC && !synopticConfigured -> Unavailable.NO_KEY
+                source.requiresApiKey && !hasKey(source) -> Unavailable.NO_KEY
+                else -> null
+            },
+        )
+    }
+
+    /** One `ACTUALS_PICKER_OPEN` line per picker open, both platforms. */
+    fun logPickerOpen(source: WeatherSource, options: List<Candidate>) {
+        val unavailable = options.filter { it.unavailable != null }
+            .joinToString(",") { "${it.source.id}:${it.unavailable}" }
+            .ifEmpty { "none" }
+        Log.i(TAG, "ACTUALS_PICKER_OPEN source=${source.id} unavailable=$unavailable")
+    }
+
+    private const val TAG = "ActualsProviderResolver"
 
     /**
      * The `observations.api` value that supplies [source]'s actuals.
@@ -207,9 +269,30 @@ object ActualsProviderResolver {
         location: () -> Pair<Double, Double>?,
     ): String {
         if (!allowsAlternativeProvider(source)) return source.id
-        val chosen = preference(source)?.takeIf { canProvide(it) && it != source }
+        val stored = preference(source)?.takeIf { canProvide(it) && it != source }
+        // A choice that cannot serve here (NWS abroad) reads as the default, and is kept: back
+        // inside coverage it applies again. A location never edits the user's choices.
+        val here by lazy { location() }
+        val chosen = stored?.takeIf { servesHere(it, here) }
         if (chosen != null) return chosen.id
-        if (!borrows(source)) return source.id
-        return borrowerDefault(location()).id
+        val fallback = if (borrows(source)) borrowerDefault(here) else source
+        if (stored != null) {
+            Log.v(TAG) { "ACTUALS_PROVIDER_FALLBACK source=${source.id} chosen=${stored.id} used=${fallback.id} reason=outside_coverage" }
+        }
+        return fallback.id
+    }
+
+    /**
+     * The stored choice for [source] when it cannot serve here, so a row can say "METAR (NWS not
+     * available here)" instead of naming a feed nobody reads. Null when the choice applies.
+     */
+    fun overriddenChoice(
+        source: WeatherSource,
+        preference: (WeatherSource) -> WeatherSource? = installedPreference,
+        location: Pair<Double, Double>? = installedLocation(),
+    ): WeatherSource? {
+        if (!allowsAlternativeProvider(source)) return null
+        val stored = preference(source)?.takeIf { canProvide(it) && it != source } ?: return null
+        return stored.takeUnless { servesHere(it, location) }
     }
 }

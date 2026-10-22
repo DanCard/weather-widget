@@ -49,6 +49,7 @@ import com.weatherwidget.shared.observations.StaleObservationFallback
 import com.weatherwidget.util.StationHistoryUrl
 import com.weatherwidget.widget.GpsResampler
 import com.weatherwidget.widget.StaleDisplayRefreshPolicy
+import com.weatherwidget.shared.observations.ActualsPickerLabels
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.GraphDataLoader
@@ -452,39 +453,34 @@ class WeatherObservationsActivity : AppCompatActivity() {
             return
         }
         row.visibility = android.view.View.VISIBLE
-        val activeId = ActualsProviderResolver.providerIdFor(
-            currentSource,
-            preference = { widgetStateManager.getActualsProvider(it) },
+        val preference: (WeatherSource) -> WeatherSource? = { widgetStateManager.getActualsProvider(it) }
+        val activeId = ActualsProviderResolver.providerIdFor(currentSource, preference)
+        findViewById<TextView>(R.id.actuals_source_value).text = ActualsPickerLabels.value(
+            activeId,
+            ActualsProviderResolver.overriddenChoice(currentSource, preference),
         )
-        findViewById<TextView>(R.id.actuals_source_value).text =
-            WeatherSource.fromId(activeId).displayName
         row.setOnClickListener { showActualsSourceChooser(activeId) }
     }
 
     private fun showActualsSourceChooser(activeId: String) {
-        val candidates = ActualsProviderResolver.candidates()
-        if (candidates.isEmpty()) return
-        val defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource)
+        val options = ActualsProviderResolver.candidateOptions(
+            defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource),
+            synopticConfigured = com.weatherwidget.BuildConfig.SYNOPTIC_API_TOKEN.isNotBlank(),
+        ) { com.weatherwidget.data.remote.BuiltInApiKeys.hasEffectiveKey(it, widgetStateManager) }
+        if (options.isEmpty()) return
+        ActualsProviderResolver.logPickerOpen(currentSource, options)
         // Tier is shown inline rather than as section headers: an AlertDialog list has no grouping,
         // and presenting Tomorrow.io's six-hour analysis window as equivalent to a thermometer would
-        // be the one thing this picker must not do.
-        val labels = candidates.map { candidate ->
-            val tier = when (ActualsProviderResolver.tierOf(candidate)) {
-                ActualsProviderResolver.Tier.MEASURED -> "measured"
-                ActualsProviderResolver.Tier.DERIVED -> "derived"
-                null -> ""
-            }
-            val marks = buildList {
-                if (candidate == defaultProvider) add("default")
-                if (tier.isNotEmpty()) add(tier)
-            }
-            "${candidate.displayName}  (${marks.joinToString(", ")})"
-        }.toTypedArray()
+        // be the one thing this picker must not do. Rows that cannot serve here stay in place,
+        // greyed with the reason, so the list does not reshuffle as the user travels.
+        val labels = options.map(ActualsPickerLabels::row)
+        val adapter = ActualsOptionAdapter(this, labels, options.map { it.unavailable == null })
 
         android.app.AlertDialog.Builder(this)
             .setTitle(R.string.obs_actuals_source_label)
-            .setSingleChoiceItems(labels, candidates.indexOfFirst { it.id == activeId }) { dialog, which ->
-                val chosen = candidates[which]
+            .setSingleChoiceItems(adapter, options.indexOfFirst { it.source.id == activeId }) { dialog, which ->
+                if (!adapter.isEnabled(which)) return@setSingleChoiceItems
+                val chosen = options[which].source
                 ActualsProviderChangeCoordinator.apply(
                     context = this,
                     widgetStateManager = widgetStateManager,
@@ -1006,4 +1002,25 @@ class WeatherObservationsActivity : AppCompatActivity() {
         @VisibleForTesting
         internal var autoRefreshDebounceMs: Long = 500L
     }
+}
+
+/**
+ * A single-choice row list whose unusable rows are greyed and not selectable. `AlertDialog`'s
+ * `setSingleChoiceItems(Array)` has no per-row enabled state; `isEnabled` here is what the
+ * `ListView` consults before it checks or reports a row.
+ */
+internal class ActualsOptionAdapter(
+    context: android.content.Context,
+    labels: List<String>,
+    private val enabled: List<Boolean>,
+) : android.widget.ArrayAdapter<String>(context, android.R.layout.simple_list_item_single_choice, labels) {
+    override fun areAllItemsEnabled(): Boolean = enabled.all { it }
+
+    override fun isEnabled(position: Int): Boolean = enabled[position]
+
+    override fun getView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View =
+        super.getView(position, convertView, parent).apply {
+            isEnabled = enabled[position]
+            alpha = if (enabled[position]) 1f else 0.45f
+        }
 }
