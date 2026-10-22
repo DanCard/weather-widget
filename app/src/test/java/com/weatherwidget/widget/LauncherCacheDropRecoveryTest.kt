@@ -83,13 +83,19 @@ class LauncherCacheDropRecoveryTest {
             hasReceivedFull = true
         }
 
+        var partials = 0
+            private set
+
         fun partial(views: RemoteViews) {
             if (!hasReceivedFull) {
                 ignoredPartials++
                 return
             }
+            partials++
             views.reapply(context, tree)
         }
+
+        fun visibilityOf(id: Int): Int = tree.findViewById<View>(id).visibility
 
         fun dropCache() {
             tree = bareInflate(context)
@@ -160,6 +166,46 @@ class LauncherCacheDropRecoveryTest {
             caller = caller,
             appLogDao = appLogDao,
         )
+    }
+
+    /** What WidgetRenderer's placeholder paints push: body hidden, header chrome gone. */
+    private fun placeholderViews(): RemoteViews =
+        RemoteViews(context.packageName, R.layout.widget_weather).apply {
+            setViewVisibility(R.id.graph_view, View.GONE)
+            setViewVisibility(R.id.api_touch_zone, View.GONE)
+        }
+
+    /**
+     * Emulator 2026-10-22: widget 6 painted NO_LOCATION (full), the user set a location, and every
+     * DAILY paint after went partial — backed, as far as the dispatcher knew, by that full push. The
+     * partials merged into the placeholder tree: day names, no header, no bars.
+     */
+    @Test
+    fun `a data paint after a placeholder full push is promoted to full`() = runTest {
+        WidgetPushDispatcher.push(
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            views = placeholderViews(),
+            partialPush = false,
+            caller = "NO_LOCATION",
+            appLogDao = appLogDao,
+        )
+        assertEquals(View.GONE, launcher.visibilityOf(R.id.api_touch_zone))
+
+        push(partialPush = true, caller = "DAILY")
+
+        assertEquals(
+            "The header the placeholder hid must come back: the data paint must replace the tree",
+            View.VISIBLE,
+            launcher.visibilityOf(R.id.api_touch_zone),
+        )
+        assertTrue(launcher.isBound)
+        assertFalse(WidgetPushDispatcher.hasPlaceholderTreeForTest(appWidgetId))
+
+        // With the data tree established, the next data paint stays partial again.
+        push(partialPush = true, caller = "DAILY")
+        assertEquals(View.VISIBLE, launcher.visibilityOf(R.id.api_touch_zone))
+        assertEquals(1, launcher.partials)
     }
 
     @Test

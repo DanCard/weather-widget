@@ -103,6 +103,30 @@ class WidgetPushDispatcherTest {
     }
 
     @Test
+    fun `complete-body partial over a placeholder tree is promoted`() {
+        assertTrue(
+            WidgetPushDispatcher.shouldPromoteToFull(
+                partialPush = true,
+                bodyComplete = true,
+                hasFullPushedThisProcess = true,
+                lastFullWasPlaceholder = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `header-only partial over a placeholder tree is not promoted`() {
+        assertFalse(
+            WidgetPushDispatcher.shouldPromoteToFull(
+                partialPush = true,
+                bodyComplete = false,
+                hasFullPushedThisProcess = true,
+                lastFullWasPlaceholder = true,
+            ),
+        )
+    }
+
+    @Test
     fun `header only update is never promoted after idle gap`() {
         assertFalse(
             WidgetPushDispatcher.shouldPromoteToFull(

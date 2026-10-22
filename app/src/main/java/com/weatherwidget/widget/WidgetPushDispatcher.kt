@@ -54,6 +54,21 @@ object WidgetPushDispatcher {
     /** Widget ids that have received a full push from *this* process. Cleared when the process dies. */
     private val fullPushedThisProcess: MutableSet<Int> = ConcurrentHashMap.newKeySet()
 
+    /**
+     * Callers whose full push leaves a placeholder tree (header and body views hidden or at their
+     * defaults). A data paint's partial merges into whatever the last full established, so after
+     * one of these it must go full itself.
+     *
+     * Emulator 2026-10-22: widget 6 painted NO_LOCATION full, then — location set in setup — every
+     * DAILY paint went partial (`fullThisProcess=true`, backed by the NO_LOCATION full) and the
+     * widget showed day names with no header and no bars.
+     */
+    @VisibleForTesting
+    internal val PLACEHOLDER_CALLERS = setOf("NO_LOCATION", "LOADING", "ERROR", "FETCHING_LOCATION")
+
+    /** Widget ids whose last full push (this process) was a placeholder ([PLACEHOLDER_CALLERS]). */
+    private val placeholderTree: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+
     /** Widget ids already given a WIDGET_PUSH row this process. Fulls are logged unconditionally. */
     private val loggedThisProcess: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
@@ -89,9 +104,11 @@ object WidgetPushDispatcher {
         hasFullPushedThisProcess: Boolean,
         lastCompleteBodyPushElapsedMs: Long? = null,
         currentElapsedMs: Long = 0L,
+        lastFullWasPlaceholder: Boolean = false,
     ): Boolean {
         if (!partialPush || !bodyComplete) return false
         if (!hasFullPushedThisProcess) return true
+        if (lastFullWasPlaceholder) return true
         return lastCompleteBodyPushElapsedMs != null &&
             currentElapsedMs - lastCompleteBodyPushElapsedMs >= IDLE_REBIND_GAP_MS
     }
@@ -106,12 +123,14 @@ object WidgetPushDispatcher {
         hasFullPushedThisProcess: Boolean,
         lastCompleteBodyPushElapsedMs: Long? = null,
         currentElapsedMs: Long = 0L,
+        lastFullWasPlaceholder: Boolean = false,
     ): Boolean = requestedPartialPush && !shouldPromoteToFull(
         partialPush = requestedPartialPush,
         bodyComplete = bodyComplete,
         hasFullPushedThisProcess = hasFullPushedThisProcess,
         lastCompleteBodyPushElapsedMs = lastCompleteBodyPushElapsedMs,
         currentElapsedMs = currentElapsedMs,
+        lastFullWasPlaceholder = lastFullWasPlaceholder,
     )
 
     /**
@@ -153,6 +172,7 @@ object WidgetPushDispatcher {
     @VisibleForTesting
     internal fun resetForTest() {
         fullPushedThisProcess.clear()
+        placeholderTree.clear()
         loggedThisProcess.clear()
         lastCompleteBodyPushElapsedMs.clear()
         elapsedRealtimeProvider = SystemClock::elapsedRealtime
@@ -168,9 +188,18 @@ object WidgetPushDispatcher {
         fullPushedThisProcess.add(appWidgetId)
     }
 
+    /** A full push replaced the tree: remember whether it is a placeholder. */
+    private fun markTree(appWidgetId: Int, caller: String) {
+        if (caller in PLACEHOLDER_CALLERS) placeholderTree.add(appWidgetId) else placeholderTree.remove(appWidgetId)
+    }
+
+    @VisibleForTesting
+    internal fun hasPlaceholderTreeForTest(appWidgetId: Int): Boolean = placeholderTree.contains(appWidgetId)
+
     /** Drop process-local delivery state when the launcher deletes a widget id. */
     fun forgetWidget(appWidgetId: Int) {
         fullPushedThisProcess.remove(appWidgetId)
+        placeholderTree.remove(appWidgetId)
         lastCompleteBodyPushElapsedMs.remove(appWidgetId)
         loggedThisProcess.remove("any-$appWidgetId")
     }
@@ -192,6 +221,7 @@ object WidgetPushDispatcher {
         origin: Origin = Origin.UNSPECIFIED,
     ) {
         val hadFull = fullPushedThisProcess.contains(appWidgetId)
+        val onPlaceholder = placeholderTree.contains(appWidgetId) && caller !in PLACEHOLDER_CALLERS
         val currentElapsedMs = elapsedRealtimeProvider()
         val lastCompleteBodyMs = lastCompleteBodyPushElapsedMs[appWidgetId]
         // Promote a complete-body unbacked partial to a full update so the framework can't drop it.
@@ -201,11 +231,13 @@ object WidgetPushDispatcher {
             hasFullPushedThisProcess = hadFull,
             lastCompleteBodyPushElapsedMs = lastCompleteBodyMs,
             currentElapsedMs = currentElapsedMs,
+            lastFullWasPlaceholder = onPlaceholder,
         )
         val promoted = partialPush && !effectivePartial
         val promotionReason = when {
             !promoted -> null
             !hadFull -> "unbacked_partial"
+            onPlaceholder -> "placeholder_tree"
             else -> "idle_gap"
         }
         val message = pushLogMessage(
@@ -219,6 +251,7 @@ object WidgetPushDispatcher {
         ) + when (promotionReason) {
             "idle_gap" -> " promoted=idle_gap gapMs=${currentElapsedMs - (lastCompleteBodyMs ?: currentElapsedMs)}"
             "unbacked_partial" -> " promoted=unbacked_partial"
+            "placeholder_tree" -> " promoted=placeholder_tree"
             else -> ""
         }
 
@@ -227,6 +260,7 @@ object WidgetPushDispatcher {
         } else {
             appWidgetManager.updateAppWidget(appWidgetId, views)
             fullPushedThisProcess.add(appWidgetId)
+            markTree(appWidgetId, caller)
         }
         if (bodyComplete) {
             lastCompleteBodyPushElapsedMs[appWidgetId] = currentElapsedMs
@@ -262,6 +296,7 @@ object WidgetPushDispatcher {
             pid = Process.myPid(),
         ) + " direct=true"
         fullPushedThisProcess.add(appWidgetId)
+        markTree(appWidgetId, caller)
         lastCompleteBodyPushElapsedMs[appWidgetId] = currentElapsedMs
         Log.v(TAG, message)
         val firstPush = loggedThisProcess.add("any-$appWidgetId")
