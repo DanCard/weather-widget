@@ -3,6 +3,7 @@
  */
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.shared.util.DailyColumnSource
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -392,7 +393,6 @@ object DailyViewHandler : WidgetViewHandler {
             useGraph = useGraph,
             smoothedForecasts = smoothedForecasts,
             sunInfo = sunInfo,
-            headerDateFormatter = headerDateFormatter(),
             deltaFromYesterday = deltaFromYesterday,
             dateOffset = dateOffset,
             skipYesterday = skipYesterday,
@@ -407,7 +407,6 @@ object DailyViewHandler : WidgetViewHandler {
         val yesterdayDelta = headerResolution.state.yesterdayDelta
         val deltaVisible = headerResolution.state.deltaVisible
         val apiSourceText = headerResolution.state.apiSourceText
-        val disclosure = headerResolution.state.disclosure
         val headerScale = headerResolution.state.headerScale
         val resolveMs = headerResolution.state.resolveMs
 
@@ -837,36 +836,15 @@ object DailyViewHandler : WidgetViewHandler {
         val precipText: String? = null,
         val apiSourceText: String,
         val apiTextSizeDp: Float,
-        val disclosure: HeaderDisclosureLevel,
+        /** What the header shows, from the shared drop order ([HeaderFit]). */
+        val fit: HeaderFit.Plan,
+        /** What [fit] was resolved from; the button and date positions are read from both. */
+        val measured: HeaderFit.Measured,
         val headerScale: Float,
         val resolveMs: Long,
-        /** Whether today or yesterday is inside the visible day window; drives [iconCount]. */
+        /** Whether today or yesterday is inside the visible day window; drives the base button count. */
         val observationsInView: Boolean = true,
-        /**
-         * Live count of daily header buttons: forecast history always, current observations only
-         * when [observationsInView] (today OR yesterday on screen — the station-history affordance
-         * behind the button is date-independent). Never a constant — the reserved width follows it.
-         */
-        val iconCount: Int = 0,
-        val iconPlacement: DailyIconPlacement = DailyIconPlacement.HIDDEN,
-        /**
-         * Whether the header shows the home button: there is a [homeAction] AND the row had room for
-         * it. Already counted in [iconCount], so the painted date reserves space for it without
-         * knowing what it is.
-         */
-        val showHomeButton: Boolean = false,
-        /**
-         * Whether the header shows the months-view (zoom-out) button: graph mode AND room on the
-         * buttons' current rung ([DailyIconLayout.monthsShown]). Counted in [iconCount], so the
-         * painted date yields to it.
-         */
-        val showMonthsButton: Boolean = false,
-        /** What the home button does; non-null exactly when [showHomeButton]. */
+        /** What the home button does; non-null exactly when [HeaderFit.Plan.homeShown]. */
         val homeAction: com.weatherwidget.shared.util.PreferredSourceHome.HomeAction? = null,
-        /**
-         * Which of the header date / "from yest" caption survives when both cannot fit. Resolved
-         * once here so the bitmap renderer and the RemoteViews bind cannot disagree.
-         */
-        val preferDateOverLabel: Boolean = true,
     )
 }

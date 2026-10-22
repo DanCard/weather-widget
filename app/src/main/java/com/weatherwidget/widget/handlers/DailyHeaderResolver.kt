@@ -1,9 +1,7 @@
 package com.weatherwidget.widget.handlers
 
 import android.content.Context
-import com.weatherwidget.shared.nowcast.NowcastDisplay
-import com.weatherwidget.shared.nowcast.NowcastSummary
-import com.weatherwidget.widget.AndroidNowcast
+import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
@@ -12,6 +10,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.shared.util.HeaderContent
+import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.shared.util.PreferredSourceHome
 import com.weatherwidget.shared.util.WeatherConditionResolver
 import com.weatherwidget.util.NavigationUtils
@@ -20,7 +19,6 @@ import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDateTime
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 /**
  * Header resolve-and-bind logic for the daily view, extracted from `DailyViewHandler`.
@@ -37,7 +35,6 @@ internal object DailyHeaderResolver {
     // Header constants that only the header path needs; separated from the
     // graph-vs-text mode-selection constants which stay in DailyViewHandler.
     internal const val HEADER_ICON_TINT = 0xAAFFFFFF.toInt()
-    internal const val GRAPH_CONTENT_PADDING_DP = 24
 
     internal data class HeaderResolution(
         val state: DailyViewHandler.HeaderState,
@@ -64,7 +61,6 @@ internal object DailyHeaderResolver {
         useGraph: Boolean,
         smoothedForecasts: Map<Long, Float>?,
         sunInfo: SunInfo,
-        headerDateFormatter: DateTimeFormatter,
         deltaFromYesterday: Float?,
         dateOffset: Int,
         skipYesterday: Boolean,
@@ -88,7 +84,6 @@ internal object DailyHeaderResolver {
             useGraph = useGraph,
             smoothedForecasts = smoothedForecasts,
             sunInfo = sunInfo,
-            headerDateFormatter = headerDateFormatter,
             deltaFromYesterday = deltaFromYesterday,
             dateOffset = dateOffset,
             skipYesterday = skipYesterday,
@@ -102,25 +97,6 @@ internal object DailyHeaderResolver {
             isIconWidth = dimensions.isIconWidth,
         )
         return resolution
-    }
-
-    /**
-     * The nowcast's compact form for the header ("14:15–" / "–15:30"), or null: Open-Meteo
-     * displayed, native 15-minute coverage, rain inside 2 h (`:shared` NowcastDisplay).
-     */
-    private fun resolveNowcastText(
-        context: Context,
-        lat: Double,
-        lon: Double,
-        displaySource: WeatherSource,
-        now: LocalDateTime,
-    ): String? {
-        val nowMs = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val series = NowcastDisplay.series(AndroidNowcast.store(context), lat, lon, displaySource.id, nowMs)
-        return NowcastSummary.headerText(
-            NowcastDisplay.summary(series, nowMs),
-            use24HourClock = android.text.format.DateFormat.is24HourFormat(context),
-        )
     }
 
     @Suppress("LongParameterList")
@@ -143,7 +119,6 @@ internal object DailyHeaderResolver {
         useGraph: Boolean,
         smoothedForecasts: Map<Long, Float>?,
         sunInfo: SunInfo,
-        headerDateFormatter: DateTimeFormatter,
         deltaFromYesterday: Float?,
         dateOffset: Int,
         skipYesterday: Boolean,
@@ -183,9 +158,6 @@ internal object DailyHeaderResolver {
             lon = lon,
             useCelsius = stateManager.useCelsius(),
             widthDp = dimensions.widthDp,
-            // The 15-minute nowcast rides the rain % text ("40% 14:15–"), so every width fit below
-            // measures it and the date-vs-rain-% priority rule applies to it unchanged.
-            nowcastText = resolveNowcastText(context, lat, lon, displaySource, now),
         )
         val iconRes = WeatherIconMapper.fromIconName(content.iconName ?: WeatherConditionResolver.IC_UNKNOWN)
         val formattedTemp = content.tempText
@@ -203,29 +175,14 @@ internal object DailyHeaderResolver {
         // Pick API label
         val apiSourceText = content.sourceLabel
         val apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows)
-        val deltaTextForFit = deltaText
-        val precipTextForFit = headerPrecipText
-
-        val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
-            context = context,
-            widthDp = dimensions.widthDp,
-            apiSourceText = apiSourceText,
-            apiTextSizeDp = apiTextSizeDp,
-            currentTempText = formattedTemp,
-            deltaText = deltaTextForFit,
-            precipText = precipTextForFit,
-            precipTextSizeDp = precipTextSizeDp,
-            currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
-        )
-
         val headerScale = HeaderWidthChecker.computeHeaderScale(
             context = context,
             widthDp = dimensions.widthDp,
             apiSourceText = apiSourceText,
             apiTextSizeDp = apiTextSizeDp,
             currentTempText = formattedTemp,
-            deltaText = deltaTextForFit,
-            precipText = precipTextForFit,
+            deltaText = deltaText,
+            precipText = headerPrecipText,
             precipTextSizeDp = precipTextSizeDp,
             currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
         )
@@ -246,84 +203,43 @@ internal object DailyHeaderResolver {
             visibleSourceIds = stateManager.getVisibleSourcesOrder().map { it.id },
             todayInView = todayInView,
         )
-        val wantHomeButton = homeAction != null
-        val iconLayout = HeaderWidthChecker.resolveDailyIconLayout(
+
+        // What the header shows: the shared drop order (temp > rain % > delta > buttons > weather
+        // icon > date > "from yest"). The date and weather icon are painted in graph mode only.
+        val deltaLabel = context.getString(R.string.header_delta_from_yesterday)
+        val measured = HeaderWidthChecker.measureDailyHeader(
             context = context,
             widthDp = dimensions.widthDp,
+            headerScale = headerScale,
             apiSourceText = apiSourceText,
             apiTextSizeDp = apiTextSizeDp,
             currentTempText = formattedTemp,
-            deltaText = deltaTextForFit,
-            precipText = precipTextForFit,
-            precipTextSizeDp = precipTextSizeDp,
-            includeIcon = disclosure.showsIcon(),
-            currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
-            baseIconCount = if (observationsInView) 2 else 1,
-            wantHome = wantHomeButton,
-            isIconWidth = dimensions.isIconWidth,
-            disclosure = disclosure,
-            // Graph mode only and when enabled in settings (disabled by default):
-            wantMonths = useGraph && stateManager.showDailyZoomOutButton(),
-            headerScale = headerScale,
-        )
-        val iconCount = iconLayout.iconCount
-        val iconPlacement = iconLayout.placement
-        val centerIconsWidthDp =
-            if (iconPlacement == DailyIconPlacement.CENTER) {
-                HeaderWidthChecker.dailyCenterIconsWidthDp(iconCount, dimensions.widthDp)
-            } else 0f
-        val inlineIconsWidthDp =
-            if (iconPlacement == DailyIconPlacement.INLINE) {
-                HeaderWidthChecker.dailyInlineIconsWidthDp(iconCount)
-            } else 0f
-        // Advanced once per header resolve, i.e. once per render — see nextHeaderLabelSwap.
-        val preferDateOverLabel =
-            if (useGraph) stateManager.nextHeaderLabelSwap(appWidgetId) % 2 == 0 else true
-
-        val widthDpForPrecip = dimensions.widthDp - GRAPH_CONTENT_PADDING_DP
-        val dateText =
-            if (numColumns >= HeaderConstants.DATE_MIN_COLUMNS && iconPlacement.allowsHeaderDate()) {
-                today.format(headerDateFormatter)
-            } else null
-        val headerPrecipPlacement = DailyHeaderBinder.resolveHeaderPrecipPlacement(
-            context = context,
-            widthDp = widthDpForPrecip,
-            numColumns = numColumns,
-            currentTempText = formattedTemp,
-            deltaText = if (disclosure.showsDelta()) deltaText else null,
+            deltaText = deltaText,
+            deltaLabelText = deltaLabel,
             precipText = headerPrecipText,
             precipTextSizeDp = precipTextSizeDp,
-            apiSourceText = apiSourceText,
-            apiTextSizeDp = apiTextSizeDp,
-            dateText = dateText,
-            headerCanShowPrecip = disclosure.showsPrecip(),
-            includeIcon = disclosure.showsIcon(),
-            centerIconsWidthDp = centerIconsWidthDp,
-            inlineIconsWidthDp = inlineIconsWidthDp,
+            dateText = if (useGraph && numColumns >= HeaderConstants.DATE_MIN_COLUMNS) {
+                today.format(DailyViewHandler.headerDateFormatter())
+            } else null,
+            includeIcon = useGraph,
+            baseButtons = when {
+                dimensions.isIconWidth -> 0
+                observationsInView -> 2
+                else -> 1
+            },
+            wantHome = homeAction != null,
+            // Graph mode only and when enabled in settings (disabled by default):
+            wantMonths = useGraph && stateManager.showDailyZoomOutButton(),
         )
+        val fit = HeaderFit.resolve(measured)
+        Log.d(TAG, "HEADER_FIT view=daily widget=$appWidgetId widthDp=${dimensions.widthDp} scale=$headerScale $fit $measured")
 
-        // "from yest" caption after the delta: opportunistic — only when the delta itself is
-        // shown and the whole left cluster (caption included) still clears the API label.
-        val deltaLabelText = if (deltaVisible && disclosure.showsDelta()) {
-            val label = context.getString(R.string.header_delta_from_yesterday)
-            val fits = HeaderWidthChecker.deltaLabelFitsInHeader(
-                context = context,
-                widthDp = dimensions.widthDp,
-                apiSourceText = apiSourceText,
-                apiTextSizeDp = apiTextSizeDp,
-                currentTempText = formattedTemp,
-                deltaText = deltaTextForFit,
-                deltaLabelText = label,
-                precipText = if (isPrecipVisible && disclosure.showsPrecip()) precipTextForFit else null,
-                precipTextSizeDp = precipTextSizeDp,
-                includeIcon = disclosure.showsIcon(),
-                currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
-                // Inline buttons live in the same left LinearLayout after the rain %; ignoring
-                // them lets the caption stay visible while a button is pushed over the API label.
-                inlineNavWidthDp = inlineIconsWidthDp,
-            )
-            if (fits) label else null
-        } else null
+        val headerPrecipPlacement = DailyHeaderBinder.resolveHeaderPrecipPlacement(
+            precipText = headerPrecipText,
+            precipTextSizeDp = precipTextSizeDp,
+            headerCanShowPrecip = fit.showRain,
+        )
+        val deltaLabelText = deltaLabel.takeIf { fit.showCaption }
 
         val headerState = DailyViewHandler.HeaderState(
             iconRes = iconRes,
@@ -342,16 +258,12 @@ internal object DailyHeaderResolver {
             precipText = headerPrecipText,
             apiSourceText = apiSourceText,
             apiTextSizeDp = apiTextSizeDp,
-            disclosure = disclosure,
+            fit = fit,
+            measured = measured,
             headerScale = headerScale,
             resolveMs = resolveMs,
             observationsInView = observationsInView,
-            iconCount = iconCount,
-            iconPlacement = iconPlacement,
-            showHomeButton = iconLayout.homeShown,
-            showMonthsButton = iconLayout.monthsShown,
-            homeAction = if (iconLayout.homeShown) homeAction else null,
-            preferDateOverLabel = preferDateOverLabel,
+            homeAction = if (fit.homeShown) homeAction else null,
         )
         return HeaderResolution(headerState, headerPrecipPlacement)
     }
@@ -447,16 +359,13 @@ internal object DailyHeaderResolver {
             scale = state.headerScale,
         )
 
-        if (useGraph && state.disclosure != HeaderDisclosureLevel.NONE) {
-            HeaderRemoteViewsBinder.applyDisclosure(
+        if (useGraph) {
+            HeaderRemoteViewsBinder.applyDailyFit(
                 views,
-                state.disclosure,
+                state.fit,
                 isDeltaVisible = state.deltaVisible,
                 isPrecipVisible = state.isPrecipVisible,
-                isDeltaLabelVisible = state.deltaLabelText != null,
             )
-        } else if (useGraph) {
-            views.setViewVisibility(R.id.current_weather_container, View.GONE)
         }
     }
 }

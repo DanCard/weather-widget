@@ -10,9 +10,9 @@ import org.junit.experimental.categories.Category
 /**
  * Contention between the header date and the "from yest" caption.
  *
- * The first six cases are the original fixed-priority tests, re-expressed against
- * [DailyForecastHeaderRenderer.resolveHeaderContention] with `preferDateOverLabel = true` — they
- * pin the historical behaviour so the alternation cannot silently change the default.
+ * The date outranks the caption (`HeaderFit`; user, 2026-10-22). The per-render alternation
+ * between the two is gone: the shared fit decides, and this is the painted geometry's safety net
+ * ([DailyForecastHeaderRenderer.resolveHeaderContention]).
  */
 @Category(ShortDuration::class)
 class DailyForecastHeaderDeltaLabelTest {
@@ -22,16 +22,14 @@ class DailyForecastHeaderDeltaLabelTest {
         dateFitsWithLabel: Boolean,
         dateFitsWithoutLabel: Boolean,
         labelFitsAlone: Boolean,
-        preferDateOverLabel: Boolean = true,
     ) = DailyForecastHeaderRenderer.resolveHeaderContention(
         hasDateText = hasDateText,
         dateFitsWithLabel = dateFitsWithLabel,
         dateFitsWithoutLabel = dateFitsWithoutLabel,
         labelFitsAlone = labelFitsAlone,
-        preferDateOverLabel = preferDateOverLabel,
     )
 
-    // ---- historical fixed-priority behaviour (preferDateOverLabel = true) ----
+    // ---- date first, then the caption alone ----
 
     @Test
     fun `label drawn when date still fits with it`() {
@@ -105,101 +103,20 @@ class DailyForecastHeaderDeltaLabelTest {
         assertFalse(result.showDate)
     }
 
-    // ---- alternation ----
+    // ---- invariants ----
 
     @Test
-    fun `caption wins and date is dropped when the swap favours the caption`() {
-        // Same inputs as "label hidden when it would crowd out the date", flipped preference.
-        // Previously the caption was the structural permanent loser here.
-        val result = contention(
-            hasDateText = true,
-            dateFitsWithLabel = false,
-            dateFitsWithoutLabel = true,
-            labelFitsAlone = true,
-            preferDateOverLabel = false,
-        )
-        assertTrue(result.showDeltaLabel)
-        assertFalse(result.showDate)
-    }
-
-    @Test
-    fun `swap falls back to the date when the caption cannot fit alone`() {
-        // The alternation must never blank a slot that could have been filled: the caption is
-        // preferred, does not fit, so the date takes the row rather than both being dropped.
-        val result = contention(
-            hasDateText = true,
-            dateFitsWithLabel = false,
-            dateFitsWithoutLabel = true,
-            labelFitsAlone = false,
-            preferDateOverLabel = false,
-        )
-        assertFalse(result.showDeltaLabel)
-        assertTrue(result.showDate)
-    }
-
-    @Test
-    fun `swap falls back to the caption when the date cannot fit alone`() {
-        val result = contention(
-            hasDateText = true,
-            dateFitsWithLabel = false,
-            dateFitsWithoutLabel = false,
-            labelFitsAlone = true,
-            preferDateOverLabel = true,
-        )
-        assertTrue(result.showDeltaLabel)
-        assertFalse(result.showDate)
-    }
-
-    @Test
-    fun `both dropped when neither fits alone regardless of swap`() {
-        for (prefer in listOf(true, false)) {
-            val result = contention(
-                hasDateText = true,
-                dateFitsWithLabel = false,
-                dateFitsWithoutLabel = false,
-                labelFitsAlone = false,
-                preferDateOverLabel = prefer,
-            )
-            assertFalse("preferDate=$prefer", result.showDeltaLabel)
-            assertFalse("preferDate=$prefer", result.showDate)
-        }
-    }
-
-    @Test
-    fun `both shown only when the date fits with the caption`() {
-        // Invariant over the whole truth table: the only way to keep both is dateFitsWithLabel.
+    fun `the date never loses to the caption`() {
+        // Over the whole truth table: whenever the date fits on its own it is shown, and both are
+        // kept only when the date fits beside the caption.
         for (hasDate in listOf(true, false)) {
             for (withLabel in listOf(true, false)) {
                 for (withoutLabel in listOf(true, false)) {
                     for (labelAlone in listOf(true, false)) {
-                        for (prefer in listOf(true, false)) {
-                            val r = contention(hasDate, withLabel, withoutLabel, labelAlone, prefer)
-                            val both = r.showDeltaLabel && r.showDate
-                            val case = "hasDate=$hasDate withLabel=$withLabel " +
-                                "withoutLabel=$withoutLabel labelAlone=$labelAlone prefer=$prefer"
-                            assertEquals(case, hasDate && withLabel, both)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Test
-    fun `the swap flag only matters when both compete and both could win alone`() {
-        // Guards against the alternation leaking into cases that are not a real contention —
-        // e.g. flipping the caption off on a roomy header.
-        for (hasDate in listOf(true, false)) {
-            for (withLabel in listOf(true, false)) {
-                for (withoutLabel in listOf(true, false)) {
-                    for (labelAlone in listOf(true, false)) {
-                        val preferDate = contention(hasDate, withLabel, withoutLabel, labelAlone, true)
-                        val preferLabel = contention(hasDate, withLabel, withoutLabel, labelAlone, false)
-                        val isRealContention =
-                            hasDate && !withLabel && withoutLabel && labelAlone
-                        val case = "hasDate=$hasDate withLabel=$withLabel " +
-                            "withoutLabel=$withoutLabel labelAlone=$labelAlone"
-                        assertEquals(case, isRealContention, preferDate != preferLabel)
+                        val r = contention(hasDate, withLabel, withoutLabel, labelAlone)
+                        val case = "hasDate=$hasDate withLabel=$withLabel withoutLabel=$withoutLabel labelAlone=$labelAlone"
+                        if (hasDate && (withLabel || withoutLabel)) assertTrue(case, r.showDate)
+                        assertEquals(case, hasDate && withLabel, r.showDeltaLabel && r.showDate)
                     }
                 }
             }

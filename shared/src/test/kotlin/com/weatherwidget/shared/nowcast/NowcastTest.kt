@@ -187,15 +187,11 @@ class NowcastTest {
     }
 
     @Test
-    fun `header and description text, 12- and 24-hour clocks`() {
+    fun `description text, 12- and 24-hour clocks`() {
         val starts = NowcastSummary.Result.Starts(at(14, 15))
-        assertEquals("2:15pm–", NowcastSummary.headerText(starts, use24HourClock = false, zoneId = berlin, locale = Locale.US))
-        assertEquals("14:15–", NowcastSummary.headerText(starts, use24HourClock = true, zoneId = berlin, locale = Locale.GERMANY))
-        assertEquals("–3pm", NowcastSummary.headerText(NowcastSummary.Result.Stops(at(15, 0)), false, berlin, Locale.US))
-        assertNull(NowcastSummary.headerText(NowcastSummary.Result.Continues, false, berlin, Locale.US))
+        assertEquals("Rain from 2:15pm", NowcastSummary.describe(starts, false, berlin, Locale.US))
         assertEquals("Rain from 14:15", NowcastSummary.describe(starts, true, berlin, Locale.GERMANY))
-        assertEquals("40% 14:15–", NowcastDisplay.headerPrecipText(40, "14:15–"))
-        assertEquals("40%", NowcastDisplay.headerPrecipText(40, null))
+        assertEquals("Rain until 3pm", NowcastSummary.describe(NowcastSummary.Result.Stops(at(15, 0)), false, berlin, Locale.US))
     }
 
     // ---- refresh policy ----
@@ -298,12 +294,11 @@ class NowcastTest {
     // ---- display ----
 
     @Test
-    fun `display needs Open-Meteo displayed and native coverage - fetch to header text end to end`() = runBlocking {
+    fun `display needs Open-Meteo displayed and native coverage - fetch to summary end to end`() = runBlocking {
         val store = NowcastStore(tmp.root)
         fetcher(store, Recorder(), nativeProbe, nowcastReply).refresh(52.52, 13.40)
         val shown = NowcastDisplay.series(store, 52.52, 13.40, WeatherSource.OPEN_METEO.id, now)
-        val text = NowcastSummary.headerText(NowcastDisplay.summary(shown, now), true, berlin, Locale.GERMANY)
-        assertEquals("40% 14:30–", NowcastDisplay.headerPrecipText(40, text))
+        assertEquals("Rain from 14:30", NowcastSummary.describe(NowcastDisplay.summary(shown, now), true, berlin, Locale.GERMANY))
         assertNull(NowcastDisplay.series(store, 52.52, 13.40, WeatherSource.NWS.id, now))
         store.saveCoverage(52.52, 13.40, native = false, checkedAtMs = now)
         assertNull(NowcastDisplay.series(store, 52.52, 13.40, WeatherSource.OPEN_METEO.id, now))

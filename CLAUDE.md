@@ -329,6 +329,14 @@ Also desktop Linux app that is intended to be the same as Android weather widget
 - **Navigation arrows**: Left/right sides for browsing history (30 days back) and forecast
 - **Content area**: Maximized with minimal margins; arrows overlap slightly for more space
 - Touch priority: API indicator rendered last (on top) with `clipChildren="false"` for reliable touch handling
+- **Header drop order** (user, 2026-10-22), highest first: source label > current temp > rain % >
+  delta > buttons (home, then months, go first) > weather icon > date > "from yest"; "from yest" never
+  beside a rain %. Centred buttons END on a fixed line 70dp right of the middle
+  (`HeaderFit.SEAM_OFFSET_DP`; the left side is the crowded one) and grow leftwards; the date starts
+  just after it, so a source switch (home appearing) never moves it. Fallback: the true middle, then
+  inline. One rule in `:shared`
+  `HeaderFit`; both daily headers use it (Android measures in `HeaderWidthChecker.measureDailyHeader`),
+  the hourly headers move to it next (`plans/261022-shared-header-fit-priority.md`).
 
 ## Temperature Display
 

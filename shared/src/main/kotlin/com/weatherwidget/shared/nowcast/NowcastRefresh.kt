@@ -151,10 +151,6 @@ object NowcastDisplay {
     fun summary(series: NowcastSeries?, nowMs: Long): NowcastSummary.Result? =
         series?.let { NowcastSummary.summarize(it, nowMs) }
 
-    /** "40%" plus the nowcast's compact form when there is one: "40% 14:15–". */
-    fun headerPrecipText(probability: Int, nowcastText: String?): String =
-        if (nowcastText.isNullOrEmpty()) "$probability%" else "$probability% $nowcastText"
-
     /** The slots the hourly precip graph draws as its 15-minute band: from now's slot, 2 h ahead. */
     fun bandSlots(series: NowcastSeries?, nowMs: Long): List<NowcastSlot> =
         series?.slots.orEmpty().filter { it.endMs > nowMs && it.startMs < nowMs + NowcastSummary.HORIZON_MS }

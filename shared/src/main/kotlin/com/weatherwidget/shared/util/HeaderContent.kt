@@ -2,7 +2,6 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.nowcast.NowcastDisplay
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import java.time.LocalDateTime
@@ -74,17 +73,13 @@ object HeaderContent {
         lon: Double,
         useCelsius: Boolean,
         widthDp: Int,
-        /** The 15-minute nowcast's compact text (daily view only). */
-        nowcastText: String? = null,
         /** Rows for the icon when they differ from [hourly] (Android's current-temp series). */
         iconHourly: List<HourlyForecast> = hourly,
         zone: ZoneId = ZoneId.systemDefault(),
     ): Content {
         val sourceName = WeatherSource.fromId(displaySourceId).shortDisplayName
         val precip = precipitation(view, hourly, displaySourceId, fallbackDailyPrecip, now, centerTime, lat, lon)
-        val precipText = precip.probability?.let {
-            NowcastDisplay.headerPrecipText(it, if (view == View.DAILY) nowcastText else null)
-        }
+        val precipText = precip.probability?.let { "$it%" }
         return Content(
             iconName = iconName(view, iconHourly, displaySourceId, dailyFallback, now, lat, lon, zone),
             tempText = currentTemp?.let {

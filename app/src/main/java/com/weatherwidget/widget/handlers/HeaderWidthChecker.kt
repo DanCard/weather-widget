@@ -3,6 +3,7 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import android.graphics.Paint
 import android.util.TypedValue
+import com.weatherwidget.shared.util.HeaderFit
 
 enum class HeaderDisclosureLevel {
     FULL,
@@ -17,53 +18,6 @@ fun HeaderDisclosureLevel.showsIcon(): Boolean = this == HeaderDisclosureLevel.F
 fun HeaderDisclosureLevel.showsDelta(): Boolean = this == HeaderDisclosureLevel.FULL || this == HeaderDisclosureLevel.NO_ICON
 
 fun HeaderDisclosureLevel.showsPrecip(): Boolean = this == HeaderDisclosureLevel.FULL || this == HeaderDisclosureLevel.NO_ICON || this == HeaderDisclosureLevel.NO_ICON_NO_DELTA
-
-/**
- * Where the daily view's header buttons (current observations / forecast history) are placed.
- *
- * [CENTER] is preferred: the pair sits in the empty middle of the header with the painted date
- * beside it. [INLINE] is the fallback when the centred slot collides with the left cluster — the
- * buttons are appended to the left cluster instead, exactly as the hourly view does on narrow
- * widgets. [HIDDEN] is a last resort; the buttons must not vanish merely because the header is
- * dense, which is what the INLINE rung exists to prevent.
- */
-enum class DailyIconPlacement {
-    CENTER,
-    INLINE,
-    HIDDEN,
-}
-
-/**
- * Whether the painted header date may be drawn beside buttons placed this way.
- *
- * INLINE is chosen only when the centre slot collides with the left cluster, so the buttons then
- * run from the end of the rain % toward the API label — through both of the date's slots (centre
- * and the right anchor). The bitmap renderer cannot see the RemoteViews row (its zones carry
- * padding the painted text does not), so it painted the date straight over the buttons
- * (emulator, 360dp, 2026-10-21). A crowded header drops the date instead.
- */
-fun DailyIconPlacement.allowsHeaderDate(): Boolean = this != DailyIconPlacement.INLINE
-
-/**
- * The daily header's button row after the home button has been offered the last seat.
- *
- * [homeShown] is not simply "the caller wanted it": the home button is the only daily button that
- * may be dropped, and it is dropped exactly when three icons would leave nowhere to put ANY of
- * them. The date is not consulted — it yields to whatever this returns, by construction, because
- * [iconCount] is what feeds the painted date's reserved slot.
- */
-data class DailyIconLayout(
-    val placement: DailyIconPlacement,
-    val iconCount: Int,
-    val homeShown: Boolean,
-    /**
-     * The months-view (zoom-out) button. Last seat, and stricter than home: shown only when adding
-     * it leaves the row on the same rung — it never pushes the other buttons from CENTER to INLINE,
-     * and on a header with no room it is simply absent. Like home it is counted in [iconCount], so
-     * the painted date yields to it.
-     */
-    val monthsShown: Boolean = false,
-)
 
 object HeaderWidthChecker {
     internal val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -266,200 +220,58 @@ object HeaderWidthChecker {
             HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP
 
     /**
-     * Three-rung ladder for the daily header buttons — see [DailyIconPlacement].
+     * The daily header's pieces measured for the shared drop order ([HeaderFit],
+     * `plans/261022-shared-header-fit-priority.md`); the caller resolves and logs both.
      *
-     * [iconCount] is the LIVE button count, never a constant: the observations button is dropped
-     * when today AND yesterday are both off screen (the station-history affordance behind it is
-     * date-independent, so yesterday keeps it), so a fully navigated header reserves 24dp rather
-     * than 48dp and consequently has MORE room for the date, not less.
+     * Text, the weather icon and the API label are measured at [headerScale], the size they are
+     * painted; the button zones are not scaled ([positionDailyIcons] sizes them in plain dp). A null
+     * text or a zero [baseButtons] means that piece is absent, not dropped.
      */
-    fun resolveDailyIconPlacement(
+    fun measureDailyHeader(
         context: Context,
         widthDp: Int,
+        headerScale: Float,
         apiSourceText: String,
         apiTextSizeDp: Float,
         currentTempText: String?,
         deltaText: String?,
+        deltaLabelText: String?,
         precipText: String?,
         precipTextSizeDp: Float?,
+        dateText: String?,
         includeIcon: Boolean,
-        currentTempSizeDp: Float,
-        iconCount: Int,
-        isIconWidth: Boolean,
-        disclosure: HeaderDisclosureLevel,
-    ): DailyIconPlacement {
-        if (iconCount <= 0 || isIconWidth || disclosure == HeaderDisclosureLevel.NONE) {
-            return DailyIconPlacement.HIDDEN
-        }
-        val widthPx = dpToPx(context, widthDp.toFloat())
-        if (widthPx <= 0f) return DailyIconPlacement.HIDDEN
-
-        val leftClusterRight = resolveLeftClusterRightPx(
-            context = context,
-            currentTempText = currentTempText,
-            deltaText = deltaText,
-            precipText = precipText,
-            precipTextSizeDp = precipTextSizeDp,
-            includeIcon = includeIcon,
-            currentTempSizeDp = currentTempSizeDp,
-        )
-        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
-        val gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
-
-        return resolveDailyIconPlacementFromBounds(
-            widthPx = widthPx,
-            leftClusterRight = leftClusterRight,
-            apiLeft = apiLeft,
-            centerIconsWidth = dpToPx(context, dailyCenterIconsWidthDp(iconCount, widthDp)),
-            inlineIconsWidth = dpToPx(context, dailyInlineIconsWidthDp(iconCount)),
-            gapPx = gapPx,
-        )
-    }
-
-    /**
-     * Pure ladder, extracted so it can be tested without a font engine — Robolectric has none, so
-     * anything driven by `measureText` there is not a trustworthy assertion (see
-     * `robolectric_no_font_engine`). Callers supply already-measured bounds.
-     */
-    fun resolveDailyIconPlacementFromBounds(
-        widthPx: Float,
-        leftClusterRight: Float,
-        apiLeft: Float,
-        centerIconsWidth: Float,
-        inlineIconsWidth: Float,
-        gapPx: Float,
-    ): DailyIconPlacement {
-        if (centerIconsWidth <= 0f) return DailyIconPlacement.HIDDEN
-        val slotLeft = widthPx / 2f - centerIconsWidth / 2f
-        val slotRight = widthPx / 2f + centerIconsWidth / 2f
-        if (slotLeft >= leftClusterRight + gapPx && slotRight <= apiLeft - gapPx) {
-            return DailyIconPlacement.CENTER
-        }
-        if (leftClusterRight + inlineIconsWidth + gapPx <= apiLeft) {
-            return DailyIconPlacement.INLINE
-        }
-        return DailyIconPlacement.HIDDEN
-    }
-
-    /**
-     * [resolveDailyIconPlacement] plus the home button's seat.
-     *
-     * The home button appears when the widget is displaying a source that is not the preferred one
-     * ([com.weatherwidget.shared.util.PreferredSourceHome]) — [wantHome] — and there is room. "Room"
-     * is measured the only way that matters to the user: the three-icon row still lands somewhere,
-     * centred or inline. Falling from CENTER to INLINE is not a reason to drop it; every button
-     * stays visible on that rung, which is what INLINE exists for.
-     *
-     * The date is deliberately absent from this decision. It reads [DailyIconLayout.iconCount] as a
-     * reserved slot and steps aside or drops itself, which is what makes the home button
-     * higher-priority than the day-of-week without either side testing the other.
-     */
-    fun resolveDailyIconLayout(
-        context: Context,
-        widthDp: Int,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-        currentTempText: String?,
-        deltaText: String?,
-        precipText: String?,
-        precipTextSizeDp: Float?,
-        includeIcon: Boolean,
-        currentTempSizeDp: Float,
-        baseIconCount: Int,
+        baseButtons: Int,
         wantHome: Boolean,
-        isIconWidth: Boolean,
-        disclosure: HeaderDisclosureLevel,
-        wantMonths: Boolean = false,
-        /**
-         * [computeHeaderScale]'s result. The left cluster and the API label are drawn at it, the
-         * button zones are not ([positionDailyIcons] sizes them in plain dp), so the clusters are
-         * compared at the scale they are painted. Measured unscaled, a 1.35× header let a longer
-         * rain text ("20% 10am–", the nowcast) run under the centred buttons (emulator, 2026-10-21).
-         */
-        headerScale: Float = 1f,
-    ): DailyIconLayout {
-        if (baseIconCount <= 0 || isIconWidth || disclosure == HeaderDisclosureLevel.NONE) {
-            return DailyIconLayout(DailyIconPlacement.HIDDEN, baseIconCount, homeShown = false)
-        }
+        wantMonths: Boolean,
+    ): HeaderFit.Measured {
         val widthPx = dpToPx(context, widthDp.toFloat())
-        if (widthPx <= 0f) {
-            return DailyIconLayout(DailyIconPlacement.HIDDEN, baseIconCount, homeShown = false)
-        }
-
-        val leftClusterRight = resolveLeftClusterRightPx(
-            context = context,
-            currentTempText = currentTempText,
-            deltaText = deltaText,
-            precipText = precipText,
-            precipTextSizeDp = precipTextSizeDp,
-            includeIcon = includeIcon,
-            currentTempSizeDp = currentTempSizeDp,
-        )
-        val (scaledLeftRight, scaledApiLeft) = scaledClusterEdges(
-            leftClusterRight = leftClusterRight,
-            apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp),
-            widthPx = widthPx,
-            headerScale = headerScale,
-        )
-        return resolveDailyIconLayoutFromBounds(
-            widthPx = widthPx,
-            leftClusterRight = scaledLeftRight,
-            apiLeft = scaledApiLeft,
-            gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP),
-            centerZoneWidthPx = dpToPx(context, dailyCenterIconZoneWidthDp(widthDp)),
-            inlineZoneWidthPx = dpToPx(context, HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP),
-            inlineFirstMarginPx = dpToPx(context, HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP),
-            baseIconCount = baseIconCount,
+        fun scaledDp(dp: Float) = dpToPx(context, dp) * headerScale
+        fun scaledText(text: String?, sizeDp: Float, marginDp: Float = 0f) =
+            if (text.isNullOrBlank()) 0f else scaledDp(marginDp) + textWidthPx(context, text, sizeDp) * headerScale
+        return HeaderFit.Measured(
+            width = widthPx,
+            rightCluster = (widthPx - resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)) * headerScale,
+            gap = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP),
+            // The line the buttons end on; positionDailyIcons can only move them off the middle on
+            // API 31+ (setViewLayoutMargin).
+            seamOffset = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                scaledDp(HeaderFit.SEAM_OFFSET_DP)
+            } else null,
+            temp = if (currentTempText.isNullOrBlank()) 0f
+                else currentTempTextWidthPx(context, currentTempText, HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP) * headerScale,
+            rain = if (precipTextSizeDp == null) 0f
+                else scaledText(precipText, precipTextSizeDp, HeaderConstants.PRECIP_MARGIN_START_DP),
+            delta = scaledText(deltaText, HeaderConstants.DELTA_TEXT_SIZE_DP, HeaderConstants.DELTA_MARGIN_START_DP),
+            icon = if (includeIcon) scaledDp(HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP) else 0f,
+            date = scaledText(dateText, HeaderConstants.DATE_TEXT_SIZE_DP),
+            caption = scaledText(deltaLabelText, HeaderConstants.DELTA_LABEL_TEXT_SIZE_DP, HeaderConstants.DELTA_LABEL_MARGIN_START_DP),
+            baseButtons = baseButtons,
             wantHome = wantHome,
             wantMonths = wantMonths,
+            centreButton = dpToPx(context, dailyCenterIconZoneWidthDp(widthDp)),
+            inlineButton = dpToPx(context, HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP),
+            inlineLead = dpToPx(context, HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP),
         )
-    }
-
-    /**
-     * The left cluster's right edge and the API label's left edge as painted at [headerScale]: the
-     * left cluster grows rightward from the widget's left edge, the right cluster leftward from its
-     * right edge. Pure, for tests (Robolectric has no font engine).
-     */
-    fun scaledClusterEdges(leftClusterRight: Float, apiLeft: Float, widthPx: Float, headerScale: Float): Pair<Float, Float> =
-        leftClusterRight * headerScale to widthPx - (widthPx - apiLeft) * headerScale
-
-    /** Pure ladder for [resolveDailyIconLayout] — same font-engine-free contract as
-     * [resolveDailyIconPlacementFromBounds]. */
-    fun resolveDailyIconLayoutFromBounds(
-        widthPx: Float,
-        leftClusterRight: Float,
-        apiLeft: Float,
-        gapPx: Float,
-        centerZoneWidthPx: Float,
-        inlineZoneWidthPx: Float,
-        inlineFirstMarginPx: Float,
-        baseIconCount: Int,
-        wantHome: Boolean,
-        wantMonths: Boolean = false,
-    ): DailyIconLayout {
-        fun placementFor(iconCount: Int) =
-            resolveDailyIconPlacementFromBounds(
-                widthPx = widthPx,
-                leftClusterRight = leftClusterRight,
-                apiLeft = apiLeft,
-                centerIconsWidth = centerZoneWidthPx * iconCount,
-                inlineIconsWidth =
-                    if (iconCount <= 0) 0f else inlineZoneWidthPx * iconCount + inlineFirstMarginPx,
-                gapPx = gapPx,
-            )
-
-        var count = baseIconCount
-        var homeShown = false
-        if (wantHome && placementFor(baseIconCount + 1) != DailyIconPlacement.HIDDEN) {
-            count++
-            homeShown = true
-        }
-        val placement = placementFor(count)
-        // The months button only takes room that is already there: same rung or nothing.
-        if (wantMonths && placement != DailyIconPlacement.HIDDEN && placementFor(count + 1) == placement) {
-            return DailyIconLayout(placement, count + 1, homeShown, monthsShown = true)
-        }
-        return DailyIconLayout(placement, count, homeShown)
     }
 
     fun computeHeaderScale(

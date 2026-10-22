@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.shared.util.PreferredSourceHome.HomeAction
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -370,7 +371,7 @@ internal fun setupDailyHomeShortcut(
  * The daily header's months-view button: opens [com.weatherwidget.ui.MonthsViewActivity] (the daily
  * view zoomed out to a line graph over months) for this widget's source and site. The widget id
  * rides along so the screen's column view takes this widget's shape. Seated by
- * [HeaderWidthChecker.resolveDailyIconLayout] only where the header has room.
+ * [HeaderWidthChecker.measureDailyHeader] only where the header has room.
  */
 internal fun setupMonthsViewShortcut(
     context: Context,
@@ -508,11 +509,18 @@ internal fun positionCenterIcons(
     }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        // Restore the hourly line explicitly; the daily view moves this same container.
+        // Restore the hourly line and centre explicitly; the daily view moves this same container
+        // (and a reapply keeps whatever margins the last update set).
         views.setViewLayoutMargin(
             R.id.hourly_center_header_container,
             RemoteViews.MARGIN_TOP,
             HeaderConstants.HOURLY_ICON_CONTAINER_MARGIN_TOP_DP,
+            android.util.TypedValue.COMPLEX_UNIT_DIP,
+        )
+        views.setViewLayoutMargin(
+            R.id.hourly_center_header_container,
+            RemoteViews.MARGIN_LEFT,
+            0f,
             android.util.TypedValue.COMPLEX_UNIT_DIP,
         )
     }
@@ -549,30 +557,32 @@ internal fun positionCenterIcons(
  * which only cycle hourly graphs.
  *
  * [showObservations] is false when neither today nor yesterday is on screen, so a navigated header
- * shows the history button alone; the reserved width in [HeaderWidthChecker.resolveDailyIconPlacement]
+ * shows the history button alone; the reserved width in [HeaderWidthChecker.measureDailyHeader]
  * follows the same count.
  *
  * [showHome] is the source-reset button, not a view switch: the daily view is always home in the
  * view sense, but it can still be showing a source the user did not put first. See
  * [setupDailyHomeShortcut] and [com.weatherwidget.shared.util.PreferredSourceHome]. It is the one
  * daily button that gets dropped when the header cannot hold three
- * ([HeaderWidthChecker.resolveDailyIconLayout]) — the pair is never sacrificed for it.
+ * ([HeaderWidthChecker.measureDailyHeader]) — the pair is never sacrificed for it.
  *
  * Inline zone widths are set from the same fixed [HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP]
  * the fit math used, rather than the hourly ladder, so layout and measurement cannot drift.
  */
 internal fun positionDailyIcons(
     views: RemoteViews,
-    placement: DailyIconPlacement,
+    placement: HeaderFit.ButtonPlacement,
     showObservations: Boolean,
     widthDp: Int,
     density: Float,
     scale: Float = 1.0f,
     showHome: Boolean = false,
     showMonths: Boolean = false,
+    /** How far right of the widget's centre the CENTER buttons' centre sits, in dp ([HeaderFit.buttonsSpan]). */
+    centreOffsetDp: Float = 0f,
 ) {
-    val floating = placement == DailyIconPlacement.CENTER
-    val inline = placement == DailyIconPlacement.INLINE
+    val floating = placement == HeaderFit.ButtonPlacement.CENTER
+    val inline = placement == HeaderFit.ButtonPlacement.INLINE
 
     fun vis(shown: Boolean) = if (shown) View.VISIBLE else View.GONE
 
@@ -602,6 +612,15 @@ internal fun positionDailyIcons(
             R.id.hourly_center_header_container,
             RemoteViews.MARGIN_TOP,
             HeaderConstants.DAILY_ICON_CONTAINER_MARGIN_TOP_DP,
+            android.util.TypedValue.COMPLEX_UNIT_DIP,
+        )
+        // Centred buttons end on HeaderFit's line right of the middle unless only the middle had
+        // room: the container is centre_horizontal in a FrameLayout, so a left margin moves it by
+        // exactly that much.
+        views.setViewLayoutMargin(
+            R.id.hourly_center_header_container,
+            RemoteViews.MARGIN_LEFT,
+            if (floating) centreOffsetDp else 0f,
             android.util.TypedValue.COMPLEX_UNIT_DIP,
         )
         // Widen the zones so the pair reads as two controls, not one glued-together blob. The

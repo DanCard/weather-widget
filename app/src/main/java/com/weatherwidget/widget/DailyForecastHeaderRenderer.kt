@@ -221,17 +221,13 @@ internal object DailyForecastHeaderRenderer {
     ): HeaderDateLayout? {
         val dateText = header.dateText?.takeIf { it.isNotBlank() } ?: return null
         val dateWidth = headerPaints.datePaint.measureText(dateText)
-        val gapPx = (HeaderConstants.DATE_HORIZONTAL_GAP_DP * labelScale).dp(layout.density)
         val dateBaseline = -headerPaints.datePaint.ascent() + upOffset
 
         val drawX = resolveDateDrawX(
-            widthPx = widthPx.toFloat(),
+            dateLeftX = header.dateLeftFraction?.let { it * widthPx },
             dateWidth = dateWidth,
             leftClusterRight = leftClusterRight,
             dateRightBoundary = dateRightBoundary,
-            centerIconsWidth = (header.centerIconsWidthDp * labelScale).dp(layout.density),
-            gapPx = gapPx,
-            rightMarginPx = (HeaderConstants.DATE_RIGHT_MARGIN_DP * labelScale).dp(layout.density),
         ) ?: return null
 
         return HeaderDateLayout(
@@ -247,63 +243,22 @@ internal object DailyForecastHeaderRenderer {
     }
 
     /**
-     * Where the header date is drawn, or `null` when it does not fit anywhere.
+     * Where the header date is drawn (its centre), or `null` to drop it.
      *
-     * Pure so it can be tested without a font engine (Robolectric has none — see
-     * `robolectric_no_font_engine`); callers supply already-measured widths.
-     *
-     * [centerIconsWidth] is the width of the centred RemoteViews icon pair overlaid on the header.
-     * It is 0 when those icons are absent **or** placed inline (inline icons are already folded
-     * into [leftClusterRight] by the caller), in which case this reproduces the historical
-     * behaviour exactly: centred if it clears both clusters, else the right anchor, else dropped.
-     *
-     * When the slot is non-zero the icons own `[centre ± centerIconsWidth/2]` and the date always
-     * goes to their RIGHT — `… 30%   [🌡][📈]  Sat 9   NWS ⚙` — matching the desktop header, which
-     * lays the same group out in one row. Placing it left was tried first and lost: on real
-     * widgets the left cluster (`76.7° +5.8 from yest`) reaches past where the date would have to
-     * start, so it fell through to the right anyway and the two platforms disagreed.
+     * The shared fit places it (`HeaderFit.dateLeft`: just after the line the buttons end on, so a
+     * source switch that adds or removes the home button never moves it); this is only the painted
+     * geometry's safety net — a date that would overlap the painted left cluster or the API label is
+     * dropped, never moved. Pure, so it is tested without a font engine.
      */
     internal fun resolveDateDrawX(
-        widthPx: Float,
+        dateLeftX: Float?,
         dateWidth: Float,
         leftClusterRight: Float,
         dateRightBoundary: Float,
-        centerIconsWidth: Float,
-        gapPx: Float,
-        rightMarginPx: Float,
     ): Float? {
-        val centerX = widthPx / 2f
-        val hasSlot = centerIconsWidth > 0f
-        val slotLeft = centerX - centerIconsWidth / 2f
-        val slotRight = centerX + centerIconsWidth / 2f
-
-        // No slot: the historical centred position. With a slot the centre is taken, and the date
-        // deliberately does NOT try to squeeze in on the left — see the KDoc.
-        if (!hasSlot &&
-            centerX - dateWidth / 2f >= leftClusterRight + gapPx &&
-            centerX + dateWidth / 2f <= dateRightBoundary - gapPx
-        ) {
-            return centerX
-        }
-
-        // Right anchor. With icons centred, the date must clear them as well as the left cluster.
-        val rightX = widthPx - rightMarginPx
-        val lowerBound = if (hasSlot) maxOf(leftClusterRight, slotRight) else leftClusterRight
-        val spanLo = lowerBound + gapPx
-        val spanHi = dateRightBoundary - gapPx
-        if (rightX - dateWidth / 2f >= spanLo && rightX + dateWidth / 2f <= spanHi) {
-            return rightX
-        }
-
-        // The anchor is a fixed position, not a search: it can miss while enough room sits a few dp
-        // to its side. Measured on a ~350dp widget where the free span right of the buttons was
-        // 53dp against a 46dp date and the date was dropped anyway. Fall back to centring the date
-        // in whatever gap is actually left, which is only reachable when the buttons hold the
-        // middle — without them the anchor and the centre already cover the whole row.
-        if (hasSlot && spanHi - spanLo >= dateWidth) {
-            return (spanLo + spanHi) / 2f
-        }
-        return null
+        if (dateLeftX == null) return null
+        if (dateLeftX < leftClusterRight || dateLeftX + dateWidth > dateRightBoundary) return null
+        return dateLeftX + dateWidth / 2f
     }
 
     private fun resolveLeftClusterRight(
@@ -399,7 +354,6 @@ internal object DailyForecastHeaderRenderer {
             dateFitsWithLabel = dateFits(includeDeltaLabel = true),
             dateFitsWithoutLabel = dateFits(includeDeltaLabel = false),
             labelFitsAlone = leftWithLabel + gapPx <= apiLeft,
-            preferDateOverLabel = header.preferDateOverLabel,
         )
     }
 
@@ -411,18 +365,15 @@ internal object DailyForecastHeaderRenderer {
      * The two are not symmetric. The caption sits in the LEFT cluster, so its own fit is only
      * against the API label ([labelFitsAlone]); the date is centred, so dropping the caption
      * shortens the left cluster and can free the date's slot, while dropping the date frees centre
-     * space the caption cannot use. So after the alternation picks a winner the winner is still
-     * re-checked, and the loser is tried before giving up on both.
-     *
-     * [preferDateOverLabel] alternates per render so neither item is permanently starved — with it
-     * pinned `true` this reproduces the historical fixed priority (date always beats caption).
+     * space the caption cannot use. The date ranks above the caption (`HeaderFit`; user,
+     * 2026-10-22), so it is tried first, and the caption is tried alone before giving up on both.
+     * The shared fit has already made the call; this is the painted geometry's safety net.
      */
     internal fun resolveHeaderContention(
         hasDateText: Boolean,
         dateFitsWithLabel: Boolean,
         dateFitsWithoutLabel: Boolean,
         labelFitsAlone: Boolean,
-        preferDateOverLabel: Boolean,
     ): HeaderContention {
         if (!hasDateText) return HeaderContention(showDeltaLabel = labelFitsAlone, showDate = false)
         if (dateFitsWithLabel) return HeaderContention(showDeltaLabel = true, showDate = true)
@@ -431,11 +382,7 @@ internal object DailyForecastHeaderRenderer {
         val labelOnly = HeaderContention(showDeltaLabel = true, showDate = false)
         val neither = HeaderContention(showDeltaLabel = false, showDate = false)
 
-        return if (preferDateOverLabel) {
-            if (dateFitsWithoutLabel) dateOnly else if (labelFitsAlone) labelOnly else neither
-        } else {
-            if (labelFitsAlone) labelOnly else if (dateFitsWithoutLabel) dateOnly else neither
-        }
+        return if (dateFitsWithoutLabel) dateOnly else if (labelFitsAlone) labelOnly else neither
     }
 
     /**
@@ -562,8 +509,8 @@ internal object DailyForecastHeaderRenderer {
         if (header.centerIconsWidthDp > 0f) {
             val iconBox = (HeaderConstants.CENTER_ICON_SIZE_DP * labelScale).dp(layout.density)
             val slotWidth = (header.centerIconsWidthDp * labelScale).dp(layout.density)
-            val centerX = widthPx / 2f
-            consider(centerX - slotWidth / 2f, centerX + slotWidth / 2f, upOffset + iconBox)
+            val slotLeft = widthPx * header.centerIconsLeftFraction
+            consider(slotLeft, slotLeft + slotWidth, upOffset + iconBox)
         }
 
         // --- centre date, placed exactly as drawHeader places it ---

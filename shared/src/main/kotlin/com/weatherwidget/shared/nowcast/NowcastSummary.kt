@@ -54,22 +54,6 @@ object NowcastSummary {
         return filled.indices.map { i -> filled[i] && (filled.getOrNull(i - 1) != false || filled.getOrNull(i + 1) != false) }
     }
 
-    /**
-     * The header's compact form beside the rain %: `14:15–` (rain from), `–15:30` (rain until);
-     * nothing for [Result.Continues] — the % already says it is raining. No words, so no
-     * translations, and it stays narrow enough for the header's width fit.
-     */
-    fun headerText(
-        result: Result?,
-        use24HourClock: Boolean,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-        locale: Locale = Locale.getDefault(),
-    ): String? = when (result) {
-        is Result.Starts -> formatTime(result.atMs, use24HourClock, zoneId, locale) + "–"
-        is Result.Stops -> "–" + formatTime(result.atMs, use24HourClock, zoneId, locale)
-        Result.Continues, null -> null
-    }
-
     /** For logs and tooltips: "Rain from 14:15" / "Rain until 15:30" / "Rain for 2+ h". */
     fun describe(
         result: Result?,

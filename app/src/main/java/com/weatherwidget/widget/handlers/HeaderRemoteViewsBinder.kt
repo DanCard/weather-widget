@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.HeaderFit
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -214,6 +215,30 @@ internal object HeaderRemoteViewsBinder {
         views.setViewVisibility(R.id.text_mode_api_touch_zone, View.GONE)
         views.setViewVisibility(R.id.text_mode_settings_icon, View.GONE)
         views.setViewVisibility(R.id.text_mode_settings_touch_zone, View.GONE)
+    }
+
+    /**
+     * The daily header's RemoteViews row (touch targets under the painted header, and the inline
+     * buttons' anchor) follows the shared fit piece by piece; a backfilled item may show while a
+     * higher one is dropped, which the disclosure ladder cannot express.
+     */
+    fun applyDailyFit(
+        views: RemoteViews,
+        fit: HeaderFit.Plan,
+        isDeltaVisible: Boolean,
+        isPrecipVisible: Boolean,
+    ) {
+        fun vis(shown: Boolean) = if (shown) View.VISIBLE else View.GONE
+        views.setViewVisibility(R.id.weather_icon, vis(fit.showIcon))
+        views.setViewVisibility(R.id.current_temp, vis(fit.showTemp))
+        views.setViewVisibility(R.id.current_temp_delta, vis(isDeltaVisible && fit.showDelta))
+        views.setViewVisibility(R.id.current_temp_delta_label, vis(isDeltaVisible && fit.showCaption))
+        val precipVis = vis(isPrecipVisible && fit.showRain)
+        views.setViewVisibility(R.id.precip_probability, precipVis)
+        views.setViewVisibility(R.id.precip_touch_zone, precipVis)
+        if (!fit.showTemp && !fit.showRain && !fit.showDelta && !fit.showIcon) {
+            views.setViewVisibility(R.id.current_weather_container, View.GONE)
+        }
     }
 
     fun applyDisclosure(

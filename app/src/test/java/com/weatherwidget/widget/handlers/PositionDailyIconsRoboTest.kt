@@ -1,8 +1,10 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.HeaderFit
 import android.app.Application
 import android.content.Context
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.RemoteViews
 import androidx.test.core.app.ApplicationProvider
@@ -39,10 +41,11 @@ class PositionDailyIconsRoboTest {
     }
 
     private fun apply(
-        placement: DailyIconPlacement,
+        placement: HeaderFit.ButtonPlacement,
         showObservations: Boolean,
         widthDp: Int = 440,
         showHome: Boolean = false,
+        centreOffsetDp: Float = 0f,
     ): View {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         // The daily graph path hides everything first, then re-enables what it wants.
@@ -54,6 +57,7 @@ class PositionDailyIconsRoboTest {
             widthDp = widthDp,
             density = context.resources.displayMetrics.density,
             showHome = showHome,
+            centreOffsetDp = centreOffsetDp,
         )
         return views.apply(context, FrameLayout(context))
     }
@@ -62,7 +66,7 @@ class PositionDailyIconsRoboTest {
 
     @Test
     fun `center placement shows the floating pair and not the inline pair`() {
-        val v = apply(DailyIconPlacement.CENTER, showObservations = true)
+        val v = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true)
         assertEquals(View.VISIBLE, v.vis(R.id.history_icon))
         assertEquals(View.VISIBLE, v.vis(R.id.forecast_history_activity_touch_zone))
         assertEquals(View.VISIBLE, v.vis(R.id.weather_stations_icon))
@@ -73,7 +77,7 @@ class PositionDailyIconsRoboTest {
 
     @Test
     fun `inline placement shows the inline pair and not the floating pair`() {
-        val v = apply(DailyIconPlacement.INLINE, showObservations = true)
+        val v = apply(HeaderFit.ButtonPlacement.INLINE, showObservations = true)
         assertEquals(View.VISIBLE, v.vis(R.id.forecast_history_activity_touch_zone_inline))
         assertEquals(View.VISIBLE, v.vis(R.id.weather_stations_touch_zone_inline))
         assertEquals(View.GONE, v.vis(R.id.forecast_history_activity_touch_zone))
@@ -82,7 +86,7 @@ class PositionDailyIconsRoboTest {
 
     @Test
     fun `the observations button drops when today is off screen but history stays`() {
-        for (placement in listOf(DailyIconPlacement.CENTER, DailyIconPlacement.INLINE)) {
+        for (placement in listOf(HeaderFit.ButtonPlacement.CENTER, HeaderFit.ButtonPlacement.INLINE)) {
             val v = apply(placement, showObservations = false)
             assertEquals("$placement", View.GONE, v.vis(R.id.weather_stations_icon))
             assertEquals("$placement", View.GONE, v.vis(R.id.weather_stations_touch_zone))
@@ -96,7 +100,7 @@ class PositionDailyIconsRoboTest {
 
     @Test
     fun `hidden placement leaves nothing visible`() {
-        val v = apply(DailyIconPlacement.HIDDEN, showObservations = true)
+        val v = apply(HeaderFit.ButtonPlacement.HIDDEN, showObservations = true)
         for (id in listOf(
             R.id.history_icon,
             R.id.forecast_history_activity_touch_zone,
@@ -113,7 +117,7 @@ class PositionDailyIconsRoboTest {
     fun `the preferred source leaves the home button off, and the selector always`() {
         // The daily view is home in the VIEW sense, and the selector only cycles hourly graphs.
         // positionDailyIcons must not resurrect either from the hourly container it shares.
-        for (placement in DailyIconPlacement.entries) {
+        for (placement in HeaderFit.ButtonPlacement.entries) {
             val v = apply(placement, showObservations = true, showHome = false)
             for (id in listOf(
                 R.id.home_icon,
@@ -130,19 +134,19 @@ class PositionDailyIconsRoboTest {
 
     @Test
     fun `a non-preferred source turns the home button on in whichever row is drawn`() {
-        val centred = apply(DailyIconPlacement.CENTER, showObservations = true, showHome = true)
+        val centred = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true, showHome = true)
         assertEquals(View.VISIBLE, centred.vis(R.id.home_icon))
         assertEquals(View.VISIBLE, centred.vis(R.id.home_touch_zone))
         assertEquals(View.GONE, centred.vis(R.id.home_touch_zone_inline))
 
-        val inline = apply(DailyIconPlacement.INLINE, showObservations = true, showHome = true)
+        val inline = apply(HeaderFit.ButtonPlacement.INLINE, showObservations = true, showHome = true)
         assertEquals(View.VISIBLE, inline.vis(R.id.home_icon_inline))
         assertEquals(View.VISIBLE, inline.vis(R.id.home_touch_zone_inline))
         assertEquals(View.GONE, inline.vis(R.id.home_touch_zone))
 
         // The ladder never asks for a home button on a hidden row, but a stale header state must
         // not be able to leave one floating alone either.
-        val hidden = apply(DailyIconPlacement.HIDDEN, showObservations = true, showHome = true)
+        val hidden = apply(HeaderFit.ButtonPlacement.HIDDEN, showObservations = true, showHome = true)
         assertEquals(View.GONE, hidden.vis(R.id.home_icon))
         assertEquals(View.GONE, hidden.vis(R.id.home_touch_zone))
         assertEquals(View.GONE, hidden.vis(R.id.home_touch_zone_inline))
@@ -188,7 +192,7 @@ class PositionDailyIconsRoboTest {
         val density = context.resources.displayMetrics.density
         for (widthDp in listOf(320, 350, 440, 560)) {
             val v = apply(
-                DailyIconPlacement.CENTER,
+                HeaderFit.ButtonPlacement.CENTER,
                 showObservations = true,
                 widthDp = widthDp,
                 showHome = true,
@@ -211,7 +215,7 @@ class PositionDailyIconsRoboTest {
 
     @Test
     fun `floating and inline are never both visible`() {
-        for (placement in DailyIconPlacement.entries) {
+        for (placement in HeaderFit.ButtonPlacement.entries) {
             for (obs in listOf(true, false)) {
                 val v = apply(placement, showObservations = obs)
                 assertFalse(
@@ -234,7 +238,7 @@ class PositionDailyIconsRoboTest {
         // date's gap disagree — the bug that pushed the date off a ~350dp widget.
         val density = context.resources.displayMetrics.density
         for (widthDp in listOf(320, 350, 440, 560)) {
-            val v = apply(DailyIconPlacement.CENTER, showObservations = true, widthDp = widthDp)
+            val v = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true, widthDp = widthDp)
             val zone = v.findViewById<View>(R.id.forecast_history_activity_touch_zone)
             val expectedPx =
                 (HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp) * density).toInt()
@@ -244,5 +248,30 @@ class PositionDailyIconsRoboTest {
                 zone.layoutParams.width,
             )
         }
+    }
+
+    private fun View.containerLeftMargin() =
+        (findViewById<View>(R.id.hourly_center_header_container).layoutParams as ViewGroup.MarginLayoutParams).leftMargin
+
+    @Test
+    fun `centred buttons move right of the middle by the shared offset`() {
+        // The container is centre_horizontal in a FrameLayout, so its left margin is the shift.
+        val density = context.resources.displayMetrics.density
+        val v = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true, centreOffsetDp = 37f)
+        assertEquals(37f * density, v.containerLeftMargin().toFloat(), 1f)
+        // INLINE and HIDDEN leave the container where it was, whatever the offset.
+        for (placement in listOf(HeaderFit.ButtonPlacement.INLINE, HeaderFit.ButtonPlacement.HIDDEN)) {
+            assertEquals("$placement", 0, apply(placement, showObservations = true, centreOffsetDp = 37f).containerLeftMargin())
+        }
+    }
+
+    @Test
+    fun `the hourly header puts the shared container back on centre`() {
+        // A reapply keeps the margins the daily update set; the hourly view must undo the shift.
+        val view = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true, centreOffsetDp = 37f)
+        val hourly = RemoteViews(context.packageName, R.layout.widget_weather)
+        positionCenterIcons(hourly, 440, context.resources.displayMetrics.density, isPrecipVisible = false)
+        hourly.reapply(context, view)
+        assertEquals(0, view.containerLeftMargin())
     }
 }

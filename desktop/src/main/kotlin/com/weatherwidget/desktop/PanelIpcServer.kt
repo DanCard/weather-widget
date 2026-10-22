@@ -172,13 +172,11 @@ class PanelIpcServer(
             else -> "unknown"
         }
         
-        val nowcastText = config?.let { DesktopNowcastView.headerText(it) }
-        val nowcastTip = config?.let { DesktopNowcastView.description(it) }?.let { " · $it" } ?: ""
-        val tooltip = "Weather Widget — $detail $ageStr$nowcastTip"
+        val tooltip = "Weather Widget — $detail $ageStr"
         val showTrigger = appDataDir.resolve(".show").toAbsolutePath().toString()
         val clickCmd = "touch $showTrigger"
 
-        return buildPanelMarkup(body, color, deltaText, tooltip, clickCmd, tempSize, deltaSize, nowcastText)
+        return buildPanelMarkup(body, color, deltaText, tooltip, clickCmd, tempSize, deltaSize)
     }
 
     private fun formatRelativeTime(epochMs: Long): String {
@@ -199,7 +197,6 @@ class PanelIpcServer(
         const val LIVE_COLOR = "#FFD500"   // high-contrast yellow, matches the tray icon
         const val STALE_COLOR = "#888888"  // grayed when data is stale / missing
         const val DELTA_COLOR = "#FF6B35"  // orange, matches the popup header delta
-        const val NOWCAST_COLOR = "#4FC3F7" // the popup header rain %'s blue
         const val WARN_COLOR = "#FF3333"   // red, for "app files removed — restart needed"
 
         const val DEFAULT_TEMP_FONT_SIZE = 22
@@ -272,17 +269,12 @@ class PanelIpcServer(
             clickCmd: String,
             tempFontSize: Int = DEFAULT_TEMP_FONT_SIZE,
             deltaFontSize: Int = DEFAULT_DELTA_FONT_SIZE,
-            /** The 15-minute nowcast's compact form ("14:15–"), in the rain %'s blue; null draws nothing. */
-            nowcastText: String? = null,
         ): String {
             val deltaSpan = if (deltaText != null) {
                 "<span font='Sans Bold $deltaFontSize' foreground='$DELTA_COLOR' line_height='0.6'> $deltaText</span>"
             } else ""
-            val nowcastSpan = if (nowcastText != null) {
-                "<span font='Sans Bold $deltaFontSize' foreground='$NOWCAST_COLOR' line_height='0.6'> ☂$nowcastText</span>"
-            } else ""
             return """
-                <txt><span font='Sans Bold $tempFontSize' foreground='$color' line_height='0.6'>$body</span>$deltaSpan$nowcastSpan</txt>
+                <txt><span font='Sans Bold $tempFontSize' foreground='$color' line_height='0.6'>$body</span>$deltaSpan</txt>
                 <tool>$tooltip</tool>
                 <txtclick>$clickCmd</txtclick>
             """.trimIndent()

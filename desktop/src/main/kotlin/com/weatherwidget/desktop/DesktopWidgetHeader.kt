@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.ForecastSnapshot
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.HeaderContent
+import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.PreferredSourceHome
 import java.time.Instant
@@ -50,8 +51,7 @@ internal fun WidgetHeader(
 ) {
     val showWeatherSummary = config.viewMode.isHourly
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEE d", Locale.getDefault()) }
-    // Measures the daily header's date so the centre cluster can decide whether it still fits
-    // beside the buttons — see DailyHeaderCentreFit.
+    // Measures the daily header's pieces for the shared fit (HeaderFit).
     val headerTextMeasurer = rememberTextMeasurer()
     val targetHour = remember(headerTime) { headerTime.truncatedTo(ChronoUnit.HOURS) }
 
@@ -66,17 +66,12 @@ internal fun WidgetHeader(
     val displayTemp = resolvedCurrentTemp ?: forecast.resolved.currentTemp
     val deltaVal = resolvedDeltaFromYesterday ?: forecast.resolved.deltaFromYesterday
     val isHourly = config.viewMode.isHourly
-    // The 15-minute nowcast beside the rain % (daily view, Open-Meteo, native coverage only).
-    // Keyed on the forecast too: a nowcast fetch ends in the same data-updated reload.
-    val nowcastText = remember(forecast.raw, displaySource, nowLocal, isHourly, config.lat, config.lon) {
-        if (isHourly) null else DesktopNowcastView.headerText(config)
-    }
     val windowInfo = LocalWindowInfo.current
     val density = LocalDensity.current
     val headerWidthDp = with(density) { windowInfo.containerSize.width.toDp().value.toInt() }
     // Icon, temp, delta, rain % and source label: the shared header rule Android's headers use
     // (plans/261021-header-shared-content-audit.md).
-    val content = remember(forecast.raw, displaySource, displayTemp, deltaVal, nowLocal, targetHour, config.viewMode, config.lat, config.lon, config.settings.useCelsius, nowcastText, headerWidthDp) {
+    val content = remember(forecast.raw, displaySource, displayTemp, deltaVal, nowLocal, targetHour, config.viewMode, config.lat, config.lon, config.settings.useCelsius, headerWidthDp) {
         desktopHeaderContent(
             forecast = forecast,
             displaySourceId = displaySource.id,
@@ -89,11 +84,58 @@ internal fun WidgetHeader(
             lon = config.lon,
             useCelsius = config.settings.useCelsius,
             widthDp = headerWidthDp,
-            nowcastText = nowcastText,
         )
     }
 
     val toggleWeatherSource = { cycleDisplaySource(config, onUpdateConfig) }
+
+    // Daily header inputs, decided before layout so the shared fit can weigh every item.
+    val iconSizeDp = 15 * scale
+    val spacingDp = 14 * scale
+    // The home button never changes the view (the daily view is already home in that sense). It
+    // resets the SOURCE when another one is shown, else — on the preferred source with today panned
+    // off screen — brings back yesterday + today.
+    val homeAction = PreferredSourceHome.homeAction(
+        currentSourceId = config.displaySource,
+        visibleSourceIds = config.effectiveSources,
+        todayInView = todayInView,
+    )
+    // Months view (zoom out), as on Android's daily header; hidden while it is open (the home
+    // button brings the daily view back) or disabled in settings.
+    val wantMonthsButton = !config.monthsView && config.settings.showDailyZoomOutButton
+    val dateText = DesktopHeaderDate.dailyDate(nowLocal).format(dateFormatter)
+    val tempStyle = MaterialTheme.typography.displaySmall.copy(fontSize = (HEADER_CURRENT_TEMP_SP * scale).sp)
+    val deltaStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (9 * scale).sp)
+    val captionStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (7.5f * scale).sp)
+    val precipStyle = MaterialTheme.typography.labelMedium.copy(
+        fontSize = (HEADER_TEMP_BASE_SP * (content.precipFontScale ?: 1f) * scale).sp,
+    )
+    val sourceStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (10 * scale).sp)
+    val dateStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (12 * scale).sp)
+    // The shared drop order (`HeaderFit`, plans/261022-shared-header-fit-priority.md); daily only
+    // for now — the hourly header keeps everything until phase 3.
+    val dailyMeasured = if (isHourly) null else remember(content, scale, homeAction, wantMonthsButton, observationsInView, dateText, headerTextMeasurer, density) {
+        fun widthDp(text: String, style: androidx.compose.ui.text.TextStyle) =
+            with(density) { headerTextMeasurer.measure(text, style).size.width.toDp().value }
+        HeaderFit.Measured(
+            width = 0f, // the BoxWithConstraints below supplies it
+            rightCluster = widthDp(content.sourceLabel, sourceStyle) + SOURCE_LABEL_END_PADDING_DP + 14 * scale,
+            gap = spacingDp,
+            seamOffset = HeaderFit.SEAM_OFFSET_DP * scale,
+            temp = widthDp(content.tempText ?: "—", tempStyle),
+            rain = content.precipText?.takeIf { content.precipFontScale != null }
+                ?.let { PRECIP_MARGIN_DP + widthDp(it, precipStyle) } ?: 0f,
+            delta = content.deltaText?.let { DELTA_MARGIN_DP + widthDp(it, deltaStyle) } ?: 0f,
+            icon = if (content.iconName != null) 18 * scale else 0f,
+            date = widthDp(dateText, dateStyle),
+            caption = if (content.deltaText != null) CAPTION_MARGIN_DP + widthDp(DELTA_CAPTION, captionStyle) else 0f,
+            baseButtons = (if (observationsInView) 1 else 0) + 1,
+            wantHome = homeAction != null,
+            wantMonths = wantMonthsButton,
+            centreButton = iconSizeDp,
+            centreButtonSpacing = spacingDp,
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -103,322 +145,294 @@ internal fun WidgetHeader(
                 indication = null,
             ) { toggleWeatherSource() }
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Left cluster: current temp/icon clickable to toggle view.
-            //
-            // Deliberately NOT weighted. The three clusters used to take exactly a third each, so a
-            // tall narrow window — where the height-derived `scale` grows the fonts but the third
-            // does not grow with them — starved this cluster: the rain chance, its last child, was
-            // squeezed to a one-glyph column and stacked as "1/5/%". Sizing to content instead lets
-            // temp + delta + "from yest" + rain chance always render in full, and pushes the
-            // shortage onto the centre cluster's slack (see below) rather than onto the text.
-            Row(
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable {
-                        val targetMode = if (isHourly) ViewMode.DAILY else ViewMode.TEMPERATURE
-                        onUpdateConfig(config.copy(viewMode = targetMode))
-                    }.testTag("current_temp_toggle")
-                ) {
-                    // No icon when an hourly view's source has no row for this hour (HeaderContent).
-                    content.iconName?.let { iconName ->
-                        androidx.compose.foundation.Image(
-                            painter = WeatherIcon.painterForIconName(iconName),
-                            contentDescription = null,
-                            modifier = Modifier.size((22 * scale).dp).padding(end = 4.dp)
-                        )
-                    }
-                    Text(
-                        text = content.tempText ?: "—",
-                        style = MaterialTheme.typography.displaySmall,
-                        fontSize = (15 * scale).sp
-                    )
-                }
-                content.deltaText?.let { deltaText ->
-                    Spacer(Modifier.width(2.dp))
-                    Text(
-                        text = deltaText,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = (11 * scale).sp,
-                        color = Color(0xFFFF6B35),
-                        modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    // Caption clarifying the delta's meaning; smaller/dimmer than the delta itself.
-                    // Single-line and non-wrapping: two stacked half-words explain nothing, and the
-                    // cluster is content-sized now, so it always has the room to render in full.
-                    Text(
-                        text = "from yest",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = (9 * scale).sp,
-                        color = Color(0xFFFF6B35).copy(alpha = 0.7f),
-                        maxLines = 1,
-                        softWrap = false,
-                        modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
-                    )
-                }
-                val precipText = content.precipText
-                val precipFontScale = content.precipFontScale
-                if (precipText != null && precipFontScale != null) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = precipText,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontSize = (HEADER_TEMP_BASE_SP * precipFontScale * scale).sp,
-                        color = Color(0xFF4FC3F7),
-                        maxLines = 1,
-                        softWrap = false,
-                        modifier = Modifier
-                            .align(Alignment.CenterVertically)
-                            .offset(y = 2.dp)
-                            .clickable {
-                                onUpdateConfig(config.copy(viewMode = ViewMode.PRECIPITATION))
-                            }
-                    )
-                }
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val measured = dailyMeasured?.copy(width = maxWidth.value)
+            val fit = remember(measured) {
+                measured?.let { HeaderFit.resolve(it).also(DailyHeaderFitLog::changed) } ?: SHOW_ALL
             }
-
-            // Center cluster: view-switch icons when hourly, else date text.
-            //
-            // The only weighted cluster, so it takes whatever the two content-sized clusters leave
-            // and centres itself in THAT span — i.e. it sits at the true window centre when the
-            // header is uncrowded, and slides right as the left cluster grows. Giving the icons'
-            // slack away is what buys the left cluster its full width.
+            // The daily buttons end on HeaderFit's line right of the middle and the date starts just
+            // after it, so neither the temperature's width nor home appearing on a source switch
+            // moves the date.
+            val buttonsSpan = measured?.let { HeaderFit.buttonsSpan(it, fit) }
+            val dateLeft = measured?.let { HeaderFit.dateLeft(it, fit) }
             Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (isHourly) {
+                // Left cluster: current temp/icon clickable to toggle view.
+                //
+                // Deliberately NOT weighted. The three clusters used to take exactly a third each, so a
+                // tall narrow window — where the height-derived `scale` grows the fonts but the third
+                // does not grow with them — starved this cluster: the rain chance, its last child, was
+                // squeezed to a one-glyph column and stacked as "1/5/%". Sizing to content instead lets
+                // temp + delta + "from yest" + rain chance always render in full, and pushes the
+                // shortage onto the centre cluster's slack (see below) rather than onto the text.
+                Row(
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy((12 * scale).dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable {
+                            val targetMode = if (isHourly) ViewMode.DAILY else ViewMode.TEMPERATURE
+                            onUpdateConfig(config.copy(viewMode = targetMode))
+                        }.testTag("current_temp_toggle")
                     ) {
-                        // Cycling graph selector
-                        val currentView = config.viewMode
-                        val (nextEmoji, nextView) = when (currentView) {
-                            ViewMode.CLOUD_COVER -> "🌧️" to ViewMode.PRECIPITATION
-                            ViewMode.PRECIPITATION -> "🌡️" to ViewMode.TEMPERATURE
-                            else -> "☁️" to ViewMode.CLOUD_COVER
+                        // No icon when an hourly view's source has no row for this hour (HeaderContent).
+                        content.iconName?.takeIf { fit.showIcon }?.let { iconName ->
+                            androidx.compose.foundation.Image(
+                                painter = WeatherIcon.painterForIconName(iconName),
+                                contentDescription = null,
+                                modifier = Modifier.size((18 * scale).dp).padding(end = 4.dp).testTag("header_weather_icon")
+                            )
                         }
+                        if (fit.showTemp) {
+                            Text(text = content.tempText ?: "—", style = tempStyle)
+                        }
+                    }
+                    content.deltaText?.takeIf { fit.showDelta }?.let { deltaText ->
+                        Spacer(Modifier.width(DELTA_MARGIN_DP.dp))
                         Text(
-                            text = nextEmoji,
-                            fontSize = (13 * scale).sp,
-                            color = Color.White,
-                            modifier = Modifier.clickable {
-                                onUpdateConfig(config.copy(viewMode = nextView))
-                            }.testTag("graph_selector")
+                            text = deltaText,
+                            style = deltaStyle,
+                            color = Color(0xFFFF6B35),
+                            modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
                         )
-                        // Station observations button — ports Android's ic_thermometer drawable
-                        // (drawable/ic_thermometer.xml, tinted dim white like TemperatureTouchTargets'
-                        // 0xAAFFFFFF) instead of the 🌡️ emoji, so it no longer collides with the graph
-                        // selector's HOURLY (🌡️) cycle hint.
-                        Icon(
-                            painter = painterResource("drawable/ic_thermometer.xml"),
-                            contentDescription = "Weather station observations",
-                            tint = Color.White.copy(alpha = 0.67f),
-                            modifier = Modifier.size((15 * scale).dp).clickable {
-                                onOpenObservations(targetHour.toLocalDate())
-                            }.testTag("open_observations_header")
-                        )
-                        // Home/Daily view mode — ports Android's ic_home line icon
-                        // (drawable/ic_home.xml) instead of the 🏠 emoji for parity.
-                        Icon(
-                            painter = painterResource("drawable/ic_home.xml"),
-                            contentDescription = "Daily view",
-                            tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size((15 * scale).dp).clickable {
-                                onUpdateConfig(config.copy(viewMode = ViewMode.DAILY))
-                            }.testTag("switch_to_daily")
-                        )
-                        // Forecast history (how each day's forecast evolved) — ports Android's
-                        // rising line-chart icon (drawable/ic_forecast_history_line.xml),
-                        // shown right of the home icon on the hourly graph. Opens on the viewed
-                        // window's center date (Android: centerTime.toLocalDate()), so panning
-                        // back to Wednesday and tapping opens Wednesday, not today.
-                        Icon(
-                            painter = painterResource("drawable/ic_forecast_history_line.xml"),
-                            contentDescription = "Forecast history",
-                            tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size((15 * scale).dp).clickable {
-                                onOpenHistory(targetHour.toLocalDate())
-                            }.testTag("open_forecast_history")
+                        if (fit.showCaption) {
+                            Spacer(Modifier.width(CAPTION_MARGIN_DP.dp))
+                            // Caption clarifying the delta's meaning; smaller/dimmer than the delta
+                            // itself. Single-line: two stacked half-words explain nothing, and the fit
+                            // only shows it where it has room to render in full.
+                            Text(
+                                text = DELTA_CAPTION,
+                                style = captionStyle,
+                                color = Color(0xFFFF6B35).copy(alpha = 0.7f),
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
+                            )
+                        }
+                    }
+                    val precipText = content.precipText
+                    if (precipText != null && content.precipFontScale != null && fit.showRain) {
+                        Spacer(Modifier.width(PRECIP_MARGIN_DP.dp))
+                        Text(
+                            text = precipText,
+                            style = precipStyle,
+                            color = Color(0xFF4FC3F7),
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier
+                                .align(Alignment.CenterVertically)
+                                .offset(y = 2.dp)
+                                .clickable {
+                                    onUpdateConfig(config.copy(viewMode = ViewMode.PRECIPITATION))
+                                }
                         )
                     }
-                } else {
-                    // Daily view: buttons, then date. Sizes/tints copied from the hourly branch so
-                    // the two headers match. Buttons then date, matching Android's daily header.
-                    // Android cannot reliably fit the date to the LEFT of its centred buttons (the
-                    // left cluster reaches past it on real widgets), so both platforms settle on
-                    // this order rather than disagreeing.
-                    val iconSizeDp = 15 * scale
-                    val spacingDp = 14 * scale
-                    // The home button never changes the view (the daily view is already home in
-                    // that sense). It resets the SOURCE when another one is shown, else — on the
-                    // preferred source with today panned off screen — brings back yesterday + today.
-                    val homeAction = PreferredSourceHome.homeAction(
-                        currentSourceId = config.displaySource,
-                        visibleSourceIds = config.effectiveSources,
-                        todayInView = todayInView,
-                    )
-                    val showHomeButton = homeAction != null
-                    val dateText = DesktopHeaderDate.dailyDate(nowLocal).format(dateFormatter)
-                    val dateStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (12 * scale).sp)
-                    val dateWidthDp = remember(dateText, dateStyle, headerTextMeasurer, density) {
-                        with(density) { headerTextMeasurer.measure(dateText, dateStyle).size.width.toDp().value }
-                    }
-                    // Months view (zoom out), as on Android's daily header; hidden while it is open
-                    // (the home button brings the daily view back) or disabled in settings.
-                    val showMonthsButton = !config.monthsView && config.settings.showDailyZoomOutButton
-                    val iconCount = (if (observationsInView) 1 else 0) + (if (showHomeButton) 1 else 0) +
-                        (if (showMonthsButton) 1 else 0) + 1
-                    BoxWithConstraints(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        // Buttons never yield; the date does. Same priority Android's header lands
-                        // on, where the painted date reserves space around the icon count and drops
-                        // itself when the row has none left.
-                        val showDate = DailyHeaderCentreFit.showDate(
-                            availableDp = maxWidth.value,
-                            iconCount = iconCount,
-                            iconSizeDp = iconSizeDp,
-                            spacingDp = spacingDp,
-                            dateWidthDp = dateWidthDp,
-                        )
+                }
+
+                // Center cluster: the hourly view-switch icons (the daily buttons are an overlay at
+                // HeaderFit's anchor, below).
+                //
+                // The only weighted cluster, so it takes whatever the two content-sized clusters leave
+                // and centres itself in THAT span — i.e. it sits at the true window centre when the
+                // header is uncrowded, and slides right as the left cluster grows. Giving the icons'
+                // slack away is what buys the left cluster its full width.
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isHourly) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(spacingDp.dp),
+                            horizontalArrangement = Arrangement.spacedBy((12 * scale).dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Current observations are inherently now-ish, so this drops when today
-                            // AND yesterday are panned off screen — matching Android's daily header.
-                            if (observationsInView) {
-                                Icon(
-                                    painter = painterResource("drawable/ic_thermometer.xml"),
-                                    contentDescription = "Weather station observations",
-                                    tint = Color.White.copy(alpha = 0.67f),
-                                    modifier = Modifier.size(iconSizeDp.dp).clickable {
-                                        onOpenObservations(if (todayInView) LocalDate.now() else targetHour.toLocalDate())
-                                    }.testTag("open_observations_header_daily")
-                                )
+                            // Cycling graph selector
+                            val currentView = config.viewMode
+                            val (nextEmoji, nextView) = when (currentView) {
+                                ViewMode.CLOUD_COVER -> "🌧️" to ViewMode.PRECIPITATION
+                                ViewMode.PRECIPITATION -> "🌡️" to ViewMode.TEMPERATURE
+                                else -> "☁️" to ViewMode.CLOUD_COVER
                             }
-                            if (showHomeButton) {
-                                Icon(
-                                    painter = painterResource("drawable/ic_home.xml"),
-                                    contentDescription =
-                                        if (homeAction == PreferredSourceHome.HomeAction.RECENTER_TODAY) {
-                                            "Back to today"
-                                        } else {
-                                            "Back to the preferred weather source"
-                                        },
-                                    tint = Color.White.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(iconSizeDp.dp).clickable {
-                                        if (homeAction == PreferredSourceHome.HomeAction.RECENTER_TODAY) {
-                                            // Zoom-out is kept: homeDateOffset already moves the
-                                            // window forward by it, so yesterday is the one history day.
-                                            // From the months view this also returns to the daily view.
-                                            onUpdateConfig(config.copy(dateOffset = homeDateOffset, monthsView = false))
-                                            return@clickable
-                                        }
-                                        val preferred =
-                                            PreferredSourceHome.preferredSourceId(config.effectiveSources)
-                                        if (preferred != null) {
-                                            onUpdateConfig(
-                                                config.copy(
-                                                    settings = config.settings.copy(weatherSource = preferred),
-                                                ),
-                                            )
-                                            DesktopSourceViews.record(
-                                                preferred,
-                                                config.effectiveSources,
-                                                config.viewMode,
-                                                com.weatherwidget.shared.sourceview.SourceViewTrigger.HOME,
-                                            )
-                                        }
-                                    }.testTag("daily_home_button")
-                                )
-                            }
-                            if (showMonthsButton) {
-                                Icon(
-                                    painter = painterResource("drawable/ic_months_view.xml"),
-                                    contentDescription = "Months view",
-                                    tint = Color.White.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(iconSizeDp.dp).clickable {
-                                        onUpdateConfig(
-                                            config.copy(
-                                                monthsView = true,
-                                                monthsSpan = com.weatherwidget.shared.months.MonthsSpan.DEFAULT.months,
-                                                monthsEnd = null,
-                                            ),
-                                        )
-                                    }.testTag("open_months_view_daily")
-                                )
-                            }
-                            // Opens today while today is on screen, otherwise the viewed date.
+                            Text(
+                                text = nextEmoji,
+                                fontSize = (13 * scale).sp,
+                                color = Color.White,
+                                modifier = Modifier.clickable {
+                                    onUpdateConfig(config.copy(viewMode = nextView))
+                                }.testTag("graph_selector")
+                            )
+                            // Station observations button — ports Android's ic_thermometer drawable
+                            // (drawable/ic_thermometer.xml, tinted dim white like TemperatureTouchTargets'
+                            // 0xAAFFFFFF) instead of the 🌡️ emoji, so it no longer collides with the graph
+                            // selector's HOURLY (🌡️) cycle hint.
+                            Icon(
+                                painter = painterResource("drawable/ic_thermometer.xml"),
+                                contentDescription = "Weather station observations",
+                                tint = Color.White.copy(alpha = 0.67f),
+                                modifier = Modifier.size((15 * scale).dp).clickable {
+                                    onOpenObservations(targetHour.toLocalDate())
+                                }.testTag("open_observations_header")
+                            )
+                            // Home/Daily view mode — ports Android's ic_home line icon
+                            // (drawable/ic_home.xml) instead of the 🏠 emoji for parity.
+                            Icon(
+                                painter = painterResource("drawable/ic_home.xml"),
+                                contentDescription = "Daily view",
+                                tint = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size((15 * scale).dp).clickable {
+                                    onUpdateConfig(config.copy(viewMode = ViewMode.DAILY))
+                                }.testTag("switch_to_daily")
+                            )
+                            // Forecast history (how each day's forecast evolved) — ports Android's
+                            // rising line-chart icon (drawable/ic_forecast_history_line.xml),
+                            // shown right of the home icon on the hourly graph. Opens on the viewed
+                            // window's center date (Android: centerTime.toLocalDate()), so panning
+                            // back to Wednesday and tapping opens Wednesday, not today.
                             Icon(
                                 painter = painterResource("drawable/ic_forecast_history_line.xml"),
                                 contentDescription = "Forecast history",
                                 tint = Color.White.copy(alpha = 0.6f),
-                                modifier = Modifier.size(iconSizeDp.dp).clickable {
-                                    onOpenHistory(if (todayInView) LocalDate.now() else targetHour.toLocalDate())
-                                }.testTag("open_forecast_history_daily")
+                                modifier = Modifier.size((15 * scale).dp).clickable {
+                                    onOpenHistory(targetHour.toLocalDate())
+                                }.testTag("open_forecast_history")
                             )
-                            if (showDate) {
-                                Text(
-                                    text = dateText,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = (12 * scale).sp,
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier.testTag("daily_header_date"),
-                                )
-                            }
                         }
                     }
                 }
-            }
 
-            // Right cluster: API source + Settings gear. Content-sized, like the left cluster —
-            // it is pinned to the right edge by the centre cluster's weight, not by a width share.
-            Row(
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val visibleSources = config.effectiveSources
-                // Show the shared short label (e.g. "Meteo"), matching Android's API indicator, rather
-                // than the raw stored id ("OPEN_METEO"). One source of truth: WeatherSource.shortDisplayName.
-                val sourceLabel = content.sourceLabel
-                if (visibleSources.size > 1) {
-                    Text(
-                        text = sourceLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = (10 * scale).sp,
-                        modifier = Modifier.clickable {
-                            cycleDisplaySource(config, onUpdateConfig)
-                        }.padding(end = 6.dp)
-                    )
-                } else {
-                    Text(
-                        text = sourceLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = (10 * scale).sp,
-                        color = Color.White.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(end = 6.dp)
+                // Right cluster: API source + Settings gear. Content-sized, like the left cluster —
+                // it is pinned to the right edge by the centre cluster's weight, not by a width share.
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val visibleSources = config.effectiveSources
+                    // Show the shared short label (e.g. "Meteo"), matching Android's API indicator, rather
+                    // than the raw stored id ("OPEN_METEO"). One source of truth: WeatherSource.shortDisplayName.
+                    val sourceLabel = content.sourceLabel
+                    if (visibleSources.size > 1) {
+                        Text(
+                            text = sourceLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = (10 * scale).sp,
+                            modifier = Modifier.clickable {
+                                cycleDisplaySource(config, onUpdateConfig)
+                            }.padding(end = SOURCE_LABEL_END_PADDING_DP.dp)
+                        )
+                    } else {
+                        Text(
+                            text = sourceLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = (10 * scale).sp,
+                            color = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(end = SOURCE_LABEL_END_PADDING_DP.dp)
+                        )
+                    }
+                    Icon(
+                        painter = painterResource("drawable/ic_settings_gear.xml"),
+                        contentDescription = "Settings",
+                        modifier = Modifier.size((14 * scale).dp).clickable { onOpenSettings() },
+                        tint = Color.White.copy(alpha = 0.7f)
                     )
                 }
-                Icon(
-                    painter = painterResource("drawable/ic_settings_gear.xml"),
-                    contentDescription = "Settings",
-                    modifier = Modifier.size((14 * scale).dp).clickable { onOpenSettings() },
-                    tint = Color.White.copy(alpha = 0.7f)
+            }
+            // Daily view: buttons ending on HeaderFit's line, then the date (Android places both the
+            // same way). Sizes/tints copied from the hourly branch so the two headers match.
+            buttonsSpan?.let { (groupLeft, _) ->
+                Row(
+                    modifier = Modifier.align(Alignment.CenterStart).offset(x = groupLeft.dp),
+                    horizontalArrangement = Arrangement.spacedBy(spacingDp.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Current observations are inherently now-ish, so this drops when today
+                    // AND yesterday are panned off screen — matching Android's daily header.
+                    if (observationsInView && fit.buttons > 0) {
+                        Icon(
+                            painter = painterResource("drawable/ic_thermometer.xml"),
+                            contentDescription = "Weather station observations",
+                            tint = Color.White.copy(alpha = 0.67f),
+                            modifier = Modifier.size(iconSizeDp.dp).clickable {
+                                onOpenObservations(if (todayInView) LocalDate.now() else targetHour.toLocalDate())
+                            }.testTag("open_observations_header_daily")
+                        )
+                    }
+                    if (fit.homeShown) {
+                        Icon(
+                            painter = painterResource("drawable/ic_home.xml"),
+                            contentDescription =
+                                if (homeAction == PreferredSourceHome.HomeAction.RECENTER_TODAY) {
+                                    "Back to today"
+                                } else {
+                                    "Back to the preferred weather source"
+                                },
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(iconSizeDp.dp).clickable {
+                                if (homeAction == PreferredSourceHome.HomeAction.RECENTER_TODAY) {
+                                    // Zoom-out is kept: homeDateOffset already moves the
+                                    // window forward by it, so yesterday is the one history day.
+                                    // From the months view this also returns to the daily view.
+                                    onUpdateConfig(config.copy(dateOffset = homeDateOffset, monthsView = false))
+                                    return@clickable
+                                }
+                                val preferred =
+                                    PreferredSourceHome.preferredSourceId(config.effectiveSources)
+                                if (preferred != null) {
+                                    onUpdateConfig(
+                                        config.copy(
+                                            settings = config.settings.copy(weatherSource = preferred),
+                                        ),
+                                    )
+                                    DesktopSourceViews.record(
+                                        preferred,
+                                        config.effectiveSources,
+                                        config.viewMode,
+                                        com.weatherwidget.shared.sourceview.SourceViewTrigger.HOME,
+                                    )
+                                }
+                            }.testTag("daily_home_button")
+                        )
+                    }
+                    if (fit.monthsShown) {
+                        Icon(
+                            painter = painterResource("drawable/ic_months_view.xml"),
+                            contentDescription = "Months view",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(iconSizeDp.dp).clickable {
+                                onUpdateConfig(
+                                    config.copy(
+                                        monthsView = true,
+                                        monthsSpan = com.weatherwidget.shared.months.MonthsSpan.DEFAULT.months,
+                                        monthsEnd = null,
+                                    ),
+                                )
+                            }.testTag("open_months_view_daily")
+                        )
+                    }
+                    // Opens today while today is on screen, otherwise the viewed date.
+                    if (fit.buttons > 0) {
+                        Icon(
+                            painter = painterResource("drawable/ic_forecast_history_line.xml"),
+                            contentDescription = "Forecast history",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(iconSizeDp.dp).clickable {
+                                onOpenHistory(if (todayInView) LocalDate.now() else targetHour.toLocalDate())
+                            }.testTag("open_forecast_history_daily")
+                        )
+                    }
+                }
+            }
+            dateLeft?.let { x ->
+                Text(
+                    text = dateText,
+                    style = dateStyle,
+                    color = Color.White.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.align(Alignment.CenterStart).offset(x = x.dp).testTag("daily_header_date"),
                 )
             }
         }
@@ -434,8 +448,38 @@ internal object DesktopHeaderDate {
     fun dailyDate(now: LocalDateTime): LocalDate = now.toLocalDate()
 }
 
-/** Base size (sp) the header's rain % scales from — the current temp's size. */
-internal const val HEADER_TEMP_BASE_SP = 15f
+/**
+ * Base size (sp) the header's rain % scales from: 12, the date's size. At 15 (the old temp size)
+ * the left cluster outweighed the rest of the row (user, 2026-10-22).
+ */
+internal const val HEADER_TEMP_BASE_SP = 12f
+
+// Leading margins of the left cluster's pieces and the source label's end padding: drawn and
+// measured from the same numbers so the fit and the layout agree.
+private const val DELTA_MARGIN_DP = 2f
+private const val CAPTION_MARGIN_DP = 3f
+private const val PRECIP_MARGIN_DP = 6f
+private const val SOURCE_LABEL_END_PADDING_DP = 6f
+private const val DELTA_CAPTION = "from yest"
+
+/** The hourly header until phase 3: everything shown, as before the shared fit. */
+private val SHOW_ALL = HeaderFit.Plan(
+    showTemp = true, showRain = true, showDelta = true, showIcon = true, showCaption = true,
+)
+
+/** `HEADER_FIT` once per change (recomposition and resizes repeat the same plan). */
+private object DailyHeaderFitLog {
+    @Volatile private var last: HeaderFit.Plan? = null
+
+    fun changed(plan: HeaderFit.Plan) {
+        if (plan == last) return
+        last = plan
+        Log.i("HEADER_FIT", "view=daily $plan")
+    }
+}
+
+/** The current temp stays the header's largest text, above the smaller delta and rain % (user, 2026-10-22). */
+internal const val HEADER_CURRENT_TEMP_SP = 17f
 
 /**
  * The header's content from the shared [HeaderContent] rule, as Android's headers build it. The daily
@@ -455,7 +499,6 @@ internal fun desktopHeaderContent(
     lon: Double,
     useCelsius: Boolean,
     widthDp: Int,
-    nowcastText: String? = null,
 ): HeaderContent.Content {
     val view = when (viewMode) {
         ViewMode.DAILY -> HeaderContent.View.DAILY
@@ -483,7 +526,6 @@ internal fun desktopHeaderContent(
         lon = lon,
         useCelsius = useCelsius,
         widthDp = widthDp,
-        nowcastText = nowcastText,
     )
     HeaderContentLog.changed(displaySourceId, view, content)
     return content

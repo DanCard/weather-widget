@@ -10,191 +10,28 @@ internal object DailyHeaderBinder {
 
     internal const val DELTA_VISIBILITY_THRESHOLD = HeaderContent.DELTA_VISIBILITY_THRESHOLD
 
-    /**
-     * Where the header date *would* sit, if it is shown at all.
-     *
-     * Despite the name this no longer positions anything: the daily header is painted into the
-     * graph bitmap, and the date is placed and drawn by
-     * [com.weatherwidget.widget.DailyForecastHeaderRenderer.resolveHeaderDateLayout]. What survives
-     * here is the same geometry expressed in dp/RemoteViews units, used by
-     * [resolveHeaderPrecipPlacement] to answer *"would the date still fit if we also drew the rain
-     * %?"* — i.e. the header's precip-vs-date priority rule.
-     *
-     * The two implementations must stay in agreement; see the plan note in
-     * `plans/260809-daily-view-history-and-observations-buttons.md`.
-     */
-    @VisibleForTesting
-    internal enum class HeaderDatePlacement {
-        CENTER,
-        RIGHT,
-    }
-
     @VisibleForTesting
     internal data class HeaderPrecipPlacement(
         val showHeaderPrecip: Boolean,
         val allowTodayColumnPrecip: Boolean,
     )
 
-    @VisibleForTesting
-    internal fun resolveHeaderDatePlacement(
-        context: Context,
-        widthDp: Int,
-        numColumns: Int,
-        currentTempText: String?,
-        deltaText: String?,
-        precipText: String?,
-        precipTextSizeDp: Float?,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-        dateText: String,
-        includeIcon: Boolean = true,
-        centerIconsWidthDp: Float = 0f,
-        inlineIconsWidthDp: Float = 0f,
-    ): HeaderDatePlacement? {
-        if (numColumns < HeaderConstants.DATE_MIN_COLUMNS) return null
-
-        val widthPx = WidgetSizeCalculator.dpToPx(context, widthDp).toFloat()
-        val leftClusterRight =
-            HeaderWidthChecker.resolveLeftClusterRightPx(
-                context = context,
-                currentTempText = currentTempText,
-                deltaText = deltaText,
-                precipText = precipText,
-                precipTextSizeDp = precipTextSizeDp,
-                includeIcon = includeIcon,
-                currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
-            ) + HeaderWidthChecker.dpToPx(context, inlineIconsWidthDp)
-        val apiLeft = HeaderWidthChecker.resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
-        val dateWidth = HeaderWidthChecker.textWidthPx(context, dateText, HeaderConstants.DATE_TEXT_SIZE_DP)
-        val gapPx = HeaderWidthChecker.dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
-        val rightMarginPx = HeaderWidthChecker.dpToPx(context, HeaderConstants.DATE_RIGHT_MARGIN_DP)
-
-        return resolveHeaderDatePlacementFromBounds(
-            numColumns = numColumns,
-            widthPx = widthPx,
-            leftClusterRight = leftClusterRight,
-            apiLeft = apiLeft,
-            dateWidth = dateWidth,
-            gapPx = gapPx,
-            rightMarginPx = rightMarginPx,
-            centerIconsWidth = HeaderWidthChecker.dpToPx(context, centerIconsWidthDp),
-        )
-    }
-
-    @VisibleForTesting
-    internal fun resolveHeaderDatePlacementFromBounds(
-        numColumns: Int,
-        widthPx: Float,
-        leftClusterRight: Float,
-        apiLeft: Float,
-        dateWidth: Float,
-        gapPx: Float,
-        rightMarginPx: Float,
-        centerIconsWidth: Float = 0f,
-    ): HeaderDatePlacement? {
-        if (numColumns < HeaderConstants.DATE_MIN_COLUMNS) return null
-        // Mirrors DailyForecastHeaderRenderer.resolveDateDrawX, which does the same arithmetic in
-        // bitmap px and actually paints the date. The two must agree: this side only decides
-        // whether the rain % may share the row, and suppressing it to protect a date the renderer
-        // has already moved or dropped would be a silent regression.
-        val hasSlot = centerIconsWidth > 0f
-        val center = widthPx / 2f
-        val slotRight = center + centerIconsWidth / 2f
-
-        // No slot: the historical centred position. With a slot the buttons own the centre and
-        // the date always follows them on the right, matching the desktop header.
-        if (!hasSlot &&
-            center - dateWidth / 2f >= leftClusterRight + gapPx &&
-            center + dateWidth / 2f <= apiLeft - gapPx
-        ) {
-            return HeaderDatePlacement.CENTER
-        }
-
-        val rightCenter = widthPx - rightMarginPx
-        val rightLeft = rightCenter - dateWidth / 2f
-        val rightRight = rightCenter + dateWidth / 2f
-        val lowerBound = if (hasSlot) maxOf(leftClusterRight, slotRight) else leftClusterRight
-        val spanLo = lowerBound + gapPx
-        val spanHi = apiLeft - gapPx
-        if (rightLeft >= spanLo && rightRight <= spanHi) {
-            return HeaderDatePlacement.RIGHT
-        }
-        // Mirrors resolveDateDrawX's free-span fallback: with the buttons holding the middle the
-        // fixed anchor can miss while the remaining gap still fits the date.
-        if (hasSlot && spanHi - spanLo >= dateWidth) {
-            return HeaderDatePlacement.RIGHT
-        }
-
-        return null
-    }
-
+    /**
+     * The rain % shows whenever the disclosure ladder keeps it ([headerCanShowPrecip]). It never
+     * yields to the date: the painted date drops itself when it cannot clear the rain %
+     * (`DailyForecastHeaderRenderer.resolveDateDrawX`). The rain % used to be hidden whenever that
+     * let the date fit (user, 2026-10-22: "the rain % is much higher priority than the date").
+     */
     @VisibleForTesting
     internal fun resolveHeaderPrecipPlacement(
-        context: Context,
-        widthDp: Int,
-        numColumns: Int,
-        currentTempText: String?,
-        deltaText: String?,
         precipText: String?,
         precipTextSizeDp: Float?,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-        dateText: String?,
         headerCanShowPrecip: Boolean,
-        includeIcon: Boolean,
-        centerIconsWidthDp: Float = 0f,
-        inlineIconsWidthDp: Float = 0f,
-    ): HeaderPrecipPlacement {
-        if (precipText.isNullOrBlank() || precipTextSizeDp == null) {
-            return HeaderPrecipPlacement(showHeaderPrecip = false, allowTodayColumnPrecip = false)
-        }
-        if (dateText.isNullOrBlank() || numColumns < HeaderConstants.DATE_MIN_COLUMNS) {
-            return HeaderPrecipPlacement(showHeaderPrecip = headerCanShowPrecip, allowTodayColumnPrecip = false)
-        }
-
-        val dateFitsWithPrecip =
-            headerCanShowPrecip &&
-                resolveHeaderDatePlacement(
-                    context = context,
-                    widthDp = widthDp,
-                    numColumns = numColumns,
-                    currentTempText = currentTempText,
-                    deltaText = deltaText,
-                    precipText = precipText,
-                    precipTextSizeDp = precipTextSizeDp,
-                    apiSourceText = apiSourceText,
-                    apiTextSizeDp = apiTextSizeDp,
-                    dateText = dateText,
-                    includeIcon = includeIcon,
-                    centerIconsWidthDp = centerIconsWidthDp,
-                    inlineIconsWidthDp = inlineIconsWidthDp,
-                ) != null
-        if (dateFitsWithPrecip) {
-            return HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false)
-        }
-
-        val dateFitsWithoutPrecip =
-            resolveHeaderDatePlacement(
-                context = context,
-                widthDp = widthDp,
-                numColumns = numColumns,
-                currentTempText = currentTempText,
-                deltaText = deltaText,
-                precipText = null,
-                precipTextSizeDp = null,
-                apiSourceText = apiSourceText,
-                apiTextSizeDp = apiTextSizeDp,
-                dateText = dateText,
-                includeIcon = includeIcon,
-                centerIconsWidthDp = centerIconsWidthDp,
-                inlineIconsWidthDp = inlineIconsWidthDp,
-            ) != null
-
-        return HeaderPrecipPlacement(
-            showHeaderPrecip = headerCanShowPrecip && !dateFitsWithoutPrecip,
+    ): HeaderPrecipPlacement =
+        HeaderPrecipPlacement(
+            showHeaderPrecip = headerCanShowPrecip && !precipText.isNullOrBlank() && precipTextSizeDp != null,
             allowTodayColumnPrecip = false,
         )
-    }
 
     @VisibleForTesting
     internal fun currentTempTextSizePx(context: Context): Float =

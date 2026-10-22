@@ -28,6 +28,9 @@ import java.time.LocalDate
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class DailyForecastGraphRendererRoboTest {
+    /** Where `HeaderFit.dateLeft` would put the date: about where it was centred before 2026-10-22. */
+    private val headerDateLeft = 0.47f
+
     private lateinit var context: Context
 
     @Before
@@ -85,7 +88,7 @@ class DailyForecastGraphRendererRoboTest {
         days: List<DailyForecastGraphRenderer.DayData>,
         widthPx: Int = 500,
         heightPx: Int = 200,
-        headerData: DailyForecastGraphRenderer.HeaderRenderData = DailyForecastGraphRenderer.HeaderRenderData(dateText = "Mon"),
+        headerData: DailyForecastGraphRenderer.HeaderRenderData = DailyForecastGraphRenderer.HeaderRenderData(dateText = "Mon", dateLeftFraction = headerDateLeft),
     ): List<DailyForecastGraphRenderer.HeaderDrawnDebug> {
         val results = mutableListOf<DailyForecastGraphRenderer.HeaderDrawnDebug>()
         val bitmap = runBlocking {
@@ -705,7 +708,7 @@ class DailyForecastGraphRendererRoboTest {
                 days = listOf(day),
                 widthPx = 500,
                 heightPx = 40,
-                headerData = DailyForecastGraphRenderer.HeaderRenderData(dateText = "Mon"),
+                headerData = DailyForecastGraphRenderer.HeaderRenderData(dateText = "Mon", dateLeftFraction = headerDateLeft),
                 onRainLabelDrawn = { events.add("rain") },
                 onHeaderDrawn = { events.add("header") }, useCelsius = false,
             )
@@ -766,6 +769,7 @@ class DailyForecastGraphRendererRoboTest {
             heightPx = 40,
             headerData = DailyForecastGraphRenderer.HeaderRenderData(
                 dateText = "Mon",
+                dateLeftFraction = headerDateLeft,
                 headerScale = 3f,
             ),
         )
@@ -797,6 +801,7 @@ class DailyForecastGraphRendererRoboTest {
             heightPx = 200,
             headerData = DailyForecastGraphRenderer.HeaderRenderData(
                 dateText = "Mon",
+                dateLeftFraction = headerDateLeft,
                 headerScale = 6f,
             ),
         )

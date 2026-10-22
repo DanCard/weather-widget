@@ -130,7 +130,7 @@ object DailyForecastGraphRenderer {
         val currentTempText: String? = null,
         val deltaText: String? = null,
         val deltaColor: Int = 0xFFFF6B35.toInt(),
-        /** "from yest" caption candidate after the delta; drawn only when it fits. */
+        /** "from yest" after the delta when the shared fit kept it; the painted geometry has the last word. */
         val deltaLabelText: String? = null,
         val precipText: String? = null,
         val precipColor: Int = 0xFF5AC8FA.toInt(),
@@ -152,13 +152,10 @@ object DailyForecastGraphRenderer {
          * instead of drawing under them — see [DailyForecastHeaderRenderer.resolveDateDrawX].
          */
         val centerIconsWidthDp: Float = 0f,
-        /**
-         * When the date and the "from yest" caption cannot both fit, which one survives.
-         * Alternates per render so neither is permanently starved; the default `true` reproduces
-         * the historical fixed priority (date wins, caption dropped).
-         * See [DailyForecastHeaderRenderer.resolveHeaderContention].
-         */
-        val preferDateOverLabel: Boolean = true,
+        /** Left edge of those buttons, as a fraction of the width (`HeaderFit.buttonsSpan`). */
+        val centerIconsLeftFraction: Float = 0.5f,
+        /** Left edge of the date, as a fraction of the width (`HeaderFit.dateLeft`); null: no date. */
+        val dateLeftFraction: Float? = null,
     )
 
     data class DayData(

@@ -3,8 +3,6 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.nowcast.NowcastDisplay
 import com.weatherwidget.shared.nowcast.NowcastStore
-import com.weatherwidget.shared.nowcast.NowcastSummary
-import com.weatherwidget.shared.util.DailyRainLabels
 import java.io.File
 
 /**
@@ -19,22 +17,8 @@ object DesktopNowcast {
     }
 }
 
-/** The nowcast as the popup header, the hourly precip graph and the panel show it. */
+/** The nowcast as the hourly precip graph shows it. */
 internal object DesktopNowcastView {
     fun series(config: DesktopConfig, store: NowcastStore = DesktopNowcast.store, nowMs: Long = System.currentTimeMillis()) =
         NowcastDisplay.series(store, config.lat, config.lon, WeatherSource.fromDisplaySource(config.displaySource).id, nowMs)
-
-    /** "14:15–" / "–15:30", or null. */
-    fun headerText(config: DesktopConfig, store: NowcastStore = DesktopNowcast.store, nowMs: Long = System.currentTimeMillis()): String? =
-        NowcastSummary.headerText(
-            NowcastDisplay.summary(series(config, store, nowMs), nowMs),
-            use24HourClock = DailyRainLabels.localeUses24HourClock(),
-        )
-
-    /** "Rain from 14:15", for tooltips. */
-    fun description(config: DesktopConfig, store: NowcastStore = DesktopNowcast.store, nowMs: Long = System.currentTimeMillis()): String? =
-        NowcastSummary.describe(
-            NowcastDisplay.summary(series(config, store, nowMs), nowMs),
-            use24HourClock = DailyRainLabels.localeUses24HourClock(),
-        )
 }

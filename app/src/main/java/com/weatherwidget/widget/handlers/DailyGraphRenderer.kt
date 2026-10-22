@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.data.model.ForecastProduct
 import android.content.Context
@@ -65,7 +66,9 @@ internal object DailyGraphRenderer {
         val isPrecipVisible = headerState.isPrecipVisible
         val apiSourceText = headerState.apiSourceText
         val apiTextSizeDp = HeaderConstants.apiTextSizeDp(ctx.numRows)
-        val disclosure = headerState.disclosure
+        val fit = headerState.fit
+        val measured = headerState.measured
+        val buttonsSpan = HeaderFit.buttonsSpan(measured, fit)
         val headerScale = headerState.headerScale
 
         DailyVisibilityManager.setGraphModeViews(ctx.views)
@@ -165,7 +168,7 @@ internal object DailyGraphRenderer {
 
         val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(ctx.context, dimensions.widthDp, dimensions.heightDp)
         val dateText =
-            if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS && headerState.iconPlacement.allowsHeaderDate()) {
+            if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS && fit.showDate) {
                 ctx.today.format(DailyViewHandler.headerDateFormatter())
             } else null
 
@@ -226,22 +229,16 @@ internal object DailyGraphRenderer {
             metadataByDate = displayedMetadata,
         )
 
-        val headerRenderData = if (disclosure != HeaderDisclosureLevel.NONE) {
+        val headerRenderData = if (fit.showTemp || fit.showRain || fit.showDelta || fit.showIcon) {
             DailyForecastGraphRenderer.HeaderRenderData(
                 iconRes = iconRes,
-                currentTempText = formattedTemp,
+                currentTempText = formattedTemp.takeIf { fit.showTemp },
                 deltaText = if (deltaVisible) {
                     val displayDelta = delta?.let { if (ctx.stateManager.useCelsius()) it / 1.8f else it }
                     displayDelta?.let { String.format("%+.1f", it) }
                 } else null,
-                // "from yest" caption candidate; the header renderer decides whether it fits.
-                // Suppressed entirely when a rain chance shows in the header (product rule:
-                // precip % has display priority), matching the RemoteViews-header guard in
-                // HeaderWidthChecker.deltaLabelFitsInHeader.
-                deltaLabelText = if (deltaVisible && disclosure.showsDelta() &&
-                    !(isPrecipVisible && headerPrecipPlacement.showHeaderPrecip)) {
-                    ctx.context.getString(R.string.header_delta_from_yesterday)
-                } else null,
+                // "from yest", when the shared fit kept it (never beside a rain %).
+                deltaLabelText = headerState.deltaLabelText,
                 precipText = if (isPrecipVisible) headerState.precipText ?: "${ctx.precipProb}%" else null,
                 precipTextSizeDp = headerState.precipTextSizeDp
                     ?: HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
@@ -249,16 +246,17 @@ internal object DailyGraphRenderer {
                 apiSourceText = if (isIconWidth) null else apiSourceText,
                 apiTextSizeDp = apiTextSizeDp,
                 settingsIconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
-                showIcon = disclosure.showsIcon(),
-                showDelta = deltaVisible && disclosure.showsDelta(),
+                showIcon = fit.showIcon,
+                showDelta = deltaVisible && fit.showDelta,
                 showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
                 headerScale = headerScale,
                 // Non-zero only when the buttons are CENTER-placed. Inline buttons get no slot: the
-                // date is not painted at all then (DailyIconPlacement.allowsHeaderDate).
-                centerIconsWidthDp = if (headerState.iconPlacement == DailyIconPlacement.CENTER) {
-                    HeaderWidthChecker.dailyCenterIconsWidthDp(headerState.iconCount, dimensions.widthDp)
+                // fit never keeps the date beside them (HeaderFit.fits).
+                centerIconsWidthDp = if (fit.placement == HeaderFit.ButtonPlacement.CENTER) {
+                    HeaderWidthChecker.dailyCenterIconsWidthDp(fit.buttons, dimensions.widthDp)
                 } else 0f,
-                preferDateOverLabel = headerState.preferDateOverLabel,
+                centerIconsLeftFraction = buttonsSpan?.let { it.first / measured.width } ?: 0.5f,
+                dateLeftFraction = HeaderFit.dateLeft(measured, fit)?.let { it / measured.width },
             )
         } else null
 
@@ -336,18 +334,20 @@ internal object DailyGraphRenderer {
         headerState.homeAction?.let { action ->
             setupDailyHomeShortcut(ctx.context, ctx.views, ctx.appWidgetId, action, scale = headerScale)
         }
-        if (headerState.showMonthsButton) {
+        if (fit.monthsShown) {
             setupMonthsViewShortcut(ctx.context, ctx.views, ctx.appWidgetId, ctx.displaySource, lat, lon, scale = headerScale)
         }
         positionDailyIcons(
             views = ctx.views,
-            placement = headerState.iconPlacement,
+            placement = fit.placement,
             showObservations = observationsInView,
             widthDp = dimensions.widthDp,
             density = ctx.context.resources.displayMetrics.density,
             scale = headerScale,
-            showHome = headerState.showHomeButton,
-            showMonths = headerState.showMonthsButton,
+            showHome = fit.homeShown,
+            showMonths = fit.monthsShown,
+            // Slot centre relative to the widget's, in dp: the container is centre_horizontal.
+            centreOffsetDp = buttonsSpan?.let { (l, r) -> ((l + r) / 2f - measured.width / 2f) / ctx.context.resources.displayMetrics.density } ?: 0f,
         )
         if (observationsInView != headerState.observationsInView) {
             Log.w(

@@ -22,12 +22,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 /**
- * The daily header's rain % carries the 15-minute nowcast ("60% 2:30pm–") — Open-Meteo displayed,
- * native coverage — and the same text is what the width fits measured
- * (`plans/261021-open-meteo-15-min-nowcast.md`).
+ * The daily header's rain % is the plain percent even when the 15-minute nowcast has a rain start:
+ * the nowcast is model output (HRRR), not radar, and said "10am–" while it was already raining
+ * (user, 2026-10-22). It stays only as the hourly precip graph's band.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -94,7 +93,6 @@ class DailyHeaderNowcastRoboTest {
             useGraph = true,
             smoothedForecasts = null,
             sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon),
-            headerDateFormatter = DateTimeFormatter.ofPattern("EEE d"),
             deltaFromYesterday = null,
             dateOffset = 0,
             skipYesterday = false,
@@ -102,29 +100,11 @@ class DailyHeaderNowcastRoboTest {
     }
 
     @Test
-    fun `open-meteo with native coverage shows when the rain starts beside the rain percent`() {
+    fun `open-meteo with native coverage and rain coming keeps the plain rain percent`() {
         val now = LocalDateTime.now()
         storeRainStartingSoon(now)
         val state = resolve(now, WeatherSource.OPEN_METEO)
         assertTrue("rain % visible: ${state.precipProb}", state.isPrecipVisible)
-        val text = state.precipText!!
-        assertTrue("expected '${state.precipProb}% <time>–', was '$text'", text.startsWith("${state.precipProb}% ") && text.endsWith("–"))
-    }
-
-    @Test
-    fun `another displayed source keeps the plain rain percent`() {
-        val now = LocalDateTime.now()
-        storeRainStartingSoon(now)
-        val state = resolve(now, WeatherSource.NWS)
-        assertEquals("${state.precipProb}%", state.precipText)
-    }
-
-    @Test
-    fun `interpolated coverage keeps the plain rain percent`() {
-        val now = LocalDateTime.now()
-        storeRainStartingSoon(now)
-        AndroidNowcast.store(context).saveCoverage(lat, lon, native = false, checkedAtMs = epochMs(now))
-        val state = resolve(now, WeatherSource.OPEN_METEO)
         assertEquals("${state.precipProb}%", state.precipText)
     }
 }
