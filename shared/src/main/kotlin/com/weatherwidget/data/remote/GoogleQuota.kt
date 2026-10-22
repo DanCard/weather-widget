@@ -16,7 +16,7 @@ object GoogleQuota {
 
     /**
      * Error codes for one refused forecast product while the rest of the source still updates
-     * (user, 2026-10-07): the hourly views show the first, the daily view the second.
+     * (user, 2026-10-07). Every view shows either; its own product's first ([QuotaNotice.bannerBlock]).
      */
     const val ERROR_CODE_HOURLY_FORECAST = "QUOTA_HOURLY_FORECAST"
     const val ERROR_CODE_DAILY_FORECAST = "QUOTA_DAILY_FORECAST"

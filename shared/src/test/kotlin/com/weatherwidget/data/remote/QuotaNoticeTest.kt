@@ -50,7 +50,20 @@ class QuotaNoticeTest {
     }
 
     @Test
-    fun `each view shows only the product it draws`() {
+    fun `every view banners any product block, its own product first`() {
+        val both = mapOf(ForecastProduct.HOURLY to "hourly", ForecastProduct.DAILY to "daily")
+        for (viewed in ForecastProduct.entries) {
+            val other = ForecastProduct.entries.single { it != viewed }
+            assertNull(QuotaNotice.bannerBlock(viewed) { null })
+            assertEquals(viewed to "own", QuotaNotice.bannerBlock(viewed) { if (it == viewed) "own" else null })
+            // An hourly-only block on the daily view was silent until 2026-10-21 (Google, 20:07).
+            assertEquals(other to "other", QuotaNotice.bannerBlock(viewed) { if (it == other) "other" else null })
+            assertEquals(viewed to both.getValue(viewed), QuotaNotice.bannerBlock(viewed) { both[it] })
+        }
+    }
+
+    @Test
+    fun `each view draws its own product`() {
         assertEquals(ForecastProduct.DAILY, QuotaNotice.productOf(ViewMode.DAILY))
         for (view in listOf(ViewMode.TEMPERATURE, ViewMode.PRECIPITATION, ViewMode.CLOUD_COVER)) {
             assertEquals(view.name, ForecastProduct.HOURLY, QuotaNotice.productOf(view))

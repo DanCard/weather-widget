@@ -32,6 +32,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
+import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.ForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
@@ -655,17 +656,22 @@ internal fun runDesktopUiApplication() = application {
                 }
             }
             
-            // A forecast product's quota block on the view that draws it ([QuotaNotice.productOf], the
-            // rule the widget uses): hourly graphs the hourly forecast, the daily view the daily one.
-            fun productQuotaBanner(src: String): Pair<Long, String>? {
-                val product = QuotaNotice.productOf(activeConfig.viewMode)
-                val quota = DesktopQuotaState(weatherDao).productQuota(src, product, System.currentTimeMillis())
-                    ?.takeIf { it.sinceMs > dismissedErrorTimestamp } ?: return null
-                val loggedAt = quota.sinceMs
+            // A forecast product's quota block, on every view ([QuotaNotice.bannerBlock], the rule the
+            // widget uses): the viewed product's block first, else the other's.
+            data class ProductQuotaBanner(val product: ForecastProduct, val loggedAt: Long, val text: String)
+            fun productQuotaBanner(src: String): ProductQuotaBanner? {
+                val quotas = DesktopQuotaState(weatherDao)
+                val nowMs = System.currentTimeMillis()
+                val (product, quota) = QuotaNotice.bannerBlock(QuotaNotice.productOf(activeConfig.viewMode)) { product ->
+                    quotas.productQuota(src, product, nowMs)?.takeIf { it.sinceMs > dismissedErrorTimestamp }
+                } ?: return null
                 val notice = QuotaNotice.forProductBlock(product, quota.untilMs, quota.detail)
                 val presentation = desktopQuotaPresentation(WeatherSource.fromId(src).displayName, notice)
-                return loggedAt to (listOf(presentation.title) + presentation.bodyLines + listOf("", presentation.retryLine))
-                    .joinToString("\n")
+                return ProductQuotaBanner(
+                    product,
+                    quota.sinceMs,
+                    (listOf(presentation.title) + presentation.bodyLines + listOf("", presentation.retryLine)).joinToString("\n"),
+                )
             }
 
             fun updateStatus() {
@@ -760,9 +766,9 @@ internal fun runDesktopUiApplication() = application {
                     currentTempFetchTimestamp = status.timestamp
                 } else {
                     currentTempFetchIsWarmup = false
-                    // No source-wide failure: this view's forecast product may still be refused while
-                    // the other keeps updating, so the refresh succeeded but these days/hours are not
-                    // (user, 2026-10-07).
+                    // No source-wide failure: a forecast product may still be refused while the other
+                    // keeps updating, so the refresh succeeded but those days/hours are not (user,
+                    // 2026-10-07) — bannered on every view (user, 2026-10-21).
                     val productQuota = productQuotaBanner(src)
                     // Else hourly pages a per-minute limit cut short, on every view for a minute.
                     val partialRateLimit = if (productQuota != null) null else DesktopQuotaState(weatherDao).partialRateLimit(src, statusNow)
@@ -770,13 +776,13 @@ internal fun runDesktopUiApplication() = application {
                     val displayName = WeatherSource.fromId(src).displayName
                     when {
                         productQuota != null -> {
-                            currentTempFetchError = productQuota.second
+                            currentTempFetchError = productQuota.text
                             currentTempFetchPill = DesktopFailurePill(
                                 sourceLabel = displayName,
-                                errorCode = GoogleQuota.errorCodeFor(QuotaNotice.productOf(activeConfig.viewMode)),
-                                failureTimeMs = productQuota.first,
+                                errorCode = GoogleQuota.errorCodeFor(productQuota.product),
+                                failureTimeMs = productQuota.loggedAt,
                             )
-                            currentTempFetchTimestamp = productQuota.first
+                            currentTempFetchTimestamp = productQuota.loggedAt
                         }
                         partialRateLimit != null -> {
                             val loggedAt = partialRateLimit.atMs

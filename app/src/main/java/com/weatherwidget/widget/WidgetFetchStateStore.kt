@@ -128,7 +128,8 @@ internal class WidgetFetchStateStore(
     /**
      * One forecast product of [source] refused until [untilMs] (a per-product daily quota) while the
      * source as a whole still updates. Kept apart from the source failure streak: an hours-only 429
-     * must not put a banner on the daily view (user, 2026-10-07). The first record of a streak
+     * must not fail the source; it is bannered as a product block on every view
+     * (`QuotaNotice.bannerBlock`, user 2026-10-21). The first record of a streak
      * anchors the banner staging; repeats keep it.
      */
     @Synchronized

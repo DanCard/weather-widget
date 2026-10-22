@@ -527,10 +527,11 @@ class WidgetStateManager internal constructor(
 
     /**
      * The failure pill a view of [product] draws for [source]: a source-wide failure streak first
-     * (it affects every view), else that product's own quota block, else a rate-limit refusal from the
-     * last minute — on every view, the first refusal, no streak needed (user, 2026-10-16:
-     * plans/261016-quota-refusals-always-show-a-banner.md). An hourly-only quota block leaves the
-     * daily view clean (user, 2026-10-07).
+     * (it affects every view), else a product quota block — that product's, else the other's
+     * ([com.weatherwidget.data.remote.QuotaNotice.bannerBlock]; an hourly-only block on the daily view
+     * was silent until 2026-10-21) — else a rate-limit refusal from the last minute — on every view,
+     * the first refusal, no streak needed (user, 2026-10-16:
+     * plans/261016-quota-refusals-always-show-a-banner.md).
      */
     fun viewWatermark(
         source: WeatherSource,
@@ -545,7 +546,7 @@ class WidgetStateManager internal constructor(
                 bannerSinceMs = getSourceBannerSince(source),
             )
         }
-        val quota = getProductQuota(source, product, nowMs)
+        val (blocked, quota) = com.weatherwidget.data.remote.QuotaNotice.bannerBlock(product) { getProductQuota(source, it, nowMs) }
             ?: return getRateLimit(source, nowMs)?.let {
                 ViewWatermark(
                     show = true,
@@ -556,7 +557,7 @@ class WidgetStateManager internal constructor(
             } ?: ViewWatermark.NONE
         return ViewWatermark(
             show = true,
-            errorCode = com.weatherwidget.data.remote.GoogleQuota.errorCodeFor(product),
+            errorCode = com.weatherwidget.data.remote.GoogleQuota.errorCodeFor(blocked),
             failureTimeMs = quota.sinceMs,
             bannerSinceMs = quota.sinceMs,
         )

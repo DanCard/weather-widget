@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.local.desktop.DesktopQuotaState
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.ProductQuotaLog
@@ -7,6 +8,7 @@ import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.remote.QuotaNotice
 import com.weatherwidget.data.remote.QuotaNoticeText
 import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.widget.ViewMode
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -18,7 +20,8 @@ import java.io.File
 
 /**
  * Google's forecast/hours quota spent while forecast/days still answers: the daemon records an
- * hourly-only block and the popup's hourly view names it (the daily view, a daily-only block) (user, 2026-10-07).
+ * hourly-only block and every popup view names it, the view's own product first (user, 2026-10-21;
+ * the daily view used to stay silent).
  */
 @Category(ShortDuration::class)
 class DesktopProductQuotaTest {
@@ -65,6 +68,22 @@ class DesktopProductQuotaTest {
             assertEquals("$line · resets ${QuotaNoticeText.formatResetTime(1_791_442_800_000L)}", p.bodyLines.first())
             assertTrue(p.bodyLines.contains("Quota: ForecastHoursQueriesPerDay — 90 per day, shared by every device using this key"))
             assertTrue(p.quota)
+        }
+    }
+
+    @Test
+    fun `an hourly-only block banners on the popup's daily view too`() {
+        val untilMs = System.currentTimeMillis() + 3_600_000L
+        dao.log(ProductQuotaLog.TAG, ProductQuotaLog.blocked("GOOGLE_WEATHER", ForecastProduct.HOURLY, untilMs, body))
+        val quotas = DesktopQuotaState(dao)
+        val nowMs = System.currentTimeMillis()
+
+        for (view in ViewMode.entries) {
+            val (product, block) = requireNotNull(
+                QuotaNotice.bannerBlock(QuotaNotice.productOf(view)) { quotas.productQuota("GOOGLE_WEATHER", it, nowMs) },
+            ) { "$view view showed no banner" }
+            assertEquals("$view", ForecastProduct.HOURLY, product)
+            assertEquals("$view", untilMs, block.untilMs)
         }
     }
 }

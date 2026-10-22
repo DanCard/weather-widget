@@ -22,8 +22,9 @@ import java.time.ZoneId
 import java.util.Locale
 
 /**
- * Google's forecast/hours and forecast/days have separate daily quotas. An hours-only refusal shows
- * on the hourly views and nowhere else (user, 2026-10-07: the daily view said "quota used").
+ * Google's forecast/hours and forecast/days have separate daily quotas. Either refusal shows on every
+ * view, the view's own product first (user, 2026-10-21: an hours-only refusal left the daily view
+ * silent; it overturned 2026-10-07's "hourly views only").
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -43,13 +44,29 @@ class ProductQuotaWatermarkRoboTest {
     }
 
     @Test
-    fun `an hours-only block shows on hourly views and not on the daily view`() {
+    fun `an hours-only block shows on the hourly views and the daily view`() {
         state.recordProductQuota(google, ForecastProduct.HOURLY, resetMs, detail = null)
 
-        val hourly = state.viewWatermark(google, ForecastProduct.HOURLY, nowMs)
-        assertTrue(hourly.show)
-        assertEquals(GoogleQuota.ERROR_CODE_HOURLY_FORECAST, hourly.errorCode)
-        assertFalse("daily view stays clean", state.viewWatermark(google, ForecastProduct.DAILY, nowMs).show)
+        for (product in ForecastProduct.entries) {
+            val pill = state.viewWatermark(google, product, nowMs)
+            assertTrue("$product view", pill.show)
+            assertEquals("$product view", GoogleQuota.ERROR_CODE_HOURLY_FORECAST, pill.errorCode)
+        }
+    }
+
+    @Test
+    fun `a days-only block shows on the hourly views too`() {
+        state.recordProductQuota(google, ForecastProduct.DAILY, resetMs, detail = null)
+
+        assertEquals(GoogleQuota.ERROR_CODE_DAILY_FORECAST, state.viewWatermark(google, ForecastProduct.HOURLY, nowMs).errorCode)
+    }
+
+    @Test
+    fun `with both blocked each view names its own product`() {
+        ForecastProduct.entries.forEach { state.recordProductQuota(google, it, resetMs, detail = null) }
+
+        assertEquals(GoogleQuota.ERROR_CODE_DAILY_FORECAST, state.viewWatermark(google, ForecastProduct.DAILY, nowMs).errorCode)
+        assertEquals(GoogleQuota.ERROR_CODE_HOURLY_FORECAST, state.viewWatermark(google, ForecastProduct.HOURLY, nowMs).errorCode)
     }
 
     @Test
@@ -58,7 +75,7 @@ class ProductQuotaWatermarkRoboTest {
         assertFalse(state.viewWatermark(google, ForecastProduct.HOURLY, resetMs + 1).show)
 
         state.clearProductQuota(google, ForecastProduct.HOURLY)
-        assertFalse(state.viewWatermark(google, ForecastProduct.HOURLY, nowMs).show)
+        for (product in ForecastProduct.entries) assertFalse("$product view", state.viewWatermark(google, product, nowMs).show)
     }
 
     @Test

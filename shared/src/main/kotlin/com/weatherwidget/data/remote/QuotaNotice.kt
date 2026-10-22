@@ -64,13 +64,21 @@ data class QuotaNotice(
         fun forProductBlock(product: ForecastProduct, untilMs: Long, detail: String?): QuotaNotice =
             QuotaNotice(QuotaScope.of(product), untilMs, detail)
 
-        /**
-         * The forecast product a view draws, and so the only product block it shows (user,
-         * 2026-10-07): the daily view the daily forecast, every hourly graph the hourly forecast.
-         * A source-wide failure is shown on every view and takes precedence over either.
-         */
+        /** The forecast product a view draws: the daily view the daily forecast, every hourly graph the hourly one. */
         fun productOf(view: ViewMode): ForecastProduct =
             if (view == ViewMode.DAILY) ForecastProduct.DAILY else ForecastProduct.HOURLY
+
+        /**
+         * The product quota block a view of [viewed] (its [productOf]) banners, both platforms: that block first, else
+         * the other product's — every view shows any refusal, so an hourly-only block on the daily view
+         * is no longer silent (user, 2026-10-21; it overturned "each view shows only its product",
+         * 2026-10-07). [blockOf] reads the platform's stored block. A source-wide failure still outranks
+         * either; callers check it first. See plans/261021-any-product-quota-banners-on-every-view.md.
+         */
+        fun <B : Any> bannerBlock(viewed: ForecastProduct, blockOf: (ForecastProduct) -> B?): Pair<ForecastProduct, B>? {
+            val other = if (viewed == ForecastProduct.DAILY) ForecastProduct.HOURLY else ForecastProduct.DAILY
+            return listOf(viewed, other).firstNotNullOfOrNull { product -> blockOf(product)?.let { product to it } }
+        }
     }
 }
 

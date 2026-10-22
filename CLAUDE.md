@@ -51,7 +51,10 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   pages 2–3 only if page 1 changed — `GoogleHourPaging`), current temp = 1. A later page failing (e.g. the
   10/min per-user limit) keeps the pages that arrived (`lastHoursPaging … partial=429`;
   `plans/261016-google-hour-pages-kept-when-a-later-page-fails.md`). **Every quota refusal is
-  bannered at once, on every view** (user, 2026-10-16): a daily quota as before (until reset); a
+  bannered at once, on every view** (user, 2026-10-16): a daily quota as before (until reset) —
+  **either product's** block, the view's own product first (an hours-only block on the daily view was
+  silent; `:shared` `QuotaNotice.bannerBlock`, user 2026-10-21,
+  `plans/261021-any-product-quota-banners-on-every-view.md`); a
   per-minute 429 — whole fetch or a later page — as "RATE LIMITED" for **one minute**
   (`:shared` `RateLimitNotice`; `plans/261016-quota-refusals-always-show-a-banner.md`). Google's day runs
   07:00→07:00, so its `minTemperature` is the next morning's: day D takes day D−1's min, like NWS
