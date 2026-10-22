@@ -140,10 +140,13 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
         instrumentation.removeMonitor(settingsMonitor)
 
         // AND: the day's hourly view opened at once, empty under the banner
-        // (plans/261009-google-hourly-on-demand-past-72h.md).
+        // (plans/261009-google-hourly-on-demand-past-72h.md). The handler publishes the message
+        // before it switches the view, so wait for the switch too: read straight after the message,
+        // a freshly booted emulator under unit-test load still showed DAILY (2026-10-22).
+        val viewMode = waitForViewModeChange(from = ViewMode.DAILY)
         assertTrue(
-            "Should open the hourly view for the tapped day, got ${stateManager.getViewMode(testWidgetId)}",
-            stateManager.getViewMode(testWidgetId) != ViewMode.DAILY,
+            "Should open the hourly view for the tapped day, got $viewMode",
+            viewMode != ViewMode.DAILY,
         )
 
         // AND: the missing-hourly branch logged its decision.
@@ -159,6 +162,17 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
             View.VISIBLE,
             bannerRoot.findViewById<View>(R.id.widget_message_banner).visibility,
         )
+    }
+
+    /** Polls for the async day-click handler to switch the view away from [from] (up to ~10s). */
+    private fun waitForViewModeChange(from: ViewMode): ViewMode {
+        val deadline = System.currentTimeMillis() + 10_000L
+        while (System.currentTimeMillis() < deadline) {
+            val mode = stateManager.getViewMode(testWidgetId)
+            if (mode != from) return mode
+            Thread.sleep(100)
+        }
+        return stateManager.getViewMode(testWidgetId)
     }
 
     /** Polls for the async day-click handler to publish the transient message (up to ~10s). */
