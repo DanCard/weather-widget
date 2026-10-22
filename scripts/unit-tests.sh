@@ -420,7 +420,7 @@ fi
 gradle_log="${LOG_FILE}"
 is_temp_log=false
 if [ -z "$gradle_log" ]; then
-  LOG_DIR="$PROJECT_DIR/logs/unit-tests"
+  LOG_DIR="$ROOT_DIR/logs/unit-tests"
   mkdir -p "$LOG_DIR"
   find "$LOG_DIR" -type f -mtime +14 -delete 2>/dev/null
   gradle_log="$LOG_DIR/unit-$(date +%Y%m%d-%H%M%S).log"
