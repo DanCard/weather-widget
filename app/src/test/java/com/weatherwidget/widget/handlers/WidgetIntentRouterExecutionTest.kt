@@ -3,7 +3,7 @@ package com.weatherwidget.widget.handlers
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.log
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -24,7 +24,7 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class WidgetIntentRouterExecutionTest {
 
     @After

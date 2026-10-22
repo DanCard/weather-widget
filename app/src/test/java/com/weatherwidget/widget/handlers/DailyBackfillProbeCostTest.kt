@@ -4,7 +4,7 @@ import android.content.Context
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -35,7 +35,7 @@ import java.time.LocalDateTime
  *
  * See performance/260907-daily-path-observation-reads-unscoped-and-duplicated.md.
  */
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class DailyBackfillProbeCostTest {
 
     private val lat = 37.4168205

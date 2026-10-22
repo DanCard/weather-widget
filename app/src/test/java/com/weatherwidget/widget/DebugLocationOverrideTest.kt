@@ -5,7 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.BuildConfig
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.test.RobolectricTest
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,7 +24,7 @@ import org.junit.experimental.categories.Category
  * storage would fail `sameSite` against itself, and the resulting "the app ignored my injected
  * location" would look exactly like the emulator failures this was written to escape.
  */
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class DebugLocationOverrideTest : RobolectricTest() {
 
     private lateinit var context: Context

@@ -5,7 +5,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.test.RobolectricTest
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import io.mockk.Runs
@@ -33,7 +33,7 @@ import org.junit.experimental.categories.Category
  *
  * Precedent for an architecture test of this shape: `HourlyProximityQueryAllowlistTest`.
  */
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class ScreenOnReceiverManifestTest : RobolectricTest() {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()

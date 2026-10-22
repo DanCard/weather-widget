@@ -7,7 +7,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -25,7 +25,7 @@ import java.util.TimeZone
 /** performance/261019-learned-unplug-time-and-overnight-short-skip.md */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class ChargeSessionTrackerTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val minute = 60_000L

@@ -12,7 +12,7 @@ import androidx.work.WorkManager
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.weatherwidget.data.remote.ForecastHorizonCadence
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -27,7 +27,7 @@ import org.robolectric.annotation.Config
 /** performance/261019-pre-alarm-long-fetch-while-charging.md */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class PreWakeFetchSchedulerTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val minute = 60_000L

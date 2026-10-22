@@ -1,6 +1,6 @@
 package com.weatherwidget.architecture
 
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -26,7 +26,7 @@ import java.io.File
  * If this failed on your new code: read through `getObservationsInRange`, or — if you genuinely need
  * raw per-site rows — add the file here WITH a justification at the call site.
  */
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class ObservationProximityQueryAllowlistTest {
 
     private val rawCallPattern = Regex("""\.getObservationCandidatesInRange\(|selectNearestObservationSite\(""")

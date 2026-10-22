@@ -1,7 +1,7 @@
 package com.weatherwidget.architecture
 
 import com.weatherwidget.shared.util.UserRefreshCallSites
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -19,7 +19,7 @@ import java.io.File
  * If this failed on your new code: wrap the fetch in `userRefreshRunner.start(origin) { … }` and
  * `await()` it from the screen.
  */
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class UserRefreshScopeGuardTest {
     private val fetchCall = Regex("""refreshCurrentTemperature\(|fetchSourceOnDemand\(|\.fetchObservations\(""")
 

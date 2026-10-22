@@ -1,7 +1,7 @@
 package com.weatherwidget.widget.handlers
 
 import android.os.SystemClock
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
@@ -19,7 +19,7 @@ import org.junit.experimental.categories.Category
  * start.md): which taps keep one, what it says, and that the widget lock reports its wait into the
  * tap's trace.
  */
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class InteractionLatencyTest {
 
     @After

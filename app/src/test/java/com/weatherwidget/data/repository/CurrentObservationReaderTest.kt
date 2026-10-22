@@ -3,7 +3,7 @@ package com.weatherwidget.data.repository
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.shared.observations.NwsBlend
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import com.weatherwidget.testutil.TestData
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -13,7 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class CurrentObservationReaderTest {
 
     @Test

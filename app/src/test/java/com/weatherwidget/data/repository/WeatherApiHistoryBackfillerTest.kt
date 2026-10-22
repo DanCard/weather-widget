@@ -8,7 +8,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.WeatherApi
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -21,7 +21,7 @@ import org.junit.experimental.categories.Category
 import java.time.LocalDate
 import java.time.ZoneId
 
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class WeatherApiHistoryBackfillerTest {
     private val lat = 37.417
     private val lon = -122.089

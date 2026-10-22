@@ -13,7 +13,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
@@ -30,7 +30,7 @@ import java.time.format.DateTimeFormatter
  * window of observed daily temps into 12 monthly means (kept to one decimal), caching
  * 12 rows, and expanding back to per-day values by interpolation between month midpoints.
  */
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class ClimateNormalsTest {
     private lateinit var openMeteoApi: OpenMeteoApi
     private lateinit var widgetStateManager: WidgetStateManager

@@ -7,7 +7,7 @@ import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
@@ -18,7 +18,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class NwsObservationBackfillerTest {
 
     private fun subject(source: NwsObservationSource) = NwsObservationBackfiller(

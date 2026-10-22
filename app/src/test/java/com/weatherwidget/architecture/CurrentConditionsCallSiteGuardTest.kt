@@ -1,7 +1,7 @@
 package com.weatherwidget.architecture
 
 import com.weatherwidget.shared.observations.CurrentConditionsCallSites
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -12,7 +12,7 @@ import java.io.File
  * the twin of this test (plans/261013-shared-current-conditions-fetch.md). Before, Android sampled
  * five points per feed and desktop one, under different station names.
  */
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class CurrentConditionsCallSiteGuardTest {
     @Test
     fun modelFeedCurrentConditionsGoThroughTheSharedFetcher() {

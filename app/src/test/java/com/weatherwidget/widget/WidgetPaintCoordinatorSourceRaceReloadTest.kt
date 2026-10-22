@@ -5,7 +5,7 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -26,7 +26,7 @@ import org.junit.experimental.categories.Category
  *
  * See plans/260901-stale-source-paint-clobbers-hourly-graph.md.
  */
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class WidgetPaintCoordinatorSourceRaceReloadTest {
 
     private val widgetId = 345

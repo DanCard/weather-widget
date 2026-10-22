@@ -13,7 +13,7 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.weatherwidget.test.RobolectricTest
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.ui.ConfigActivity
 import com.weatherwidget.ui.LocationUpdater
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit
  * The bottom row of that table used to be 4 hours (240 min above 70% battery), because nothing but
  * the periodic tick resampled off-charger.
  */
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class LocationLatencyBudgetTest : RobolectricTest() {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()

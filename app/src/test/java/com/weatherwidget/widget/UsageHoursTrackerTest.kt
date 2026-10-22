@@ -2,7 +2,7 @@ package com.weatherwidget.widget
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -18,7 +18,7 @@ import java.util.TimeZone
 /** performance/261019-android-usage-hours-slow-fetching-when-unused.md (phase 1, log-only) */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class UsageHoursTrackerTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val zone = ZoneId.of("America/Los_Angeles")

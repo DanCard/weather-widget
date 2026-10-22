@@ -344,6 +344,11 @@ val validateUnitTestDurations by tasks.registering {
             if (bucketsInFile.size != 1) {
                 violations += "${file.path}: expected exactly one category bucket, found ${bucketsInFile.ifEmpty { setOf("none") }}"
             }
+
+            // ShortDuration tests must be pure quick unit tests (<0.2s) without Robolectric runtime overhead.
+            if (bucketsInFile.contains("ShortDuration") && (content.contains("RobolectricTestRunner") || content.contains(": RobolectricTest"))) {
+                violations += "${file.path}: ShortDuration tests must be pure quick unit tests (<0.2s) without Robolectric. Move to MediumDuration or LongDuration."
+            }
         }
 
         if (violations.isNotEmpty()) {

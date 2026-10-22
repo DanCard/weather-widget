@@ -6,7 +6,7 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -17,7 +17,7 @@ import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class WidgetRefreshPolicyTest {
 
     @Test

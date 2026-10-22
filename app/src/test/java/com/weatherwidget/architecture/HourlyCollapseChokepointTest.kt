@@ -1,6 +1,6 @@
 package com.weatherwidget.architecture
 
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -32,7 +32,7 @@ import java.io.File
  * `stitchBySource` (multi-source). Hand-rolling is a bug even when it looks right today, because
  * whether it works depends on DB row order.
  */
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class HourlyCollapseChokepointTest {
 
     private companion object {

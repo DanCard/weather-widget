@@ -19,12 +19,12 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
 
 
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class WeatherApiTest {
     private lateinit var json: Json
     private lateinit var widgetStateManager: WidgetStateManager

@@ -4,7 +4,7 @@ import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.verify
@@ -22,7 +22,7 @@ import org.junit.experimental.categories.Category
  * never an improvement on whatever is on screen: the previous site's render, the interstitial,
  * or the fallback.
  */
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class WidgetPaintCoordinatorEmptyDataGuardTest {
 
     private val context: Context = mockk(relaxed = true)
