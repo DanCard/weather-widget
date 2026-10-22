@@ -26,7 +26,12 @@ EMULATOR_BOOT_LOG="$LOG_DIR/emulator-boot-${TIMESTAMP}.log"
 # appended into it can land mid-line ("...PASSEDShort bucket build finished"); this file is the
 # readable record of a run.
 SUMMARY_LOG_FILE="$LOG_DIR/summary-${TIMESTAMP}.log"
-: > "$SUMMARY_LOG_FILE"
+{
+    echo "# Staggered test run started: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+    echo "# Unit log: $UNIT_LOG_FILE"
+    echo "# Emulator log: $EMULATOR_LOG_FILE"
+    echo ""
+} > "$SUMMARY_LOG_FILE"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -235,12 +240,12 @@ run_emulator_tests_for_staggered() {
 TOTAL_START=$(date +%s)
 BUILD_START=$(date +%s)
 
-# "[+12s 09:36:53] message" — to the terminal and the summary log.
+# "[+12s 2026-10-22 09:36:53] message" — to the terminal and the summary log.
 phase() {
     local now
     now=$(date +%s)
     local line
-    line="[+$((now - TOTAL_START))s $(date +%H:%M:%S)] $*"
+    line="[+$((now - TOTAL_START))s $(date '+%Y-%m-%d %H:%M:%S')] $*"
     echo -e "${BLUE}${line}${NC}"
     echo "$line" >> "$SUMMARY_LOG_FILE"
 }

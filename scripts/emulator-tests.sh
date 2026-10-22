@@ -543,16 +543,44 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
 
             local last_code
             last_code=$(grep "INSTRUMENTATION_CODE:" "$emu_log" 2>/dev/null | tail -1 | awk '{print $2}')
-            if grep -q "FAILURES!!!" "$emu_log" 2>/dev/null; then
-                echo "FAILED — Total: $total  Passed: $passed  Failed: $failed  Duration: ${run_duration}s"
-                grep -E "FAILED|FAILURES!!!" "$emu_log" 2>/dev/null | head -20
-                return 1
-            elif [ "$last_code" = "-1" ] || grep -qE "^OK \(" "$emu_log" 2>/dev/null; then
+
+            local is_failure=false
+            if grep -q "FAILURES!!!" "$emu_log" 2>/dev/null || [ "$failed" -gt 0 ] || [ "$errors" -gt 0 ]; then
+                is_failure=true
+            elif [ "$total" -eq 0 ]; then
+                is_failure=true
+            elif [ "$last_code" != "-1" ] && ! grep -qE "^OK \(" "$emu_log" 2>/dev/null; then
+                is_failure=true
+            fi
+
+            if [ "$is_failure" = false ]; then
                 echo "PASSED — Total: $total  Passed: $passed  Duration: ${run_duration}s"
                 return 0
             else
                 echo "FAILED — Total: $total  Passed: $passed  Failed: $failed  Duration: ${run_duration}s"
-                grep -E "FAILED|FAILURES!!!" "$emu_log" 2>/dev/null | head -20
+                local failed_tests
+                failed_tests=$(awk '/^[0-9]+\) / { print "  ✗ " $0 }' "$emu_log" 2>/dev/null)
+                if [ -z "$failed_tests" ]; then
+                    failed_tests=$(awk '/^(Error|Failure) in / { sub(/^.* in /, ""); sub(/:.*$/, ""); print "  ✗ " $0 }' "$emu_log" 2>/dev/null)
+                fi
+                if [ -n "$failed_tests" ]; then
+                    echo "Failed tests:"
+                    echo "$failed_tests"
+                fi
+
+                local failure_block
+                failure_block=$(sed -n '/^There \(was\|were\) [0-9]\+ \(failure\|error\)/,/^FAILURES!!!\|^Tests run:/p' "$emu_log" 2>/dev/null | grep -vE "^FAILURES!!!|^Tests run:")
+                if [ -z "$failure_block" ]; then
+                    failure_block=$(grep -E "INSTRUMENTATION_RESULT|INSTRUMENTATION_STATUS|INSTRUMENTATION_FAILED|shortMsg=|longMsg=|Process crashed|fatal|FATAL|Exception" "$emu_log" 2>/dev/null | head -30)
+                    if [ -z "$failure_block" ]; then
+                        failure_block=$(tail -25 "$emu_log" 2>/dev/null)
+                    fi
+                fi
+                if [ -n "$failure_block" ]; then
+                    echo "Failure details:"
+                    echo "$failure_block" | head -40
+                fi
+                echo "Log file: $emu_log"
                 return 1
             fi
         }
@@ -605,8 +633,13 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
         done
 
         OVERALL_STATUS=0
-        for pid in "${PIDS[@]}"; do
-            wait "$pid" || OVERALL_STATUS=1
+        FAILED_SERIALS=()
+        for i in "${!PIDS[@]}"; do
+            serial="${CONNECTED_EMULATORS[$i]}"
+            if ! wait "${PIDS[$i]}"; then
+                OVERALL_STATUS=1
+                FAILED_SERIALS+=("$serial")
+            fi
         done
 
         # Stop progress monitors
@@ -618,7 +651,7 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
         if [ $OVERALL_STATUS -eq 0 ]; then
             echo -e "${GREEN}All emulators passed${NC}"
         else
-            echo -e "${RED}One or more emulators failed — check logs in $LOG_DIR${NC}"
+            echo -e "${RED}One or more emulators failed (${FAILED_SERIALS[*]}) — check logs in $LOG_DIR${NC}"
         fi
         exit $OVERALL_STATUS
     fi
@@ -1109,6 +1142,11 @@ if [ "$FAILED" -gt 0 ] && [ -f "$TEST_RESULTS_LOG" ]; then
             if (line != "") print "  ✗ " line
         }
     ' "$TEST_RESULTS_LOG" | head -20
+
+    if [ -n "$LATEST_REPORT_XML" ] && grep -q "<failure" "$LATEST_REPORT_XML" 2>/dev/null; then
+        echo -e "${RED}Failure details:${NC}"
+        grep -oE 'message="[^"]+"' "$LATEST_REPORT_XML" 2>/dev/null | head -10 | sed 's/^message="/  ✗ /; s/"$//'
+    fi
 fi
 
 # Recover widget state after tests (pre-test cleanup stops app/workers)

@@ -420,8 +420,10 @@ fi
 gradle_log="${LOG_FILE}"
 is_temp_log=false
 if [ -z "$gradle_log" ]; then
-  gradle_log=$(mktemp)
-  is_temp_log=true
+  LOG_DIR="$PROJECT_DIR/logs/unit-tests"
+  mkdir -p "$LOG_DIR"
+  find "$LOG_DIR" -type f -mtime +14 -delete 2>/dev/null
+  gradle_log="$LOG_DIR/unit-$(date +%Y%m%d-%H%M%S).log"
 fi
 # Empty it once here, then Gradle APPENDS. log_and_echo appends summary lines to this same file
 # while Gradle runs; a truncating `>` redirect kept Gradle writing from its own offset and
