@@ -20,8 +20,8 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.actuals.DailyActualsAssembler
-import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.shared.actuals.DailyHistoryWriter
+import com.weatherwidget.shared.actuals.StoredBlendGuard
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetConstants
@@ -302,7 +302,7 @@ class DailyActualsStore @Inject constructor(
 
         val afterDiagMs = SystemClock.elapsedRealtime()
 
-        persistExtremes(date, dateMillis, newExtremes, latitude, longitude)
+        persistExtremes(date, dateMillis, newExtremes, latitude, longitude, dayObs.map { it.toReading() }, zone)
         // Recorded only after the day has actually been reduced and written, so a failure part way
         // through leaves the day open rather than marking it settled on work that did not finish.
         if (signatureKey != null && signature != null) {
@@ -383,7 +383,11 @@ class DailyActualsStore @Inject constructor(
         newExtremes: List<DailyHistoryEntity>,
         latitude: Double,
         longitude: Double,
+        /** The day's stored readings, every api; [StoredBlendGuard] scopes them to the provider. */
+        dayReadings: List<ObservationReading>,
+        zone: ZoneId,
     ) {
+        val today = LocalDate.now(zone)
         val existingHistory = dailyHistoryDao
             .getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
             .groupBy { it.source }
@@ -413,15 +417,33 @@ class DailyActualsStore @Inject constructor(
                 // compare is how precip-only deltas were silently dropped before (see
                 // recomputeDailyExtremesForDay's precip gate); comparing the merged candidate
                 // against `existing` cannot go stale when a column is added.
-                // A past day whose blend came from the NWS station pull is frozen. Without this the
-                // ordinary recompute — which runs on widget loads and history-screen opens — would
-                // immediately overwrite the API-derived blend with one rebuilt from the stored
-                // (part-Synoptic, thinner) pool. Today's row is never frozen; its blend must stay
-                // live. CACHED_OBSERVATIONS rows are NOT frozen: their blend already comes from the
-                // stored pool, so the recompute is its rightful owner and can keep improving it as
-                // observations backfill.
-                val freezeBlend = DailyActualsSource.fromStored(existing.actualsSource) ==
-                    DailyActualsSource.NWS_STATION_PULL && date.isBefore(LocalDate.now())
+                // A past day keeps its stored high/low when it came from the NWS station pull (the
+                // stored pool is thinner, part-Synoptic) or when this pool saw only part of the day.
+                // Today's row is never kept; its blend must stay live. CACHED_OBSERVATIONS rows are
+                // not frozen: their blend already comes from the stored pool, so the recompute is
+                // their rightful owner and keeps improving them as observations backfill.
+                val keep = StoredBlendGuard.keep(
+                    date = date,
+                    today = today,
+                    source = new.source,
+                    storedActualsSource = existing.actualsSource,
+                    storedHigh = existing.computedHighTemp,
+                    storedLow = existing.computedLowTemp,
+                    readings = dayReadings,
+                    zone = zone,
+                )
+                val freezeBlend = keep != StoredBlendGuard.Keep.NONE
+                if (keep == StoredBlendGuard.Keep.UNCOVERED &&
+                    (new.computedHighTemp != existing.computedHighTemp || new.computedLowTemp != existing.computedLowTemp)
+                ) {
+                    appLogDao.log(
+                        "DAILY_HISTORY_KEPT_UNCOVERED",
+                        "date=$date src=${new.source} at=${existing.locationLat},${existing.locationLon} " +
+                            "kept=${existing.computedHighTemp}/${existing.computedLowTemp} " +
+                            "partial=${new.computedHighTemp}/${new.computedLowTemp}",
+                        "INFO",
+                    )
+                }
                 // Built from `existing`, enumerating only the fields THIS writer owns.
                 //
                 // It used to be built from `new` — a freshly constructed entity from
@@ -450,7 +472,7 @@ class DailyActualsStore @Inject constructor(
                     appLogDao.log(
                         "DAILY_HISTORY_OVERWRITE",
                         "date=$date src=${new.source} at=${existing.locationLat},${existing.locationLon} " +
-                            "high=${existing.computedHighTemp}->${new.computedHighTemp} low=${existing.computedLowTemp}->${new.computedLowTemp} " +
+                            "high=${existing.computedHighTemp}->${merged.computedHighTemp} low=${existing.computedLowTemp}->${merged.computedLowTemp} " +
                             "precip=${existing.precipAmountMm}->${new.precipAmountMm} " +
                             "apiHigh=${existing.apiHighTemp}->${merged.apiHighTemp} station=${merged.apiStationId}",
                         "DEBUG",

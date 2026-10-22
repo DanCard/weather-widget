@@ -148,7 +148,7 @@ object NwsDailyExtremesFetch {
             // StationDailyExtremes' per-station guard; this is the pool-level equivalent for the
             // blend, which has no guard of its own. Personal stations count here — the blend is
             // allowed to rest on them even though the api actual is not.
-            if (pool.isEmpty() || !poolCoversDay(pool, dayStart.toEpochMilli(), dayEnd.toEpochMilli(), zone)) {
+            if (pool.isEmpty() || !StationDailyExtremes.poolCoversDay(pool, dayStart.toEpochMilli(), dayEnd.toEpochMilli(), zone)) {
                 result[epochMs] = DayOutcome.Insufficient
                 continue
             }
@@ -185,29 +185,6 @@ object NwsDailyExtremesFetch {
             )
         }
         return result
-    }
-
-    /**
-     * True when the pulled readings span both ends of the day, so a blend over them can actually
-     * contain the day's high and low. Uses [StationDailyExtremes]' windows so the two guards can't
-     * drift apart; unlike that one this is pool-wide and accepts any station type.
-     */
-    private fun poolCoversDay(
-        pool: List<ObservationReading>,
-        dayStartMs: Long,
-        dayEndMs: Long,
-        zone: ZoneId,
-    ): Boolean {
-        var coversLow = false
-        var coversHigh = false
-        for (reading in pool) {
-            if (reading.timestamp < dayStartMs || reading.timestamp >= dayEndMs) continue
-            val hour = Instant.ofEpochMilli(reading.timestamp).atZone(zone).hour
-            if (hour in StationDailyExtremes.LOW_WINDOW_START_HOUR until StationDailyExtremes.LOW_WINDOW_END_HOUR) coversLow = true
-            if (hour in StationDailyExtremes.HIGH_WINDOW_START_HOUR until StationDailyExtremes.HIGH_WINDOW_END_HOUR) coversHigh = true
-            if (coversLow && coversHigh) return true
-        }
-        return false
     }
 
     /**

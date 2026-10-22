@@ -89,6 +89,30 @@ object StationDailyExtremes {
             }
     }
 
+    /**
+     * True when [pool]'s readings inside `[dayStartMs, dayEndMs)` span both ends of the day, so a
+     * blend over them can actually contain the day's high and low. Pool-wide and any station type,
+     * unlike [hasRequiredCoverage]; the same windows, so the guards cannot drift apart. Used by the
+     * NWS daily pull and by [ActualsAggregator.aggregate] for past days.
+     */
+    fun poolCoversDay(
+        pool: List<ObservationReading>,
+        dayStartMs: Long,
+        dayEndMs: Long,
+        zone: ZoneId,
+    ): Boolean {
+        var coversLow = false
+        var coversHigh = false
+        for (reading in pool) {
+            if (reading.timestamp < dayStartMs || reading.timestamp >= dayEndMs) continue
+            val hour = Instant.ofEpochMilli(reading.timestamp).atZone(zone).hour
+            if (hour in LOW_WINDOW_START_HOUR until LOW_WINDOW_END_HOUR) coversLow = true
+            if (hour in HIGH_WINDOW_START_HOUR until HIGH_WINDOW_END_HOUR) coversHigh = true
+            if (coversLow && coversHigh) return true
+        }
+        return false
+    }
+
     /** True when [readings] span both the afternoon (for the high) and the pre-dawn hours (for the low). */
     private fun hasRequiredCoverage(readings: List<ObservationReading>, zone: ZoneId): Boolean {
         var coversHighWindow = false

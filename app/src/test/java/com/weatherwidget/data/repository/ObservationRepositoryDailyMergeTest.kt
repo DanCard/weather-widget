@@ -65,7 +65,10 @@ class ObservationRepositoryDailyMergeTest {
     }
 
     @After
-    fun tearDown() = db.close()
+    fun tearDown() {
+        com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
+        db.close()
+    }
 
     @Test
     fun `today high comes from live IDW blender, not stale persisted daily_extreme`() = runTest {
@@ -256,5 +259,51 @@ class ObservationRepositoryDailyMergeTest {
         
         val extremes = db.dailyHistoryDao().getExtremesInRange(tenDaysAgoStart, tenDaysAgoStart, lat, lon)
         assertTrue("Daily extreme should not be inserted or recomputed for a day older than 9 days", extremes.isEmpty())
+    }
+
+    /**
+     * Fold-4 2026-10-21: Silurian's actuals were switched to Synoptic, whose first 24 h fetch held
+     * only 22:43–23:55 of the day before. The recompute wrote that sliver (61.9/60.4) over the stored
+     * full-day 68.3/51.0. A past day the provider saw only in part keeps its stored high/low
+     * (StoredBlendGuard; plans/261022-past-day-blend-needs-whole-day-coverage.md).
+     */
+    @Test
+    fun `a past day seen only late in the evening keeps its stored high and low`() = runTest {
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { source ->
+            if (source == WeatherSource.SILURIAN) WeatherSource.SYNOPTIC else null
+        }
+        val yesterday = today.minusDays(1)
+        val yesterdayKey = yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                DailyHistoryEntity(
+                    date = yesterdayKey,
+                    source = WeatherSource.SILURIAN.id,
+                    locationLat = lat,
+                    locationLon = lon,
+                    computedHighTemp = 68.3f,
+                    computedLowTemp = 51.0f,
+                    condition = "Clear",
+                    updatedAt = 1L,
+                ),
+            ),
+        )
+        db.observationDao().insertAll(
+            (0 until 15).map { i ->
+                val minutes = 22 * 60 + 43 + i * 5
+                TestData.observation(
+                    stationId = "G4110", stationName = "G4110",
+                    timestamp = yesterday.atTime(minutes / 60, minutes % 60).atZone(zone).toInstant().toEpochMilli(),
+                    temperature = 62f - i * 0.25f, distanceKm = 2f, api = WeatherSource.SYNOPTIC.id,
+                )
+            },
+        )
+
+        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday, emptyList(), force = true)
+
+        val row = db.dailyHistoryDao().getExtremesInRange(yesterdayKey, yesterdayKey, lat, lon)
+            .single { it.source == WeatherSource.SILURIAN.id }
+        assertEquals("22:43–23:55 must not replace the day's high", 68.3f, row.computedHighTemp!!, 0.01f)
+        assertEquals("22:43–23:55 must not replace the day's low", 51.0f, row.computedLowTemp!!, 0.01f)
     }
 }

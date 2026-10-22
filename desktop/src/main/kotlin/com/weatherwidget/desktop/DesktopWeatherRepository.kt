@@ -33,6 +33,7 @@ import com.weatherwidget.shared.actuals.BlendContribution
 import com.weatherwidget.shared.actuals.DailyActualsAssembler
 import com.weatherwidget.shared.util.PartialForecastDays
 import com.weatherwidget.shared.actuals.DailyActualsSource
+import com.weatherwidget.shared.actuals.StoredBlendGuard
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
@@ -1389,11 +1390,32 @@ class DesktopWeatherRepository(
             if (existing == null) {
                 new
             } else {
-                // Only a pull-derived blend is frozen; a CACHED_OBSERVATIONS row's blend already
-                // comes from the stored pool, so the recompute rightly keeps improving it.
-                val freezeBlend = DailyActualsSource.fromStored(existing.actualsSource) ==
-                    DailyActualsSource.NWS_STATION_PULL &&
-                    LocalDate.ofEpochDay(existing.date / 86_400_000L).isBefore(LocalDate.now())
+                // A past day keeps its stored high/low when pull-derived or when this pool saw only
+                // part of the day — the rule is shared with Android (StoredBlendGuard). A
+                // CACHED_OBSERVATIONS row's blend already comes from the stored pool, so the
+                // recompute rightly keeps improving it.
+                val date = LocalDate.ofEpochDay(existing.date / 86_400_000L)
+                val keep = StoredBlendGuard.keep(
+                    date = date,
+                    today = LocalDate.now(),
+                    source = new.source,
+                    storedActualsSource = existing.actualsSource,
+                    storedHigh = existing.computedHighTemp,
+                    storedLow = existing.computedLowTemp,
+                    readings = readings,
+                    zone = ZoneId.systemDefault(),
+                )
+                val freezeBlend = keep != StoredBlendGuard.Keep.NONE
+                if (keep == StoredBlendGuard.Keep.UNCOVERED &&
+                    (new.computedHighTemp != existing.computedHighTemp || new.computedLowTemp != existing.computedLowTemp)
+                ) {
+                    weatherDao.log(
+                        "DAILY_HISTORY_KEPT_UNCOVERED",
+                        "date=$date src=${new.source} kept=${existing.computedHighTemp}/${existing.computedLowTemp} " +
+                            "partial=${new.computedHighTemp}/${new.computedLowTemp}",
+                        "INFO",
+                    )
+                }
                 // Built from `existing`, enumerating only what this writer owns — see the Android
                 // sibling. Building from `new` (a freshly constructed entity) silently drops any
                 // column added later, which is how actualsSource was lost the day it was added.
