@@ -14,6 +14,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.shared.util.HeaderContent
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.PrecipitationGraphRenderer
@@ -660,24 +661,14 @@ object PrecipViewHandler {
         displaySource: WeatherSource,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): Map<LocalDateTime, Float> =
-        observations
-            .asSequence()
-            .filter { matchesActualPrecipSource(it, displaySource) }
-            .mapNotNull { obs ->
-                val amount = obs.precipAmountMm ?: return@mapNotNull null
-                val hour = Instant.ofEpochMilli(obs.timestamp)
-                    .atZone(zoneId)
-                    .toLocalDateTime()
-                    .truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-                hour to amount
-            }
-            .groupBy({ it.first }, { it.second })
-            .mapValues { (_, amounts) -> amounts.sum() }
-
-    private fun matchesActualPrecipSource(
-        observation: ObservationEntity,
-        displaySource: WeatherSource,
-    ): Boolean = com.weatherwidget.util.ActualPrecipSource.matches(observation, displaySource)
+        // One amount per hour for the site: stations are combined, not added (ObservedPrecip).
+        com.weatherwidget.shared.actuals.ObservedPrecip.byHour(
+            com.weatherwidget.shared.actuals.ObservedPrecip.rowsFor(
+                observations.map { it.toReading() },
+                displaySource,
+            ),
+            zoneId,
+        )
 
     private fun updatePrecipTextMode(
         views: RemoteViews,

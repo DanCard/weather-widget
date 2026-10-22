@@ -242,7 +242,10 @@ fun PrecipitationGraph(
         // Silurian; see plans/260901-share-rain-period-selection.md.
         val rainHours = buildRainHours(
             points = points,
-            observations = actualPrecipRowsForSource(observations, displaySourceId),
+            observations = com.weatherwidget.shared.actuals.ObservedPrecip.rowsFor(
+                observations,
+                com.weatherwidget.data.model.WeatherSource.fromId(displaySourceId),
+            ),
             now = now,
         )
         val selectedRain = RainPeriodSelection.selectPeriods(
@@ -414,33 +417,6 @@ private fun buildCurve(coords: List<Offset>): Path = DesktopGraphUtils.buildCurv
 private fun computeTangents(coords: List<Offset>): List<Offset> = DesktopGraphUtils.computeTangents(coords)
 
 /**
- * The observation rows that may legitimately be shown as this source's own measured precipitation.
- *
- * A source with no historical precipitation product contributes nothing: Silurian documents
- * `include_past` as forecast output, so relabelling it "Actual" would be a lie about provenance.
- */
-internal fun actualPrecipRowsForSource(
-    observations: List<ObservationReading>,
-    displaySourceId: String,
-): List<ObservationReading> {
-    val source = com.weatherwidget.data.model.WeatherSource.fromId(displaySourceId)
-    if (!source.historicalDataKind.preservesHistoricalPrecipitation) return emptyList()
-    return observations.filter { observation ->
-        when (source) {
-            com.weatherwidget.data.model.WeatherSource.NWS ->
-                observation.api == source.id && observation.stationId != NwsBlend.STATION_ID
-            com.weatherwidget.data.model.WeatherSource.TOMORROW_IO ->
-                observation.api == source.id &&
-                    com.weatherwidget.shared.actuals.TomorrowIoActuals.isAllowedStation(observation.stationId)
-            else ->
-                observation.api == source.id &&
-                    observation.stationId ==
-                    com.weatherwidget.shared.actuals.HistoricalActualsBackfill.syntheticStationId(source.id)
-        }
-    }
-}
-
-/**
  * Maps the forecast curve plus this source's observation rows onto the shared row type.
  *
  * The now-gate lives here, and it is the whole point: an hour at or after [now] has not happened, so
@@ -455,14 +431,8 @@ internal fun buildRainHours(
 ): List<RainPeriodSelection.RainHour> {
     val zoneId = ZoneId.systemDefault()
     val nowLdt = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId)
-    val actualByHour = mutableMapOf<LocalDateTime, Float>()
-    for (obs in observations) {
-        val amount = obs.precipAmountMm ?: continue
-        val hour = LocalDateTime.ofInstant(Instant.ofEpochMilli(obs.timestamp), zoneId)
-            .truncatedTo(ChronoUnit.HOURS)
-        // Several readings can land in one hour; the hourly total is their sum.
-        actualByHour[hour] = (actualByHour[hour] ?: 0f) + amount
-    }
+    // One amount per hour for the site: stations are combined, not added (ObservedPrecip).
+    val actualByHour = com.weatherwidget.shared.actuals.ObservedPrecip.byHour(observations, zoneId)
     return points.map { forecast ->
         val hour = LocalDateTime.ofInstant(Instant.ofEpochMilli(forecast.dateTime), zoneId)
         RainPeriodSelection.RainHour(

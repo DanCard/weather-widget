@@ -43,6 +43,8 @@ object MetarDecoder {
         val isAutoStation: Boolean = false,
         val hasPrecipDiscriminator: Boolean = false,
         val maintenanceNeeded: Boolean = false,
+        /** `PNO`: the precipitation gauge is not operating, so a missing `P` group is not a dry hour. */
+        val precipSensorOff: Boolean = false,
         val seaLevelPressureHpa: Float? = null,
         val preciseTempCelsius: Float? = null,
         val preciseDewpointCelsius: Float? = null,
@@ -69,6 +71,7 @@ object MetarDecoder {
     private val TEMP_6H_MIN_REGEX = Regex("""\b2([01])(\d{3})\b""")
     private val TEMP_24H_EXTREMES_REGEX = Regex("""\b4([01])(\d{3})([01])(\d{3})\b""")
     private val PRECIP_HOURLY_REGEX = Regex("""\bP(\d{4})\b""")
+    private val PNO_REGEX = Regex("""\bPNO\b""")
     private val PRECIP_3_6H_REGEX = Regex("""\b6(\d{4})\b""")
     private val PRECIP_24H_REGEX = Regex("""\b7(\d{4})\b""")
     private val SLP_REGEX = Regex("""\bSLP(\d{3})\b""")
@@ -197,6 +200,7 @@ object MetarDecoder {
             isAutoStation = isAuto,
             hasPrecipDiscriminator = hasPrecipDisc,
             maintenanceNeeded = maintenance,
+            precipSensorOff = PNO_REGEX.containsMatchIn(rmk),
             seaLevelPressureHpa = slpHpa,
             preciseTempCelsius = preciseTemp,
             preciseDewpointCelsius = preciseDewp,

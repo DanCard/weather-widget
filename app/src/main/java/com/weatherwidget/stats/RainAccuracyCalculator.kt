@@ -5,7 +5,8 @@ import com.weatherwidget.data.local.HourlyForecastHistoryEntity
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.util.ActualPrecipSource
+import com.weatherwidget.data.local.toReading
+import com.weatherwidget.shared.actuals.ObservedPrecip
 import com.weatherwidget.shared.graph.DayNightHours
 import com.weatherwidget.shared.stats.DailyRainAccuracy
 import java.time.Instant
@@ -106,21 +107,13 @@ class RainAccuracyCalculator
                     }
                     .toMap()
 
-            /** Observed precip per local hour, filtered to [source]'s actual series and summed. */
+            /** Observed precip per local hour for [source]: stations combined, not added ([ObservedPrecip]). */
             internal fun actualPrecipByHour(
                 observations: List<ObservationEntity>,
                 source: WeatherSource,
                 zoneId: ZoneId = ZoneId.systemDefault(),
             ): Map<LocalDateTime, Float> =
-                observations
-                    .asSequence()
-                    .filter { ActualPrecipSource.matches(it, source) }
-                    .mapNotNull { obs ->
-                        val amount = obs.precipAmountMm ?: return@mapNotNull null
-                        hourOf(obs.timestamp, zoneId) to amount
-                    }
-                    .groupBy({ it.first }, { it.second })
-                    .mapValues { (_, amounts) -> amounts.sum() }
+                ObservedPrecip.byHour(ObservedPrecip.rowsFor(observations.map { it.toReading() }, source), zoneId)
 
             /**
              * Sums [amountByHour] into (day, night) totals. A bucket is null when no hour fell in

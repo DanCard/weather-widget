@@ -103,15 +103,31 @@ class DesktopRainHourNowGateTest {
             observation(3, 5f).copy(api = WeatherSource.SILURIAN.id, stationId = "SILURIAN_MAIN"),
         )
 
-        val rows = actualPrecipRowsForSource(silurianRows, WeatherSource.SILURIAN.id)
+        val rows = com.weatherwidget.shared.actuals.ObservedPrecip.rowsFor(silurianRows, WeatherSource.SILURIAN)
 
         assertTrue("Silurian has no observation product to draw from", rows.isEmpty())
     }
 
     @Test
-    fun `several readings inside one hour are summed`() {
-        // Sub-hourly feeds report more than once an hour; the hourly actual is their total, not the
-        // last one to land.
+    fun `several interval readings inside one hour are summed`() {
+        // Sub-hourly interval feeds (Tomorrow.io's five-minute history) report each interval's own
+        // amount; the hourly actual is their total, not the last one to land.
+        val points = (0 until 6).map { forecastHour(it, 1f) }
+        val observations = listOf(
+            observation(2, 0.4f, minute = 5),
+            observation(2, 0.6f, minute = 35),
+        ).map { it.copy(api = WeatherSource.TOMORROW_IO.id, stationId = "TOMORROW_IO_5M_HISTORY", distanceKm = 0f) }
+
+        val rows = buildRainHours(points, observations, now = epoch(5))
+
+        assertEquals(1f, rows[2].actualPrecipAmountMm!!, 0.0001f)
+    }
+
+    @Test
+    fun `one station's readings inside one hour are a running total, not summed`() {
+        // A station's "last hour" amount grows through the hour (a SPECI's P is repeated in the
+        // routine report), so two readings are the larger, not 1.0
+        // (plans/261021-observed-rain-combine-stations-not-sum.md).
         val points = (0 until 6).map { forecastHour(it, 1f) }
         val observations = listOf(
             observation(2, 0.4f, minute = 5),
@@ -120,7 +136,7 @@ class DesktopRainHourNowGateTest {
 
         val rows = buildRainHours(points, observations, now = epoch(5))
 
-        assertEquals(1f, rows[2].actualPrecipAmountMm!!, 0.0001f)
+        assertEquals(0.6f, rows[2].actualPrecipAmountMm!!, 0.0001f)
     }
 
     @Test

@@ -173,9 +173,10 @@ class PrecipViewHandlerTest {
 
     @Test
     fun `buildActualPrecipByHour buckets selected source observations by hour`() {
+        // Two stations in one hour are combined (nearest gauge), not added: was 2.0.
         val observations = listOf(
-            observation("NWS", "KNUQ", "2026-03-14T18:10", 1.25f),
-            observation("NWS", "KSJC", "2026-03-14T18:45", 0.75f),
+            observation("NWS", "KNUQ", "2026-03-14T18:10", 1.25f, distanceKm = 3.8f),
+            observation("NWS", "KSJC", "2026-03-14T18:45", 0.75f, distanceKm = 15.9f),
             observation("NWS", "NWS_BLEND", "2026-03-14T18:30", 9.0f),
             observation("OPEN_METEO", "OPEN_METEO_MAIN", "2026-03-14T18:30", 7.0f),
             observation("NWS", "KNUQ", "2026-03-14T19:00", null),
@@ -187,7 +188,7 @@ class PrecipViewHandlerTest {
         )
 
         assertEquals(1, result.size)
-        assertEquals(2.0f, result[LocalDateTime.of(2026, 3, 14, 18, 0)] ?: -1f, 0.001f)
+        assertEquals(1.25f, result[LocalDateTime.of(2026, 3, 14, 18, 0)] ?: -1f, 0.001f)
     }
 
     @Test
@@ -241,8 +242,10 @@ class PrecipViewHandlerTest {
         stationId: String,
         dateTime: String,
         precipAmountMm: Float?,
+        distanceKm: Float = 0f,
     ) = ObservationEntity(
         stationId = stationId,
+        distanceKm = distanceKm,
         stationName = stationId,
         timestamp = LocalDateTime.parse(dateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
         temperature = 60f,

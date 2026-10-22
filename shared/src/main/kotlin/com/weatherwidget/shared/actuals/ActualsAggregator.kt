@@ -299,8 +299,10 @@ object ActualsAggregator {
                             .maxByOrNull { it.value }
                             ?.key ?: "Unknown"
 
+                        // The context window, not just the day: a 23:58 SPECI belongs to the period
+                        // the next day's first routine report closes.
                         val precip = resolveDailyPrecip(
-                            dayObs, sourceHourly, date, zoneId,
+                            windowObs, sourceHourly, date, zoneId,
                             allowForecastFallback = !date.isBefore(today),
                         )
 
@@ -370,21 +372,23 @@ object ActualsAggregator {
         )
     }
 
+    /**
+     * [date]'s rain from [observations] (any span covering the day): measured first, combined per
+     * hour across stations by [ObservedPrecip]; else, when [allowForecastFallback], the source's
+     * hourly forecast (today only — a past day with no measurement stays null).
+     */
     fun resolveDailyPrecip(
-        dayObs: List<ObservationReading>,
+        observations: List<ObservationReading>,
         sourceHourly: List<HourlyForecast>,
         date: LocalDate,
         zone: ZoneId,
         allowForecastFallback: Boolean = true,
     ): DailyPrecip {
-        if (dayObs.any { it.precipAmountMm != null }) {
-            return DailyPrecip(
-                total = dayObs.mapNotNull { it.precipAmountMm }.takeIf { it.isNotEmpty() }?.sum(),
-                day = sumDaytimePrecip(dayObs, date, zone),
-                night = sumNighttimePrecip(dayObs, date, zone),
-            )
+        val observed = ObservedPrecip.daily(observations, date, zone)
+        if (observed.total != null) {
+            return DailyPrecip(total = observed.total, day = observed.day, night = observed.night)
         }
-        
+
         if (!allowForecastFallback) {
             return DailyPrecip(total = null, day = null, night = null)
         }
@@ -403,28 +407,5 @@ object ActualsAggregator {
         }.mapNotNull { it.precipAmountMm }.takeIf { it.isNotEmpty() }?.sum()
 
         return DailyPrecip(total = total, day = day, night = night)
-    }
-
-    private fun sumDaytimePrecip(obs: List<ObservationReading>, date: LocalDate, zone: ZoneId): Float? {
-        val daytime = obs.filter {
-            val dt = Instant.ofEpochMilli(it.timestamp).atZone(zone)
-            dt.toLocalDate() == date && dt.hour in DAY_START_HOUR until DAY_END_HOUR
-        }.mapNotNull { it.precipAmountMm }
-        return if (daytime.isEmpty()) null else daytime.sum()
-    }
-
-    private fun sumNighttimePrecip(obs: List<ObservationReading>, date: LocalDate, zone: ZoneId): Float? {
-        val night1 = obs.filter {
-            val dt = Instant.ofEpochMilli(it.timestamp).atZone(zone)
-            dt.toLocalDate() == date && dt.hour < DAY_START_HOUR
-        }.mapNotNull { it.precipAmountMm }
-
-        val night2 = obs.filter {
-            val dt = Instant.ofEpochMilli(it.timestamp).atZone(zone)
-            dt.toLocalDate() == date && dt.hour >= DAY_END_HOUR
-        }.mapNotNull { it.precipAmountMm }
-
-        val all = night1 + night2
-        return if (all.isEmpty()) null else all.sum()
     }
 }

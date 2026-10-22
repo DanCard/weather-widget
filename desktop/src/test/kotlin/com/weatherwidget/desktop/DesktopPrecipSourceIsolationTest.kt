@@ -29,7 +29,7 @@ class DesktopPrecipSourceIsolationTest {
             row("KNUQ", WeatherSource.NWS),
         )
 
-        assertTrue(actualPrecipRowsForSource(rows, WeatherSource.SILURIAN.id).isEmpty())
+        assertTrue(com.weatherwidget.shared.actuals.ObservedPrecip.rowsFor(rows, WeatherSource.SILURIAN).isEmpty())
     }
 
     @Test
@@ -42,7 +42,7 @@ class DesktopPrecipSourceIsolationTest {
 
         assertEquals(
             listOf("OPEN_METEO_MAIN"),
-            actualPrecipRowsForSource(rows, WeatherSource.OPEN_METEO.id).map { it.stationId },
+            com.weatherwidget.shared.actuals.ObservedPrecip.rowsFor(rows, WeatherSource.OPEN_METEO).map { it.stationId },
         )
     }
 }

@@ -43,8 +43,10 @@ class RainAccuracyCalculatorTest {
         precipAmountMm: Float?,
         api: String = WeatherSource.NWS.id,
         stationId: String = "KSFO",
+        distanceKm: Float = 0f,
     ) = ObservationEntity(
         stationId = stationId,
+        distanceKm = distanceKm,
         stationName = stationId,
         timestamp = epochOf(dateTime),
         temperature = 60f,
@@ -89,8 +91,12 @@ class RainAccuracyCalculatorTest {
         assertEquals(mapOf(hour to 4f), byHour)
     }
 
+    /**
+     * One station's amounts are running totals ("last hour"), so two readings in an hour are the
+     * larger one, not their sum (plans/261021-observed-rain-combine-stations-not-sum.md; was 3).
+     */
     @Test
-    fun `actualPrecipByHour excludes NWS_BLEND and sums per hour`() {
+    fun `actualPrecipByHour excludes NWS_BLEND and takes one station's running total`() {
         val hour = day.atTime(9, 0)
         val observations = listOf(
             observation(hour, precipAmountMm = 1f, stationId = "KSFO"),
@@ -98,7 +104,19 @@ class RainAccuracyCalculatorTest {
             observation(hour, precipAmountMm = 9f, stationId = "NWS_BLEND"), // excluded
         )
         val byHour = RainAccuracyCalculator.actualPrecipByHour(observations, WeatherSource.NWS, zone)
-        assertEquals(mapOf(hour to 3f), byHour)
+        assertEquals(mapOf(hour to 2f), byHour)
+    }
+
+    @Test
+    fun `actualPrecipByHour combines stations, nearest gauge wins`() {
+        val hour = day.atTime(9, 0)
+        val observations = listOf(
+            observation(hour, precipAmountMm = 3f, stationId = "KNUQ", distanceKm = 3.8f),
+            observation(hour, precipAmountMm = 3f, stationId = "KPAO", distanceKm = 6.1f),
+            observation(hour, precipAmountMm = 5f, stationId = "KSJC", distanceKm = 15.9f),
+        )
+        val byHour = RainAccuracyCalculator.actualPrecipByHour(observations, WeatherSource.NWS, zone)
+        assertEquals(mapOf(hour to 3f), byHour) // the summing code: 11
     }
 
     @Test
