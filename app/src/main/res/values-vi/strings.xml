@@ -20,6 +20,11 @@
     <string name="use_this_location">Dùng vị trí này</string>
     <string name="location_found_label">Đã tìm thấy vị trí thiết bị: %1$s</string>
     <string name="location_fix_failed">Không lấy được vị trí thiết bị — hãy chọn một tùy chọn bên dưới</string>
+    <string name="location_progress_hint">Đang lấy vị trí của bạn — có thể mất đến %1$d giây</string>
+    <string name="location_wait_title">Vẫn đang lấy vị trí của bạn</string>
+    <string name="location_wait_message">Chờ để dùng vị trí này cho tiện ích, hoặc bỏ qua và đặt vị trí sau.</string>
+    <string name="location_wait_button">Chờ</string>
+    <string name="location_skip_button">Bỏ qua</string>
     <string name="pinned_location_explainer">Chọn một vị trí đã tìm hoặc tọa độ sẽ ghim vị trí đó. Các tiện ích ngừng đi theo thiết bị cho đến khi bạn nhấn lại \"Dùng vị trí chính xác của thiết bị\".</string>
     <string name="set_location_button">Đặt vị trí…</string>
     <string name="location_mode_pinned">Đã ghim</string>

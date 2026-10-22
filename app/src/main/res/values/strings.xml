@@ -20,6 +20,11 @@
     <string name="use_this_location">Use this location</string>
     <string name="location_found_label">Found device location: %1$s</string>
     <string name="location_fix_failed">Couldn\'t get device location — pick an option below</string>
+    <string name="location_progress_hint">Getting your location — this can take up to %1$d seconds</string>
+    <string name="location_wait_title">Still getting your location</string>
+    <string name="location_wait_message">Wait to use it for this widget, or skip and set a location later.</string>
+    <string name="location_wait_button">Wait</string>
+    <string name="location_skip_button">Skip</string>
     <string name="pinned_location_explainer">Choosing a searched location or coordinates pins it. Widgets stop following the device until you tap \"Use precise device location\" again.</string>
     <string name="set_location_button">Set Location…</string>
     <string name="location_mode_pinned">Pinned</string>

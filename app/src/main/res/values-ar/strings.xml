@@ -20,6 +20,11 @@
     <string name="use_this_location">استخدام هذا الموقع</string>
     <string name="location_found_label">تم العثور على موقع الجهاز: %1$s</string>
     <string name="location_fix_failed">تعذر الحصول على موقع الجهاز — اختر خيارًا أدناه</string>
+    <string name="location_progress_hint">جارٍ تحديد موقعك — قد يستغرق ذلك حتى %1$d ثانية</string>
+    <string name="location_wait_title">لا يزال تحديد موقعك جاريًا</string>
+    <string name="location_wait_message">انتظر لاستخدامه لهذه الأداة، أو تخطَّ وحدِّد موقعًا لاحقًا.</string>
+    <string name="location_wait_button">انتظار</string>
+    <string name="location_skip_button">تخطٍّ</string>
     <string name="pinned_location_explainer">اختيار موقع من البحث أو إحداثيات يثبّته. تتوقف الأدوات عن تتبع الجهاز حتى تنقر \"استخدام الموقع الدقيق للجهاز\" مرة أخرى.</string>
     <string name="set_location_button">تعيين الموقع…</string>
     <string name="location_mode_pinned">مثبّت</string>

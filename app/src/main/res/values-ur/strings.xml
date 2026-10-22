@@ -20,6 +20,11 @@
     <string name="use_this_location">یہ مقام استعمال کریں</string>
     <string name="location_found_label">آلے کا مقام مل گیا: %1$s</string>
     <string name="location_fix_failed">آلے کا مقام حاصل نہیں ہو سکا — نیچے سے کوئی اختیار چنیں</string>
+    <string name="location_progress_hint">آپ کا مقام حاصل کیا جا رہا ہے — اس میں %1$d سیکنڈ تک لگ سکتے ہیں</string>
+    <string name="location_wait_title">آپ کا مقام ابھی حاصل کیا جا رہا ہے</string>
+    <string name="location_wait_message">اس ویجیٹ کے لیے استعمال کرنے کو انتظار کریں، یا چھوڑ دیں اور بعد میں مقام سیٹ کریں۔</string>
+    <string name="location_wait_button">انتظار کریں</string>
+    <string name="location_skip_button">چھوڑیں</string>
     <string name="pinned_location_explainer">تلاش کردہ مقام یا نقاط منتخب کرنے سے وہ پن ہو جاتا ہے۔ جب تک آپ دوبارہ \"آلے کا درست مقام استعمال کریں\" پر ٹیپ نہ کریں، ویجٹس آلے کی پیروی بند رکھیں گے۔</string>
     <string name="set_location_button">مقام مقرر کریں…</string>
     <string name="location_mode_pinned">پن شدہ</string>

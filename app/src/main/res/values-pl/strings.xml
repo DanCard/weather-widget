@@ -20,6 +20,11 @@
     <string name="use_this_location">Użyj tej lokalizacji</string>
     <string name="location_found_label">Znaleziono lokalizację urządzenia: %1$s</string>
     <string name="location_fix_failed">Nie udało się ustalić lokalizacji urządzenia — wybierz opcję poniżej</string>
+    <string name="location_progress_hint">Ustalanie lokalizacji — może to potrwać do %1$d sekund</string>
+    <string name="location_wait_title">Nadal ustalam lokalizację</string>
+    <string name="location_wait_message">Zaczekaj, aby użyć jej w tym widżecie, lub pomiń i ustaw lokalizację później.</string>
+    <string name="location_wait_button">Zaczekaj</string>
+    <string name="location_skip_button">Pomiń</string>
     <string name="pinned_location_explainer">Wybór wyszukanej lokalizacji lub współrzędnych przypina ją. Widżety przestają podążać za urządzeniem, dopóki ponownie nie dotkniesz \"Użyj dokładnej lokalizacji urządzenia\".</string>
     <string name="set_location_button">Ustaw lokalizację…</string>
     <string name="location_mode_pinned">Przypięta</string>

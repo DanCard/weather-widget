@@ -20,6 +20,11 @@
     <string name="use_this_location">Використати це місце</string>
     <string name="location_found_label">Знайдено місцезнаходження пристрою: %1$s</string>
     <string name="location_fix_failed">Не вдалося отримати місцезнаходження пристрою — виберіть варіант нижче</string>
+    <string name="location_progress_hint">Визначаємо ваше місцезнаходження — це може тривати до %1$d секунд</string>
+    <string name="location_wait_title">Місцезнаходження ще визначається</string>
+    <string name="location_wait_message">Зачекайте, щоб використати його для цього віджета, або пропустіть і вкажіть місце пізніше.</string>
+    <string name="location_wait_button">Зачекати</string>
+    <string name="location_skip_button">Пропустити</string>
     <string name="pinned_location_explainer">Вибір знайденого місця або координат закріплює його. Віджети перестають стежити за пристроєм, доки ви знову не торкнетеся \"Використати точне місцезнаходження пристрою\".</string>
     <string name="set_location_button">Встановити місцезнаходження…</string>
     <string name="location_mode_pinned">Закріплено</string>

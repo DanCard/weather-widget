@@ -20,6 +20,11 @@
     <string name="use_this_location">Bu konumu kullan</string>
     <string name="location_found_label">Cihaz konumu bulundu: %1$s</string>
     <string name="location_fix_failed">Cihaz konumu alınamadı — aşağıdan bir seçenek belirleyin</string>
+    <string name="location_progress_hint">Konumunuz alınıyor — bu %1$d saniyeye kadar sürebilir</string>
+    <string name="location_wait_title">Konumunuz hâlâ alınıyor</string>
+    <string name="location_wait_message">Bu widget için kullanmak üzere bekleyin ya da atlayıp konumu daha sonra ayarlayın.</string>
+    <string name="location_wait_button">Bekle</string>
+    <string name="location_skip_button">Atla</string>
     <string name="pinned_location_explainer">Aranan bir konumu veya koordinatları seçmek onu sabitler. \"Cihazın hassas konumunu kullan\" seçeneğine tekrar dokunana kadar widget\'lar cihazı takip etmeyi bırakır.</string>
     <string name="set_location_button">Konumu ayarla…</string>
     <string name="location_mode_pinned">Sabitlendi</string>

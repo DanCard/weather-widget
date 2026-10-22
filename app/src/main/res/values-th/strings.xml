@@ -20,6 +20,11 @@
     <string name="use_this_location">ใช้ตำแหน่งนี้</string>
     <string name="location_found_label">พบตำแหน่งอุปกรณ์: %1$s</string>
     <string name="location_fix_failed">ไม่สามารถหาตำแหน่งอุปกรณ์ได้ — เลือกตัวเลือกด้านล่าง</string>
+    <string name="location_progress_hint">กำลังหาตำแหน่งของคุณ — อาจใช้เวลาถึง %1$d วินาที</string>
+    <string name="location_wait_title">ยังคงหาตำแหน่งของคุณอยู่</string>
+    <string name="location_wait_message">รอเพื่อใช้ตำแหน่งนี้กับวิดเจ็ต หรือข้ามแล้วตั้งตำแหน่งภายหลัง</string>
+    <string name="location_wait_button">รอ</string>
+    <string name="location_skip_button">ข้าม</string>
     <string name="pinned_location_explainer">การเลือกตำแหน่งที่ค้นหาหรือพิกัดจะปักหมุดตำแหน่งนั้น วิดเจ็ตจะหยุดติดตามอุปกรณ์จนกว่าคุณจะแตะ \"ใช้ตำแหน่งที่แม่นยำของอุปกรณ์\" อีกครั้ง</string>
     <string name="set_location_button">ตั้งค่าตำแหน่ง…</string>
     <string name="location_mode_pinned">ปักหมุดแล้ว</string>

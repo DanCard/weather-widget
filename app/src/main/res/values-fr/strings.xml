@@ -20,6 +20,11 @@
     <string name="use_this_location">Utiliser cette position</string>
     <string name="location_found_label">Position de l\'appareil trouvée : %1$s</string>
     <string name="location_fix_failed">Impossible d\'obtenir la position de l\'appareil — choisissez une option ci-dessous</string>
+    <string name="location_progress_hint">Localisation en cours — cela peut prendre jusqu\'à %1$d secondes</string>
+    <string name="location_wait_title">Localisation toujours en cours</string>
+    <string name="location_wait_message">Attendez pour l\'utiliser dans ce widget, ou ignorez et choisissez un lieu plus tard.</string>
+    <string name="location_wait_button">Attendre</string>
+    <string name="location_skip_button">Ignorer</string>
     <string name="pinned_location_explainer">Choisir une position recherchée ou des coordonnées la fixe. Les widgets cessent de suivre l\'appareil jusqu\'à ce que vous touchiez à nouveau \"Utiliser la position précise de l\'appareil\".</string>
     <string name="set_location_button">Définir la position…</string>
     <string name="location_mode_pinned">Fixée</string>

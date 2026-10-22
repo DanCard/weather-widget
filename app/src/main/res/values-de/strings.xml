@@ -20,6 +20,11 @@
     <string name="use_this_location">Diesen Standort verwenden</string>
     <string name="location_found_label">Gerätestandort gefunden: %1$s</string>
     <string name="location_fix_failed">Gerätestandort konnte nicht ermittelt werden — wähle unten eine Option</string>
+    <string name="location_progress_hint">Standort wird ermittelt — das kann bis zu %1$d Sekunden dauern</string>
+    <string name="location_wait_title">Standort wird noch ermittelt</string>
+    <string name="location_wait_message">Warten, um ihn für dieses Widget zu verwenden, oder überspringen und später einen Standort festlegen.</string>
+    <string name="location_wait_button">Warten</string>
+    <string name="location_skip_button">Überspringen</string>
     <string name="pinned_location_explainer">Die Wahl eines gesuchten Standorts oder von Koordinaten fixiert ihn. Widgets folgen dem Gerät nicht mehr, bis du erneut \"Genauen Gerätestandort verwenden\" antippst.</string>
     <string name="set_location_button">Standort festlegen…</string>
     <string name="location_mode_pinned">Fixiert</string>

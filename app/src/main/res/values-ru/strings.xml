@@ -20,6 +20,11 @@
     <string name="use_this_location">Использовать это местоположение</string>
     <string name="location_found_label">Найдено местоположение устройства: %1$s</string>
     <string name="location_fix_failed">Не удалось определить местоположение — выберите вариант ниже</string>
+    <string name="location_progress_hint">Определяем ваше местоположение — это может занять до %1$d секунд</string>
+    <string name="location_wait_title">Местоположение ещё определяется</string>
+    <string name="location_wait_message">Подождите, чтобы использовать его для этого виджета, или пропустите и укажите место позже.</string>
+    <string name="location_wait_button">Подождать</string>
+    <string name="location_skip_button">Пропустить</string>
     <string name="pinned_location_explainer">Выбор найденного места или координат закрепляет их. Виджеты перестают следовать за устройством, пока вы снова не нажмёте \"Использовать точное местоположение устройства\".</string>
     <string name="set_location_button">Задать местоположение…</string>
     <string name="location_mode_pinned">Закреплено</string>

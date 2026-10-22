@@ -20,6 +20,11 @@
     <string name="use_this_location">使用此位置</string>
     <string name="location_found_label">已找到设备位置：%1$s</string>
     <string name="location_fix_failed">无法获取设备位置 — 请从下方选择一个选项</string>
+    <string name="location_progress_hint">正在获取您的位置 — 最多可能需要 %1$d 秒</string>
+    <string name="location_wait_title">仍在获取您的位置</string>
+    <string name="location_wait_message">等待以将其用于此小组件，或跳过并稍后设置位置。</string>
+    <string name="location_wait_button">等待</string>
+    <string name="location_skip_button">跳过</string>
     <string name="pinned_location_explainer">选择搜索到的位置或坐标会将其固定。在您再次点按\"使用设备精确位置\"之前，小部件将停止跟随设备。</string>
     <string name="set_location_button">设置位置…</string>
     <string name="location_mode_pinned">已固定</string>

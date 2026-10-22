@@ -20,6 +20,11 @@
     <string name="use_this_location">Gunakan lokasi ini</string>
     <string name="location_found_label">Lokasi perangkat ditemukan: %1$s</string>
     <string name="location_fix_failed">Tidak dapat memperoleh lokasi perangkat — pilih opsi di bawah</string>
+    <string name="location_progress_hint">Mendapatkan lokasi Anda — ini bisa memakan waktu hingga %1$d detik</string>
+    <string name="location_wait_title">Masih mendapatkan lokasi Anda</string>
+    <string name="location_wait_message">Tunggu untuk menggunakannya di widget ini, atau lewati dan atur lokasi nanti.</string>
+    <string name="location_wait_button">Tunggu</string>
+    <string name="location_skip_button">Lewati</string>
     <string name="pinned_location_explainer">Memilih lokasi hasil pencarian atau koordinat akan menyematkannya. Widget berhenti mengikuti perangkat sampai Anda mengetuk \"Gunakan lokasi perangkat yang akurat\" lagi.</string>
     <string name="set_location_button">Atur lokasi…</string>
     <string name="location_mode_pinned">Disematkan</string>

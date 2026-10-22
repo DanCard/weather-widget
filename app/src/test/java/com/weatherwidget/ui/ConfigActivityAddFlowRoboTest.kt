@@ -14,10 +14,12 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WidgetStateManager
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -26,6 +28,7 @@ import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowDialog
 import org.robolectric.annotation.Config
 import java.util.concurrent.TimeUnit
 
@@ -299,6 +302,155 @@ class ConfigActivityAddFlowRoboTest {
             }
         }
     }
+
+    // --- Back during a running fix asks to wait (plans/261022-setup-back-waits-for-running-location-fix.md).
+    // Emulator 2026-10-22: back 2 s into the fix saved the widget with no location and cancelled the fix.
+
+    @Test
+    fun `a running fix shows the progress row, and it goes when the fix lands`() {
+        val fix = CompletableDeferred<LocationFixFlow.Coordinates?>()
+        ConfigActivity.locationStagesForTesting = deferredStages(fix)
+
+        launchAddFlow().use { scenario ->
+            scenario.onActivity { activity ->
+                assertEquals(android.view.View.VISIBLE, activity.findViewById<android.view.View>(R.id.location_progress_row).visibility)
+            }
+            fix.complete(FIX)
+            drainUntil("auto-fill resolved") { scenario.confirmButtonIsOffered() }
+            scenario.onActivity { activity ->
+                assertEquals(android.view.View.GONE, activity.findViewById<android.view.View>(R.id.location_progress_row).visibility)
+            }
+        }
+    }
+
+    @Test
+    fun `back during a running fix asks to wait instead of leaving`() {
+        ConfigActivity.locationStagesForTesting = deferredStages(CompletableDeferred())
+
+        launchAddFlow().use { scenario ->
+            scenario.onActivity { activity ->
+                activity.onBackPressedDispatcher.onBackPressed()
+                assertFalse("Back during a fix must not leave yet", activity.isFinishing)
+                assertNotNull("Back during a fix must ask Wait / Skip", waitDialog())
+            }
+        }
+    }
+
+    @Test
+    fun `Wait saves the fix when it lands and finishes`() {
+        val fix = CompletableDeferred<LocationFixFlow.Coordinates?>()
+        ConfigActivity.locationStagesForTesting = deferredStages(fix)
+
+        val scenario = launchAddFlow()
+        scenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+            waitDialog()!!.getButton(android.content.DialogInterface.BUTTON_POSITIVE).performClick()
+            shadowOf(context.mainLooper).idle() // AppCompat posts the click
+            assertFalse("Wait keeps the screen until the fix lands", activity.isFinishing)
+        }
+        fix.complete(FIX)
+        drainUntil("fix saved") { savedLat() != null }
+
+        assertEquals(FIX.lat, savedLat()!!, 1e-4)
+        assertEquals(Activity.RESULT_OK, scenario.result.resultCode)
+        scenario.close()
+    }
+
+    @Test
+    fun `Skip leaves at once with no location`() {
+        ConfigActivity.locationStagesForTesting = deferredStages(CompletableDeferred())
+
+        val scenario = launchAddFlow()
+        scenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+            waitDialog()!!.getButton(android.content.DialogInterface.BUTTON_NEGATIVE).performClick()
+            shadowOf(context.mainLooper).idle() // AppCompat posts the click
+        }
+        drainUntil("screen finished") { scenario.isFinishing() }
+
+        assertEquals("Skip keeps the widget (RESULT_OK)", Activity.RESULT_OK, scenario.result.resultCode)
+        assertEquals("Skip saves no location", null, savedLat())
+        scenario.close()
+    }
+
+    @Test
+    fun `a second back while waiting leaves at once with no location`() {
+        ConfigActivity.locationStagesForTesting = deferredStages(CompletableDeferred())
+
+        val scenario = launchAddFlow()
+        scenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+            waitDialog()!!.getButton(android.content.DialogInterface.BUTTON_POSITIVE).performClick()
+            shadowOf(context.mainLooper).idle() // AppCompat posts the click
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+        drainUntil("screen finished") { scenario.isFinishing() }
+
+        assertEquals(Activity.RESULT_OK, scenario.result.resultCode)
+        assertEquals(null, savedLat())
+        scenario.close()
+    }
+
+    @Test
+    fun `Wait and no fix leaves the screen open with its options`() {
+        val fix = CompletableDeferred<LocationFixFlow.Coordinates?>()
+        ConfigActivity.locationStagesForTesting = deferredStages(fix)
+
+        launchAddFlow().use { scenario ->
+            scenario.onActivity { activity ->
+                activity.onBackPressedDispatcher.onBackPressed()
+                waitDialog()!!.getButton(android.content.DialogInterface.BUTTON_POSITIVE).performClick()
+            shadowOf(context.mainLooper).idle() // AppCompat posts the click
+            }
+            fix.complete(null)
+            drainUntil("fix flow gave up and the button recovered") {
+                var enabled = false
+                scenario.onActivity { enabled = it.findViewById<Button>(R.id.use_gps_button).isEnabled }
+                enabled
+            }
+            scenario.onActivity { activity ->
+                assertFalse("No fix after Wait: stay, so search is right there", activity.isFinishing)
+            }
+            assertEquals(null, savedLat())
+        }
+    }
+
+    @Test
+    fun `a fix landing while the question is up is saved and the screen finishes`() {
+        val fix = CompletableDeferred<LocationFixFlow.Coordinates?>()
+        ConfigActivity.locationStagesForTesting = deferredStages(fix)
+
+        val scenario = launchAddFlow()
+        scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        fix.complete(FIX)
+        drainUntil("fix saved") { savedLat() != null }
+
+        assertEquals(FIX.lat, savedLat()!!, 1e-4)
+        assertEquals(Activity.RESULT_OK, scenario.result.resultCode)
+        scenario.close()
+    }
+
+    /** Finishing, or already gone (onActivity throws once the activity is destroyed). */
+    private fun ActivityScenario<ConfigActivity>.isFinishing(): Boolean {
+        var finishing = true
+        runCatching { onActivity { finishing = it.isFinishing } }
+        return finishing
+    }
+
+    private fun waitDialog(): androidx.appcompat.app.AlertDialog? =
+        (ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)?.takeIf { it.isShowing }
+
+    private fun savedLat(): Double? {
+        val prefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
+        val key = "${ConfigActivity.KEY_LAT_PREFIX}$TEST_WIDGET_ID"
+        return if (prefs.contains(key)) prefs.getFloat(key, Float.NaN).toDouble() else null
+    }
+
+    private fun deferredStages(fix: CompletableDeferred<LocationFixFlow.Coordinates?>) =
+        ConfigActivity.LocationStages(
+            activeFix = { fix.await() },
+            cachedFix = { null },
+        )
 
     /** True once the auto-fill fix resolved and the button became a one-tap confirm. */
     // "Use precise device location" within LocationMatch.WEATHER_SITE_RADIUS_KM of the active site

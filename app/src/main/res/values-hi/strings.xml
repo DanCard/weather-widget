@@ -20,6 +20,11 @@
     <string name="use_this_location">यह स्थान उपयोग करें</string>
     <string name="location_found_label">डिवाइस का स्थान मिला: %1$s</string>
     <string name="location_fix_failed">डिवाइस का स्थान नहीं मिल सका — नीचे कोई विकल्प चुनें</string>
+    <string name="location_progress_hint">आपकी लोकेशन ली जा रही है — इसमें %1$d सेकंड तक लग सकते हैं</string>
+    <string name="location_wait_title">आपकी लोकेशन अभी भी ली जा रही है</string>
+    <string name="location_wait_message">इस विजेट के लिए इसका उपयोग करने हेतु प्रतीक्षा करें, या छोड़ें और बाद में लोकेशन सेट करें।</string>
+    <string name="location_wait_button">प्रतीक्षा करें</string>
+    <string name="location_skip_button">छोड़ें</string>
     <string name="pinned_location_explainer">खोजा गया स्थान या निर्देशांक चुनने से वह पिन हो जाता है। जब तक आप फिर से \"डिवाइस का सटीक स्थान उपयोग करें\" पर टैप नहीं करते, विजेट डिवाइस का अनुसरण नहीं करेंगे।</string>
     <string name="set_location_button">स्थान सेट करें…</string>
     <string name="location_mode_pinned">पिन किया गया</string>

@@ -20,6 +20,11 @@
     <string name="use_this_location">この場所を使用</string>
     <string name="location_found_label">端末の位置が見つかりました：%1$s</string>
     <string name="location_fix_failed">端末の位置を取得できませんでした — 下のオプションを選んでください</string>
+    <string name="location_progress_hint">現在地を取得中 — 最大%1$d秒かかることがあります</string>
+    <string name="location_wait_title">現在地をまだ取得中です</string>
+    <string name="location_wait_message">このウィジェットで使うには待つか、スキップして後で地点を設定してください。</string>
+    <string name="location_wait_button">待つ</string>
+    <string name="location_skip_button">スキップ</string>
     <string name="pinned_location_explainer">検索した場所や座標を選ぶと、その場所が固定されます。\"端末の正確な位置情報を使用\"をもう一度タップするまで、ウィジェットは端末に追従しなくなります。</string>
     <string name="set_location_button">位置を設定…</string>
     <string name="location_mode_pinned">固定中</string>

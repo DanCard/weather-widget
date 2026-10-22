@@ -20,6 +20,11 @@
     <string name="use_this_location">এই অবস্থান ব্যবহার করুন</string>
     <string name="location_found_label">ডিভাইসের অবস্থান পাওয়া গেছে: %1$s</string>
     <string name="location_fix_failed">ডিভাইসের অবস্থান পাওয়া যায়নি — নিচে একটি বিকল্প বেছে নিন</string>
+    <string name="location_progress_hint">আপনার অবস্থান নেওয়া হচ্ছে — এতে %1$d সেকেন্ড পর্যন্ত লাগতে পারে</string>
+    <string name="location_wait_title">এখনও আপনার অবস্থান নেওয়া হচ্ছে</string>
+    <string name="location_wait_message">এই উইজেটের জন্য এটি ব্যবহার করতে অপেক্ষা করুন, অথবা এড়িয়ে গিয়ে পরে একটি অবস্থান সেট করুন।</string>
+    <string name="location_wait_button">অপেক্ষা করুন</string>
+    <string name="location_skip_button">এড়িয়ে যান</string>
     <string name="pinned_location_explainer">খোঁজা অবস্থান বা স্থানাঙ্ক নির্বাচন করলে সেটি পিন হয়ে যায়। আপনি আবার \"ডিভাইসের নির্ভুল অবস্থান ব্যবহার করুন\" ট্যাপ না করা পর্যন্ত উইজেট ডিভাইস অনুসরণ বন্ধ রাখবে।</string>
     <string name="set_location_button">অবস্থান নির্ধারণ…</string>
     <string name="location_mode_pinned">পিন করা</string>

@@ -20,6 +20,11 @@
     <string name="use_this_location">Usa questa posizione</string>
     <string name="location_found_label">Posizione del dispositivo trovata: %1$s</string>
     <string name="location_fix_failed">Impossibile ottenere la posizione del dispositivo — scegli un\'opzione qui sotto</string>
+    <string name="location_progress_hint">Rilevamento della posizione — può richiedere fino a %1$d secondi</string>
+    <string name="location_wait_title">Posizione ancora in rilevamento</string>
+    <string name="location_wait_message">Attendi per usarla in questo widget, oppure salta e imposta una posizione più tardi.</string>
+    <string name="location_wait_button">Attendi</string>
+    <string name="location_skip_button">Salta</string>
     <string name="pinned_location_explainer">Scegliere una posizione cercata o delle coordinate la blocca. I widget smettono di seguire il dispositivo finché non tocchi di nuovo \"Usa la posizione precisa del dispositivo\".</string>
     <string name="set_location_button">Imposta posizione…</string>
     <string name="location_mode_pinned">Bloccata</string>

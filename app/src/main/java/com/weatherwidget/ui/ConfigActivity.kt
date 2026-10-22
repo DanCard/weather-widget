@@ -96,6 +96,20 @@ class ConfigActivity : AppCompatActivity() {
     /** Device fix resolved by the auto-fill flow, awaiting the user's confirm tap. */
     private var prefetchedFix: LocationFixFlow.Coordinates? = null
 
+    /**
+     * True while the device fix runs (bounded by the [LocationFixFlow] timeouts). Back during it
+     * asks to wait rather than cancelling it: the fix lives in this screen's lifecycle, and with
+     * while-in-use permission it could not land after the screen is gone anyway
+     * (plans/261022-setup-back-waits-for-running-location-fix.md).
+     */
+    private var fixInFlight = false
+
+    /** Back during a fix chose Wait: save the fix when it lands and finish. */
+    private var finishWhenFixLands = false
+
+    /** The Wait/Skip question, while it is showing. */
+    private var waitForFixDialog: AlertDialog? = null
+
     /** Set by [finishWithSuccess]; onDestroy logs any widget-add exit that never got here. */
     private var completedOk = false
 
@@ -377,11 +391,35 @@ class ConfigActivity : AppCompatActivity() {
         // Unowned log: the GPS_FIX outcome below is lifecycle-scoped and vanishes if the user
         // backs out mid-fix, so the flow's start must land independently.
         logConfig("FIX_START mode=${if (isAutoFill) "auto" else "manual"} widget=$appWidgetId")
+        showFixProgress(true)
         lifecycleScope.launch {
             val outcome = LocationFixFlow().resolve(
                 activeFix = stages.activeFix,
                 cachedFix = stages.cachedFix,
             )
+            showFixProgress(false)
+            // Back was tapped during the fix: the user is leaving. Wait chosen, or the question
+            // still up, means they want this fix — save it and finish. With the question still up
+            // and no fix, finish as Skip would have. Wait and no fix: stay, with the options below.
+            val askedToLeave = waitForFixDialog?.isShowing == true
+            waitForFixDialog?.dismiss()
+            waitForFixDialog = null
+            if (finishWhenFixLands || askedToLeave) {
+                finishWhenFixLands = false
+                when {
+                    outcome is LocationFixFlow.Outcome.Fix -> {
+                        logConfig("BACK_WAIT choice=fix_landed widget=$appWidgetId")
+                        saveDeviceFix(outcome.coordinates.lat, outcome.coordinates.lon)
+                        return@launch
+                    }
+                    askedToLeave -> {
+                        logConfig("BACK_WAIT choice=no_fix widget=$appWidgetId")
+                        finishWidgetAddWithBestLocation("no_fix")
+                        return@launch
+                    }
+                    else -> logConfig("BACK_WAIT choice=no_fix widget=$appWidgetId")
+                }
+            }
             appLogDao.log(
                 "CONFIG",
                 "GPS_FIX outcome=${outcome.source} mode=${if (isAutoFill) "auto" else "manual"} " +
@@ -426,6 +464,41 @@ class ConfigActivity : AppCompatActivity() {
             activeFix = { client.activeFixOrNull() },
             cachedFix = { client.lastLocation.awaitOrNull()?.toCoordinates() },
         )
+    }
+
+    private fun showFixProgress(running: Boolean) {
+        fixInFlight = running
+        findViewById<View>(R.id.location_progress_row)?.visibility = if (running) View.VISIBLE else View.GONE
+        if (running) {
+            val seconds = (LocationFixFlow.ACTIVE_FIX_TIMEOUT_MS + LocationFixFlow.CACHED_FIX_TIMEOUT_MS) / 1000
+            findViewById<TextView>(R.id.location_progress_text)?.text =
+                getString(R.string.location_progress_hint, seconds.toInt())
+        }
+    }
+
+    /** Back during a running fix: Wait for it, or Skip and leave with no location. */
+    private fun askToWaitForFix(trigger: String) {
+        logConfig("BACK_DURING_FIX trigger=$trigger widget=$appWidgetId")
+        waitForFixDialog = AlertDialog.Builder(this)
+            .setTitle(R.string.location_wait_title)
+            .setMessage(R.string.location_wait_message)
+            .setPositiveButton(R.string.location_wait_button) { _, _ ->
+                waitForFixDialog = null
+                finishWhenFixLands = true
+                logConfig("BACK_WAIT choice=wait widget=$appWidgetId")
+            }
+            .setNegativeButton(R.string.location_skip_button) { _, _ ->
+                waitForFixDialog = null
+                logConfig("BACK_WAIT choice=skip widget=$appWidgetId")
+                finishWidgetAddWithBestLocation(trigger)
+            }
+            // Back on the question is a second back: leave now.
+            .setOnCancelListener {
+                waitForFixDialog = null
+                logConfig("BACK_WAIT choice=second_back widget=$appWidgetId")
+                finishWidgetAddWithBestLocation(trigger)
+            }
+            .show()
     }
 
     /** Auto-fill resolved: surface the fix and wait for the user's confirm tap. */
@@ -683,6 +756,9 @@ class ConfigActivity : AppCompatActivity() {
     }
 
     /**
+     * Back during widget-add while a device fix is still running first asks Wait / Skip
+     * ([askToWaitForFix]); a second back leaves at once.
+     *
      * Back during widget-add completes the handshake with the best location available instead
      * of cancelling (RESULT_CANCELED = launcher deletes the pending widget):
      * - the prefetched device fix, if the auto-fill flow resolved one;
@@ -694,6 +770,20 @@ class ConfigActivity : AppCompatActivity() {
      *   set" until then; it used to be given Google-HQ coordinates and shown Mountain View's weather.
      */
     private fun completeWidgetAddOnExit(trigger: String) {
+        if (fixInFlight && prefetchedFix == null) {
+            if (finishWhenFixLands) {
+                // Back again while waiting: leave now.
+                finishWhenFixLands = false
+                logConfig("BACK_WAIT choice=second_back widget=$appWidgetId")
+            } else {
+                askToWaitForFix(trigger)
+                return
+            }
+        }
+        finishWidgetAddWithBestLocation(trigger)
+    }
+
+    private fun finishWidgetAddWithBestLocation(trigger: String) {
         val cancelledPendingCheck = saveInProgress
         if (cancelledPendingCheck) {
             saveJob?.cancel()
