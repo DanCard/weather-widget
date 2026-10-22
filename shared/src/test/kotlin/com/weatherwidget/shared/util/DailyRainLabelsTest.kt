@@ -707,4 +707,39 @@ class DailyRainLabelsTest {
         assertEquals(25, resolved.dayPrecip)
         assertEquals(25, resolved.nightPrecip)
     }
+
+    // ---- observed trace (plans/261021-observed-rain-trace.md) ----
+
+    @Test
+    fun `a past day with only a trace reads Trace, day and night`() {
+        Locale.setDefault(Locale.US)
+        val yesterday = today.minusDays(1)
+        assertEquals(
+            "Trace",
+            DailyRainLabels.buildDailyRainLabel(
+                date = yesterday, today = today, isPastDate = true, precipAmountMm = 2.33f,
+                dayPrecipProbability = 80, allowTodayRainChanceLabel = true,
+                observedPrecipAmountMm = PrecipTrace.MM,
+            ),
+        )
+        assertEquals(
+            "Trace",
+            DailyRainLabels.buildNightRainLabel(
+                date = yesterday, today = today, isPastDate = true,
+                nightPrecipProbability = 40, observedNightPrecipMm = 3 * PrecipTrace.MM,
+            ),
+        )
+    }
+
+    @Test
+    fun `a trace plus a measured amount reads the amount`() {
+        Locale.setDefault(Locale.US)
+        assertEquals(".01in", DailyRainLabels.formatObservedPrecipAmount(0.254f + PrecipTrace.MM))
+    }
+
+    @Test
+    fun `a tiny forecast amount is never called a trace`() {
+        Locale.setDefault(Locale.US)
+        assertEquals("<.001in", DailyRainLabels.formatPrecipAmount(PrecipTrace.MM))
+    }
 }

@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.util.PrecipTrace
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.pow
@@ -58,7 +59,14 @@ object NwsObservationMapper {
 
         // Precip DOES fall back: `Pxxxx` is "since the last hourly report", the same quantity
         // `precipitationLastHour` reports. Same window, same units — a legitimate gap-fill.
-        val precipMm = observation.precipLastHourMm ?: remarks?.hourlyPrecipMm
+        // A `P0000` trace also overrides the JSON, which files it as 0 — the same value a dry hour
+        // gets (KSJC 2026-10-21 19:53Z; plans/261021-observed-rain-trace.md).
+        val remarksPrecipMm = remarks?.hourlyPrecipMm
+        val precipMm = if (PrecipTrace.isTrace(remarksPrecipMm) && observation.precipLastHourMm == 0f) {
+            remarksPrecipMm
+        } else {
+            observation.precipLastHourMm ?: remarksPrecipMm
+        }
 
         // Sky falls back to the raw report when the JSON array is absent, which is a real gap on
         // paths that never populated `cloudLayers`. The "not reported" vs "clear" distinction still

@@ -356,6 +356,8 @@ object RainAmountLabelPlacer {
         graphHeight: Float,
         initialCollisionBounds: List<GraphRect>,
         labelPrefix: String = "",
+        /** True for the observed ("Act") series: a trace-only period reads "Trace". */
+        observed: Boolean = false,
         measureText: (String) -> Float,
         getTextBounds: (String) -> Pair<Float, Float>, // (ascent, descent) relative to cy
         paddingPx: Float,
@@ -366,7 +368,11 @@ object RainAmountLabelPlacer {
         val rainCollisionBounds = initialCollisionBounds.toMutableList()
 
         for (period in rainPeriods) {
-            val amountText = labelPrefix + com.weatherwidget.shared.util.DailyRainLabels.formatPrecipAmount(period.totalAmountMm)
+            val amountText = labelPrefix + if (observed) {
+                com.weatherwidget.shared.util.DailyRainLabels.formatObservedPrecipAmount(period.totalAmountMm)
+            } else {
+                com.weatherwidget.shared.util.DailyRainLabels.formatPrecipAmount(period.totalAmountMm)
+            }
             val textWidth = measureText(amountText)
             val (textAscent, textDescent) = getTextBounds(amountText)
 

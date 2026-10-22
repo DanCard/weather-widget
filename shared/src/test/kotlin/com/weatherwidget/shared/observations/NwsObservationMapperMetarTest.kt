@@ -228,4 +228,40 @@ class NwsObservationMapperMetarTest {
         assertEquals(69.8f, reading.temperature, 0.01f)
         assertFalse(reading.qcFailed)
     }
+
+    /**
+     * KSJC 2026-10-21 19:53Z, verbatim: api.weather.gov gives `precipitationLastHour = 0` for the
+     * report whose remarks say `P0000`. Stored as 0 the shower drew nothing; the trace must win.
+     */
+    @Test
+    fun `a P0000 trace overrides the payload's zero`() {
+        val reading = read(
+            NwsApi.Observation(
+                timestamp = "2026-10-21T19:53:00+00:00",
+                temperatureCelsius = 17.8f,
+                textDescription = "Cloudy",
+                stationName = "San Jose",
+                precipLastHourMm = 0f,
+                isMetar = true,
+                rawMessage = "KSJC 211953Z 36003KT 10SM FEW035 SCT075 OVC110 18/11 A2986 RMK AO2 RAB39E50 SLP109 P0000 T01780111",
+            ),
+        )
+        assertTrue(com.weatherwidget.shared.util.PrecipTrace.isTrace(reading.precipAmountMm))
+    }
+
+    @Test
+    fun `a payload zero without a P group stays zero`() {
+        val reading = read(
+            NwsApi.Observation(
+                timestamp = "2026-10-21T19:53:00+00:00",
+                temperatureCelsius = 17.8f,
+                textDescription = "Cloudy",
+                stationName = "San Jose",
+                precipLastHourMm = 0f,
+                isMetar = true,
+                rawMessage = "KSJC 211953Z 36003KT 10SM OVC110 18/11 A2986 RMK AO2 SLP109",
+            ),
+        )
+        assertEquals(0f, reading.precipAmountMm!!, 0f)
+    }
 }

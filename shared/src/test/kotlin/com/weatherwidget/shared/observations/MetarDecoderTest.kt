@@ -103,4 +103,14 @@ class MetarDecoderTest {
         // 70045 -> 0.45 in = 11.43 mm
         assertEquals(11.43f, rmk.precip24HourMm!!, 0.01f)
     }
+
+    /** A precip group is only written when precipitation fell, so all-zero is a trace (plans/261021-observed-rain-trace.md). */
+    @Test
+    fun `an all-zero precip group is a trace, not dry`() {
+        val rmk = MetarDecoder.decode("KSJC 211953Z 36003KT 10SM OVC110 18/11 A2986 RMK AO2 RAB39E50 SLP109 P0000 60000 70000 T01780111")!!.remarks!!
+        assertEquals(com.weatherwidget.shared.util.PrecipTrace.MM, rmk.hourlyPrecipMm!!, 0f)
+        assertEquals(com.weatherwidget.shared.util.PrecipTrace.MM, rmk.precip3or6HourMm!!, 0f)
+        assertEquals(com.weatherwidget.shared.util.PrecipTrace.MM, rmk.precip24HourMm!!, 0f)
+        assertNull("no P group at all is not a trace", MetarDecoder.decode("KNUQ 211955Z AUTO 35007KT 9SM SCT019 18/13 A2985 RMK AO2")!!.remarks!!.hourlyPrecipMm)
+    }
 }

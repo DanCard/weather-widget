@@ -355,6 +355,7 @@ object PrecipitationGraphRenderer {
             geometry = GraphGeometry(widthPx, heightPx, graphTop, graphBottom, graphHeight),
             initialCollisionBounds = rainCollisionBounds + rainPlacements.map { it.bounds },
             labelPrefix = "Act ",
+            observed = true,
             measureText = textMeasurer.measureActualRainAmountText,
             getTextBounds = textMeasurer.getActualRainAmountTextBounds,
             dpToPx = textMeasurer.dpToPx
@@ -468,6 +469,7 @@ object PrecipitationGraphRenderer {
         geometry: GraphGeometry,
         initialCollisionBounds: List<PrecipRect>,
         labelPrefix: String = "",
+        observed: Boolean = false,
         measureText: (String) -> Float,
         getTextBounds: (String) -> Pair<Float, Float>,
         dpToPx: (Float) -> Float
@@ -481,6 +483,7 @@ object PrecipitationGraphRenderer {
             graphHeight = geometry.graphHeight,
             initialCollisionBounds = sharedBounds,
             labelPrefix = labelPrefix,
+            observed = observed,
             measureText = measureText,
             getTextBounds = getTextBounds,
             paddingPx = dpToPx(RAIN_AMOUNT_PADDING_DP),

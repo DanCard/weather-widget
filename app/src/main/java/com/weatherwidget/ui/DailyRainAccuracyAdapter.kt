@@ -44,9 +44,13 @@ class DailyRainAccuracyAdapter : RecyclerView.Adapter<DailyRainAccuracyAdapter.V
         }
 
         private fun formatPair(predMm: Float?, actualMm: Float?): String =
-            itemView.context.getString(R.string.rain_pred_act_format, formatAmount(predMm), formatAmount(actualMm))
+            itemView.context.getString(
+                R.string.rain_pred_act_format,
+                formatAmount(predMm, DailyRainLabels::formatPrecipAmount),
+                formatAmount(actualMm, DailyRainLabels::formatObservedPrecipAmount),
+            )
 
-        private fun formatAmount(amountMm: Float?): String =
-            if (amountMm == null) "—" else DailyRainLabels.formatPrecipAmount(amountMm)
+        private fun formatAmount(amountMm: Float?, format: (Float) -> String): String =
+            if (amountMm == null) "—" else format(amountMm)
     }
 }

@@ -273,6 +273,7 @@ fun PrecipitationGraph(
             graphHeight = graphHeight,
             initialCollisionBounds = drawnLabels + rainPlacements.map { it.bounds },
             labelPrefix = "Act ",
+            observed = true,
             textMeasurer = textMeasurer,
             textStyle = TextStyle(fontSize = (10 * scale).sp, color = COLOR_ACTUAL_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
             dpToPx = 1.dp.toPx() * scale
@@ -494,6 +495,7 @@ private fun calculateRainAmountPlacements(
     graphHeight: Float,
     initialCollisionBounds: List<Rect>,
     labelPrefix: String = "",
+    observed: Boolean = false,
     textMeasurer: androidx.compose.ui.text.TextMeasurer,
     textStyle: TextStyle,
     dpToPx: Float,
@@ -509,6 +511,7 @@ private fun calculateRainAmountPlacements(
         graphHeight = graphHeight,
         initialCollisionBounds = sharedBounds,
         labelPrefix = labelPrefix,
+        observed = observed,
         measureText = { textMeasurer.measure(it, textStyle).size.width.toFloat() },
         getTextBounds = {
             val h = textMeasurer.measure(it, textStyle).size.height.toFloat()

@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.observations
 
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.shared.util.PrecipTrace
 
 /**
  * Pure Kotlin decoder for METAR / SPECI reports and their remarks groups.
@@ -179,16 +180,11 @@ object MetarDecoder {
             min24h = parseTGroupDigits(extremes24hMatch.groupValues[3], extremes24hMatch.groupValues[4])
         }
 
-        // Precipitation
-        val hourlyPrecip = PRECIP_HOURLY_REGEX.find(rmk)?.groupValues?.get(1)?.toIntOrNull()?.let {
-            (it / 100f) * INCHES_TO_MM
-        }
-        val precip3or6h = PRECIP_3_6H_REGEX.find(rmk)?.groupValues?.get(1)?.toIntOrNull()?.let {
-            (it / 100f) * INCHES_TO_MM
-        }
-        val precip24h = PRECIP_24H_REGEX.find(rmk)?.groupValues?.get(1)?.toIntOrNull()?.let {
-            (it / 100f) * INCHES_TO_MM
-        }
+        // Precipitation. A group is only written when precipitation fell, so an all-zero one
+        // (`P0000`, `60000`, `70000`) is a trace, not a dry period.
+        val hourlyPrecip = PRECIP_HOURLY_REGEX.find(rmk)?.groupValues?.get(1)?.toIntOrNull()?.let(::precipGroupMm)
+        val precip3or6h = PRECIP_3_6H_REGEX.find(rmk)?.groupValues?.get(1)?.toIntOrNull()?.let(::precipGroupMm)
+        val precip24h = PRECIP_24H_REGEX.find(rmk)?.groupValues?.get(1)?.toIntOrNull()?.let(::precipGroupMm)
 
         // SLP: SLPxxx
         val slpHpa = SLP_REGEX.find(rmk)?.groupValues?.get(1)?.toIntOrNull()?.let { slp ->
@@ -213,6 +209,10 @@ object MetarDecoder {
             min24HourTempCelsius = min24h,
         )
     }
+
+    /** Hundredths of an inch → mm; 0 is a reported trace ([PrecipTrace.MM]). */
+    private fun precipGroupMm(hundredthsInch: Int): Float =
+        if (hundredthsInch == 0) PrecipTrace.MM else (hundredthsInch / 100f) * INCHES_TO_MM
 
     private fun parseBodyTemp(token: String): Float? {
         val clean = token.trim()

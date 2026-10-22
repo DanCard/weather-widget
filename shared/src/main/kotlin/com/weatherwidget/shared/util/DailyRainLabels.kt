@@ -168,6 +168,13 @@ object DailyRainLabels {
         }
     }
 
+    /**
+     * [formatPrecipAmount] for an amount that was **observed**: a total of traces only reads
+     * "Trace" ([PrecipTrace]). Forecast amounts never take this path — a tiny forecast is "<.001in".
+     */
+    fun formatObservedPrecipAmount(amountMm: Float): String =
+        if (PrecipTrace.isTrace(amountMm)) PrecipTrace.LABEL else formatPrecipAmount(amountMm)
+
     private fun formatInches(amountInches: Float): String {
         val precision = when {
             amountInches < 0.01f -> 3
@@ -489,7 +496,7 @@ object DailyRainLabels {
     ): String? {
         if (isPastDate) {
             if (observedPrecipAmountMm != null && observedPrecipAmountMm > 0f) {
-                return formatPrecipAmount(observedPrecipAmountMm)
+                return formatObservedPrecipAmount(observedPrecipAmountMm)
             }
             // No measurable rain fell, but keep the forecasted chance visible in history.
             if (dayPrecipProbability != null && dayPrecipProbability > 0) {
@@ -535,7 +542,7 @@ object DailyRainLabels {
     ): String? {
         if (isPastDate) {
             if (observedNightPrecipMm != null && observedNightPrecipMm > 0f) {
-                return formatPrecipAmount(observedNightPrecipMm)
+                return formatObservedPrecipAmount(observedNightPrecipMm)
             }
             // No measurable rain fell, but keep the forecasted night chance visible in history.
             if (nightPrecipProbability != null && nightPrecipProbability > 0) {
