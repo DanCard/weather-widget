@@ -1,5 +1,8 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.GraphSelector
+import com.weatherwidget.shared.util.HeaderButton
+import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.shared.util.PreferredSourceHome.HomeAction
 import android.app.PendingIntent
@@ -484,21 +487,17 @@ internal fun positionCenterIcons(
     widthDp: Int,
     density: Float,
     isPrecipVisible: Boolean,
-    isToday: Boolean = true,
     /** What [fit] was resolved from: where the CENTER buttons sit ([HeaderFit.buttonsSpan]). */
     measured: HeaderFit.Measured,
     /** CENTER (on HeaderFit's line or the middle), INLINE (zones of [HeaderFit.Plan.inlineZone]) or HIDDEN. */
     fit: HeaderFit.Plan,
+    /** [HeaderButtons.shown]: home, observations (today on screen), graph selector, history. */
+    shown: List<HeaderButton>,
 ) {
     val floatingVis = if (fit.placement == HeaderFit.ButtonPlacement.CENTER) View.VISIBLE else View.GONE
     val inlineVis = if (fit.placement == HeaderFit.ButtonPlacement.INLINE) View.VISIBLE else View.GONE
-    Log.d("HomeShortcut", "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible placement=${fit.placement} isToday=$isToday -> home_touch_zone=${if (floatingVis == View.VISIBLE) "VISIBLE" else "GONE"} home_touch_zone_inline=${if (inlineVis == View.VISIBLE) "VISIBLE" else "GONE"}")
-    for (id in listOf(R.id.home_icon, R.id.home_touch_zone, R.id.history_icon, R.id.forecast_history_activity_touch_zone, R.id.weather_stations_icon, R.id.weather_stations_touch_zone, R.id.graph_selector_icon, R.id.graph_selector_touch_zone)) {
-        views.setViewVisibility(id, floatingVis)
-    }
-    for (id in listOf(R.id.home_touch_zone_inline, R.id.forecast_history_activity_touch_zone_inline, R.id.weather_stations_touch_zone_inline, R.id.graph_selector_touch_zone_inline)) {
-        views.setViewVisibility(id, inlineVis)
-    }
+    Log.d("HomeShortcut", "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible placement=${fit.placement} shown=$shown")
+    showHeaderButtons(views, fit.placement, shown)
     val inlineZoneWidthDp = fit.inlineZone.takeIf { it > 0f }?.let { it / density }
 
     if (inlineVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -540,33 +539,69 @@ internal fun positionCenterIcons(
         Log.d("HomeShortcut", "positionCenterIcons: floating touch zones resized to ${touchWidthDp}dp for widthDp=$widthDp")
     }
 
-    if (!isToday) {
-        for (id in listOf(R.id.weather_stations_icon, R.id.weather_stations_touch_zone, R.id.weather_stations_touch_zone_inline)) {
-            views.setViewVisibility(id, View.GONE)
-        }
-    }
-    // Daily-only button sharing this container. Set explicitly: RemoteViews visibility is sticky
-    // across partial pushes, so a daily render's VISIBLE would otherwise survive into hourly.
-    for (id in listOf(R.id.months_view_icon, R.id.months_view_touch_zone, R.id.months_view_touch_zone_inline)) {
-        views.setViewVisibility(id, View.GONE)
+}
+
+/**
+ * Every header button's views, floating and inline, by [HeaderButton]. Both views share
+ * `hourly_center_header_container` and the inline row, whose child order is [HeaderButtons.ORDER].
+ */
+internal enum class HeaderButtonViews(
+    val button: HeaderButton,
+    val icon: Int,
+    val zone: Int,
+    val inlineIcon: Int,
+    val inlineZone: Int,
+) {
+    HOME(HeaderButton.HOME, R.id.home_icon, R.id.home_touch_zone, R.id.home_icon_inline, R.id.home_touch_zone_inline),
+    OBSERVATIONS(
+        HeaderButton.OBSERVATIONS, R.id.weather_stations_icon, R.id.weather_stations_touch_zone,
+        R.id.weather_stations_icon_inline, R.id.weather_stations_touch_zone_inline,
+    ),
+    GRAPH_SELECTOR(
+        HeaderButton.GRAPH_SELECTOR, R.id.graph_selector_icon, R.id.graph_selector_touch_zone,
+        R.id.graph_selector_icon_inline, R.id.graph_selector_touch_zone_inline,
+    ),
+    MONTHS(
+        HeaderButton.MONTHS, R.id.months_view_icon, R.id.months_view_touch_zone,
+        R.id.months_view_icon_inline, R.id.months_view_touch_zone_inline,
+    ),
+    HISTORY(
+        HeaderButton.HISTORY, R.id.history_icon, R.id.forecast_history_activity_touch_zone,
+        R.id.history_icon_inline, R.id.forecast_history_activity_touch_zone_inline,
+    ),
+    ;
+
+    companion object {
+        fun of(button: HeaderButton): HeaderButtonViews = entries.first { it.button == button }
     }
 }
 
 /**
- * Places the daily view's header buttons (current observations / home / forecast history).
+ * Shows exactly [shown] in the row [placement] draws and hides every other header button view.
+ * Every view is written: RemoteViews visibility is sticky across partial pushes, so a daily render's
+ * months or home would otherwise survive into the hourly header, and the other way round.
+ */
+internal fun showHeaderButtons(views: RemoteViews, placement: HeaderFit.ButtonPlacement, shown: List<HeaderButton>) {
+    val floating = placement == HeaderFit.ButtonPlacement.CENTER
+    val inline = placement == HeaderFit.ButtonPlacement.INLINE
+    for (v in HeaderButtonViews.entries) {
+        val on = v.button in shown
+        val floatingVis = if (floating && on) View.VISIBLE else View.GONE
+        val inlineVis = if (inline && on) View.VISIBLE else View.GONE
+        views.setViewVisibility(v.icon, floatingVis)
+        views.setViewVisibility(v.zone, floatingVis)
+        views.setViewVisibility(v.inlineIcon, inlineVis)
+        views.setViewVisibility(v.inlineZone, inlineVis)
+    }
+}
+
+/**
+ * Places the daily view's header buttons: [shown] from [HeaderButtons.shown] (home first, then
+ * observations while today or yesterday is on screen, months, history), in the container the
+ * hourly header shares; [showHeaderButtons] hides the graph selector and anything the fit dropped.
  *
- * Deliberately narrower than [positionCenterIcons]: it never touches the graph-selector zones,
- * which only cycle hourly graphs.
- *
- * [showObservations] is false when neither today nor yesterday is on screen, so a navigated header
- * shows the history button alone; the reserved width in [HeaderWidthChecker.measureHeader]
- * follows the same count.
- *
- * [showHome] is the source-reset button, not a view switch: the daily view is always home in the
- * view sense, but it can still be showing a source the user did not put first. See
- * [setupDailyHomeShortcut] and [com.weatherwidget.shared.util.PreferredSourceHome]. It is the one
- * daily button that gets dropped when the header cannot hold three
- * ([HeaderWidthChecker.measureHeader]) — the pair is never sacrificed for it.
+ * Home is the source-reset / recentre button, not a view switch — see [setupDailyHomeShortcut] and
+ * [com.weatherwidget.shared.util.PreferredSourceHome].
  *
  * Inline zone widths are set from the same fixed [HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP]
  * the fit math used, rather than the hourly ladder, so layout and measurement cannot drift.
@@ -574,38 +609,18 @@ internal fun positionCenterIcons(
 internal fun positionDailyIcons(
     views: RemoteViews,
     placement: HeaderFit.ButtonPlacement,
-    showObservations: Boolean,
+    /** [HeaderButtons.shown]: home, observations, months, history — whichever the fit kept. */
+    shown: List<HeaderButton>,
     widthDp: Int,
     density: Float,
     scale: Float = 1.0f,
-    showHome: Boolean = false,
-    showMonths: Boolean = false,
     /** How far right of the widget's centre the CENTER buttons' centre sits, in dp ([HeaderFit.buttonsSpan]). */
     centreOffsetDp: Float = 0f,
 ) {
     val floating = placement == HeaderFit.ButtonPlacement.CENTER
     val inline = placement == HeaderFit.ButtonPlacement.INLINE
 
-    fun vis(shown: Boolean) = if (shown) View.VISIBLE else View.GONE
-
-    views.setViewVisibility(R.id.history_icon, vis(floating))
-    views.setViewVisibility(R.id.forecast_history_activity_touch_zone, vis(floating))
-    views.setViewVisibility(R.id.forecast_history_activity_touch_zone_inline, vis(inline))
-
-    val obs = showObservations
-    views.setViewVisibility(R.id.weather_stations_icon, vis(floating && obs))
-    views.setViewVisibility(R.id.weather_stations_touch_zone, vis(floating && obs))
-    views.setViewVisibility(R.id.weather_stations_touch_zone_inline, vis(inline && obs))
-
-    views.setViewVisibility(R.id.home_icon, vis(floating && showHome))
-    views.setViewVisibility(R.id.home_touch_zone, vis(floating && showHome))
-    views.setViewVisibility(R.id.home_icon_inline, vis(inline && showHome))
-    views.setViewVisibility(R.id.home_touch_zone_inline, vis(inline && showHome))
-
-    views.setViewVisibility(R.id.months_view_icon, vis(floating && showMonths))
-    views.setViewVisibility(R.id.months_view_touch_zone, vis(floating && showMonths))
-    views.setViewVisibility(R.id.months_view_icon_inline, vis(inline && showMonths))
-    views.setViewVisibility(R.id.months_view_touch_zone_inline, vis(inline && showMonths))
+    showHeaderButtons(views, placement, shown)
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         // Drop the shared container onto the daily view's PAINTED text line. See
@@ -652,8 +667,7 @@ internal fun positionDailyIcons(
 
     Log.d(
         "DailyHeaderIcons",
-        "positionDailyIcons: placement=$placement showObservations=$showObservations " +
-            "showHome=$showHome showMonths=$showMonths widthDp=$widthDp " +
+        "positionDailyIcons: placement=$placement shown=$shown widthDp=$widthDp " +
             "zoneDp=${HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp)} scale=$scale",
     )
 }
@@ -663,23 +677,12 @@ internal fun setupGraphSelectorShortcut(
     views: RemoteViews,
     appWidgetId: Int,
     currentViewMode: ViewMode,
-    widthDp: Int,
-    isPrecipVisible: Boolean,
     scale: Float = 1.0f,
 ) {
-    val nextView = when (currentViewMode) {
-        ViewMode.TEMPERATURE -> ViewMode.CLOUD_COVER
-        ViewMode.CLOUD_COVER -> ViewMode.PRECIPITATION
-        ViewMode.PRECIPITATION -> ViewMode.TEMPERATURE
-        else -> ViewMode.TEMPERATURE
-    }
-    val emoji = when (currentViewMode) {
-        ViewMode.TEMPERATURE -> "\u2601\uFE0F" // Cloud Cover next ☁️
-        ViewMode.CLOUD_COVER -> "\uD83C\uDF27\uFE0F" // Precipitation next 🌧️
-        ViewMode.PRECIPITATION -> "\uD83C\uDF21\uFE0F" // Temperature next 🌡️
-        else -> ""
-    }
-    HeaderTapTargetHelper.bindGraphSelector(context, views, appWidgetId, nextView)
+    // The next view and its emoji are :shared GraphSelector (desktop draws the same); which row
+    // shows it is showHeaderButtons'.
+    val emoji = GraphSelector.emoji(currentViewMode)
+    HeaderTapTargetHelper.bindGraphSelector(context, views, appWidgetId, GraphSelector.next(currentViewMode))
     views.setTextViewText(R.id.graph_selector_icon, emoji)
     views.setTextViewText(R.id.graph_selector_icon_inline, emoji)
 
@@ -690,17 +693,6 @@ internal fun setupGraphSelectorShortcut(
     )
     views.setTextViewTextSize(R.id.graph_selector_icon, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
     views.setTextViewTextSize(R.id.graph_selector_icon_inline, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
-
-    val useInline = widthDp < 420
-    if (useInline) {
-        views.setViewVisibility(R.id.graph_selector_icon, View.GONE)
-        views.setViewVisibility(R.id.graph_selector_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.VISIBLE)
-    } else {
-        views.setViewVisibility(R.id.graph_selector_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.graph_selector_touch_zone, View.VISIBLE)
-        views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.GONE)
-    }
 }
 
 /**

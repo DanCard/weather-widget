@@ -1,5 +1,7 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.HeaderButton
+import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderFit
 import android.app.Application
 import android.content.Context
@@ -50,13 +52,18 @@ class PositionDailyIconsRoboTest {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         // The daily graph path hides everything first, then re-enables what it wants.
         DailyVisibilityManager.hideUnusedDailyViews(views)
+        val want = HeaderButtons.daily(observationsInView = showObservations, home = showHome, months = false)
+        val plan = HeaderFit.Plan(
+            buttons = want.baseButtons + (if (showHome) 1 else 0),
+            homeShown = showHome,
+            placement = placement,
+        )
         positionDailyIcons(
             views = views,
             placement = placement,
-            showObservations = showObservations,
+            shown = HeaderButtons.shown(want, plan),
             widthDp = widthDp,
             density = context.resources.displayMetrics.density,
-            showHome = showHome,
             centreOffsetDp = centreOffsetDp,
         )
         return views.apply(context, FrameLayout(context))
@@ -282,15 +289,46 @@ class PositionDailyIconsRoboTest {
         val view = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true, centreOffsetDp = 37f)
         val (middleMeasured, middle) = hourlyRow(440, HeaderFit.Seam.MIDDLE)
         RemoteViews(context.packageName, R.layout.widget_weather).apply {
-            positionCenterIcons(this, 440, density, isPrecipVisible = false, measured = middleMeasured, fit = middle)
+            positionCenterIcons(this, 440, density, isPrecipVisible = false, measured = middleMeasured, fit = middle, shown = HeaderButtons.shown(HeaderButtons.hourly(true), middle))
         }.reapply(context, view)
         assertEquals(0, view.containerLeftMargin())
 
         // On the line: four 25dp buttons end 70dp right of the middle, so their centre is 20dp right.
         val (lineMeasured, line) = hourlyRow(440, HeaderFit.Seam.RIGHT_OF_MIDDLE)
         RemoteViews(context.packageName, R.layout.widget_weather).apply {
-            positionCenterIcons(this, 440, density, isPrecipVisible = false, measured = lineMeasured, fit = line)
+            positionCenterIcons(this, 440, density, isPrecipVisible = false, measured = lineMeasured, fit = line, shown = HeaderButtons.shown(HeaderButtons.hourly(true), line))
         }.reapply(context, view)
         assertEquals(20f * density, view.containerLeftMargin().toFloat(), 1f)
+    }
+
+    @Test
+    fun `the button views are laid out in HeaderButtons order, floating and inline`() {
+        // RemoteViews cannot reorder children, so the layout's child order IS the drawn order;
+        // it must match :shared HeaderButtons.ORDER (home first, history last) on both rows.
+        val root = RemoteViews(context.packageName, R.layout.widget_weather).apply(context, FrameLayout(context))
+        fun order(zoneOf: (HeaderButtonViews) -> Int): List<HeaderButton> {
+            val zones = HeaderButtonViews.entries.associateBy { zoneOf(it) }
+            val parent = root.findViewById<View>(zoneOf(HeaderButtonViews.HOME)).parent as ViewGroup
+            return (0 until parent.childCount).mapNotNull { zones[parent.getChildAt(it).id]?.button }
+        }
+        assertEquals(HeaderButtons.ORDER, order { it.zone })
+        assertEquals(HeaderButtons.ORDER, order { it.inlineZone })
+    }
+
+    @Test
+    fun `a daily render's months and home do not survive into the hourly header`() {
+        val views = RemoteViews(context.packageName, R.layout.widget_weather)
+        val all = HeaderButtons.daily(observationsInView = true, home = true, months = true)
+        val dailyPlan = HeaderFit.Plan(buttons = 4, homeShown = true, monthsShown = true, placement = HeaderFit.ButtonPlacement.INLINE)
+        showHeaderButtons(views, HeaderFit.ButtonPlacement.INLINE, HeaderButtons.shown(all, dailyPlan))
+        val hourly = HeaderButtons.hourly(observationsInView = false)
+        val hourlyPlan = HeaderFit.Plan(buttons = 3, placement = HeaderFit.ButtonPlacement.INLINE)
+        showHeaderButtons(views, HeaderFit.ButtonPlacement.INLINE, HeaderButtons.shown(hourly, hourlyPlan))
+        val v = views.apply(context, FrameLayout(context))
+        assertEquals(View.GONE, v.vis(R.id.months_view_touch_zone_inline))
+        assertEquals(View.GONE, v.vis(R.id.weather_stations_touch_zone_inline))
+        for (id in listOf(R.id.home_touch_zone_inline, R.id.home_icon_inline, R.id.graph_selector_touch_zone_inline)) {
+            assertEquals("view $id", View.VISIBLE, v.vis(id))
+        }
     }
 }

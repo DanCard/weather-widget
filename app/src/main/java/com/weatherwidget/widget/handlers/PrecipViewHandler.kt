@@ -12,6 +12,7 @@ import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderContent
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.toReading
@@ -220,8 +221,15 @@ object PrecipViewHandler {
         val isPrecipVisible = headerPrecipProbability != null
         val precipTextSizeDp = content.precipFontScale?.let { HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP * it }
 
-        val today = LocalDateTime.now().toLocalDate()
-        val isToday = centerTime.toLocalDate() == today
+        // Current observations only while the graph shows some of today (:shared HeaderButtons).
+        val headerButtons = HeaderButtons.hourly(
+            observationsInView = HeaderButtons.hourlyObservationsInView(
+                centre = centerTime,
+                backHours = zoom.backHours,
+                forwardHours = zoom.forwardHours,
+                today = LocalDateTime.now().toLocalDate(),
+            ),
+        )
 
         val headerResult = HourlyHeaderBinder.bindHourlyHeader(
             context = context,
@@ -234,7 +242,7 @@ object PrecipViewHandler {
             widthDp = dimensions.widthDp,
             numRows = numRows,
             sourceIndicator = sourceIndicator,
-            showStations = isToday,
+            buttons = headerButtons,
         )
         val headerScale = headerResult.headerScale
         val fit = headerResult.fit
@@ -251,8 +259,6 @@ object PrecipViewHandler {
             views = views,
             appWidgetId = appWidgetId,
             currentViewMode = com.weatherwidget.widget.ViewMode.PRECIPITATION,
-            widthDp = dimensions.widthDp,
-            isPrecipVisible = isPrecipVisible && fit.showRain,
             scale = headerScale,
         )
 
@@ -261,7 +267,7 @@ object PrecipViewHandler {
             setupApiToggle(context, views, appWidgetId, numRows, scale = headerScale)
         }
 
-        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && fit.showRain, isToday, headerResult.measured, fit)
+        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && fit.showRain, headerResult.measured, fit, headerResult.shown)
 
 // Use graph mode for 2+ rows, text mode for 1 row
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP

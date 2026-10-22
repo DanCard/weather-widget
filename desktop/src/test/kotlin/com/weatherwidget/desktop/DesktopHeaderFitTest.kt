@@ -159,4 +159,84 @@ class DesktopHeaderFitTest {
         assertEquals(400f + HeaderFit.SEAM_OFFSET_DP, rightDp, 1f)
         composeTestRule.onAllNodesWithTag("graph_selector", useUnmergedTree = true).fetchSemanticsNodes().single()
     }
+
+    private fun header(config: DesktopConfig, headerTime: LocalDateTime = LocalDateTime.now()) {
+        composeTestRule.setContent {
+            Box(Modifier.requiredWidth(800.dp)) {
+                WidgetHeader(
+                    config = config,
+                    forecast = snapshot(),
+                    resolvedCurrentTemp = 64f,
+                    resolvedDeltaFromYesterday = 2.2f,
+                    onUpdateConfig = {},
+                    onOpenSettings = {},
+                    onOpenObservations = {},
+                    onUpdateLocation = {},
+                    headerTime = headerTime,
+                )
+            }
+        }
+        composeTestRule.waitForIdle()
+    }
+
+    private fun leftDp(tag: String): Float? =
+        composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().singleOrNull()
+            ?.let { with(composeTestRule.density) { it.boundsInRoot.left.toDp().value } }
+
+    @Test
+    fun hourlyRowIsHomeObservationsSelectorHistory() {
+        // plans/261022-home-button-first-shared-header-buttons.md: home first, history last.
+        header(config.copy(viewMode = ViewMode.TEMPERATURE))
+        val xs = listOf("switch_to_daily", "open_observations_header", "graph_selector", "open_forecast_history")
+            .map { tag -> tag to (leftDp(tag) ?: error("$tag missing")) }
+        assertEquals("left to right: $xs", xs.sortedBy { it.second }, xs)
+    }
+
+    @Test
+    fun hourlyObservationsHideWhenTodayIsOffScreenAndOnlyHomeMoves() {
+        header(config.copy(viewMode = ViewMode.TEMPERATURE), headerTime = LocalDateTime.now().plusHours(48))
+        assertEquals("observations: no today on screen", null, leftDp("open_observations_header"))
+        val history = composeTestRule.onAllNodesWithTag("open_forecast_history", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+        assertEquals(400f + HeaderFit.SEAM_OFFSET_DP, with(composeTestRule.density) { history.right.toDp().value }, 1f)
+        assertTrue("home still leftmost", leftDp("switch_to_daily")!! < leftDp("graph_selector")!!)
+    }
+
+    @Test
+    fun dailyHomeAppearsFirstWithoutMovingTheOtherButtons() {
+        // Two headers, one above the other: today on screen (no home), and today panned off with
+        // yesterday still there (home recentres; observations stays).
+        composeTestRule.setContent {
+            Column {
+                for (todayInView in listOf(true, false)) {
+                    Box(Modifier.requiredWidth(800.dp)) {
+                        WidgetHeader(
+                            config = config,
+                            forecast = snapshot(),
+                            resolvedCurrentTemp = 64f,
+                            resolvedDeltaFromYesterday = 2.2f,
+                            onUpdateConfig = {},
+                            onOpenSettings = {},
+                            onOpenObservations = {},
+                            onUpdateLocation = {},
+                            todayInView = todayInView,
+                            observationsInView = true,
+                        )
+                    }
+                }
+            }
+        }
+        composeTestRule.waitForIdle()
+        fun lefts(tag: String) = composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
+            .sortedBy { it.boundsInRoot.top }
+            .map { with(composeTestRule.density) { it.boundsInRoot.left.toDp().value } }
+        val home = lefts("daily_home_button")
+        val obs = lefts("open_observations_header_daily")
+        val history = lefts("open_forecast_history_daily")
+        assertEquals("home only on the panned header", 1, home.size)
+        assertEquals("observations in both", 2, obs.size)
+        assertEquals("observations did not move", obs[0], obs[1], 0.5f)
+        assertEquals("history did not move", history[0], history[1], 0.5f)
+        assertTrue("home left of observations", home.single() < obs[1])
+    }
 }

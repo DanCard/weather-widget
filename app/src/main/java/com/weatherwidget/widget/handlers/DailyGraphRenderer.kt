@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.data.model.ForecastProduct
@@ -340,12 +341,17 @@ internal object DailyGraphRenderer {
         positionDailyIcons(
             views = ctx.views,
             placement = fit.placement,
-            showObservations = observationsInView,
+            shown = HeaderButtons.shown(
+                HeaderButtons.daily(
+                    observationsInView = observationsInView,
+                    home = headerState.homeAction != null,
+                    months = fit.monthsShown,
+                ),
+                fit,
+            ),
             widthDp = dimensions.widthDp,
             density = ctx.context.resources.displayMetrics.density,
             scale = headerScale,
-            showHome = fit.homeShown,
-            showMonths = fit.monthsShown,
             // Slot centre relative to the widget's, in dp: the container is centre_horizontal.
             centreOffsetDp = buttonsSpan?.let { (l, r) -> ((l + r) / 2f - measured.width / 2f) / ctx.context.resources.displayMetrics.density } ?: 0f,
         )

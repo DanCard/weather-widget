@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.data.model.ForecastProduct
 import android.appwidget.AppWidgetManager
@@ -57,15 +58,15 @@ internal object TemperatureViewBinder {
             precipTextSizeDp = header.precipTextSizeDp,
         )
         // The stations zone in the inline nav row shows only for today, so the header fit needs
-        // isToday first (also reused by positionCenterIcons below).
-        val today = LocalDateTime.now().toLocalDate()
-        val firstHour = state.graph.hourData.firstOrNull()?.dateTime
-        val lastHour = state.graph.hourData.lastOrNull()?.dateTime
-        val isToday = firstHour?.toLocalDate() == today ||
-                lastHour?.minusHours(1)?.toLocalDate() == today ||
-                (state.graph.hourData.isEmpty() && centerTime.toLocalDate() == today)
-
-        Log.d("TemperatureViewBinder", "isToday check: today=$today firstHour=$firstHour lastHour=$lastHour centerTime=$centerTime -> isToday=$isToday")
+        // Current observations only while the graph shows some of today (:shared HeaderButtons).
+        val headerButtons = HeaderButtons.hourly(
+            observationsInView = HeaderButtons.hourlyObservationsInView(
+                centre = centerTime,
+                backHours = state.zoom.backHours,
+                forwardHours = state.zoom.forwardHours,
+                today = LocalDateTime.now().toLocalDate(),
+            ),
+        )
 
         // The shared drop order (HeaderFit): inline nav zones squeeze, then the icon and
         // temperature shrink, before anything drops; "from yest" only where it needs neither.
@@ -84,9 +85,9 @@ internal object TemperatureViewBinder {
             precipTextSizeDp = header.precipTextSizeDp,
             dateText = null,
             includeIcon = true,
-            baseButtons = if (isToday) 4 else 3,
-            wantHome = false,
-            wantMonths = false,
+            baseButtons = headerButtons.baseButtons,
+            wantHome = headerButtons.wantHome,
+            wantMonths = headerButtons.wantMonths,
             hourly = true,
         )
         val fit = HeaderFit.resolve(measured)
@@ -164,7 +165,7 @@ HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVis
             isPrecipVisible = header.isPrecipVisible,
         )
 
-// 3. Center Icons & Navigation (isToday computed above, before the header fit)
+// 3. Center Icons & Navigation (headerButtons computed above, before the header fit)
 
         // 4. Setup Intent Listeners
         setupZoomTapZones(
@@ -182,14 +183,12 @@ HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVis
             views = views,
             appWidgetId = appWidgetId,
             currentViewMode = com.weatherwidget.widget.ViewMode.TEMPERATURE,
-            widthDp = state.widthDp,
-            isPrecipVisible = header.isPrecipVisible && fit.showRain,
             scale = headerScale,
         )
 
         positionCenterIcons(
             views, state.widthDp, context.resources.displayMetrics.density,
-            header.isPrecipVisible && fit.showRain, isToday, measured, fit,
+            header.isPrecipVisible && fit.showRain, measured, fit, HeaderButtons.shown(headerButtons, fit),
         )
 
         

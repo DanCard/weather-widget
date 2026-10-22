@@ -338,6 +338,12 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   `HeaderFit` for every header, daily and hourly, both platforms (Android measures in
   `HeaderWidthChecker.measureHeader`); the hourly inline zones squeeze to 28dp, then the icon and
   temperature to 80 %, before anything drops (`plans/261022-shared-header-fit-priority.md`).
+  **Button order** (user, 2026-10-22), left to right: daily home · observations · months · history;
+  hourly home · observations · graph selector · history — home first (the one that comes and goes
+  on a source switch, so nothing else moves), history last on both. Hourly observations only while
+  the graph window shows some of today (it opens current readings). `:shared` `HeaderButtons` decides
+  which show (`shown(want, plan)`); Android's layout child order is pinned to `HeaderButtons.ORDER`
+  by `PositionDailyIconsRoboTest` (`plans/261022-home-button-first-shared-header-buttons.md`).
 
 ## Temperature Display
 

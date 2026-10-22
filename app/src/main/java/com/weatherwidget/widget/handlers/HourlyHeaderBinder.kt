@@ -3,6 +3,8 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import android.widget.RemoteViews
 import com.weatherwidget.R
+import com.weatherwidget.shared.util.HeaderButton
+import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderFit
 
 internal object HourlyHeaderBinder {
@@ -11,6 +13,8 @@ internal object HourlyHeaderBinder {
         /** What the header shows ([HeaderFit]); [measured] is what it was resolved from. */
         val fit: HeaderFit.Plan,
         val measured: HeaderFit.Measured,
+        /** [HeaderButtons.shown] for [fit]: what [positionCenterIcons] draws. */
+        val shown: List<HeaderButton>,
         val isPrecipVisible: Boolean,
         val headerScale: Float,
     )
@@ -26,8 +30,8 @@ internal object HourlyHeaderBinder {
         widthDp: Int,
         numRows: Int,
         sourceIndicator: String?,
-        /** Whether the inline nav row includes the stations zone (today only). */
-        showStations: Boolean,
+        /** Which buttons the row wants ([HeaderButtons.hourly]). */
+        buttons: HeaderButtons.Want,
     ): HeaderResult {
         val safeSourceIndicator = sourceIndicator ?: ""
         val headerScale = HeaderWidthChecker.computeHeaderScale(
@@ -58,9 +62,9 @@ internal object HourlyHeaderBinder {
             precipTextSizeDp = precipTextSizeDp,
             dateText = null,
             includeIcon = true,
-            baseButtons = if (showStations) 4 else 3,
-            wantHome = false,
-            wantMonths = false,
+            baseButtons = buttons.baseButtons,
+            wantHome = buttons.wantHome,
+            wantMonths = buttons.wantMonths,
             hourly = true,
         )
         val fit = HeaderFit.resolve(measured)
@@ -115,6 +119,7 @@ internal object HourlyHeaderBinder {
         return HeaderResult(
             fit = fit,
             measured = measured,
+            shown = HeaderButtons.shown(buttons, fit),
             isPrecipVisible = isPrecipVisible,
             headerScale = headerScale,
         )

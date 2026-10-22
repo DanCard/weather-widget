@@ -10,6 +10,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.shared.util.HeaderContent
+import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.shared.util.PreferredSourceHome
 import com.weatherwidget.shared.util.WeatherConditionResolver
@@ -207,6 +208,12 @@ internal object DailyHeaderResolver {
         // What the header shows: the shared drop order (temp > rain % > delta > buttons > weather
         // icon > date > "from yest"). The date and weather icon are painted in graph mode only.
         val deltaLabel = context.getString(R.string.header_delta_from_yesterday)
+        // Graph mode only and when enabled in settings (disabled by default) for months.
+        val buttons = HeaderButtons.daily(
+            observationsInView = observationsInView,
+            home = homeAction != null,
+            months = useGraph && stateManager.showDailyZoomOutButton(),
+        )
         val measured = HeaderWidthChecker.measureHeader(
             context = context,
             widthDp = dimensions.widthDp,
@@ -223,14 +230,9 @@ internal object DailyHeaderResolver {
                 today.format(DailyViewHandler.headerDateFormatter())
             } else null,
             includeIcon = useGraph,
-            baseButtons = when {
-                dimensions.isIconWidth -> 0
-                observationsInView -> 2
-                else -> 1
-            },
-            wantHome = homeAction != null,
-            // Graph mode only and when enabled in settings (disabled by default):
-            wantMonths = useGraph && stateManager.showDailyZoomOutButton(),
+            baseButtons = if (dimensions.isIconWidth) 0 else buttons.baseButtons,
+            wantHome = buttons.wantHome,
+            wantMonths = buttons.wantMonths,
         )
         val fit = HeaderFit.resolve(measured)
         Log.d(TAG, "HEADER_FIT view=daily widget=$appWidgetId widthDp=${dimensions.widthDp} scale=$headerScale $fit $measured")

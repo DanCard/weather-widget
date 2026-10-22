@@ -1571,7 +1571,8 @@
         </FrameLayout>
     </LinearLayout>
 
-    <!-- Hourly center header icons and touch zones - positioned in top-middle.
+    <!-- Header buttons (daily and hourly), positioned in top-middle. Child order is
+         HeaderButtons.ORDER (home first); PositionDailyIconsRoboTest pins it.
          Declared after navigation zones to ensure touch priority in the top area. -->
     <LinearLayout
         android:id="@+id/hourly_center_header_container"
@@ -1582,25 +1583,25 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
-        <!-- Graph Selector -->
+        <!-- Home -->
         <FrameLayout
-            android:id="@+id/graph_selector_touch_zone"
+            android:id="@+id/home_touch_zone"
             android:layout_width="24dp"
             android:layout_height="48dp"
             android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
-            <TextView
-                android:id="@+id/graph_selector_icon"
+            <ImageView
+                android:id="@+id/home_icon"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:layout_marginTop="-10dp"
                 android:paddingTop="-4dp"
-                android:textColor="#AAFFFFFF"
-                android:textSize="16sp"
-                android:gravity="center" />
+                android:src="@drawable/ic_home"
+                android:contentDescription="@string/home_forecast"
+                android:tint="#AAFFFFFF" />
         </FrameLayout>
 
         <!-- Current Stations -->
@@ -1624,25 +1625,25 @@
                 android:tint="#AAFFFFFF" />
         </FrameLayout>
 
-        <!-- Home -->
+        <!-- Graph Selector -->
         <FrameLayout
-            android:id="@+id/home_touch_zone"
+            android:id="@+id/graph_selector_touch_zone"
             android:layout_width="24dp"
             android:layout_height="48dp"
             android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
-            <ImageView
-                android:id="@+id/home_icon"
+            <TextView
+                android:id="@+id/graph_selector_icon"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:layout_marginTop="-10dp"
                 android:paddingTop="-4dp"
-                android:src="@drawable/ic_home"
-                android:contentDescription="@string/home_forecast"
-                android:tint="#AAFFFFFF" />
+                android:textColor="#AAFFFFFF"
+                android:textSize="16sp"
+                android:gravity="center" />
         </FrameLayout>
 
         <!-- Months view (daily view zoomed out); daily header only -->
@@ -1857,9 +1858,9 @@
         </FrameLayout>
 
         <!-- Inline nav icons: shown on narrow widgets when precip % is visible,
-             replacing the floating center_horizontal icons. Order: stations | home | history. -->
+             replacing the floating center_horizontal icons. Order: HeaderButtons.ORDER (home first). -->
         <FrameLayout
-            android:id="@+id/graph_selector_touch_zone_inline"
+            android:id="@+id/home_touch_zone_inline"
             android:layout_width="36dp"
             android:layout_height="40dp"
             android:layout_marginStart="1dp"
@@ -1867,15 +1868,15 @@
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
-            <TextView
-                android:id="@+id/graph_selector_icon_inline"
+            <ImageView
+                android:id="@+id/home_icon_inline"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:layout_marginTop="-10dp"
-                android:textColor="#AAFFFFFF"
-                android:textSize="16sp"
-                android:gravity="center" />
+                android:src="@drawable/ic_home"
+                android:contentDescription="@string/home_forecast"
+                android:tint="#AAFFFFFF" />
         </FrameLayout>
 
         <FrameLayout
@@ -1899,7 +1900,7 @@
         </FrameLayout>
 
         <FrameLayout
-            android:id="@+id/home_touch_zone_inline"
+            android:id="@+id/graph_selector_touch_zone_inline"
             android:layout_width="36dp"
             android:layout_height="40dp"
             android:layout_marginStart="0dp"
@@ -1907,15 +1908,15 @@
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
-            <ImageView
-                android:id="@+id/home_icon_inline"
+            <TextView
+                android:id="@+id/graph_selector_icon_inline"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:layout_marginTop="-10dp"
-                android:src="@drawable/ic_home"
-                android:contentDescription="@string/home_forecast"
-                android:tint="#AAFFFFFF" />
+                android:textColor="#AAFFFFFF"
+                android:textSize="16sp"
+                android:gravity="center" />
         </FrameLayout>
 
         <FrameLayout
