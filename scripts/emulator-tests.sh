@@ -399,6 +399,24 @@ if [ "$VERBOSE_MODE" = true ]; then
     $TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/null || echo "  Unknown"
 fi
 
+# Credential-encrypted storage must be unlocked: sys.boot_completed comes first, and an AVD with a
+# screen-lock PIN/pattern never unlocks on its own. The app then crashes in onCreate
+# ("SharedPreferences in credential encrypted storage are not available") and the run reports
+# 0 tests (Medium_Phone_API_36, 2026-10-22). Say so instead.
+CE_WAITED=0
+while [ "$($TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop sys.user.0.ce_available 2>/dev/null | tr -d '\r\n')" != "true" ]; do
+    if [ "$CE_WAITED" -ge 30 ]; then
+        echo -e "${RED}Error: $EMULATOR_SERIAL ($EMULATOR_NAME) is still locked — user storage unavailable${NC}"
+        if $TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell cmd lock_settings verify 2>&1 | grep -q "has a lock credential"; then
+            echo "It has a screen lock. Unlock it once, or remove the lock:"
+            echo "  adb -s $EMULATOR_SERIAL shell cmd lock_settings clear --old <PIN>"
+        fi
+        exit 1
+    fi
+    sleep 2
+    CE_WAITED=$((CE_WAITED + 2))
+done
+
 if [ "$BOOT_ONLY" = true ]; then
     echo -e "${GREEN}Boot complete — exiting${NC}"
     exit 0
@@ -434,9 +452,13 @@ if [ -n "${TEST_CLASS:-}" ] && _is_unit_test_class "$TEST_CLASS"; then
 fi
 
 # Multi-emulator mode: when multiple emulators are connected, build APKs once then run in parallel.
+# With APKs prebuilt by staggered-tests.sh's unit run this is also the one-emulator path: the
+# Gradle path below would start a second build beside the unit run still in its Long bucket.
 if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = false ]; then
     mapfile -t CONNECTED_EMULATORS < <($ADB_BIN devices | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
-    if [ "${#CONNECTED_EMULATORS[@]}" -gt 1 ]; then
+    MIN_ADB_PATH_EMULATORS=2
+    [ "${EMULATOR_TESTS_PREBUILT:-}" = 1 ] && MIN_ADB_PATH_EMULATORS=1
+    if [ "${#CONNECTED_EMULATORS[@]}" -ge "$MIN_ADB_PATH_EMULATORS" ]; then
         echo -e "${BLUE}Detected ${#CONNECTED_EMULATORS[@]} connected emulators: ${CONNECTED_EMULATORS[*]}${NC}"
         echo -e "${YELLOW}Building APKs once, then running tests in parallel...${NC}"
 

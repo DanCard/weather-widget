@@ -52,7 +52,8 @@ Run unit tests and emulator tests in parallel, staggered to avoid build contenti
 Options:
   --install                 Also install debug APK to all connected devices
   --sequential              Start emulator tests only after ALL unit tests finish (the old order).
-                            Default with 2+ emulators: start them during the Long bucket's tail.
+                            Default: start them during the Long bucket's tail. With no emulator
+                            running, one is booted alongside the unit tests either way.
   --emulator-args "ARGS"   Extra arguments forwarded to scripts/emulator-tests.sh
   -h, --help               Show this help
 EOF
@@ -134,35 +135,6 @@ wait_for_emulator_ready() {
     return 1
 }
 
-# Run emulator-tests.sh against a single serial, gating on readiness and retrying transient
-# device-offline/disconnect failures (with active `adb reconnect` recovery between attempts).
-run_one_emulator_with_retries() {
-    local adb_bin="$1" serial="$2"
-    local serial_log="$LOG_DIR/emulator-${serial}-${TIMESTAMP}.log"
-    local attempt=1
-    local serial_status=1
-    while [ "$attempt" -le "$EMULATOR_MAX_ATTEMPTS" ]; do
-        if ! wait_for_emulator_ready "$adb_bin" "$serial" 90; then
-            echo -e "${YELLOW}Warning: ${serial} did not report ready before attempt ${attempt}; proceeding anyway${NC}"
-        fi
-        : > "$serial_log"  # per-attempt log so the transient-failure grep reflects only this attempt
-        EMULATOR_TESTS_TARGET_SERIAL="$serial" "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE" "$serial_log" | to_summary
-        serial_status=${PIPESTATUS[0]}
-        [ "$serial_status" -eq 0 ] && break
-        if [ "$attempt" -lt "$EMULATOR_MAX_ATTEMPTS" ] &&
-            grep -qiE "$TRANSIENT_DISCONNECT_REGEX" "$serial_log"; then
-            echo -e "${YELLOW}Transient emulator/runner disconnect on ${serial} (attempt ${attempt}/${EMULATOR_MAX_ATTEMPTS}); recovering device and retrying...${NC}"
-            "$adb_bin" reconnect offline >/dev/null 2>&1 || true
-            sleep 3
-            attempt=$((attempt + 1))
-            continue
-        fi
-        # Non-transient failure (real test/build failure) or out of attempts: stop retrying.
-        break
-    done
-    return "$serial_status"
-}
-
 # Run every connected emulator in one parallel pass, with readiness gating and
 # transient-disconnect retry preserved at whole-run granularity.
 #
@@ -206,35 +178,20 @@ run_all_emulators_parallel_with_retries() {
 # Run the emulator phase; within it the emulators run in parallel. Running it beside the FULL
 # JVM load (all four buckets, 16 Robolectric JVMs) once produced truncated per-emulator logs
 # with no OK/FAILURES footer, so it never starts before Short, Medium and Localization finish.
-# With 2+ emulators it does start during the Long bucket's tail (OVERLAP below): measured
-# 2026-10-13, 100 s and 90 s vs 119 s sequential, footers intact; --sequential restores the
-# old order.
+# It does start during the Long bucket's tail (OVERLAP below): measured 2026-10-13 with two
+# emulators, 100 s and 90 s vs 119 s sequential, footers intact; --sequential restores the old
+# order. Any number of emulators takes this one path; emulator-tests.sh picks the build (prebuilt
+# APKs during the overlap, its own Gradle run after the unit tests).
 run_emulator_tests_for_staggered() {
-    local status=0
-    local adb_bin="${ADB:-$HOME/.Android/Sdk/platform-tools/adb}"
-    if [ ! -x "$adb_bin" ]; then
-        adb_bin="$(command -v adb || true)"
-    fi
+    local adb_bin
+    adb_bin=$(resolve_adb)
     mapfile -t connected_emulators < <("$adb_bin" devices 2>/dev/null | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
-    if [ "${#connected_emulators[@]}" -gt 1 ]; then
-        echo -e "${BLUE}Detected ${#connected_emulators[@]} connected emulators; building once, then running them in parallel: ${connected_emulators[*]}${NC}"
-        run_all_emulators_parallel_with_retries "$adb_bin" "${connected_emulators[@]}"
-        status=$?
-    elif [ "${#connected_emulators[@]}" -eq 1 ]; then
-        for serial in "${connected_emulators[@]}"; do
-            echo -e "${YELLOW}=== Running emulator tests on ${serial} ===${NC}"
-            run_one_emulator_with_retries "$adb_bin" "$serial"
-            local serial_status=$?
-            if [ "$serial_status" -ne 0 ]; then
-                status=$serial_status
-                break
-            fi
-        done
-    else
-        "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee "$EMULATOR_LOG_FILE" | to_summary
-        status=${PIPESTATUS[0]}
+    if [ "${#connected_emulators[@]}" -eq 0 ]; then
+        echo -e "${RED}No emulator running — boot failed? See $EMULATOR_BOOT_LOG${NC}" | to_summary
+        return 1
     fi
-    return "$status"
+    echo -e "${BLUE}Running emulator tests on ${connected_emulators[*]}${NC}"
+    run_all_emulators_parallel_with_retries "$adb_bin" "${connected_emulators[@]}"
 }
 
 TOTAL_START=$(date +%s)
@@ -262,18 +219,13 @@ resolve_adb() {
 }
 
 # Overlap (2026-10-13): the Long bucket runs ~30-40 s after every other bucket has finished, and
-# the emulator phase (~40 s) used to start only after it. With 2+ emulators, the unit-test Gradle
-# run also builds both APKs, and emulator tests start once those exist and Short, Medium and
-# Localization have reported — so they overlap only Long's tail, never the full 16-JVM peak that
-# once truncated emulator logs. One emulator keeps the old order: that path builds through Gradle
-# itself. --sequential restores the old order everywhere.
+# the emulator phase (~40 s) used to start only after it. The unit-test Gradle run also builds
+# both APKs, and emulator tests start once those exist and Short, Medium and Localization have
+# reported — so they overlap only Long's tail, never the full 16-JVM peak that once truncated
+# emulator logs. Whatever the number of emulators (user, 2026-10-22: one emulator ran the old
+# order, 120 s where the overlap would have taken ~85 s). --sequential restores the old order.
 OVERLAP=false
-if [ "$SEQUENTIAL" = false ]; then
-    overlap_adb=$(resolve_adb)
-    if [ -n "$overlap_adb" ] && [ "$("$overlap_adb" devices 2>/dev/null | grep -cE '^emulator-[0-9]+'$'\t''device$')" -ge 2 ]; then
-        OVERLAP=true
-    fi
-fi
+[ "$SEQUENTIAL" = false ] && OVERLAP=true
 UNIT_ARGS=(--log-file "$UNIT_LOG_FILE")
 [ "$OVERLAP" = true ] && UNIT_ARGS+=(--also-build-apks)
 
@@ -303,6 +255,58 @@ on_interrupt() {
     exit 130
 }
 trap on_interrupt INT TERM
+
+# No emulator running: boot the default one now, beside the unit tests, so it is up by the time
+# the emulator phase starts. emulator-tests.sh would boot it anyway, but only once that phase began.
+#
+# Which one alternates (user, 2026-10-22), so both form factors get exercised: the AVD after the
+# one booted last, skipping any not installed. Remembered in BOOT_AVD_STATE; losing it just starts
+# over at the first. Medium_Phone_API_30 exists too but is not a documented test target.
+BOOT_AVDS=(Generic_Foldable_API36 Medium_Phone_API_36)
+BOOT_AVD_STATE="$PROJECT_DIR/logs/.last-booted-avd"
+next_boot_avd() {
+    local adb_bin="$1" installed last i n candidate
+    installed=$("$(dirname "$(dirname "$adb_bin")")/emulator/emulator" -list-avds 2>/dev/null)
+    last=$(cat "$BOOT_AVD_STATE" 2>/dev/null)
+    n=${#BOOT_AVDS[@]}
+    local start=0
+    for i in "${!BOOT_AVDS[@]}"; do
+        [ "${BOOT_AVDS[$i]}" = "$last" ] && start=$(( (i + 1) % n ))
+    done
+    for i in $(seq 0 $((n - 1))); do
+        candidate="${BOOT_AVDS[$(( (start + i) % n ))]}"
+        if grep -qx "$candidate" <<<"$installed"; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+BOOT_PID=""
+boot_adb=$(resolve_adb)
+if [ -n "$boot_adb" ] && ! "$boot_adb" devices 2>/dev/null | grep -qE '^emulator-[0-9]+'$'\t''device$'; then
+    BOOT_ARGS=(--boot-only)
+    if boot_avd=$(next_boot_avd "$boot_adb"); then
+        BOOT_ARGS+=(-e "$boot_avd")
+        # Recorded at the pick, not after the boot: an AVD that fails to boot is not retried forever.
+        mkdir -p "$(dirname "$BOOT_AVD_STATE")" && echo "$boot_avd" > "$BOOT_AVD_STATE"
+    fi
+    phase "No emulator running — booting ${boot_avd:-the default} (log: $EMULATOR_BOOT_LOG)"
+    "$EMULATOR_SCRIPT" "${BOOT_ARGS[@]}" > "$EMULATOR_BOOT_LOG" 2>&1 &
+    BOOT_PID=$!
+fi
+
+# Before the emulator phase: let a boot started above finish.
+await_emulator_boot() {
+    [ -n "$BOOT_PID" ] || return 0
+    if wait "$BOOT_PID"; then
+        phase "Emulator booted"
+    else
+        phase "Emulator boot failed (log: $EMULATOR_BOOT_LOG)"
+    fi
+    BOOT_PID=""
+}
 
 "$UNIT_SCRIPT" "${UNIT_ARGS[@]}" > >(to_summary) &
 UNIT_PID=$!
@@ -350,6 +354,7 @@ if [ "$OVERLAP" = true ]; then
         sleep 1
     done
     if kill -0 "$UNIT_PID" 2>/dev/null && ! grep -qE "tests: .*failed|FAILED" "$SUMMARY_LOG_FILE" 2>/dev/null; then
+        await_emulator_boot
         phase "Emulator tests started during the Long bucket (log: $EMULATOR_LOG_FILE)"
         (
             export EMULATOR_TESTS_PREBUILT=1
@@ -373,12 +378,14 @@ elif [ "$UNIT_STATUS" -eq 0 ]; then
     # Overlap planned but unit tests ended first (all cached, or quicker than the APK build):
     # the APKs were still built by that run.
     [ "$OVERLAP" = true ] && export EMULATOR_TESTS_PREBUILT=1
+    await_emulator_boot
     phase "Emulator tests started (log: $EMULATOR_LOG_FILE)"
     run_emulator_tests_for_staggered
     EMULATOR_STATUS=$?
     phase "Emulator tests finished (exit $EMULATOR_STATUS)"
 else
     echo -e "${YELLOW}Skipping emulator tests because unit tests failed.${NC}"
+    # A boot started above is left to finish: the emulator stays up for the next run.
 fi
 
 # Deferred installDebug: only fires when both test phases passed AND --install was requested.
