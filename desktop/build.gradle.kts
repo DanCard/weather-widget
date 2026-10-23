@@ -76,6 +76,7 @@ run {
 dependencies {
     // Reuse the pure-JVM weather layer (models + NWS/Open-Meteo API clients).
     implementation(project(":shared"))
+    testImplementation(testFixtures(project(":shared")))
 
     // Compose for Desktop (Skia-backed UI).
     implementation(compose.desktop.currentOs)

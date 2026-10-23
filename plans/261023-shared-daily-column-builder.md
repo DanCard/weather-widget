@@ -56,3 +56,27 @@ partial NWS evening batch, Silurian today-row missing, GENERIC_GAP, another-sour
 Harness + existing `DailyViewLogicTest`, `DesktopDailyForecastModelTest`, renderer Robo tests;
 `./gradlew testDebugUnitTest :shared:test :desktop:test`; `./scripts/emulator-tests.sh` for the
 widget paths; desktop restart and an emulator widget screenshot of the same day side by side.
+
+## Step 1 result (2026-10-23)
+Harness built: `:shared` testFixtures `DailyParity` (8 fixtures, one `Column` vocabulary),
+`AndroidDailyParityTest` (Robolectric, `prepareGraphDays` as `DailyGraphRenderer` calls it: header
+rain %, today's label allowed), `DesktopDailyParityTest` (`DesktopDailyForecastModel.build`; today's
+row as `DesktopWeatherDao.getDailyForecasts` picks it), `scripts/daily_parity_diff.py`.
+
+Both platforms now **assert** the agreed columns (`testFixtures/resources/daily-parity/<fixture>.txt`),
+so drift on either side fails its test. Mutation-checked: restoring desktop's old prior-icon rule
+fails `stale-prior`.
+
+Divergences found, after the 3a fixes:
+| Field | Android | Desktop | Decision |
+|---|---|---|---|
+| Past day's prior icon with no prior bar | none | the day's icon | Android's (no bar, no icon) — applied to desktop; not visible either way |
+
+Everything else — bar values, forecast overlay, prior bar, icons, noon cloud, day/night rain and
+labels, flags — matches on all 8 fixtures. Four first-run "divergences" were harness setup (desktop's
+default visible sources excluded Google; today's row picked in desktop's DAO, not its model; the gap
+source id is `"Generic"`; the window ran past desktop's last column).
+
+Consequence for steps 2–3: the two builders already agree on these cases, so the shared builder can
+be extracted from desktop's `buildDay` with the golden files as its regression test, rather than as
+a series of behaviour decisions. Fixture coverage is the limit: add one per future parity bug.

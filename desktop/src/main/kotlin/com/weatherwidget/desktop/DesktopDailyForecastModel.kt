@@ -588,7 +588,8 @@ object DesktopDailyForecastModel {
                 dayPrecipProbability = displaySnapshot.daytimePrecipProbability ?: displaySnapshot.precipProbability,
                 nightPrecipProbability = displaySnapshot.nighttimePrecipProbability,
             )
-            isPast && (pastPrior?.high != null || displaySnapshot?.highTemp != null) -> gatedIconName
+            // Only when its bar is drawn (the day's icon, as Android: `snapshotIconRes ?: iconRes` when snapshotHigh != null).
+            isPast && pastPrior?.high != null -> gatedIconName
             else -> null
         }
 

@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
+    // Fixtures both app and desktop tests read (DailyParity: one set of days, two builders).
+    `java-test-fixtures`
 }
 
 kotlin {
