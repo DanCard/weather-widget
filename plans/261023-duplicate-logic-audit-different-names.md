@@ -155,3 +155,9 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
 - 2026-10-23: §2 hourly trim → `HourlyOnDemand.trim` + `TRIM_TAG` (one split, one line). Same rule
   before; only the code and the line's `horizonH` (desktop printed the configured hours, Android the
   hours from now) differed. Tag allowlist −1 (→ 17).
+- 2026-10-23: §2 on-demand hourly → `:shared` `HourlyOnDemandRun` + Host (re-check, fetch, one
+  `HOURLY_ON_DEMAND` line: `outcome=covered_no_fetch|stored|empty|failed hours storedRows storedLast
+  fetchMs`, Android appends widget/announce/startDelayMs/paintMs). Android now re-checks coverage at
+  run time like desktop (a gap-fill or earlier tap that stored the day costs no second fetch);
+  desktop now reports a failed fetch as `outcome=failed` WARN in app_logs instead of throwing to the
+  popup. Tag allowlist −1 (→ 16).

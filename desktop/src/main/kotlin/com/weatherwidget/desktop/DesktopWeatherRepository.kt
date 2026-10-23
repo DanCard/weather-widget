@@ -20,6 +20,7 @@ import com.weatherwidget.data.remote.GoogleHistoryRefill
 import com.weatherwidget.data.remote.GoogleHistoryRun
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.HourlyOnDemand
+import com.weatherwidget.data.remote.HourlyOnDemandRun
 import com.weatherwidget.data.remote.ForecastHorizonCadence
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.TomorrowIoApi
@@ -437,46 +438,40 @@ class DesktopWeatherRepository(
      * A tapped or panned-to day the displayed source's stored hourly does not cover
      * ([HourlyOnDemand], any source): its normal fetch — deep enough for Google — saved as a refresh
      * saves it (live rows, daily rows, this 4 h bucket's history snapshot), without the rest of a
-     * refresh (`plans/261009-on-demand-hourly-shared-single-source-fetch.md`). Serialized and
-     * re-checked under the lock, so a second tap on the same day waits for the first and then fetches
+     * refresh (`plans/261009-on-demand-hourly-shared-single-source-fetch.md`). The run and its log are
+     * `:shared` [HourlyOnDemandRun], as Android's worker. Serialized and re-checked under the lock, so a second tap on the same day waits for the first and then fetches
      * nothing. Returns true when it stored hours.
      */
     suspend fun extendHourlyFor(date: LocalDate, now: Long = currentTimeMillis()): Boolean = withContext(Dispatchers.IO) {
         hourlyExtendMutex.withLock {
-            val stored = weatherDao.getHourlyForecasts(
-                LocationMatch.quantize(latitude),
-                LocationMatch.quantize(longitude),
+            val result = HourlyOnDemandRun.run(
+                object : HourlyOnDemandRun.Host {
+                    override suspend fun storedHourly() = weatherDao.getHourlyForecasts(
+                        LocationMatch.quantize(latitude),
+                        LocationMatch.quantize(longitude),
+                        weatherSource,
+                        now - 3_600_000L,
+                        now + HourlyOnDemand.REACH_HOURS * 3_600_000L,
+                    )
+
+                    override suspend fun fetch(request: HourlyOnDemand.Request): Boolean {
+                        val forecastHours = persistForecastResult(
+                            weatherService.fetchForecastAhead(request.hours),
+                            now,
+                            keep = HourlyOnDemand.keep(weatherSource, request),
+                        )
+                        val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
+                        weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, forecastHours)
+                        return forecastHours.isNotEmpty()
+                    }
+                },
                 weatherSource,
-                now - 3_600_000L,
-                now + HourlyOnDemand.REACH_HOURS * 3_600_000L,
-            )
-            val hours = HourlyOnDemand.hoursToCover(weatherSource, date, ZoneId.systemDefault(), now, stored)
-            if (hours == null) {
-                weatherDao.log(
-                    tag = "HOURLY_ON_DEMAND",
-                    message = "source=$weatherSource date=$date outcome=covered_no_fetch storedRows=${stored.size} " +
-                        "storedLast=${stored.maxOfOrNull { it.dateTime }}",
-                    level = "INFO",
-                )
-                return@withLock false
-            }
-            val fetchStart = System.nanoTime()
-            val result = weatherService.fetchForecastAhead(hours)
-            val fetchMs = (System.nanoTime() - fetchStart) / 1_000_000
-            val forecastHours = persistForecastResult(
-                result,
+                date,
+                ZoneId.systemDefault(),
                 now,
-                keep = HourlyOnDemand.keep(weatherSource, HourlyOnDemand.Request(weatherSource, hours)),
             )
-            val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
-            weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, forecastHours)
-            weatherDao.log(
-                tag = "HOURLY_ON_DEMAND",
-                message = "source=$weatherSource date=$date hours=$hours storedLast=${stored.maxOfOrNull { it.dateTime }} " +
-                    "rows=${forecastHours.size} fetchMs=$fetchMs",
-                level = "INFO",
-            )
-            forecastHours.isNotEmpty()
+            weatherDao.log(HourlyOnDemandRun.TAG, HourlyOnDemandRun.line(weatherSource, date, result), HourlyOnDemandRun.level(result))
+            result.stored
         }
     }
 

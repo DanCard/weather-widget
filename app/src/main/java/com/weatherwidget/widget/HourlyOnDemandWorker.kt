@@ -18,12 +18,14 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.HourlyOnDemand
+import com.weatherwidget.data.remote.HourlyOnDemandRun
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.widget.handlers.NoHourlyDayClickCoordinator
 import com.weatherwidget.widget.handlers.WidgetIntentActionHandler
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import java.time.ZoneId
 
 /**
  * A tapped or panned-to day's hourly, from its source alone, then that widget repainted — for every
@@ -34,7 +36,7 @@ import kotlinx.coroutines.delay
  * the banner could clear. This one:
  * - is expedited on API 31+;
  * - is not cooled down — the user is watching its banner;
- * - fetches through [WeatherRepository.fetchSourceOnDemand];
+ * - re-checks and fetches through `:shared` [HourlyOnDemandRun] ([WeatherRepository.fetchSourceOnDemand]);
  * - settles the banner ([WidgetDayClickCoordinator.completeOnDemand]) and paints that one widget.
  *
  * Unique per widget with REPLACE. A pan waits [HourlyOnDemand.PAN_SETTLE_MS] inside the work
@@ -60,38 +62,45 @@ class HourlyOnDemandWorker
             val lat = inputData.getDouble(KEY_LAT, Double.NaN)
             val lon = inputData.getDouble(KEY_LON, Double.NaN)
             if (!lat.isFinite() || !lon.isFinite()) return Result.success()
-            val hours = inputData.getInt(KEY_HOURS, 0)
             val settleMs = inputData.getLong(KEY_SETTLE_MS, 0L)
             val enqueuedAtMs = inputData.getLong(KEY_ENQUEUED_AT_MS, System.currentTimeMillis())
             val announce = inputData.getBoolean(KEY_ANNOUNCE, true)
             if (settleMs > 0) delay(settleMs)
             val startDelayMs = System.currentTimeMillis() - enqueuedAtMs - settleMs
 
-            val fetchStart = SystemClock.elapsedRealtime()
-            val answered = try {
-                weatherRepository.fetchSourceOnDemand(
-                    lat,
-                    lon,
-                    source,
-                    HourlyOnDemand.Request(source.id, hours).takeIf { hours > 0 },
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                false
-            }
-            val fetchMs = SystemClock.elapsedRealtime() - fetchStart
+            val database = WeatherDatabase.getDatabase(context)
+            val day = runCatching { java.time.LocalDate.parse(date) }.getOrNull() ?: return Result.success()
+            val nowMs = System.currentTimeMillis()
+            // Re-checked against what is stored now: a quiet gap-fill or an earlier tap may have
+            // stored the day since this was enqueued (:shared HourlyOnDemandRun, as desktop).
+            val run = HourlyOnDemandRun.run(
+                object : HourlyOnDemandRun.Host {
+                    override suspend fun storedHourly() =
+                        NoHourlyDayClickCoordinator.storedHourlyForSource(database, source.id, lat, lon, nowMs)
+
+                    override suspend fun fetch(request: HourlyOnDemand.Request) =
+                        weatherRepository.fetchSourceOnDemand(lat, lon, source, request)
+                },
+                source.id,
+                day,
+                ZoneId.systemDefault(),
+                nowMs,
+            )
 
             val paintStart = SystemClock.elapsedRealtime()
             WidgetDayClickCoordinator.completeOnDemand(context, widgetId, date, lat, lon, announce)
             WidgetIntentActionHandler.renderWidgetFromCache(context, widgetId, weatherRepository)
             val paintMs = SystemClock.elapsedRealtime() - paintStart
 
-            WeatherDatabase.getDatabase(context).appLogDao().log(
-                "HOURLY_ON_DEMAND",
-                "widget=$widgetId source=${source.id} date=$date hours=$hours announce=$announce answered=$answered " +
-                    "startDelayMs=$startDelayMs fetchMs=$fetchMs paintMs=$paintMs",
-                "INFO",
+            database.appLogDao().log(
+                HourlyOnDemandRun.TAG,
+                HourlyOnDemandRun.line(
+                    source.id,
+                    day,
+                    run,
+                    "widget=$widgetId announce=$announce startDelayMs=$startDelayMs paintMs=$paintMs",
+                ),
+                HourlyOnDemandRun.level(run),
             )
             return Result.success()
         }
@@ -110,8 +119,8 @@ class HourlyOnDemandWorker
             fun uniqueName(widgetId: Int) = "hourly_on_demand_$widgetId"
 
             /**
-             * [hours]: the horizon Google asks for (`HourlyOnDemand.hoursToCover`); 0 for a source whose
-             * single call returns its whole horizon. [afterPan]: wait [HourlyOnDemand.PAN_SETTLE_MS] first.
+             * [hours]: the horizon the tap decided (`HourlyOnDemand.hoursToCover`); the run re-decides it
+             * against what is stored then ([HourlyOnDemandRun]), so this is the enqueue's record. [afterPan]: wait [HourlyOnDemand.PAN_SETTLE_MS] first.
              * [announce] false: a paint's quiet gap-fill (`WidgetDayClickCoordinator.fillHourlyGaps`) —
              * no banner settled, and KEEP, so it never replaces a tap's or pan's announced fetch.
              */

@@ -41,7 +41,6 @@ class CrossPlatformDuplicateLogTagsTest {
             "DOMINANT_TEMP_WATCH" to ADAPTER, // DominantTempWatch, prefs vs file store
             "FETCH_PLAN" to FETCH_JOB,
             "GOOGLE_HOURS_PAGES" to FETCH_JOB,
-            "HOURLY_ON_DEMAND" to FETCH_JOB,
             "TMRW_5M_FETCH" to FETCH_JOB,
             "CLICK_DAILY" to UI_FLOW,
             "HEADER_FIT" to UI_FLOW, // measuring glue around shared HeaderFit
