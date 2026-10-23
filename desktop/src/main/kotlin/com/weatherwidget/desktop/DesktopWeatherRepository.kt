@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.history.WeatherApiHistoryRun
 import com.weatherwidget.shared.actuals.NwsStationActualsRun
 import com.weatherwidget.shared.graph.PriorDayCloudRun
 import com.weatherwidget.shared.observations.CurrentConditionsRun
@@ -365,8 +366,15 @@ class DesktopWeatherRepository(
             WeatherSource.OPEN_METEO.id ->
                 neededHistoryDays(neededBackHours) > deepestHistoryDaysFetched
             WeatherSource.WEATHER_API.id ->
-                neededBackHours >= 24 && weatherApiHistoryDecision(currentTimeMillis()) is
-                    ProviderHistoryDecision.Fetch
+                neededBackHours >= 24 && currentTimeMillis().let { now ->
+                    val w = WeatherApiHistoryRun.window(latitude, longitude, now)
+                    WeatherApiHistoryRun.decide(
+                        latitude, longitude,
+                        stored = weatherDao.getObservationsInRange(w.startMs, w.endMs, latitude, longitude).map { it.toReading() },
+                        latestResult = weatherDao.getLatestLogByTagAndMessagePrefix(WeatherApiHistoryRun.RESULT_TAG, w.logPrefix)?.message,
+                        nowMs = now,
+                    ) is ProviderHistoryDecision.Fetch
+                }
             else -> false
         }
 
@@ -992,147 +1000,44 @@ class DesktopWeatherRepository(
         return extremesCount
     }
 
-    private fun weatherApiHistoryDecision(now: Long): ProviderHistoryDecision {
-        val zoneId = ZoneId.systemDefault()
-        val targetDate = ProviderHistoryPolicy.targetDate(now, zoneId)
-        val startMs = targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
-        val endMs = targetDate.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-        val timestamps =
-            weatherDao.getObservationsInRange(startMs, endMs, latitude, longitude)
-                .asSequence()
-                .filter {
-                    it.api == WeatherSource.WEATHER_API.id &&
-                        LocationMatch.sameSite(
-                            it.locationLat,
-                            it.locationLon,
-                            latitude,
-                            longitude,
-                        )
-                }
-                .map { it.timestamp }
-                .toList()
-        val prefix =
-            "site=${ProviderHistoryPolicy.siteKey(latitude, longitude)} date=$targetDate"
-        val retryAtMs =
-            weatherDao.getLatestLogByTagAndMessagePrefix(
-                WAPI_HISTORY_RESULT_TAG,
-                prefix,
-            )?.message
-                ?.let(ProviderHistoryPolicy::retryAtFromMessage)
-        return ProviderHistoryPolicy.decide(
-            source = WeatherSource.WEATHER_API,
-            nowMs = now,
-            zoneId = zoneId,
-            storedTimestamps = timestamps,
-            retryAtMs = retryAtMs,
-        )
-    }
-
+    /**
+     * WeatherAPI's prior-day provider history. The rule is `:shared` [WeatherApiHistoryRun] (same as
+     * Android); this is its desktop host. Returns the hours stored (0 unless fetched).
+     */
     internal suspend fun backfillWeatherApiHistoryIfNeeded(now: Long): Int {
         if (weatherSource != WeatherSource.WEATHER_API.id) return 0
-        val zoneId = ZoneId.systemDefault()
-        val decision = weatherApiHistoryDecision(now)
-        when (decision) {
-            is ProviderHistoryDecision.AlreadyCovered -> {
-                Log.v(
-                    TAG,
-                    "WeatherAPI history covered date=${decision.date} hours=${decision.distinctHours}",
-                )
-                return 0
-            }
-            is ProviderHistoryDecision.Cooldown -> {
-                Log.v(
-                    TAG,
-                    "WeatherAPI history cooldown date=${decision.date} " +
-                        "retryAtMs=${decision.retryAtMs}",
-                )
-                return 0
-            }
-            is ProviderHistoryDecision.NotApplicable -> return 0
-            is ProviderHistoryDecision.Fetch -> {
-                val prefix =
-                    "site=${ProviderHistoryPolicy.siteKey(latitude, longitude)} " +
-                        "date=${decision.date}"
-                weatherDao.log(
-                    WAPI_HISTORY_CHECK_TAG,
-                    "$prefix coverage=${decision.distinctHours} decision=fetch",
-                    "DEBUG",
-                )
-                return try {
-                    val history = weatherService.fetchWeatherApiHistory(decision.date)
-                    val targetReadings =
-                        history.rawObservations.filter {
-                            it.api == WeatherSource.WEATHER_API.id &&
-                                Instant.ofEpochMilli(it.timestamp)
-                                    .atZone(zoneId)
-                                    .toLocalDate() == decision.date
-                        }
-                    if (targetReadings.isEmpty()) {
-                        recordWeatherApiHistoryFailure(
-                            prefix,
-                            now,
-                            ProviderHistoryFailureClass.MALFORMED_RESPONSE,
-                            "empty_target_day",
-                        )
-                        return 0
-                    }
-                    weatherDao.upsertObservations(targetReadings.map { it.toEntity(now) })
-                    val distinctHours =
-                        targetReadings.asSequence()
-                            .map { it.timestamp / ProviderHistoryPolicy.HOUR_MS }
-                            .distinct()
-                            .count()
-                    val partialRetryAt =
-                        if (
-                            distinctHours <
-                            ProviderHistoryPolicy.COMPLETE_DAY_MIN_DISTINCT_HOURS
-                        ) {
-                            now + ProviderHistoryPolicy.retryDelayMs(
-                                ProviderHistoryFailureClass.MALFORMED_RESPONSE,
-                            )
-                        } else {
-                            null
-                        }
-                    weatherDao.log(
-                        WAPI_HISTORY_RESULT_TAG,
-                        buildString {
-                            append("$prefix result=stored hours=$distinctHours")
-                            if (partialRetryAt != null) append(" retryAtMs=$partialRetryAt")
-                        },
-                        "INFO",
-                    )
-                    distinctHours
-                } catch (cancellation: kotlinx.coroutines.CancellationException) {
-                    throw cancellation
-                } catch (exception: Exception) {
-                    val statusCode = (exception as? ApiAccessException)?.statusCode
-                    recordWeatherApiHistoryFailure(
-                        prefix = prefix,
-                        now = now,
-                        failureClass =
-                            ProviderHistoryPolicy.failureClassForStatus(statusCode),
-                        detail = statusCode?.let { "http_$it" }
-                            ?: exception.javaClass.simpleName.ifBlank { "error" },
-                    )
-                    0
-                }
-            }
-        }
-    }
+        val result = WeatherApiHistoryRun.run(
+            object : WeatherApiHistoryRun.Host {
+                override val lat = latitude
+                override val lon = longitude
 
-    private fun recordWeatherApiHistoryFailure(
-        prefix: String,
-        now: Long,
-        failureClass: ProviderHistoryFailureClass,
-        detail: String,
-    ) {
-        val retryAtMs = now + ProviderHistoryPolicy.retryDelayMs(failureClass)
-        weatherDao.log(
-            WAPI_HISTORY_RESULT_TAG,
-            "$prefix result=cooldown failure=${failureClass.name.lowercase()} " +
-                "detail=$detail retryAtMs=$retryAtMs",
-            "WARN",
+                override suspend fun storedObservations(startMs: Long, endMs: Long) =
+                    weatherDao.getObservationsInRange(startMs, endMs, latitude, longitude).map { it.toReading() }
+
+                override suspend fun latestResult(prefix: String) =
+                    weatherDao.getLatestLogByTagAndMessagePrefix(WeatherApiHistoryRun.RESULT_TAG, prefix)?.message
+
+                override suspend fun fetchHistory(date: LocalDate) =
+                    weatherService.fetchWeatherApiHistory(date).let { WeatherApiHistoryRun.History(it.hourly, it.daily.size) }
+
+                // The day's hours filed as WeatherAPI observations (the shared historical-actuals rule);
+                // its extremes are recomputed by this refresh's post-fetch pass.
+                override suspend fun store(targetHours: List<HourlyForecast>, date: LocalDate) =
+                    weatherDao.upsertObservations(
+                        HistoricalActualsBackfill.build(
+                            hourly = targetHours,
+                            latitude = latitude,
+                            longitude = longitude,
+                            sourceId = WeatherSource.WEATHER_API.id,
+                            nowMs = now,
+                        ).map { it.toEntity(now) },
+                    )
+
+                override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
+            },
+            nowMs = now,
         )
+        return if (result.status == WeatherApiHistoryRun.Status.FETCHED) result.storedHours else 0
     }
 
     /**
@@ -1718,8 +1623,6 @@ class DesktopWeatherRepository(
 
     companion object {
         private const val TAG = "DesktopWeatherRepository"
-        private const val WAPI_HISTORY_CHECK_TAG = "WAPI_HISTORY_CHECK"
-        private const val WAPI_HISTORY_RESULT_TAG = "WAPI_HISTORY_RESULT"
         private const val HISTORY_WINDOW_DAYS = 7L
         private const val ACTUALS_HISTORY_DAYS = 547L
         private const val FRESH_OBSERVATION_MS = 30 * 60 * 1000L

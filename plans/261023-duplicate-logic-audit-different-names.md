@@ -118,3 +118,9 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   run), logs a failed station-day to app_logs (console only before) and writes
   `NWS_STATION_ACTUALS_CACHED`; one `NWS_STATION_ACTUALS_OUTCOME` format. The run's date range and
   the planner now read "today" from the same `nowMs`. Tag allowlist −3.
+- 2026-10-23: §2 WeatherAPI history → `:shared` `WeatherApiHistoryRun` + Host (coverage read, policy
+  decision — also desktop's "fetching" check —, partial-day retry, `WAPI_HISTORY_*` logs). Both store
+  the day as observations (Android via `saveHistoricalActuals`, desktop via `HistoricalActualsBackfill`);
+  Android also forces the day's extremes recompute, desktop's post-fetch pass recomputes. Logs now one
+  format (desktop's covered / cooldown checks reach app_logs at VERBOSE; `daily=` on desktop). Tag
+  allowlist −2 (34 → 24).

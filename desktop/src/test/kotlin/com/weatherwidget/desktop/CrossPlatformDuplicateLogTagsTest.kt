@@ -50,8 +50,6 @@ class CrossPlatformDuplicateLogTagsTest {
             "OBS_ATTEMPT_TOUCH" to FETCH_JOB,
             "OBS_CLOUD_CARRIER" to FETCH_JOB,
             "TMRW_5M_FETCH" to FETCH_JOB,
-            "WAPI_HISTORY_CHECK" to FETCH_JOB,
-            "WAPI_HISTORY_RESULT" to FETCH_JOB,
             "CLICK_DAILY" to UI_FLOW,
             "HEADER_FIT" to UI_FLOW, // measuring glue around shared HeaderFit
             "HISTORY_REFRESH_DONE" to UI_FLOW,

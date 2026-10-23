@@ -1,12 +1,10 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.HourlyForecast
-import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.test.category.MediumDuration
@@ -68,7 +66,8 @@ class DesktopWeatherApiHistoryBackfillTest {
     @Test
     fun `refresh backfills yesterday once and derives daily history`() = runTest {
         coEvery { service.fetchWeatherApiHistory(yesterday) } returns
-            RawFetch(rawObservations = historyReadings(24))
+            // What history.json gives: the day's hours (the service files them as observations).
+            RawFetch(hourly = historyHours(24))
 
         repository.refresh(now)
         repository.refresh(now + 60_000L)
@@ -137,21 +136,15 @@ class DesktopWeatherApiHistoryBackfillTest {
                 ),
         )
 
-    private fun historyReadings(count: Int): List<ObservationReading> {
+    private fun historyHours(count: Int): List<HourlyForecast> {
         val start = yesterday.atStartOfDay(zone).toInstant().toEpochMilli()
         return (0 until count).map { index ->
-            ObservationReading(
-                stationId = "WEATHER_API_MAIN",
-                stationName = "WeatherAPI: History Backfill",
-                timestamp = start + index * 3_600_000L,
+            HourlyForecast(
+                dateTime = start + index * 3_600_000L,
                 temperature = 55f + index,
                 condition = "Clear",
-                locationLat = lat,
-                locationLon = lon,
-                distanceKm = 0f,
-                stationType = StationType.OFFICIAL,
-                api = WeatherSource.WEATHER_API.id,
                 precipAmountMm = if (index == 4) 1.2f else 0f,
+                source = WeatherSource.WEATHER_API.id,
             )
         }
     }
