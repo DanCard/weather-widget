@@ -161,3 +161,18 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   run time like desktop (a gap-fill or earlier tap that stored the day costs no second fetch);
   desktop now reports a failed fetch as `outcome=failed` WARN in app_logs instead of throwing to the
   popup. Tag allowlist −1 (→ 16).
+- 2026-10-23: §2 last fetch-job tags. `GOOGLE_HOURS_PAGES` → `GoogleWeatherApi.HOURS_PAGES_TAG` +
+  `hoursPagesLine(onDemandDay)` (Android's on-demand page log lacked `trigger=on_demand_day`).
+  `FETCH_PLAN` → `ForecastParts.PLAN_TAG` — **label only; the planning is still a twin (open
+  item below)**.
+  `TMRW_5M_FETCH` → `TomorrowIoActuals.FETCH_TAG` + `fetchLine` + `replacements` (same-site key
+  count, written twice). Fetch-job allowlist group empty; tag allowlist → 13 (5 adapters, 8 UI flows).
+- **OPEN — fetch planning is still written twice** (side-agent review, 2026-10-23). Sharing the
+  `FETCH_PLAN` label took it off `CrossPlatformDuplicateLogTagsTest`, but the code that picks which
+  sources to judge and when to log is per platform: Android `ForecastRepository.logFetchPlan` judges
+  every *visible* source and logs on every sync (`parts=none` included); desktop `DaemonRuntime` +
+  `DesktopForecastPlanner` judges the displayed source + `SourceFetchGate` survivors (with
+  `ForecastSchedule.heldPast`) and logs only when something is due. Target: a `:shared` plan runner
+  (sources in → per-source decision, due parts, the line) both platforms call. Lesson for this audit:
+  a shorter allowlist is not proof — a tag made a shared constant hides from the guard test, so each
+  removal must say whether the surrounding logic moved too.

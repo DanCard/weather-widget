@@ -59,6 +59,9 @@ class GoogleWeatherApi(
     private val apiKeyProvider: () -> String?,
 ) {
     companion object {
+        /** Tag of [hoursPagesLine], which each platform writes to its app_logs. */
+        const val HOURS_PAGES_TAG = "GOOGLE_HOURS_PAGES"
+
         private const val BASE_URL = "https://weather.googleapis.com/v1"
 
         /**
@@ -147,6 +150,13 @@ class GoogleWeatherApi(
     @Volatile
     var lastHoursPaging: String? = null
         private set
+
+    /**
+     * The persisted [HOURS_PAGES_TAG] line for the last fetch, both platforms; [onDemandDay] marks a
+     * tapped day's deeper fetch ([HourlyOnDemand]) — Android's lacked the mark.
+     */
+    fun hoursPagesLine(onDemandDay: Boolean): String =
+        lastHoursPaging.orEmpty() + if (onDemandDay) " trigger=on_demand_day" else ""
 
     /**
      * [includeHistory]: the caller's [needsHistory] answer. History is best-effort either way — its

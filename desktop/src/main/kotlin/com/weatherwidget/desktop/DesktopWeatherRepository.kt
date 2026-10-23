@@ -1203,21 +1203,15 @@ class DesktopWeatherRepository(
         val replacementCount = if (fiveMinute.isEmpty()) {
             0
         } else {
-            val minTimestamp = fiveMinute.minOf { it.timestamp }
-            val maxTimestampExclusive = fiveMinute.maxOf { it.timestamp } + 1L
-            val existingKeys = weatherDao.getObservationsInRange(
-                minTimestamp,
-                maxTimestampExclusive,
-                latitude,
-                longitude,
-            ).asSequence()
-                .filter {
-                    it.locationLat == fiveMinute.first().locationLat &&
-                        it.locationLon == fiveMinute.first().locationLon
-                }
-                .map { Triple(it.stationId, it.timestamp, it.api) }
-                .toSet()
-            fiveMinute.count { Triple(it.stationId, it.timestamp, it.api) in existingKeys }
+            TomorrowIoActuals.replacements(
+                fiveMinute.map { TomorrowIoActuals.ReadingKey(it.stationId, it.timestamp, it.api, it.locationLat, it.locationLon) },
+                weatherDao.getObservationsInRange(
+                    fiveMinute.minOf { it.timestamp },
+                    fiveMinute.maxOf { it.timestamp } + 1L,
+                    latitude,
+                    longitude,
+                ).map { TomorrowIoActuals.ReadingKey(it.stationId, it.timestamp, it.api, it.locationLat, it.locationLon) },
+            )
         }
 
         weatherDao.upsertObservations(readings.map { it.toEntity(now) })
@@ -1229,11 +1223,14 @@ class DesktopWeatherRepository(
         val actualsProvider = ActualsProviderResolver.providerIdFor(displaySource)
         if (actualsProvider == WeatherSource.TOMORROW_IO.id) {
             weatherDao.log(
-                "TMRW_5M_FETCH",
-                "windowHours=$tomorrowWindowHours rows=${fiveMinute.size} " +
-                    "earliest=${fiveMinute.minOfOrNull { it.timestamp }} " +
-                    "latest=${fiveMinute.maxOfOrNull { it.timestamp }} " +
-                    "replacements=$replacementCount",
+                TomorrowIoActuals.FETCH_TAG,
+                TomorrowIoActuals.fetchLine(
+                    tomorrowWindowHours,
+                    fiveMinute.size,
+                    fiveMinute.minOfOrNull { it.timestamp },
+                    fiveMinute.maxOfOrNull { it.timestamp },
+                    replacementCount,
+                ),
                 "INFO",
             )
         }

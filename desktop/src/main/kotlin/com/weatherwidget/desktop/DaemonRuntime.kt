@@ -1064,7 +1064,7 @@ internal class DaemonRuntime(
                     }
                     if (due.isNotEmpty()) {
                         weatherDao.log(
-                            "FETCH_PLAN",
+                            ForecastParts.PLAN_TAG,
                             ForecastParts.planLogLine(due.mapValues { it.value.parts!! }, plans.values.map { it.horizonLog }),
                             "INFO",
                         )

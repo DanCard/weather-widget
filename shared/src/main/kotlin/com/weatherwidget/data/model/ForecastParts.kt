@@ -62,6 +62,9 @@ enum class ForecastParts(val daily: Boolean, val hourly: Boolean) {
          * horizons=NWS:SHORT(long=8h/3h,short=4h/4h),…` — what is fetched, and each source's horizon
          * decision ([com.weatherwidget.data.remote.ForecastHorizonCadence.logFragment]).
          */
+        /** Tag of [planLogLine], both platforms. */
+        const val PLAN_TAG = "FETCH_PLAN"
+
         fun planLogLine(plan: Map<String, ForecastParts>, horizonFragments: List<String>): String =
             "parts=${plan.entries.joinToString(",") { "${it.key}:${it.value}" }.ifEmpty { "none" }} " +
                 "horizons=${horizonFragments.joinToString(",").ifEmpty { "unjudged" }}"

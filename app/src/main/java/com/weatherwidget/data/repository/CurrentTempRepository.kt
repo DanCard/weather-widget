@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.data.remote.FetchErrorCode
 import android.content.Context
 import android.location.Location
@@ -142,27 +143,27 @@ class CurrentTempRepository
                 0
             } else {
                 val sample = entities.first()
-                val existingKeys = observationDao.getObservationsInRange(
-                    entities.minOf { it.timestamp },
-                    entities.maxOf { it.timestamp },
-                    sample.locationLat,
-                    sample.locationLon,
-                    listOf(WeatherSource.TOMORROW_IO.id),
-                ).asSequence()
-                    .filter {
-                        it.locationLat == sample.locationLat &&
-                            it.locationLon == sample.locationLon
-                    }
-                    .map { Triple(it.stationId, it.timestamp, it.api) }
-                    .toSet()
-                entities.count { Triple(it.stationId, it.timestamp, it.api) in existingKeys }
+                TomorrowIoActuals.replacements(
+                    entities.map { it.readingKey() },
+                    observationDao.getObservationsInRange(
+                        entities.minOf { it.timestamp },
+                        entities.maxOf { it.timestamp },
+                        sample.locationLat,
+                        sample.locationLon,
+                        listOf(WeatherSource.TOMORROW_IO.id),
+                    ).map { it.readingKey() },
+                )
             }
             if (entities.isNotEmpty()) observationDao.insertAll(entities)
             appLogDao.log(
-                "TMRW_5M_FETCH",
-                "windowHours=${TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS} " +
-                    "rows=${entities.size} earliest=${entities.minOfOrNull { it.timestamp }} " +
-                    "latest=${entities.maxOfOrNull { it.timestamp }} replacements=$replacementCount",
+                TomorrowIoActuals.FETCH_TAG,
+                TomorrowIoActuals.fetchLine(
+                    TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS,
+                    entities.size,
+                    entities.minOfOrNull { it.timestamp },
+                    entities.maxOfOrNull { it.timestamp },
+                    replacementCount,
+                ),
                 "INFO",
             )
             RetiredProductCleanupRunner.runFor(
@@ -174,6 +175,9 @@ class CurrentTempRepository
                 appLogDao = appLogDao,
             )
         }
+
+        private fun ObservationEntity.readingKey() =
+            TomorrowIoActuals.ReadingKey(stationId, timestamp, api, locationLat, locationLon)
 
         private fun extractCurrentErrorCode(exception: Exception): String =
             FetchErrorCode.of(exception) { NetworkRestrictionHelper.isBackgroundDataRestricted(context) }

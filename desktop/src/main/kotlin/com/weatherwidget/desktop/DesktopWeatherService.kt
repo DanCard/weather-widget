@@ -246,7 +246,7 @@ class DesktopWeatherService(
                     storedHours = googleStoredHours(),
                     parts = requested,
                     hoursAhead = HourlyOnDemand.askHours(WeatherSource.GOOGLE_WEATHER.id, null, horizon),
-                ).also { weatherDao?.log("GOOGLE_HOURS_PAGES", googleWeather.lastHoursPaging.orEmpty(), "INFO") },
+                ).also { weatherDao?.log(GoogleWeatherApi.HOURS_PAGES_TAG, googleWeather.hoursPagesLine(onDemandDay = false), "INFO") },
                 WeatherSource.GOOGLE_WEATHER.id,
             )
             WeatherSource.OPEN_WEATHER_MAP.id -> fetchOpenWeatherMapForecastWithCurrent()
@@ -336,7 +336,7 @@ class DesktopWeatherService(
         if (weatherSource == WeatherSource.GOOGLE_WEATHER.id) {
             withHistoricalActuals(
                 googleWeather.getForecast(latitude, longitude, includeHistory = false, hoursAhead = hoursAhead)
-                    .also { weatherDao?.log("GOOGLE_HOURS_PAGES", "${googleWeather.lastHoursPaging.orEmpty()} trigger=on_demand_day", "INFO") },
+                    .also { weatherDao?.log(GoogleWeatherApi.HOURS_PAGES_TAG, googleWeather.hoursPagesLine(onDemandDay = true), "INFO") },
                 WeatherSource.GOOGLE_WEATHER.id,
             )
         } else {

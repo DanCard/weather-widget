@@ -222,7 +222,7 @@ class ForecastRepository
                 }
             }
             appLogDao.log(
-                "FETCH_PLAN",
+                com.weatherwidget.data.model.ForecastParts.PLAN_TAG,
                 com.weatherwidget.data.model.ForecastParts.planLogLine(plan.mapKeys { it.key.id }, horizons),
                 "INFO",
             )

@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.shared.graph.PriorDayCloudRun
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import com.weatherwidget.data.remote.GoogleWeatherApi
@@ -349,7 +350,7 @@ internal class ForecastFetchCoordinator(
                         parts = parts(WeatherSource.GOOGLE_WEATHER),
                         hoursAhead = HourlyOnDemand.askHours(WeatherSource.GOOGLE_WEATHER.id, fetchContext?.hourlyAhead, horizons[WeatherSource.GOOGLE_WEATHER]),
                     ).also {
-                        appLogDao.log("GOOGLE_HOURS_PAGES", api.lastHoursPaging.orEmpty(), "INFO")
+                        appLogDao.log(GoogleWeatherApi.HOURS_PAGES_TAG, api.hoursPagesLine(onDemandDay = fetchContext?.hourlyAhead != null), "INFO")
                         fetchContext?.historyRefillDay?.let { day -> refillStaleGoogleHours(it, lat, lon, day) }
                     }
                 }
@@ -742,12 +743,14 @@ internal class ForecastFetchCoordinator(
         }
         if (source == WeatherSource.TOMORROW_IO) {
             appLogDao.log(
-                "TMRW_5M_FETCH",
-                "windowHours=${TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS} " +
-                    "rows=${actualsWrite.rowCount} " +
-                    "earliest=${result.subHourly.minOfOrNull { it.dateTime }} " +
-                    "latest=${result.subHourly.maxOfOrNull { it.dateTime }} " +
-                    "replacements=${actualsWrite.replacementCount}",
+                TomorrowIoActuals.FETCH_TAG,
+                TomorrowIoActuals.fetchLine(
+                    TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS,
+                    actualsWrite.rowCount,
+                    result.subHourly.minOfOrNull { it.dateTime },
+                    result.subHourly.maxOfOrNull { it.dateTime },
+                    actualsWrite.replacementCount,
+                ),
                 "INFO",
             )
         }

@@ -16,4 +16,23 @@ object TomorrowIoActuals {
     const val MERGED_SERIES_STATION_NAME = "Tmrw: 5-minute history"
 
     fun isAllowedStation(stationId: String): Boolean = stationId == FIVE_MINUTE_HISTORY_STATION_ID
+
+    /** Tag of [fetchLine]: one Tomorrow.io five-minute actuals write, both platforms. */
+    const val FETCH_TAG = "TMRW_5M_FETCH"
+
+    /** A reading's identity and exact (quantized) site: what an insert would replace. */
+    data class ReadingKey(val stationId: String, val timestamp: Long, val api: String, val lat: Double, val lon: Double)
+
+    /**
+     * How many [incoming] readings overwrite a stored one: same station, time and api at the same
+     * site. [stored] is the proximity-box read over the incoming range; rows at other sites in the
+     * box never count.
+     */
+    fun replacements(incoming: List<ReadingKey>, stored: List<ReadingKey>): Int {
+        val existing = stored.toSet()
+        return incoming.count { it in existing }
+    }
+
+    fun fetchLine(windowHours: Int, rows: Int, earliestMs: Long?, latestMs: Long?, replacements: Int): String =
+        "windowHours=$windowHours rows=$rows earliest=$earliestMs latest=$latestMs replacements=$replacements"
 }
