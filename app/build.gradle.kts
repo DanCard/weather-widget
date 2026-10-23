@@ -391,6 +391,10 @@ afterEvaluate {
                 "packageDebugUnitTestForUnitTest",
                 "processDebugUnitTestJavaRes",
                 "transformDebugUnitTestClassesWithAsm",
+                // The classpath below is copied eagerly, which drops its "built by" links: without
+                // this the bucket ran before :shared's fixtures jar existed (NoClassDefFoundError
+                // DailyParity, 2026-10-23).
+                ":shared:testFixturesJar",
             )
 
             val baseTask = testDebugUnitTest.get()
