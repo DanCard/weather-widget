@@ -957,18 +957,17 @@ currentCondition = "Sunny"),
             dao.log("REFRESH_FAIL", "Network error", "WARN")
 
             composeTestRule.setContent {
-                AppLogsWindow(
-                    weatherDao = dao,
-                    onClose = {}
-                )
+                // The content, not the Window: a real Window recomposes on its own frame clock, which
+                // waitForIdle does not cover — the typed filter had not reached the field when the
+                // next line looked (2026-10-23).
+                AppLogsContent(weatherDao = dao, onClose = {})
             }
 
             composeTestRule.onNodeWithTag("app_logs_window").assertExists()
 
-            // AppLogsWindow starts with an empty list and fills it from a LaunchedEffect that reads
-            // SQLite on a background dispatcher before hopping to Dispatchers.Main. Asserting the rows
-            // exist without waiting races that load — it passes on an idle machine and fails under
-            // full-suite load. Same waitUntil the filter assertion below already uses.
+            // The list starts empty and fills from a LaunchedEffect that reads SQLite on
+            // Dispatchers.IO, which idle waits do not cover; asserting the rows without waiting
+            // races that load under full-suite load.
             composeTestRule.waitUntil(timeoutMillis = 5000L) {
                 try {
                     composeTestRule.onNodeWithText("Fetch success").assertExists()
@@ -979,24 +978,10 @@ currentCondition = "Sunny"),
                 }
             }
 
-            // Filter out "error"
+            // In the test's own composition the filter applies before performTextInput returns.
             composeTestRule.onNodeWithTag("app_log_filter_input").performTextInput("error")
-
-            // Await the FINAL state — both halves together. LogList is an unkeyed LazyColumn whose
-            // item content is composed at measure, so after the filter there is a frame where index 1
-            // ("Fetch success") has left the semantics tree while index 0 has not yet re-measured from
-            // "Fetch success" to "Network error". Waiting only for the first to vanish and then
-            // asserting the second unguarded passed on an idle machine and failed under full-suite
-            // load (1.0 s vs 0.5 s run; 2026-09-11, concurrent with a jpackage build).
-            composeTestRule.waitUntil(timeoutMillis = 5000L) {
-                try {
-                    composeTestRule.onNodeWithText("Fetch success").assertDoesNotExist()
-                    composeTestRule.onNodeWithText("Network error").assertExists()
-                    true
-                } catch (e: AssertionError) {
-                    false
-                }
-            }
+            composeTestRule.onNodeWithText("Fetch success").assertDoesNotExist()
+            composeTestRule.onNodeWithText("Network error").assertExists()
         } finally {
             java.nio.file.Files.deleteIfExists(tempDbPath)
         }

@@ -57,69 +57,77 @@ internal fun AppLogsWindow(
             windowState = state,
             showRequestId = showRequestId,
         )
-        var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
-        var filterQuery by remember { mutableStateOf("") }
+        AppLogsContent(weatherDao, onClose)
+    }
+}
 
-        // Read on IO, applied in the effect's own (composition) context. It used to launch from a
-        // separate scope and hop to Dispatchers.Main (the Swing thread), outside what the test's
-        // waits observe — DesktopUiTest.testAppLogsWindowShowsLogsAndFilters failed ~1 in 50 runs
-        // under full CPU load (2026-10-23).
-        LaunchedEffect(weatherDao) {
-            logs = withContext(Dispatchers.IO) { weatherDao.getRecentLogs(3000) }
-        }
+/**
+ * The window's content, apart from the [Window] so a test composes it in its own composition: a
+ * real Window recomposes on its own frame clock, which the test rule's idle waits do not cover —
+ * typed text had not reached the filter field when the next line looked (2026-10-23).
+ */
+@Composable
+internal fun AppLogsContent(weatherDao: DesktopWeatherDao, onClose: () -> Unit) {
+    var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
+    var filterQuery by remember { mutableStateOf("") }
 
-        val filteredLogs = remember(logs, filterQuery) {
-            val query = filterQuery.lowercase().trim()
-            if (query.isEmpty()) {
-                logs
-            } else {
-                logs.filter { log ->
-                    log.tag.lowercase().contains(query) ||
-                            log.level.lowercase().contains(query) ||
-                            log.message.lowercase().contains(query)
-                }
-            }
-        }
+    // Read on IO, applied in the effect's own (composition) context. It used to launch from a
+    // separate scope and hop to Dispatchers.Main (the Swing thread), outside what the test's
+    // waits observe — DesktopUiTest.testAppLogsWindowShowsLogsAndFilters failed ~1 in 50 runs
+    // under full CPU load (2026-10-23).
+    LaunchedEffect(weatherDao) {
+        logs = withContext(Dispatchers.IO) { weatherDao.getRecentLogs(3000) }
+    }
 
-        MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
-            Surface(
-                modifier = Modifier.fillMaxSize().testTag("app_logs_window")
-            ) {
-                Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                    // Header
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "App Logs",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = onClose) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
-                        }
-                    }
+    val filteredLogs = remember(logs, filterQuery) { filterLogs(logs, filterQuery) }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Filter Input
-                    OutlinedTextField(
-                        value = filterQuery,
-                        onValueChange = { filterQuery = it },
-                        label = { Text("Filter logs") },
-                        modifier = Modifier.fillMaxWidth().testTag("app_log_filter_input"),
-                        singleLine = true
+    MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
+        Surface(
+            modifier = Modifier.fillMaxSize().testTag("app_logs_window")
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "App Logs",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
                     )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Log list
-                    Box(modifier = Modifier.weight(1f)) {
-                        LogList(filteredLogs)
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
                     }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Filter Input
+                OutlinedTextField(
+                    value = filterQuery,
+                    onValueChange = { filterQuery = it },
+                    label = { Text("Filter logs") },
+                    modifier = Modifier.fillMaxWidth().testTag("app_log_filter_input"),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Log list
+                Box(modifier = Modifier.weight(1f)) {
+                    LogList(filteredLogs)
                 }
             }
         }
+    }
+}
+
+/** The rows whose tag, level or message contains [query], ignoring case; all of them for a blank query. */
+internal fun filterLogs(logs: List<DesktopLogEntity>, query: String): List<DesktopLogEntity> {
+    val q = query.lowercase().trim()
+    if (q.isEmpty()) return logs
+    return logs.filter { log ->
+        log.tag.lowercase().contains(q) || log.level.lowercase().contains(q) || log.message.lowercase().contains(q)
     }
 }
