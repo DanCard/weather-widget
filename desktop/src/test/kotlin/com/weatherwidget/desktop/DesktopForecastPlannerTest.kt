@@ -73,7 +73,7 @@ class DesktopForecastPlannerTest {
         val plan = planner().plan(om, now)
         assertEquals(ForecastParts.BOTH, plan.parts)
         assertEquals(Horizon.LONG, plan.horizon)
-        assertEquals(now, plan.due.atMs)
+        assertEquals(now, plan.nextDue!!.atMs)
     }
 
     @Test
@@ -152,8 +152,8 @@ class DesktopForecastPlannerTest {
         SourceQuotaBlocks.block(google, ForecastProduct.DAILY, now + 3 * hour)
         val plan = planner().plan(google, now)
         assertNull(plan.parts)
-        assertEquals(now + 3 * hour, plan.due.atMs)
-        assertTrue(plan.horizonLog, plan.horizonLog.contains("quotaHeldMin=180"))
+        assertEquals(now + 3 * hour, plan.nextDue!!.atMs)
+        assertTrue(plan.logFragment!!, plan.logFragment!!.contains("quotaHeldMin=180"))
     }
 
     /**

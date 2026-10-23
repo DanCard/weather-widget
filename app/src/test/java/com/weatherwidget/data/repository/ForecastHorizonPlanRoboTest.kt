@@ -142,6 +142,16 @@ class ForecastHorizonPlanRoboTest {
     }
 
     @Test
+    fun `the FETCH_PLAN line judges only the sources the gate lets through`() {
+        // Was every visible source, gated-off ones included; desktop judged only its candidates.
+        allFresh()
+        val line = coordinator().planSync(noRows, false, null, ctx(), setOf(NWS), lat, lon).line
+        assertTrue(line, line.contains("NWS:"))
+        assertFalse(line, line.contains("OPEN_METEO:"))
+        assertFalse(line, line.contains("WEATHER_API:"))
+    }
+
+    @Test
     fun `screen off waits 8 h for SHORT`() {
         allFresh()
         fetchedAgo(NWS, longH = 6, shortH = 5)

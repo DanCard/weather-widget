@@ -201,33 +201,6 @@ class ForecastRepository
             get() = FetchMetadata.getLastFullFetchTime(context)
             set(value) = FetchMetadata.setLastFullFetchTime(context, value)
 
-        /**
-         * `FETCH_PLAN parts=NWS:BOTH horizons=NWS:SHORT(long=8h/5h,short=4h/4h),…`: what this sync
-         * fetches and each visible source's horizon decision
-         * (performance/261016-unified-long-short-forecast-horizons.md).
-         */
-        private suspend fun logFetchPlan(
-            plan: Map<com.weatherwidget.data.model.WeatherSource, com.weatherwidget.data.model.ForecastParts>,
-            fetchContext: ForecastFetchContext?,
-            latitude: Double,
-            longitude: Double,
-        ) {
-            val nowMs = System.currentTimeMillis()
-            val horizons = widgetStateManager.getVisibleSourcesOrder().mapNotNull { source ->
-                fetchCoordinator.horizonDecision(source, fetchContext, latitude, longitude)?.let {
-                    com.weatherwidget.data.remote.ForecastHorizonCadence.logFragment(
-                        source.id, it, nowMs,
-                        fullyBlockedUntilMs = com.weatherwidget.data.remote.SourceQuotaBlocks.fullyBlockedUntil(source.id, nowMs),
-                    )
-                }
-            }
-            appLogDao.log(
-                com.weatherwidget.data.model.ForecastParts.PLAN_TAG,
-                com.weatherwidget.data.model.ForecastParts.planLogLine(plan.mapKeys { it.key.id }, horizons),
-                "INFO",
-            )
-        }
-
         suspend fun getWeatherData(
             latitude: Double,
             longitude: Double,
@@ -331,7 +304,7 @@ class ForecastRepository
                         )
                         return Result.success(cachedForecasts)
                     }
-                    val fetchPlan = fetchCoordinator.planFetch(
+                    val syncPlan = fetchCoordinator.planSync(
                         cachedForecasts = cachedForecasts,
                         forceRefresh = forceRefresh,
                         targetSourceId = targetSourceId,
@@ -340,8 +313,10 @@ class ForecastRepository
                         latitude = latitude,
                         longitude = longitude,
                     )
+                    val fetchPlan = syncPlan.due.mapKeys { (id, _) -> WeatherSource.entries.first { it.id == id } }
                     val sourcesToFetch = fetchPlan.keys
-                    logFetchPlan(fetchPlan, fetchContext, latitude, longitude)
+                    // `FETCH_PLAN parts=… horizons=…`: one line, both platforms (:shared ForecastFetchPlan).
+                    appLogDao.log(com.weatherwidget.data.model.ForecastParts.PLAN_TAG, syncPlan.line, "INFO")
                     fetchCoordinator.fetchFromAllApis(
                         latitude,
                         longitude,

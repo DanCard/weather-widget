@@ -176,3 +176,9 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   (sources in → per-source decision, due parts, the line) both platforms call. Lesson for this audit:
   a shorter allowlist is not proof — a tag made a shared constant hides from the guard test, so each
   removal must say whether the surrounding logic moved too.
+- 2026-10-23: **closed** the open fetch-planning item → `:shared` `ForecastFetchPlan` (candidates +
+  per-source decision → parts, horizon, next due held past a full quota block, `FETCH_PLAN` line).
+  Android `ForecastFetchCoordinator.planSync` (planFetch / requiresNetworkFetch read it) and desktop
+  `DesktopForecastPlanner` are its hosts; Android's `logFetchPlan` and `routineParts` are gone.
+  Settled differences: the line judges only the candidates (Android listed gated-off sources too), and
+  desktop logs every plan, `parts=none` included (it logged only when something was due).

@@ -2,9 +2,9 @@ package com.weatherwidget.data.repository
 
 import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.shared.graph.PriorDayCloudRun
-import com.weatherwidget.shared.util.WeatherSourceOrdering
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.model.ForecastParts
+import com.weatherwidget.data.remote.ForecastFetchPlan
 import com.weatherwidget.data.remote.ForecastHorizonCadence
 import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.data.remote.ForecastHorizonMarkers
@@ -129,11 +129,9 @@ internal class ForecastFetchCoordinator(
         backgroundSources: Set<WeatherSource>? = null,
         latitude: Double? = null,
         longitude: Double? = null,
-    ): Boolean = SOURCES_TO_CHECK.any { source ->
-        widgetStateManager.isSourceVisible(source) &&
-            (backgroundSources == null || source in backgroundSources) &&
-            routineParts(source, forecasts, fetchContext, latitude, longitude) != null
-    }
+    ): Boolean =
+        planSync(forecasts, forceRefresh = false, targetSourceId = null, fetchContext, backgroundSources, latitude, longitude)
+            .due.isNotEmpty()
 
     /** [planFetch]'s sources, for callers that only need the set. */
     fun visibleSourcesToFetch(
@@ -165,37 +163,39 @@ internal class ForecastFetchCoordinator(
         backgroundSources: Set<WeatherSource>? = null,
         latitude: Double? = null,
         longitude: Double? = null,
-    ): Map<WeatherSource, ForecastParts> {
-        val enabledSources = widgetStateManager.getVisibleSourcesOrder().filter { it != WeatherSource.GENERIC_GAP }
-        val plan = LinkedHashMap<WeatherSource, ForecastParts>()
-        for (source in enabledSources) {
-            val targeted = forceRefresh && source.id == targetSourceId
-            if (!targeted && backgroundSources != null && source !in backgroundSources) continue
-            val parts = when {
-                forceRefresh && (targeted || targetSourceId == null) -> ForecastParts.BOTH
-                else -> routineParts(source, cachedForecasts, fetchContext, latitude, longitude)
-            } ?: continue
-            plan[source] = parts
-        }
-        return plan
-    }
+    ): Map<WeatherSource, ForecastParts> =
+        planSync(cachedForecasts, forceRefresh, targetSourceId, fetchContext, backgroundSources, latitude, longitude)
+            .due.mapKeys { (id, _) -> WeatherSource.entries.first { it.id == id } }
 
     /**
-     * A scheduled fetch of [source]: both parts when a horizon is due, less any product refused until
-     * a known time; null when nothing is due. Without a context or site, the old rank thresholds
-     * ([isStale]) decide, as before the cadence.
+     * This sync's `:shared` [ForecastFetchPlan] (the step desktop's forecast loop runs): candidates are
+     * the visible sources [backgroundSources] lets through, plus a forced target. A forced fetch takes
+     * both parts; a scheduled one what its horizon decision makes due, less a refused product; without
+     * a context or site the old rank thresholds ([isStale]) decide.
      */
-    private fun routineParts(
-        source: WeatherSource,
+    fun planSync(
         cachedForecasts: List<ForecastEntity>,
+        forceRefresh: Boolean,
+        targetSourceId: String?,
         fetchContext: ForecastFetchContext?,
-        latitude: Double?,
-        longitude: Double?,
-    ): ForecastParts? {
-        val decision = horizonDecision(source, fetchContext, latitude, longitude)
-        val due = if (decision == null) isStale(source, cachedForecasts) else decision.due != null
-        if (!due) return null
-        return ForecastParts.unblocked(SourceQuotaBlocks.blockedProducts(source.id, clock()))
+        backgroundSources: Set<WeatherSource>? = null,
+        latitude: Double? = null,
+        longitude: Double? = null,
+    ): ForecastFetchPlan.Plan {
+        val candidates = widgetStateManager.getVisibleSourcesOrder()
+            .filter { it != WeatherSource.GENERIC_GAP }
+            .filter { source ->
+                val targeted = forceRefresh && source.id == targetSourceId
+                targeted || backgroundSources == null || source in backgroundSources
+            }
+        val byId = candidates.associateBy { it.id }
+        return ForecastFetchPlan.plan(
+            candidates = candidates.map { it.id },
+            nowMs = clock(),
+            decide = { id -> horizonDecision(byId.getValue(id), fetchContext, latitude, longitude) },
+            forced = { id -> ForecastParts.BOTH.takeIf { forceRefresh && (id == targetSourceId || targetSourceId == null) } },
+            dueWithoutDecision = { id -> isStale(byId.getValue(id), cachedForecasts) },
+        )
     }
 
     /** [ForecastHorizonCadence] for [source] at the site, or null without a context or site. */
@@ -849,12 +849,5 @@ internal class ForecastFetchCoordinator(
             "\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"([^\"]+)\"",
         ).find(bodyText)?.groupValues?.getOrNull(1)
         return messageMatch ?: errorMatch ?: fallbackMessage ?: "Request failed"
-    }
-
-    companion object {
-        /** Covers the widget's 30-day pan; `_previous_day1` is populated across the whole span. */
-
-        /** Every user-selectable source; a hand-kept list here once left new sources never "stale". */
-        private val SOURCES_TO_CHECK = WeatherSourceOrdering.ALL_CONFIGURABLE
     }
 }

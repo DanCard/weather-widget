@@ -1048,7 +1048,8 @@ internal class DaemonRuntime(
                     )
 
                     val planNow = System.currentTimeMillis()
-                    val plans = sources.associateWith { planner.plan(it, planNow) }
+                    val fetchPlan = planner.plan(sources, planNow)
+                    val plans = fetchPlan.sources.associateBy { it.sourceId }
                     val due = plans.filterValues { it.parts != null }
                     if (presence.isAway) {
                         // Nobody is here: fetch nothing; the return wakes this loop (onPresenceTransition).
@@ -1062,13 +1063,8 @@ internal class DaemonRuntime(
                         if (wokeBy != null) weatherDao.log("FORECAST_LOOP_WAKE", "reason=$wokeBy", "INFO")
                         continue
                     }
-                    if (due.isNotEmpty()) {
-                        weatherDao.log(
-                            ForecastParts.PLAN_TAG,
-                            ForecastParts.planLogLine(due.mapValues { it.value.parts!! }, plans.values.map { it.horizonLog }),
-                            "INFO",
-                        )
-                    }
+                    // Every plan is logged, `parts=none` included, as Android's sync (ForecastFetchPlan).
+                    weatherDao.log(ForecastParts.PLAN_TAG, fetchPlan.line, "INFO")
                     var fetchFailed = false
 
                     due[activeSource]?.let { plan ->
