@@ -49,6 +49,7 @@ class CrossPlatformDuplicateNamesTest {
             "setArmed" to ADAPTER,
             "resetLogMemoForTesting" to ADAPTER, // SourceFetchGate loaders
             "getIconResource" to ADAPTER, // icon name is shared (DailyIconName); drawable lookup is not
+            "showOutcome" to ADAPTER, // RefreshNotice.Gate.restart + outcomeLine; Toast vs Compose pill
             "drawActualLine" to DRAWING,
             "drawDayLabels" to DRAWING,
             "drawGridAndAxes" to DRAWING,

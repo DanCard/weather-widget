@@ -845,15 +845,16 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 startedAtMs = startedAtMs,
             )
             appLogDao.log(
-                "HISTORY_REFRESH_DONE",
-                "ok=$ok $tapContext ms=${android.os.SystemClock.elapsedRealtime() - startMs}${RefreshOutcome.logDetail(outcome)}",
-                if (ok) "INFO" else "WARN",
+                RefreshOutcome.DONE_TAG,
+                RefreshOutcome.doneLine(ok, tapContext, android.os.SystemClock.elapsedRealtime() - startMs, outcome),
+                RefreshOutcome.doneLevel(ok),
             )
-            Toast.makeText(
+            com.weatherwidget.widget.RefreshToast.showOutcome(
                 this@ForecastHistoryActivity,
+                "history_refresh",
+                outcome,
                 refreshOutcomeText(this@ForecastHistoryActivity, outcome, source.shortDisplayName),
-                Toast.LENGTH_LONG,
-            ).show()
+            )
             if (!ok) return@launch
             loadData(targetDate, targetLat, targetLon, targetLocalDate, source)
             sendUiOnlyWidgetRefresh(appContext, widgetId)

@@ -206,4 +206,22 @@ class RefreshToastRoboTest {
         assertEquals(0, ShadowToast.shownToastCount())
         assertTrue(toastRows().isEmpty())
     }
+
+    @Test
+    fun `a history refresh's ending replaces the queued notice and writes a row`() {
+        // It bypassed the throttle and left no REFRESH_TOAST row (desktop's showOutcome had both).
+        show(Queued(Kind.FORECAST), origin = "history_refresh")
+        clockMs += 500L
+        runBlocking {
+            RefreshToast.showOutcome(context, "history_refresh", com.weatherwidget.shared.util.RefreshOutcome.Refreshed, "Refreshed NWS")
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("Refreshed NWS", ShadowToast.getTextOfLatestToast())
+        assertTrue(toastRows().any { it.message == "origin=history_refresh done=Refreshed shown" })
+
+        // The ending restarted the window: a notice right after it is suppressed.
+        clockMs += RefreshNotice.DURATION_MS - 1
+        show(Queued(Kind.FORECAST), origin = "after")
+        assertTrue(toastRows().any { it.message == "origin=after queued=FORECAST suppressed" })
+    }
 }

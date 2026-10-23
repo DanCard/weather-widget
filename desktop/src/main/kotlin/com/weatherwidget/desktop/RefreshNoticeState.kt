@@ -44,16 +44,13 @@ class RefreshNoticeState(
     var current by mutableStateOf<Shown?>(null)
         private set
 
-    private var lastShownMs: Long? = null
+    private val gate = RefreshNotice.Gate(clock)
     private var serial = 0
 
     fun show(notice: RefreshNotice, surface: RefreshNoticeSurface, origin: String) {
-        val now = clock()
-        val shown = synchronized(this) {
-            RefreshNotice.shouldShow(lastShownMs, now).also { if (it) lastShownMs = now }
-        }
+        val shown = gate.admit()
         if (shown) current = Shown(RefreshNotice.text(notice, formatTime), surface, ++serial)
-        log("origin=$origin ${RefreshNotice.logDetail(notice)} ${if (shown) "shown" else "suppressed"}")
+        log(RefreshNotice.line(origin, notice, if (shown) "shown" else "suppressed"))
     }
 
     /**
@@ -63,9 +60,9 @@ class RefreshNoticeState(
      * (plans/261016-history-refresh-outcome-shared-desktop-parity.md).
      */
     fun showOutcome(outcome: RefreshOutcome, sourceName: String, surface: RefreshNoticeSurface, origin: String) {
-        synchronized(this) { lastShownMs = clock() }
+        gate.restart()
         current = Shown(RefreshOutcome.text(outcome, sourceName, formatTime), surface, ++serial)
-        log("origin=$origin done=${outcome::class.simpleName}${RefreshOutcome.logDetail(outcome)} shown")
+        log(RefreshNotice.outcomeLine(origin, outcome))
     }
 
     /** Clears [shown] after [RefreshNotice.DURATION_MS], unless a newer notice replaced it meanwhile. */

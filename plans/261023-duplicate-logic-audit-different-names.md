@@ -202,3 +202,11 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   as desktop. Still per platform: where the cache is read (Android DAO + `HourlyForecastLoader`,
   desktop `loadCached`) and the effects (widget banner/interstitial + forced worker; popup banner,
   interstitial and in-process refresh). Tag allowlist → 10.
+- 2026-10-23: §3 refresh notice → the text and log detail were already `:shared` `RefreshNotice` /
+  `RefreshOutcome`; now also the one-per-4 s throttle (`RefreshNotice.Gate`, `admit` / `restart`), the
+  `REFRESH_TOAST` lines (`line`, `outcomeLine`) and the `HISTORY_REFRESH_DONE` line (`RefreshOutcome.doneLine`
+  / `doneLevel`). Android bug fixed: its History refresh ending was a bare Toast — it bypassed the
+  throttle (a queued toast could show over it) and wrote no `REFRESH_TOAST` row; it now goes through
+  `RefreshToast.showOutcome`, as desktop. Still per platform: the surface (Toast / widget banner vs the
+  Compose pill) and the strings (Android resources, desktop `RefreshNotice.text`). `showOutcome` is on
+  the names allowlist as ADAPTER. Tag allowlist → 8.

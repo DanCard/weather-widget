@@ -30,7 +30,35 @@ sealed interface RefreshNotice {
         val untilMs: Long? = null,
     ) : RefreshNotice
 
+    /**
+     * At most one notice per [DURATION_MS] ([shouldShow]) — the one throttle both platforms keep
+     * (Android `RefreshToast`, desktop `RefreshNoticeState`).
+     */
+    class Gate(private val clock: () -> Long) {
+        private var lastShownMs: Long? = null
+
+        /** True when a notice may show now; it then counts as shown. */
+        fun admit(): Boolean = synchronized(this) {
+            val now = clock()
+            shouldShow(lastShownMs, now).also { if (it) lastShownMs = now }
+        }
+
+        /** A refresh's ending answers the same tap as its notice: it replaces it and restarts the window. */
+        fun restart() = synchronized(this) { lastShownMs = clock() }
+    }
+
     companion object {
+        /** Every notice, shown, suppressed or silent, writes one row under this tag ([line], [outcomeLine]). */
+        const val TAG = "REFRESH_TOAST"
+
+        /** [outcome]: "shown", "suppressed", "silent", or a platform's variant ("shown banner=2"). */
+        fun line(origin: String, notice: RefreshNotice, outcome: String): String =
+            "origin=$origin ${logDetail(notice)} $outcome"
+
+        /** A Forecast History Refresh's ending, shown ([RefreshOutcome.text]). */
+        fun outcomeLine(origin: String, outcome: RefreshOutcome): String =
+            "origin=$origin done=${outcome::class.simpleName}${RefreshOutcome.logDetail(outcome)} shown"
+
         /**
          * Four seconds (user, 2026-10-15: two was easy to miss). Widget banner and desktop use it exactly;
          * an Android Toast cannot, so app screens use `LENGTH_LONG`, the platform's longest (3.5 s).
@@ -82,7 +110,7 @@ sealed interface RefreshNotice {
             }
         }
 
-        /** The `REFRESH_TOAST` log detail, both platforms. */
+        /** The [TAG] log detail, both platforms. */
         fun logDetail(notice: RefreshNotice): String = when (notice) {
             is Queued -> "queued=${notice.kind}"
             is NotQueued -> buildString {

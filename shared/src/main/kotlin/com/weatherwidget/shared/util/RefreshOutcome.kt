@@ -22,6 +22,15 @@ sealed interface RefreshOutcome {
     data object HourlyIncomplete : RefreshOutcome
 
     companion object {
+        /** The refresh finished: [doneLine] at [doneLevel], both platforms. */
+        const val DONE_TAG = "HISTORY_REFRESH_DONE"
+
+        /** `ok=… <tap> ms=…[ refused=…]`; [tap] names the source (Android adds date and site). */
+        fun doneLine(ok: Boolean, tap: String, ms: Long, outcome: RefreshOutcome): String =
+            "ok=$ok $tap ms=$ms${logDetail(outcome)}"
+
+        fun doneLevel(ok: Boolean): String = if (ok) "INFO" else "WARN"
+
         /**
          * An active product block means that product was not refreshed, whether this request was
          * refused or never asked (a product that answers clears its block). A partial rate limit counts
@@ -43,7 +52,7 @@ sealed interface RefreshOutcome {
             else -> Refreshed
         }
 
-        /** The `HISTORY_REFRESH_DONE` detail: ` refused=HOURLY_FORECAST until=…`, ` refused=HOURLY_PARTIAL`, or "". */
+        /** The [DONE_TAG] detail: ` refused=HOURLY_FORECAST until=…`, ` refused=HOURLY_PARTIAL`, or "". */
         fun logDetail(outcome: RefreshOutcome): String = when (outcome) {
             is Refused -> " refused=${outcome.scope} until=${outcome.untilMs}"
             HourlyIncomplete -> " refused=HOURLY_PARTIAL"

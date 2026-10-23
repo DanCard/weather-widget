@@ -125,7 +125,7 @@ internal fun runDesktopUiApplication() = application {
         val weatherDao = remember { DesktopWeatherDao(weatherDb) }
         remember(weatherDao) { DesktopSourceViews.install(weatherDao) }
         // The four-second refresh toast every window shows (plans/261015-refresh-queued-toast-all-surfaces.md).
-        val refreshNotice = remember { RefreshNoticeState(log = { weatherDao.log("REFRESH_TOAST", it, "INFO") }) }
+        val refreshNotice = remember { RefreshNoticeState(log = { weatherDao.log(RefreshNotice.TAG, it, "INFO") }) }
         RefreshNoticeExpiry(refreshNotice)
 
         remember(weatherDao) {
@@ -892,9 +892,9 @@ internal fun runDesktopUiApplication() = application {
             if (origin != "history") return
             val outcome = historyRefreshOutcome(weatherDao, sourceId, ok, startedAtMs)
             weatherDao.log(
-                "HISTORY_REFRESH_DONE",
-                "ok=$ok source=$sourceId ms=${System.currentTimeMillis() - startedAtMs}${RefreshOutcome.logDetail(outcome)}",
-                if (ok) "INFO" else "WARN",
+                RefreshOutcome.DONE_TAG,
+                RefreshOutcome.doneLine(ok, "source=$sourceId", System.currentTimeMillis() - startedAtMs, outcome),
+                RefreshOutcome.doneLevel(ok),
             )
             refreshNotice.showOutcome(outcome, WeatherSource.fromId(sourceId).shortDisplayName, refreshNoticeSurface(origin), origin)
         }

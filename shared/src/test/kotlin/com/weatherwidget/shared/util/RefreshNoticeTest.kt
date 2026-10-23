@@ -128,4 +128,35 @@ class RefreshNoticeTest {
     }
 
     private fun text(notice: RefreshNotice) = RefreshNotice.text(notice) { "T=$it" }
+
+    @Test
+    fun `the gate admits one notice per four seconds and an ending restarts it`() {
+        var now = 1_000L
+        val gate = RefreshNotice.Gate { now }
+        org.junit.Assert.assertTrue(gate.admit())
+        now += RefreshNotice.DURATION_MS - 1
+        org.junit.Assert.assertFalse(gate.admit())
+        gate.restart()
+        now += RefreshNotice.DURATION_MS - 1
+        org.junit.Assert.assertFalse(gate.admit())
+        now += 1
+        org.junit.Assert.assertTrue(gate.admit())
+    }
+
+    @Test
+    fun `log lines`() {
+        org.junit.Assert.assertEquals(
+            "origin=popup queued=FORECAST shown",
+            RefreshNotice.line("popup", RefreshNotice.Queued(RefreshNotice.Kind.FORECAST), "shown"),
+        )
+        org.junit.Assert.assertEquals(
+            "origin=history done=Refreshed shown",
+            RefreshNotice.outcomeLine("history", RefreshOutcome.Refreshed),
+        )
+        org.junit.Assert.assertEquals(
+            "ok=false source=NWS ms=12",
+            RefreshOutcome.doneLine(false, "source=NWS", 12, RefreshOutcome.Failed),
+        )
+        org.junit.Assert.assertEquals("WARN", RefreshOutcome.doneLevel(false))
+    }
 }

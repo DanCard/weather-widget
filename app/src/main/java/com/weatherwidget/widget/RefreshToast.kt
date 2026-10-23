@@ -10,6 +10,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.shared.util.RefreshNotice
+import com.weatherwidget.shared.util.RefreshOutcome
 import java.util.Date
 
 /**
@@ -28,24 +29,20 @@ import java.util.Date
  * and browsing taps (arrows, zoom, view switches) show nothing ([logSilent]).
  */
 object RefreshToast {
-    @Volatile
-    private var lastShownElapsedMs: Long? = null
-
     @VisibleForTesting
     internal var clock: () -> Long = SystemClock::elapsedRealtime
 
+    private var gate = RefreshNotice.Gate { clock() }
+
     @VisibleForTesting
     internal fun resetForTesting() {
-        lastShownElapsedMs = null
         clock = SystemClock::elapsedRealtime
+        gate = RefreshNotice.Gate { clock() }
     }
 
     suspend fun show(context: Context, origin: String, notice: RefreshNotice, widgetIds: IntArray? = null) {
         val appContext = context.applicationContext
-        val now = clock()
-        val shown = synchronized(this) {
-            RefreshNotice.shouldShow(lastShownElapsedMs, now).also { if (it) lastShownElapsedMs = now }
-        }
+        val shown = gate.admit()
         val outcome = when {
             !shown -> "suppressed"
             widgetIds != null -> showOnWidgets(appContext, text(appContext, notice), widgetIds)
@@ -57,11 +54,19 @@ object RefreshToast {
                 "shown"
             }
         }
-        WeatherDatabase.getDatabase(appContext).appLogDao().log(
-            "REFRESH_TOAST",
-            "origin=$origin ${RefreshNotice.logDetail(notice)} $outcome",
-            "INFO",
-        )
+        WeatherDatabase.getDatabase(appContext).appLogDao().log(RefreshNotice.TAG, RefreshNotice.line(origin, notice, outcome), "INFO")
+    }
+
+    /**
+     * How a Forecast History Refresh ended, as a Toast. It answers the same tap as the "queued" notice,
+     * so it replaces that one rather than being suppressed, and restarts the window — as desktop's
+     * `RefreshNoticeState.showOutcome`; it used to bypass the throttle and leave no [RefreshNotice.TAG] row.
+     */
+    suspend fun showOutcome(context: Context, origin: String, outcome: RefreshOutcome, text: String) {
+        val appContext = context.applicationContext
+        gate.restart()
+        Handler(Looper.getMainLooper()).post { Toast.makeText(appContext, text, Toast.LENGTH_LONG).show() }
+        WeatherDatabase.getDatabase(appContext).appLogDao().log(RefreshNotice.TAG, RefreshNotice.outcomeLine(origin, outcome), "INFO")
     }
 
     /**
@@ -70,11 +75,8 @@ object RefreshToast {
      * 2026-10-15 / 2026-10-16).
      */
     suspend fun logSilent(context: Context, origin: String, notice: RefreshNotice) {
-        WeatherDatabase.getDatabase(context.applicationContext).appLogDao().log(
-            "REFRESH_TOAST",
-            "origin=$origin ${RefreshNotice.logDetail(notice)} silent",
-            "INFO",
-        )
+        WeatherDatabase.getDatabase(context.applicationContext).appLogDao()
+            .log(RefreshNotice.TAG, RefreshNotice.line(origin, notice, "silent"), "INFO")
     }
 
     /** "shown banner=N", or "suppressed busy" when every widget already shows another message. */
