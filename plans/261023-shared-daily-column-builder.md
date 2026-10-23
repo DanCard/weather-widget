@@ -80,3 +80,21 @@ source id is `"Generic"`; the window ran past desktop's last column).
 Consequence for steps 2–3: the two builders already agree on these cases, so the shared builder can
 be extracted from desktop's `buildDay` with the golden files as its regression test, rather than as
 a series of behaviour decisions. Fixture coverage is the limit: add one per future parity bug.
+
+## Steps 2–3 result (2026-10-23)
+- `:shared` `DailyColumnBuilder.build` (from desktop's `buildDay`) + `DailyColumn`; desktop's
+  `DesktopDailyDay` is a typealias. `PartialForecastDays.fillPartialFutureDays` (was desktop's
+  repository + Android's `DailyFutureDayResolver`) runs on both platforms before building.
+- Android's graph path (`DailyViewLogic.prepareGraphDayInputs`) maps entities → `:shared` rows
+  (`ForecastEntity.toDailyForecast` / `toDailyForecastSnapshot`), calls the builder, maps the column
+  → `DayData`; Android-only extras stay (day-tap rain summary, today text fallbacks, label low).
+  `DailyPastDayResolver` and `DailyTodayResolver.resolveTodayValues` deleted; their tests now run
+  through `prepareGraphDays` (`PastDayOverlayColumnTest`, `TodayLowSettleColumnTest`).
+- Found while moving, not by the fixtures: "yesterday's forecast" staleness is judged by when a row
+  was **last confirmed** — Android's `batchFetchedAt` (dedup re-stamps it), desktop's `fetchedAt`.
+  `DailyForecastSnapshot.lastConfirmedAt` + `PriorDayForecast.isPickStale`; mutation-checked.
+- Parity goldens, 2,585 app / 659 desktop / 2,538 shared unit tests, 105 emulator tests (2 skipped)
+  pass; emulator widget and desktop popup draw the same columns.
+
+Left: Android's text mode (`prepareTextDays`, 1-row widget) still builds its own columns; desktop
+has a text mode too — next candidate for the same builder.

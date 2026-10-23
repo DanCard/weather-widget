@@ -105,4 +105,30 @@ object PartialForecastDays {
         } else {
             FutureValues(high, low, isClimateOverlay = false)
         }
+
+    /**
+     * A future day with only a high or only a low takes both from the climate normal for its date,
+     * marked climate — except NWS's terminal low-only day, which is real data. Both platforms run
+     * this over the rows the daily view shows before building columns (was desktop's repository and
+     * Android's `DailyFutureDayResolver`, 2026-10-23).
+     */
+    fun fillPartialFutureDays(
+        daily: List<com.weatherwidget.data.model.DailyForecast>,
+        sourceId: String,
+        normals: Map<java.time.MonthDay, Pair<Float, Float>>,
+        today: LocalDate,
+    ): List<com.weatherwidget.data.model.DailyForecast> {
+        val lastNwsFutureDate = daily
+            .filter { !it.isClimateNormal && sourceId == WeatherSource.NWS.id }
+            .map { LocalDate.parse(it.date) }
+            .filter { it.isAfter(today) }
+            .maxOrNull()
+        return daily.map { day ->
+            val date = LocalDate.parse(day.date)
+            if (!date.isAfter(today) || day.isClimateNormal) return@map day
+            val terminal = isTerminalLowOnlyNwsFutureDay(sourceId, day.highTemp, day.lowTemp, date, today, lastNwsFutureDate)
+            val values = futureFromNormals(day.highTemp, day.lowTemp, terminal, normals[java.time.MonthDay.from(date)])
+            if (values.isClimateOverlay) day.copy(highTemp = values.high, lowTemp = values.low, isClimateNormal = true) else day
+        }
+    }
 }

@@ -7,6 +7,8 @@ import android.util.Log
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toDailyForecast
+import com.weatherwidget.data.local.toDailyForecastSnapshot
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.shared.util.RainAnalyzer
@@ -419,224 +421,85 @@ object DailyViewLogic {
 
         val days = mutableListOf<PreparedGraphDay>()
         val dayOffsets = NavigationUtils.getDayOffsets(request.numColumns, request.skipHistory)
+        val zone = java.time.ZoneId.systemDefault()
+        val sharedHourly = hourlyForecasts.map { it.toHourlyForecast() }
 
-        dayOffsets.forEachIndexed { index, offset ->
+        // The rows the daily view shows, as desktop's daily read returns them: today and future only
+        // (today's by the shared today-row rule), partial future days filled from climate normals.
+        val shownRows: Map<LocalDate, com.weatherwidget.data.model.DailyForecast> =
+            com.weatherwidget.shared.util.PartialForecastDays.fillPartialFutureDays(
+                daily = weatherByDate.keys.filter { !it.isBefore(today) }.sorted().mapNotNull { date ->
+                    val row = if (date == today) {
+                        resolveTodayWeather("prepareGraphDays", weatherByDate[date], forecastSnapshots[date], displaySource)
+                    } else {
+                        weatherByDate[date]
+                    }
+                    row?.toDailyForecast(date)
+                },
+                sourceId = displaySource.id,
+                normals = request.climateNormals,
+                today = today,
+            ).associateBy { LocalDate.parse(it.date) }
+
+        dayOffsets.forEach { offset ->
             val date = centerDate.plusDays(offset)
             val isToday = date == today
-
-            val weather = if (isToday) {
-                resolveTodayWeather("prepareGraphDays", weatherByDate[date], forecastSnapshots[date], displaySource)
-            } else {
-                // Display source (or long-term climate filler) only — never another provider's row.
-                weatherByDate[date]
+            val isPastDate = date.isBefore(today)
+            val actual = dailyActuals[date]
+            val shown = if (isPastDate) null else {
+                shownRows[date]
+                    // Display source (or long-term climate filler) only — never another provider's row.
                     ?: forecastSnapshots[date]?.firstOrNull {
                         DailyColumnSource.mayDraw(it.source, displaySource.id, date, today)
-                    }
+                    }?.toDailyForecast(date)
             }
-            val actual = dailyActuals[date]
-            val forecasts = forecastSnapshots[date] ?: emptyList()
-            val forecast = forecasts
-                .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
-                .filter { it.highTemp != null && it.lowTemp != null }
-                .maxByOrNull { it.fetchedAt }
-                ?: forecasts.filter { it.source == displaySource.id }.maxByOrNull { it.fetchedAt }
-                ?: forecasts.filter { it.source == WeatherSource.GENERIC_GAP.id }.maxByOrNull { it.fetchedAt }
+            // The day's older fetches of the display source. A past day's are all of them: the shown
+            // rows (ForecastSnapshotStore.shownRows) start at the newest batch's first day, as desktop's.
+            val olderRows = forecastSnapshots[date].orEmpty()
+                .filter { it.source == displaySource.id }
+                .map { it.toDailyForecastSnapshot(date) }
 
-            val isPastDate = date.isBefore(today)
-            val isTerminalLowOnlyNwsFuture = DailyFutureDayResolver.isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
-
-            Log.d(TAG, "prepareGraphDays: index=$index date=$date weather=${weather != null} forecast=${forecast != null} forecastsSize=${forecasts.size} terminalNws=$isTerminalLowOnlyNwsFuture")
-
-            val label = if (isToday) todayLabel else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-            val showComparison = isPastDate
-
-            val finalHigh: Float?
-            val finalLow: Float?
-            val fHigh: Float?
-            val fLow: Float?
-            var snapshotHigh: Float? = null
-            var snapshotLow: Float? = null
-            var snapshotIconRes: Int? = null
-            var snapshotIsStale = false
-            var priorRowDaytimePrecip: Int? = null
-            var priorRowPrecip: Int? = null
-            var forecastIsFallback = false
-            val isClimateOverlay: Boolean
-            val isTodayForecastFallback: Boolean
-            var trueActualHigh: Float? = null
-            var bottomStackLow: Float? = null
-            val solidIsForecastFallback: Boolean
-            val todayHasActualLow: Boolean
-
-            if (isPastDate) {
-                // Every stored hour of the day for the display source (the loader stitches history).
-                val dayHourly = hourlyForecasts.filter {
-                    it.source == displaySource.id &&
-                        java.time.Instant.ofEpochMilli(it.dateTime).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == date
-                }
-                val pastValues = DailyPastDayResolver.resolvePastDayValues(
-                    actual = actual,
-                    forecasts = forecasts,
-                    displaySource = displaySource,
-                    date = date,
-                    showComparison = showComparison,
-                    // Last steps of the right bar's fallback: the day's hourly forecast range, as the
-                    // live column drew it (DailyActualsEstimator / todayForecastRange), then every
-                    // stored hour (hindcast) — what the day's hourly view draws.
-                    hourlyTemps = com.weatherwidget.shared.util.PastDayForecastOverlay.forecastHourlyTemps(
-                        dayHourly, { it.dateTime }, { it.fetchedAt }, { it.temperature },
-                    ),
-                    hourlyHindcastTemps = dayHourly.map { it.temperature },
-                )
-                forecastIsFallback = pastValues.forecastIsFallback
-                finalHigh = pastValues.finalHigh
-                finalLow = pastValues.finalLow
-                fHigh = pastValues.fHigh
-                fLow = pastValues.fLow
-                solidIsForecastFallback = pastValues.solidIsForecastFallback
-                // Left bar of the past triple bar: "yesterday's forecast" (PriorDayForecast) —
-                // frozen when the freeze has run, else picked live from the loaded rows. Drawn
-                // only as a pair, like today's.
-                DailyPastDayResolver.resolvePriorForecast(actual, forecasts, displaySource, date)?.let {
-                    snapshotHigh = it.high
-                    snapshotLow = it.low
-                    snapshotIsStale = it.isFallback
-                }
-                isClimateOverlay = false
-                isTodayForecastFallback = false
-                todayHasActualLow = false
-            } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
-                val todayValues = DailyTodayResolver.resolveTodayValues(
-                    date = date,
-                    today = today,
-                    now = now,
-                    displaySource = displaySource,
-                    weather = weather,
-                    dailyActuals = dailyActuals,
-                    actual = actual,
-                    forecasts = forecasts,
-                    hourlyForecasts = hourlyForecasts,
-                    currentTemp = request.currentTemp,
-                )
-                finalHigh = todayValues.finalHigh
-                finalLow = todayValues.finalLow
-                fHigh = todayValues.fHigh
-                fLow = todayValues.fLow
-                bottomStackLow = todayValues.bottomStackLow
-                snapshotHigh = todayValues.snapshotHigh
-                snapshotLow = todayValues.snapshotLow
-                snapshotIconRes = todayValues.snapshotIconRes
-                snapshotIsStale = todayValues.snapshotIsStale
-                priorRowDaytimePrecip = todayValues.priorRowDaytimePrecip
-                priorRowPrecip = todayValues.priorRowPrecip
-                trueActualHigh = todayValues.trueActualHigh
-                todayHasActualLow = todayValues.todayHasActualLow
-                isTodayForecastFallback = todayValues.isTodayForecastFallback
-                solidIsForecastFallback = false
-                isClimateOverlay = false
-            } else {
-                val futureValues = DailyFutureDayResolver.resolveFutureDayValues(
-                    weather = weather,
-                    forecast = forecast,
-                    date = date,
-                    isTerminalLowOnlyNwsFuture = isTerminalLowOnlyNwsFuture,
-                    climateNormals = request.climateNormals,
-                    showComparison = showComparison,
-                )
-                finalHigh = futureValues.finalHigh
-                finalLow = futureValues.finalLow
-                fHigh = futureValues.fHigh
-                fLow = futureValues.fLow
-                isClimateOverlay = futureValues.isClimateOverlay
-                solidIsForecastFallback = false
-                isTodayForecastFallback = false
-                todayHasActualLow = false
-            }
-
-            val resolvedPrecip = DailyForecastIconResolver.resolveDailyLabelPrecip(
-                weather = weather,
-                hourlyForecasts = hourlyForecasts,
-                targetDate = date,
-                isPast = isPastDate,
-                displaySource = displaySource,
+            // The column rule is shared with desktop (DailyColumnBuilder; parity fixtures DailyParity).
+            val column = com.weatherwidget.shared.daily.DailyColumnBuilder.build(
+                date = date,
+                label = if (isToday) todayLabel else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                today = today,
+                now = now,
+                forecast = shown,
                 actual = actual,
-                centerLat = request.centerLat,
-                centerLon = request.centerLon,
+                snapshots = olderRows,
+                hourly = sharedHourly,
+                currentTemp = request.currentTemp,
+                displaySourceId = displaySource.id,
+                centerLat = request.centerLat ?: shown?.let { weatherByDate[date]?.locationLat } ?: 0.0,
+                centerLon = request.centerLon ?: shown?.let { weatherByDate[date]?.locationLon } ?: 0.0,
+                use24HourClock = request.use24HourClock,
+                allowTodayRainChanceLabel = request.allowTodayRainChanceLabel,
             )
-            val dayPrecipForIcon = resolvedPrecip.dayPrecip
-            val nightPrecipForIcon = resolvedPrecip.nightPrecip
+            Log.d(
+                TAG,
+                "prepareGraphDays: date=$date shown=${shown != null} older=${olderRows.size} icon=${column.iconName}",
+            )
+            // Permanent diagnostics, read by DailyCloudCoverSiteParityRoboTest.
             Log.v(
                 TAG,
                 "resolveDailyLabelPrecip: mode=GRAPH date=$date source=${displaySource.id} " +
-                    "day=$dayPrecipForIcon night=$nightPrecipForIcon center=${request.centerLat},${request.centerLon}",
+                    "day=${column.dayPrecipProbability} night=${column.nightPrecipProbability} center=${request.centerLat},${request.centerLon}",
             )
-
-            // Past days: frozen into daily_history. Today/future: the forecast row's own noon cloud
-            // (DailyHourlySummaries — hourly is stored to 72 h only, and hours past that may be older
-            // than the row), else the hourly noon row for rows written before it existed.
-            val storedNoonCloud = if (isPastDate) actual?.noonCloudPercent else null
-            val measuredCloudCoverPercent = com.weatherwidget.shared.util.DailyNoonCloudCover.forColumn(
-                isPast = isPastDate,
-                frozenPercent = actual?.noonCloudPercent,
-                rowPercent = weather?.noonCloudPercent,
-                rowIsDisplaySource = weather?.source == displaySource.id,
-                rowIsClimateNormal = weather?.isClimateNormal == true,
-            ) {
-                resolveMeasuredNoonCloudCoverPercent(
-                    date = date,
-                    hourlyForecasts = hourlyForecasts,
-                    displaySource = displaySource,
-                    weatherSourceId = weather?.source,
-                )
-            }
-            // Null = unknown: the bar falls back to the icon's sky (AdaptiveBarStrokes).
-            val cloudCoverRatioOverride = measuredCloudCoverPercent?.let { it / 100f }
-            if (storedNoonCloud == null) {
+            if (!(isPastDate && actual?.noonCloudPercent != null)) {
                 Log.d(
                     TAG,
                     "resolveNoonCloudCoverRatio: date=$date displaySource=${displaySource.id} " +
-                        "weatherSourceId=${weather?.source} rowNoon=${weather?.noonCloudPercent} ratio=$cloudCoverRatioOverride",
+                        "weatherSourceId=${shown?.source} rowNoon=${shown?.noonCloudPercent} ratio=${column.cloudCoverRatio}",
                 )
             }
 
-            val iconRes =
-                when {
-                    weather != null ->
-                        DailyForecastIconResolver.resolveIcon(
-                            weather = weather,
-                            targetDate = date,
-                            now = now,
-                            latitude = weather.locationLat,
-                            longitude = weather.locationLon,
-                            dayPrecipProbability = dayPrecipForIcon,
-                            nightPrecipProbability = nightPrecipForIcon,
-                            cloudCover = measuredCloudCoverPercent,
-                        )
-                    actual != null -> WeatherIconMapper.getIconResource(
-                        condition = actual.condition,
-                        precipProbability = null,
-                    )
-                    else -> WeatherIconMapper.getIconResource(
-                        condition = null,
-                        precipProbability = null,
-                    )
-                }
-
-            Log.d(
-                TAG,
-                "cloudDecision: date=$date isPast=$isPastDate weatherPresent=${weather != null}" +
-                    " actualPresent=${actual != null} iconRes=$iconRes isMixed=${WeatherIconMapper.isMixed(iconRes)}" +
-                    " cloudCoverRatioOverride=$cloudCoverRatioOverride measuredCloudCover=$measuredCloudCoverPercent" +
-                    " storedNoonCloud=$storedNoonCloud hasOverlay=${fHigh != null && fLow != null}",
-            )
-
+            // Android-only extras: the day-tap rain summary and the text-mode fallbacks.
             val rawRainSummary = if (!isPastDate) {
                 request.rainSummaryProvider(hourlyForecasts, date, displaySource.id, now)
             } else null
-
-            val precip = if (isToday) request.todayPrecipProbability else weather?.precipProbability
+            val precip = if (isToday) request.todayPrecipProbability else shown?.precipProbability
             val hasRainForecast = DayClickHelper.hasRainForecast(rawRainSummary, precip)
-
             val nearTermLimit = today.plusDays(2)
             val rainSummary = if (!date.isBefore(today) && !date.isAfter(nearTermLimit)) {
                 if (isToday && rawRainSummary != null && request.stateManager?.wasRainShownToday(request.appWidgetId, todayStr) == true) {
@@ -646,97 +509,60 @@ object DailyViewLogic {
                 }
             } else null
 
-            val dailyRainLabelText = buildDailyRainLabel(
-                date = date,
-                today = today,
-                isPastDate = isPastDate,
-                precipAmountMm = if (isPastDate) {
-                    actual?.forecastPrecipAmountMm ?: weather?.precipAmountMm
-                } else {
-                    weather?.precipAmountMm
-                },
-                dayPrecipProbability = dayPrecipForIcon,
-                allowTodayRainChanceLabel = request.allowTodayRainChanceLabel,
-                observedPrecipAmountMm = com.weatherwidget.shared.util.DailyRainLabels.resolveObservedDayPrecip(
-                    dayMm = actual?.precipDayMm,
-                    nightMm = actual?.precipNightMm,
-                    totalMm = actual?.precipAmountMm,
-                ),
-            )
-
-            val dailyRainPeakLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildDailyRainPeakLabel(
-                date = date,
-                today = today,
-                isPastDate = isPastDate,
-                dailyRainLabelText = dailyRainLabelText,
-                dayPrecipProbability = dayPrecipForIcon,
-                dayPeakAt = resolvedPrecip.dayPeakAt,
-                nowMs = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                use24HourClock = request.use24HourClock,
-            )
-            if (dailyRainLabelText != null && dayPrecipForIcon != null && dayPrecipForIcon > com.weatherwidget.shared.util.DailyRainLabels.PEAK_HOUR_MIN_EXCLUSIVE_PERCENT) {
-                Log.v(
-                    TAG,
-                    "rainPeakLabel: date=$date day=$dayPrecipForIcon peakAt=${resolvedPrecip.dayPeakAt} " +
-                        "label=\"$dailyRainLabelText\" peak=$dailyRainPeakLabelText",
-                )
-            }
-
+            val finalLow = if (isToday) column.solidLow ?: column.forecastLow else column.solidLow
+            val todayHasActualLow = isToday && actual?.computedLowTemp != null
+            val iconRes = WeatherIconMapper.fromIconName(column.iconName)
             days.add(
                 PreparedGraphDay(
                     renderDay = DailyForecastGraphRenderer.DayData(
                         date = date,
-                        label = label,
-                        solidLineHigh = finalHigh,
+                        label = column.label,
+                        solidLineHigh = column.barTopHigh,
                         solidLineLow = finalLow,
-                        bottomStackLow = bottomStackLow ?: finalLow,
+                        bottomStackLow = if (isToday) {
+                            com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
+                                isToday = true,
+                                solidLow = column.solidLow,
+                                forecastLow = column.forecastLow,
+                                lowSettled = column.lowSettled,
+                                actualLow = actual?.computedLowTemp,
+                            ) ?: finalLow
+                        } else {
+                            finalLow
+                        },
                         iconRes = iconRes,
                         isSunny = WeatherIconMapper.isSunny(iconRes),
                         isRainy = WeatherIconMapper.isPrecipitation(iconRes),
                         isMixed = WeatherIconMapper.isMixed(iconRes),
                         isToday = isToday,
                         isPast = isPastDate,
-                        isClimateNormal = isClimateOverlay,
-                        isSourceGapFallback = weather?.source == WeatherSource.GENERIC_GAP.id,
-                        solidIsForecastFallback = solidIsForecastFallback,
-                        dashedLineHigh = fHigh,
-                        dashedLineLow = fLow,
+                        isClimateNormal = column.isClimateNormal && shown?.source != WeatherSource.GENERIC_GAP.id,
+                        isSourceGapFallback = shown?.source == WeatherSource.GENERIC_GAP.id,
+                        solidIsForecastFallback = column.solidIsForecastFallback,
+                        dashedLineHigh = column.forecastHigh,
+                        dashedLineLow = column.forecastLow,
                         rainData = DailyForecastGraphRenderer.RainLabelData(
-                            dailyPrecipProbability = dayPrecipForIcon,
-                            nighttimePrecipProbability = nightPrecipForIcon,
-                            dailyRainLabelText = dailyRainLabelText,
-                            dailyRainPeakLabelText = dailyRainPeakLabelText,
-                            nightRainLabelText = buildNightRainLabel(
-                                date = date,
-                                today = today,
-                                isPastDate = isPastDate,
-                                dailyRainLabelText = dailyRainLabelText,
-                                nightPrecipProbability = nightPrecipForIcon,
-                                observedNightPrecipMm = actual?.precipNightMm,
-                            ),
+                            dailyPrecipProbability = column.dayPrecipProbability,
+                            nighttimePrecipProbability = column.nightPrecipProbability,
+                            dailyRainLabelText = column.dailyRainLabelText,
+                            dailyRainPeakLabelText = column.dailyRainPeakLabelText,
+                            nightRainLabelText = column.nightRainLabelText,
                         ),
                         columnIndex = days.size,
-                        isTodayForecastFallback = isTodayForecastFallback,
+                        isTodayForecastFallback = isToday && column.solidHigh == null && !todayHasActualLow &&
+                            (column.barTopHigh != null || finalLow != null),
                         todayHasActualLow = todayHasActualLow,
-                        snapshotHigh = snapshotHigh,
-                        snapshotLow = snapshotLow,
-                        // A past day archives no snapshot icon; its left bar takes the day's condition,
-                        // as its right (settled-forecast) bar does.
-                        snapshotIconRes = snapshotIconRes ?: iconRes.takeIf { isPastDate && snapshotHigh != null },
-                        snapshotIsStale = snapshotIsStale,
-                        priorBarRainPercent = AdaptiveBarStrokes.priorBarRainPercent(
-                            isPast = isPastDate,
-                            priorRowDaytime = priorRowDaytimePrecip,
-                            priorRowWholeDay = priorRowPrecip,
-                            dayRainPercent = dayPrecipForIcon,
-                        ),
-                        forecastIsFallback = forecastIsFallback,
-                        actualsFromOtherSite = isPastDate && !solidIsForecastFallback &&
-                            actual?.isActualsBorrowed == true,
-                        ghostLineHigh = trueActualHigh,
-                        cloudCoverRatioOverride = cloudCoverRatioOverride,
-                        daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),
-                        nowHour = if (isToday) now.hour else null,
+                        snapshotHigh = column.snapshotHigh,
+                        snapshotLow = column.snapshotLow,
+                        snapshotIconRes = column.snapshotIconName?.let(WeatherIconMapper::fromIconName),
+                        snapshotIsStale = column.snapshotIsStale,
+                        priorBarRainPercent = column.priorBarRainPercent,
+                        forecastIsFallback = column.forecastIsFallback,
+                        actualsFromOtherSite = column.actualsFromOtherSite,
+                        ghostLineHigh = column.ghostHigh,
+                        cloudCoverRatioOverride = column.cloudCoverRatio,
+                        daysFromToday = column.daysFromToday,
+                        nowHour = column.nowHour,
                     ),
                     rainSummary = rainSummary,
                     hasRainForecast = hasRainForecast,

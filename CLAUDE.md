@@ -20,7 +20,9 @@
   (user, 2026-10-21, after repeated parity bugs). The shared code owns the whole rule — windows, source
   scope, which rows, gates, log tags and levels; each platform only implements the Host's reads and
   writes (`DailyHistoryRun`, `CurrentConditionsRun`, `GoogleHistoryRun`, `QuotaState`,
-  `ForecastHorizonMarkers`, `ElapsedForecastBackfill.Store`). A shared *planner* fed by per-platform
+  `ForecastHorizonMarkers`, `ElapsedForecastBackfill.Store`). The daily view's columns come from
+  `:shared` `DailyColumnBuilder` on both platforms, pinned by the `DailyParity` golden fixtures
+  (`plans/261023-shared-daily-column-builder.md`). A shared *planner* fed by per-platform
   glue is not enough — the glue drifted (`plans/261021-android-desktop-shared-code-audit.md`).
   `:desktop` `CrossPlatformDuplicateNamesTest` fails on a function declared in both `app` and
   `desktop` but not `:shared`; fix it by moving the logic, not by growing the allowlist.

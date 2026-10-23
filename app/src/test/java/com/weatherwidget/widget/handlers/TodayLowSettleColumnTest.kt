@@ -18,14 +18,15 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 /**
- * Today's printed low (`bottomStackLow`) through the real chain: [DailyTodayResolver] →
+ * Today's printed low (`bottomStackLow`) through the real chain: `DailyViewLogic` → `:shared`
+ * DailyColumnBuilder →
  * [TodayLowSettle] → `DailyDayValueResolver.effectiveLowForLabel`. A warm night (observed 50 vs
  * forecast 47) prints the forecast until sunrise + 30 min, then the observed low — unless the
  * next 3 h are forecast below 50, which holds it until 09:00. Times are relative to the computed
  * cutoff because the resolver uses the system zone.
  */
 @Category(ShortDuration::class)
-class DailyTodayResolverLowSettleTest {
+class TodayLowSettleColumnTest {
     private val zone = ZoneId.systemDefault() // the resolver's zone
     private val today = LocalDate.of(2026, 10, 13)
     private val lat = 37.417
@@ -63,18 +64,25 @@ class DailyTodayResolverLowSettleTest {
     private val risingDay = (0..23).map { hour(today.atTime(it, 0), if (it < 7) 51f else 52f + it) }
 
     private fun printedLow(now: LocalDateTime, hourly: List<HourlyForecastEntity> = risingDay) =
-        DailyTodayResolver.resolveTodayValues(
-            date = today,
-            today = today,
-            now = now,
-            displaySource = source,
-            weather = todayRow,
-            dailyActuals = mapOf(today to actual),
-            actual = actual,
-            forecasts = listOf(todayRow),
-            hourlyForecasts = hourly,
-            currentTemp = 54f,
-        ).bottomStackLow
+        DailyViewLogic.prepareGraphDays(
+            GraphDayRequest(
+                now = now,
+                centerDate = today,
+                today = today,
+                weatherByDate = mapOf(today to todayRow),
+                forecastSnapshots = mapOf(today to listOf(todayRow)),
+                numColumns = 5,
+                displaySource = source,
+                skipYesterday = false,
+                skipHistory = false,
+                hourlyForecasts = hourly,
+                dailyActuals = mapOf(today to actual),
+                currentTemp = 54f,
+                todayLabel = "Today",
+                centerLat = lat,
+                centerLon = lon,
+            ),
+        ).single { it.isToday }.bottomStackLow
 
     @Test
     fun `warm night prints the forecast low until sunrise plus 30`() {

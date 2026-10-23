@@ -53,3 +53,40 @@ fun ForecastEntity.withHourlySummary(summary: com.weatherwidget.shared.util.Dail
     hourlyNightPrecipMax = summary.nightPrecipMax,
     hourlyDayPrecipPeakAt = summary.dayPrecipPeakAt,
 )
+
+/** This row as the shared daily model's shown row for [date] (`:shared` DailyColumnBuilder). */
+fun ForecastEntity.toDailyForecast(date: java.time.LocalDate) = com.weatherwidget.data.model.DailyForecast(
+    date = date.toString(),
+    highTemp = highTemp,
+    lowTemp = lowTemp,
+    condition = condition,
+    iconToken = nativeDailyIconToken,
+    precipProbability = precipProbability,
+    precipAmountMm = precipAmountMm,
+    isClimateNormal = isClimateNormal,
+    source = source,
+    daytimePrecipProbability = daytimePrecipProbability,
+    nighttimePrecipProbability = nighttimePrecipProbability,
+    noonCloudPercent = noonCloudPercent,
+    hourlyDayPrecipMax = hourlyDayPrecipMax,
+    hourlyNightPrecipMax = hourlyNightPrecipMax,
+    hourlyDayPrecipPeakAt = hourlyDayPrecipPeakAt,
+)
+
+/** This row as one of a day's older fetches for the shared daily model. */
+fun ForecastEntity.toDailyForecastSnapshot(date: java.time.LocalDate) = com.weatherwidget.data.model.DailyForecastSnapshot(
+    date = date.toString(),
+    highTemp = highTemp,
+    lowTemp = lowTemp,
+    condition = condition,
+    iconToken = nativeDailyIconToken,
+    precipProbability = precipProbability,
+    precipAmountMm = precipAmountMm,
+    fetchedAt = fetchedAt,
+    daytimePrecipProbability = daytimePrecipProbability,
+    nighttimePrecipProbability = nighttimePrecipProbability,
+    hindcastHighTemp = hindcastHighTemp,
+    hindcastLowTemp = hindcastLowTemp,
+    // The dedup skip re-stamps batchFetchedAt; fetchedAt stays the first sighting.
+    lastConfirmedAt = batchFetchedAt,
+)

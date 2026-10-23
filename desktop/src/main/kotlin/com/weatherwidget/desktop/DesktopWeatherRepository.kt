@@ -1714,7 +1714,7 @@ class DesktopWeatherRepository(
 
         val normals = ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
         val today = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
-        val filled = fillPartialFutureDays(daily, normals, today)
+        val filled = PartialForecastDays.fillPartialFutureDays(daily, weatherSource, normals, today)
         val existing = filled.map { LocalDate.parse(it.date) }.toSet()
         val gaps = ClimateNormals.fillGaps(existing, normals, today, GAP_HORIZON_DAYS)
             .filter { DailyColumnSource.allowsClimateNormal(it.date, today) }
@@ -1728,37 +1728,6 @@ class DesktopWeatherRepository(
                 )
             }
         return if (gaps.isEmpty()) filled else filled + gaps
-    }
-
-    /**
-     * A future day with only a high or only a low takes both from the climate normal for its date,
-     * drawn as the climate fallback bar — except NWS's terminal low-only day, which is real data.
-     * Shared rule with Android's DailyFutureDayResolver (PartialForecastDays).
-     */
-    private fun fillPartialFutureDays(
-        daily: List<DailyForecast>,
-        normals: Map<java.time.MonthDay, Pair<Float, Float>>,
-        today: LocalDate,
-    ): List<DailyForecast> {
-        val lastNwsFutureDate = daily
-            .map { LocalDate.parse(it.date) }
-            .filter { it.isAfter(today) && weatherSource == WeatherSource.NWS.id }
-            .maxOrNull()
-        return daily.map { day ->
-            val date = LocalDate.parse(day.date)
-            if (!date.isAfter(today) || day.isClimateNormal) return@map day
-            val terminal = PartialForecastDays.isTerminalLowOnlyNwsFutureDay(
-                weatherSource, day.highTemp, day.lowTemp, date, today, lastNwsFutureDate,
-            )
-            val values = PartialForecastDays.futureFromNormals(
-                day.highTemp, day.lowTemp, terminal, normals[java.time.MonthDay.from(date)],
-            )
-            if (values.isClimateOverlay) {
-                day.copy(highTemp = values.high, lowTemp = values.low, isClimateNormal = true)
-            } else {
-                day
-            }
-        }
     }
 
     companion object {

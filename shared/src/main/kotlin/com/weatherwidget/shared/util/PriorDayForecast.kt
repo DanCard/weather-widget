@@ -146,4 +146,9 @@ object PriorDayForecast {
      */
     fun isStale(lastConfirmedAtMillis: Long, cutoffMs: Long): Boolean =
         cutoffMs - lastConfirmedAtMillis > STALE_SLACK_HOURS * 3_600_000L
+
+    /** Today's pick is a stand-in (drawn dashed) when either side was last confirmed too long before its anchor. */
+    fun <T> isPickStale(pick: Pick<T>, date: java.time.LocalDate, zone: java.time.ZoneId, lastConfirmedAt: (T) -> Long): Boolean =
+        pick.highRow?.let { isStale(lastConfirmedAt(it), highCutoffMs(date, zone)) } == true ||
+            pick.lowRow?.let { isStale(lastConfirmedAt(it), lowCutoffMs(date, zone)) } == true
 }

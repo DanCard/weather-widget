@@ -101,6 +101,9 @@ object DailyColumnBuilder {
         displaySourceId: String,
         centerLat: Double,
         centerLon: Double,
+        use24HourClock: Boolean = com.weatherwidget.shared.util.DailyRainLabels.localeUses24HourClock(),
+        /** Today's rain-chance label; every production caller allows it. */
+        allowTodayRainChanceLabel: Boolean = true,
     ): DailyColumn {
         val isToday = date == today
         val isPast = date.isBefore(today)
@@ -283,7 +286,7 @@ object DailyColumnBuilder {
             isPastDate = isPast,
             precipAmountMm = forecastAmountMm,
             dayPrecipProbability = resolvedPrecip.dayPrecip,
-            allowTodayRainChanceLabel = true,
+            allowTodayRainChanceLabel = allowTodayRainChanceLabel,
             observedPrecipAmountMm = com.weatherwidget.shared.util.DailyRainLabels
                 .resolveObservedDayPrecip(
                     dayMm = actual?.precipDayMm,
@@ -299,7 +302,7 @@ object DailyColumnBuilder {
             dayPrecipProbability = resolvedPrecip.dayPrecip,
             dayPeakAt = resolvedPrecip.dayPeakAt,
             nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-            use24HourClock = com.weatherwidget.shared.util.DailyRainLabels.localeUses24HourClock(),
+            use24HourClock = use24HourClock,
         )
         val nightRainLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildNightRainLabel(
             date = date,
@@ -413,11 +416,8 @@ object DailyColumnBuilder {
             isToday = isToday,
             isPast = isPast,
             solidIsForecastFallback = solidIsForecastFallback,
-            // Desktop writes a row per fetch (no unchanged-skip), so fetchedAt is the last confirmation.
-            snapshotIsStale = (isPast && pastPrior?.isFallback == true) || isToday && (
-                todayPick.highRow?.let { PriorDayForecast.isStale(it.fetchedAt, PriorDayForecast.highCutoffMs(date, zone)) } == true ||
-                    todayPick.lowRow?.let { PriorDayForecast.isStale(it.fetchedAt, PriorDayForecast.lowCutoffMs(date, zone)) } == true
-                ),
+            snapshotIsStale = (isPast && pastPrior?.isFallback == true) ||
+                isToday && PriorDayForecast.isPickStale(todayPick, date, zone) { it.lastConfirmedAt },
             forecastIsFallback = forecastIsFallback,
             actualsFromOtherSite = isPast && !solidIsForecastFallback && actual?.isActualsBorrowed == true,
             // Null = unknown: the bar falls back to the icon's sky (AdaptiveBarStrokes).

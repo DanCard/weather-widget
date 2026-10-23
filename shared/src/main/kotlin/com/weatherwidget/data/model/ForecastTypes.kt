@@ -91,6 +91,12 @@ data class DailyForecastSnapshot(
     /** Same-day high/low the source sent after its cutoff (`forecasts.hindcast*`); past-day fallback only. */
     val hindcastHighTemp: Float? = null,
     val hindcastLowTemp: Float? = null,
+    /**
+     * When this forecast was last confirmed — what "stale" is judged by. Desktop writes a row per
+     * fetch, so it is [fetchedAt]; Android stores an unchanged forecast once and re-stamps its
+     * `batchFetchedAt`, while its `fetchedAt` stays the first sighting.
+     */
+    val lastConfirmedAt: Long = fetchedAt,
 )
 
 data class DailyActual(

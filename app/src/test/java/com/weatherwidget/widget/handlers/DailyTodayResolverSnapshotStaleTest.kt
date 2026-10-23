@@ -38,8 +38,21 @@ class DailyTodayResolverSnapshotStaleTest {
         batchFetchedAt = confirmedAt,
     )
 
+    /** Today's left bar as the widget builds it from [r] (the shared builder, Android's batchFetchedAt). */
     private fun stale(r: ForecastEntity?) =
-        DailyTodayResolver.isSnapshotStale(PriorDayForecast.Pick(r, r), today, zone)
+        DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
+            now = today.atTime(12, 0),
+            centerDate = today,
+            today = today,
+            weatherByDate = emptyMap(),
+            forecastSnapshots = mapOf(today to listOfNotNull(r)),
+            numColumns = 5,
+            displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+        ).single { it.isToday }.snapshotIsStale
 
     @Test
     fun `old first sighting re-confirmed just before the anchors is not stale`() {
@@ -48,8 +61,9 @@ class DailyTodayResolverSnapshotStaleTest {
 
     @Test
     fun `not re-confirmed within a day of the anchor is stale`() {
-        // Last confirmed 09-29 05:00: 25h before the 09-30 06:00 low anchor.
-        assertTrue(stale(row(fetchedAt = at(27, 8), confirmedAt = at(29, 5))))
+        // First seen 09-28 08:00 (inside the 48 h pick window), last confirmed 09-29 05:00: 25h
+        // before the 09-30 06:00 low anchor.
+        assertTrue(stale(row(fetchedAt = at(28, 8), confirmedAt = at(29, 5))))
     }
 
     @Test
