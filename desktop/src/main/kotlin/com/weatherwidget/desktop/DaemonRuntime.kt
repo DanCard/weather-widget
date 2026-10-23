@@ -865,7 +865,7 @@ internal class DaemonRuntime(
             synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store,
             personalStationWeight = config.personalStationWeight(),
         )
-        val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.displaySource, config.personalStationWeight())
+        val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.displaySource, config.personalStationWeight(), openMeteoEnabled = ::savedConfigHasOpenMeteo)
 
         // 1. Startup refresh, outside fetchJob: a source change leaves the previous one running
         // (launchRefreshSurvivesRestart); every other restart cancels it.
@@ -1118,7 +1118,8 @@ internal class DaemonRuntime(
                                 config.lat,
                                 config.lon,
                                 otherSource,
-                                config.personalStationWeight()
+                                config.personalStationWeight(),
+                                openMeteoEnabled = ::savedConfigHasOpenMeteo
                             )
                             otherRepo.refresh(reason = "forecast_loop_other", parts = plan.parts, horizon = plan.horizon)
                             otherService.close()
@@ -1184,7 +1185,8 @@ internal class DaemonRuntime(
                                 config.lat,
                                 config.lon,
                                 otherSource,
-                                config.personalStationWeight()
+                                config.personalStationWeight(),
+                                openMeteoEnabled = ::savedConfigHasOpenMeteo
                             )
                             otherRepo.refreshObservations()
                             otherService.close()

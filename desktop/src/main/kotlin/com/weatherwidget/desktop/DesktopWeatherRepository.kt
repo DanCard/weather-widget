@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.util.ClimateNormalsRun
 import com.weatherwidget.shared.actuals.DailyBlendWrite
 import com.weatherwidget.shared.history.WeatherApiHistoryRun
 import com.weatherwidget.shared.actuals.NwsStationActualsRun
@@ -84,6 +85,8 @@ class DesktopWeatherRepository(
     private val weatherSource: String,
     private val personalStationWeight: Double = 1.0,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
+    /** The user has Open-Meteo enabled: climate normals come from its archive ([ClimateNormalsRun]). */
+    private val openMeteoEnabled: () -> Boolean = { true },
     /**
      * Whether housekeeping may run now: on AC power with the screen off (user, 2026-10-09; Android's
      * `HistoryPruneWorker` waits for charging + device idle). A machine without a battery counts as
@@ -1531,28 +1534,22 @@ class DesktopWeatherRepository(
      * it must NOT be gated behind forecast staleness or a fresh-forecast launch would never populate
      * normals. Compute is shared with Android via [ClimateNormals].
      */
-    /** @return true only if normals were just (re)fetched and cached, so callers can reload state. */
-    suspend fun ensureClimateNormals(): Boolean {
-        try {
-            val key = ClimateNormals.locationKey(latitude, longitude)
-            val (cachedHigh, _) = weatherDao.getClimateNormals(key)
-            if (cachedHigh.isNotEmpty()) return false
-
-            val (startDate, endDate) = ClimateNormals.rollingWindow()
-            val dailyTemps = weatherService.fetchHistoricalDailyTemps(startDate, endDate)
-            val (monthlyHigh, monthlyLow) = ClimateNormals.monthlyMeans(dailyTemps)
-            if (monthlyHigh.isEmpty() || monthlyLow.isEmpty()) {
-                weatherDao.log("CLIMATE_FETCH_EMPTY", "rows=${dailyTemps.size}", "WARN")
-                return false
-            }
-            weatherDao.upsertClimateNormals(key, monthlyHigh, monthlyLow)
-            weatherDao.log("CLIMATE_CACHED", "key=$key months=${monthlyHigh.size}")
-            return true
-        } catch (e: Exception) {
-            Log.e("DesktopWeatherRepository", "Climate normals fetch failed: $e")
-            return false
-        }
-    }
+    /**
+     * The rule is `:shared` [ClimateNormalsRun] (same as Android); this is its desktop host.
+     * @return true only if normals were just (re)fetched and cached, so callers can reload state.
+     */
+    suspend fun ensureClimateNormals(): Boolean = ClimateNormalsRun.warm(
+        object : ClimateNormalsRun.Host {
+            override suspend fun cached(locationKey: String) = weatherDao.getClimateNormals(locationKey)
+            override val openMeteoEnabled get() = this@DesktopWeatherRepository.openMeteoEnabled()
+            override suspend fun fetchDailyTemps(start: String, end: String) = weatherService.fetchHistoricalDailyTemps(start, end)
+            override suspend fun store(locationKey: String, monthlyHigh: Map<Int, Float>, monthlyLow: Map<Int, Float>) =
+                weatherDao.upsertClimateNormals(locationKey, monthlyHigh, monthlyLow)
+            override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
+        },
+        latitude,
+        longitude,
+    ).fetched
 
     /**
      * Appends climate-normal gap rows (isClimateNormal=true) for future dates not already covered by

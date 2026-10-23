@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.shared.util.ClimateNormalsRun
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ClimateNormalEntity
@@ -13,7 +14,8 @@ import kotlinx.coroutines.CancellationException
 import java.time.MonthDay
 
 /**
- * Owns climate-normal cache lookup, historical fetch, aggregation, and persistence.
+ * Android host of `:shared` [ClimateNormalsRun] (cache, Open-Meteo gate, fetch, reduce, logs — the
+ * same run as desktop); this reads and writes `climate_normals`.
  */
 internal class ClimateNormalsRepository(
     private val climateNormalDao: ClimateNormalDao,
@@ -21,75 +23,46 @@ internal class ClimateNormalsRepository(
     private val widgetStateManager: WidgetStateManager,
     private val appLogDao: AppLogDao,
 ) {
+    private fun host(latitude: Double, longitude: Double) = object : ClimateNormalsRun.Host {
+        override suspend fun cached(locationKey: String): Pair<Map<Int, Float>, Map<Int, Float>> {
+            val rows = climateNormalDao.getNormalsForLocation(locationKey)
+            return rows.associate { it.monthDay.take(2).toInt() to it.highTemp } to
+                rows.associate { it.monthDay.take(2).toInt() to it.lowTemp }
+        }
+
+        override val openMeteoEnabled get() = widgetStateManager.isSourceVisible(WeatherSource.OPEN_METEO)
+
+        override suspend fun fetchDailyTemps(start: String, end: String) =
+            openMeteoApi.getHistoricalDailyTemps(latitude, longitude, start, end)
+
+        override suspend fun store(locationKey: String, monthlyHigh: Map<Int, Float>, monthlyLow: Map<Int, Float>) {
+            climateNormalDao.deleteOtherLocations(locationKey)
+            climateNormalDao.insertAll(
+                (1..12).mapNotNull { month ->
+                    val high = monthlyHigh[month] ?: return@mapNotNull null
+                    val low = monthlyLow[month] ?: return@mapNotNull null
+                    ClimateNormalEntity(
+                        monthDay = "${month.toString().padStart(2, '0')}-15",
+                        locationKey = locationKey,
+                        highTemp = high,
+                        lowTemp = low,
+                    )
+                },
+            )
+        }
+
+        override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
+    }
+
     suspend fun getHistoricalNormalsByMonthDay(
         latitude: Double,
         longitude: Double,
-    ): Map<MonthDay, Pair<Float, Float>> {
-        val locationKey = ClimateNormals.locationKey(latitude, longitude)
-        val cachedNormals = climateNormalDao.getNormalsForLocation(locationKey)
-        if (cachedNormals.isNotEmpty()) {
-            val monthlyHigh = cachedNormals.associate {
-                it.monthDay.take(2).toInt() to it.highTemp
-            }
-            val monthlyLow = cachedNormals.associate {
-                it.monthDay.take(2).toInt() to it.lowTemp
-            }
-            return ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
-        }
-        if (!widgetStateManager.isSourceVisible(WeatherSource.OPEN_METEO)) {
-            appLogDao.log(
-                "CLIMATE_SKIP_DISABLED",
-                "source=${WeatherSource.OPEN_METEO.id}",
-            )
-            return emptyMap()
-        }
-
-        val (startDate, endDate) = ClimateNormals.rollingWindow()
-        val dailyTemps = openMeteoApi.getHistoricalDailyTemps(
-            latitude,
-            longitude,
-            startDate,
-            endDate,
-        )
-        val (monthlyHigh, monthlyLow) = ClimateNormals.monthlyMeans(dailyTemps)
-        if (monthlyHigh.isEmpty() || monthlyLow.isEmpty()) {
-            appLogDao.log(
-                "CLIMATE_FETCH_EMPTY",
-                "lat=$latitude lon=$longitude rows=${dailyTemps.size}",
-            )
-            return emptyMap()
-        }
-        climateNormalDao.deleteOtherLocations(locationKey)
-        climateNormalDao.insertAll(
-            (1..12).mapNotNull { month ->
-                val high = monthlyHigh[month] ?: return@mapNotNull null
-                val low = monthlyLow[month] ?: return@mapNotNull null
-                ClimateNormalEntity(
-                    monthDay = "${month.toString().padStart(2, '0')}-15",
-                    locationKey = locationKey,
-                    highTemp = high,
-                    lowTemp = low,
-                )
-            },
-        )
-        return ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
-    }
+    ): Map<MonthDay, Pair<Float, Float>> = ClimateNormalsRun.run(host(latitude, longitude), latitude, longitude).byMonthDay
 
     suspend fun warmBestEffort(
         latitude: Double,
         longitude: Double,
     ) {
-        try {
-            getHistoricalNormalsByMonthDay(latitude, longitude)
-        } catch (cancellation: CancellationException) {
-            throw cancellation
-        } catch (exception: Exception) {
-            appLogDao.logException(
-                "CLIMATE_WARM_FAIL",
-                "Climate-normal cache warm failed for " +
-                    "lat=$latitude lon=$longitude",
-                exception,
-            )
-        }
+        ClimateNormalsRun.warm(host(latitude, longitude), latitude, longitude)
     }
 }

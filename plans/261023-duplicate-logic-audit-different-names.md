@@ -143,3 +143,8 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   field-limited UPDATE (`DesktopWeatherDao.updateBlendIfUnchanged`, as Android's). The
   `TODAY_LOW_UNCOVERED` line is `DailyActualsAssembler.suppressedLowLines` (desktop gains `span=`).
   Tag allowlist −2 (→ 19).
+- 2026-10-23: §2 climate normals → `:shared` `ClimateNormalsRun` + Host. Desktop now honours the
+  Open-Meteo gate (it fetched the archive with Open-Meteo disabled; `savedConfigHasOpenMeteo`, read
+  when asked) and no longer swallows cancellation (`catch (e: Exception)`); one log set
+  (`CLIMATE_SKIP_DISABLED`, `CLIMATE_FETCH_EMPTY` WARN, `CLIMATE_CACHED`, `CLIMATE_WARM_FAIL`) on both.
+  Tag allowlist −1 (→ 18).
