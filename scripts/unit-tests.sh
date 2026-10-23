@@ -316,7 +316,12 @@ start_single_invocation_summary_monitor() {
 
         if [ -z "${announced_execution[$bucket]:-}" ] && [[ "$line" == *"$task_marker"* ]]; then
           local build_elapsed=$(( $(date +%s) - OVERALL_START ))
-          log_and_echo "${bucket} bucket build finished in $(format_seconds "$build_elapsed")."
+          local b_color="" b_color_end=""
+          if [ "$bucket" = "Long" ]; then
+            b_color="$BRIGHT_CYAN"
+            b_color_end="$NC"
+          fi
+          log_and_echo "${b_color}${bucket} bucket build finished in $(format_seconds "$build_elapsed").${b_color_end}"
           announced_execution["$bucket"]=1
         fi
       done
