@@ -131,3 +131,8 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   Android fetches the latest reading here and the history window elsewhere, desktop both per station
   in one pass, so the "silent vs failed" verdict reads different outcomes. One runner needs the two
   fetch shapes aligned first: **follow-up decision**. Tag allowlist −3 (→ 21).
+- 2026-10-23: current observation, completed (user chose option A): both platforms' cycle is
+  `:shared` `NwsStationBundles` — latest + last 90 min per station; Android stored latest only and
+  repaired gaps later (`plans/261023-nws-observation-cycle-latest-plus-recent-window-both-platforms.md`).
+  One station throwing no longer cancels the pass (desktop had no guard). Header blend still per
+  platform (`interpolateIDW` vs `NwsBlend.build`) — item E.

@@ -152,7 +152,7 @@ class NwsObservationSource(
             .map { toEntity(it, stationInfo, latitude, longitude) }
 
     /** One station's history window with the web fallback: the step desktop runs too (`:shared`). */
-    private val historyFetcher = NwsStationHistoryFetcher(
+    internal val historyFetcher = NwsStationHistoryFetcher(
         observations = { station, start, end -> nwsApi.getObservations(station.id, start, end) },
         log = { tag, message, level -> appLogDao.log(tag, message, level) },
     )

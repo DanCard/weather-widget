@@ -1,5 +1,7 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.shared.observations.NwsStationBundles
+import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.shared.observations.NwsStationAttemptLog
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
@@ -61,128 +63,89 @@ class NwsCurrentObservationUpdater private constructor(
         personalStationWeightProvider: PersonalStationWeightProvider = PersonalStationWeightProvider { 1.0 },
     ) : this(observationSource, observationDao, appLogDao, dailyActualsStore, null, personalStationWeightProvider, Unit)
 
+    /**
+     * One NWS observation cycle: per station its latest reading AND the last
+     * [NwsStationBundles.RECENT_WINDOW_MINUTES] of readings (`:shared` [NwsStationBundles], the same
+     * pass desktop runs), stored, then the header's IDW blend of the latest readings. It fetched the
+     * latest only and repaired the skipped readings later (user, 2026-10-23,
+     * plans/261023-nws-observation-cycle-latest-plus-recent-window-both-platforms.md).
+     */
     internal suspend fun fetchNwsCurrent(
         latitude: Double,
         longitude: Double,
-    ): CurrentReadingPayload? = coroutineScope {
+    ): CurrentReadingPayload? {
         val stations = observationSource
             .stationsForLocation(latitude, longitude)
             .take(MAX_NWS_STATIONS)
-        if (stations.isEmpty()) return@coroutineScope null
+        if (stations.isEmpty()) return null
 
         val fetchStartMs = System.currentTimeMillis()
-        // The web leg: NWS's own latest-METAR file per station, every request started before any
-        // api.weather.gov answer so the two transports overlap. No token, no third party
-        // (plans/261015-nws-web-leg-from-nws-tgftp-metar-text.md).
-        val web = metarTextApi?.let { api ->
-            NwsMetarTextWeb.start(this, api, stations, latitude, longitude)
-        }
+        val end = Instant.ofEpochMilli(fetchStartMs).truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
+        // Every station gets exactly one attempt per cycle; the observation loop and the
+        // network-restored / resume kicks re-fetch within a cycle.
+        val bundles = NwsStationBundles.fetch(
+            stations = stations,
+            latitude = latitude,
+            longitude = longitude,
+            latestFetcher = observationSource.latestFetcher,
+            historyFetcher = observationSource.historyFetcher,
+            metarTextApi = metarTextApi,
+            windowStart = end.minus(NwsStationBundles.RECENT_WINDOW_MINUTES, java.time.temporal.ChronoUnit.MINUTES),
+            windowEnd = end,
+            recentOnly = true,
+            host = object : NwsStationBundles.Host {
+                override suspend fun touchLatest(stationId: String) = observationDao.touchLatestFetchedAt(
+                    stationId,
+                    LocationMatch.quantize(latitude),
+                    LocationMatch.quantize(longitude),
+                    System.currentTimeMillis(),
+                )
 
-        // Every station gets exactly one attempt. The old 10s/30s retry targeted stations.first(),
-        // which is nearest by distance — often a personal station the blend discounts to ~5% — so
-        // it retried the station that mattered least while blocking the whole fetch for up to 40s.
-        // The observation loop and the network-restored/resume kicks re-fetch within a cycle.
-        val stationDeferreds = stations.mapIndexed { index, station ->
-            async { fetchAndStoreStation(station, latitude, longitude, stationIndex = index, web = web) }
+                override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
+            },
+        )
+
+        val stored = bundles.flatMap { it.rows }.map { it.toEntity() }
+        if (stored.isNotEmpty()) observationDao.insertAll(stored)
+        val latest = bundles.mapNotNull { it.latest?.toEntity() }
+        latest.forEach { reading ->
+            observationDao.touchLatestFetchedAt(reading.stationId, reading.locationLat, reading.locationLon, System.currentTimeMillis())
+            logCurrentObservationInsert(reading)
         }
-        val successful = stationDeferreds.mapNotNull { it.await() }
-        // Once per fetch, after every station is stored — not once per station. The stations run
-        // in parallel, so a per-station recompute started N full reductions of the same day at once
-        // (~3.5 s each on the Pixel; the signature skip cannot catch them, since each insert changes
-        // the signature and none is recorded until a run finishes), the current temperature waited
-        // for all N, and whichever finished last was kept even when it had seen fewer stations.
-        // See performance/261010-nws-current-fetch-recomputes-today-once-not-per-station.md.
+        // Once per fetch, after every station is stored — not once per station (several reductions
+        // of the same day at once, the last one kept; performance/261010-nws-current-fetch-recomputes-today-once-not-per-station.md).
         val zone = ZoneId.systemDefault()
-        successful
+        stored
             .map { Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate() }
             .distinct()
-            .forEach { date ->
-                dailyActualsStore.recomputeDailyExtremesForDay(latitude, longitude, date, emptyList())
-            }
+            .forEach { date -> dailyActualsStore.recomputeDailyExtremesForDay(latitude, longitude, date, emptyList()) }
         val totalMs = System.currentTimeMillis() - fetchStartMs
-        if (successful.isEmpty()) {
-            appLogDao.log(
-                "NWS_FETCH_FAIL_ALL",
-                "stationsTried=${stations.size} totalMs=$totalMs",
-                "WARN",
-            )
-            return@coroutineScope null
+        if (latest.isEmpty()) {
+            appLogDao.log("NWS_FETCH_FAIL_ALL", "stationsTried=${stations.size} totalMs=$totalMs", "WARN")
+            return null
         }
 
         val blendedTemp = SpatialInterpolator.interpolateIDW(
             latitude,
             longitude,
-            successful.map { it.toReading() },
+            latest.map { it.toReading() },
             personalStationWeightProvider.currentWeight(),
-        ) ?: return@coroutineScope null
-        val closest = successful.minBy { it.distanceKm }
-        val stationSummary = successful.joinToString { "${it.stationId}(${it.distanceKm}km)" }
+        ) ?: return null
+        val closest = latest.minBy { it.distanceKm }
+        val stationSummary = latest.joinToString { "${it.stationId}(${it.distanceKm}km)" }
         appLogDao.log(
             "NWS_IDW",
-            "blended=${blendedTemp}°F from ${successful.size} stations: $stationSummary totalMs=$totalMs",
+            "blended=${blendedTemp}°F from ${latest.size} stations: $stationSummary " +
+                "stored=${stored.size} totalMs=$totalMs",
         )
-        Log.d(TAG, "NWS IDW blend: $blendedTemp°F from $stationSummary totalMs=$totalMs")
+        Log.d(TAG, "NWS IDW blend: $blendedTemp°F from $stationSummary stored=${stored.size} totalMs=$totalMs")
 
-        CurrentReadingPayload(
+        return CurrentReadingPayload(
             WeatherSource.NWS,
             blendedTemp,
             closest.condition,
-            successful.maxOf { it.timestamp },
+            latest.maxOf { it.timestamp },
         )
-    }
-
-    private suspend fun fetchAndStoreStation(
-        station: com.weatherwidget.data.remote.NwsApi.StationInfo,
-        latitude: Double,
-        longitude: Double,
-        stationIndex: Int,
-        web: NwsStationLatestFetcher.WebSource?,
-    ): ObservationEntity? {
-        val result = try {
-            observationSource.latestFetcher.fetch(station, stationIndex, latitude, longitude, web)
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            NwsStationAttemptLog.threw(station.id, e).let { appLogDao.log(it.tag, it.message, it.level) }
-            Log.e(TAG, "NWS station ${station.id} fetch failed", e)
-            return null
-        }
-
-        // Stored before the chosen row and independently of it: this is the nearest station's real
-        // sky condition, which the freshness-based web swap would otherwise discard entirely.
-        result.cloudCarrier?.let { carrier ->
-            val entity = carrier.toEntity()
-            observationDao.insertAll(listOf(entity))
-            NwsStationAttemptLog.cloudCarrier(station.id, entity.timestamp, entity.cloudCoverLow)
-                .let { appLogDao.log(it.tag, it.message, it.level) }
-        }
-
-        val chosen = result.chosen?.toEntity()
-        if (chosen == null) {
-            if (result.shouldTouchFetchedAt) {
-                observationDao.touchLatestFetchedAt(
-                    station.id,
-                    LocationMatch.quantize(latitude),
-                    LocationMatch.quantize(longitude),
-                    System.currentTimeMillis(),
-                )
-                NwsStationAttemptLog.touched(station.id).let { appLogDao.log(it.tag, it.message, it.level) }
-            } else {
-                NwsStationAttemptLog.failed(station.id, result.nwsFailureReason, result.webFailureReason)
-                    .let { appLogDao.log(it.tag, it.message, it.level) }
-            }
-            return null
-        }
-
-        observationDao.insertAll(listOf(chosen))
-        observationDao.touchLatestFetchedAt(
-            chosen.stationId,
-            chosen.locationLat,
-            chosen.locationLon,
-            System.currentTimeMillis(),
-        )
-        logCurrentObservationInsert(chosen)
-        return chosen
     }
 
     private suspend fun logCurrentObservationInsert(observation: ObservationEntity) {
