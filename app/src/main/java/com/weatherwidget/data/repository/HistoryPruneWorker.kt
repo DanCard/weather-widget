@@ -7,6 +7,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.weatherwidget.data.local.HistoryPruneSchedule
 import com.weatherwidget.data.local.RetentionPolicy
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
@@ -31,7 +32,6 @@ class HistoryPruneWorker(
         private const val PREFS = "weather_prefs"
         private const val KEY_LAST_COMPLETED_START_MS = "history_prune_last_completed_start_ms"
         private const val KEY_SETTLED_MIGRATION_V1 = "hourly_settled_v1_done"
-        private const val HISTORY_VACUUM_MIN_FREE_BYTES = 8L * 1024 * 1024
         const val UNIQUE_WORK_NAME = "history_snapshot_prune"
 
         /** Force-run pruning directly (e.g. for maintenance or on-device verification). */
@@ -73,7 +73,7 @@ class HistoryPruneWorker(
                     val size = sql.query("PRAGMA page_size").use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
                     pages * size
                 }
-                if (freelistBytes >= HISTORY_VACUUM_MIN_FREE_BYTES) {
+                if (freelistBytes >= HistoryPruneSchedule.VACUUM_MIN_FREELIST_BYTES) {
                     val startNs = System.nanoTime()
                     db.openHelper.writableDatabase.execSQL("VACUUM")
                     val durationMs = (System.nanoTime() - startNs) / 1_000_000L

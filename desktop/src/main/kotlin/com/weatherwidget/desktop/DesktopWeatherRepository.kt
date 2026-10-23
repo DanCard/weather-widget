@@ -1554,7 +1554,7 @@ class DesktopWeatherRepository(
             // DELETE leaves the file its size; the first prune freed ~100 MB on this machine
             // (183 MB -> 82 MB, VACUUM 0.16 s on a copy). Only when there is real space to win.
             val freeBytes = weatherDao.freelistBytes()
-            if (freeBytes >= HISTORY_VACUUM_MIN_FREE_BYTES) {
+            if (freeBytes >= HistoryPruneSchedule.VACUUM_MIN_FREELIST_BYTES) {
                 val startNs = System.nanoTime()
                 try {
                     weatherDao.vacuum()
@@ -1787,7 +1787,6 @@ class DesktopWeatherRepository(
                 APP_LOGS_KEY_SCRUB_DONE_TAG,
                 UTC_PREDICTION_DATE_REPAIR_DONE_TAG,
             )
-        private const val HISTORY_VACUUM_MIN_FREE_BYTES = 16L * 1024 * 1024
         private const val APP_LOGS_KEY_SCRUB_DONE_TAG = "APP_LOGS_KEY_SCRUB_DONE"
     }
 
