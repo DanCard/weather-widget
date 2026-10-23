@@ -473,13 +473,16 @@ object DesktopDailyForecastModel {
         // (actual?.forecastDayPrecipChance / forecastNightPrecipChance), falling back to the raw
         // period fields for history written before that snapshot existed.
         // Past days have no live `forecast` row (the daily list holds only today + future), so the
-        // forecast rain chance to keep visible in history comes from the day's snapshot instead.
+        // forecast rain chance to keep visible in history comes from the day's snapshot instead —
+        // only then: a live row's missing chance stays missing, never an older fetch's (Android's
+        // rule; a Silurian evening batch with no night % showed an old 0 %, 2026-10-23 parity harness).
+        val chanceRow = if (forecast != null) null else displaySnapshot
         val resolvedPrecip = com.weatherwidget.shared.util.DailyRainLabels.resolveDailyLabelPrecipAtSite(
             isPast = isPast,
             displaySourceId = displaySourceId,
-            daytimePrecipProbability = forecast?.daytimePrecipProbability ?: displaySnapshot?.daytimePrecipProbability,
-            nighttimePrecipProbability = forecast?.nighttimePrecipProbability ?: displaySnapshot?.nighttimePrecipProbability,
-            precipProbability = forecast?.precipProbability ?: displaySnapshot?.precipProbability,
+            daytimePrecipProbability = forecast?.daytimePrecipProbability ?: chanceRow?.daytimePrecipProbability,
+            nighttimePrecipProbability = forecast?.nighttimePrecipProbability ?: chanceRow?.nighttimePrecipProbability,
+            precipProbability = forecast?.precipProbability ?: chanceRow?.precipProbability,
             hourly = hourly,
             centerLat = centerLat,
             centerLon = centerLon,

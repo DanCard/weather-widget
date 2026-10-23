@@ -20,12 +20,18 @@ import org.junit.experimental.categories.Category
 class DesktopDailyParityTest {
 
     private fun snapshotOf(fixture: DailyParity.Fixture): ForecastSnapshot {
-        // Today's row as DesktopWeatherDao.getDailyForecasts picks it (PartialForecastDays.todayRow).
-        val newest = fixture.newestRows().toMutableMap()
-        newest[fixture.today]?.let { batch ->
-            PartialForecastDays.todayRow(batch, fixture.allRows()[fixture.today].orEmpty(), { it.high }, { it.low }, { it.fetchedAt })
-                ?.let { newest[fixture.today] = it }
-        }
+        // DesktopWeatherDao.getDailyForecasts: each day's newest row from the newest batch's first day
+        // on (no past rows), then today's row by PartialForecastDays.todayRow over every stored row for
+        // today — which also supplies today when the batch starts at tomorrow (Silurian evenings).
+        val firstShown = fixture.firstShownDate()
+        val newest = fixture.newestRows()
+            .filter { (date, r) -> firstShown == null || r.isClimateNormal || !date.isBefore(firstShown) }
+            .toMutableMap()
+        val batchToday = newest[fixture.today]?.takeIf { !it.isClimateNormal }
+        val storedToday = fixture.rows.filter { it.source == fixture.displaySource && it.date == fixture.today }
+            .filter { it.high != null || it.low != null }
+        PartialForecastDays.todayRow(batchToday, storedToday, { it.high }, { it.low }, { it.fetchedAt })
+            ?.let { newest[fixture.today] = it }
         val daily = newest.values.sortedBy { it.date }.map { r ->
             DailyForecast(
                 date = r.date.toString(),
@@ -96,6 +102,7 @@ class DesktopDailyParityTest {
 
     @Test
     fun `desktop columns for the shared parity fixtures`() {
+        val mismatched = mutableListOf<String>()
         for (fixture in DailyParity.FIXTURES) {
             val config = DesktopConfig(
                 lat = DailyParity.LAT,
@@ -111,12 +118,14 @@ class DesktopDailyParityTest {
             )
             val text = DailyParity.render(fixture, state.days.map(::column))
             DailyParity.write("desktop", fixture, text)
-            assertEquals(
-                "${fixture.name}: desktop columns differ from the agreed ones (daily-parity/${fixture.name}.txt); " +
-                    "scripts/daily_parity_diff.py compares the platforms",
-                DailyParity.expected(fixture),
-                text,
-            )
+            if (text != DailyParity.expected(fixture)) mismatched += fixture.name
         }
+        // Every fixture is written before failing, so the diff script sees them all.
+        assertEquals(
+            "desktop columns differ from the agreed ones (daily-parity/<fixture>.txt); " +
+                "scripts/daily_parity_diff.py compares the platforms",
+            emptyList<String>(),
+            mismatched,
+        )
     }
 }

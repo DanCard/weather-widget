@@ -86,6 +86,7 @@ class AndroidDailyParityTest {
 
     @Test
     fun `android columns for the shared parity fixtures`() {
+        val mismatched = mutableListOf<String>()
         for (fixture in DailyParity.FIXTURES) {
             val request = GraphDayRequest(
                 now = fixture.now,
@@ -110,12 +111,14 @@ class AndroidDailyParityTest {
             )
             val text = DailyParity.render(fixture, DailyViewLogic.prepareGraphDays(request).map(::column))
             DailyParity.write("android", fixture, text)
-            assertEquals(
-                "${fixture.name}: android columns differ from the agreed ones (daily-parity/${fixture.name}.txt); " +
-                    "scripts/daily_parity_diff.py compares the platforms",
-                DailyParity.expected(fixture),
-                text,
-            )
+            if (text != DailyParity.expected(fixture)) mismatched += fixture.name
         }
+        // Every fixture is written before failing, so the diff script sees them all.
+        assertEquals(
+            "android columns differ from the agreed ones (daily-parity/<fixture>.txt); " +
+                "scripts/daily_parity_diff.py compares the platforms",
+            emptyList<String>(),
+            mismatched,
+        )
     }
 }

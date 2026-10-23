@@ -65,9 +65,25 @@ object DailyParity {
                 .groupBy { it.date }
                 .mapValues { (_, rs) -> rs.maxBy { it.fetchedAt } }
 
-        /** Every row of [source] per date (the prior / "yesterday's forecast" candidates). */
-        fun allRows(source: String = displaySource): Map<LocalDate, List<Row>> =
-            rows.filter { it.source == source }.groupBy { it.date }
+        /** First date of the newest fetch batch: desktop's daily read starts here (no past rows). */
+        fun firstShownDate(source: String = displaySource): LocalDate? {
+            val own = rows.filter { it.source == source }
+            val newestBatch = own.maxOfOrNull { it.fetchedAt } ?: return null
+            return own.filter { it.fetchedAt == newestBatch }.minOf { it.date }
+        }
+
+        /**
+         * The older forecasts per date, as both platforms' readers return them (desktop
+         * `getDailyForecastSnapshots`, Android's older-forecasts read): every row of [source] except,
+         * from the newest batch's first day on, the row each day shows ([newestRows]).
+         */
+        fun allRows(source: String = displaySource): Map<LocalDate, List<Row>> {
+            val own = rows.filter { it.source == source }
+            val newestBatch = own.maxOfOrNull { it.fetchedAt } ?: return emptyMap()
+            val firstShown = own.filter { it.fetchedAt == newestBatch }.minOf { it.date }
+            val shown = newestRows(source)
+            return own.filterNot { !it.date.isBefore(firstShown) && it === shown[it.date] }.groupBy { it.date }
+        }
     }
 
     /** What a column shows, in one vocabulary for both platforms. */
