@@ -41,6 +41,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.ZoomStage
 import com.weatherwidget.shared.util.DayClickResolver
+import com.weatherwidget.shared.util.DayTap
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.NoHourlyChecker
 import com.weatherwidget.util.NavigationUtils
@@ -521,9 +522,14 @@ internal fun WidgetPopup(
                                     DayClickResolver.DayTapZone.BOTTOM_ICON -> "graph_bottom_day"
                                 }
                                 onDayClickAudit(
-                                    "date=$clickedDate zone=$zone targetView=$targetView offset=$newOffset " +
-                                        "icon=${clickedDay?.iconName} precipGate=${routingPrecip.auditText()} " +
-                                        "clickSource=$clickSource",
+                                    DayTap.line(
+                                        clickedDate.toString(),
+                                        targetView.name,
+                                        newOffset,
+                                        routingPrecip.auditText(),
+                                        clickSource,
+                                        "zone=$zone icon=${clickedDay?.iconName}",
+                                    ),
                                 )
                                 val nextConfig = dayClickConfig(
                                     config, clickedDate, dailyState.days, zone, clickNow,
@@ -540,11 +546,14 @@ internal fun WidgetPopup(
                                 )
                                 // The day's hourly view opens either way, empty where data is missing.
                                 onUpdateConfig(nextConfig)
-                                when {
-                                    onDemandHours != null -> startHourlyFetch(clickedDate, "day_tap")
-                                    !hasHourly -> showNoHourlyData(clickedDate, snapshot.raw.hourly)
-                                    else -> noHourlyMessage = null
+                                val outcome = DayTap.outcome(onDemandHours, hasHourly)
+                                when (outcome) {
+                                    is DayTap.Outcome.Fetch -> startHourlyFetch(clickedDate, "day_tap")
+                                    DayTap.Outcome.NoData -> showNoHourlyData(clickedDate, snapshot.raw.hourly)
+                                    DayTap.Outcome.Open -> noHourlyMessage = null
                                 }
+                                DayTap.noHourlyLine(outcome, clickedDate.toString(), targetView.name, hasHourly, noHourlyMessage)
+                                    ?.let { onHourlyAudit(DayTap.NO_HOURLY_TAG, it) }
                             }
 
                             val todayBarTop = dailyState.days.firstOrNull { it.isToday }?.solidHigh

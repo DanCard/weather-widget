@@ -38,7 +38,6 @@ class CrossPlatformDuplicateLogTagsTest {
             "SOURCE_VIEW_PROBABILITY" to ADAPTER, // SourceViewProbability, daily log per platform store
             "TIMEZONE_CHANGE" to ADAPTER, // broadcast vs daemon clock check
             "DOMINANT_TEMP_WATCH" to ADAPTER, // DominantTempWatch, prefs vs file store
-            "CLICK_DAILY" to UI_FLOW,
             "HEADER_FIT" to UI_FLOW, // measuring glue around shared HeaderFit
             "HISTORY_REFRESH_DONE" to UI_FLOW,
             "LOCATION_FETCH_PENDING" to UI_FLOW,

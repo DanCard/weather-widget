@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.remote.weathernext.WeatherNextDomain
+import com.weatherwidget.shared.util.DayTap
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -1246,8 +1247,8 @@ internal fun runDesktopUiApplication() = application {
                 onNeedHistory = onNeedHistory,
                 onNeedHourlyRefresh = onNeedHourlyRefresh,
                 onDayClickAudit = { message ->
-                    Log.d("CLICK_DAILY", message)
-                    weatherDao.log("CLICK_DAILY", message, "DEBUG")
+                    Log.d(DayTap.TAG, message)
+                    weatherDao.log(DayTap.TAG, message, "DEBUG")
                 },
                 onHourlyAudit = { tag, message -> weatherDao.log(tag, message, "INFO") },
                 transientMessage = locationBanner?.text

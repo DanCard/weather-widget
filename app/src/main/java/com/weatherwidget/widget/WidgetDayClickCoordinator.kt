@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.util.DayTap
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
@@ -39,10 +40,15 @@ internal object WidgetDayClickCoordinator {
         val receiveTimeMs = SystemClock.elapsedRealtime()
         val database = WeatherDatabase.getDatabase(context)
         database.appLogDao().log(
-            "CLICK_DAILY",
-            "index=$index, date=$date, isHistory=$isHistory, showHistory=$showHistory, " +
-                "targetView=$targetViewName, offset=$targetOffset, precipGate=$precipGate, " +
-                "clickSource=$clickSource",
+            DayTap.TAG,
+            DayTap.line(
+                date,
+                targetViewName,
+                targetOffset,
+                precipGate,
+                clickSource,
+                "index=$index isHistory=$isHistory showHistory=$showHistory",
+            ),
         )
 
         if (showHistory) {
@@ -382,51 +388,55 @@ internal object WidgetDayClickCoordinator {
             } else {
                 null
             }
-        if (onDemandHours != null) {
-            val pendingMessage =
-                NoHourlyDayClickCoordinator.buildPendingMessage(context, NoHourlyDayClickCoordinator.formatDayLabel(date))
-            stateManager.setTransientMessage(
-                appWidgetId,
-                pendingMessage,
-                System.currentTimeMillis() + NoHourlyDayClickCoordinator.PENDING_MESSAGE_MAX_AGE_MS,
-            )
-            database.appLogDao().log(
-                "CLICK_DAILY_NO_HOURLY",
-                "phase=pending date=$date mode=$targetMode hasHourly=$hasHourly " +
-                    "onDemandHours=$onDemandHours -> \"$pendingMessage\"",
-            )
-            // The fetch first: a paint that fails must not cost the data it is waiting for.
-            HourlyOnDemandWorker.enqueue(
-                context = context,
-                widgetId = appWidgetId,
-                date = date,
-                sourceId = stateManager.getCurrentDisplaySource(appWidgetId).id,
-                lat = lat,
-                lon = lon,
-                hours = onDemandHours,
-                afterPan = false,
-            )
-        } else if (requiresHourly && !hasHourly) {
-            // Nothing a fetch can bring: say where the data ends, over the empty view.
-            val message = NoHourlyDayClickCoordinator.buildNoDataMessage(
-                context,
-                NoHourlyDayClickCoordinator.formatDayLabel(date),
-                NoHourlyDayClickCoordinator.lastHourlyEndLabelForSource(database, stateManager, appWidgetId, lat, lon),
-            )
-            stateManager.setTransientMessage(
-                appWidgetId,
-                message,
-                System.currentTimeMillis() + WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS,
-            )
-            WidgetWorkScheduler.enqueueDelayedUiRepaint(
-                context = context,
-                appWidgetId = appWidgetId,
-                reason = "clear_no_hourly_msg",
-                initialDelayMs =
-                    WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS +
-                        WidgetTransientMessagePolicy.CLEAR_BUFFER_MS,
-            )
-            database.appLogDao().log("CLICK_DAILY_NO_HOURLY", "phase=no_data date=$date -> \"$message\"")
+        // The view opens either way; what goes over it is :shared DayTap, as on desktop.
+        val outcome = if (requiresHourly) DayTap.outcome(onDemandHours, hasHourly) else DayTap.Outcome.Open
+        when (outcome) {
+            is DayTap.Outcome.Fetch -> {
+                val pendingMessage =
+                    NoHourlyDayClickCoordinator.buildPendingMessage(context, NoHourlyDayClickCoordinator.formatDayLabel(date))
+                stateManager.setTransientMessage(
+                    appWidgetId,
+                    pendingMessage,
+                    System.currentTimeMillis() + NoHourlyDayClickCoordinator.PENDING_MESSAGE_MAX_AGE_MS,
+                )
+                DayTap.noHourlyLine(outcome, date, targetMode.name, hasHourly, pendingMessage)
+                    ?.let { database.appLogDao().log(DayTap.NO_HOURLY_TAG, it) }
+                // The fetch first: a paint that fails must not cost the data it is waiting for.
+                HourlyOnDemandWorker.enqueue(
+                    context = context,
+                    widgetId = appWidgetId,
+                    date = date,
+                    sourceId = stateManager.getCurrentDisplaySource(appWidgetId).id,
+                    lat = lat,
+                    lon = lon,
+                    hours = outcome.hours,
+                    afterPan = false,
+                )
+            }
+            DayTap.Outcome.NoData -> {
+                // Nothing a fetch can bring: say where the data ends, over the empty view.
+                val message = NoHourlyDayClickCoordinator.buildNoDataMessage(
+                    context,
+                    NoHourlyDayClickCoordinator.formatDayLabel(date),
+                    NoHourlyDayClickCoordinator.lastHourlyEndLabelForSource(database, stateManager, appWidgetId, lat, lon),
+                )
+                stateManager.setTransientMessage(
+                    appWidgetId,
+                    message,
+                    System.currentTimeMillis() + WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS,
+                )
+                WidgetWorkScheduler.enqueueDelayedUiRepaint(
+                    context = context,
+                    appWidgetId = appWidgetId,
+                    reason = "clear_no_hourly_msg",
+                    initialDelayMs =
+                        WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS +
+                            WidgetTransientMessagePolicy.CLEAR_BUFFER_MS,
+                )
+                DayTap.noHourlyLine(outcome, date, targetMode.name, hasHourly, message)
+                    ?.let { database.appLogDao().log(DayTap.NO_HOURLY_TAG, it) }
+            }
+            DayTap.Outcome.Open -> Unit
         }
 
         // The caller (WidgetIntentRouter.handleDayClick) already holds the per-widget mutex, so

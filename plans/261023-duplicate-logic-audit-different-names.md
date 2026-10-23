@@ -182,3 +182,8 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   `DesktopForecastPlanner` are its hosts; Android's `logFetchPlan` and `routineParts` are gone.
   Settled differences: the line judges only the candidates (Android listed gated-off sources too), and
   desktop logs every plan, `parts=none` included (it logged only when something was due).
+- 2026-10-23: §3 day tap → `:shared` `DayTap` (outcome Fetch/NoData/Open from `hoursToCover` +
+  `hasHourly`; the `CLICK_DAILY` line with platform extras; the `CLICK_DAILY_NO_HOURLY` line). Desktop
+  now writes `CLICK_DAILY_NO_HOURLY` too. Still per platform, by design: the effects (Android's
+  transient message + worker + delayed repaint; desktop's popup banner state) and how each reads the
+  day's stored hourly (Android DB, desktop the loaded snapshot). Tag allowlist → 12.
