@@ -153,6 +153,23 @@ object DailyActualsAssembler {
     private val LOG_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
 
     /** Local wall-clock for a span bound, for log lines. */
+    /** Today's observation span for a log line ("06:10..14:55"), or "none". */
+    fun spanSummary(result: Result, zone: ZoneId): String =
+        result.todayObsSpan?.let { (first, last) -> "${formatLocal(first, zone)}..${formatLocal(last, zone)}" } ?: "none"
+
+    /**
+     * The `TODAY_LOW_UNCOVERED` app_logs line per suppressed low, one format on both platforms:
+     * (tag, message, level).
+     */
+    fun suppressedLowLines(result: Result, latitude: Double, longitude: Double, zone: ZoneId): List<Triple<String, String, String>> =
+        result.suppressedTodayLows.map {
+            Triple(
+                "TODAY_LOW_UNCOVERED",
+                "source=${it.source} span=${spanSummary(result, zone)} suppressedLow=${it.low} rows=${it.rows} at=$latitude,$longitude",
+                "DEBUG",
+            )
+        }
+
     fun formatLocal(ms: Long, zone: ZoneId): String =
         Instant.ofEpochMilli(ms).atZone(zone).format(LOG_TIME)
 }

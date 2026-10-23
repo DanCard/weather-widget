@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.actuals.DailyBlendWrite
 import com.weatherwidget.shared.history.WeatherApiHistoryRun
 import com.weatherwidget.shared.actuals.NwsStationActualsRun
 import com.weatherwidget.shared.graph.PriorDayCloudRun
@@ -1270,66 +1271,37 @@ class DesktopWeatherRepository(
             personalStationWeight = personalStationWeight,
         )
 
-        // extremes are rebuilt from scratch each recompute and never populate the forecast chance
-        // snapshot columns or the frozen display columns (written separately by
-        // snapshotDisplayedRainChance) — carry over any existing values so this write doesn't
-        // clobber them (full-row REPLACE in upsertDailyHistory).
-        val existingBySource = weatherDao.getExtremesInRange(windowStart, windowEnd, latitude, longitude)
-            .groupBy { it.date to it.source }
-        val merged = extremes.map { new ->
-            val existing = existingBySource[new.date to new.source]?.firstOrNull()
-            if (existing == null) {
-                new
-            } else {
-                // A past day keeps its stored high/low when pull-derived or when this pool saw only
-                // part of the day — the rule is shared with Android (StoredBlendGuard). A
-                // CACHED_OBSERVATIONS row's blend already comes from the stored pool, so the
-                // recompute rightly keeps improving it.
-                val date = LocalDate.ofEpochDay(existing.date / 86_400_000L)
-                val keep = StoredBlendGuard.keep(
-                    date = date,
-                    today = LocalDate.now(),
-                    source = new.source,
-                    storedActualsSource = existing.actualsSource,
-                    storedHigh = existing.computedHighTemp,
-                    storedLow = existing.computedLowTemp,
-                    readings = readings,
-                    zone = ZoneId.systemDefault(),
-                )
-                val freezeBlend = keep != StoredBlendGuard.Keep.NONE
-                if (keep == StoredBlendGuard.Keep.UNCOVERED &&
-                    (new.computedHighTemp != existing.computedHighTemp || new.computedLowTemp != existing.computedLowTemp)
-                ) {
-                    weatherDao.log(
-                        "DAILY_HISTORY_KEPT_UNCOVERED",
-                        "date=$date src=${new.source} kept=${existing.computedHighTemp}/${existing.computedLowTemp} " +
-                            "partial=${new.computedHighTemp}/${new.computedLowTemp}",
-                        "INFO",
-                    )
+        // Written per day by the shared rule (DailyBlendWrite, same as Android): this site's rows
+        // only, unchanged rows skipped, and a conditional write of the blend columns alone — it
+        // compared against the first row anywhere in the box and rewrote every row in full.
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone)
+        val existingByDate = weatherDao.getExtremesInRange(windowStart, windowEnd, latitude, longitude).groupBy { it.date }
+        var written = 0
+        extremes.groupBy { it.date }.forEach { (dateMs, newRows) ->
+            val date = LocalDate.ofEpochDay(dateMs / 86_400_000L)
+            val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
+            val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            val plan = DailyBlendWrite.plan(
+                date = date,
+                today = today,
+                newRows = newRows,
+                existingInBox = existingByDate[dateMs].orEmpty(),
+                latitude = latitude,
+                longitude = longitude,
+                dayReadings = readings.filter { it.timestamp in dayStart until dayEnd },
+                zone = zone,
+            )
+            if (plan.inserts.isNotEmpty()) weatherDao.upsertDailyHistory(plan.inserts)
+            plan.updates.forEach { update ->
+                if (weatherDao.updateBlendIfUnchanged(update.merged, update.newUpdatedAt, update.expectedUpdatedAt) == 0) {
+                    DailyBlendWrite.raceLine(update, date).let { weatherDao.log(it.tag, it.message, it.level) }
                 }
-                // Built from `existing`, enumerating only what this writer owns — see the Android
-                // sibling. Building from `new` (a freshly constructed entity) silently drops any
-                // column added later, which is how actualsSource was lost the day it was added.
-                existing.copy(
-                    computedHighTemp = if (freezeBlend) existing.computedHighTemp else new.computedHighTemp,
-                    computedLowTemp = if (freezeBlend) existing.computedLowTemp else new.computedLowTemp,
-                    // The times move with the values they describe (ForecastOverlaySettle). A frozen
-                    // pull row written before v72/v25 has none; it adopts the recompute's, which
-                    // describe when the same day's high/low happened — so it can still be settled.
-                    computedHighAt = if (freezeBlend) existing.computedHighAt ?: new.computedHighAt else new.computedHighAt,
-                    computedLowAt = if (freezeBlend) existing.computedLowAt ?: new.computedLowAt else new.computedLowAt,
-                    condition = new.condition,
-                    precipAmountMm = new.precipAmountMm,
-                    precipDayMm = new.precipDayMm,
-                    precipNightMm = new.precipNightMm,
-                    updatedAt = new.updatedAt,
-                    lastWriter = DailyHistoryWriter.BLEND_RECOMPUTE.storedValue,
-                )
             }
+            plan.logs.forEach { weatherDao.log(it.tag, it.message, it.level) }
+            written += plan.inserts.size + plan.updates.size
         }
-
-        weatherDao.upsertDailyHistory(merged)
-        return merged.size
+        return written
     }
 
     /**
@@ -1534,12 +1506,8 @@ class DesktopWeatherRepository(
             nowMs = now,
             personalStationWeight = personalStationWeight,
         )
-        result.suppressedTodayLows.forEach {
-            weatherDao.log(
-                "TODAY_LOW_UNCOVERED",
-                "source=${it.source} suppressedLow=${it.low} rows=${it.rows} at=$latitude,$longitude",
-                "DEBUG",
-            )
+        DailyActualsAssembler.suppressedLowLines(result, latitude, longitude, zone).forEach { (tag, message, level) ->
+            weatherDao.log(tag, message, level)
         }
         return DailyActualsLoad(
             actuals = result.bySource[displaySource.id].orEmpty().mapKeys { it.key.toString() },

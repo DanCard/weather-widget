@@ -40,8 +40,6 @@ class CrossPlatformDuplicateLogTagsTest {
             "TIMEZONE_CHANGE" to ADAPTER, // broadcast vs daemon clock check
             "DOMINANT_TEMP_WATCH" to ADAPTER, // DominantTempWatch, prefs vs file store
             "CLIMATE_FETCH_EMPTY" to FETCH_JOB,
-            "DAILY_HISTORY_KEPT_UNCOVERED" to FETCH_JOB,
-            "TODAY_LOW_UNCOVERED" to FETCH_JOB,
             "FETCH_PLAN" to FETCH_JOB,
             "GOOGLE_HOURS_PAGES" to FETCH_JOB,
             "HOURLY_ON_DEMAND" to FETCH_JOB,

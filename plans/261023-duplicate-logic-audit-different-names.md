@@ -136,3 +136,10 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   repaired gaps later (`plans/261023-nws-observation-cycle-latest-plus-recent-window-both-platforms.md`).
   One station throwing no longer cancels the pass (desktop had no guard). Header blend still per
   platform (`interpolateIDW` vs `NwsBlend.build`) — item E.
+- 2026-10-23: §2 daily blend write → `:shared` `DailyBlendWrite` (Android's `persistExtremes`, moved).
+  Desktop bugs fixed: it compared against the first `daily_history` row anywhere in the ~7-mile box
+  (a neighbouring site's row got this site's blend — test: 66.5 → 63.0 on the old code) and rewrote
+  every row in full; now this site's rows only, unchanged rows skipped, and a conditional
+  field-limited UPDATE (`DesktopWeatherDao.updateBlendIfUnchanged`, as Android's). The
+  `TODAY_LOW_UNCOVERED` line is `DailyActualsAssembler.suppressedLowLines` (desktop gains `span=`).
+  Tag allowlist −2 (→ 19).

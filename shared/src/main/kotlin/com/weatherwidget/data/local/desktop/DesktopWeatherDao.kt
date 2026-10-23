@@ -730,6 +730,42 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
+    /**
+     * The blend recompute's write ([com.weatherwidget.shared.actuals.DailyBlendWrite]): only the
+     * columns it owns, and only while the row's `updatedAt` is still [expectedUpdatedAt] — a
+     * concurrent writer's provenance columns are never overwritten (Android's
+     * `DailyHistoryDao.updateBlendIfUnchanged`). Returns the rows updated (0 = changed meanwhile).
+     */
+    fun updateBlendIfUnchanged(merged: DailyHistory, newUpdatedAt: Long, expectedUpdatedAt: Long): Int =
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                """
+                UPDATE daily_history SET
+                    computedHighTemp = ?, computedLowTemp = ?, computedHighAt = ?, computedLowAt = ?,
+                    condition = ?, precipAmountMm = ?, precipDayMm = ?, precipNightMm = ?,
+                    lastWriter = ?, updatedAt = ?
+                WHERE date = ? AND source = ? AND locationLat = ? AND locationLon = ? AND updatedAt = ?
+                """.trimIndent(),
+            ).use { stmt ->
+                stmt.setNullableFloat(1, merged.computedHighTemp)
+                stmt.setNullableFloat(2, merged.computedLowTemp)
+                stmt.setNullableLong(3, merged.computedHighAt)
+                stmt.setNullableLong(4, merged.computedLowAt)
+                stmt.setString(5, merged.condition)
+                stmt.setNullableFloat(6, merged.precipAmountMm)
+                stmt.setNullableFloat(7, merged.precipDayMm)
+                stmt.setNullableFloat(8, merged.precipNightMm)
+                stmt.setString(9, merged.lastWriter)
+                stmt.setLong(10, newUpdatedAt)
+                stmt.setLong(11, merged.date)
+                stmt.setString(12, merged.source)
+                stmt.setDouble(13, merged.locationLat)
+                stmt.setDouble(14, merged.locationLon)
+                stmt.setLong(15, expectedUpdatedAt)
+                stmt.executeUpdate()
+            }
+        }
+
     fun upsertDailyHistory(extremes: List<DailyHistory>) {
         db.getConnection().use { conn ->
             conn.autoCommit = false

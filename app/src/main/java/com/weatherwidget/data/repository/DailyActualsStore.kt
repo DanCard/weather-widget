@@ -1,5 +1,7 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.local.toEntity
+import com.weatherwidget.shared.actuals.DailyBlendWrite
 import com.weatherwidget.shared.observations.NwsBlend
 import android.os.SystemClock
 import android.util.Log
@@ -170,18 +172,9 @@ class DailyActualsStore @Inject constructor(
             "getDailyActualsWithLiveToday: date=$today lat=$latitude lon=$longitude " +
                 "todayObsRows=${result.todayObsRows} span=$obsSpanSummary live=[$liveSummary]",
         )
-        result.suppressedTodayLows.forEach {
-            Log.d(
-                TAG,
-                "TODAY_LOW_UNCOVERED source=${it.source} span=$obsSpanSummary " +
-                    "suppressedLow=${it.low} lat=$latitude lon=$longitude",
-            )
-            appLogDao.log(
-                "TODAY_LOW_UNCOVERED",
-                "source=${it.source} span=$obsSpanSummary suppressedLow=${it.low} " +
-                    "rows=${it.rows} at=$latitude,$longitude",
-                "DEBUG",
-            )
+        DailyActualsAssembler.suppressedLowLines(result, latitude, longitude, zone).forEach { (tag, message, level) ->
+            Log.d(TAG, "$tag $message")
+            appLogDao.log(tag, message, level)
         }
         return result.bySource
     }
@@ -387,109 +380,20 @@ class DailyActualsStore @Inject constructor(
         dayReadings: List<ObservationReading>,
         zone: ZoneId,
     ) {
-        val today = LocalDate.now(zone)
-        val existingHistory = dailyHistoryDao
-            .getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
-            .groupBy { it.source }
-        val toInsert = mutableListOf<DailyHistoryEntity>()
-        newExtremes.forEach { new ->
-            // Collapse the box result to the anchor site before writing. `new` was computed from an
-            // observation pool that ObservationDao already collapsed via selectNearestSite, so it
-            // describes ONE site; getExtremesInRange applies only the coarse ±0.1° ROOM_WHERE box
-            // (~7 mi) and happily returns fragments for sites the device visited hours ago. Writing
-            // an anchored blend onto all of them mixes sites.
-            //
-            // Samsung 2026-08-22: a GPS excursion promoted 37.424,-122.088, whose observations for
-            // the day began at 12:00. The recompute anchored there wrote its truncated low onto the
-            // home row 800 m away — `DAILY_HISTORY_OVERWRITE date=2026-08-22 src=TOMORROW_IO
-            // at=37.41682… low=57.03->66.52` at 18:41:58 — destroying a correct value built from 40
-            // rows spanning the whole day, and taking yesterday's row with it. Same shape as the
-            // cross-site repair bug: filter an uncollapsed pool by `source` but not by site.
-            val fragments = existingHistory[new.source].orEmpty()
-                .filter { LocationMatch.sameSite(it.locationLat, it.locationLon, latitude, longitude) }
-            if (fragments.isEmpty()) {
-                toInsert.add(new.copy(lastWriter = DailyHistoryWriter.BLEND_RECOMPUTE.storedValue))
-                return@forEach
-            }
-            var changedAny = false
-            fragments.forEach { existing ->
-                // Build the row we would write, then compare it whole. Enumerating the fields to
-                // compare is how precip-only deltas were silently dropped before (see
-                // recomputeDailyExtremesForDay's precip gate); comparing the merged candidate
-                // against `existing` cannot go stale when a column is added.
-                // A past day keeps its stored high/low when it came from the NWS station pull (the
-                // stored pool is thinner, part-Synoptic) or when this pool saw only part of the day.
-                // Today's row is never kept; its blend must stay live. CACHED_OBSERVATIONS rows are
-                // not frozen: their blend already comes from the stored pool, so the recompute is
-                // their rightful owner and keeps improving them as observations backfill.
-                val keep = StoredBlendGuard.keep(
-                    date = date,
-                    today = today,
-                    source = new.source,
-                    storedActualsSource = existing.actualsSource,
-                    storedHigh = existing.computedHighTemp,
-                    storedLow = existing.computedLowTemp,
-                    readings = dayReadings,
-                    zone = zone,
-                )
-                val freezeBlend = keep != StoredBlendGuard.Keep.NONE
-                if (keep == StoredBlendGuard.Keep.UNCOVERED &&
-                    (new.computedHighTemp != existing.computedHighTemp || new.computedLowTemp != existing.computedLowTemp)
-                ) {
-                    appLogDao.log(
-                        "DAILY_HISTORY_KEPT_UNCOVERED",
-                        "date=$date src=${new.source} at=${existing.locationLat},${existing.locationLon} " +
-                            "kept=${existing.computedHighTemp}/${existing.computedLowTemp} " +
-                            "partial=${new.computedHighTemp}/${new.computedLowTemp}",
-                        "INFO",
-                    )
-                }
-                // Built from `existing`, enumerating only the fields THIS writer owns.
-                //
-                // It used to be built from `new` — a freshly constructed entity from
-                // ObservationResolver.computeDailyExtremes — with a list of fields to take back
-                // from `existing`. That inverts the safe default: every column added later
-                // defaults to null in `new` and is silently dropped unless someone remembers to
-                // extend the list. `actualsSource` was dropped exactly that way the day it was
-                // added, which also disabled the freeze guard that reads it. Building from
-                // `existing` means an unknown column is preserved by construction.
-                val merged = existing.copy(
-                    computedHighTemp = if (freezeBlend) existing.computedHighTemp else new.computedHighTemp,
-                    computedLowTemp = if (freezeBlend) existing.computedLowTemp else new.computedLowTemp,
-                    // The times move with the values they describe (ForecastOverlaySettle). A frozen
-                    // pull row written before v72/v25 has none; it adopts the recompute's, which
-                    // describe when the same day's high/low happened — so it can still be settled.
-                    computedHighAt = if (freezeBlend) existing.computedHighAt ?: new.computedHighAt else new.computedHighAt,
-                    computedLowAt = if (freezeBlend) existing.computedLowAt ?: new.computedLowAt else new.computedLowAt,
-                    condition = new.condition,
-                    precipAmountMm = new.precipAmountMm,
-                    precipDayMm = new.precipDayMm,
-                    precipNightMm = new.precipNightMm,
-                    lastWriter = DailyHistoryWriter.BLEND_RECOMPUTE.storedValue,
-                )
-                if (merged.copy(lastWriter = existing.lastWriter) != existing) {
-                    changedAny = true
-                    appLogDao.log(
-                        "DAILY_HISTORY_OVERWRITE",
-                        "date=$date src=${new.source} at=${existing.locationLat},${existing.locationLon} " +
-                            "high=${existing.computedHighTemp}->${merged.computedHighTemp} low=${existing.computedLowTemp}->${merged.computedLowTemp} " +
-                            "precip=${existing.precipAmountMm}->${new.precipAmountMm} " +
-                            "apiHigh=${existing.apiHighTemp}->${merged.apiHighTemp} station=${merged.apiStationId}",
-                        "DEBUG",
-                    )
-                    updateBlendRow(merged, existing, new.updatedAt, date)
-                }
-            }
-            if (!changedAny) {
-                appLogDao.log(
-                    "DAILY_HISTORY_STABLE",
-                    "date=$date src=${new.source} high=${new.computedHighTemp} low=${new.computedLowTemp} fragments=${fragments.size}",
-                    "DEBUG",
-                )
-            }
-        }
-
-        if (toInsert.isNotEmpty()) dailyHistoryDao.insertAll(toInsert)
+        // The rule is :shared DailyBlendWrite (same as desktop); this applies its plan.
+        val plan = DailyBlendWrite.plan(
+            date = date,
+            today = LocalDate.now(zone),
+            newRows = newExtremes.map { it.toDailyHistory() },
+            existingInBox = dailyHistoryDao.getExtremesInRange(dateMillis, dateMillis, latitude, longitude).map { it.toDailyHistory() },
+            latitude = latitude,
+            longitude = longitude,
+            dayReadings = dayReadings,
+            zone = zone,
+        )
+        plan.updates.forEach { updateBlendRow(it.merged.toEntity(), it.expectedUpdatedAt, it.newUpdatedAt, date) }
+        plan.logs.forEach { appLogDao.log(it.tag, it.message, it.level) }
+        if (plan.inserts.isNotEmpty()) dailyHistoryDao.insertAll(plan.inserts.map { it.toEntity() })
     }
 
     /**
@@ -501,7 +405,7 @@ class DailyActualsStore @Inject constructor(
      */
     private suspend fun updateBlendRow(
         merged: DailyHistoryEntity,
-        existing: DailyHistoryEntity,
+        expectedUpdatedAt: Long,
         newUpdatedAt: Long,
         date: LocalDate,
     ) {
@@ -520,15 +424,11 @@ class DailyActualsStore @Inject constructor(
             precipNightMm = merged.precipNightMm,
             lastWriter = merged.lastWriter,
             updatedAt = newUpdatedAt,
-            expectedUpdatedAt = existing.updatedAt,
+            expectedUpdatedAt = expectedUpdatedAt,
         )
         if (updated == 0) {
-            appLogDao.log(
-                "DAILY_HISTORY_RACE",
-                "date=$date src=${merged.source} at=${merged.locationLat},${merged.locationLon} " +
-                    "expectedUpdatedAt=${existing.updatedAt} — skipped, row changed concurrently",
-                "WARN",
-            )
+            DailyBlendWrite.raceLine(DailyBlendWrite.Update(merged.toDailyHistory(), expectedUpdatedAt, newUpdatedAt), date)
+                .let { appLogDao.log(it.tag, it.message, it.level) }
         }
     }
 
