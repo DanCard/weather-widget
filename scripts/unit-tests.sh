@@ -331,6 +331,9 @@ start_single_invocation_summary_monitor() {
 
   (
     local pending=("${BUCKETS[@]}")
+    local long_start_epoch=0
+    local long_last_print=0
+    local long_last_count=0
     # :shared/:desktop run in their own background Gradle process; report them the moment it
     # exits instead of after the (Long-bound) :app run, which made them look slow.
     if [ -n "${SHARED_DESKTOP_PID:-}" ]; then
@@ -383,6 +386,29 @@ start_single_invocation_summary_monitor() {
         if [ "$done_now" = true ] && emit_bucket_summary "$bucket" "$results_dir" "$gradle_log" "$task_name"; then
           touch "$SINGLE_INVOCATION_REPORTED_DIR/$bucket"
           continue
+        fi
+        if [ "$bucket" = "Long" ]; then
+          local now_epoch
+          now_epoch=$(date +%s)
+          if [ "$long_start_epoch" -eq 0 ]; then
+            if grep -qE "^> Task :app:${task_name}( |$)" "$gradle_log" 2>/dev/null; then
+              long_start_epoch=$now_epoch
+              long_last_print=$now_epoch
+            fi
+          elif [ $((now_epoch - long_last_print)) -ge 8 ]; then
+            local long_passed
+            long_passed=$(awk -v task=":app:${task_name}" '
+              /^> Task / { in_task = ($3 == task) }
+              in_task && /^[A-Za-z0-9_$]+ > .+ PASSED/ { n++ }
+              END { print n + 0 }
+            ' "$gradle_log" 2>/dev/null || echo 0)
+            if [ "${long_passed:-0}" -gt "$long_last_count" ]; then
+              local long_elapsed=$((now_epoch - long_start_epoch))
+              log_and_echo "${BRIGHT_CYAN}[long]${NC}   ... ${long_passed} passed in ${long_elapsed}s"
+              long_last_count=$long_passed
+              long_last_print=$now_epoch
+            fi
+          fi
         fi
         remaining+=("$bucket")
       done
