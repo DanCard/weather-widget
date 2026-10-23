@@ -272,7 +272,21 @@ tasks.withType<Test> {
     // (2026-05-27, 2026-06-17, 2026-07-14 hs_err_pid*.log, gitignored) on long/heavy test runs,
     // always while C2 compiles one of these two SQLite/Room hot paths. Excluding them from C2
     // keeps them on the interpreter/C1 — imperceptible for tests, avoids the crash entirely.
+    // Short-lived test forks (~5-45s) spend ~26% of their CPU in C2 JIT compiler threads
+    // optimizing Robolectric/Android framework methods that are discarded on fork exit.
+    // Stopping at Tier 1 (C1 JIT) with an explicit 256m code cache (HotSpot otherwise shrinks
+    // ReservedCodeCacheSize from 240m to 48m under TieredStopAtLevel=1), skipping bytecode
+    // verification across Robolectric's SandboxClassLoader (-Xverify:none), pre-sizing the
+    // 512m worker heap (-Xms512m), and using 2-thread ParallelGC instead of 22-thread G1GC
+    // cuts Long test span ~59.2s -> ~40.5s (-34% CPU) and Medium ~19.5s -> ~11.1s (-46% CPU).
     jvmArgs(
+        "-XX:TieredStopAtLevel=1",
+        "-XX:ReservedCodeCacheSize=256m",
+        "-Xverify:none",
+        "-XX:-UsePerfData",
+        "-Xms512m",
+        "-XX:+UseParallelGC",
+        "-XX:ParallelGCThreads=2",
         "-XX:CompileCommand=exclude,android.database.sqlite.SQLiteProgram::<init>",
         "-XX:CompileCommand=exclude,androidx.room.driver.SupportSQLitePooledConnection::usePrepared",
     )
@@ -400,7 +414,10 @@ afterEvaluate {
             val baseTask = testDebugUnitTest.get()
             testClassesDirs = baseTask.testClassesDirs
             classpath = baseTask.classpath
-            maxParallelForks = baseTask.maxParallelForks
+            // Pure-JVM Short tests finish in ~1.0s on 2 forks; capping at 2 avoids spawning 2 extra
+            // JVMs during the initial 4-bucket startup burst.
+            maxParallelForks =
+                if (bucketName == "Short") baseTask.maxParallelForks.coerceAtMost(2) else baseTask.maxParallelForks
             testLogging {
                 events("passed", "skipped", "failed", "standardOut", "standardError")
                 showStandardStreams = true

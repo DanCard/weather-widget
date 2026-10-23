@@ -105,6 +105,13 @@ val validateSharedTestCategories by tasks.registering {
 
 tasks.withType<Test>().configureEach {
     dependsOn(validateSharedTestCategories)
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 4)
+    jvmArgs(
+        "-XX:TieredStopAtLevel=1",
+        "-XX:ReservedCodeCacheSize=256m",
+        "-Xverify:none",
+        "-XX:-UsePerfData",
+    )
     systemProperty("user.timezone", "America/Los_Angeles")
 }
 
