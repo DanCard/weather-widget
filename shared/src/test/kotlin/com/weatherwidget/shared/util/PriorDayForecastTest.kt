@@ -77,7 +77,7 @@ class PriorDayForecastTest {
     }
 
     @Test
-    fun `a fetch more than 48h before the cutoff is no pick, and today's fallback skips it too`() {
+    fun `a fetch more than 48h before the cutoff is never frozen, and today prefers a later row to it`() {
         // Pixel 2026-10-09: an Oct 2 fetch (90/74) stood as Oct 9's yesterday's forecast.
         val weekOld = Row(prev(11) - 6 * 24 * hour, 90f, 74f)
         val late = Row(prev(20), 69.5f, 56f)
@@ -85,7 +85,48 @@ class PriorDayForecastTest {
         val today = select(listOf(weekOld, late), fallback = true)
         assertEquals(69.5f, today.highRow!!.high)
         assertEquals(56f, today.lowRow!!.low)
-        assertTrue(select(listOf(weekOld), fallback = true).isEmpty)
+    }
+
+    @Test
+    fun `with nothing else, today shows an old forecast rather than no bar`() {
+        // User 2026-10-23 (as 2026-09-25): an older forecast, drawn as a dashed stand-in, beats losing
+        // the bar. History still never freezes it.
+        val weekOld = Row(prev(11) - 6 * 24 * hour, 90f, 74f)
+        assertTrue(select(listOf(weekOld)).isEmpty)
+        val today = select(listOf(weekOld), fallback = true)
+        assertEquals(90f, today.highRow!!.high)
+        assertTrue(PriorDayForecast.isPickStale(today, day, zone) { it.fetchedAt })
+    }
+
+    private data class Kept(val firstSeen: Long, val confirmed: Long, val high: Float?, val low: Float?)
+
+    private fun selectKept(rows: List<Kept>, fallback: Boolean = false) =
+        PriorDayForecast.select(rows, day, zone, { it.firstSeen }, { it.high }, { it.low }, fallback) { it.confirmed }
+
+    @Test
+    fun `an unchanged forecast first seen long ago but still confirmed is picked, not stale`() {
+        // Android keeps one row per unchanged forecast and re-stamps its batch: first seen 5 days
+        // before, confirmed an hour before each anchor. It was being lost after two days.
+        val kept = Kept(firstSeen = prev(11) - 5 * 24 * hour, confirmed = prev(15), high = 72f, low = 51f)
+        val pick = selectKept(listOf(kept))
+        assertEquals(72f, pick.highRow!!.high)
+        assertEquals(51f, pick.lowRow!!.low)
+        assertFalse(PriorDayForecast.isPickStale(pick, day, zone) { it.confirmed })
+    }
+
+    @Test
+    fun `a confirmation after the anchor still means it was current at the anchor`() {
+        val kept = Kept(firstSeen = prev(11) - 5 * 24 * hour, confirmed = prev(22), high = 72f, low = 51f)
+        assertEquals(72f, selectKept(listOf(kept)).highRow!!.high)
+    }
+
+    @Test
+    fun `the version current at the anchor wins over an older kept one`() {
+        val older = Kept(firstSeen = prev(1) - 3 * 24 * hour, confirmed = prev(3), high = 70f, low = 50f)
+        val newer = Kept(firstSeen = prev(4), confirmed = prev(23), high = 74f, low = 53f)
+        val pick = selectKept(listOf(older, newer))
+        assertEquals(74f, pick.highRow!!.high)
+        assertEquals(53f, pick.lowRow!!.low)
     }
 
     @Test

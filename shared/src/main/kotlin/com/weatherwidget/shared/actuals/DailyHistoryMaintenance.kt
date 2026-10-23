@@ -315,11 +315,12 @@ object DailyHistoryMaintenance {
             val pick = PriorDayForecast.select(
                 candidates, date, zoneId,
                 fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
-                fallbackToEarliest = false,
+                // Aged by last confirmation: Android re-stamps an unchanged row's batch.
+                fallbackToEarliest = false, lastConfirmedAt = { it.batchFetchedAt },
             )
             fun tooOldFrozen(frozen: Float?, cutoffMs: Long, valueOf: (ForecastHistoryRow) -> Float?): Boolean =
                 frozen != null && candidates.any {
-                    valueOf(it) == frozen && PriorDayForecast.isTooOld(it.fetchedAt, cutoffMs)
+                    valueOf(it) == frozen && PriorDayForecast.isTooOld(minOf(it.batchFetchedAt, cutoffMs), cutoffMs)
                 }
             val updated = history.copy(
                 priorForecastHighTemp = pick.highRow?.highTemp

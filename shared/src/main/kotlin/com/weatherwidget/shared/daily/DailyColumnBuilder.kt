@@ -133,7 +133,7 @@ object DailyColumnBuilder {
         val todayPick = PriorDayForecast.select(
             snapshots, date, zone,
             fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
-            fallbackToEarliest = true,
+            fallbackToEarliest = true, lastConfirmedAt = { it.lastConfirmedAt },
         )
         val todaySnapshot = todayPick.highRow ?: todayPick.lowRow
         val displaySnapshot = if (isToday) todaySnapshot else snapshot
@@ -144,6 +144,7 @@ object DailyColumnBuilder {
                 actual?.priorForecastHighTemp, actual?.priorForecastLowTemp, snapshots, date, zone,
                 fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
                 hindcastHigh = { it.hindcastHighTemp }, hindcastLow = { it.hindcastLowTemp },
+                lastConfirmedAt = { it.lastConfirmedAt },
             )
         } else {
             null

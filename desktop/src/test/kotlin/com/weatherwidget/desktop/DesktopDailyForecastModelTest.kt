@@ -401,8 +401,11 @@ settings = DesktopSettings(weatherSource = "NWS"),
         assertTrue(flagged.first { it.date == LocalDate.parse("2026-06-02") }.actualsFromOtherSite)
         assertTrue(flagged.first { it.isToday }.snapshotIsStale)
 
-        // A week-old fetch is no "yesterday's forecast" at all (2026-10-09: an Oct 2 90/74 drew for Oct 9).
-        assertEquals(null, build(snapshotAgeHours = 150, borrowedKm = null).first { it.isToday }.snapshotHigh)
+        // A week-old fetch is never frozen as one (2026-10-09), but with nothing newer today shows it,
+        // dashed, rather than no bar (user, 2026-10-23).
+        val weekOld = build(snapshotAgeHours = 150, borrowedKm = null).first { it.isToday }
+        assertEquals(79f, weekOld.snapshotHigh)
+        assertTrue(weekOld.snapshotIsStale)
 
         val plain = build(snapshotAgeHours = 30, borrowedKm = null)
         assertTrue(!plain.first { it.date == LocalDate.parse("2026-06-02") }.actualsFromOtherSite)

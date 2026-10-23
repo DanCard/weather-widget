@@ -27,10 +27,11 @@ object PriorDayForecast {
     const val STALE_SLACK_HOURS = 24L
 
     /**
-     * How long before its cutoff a fetch may have been made and still count as "yesterday's
-     * forecast". Between [STALE_SLACK_HOURS] and this the pick stands but draws dashed; older is no
-     * pick at all. Unbounded, a site first fetched a week earlier froze that week-old 90/74 as
-     * Oct 9's prior forecast (Pixel, 2026-10-09).
+     * How long before its cutoff a forecast may have been last confirmed and still count as
+     * "yesterday's forecast". Between [STALE_SLACK_HOURS] and this the pick stands but draws dashed;
+     * older never qualifies — it is never frozen into history (a site first fetched a week earlier
+     * froze that week-old 90/74 as Oct 9's prior forecast, Pixel 2026-10-09) — but the live bar
+     * shows it as a dashed stand-in rather than nothing ([select], user 2026-09-25 and 2026-10-23).
      */
     const val MAX_PICK_AGE_HOURS = 48L
 
@@ -56,12 +57,17 @@ object PriorDayForecast {
      * A row is usable for a side when that side is present and the row is not collapsed
      * (high == low, a degenerate row that would draw a zero-height bar).
      *
-     * Only rows fetched within [MAX_PICK_AGE_HOURS] before a cutoff compete for it.
+     * A row qualifies for a cutoff when it was first seen before it ([fetchedAt]) and last confirmed
+     * no more than [MAX_PICK_AGE_HOURS] before it ([lastConfirmedAt]; a confirmation after the cutoff
+     * means it was still current then). The newest first-seen qualifier wins — the version current
+     * at the cutoff. Android stores an unchanged forecast once and re-stamps its `batchFetchedAt`, so
+     * aging it by first sighting dropped a stable forecast after two days (2026-10-23).
      *
      * @param fallbackToEarliest when no usable row qualifies for a cutoff, take the earliest usable
-     *   row fetched after it instead. Today's live column does (the user chose showing a late row
-     *   over hiding it, 2026-09-25); the frozen history does not — a "yesterday's forecast" fetched
-     *   after its cutoff is not one. Rows too old to qualify never stand in.
+     *   row fetched after it, else the newest one first seen before it however old — both drawn as
+     *   stand-ins. Today's live column does (the user chose showing an older or later forecast over
+     *   hiding the bar, 2026-09-25 / 2026-10-23); the frozen history does not — a "yesterday's
+     *   forecast" fetched after its cutoff, or long before it, is not one.
      */
     fun <T> select(
         candidates: List<T>,
@@ -71,6 +77,7 @@ object PriorDayForecast {
         high: (T) -> Float?,
         low: (T) -> Float?,
         fallbackToEarliest: Boolean,
+        lastConfirmedAt: (T) -> Long = fetchedAt,
     ): Pick<T> {
         val usable = candidates.filter {
             val h = high(it)
@@ -79,10 +86,12 @@ object PriorDayForecast {
         }
         fun side(cutoffMs: Long, valueOf: (T) -> Float?): T? {
             val withValue = usable.filter { valueOf(it) != null }
-            return withValue.filter { fetchedAt(it) < cutoffMs && !isTooOld(fetchedAt(it), cutoffMs) }
+            val firstSeenBefore = withValue.filter { fetchedAt(it) < cutoffMs }
+            return firstSeenBefore.filter { !isTooOld(minOf(lastConfirmedAt(it), cutoffMs), cutoffMs) }
                 .maxByOrNull(fetchedAt)
                 ?: if (fallbackToEarliest) {
                     withValue.filter { fetchedAt(it) >= cutoffMs }.minByOrNull(fetchedAt)
+                        ?: firstSeenBefore.maxByOrNull(fetchedAt)
                 } else {
                     null
                 }
@@ -119,13 +128,14 @@ object PriorDayForecast {
         low: (T) -> Float?,
         hindcastHigh: (T) -> Float? = { null },
         hindcastLow: (T) -> Float? = { null },
+        lastConfirmedAt: (T) -> Long = fetchedAt,
     ): Past? {
         val pick = if (frozenHigh != null && frozenLow != null) {
             null
         } else {
-            select(candidates, date, zone, fetchedAt, high, low, fallbackToEarliest = false)
+            select(candidates, date, zone, fetchedAt, high, low, fallbackToEarliest = false, lastConfirmedAt)
         }
-        val late by lazy { select(candidates, date, zone, fetchedAt, high, low, fallbackToEarliest = true) }
+        val late by lazy { select(candidates, date, zone, fetchedAt, high, low, fallbackToEarliest = true, lastConfirmedAt) }
         fun side(frozen: Float?, picked: T?, valueOf: (T) -> Float?, lateRow: () -> T?, hindcast: (T) -> Float?): Pair<Float, Boolean>? =
             frozen?.let { it to false }
                 ?: picked?.let(valueOf)?.let { it to false }

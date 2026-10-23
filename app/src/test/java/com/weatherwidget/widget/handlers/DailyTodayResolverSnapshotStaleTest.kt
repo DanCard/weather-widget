@@ -61,9 +61,9 @@ class DailyTodayResolverSnapshotStaleTest {
 
     @Test
     fun `not re-confirmed within a day of the anchor is stale`() {
-        // First seen 09-28 08:00 (inside the 48 h pick window), last confirmed 09-29 05:00: 25h
-        // before the 09-30 06:00 low anchor.
-        assertTrue(stale(row(fetchedAt = at(28, 8), confirmedAt = at(29, 5))))
+        // First seen 09-27 (over 48 h before the anchors), last confirmed 09-29 05:00: still picked —
+        // aged by its last confirmation — and stale, 25h before the 09-30 06:00 low anchor.
+        assertTrue(stale(row(fetchedAt = at(27, 8), confirmedAt = at(29, 5))))
     }
 
     @Test
