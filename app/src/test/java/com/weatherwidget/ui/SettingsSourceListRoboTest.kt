@@ -157,6 +157,25 @@ class SettingsSourceListRoboTest {
     }
 
     @Test
+    fun `a saved drag repaints the widgets so the home button follows the new order`() {
+        withSettings { activity ->
+            val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+            val before = shadowOf(app).broadcastIntents.size
+            val callback = activity.sourceDragCallback
+            val recycler = activity.recycler()
+            val dragged = activity.holder(1)
+            callback.onSelectedChanged(dragged, ItemTouchHelper.ACTION_STATE_DRAG)
+            callback.onMove(recycler, dragged, activity.holder(0))
+            callback.clearView(recycler, dragged)
+
+            val repaint = shadowOf(app).broadcastIntents.drop(before)
+                .lastOrNull { it.action == com.weatherwidget.widget.WidgetActions.ACTION_REFRESH }
+            assertTrue("drop sends a repaint", repaint != null)
+            assertTrue(repaint!!.getBooleanExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, false))
+        }
+    }
+
+    @Test
     fun `a drag that ends where it started saves nothing`() {
         withSettings { activity ->
             val callback = activity.sourceDragCallback

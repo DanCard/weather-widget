@@ -256,9 +256,10 @@ internal object WidgetIntentActionHandler {
      * button means "go back to the daily view" and must keep meaning only that. Here the view is
      * already home and the SOURCE is what is off it.
      *
-     * A no-op when the widget already shows the preferred source — the button that sends this is
-     * only bound when it does not, so arriving here in that state means a stale PendingIntent, and
-     * a full re-render for it would be work with no visible effect.
+     * When the widget already shows the preferred source the tap came from a stale button — bound
+     * under an older source order (e.g. the shown source was dragged first in Settings). The source
+     * is left alone but the widget is repainted, so the button is re-decided (hidden, or recentre):
+     * returning silently left a visible button that did nothing on every tap (Fold 4, 2026-10-22).
      */
     suspend fun resetSource(
         context: Context,
@@ -269,7 +270,21 @@ internal object WidgetIntentActionHandler {
         val stateManager = WidgetStateManager(context)
         val preferred = stateManager.getPrimarySource()
         if (stateManager.getCurrentDisplaySource(appWidgetId) == preferred) {
-            Log.d(TAG, "Ignoring stale reset-source PendingIntent for widget $appWidgetId")
+            Log.d(TAG, "Stale reset-source PendingIntent for widget $appWidgetId; repainting its header")
+            val refreshContext = prepareContext(context, appWidgetId, "reset_source_stale") ?: return
+            InteractionRenderDispatcher.render(
+                stateManager.getViewMode(appWidgetId),
+                request(
+                    context,
+                    appWidgetId,
+                    refreshContext,
+                    LocalDateTime.now(),
+                    repository,
+                    startMs,
+                    "RESET_SOURCE_STALE",
+                    "source=${preferred.id}",
+                ),
+            )
             return
         }
         stateManager.setCurrentDisplaySource(appWidgetId, preferred)

@@ -435,6 +435,10 @@ class SettingsActivity : AppCompatActivity() {
         Log.d("SOURCE_ORDER", summary)
         eventLogger.log("SOURCE_ORDER", summary)
         widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
+        // The daily home button is bound from the order (first = preferred), and a removal can move
+        // a widget's source: an unpainted widget kept a home button that pointed nowhere (Fold 4,
+        // 2026-10-22 — Google dragged first while shown; every home tap was "stale", no-op).
+        repaintWidgets()
     }
 
     /** The In-rotation list. Rows move in place while dragged; the order is saved on drop. */
