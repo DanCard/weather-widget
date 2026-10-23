@@ -53,7 +53,6 @@ import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.nowcast.NowcastFetcher
 import com.weatherwidget.shared.nowcast.NowcastRefreshPolicy
 import com.weatherwidget.shared.nowcast.NowcastStore
-import com.weatherwidget.shared.nowcast.NowcastSummary
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import kotlinx.coroutines.Dispatchers
@@ -1146,29 +1145,24 @@ class DesktopWeatherRepository(
         sources: List<String>,
         reason: String,
     ): NowcastFetcher.Outcome? = withContext(Dispatchers.IO) {
-        val nowMs = currentTimeMillis()
-        val hourly = sources.distinct().flatMap {
-            weatherDao.getHourlyForecasts(latitude, longitude, it, nowMs - 60 * 60 * 1000L, nowMs + NowcastRefreshPolicy.PLAUSIBLE_WINDOW_MS)
-        }
-        val maxPop = NowcastRefreshPolicy.maxPopNext3h(hourly, nowMs)
-        val skip = NowcastRefreshPolicy.skipReason(
-            openMeteoDisplayed = displaySource == WeatherSource.OPEN_METEO,
-            nativeCoverage = store.loadCoverage(latitude, longitude, nowMs),
-            cached = store.loadSeries(latitude, longitude, nowMs),
-            maxPopNext3h = maxPop,
-            nowMs = nowMs,
+        com.weatherwidget.shared.nowcast.NowcastRefreshRun.run(
+            object : com.weatherwidget.shared.nowcast.NowcastRefreshRun.Host {
+                override val lat = latitude
+                override val lon = longitude
+                override val openMeteoDisplayed = displaySource == WeatherSource.OPEN_METEO
+                override val store = store
+
+                // The usable sources' hourly at the site: only their max chance is read.
+                override suspend fun hourly(fromMs: Long, toMs: Long) =
+                    sources.distinct().flatMap { weatherDao.getHourlyForecasts(latitude, longitude, it, fromMs, toMs) }
+
+                override suspend fun fetch() = weatherService.refreshNowcast()
+
+                override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
+            },
+            reason = reason,
+            nowMs = currentTimeMillis(),
         )
-        if (skip != null) {
-            Log.d(TAG, "NOWCAST_SKIP reason=${skip.logName} trigger=$reason maxPop=$maxPop")
-            return@withContext null
-        }
-        val outcome = weatherService.refreshNowcast() ?: return@withContext null
-        weatherDao.log("NOWCAST_FETCH", "trigger=$reason maxPop=$maxPop ${outcome.logLine}", if (outcome is NowcastFetcher.Outcome.Failed) "WARN" else "INFO")
-        if (outcome is NowcastFetcher.Outcome.Fetched) {
-            val summary = NowcastSummary.summarize(store.loadSeries(latitude, longitude, nowMs) ?: return@withContext outcome, nowMs)
-            weatherDao.log("NOWCAST_SUMMARY", "text=${NowcastSummary.describe(summary, use24HourClock = true) ?: "dry"}")
-        }
-        outcome
     }
 
     /**

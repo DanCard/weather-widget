@@ -8,10 +8,8 @@ import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.di.RepositoryEntryPoint
 import com.weatherwidget.shared.nowcast.NowcastFetcher
-import com.weatherwidget.shared.nowcast.NowcastRefreshPolicy
+import com.weatherwidget.shared.nowcast.NowcastRefreshRun
 import com.weatherwidget.shared.nowcast.NowcastStore
-import com.weatherwidget.shared.nowcast.NowcastSummary
-import com.weatherwidget.shared.util.Log
 import dagger.hilt.android.EntryPointAccessors
 import io.ktor.client.HttpClient
 import java.io.File
@@ -43,46 +41,31 @@ internal class NowcastRefresher(
     },
     private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
-    /** True when a nowcast was fetched (the caller's repaint then shows it). */
+    /** True when a nowcast was fetched (the caller's repaint then shows it). The rule is `:shared` [NowcastRefreshRun]. */
     suspend fun refreshIfDue(lat: Double, lon: Double, reason: String): Boolean {
-        val now = nowMs()
-        val openMeteoDisplayed = WeatherSource.OPEN_METEO.id in widgetStateManager.getActiveDisplaySourceIds()
-        // Raw proximity-box rows on purpose (allow-listed): only their MAX chance is read, as a
-        // "rain plausible?" gate. A frozen fragment can at worst cost one extra ~1 KB request; it
-        // never reaches anything drawn.
-        val hourly = if (openMeteoDisplayed) {
-            WeatherDatabase.getDatabase(context).hourlyForecastDao()
-                .getHourlyForecasts(now - HOUR_MS, now + NowcastRefreshPolicy.PLAUSIBLE_WINDOW_MS, lat, lon)
-                .map { it.toHourlyForecast() }
-        } else {
-            emptyList()
-        }
-        val maxPop = NowcastRefreshPolicy.maxPopNext3h(hourly, now)
-        val skip = NowcastRefreshPolicy.skipReason(
-            openMeteoDisplayed = openMeteoDisplayed,
-            nativeCoverage = store.loadCoverage(lat, lon, now),
-            cached = store.loadSeries(lat, lon, now),
-            maxPopNext3h = maxPop,
-            nowMs = now,
+        val outcome = NowcastRefreshRun.run(
+            object : NowcastRefreshRun.Host {
+                override val lat = lat
+                override val lon = lon
+                override val openMeteoDisplayed = WeatherSource.OPEN_METEO.id in widgetStateManager.getActiveDisplaySourceIds()
+                override val store = this@NowcastRefresher.store
+
+                // Raw proximity-box rows of every source on purpose (allow-listed): only their MAX
+                // chance is read, as a "rain plausible?" gate. A frozen fragment can at worst cost one
+                // extra ~1 KB request; it never reaches anything drawn.
+                override suspend fun hourly(fromMs: Long, toMs: Long) =
+                    WeatherDatabase.getDatabase(context).hourlyForecastDao()
+                        .getHourlyForecasts(fromMs, toMs, lat, lon)
+                        .map { it.toHourlyForecast() }
+
+                override suspend fun fetch() = NowcastFetcher(httpClient(), store, nowMs).refresh(lat, lon)
+
+                override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
+            },
+            reason = reason,
+            nowMs = nowMs(),
         )
-        if (skip != null) {
-            Log.d(TAG, "NOWCAST_SKIP reason=${skip.logName} trigger=$reason maxPop=$maxPop")
-            return false
-        }
-        val outcome = NowcastFetcher(httpClient(), store, nowMs).refresh(lat, lon)
-        appLogDao.log(
-            "NOWCAST_FETCH",
-            "trigger=$reason maxPop=$maxPop ${outcome.logLine}",
-            if (outcome is NowcastFetcher.Outcome.Failed) "WARN" else "INFO",
-        )
-        if (outcome !is NowcastFetcher.Outcome.Fetched) return false
-        val summary = store.loadSeries(lat, lon, now)?.let { NowcastSummary.summarize(it, now) }
-        appLogDao.log("NOWCAST_SUMMARY", "text=${NowcastSummary.describe(summary, use24HourClock = true) ?: "dry"}")
-        return true
+        return outcome is NowcastFetcher.Outcome.Fetched
     }
 
-    private companion object {
-        const val TAG = "NowcastRefresher"
-        const val HOUR_MS = 60L * 60 * 1000
-    }
 }

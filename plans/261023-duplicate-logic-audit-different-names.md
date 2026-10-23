@@ -107,3 +107,7 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   (desktop's `720/24+1`); the Open-Meteo gate moved into the rule (desktop asked every source and got
   an hourly empty result); desktop now logs `PRIOR_CLOUD*` to app_logs like Android; one failure tag
   `PRIOR_CLOUD_FAIL`. Tag allowlist −2.
+- 2026-10-23: §2 nowcast refresh → `:shared` `NowcastRefreshRun` + Host (gate inputs, policy call,
+  `NOWCAST_*` logs). Desktop now skips the hourly read when Open-Meteo isn't displayed, as Android
+  did. Each platform keeps its source scope for the "rain plausible?" read (Android every source in
+  the box, desktop its usable sources). Tag allowlist −3.
