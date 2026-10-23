@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.observations.NwsStationAttemptLog
 import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.LocationMatch
@@ -777,12 +778,8 @@ class DesktopWeatherService(
                 val bundleLatest = latestResult.chosen
                 val webReadings = latestResult.webRows
                 latestResult.cloudCarrier?.let { carrier ->
-                    weatherDao?.log(
-                        "OBS_CLOUD_CARRIER",
-                        "station=${station.id} timestamp=${carrier.timestamp} cloudLow=${carrier.cloudCoverLow} " +
-                            "reason=preserve_independent_api_observation",
-                        "INFO",
-                    )
+                    NwsStationAttemptLog.cloudCarrier(station.id, carrier.timestamp, carrier.cloudCoverLow)
+                        .let { weatherDao?.log(it.tag, it.message, it.level) }
                 }
 
                 // The history window with its web fallback: the step Android runs too (shared
@@ -820,15 +817,16 @@ class DesktopWeatherService(
                     // (e.g. publishing only null-temperature reports). Record the attempt on the
                     // newest stored row so the stations list shows a fresh "Fetched" against an
                     // old "Reported" (silent station) instead of both timestamps frozen.
-                    weatherDao?.touchLatestObservationFetchedAt(station.id, System.currentTimeMillis())
-                    weatherDao?.log("OBS_ATTEMPT_TOUCH", "station=${station.id} reason=no_valid_observation", "INFO")
+                    // This site's rows only, as Android: after a move the station's newest row may be
+                    // a previous site's.
+                    weatherDao?.touchLatestObservationFetchedAt(station.id, latitude, longitude, System.currentTimeMillis())
+                    NwsStationAttemptLog.touched(station.id).let { weatherDao?.log(it.tag, it.message, it.level) }
                     null
                 } else {
                     // Every upstream failed outright — leave fetchedAt frozen (a dead network
                     // must not masquerade as a silent station) and report the failure durably.
-                    val nwsReason = (historicalOutcome as? FetchOutcome.Failed)?.reason ?: "unknown"
-                    val webReason = latestResult.webFailureReason ?: "not_tried"
-                    weatherDao?.log("NWS_STATION_FAIL", "station=${station.id} nws=$nwsReason web=$webReason", "WARN")
+                    NwsStationAttemptLog.failed(station.id, (historicalOutcome as? FetchOutcome.Failed)?.reason, latestResult.webFailureReason)
+                        .let { weatherDao?.log(it.tag, it.message, it.level) }
                     null
                 }
             }

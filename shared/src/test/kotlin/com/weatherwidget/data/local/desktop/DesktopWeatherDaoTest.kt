@@ -154,13 +154,13 @@ class DesktopWeatherDaoTest {
     fun `touch latest fetchedAt updates only the target station's newest row`() {
         val lat = 40.0
         val lon = -75.0
-        fun obs(stationId: String, timestamp: Long, fetchedAt: Long) = DesktopObservationEntity(
+        fun obs(stationId: String, timestamp: Long, fetchedAt: Long, siteLat: Double = lat) = DesktopObservationEntity(
             stationId = stationId,
             stationName = "$stationId name",
             timestamp = timestamp,
             temperature = 70f,
             condition = "Fair",
-            locationLat = lat,
+            locationLat = siteLat,
             locationLon = lon,
             fetchedAt = fetchedAt,
             api = "NWS",
@@ -168,22 +168,25 @@ class DesktopWeatherDaoTest {
         dao.upsertObservations(
             listOf(
                 obs("KNUQ", timestamp = 1_000L, fetchedAt = 1_500L),
-                obs("KNUQ", timestamp = 2_000L, fetchedAt = 2_500L), // newest KNUQ row
+                obs("KNUQ", timestamp = 2_000L, fetchedAt = 2_500L), // newest KNUQ row here
                 obs("KSJC", timestamp = 3_000L, fetchedAt = 3_500L), // different station
+                // The same station's newer row at a previous site (a move): never this site's touch.
+                obs("KNUQ", timestamp = 4_000L, fetchedAt = 4_500L, siteLat = lat + 0.5),
             )
         )
 
-        dao.touchLatestObservationFetchedAt("KNUQ", nowMs = 9_000L)
+        dao.touchLatestObservationFetchedAt("KNUQ", lat, lon, nowMs = 9_000L)
 
         val byStation = dao.getRecentObservations(0L).groupBy { it.stationId }
         val knuq = byStation.getValue("KNUQ").sortedBy { it.timestamp }
         assertEquals(1_500L, knuq[0].fetchedAt) // older row untouched
-        assertEquals(9_000L, knuq[1].fetchedAt) // newest row records the attempt
+        assertEquals(9_000L, knuq[1].fetchedAt) // this site's newest row records the attempt
+        assertEquals(4_500L, knuq[2].fetchedAt) // the other site's newer row untouched
         assertEquals(3_500L, byStation.getValue("KSJC").single().fetchedAt) // other station untouched
 
         // Unknown station is a no-op: nothing inserted, nothing changed.
-        dao.touchLatestObservationFetchedAt("KPAO", nowMs = 9_999L)
-        assertEquals(3, dao.getRecentObservations(0L).size)
+        dao.touchLatestObservationFetchedAt("KPAO", lat, lon, nowMs = 9_999L)
+        assertEquals(4, dao.getRecentObservations(0L).size)
     }
 
     @Test

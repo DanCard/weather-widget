@@ -124,3 +124,10 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   Android also forces the day's extremes recompute, desktop's post-fetch pass recomputes. Logs now one
   format (desktop's covered / cooldown checks reach app_logs at VERBOSE; `daily=` on desktop). Tag
   allowlist −2 (34 → 24).
+- 2026-10-23: §2 current observation — partial. The per-station log lines (`OBS_CLOUD_CARRIER`,
+  `OBS_ATTEMPT_TOUCH`, `NWS_STATION_FAIL`) come from `:shared` `NwsStationAttemptLog` (one format;
+  `secondary=` → `web=`), and desktop's fetchedAt touch is site-scoped like Android's (it stamped the
+  station's newest row at any site — a previous one after a move). Not shared: the flow itself —
+  Android fetches the latest reading here and the history window elsewhere, desktop both per station
+  in one pass, so the "silent vs failed" verdict reads different outcomes. One runner needs the two
+  fetch shapes aligned first: **follow-up decision**. Tag allowlist −3 (→ 21).

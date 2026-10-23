@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.shared.observations.NwsStationAttemptLog
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.LocationMatch
@@ -142,11 +143,7 @@ class NwsCurrentObservationUpdater private constructor(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            appLogDao.log(
-                "NWS_STATION_FAIL",
-                "station=${station.id} error=${e::class.simpleName}:${e.message}",
-                "WARN",
-            )
+            NwsStationAttemptLog.threw(station.id, e).let { appLogDao.log(it.tag, it.message, it.level) }
             Log.e(TAG, "NWS station ${station.id} fetch failed", e)
             return null
         }
@@ -156,12 +153,8 @@ class NwsCurrentObservationUpdater private constructor(
         result.cloudCarrier?.let { carrier ->
             val entity = carrier.toEntity()
             observationDao.insertAll(listOf(entity))
-            appLogDao.log(
-                "OBS_CLOUD_CARRIER",
-                "station=${station.id} timestamp=${entity.timestamp} cloudLow=${entity.cloudCoverLow} " +
-                    "reason=preserve_independent_api_observation",
-                "INFO",
-            )
+            NwsStationAttemptLog.cloudCarrier(station.id, entity.timestamp, entity.cloudCoverLow)
+                .let { appLogDao.log(it.tag, it.message, it.level) }
         }
 
         val chosen = result.chosen?.toEntity()
@@ -173,19 +166,10 @@ class NwsCurrentObservationUpdater private constructor(
                     LocationMatch.quantize(longitude),
                     System.currentTimeMillis(),
                 )
-                appLogDao.log(
-                    "OBS_ATTEMPT_TOUCH",
-                    "station=${station.id} reason=no_valid_observation",
-                    "INFO",
-                )
+                NwsStationAttemptLog.touched(station.id).let { appLogDao.log(it.tag, it.message, it.level) }
             } else {
-                appLogDao.log(
-                    "NWS_STATION_FAIL",
-                    "station=${station.id} " +
-                        "nws=${result.nwsFailureReason ?: "unknown"} " +
-                        "secondary=${result.webFailureReason ?: "not_tried"}",
-                    "WARN",
-                )
+                NwsStationAttemptLog.failed(station.id, result.nwsFailureReason, result.webFailureReason)
+                    .let { appLogDao.log(it.tag, it.message, it.level) }
             }
             return null
         }

@@ -1313,20 +1313,31 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      * completes but yields nothing storable (station publishing null-temperature reports) would
      * otherwise leave fetchedAt frozen at the last stored data, making a silent station look like
      * a stalled pipeline in the stations list. Touching only the newest row is sufficient — the
-     * UI displays one row per station.
+     * UI displays one row per station. Scoped to the site (quantized coordinates, as rows are
+     * written), as Android's `ObservationDao.touchLatestFetchedAt`: after a move the station's newest
+     * row may belong to a previous site.
      */
-    fun touchLatestObservationFetchedAt(stationId: String, nowMs: Long) {
+    fun touchLatestObservationFetchedAt(stationId: String, latitude: Double, longitude: Double, nowMs: Long) {
+        val lat = LocationMatch.quantize(latitude)
+        val lon = LocationMatch.quantize(longitude)
         db.getConnection().use { conn ->
             conn.prepareStatement(
                 """
                 UPDATE observations SET fetchedAt = ?
-                WHERE stationId = ?
-                  AND timestamp = (SELECT MAX(timestamp) FROM observations WHERE stationId = ?)
+                WHERE stationId = ? AND locationLat = ? AND locationLon = ?
+                  AND timestamp = (
+                      SELECT MAX(timestamp) FROM observations
+                      WHERE stationId = ? AND locationLat = ? AND locationLon = ?
+                  )
                 """.trimIndent()
             ).use { stmt ->
                 stmt.setLong(1, nowMs)
                 stmt.setString(2, stationId)
-                stmt.setString(3, stationId)
+                stmt.setDouble(3, lat)
+                stmt.setDouble(4, lon)
+                stmt.setString(5, stationId)
+                stmt.setDouble(6, lat)
+                stmt.setDouble(7, lon)
                 stmt.executeUpdate()
             }
         }
