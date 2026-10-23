@@ -584,8 +584,9 @@ fun DailyForecastGraph(
                 // gap; negative gap = slight overlap). If Today has a prior-day snapshot bar that reaches
                 // higher than the high label, anchor to the snapshot bar top so the two never collide.
                 // Past columns have the same (thinner) left bar.
-                val snapshotBarTop = if ((day.isToday || day.isPast) && day.snapshotHigh != null && day.snapshotLow != null) {
-                    yAt(day.snapshotHigh) - (if (day.isToday) compactTodayBarWidth else pastTripleWidth) / 2f
+                val snapshotHigh = day.snapshotHigh
+                val snapshotBarTop = if ((day.isToday || day.isPast) && snapshotHigh != null && day.snapshotLow != null) {
+                    yAt(snapshotHigh) - (if (day.isToday) compactTodayBarWidth else pastTripleWidth) / 2f
                 } else null
                 val anchorTop = DailyRainLabelPlanner.resolveDayRainAnchorTop(
                     highLabelTop = highLabelTopAtCenter,
