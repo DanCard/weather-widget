@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.actuals.NwsStationActualsRun
 import com.weatherwidget.shared.graph.PriorDayCloudRun
 import com.weatherwidget.shared.observations.CurrentConditionsRun
 import com.weatherwidget.data.remote.ApiKeyRedaction
@@ -1744,132 +1745,36 @@ class DesktopWeatherRepository(
     }
 
     /**
-     * Fills NWS apiHighTemp/apiLowTemp from a dedicated complete pull of
-     * `api.weather.gov/stations/{id}/observations`. Mirrors Android's NwsApiDailyActualsFetcher;
-     * idempotent — only dates still missing an actual trigger a request.
+     * NWS apiHighTemp/apiLowTemp from the dedicated `/stations/{id}/observations` pull. The rule is
+     * `:shared` [NwsStationActualsRun] (same as Android); this is its desktop host.
      */
-    internal suspend fun fillNwsStationActualsIfNeeded(now: Long) {
-        val zone = ZoneId.systemDefault()
-        val today = LocalDate.now(zone)
-        val startMs = today.minusDays(NwsDailyExtremesFetch.MAX_LOOKBACK_DAYS).toEpochDay() * 86_400_000L
-        val endMs = today.toEpochDay() * 86_400_000L
+    internal suspend fun fillNwsStationActualsIfNeeded(now: Long) = NwsStationActualsRun.run(
+        object : NwsStationActualsRun.Host {
+            override val lat = latitude
+            override val lon = longitude
+            override val personalStationWeight = this@DesktopWeatherRepository.personalStationWeight
 
-        val missing = weatherDao.getExtremesInRange(startMs, endMs, latitude, longitude)
-            // Also catches rows with correct values but no provenance — a value-only predicate
-            // can never repair those. See the Android sibling.
-            .filter {
-                it.source == WeatherSource.NWS.id &&
-                    (it.apiHighTemp == null || it.apiLowTemp == null || it.actualsSource == null)
-            }
-            .map { it.date }
-            .distinct()
-        if (missing.isEmpty()) return
+            override suspend fun dailyHistory(startMs: Long, endMs: Long) =
+                weatherDao.getExtremesInRange(startMs, endMs, latitude, longitude)
 
-        val stations = weatherService.nearestStationsForDailyActuals()
-        if (stations.isEmpty()) {
-            // Never a silent return: an invisible skip here is indistinguishable from "nothing to
-            // do", which is how desktop's Synoptic fallback once hid for weeks.
-            weatherDao.log("NWS_STATION_ACTUALS_FAIL", "dates=${missing.size} reason=no_stations", "WARN")
-            return
-        }
-        val stationsById = stations.associateBy { it.id }
+            override suspend fun stations() = weatherService.nearestStationsForDailyActuals()
 
-        val outcome = NwsStationActualsMaintenance.resolve(
-            missingDates = missing,
-            stationIdsNearestFirst = stations.map { it.id },
-            userLat = latitude,
-            userLon = longitude,
-            personalStationWeight = personalStationWeight,
-            zone = zone,
-            nowMs = now,
-            hourlyForecastsForDay = { dayStartMs, dayEndMs ->
-                weatherDao.getHourlyWithHistory(
-                    latitude, longitude, WeatherSource.NWS.id, dayStartMs, dayEndMs, Long.MAX_VALUE,
-                )
-            },
-            fetchStationDay = { stationId, startIso, endIso ->
-                // null == request failed (retry later); emptyList == answered with nothing.
-                stationsById[stationId]?.let { weatherService.fetchApiObservationDay(it, startIso, endIso) }
-            },
-            stationExtremeFromStoredObservations = { date ->
-                val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
-                val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-                StationDailyExtremes.resolve(
-                    observations = weatherDao
-                        .getObservationsInRange(dayStart, dayEnd, latitude, longitude)
-                        .map { it.toReading() },
-                    sourceId = WeatherSource.NWS.id,
-                    dayStartMs = dayStart,
-                    dayEndMs = dayEnd,
-                    zone = zone,
-                )
-            },
-        )
-        if (outcome.outcomes.isEmpty()) return
+            override suspend fun nwsHourly(dayStartMs: Long, dayEndMs: Long) =
+                weatherDao.getHourlyWithHistory(latitude, longitude, WeatherSource.NWS.id, dayStartMs, dayEndMs, Long.MAX_VALUE)
 
-        val pulled = outcome.pulled
-        val cached = outcome.cached
+            // The service answers null for a failed request (it logs the cause); the run needs it thrown.
+            override suspend fun stationDay(station: NwsApi.StationInfo, startIso: String, endIso: String) =
+                weatherService.fetchApiObservationDay(station, startIso, endIso)
+                    ?: throw java.io.IOException("station day request failed")
 
-        if (pulled.isEmpty() && cached.isEmpty()) {
-            weatherDao.log(
-                "NWS_STATION_ACTUALS_OUTCOME",
-                "requested=${missing.size} stations=${stations.size} pulled=0 cached=0 " +
-                    "unavailable=${outcome.unavailable} " +
-                    "insufficient=${outcome.insufficientUnresolved + cached.size}",
-                "INFO",
-            )
-            return
-        }
+            override suspend fun storedObservations(startMs: Long, endMs: Long) =
+                weatherDao.getObservationsInRange(startMs, endMs, latitude, longitude).map { it.toReading() }
 
-        val touched = pulled.keys + cached.keys
-        val toUpsert = weatherDao
-            .getExtremesInRange(touched.min(), touched.max(), latitude, longitude)
-            .filter { it.source == WeatherSource.NWS.id }
-            .mapNotNull { row ->
-                pulled[row.date]?.let { actuals ->
-                    return@mapNotNull row.copy(
-                        computedHighTemp = actuals.blendHigh,
-                        computedLowTemp = actuals.blendLow,
-                        computedHighAt = actuals.blendHighAt,
-                        computedLowAt = actuals.blendLowAt,
-                        apiHighTemp = actuals.station?.high ?: row.apiHighTemp,
-                        apiLowTemp = actuals.station?.low ?: row.apiLowTemp,
-                        apiStationId = actuals.station?.stationId ?: row.apiStationId,
-                        apiStationDistanceKm = actuals.station?.distanceKm ?: row.apiStationDistanceKm,
-                        actualsSource = DailyActualsSource.NWS_STATION_PULL.storedValue,
-                        lastWriter = DailyHistoryWriter.NWS_STATION_PULL.storedValue,
-                        updatedAt = now,
-                    )
-                }
-                // Cache-derived: api actual only. The blend already comes from the stored pool via
-                // the ordinary recompute, so there is nothing here to improve on.
-                cached[row.date]?.let { station ->
-                    row.copy(
-                        apiHighTemp = station.high,
-                        apiLowTemp = station.low,
-                        apiStationId = station.stationId,
-                        apiStationDistanceKm = station.distanceKm,
-                        actualsSource = DailyActualsSource.CACHED_OBSERVATIONS.storedValue,
-                        lastWriter = DailyHistoryWriter.CACHED_STATION_FALLBACK.storedValue,
-                        updatedAt = now,
-                    )
-                }
-            }
-        if (toUpsert.isEmpty()) {
-            weatherDao.log(
-                "NWS_STATION_ACTUALS_OUTCOME",
-                "requested=${missing.size} resolved=${pulled.size + cached.size} but no matching rows to write",
-                "WARN",
-            )
-            return
-        }
-        weatherDao.upsertDailyHistory(toUpsert)
-        weatherDao.log(
-            "NWS_STATION_ACTUALS",
-            "rows=${toUpsert.size} pulled=${pulled.size} cached=${cached.size} " +
-                "unavailable=${outcome.unavailable}",
-            "DEBUG",
-        )
-    }
+            override suspend fun upsert(rows: List<DailyHistory>) = weatherDao.upsertDailyHistory(rows)
+
+            override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
+        },
+        nowMs = now,
+    )
 
 }

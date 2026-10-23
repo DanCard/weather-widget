@@ -1,5 +1,7 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.local.toEntity
+import com.weatherwidget.data.local.toDailyHistory
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.DailyHistoryEntity
@@ -49,12 +51,19 @@ class NwsStationActualsStore @Inject constructor(
             // keyed only on values can never fix a row like that — observed on the Pixel, where
             // 2026-08-06 kept correct api temps with a null actualsSource forever because it was
             // not "missing" by the old predicate.
-            .filter {
-                it.source == WeatherSource.NWS.id &&
-                    (it.apiHighTemp == null || it.apiLowTemp == null || it.actualsSource == null)
-            }
-            .map { it.date }
-            .distinct()
+            .map { it.toDailyHistory() }
+            .let(com.weatherwidget.shared.actuals.NwsStationActualsRun::missingDates)
+
+    /** `daily_history` rows at the site in [startMs, endMs] — the station-actuals run's read. */
+    suspend fun dailyHistoryInRange(latitude: Double, longitude: Double, startMs: Long, endMs: Long) =
+        dailyHistoryDao.getExtremesInRange(startMs, endMs, latitude, longitude).map { it.toDailyHistory() }
+
+    suspend fun upsertDailyHistory(rows: List<com.weatherwidget.data.model.DailyHistory>) =
+        dailyHistoryDao.insertAll(rows.map { it.toEntity() })
+
+    /** Our retained observations at the site in [startMs, endMs), every api (station selection is the rule's). */
+    internal suspend fun storedObservations(latitude: Double, longitude: Double, startMs: Long, endMs: Long) =
+        observationDao.getObservationsInRange(startMs, endMs, latitude, longitude, apis = null).map { it.toReading() }
 
     /**
      * NWS hourly rows for one day, collapsed to a single coordinate site.
@@ -100,25 +109,7 @@ class NwsStationActualsStore @Inject constructor(
             .filter { it.source == WeatherSource.NWS.id }
             .mapNotNull { row ->
                 val actuals = actualsByDate[row.date] ?: return@mapNotNull null
-                val updated = row.copy(
-                    // The blend is only ever overwritten by a pull that produced one; a date whose
-                    // pull came back empty is absent from the map and never reaches here, so a good
-                    // stored blend can't be replaced by a worse one.
-                    computedHighTemp = actuals.blendHigh,
-                    computedLowTemp = actuals.blendLow,
-                    computedHighAt = actuals.blendHighAt,
-                    computedLowAt = actuals.blendLowAt,
-                    // A day can have a blend but no station extreme — personal stations feed the
-                    // former and are barred from the latter. Keep whatever was stored in that case.
-                    apiHighTemp = actuals.station?.high ?: row.apiHighTemp,
-                    apiLowTemp = actuals.station?.low ?: row.apiLowTemp,
-                    apiStationId = actuals.station?.stationId ?: row.apiStationId,
-                    apiStationDistanceKm = actuals.station?.distanceKm ?: row.apiStationDistanceKm,
-                    actualsSource = DailyActualsSource.NWS_STATION_PULL.storedValue,
-                    lastWriter = DailyHistoryWriter.NWS_STATION_PULL.storedValue,
-                    updatedAt = now,
-                )
-                updated.takeIf { it.copy(updatedAt = row.updatedAt) != row }
+                com.weatherwidget.shared.actuals.NwsStationActualsRun.applyPulled(row.toDailyHistory(), actuals, now)?.toEntity()
             }
 
         if (toUpsert.isEmpty()) return
@@ -187,16 +178,7 @@ class NwsStationActualsStore @Inject constructor(
             .filter { it.source == WeatherSource.NWS.id }
             .mapNotNull { row ->
                 val station = extremesByDate[row.date] ?: return@mapNotNull null
-                val updated = row.copy(
-                    apiHighTemp = station.high,
-                    apiLowTemp = station.low,
-                    apiStationId = station.stationId,
-                    apiStationDistanceKm = station.distanceKm,
-                    actualsSource = DailyActualsSource.CACHED_OBSERVATIONS.storedValue,
-                    lastWriter = DailyHistoryWriter.CACHED_STATION_FALLBACK.storedValue,
-                    updatedAt = now,
-                )
-                updated.takeIf { it.copy(updatedAt = row.updatedAt) != row }
+                com.weatherwidget.shared.actuals.NwsStationActualsRun.applyCached(row.toDailyHistory(), station, now)?.toEntity()
             }
 
         if (toUpsert.isEmpty()) return

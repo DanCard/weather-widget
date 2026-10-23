@@ -111,3 +111,10 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   `NOWCAST_*` logs). Desktop now skips the hourly read when Open-Meteo isn't displayed, as Android
   did. Each platform keeps its source scope for the "rain plausible?" read (Android every source in
   the box, desktop its usable sources). Tag allowlist −3.
+- 2026-10-23: §2 NWS station actuals → `:shared` `NwsStationActualsRun` + Host: missing-date rule,
+  5-station cap, stored-observation fallback (`StationDailyExtremes`), row updates
+  (`applyPulled` / `applyCached`, also used by Android's `NwsStationActualsStore` for its second
+  caller) and every `NWS_STATION_ACTUALS*` log. Desktop now skips unchanged rows (rewrote them every
+  run), logs a failed station-day to app_logs (console only before) and writes
+  `NWS_STATION_ACTUALS_CACHED`; one `NWS_STATION_ACTUALS_OUTCOME` format. The run's date range and
+  the planner now read "today" from the same `nowMs`. Tag allowlist −3.

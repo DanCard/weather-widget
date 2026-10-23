@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.shared.actuals.NwsStationActualsRun
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
@@ -39,101 +40,36 @@ class NwsApiDailyActualsFetcher
         private val appLogDao: AppLogDao,
         private val personalStationWeightProvider: PersonalStationWeightProvider,
     ) {
-        suspend fun fillMissingIfNeeded(latitude: Double, longitude: Double) {
-            val zone = ZoneId.systemDefault()
-            val now = System.currentTimeMillis()
-            val today = LocalDate.now(zone)
-            val startMs = today.minusDays(NwsDailyExtremesFetch.MAX_LOOKBACK_DAYS)
-                .toEpochDay() * WidgetConstants.MS_IN_A_DAY
-            val endMs = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        /** The rule is `:shared` [NwsStationActualsRun]; this is its Android host. */
+        suspend fun fillMissingIfNeeded(latitude: Double, longitude: Double) =
+            NwsStationActualsRun.run(
+                object : NwsStationActualsRun.Host {
+                    override val lat = latitude
+                    override val lon = longitude
+                    override val personalStationWeight = personalStationWeightProvider.currentWeight()
 
-            val missing = stationActualsStore
-                .findNwsDatesMissingStationActuals(latitude, longitude, startMs, endMs)
-            if (missing.isEmpty()) return
+                    override suspend fun dailyHistory(startMs: Long, endMs: Long) =
+                        stationActualsStore.dailyHistoryInRange(latitude, longitude, startMs, endMs)
 
-            // Personal stations included: the blend interpolates across all of them, discounted by
-            // the user's Personal Weather Stations preference. Only the api actual is
-            // official-only, and StationDailyExtremes enforces that from the same pool.
-            val stations = observationSource
-                .stationsForLocation(latitude, longitude)
-                .take(MAX_STATIONS)
-            if (stations.isEmpty()) {
-                appLogDao.log("NWS_STATION_ACTUALS_FAIL", "reason=no_stations", "WARN")
-                return
-            }
-            val stationsById = stations.associateBy { it.id }
+                    override suspend fun stations() = observationSource.stationsForLocation(latitude, longitude)
 
-            val outcome = NwsStationActualsMaintenance.resolve(
-                missingDates = missing,
-                stationIdsNearestFirst = stations.map { it.id },
-                userLat = latitude,
-                userLon = longitude,
-                personalStationWeight = personalStationWeightProvider.currentWeight(),
-                zone = zone,
-                nowMs = now,
-                hourlyForecastsForDay = { dayStartMs, dayEndMs ->
-                    stationActualsStore.nwsHourlyForecastsForDay(latitude, longitude, dayStartMs, dayEndMs)
+                    override suspend fun nwsHourly(dayStartMs: Long, dayEndMs: Long) =
+                        stationActualsStore.nwsHourlyForecastsForDay(latitude, longitude, dayStartMs, dayEndMs)
+
+                    // Reuses NwsObservationSource.toEntity so readings carry the distanceKm /
+                    // stationType enrichment StationDailyExtremes needs; nothing is stored.
+                    override suspend fun stationDay(station: NwsApi.StationInfo, startIso: String, endIso: String) =
+                        observationSource.fetchApiObservationsOnly(station, latitude, longitude, startIso, endIso)
+                            .map { it.toReading() }
+
+                    override suspend fun storedObservations(startMs: Long, endMs: Long) =
+                        stationActualsStore.storedObservations(latitude, longitude, startMs, endMs)
+
+                    override suspend fun upsert(rows: List<com.weatherwidget.data.model.DailyHistory>) =
+                        stationActualsStore.upsertDailyHistory(rows)
+
+                    override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
                 },
-                fetchStationDay = { stationId, startIso, endIso ->
-                    stationsById[stationId]?.let { fetchStationDay(it, latitude, longitude, startIso, endIso) }
-                },
-                stationExtremeFromStoredObservations = { date ->
-                    stationActualsStore.stationExtremeFromStoredObservations(latitude, longitude, date, zone)
-                },
+                nowMs = System.currentTimeMillis(),
             )
-            if (outcome.pulled.isNotEmpty()) {
-                stationActualsStore.persistNwsDailyActuals(latitude, longitude, outcome.pulled)
-            }
-            if (outcome.cached.isNotEmpty()) {
-                stationActualsStore.persistCachedStationActuals(latitude, longitude, outcome.cached)
-            }
-
-            appLogDao.log(
-                "NWS_STATION_ACTUALS_OUTCOME",
-                "requested=${missing.size} stations=${stations.size} " +
-                    "pulled=${outcome.pulled.size} cached=${outcome.cached.size} " +
-                    "insufficientUnresolved=${outcome.insufficientUnresolved} unavailable=${outcome.unavailable}",
-                "DEBUG",
-            )
-        }
-
-        /**
-         * One station, one calendar day. Reuses [NwsObservationSource.toEntity] so the readings
-         * carry the same `distanceKm`/`stationType` enrichment the stored rows get —
-         * `StationDailyExtremes` needs both. Nothing is written to the observations table: these
-         * readings exist only to be reduced to a high and a low, then discarded.
-         *
-         * Returns **null** when the request itself failed and an empty list when it answered with
-         * nothing. The caller must keep these apart: a failed request makes the day Unavailable and
-         * retryable, while an answered-but-thin day is Insufficient and falls back to our stored
-         * observations. Collapsing them would let one network blip permanently substitute a cached
-         * value for a live one.
-         */
-        private suspend fun fetchStationDay(
-            station: NwsApi.StationInfo,
-            latitude: Double,
-            longitude: Double,
-            startIso: String,
-            endIso: String,
-        ): List<ObservationReading>? =
-            try {
-                observationSource
-                    .fetchApiObservationsOnly(station, latitude, longitude, startIso, endIso)
-                    .map { it.toReading() }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "station ${station.id} day fetch failed", e)
-                appLogDao.log(
-                    "NWS_STATION_ACTUALS_FAIL",
-                    "station=${station.id} error=${e::class.simpleName}:${e.message}",
-                    "WARN",
-                )
-                null
-            }
-
-        private companion object {
-            /** Matches the station depth the observation backfill already uses. */
-            const val MAX_STATIONS = 5
-        }
     }

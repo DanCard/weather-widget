@@ -46,9 +46,6 @@ class CrossPlatformDuplicateLogTagsTest {
             "GOOGLE_HOURS_PAGES" to FETCH_JOB,
             "HOURLY_ON_DEMAND" to FETCH_JOB,
             "HOURLY_TRIM" to FETCH_JOB,
-            "NWS_STATION_ACTUALS" to FETCH_JOB,
-            "NWS_STATION_ACTUALS_FAIL" to FETCH_JOB,
-            "NWS_STATION_ACTUALS_OUTCOME" to FETCH_JOB,
             "NWS_STATION_FAIL" to FETCH_JOB, // current observation
             "OBS_ATTEMPT_TOUCH" to FETCH_JOB,
             "OBS_CLOUD_CARRIER" to FETCH_JOB,
