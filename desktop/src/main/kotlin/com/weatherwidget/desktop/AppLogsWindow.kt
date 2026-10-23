@@ -21,7 +21,6 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -60,15 +59,13 @@ internal fun AppLogsWindow(
         )
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
         var filterQuery by remember { mutableStateOf("") }
-        val scope = rememberCoroutineScope()
 
-        LaunchedEffect(Unit) {
-            scope.launch(Dispatchers.IO) {
-                val recentLogs = weatherDao.getRecentLogs(3000)
-                withContext(Dispatchers.Main) {
-                    logs = recentLogs
-                }
-            }
+        // Read on IO, applied in the effect's own (composition) context. It used to launch from a
+        // separate scope and hop to Dispatchers.Main (the Swing thread), outside what the test's
+        // waits observe — DesktopUiTest.testAppLogsWindowShowsLogsAndFilters failed ~1 in 50 runs
+        // under full CPU load (2026-10-23).
+        LaunchedEffect(weatherDao) {
+            logs = withContext(Dispatchers.IO) { weatherDao.getRecentLogs(3000) }
         }
 
         val filteredLogs = remember(logs, filterQuery) {
