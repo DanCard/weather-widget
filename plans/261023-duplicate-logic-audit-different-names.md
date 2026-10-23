@@ -187,3 +187,9 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   now writes `CLICK_DAILY_NO_HOURLY` too. Still per platform, by design: the effects (Android's
   transient message + worker + delayed repaint; desktop's popup banner state) and how each reads the
   day's stored hourly (Android DB, desktop the loaded snapshot). Tag allowlist → 12.
+- 2026-10-23: §3 source becomes primary → `:shared` `SourceSwitchFetchRule` (drawable-cache test with
+  the 24 h age bar, banner/forced decision, start and finish `SOURCE_SWITCH_FETCH` lines). Desktop
+  bug fixed: its cache test had no age limit, so a week-old cache with rows dated today counted as
+  drawable — no banner and no fetch. Still per platform: Android's widget banner + expedited worker,
+  desktop's popup banner (and its 4 s failure message); with a fresh cache Android queues an unforced
+  sync, desktop leaves it to the forecast loop. Tag allowlist → 11.

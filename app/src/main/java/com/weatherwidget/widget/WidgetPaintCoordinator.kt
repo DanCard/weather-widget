@@ -120,10 +120,11 @@ internal class WidgetPaintCoordinator(
         val text = SourceSwitchFetch.message(context, com.weatherwidget.data.model.WeatherSource.fromId(sourceId))
         val cleared = FetchBanner.clear(context, text, appWidgetIds)
         appLogDao.log(
-            "SOURCE_SWITCH_FETCH",
-            "action=${if (succeeded) "banner_cleared" else "banner_failed"} reason=$reason source=$sourceId " +
-                "widgets=${appWidgetIds.size} cleared=$cleared",
-            if (succeeded) "INFO" else "WARN",
+            com.weatherwidget.shared.util.SourceSwitchFetchRule.TAG,
+            com.weatherwidget.shared.util.SourceSwitchFetchRule.finishLine(
+                sourceId, succeeded, reason, "widgets=${appWidgetIds.size} cleared=$cleared",
+            ),
+            com.weatherwidget.shared.util.SourceSwitchFetchRule.finishLevel(succeeded),
         )
     }
 

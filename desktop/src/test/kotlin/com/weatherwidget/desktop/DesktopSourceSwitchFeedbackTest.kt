@@ -12,7 +12,7 @@ import java.time.LocalDate
 class DesktopSourceSwitchFeedbackTest {
     @Test
     fun `nothing cached is not drawable`() {
-        assertFalse(DesktopSourceSwitchFeedback.hasDrawableCache(null, LocalDate.now()))
+        assertFalse(DesktopSourceSwitchFeedback.hasDrawableCache("GOOGLE_WEATHER", System.currentTimeMillis(), null, LocalDate.now()))
     }
 
     @Test

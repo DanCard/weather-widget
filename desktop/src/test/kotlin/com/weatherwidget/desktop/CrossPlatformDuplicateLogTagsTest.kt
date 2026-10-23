@@ -44,7 +44,6 @@ class CrossPlatformDuplicateLogTagsTest {
             "REFRESH_TOAST" to UI_FLOW,
             "SIM_LOOP_ERROR" to UI_FLOW, // rain-loop player, audit 261021 H
             "SIM_LOOP_FALLBACK" to UI_FLOW,
-            "SOURCE_SWITCH_FETCH" to UI_FLOW,
         )
 
         fun tags(root: File): Set<String> =

@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.remote.weathernext.WeatherNextDomain
 import com.weatherwidget.shared.util.DayTap
+import com.weatherwidget.shared.util.SourceSwitchFetchRule
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -594,26 +595,37 @@ internal fun runDesktopUiApplication() = application {
             fun ownsBanner() = locationBanner?.token === token
             try {
                 val cached = runCatching { repo.loadCached() }.getOrNull()
-                if (DesktopSourceSwitchFeedback.hasDrawableCache(cached, LocalDate.now())) {
-                    weatherDao.log("SOURCE_SWITCH_FETCH", "source=${switched.id} trigger=settings_enable cache=true banner=false", "INFO")
-                    return@LaunchedEffect
-                }
-                weatherDao.log("SOURCE_SWITCH_FETCH", "source=${switched.id} trigger=settings_enable cache=false banner=true", "INFO")
+                val plan = SourceSwitchFetchRule.start(
+                    hasCache = DesktopSourceSwitchFeedback.hasDrawableCache(
+                        switched.id, weatherDao.getLastSuccessfulFetch(switched.id), cached, LocalDate.now(),
+                    ),
+                    hasLocation = true,
+                    hasSurface = true,
+                )
+                weatherDao.log(SourceSwitchFetchRule.TAG, SourceSwitchFetchRule.startLine(switched.id, "settings_enable", plan), "INFO")
+                // A drawable cache needs no wait; the forecast loop's cadence refreshes it when due.
+                if (!plan.forced) return@LaunchedEffect
                 locationBanner = LocationBanner(token, DesktopSourceSwitchFeedback.fetchingMessage(switched))
                 refreshInFlight = true
                 try {
                     forecast = repo.refresh(reason = "source_enabled")
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
                     dataUpdateCount++
-                    weatherDao.log("SOURCE_SWITCH_FETCH", "action=banner_cleared source=${switched.id}", "INFO")
+                    weatherDao.log(
+                        SourceSwitchFetchRule.TAG,
+                        SourceSwitchFetchRule.finishLine(switched.id, succeeded = true, reason = "fetched"),
+                        SourceSwitchFetchRule.finishLevel(true),
+                    )
                     if (ownsBanner()) locationBanner = null
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     weatherDao.log(
-                        "SOURCE_SWITCH_FETCH",
-                        "action=banner_failed source=${switched.id} ${e::class.simpleName}: ${e.message}",
-                        "WARN",
+                        SourceSwitchFetchRule.TAG,
+                        SourceSwitchFetchRule.finishLine(
+                            switched.id, succeeded = false, reason = "error", "error=${e::class.simpleName}: ${e.message}",
+                        ),
+                        SourceSwitchFetchRule.finishLevel(false),
                     )
                     if (ownsBanner()) {
                         locationBanner = LocationBanner(token, DesktopSourceSwitchFeedback.failedMessage(switched), failed = true)

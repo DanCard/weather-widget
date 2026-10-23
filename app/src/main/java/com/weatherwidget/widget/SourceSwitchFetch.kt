@@ -14,9 +14,9 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.util.LocationChangePaintPolicy
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.shared.util.SourceSwitchFetchRule
 import java.time.LocalDate
-import java.time.ZoneId
 
 /**
  * A source just became primary (enabled at the front — `WeatherSourceOrdering.newlyPrimary`), so
@@ -54,16 +54,16 @@ object SourceSwitchFetch {
         val hasCache = location?.let { (lat, lon) -> hasDrawableCache(context, source, lat, lon) } ?: false
         val ids = AppWidgetManager.getInstance(context)
             .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
-        val banner = !hasCache && location != null && ids.isNotEmpty()
+        val plan = SourceSwitchFetchRule.start(hasCache, hasLocation = location != null, hasSurface = ids.isNotEmpty())
+        val banner = plan.banner
         if (banner) {
             FetchBanner.show(context, message(context, source), ids, reason = "clear_source_switch_banner")
         }
-        val request = buildRequest(source, forced = !hasCache)
+        val request = buildRequest(source, forced = plan.forced)
         WorkManager.getInstance(context).enqueue(request)
         db.appLogDao().log(
-            "SOURCE_SWITCH_FETCH",
-            "source=${source.id} trigger=$trigger cache=$hasCache banner=$banner forced=${!hasCache} " +
-                "widgets=${ids.size} location=${location != null}",
+            SourceSwitchFetchRule.TAG,
+            SourceSwitchFetchRule.startLine(source.id, trigger, plan, "widgets=${ids.size} location=${location != null}"),
             "INFO",
         )
         val notice = when {
@@ -114,19 +114,22 @@ object SourceSwitchFetch {
     /**
      * Today's daily row and today's hourly rows for [source] near the site, fetched within the
      * adoptable-cache age — the same bar `LocationChangePaintPolicy.hasDrawableCache` sets for a
-     * location change. Hourly rows are read through [HourlyForecastLoader], the render's own
-     * site-matched path (`HourlyProximityQueryAllowlistTest`), as `WidgetPaintCoordinator.hasDrawableCacheAt` does.
+     * location change ([SourceSwitchFetchRule.hasDrawableCache], as desktop). Hourly rows are read through
+     * [HourlyForecastLoader], the render's own site-matched path (`HourlyProximityQueryAllowlistTest`), as `WidgetPaintCoordinator.hasDrawableCacheAt` does.
      */
     @VisibleForTesting
     internal suspend fun hasDrawableCache(context: Context, source: WeatherSource, lat: Double, lon: Double): Boolean {
         val db = WeatherDatabase.getDatabase(context)
-        val oldest = System.currentTimeMillis() - LocationChangePaintPolicy.MAX_ADOPTABLE_CACHE_AGE_MS
-        val latest = db.forecastDao().getLatestForecastBySource(source.id, lat, lon)
-        if (latest == null || latest.fetchedAt < oldest) return false
-        val zone = ZoneId.systemDefault()
+        val latest = db.forecastDao().getLatestForecastBySource(source.id, lat, lon) ?: return false
         val hourly = HourlyForecastLoader(context, WidgetStateManager(context))
             .load(lat, lon, sources = listOf(source.id), caller = "source_switch_probe")
-            .filter { it.source == source.id && it.fetchedAt >= oldest }
-        return LocationChangePaintPolicy.hasHourlyForToday(hourly.map { it.dateTime }, LocalDate.now(zone), zone)
+            .map { it.toHourlyForecast() }
+        return SourceSwitchFetchRule.hasDrawableCache(
+            source.id,
+            latest.fetchedAt,
+            hourly,
+            LocalDate.now(),
+            System.currentTimeMillis(),
+        )
     }
 }
