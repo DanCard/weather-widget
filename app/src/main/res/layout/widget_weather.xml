@@ -1571,125 +1571,6 @@
         </FrameLayout>
     </LinearLayout>
 
-    <!-- Header buttons (daily and hourly), positioned in top-middle. Child order is
-         HeaderButtons.ORDER (home first); PositionDailyIconsRoboTest pins it.
-         Declared after navigation zones to ensure touch priority in the top area. -->
-    <LinearLayout
-        android:id="@+id/hourly_center_header_container"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="-10dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-
-        <!-- Home -->
-        <FrameLayout
-            android:id="@+id/home_touch_zone"
-            android:layout_width="24dp"
-            android:layout_height="48dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <ImageView
-                android:id="@+id/home_icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="-10dp"
-                android:paddingTop="-4dp"
-                android:src="@drawable/ic_home"
-                android:contentDescription="@string/home_forecast"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-
-        <!-- Current Stations -->
-        <FrameLayout
-            android:id="@+id/weather_stations_touch_zone"
-            android:layout_width="24dp"
-            android:layout_height="48dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <ImageView
-                android:id="@+id/weather_stations_icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="-10dp"
-                android:paddingTop="-4dp"
-                android:src="@drawable/ic_thermometer"
-                android:contentDescription="@string/current_stations_desc"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-
-        <!-- Graph Selector -->
-        <FrameLayout
-            android:id="@+id/graph_selector_touch_zone"
-            android:layout_width="24dp"
-            android:layout_height="48dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/graph_selector_icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="-10dp"
-                android:paddingTop="-4dp"
-                android:textColor="#AAFFFFFF"
-                android:textSize="16sp"
-                android:gravity="center" />
-        </FrameLayout>
-
-        <!-- Months view (daily view zoomed out); daily header only -->
-        <FrameLayout
-            android:id="@+id/months_view_touch_zone"
-            android:layout_width="24dp"
-            android:layout_height="48dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <ImageView
-                android:id="@+id/months_view_icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="-10dp"
-                android:paddingTop="-4dp"
-                android:src="@drawable/ic_months_view"
-                android:contentDescription="@string/months_view_open"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-
-        <!-- History -->
-        <FrameLayout
-            android:id="@+id/forecast_history_activity_touch_zone"
-            android:layout_width="24dp"
-            android:layout_height="48dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <ImageView
-                android:id="@+id/history_icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="-10dp"
-                android:paddingTop="-4dp"
-                android:src="@drawable/ic_forecast_history_line"
-                android:contentDescription="@string/forecast_history"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-
-    </LinearLayout>
-
 
     <!-- Single-row text mode settings shortcut, at the top right corner. -->
     <ImageView
@@ -1756,7 +1637,8 @@
         android:visibility="gone" />
 
     <!-- Current temperature and weather icon - positioned in top-left corner.
-         Declared last to ensure highest touch priority over navigation zones. -->
+         Declared after the navigation zones for touch priority over them; the header buttons
+         (hourly_center_header_container) come after this so a button beats an overlapping zone. -->
     <LinearLayout
         android:id="@+id/current_weather_container"
         android:layout_width="wrap_content"
@@ -1954,6 +1836,127 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:layout_marginTop="-10dp"
+                android:src="@drawable/ic_forecast_history_line"
+                android:contentDescription="@string/forecast_history"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
+
+    </LinearLayout>
+
+    <!-- Header buttons (daily and hourly), positioned in top-middle. Child order is
+         HeaderButtons.ORDER (home first); PositionDailyIconsRoboTest pins it.
+         Declared after the navigation zones AND after current_weather_container: where the
+         temp / rain-% tap targets overlap a button, the button wins (a home tap on the emulator,
+         2026-10-22, landed on the rain-% zone and opened the precip view). -->
+    <LinearLayout
+        android:id="@+id/hourly_center_header_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="-10dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- Home -->
+        <FrameLayout
+            android:id="@+id/home_touch_zone"
+            android:layout_width="24dp"
+            android:layout_height="48dp"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/home_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="-10dp"
+                android:paddingTop="-4dp"
+                android:src="@drawable/ic_home"
+                android:contentDescription="@string/home_forecast"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
+
+        <!-- Current Stations -->
+        <FrameLayout
+            android:id="@+id/weather_stations_touch_zone"
+            android:layout_width="24dp"
+            android:layout_height="48dp"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/weather_stations_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="-10dp"
+                android:paddingTop="-4dp"
+                android:src="@drawable/ic_thermometer"
+                android:contentDescription="@string/current_stations_desc"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
+
+        <!-- Graph Selector -->
+        <FrameLayout
+            android:id="@+id/graph_selector_touch_zone"
+            android:layout_width="24dp"
+            android:layout_height="48dp"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <TextView
+                android:id="@+id/graph_selector_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="-10dp"
+                android:paddingTop="-4dp"
+                android:textColor="#AAFFFFFF"
+                android:textSize="16sp"
+                android:gravity="center" />
+        </FrameLayout>
+
+        <!-- Months view (daily view zoomed out); daily header only -->
+        <FrameLayout
+            android:id="@+id/months_view_touch_zone"
+            android:layout_width="24dp"
+            android:layout_height="48dp"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/months_view_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="-10dp"
+                android:paddingTop="-4dp"
+                android:src="@drawable/ic_months_view"
+                android:contentDescription="@string/months_view_open"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
+
+        <!-- History -->
+        <FrameLayout
+            android:id="@+id/forecast_history_activity_touch_zone"
+            android:layout_width="24dp"
+            android:layout_height="48dp"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/history_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="-10dp"
+                android:paddingTop="-4dp"
                 android:src="@drawable/ic_forecast_history_line"
                 android:contentDescription="@string/forecast_history"
                 android:tint="#AAFFFFFF" />
