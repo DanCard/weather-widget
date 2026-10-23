@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import com.weatherwidget.shared.graph.AdaptiveBarStrokes
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.StandInBarStyle
 import com.weatherwidget.shared.graph.TodayColumnHighlight
@@ -522,65 +523,47 @@ internal object DailyBarRenderer {
     ) {
         @Suppress("NAME_SHADOWING")
         val paint = if (dashed) standInDashed(paint) else paint
-        if (!allowAdaptiveSegments || !shouldUseAdaptiveSegments(day) || day.iconRes == null) {
+        if (!allowAdaptiveSegments) {
             canvas.drawLine(centerX, topY, centerX, bottomY, paint)
             return
         }
-
-        val split =
-            WeatherConditionColors.resolveMixedBarSplit(day.iconRes, day.cloudCoverRatioOverride, dayPrecipProbability)
+        // Split, colours and segment ends are shared AdaptiveBarStrokes.plan — the same plan the
+        // desktop DailyForecastGraph draws; this only strokes it.
+        val plan = AdaptiveBarStrokes.plan(
+            iconName = day.iconRes?.let(WeatherIconMapper::iconResToName),
+            cloudCoverRatio = day.cloudCoverRatioOverride,
+            dayPrecipProbability = dayPrecipProbability,
+            barArgb = paint.color,
+            highY = topY,
+            lowY = bottomY,
+            inkRadius = paint.strokeWidth / 2f,
+        )
+        val split = plan.split
         if (split == null) {
             canvas.drawLine(centerX, topY, centerX, bottomY, paint)
             return
         }
-
-        val barHeight = bottomY - topY
-        if (barHeight <= 1f) {
-            canvas.drawLine(centerX, topY, centerX, bottomY, paint)
-            return
-        }
-
-        val inkRadius = paint.strokeWidth / 2f
-        val edges = WeatherColors.segmentEdges(split.topFraction, split.midFraction, topY, bottomY, inkRadius)
-        val topSegmentEndY = edges.topEndY
-        val bottomPaint = Paint(paint).apply {
-            color = split.bottomColor
-            shader = null
-        }
-        val topPaint = Paint(paint).apply {
-            color = if (split.topOverridesBar) split.topColor else paint.color
-            shader = null
-        }
-
-        // Each upper segment is the full bar clipped at its edge: it keeps the round top cap, but its
-        // own cap never spills below the edge (shared WeatherColors.segmentEdges).
-        fun segment(segmentPaint: Paint, endY: Float) {
-            canvas.save()
-            canvas.clipRect(centerX - paint.strokeWidth, topY - paint.strokeWidth, centerX + paint.strokeWidth, endY)
-            canvas.drawLine(centerX, topY, centerX, bottomY, segmentPaint)
-            canvas.restore()
-        }
-
-        canvas.drawLine(centerX, topY, centerX, bottomY, bottomPaint)
-        // A rainy bar's grey middle: the cloudy part of the sky above the rain (WeatherColors.rainDaySplit).
-        if (edges.midEndY - topSegmentEndY > 0.5f) {
-            val midPaint = Paint(paint).apply {
-                color = split.midColor
+        for (stroke in plan.strokes) {
+            val strokePaint = Paint(paint).apply {
+                color = stroke.colorArgb
                 shader = null
             }
-            segment(midPaint, edges.midEndY)
-        }
-        if (topSegmentEndY - (topY - inkRadius) > 0.5f) {
-            segment(topPaint, topSegmentEndY)
+            val clipBottom = stroke.clipBottomY
+            if (clipBottom == null) {
+                canvas.drawLine(centerX, topY, centerX, bottomY, strokePaint)
+            } else {
+                canvas.save()
+                canvas.clipRect(centerX - paint.strokeWidth, topY - paint.strokeWidth, centerX + paint.strokeWidth, clipBottom)
+                canvas.drawLine(centerX, topY, centerX, bottomY, strokePaint)
+                canvas.restore()
+            }
         }
 
         debug {
             "$logPrefix mixed bar geometry: date=${day.date} centerX=$centerX" +
-                " topY=$topY bottomY=$bottomY height=$barHeight" +
+                " topY=$topY bottomY=$bottomY height=${bottomY - topY}" +
                 " splitRatio=${split.ratio} topFraction=${split.topFraction} midFraction=${split.midFraction}" +
-                " topEndY=$topSegmentEndY" +
-                " topColor=${String.format("#%08X", split.topColor)}" +
-                " bottomColor=${String.format("#%08X", split.bottomColor)}"
+                " strokes=${plan.strokes.joinToString { String.format("#%08X@%s", it.colorArgb, it.clipBottomY) }}"
         }
     }
 
@@ -597,7 +580,7 @@ internal object DailyBarRenderer {
         day.isRainy && WeatherColors.isDaytimeRain(day.rainData.dailyPrecipProbability)
 
     private fun shouldUseAdaptiveSegments(day: DayData): Boolean =
-        day.isMixed || (day.cloudCoverRatioOverride ?: 0f) > 0f
+        WeatherColors.shouldDrawAdaptiveBar(day.isMixed, day.cloudCoverRatioOverride)
 
     @VisibleForTesting
     internal fun dailyBarStrokeWidthPx(

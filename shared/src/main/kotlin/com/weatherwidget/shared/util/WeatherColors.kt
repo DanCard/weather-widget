@@ -52,6 +52,23 @@ object WeatherColors {
     )
 
     /**
+     * Colour of a split bar's top (clear-sky) segment (`AdaptiveBarStrokes`). It keeps the bar's own
+     * colour (e.g. the bright snapshot yellow) unless the split overrides it (a rainy bar's gold
+     * over its blue), or the bar's own colour is the cloud grey: a cloudy day's clear share drawn
+     * in grey over a grey bottom left a 91 %-cloud Google day solid grey, while the snapshot bar
+     * beside it showed its 9 % clear cap (2026-10-23). The grey case keeps the bar's alpha (Android's
+     * translucent climate overlay); compared on RGB so that alpha doesn't hide the grey.
+     */
+    fun splitTopArgb(topOverridesBar: Boolean, topColorArgb: Int, barArgb: Int): Int = when {
+        topOverridesBar -> topColorArgb
+        barArgb and RGB_MASK == FORECAST_CLOUDY and RGB_MASK -> (barArgb and ALPHA_MASK) or (topColorArgb and RGB_MASK)
+        else -> barArgb
+    }
+
+    private const val RGB_MASK = 0x00FFFFFF
+    private const val ALPHA_MASK = -0x1000000 // 0xFF000000
+
+    /**
      * Base color for the today-column 24h-prior snapshot bar. Rain keeps the blue base
      * ("yesterday they predicted rain" stays visible); anything else — including cloudy —
      * returns null, meaning the platform's bright snapshot yellow. Cloudiness is carried by

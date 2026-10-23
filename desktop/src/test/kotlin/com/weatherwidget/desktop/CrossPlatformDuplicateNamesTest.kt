@@ -55,7 +55,6 @@ class CrossPlatformDuplicateNamesTest {
             "drawNowLine" to DRAWING,
             "drawOutlinedText" to DRAWING,
             "drawSeriesCurve" to DRAWING,
-            "segment" to DRAWING,
             "cancel" to GENERIC,
             "columns" to GENERIC,
             "expire" to GENERIC,

@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.shared.graph.DailyRainLabelPlanner
 import com.weatherwidget.shared.graph.DualHighLabel
+import com.weatherwidget.shared.graph.AdaptiveBarStrokes
 import com.weatherwidget.shared.graph.TodayColumnHighlight
 import com.weatherwidget.shared.graph.TodayThermostat
 import com.weatherwidget.shared.graph.TodayColumnOverlayBlocks
@@ -942,12 +944,9 @@ private fun DrawScope.drawRangeLine(
 }
 
 /**
- * Weather-adaptive forecast bar: a clear ([baseColor]) top over a cloud/rain bottom, where the
- * bottom segment's height is the cloud-cover ratio and its color is rain-blue vs cloud-grey.
- * Faithful port of Android's DailyForecastGraphRenderer.drawWeatherAdaptiveBar — two hard solid
- * segments (no fade), with the split math/colors single-sourced from shared WeatherColors. Falls
- * back to a solid [baseColor] bar when there's no cloud ratio (e.g. clear/fully-rainy days).
- * Nullable high/low (skips the bar when either is absent), mirroring [drawRangeLine].
+ * Weather-adaptive forecast bar. Everything — whether it splits, the colours, where each segment
+ * ends — is shared `AdaptiveBarStrokes.plan`, the same plan Android's DailyBarRenderer draws; this
+ * only strokes it. Nullable high/low (skips the bar when either is absent), mirroring [drawRangeLine].
  */
 private fun DrawScope.drawAdaptiveBar(
     centerX: Float,
@@ -960,58 +959,26 @@ private fun DrawScope.drawAdaptiveBar(
     iconName: String?,
     /** Gates the chance-rain blue segment (WeatherColors.isDaytimeRain); null for snapshot bars. */
     dayPrecipProbability: Int? = null,
-    /** Stand-in bar ([standInDash]); both split segments start at highY, so their dashes line up. */
+    /** Stand-in bar ([standInDash]); every stroke starts at highY, so their dashes line up. */
     pathEffect: PathEffect? = null,
 ) {
     if (high == null || low == null) return
     val highY = yAt(high)
     val lowY = yAt(low)
-
-    val split = com.weatherwidget.shared.util.WeatherColors.resolveMixedBarSplit(iconName, cloudCoverRatio, dayPrecipProbability)
-
-    if (split == null) {
-        drawLine(
-            color = baseColor,
+    val plan = AdaptiveBarStrokes.plan(
+        iconName, cloudCoverRatio, dayPrecipProbability, baseColor.toArgb(), highY, lowY, inkRadius = width / 2f,
+    )
+    for (stroke in plan.strokes) {
+        fun line() = drawLine(
+            color = Color(stroke.colorArgb),
             start = Offset(centerX, highY),
             end = Offset(centerX, lowY),
             strokeWidth = width,
             cap = StrokeCap.Round,
             pathEffect = pathEffect,
         )
-        return
-    }
-
-    val edges = com.weatherwidget.shared.util.WeatherColors.segmentEdges(
-        split.topFraction, split.midFraction, highY, lowY, inkRadius = width / 2f,
-    )
-    // Bottom (grey/blue) full-height first, then the grey middle and the clear top painted over it —
-    // matches Android's draw order. Each upper segment is the full bar clipped at its edge, so it
-    // keeps the round top cap but its own cap never spills below the edge (shared segmentEdges).
-    // Top color is the bar's own baseColor (e.g. the bright snapshot yellow), not the split's gold,
-    // exactly as Android keeps its paint color — except a rainy bar's gold (split.topOverridesBar),
-    // which must win over the bar's blue.
-    fun segment(color: Color, endY: Float) = clipRect(top = highY - width, bottom = endY) {
-        drawLine(
-            color = color,
-            start = Offset(centerX, highY),
-            end = Offset(centerX, lowY),
-            strokeWidth = width,
-            cap = StrokeCap.Round,
-            pathEffect = pathEffect,
-        )
-    }
-    drawLine(
-        color = Color(split.bottomColorArgb),
-        start = Offset(centerX, highY),
-        end = Offset(centerX, lowY),
-        strokeWidth = width,
-        cap = StrokeCap.Round,
-        pathEffect = pathEffect,
-    )
-    // A rainy bar's grey middle: the cloudy part of the sky above the rain (WeatherColors.rainDaySplit).
-    if (edges.midEndY - edges.topEndY > 0.5f) segment(Color(split.midColorArgb), edges.midEndY)
-    if (edges.topEndY - (highY - width / 2f) > 0.5f) {
-        segment(if (split.topOverridesBar) Color(split.topColorArgb) else baseColor, edges.topEndY)
+        val clipBottom = stroke.clipBottomY
+        if (clipBottom == null) line() else clipRect(top = highY - width, bottom = clipBottom) { line() }
     }
 }
 
