@@ -98,3 +98,11 @@ a series of behaviour decisions. Fixture coverage is the limit: add one per futu
 
 Left: Android's text mode (`prepareTextDays`, 1-row widget) still builds its own columns; desktop
 has a text mode too — next candidate for the same builder.
+
+## Text mode (2026-10-23)
+Android's 1-row widget (`prepareTextDays`) now builds its columns with the same shared builder as
+its graph (helpers `shownDailyRows` / `sharedColumn`); the printed high / low is `:shared`
+`DailyColumnBuilder.textHigh` / `textLow`, also used by desktop's text popup. Changes: desktop's
+text high/low no longer folds in "yesterday's forecast" (it took max / min over it); Android's text
+icon now takes noon cloud like the graph's. Dead: `DailyFutureDayResolver.resolveFutureDayValues`,
+`DailyViewLogic`'s private rain-label / noon-cloud helpers.

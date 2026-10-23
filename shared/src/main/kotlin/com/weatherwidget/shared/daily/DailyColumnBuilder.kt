@@ -87,6 +87,18 @@ data class DailyColumn(
  * `snapshots` the day's older fetches (the shown row skipped).
  */
 object DailyColumnBuilder {
+
+    /**
+     * The high a text-mode column prints (1-row widget, desktop text popup): past and future the
+     * column's own (actual, else the forecast it stands on); today the highest it shows — tracked,
+     * forecast or the day's peak so far. Never "yesterday's forecast" (desktop used to fold it in).
+     */
+    fun textHigh(c: DailyColumn): Float? =
+        if (c.isToday) listOfNotNull(c.solidHigh, c.forecastHigh, c.ghostHigh).maxOrNull() else c.solidHigh
+
+    /** The low a text-mode column prints: today the tracked low, else the forecast low; otherwise its own. */
+    fun textLow(c: DailyColumn): Float? = if (c.isToday) c.solidLow ?: c.forecastLow else c.solidLow
+
     fun build(
         date: LocalDate,
         /** The column's caption ("Today", "Sat") — a platform string. */

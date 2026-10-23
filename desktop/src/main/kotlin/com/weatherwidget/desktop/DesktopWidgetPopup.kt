@@ -850,8 +850,9 @@ private fun DailyForecastTextMode(
                     color = if (day.isToday) Color.Yellow else Color.White.copy(alpha = 0.62f),
                     maxLines = 1,
                 )
-                val high = listOfNotNull(day.solidHigh, day.forecastHigh, day.snapshotHigh).maxOrNull()
-                val low = listOfNotNull(day.solidLow, day.forecastLow, day.snapshotLow).minOrNull()
+                // Shared with Android's 1-row widget (DailyColumnBuilder.textHigh / textLow).
+                val high = com.weatherwidget.shared.daily.DailyColumnBuilder.textHigh(day)
+                val low = com.weatherwidget.shared.daily.DailyColumnBuilder.textLow(day)
                 Text(
                     text = com.weatherwidget.shared.util.TempUtils.formatTemp(high, useCelsius) ?: "--",
                     style = MaterialTheme.typography.titleMedium.copy(fontSize = (MaterialTheme.typography.titleMedium.fontSize.value * 1.3f).sp),
