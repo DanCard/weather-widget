@@ -73,8 +73,12 @@ label = "Test",
         )
             .redirectErrorStream(true)
         
-        // Isolate the process config/data directory
+        // Isolate the process data AND config directories. With only XDG_DATA_HOME set, the app read
+        // the developer's real ~/.config/weather-widget/config.json — their location, Google displayed,
+        // their keys — and every run made a real, billed Google fetch (8 forecast/hours pages and a
+        // history/hours request from the 30/day quota, 2026-10-23). No config → no location → no fetch.
         process.environment()["XDG_DATA_HOME"] = tempDir.toAbsolutePath().toString()
+        process.environment()["XDG_CONFIG_HOME"] = tempDir.resolve("config").toAbsolutePath().toString()
 
         val runningProcess = process.start()
         val reader = BufferedReader(InputStreamReader(runningProcess.inputStream))
@@ -120,6 +124,12 @@ label = "Test",
             }
 
             assertTrue("UI process was not spawned in response to .show trigger. Output:\n${outputLines.joinToString("\n")}", uiSpawned)
+            // The launch must not reach a weather API: with the developer's config it made billed Google
+            // requests on every run. Isolated, there is no location, so nothing is fetched.
+            val networkLines = outputLines.filter {
+                it.contains("Refreshing full forecast from network") || it.contains("GoogleWeatherApi")
+            }
+            assertTrue("The launch fetched from the network:\n${networkLines.joinToString("\n")}", networkLines.isEmpty())
 
         } finally {
             runningProcess.descendants().forEach { it.destroyForcibly() }
@@ -149,8 +159,12 @@ label = "Test",
         )
             .redirectErrorStream(true)
         
-        // Isolate the process config/data directory
+        // Isolate the process data AND config directories. With only XDG_DATA_HOME set, the app read
+        // the developer's real ~/.config/weather-widget/config.json — their location, Google displayed,
+        // their keys — and every run made a real, billed Google fetch (8 forecast/hours pages and a
+        // history/hours request from the 30/day quota, 2026-10-23). No config → no location → no fetch.
         process.environment()["XDG_DATA_HOME"] = tempDir.toAbsolutePath().toString()
+        process.environment()["XDG_CONFIG_HOME"] = tempDir.resolve("config").toAbsolutePath().toString()
 
         val runningProcess = process.start()
         val reader = BufferedReader(InputStreamReader(runningProcess.inputStream))
