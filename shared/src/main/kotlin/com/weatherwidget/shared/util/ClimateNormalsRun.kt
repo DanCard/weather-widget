@@ -1,23 +1,20 @@
 package com.weatherwidget.shared.util
 
-import com.weatherwidget.data.model.WeatherSource
 import java.time.MonthDay
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * The site's climate normals (the future-day fallback), fetched once and cached, the same way on
- * both platforms: cache first, then — only when the user has Open-Meteo enabled, whose archive they
- * come from — a fetch of the rolling window, reduced by [ClimateNormals]. Was Android's
- * `ClimateNormalsRepository` and desktop's `ensureClimateNormals`; desktop fetched with Open-Meteo
- * disabled and swallowed cancellation (audit plans/261023-duplicate-logic-audit-different-names.md §2).
+ * both platforms: cache first, then a fetch of the rolling window from Open-Meteo's archive, reduced by
+ * [ClimateNormals]. The archive is free and keyless, so it is fetched whether or not Open-Meteo is
+ * among the user's sources (user, 2026-10-23): normals are site data, not a source's forecast. Was
+ * Android's `ClimateNormalsRepository` and desktop's `ensureClimateNormals`; desktop swallowed
+ * cancellation (audit plans/261023-duplicate-logic-audit-different-names.md §2).
  */
 object ClimateNormalsRun {
     interface Host {
         /** Cached monthly (high, low) for [locationKey]; empty maps when none. */
         suspend fun cached(locationKey: String): Pair<Map<Int, Float>, Map<Int, Float>>
-
-        /** The user has Open-Meteo among their sources. */
-        val openMeteoEnabled: Boolean
 
         /** Open-Meteo archive daily highs / lows over [start]..[end] (ISO dates). */
         suspend fun fetchDailyTemps(start: String, end: String): List<com.weatherwidget.data.model.DailyForecast>
@@ -36,10 +33,6 @@ object ClimateNormalsRun {
         val (cachedHigh, cachedLow) = host.cached(key)
         if (cachedHigh.isNotEmpty() && cachedLow.isNotEmpty()) {
             return Result(ClimateNormals.expandMonthlyToDaily(cachedHigh, cachedLow), fetched = false)
-        }
-        if (!host.openMeteoEnabled) {
-            host.log("CLIMATE_SKIP_DISABLED", "source=${WeatherSource.OPEN_METEO.id}", "DEBUG")
-            return Result(emptyMap(), fetched = false)
         }
         val (start, end) = ClimateNormals.rollingWindow()
         val daily = host.fetchDailyTemps(start, end)

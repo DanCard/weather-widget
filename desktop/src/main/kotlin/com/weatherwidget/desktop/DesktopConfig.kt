@@ -464,10 +464,3 @@ class DesktopConfigStore(
         }
     }
 }
-
-/**
- * Whether the saved config has Open-Meteo among the user's sources, read when asked (a Settings change
- * applies without recreating repositories). No saved config → true, as the default source list.
- */
-fun savedConfigHasOpenMeteo(): Boolean =
-    DesktopConfigStore().load()?.settings?.visibleSources?.contains(WeatherSource.OPEN_METEO.id) ?: true

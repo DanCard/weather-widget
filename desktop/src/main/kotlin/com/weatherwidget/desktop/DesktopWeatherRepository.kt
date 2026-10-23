@@ -85,8 +85,6 @@ class DesktopWeatherRepository(
     private val weatherSource: String,
     private val personalStationWeight: Double = 1.0,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
-    /** The user has Open-Meteo enabled: climate normals come from its archive ([ClimateNormalsRun]). */
-    private val openMeteoEnabled: () -> Boolean = { true },
     /**
      * Whether housekeeping may run now: on AC power with the screen off (user, 2026-10-09; Android's
      * `HistoryPruneWorker` waits for charging + device idle). A machine without a battery counts as
@@ -1535,7 +1533,6 @@ class DesktopWeatherRepository(
     suspend fun ensureClimateNormals(): Boolean = ClimateNormalsRun.warm(
         object : ClimateNormalsRun.Host {
             override suspend fun cached(locationKey: String) = weatherDao.getClimateNormals(locationKey)
-            override val openMeteoEnabled get() = this@DesktopWeatherRepository.openMeteoEnabled()
             override suspend fun fetchDailyTemps(start: String, end: String) = weatherService.fetchHistoricalDailyTemps(start, end)
             override suspend fun store(locationKey: String, monthlyHigh: Map<Int, Float>, monthlyLow: Map<Int, Float>) =
                 weatherDao.upsertClimateNormals(locationKey, monthlyHigh, monthlyLow)

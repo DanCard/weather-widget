@@ -15,7 +15,6 @@ import org.junit.experimental.categories.Category
 class ClimateNormalsRunTest {
     private class Host(
         val cache: Pair<Map<Int, Float>, Map<Int, Float>> = emptyMap<Int, Float>() to emptyMap(),
-        override val openMeteoEnabled: Boolean = true,
         val reply: () -> List<DailyForecast> = { (1..12).map { m -> DailyForecast("2025-%02d-15".format(m), 70f, 50f, "Clear") } },
     ) : ClimateNormalsRun.Host {
         var fetches = 0
@@ -37,11 +36,11 @@ class ClimateNormalsRunTest {
     }
 
     @Test
-    fun openMeteoDisabledFetchesNothing() = runBlocking {
-        val host = Host(openMeteoEnabled = false)
+    fun noCacheFetchesWhateverTheSourceList() = runBlocking {
+        // Normals are site data from the free archive: no source-list gate (user, 2026-10-23).
+        val host = Host()
         ClimateNormalsRun.run(host, 37.4, -122.0)
-        assertEquals(0, host.fetches)
-        assertEquals(listOf("CLIMATE_SKIP_DISABLED/DEBUG"), host.logs)
+        assertEquals(1, host.fetches)
     }
 
     @Test

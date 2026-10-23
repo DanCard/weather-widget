@@ -6,10 +6,8 @@ import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ClimateNormalEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
-import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.shared.util.ClimateNormals
-import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.CancellationException
 import java.time.MonthDay
 
@@ -20,7 +18,6 @@ import java.time.MonthDay
 internal class ClimateNormalsRepository(
     private val climateNormalDao: ClimateNormalDao,
     private val openMeteoApi: OpenMeteoApi,
-    private val widgetStateManager: WidgetStateManager,
     private val appLogDao: AppLogDao,
 ) {
     private fun host(latitude: Double, longitude: Double) = object : ClimateNormalsRun.Host {
@@ -29,8 +26,6 @@ internal class ClimateNormalsRepository(
             return rows.associate { it.monthDay.take(2).toInt() to it.highTemp } to
                 rows.associate { it.monthDay.take(2).toInt() to it.lowTemp }
         }
-
-        override val openMeteoEnabled get() = widgetStateManager.isSourceVisible(WeatherSource.OPEN_METEO)
 
         override suspend fun fetchDailyTemps(start: String, end: String) =
             openMeteoApi.getHistoricalDailyTemps(latitude, longitude, start, end)

@@ -194,7 +194,6 @@ class ForecastRepository
         private val climateNormalsRepository = ClimateNormalsRepository(
             climateNormalDao = climateNormalDao,
             openMeteoApi = openMeteoApi,
-            widgetStateManager = widgetStateManager,
             appLogDao = appLogDao,
         )
 
