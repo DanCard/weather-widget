@@ -575,15 +575,20 @@ object DailyViewLogic {
             // (DailyHourlySummaries — hourly is stored to 72 h only, and hours past that may be older
             // than the row), else the hourly noon row for rows written before it existed.
             val storedNoonCloud = if (isPastDate) actual?.noonCloudPercent else null
-            val measuredCloudCoverPercent =
-                storedNoonCloud
-                    ?: weather?.noonCloudPercent?.takeIf { !isPastDate && weather.source == displaySource.id }
-                    ?: resolveMeasuredNoonCloudCoverPercent(
-                        date = date,
-                        hourlyForecasts = hourlyForecasts,
-                        displaySource = displaySource,
-                        weatherSourceId = weather?.source,
-                    )
+            val measuredCloudCoverPercent = com.weatherwidget.shared.util.DailyNoonCloudCover.forColumn(
+                isPast = isPastDate,
+                frozenPercent = actual?.noonCloudPercent,
+                rowPercent = weather?.noonCloudPercent,
+                rowIsDisplaySource = weather?.source == displaySource.id,
+                rowIsClimateNormal = weather?.isClimateNormal == true,
+            ) {
+                resolveMeasuredNoonCloudCoverPercent(
+                    date = date,
+                    hourlyForecasts = hourlyForecasts,
+                    displaySource = displaySource,
+                    weatherSourceId = weather?.source,
+                )
+            }
             // Null = unknown: the bar falls back to the icon's sky (AdaptiveBarStrokes).
             val cloudCoverRatioOverride = measuredCloudCoverPercent?.let { it / 100f }
             if (storedNoonCloud == null) {

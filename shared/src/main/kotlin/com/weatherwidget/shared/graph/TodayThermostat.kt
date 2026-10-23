@@ -19,6 +19,12 @@ import com.weatherwidget.shared.util.DailyDayValueResolver
  */
 object TodayThermostat {
 
+    /** The bulb's radius as a multiple of the today bar's width. */
+    const val BULB_RADIUS_SCALE = 1.2f
+
+    /** The bulb's centre sits this fraction of its radius below the mercury's low end. */
+    const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
+
     /** Ghost alpha on Android's 0–255 scale (the value Android has always drawn). */
     const val GHOST_ALPHA_255 = 75
 

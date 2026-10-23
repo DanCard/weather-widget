@@ -32,14 +32,33 @@ object WeatherColors {
         }
     }
 
+    /** The "yesterday's forecast" bar's own colour (today's left bar, past days' left bar). */
+    const val SNAPSHOT_YELLOW: Int = 0xFFFFFF00.toInt()
+
     /**
-     * Base color for the today-column 24h-prior snapshot bar. Rain keeps the blue base
-     * ("yesterday they predicted rain" stays visible); anything else — including cloudy —
-     * returns null, meaning the platform's bright snapshot yellow. Cloudiness is carried by
-     * the adaptive split's grey bottom segment, never by greying the base: a grey base plus
-     * a grey split bottom rendered the whole bar as an unreadable solid-grey slab.
+     * Colour of a "yesterday's forecast" bar from its icon: rain keeps blue ("yesterday they
+     * predicted rain" stays visible); anything else — including cloudy — the bright
+     * [SNAPSHOT_YELLOW]. Cloudiness is the bar's grey share (`AdaptiveBarStrokes`), never a grey
+     * base: grey on grey rendered the whole bar as an unreadable solid-grey slab.
      */
-    fun snapshotBarOverrideArgb(isRainy: Boolean): Int? = if (isRainy) FORECAST_RAINY else null
+    fun snapshotBarArgb(iconName: String?): Int =
+        if (iconName != null && WeatherConditionResolver.isPrecipitation(iconName)) FORECAST_RAINY else SNAPSHOT_YELLOW
+
+    /**
+     * A daily column's forecast colour from its icon and daytime rain chance, both platforms: a
+     * past day's promoted-forecast bar and the forecast high label. Desktop's extra "cloud < 60 %
+     * → gold" rule was dropped for Android's (2026-10-23).
+     */
+    fun dailyForecastArgb(iconName: String?, dayPrecipProbability: Int?): Int {
+        val flags = iconName?.let { WeatherConditionResolver.getConditionFlags(it) }
+            ?: return FORECAST_CLOUDY
+        return forecastColor(
+            isSunny = flags.isSunny,
+            isRainy = flags.isRainy && isDaytimeRain(dayPrecipProbability),
+            isMixed = flags.isMixed,
+            isNight = false,
+        )
+    }
 
     /**
      * Daily-bar rain gate. The daily icon is resolved from the whole-day (24h) precip %, but a daily

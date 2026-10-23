@@ -35,8 +35,6 @@ internal object DailyBarRenderer {
     internal const val TODAY_TRIPLE_BAR_WIDTH_DP = 8f
     internal const val TODAY_TRIPLE_BAR_WIDTH_DP_COMPACT = 6f
     internal const val CLIMATE_OVERLAY_ALPHA = 80
-    internal const val BULB_RADIUS_SCALE = 1.2f
-    private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
 
     internal const val PAST_TRIPLE_WIDTH_SCALE = TodayColumnHighlight.PAST_TRIPLE_WIDTH_SCALE
 
@@ -117,7 +115,6 @@ internal object DailyBarRenderer {
                     snapshotX = centerX - layout.pastTripleBarOffset,
                     layout = layout,
                     paintForColor = paints::pastTripleForColor,
-                    defaultColor = paints.pastTripleBarPaint.color,
                     barType = "PAST_SNAPSHOT",
                     onBarDrawn = onBarDrawn,
                 )
@@ -131,12 +128,7 @@ internal object DailyBarRenderer {
                 )
             } else {
                 val (hY, effectiveLowY) = endpoints
-                val condColor = WeatherConditionColors.forecastColor(
-                    day.isSunny,
-                    isBarRainy(day),
-                    day.isMixed,
-                    isNight = false,
-                )
+                val condColor = forecastArgb(day)
                 val paint = when {
                     day.isPast && !day.solidIsForecastFallback -> paints.historyBarPaint
                     day.isSourceGapFallback -> paints.gapFallbackBarPaint
@@ -184,12 +176,7 @@ internal object DailyBarRenderer {
             val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
 
             val forecastX = centerX + comparisonOffset(day, layout)
-            val condColor = WeatherConditionColors.forecastColor(
-                day.isSunny,
-                isBarRainy(day),
-                day.isMixed,
-                isNight = false,
-            )
+            val condColor = forecastArgb(day)
             val overlayPaint = if (day.isClimateNormal) {
                 paints.climateOverlayForColor(condColor)
             } else {
@@ -255,12 +242,7 @@ internal object DailyBarRenderer {
             plan.forecastHigh != null &&
             plan.forecastBaseline != null
         ) {
-            val condColor = WeatherConditionColors.forecastColor(
-                day.isSunny,
-                isBarRainy(day),
-                day.isMixed,
-                isNight = false,
-            )
+            val condColor = forecastArgb(day)
             // Today centers both labels on the column; past forecast labels follow their overlay.
             val forecastLabelX =
                 if (day.isToday) centerX else centerX + comparisonOffset(day, layout)
@@ -344,7 +326,6 @@ internal object DailyBarRenderer {
         snapshotX: Float,
         layout: DailyGraphLayoutInfo,
         paintForColor: (Int) -> Paint,
-        defaultColor: Int,
         barType: String,
         onBarDrawn: ((BarDrawnDebug) -> Unit)?,
     ) {
@@ -358,8 +339,7 @@ internal object DailyBarRenderer {
         val sIsRainy = day.snapshotIconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false
         val sIsMixed = day.snapshotIconRes?.let { WeatherIconMapper.isMixed(it) } ?: false
 
-        val sCondColor =
-            com.weatherwidget.shared.util.WeatherColors.snapshotBarOverrideArgb(sIsRainy) ?: defaultColor
+        val sCondColor = WeatherColors.snapshotBarArgb(day.snapshotIconRes?.let(WeatherIconMapper::iconResToName))
         val sPaint = paintForColor(sCondColor)
 
         // Yesterday's forecast for the day carries the day's noon cloud; its own icon is the fallback.
@@ -418,7 +398,6 @@ internal object DailyBarRenderer {
             snapshotX = centerX - layout.tripleBarOffset,
             layout = layout,
             paintForColor = paints::todayForecastForColor,
-            defaultColor = paints.todaySnapshotYellowPaint.color,
             barType = "TODAY_SNAPSHOT",
             onBarDrawn = onBarDrawn,
         )
@@ -429,12 +408,7 @@ internal object DailyBarRenderer {
         val fLowY = layout.tempToY(fLow)
         val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
 
-        val condColor = WeatherConditionColors.forecastColor(
-            day.isSunny,
-            isBarRainy(day),
-            day.isMixed,
-            isNight = false,
-        )
+        val condColor = forecastArgb(day)
         val forecastPaint = paints.todayForecastForColor(condColor)
         val todayForecastX = centerX + layout.tripleBarOffset
         drawWeatherAdaptiveBar(
@@ -466,7 +440,7 @@ internal object DailyBarRenderer {
         )
         canvas.drawCircle(
             centerX,
-            effectiveObsLowY + layout.bulbRadius * BULB_VERTICAL_CENTER_FRACTION,
+            effectiveObsLowY + layout.bulbRadius * TodayThermostat.BULB_VERTICAL_CENTER_FRACTION,
             layout.bulbRadius,
             paints.todayObservedRedBulbPaint,
         )
@@ -569,8 +543,11 @@ internal object DailyBarRenderer {
      * (shared WeatherColors.isDaytimeRain) — overnight-only rain has its own between-column label.
      * Bar/label color only: [DayData.isRainy] still drives the icon's (untinted) rendering.
      */
-    private fun isBarRainy(day: DayData): Boolean =
-        day.isRainy && WeatherColors.isDaytimeRain(day.rainData.dailyPrecipProbability)
+    private fun forecastArgb(day: DayData): Int =
+        WeatherColors.dailyForecastArgb(
+            day.iconRes?.let(WeatherIconMapper::iconResToName),
+            day.rainData.dailyPrecipProbability,
+        )
 
 
     @VisibleForTesting

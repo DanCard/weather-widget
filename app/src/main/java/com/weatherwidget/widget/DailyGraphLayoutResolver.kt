@@ -261,7 +261,7 @@ internal object DailyGraphLayoutResolver {
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,
             tempLabelHeight = tempLabelHeight,
-            bulbRadius = tripleBarWidth * DailyBarRenderer.BULB_RADIUS_SCALE,
+            bulbRadius = tripleBarWidth * com.weatherwidget.shared.graph.TodayThermostat.BULB_RADIUS_SCALE,
             bitmapScale = bitmapScale,
             minBarHeightPx = MIN_BAR_HEIGHT_DP.dp(density),
             dayLabelTextByDate = dayLabelLayout.textByDate,

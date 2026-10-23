@@ -2,28 +2,35 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * Pins the today-column 24h-prior snapshot bar's base-color rule so Android and desktop can't
- * silently diverge. Only rain overrides the platform's bright snapshot yellow; a cloudy snapshot
- * condition must NOT grey the base — grey base + grey split bottom rendered the whole bar as a
- * solid-grey slab, hiding both the forecast range and the cloud split.
+ * Pins the daily bar colours both platforms take from :shared. A cloudy snapshot must NOT grey the
+ * base — grey base + grey cloud share rendered the whole bar as a solid-grey slab.
  */
 @Category(ShortDuration::class)
 class SnapshotBarColorTest {
 
     @Test
-    fun rainySnapshotKeepsBlueBase() {
-        assertEquals(WeatherColors.FORECAST_RAINY, WeatherColors.snapshotBarOverrideArgb(isRainy = true))
+    fun rainySnapshotKeepsBlue() {
+        assertEquals(WeatherColors.FORECAST_RAINY, WeatherColors.snapshotBarArgb(WeatherConditionResolver.IC_RAIN))
     }
 
     @Test
-    fun nonRainySnapshotUsesPlatformYellow() {
-        // null = "no override": each platform paints its bright snapshot yellow. This is the
-        // regression case — cloudy conditions used to return the slate-grey forecast color.
-        assertNull(WeatherColors.snapshotBarOverrideArgb(isRainy = false))
+    fun anyOtherSnapshotIsYellow() {
+        assertEquals(WeatherColors.SNAPSHOT_YELLOW, WeatherColors.snapshotBarArgb(WeatherConditionResolver.IC_CLOUDY))
+        assertEquals(WeatherColors.SNAPSHOT_YELLOW, WeatherColors.snapshotBarArgb(null))
+    }
+
+    @Test
+    fun forecastColourFollowsTheIconAndTheDaytimeRainGate() {
+        assertEquals(WeatherColors.FORECAST_RAINY, WeatherColors.dailyForecastArgb(WeatherConditionResolver.IC_RAIN, 70))
+        // Rain overnight only: not a rainy day.
+        assertEquals(WeatherColors.FORECAST_CLOUDY, WeatherColors.dailyForecastArgb(WeatherConditionResolver.IC_RAIN, 15))
+        assertEquals(WeatherColors.FORECAST_SUNNY, WeatherColors.dailyForecastArgb(WeatherConditionResolver.IC_CLEAR, null))
+        assertEquals(WeatherColors.FORECAST_SUNNY, WeatherColors.dailyForecastArgb(WeatherConditionResolver.IC_PARTLY_CLOUDY, null))
+        assertEquals(WeatherColors.FORECAST_CLOUDY, WeatherColors.dailyForecastArgb(WeatherConditionResolver.IC_CLOUDY, null))
+        assertEquals(WeatherColors.FORECAST_CLOUDY, WeatherColors.dailyForecastArgb(null, null))
     }
 }

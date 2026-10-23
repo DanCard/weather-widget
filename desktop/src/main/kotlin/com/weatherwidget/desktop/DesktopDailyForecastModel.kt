@@ -531,15 +531,21 @@ object DesktopDailyForecastModel {
         // Today/future: the forecast row's own noon cloud first (DailyHourlySummaries, same as
         // Android's DailyViewLogic — hours past the 72 h store may be older than the row), else the
         // hourly noon row for rows written before it existed.
-        val measuredNoonCloudPercent = (if (isPast) actual?.noonCloudPercent else null)
-            ?: forecast?.noonCloudPercent?.takeIf { !isPast && !forecast.isClimateNormal }
-            ?: com.weatherwidget.shared.util.DailyNoonCloudCover
-                .resolveMeasuredNoonCloudCoverPercent(
-                    hourly = hourly,
-                    date = date,
-                    displaySourceId = displaySourceId,
-                    rowSourceId = rowSourceId,
-                )
+        val measuredNoonCloudPercent = com.weatherwidget.shared.util.DailyNoonCloudCover.forColumn(
+            isPast = isPast,
+            frozenPercent = actual?.noonCloudPercent,
+            rowPercent = forecast?.noonCloudPercent,
+            // The forecast snapshot holds the displayed source's rows only.
+            rowIsDisplaySource = true,
+            rowIsClimateNormal = forecast?.isClimateNormal == true,
+        ) {
+            com.weatherwidget.shared.util.DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(
+                hourly = hourly,
+                date = date,
+                displaySourceId = displaySourceId,
+                rowSourceId = rowSourceId,
+            )
+        }
         val rawCondition = forecast?.condition ?: actual?.condition ?: displaySnapshot?.condition
         // The column icon is Android's rule (:shared DailyIconName): the day's forecast row — today and
         // future the live row, a past day its newest stored row, as Android's newest-row-per-day read —

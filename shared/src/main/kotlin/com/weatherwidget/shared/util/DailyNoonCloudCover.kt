@@ -26,6 +26,25 @@ import java.time.ZoneId
 object DailyNoonCloudCover {
 
     /**
+     * A daily column's noon cloud %, both platforms (the daily bar's sky, `AdaptiveBarStrokes`): a
+     * past day's frozen value ([frozenPercent], daily_history); today / future the column's own
+     * forecast row ([rowPercent], DailyHourlySummaries) when it is a real row of the displayed
+     * source — never a climate-normal stand-in; else measured from stored hourly ([hourlyNoon]).
+     * Null = unknown. Android gated the row on its source, desktop on climate normal (2026-10-23).
+     */
+    fun forColumn(
+        isPast: Boolean,
+        frozenPercent: Int?,
+        rowPercent: Int?,
+        rowIsDisplaySource: Boolean,
+        rowIsClimateNormal: Boolean,
+        hourlyNoon: () -> Int?,
+    ): Int? =
+        (if (isPast) frozenPercent else null)
+            ?: rowPercent?.takeIf { !isPast && rowIsDisplaySource && !rowIsClimateNormal }
+            ?: hourlyNoon()
+
+    /**
      * Site-aware variant for callers holding raw proximity-box rows. Selects the freshest row per
      * hour **at the display site** before resolving noon, which additionally excludes a
      * genuinely-different neighbouring marker — one far enough away to fail

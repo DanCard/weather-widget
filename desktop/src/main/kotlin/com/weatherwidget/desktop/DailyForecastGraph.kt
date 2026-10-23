@@ -41,21 +41,15 @@ import com.weatherwidget.shared.actuals.TodayColumnOverlayContent
 import com.weatherwidget.shared.util.DailyRainLabels
 import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.Log
-import com.weatherwidget.shared.util.WeatherConditionResolver
 import kotlin.math.roundToInt
 
 private const val TAG = "DailyForecastGraph"
 
-private val COLOR_FORECAST_SUNNY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_SUNNY)
-private val COLOR_FORECAST_CLOUDY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_CLOUDY)
 private val COLOR_FORECAST_RAINY = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_RAINY)
 private val COLOR_OBSERVED = Color(com.weatherwidget.shared.util.WeatherColors.OBSERVED)
 private val COLOR_MERCURY = Color(com.weatherwidget.shared.util.WeatherColors.MERCURY)
 private val COLOR_LABEL_GRAY = Color(0xFFAAAAAA)
 private val COLOR_GAP_FALLBACK = Color(0xFF34C759)
-// Mirrors Android's BULB_RADIUS_SCALE/BULB_VERTICAL_CENTER_FRACTION (DailyForecastGraphRenderer).
-private const val BULB_RADIUS_SCALE = 1.2f
-private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
 
 /** Base size of the desktop daily high temperature labels (+30%); see the `DESKTOP_TEMP_LABEL_BASE_SP * scale` call sites. */
 private const val DESKTOP_TEMP_LABEL_BASE_SP = 14f
@@ -247,11 +241,8 @@ fun DailyForecastGraph(
                     cornerRadius = CornerRadius(TodayColumnHighlight.PANEL_CORNER_RADIUS_DP.dp.toPx()),
                 )
 
-                val snapshotIcon = day.snapshotIconName ?: day.iconName
-                val snapshotFlags = WeatherConditionResolver.getConditionFlags(snapshotIcon)
-                val snapshotColor = com.weatherwidget.shared.util.WeatherColors
-                    .snapshotBarOverrideArgb(snapshotFlags.isRainy)
-                    ?.let { Color(it) } ?: Color.Yellow
+                // Its own icon only, as Android: no snapshot icon → yellow, never today's live icon.
+                val snapshotColor = Color(com.weatherwidget.shared.util.WeatherColors.snapshotBarArgb(day.snapshotIconName))
 
                 // Both today bars carry today's cloud-cover ratio (same day); the rain-vs-cloud
                 // bottom color follows each bar's own condition (live forecast vs 24h-prior snapshot).
@@ -272,18 +263,18 @@ fun DailyForecastGraph(
                 val mercuryLow = thermostat.mercuryBottom
                 drawRangeLine(centerX, thermostat.mercuryTop, mercuryLow, ::yAt, COLOR_MERCURY, compactTodayBarWidth)
                 mercuryLow?.let { low ->
-                    val bulbRadius = compactTodayBarWidth * BULB_RADIUS_SCALE
+                    val bulbRadius = compactTodayBarWidth * TodayThermostat.BULB_RADIUS_SCALE
                     drawCircle(
                         color = COLOR_MERCURY,
                         radius = bulbRadius,
-                        center = Offset(centerX, yAt(low) + bulbRadius * BULB_VERTICAL_CENTER_FRACTION),
+                        center = Offset(centerX, yAt(low) + bulbRadius * TodayThermostat.BULB_VERTICAL_CENTER_FRACTION),
                     )
                 }
                 val todayHighs = listOfNotNull(barTop, day.forecastHigh, day.snapshotHigh, day.ghostHigh)
                 val todayLows = listOfNotNull(mercuryLow, day.forecastLow, day.snapshotLow)
                 todayBarTop = todayHighs.maxOrNull()?.let(::yAt) ?: (top + graphHeight * 0.35f)
                 todayBarBottom =
-                    (todayLows.minOrNull()?.let(::yAt)?.plus(compactTodayBarWidth * BULB_RADIUS_SCALE * 1.5f)
+                    (todayLows.minOrNull()?.let(::yAt)?.plus(compactTodayBarWidth * TodayThermostat.BULB_RADIUS_SCALE * 1.5f)
                         ?: (bottom - graphHeight * 0.25f)).coerceAtMost(bottom)
             } else if (day.isPast) {
                 // Past triple bar, matching Android: left = the frozen "yesterday's forecast"
@@ -292,10 +283,7 @@ fun DailyForecastGraph(
                 // cloud/rain split; the observed actual stays solid. A forecast-promoted past day (no
                 // actuals) has no observation to paint red — its solid line reads as a forecast.
                 val priorIcon = day.snapshotIconName ?: day.iconName
-                val priorFlags = WeatherConditionResolver.getConditionFlags(priorIcon)
-                val priorColor = com.weatherwidget.shared.util.WeatherColors
-                    .snapshotBarOverrideArgb(priorFlags.isRainy)
-                    ?.let { Color(it) } ?: Color.Yellow
+                val priorColor = Color(com.weatherwidget.shared.util.WeatherColors.snapshotBarArgb(priorIcon))
                 drawAdaptiveBar(
                     centerX - pastTripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, pastTripleWidth,
                     day.cloudCoverRatio, priorIcon, day.priorBarRainPercent, clearColor = priorColor,
@@ -989,18 +977,8 @@ private fun DrawScope.drawAdaptiveBar(
 private fun standInDash(strokeWidth: Float): PathEffect =
     PathEffect.dashPathEffect(com.weatherwidget.shared.graph.StandInBarStyle.intervals(strokeWidth), 0f)
 
-private fun forecastColor(day: DesktopDailyDay): Color {
-    // Derive flags from the resolved+gated icon name so the bar color matches the displayed icon,
-    // except rain also needs the daytime precip to read as rain (shared WeatherColors.isDaytimeRain).
-    val flags = WeatherConditionResolver.getConditionFlags(day.iconName)
-    return when {
-        flags.isRainy && com.weatherwidget.shared.util.WeatherColors.isDaytimeRain(day.dayPrecipProbability) -> COLOR_FORECAST_RAINY
-        flags.isMixed -> COLOR_FORECAST_SUNNY
-        flags.isSunny -> COLOR_FORECAST_SUNNY
-        day.cloudCoverRatio != null && day.cloudCoverRatio < 0.6f -> COLOR_FORECAST_SUNNY
-        else -> COLOR_FORECAST_CLOUDY
-    }
-}
+private fun forecastColor(day: DesktopDailyDay): Color =
+    Color(com.weatherwidget.shared.util.WeatherColors.dailyForecastArgb(day.iconName, day.dayPrecipProbability))
 
 /** Layout inputs for daily-graph tap routing (icon bounds + bottom strip). */
 internal data class DailyGraphTapLayout(
