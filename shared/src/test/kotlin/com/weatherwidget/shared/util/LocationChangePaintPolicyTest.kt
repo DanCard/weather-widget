@@ -198,21 +198,40 @@ class LocationChangePaintPolicyTest {
 
     private val zone = java.time.ZoneId.of("Europe/Warsaw")
     private fun at(hour: Int, date: LocalDate = today) = date.atTime(hour, 0).atZone(zone).toInstant().toEpochMilli()
+    private val now = at(12)
+    private fun hour(hour: Int, date: LocalDate = today, fetchedAt: Long = now - 3_600_000L) =
+        com.weatherwidget.data.model.HourlyForecast(dateTime = at(hour, date), temperature = 60f, condition = "Clear", fetchedAt = fetchedAt)
 
     @Test
     fun `a daily row without hourly rows for today is not drawable`() {
         // Warsaw -> Wola 2026-09-29: the centre's daily row matched, the new site had 0 hourly rows.
-        assertFalse(LocationChangePaintPolicy.hasDrawableCache(listOf(day("2026-09-28")), emptyList(), today, zone))
+        assertFalse(LocationChangePaintPolicy.hasDrawableCache(listOf(day("2026-09-28")), emptyList(), today, now, zone))
     }
 
     @Test
     fun `daily and hourly rows for today are drawable`() {
-        assertTrue(LocationChangePaintPolicy.hasDrawableCache(listOf(day("2026-09-28")), listOf(at(9), at(10)), today, zone))
+        assertTrue(LocationChangePaintPolicy.hasDrawableCache(listOf(day("2026-09-28")), listOf(hour(9), hour(10)), today, now, zone))
     }
 
     @Test
     fun `hourly rows only for other days are not drawable`() {
         val yesterday = today.minusDays(1)
-        assertFalse(LocationChangePaintPolicy.hasDrawableCache(listOf(day("2026-09-28")), listOf(at(22, yesterday)), today, zone))
+        assertFalse(LocationChangePaintPolicy.hasDrawableCache(listOf(day("2026-09-28")), listOf(hour(22, yesterday)), today, now, zone))
+    }
+
+    @Test
+    fun `today's hours fetched two days ago are not drawable`() {
+        // Desktop's cached read stitches elapsed hours in from history snapshots, past its live-row age limit.
+        val old = now - 48 * 3_600_000L
+        assertFalse(LocationChangePaintPolicy.hasDrawableCache(listOf(day("2026-09-28")), listOf(hour(9, fetchedAt = old)), today, now, zone))
+    }
+
+    @Test
+    fun `log lines lead with the action`() {
+        assertEquals(
+            "action=banner_shown place=Kyiv under=previous_site",
+            LocationChangePaintPolicy.line(LocationChangePaintPolicy.Action.BANNER_SHOWN, "Kyiv", "under=previous_site"),
+        )
+        assertEquals("WARN", LocationChangePaintPolicy.Action.RENDER_ERROR.level)
     }
 }

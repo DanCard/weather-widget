@@ -11,6 +11,8 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.shared.util.LocationChangePaintPolicy.Action as LocationChangeAction
 import com.weatherwidget.data.repository.WeatherRepository
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -74,11 +76,7 @@ internal class WidgetPaintCoordinator(
         widgetStateManager.clearPendingLocationFetch()
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
-        appLogDao.log(
-            "LOCATION_FETCH_PENDING",
-            "action=render_error reason=$reason place=$placeName widgets=${appWidgetIds.size}",
-            "WARN",
-        )
+        com.weatherwidget.shared.util.LocationChangePaintPolicy.log(LocationChangeAction.RENDER_ERROR, placeName, "reason=$reason widgets=${appWidgetIds.size}") { tag, message, level -> appLogDao.log(tag, message, level) }
         appWidgetIds.forEach { appWidgetId ->
             WidgetRenderer.updateWidgetError(context, appWidgetManager, appWidgetId)
         }
@@ -94,12 +92,11 @@ internal class WidgetPaintCoordinator(
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
         val cleared = LocationChangeBanner.clear(context, place, appWidgetIds)
-        appLogDao.log(
-            "LOCATION_FETCH_PENDING",
-            "action=${if (succeeded) "banner_cleared" else "banner_failed"} reason=$reason place=$place " +
-                "widgets=${appWidgetIds.size} cleared=$cleared",
-            if (succeeded) "INFO" else "WARN",
-        )
+        com.weatherwidget.shared.util.LocationChangePaintPolicy.log(
+            if (succeeded) LocationChangeAction.BANNER_CLEARED else LocationChangeAction.BANNER_FAILED,
+            place,
+            "reason=$reason widgets=${appWidgetIds.size} cleared=$cleared",
+        ) { tag, message, level -> appLogDao.log(tag, message, level) }
         // Nothing cleared = the banner is already gone (the cache was adopted, or a later change
         // took over): whatever is on screen now is not this change's to replace with an error.
         if (!succeeded && cleared > 0) {
@@ -153,7 +150,7 @@ internal class WidgetPaintCoordinator(
         )
         if (!show) {
             widgetStateManager.clearPendingLocationFetch()
-            appLogDao.log("LOCATION_FETCH_PENDING", "action=cached_rows_adopted place=$placeName", "INFO")
+            com.weatherwidget.shared.util.LocationChangePaintPolicy.log(LocationChangeAction.CACHE_ADOPTED, placeName) { tag, message, level -> appLogDao.log(tag, message, level) }
             return
         }
         renderFetchingLocation(placeName, reason = "full_sync_start")
@@ -183,7 +180,7 @@ internal class WidgetPaintCoordinator(
             hasRenderOnScreen = true,
         )
         if (!decision.adoptCached) {
-            appLogDao.log("LOCATION_FETCH_PENDING", "action=banner_shown under=previous_site place=$placeName", "INFO")
+            com.weatherwidget.shared.util.LocationChangePaintPolicy.log(LocationChangeAction.BANNER_SHOWN, placeName, "under=previous_site") { tag, message, level -> appLogDao.log(tag, message, level) }
             return false
         }
         // Repaint first, THEN drop the banner. Cleared first, the previous city stood bannerless for
@@ -227,11 +224,10 @@ internal class WidgetPaintCoordinator(
             caller = "location_change_probe",
         )
         // Only rows fetched recently enough to show as the new site's weather without a banner.
-        val oldestAdoptable = System.currentTimeMillis() -
-            com.weatherwidget.shared.util.LocationChangePaintPolicy.MAX_ADOPTABLE_CACHE_AGE_MS
-        val drawable = com.weatherwidget.shared.util.LocationChangePaintPolicy.hasHourlyForToday(
-            hourly.filter { it.fetchedAt >= oldestAdoptable }.map { it.dateTime },
+        val drawable = com.weatherwidget.shared.util.LocationChangePaintPolicy.hasFreshHourlyForToday(
+            hourly.asSequence().map { it.toHourlyForecast() }.asIterable(),
             java.time.LocalDate.now(),
+            System.currentTimeMillis(),
         )
         return hourly.takeIf { drawable }
     }
@@ -240,11 +236,7 @@ internal class WidgetPaintCoordinator(
     suspend fun renderFetchingLocation(placeName: String, reason: String) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
-        appLogDao.log(
-            "LOCATION_FETCH_PENDING",
-            "action=render_interstitial reason=$reason place=$placeName widgets=${appWidgetIds.size}",
-            "INFO",
-        )
+        com.weatherwidget.shared.util.LocationChangePaintPolicy.log(LocationChangeAction.RENDER_INTERSTITIAL, placeName, "reason=$reason widgets=${appWidgetIds.size}") { tag, message, level -> appLogDao.log(tag, message, level) }
         appWidgetIds.forEach { appWidgetId ->
             WidgetRenderer.updateWidgetFetchingLocation(context, appWidgetManager, appWidgetId, placeName)
         }
@@ -363,7 +355,11 @@ internal class WidgetPaintCoordinator(
         // the new site. Same "only once a render launched" rule as the paint-owed flag above.
         if (rendered && weatherList.isNotEmpty() && widgetStateManager.getPendingLocationFetch() != null) {
             widgetStateManager.clearPendingLocationFetch()
-            appLogDao.log("LOCATION_FETCH_PENDING", "action=cleared rows=${weatherList.size}", "INFO")
+            appLogDao.log(
+                com.weatherwidget.shared.util.LocationChangePaintPolicy.TAG,
+                "action=${LocationChangeAction.CLEARED.wire} rows=${weatherList.size}",
+                LocationChangeAction.CLEARED.level,
+            )
         }
     }
 

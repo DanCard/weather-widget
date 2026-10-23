@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.work.*
 import androidx.work.ListenableWorker
 import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.shared.util.LocationChangePaintPolicy
 import com.weatherwidget.shared.util.MetarFetchPolicy
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
@@ -74,10 +75,10 @@ internal class FullSyncPipeline(
             var adoptedCache = false
             input.locationChangePlace?.let { place ->
                 if (input.locationChangeBanner) {
-                    appLogDao.log("LOCATION_FETCH_PENDING", "action=banner_sync_start place=$place", "INFO")
+                    appLogDao.log(LocationChangePaintPolicy.TAG, LocationChangePaintPolicy.line(LocationChangePaintPolicy.Action.BANNER_SYNC_START, place), "INFO")
                     adoptedCache = if (input.locationCacheAdopted) {
                         // The startup deferral already drew the cache and dropped the banner.
-                        appLogDao.log("LOCATION_FETCH_PENDING", "action=cache_already_adopted place=$place", "INFO")
+                        appLogDao.log(LocationChangePaintPolicy.TAG, LocationChangePaintPolicy.line(LocationChangePaintPolicy.Action.CACHE_ALREADY_ADOPTED, place), "INFO")
                         true
                     } else {
                         painter.adoptCachedNewSite(place, location.first, location.second)

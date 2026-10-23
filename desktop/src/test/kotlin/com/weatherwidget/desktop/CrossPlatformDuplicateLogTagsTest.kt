@@ -40,7 +40,6 @@ class CrossPlatformDuplicateLogTagsTest {
             "DOMINANT_TEMP_WATCH" to ADAPTER, // DominantTempWatch, prefs vs file store
             "HEADER_FIT" to UI_FLOW, // measuring glue around shared HeaderFit
             "HISTORY_REFRESH_DONE" to UI_FLOW,
-            "LOCATION_FETCH_PENDING" to UI_FLOW,
             "REFRESH_TOAST" to UI_FLOW,
             "SIM_LOOP_ERROR" to UI_FLOW, // rain-loop player, audit 261021 H
             "SIM_LOOP_FALLBACK" to UI_FLOW,

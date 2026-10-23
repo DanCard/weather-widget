@@ -2,6 +2,7 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.HourlyForecast
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -21,6 +22,43 @@ import java.time.ZoneId
  * Shared by Android (`LocationUpdater`) and desktop (`DesktopUiApplication`).
  */
 object LocationChangePaintPolicy {
+    /** The location change's log tag, both platforms ([line]). */
+    const val TAG = "LOCATION_FETCH_PENDING"
+
+    /** What a [TAG] line reports; the wire names are what both platforms' logs say. */
+    enum class Action(val wire: String, val level: String = "INFO") {
+        /** Full-screen "Getting weather for {place}…": nothing to keep on screen. */
+        RENDER_INTERSTITIAL("render_interstitial"),
+
+        /** The new site's fresh cache is drawn at once; no banner or interstitial stays up. */
+        CACHE_ADOPTED("cache_adopted"),
+
+        /** The banner stays over the previous site's render while the fetch runs. */
+        BANNER_SHOWN("banner_shown"),
+
+        /** Android: the forced sync for a banner-mode change started. */
+        BANNER_SYNC_START("banner_sync_start"),
+
+        /** Android: the startup deferral already adopted the cache before the sync ran. */
+        CACHE_ALREADY_ADOPTED("cache_already_adopted"),
+
+        /** The fetch landed and the new site is drawn; the wait is over. */
+        CLEARED("cleared"),
+        BANNER_CLEARED("banner_cleared"),
+        BANNER_FAILED("banner_failed", "WARN"),
+
+        /** The fetch failed with nothing of the new site's to show: "Tap to refresh" / an error. */
+        RENDER_ERROR("render_error", "WARN"),
+    }
+
+    /** `action=… place=… [extra]` — one shape for both platforms (desktop led with `place=`). */
+    fun line(action: Action, place: String, extra: String = ""): String =
+        "action=${action.wire} place=$place" + if (extra.isNotEmpty()) " $extra" else ""
+
+    /** Writes the [TAG] [line] at [Action.level] through the platform's log [write]. */
+    inline fun log(action: Action, place: String, extra: String = "", write: (tag: String, message: String, level: String) -> Unit) =
+        write(TAG, line(action, place, extra), action.level)
+
 
     /**
      * @param userInitiated true for the setup screen / location picker; false for device following.
@@ -116,6 +154,22 @@ object LocationChangePaintPolicy {
      */
     const val MAX_ADOPTABLE_CACHE_AGE_MS = 24 * 60 * 60 * 1000L
 
+    /**
+     * True when [hourly] holds an hour of [today] fetched within [MAX_ADOPTABLE_CACHE_AGE_MS] of
+     * [nowMs]. The age is each row's own: desktop's cached read stitches in elapsed hours from
+     * history snapshots, which its live-row age limit never saw, so a two-day-old fetch still had
+     * "today" rows (audit plans/261023-duplicate-logic-audit-different-names.md).
+     */
+    fun hasFreshHourlyForToday(
+        hourly: Iterable<HourlyForecast>,
+        today: LocalDate,
+        nowMs: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Boolean {
+        val oldest = nowMs - MAX_ADOPTABLE_CACHE_AGE_MS
+        return hasHourlyForToday(hourly.asSequence().filter { it.fetchedAt >= oldest }.map { it.dateTime }.asIterable(), today, zone)
+    }
+
     /** True when [hourlyTimesMs] (epoch ms) include an hour of [today] in [zone]. */
     fun hasHourlyForToday(hourlyTimesMs: Iterable<Long>, today: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Boolean =
         hourlyTimesMs.any { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() == today }
@@ -125,14 +179,16 @@ object LocationChangePaintPolicy {
      * for today, both read the way the render reads them. A daily row alone is not enough — the
      * daily selector's proximity box is wider than the hourly site match, so a precise-location fix
      * 7 km from a cached city centre found the centre's daily row, adopted it, and drew a graph with
-     * zero hourly rows for the 31 s its own fetch took (Warsaw → Wola, 2026-09-29).
+     * zero hourly rows for the 31 s its own fetch took (Warsaw → Wola, 2026-09-29). Hourly rows
+     * count only when fresh ([hasFreshHourlyForToday]).
      */
     fun hasDrawableCache(
         dailyRows: Iterable<DailyForecast>,
-        hourlyTimesMs: Iterable<Long>,
+        hourly: Iterable<HourlyForecast>,
         today: LocalDate,
+        nowMs: Long,
         zone: ZoneId = ZoneId.systemDefault(),
-    ): Boolean = hasTodayRow(dailyRows, today) && hasHourlyForToday(hourlyTimesMs, today, zone)
+    ): Boolean = hasTodayRow(dailyRows, today) && hasFreshHourlyForToday(hourly, today, nowMs, zone)
 
     /**
      * Short place name for transient messages, or null when the label can't say which component

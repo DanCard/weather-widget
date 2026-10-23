@@ -193,3 +193,12 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   drawable — no banner and no fetch. Still per platform: Android's widget banner + expedited worker,
   desktop's popup banner (and its 4 s failure message); with a fresh cache Android queues an unforced
   sync, desktop leaves it to the forecast loop. Tag allowlist → 11.
+- 2026-10-23: §3 location change → `:shared` `LocationChangePaintPolicy` already held the decision;
+  it now also owns the `LOCATION_FETCH_PENDING` tag, the action names (`Action`, with levels) and the
+  line (`action=… place=… [extra]`; desktop led with `place=`), and the hourly age test
+  (`hasFreshHourlyForToday`, each row's own `fetchedAt`). Desktop bug fixed: its cached read stitches
+  today's elapsed hours in from history snapshots past the 24 h live-row limit, so a two-day-old site
+  was adopted with no banner. Android's interstitial-mode `cached_rows_adopted` is now `cache_adopted`,
+  as desktop. Still per platform: where the cache is read (Android DAO + `HourlyForecastLoader`,
+  desktop `loadCached`) and the effects (widget banner/interstitial + forced worker; popup banner,
+  interstitial and in-process refresh). Tag allowlist → 10.

@@ -35,8 +35,8 @@ object SourceSwitchFetchRule {
         val oldest = nowMs - LocationChangePaintPolicy.MAX_ADOPTABLE_CACHE_AGE_MS
         if (lastForecastFetchMs == null || lastForecastFetchMs < oldest) return false
         if (dailyRows != null && !LocationChangePaintPolicy.hasTodayRow(dailyRows, today)) return false
-        val fresh = hourly.filter { (it.source == null || it.source == sourceId) && it.fetchedAt >= oldest }
-        return LocationChangePaintPolicy.hasHourlyForToday(fresh.map { it.dateTime }, today, zone)
+        val own = hourly.filter { it.source == null || it.source == sourceId }
+        return LocationChangePaintPolicy.hasFreshHourlyForToday(own, today, nowMs, zone)
     }
 
     /** No cache: banner (where there is somewhere to show it and a location to fetch) and a forced fetch. */

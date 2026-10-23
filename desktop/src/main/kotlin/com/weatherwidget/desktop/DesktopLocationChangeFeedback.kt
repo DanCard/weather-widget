@@ -29,13 +29,19 @@ internal object DesktopLocationChangeFeedback {
      *   2026-09-28: old data plus "Getting weather for…" beats a blank placeholder).
      * - Neither → the full-screen interstitial.
      * A non-null cache is not "drawable": a site last visited two weeks ago still loads its old
-     * daily rows, none of them in the visible window — adopting that painted an empty graph.
+     * daily rows, none of them in the visible window — adopting that painted an empty graph. Hourly
+     * rows count only when fetched within a day (the cached read stitches in older snapshot hours).
      */
-    fun decide(cached: ForecastSnapshot?, hasRenderOnScreen: Boolean, today: LocalDate): LocationChangePaintPolicy.Decision =
+    fun decide(
+        cached: ForecastSnapshot?,
+        hasRenderOnScreen: Boolean,
+        today: LocalDate,
+        nowMs: Long = System.currentTimeMillis(),
+    ): LocationChangePaintPolicy.Decision =
         // pendingPlaceName already established that the site changed.
         LocationChangePaintPolicy.decide(
             hasTodayRowAtNewSite = cached != null &&
-                LocationChangePaintPolicy.hasDrawableCache(cached.raw.daily, cached.raw.hourly.map { it.dateTime }, today),
+                LocationChangePaintPolicy.hasDrawableCache(cached.raw.daily, cached.raw.hourly, today, nowMs),
             hasRenderOnScreen = hasRenderOnScreen,
         )
 

@@ -522,17 +522,17 @@ internal fun runDesktopUiApplication() = application {
                 val cached = runCatching { repo.loadCached() }.getOrNull()
                 val decision = DesktopLocationChangeFeedback.decide(cached, hasRenderOnScreen = forecast != null, LocalDate.now())
                 if (decision.feedback == LocationChangePaintPolicy.Feedback.INTERSTITIAL) {
-                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=render_interstitial", "INFO")
+                    LocationChangePaintPolicy.log(LocationChangePaintPolicy.Action.RENDER_INTERSTITIAL, label, write = weatherDao::log)
                     forecast = null
                     dataStatus = DataStatus.FetchingLocation(DesktopLocationChangeFeedback.placePhrase(place))
                 } else if (decision.adoptCached) {
                     // The new site's own graph is the feedback; a "Getting weather for…" banner over
                     // it read as still loading (2026-09-29). The refresh below runs silently.
-                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=cache_adopted", "INFO")
+                    LocationChangePaintPolicy.log(LocationChangePaintPolicy.Action.CACHE_ADOPTED, label, write = weatherDao::log)
                     forecast = cached
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
                 } else {
-                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=banner_shown under=previous_site", "INFO")
+                    LocationChangePaintPolicy.log(LocationChangePaintPolicy.Action.BANNER_SHOWN, label, "under=previous_site", write = weatherDao::log)
                     locationBanner = LocationBanner(token, DesktopLocationChangeFeedback.fetchingMessage(place))
                 }
                 val naming = if (place != null) null else launch {
@@ -553,16 +553,12 @@ internal fun runDesktopUiApplication() = application {
                     forecast = repo.refresh(userLocationChange = true, reason = "location_change")
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
                     dataUpdateCount++
-                    weatherDao.log("LOCATION_FETCH_PENDING", "place=$label action=cleared", "INFO")
+                    LocationChangePaintPolicy.log(LocationChangePaintPolicy.Action.CLEARED, label, write = weatherDao::log)
                     if (ownsBanner()) locationBanner = null
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    weatherDao.log(
-                        "LOCATION_FETCH_PENDING",
-                        "place=$label action=render_error ${e::class.simpleName}: ${e.message}",
-                        "WARN",
-                    )
+                    LocationChangePaintPolicy.log(LocationChangePaintPolicy.Action.RENDER_ERROR, label, "${e::class.simpleName}: ${e.message}", write = weatherDao::log)
                     val phrase = DesktopLocationChangeFeedback.placePhrase(place)
                     if (dataStatus is DataStatus.FetchingLocation) {
                         dataStatus = DataStatus.Error("Couldn\u2019t get weather for $phrase \u2014 check the network, then Refresh")

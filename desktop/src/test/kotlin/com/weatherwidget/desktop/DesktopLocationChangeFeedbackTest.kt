@@ -50,7 +50,9 @@ class DesktopLocationChangeFeedbackTest {
 
     private val today = LocalDate.of(2026, 9, 28)
 
-    private fun snapshot(vararg dates: String, hourlyToday: Boolean = true) = ForecastSnapshot(
+    private val now = today.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    private fun snapshot(vararg dates: String, hourlyToday: Boolean = true, hourlyFetchedAt: Long = now - 3_600_000L) = ForecastSnapshot(
         raw = RawFetch(
             daily = dates.map { DailyForecast(date = it, highTemp = 70f, lowTemp = 55f, condition = "Clear") },
             hourly = if (hourlyToday) {
@@ -59,6 +61,7 @@ class DesktopLocationChangeFeedbackTest {
                         dateTime = today.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                         temperature = 60f,
                         condition = "Clear",
+                        fetchedAt = hourlyFetchedAt,
                     ),
                 )
             } else {
@@ -73,7 +76,7 @@ class DesktopLocationChangeFeedbackTest {
 
     @Test
     fun `cache with a row for today is adopted with no banner over it`() {
-        val d = DesktopLocationChangeFeedback.decide(snapshot("2026-09-28", "2026-09-29"), hasRenderOnScreen = true, today)
+        val d = DesktopLocationChangeFeedback.decide(snapshot("2026-09-28", "2026-09-29"), hasRenderOnScreen = true, today, now)
         assertEquals(com.weatherwidget.shared.util.LocationChangePaintPolicy.Feedback.NONE, d.feedback)
         assertTrue(d.adoptCached)
     }
@@ -83,14 +86,14 @@ class DesktopLocationChangeFeedbackTest {
         // 2026-09-28: 94043's newest NWS rows were 09-15..09-21; adopting them left the popup
         // blank until the first fetch landed 26 s later.
         val stale = snapshot(*(15..21).map { "2026-09-%02d".format(it) }.toTypedArray())
-        val d = DesktopLocationChangeFeedback.decide(stale, hasRenderOnScreen = true, today)
+        val d = DesktopLocationChangeFeedback.decide(stale, hasRenderOnScreen = true, today, now)
         assertEquals(banner, d.feedback)
         assertFalse(d.adoptCached)
     }
 
     @Test
     fun `nothing cached and nothing on screen shows the interstitial`() {
-        val d = DesktopLocationChangeFeedback.decide(null, hasRenderOnScreen = false, today)
+        val d = DesktopLocationChangeFeedback.decide(null, hasRenderOnScreen = false, today, now)
         assertEquals(interstitial, d.feedback)
         assertFalse(d.adoptCached)
     }
@@ -98,7 +101,21 @@ class DesktopLocationChangeFeedbackTest {
     @Test
     fun `a daily row for today with no hourly rows is not adopted`() {
         // Warsaw centre -> Wola (2026-09-29): a daily row matched, the new site had no hourly rows.
-        val d = DesktopLocationChangeFeedback.decide(snapshot("2026-09-28", hourlyToday = false), hasRenderOnScreen = true, today)
+        val d = DesktopLocationChangeFeedback.decide(snapshot("2026-09-28", hourlyToday = false), hasRenderOnScreen = true, today, now)
+        assertEquals(banner, d.feedback)
+        assertFalse(d.adoptCached)
+    }
+
+    @Test
+    fun `today's hours from a two-day-old fetch are not adopted`() {
+        // The cached read stitches today's elapsed hours in from history snapshots, which its 24 h
+        // live-row limit never filtered: a two-day-old site was adopted with no banner.
+        val d = DesktopLocationChangeFeedback.decide(
+            snapshot("2026-09-28", hourlyFetchedAt = now - 48 * 3_600_000L),
+            hasRenderOnScreen = true,
+            today,
+            now,
+        )
         assertEquals(banner, d.feedback)
         assertFalse(d.adoptCached)
     }

@@ -50,8 +50,12 @@ class WidgetPaintCoordinatorLocationChangeTest : RobolectricTest() {
         )
     }
 
-    private fun logged(action: String) = coVerify(exactly = 1) {
-        appLogDao.insert(match<AppLogEntity> { it.tag == "LOCATION_FETCH_PENDING" && it.message.contains("action=$action") })
+    private fun logged(action: String, vararg fields: String) = coVerify(exactly = 1) {
+        appLogDao.insert(
+            match<AppLogEntity> {
+                it.tag == "LOCATION_FETCH_PENDING" && it.message.startsWith("action=$action ") && fields.all { f -> " $f" in it.message }
+            },
+        )
     }
 
     @Test
@@ -71,7 +75,7 @@ class WidgetPaintCoordinatorLocationChangeTest : RobolectricTest() {
         coordinator.paintLocationChangeInterstitial("Home", 37.42, -122.09, hasTodayRowAt = { _, _ -> true })
 
         assertNull(stateManager.getPendingLocationFetch())
-        logged("cached_rows_adopted")
+        logged("cache_adopted")
     }
 
     private val probeRows = listOf(
@@ -108,7 +112,7 @@ class WidgetPaintCoordinatorLocationChangeTest : RobolectricTest() {
         assertTrue(adopted)
         assertEquals(1, repaints)
         // No "Getting weather for Mountain View…" over Mountain View's own graph.
-        logged("banner_cleared reason=cache_adopted")
+        logged("banner_cleared", "reason=cache_adopted")
     }
 
     @Test
@@ -123,7 +127,7 @@ class WidgetPaintCoordinatorLocationChangeTest : RobolectricTest() {
 
         assertFalse(adopted)
         assertEquals(0, repaints)
-        logged("banner_shown under=previous_site")
+        logged("banner_shown", "under=previous_site")
     }
 
     @Test
