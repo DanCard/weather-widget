@@ -43,7 +43,7 @@ class CrossPlatformDuplicateNamesTest {
             "toHourlyForecast" to ADAPTER, // entity/API row mapping into the shared model
             "cachedNormalsByMonthDay" to ADAPTER, // climate_normals read
             "fetchCurrentConditions" to ADAPTER, // CurrentConditionsRun.Host fetch
-            "fetchPriorDayCloudForecast" to ADAPTER, // Open-Meteo previous-runs read
+            "fetchPriorDayCloudForecast" to PENDING, // throttle, window, store and log written twice (audit 261023 §2)
             "getPowerState" to ADAPTER, // BatteryManager vs /sys/class/power_supply
             "isArmed" to ADAPTER, // DominantTempWatch prefs vs file store
             "setArmed" to ADAPTER,
