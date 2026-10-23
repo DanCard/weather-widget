@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.graph.AdaptiveBarStrokes
 import com.weatherwidget.shared.util.DailyColumnSource
 import com.weatherwidget.shared.util.PastDayForecastOverlay
 import android.util.Log
@@ -457,6 +458,8 @@ object DailyViewLogic {
             var snapshotLow: Float? = null
             var snapshotIconRes: Int? = null
             var snapshotIsStale = false
+            var priorRowDaytimePrecip: Int? = null
+            var priorRowPrecip: Int? = null
             var forecastIsFallback = false
             val isClimateOverlay: Boolean
             val isTodayForecastFallback: Boolean
@@ -524,6 +527,8 @@ object DailyViewLogic {
                 snapshotLow = todayValues.snapshotLow
                 snapshotIconRes = todayValues.snapshotIconRes
                 snapshotIsStale = todayValues.snapshotIsStale
+                priorRowDaytimePrecip = todayValues.priorRowDaytimePrecip
+                priorRowPrecip = todayValues.priorRowPrecip
                 trueActualHigh = todayValues.trueActualHigh
                 todayHasActualLow = todayValues.todayHasActualLow
                 isTodayForecastFallback = todayValues.isTodayForecastFallback
@@ -579,7 +584,8 @@ object DailyViewLogic {
                         displaySource = displaySource,
                         weatherSourceId = weather?.source,
                     )
-            val cloudCoverRatioOverride = (measuredCloudCoverPercent ?: 0) / 100f
+            // Null = unknown: the bar falls back to the icon's sky (AdaptiveBarStrokes).
+            val cloudCoverRatioOverride = measuredCloudCoverPercent?.let { it / 100f }
             if (storedNoonCloud == null) {
                 Log.d(
                     TAG,
@@ -713,6 +719,12 @@ object DailyViewLogic {
                         // as its right (settled-forecast) bar does.
                         snapshotIconRes = snapshotIconRes ?: iconRes.takeIf { isPastDate && snapshotHigh != null },
                         snapshotIsStale = snapshotIsStale,
+                        priorBarRainPercent = AdaptiveBarStrokes.priorBarRainPercent(
+                            isPast = isPastDate,
+                            priorRowDaytime = priorRowDaytimePrecip,
+                            priorRowWholeDay = priorRowPrecip,
+                            dayRainPercent = dayPrecipForIcon,
+                        ),
                         forecastIsFallback = forecastIsFallback,
                         actualsFromOtherSite = isPastDate && !solidIsForecastFallback &&
                             actual?.isActualsBorrowed == true,

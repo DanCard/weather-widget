@@ -144,14 +144,11 @@ internal object DailyBarRenderer {
                     else -> paints.barForColor(condColor)
                 }
 
-                val usesAdaptiveSegments =
-                    !day.isPast && day.iconRes != null && shouldUseAdaptiveSegments(day)
                 debug {
                     "Bar color decision: date=${day.date}" +
                         " isPast=${day.isPast} isSunny=${day.isSunny} isRainy=${day.isRainy}" +
                         " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
                         " color=${String.format("#%08X", paint.color)}" +
-                        " gradient=$usesAdaptiveSegments" +
                         " cloudRatioOverride=${day.cloudCoverRatioOverride}"
                 }
                 drawWeatherAdaptiveBar(
@@ -163,6 +160,8 @@ internal object DailyBarRenderer {
                     day = day,
                     logPrefix = "primary",
                     allowAdaptiveSegments = !day.isPast,
+                    // A source-gap stand-in keeps its own colour in the clear share, like desktop's climate normal.
+                    clearArgb = if (day.isSourceGapFallback) paint.color else WeatherColors.FORECAST_SUNNY,
                     dashed = day.isPast && day.actualsFromOtherSite,
                 )
                 onBarDrawn?.invoke(
@@ -196,12 +195,11 @@ internal object DailyBarRenderer {
             } else {
                 paints.forecastForColor(condColor)
             }
-            val overlayGradient = day.iconRes != null && shouldUseAdaptiveSegments(day)
             debug {
                 "Overlay color decision: date=${day.date}" +
                     " isSunny=${day.isSunny} isRainy=${day.isRainy}" +
                     " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
-                    " color=${String.format("#%08X", condColor)} gradient=$overlayGradient" +
+                    " color=${String.format("#%08X", condColor)}" +
                     " cloudRatioOverride=${day.cloudCoverRatioOverride}" +
                     " isClimateNormal=${day.isClimateNormal}"
             }
@@ -364,14 +362,12 @@ internal object DailyBarRenderer {
             com.weatherwidget.shared.util.WeatherColors.snapshotBarOverrideArgb(sIsRainy) ?: defaultColor
         val sPaint = paintForColor(sCondColor)
 
-        // Yesterday's forecast for the day carries the day's resolved cloud-cover ratio.
+        // Yesterday's forecast for the day carries the day's noon cloud; its own icon is the fallback.
         val snapshotDay = day.copy(
             iconRes = day.snapshotIconRes,
             isSunny = sIsSunny,
             isRainy = sIsRainy,
             isMixed = sIsMixed,
-            cloudCoverRatioOverride = day.cloudCoverRatioOverride
-                ?: day.snapshotIconRes?.let { WeatherConditionColors.cloudRatio(it) },
         )
 
         drawWeatherAdaptiveBar(
@@ -384,7 +380,8 @@ internal object DailyBarRenderer {
             logPrefix = barType.lowercase(),
             allowAdaptiveSegments = true,
             dashed = day.snapshotIsStale,
-            dayPrecipProbability = null,
+            dayPrecipProbability = day.priorBarRainPercent,
+            clearArgb = sPaint.color,
         )
         onBarDrawn?.invoke(
             BarDrawnDebug(
@@ -518,8 +515,10 @@ internal object DailyBarRenderer {
         allowAdaptiveSegments: Boolean = true,
         /** A stand-in bar (StandInBarStyle): same colors, dashed. */
         dashed: Boolean = false,
-        /** Gates the chance-rain blue segment (WeatherColors.isDaytimeRain); null for snapshot bars. */
+        /** The daytime rain chance (the blue share); a snapshot bar's is its own (priorBarRainPercent). */
         dayPrecipProbability: Int? = day.rainData.dailyPrecipProbability,
+        /** The clear share's colour: gold, or a snapshot bar's own yellow / blue. */
+        clearArgb: Int = WeatherColors.FORECAST_SUNNY,
     ) {
         @Suppress("NAME_SHADOWING")
         val paint = if (dashed) standInDashed(paint) else paint
@@ -527,25 +526,21 @@ internal object DailyBarRenderer {
             canvas.drawLine(centerX, topY, centerX, bottomY, paint)
             return
         }
-        // Split, colours and segment ends are shared AdaptiveBarStrokes.plan — the same plan the
-        // desktop DailyForecastGraph draws; this only strokes it.
+        // The sky (clear · cloud · rain), its colours and the blended edges are shared
+        // AdaptiveBarStrokes.plan — the same plan the desktop DailyForecastGraph draws; this only strokes it.
         val plan = AdaptiveBarStrokes.plan(
-            iconName = day.iconRes?.let(WeatherIconMapper::iconResToName),
-            cloudCoverRatio = day.cloudCoverRatioOverride,
-            dayPrecipProbability = dayPrecipProbability,
-            barArgb = paint.color,
+            noonCloudRatio = day.cloudCoverRatioOverride,
+            fallbackIconName = day.iconRes?.let(WeatherIconMapper::iconResToName),
+            dayRainPercent = dayPrecipProbability,
             highY = topY,
             lowY = bottomY,
             inkRadius = paint.strokeWidth / 2f,
+            clearArgb = clearArgb,
         )
-        val split = plan.split
-        if (split == null) {
-            canvas.drawLine(centerX, topY, centerX, bottomY, paint)
-            return
-        }
         for (stroke in plan.strokes) {
             val strokePaint = Paint(paint).apply {
                 color = stroke.colorArgb
+                alpha = paint.alpha
                 shader = null
             }
             val clipBottom = stroke.clipBottomY
@@ -560,14 +555,12 @@ internal object DailyBarRenderer {
         }
 
         debug {
-            "$logPrefix mixed bar geometry: date=${day.date} centerX=$centerX" +
-                " topY=$topY bottomY=$bottomY height=${bottomY - topY}" +
-                " splitRatio=${split.ratio} topFraction=${split.topFraction} midFraction=${split.midFraction}" +
-                " strokes=${plan.strokes.joinToString { String.format("#%08X@%s", it.colorArgb, it.clipBottomY) }}"
+            "$logPrefix bar sky: date=${day.date} centerX=$centerX topY=$topY bottomY=$bottomY" +
+                " noonCloud=${day.cloudCoverRatioOverride} sky=${plan.sky} strokes=${plan.strokes.size}"
         }
     }
 
-    // Both split segments are cloned from this paint and start at topY, so their dashes line up.
+    // Every stroke is cloned from this paint and starts at topY, so their dashes line up.
     private fun standInDashed(paint: Paint): Paint =
         Paint(paint).apply { pathEffect = DashPathEffect(StandInBarStyle.intervals(paint.strokeWidth), 0f) }
 
@@ -579,8 +572,6 @@ internal object DailyBarRenderer {
     private fun isBarRainy(day: DayData): Boolean =
         day.isRainy && WeatherColors.isDaytimeRain(day.rainData.dailyPrecipProbability)
 
-    private fun shouldUseAdaptiveSegments(day: DayData): Boolean =
-        WeatherColors.shouldDrawAdaptiveBar(day.isMixed, day.cloudCoverRatioOverride)
 
     @VisibleForTesting
     internal fun dailyBarStrokeWidthPx(

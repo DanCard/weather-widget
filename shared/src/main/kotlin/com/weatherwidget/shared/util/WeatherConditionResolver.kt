@@ -217,6 +217,19 @@ object WeatherConditionResolver {
         else -> null
     }
 
+    /**
+     * The sky's cloud share (0..1) an icon stands for — the daily bar's fallback when a day has no
+     * noon cloud % (`AdaptiveBarStrokes`). [cloudRatioFromIcon] for the in-between icons, clear 0,
+     * overcast / fog / precipitation 1; null when the icon says nothing about the sky.
+     */
+    fun skyCloudRatio(iconName: String?): Float? = iconName?.let { icon ->
+        cloudRatioFromIcon(icon) ?: when (icon) {
+            IC_CLEAR, IC_NIGHT -> 0f
+            IC_CLOUDY, IC_FOG, IC_FOG_DENSE, IC_RAIN, IC_STORM, IC_SNOW -> 1f
+            else -> null
+        }
+    }
+
     // ── Patchy fog normalization ──────────────────────────────────────────
 
     /**

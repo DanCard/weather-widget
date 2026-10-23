@@ -1426,7 +1426,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `prepareGraphDays assumes zero cloud cover when noon is absent`() {
+    fun `prepareGraphDays leaves cloud cover unknown when noon is absent`() {
         val now = LocalDateTime.of(2030, 6, 15, 9, 0)
         val today = now.toLocalDate()
         val future = today.plusDays(1)
@@ -1457,7 +1457,8 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals(0f, futureDay.cloudCoverRatioOverride)
+        // Unknown, not 0 %: the bar falls back to the icon's sky (AdaptiveBarStrokes).
+        assertNull(futureDay.cloudCoverRatioOverride)
     }
 
     @Test

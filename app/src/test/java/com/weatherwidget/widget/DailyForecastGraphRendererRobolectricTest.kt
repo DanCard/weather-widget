@@ -24,6 +24,15 @@ import java.time.LocalDate
 @Category(LongDuration::class)
 class DailyForecastGraphRendererRobolectricTest {
 
+    private companion object {
+        /**
+         * drawLine calls for a two- / three-colour bar. Paint is stubbed (strokeWidth 0), so the
+         * blend band (AdaptiveBarStrokes, ± half the stroke) is empty: one call per colour.
+         */
+        const val TWO_COLOURS = 2
+        const val THREE_COLOURS = 3
+    }
+
     @After
     fun tearDown() {
         unmockkAll()
@@ -35,22 +44,21 @@ class DailyForecastGraphRendererRobolectricTest {
             iconRes = R.drawable.ic_weather_mostly_clear,
             cloudCoverRatioOverride = 0.45f,
         )
-        // The segment colours are asserted in WeatherConditionColorsTest (real shared constants);
-        // here, in plain JUnit with Paint stubbed to 0, only the split-vs-solid structure is
-        // observable: a mixed bar emits two drawLine calls (grey bottom + sunny top).
-        assertEquals(2, paintColors.size)
+        // The colours are asserted in :shared AdaptiveBarStrokesTest; here, in plain JUnit with Paint
+        // stubbed to 0, only the structure is observable: grey + gold.
+        assertEquals(TWO_COLOURS, paintColors.size)
     }
 
     @Test
-    fun `mixed chance rain day draws three-segment rainy bar`() {
+    fun `rainy day draws three-colour bar`() {
         val paintColors = capturePrimaryBarPaintColors(
             iconRes = R.drawable.ic_weather_partly_cloudy_chance_rain,
             isMixed = true,
             cloudCoverRatioOverride = 0.66f,
+            dayRainPercent = 70,
         )
-        // A rainy bar (WeatherColors.rainDaySplit): blue bottom, then the sky cap split gold over grey
-        // by cloud share — three drawLine calls. Colors are asserted in MixedBarSplitTest.
-        assertEquals(3, paintColors.size)
+        // Rain first (AdaptiveBarStrokes): blue bottom, the cap above it gold over grey by cloud share.
+        assertEquals(THREE_COLOURS, paintColors.size)
     }
 
     @Test
@@ -60,8 +68,8 @@ class DailyForecastGraphRendererRobolectricTest {
             isMixed = false,
             cloudCoverRatioOverride = 0.29f,
         )
-        // Grey bottom is asserted in WeatherConditionColorsTest; here only the split structure.
-        assertEquals(2, paintColors.size)
+        // Noon cloud alone decides, whatever the icon.
+        assertEquals(TWO_COLOURS, paintColors.size)
     }
 
     @Test
@@ -71,8 +79,7 @@ class DailyForecastGraphRendererRobolectricTest {
             isMixed = false,
             cloudCoverRatioOverride = 0f,
         )
-        // Solid sunny colour is asserted in WeatherConditionColorsTest; here only the solid
-        // structure (a single drawLine call, no split).
+        // 0 % cloud: all gold, a single drawLine call.
         assertEquals(1, paintColors.size)
     }
 
@@ -97,8 +104,8 @@ class DailyForecastGraphRendererRobolectricTest {
 
         val snapshotBarX = lineCountsByX.keys.max() // rightmost bar = snapshot
         assertEquals(
-            "snapshot bar should be split into grey + colored segments (2 drawLine calls)",
-            2,
+            "snapshot bar should be split into grey + colored segments",
+            TWO_COLOURS,
             lineCountsByX[snapshotBarX],
         )
     }
@@ -110,7 +117,7 @@ class DailyForecastGraphRendererRobolectricTest {
             cloudCoverRatioOverride = null,
         )
 
-        // No cloud data + sunny snapshot icon → the snapshot bar is a single solid line.
+        // No noon cloud: the clear snapshot icon's sky (0 %) → a single solid line.
         val snapshotBarX = lineCountsByX.keys.max()
         assertEquals(1, lineCountsByX[snapshotBarX])
     }
@@ -169,6 +176,7 @@ class DailyForecastGraphRendererRobolectricTest {
         iconRes: Int,
         isMixed: Boolean = true,
         cloudCoverRatioOverride: Float,
+        dayRainPercent: Int? = null,
     ): List<Int> {
         val context = mockContext()
         val paintSlot = slot<Paint>()
@@ -191,6 +199,7 @@ class DailyForecastGraphRendererRobolectricTest {
                         isSunny = true,
                         isMixed = isMixed,
                         cloudCoverRatioOverride = cloudCoverRatioOverride,
+                        rainData = DailyForecastGraphRenderer.RainLabelData(dailyPrecipProbability = dayRainPercent),
                     ),
                 ),
                 widthPx = 240,

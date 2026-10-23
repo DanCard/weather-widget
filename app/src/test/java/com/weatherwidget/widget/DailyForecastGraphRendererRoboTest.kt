@@ -1490,7 +1490,7 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
-    fun futureDay_chanceOfRain_resolvesBlueBottomSegment() {
+    fun futureDay_chanceOfRain_drawsBar() {
         val date = LocalDate.of(2026, 10, 21)
         // Wednesday Google Weather scenario: "Rain Showers", 65% pop, 99% cloud
         val chanceRainDay = DailyForecastGraphRenderer.DayData(
@@ -1507,24 +1507,9 @@ class DailyForecastGraphRendererRoboTest {
             cloudCoverRatioOverride = 0.99f,
         )
 
-        val split = WeatherConditionColors.resolveMixedBarSplit(
-            chanceRainDay.iconRes!!,
-            chanceRainDay.cloudCoverRatioOverride,
-        )
-        assertNotNull("Adaptive bar split must be resolved for mixed chance-rain day", split)
-        assertEquals(
-            "Chance of rain bottom segment must be colored FORECAST_RAINY (Steel Blue)",
-            WeatherConditionColors.FORECAST_RAINY,
-            split!!.bottomColor,
-        )
-
         val results = render(listOf(chanceRainDay))
         val futureBar = results.find { it.barType == "FUTURE" }
         assertNotNull("Future bar should be drawn", futureBar)
-        assertTrue(
-            "Mixed chance-of-rain day must enable adaptive segments",
-            chanceRainDay.isMixed || (chanceRainDay.cloudCoverRatioOverride ?: 0f) > 0f,
-        )
     }
 
     private fun peakDays(highOfRainyDay: Float) = listOf(

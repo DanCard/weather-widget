@@ -225,7 +225,6 @@ fun DailyForecastGraph(
         displayDays.forEachIndexed { index, day ->
             val columnWidth = columns.widths[index]
             val centerX = columns.centers[index]
-            val baseColor = forecastColor(day)
 
             if (day.isToday) {
                 // Frosted-glass focal panel behind the three today bars (shared geometry + fill with
@@ -256,10 +255,10 @@ fun DailyForecastGraph(
 
                 // Both today bars carry today's cloud-cover ratio (same day); the rain-vs-cloud
                 // bottom color follows each bar's own condition (live forecast vs 24h-prior snapshot).
-                drawAdaptiveBar(centerX + compactTodayTripleOffset, day.forecastHigh, day.forecastLow, ::yAt, compactTodayBarWidth, baseColor, day.cloudCoverRatio, day.iconName, day.dayPrecipProbability)
+                drawAdaptiveBar(centerX + compactTodayTripleOffset, day.forecastHigh, day.forecastLow, ::yAt, compactTodayBarWidth, day.cloudCoverRatio, day.iconName, day.dayPrecipProbability)
                 drawAdaptiveBar(
                     centerX - compactTodayTripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, compactTodayBarWidth,
-                    snapshotColor, day.cloudCoverRatio, day.snapshotIconName,
+                    day.cloudCoverRatio, day.snapshotIconName, day.priorBarRainPercent, clearColor = snapshotColor,
                     pathEffect = standInDash(compactTodayBarWidth).takeIf { day.snapshotIsStale },
                 )
                 // The thermostat — shared TodayThermostat decides the spans: solid mercury from
@@ -299,7 +298,7 @@ fun DailyForecastGraph(
                     ?.let { Color(it) } ?: Color.Yellow
                 drawAdaptiveBar(
                     centerX - pastTripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, pastTripleWidth,
-                    priorColor, day.cloudCoverRatio, priorIcon,
+                    day.cloudCoverRatio, priorIcon, day.priorBarRainPercent, clearColor = priorColor,
                     pathEffect = standInDash(pastTripleWidth).takeIf { day.snapshotIsStale },
                 )
                 drawAdaptiveBar(
@@ -308,10 +307,9 @@ fun DailyForecastGraph(
                     low = day.forecastLow,
                     yAt = ::yAt,
                     width = pastTripleWidth,
-                    baseColor = forecastColor(day),
-                    cloudCoverRatio = day.cloudCoverRatio,
+                    noonCloudRatio = day.cloudCoverRatio,
                     iconName = day.iconName,
-                    dayPrecipProbability = day.dayPrecipProbability,
+                    dayRainPercent = day.dayPrecipProbability,
                     pathEffect = standInDash(pastTripleWidth).takeIf { day.forecastIsFallback },
                 )
                 val solidBarColor = if (day.solidIsForecastFallback) forecastColor(day) else COLOR_MERCURY
@@ -323,8 +321,10 @@ fun DailyForecastGraph(
                 val high = day.solidHigh
                 val low = day.solidLow
                 if (high != null && low != null) {
-                    val color = if (day.isClimateNormal) COLOR_GAP_FALLBACK else baseColor
-                    drawAdaptiveBar(centerX, high, low, ::yAt, barWidth, color, day.cloudCoverRatio, day.iconName, day.dayPrecipProbability)
+                    drawAdaptiveBar(
+                        centerX, high, low, ::yAt, barWidth, day.cloudCoverRatio, day.iconName, day.dayPrecipProbability,
+                        clearColor = COLOR_GAP_FALLBACK.takeIf { day.isClimateNormal },
+                    )
                 }
             }
 
@@ -944,9 +944,9 @@ private fun DrawScope.drawRangeLine(
 }
 
 /**
- * Weather-adaptive forecast bar. Everything — whether it splits, the colours, where each segment
- * ends — is shared `AdaptiveBarStrokes.plan`, the same plan Android's DailyBarRenderer draws; this
- * only strokes it. Nullable high/low (skips the bar when either is absent), mirroring [drawRangeLine].
+ * Weather-adaptive forecast bar. Its sky (clear · cloud · rain), colours and blended edges are shared
+ * `AdaptiveBarStrokes.plan`, the same plan Android's DailyBarRenderer draws; this only strokes it.
+ * Nullable high/low (skips the bar when either is absent), mirroring [drawRangeLine].
  */
 private fun DrawScope.drawAdaptiveBar(
     centerX: Float,
@@ -954,11 +954,13 @@ private fun DrawScope.drawAdaptiveBar(
     low: Float?,
     yAt: (Float) -> Float,
     width: Float,
-    baseColor: Color,
-    cloudCoverRatio: Float?,
+    /** The day's noon cloud share (0..1); null = unknown, the icon's sky stands in. */
+    noonCloudRatio: Float?,
     iconName: String?,
-    /** Gates the chance-rain blue segment (WeatherColors.isDaytimeRain); null for snapshot bars. */
-    dayPrecipProbability: Int? = null,
+    /** The daytime rain chance (the blue share); a snapshot bar's is its own (priorBarRainPercent). */
+    dayRainPercent: Int?,
+    /** The clear share's colour; null = gold. A snapshot bar's own yellow / blue. */
+    clearColor: Color? = null,
     /** Stand-in bar ([standInDash]); every stroke starts at highY, so their dashes line up. */
     pathEffect: PathEffect? = null,
 ) {
@@ -966,7 +968,8 @@ private fun DrawScope.drawAdaptiveBar(
     val highY = yAt(high)
     val lowY = yAt(low)
     val plan = AdaptiveBarStrokes.plan(
-        iconName, cloudCoverRatio, dayPrecipProbability, baseColor.toArgb(), highY, lowY, inkRadius = width / 2f,
+        noonCloudRatio, iconName, dayRainPercent, highY, lowY, inkRadius = width / 2f,
+        clearArgb = clearColor?.toArgb() ?: com.weatherwidget.shared.util.WeatherColors.FORECAST_SUNNY,
     )
     for (stroke in plan.strokes) {
         fun line() = drawLine(

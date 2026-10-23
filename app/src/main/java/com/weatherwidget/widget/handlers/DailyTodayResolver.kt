@@ -35,6 +35,9 @@ internal object DailyTodayResolver {
         val isTodayForecastFallback: Boolean,
         /** A side was last confirmed more than [PriorDayForecast.STALE_SLACK_HOURS] before its anchor — draw it dashed. */
         val snapshotIsStale: Boolean = false,
+        /** The picked prior row's daytime / whole-day rain chance (AdaptiveBarStrokes.priorBarRainPercent). */
+        val priorRowDaytimePrecip: Int? = null,
+        val priorRowPrecip: Int? = null,
     )
 
     /**
@@ -155,6 +158,8 @@ internal object DailyTodayResolver {
             todayHasActualLow = todayHasActualLow,
             isTodayForecastFallback = isTodayForecastFallback,
             snapshotIsStale = isSnapshotStale(pick, date, zone),
+            priorRowDaytimePrecip = snapshot?.daytimePrecipProbability,
+            priorRowPrecip = snapshot?.precipProbability,
         )
     }
 

@@ -870,12 +870,7 @@ settings = config.settings.copy(useCelsius = false)),
         assertEquals("ic_weather_cloudy_chance_rain", wed.iconName)
         assertEquals(0.99f, wed.cloudCoverRatio)
 
-        val split = com.weatherwidget.shared.util.WeatherColors.resolveMixedBarSplit(wed.iconName, wed.cloudCoverRatio)
-        assertNotNull("Bar split must resolve for chance-rain day", split)
-        assertEquals(
-            "Bottom segment must be FORECAST_RAINY (Steel Blue)",
-            com.weatherwidget.shared.util.WeatherColors.FORECAST_RAINY,
-            split!!.bottomColorArgb,
-        )
+        val sky = com.weatherwidget.shared.graph.AdaptiveBarStrokes.sky(wed.cloudCoverRatio, wed.iconName, wed.dayPrecipProbability)
+        assertEquals("The bar's blue share is the day's rain chance", 0.65f, sky.rain, 1e-6f)
     }
 }

@@ -189,6 +189,8 @@ object DailyForecastGraphRenderer {
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
         val snapshotIconRes: Int? = null,
+        /** The "yesterday's forecast" bar's rain chance (shared AdaptiveBarStrokes.priorBarRainPercent). */
+        val priorBarRainPercent: Int? = null,
         val ghostLineHigh: Float? = null,
         override val cloudCoverRatioOverride: Float? = null,
         override val daysFromToday: Int = 0,

@@ -64,6 +64,8 @@ data class DesktopDailyDay(
      */
     val iconName: String,
     val snapshotIconName: String? = null,
+    /** The "yesterday's forecast" bar's rain chance (shared AdaptiveBarStrokes.priorBarRainPercent). */
+    val priorBarRainPercent: Int? = null,
     val isToday: Boolean,
     val isPast: Boolean,
     /** True when this past day's solid line is a promoted forecast (no actuals) — render as forecast. */
@@ -609,6 +611,12 @@ object DesktopDailyForecastModel {
             iconCondition = rawCondition,
             iconName = gatedIconName,
             snapshotIconName = snapshotIconName,
+            priorBarRainPercent = com.weatherwidget.shared.graph.AdaptiveBarStrokes.priorBarRainPercent(
+                isPast = isPast,
+                priorRowDaytime = todaySnapshot?.daytimePrecipProbability.takeIf { isToday },
+                priorRowWholeDay = todaySnapshot?.precipProbability.takeIf { isToday },
+                dayRainPercent = resolvedPrecip.dayPrecip,
+            ),
             isToday = isToday,
             isPast = isPast,
             solidIsForecastFallback = solidIsForecastFallback,
@@ -619,7 +627,8 @@ object DesktopDailyForecastModel {
                 ),
             forecastIsFallback = forecastIsFallback,
             actualsFromOtherSite = isPast && !solidIsForecastFallback && actual?.isActualsBorrowed == true,
-            cloudCoverRatio = (measuredNoonCloudPercent ?: 0) / 100f,
+            // Null = unknown: the bar falls back to the icon's sky (AdaptiveBarStrokes).
+            cloudCoverRatio = measuredNoonCloudPercent?.let { it / 100f },
             dailyRainLabelText = dailyRainLabelText,
             dailyRainPeakLabelText = dailyRainPeakLabelText,
             nightRainLabelText = nightRainLabelText,
