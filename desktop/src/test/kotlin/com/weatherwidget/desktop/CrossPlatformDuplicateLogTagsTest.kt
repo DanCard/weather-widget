@@ -55,8 +55,6 @@ class CrossPlatformDuplicateLogTagsTest {
             "NWS_STATION_FAIL" to FETCH_JOB, // current observation
             "OBS_ATTEMPT_TOUCH" to FETCH_JOB,
             "OBS_CLOUD_CARRIER" to FETCH_JOB,
-            "PRIOR_CLOUD" to FETCH_JOB,
-            "PRIOR_CLOUD_EMPTY" to FETCH_JOB,
             "TMRW_5M_FETCH" to FETCH_JOB,
             "WAPI_HISTORY_CHECK" to FETCH_JOB,
             "WAPI_HISTORY_RESULT" to FETCH_JOB,

@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.shared.graph.PriorDayCloudRun
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.model.ForecastParts
@@ -72,67 +73,46 @@ internal class ForecastFetchCoordinator(
     /** Snapshot-write clock; [ForecastRepository.clock] in production, pinned by tests. */
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    /**
-     * Fetches the day-ago cloud predictions backing the cloud graph's frozen forecast curve.
-     *
-     * Throttled to once an hour: the prediction made for an already-elapsed hour never changes, so
-     * refetching it every cycle would spend a call to rewrite identical rows. Best-effort — any
-     * failure leaves the graph drawing the live value on both curves, which is honest (it marks
-     * itself unfrozen) rather than broken.
-     */
+    /** The cloud graph's frozen forecast curve: `:shared` [PriorDayCloudRun] owns the rule; this stores rows. */
     private suspend fun fetchPriorDayCloudForecast(latitude: Double, longitude: Double) {
         val dao = hourlyForecastHistoryDao ?: return
-        val now = System.currentTimeMillis()
-        if (now - lastPriorCloudFetchMs < PRIOR_CLOUD_FETCH_INTERVAL_MS) return
-        lastPriorCloudFetchMs = now
-        try {
-            val byHour = openMeteoApi.getPriorDayCloudForecast(
-                latitude, longitude, PRIOR_CLOUD_PAST_DAYS, now,
-            )
-            if (byHour.isEmpty()) {
-                // Loud on purpose. An empty result is indistinguishable at the render from a
-                // healthy graph: nulls are omitted rather than zeroed (correctly), so
-                // CloudSeriesBuilder falls back to the live row with isFrozen = false and still
-                // draws a continuous, plausible curve — a hindcast wearing the forecast's clothes.
-                // Measured 2026-08-27: the Previous Runs API serves all-nulls for
-                // cloud_cover_low_previous_day1 at every location probed, and has never served it —
-                // the newest stored OPEN_METEO_PRIOR24 row is from 90 minutes BEFORE the commit
-                // that started requesting it. Seven days of nothing, and nothing anywhere said so.
-                appLogDao.log(
-                    "PRIOR_CLOUD_EMPTY",
-                    "no usable hours from ${OpenMeteoApi.PREVIOUS_RUNS_VARIABLE}; " +
-                        "frozen forecast curve falls back to live values",
+        PriorDayCloudRun.run(
+            object : PriorDayCloudRun.Host {
+                override var lastAttemptMs: Long
+                    get() = lastPriorCloudFetchMs
+                    set(value) { lastPriorCloudFetchMs = value }
+
+                override suspend fun fetch(pastDays: Int, nowMs: Long) =
+                    openMeteoApi.getPriorDayCloudForecast(latitude, longitude, pastDays, nowMs)
+
+                override suspend fun store(coverByHour: Map<Long, Int>, nowMs: Long) = dao.insertAll(
+                    coverByHour.map { (hourMs, cover) ->
+                        com.weatherwidget.data.local.HourlyForecastHistoryEntity(
+                            dateTime = hourMs,
+                            // Quantized so GPS jitter overwrites instead of fragmenting the site.
+                            locationLat = com.weatherwidget.data.local.LocationMatch.quantize(latitude),
+                            locationLon = com.weatherwidget.data.local.LocationMatch.quantize(longitude),
+                            // NOT NULL in the schema but meaningless here; only cloud is read back.
+                            temperature = 0f,
+                            condition = "prior-run cloud",
+                            source = com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID,
+                            timestampToGroupPredictions =
+                                com.weatherwidget.shared.graph.PriorDayCloudForecast.predictionBucketFor(hourMs),
+                            // The previous-runs variable is the total column, filed where `cloudCover`
+                            // means it everywhere else; old LOW-variable rows are read through
+                            // VisibleCloudCover's band fallback.
+                            cloudCover = cover,
+                            cloudCoverLow = null,
+                            fetchedAt = nowMs,
+                        )
+                    },
                 )
-                return
-            }
-            dao.insertAll(
-                byHour.map { (hourMs, cover) ->
-                    com.weatherwidget.data.local.HourlyForecastHistoryEntity(
-                        dateTime = hourMs,
-                        // Quantized so GPS jitter overwrites instead of fragmenting the site.
-                        locationLat = com.weatherwidget.data.local.LocationMatch.quantize(latitude),
-                        locationLon = com.weatherwidget.data.local.LocationMatch.quantize(longitude),
-                        // NOT NULL in the schema but meaningless here; only cloud is read back.
-                        temperature = 0f,
-                        condition = "prior-run cloud",
-                        source = com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID,
-                        timestampToGroupPredictions =
-                            com.weatherwidget.shared.graph.PriorDayCloudForecast.predictionBucketFor(hourMs),
-                        // The previous-runs variable is cloud_cover_previous_day1 — the total
-                        // column — so it is filed where `cloudCover` means what it means everywhere
-                        // else in the schema. Rows written while it was the LOW variable still carry
-                        // their value on cloudCoverLow and are still read through
-                        // VisibleCloudCover's band fallback; nothing needs migrating.
-                        cloudCover = cover,
-                        cloudCoverLow = null,
-                        fetchedAt = now,
-                    )
-                },
-            )
-            appLogDao.log("PRIOR_CLOUD", "stored hours=${byHour.size}")
-        } catch (e: Exception) {
-            appLogDao.log("PRIOR_CLOUD_FAIL", "cloud graph falls back to live values: ${e.javaClass.simpleName}")
-        }
+
+                override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
+            },
+            sourceId = WeatherSource.OPEN_METEO.id,
+            nowMs = System.currentTimeMillis(),
+        )
     }
 
     private var lastPriorCloudFetchMs = 0L
@@ -869,9 +849,7 @@ internal class ForecastFetchCoordinator(
     }
 
     companion object {
-        private const val PRIOR_CLOUD_FETCH_INTERVAL_MS = 60 * 60 * 1000L
         /** Covers the widget's 30-day pan; `_previous_day1` is populated across the whole span. */
-        private const val PRIOR_CLOUD_PAST_DAYS = 31
 
         /** Every user-selectable source; a hand-kept list here once left new sources never "stale". */
         private val SOURCES_TO_CHECK = WeatherSourceOrdering.ALL_CONFIGURABLE

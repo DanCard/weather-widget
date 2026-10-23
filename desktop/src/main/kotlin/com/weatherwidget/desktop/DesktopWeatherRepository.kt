@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.graph.PriorDayCloudRun
 import com.weatherwidget.shared.observations.CurrentConditionsRun
 import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.shared.util.DailyPrecipPeriods
@@ -499,36 +500,26 @@ class DesktopWeatherRepository(
         }
     }
 
-    /** Guards the once-an-hour cadence for [maybeFetchPriorDayCloudForecast]. */
+    /** The last prior-day cloud attempt ([PriorDayCloudRun]). */
     private var lastPriorCloudFetchMs = 0L
 
-    private suspend fun maybeFetchPriorDayCloudForecast(now: Long) {
-        if (now - lastPriorCloudFetchMs < PRIOR_CLOUD_FETCH_INTERVAL_MS) return
-        try {
-            val pastDays = (DesktopGraphUtils.MAX_BACK_HOURS / 24) + 1
-            val byHour = weatherService.fetchPriorDayCloudForecast(pastDays)
-            if (byHour.isNotEmpty()) {
-                weatherDao.upsertPriorDayCloudForecast(latitude, longitude, byHour)
-                Log.i(TAG, "PRIOR_CLOUD stored hours=${byHour.size} pastDays=$pastDays")
-            } else {
-                // Loud on purpose, matching ForecastFetchCoordinator on Android. An empty result is
-                // indistinguishable at the render from a healthy graph: the curve falls back to the
-                // live row with isFrozen = false and still looks continuous. That is how
-                // cloud_cover_low_previous_day1 going empty stayed invisible for a week.
-                Log.w(
-                    TAG,
-                    "PRIOR_CLOUD_EMPTY no usable hours from " +
-                        "${OpenMeteoApi.PREVIOUS_RUNS_VARIABLE}; frozen forecast falls back to live",
-                )
-            }
-            // Mark the attempt, not just the success: a source with no previous-runs product
-            // returns empty every time, and retrying it each refresh is pure noise.
-            lastPriorCloudFetchMs = now
-        } catch (e: Exception) {
-            Log.w(TAG, "PRIOR_CLOUD fetch failed, cloud graph falls back to live values: $e")
-            lastPriorCloudFetchMs = now
-        }
-    }
+    /** The cloud graph's frozen forecast curve: `:shared` [PriorDayCloudRun] owns the rule; this stores rows. */
+    private suspend fun maybeFetchPriorDayCloudForecast(now: Long) = PriorDayCloudRun.run(
+        object : PriorDayCloudRun.Host {
+            override var lastAttemptMs: Long
+                get() = lastPriorCloudFetchMs
+                set(value) { lastPriorCloudFetchMs = value }
+
+            override suspend fun fetch(pastDays: Int, nowMs: Long) = weatherService.fetchPriorDayCloudForecast(pastDays)
+
+            override suspend fun store(coverByHour: Map<Long, Int>, nowMs: Long) =
+                weatherDao.upsertPriorDayCloudForecast(latitude, longitude, coverByHour)
+
+            override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
+        },
+        sourceId = weatherSource,
+        nowMs = now,
+    )
 
     /**
      * The observation pull a full refresh makes for a source whose actuals come from another feed
@@ -1742,7 +1733,6 @@ class DesktopWeatherRepository(
         // from here and only deepens. Capped at the 18-month DB retention (cleanup deletes past that).
         private const val BASELINE_HISTORY_DAYS = 7
         private const val MAX_HISTORY_DAYS = 547
-        private const val PRIOR_CLOUD_FETCH_INTERVAL_MS = 60 * 60 * 1000L
         private const val CHANCE_BACKFILL_DONE_TAG = "CHANCE_BACKFILL_DONE"
         private const val FROZEN_DISPLAY_BACKFILL_DONE_TAG = "FROZEN_DISPLAY_BACKFILL_DONE"
         private const val UTC_PREDICTION_DATE_REPAIR_DONE_TAG = "UTC_PREDICTION_DATE_REPAIR_DONE"

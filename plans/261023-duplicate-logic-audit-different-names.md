@@ -99,3 +99,11 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   (`HourlyAxisPlan`). Android's stages become preset spans, desktop's wheel any span — same rule at
   the same span. Awaiting the user's OK.
 - Vacuum threshold: 8 MB on both (decided).
+
+## Progress
+- 2026-10-23: §1 daily columns → `:shared` `DailyColumnBuilder` (graph and text, both platforms;
+  `plans/261023-shared-daily-column-builder.md`).
+- 2026-10-23: §2 prior-day cloud → `:shared` `PriorDayCloudRun` + Host. Same 31 days on both
+  (desktop's `720/24+1`); the Open-Meteo gate moved into the rule (desktop asked every source and got
+  an hourly empty result); desktop now logs `PRIOR_CLOUD*` to app_logs like Android; one failure tag
+  `PRIOR_CLOUD_FAIL`. Tag allowlist −2.
