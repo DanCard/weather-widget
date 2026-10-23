@@ -56,6 +56,24 @@ object HourlyOnDemand {
     /** [Keep] as instants: hours at or past [liveMs] are not stored live, at or past [snapshotMs] not snapshotted. */
     data class KeepUntil(val liveMs: Long, val snapshotMs: Long)
 
+    /** A fetch's hours split by [KeepUntil]: kept live, of those snapshotted, and the trim log line (null when nothing was cut). */
+    data class Trim<T>(val live: List<T>, val snapshot: List<T>, val logMessage: String?)
+
+    const val TRIM_TAG = "HOURLY_TRIM"
+
+    /** One split and one [TRIM_TAG] line for both platforms (VERBOSE: never persisted). */
+    fun <T> trim(hours: List<T>, until: KeepUntil, nowMs: Long, sourceId: String?, dateTime: (T) -> Long): Trim<T> {
+        val live = hours.filter { dateTime(it) < until.liveMs }
+        val snapshot = live.filter { dateTime(it) < until.snapshotMs }
+        val message = if (live.size < hours.size || snapshot.size < live.size) {
+            "source=$sourceId kept=${live.size} snapshotKept=${snapshot.size} dropped=${hours.size - live.size} " +
+                "horizonH=${(until.liveMs - nowMs) / HOUR_MS} snapshotH=${(until.snapshotMs - nowMs) / HOUR_MS}"
+        } else {
+            null
+        }
+        return Trim(live, snapshot, message)
+    }
+
     /**
      * [hoursAhead] for the live table and the history snapshot. They differ only for a LONG routine
      * fetch, which keeps its 8-day download live but snapshots the routine 72 h — the snapshot table

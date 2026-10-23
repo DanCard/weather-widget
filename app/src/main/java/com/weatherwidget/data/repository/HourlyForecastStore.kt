@@ -50,17 +50,13 @@ internal class HourlyForecastStore(
      */
     suspend fun saveHourlyEntities(rawEntities: List<HourlyForecastEntity>, keepUntilMs: HourlyOnDemand.KeepUntil? = null) {
         if (rawEntities.isEmpty()) return
-        val kept = if (keepUntilMs == null) rawEntities else rawEntities.filter { it.dateTime < keepUntilMs.liveMs }
         val snapshotUntilMs = keepUntilMs?.snapshotMs ?: Long.MAX_VALUE
-        if (kept.size < rawEntities.size || kept.any { it.dateTime >= snapshotUntilMs }) {
-            appLogDao?.log(
-                "HOURLY_TRIM",
-                "source=${rawEntities.first().source} kept=${kept.size} " +
-                    "snapshotKept=${kept.count { it.dateTime < snapshotUntilMs }} dropped=${rawEntities.size - kept.size} " +
-                    "horizonH=${keepUntilMs?.let { (it.liveMs - clock()) / 3_600_000L }} " +
-                    "snapshotH=${keepUntilMs?.let { (it.snapshotMs - clock()) / 3_600_000L }}",
-                "VERBOSE",
-            )
+        val kept = if (keepUntilMs == null) {
+            rawEntities
+        } else {
+            HourlyOnDemand.trim(rawEntities, keepUntilMs, clock(), rawEntities.first().source) { it.dateTime }
+                .also { trim -> trim.logMessage?.let { appLogDao?.log(HourlyOnDemand.TRIM_TAG, it, "VERBOSE") } }
+                .live
         }
         if (kept.isEmpty()) return
 

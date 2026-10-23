@@ -935,16 +935,10 @@ class DesktopWeatherRepository(
         // performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md).
         val keepUntil = keep.untilMs(now)
         val upcoming = result.hourly.filter { it.dateTime >= now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
-        val forecastHours = upcoming.filter { it.dateTime < keepUntil.liveMs }
-        val snapshotHours = forecastHours.filter { it.dateTime < keepUntil.snapshotMs }
-        if (forecastHours.size < upcoming.size || snapshotHours.size < forecastHours.size) {
-            weatherDao.log(
-                tag = "HOURLY_TRIM",
-                message = "source=$weatherSource kept=${forecastHours.size} snapshotKept=${snapshotHours.size} " +
-                    "dropped=${upcoming.size - forecastHours.size} horizonH=${keep.liveHours} snapshotH=${keep.snapshotHours}",
-                level = "VERBOSE",
-            )
-        }
+        val trim = HourlyOnDemand.trim(upcoming, keepUntil, now, weatherSource) { it.dateTime }
+        trim.logMessage?.let { weatherDao.log(HourlyOnDemand.TRIM_TAG, it, "VERBOSE") }
+        val forecastHours = trim.live
+        val snapshotHours = trim.snapshot
         weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, forecastHours)
         val today = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
         val forecastDaily = withHourlySummaries(

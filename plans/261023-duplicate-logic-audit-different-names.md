@@ -148,3 +148,6 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   when asked) and no longer swallows cancellation (`catch (e: Exception)`); one log set
   (`CLIMATE_SKIP_DISABLED`, `CLIMATE_FETCH_EMPTY` WARN, `CLIMATE_CACHED`, `CLIMATE_WARM_FAIL`) on both.
   Tag allowlist −1 (→ 18).
+- 2026-10-23: §2 hourly trim → `HourlyOnDemand.trim` + `TRIM_TAG` (one split, one line). Same rule
+  before; only the code and the line's `horizonH` (desktop printed the configured hours, Android the
+  hours from now) differed. Tag allowlist −1 (→ 17).
