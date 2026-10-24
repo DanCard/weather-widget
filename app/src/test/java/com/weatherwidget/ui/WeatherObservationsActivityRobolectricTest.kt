@@ -930,6 +930,12 @@ class WeatherObservationsActivityRobolectricTest {
         val scenario = ActivityScenario.launch<WeatherObservationsActivity>(intent)
         scenario.onActivity {
             it.ioDispatcher = testDispatcher
+            // The injected runner runs on the app's real IO scope, so the repair's fetch landed on a
+            // background thread the main-looper idle does not wait for — the repair tests read
+            // refreshedLocations before it ran when the suite was busy. On the test dispatcher the
+            // fetch runs inline, like everything else here.
+            it.userRefreshRunner =
+                com.weatherwidget.shared.util.UserRefreshRunner(kotlinx.coroutines.CoroutineScope(testDispatcher)) { _, _, _ -> }
             it.resampleLocation = { _, trigger -> resampleTriggers.add(trigger) }
             it.forceRefreshDisplayedSource = { latitude, longitude ->
                 refreshedLocations.add(latitude to longitude)
