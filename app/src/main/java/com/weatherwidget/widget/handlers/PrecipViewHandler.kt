@@ -48,6 +48,8 @@ object PrecipViewHandler {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
         hourlyForecasts: List<HourlyForecastEntity>,
+        // The header's hourly around NOW (the graph's window may be panned away from it).
+        currentTempHourlyForecasts: List<HourlyForecastEntity> = emptyList(),
         centerTime: LocalDateTime,
         precipProbability: Int? = null,
         lastObservedTemp: Float? = null,
@@ -187,7 +189,7 @@ object PrecipViewHandler {
             CurrentTempResolutionHelper.resolveTimed(
                 now = now,
                 displaySource = displaySource,
-                hourlyForecasts = hourlyForecasts,
+                hourlyForecasts = currentTempHourlyForecasts.ifEmpty { hourlyForecasts },
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
             )

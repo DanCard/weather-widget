@@ -91,7 +91,6 @@ class DailyHeaderNowcastRoboTest {
             numColumns = 5,
             numRows = 2,
             useGraph = true,
-            smoothedForecasts = null,
             sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon),
             deltaFromYesterday = null,
             dateOffset = 0,

@@ -82,7 +82,7 @@ class WidgetIntentRouterHeaderTempRoboTest {
     /**
      * Simulates the two DB queries that refreshGraphView performs:
      *   1. loadGraphWindowHourlyForecasts(centerTime) — used for graph rendering
-     *   2. loadCurrentTempResolutionHourlyForecasts(now) — used for current temp
+     *   2. loadCurrentTempInputHourlyForecasts(now) — used for current temp
      *
      * With disjoint clusters in the DB, these two queries return different lists.
      * The handler must use the NOW-centered list for current temp resolution.
@@ -106,7 +106,7 @@ class WidgetIntentRouterHeaderTempRoboTest {
         for (hourlyOffset in hourlyOffsets) {
             val centerTime = now.plusHours(hourlyOffset.toLong())
 
-            // Simulate loadCurrentTempResolutionHourlyForecasts(now): NOW ± ~12h window
+            // Simulate loadCurrentTempInputHourlyForecasts(now): NOW ± ~12h window
             val nowWindow = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
             val nowMinEpoch = nowWindow.start.atZone(zoneId).toInstant().toEpochMilli()
             val nowMaxEpoch = nowWindow.end.atZone(zoneId).toInstant().toEpochMilli()

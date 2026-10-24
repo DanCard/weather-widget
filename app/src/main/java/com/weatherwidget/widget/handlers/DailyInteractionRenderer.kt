@@ -287,32 +287,27 @@ internal object DailyInteractionRenderer {
             )
         val observationsMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
-        val currentTempHourlyForecasts =
-            GraphDataLoader.loadCurrentTempResolutionHourlyForecasts(
+        val currentTempInputHourly =
+            GraphDataLoader.loadCurrentTempInputHourlyForecasts(
                 hourlyDao,
                 lat,
                 lon,
                 request.now,
             )
+        val currentTempHourlyForecasts = GraphDataLoader.nowCentred(currentTempInputHourly, request.now)
         val currentHourlyMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
         val displaySource = stateManager.getCurrentDisplaySource(request.appWidgetId)
-        val graphStyleObservation =
-            CurrentTempResolver.resolveGraphStyleCurrentTemp(
+        val observation =
+            CurrentTempResolver.observe(
                 repository = request.repository,
                 lat = lat,
                 lon = lon,
                 displaySource = displaySource,
-                hourlyForecasts = currentTempHourlyForecasts,
+                hourlyForecasts = currentTempInputHourly,
                 now = request.now,
                 personalStationWeight = stateManager.getPersonalStationWeight(),
-            )
-        val observation = graphStyleObservation
-        val smoothedForecasts =
-            CurrentTemperatureResolver.computeSmoothedForecasts(
-                currentTempHourlyForecasts.map { it.toHourlyForecast() },
-                displaySource.id,
             )
         val currentResolveMs = SystemClock.elapsedRealtime() - stageStartMs
 
@@ -333,7 +328,7 @@ internal object DailyInteractionRenderer {
                 ObservationData(
                     lastObservedTemp = observation?.temperature,
                     observedAt = observation?.observedAt,
-                    smoothedForecasts = smoothedForecasts,
+                    deltaFromYesterday = observation?.deltaFromYesterday,
                     currentTempHourlyForecasts = currentTempHourlyForecasts,
                 ),
             now = request.now,

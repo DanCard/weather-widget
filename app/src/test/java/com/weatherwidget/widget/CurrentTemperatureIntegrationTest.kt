@@ -459,7 +459,7 @@ private suspend fun insertObservation(
         observations: List<com.weatherwidget.data.local.ObservationEntity>,
         source: WeatherSource,
         now: LocalDateTime,
-    ) = com.weatherwidget.widget.handlers.CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
+    ) = com.weatherwidget.widget.handlers.CurrentTempResolver.observeFromRows(
         observations = observations,
         hourlyForecasts = emptyList(),
         displaySource = source,

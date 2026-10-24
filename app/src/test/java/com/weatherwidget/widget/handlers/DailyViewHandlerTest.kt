@@ -1260,6 +1260,8 @@ class DailyViewHandlerTest {
             observationData = ObservationData(
                 lastObservedTemp = 71f,
                 observedAt = observedAtMs,
+                // Taken with the observation upstream (CurrentTempRun.observe), as the paint paths do.
+                deltaFromYesterday = 1.0f,
             ),
             now = now,
             startupToken = null,
@@ -1316,6 +1318,8 @@ class DailyViewHandlerTest {
             observationData = ObservationData(
                 lastObservedTemp = 71f,
                 observedAt = observedAtMs,
+                // Taken with the observation upstream (CurrentTempRun.observe), as the paint paths do.
+                deltaFromYesterday = 1.0f,
             ),
             now = now,
             startupToken = null,

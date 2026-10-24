@@ -22,13 +22,10 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
-import com.weatherwidget.data.local.toHourlyForecast
-import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.ClimateGapFiller
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.NavigationUtils
@@ -198,7 +195,6 @@ object DailyViewHandler : WidgetViewHandler {
         val dailyActualsBySource = weatherData.dailyActualsBySource
         val lastObservedTemp = observationData.lastObservedTemp
         val observedAt = observationData.observedAt
-        val smoothedForecasts = observationData.smoothedForecasts
 
         Log.d(TAG, "updateWidget: [START] widgetId=$appWidgetId at time=$now")
         val handlerStartMs = SystemClock.elapsedRealtime()
@@ -344,14 +340,11 @@ object DailyViewHandler : WidgetViewHandler {
 
         val sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon)
 
-        // Header yesterday-delta: one observation range query per render, shared with the
-        // today-column overlay (same window) via ctx.headerObservations.
+        // The today-column overlay's observations (ctx.headerObservations).
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         // Scoped through ActualsReadScope, NOT with a local set: the today-column overlay narrows
         // this same load and compares its re-derived `observedAt` to CurrentTempResolver's for exact
         // equality, so the two reads must admit identical rows or the dominant-station rows vanish.
-        // Both consumers here (YesterdayDeltaCalculator's blend and the overlay resolver) already
-        // filter by matchesActualSource, so the SQL restriction is a no-op on their output.
         val headerObservations = repository?.getObservationsInRange(
             nowMs - DailyGraphRenderer.OVERLAY_OBSERVATION_LOOKBACK_MS,
             nowMs,
@@ -359,19 +352,8 @@ object DailyViewHandler : WidgetViewHandler {
             lon,
             ActualsReadScope.apisFor(displaySource),
         )
-        val deltaFromYesterday = headerObservations?.let { observations ->
-            YesterdayDeltaCalculator.computeDelta(
-                observations = observations.map { it.toReading() },
-                hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
-                displaySourceId = displaySource.id,
-                userLat = lat,
-                userLon = lon,
-                observedAtMs = observedAt,
-                currentObservedTemp = lastObservedTemp,
-                personalStationWeight = stateManager.getPersonalStationWeight(),
-                zoneId = ZoneId.systemDefault(),
-            )
-        }
+        // Taken with the observation that anchors it (`:shared` CurrentTempRun.observe).
+        val deltaFromYesterday = observationData.deltaFromYesterday
 
         val headerResolution = DailyHeaderResolver.resolveAndBind(
             context = context,
@@ -391,7 +373,6 @@ object DailyViewHandler : WidgetViewHandler {
             numColumns = numColumns,
             numRows = numRows,
             useGraph = useGraph,
-            smoothedForecasts = smoothedForecasts,
             sunInfo = sunInfo,
             deltaFromYesterday = deltaFromYesterday,
             dateOffset = dateOffset,

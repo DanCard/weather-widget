@@ -17,7 +17,6 @@ import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.GraphRepaintGate
 import com.weatherwidget.widget.ObservationWatermark
 import com.weatherwidget.widget.WidgetActionReceiver
-import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
@@ -49,6 +48,8 @@ object TemperatureViewHandler {
         precipProbability: Int? = null,
         lastObservedTemp: Float? = null,
         observedAt: Long? = null,
+        // "From yesterday", taken with the observation (`:shared` CurrentTempRun.observe).
+        deltaFromYesterday: Float? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
         repository: WeatherRepository? = null,
         startupToken: String? = null,
@@ -118,14 +119,12 @@ object TemperatureViewHandler {
             }
 
             // Live in-window case: gate the expensive bitmap rebuild on real change.
-            val liveSmoothed = computeSmoothedForecasts(currentTempHourlyForecasts, displaySource)
-            val liveResolution = CurrentTemperatureResolver.resolve(
+            val liveResolution = CurrentTempResolutionHelper.header(
                 now = nowForWindow,
                 displaySource = displaySource,
-                hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
+                hourlyForecasts = currentTempHourlyForecasts,
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
-                smoothedForecasts = liveSmoothed,
             )
             val currentFormatted = liveResolution.displayTemp?.let {
                 CurrentTemperatureResolver.formatDisplayTemperature(it, dimensions.cols, liveResolution.isStaleEstimate, useCelsius = stateManager.useCelsius())
@@ -168,6 +167,7 @@ object TemperatureViewHandler {
             precipProbability = precipProbability,
             lastObservedTemp = lastObservedTemp,
             observedAt = observedAt,
+            deltaFromYesterday = deltaFromYesterday,
             dimensions = dimensions,
             stateManager = stateManager,
             repository = repository,
@@ -265,7 +265,6 @@ object TemperatureViewHandler {
                     numColumns = dimensions.cols,
                     widthDp = dimensions.widthDp,
                     quickResolution = resolutionResult.currentTempResolution,
-                    smoothedForecasts = resolutionResult.smoothedForecasts,
                 )
             )
         }
@@ -315,14 +314,12 @@ object TemperatureViewHandler {
         observedAt: Long?,
         now: LocalDateTime,
     ) {
-        val smoothed = computeSmoothedForecasts(currentTempHourlyForecasts, displaySource)
-        val resolution = CurrentTemperatureResolver.resolve(
+        val resolution = CurrentTempResolutionHelper.header(
             now = now,
             displaySource = displaySource,
-            hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
+            hourlyForecasts = currentTempHourlyForecasts,
             lastObservedTemp = lastObservedTemp,
             observedAt = observedAt,
-            smoothedForecasts = smoothed,
         )
 
         val partial = RemoteViews(context.packageName, com.weatherwidget.R.layout.widget_weather)
@@ -371,7 +368,6 @@ object TemperatureViewHandler {
         val numColumns: Int,
         val widthDp: Int,
         val quickResolution: CurrentTemperatureResolution,
-        val smoothedForecasts: Map<Long, Float>?,
     )
 
     private fun scheduleCurrentTempRefinement(
@@ -381,13 +377,12 @@ object TemperatureViewHandler {
         refinementJobs[params.appWidgetId]?.cancel()
         refinementJobs[params.appWidgetId] = asyncScope.launch {
             val refined =
-                CurrentTemperatureResolver.resolve(
+                CurrentTempResolutionHelper.header(
                     now = params.now,
                     displaySource = params.displaySource,
-                    hourlyForecasts = params.currentTempHourlyForecasts.map { it.toHourlyForecast() },
+                    hourlyForecasts = params.currentTempHourlyForecasts,
                     lastObservedTemp = params.lastObservedTemp,
                     observedAt = params.observedAt,
-                    smoothedForecasts = params.smoothedForecasts,
                 )
 
             if (!shouldApplyRefinedHeaderUpdate(params.quickResolution, refined)) {

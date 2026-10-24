@@ -44,9 +44,9 @@ object ObservationWatermark {
      * [rows] arrive already scoped to the widget's location but carry **every** source — one fetch
      * cycle refreshes NWS, Open-Meteo, Silurian and Tomorrow.io together. An unscoped max would
      * therefore tick whenever any non-displayed source published a newer reading, rebuilding a
-     * bitmap that did not change and undoing the point of the gate. The predicate mirrors
-     * [ObservationResolver.resolveObservedCurrentTemp] exactly, so the watermark measures the same
-     * rows the display selects from; if that filter changes, this must change with it.
+     * bitmap that did not change and undoing the point of the gate. The predicate is the blend's own
+     * source filter ([ObservationSourceMatcher.matchesActualSource]), so the watermark measures the
+     * same rows the display selects from; if that filter changes, this must change with it.
      */
     fun of(rows: List<ObservationEntity>, displaySourceId: String): Long {
         val displaySource = WeatherSource.fromId(displaySourceId)

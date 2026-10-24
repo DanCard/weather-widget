@@ -114,6 +114,7 @@ class TemperatureHomeTouchRoutingInstrumentedTest :
             precipProbability = null,
             lastObservedTemp = null,
             observedAt = null,
+            deltaFromYesterday = null,
             dimensions = dimensions,
             stateManager = stateManager,
             repository = null,

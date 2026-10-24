@@ -28,6 +28,8 @@ object ObservationResolver {
         val observedAt: Long,
         val source: String,
         val rowFetchedAt: Long,
+        /** "From yesterday", anchored on this reading (`:shared` CurrentTempRun.observe). */
+        val deltaFromYesterday: Float? = null,
     )
 
     /**

@@ -171,26 +171,26 @@ internal object GraphInteractionRenderer {
                 location.lat,
                 location.lon,
             )
-        val currentTempHourlyForecasts =
-            GraphDataLoader.loadCurrentTempResolutionHourlyForecasts(
+        val currentTempInputHourly =
+            GraphDataLoader.loadCurrentTempInputHourlyForecasts(
                 database.hourlyForecastDao(),
                 location.lat,
                 location.lon,
                 request.now,
             )
+        val currentTempHourlyForecasts = GraphDataLoader.nowCentred(currentTempInputHourly, request.now)
         val todayPrecip =
             weatherList.find { it.source == displaySource.id }?.precipProbability
-        val graphStyleObservation =
-            CurrentTempResolver.resolveGraphStyleCurrentTemp(
+        val observation =
+            CurrentTempResolver.observe(
                 repository = request.repository,
                 lat = location.lat,
                 lon = location.lon,
                 displaySource = displaySource,
-                hourlyForecasts = currentTempHourlyForecasts,
+                hourlyForecasts = currentTempInputHourly,
                 now = request.now,
                 personalStationWeight = stateManager.getPersonalStationWeight(),
             )
-        val observation = graphStyleObservation
         CurrentTempStalenessLogger.log(
             database.appLogDao(),
             request.appWidgetId,
@@ -287,6 +287,7 @@ internal object GraphInteractionRenderer {
                     appWidgetManager = inputs.appWidgetManager,
                     appWidgetId = request.appWidgetId,
                     hourlyForecasts = inputs.hourlyForecasts,
+                    currentTempHourlyForecasts = inputs.currentTempHourlyForecasts,
                     centerTime = inputs.centerTime,
                     precipProbability = inputs.todayPrecip,
                     lastObservedTemp = inputs.observation?.temperature,
@@ -301,6 +302,7 @@ internal object GraphInteractionRenderer {
                     appWidgetManager = inputs.appWidgetManager,
                     appWidgetId = request.appWidgetId,
                     hourlyForecasts = inputs.hourlyForecasts,
+                    currentTempHourlyForecasts = inputs.currentTempHourlyForecasts,
                     centerTime = inputs.centerTime,
                     displaySource = inputs.displaySource,
                     precipProbability = inputs.todayPrecip,
@@ -322,6 +324,7 @@ internal object GraphInteractionRenderer {
                     precipProbability = inputs.todayPrecip,
                     lastObservedTemp = inputs.observation?.temperature,
                     observedAt = inputs.observation?.observedAt,
+                    deltaFromYesterday = inputs.observation?.deltaFromYesterday,
                     repository = request.repository,
                     deferGraphActuals = deferGraphActuals,
                     partialPush = partialPush,

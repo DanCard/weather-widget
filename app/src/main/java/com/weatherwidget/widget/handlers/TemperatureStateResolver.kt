@@ -12,9 +12,7 @@ import com.weatherwidget.data.local.ObservationPoolDiagnostics
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
-import com.weatherwidget.data.local.toReading
 import com.weatherwidget.shared.actuals.DominantBlend
-import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.data.model.WeatherSource
@@ -66,9 +64,6 @@ internal object TemperatureStateResolver {
     private const val GRAPH_MIN_ROWS = 1.4f
     private const val DELTA_COLOR_HEX = "#FF6B35"
     private const val MAX_PERSISTED_BLEND_DEBUG_LINES = 12
-
-    /** Observation lookback for the text-mode (graph-less) header yesterday-delta query. */
-    private const val TEXT_MODE_DELTA_LOOKBACK_HOURS = 30L
 
     /**
      * Localized "Actual temperature data from X" annotation for borrowed actuals, mirroring
@@ -138,6 +133,8 @@ internal object TemperatureStateResolver {
         precipProbability: Int?,
         lastObservedTemp: Float?,
         observedAt: Long?,
+        // "From yesterday", taken with the observation (`:shared` CurrentTempRun.observe).
+        deltaFromYesterday: Float?,
         dimensions: WidgetDimensions,
         stateManager: WidgetStateManager,
         repository: WeatherRepository?,
@@ -222,15 +219,12 @@ internal object TemperatureStateResolver {
             useGraph = useGraph,
             deferGraphActuals = deferGraphActuals,
             smoothedForecasts = smoothedForecasts,
-            observedAt = observedAt,
-            lastObservedTemp = lastObservedTemp,
             sourceMissingFromLoad = sourceMissingFromLoad,
         )
 
         val graphHours: List<HourData>
         val obsQueryMs: Long
         val buildHourDataMs: Long
-        var deltaFromYesterday: Float? = null
         var dominantStation: DominantBlend? = null
         var newestObservationMs: Long? = null
         var observationRowCount = 0
@@ -255,7 +249,6 @@ internal object TemperatureStateResolver {
                 graphHours = graphLoadResult.hours
                 obsQueryMs = graphLoadResult.obsQueryMs
                 buildHourDataMs = graphLoadResult.buildHourDataMs
-                deltaFromYesterday = graphLoadResult.deltaFromYesterday
                 dominantStation = graphLoadResult.dominantStation
                 newestObservationMs = graphLoadResult.newestObservationMs
                 observationRowCount = graphLoadResult.observationRowCount
@@ -545,13 +538,12 @@ internal object TemperatureStateResolver {
                 appliedDelta = null,
             )
         } else {
-            CurrentTemperatureResolver.resolve(
+            CurrentTempResolutionHelper.header(
                 now = now,
                 displaySource = displaySource,
-                hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
+                hourlyForecasts = currentTempHourlyForecasts,
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
-                smoothedForecasts = currentTempSmoothedForecasts,
             )
         }
         val resolveMs = System.currentTimeMillis() - resolveStartMs
@@ -581,28 +573,6 @@ internal object TemperatureStateResolver {
      */
     private fun formatCoords(location: Pair<Double, Double>?): String =
         location?.let { String.format(Locale.US, "%.5f,%.5f", it.first, it.second) } ?: "none"
-
-    private fun computeDeltaFromYesterday(
-        observations: List<ObservationEntity>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        displaySource: WeatherSource,
-        lat: Double,
-        lon: Double,
-        observedAt: Long?,
-        lastObservedTemp: Float?,
-        personalStationWeight: Double,
-    ): Float? =
-        YesterdayDeltaCalculator.computeDelta(
-            observations = observations.map { it.toReading() },
-            hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
-            displaySourceId = displaySource.id,
-            userLat = lat,
-            userLon = lon,
-            observedAtMs = observedAt,
-            currentObservedTemp = lastObservedTemp,
-            personalStationWeight = personalStationWeight,
-            zoneId = ZoneId.systemDefault(),
-        )
 
     private fun buildFallbackResult(
         appWidgetId: Int,

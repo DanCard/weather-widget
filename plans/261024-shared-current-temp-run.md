@@ -108,3 +108,93 @@ window never resolves `obs=none` (trap 3). Keep `CurrentTempUnificationIntegrati
 
 **Verify.** Full suite; install on both phones; `adb logcat | grep CURR_TEMP_RESULT` per widget;
 desktop `CURR_TEMP_RESULT` in `app_logs`; restart desktop.
+
+## Phase 2 — plan (2026-10-24; approved, user chose to widen the existing read)
+
+**What the code shows.** Android's glue is layered, unlike desktop's one function: the observation
+is blended once per paint upstream (`WidgetRenderer`, or `CurrentTempResolver` for an interaction)
+and passed down as `lastObservedTemp`/`observedAt`. Each handler then calls `resolve` itself. The six
+`resolve` calls give the same inputs to a shared function. What really diverges is (a) the two
+blend branches and (b) the yesterday delta, which reads three different observation windows:
+- daily: now − 36 h … now (`OVERLAY_OBSERVATION_LOOKBACK_MS`), so pan-independent;
+- hourly graph: centred on the **graph's** `centerTime` (`HOURLY_LOOKBACK/LOOKAHEAD`), so a panned
+  view can lose now − 24 h and the delta goes null (or moves) as you pan;
+- hourly text mode: `centerTime` − 30 h … + 2 h, the same problem.
+The header comment says the delta is "pan-independent". Only the daily view keeps that promise.
+
+**Trap 3 identified.** Every `obs=none` header on the Pixel (6 rows, 10-21 23:58 → 10-22 01:45) is
+**widget 88, daily, SILURIAN** (actuals provider SYNOPTIC, explicit). It fires on RESIZE too, not
+only at start-up. The window had 692 SYNOPTIC rows: none QC-failed, all at site 37.417/−122.089,
+newest 23:55. That same paint's today-column overlay did find readings (`obsHigh=60.09`), so the
+rows were reachable, yet the header received no observation. I cannot yet tell which layer drops them. Step 1
+reproduces it offline from those rows.
+
+**Steps.**
+1. **Repro test first** (`:app` Robolectric): Pixel rows from 10-21 23:58 (SYNOPTIC observations
+   + SILURIAN hourly, trimmed into a fixture) → `CurrentTempRun.run(SILURIAN)`. If it gives a
+   temperature, the Android glue lost the rows; fix it in step 2. If it gives null, the cause is
+   in the shared blend (both platforms), so report it and propose a fix separately.
+2. **`CurrentTempRun` exposes its steps** so Android can use them at its two layers (`run`
+   composes them, so desktop and Months stay as they are):
+   `observe(hourly, observations, source, lat, lon, nowMs, weight)` → window + blend at now;
+   `header(now, source, windowHourly, observed)` → `resolve` with the smoothed forecasts;
+   `yesterday(...)` → the delta on now-anchored lists.
+3. **Blend at now → `observe`**: `WidgetRenderer` (both branches become one call; each branch keeps
+   its own rows, unscoped vs `currentTemps`, trap 1) and `CurrentTempResolver.resolveGraphStyleCurrentTemp`
+   (keeps its scoped read for the overlay's exact `observedAt` match). Delete
+   `resolveGraphStyleCurrentTempFromInputs`.
+4. **`resolve` → `header`** at all six sites (`CurrentTempResolutionHelper.resolveTimed`,
+   `TemperatureStateResolver`, `TemperatureViewHandler` ×3). Keep the quick paint (`resolveQuick`)
+   and the async refinement as they are; the refinement becomes `header` (trap 2).
+5. **Yesterday delta, one read**: compute it once upstream from a now-anchored read
+   (now − 36 h … now, the daily view's window) and pass it down. That removes the three calls and the
+   pan dependence. The cost is one extra observation read per hourly paint. I'll check whether
+   `WidgetRenderer`'s −12 h read can be widened to −36 h instead; `ObservationWatermark` takes the
+   newest row, so a wider read should leave it alone. I'll confirm before relying on it.
+6. Remove `CurrentTempResolutionHelper` if all that's left is a timer.
+
+**Tests.** The step-1 repro (fails before the fix if the cause is Android-side). Parity: the same rows
+through the Android path (`observe` + `header` as `WidgetRenderer` calls them) and desktop
+`resolveForForecastResult` give the same `displayTemp`. Hourly view panned ±2 days: the yesterday
+delta matches the unpanned value (fails today). `CurrentTempUnificationIntegrationTest` and the
+desktop twin stay green. Full suite.
+
+**Verify.** Install on both phones. `CURR_TEMP_RESULT` per widget, with no `obs=none` for widget 88
+on SILURIAN. Pan an hourly widget and watch the "from yest" value hold. Desktop `CURR_TEMP_RESULT`
+in `app_logs`. Restart desktop.
+
+## Done (phase 2)
+- **Trap 3 was a false premise.** All 692 SYNOPTIC rows in widget 88's window were *fetched*
+  10-22 02:30–06:43, after the 23:58 paint; at 23:58 Synoptic was in fetch backoff. `obs=none` was
+  right; phase 1 counted rows by reading time, not arrival. The shared run on those rows resolves
+  55.97 °F, so there is no blend bug either. The repro test was dropped (it tested nothing real).
+- `:shared` `CurrentTempRun` gains `observe` (blend at now + yesterday delta) and `header`
+  (`resolve` cut to the window around now); `run` composes them, so desktop and Months are
+  unchanged. `inputWindow(now)` = now − 36 h … window end, the reads' range.
+- Android: `CurrentTempResolver.observe` / `observeFromRows` (the Host's read; scoped for the
+  interaction paths, unscoped in `WidgetRenderer` for the watermark) replace both blend branches and
+  `resolveGraphStyleCurrentTemp[FromInputs]`. `WidgetRenderer`'s read was widened from −12 h to
+  −36 h (user); `ObservationWatermark` takes the newest row, so it cannot move. The interaction
+  paths load hourly over the same range (`GraphDataLoader.loadCurrentTempInputHourlyForecasts`,
+  was `…Resolution…`) and cut it with `nowCentred` for the views.
+- Every header `resolve` (6 sites) is `CurrentTempRun.header` via `CurrentTempResolutionHelper`;
+  the startup quick paint (`resolveQuick`) is unchanged.
+- The yesterday delta rides on `ObservedCurrentTemperature.deltaFromYesterday` into the views; the
+  three handler computations are gone, and with them the text-mode observation read (its only use).
+  It was pan-dependent on the hourly graph (read centred on the graph, centre − 72 h) and text mode
+  (centre − 30 h); now it is the same on every view and every pan. It is also present in an
+  interaction's phase-1 paint, which skips the graph read.
+- **Precip / cloud headers** resolved from the graph's (possibly panned) hourly list; they now get
+  the now-centred list like every other view.
+- Not a divergence after all: the smoothed-vs-raw daily header. `HEADER_SMOOTH_ITERATIONS = 0`, so
+  "smoothed" equals raw; `header` still passes the smoothed map, matching desktop if it is ever on.
+- Left alone: `DailyGraphRenderer` and `DominantTempChangeNotifier` cut the same window for
+  `resolveCurrentObservationDetails` (dominant station), a different product.
+- Tests: `CurrentTempRunParityTest` (Android observe + header == desktop run on the same rows);
+  `TemperatureDeltaVisibilityRoboTest` now feeds the delta through `CurrentTempResolver.observe`
+  with a range-honouring repository, plus graph panned +72 h and text mode panned +24 h (both blank
+  under the old graph-centred reads). Full suite green (`DesktopDailyParityTest` failed once under
+  the parallel run and passed alone and on the rerun; unrelated to this change).
+- Verified 2026-10-24 08:05: Pixel NWS `observe obs=534 windowObs=213 fromYesterday=-9.20`, header
+  49.25 °F, matching the "-9.2 from yest" its background paint showed; Samsung GOOGLE_WEATHER
+  `fromYesterday=-8.67`, 49.29 °F; desktop NWS 49.22 °F (blend inputs differ by 0.01 °F).

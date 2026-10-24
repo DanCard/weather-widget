@@ -15,11 +15,8 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.local.toHourlyForecast
-import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ConfigActivity
 import com.weatherwidget.widget.handlers.WidgetRequestCodes
@@ -34,7 +31,6 @@ import com.weatherwidget.widget.handlers.WeatherData
 import com.weatherwidget.widget.handlers.WidgetSizeCalculator
 import com.weatherwidget.widget.handlers.setupSettingsShortcut
 import com.weatherwidget.shared.util.HourLabelFormatter
-import java.time.ZoneId
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -435,66 +431,39 @@ object WidgetRenderer {
             locationLon = locationLon,
         )
 
-        // Filter hourly forecasts to the NOW-centered window for current temp resolution.
-        // This ensures the current temp display is always based on forecasts around NOW,
-        // not any scrolled graph window.
-        val nowResolutionWindow = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
-        val nowZoneId = ZoneId.systemDefault()
-        val nowMinEpoch = nowResolutionWindow.start.atZone(nowZoneId).toInstant().toEpochMilli()
-        val nowMaxEpoch = nowResolutionWindow.end.atZone(nowZoneId).toInstant().toEpochMilli()
-        val nowCenteredHourlyForecasts = unifiedHourlyForecasts.filter { row ->
-            row.dateTime in nowMinEpoch..nowMaxEpoch
-        }
+        // The NOW-centred hourly the views resolve their header from, so the current temp is always
+        // based on forecasts around NOW, not any scrolled graph window.
+        val nowCenteredHourlyForecasts = GraphDataLoader.nowCentred(unifiedHourlyForecasts, now)
 
         // The rows the render actually draws from, for ObservationWatermark below. When a repository
         // is present (every worker/UI path) `currentTemps` is empty and the observations come from
-        // the query inside the branch, so the watermark has to follow the same fork — measuring
-        // `currentTemps` unconditionally pins it at NONE and the gate never sees new data.
-        var watermarkRows: List<ObservationEntity> = currentTemps
-        val graphStyleObs =
+        // the query below, so the watermark has to follow the same fork — measuring `currentTemps`
+        // unconditionally pins it at NONE and the gate never sees new data.
+        val observationRows =
             if (repository != null) {
-                // Unscoped deliberately: these same rows become `watermarkRows`, and
-                // ObservationWatermark's gate counts what actually arrived rather than what this
-                // source draws. The blend below filters by source on its own, so narrowing the read
-                // would not change the resolved temperature — only the watermark.
-                val observations =
-                    repository.getObservationsInRange(
-                        nowMinEpoch, nowMaxEpoch, locationLat, locationLon, apis = null,
-                    )
-                watermarkRows = observations
-                CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
-                    observations = observations,
-                    hourlyForecasts = nowCenteredHourlyForecasts,
-                    displaySource = displaySource,
-                    lat = locationLat,
-                    lon = locationLon,
-                    now = now,
-                    queryWindow = nowResolutionWindow,
-                    personalStationWeight = stateManager.getPersonalStationWeight(),
+                // Unscoped deliberately: these same rows feed ObservationWatermark, whose gate
+                // counts what actually arrived rather than what this source draws. The blend filters
+                // by source on its own, so narrowing the read would not change the temperature.
+                // From CurrentTempRun.inputWindow (36 h back) for the yesterday delta; the watermark
+                // is the newest row, which the earlier start cannot change.
+                val inputWindow = com.weatherwidget.widget.CurrentTempRun.inputWindow(now)
+                repository.getObservationsInRange(
+                    inputWindow.first, inputWindow.last, locationLat, locationLon, apis = null,
                 )
             } else {
-                val resolved = ActualsAggregator.resolveCurrentObservation(
-                    observations = currentTemps.map { it.toReading() },
-                    hourlyForecasts = nowCenteredHourlyForecasts.map { it.toHourlyForecast() },
-                    displaySourceId = displaySource.id,
-                    userLat = locationLat,
-                    userLon = locationLon,
-                    nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                    // The shared window, as every other caller: a hard-coded 2 h lookahead gave this
-                    // branch a different blend (and cache key) from the rest.
-                    lookbackHours = com.weatherwidget.widget.CurrentTemperatureResolver.RESOLUTION_LOOKBACK_HOURS,
-                    lookaheadHours = com.weatherwidget.widget.CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS,
-                    personalStationWeight = stateManager.getPersonalStationWeight(),
-                )
-                resolved?.let { (temp, timestamp, fetchedAt) ->
-                    ObservationResolver.ObservedCurrentTemperature(
-                        temperature = temp,
-                        observedAt = timestamp,
-                        source = displaySource.id,
-                        rowFetchedAt = fetchedAt
-                    )
-                }
+                currentTemps
             }
+        val watermarkRows: List<ObservationEntity> = observationRows
+        val graphStyleObs =
+            CurrentTempResolver.observeFromRows(
+                observations = observationRows,
+                hourlyForecasts = unifiedHourlyForecasts,
+                displaySource = displaySource,
+                lat = locationLat,
+                lon = locationLon,
+                now = now,
+                personalStationWeight = stateManager.getPersonalStationWeight(),
+            )
         val observation = graphStyleObs
         // Computed from the same rows the display selects from, so the graph handlers can tell "new
         // reading arrived" from "same data, one minute later" — see ObservationWatermark.

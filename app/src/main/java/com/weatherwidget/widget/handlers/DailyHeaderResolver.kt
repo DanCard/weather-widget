@@ -60,7 +60,6 @@ internal object DailyHeaderResolver {
         numColumns: Int,
         numRows: Int,
         useGraph: Boolean,
-        smoothedForecasts: Map<Long, Float>?,
         sunInfo: SunInfo,
         deltaFromYesterday: Float?,
         dateOffset: Int,
@@ -83,7 +82,6 @@ internal object DailyHeaderResolver {
             numColumns = numColumns,
             numRows = numRows,
             useGraph = useGraph,
-            smoothedForecasts = smoothedForecasts,
             sunInfo = sunInfo,
             deltaFromYesterday = deltaFromYesterday,
             dateOffset = dateOffset,
@@ -118,7 +116,6 @@ internal object DailyHeaderResolver {
         numColumns: Int,
         numRows: Int,
         useGraph: Boolean,
-        smoothedForecasts: Map<Long, Float>?,
         sunInfo: SunInfo,
         deltaFromYesterday: Float?,
         dateOffset: Int,
@@ -133,8 +130,7 @@ internal object DailyHeaderResolver {
                 hourlyForecasts = currentTempHourlyForecasts.ifEmpty { hourlyForecasts },
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
-                smoothedForecasts = smoothedForecasts,
-            )
+                )
         val currentTemp = currentTempResolution.displayTemp
 
         // Icon, temp, rain % and delta: the shared header rule (desktop draws the same content).

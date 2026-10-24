@@ -233,21 +233,31 @@ object GraphDataLoader {
             .joinToString("|") { String.format(java.util.Locale.US, "%.5f,%.5f", it.first, it.second) }
             .ifEmpty { "none" }
 
-    suspend fun loadCurrentTempResolutionHourlyForecasts(
+    /**
+     * Hourly rows for `:shared` CurrentTempRun's inputs ([com.weatherwidget.widget.CurrentTempRun.inputWindow]:
+     * back 36 h for the yesterday delta). Cut it with [nowCentred] for the header's own window.
+     */
+    suspend fun loadCurrentTempInputHourlyForecasts(
         hourlyDao: HourlyForecastDao,
         lat: Double,
         lon: Double,
         now: LocalDateTime,
     ): List<HourlyForecastEntity> {
-        val window = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
-        val zoneId = ZoneId.systemDefault()
-        return hourlyDao.getHourlyForecasts(
-            window.start.atZone(zoneId).toInstant().toEpochMilli(),
-            window.end.atZone(zoneId).toInstant().toEpochMilli(),
-            lat,
-            lon,
-        ).filter {
+        val window = com.weatherwidget.widget.CurrentTempRun.inputWindow(now)
+        return hourlyDao.getHourlyForecasts(window.first, window.last, lat, lon).filter {
             LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon)
         }
+    }
+
+    /**
+     * [rows] inside the current-temp resolution window around [now], so the header is always
+     * resolved around NOW, never around a scrolled graph window.
+     */
+    fun nowCentred(rows: List<HourlyForecastEntity>, now: LocalDateTime): List<HourlyForecastEntity> {
+        val window = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
+        val zoneId = ZoneId.systemDefault()
+        val minMs = window.start.atZone(zoneId).toInstant().toEpochMilli()
+        val maxMs = window.end.atZone(zoneId).toInstant().toEpochMilli()
+        return rows.filter { it.dateTime in minMs..maxMs }
     }
 }

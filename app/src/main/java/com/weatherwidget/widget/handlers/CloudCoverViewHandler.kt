@@ -109,6 +109,8 @@ object CloudCoverViewHandler {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
         hourlyForecasts: List<HourlyForecastEntity>,
+        // The header's hourly around NOW (the graph's window may be panned away from it).
+        currentTempHourlyForecasts: List<HourlyForecastEntity> = emptyList(),
         centerTime: LocalDateTime,
         displaySource: WeatherSource,
         precipProbability: Int? = null,
@@ -255,7 +257,7 @@ object CloudCoverViewHandler {
             CurrentTempResolutionHelper.resolveTimed(
                 now = now,
                 displaySource = effectiveDisplaySource,
-                hourlyForecasts = hourlyForecasts,
+                hourlyForecasts = currentTempHourlyForecasts.ifEmpty { hourlyForecasts },
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
             )

@@ -8,15 +8,25 @@ import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.shared.actuals.ActualsAggregator
+import com.weatherwidget.widget.CurrentTempRun
 import com.weatherwidget.widget.ObservationResolver
 import java.time.LocalDateTime
 import java.time.ZoneId
 
+/**
+ * Android's Host for the observation half of `:shared` [CurrentTempRun]: it reads the rows, the run
+ * blends them at now and takes the "from yesterday" delta. Views then resolve their header with
+ * [CurrentTempRun.header] (plans/261024-shared-current-temp-run.md).
+ */
 object CurrentTempResolver {
     private const val TAG = "CurrentTempResolver"
 
-    suspend fun resolveGraphStyleCurrentTemp(
+    /**
+     * [hourlyForecasts] should cover [CurrentTempRun.inputWindow] (the interaction paths load it with
+     * [GraphDataLoader.loadCurrentTempInputHourlyForecasts]); a now-centred list alone leaves the
+     * yesterday delta null.
+     */
+    suspend fun observe(
         repository: WeatherRepository?,
         lat: Double,
         lon: Double,
@@ -27,73 +37,67 @@ object CurrentTempResolver {
     ): ObservationResolver.ObservedCurrentTemperature? {
         if (repository == null) return null
 
-        val queryWindow = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
-        val zoneId = ZoneId.systemDefault()
-        val minEpoch = queryWindow.start.atZone(zoneId).toInstant().toEpochMilli()
-        val maxEpoch = queryWindow.end.atZone(zoneId).toInstant().toEpochMilli()
+        val inputWindow = CurrentTempRun.inputWindow(now)
         // Scoped identically to the daily header load (ActualsReadScope). This resolver produces the
         // `observedAt` that the today-column overlay re-derives and matches on EXACT equality, so if
         // these two reads ever admit different rows the station rows drop out of the overlay.
         val observations =
             repository.getObservationsInRange(
-                minEpoch,
-                maxEpoch,
+                inputWindow.first,
+                inputWindow.last,
                 lat,
                 lon,
                 ActualsReadScope.apisFor(displaySource),
             )
 
-        return resolveGraphStyleCurrentTempFromInputs(
+        return observeFromRows(
             observations = observations,
             hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
             lat = lat,
             lon = lon,
             now = now,
-            queryWindow = queryWindow,
             personalStationWeight = personalStationWeight,
         )
     }
 
+    /** [CurrentTempRun.observe] on rows already read; null when no reading blends at now. */
     @VisibleForTesting
-    internal fun resolveGraphStyleCurrentTempFromInputs(
+    internal fun observeFromRows(
         observations: List<ObservationEntity>,
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
         lat: Double,
         lon: Double,
         now: LocalDateTime,
-        queryWindow: com.weatherwidget.widget.CurrentTemperatureResolver.CurrentTempResolutionWindow = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now),
         personalStationWeight: Double = 1.0,
     ): ObservationResolver.ObservedCurrentTemperature? {
-        val resolved = ActualsAggregator.resolveCurrentObservation(
+        val observed = CurrentTempRun.observe(
+            hourly = hourlyForecasts.map { it.toHourlyForecast() },
             observations = observations.map { it.toReading() },
-            hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
-            displaySourceId = displaySource.id,
-            userLat = lat,
-            userLon = lon,
+            displaySource = displaySource,
+            latitude = lat,
+            longitude = lon,
             nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-            // Single-sourced: the today-column overlay re-derives this same observation and must use
-            // the identical window (see CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS).
-            lookbackHours = com.weatherwidget.widget.CurrentTemperatureResolver.RESOLUTION_LOOKBACK_HOURS,
-            lookaheadHours = com.weatherwidget.widget.CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS,
             personalStationWeight = personalStationWeight,
         )
 
         Log.d(
             TAG,
-            "resolveGraphStyleCurrentTemp: source=${displaySource.id} now=$now " +
-                "window=${queryWindow.start}..${queryWindow.end} obs=${observations.size} fcst=${hourlyForecasts.size} " +
-                "resolvedTemp=${resolved?.first} resolvedAt=${resolved?.second} anchorAt=${resolved?.third}",
+            "observe: source=${displaySource.id} now=$now obs=${observations.size} fcst=${hourlyForecasts.size} " +
+                "windowObs=${observed.windowObservations} windowFcst=${observed.windowHourly} " +
+                "resolvedTemp=${observed.temperature} resolvedAt=${observed.observedAt} " +
+                "anchorAt=${observed.rowFetchedAt} fromYesterday=${observed.deltaFromYesterday}",
         )
 
-        return resolved?.let { (temp, timestamp, fetchedAt) ->
-            ObservationResolver.ObservedCurrentTemperature(
-                temperature = temp,
-                observedAt = timestamp,
-                source = displaySource.id,
-                rowFetchedAt = fetchedAt
-            )
-        }
+        val temperature = observed.temperature ?: return null
+        val observedAt = observed.observedAt ?: return null
+        return ObservationResolver.ObservedCurrentTemperature(
+            temperature = temperature,
+            observedAt = observedAt,
+            source = displaySource.id,
+            rowFetchedAt = observed.rowFetchedAt ?: 0L,
+            deltaFromYesterday = observed.deltaFromYesterday,
+        )
     }
 }

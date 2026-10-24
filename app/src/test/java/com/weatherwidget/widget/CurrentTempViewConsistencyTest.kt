@@ -108,7 +108,7 @@ class CurrentTempViewConsistencyTest {
         )
 
         // Through the header's own path (the blend at now), not the retired raw-row fallback.
-        val resolved = com.weatherwidget.widget.handlers.CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
+        val resolved = com.weatherwidget.widget.handlers.CurrentTempResolver.observeFromRows(
             observations = rows,
             hourlyForecasts = emptyList(),
             displaySource = WeatherSource.TOMORROW_IO,

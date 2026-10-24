@@ -11,7 +11,6 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.shared.actuals.DominantBlend
-import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.WidgetStateManager
@@ -21,7 +20,6 @@ import java.time.ZoneId
 import java.util.Locale
 
 internal object TemperatureGraphHoursLoader {
-    private const val TEXT_MODE_DELTA_LOOKBACK_HOURS = 30L
     private const val MAX_PERSISTED_BLEND_DEBUG_LINES = 8
 
     sealed class GraphLoadOutcome {
@@ -30,7 +28,6 @@ internal object TemperatureGraphHoursLoader {
             val hours: List<HourData>,
             val obsQueryMs: Long,
             val buildHourDataMs: Long,
-            val deltaFromYesterday: Float? = null,
             val dominantStation: DominantBlend? = null,
             val newestObservationMs: Long? = null,
             val observationRowCount: Int = 0,
@@ -56,36 +53,11 @@ internal object TemperatureGraphHoursLoader {
         useGraph: Boolean,
         deferGraphActuals: Boolean,
         smoothedForecasts: Map<Long, Float>,
-        observedAt: Long?,
-        lastObservedTemp: Float?,
         sourceMissingFromLoad: Boolean,
     ): GraphLoadOutcome {
         if (!useGraph) {
-            val obsStartMs = System.currentTimeMillis()
-            val zoneId = ZoneId.systemDefault()
-            val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-            val minEpoch = truncated.minusHours(TEXT_MODE_DELTA_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
-            val maxEpoch = truncated.plusHours(2).atZone(zoneId).toInstant().toEpochMilli()
-            val observations =
-                repository?.getObservationsInRange(
-                    minEpoch, maxEpoch, lat, lon, ActualsReadScope.apisFor(displaySource),
-                ) ?: emptyList()
-            val delta = computeDeltaFromYesterday(
-                observations = observations,
-                hourlyForecasts = hourlyForecasts,
-                displaySource = displaySource,
-                lat = lat,
-                lon = lon,
-                observedAt = observedAt,
-                lastObservedTemp = lastObservedTemp,
-                personalStationWeight = stateManager.getPersonalStationWeight(),
-            )
-            return GraphLoadOutcome.Loaded(
-                hours = emptyList(),
-                obsQueryMs = System.currentTimeMillis() - obsStartMs,
-                buildHourDataMs = 0L,
-                deltaFromYesterday = delta,
-            )
+            // Text mode draws no graph; the header's "from yesterday" comes with the observation.
+            return GraphLoadOutcome.Loaded(hours = emptyList(), obsQueryMs = 0L, buildHourDataMs = 0L)
         }
 
         val alignedCenter = com.weatherwidget.shared.util.WeatherTimeUtils.alignToNearestHourHalfUp(centerTime)
@@ -239,22 +211,10 @@ internal object TemperatureGraphHoursLoader {
             }
         }
 
-        val deltaFromYesterday = computeDeltaFromYesterday(
-            observations = observations,
-            hourlyForecasts = hourlyForecasts,
-            displaySource = displaySource,
-            lat = lat,
-            lon = lon,
-            observedAt = observedAt,
-            lastObservedTemp = lastObservedTemp,
-            personalStationWeight = stateManager.getPersonalStationWeight(),
-        )
-
         return GraphLoadOutcome.Loaded(
             hours = hourData,
             obsQueryMs = obsQueryMs,
             buildHourDataMs = buildHourDataMs,
-            deltaFromYesterday = deltaFromYesterday,
             dominantStation = hourDataResult.dominantStation,
             newestObservationMs = observations.maxOfOrNull { it.timestamp },
             observationRowCount = observations.size,
@@ -263,26 +223,4 @@ internal object TemperatureGraphHoursLoader {
             obsWindowEndMs = obsWindowEndMs,
         )
     }
-
-    private fun computeDeltaFromYesterday(
-        observations: List<ObservationEntity>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        displaySource: WeatherSource,
-        lat: Double,
-        lon: Double,
-        observedAt: Long?,
-        lastObservedTemp: Float?,
-        personalStationWeight: Double,
-    ): Float? =
-        YesterdayDeltaCalculator.computeDelta(
-            observations = observations.map { it.toReading() },
-            hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
-            displaySourceId = displaySource.id,
-            userLat = lat,
-            userLon = lon,
-            observedAtMs = observedAt,
-            currentObservedTemp = lastObservedTemp,
-            personalStationWeight = personalStationWeight,
-            zoneId = ZoneId.systemDefault(),
-        )
 }

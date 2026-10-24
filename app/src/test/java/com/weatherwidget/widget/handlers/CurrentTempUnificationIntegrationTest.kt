@@ -78,6 +78,7 @@ class CurrentTempUnificationIntegrationTest {
             precipProbability = null,
             lastObservedTemp = null,
             observedAt = null,
+            deltaFromYesterday = null,
             dimensions = WidgetDimensions(cols = 4, rows = 2, widthDp = 300, heightDp = 200, isIconWidth = false),
             stateManager = stateManager,
             repository = null,
@@ -88,14 +89,12 @@ class CurrentTempUnificationIntegrationTest {
 
         // 2. Resolve Daily View
         // Simulate WidgetIntentRouter logic
-        val smoothedForecasts = computeSmoothedForecasts(narrowWindow, WeatherSource.OPEN_METEO)
         val (dailyViewResolution, _) = CurrentTempResolutionHelper.resolveTimed(
             now = now,
             displaySource = WeatherSource.OPEN_METEO,
             hourlyForecasts = narrowWindow, // The fix: Daily view gets the narrow window here
             lastObservedTemp = null,
-            observedAt = null,
-            smoothedForecasts = smoothedForecasts
+            observedAt = null
         )
 
         // Ensure both view paths yield identically interpolated display temperatures
@@ -164,7 +163,7 @@ class CurrentTempUnificationIntegrationTest {
         val appLogDao = mockk<AppLogDao>(relaxed = true)
 
         // 1. Resolve GraphStyle Observation (simulating WidgetIntentRouter)
-        val graphStyleObs = CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
+        val graphStyleObs = CurrentTempResolver.observeFromRows(
             observations = observations,
             hourlyForecasts = narrowWindow,
             displaySource = WeatherSource.OPEN_METEO,
@@ -184,6 +183,7 @@ class CurrentTempUnificationIntegrationTest {
             precipProbability = null,
             lastObservedTemp = graphStyleObs?.temperature,
             observedAt = graphStyleObs?.observedAt,
+            deltaFromYesterday = graphStyleObs?.deltaFromYesterday,
             dimensions = WidgetDimensions(cols = 4, rows = 2, widthDp = 300, heightDp = 200, isIconWidth = false),
             stateManager = stateManager,
             repository = null,
@@ -193,14 +193,12 @@ class CurrentTempUnificationIntegrationTest {
         )
 
         // 3. Resolve Daily View
-        val smoothedForecasts = computeSmoothedForecasts(narrowWindow, WeatherSource.OPEN_METEO)
         val (dailyViewResolution, _) = CurrentTempResolutionHelper.resolveTimed(
             now = now,
             displaySource = WeatherSource.OPEN_METEO,
             hourlyForecasts = narrowWindow,
             lastObservedTemp = graphStyleObs?.temperature,
-            observedAt = graphStyleObs?.observedAt,
-            smoothedForecasts = smoothedForecasts
+            observedAt = graphStyleObs?.observedAt
         )
 
         assertEquals(
@@ -261,6 +259,7 @@ class CurrentTempUnificationIntegrationTest {
             precipProbability = null,
             lastObservedTemp = null,
             observedAt = null,
+            deltaFromYesterday = null,
             dimensions = WidgetDimensions(cols = 4, rows = 2, widthDp = 300, heightDp = 200, isIconWidth = false),
             stateManager = stateManager,
             repository = null,
@@ -318,6 +317,7 @@ class CurrentTempUnificationIntegrationTest {
             precipProbability = null,
             lastObservedTemp = null,
             observedAt = null,
+            deltaFromYesterday = null,
             dimensions = WidgetDimensions(cols = 4, rows = 2, widthDp = 300, heightDp = 200, isIconWidth = false),
             stateManager = stateManager,
             repository = null,

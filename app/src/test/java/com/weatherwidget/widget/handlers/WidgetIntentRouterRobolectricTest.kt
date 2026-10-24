@@ -192,7 +192,7 @@ class WidgetIntentRouterRobolectricTest {
     }
 
     @Test
-    fun `resolveGraphStyleCurrentTempFromInputs stays stable across zoom scoped forecast windows when context is fixed`() {
+    fun `observeFromRows stays stable across zoom scoped forecast windows when context is fixed`() {
         val now = LocalDateTime.of(2026, 4, 4, 10, 20)
         val observedAt = now.minusMinutes(20)
         val observations = listOf(
@@ -207,7 +207,7 @@ class WidgetIntentRouterRobolectricTest {
             hourly(now.plusHours(2), 70f),
         )
 
-        val wideResult = CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
+        val wideResult = CurrentTempResolver.observeFromRows(
             observations = observations,
             hourlyForecasts = fullForecasts,
             displaySource = WeatherSource.NWS,
@@ -215,7 +215,7 @@ class WidgetIntentRouterRobolectricTest {
             lon = lon,
             now = now,
         )
-        val narrowResult = CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
+        val narrowResult = CurrentTempResolver.observeFromRows(
             observations = observations,
             hourlyForecasts = fullForecasts,
             displaySource = WeatherSource.NWS,
@@ -231,7 +231,7 @@ class WidgetIntentRouterRobolectricTest {
     }
 
     @Test
-    fun `resolveGraphStyleCurrentTempFromInputs changes when forecast context is truncated`() {
+    fun `observeFromRows changes when forecast context is truncated`() {
         val now = LocalDateTime.of(2026, 4, 4, 10, 20)
         val observations = listOf(
             observation(now.minusHours(2), 62f, stationId = "STATION_A"),
@@ -246,7 +246,7 @@ class WidgetIntentRouterRobolectricTest {
             hourly(now.minusHours(2), 60f),
         )
 
-        val fullResult = CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
+        val fullResult = CurrentTempResolver.observeFromRows(
             observations = observations,
             hourlyForecasts = fullForecasts,
             displaySource = WeatherSource.NWS,
@@ -254,7 +254,7 @@ class WidgetIntentRouterRobolectricTest {
             lon = lon,
             now = now,
         )
-        val truncatedResult = CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
+        val truncatedResult = CurrentTempResolver.observeFromRows(
             observations = observations,
             hourlyForecasts = truncatedForecasts,
             displaySource = WeatherSource.NWS,
