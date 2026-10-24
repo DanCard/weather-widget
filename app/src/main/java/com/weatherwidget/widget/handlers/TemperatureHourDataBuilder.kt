@@ -20,6 +20,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.HourlyFooterRenderer
 import com.weatherwidget.shared.util.HourLabelFormatter
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
+import com.weatherwidget.shared.graph.HourlyFooterLabels
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
@@ -129,29 +130,6 @@ internal fun buildHourDataList(
         smoothedForecasts = smoothedForecasts,
     ).hours
 
-/**
- * Epoch-millis of the per-day "centered" hour used for date footer labels at multi-day (TWO_DAY)
- * zoom: for each local date in `[start, end]` the local-noon hour, clamped into the window so the
- * partial first/last days still get a label at the nearest visible edge. One entry per visible day,
- * matching the hour grid that [buildHourDataResult] walks (its hours are top-of-hour and these
- * representatives are too). Pure, for unit testing.
- */
-internal fun dateLabelMillis(start: LocalDateTime, end: LocalDateTime, zone: ZoneId): Set<Long> =
-    buildSet {
-        var date = start.toLocalDate()
-        val lastDate = end.toLocalDate()
-        while (!date.isAfter(lastDate)) {
-            val noon = date.atTime(12, 0)
-            val rep = when {
-                noon.isBefore(start) -> start
-                noon.isAfter(end) -> end
-                else -> noon
-            }
-            add(rep.atZone(zone).toInstant().toEpochMilli())
-            date = date.plusDays(1)
-        }
-    }
-
 internal fun buildHourDataResult(
     hourlyForecasts: List<HourlyForecastEntity>,
     centerTime: LocalDateTime,
@@ -245,29 +223,29 @@ internal fun buildHourDataResult(
         narrowWidget = com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns),
     )
 
-    // Once the window spans multiple days, bare "12a/12p" footer labels can't tell you which day a
-    // region is. Switch to one date label per day, centered under that day: for each visible local
-    // date pick the in-window hour closest to local noon (clamped to the window edges so partial
-    // first/last days still get a label). Near zooms keep time-of-day.
-    //
-    // Keyed on the *span*, not on stage identity: desktop has always decided this by span, and the
-    // two rules silently disagreed the moment a stage landed on the threshold. See
-    // HourlyZoomRules.DATE_FOOTER_MIN_SPAN_HOURS.
+    // Footer labels: `:shared` HourlyFooterLabels over the window's hours — tidy clock hours, or one
+    // date per day once the span reaches HourlyZoomRules.DATE_FOOTER_MIN_SPAN_HOURS — the same
+    // selection the precip and cloud graphs and desktop make.
     val dateMode = HourlyZoomRules.isDateMode(zoom.totalSpanHours)
-    val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
+    val labelledMillis = HourlyFooterLabels.labelledTimes(
+        generateSequence(startHour) { it.plusHours(1) }
+            .takeWhile { !it.isAfter(endHour) }
+            .map { it.atZone(zoneId).toInstant().toEpochMilli() }
+            .toList(),
+        zoom.totalSpanHours,
+        labelInterval,
+        zoneId,
+    )
 
     // Assemble the graph point list from the shared sub-hourly-inclusive series, so the labeled actual
     // high/low match the daily view exactly (an off-hour observed peak/trough rides on its own point
     // instead of collapsing onto the nearest hour). Platform decoration — footer hour label, weather
-    // icon, sun/day-night flags, label cadence — is layered on here; the desktop app calls the same
-    // assembler with an identity decorator. topHourOrdinal reproduces the old per-top-of-hour index the
-    // WIDE/TWO_DAY label cadence keys off (sub-hourly points don't advance it).
-    var topHourOrdinal = 0
+    // icon, sun/day-night flags — is layered on here; the desktop app calls the same assembler with an
+    // identity decorator.
     val finalHours = HourDataAssembler.assembleHourData(actualSeries, zoneId) { base, isTopHour, _ ->
         val time = base.dateTime
         if (isTopHour) {
             val hourMs = time.atZone(zoneId).toInstant().toEpochMilli()
-            val hourIndex = topHourOrdinal++
             val forecast = forecastsByTime[hourMs]
             if (forecast == null) {
                 Log.w(TAG, "buildHourDataList: Missing forecast for $time (ms=$hourMs) source=${displaySource.id}")
@@ -286,16 +264,11 @@ internal fun buildHourDataResult(
                     isSunBoundary = isSunBoundary,
                 )
             }
-            // Shared with the precip/cloud graphs so all three agree on date vs time-of-day footer labels.
-            // NARROW's interval is 1 except on a narrow widget with a widened span, so this still
-            // labels every hour in the common case.
-            val nonDateShowLabel = hourIndex % labelInterval == 0
             val labelInfo = HourlyGraphViewCommon.resolveHourLabel(
                 time = time,
                 hourMs = hourMs,
                 dateMode = dateMode,
-                dateLabelMillis = dateLabelMillis,
-                nonDateShowLabel = nonDateShowLabel,
+                labelledMillis = labelledMillis,
             )
             base.copy(
                 label = labelInfo.label,

@@ -100,24 +100,22 @@ internal object HourlyGraphViewCommon {
     data class HourLabelInfo(val label: String, val showLabel: Boolean, val isDateLabel: Boolean)
 
     /**
-     * The footer-label rule shared by all three hourly graphs (temperature, precip, cloud). At
-     * multi-day ([dateMode], i.e. HourlyZoomRules.isDateMode) the footer shows one date label per day ("Tue 23")
-     * at the per-day representative hours in [dateLabelMillis]; otherwise it shows a time-of-day label
-     * ("3p") governed by each graph's own cadence ([nonDateShowLabel]). [isDateLabel] downstream
-     * drives both the drop-when-clipped and keep-the-last-day-icon behavior in
+     * One hour's footer label: its text (a date in [dateMode], else the clock hour) and whether it is
+     * shown — [labelledMillis], from `:shared` [com.weatherwidget.shared.graph.HourlyFooterLabels]
+     * (tidy clock hours, or one date per day; the same selection desktop draws). [isDateLabel]
+     * downstream drives both the drop-when-clipped and keep-the-last-day-icon behavior in
      * [com.weatherwidget.widget.HourlyFooterRenderer.drawHourLabels].
      */
     fun resolveHourLabel(
         time: LocalDateTime,
         hourMs: Long,
         dateMode: Boolean,
-        dateLabelMillis: Set<Long>,
-        nonDateShowLabel: Boolean,
+        labelledMillis: Set<Long>,
     ): HourLabelInfo =
         if (dateMode) {
-            HourLabelInfo(HourLabelFormatter.dateLabel(time.toLocalDate()), hourMs in dateLabelMillis, true)
+            HourLabelInfo(HourLabelFormatter.dateLabel(time.toLocalDate()), hourMs in labelledMillis, true)
         } else {
-            HourLabelInfo(HourLabelFormatter.hourLabel(time), nonDateShowLabel, false)
+            HourLabelInfo(HourLabelFormatter.hourLabel(time), hourMs in labelledMillis, false)
         }
 
     /**
@@ -133,11 +131,9 @@ internal object HourlyGraphViewCommon {
         now: LocalDateTime,
         lat: Double,
         lon: Double,
-        labelInterval: Int,
-        hourIndex: Int,
-        hourMs: Long = 0L,
-        dateMode: Boolean = false,
-        dateLabelMillis: Set<Long> = emptySet(),
+        hourMs: Long,
+        dateMode: Boolean,
+        labelledMillis: Set<Long>,
     ): HourPresentation {
         val diffMinutes = java.time.Duration.between(currentHour, now).toMinutes()
         val isClosest = kotlin.math.abs(diffMinutes) <= 30
@@ -145,8 +141,7 @@ internal object HourlyGraphViewCommon {
             time = currentHour,
             hourMs = hourMs,
             dateMode = dateMode,
-            dateLabelMillis = dateLabelMillis,
-            nonDateShowLabel = isClosest || (hourIndex % labelInterval == 0),
+            labelledMillis = labelledMillis,
         )
         val sunInfo = SunPositionUtils.getSunInfoOrUnknown(currentHour, lat, lon)
         val isNight = sunInfo.isNight

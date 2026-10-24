@@ -215,25 +215,6 @@ class DesktopGraphZoomTest {
     }
 
     @Test
-    fun `representativeIndicesByDay picks one noon-centered index per day`() {
-        val utc = ZoneId.of("UTC")
-        val base = Instant.parse("2026-06-10T00:00:00Z").toEpochMilli()
-        val hourMs = 3_600_000L
-        // 49 hourly points: all of Jun 10 (idx 0..23), all of Jun 11 (idx 24..47), Jun 12 00:00 (idx 48).
-        val points = (0..48).map { i -> HourlyForecast(base + i * hourMs, 70f, "Clear") }
-
-        val indices = DesktopGraphUtils.representativeIndicesByDay(points, utc)
-
-        // One label per visible day; Jun 10/11 land on local noon, Jun 12's lone point is its rep.
-        assertEquals(setOf(12, 36, 48), indices)
-    }
-
-    @Test
-    fun `representativeIndicesByDay handles empty input`() {
-        assertTrue(DesktopGraphUtils.representativeIndicesByDay(emptyList(), ZoneId.of("UTC")).isEmpty())
-    }
-
-    @Test
     fun `date label span threshold is beyond a two day window`() {
         // The default-ish near zoom (~24h span) keeps clock labels; only wider spans flip to dates.
         assertTrue(DesktopGraphUtils.DATE_LABEL_SPAN_THRESHOLD_HOURS >= 48)

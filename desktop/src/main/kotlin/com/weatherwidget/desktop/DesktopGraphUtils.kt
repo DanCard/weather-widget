@@ -25,6 +25,7 @@ import com.weatherwidget.shared.graph.CurveMath
 import com.weatherwidget.shared.graph.ForecastEvolutionStyle
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
+import com.weatherwidget.shared.graph.HourlyFooterLabels
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.graph.NavArrowGeometry
 import com.weatherwidget.shared.graph.NowIndicatorGeometry
@@ -317,26 +318,6 @@ internal object DesktopGraphUtils {
     /** Compact multi-day footer label: weekday + day-of-month, e.g. 2026-06-11 -> "Wed 11". */
     fun formatDateLabel(date: LocalDate): String = HourLabelFormatter.dateLabel(date)
 
-    /**
-     * In date mode, one footer label is drawn per visible day, centered under that day. For each
-     * local date present in [points] this picks the index whose local time is closest to noon
-     * (12:00), so the label sits in the middle of the day's data and partial first/last days still
-     * get a (nearest-available) label. Pure, for unit testing.
-     */
-    fun representativeIndicesByDay(points: List<HourlyForecast>, zone: ZoneId): Set<Int> {
-        if (points.isEmpty()) return emptySet()
-        return points.indices
-            .groupBy { i -> Instant.ofEpochMilli(points[i].dateTime).atZone(zone).toLocalDate() }
-            .values
-            .map { idxs ->
-                idxs.minByOrNull { i ->
-                    val ldt = Instant.ofEpochMilli(points[i].dateTime).atZone(zone).toLocalDateTime()
-                    abs((ldt.hour * 60 + ldt.minute) - 12 * 60)
-                }!!
-            }
-            .toSet()
-    }
-
     /** Whether the visible span is wide enough that the footer labels its points with dates. */
     fun isDateMode(totalSpanHours: Int): Boolean =
         HourlyZoomRules.isDateMode(totalSpanHours.toLong())
@@ -345,13 +326,10 @@ internal object DesktopGraphUtils {
     data class FooterLabel(val index: Int, val text: String)
 
     /**
-     * The full footer-label decision for the bottom strip, shared by the temperature, cloud-cover
-     * and precipitation graphs: *which* points get a label and *what* text they show. Below the
-     * date threshold this is the pixel-budget clock-hour cadence ("12a"/"12p" via
-     * [labelIntervalForWidth], denser on wide windows); above it, one date per visible day centered
-     * on local noon ("Wed 11"). [widthPx]/[minLabelSpacingPx] drive only the clock-hour cadence and
-     * are ignored in date mode. Returned sorted by index. Pure — the draw loops only position and
-     * paint what this returns.
+     * The footer labels for the bottom strip of the temperature, cloud-cover and precipitation
+     * graphs: `:shared` [HourlyFooterLabels.select] at the pixel-budget cadence
+     * ([labelIntervalForWidth], denser on wide windows). [widthPx]/[minLabelSpacingPx] drive only the
+     * clock-hour cadence and are ignored in date mode. Returned sorted by index.
      */
     fun footerLabels(
         points: List<HourlyForecast>,
@@ -359,21 +337,15 @@ internal object DesktopGraphUtils {
         zone: ZoneId,
         widthPx: Float,
         minLabelSpacingPx: Float,
-    ): List<FooterLabel> {
-        if (points.isEmpty()) return emptyList()
-        return if (isDateMode(totalSpanHours)) {
-            representativeIndicesByDay(points, zone).sorted().map { i ->
-                val date = Instant.ofEpochMilli(points[i].dateTime).atZone(zone).toLocalDate()
-                FooterLabel(i, formatDateLabel(date))
-            }
-        } else {
-            val interval = labelIntervalForWidth(totalSpanHours, widthPx, minLabelSpacingPx)
-            points.indices.mapNotNull { i ->
-                val hour = Instant.ofEpochMilli(points[i].dateTime).atZone(zone).toLocalDateTime().hour
-                if (hour % interval == 0) FooterLabel(i, formatHourLabel(hour)) else null
-            }
-        }
-    }
+    ): List<FooterLabel> =
+        // The selection is `:shared` HourlyFooterLabels (Android's three graphs call it too); only
+        // the interval is desktop's own, from the pixel budget.
+        HourlyFooterLabels.select(
+            pointTimesMs = points.map { it.dateTime },
+            spanHours = totalSpanHours.toLong(),
+            interval = labelIntervalForWidth(totalSpanHours, widthPx, minLabelSpacingPx),
+            zone = zone,
+        ).map { FooterLabel(it.index, it.text) }
 
     /** Finds the index of the hourly forecast closest to [targetTime]. */
     fun List<HourlyForecast>.indexOfByClosestTime(targetTime: Long): Int {

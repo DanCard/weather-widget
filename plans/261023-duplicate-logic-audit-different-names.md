@@ -290,3 +290,8 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   displayed `NWS_BLEND` was already shared (`NwsBlend.current`). Desktop's no-blend fallbacks dropped
   (user): no forecast or stale station as "current"
   (`plans/261024-nws-fetch-time-current-reading-shared.md`). **E closed.**
+- 2026-10-24: G, the rest. The span-keyed tables were already shared (`HourlyZoomRules`, user
+  2026-10-21; the "awaiting decision" above was stale). The footer-label selection →
+  `:shared` `HourlyFooterLabels` (`plans/261024-shared-hourly-footer-labels.md`): Android labelled
+  from the window's left edge (moved on every pan) and its precip/cloud graphs always labelled now;
+  both platforms now label tidy clock hours, no "now" exception (user). **G closed.**

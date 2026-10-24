@@ -739,20 +739,24 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             narrowWidget = com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns),
         )
 
-        // On multi-day windows switch the footer to one date label per day ("Tue 23"), matching the
-        // temperature graph (shared rule in HourlyGraphViewCommon.resolveHourLabel).
+        // Footer labels: `:shared` HourlyFooterLabels over the hours drawn (tidy clock hours, or one
+        // date per day on multi-day windows), as the temperature and precip graphs and desktop.
+        val drawn = series.mapNotNull { point ->
+            val entity = entityByTime[point.timeMs] ?: return@mapNotNull null
+            val cover = point.forecastCover ?: return@mapNotNull null
+            Triple(point, entity, cover)
+        }
         val dateMode = com.weatherwidget.shared.graph.HourlyZoomRules.isDateMode(zoom.totalSpanHours)
-        val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
+        val labelledMillis = com.weatherwidget.shared.graph.HourlyFooterLabels.labelledTimes(
+            drawn.map { it.first.timeMs }, zoom.totalSpanHours, labelInterval, zoneId,
+        )
 
         val hours = mutableListOf<CloudCoverGraphRenderer.CloudHourData>()
-        var hourIndex = 0
-        for (point in series) {
-            val entity = entityByTime[point.timeMs] ?: continue
-            val cover = point.forecastCover ?: continue
+        for ((point, entity, cover) in drawn) {
             val currentHour = Instant.ofEpochMilli(point.timeMs).atZone(zoneId).toLocalDateTime()
             val p = HourlyGraphViewCommon.resolveHourPresentation(
-                currentHour, entity, now, lat, lon, labelInterval, hourIndex,
-                hourMs = point.timeMs, dateMode = dateMode, dateLabelMillis = dateLabelMillis,
+                currentHour, entity, now, lat, lon,
+                hourMs = point.timeMs, dateMode = dateMode, labelledMillis = labelledMillis,
             )
             hours.add(
                 CloudCoverGraphRenderer.CloudHourData(
@@ -785,7 +789,6 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     isDateLabel = p.isDateLabel,
                 ),
             )
-            hourIndex++
         }
 
         return hours

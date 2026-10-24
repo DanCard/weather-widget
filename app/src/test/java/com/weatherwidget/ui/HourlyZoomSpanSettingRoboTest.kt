@@ -150,6 +150,42 @@ class HourlyZoomSpanSettingRoboTest {
     }
 
     @Test
+    fun `all three graphs label the same tidy clock hours on an odd-hour window`() {
+        // Centred at 13:00 the 8 h window runs 9a..5p. At the narrow widget's interval 2 Android
+        // counted from the left edge (9a 11a 1p 3p 5p); every graph now labels clock hours, as desktop
+        // (`:shared` HourlyFooterLabels; plans/261024-shared-hourly-footer-labels.md).
+        val window = setSpanInSettingsAndResolveNarrowWindow(spanHours = 8)
+        val oddCentre = centerTime.plusHours(1)
+        val expected = listOf("10a", "12p", "2p", "4p")
+
+        val temperature = buildHourDataList(
+            hourlyForecasts = sampleHourlyForecasts(),
+            centerTime = oddCentre,
+            numColumns = NARROW_WIDGET_COLUMNS,
+            displaySource = WeatherSource.NWS,
+            zoom = window,
+        )
+        val precip = PrecipViewHandler.buildPrecipHourDataList(
+            hourlyForecasts = sampleHourlyForecasts(),
+            centerTime = oddCentre,
+            numColumns = NARROW_WIDGET_COLUMNS,
+            displaySource = WeatherSource.NWS,
+            zoom = window,
+        )
+        val cloud = CloudCoverViewHandler.buildCloudHourDataList(
+            hourlyForecasts = sampleHourlyForecasts(),
+            centerTime = oddCentre,
+            numColumns = NARROW_WIDGET_COLUMNS,
+            displaySource = WeatherSource.NWS,
+            zoom = window,
+        )
+
+        assertEquals(expected, temperature.filter { it.showLabel }.map(HourData::label))
+        assertEquals(expected, precip.filter { it.showLabel }.map(PrecipitationGraphRenderer.PrecipHourData::label))
+        assertEquals(expected, cloud.filter { it.showLabel }.map(CloudCoverGraphRenderer.CloudHourData::label))
+    }
+
+    @Test
     fun `two day switch persists its setting`() {
         launchSettings { activity ->
             val toggle = activity.findViewById<androidx.appcompat.widget.SwitchCompat>(

@@ -545,26 +545,32 @@ object PrecipViewHandler {
             zoom,
             narrowWidget = com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns),
         )
-        var currentHour = startHour
-        var hourIndex = 0
         val zoneId = ZoneId.systemDefault()
-
-        // On multi-day windows switch the footer to one date label per day ("Tue 23"), matching the
-        // temperature graph (shared rule in HourlyGraphViewCommon.resolveHourLabel).
-        val dateMode = com.weatherwidget.shared.graph.HourlyZoomRules.isDateMode(zoom.totalSpanHours)
-        val dateLabelMillis = if (dateMode) dateLabelMillis(startHour, endHour, zoneId) else emptySet()
 
         // End-INCLUSIVE, same as the temperature graph's shared ActualTemperatureSeriesBuilder: an
         // n-hour window spans start..start+n and needs n+1 marks, or the drawn axis is an hour
         // narrower than the Hourly Zoom setting promises.
+        val drawnHours = generateSequence(startHour) { it.plusHours(1) }
+            .takeWhile { !it.isAfter(endHour) }
+            .map { it.atZone(zoneId).toInstant().toEpochMilli() }
+            .filter { forecastsByTime[it] != null }
+            .toList()
+        // Footer labels: `:shared` HourlyFooterLabels over the hours drawn (tidy clock hours, or one
+        // date per day on multi-day windows), as the temperature and cloud graphs and desktop.
+        val dateMode = com.weatherwidget.shared.graph.HourlyZoomRules.isDateMode(zoom.totalSpanHours)
+        val labelledMillis = com.weatherwidget.shared.graph.HourlyFooterLabels.labelledTimes(
+            drawnHours, zoom.totalSpanHours, labelInterval, zoneId,
+        )
+
+        var currentHour = startHour
         while (!currentHour.isAfter(endHour)) {
             val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
             val forecast = forecastsByTime[hourMs]
 
             if (forecast != null) {
                 val p = HourlyGraphViewCommon.resolveHourPresentation(
-                    currentHour, forecast, now, lat, lon, labelInterval, hourIndex,
-                    hourMs = hourMs, dateMode = dateMode, dateLabelMillis = dateLabelMillis,
+                    currentHour, forecast, now, lat, lon,
+                    hourMs = hourMs, dateMode = dateMode, labelledMillis = labelledMillis,
                 )
                 hours.add(
                     PrecipitationGraphRenderer.PrecipHourData(
@@ -587,7 +593,6 @@ object PrecipViewHandler {
                         ),
                     ),
                 )
-                hourIndex++
             }
 
             currentHour = currentHour.plusHours(1)
