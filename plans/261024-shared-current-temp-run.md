@@ -57,8 +57,54 @@ recommendation, which was wrong on both counts (a side-agent review caught the f
   the window → bare forecast), `CurrentTemperatureResolverTest` (no observation → bare forecast),
   stored-delta tests removed or reduced to their fresh-observation assertions, a legacy-location test.
 
-## Phase 2 (open)
-Android's widget header paths still string the shared pieces together themselves
-(`TemperatureViewHandler` ×3, `TemperatureStateResolver`, `CurrentTempResolutionHelper`,
-`DailyHeaderResolver`, `WidgetRenderer`): same rules now, glue still per path. Move them onto
-`CurrentTempRun`; the start-up paint that passed no observation (above) is part of that.
+## Phase 2 — handoff (written 2026-10-24 at the end of phase 1, commit `42a10c30`)
+
+**Goal.** Every Android header path gets its current temperature from `:shared` `CurrentTempRun.run`
+(as desktop and the Months screen already do), so the rule has one copy. Phase 1 already made the
+*rules* identical — no stored delta, no raw fallback, one window — so phase 2 is glue removal; the
+header number should not change except where a path was feeding `resolve` different inputs (below).
+Follow the CLAUDE.md shared-code rule; `AGENTS.md` asks for a plan + approval before code.
+
+**What the run does** (`shared/.../widget/CurrentTempRun.kt`): cuts hourly + observations to
+`buildCurrentTempResolutionWindow(now)` (−12 h…+3 h) → `ActualsAggregator.resolveCurrentObservation`
+(blend at now, `RESOLUTION_LOOKBACK/LOOKAHEAD_HOURS`) → `CurrentTemperatureResolver.resolve` with
+`computeSmoothedForecasts` → `YesterdayDeltaCalculator.computeDelta` on the *full* lists. Returns
+display temp, applied delta, delta from yesterday, observed temp/at, window counts.
+
+**Android call sites still doing it themselves** (line numbers at `42a10c30`):
+
+| Piece | Where |
+|---|---|
+| Blend at now | `widget/handlers/CurrentTempResolver.kt:69` (`resolveGraphStyleCurrentTemp[FromInputs]`), `widget/WidgetRenderer.kt:476` (no-repository branch) |
+| …called from | `DailyInteractionRenderer.kt:302`, `GraphInteractionRenderer.kt:184`, `WidgetRenderer.kt:465` |
+| `resolve` | `CurrentTempResolutionHelper.kt:24` (`resolveTimed`, used by `DailyHeaderResolver.kt:130`, `CloudCoverViewHandler.kt:255`, `PrecipViewHandler.kt:187`), `TemperatureStateResolver.kt:548`, `TemperatureViewHandler.kt:122 / 319 / 384` |
+| Yesterday delta | `TemperatureStateResolver.kt:595`, `DailyViewHandler.kt:363`, `TemperatureGraphHoursLoader.kt:277` |
+| Window built | `WidgetRenderer.kt:441`, `GraphDataLoader.kt:242`, `DailyGraphRenderer.kt:470`, `CurrentTempResolver.kt:30`, `notify/DominantTempChangeNotifier.kt:71` |
+
+**Traps (read before moving anything):**
+1. **Observation read scope.** `CurrentTempResolver.resolveGraphStyleCurrentTemp` reads
+   `ActualsReadScope.apisFor(displaySource)`, and its comment says the today-column overlay
+   re-derives this observation and matches `observedAt` on **exact equality** — a different read
+   drops the station rows from the overlay. `WidgetRenderer` reads `apis = null` on purpose (its
+   rows also feed `ObservationWatermark`). The run takes rows; each Host must keep its own read.
+2. **Two-step paint.** `TemperatureStateResolver` / `TemperatureViewHandler` paint a quick header
+   first (`resolveQuick`, no observation) when `deferCurrentTempResolution` (startup,
+   `WidgetViewModeDispatcher.kt:71`), then refine asynchronously (`scheduleCurrentTempRefinement`).
+   Keep the quick path; the refinement is the run.
+3. **The 10-21 start-up case.** At `startup_launch` (`WidgetStartupCoordinator.kt:445`) a header
+   resolved with `obs=none` while Synoptic had 692 readings in the window — the start-up paint
+   passed no observation. Find which path that was (logcat `CURR_TEMP_RESULT … obs=none` right after
+   `HOURLY_PAINT_TRACE phase=startup_launch`) and make sure its Host reads observations.
+4. **Yesterday delta inputs.** The run's yesterday delta reads the full lists; Android's three calls
+   pass what each handler has loaded — check each gets ≥ 24 h of observations, or the delta goes
+   null where it used to show.
+5. **Per-widget sources.** Several widgets show different sources at once (`CURR_TEMP_RESULT`
+   lines on the Samsung differ by widget) — the Host is per widget + source, not per app.
+
+**Tests to add.** Parity: the same rows through an Android Host and desktop's give the same
+`displayTemp` (a desktop-vs-Pixel spot check on 2026-10-24 07:44 gave 47.16 vs 47.07 °F — blend
+inputs differ, Pixel still has Synoptic). One test per Host that a header with observations in the
+window never resolves `obs=none` (trap 3). Keep `CurrentTempUnificationIntegrationTest` green.
+
+**Verify.** Full suite; install on both phones; `adb logcat | grep CURR_TEMP_RESULT` per widget;
+desktop `CURR_TEMP_RESULT` in `app_logs`; restart desktop.
