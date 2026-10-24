@@ -241,51 +241,16 @@ internal class HourlyForecastStore(
         sourceId: String,
         nowMs: Long = clock(),
     ): ElapsedForecastBackfill.Summary? {
-        val keyLat = LocationMatch.quantize(latitude)
-        val keyLon = LocationMatch.quantize(longitude)
-        return ElapsedForecastBackfill.backfill(hourlyData, nowMs, object : ElapsedForecastBackfill.Store {
-            override suspend fun coveredHours(startMs: Long, endMs: Long) =
-                hourlyForecastHistoryDao.getHistoryInRangeForBucketWindow(
-                    startDateTime = startMs,
-                    endDateTime = endMs,
-                    bucketStart = Long.MIN_VALUE,
-                    bucketEnd = Long.MAX_VALUE,
-                    lat = keyLat,
-                    lon = keyLon,
-                    source = sourceId,
-                ).asSequence()
-                    .filter { LocationMatch.sameSite(keyLat, keyLon, it.locationLat, it.locationLon) }
-                    .map { it.dateTime }
-                    .toSet()
-
-            override suspend fun insert(rows: List<HourlyForecast>) {
-                val bucket = ForecastHistoryPolicy.timestampToGroupPredictions(
-                    nowMs,
-                    sourceId,
-                    widgetStateManager.getActiveDisplaySourceIds(),
-                )
-                hourlyForecastHistoryDao.insertAll(
-                    rows.map {
-                        HourlyForecastHistoryEntity(
-                            dateTime = it.dateTime,
-                            locationLat = keyLat,
-                            locationLon = keyLon,
-                            temperature = it.temperature,
-                            condition = it.condition,
-                            source = sourceId,
-                            timestampToGroupPredictions = bucket,
-                            precipProbability = it.precipProbability,
-                            cloudCover = it.cloudCover,
-                            cloudCoverLow = it.cloudCoverLow,
-                            cloudCoverMid = it.cloudCoverMid,
-                            cloudCoverHigh = it.cloudCoverHigh,
-                            precipAmountMm = it.precipAmountMm,
-                            fetchedAt = nowMs,
-                        )
-                    },
-                )
-            }
-        })
+        val bucket = ForecastHistoryPolicy.timestampToGroupPredictions(
+            nowMs,
+            sourceId,
+            widgetStateManager.getActiveDisplaySourceIds(),
+        )
+        return ElapsedForecastBackfill.backfill(
+            hourlyData,
+            nowMs,
+            RoomElapsedHistoryStore(hourlyForecastHistoryDao, latitude, longitude, sourceId, bucket, nowMs),
+        )
     }
 
     private suspend fun saveHistoricalActuals(
@@ -396,5 +361,59 @@ internal class HourlyForecastStore(
                 precipAmountMm = newlyFetched.precipAmountMm ?: existing.precipAmountMm,
             )
         }
+    }
+}
+
+/**
+ * Room side of [ElapsedForecastBackfill.Store]: [sourceId]'s `hourly_forecast_history` at one site,
+ * new rows filed under [bucket]. Pinned to desktop's by `ElapsedForecastBackfillStoreContract`
+ * (`:shared` testFixtures).
+ */
+internal class RoomElapsedHistoryStore(
+    private val dao: HourlyForecastHistoryDao,
+    latitude: Double,
+    longitude: Double,
+    private val sourceId: String,
+    private val bucket: Long,
+    private val nowMs: Long,
+) : ElapsedForecastBackfill.Store {
+    private val keyLat = LocationMatch.quantize(latitude)
+    private val keyLon = LocationMatch.quantize(longitude)
+
+    override suspend fun coveredHours(startMs: Long, endMs: Long) =
+        dao.getHistoryInRangeForBucketWindow(
+            startDateTime = startMs,
+            endDateTime = endMs,
+            bucketStart = Long.MIN_VALUE,
+            bucketEnd = Long.MAX_VALUE,
+            lat = keyLat,
+            lon = keyLon,
+            source = sourceId,
+        ).asSequence()
+            .filter { LocationMatch.sameSite(keyLat, keyLon, it.locationLat, it.locationLon) }
+            .map { it.dateTime }
+            .toSet()
+
+    override suspend fun insert(rows: List<HourlyForecast>) {
+        dao.insertAll(
+            rows.map {
+                HourlyForecastHistoryEntity(
+                    dateTime = it.dateTime,
+                    locationLat = keyLat,
+                    locationLon = keyLon,
+                    temperature = it.temperature,
+                    condition = it.condition,
+                    source = sourceId,
+                    timestampToGroupPredictions = bucket,
+                    precipProbability = it.precipProbability,
+                    cloudCover = it.cloudCover,
+                    cloudCoverLow = it.cloudCoverLow,
+                    cloudCoverMid = it.cloudCoverMid,
+                    cloudCoverHigh = it.cloudCoverHigh,
+                    precipAmountMm = it.precipAmountMm,
+                    fetchedAt = nowMs,
+                )
+            },
+        )
     }
 }

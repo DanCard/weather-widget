@@ -136,6 +136,12 @@ freshest bucket first); `getHourlyHistory` (merged) stays for desktop's display 
   `UPDATE OR REPLACE`). Fixed with it: desktop's `touchLatestObservationFetchedAt` (quantized key,
   10-23) never matched a raw row, so the touch was a no-op. Tests in `DesktopWeatherDaoTest` (3 fail
   on the old code). The desktop DB's 12,937 rows moved, none lost.
+- `ElapsedForecastBackfill.Store` → `ElapsedForecastBackfillStoreContract` (2 cases: `coveredHours` =
+  this source, this site, any bucket, `[start, end)`; insert → covered, a second backfill stores
+  nothing) on `RoomElapsedHistoryStore` / `DesktopElapsedHistoryStore` (bucket passed in); no
+  divergence. 4 pending. **Open:** the snapshot bucket itself — Android `ForecastHistoryPolicy` (in
+  `:app`) files a displayed source every 4 h and a background one every 12 h ("DB-write savings");
+  desktop files every source every 4 h, hard-coded in three places. Awaiting the user.
 
 ## Verification
 - The `hourlyHistory` case fails on today's code on one side (which side depends on the decision) —

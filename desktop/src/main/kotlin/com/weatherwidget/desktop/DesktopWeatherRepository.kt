@@ -794,14 +794,11 @@ class DesktopWeatherRepository(
      * Same source only; existing rows are never touched, so in steady state this stores nothing.
      */
     private suspend fun backfillElapsedHistory(result: RawFetch, now: Long, timestampToGroupPredictions: Long) {
-        val summary = ElapsedForecastBackfill.backfill(result.hourly + result.elapsedHourly, now, object : ElapsedForecastBackfill.Store {
-            override suspend fun coveredHours(startMs: Long, endMs: Long) = weatherDao.getHourlyHistoryCoveredHours(
-                LocationMatch.quantize(latitude), LocationMatch.quantize(longitude), weatherSource, startMs, endMs,
-            )
-
-            override suspend fun insert(rows: List<HourlyForecast>) =
-                weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, rows)
-        }) ?: return
+        val summary = ElapsedForecastBackfill.backfill(
+            result.hourly + result.elapsedHourly,
+            now,
+            DesktopElapsedHistoryStore(weatherDao, latitude, longitude, weatherSource, timestampToGroupPredictions),
+        ) ?: return
         weatherDao.log(
             ElapsedForecastBackfill.LOG_TAG,
             ElapsedForecastBackfill.logMessage(weatherSource, latitude, longitude, summary),
