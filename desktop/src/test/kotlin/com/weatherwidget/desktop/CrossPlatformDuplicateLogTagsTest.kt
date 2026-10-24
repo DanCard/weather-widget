@@ -39,8 +39,6 @@ class CrossPlatformDuplicateLogTagsTest {
             "TIMEZONE_CHANGE" to ADAPTER, // broadcast vs daemon clock check
             "DOMINANT_TEMP_WATCH" to ADAPTER, // DominantTempWatch, prefs vs file store
             "HEADER_FIT" to UI_FLOW, // measuring glue around shared HeaderFit
-            "SIM_LOOP_ERROR" to UI_FLOW, // rain-loop player, audit 261021 H
-            "SIM_LOOP_FALLBACK" to UI_FLOW,
         )
 
         fun tags(root: File): Set<String> =

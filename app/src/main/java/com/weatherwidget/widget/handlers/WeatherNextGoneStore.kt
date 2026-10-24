@@ -2,6 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import android.content.Context
 import com.weatherwidget.data.remote.weathernext.WeatherNextAvailability
+import com.weatherwidget.shared.rainmap.WeatherNextLoop
 
 /**
  * When the WeatherNext host last answered 404/410, and which. Written and read by the viewer: within
@@ -24,4 +25,14 @@ internal object WeatherNextGoneStore {
 
     fun clear(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY_GONE_AT).remove(KEY_GONE_STATUS).apply()
+
+    /** This store as the shared run's [WeatherNextLoop.GoneStore]. */
+    fun of(context: Context): WeatherNextLoop.GoneStore = object : WeatherNextLoop.GoneStore {
+        override val goneAtMs: Long? get() = goneAtMs(context)
+        override val goneStatus: Int get() = goneStatus(context)
+
+        override fun markGone(status: Int, nowMs: Long) = markGone(context, status, nowMs)
+
+        override fun clear() = clear(context)
+    }
 }

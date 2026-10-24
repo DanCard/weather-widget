@@ -30,11 +30,11 @@ import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.data.remote.weathernext.*
 import com.weatherwidget.shared.rainmap.RainLoopLoadError
+import com.weatherwidget.shared.rainmap.WeatherNextLoop
 import io.ktor.client.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.skia.Image
 import java.io.File
@@ -45,15 +45,6 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-
-/**
- * When the WeatherNext host last answered 404/410, and which ([WeatherNextAvailability.knownGone]).
- * In memory only: the desktop app runs for days, and after a restart the next click re-checks.
- */
-internal object WeatherNextDesktopState {
-    @Volatile var goneAtMs: Long? = null
-    @Volatile var goneStatus: Int = 404
-}
 
 private val WEATHER_NEXT_JSON = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
@@ -92,13 +83,14 @@ internal fun RainForecastWindow(
 }
 
 @Composable
-private fun RainForecastContent(
+internal fun RainForecastContent(
     config: DesktopConfig,
     httpClient: HttpClient,
     onError: (RainLoopLoadError) -> Unit,
     onUseOpenMeteo: (RainLoopLoadError) -> Unit,
+    goneStore: WeatherNextLoop.GoneStore = DesktopWeatherNextGoneStore.default(),
+    cacheDir: File = File(System.getProperty("user.home"), ".cache/weather-widget/forecast_loops"),
 ) {
-    val scope = rememberCoroutineScope()
     val lat = config.lat
     val lon = config.lon
     val locationLabel = config.label.split(",").firstOrNull()?.trim() ?: "Current Location"
@@ -120,41 +112,30 @@ private fun RainForecastContent(
     var manifestAttempt by remember { mutableStateOf(0) }
     val client = remember(httpClient) { WeatherNextForecastClient(httpClient, WEATHER_NEXT_JSON) }
 
-    val cacheDir = remember {
-        File(System.getProperty("user.home"), ".cache/weather-widget/forecast_loops").apply { mkdirs() }
-    }
+    remember(cacheDir) { cacheDir.mkdirs() }
 
     // Load manifest on launch (and on retry: the host is a third-party GitHub Pages site).
     LaunchedEffect(domain, manifestAttempt) {
         loadError = null
-        // A 404/410 within the last day still stands: say so without asking the host again.
-        if (WeatherNextAvailability.knownGone(WeatherNextDesktopState.goneAtMs, System.currentTimeMillis())) {
-            RainLoopLoadError.gone(WeatherNextAvailability.HOST, WeatherNextDesktopState.goneStatus).let { loadError = it; onError(it) }
-            statusText = "Model run unavailable"
-            return@LaunchedEffect
-        }
         statusText = "Loading forecast manifest..."
-        client.fetchManifest(domain)
-            .onSuccess {
-                WeatherNextDesktopState.goneAtMs = null
-                manifest = it
-                statusText = "Model Run: ${WeatherNextForecastClient.formatUtcToLocal(it.init ?: it.run)}"
+        when (val outcome = WeatherNextLoop.loadManifest(client, domain, goneStore, System.currentTimeMillis())) {
+            is WeatherNextLoop.ManifestOutcome.Loaded -> {
+                manifest = outcome.manifest
+                statusText = "Model Run: ${WeatherNextForecastClient.formatUtcToLocal(outcome.manifest.init ?: outcome.manifest.run)}"
             }
-            .onFailure {
-                if (it is WeatherNextGoneException) {
-                    WeatherNextDesktopState.goneAtMs = System.currentTimeMillis()
-                    WeatherNextDesktopState.goneStatus = it.status
-                }
-                WeatherNextAvailability.loadError(it).let { e -> loadError = e; onError(e) }
+            is WeatherNextLoop.ManifestOutcome.Failed -> {
+                loadError = outcome.error
+                onError(outcome.error)
                 statusText = "Model run unavailable"
             }
+        }
     }
 
     // Filter frames when layer or manifest changes
     LaunchedEffect(manifest, selectedLayer) {
         val m = manifest ?: return@LaunchedEffect
         val layerId = selectedLayer.id
-        val filtered = m.frames.filter { it.files.containsKey(layerId) }
+        val filtered = WeatherNextLoop.framesFor(m, layerId)
         framesForLayer = filtered
         cachedBitmaps.clear()
         currentPos = 0.0
@@ -165,36 +146,29 @@ private fun RainForecastContent(
             RainLoopLoadError.noFrames(WeatherNextAvailability.HOST, 0).let { loadError = it; onError(it) }
             return@LaunchedEffect
         }
-        scope.launch(Dispatchers.IO) {
-            WeatherNextFrameCache.pruneOtherRuns(cacheDir, domain, layerId, m)
-            var loaded = 0
-            filtered.forEachIndexed { idx, frame ->
-                val file = client.cachedFrame(cacheDir, domain, layerId, m, frame).getOrNull() ?: return@forEachIndexed
-                try {
-                    cachedBitmaps[idx] = Image.makeFromEncoded(file.readBytes()).toComposeImageBitmap()
-                    loaded++
-                } catch (_: Exception) {}
-            }
-            // Some frames missing: the loop plays the rest. None at all: say so.
-            if (loaded == 0 && selectedLayer.id == layerId) {
-                RainLoopLoadError.noFrames(WeatherNextAvailability.HOST, filtered.size).let { withContext(Dispatchers.Main) { loadError = it; onError(it) } }
-            }
+        // In this effect, not the window's scope: a layer switch cancels it, and stillWanted stops a
+        // decode that finished after the switch from landing in the new layer's slots.
+        val error = withContext(Dispatchers.IO) {
+            WeatherNextLoop.prefetch(
+                client = client,
+                cacheDir = cacheDir,
+                domain = domain,
+                layerId = layerId,
+                manifest = m,
+                frames = filtered,
+                stillWanted = { isActive && selectedLayer.id == layerId },
+                decode = { Image.makeFromEncoded(it.readBytes()).toComposeImageBitmap() },
+                onFrame = { idx, image -> cachedBitmaps[idx] = image },
+            )
         }
+        error?.let { loadError = it; onError(it) }
     }
 
     // Auto-play loop ticker
     LaunchedEffect(isPlaying, speedMultiplier, framesForLayer.size) {
-        val tickIntervalMs = 35L
-        val baseStepMs = 140f // ~7 FPS at 1.0x
         while (isActive && isPlaying && framesForLayer.isNotEmpty()) {
-            delay(tickIntervalMs)
-            val advance = (tickIntervalMs * speedMultiplier) / baseStepMs
-            val maxPos = (framesForLayer.size - 1).toDouble()
-            var nextPos = currentPos + advance
-            if (nextPos > maxPos) {
-                nextPos = 0.0
-            }
-            currentPos = nextPos
+            delay(WeatherNextLoop.TICK_MS)
+            currentPos = WeatherNextLoop.advance(currentPos, framesForLayer.size, speedMultiplier)
         }
     }
 
@@ -517,7 +491,7 @@ private fun RainForecastContent(
 
                     OutlinedButton(
                         onClick = {
-                            currentPos = max(0.0, currentPos.toInt() - 1.0)
+                            currentPos = WeatherNextLoop.step(currentPos, framesForLayer.size, -1)
                         },
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                     ) {
@@ -528,7 +502,7 @@ private fun RainForecastContent(
 
                     OutlinedButton(
                         onClick = {
-                            currentPos = min(framesForLayer.size - 1.0, currentPos.toInt() + 1.0)
+                            currentPos = WeatherNextLoop.step(currentPos, framesForLayer.size, +1)
                         },
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                     ) {
@@ -539,7 +513,7 @@ private fun RainForecastContent(
                 // Speed Selector
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Speed: ", color = Color(0xFF94A3B8), fontSize = 12.sp)
-                    listOf(0.5f, 1.0f, 1.5f, 2.5f).forEach { spd ->
+                    WeatherNextLoop.SPEEDS.forEach { spd ->
                         val active = speedMultiplier == spd
                         Text(
                             text = "${spd}x",

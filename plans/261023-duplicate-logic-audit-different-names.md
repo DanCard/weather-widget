@@ -248,3 +248,11 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
     `obsSelectedTab`), pinned by `HourWindowTest`.
   - Tests: `:shared` `HourWindowTest` (half-up boundary, span across midnight, tab ids); full unit
     suite 5,863 passed.
+- 2026-10-24: 10-21 H, WeatherNext loop player → `:shared` `WeatherNextLoop` (manifest load with the
+  day-long gone memory behind a `GoneStore`, `framesFor`, `prefetch` with `stillWanted`, `advance` /
+  `step` / `SPEEDS`, the `SIM_LOOP_ERROR` / `SIM_LOOP_FALLBACK` lines). Desktop bugs fixed: a layer
+  switch didn't stop the old layer's prefetch (window scope), which kept downloading and wrote into the
+  new layer's slots (`RainForecastLayerSwitchTest`: 4 old-layer requests on the old wiring, 1 now);
+  "host gone" was in memory and lost on every restart (`DesktopWeatherNextGoneStore`, file
+  `weathernext_gone`). Tag allowlist → 6 (5 adapters + `HEADER_FIT`); no `UI_FLOW` entry besides it.
+  Plan: `plans/261024-shared-weathernext-loop-player.md`.

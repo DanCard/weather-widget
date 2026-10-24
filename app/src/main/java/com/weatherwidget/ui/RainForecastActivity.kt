@@ -14,6 +14,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.shared.rainmap.RainLoopLoadError
+import com.weatherwidget.shared.rainmap.WeatherNextLoop
 import com.weatherwidget.data.remote.weathernext.*
 import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.widget.ActiveLocationResolver
@@ -28,7 +29,6 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import kotlin.math.max
-import kotlin.math.min
 
 @AndroidEntryPoint
 class RainForecastActivity : AppCompatActivity() {
@@ -79,27 +79,18 @@ class RainForecastActivity : AppCompatActivity() {
     // AUTO-PLAY: starts playing automatically
     private var isPlaying = true
     private var speedMultiplier = 1.0f
-    private val speeds = listOf(0.5f, 1.0f, 1.5f, 2.5f)
     private var speedIndex = 1
 
     private val handler = Handler(Looper.getMainLooper())
-    private val frameStepMs = 140L
-    private val tickIntervalMs = 35L
 
     private val tickerRunnable = object : Runnable {
         override fun run() {
             if (isPlaying && framesForLayer.isNotEmpty()) {
-                val advance = (tickIntervalMs * speedMultiplier) / frameStepMs.toFloat()
-                val maxPos = (framesForLayer.size - 1).toDouble()
-                var nextPos = currentPos + advance
-                if (nextPos > maxPos) {
-                    nextPos = 0.0
-                }
-                currentPos = nextPos
-                sbTimeline.progress = nextPos.toInt()
+                currentPos = WeatherNextLoop.advance(currentPos, framesForLayer.size, speedMultiplier)
+                sbTimeline.progress = currentPos.toInt()
                 renderFrame(currentPos)
             }
-            handler.postDelayed(this, tickIntervalMs)
+            handler.postDelayed(this, WeatherNextLoop.TICK_MS)
         }
     }
 
@@ -207,7 +198,7 @@ class RainForecastActivity : AppCompatActivity() {
 
         btnPrev.setOnClickListener {
             if (framesForLayer.isNotEmpty()) {
-                currentPos = max(0.0, currentPos.toInt() - 1.0)
+                currentPos = WeatherNextLoop.step(currentPos, framesForLayer.size, -1)
                 sbTimeline.progress = currentPos.toInt()
                 renderFrame(currentPos)
             }
@@ -215,15 +206,15 @@ class RainForecastActivity : AppCompatActivity() {
 
         btnNext.setOnClickListener {
             if (framesForLayer.isNotEmpty()) {
-                currentPos = min(framesForLayer.size - 1.0, currentPos.toInt() + 1.0)
+                currentPos = WeatherNextLoop.step(currentPos, framesForLayer.size, +1)
                 sbTimeline.progress = currentPos.toInt()
                 renderFrame(currentPos)
             }
         }
 
         btnSpeedToggle.setOnClickListener {
-            speedIndex = (speedIndex + 1) % speeds.size
-            speedMultiplier = speeds[speedIndex]
+            speedIndex = (speedIndex + 1) % WeatherNextLoop.SPEEDS.size
+            speedMultiplier = WeatherNextLoop.SPEEDS[speedIndex]
             btnSpeedToggle.setText(
                 when {
                     speedMultiplier <= 0.5f -> R.string.rain_loop_speed_0_5
@@ -304,32 +295,25 @@ class RainForecastActivity : AppCompatActivity() {
 
     private fun fetchManifest() {
         hideLoadError()
-        // A 404/410 within the last day still stands: say so without asking the host again.
-        if (WeatherNextAvailability.knownGone(WeatherNextGoneStore.goneAtMs(this), System.currentTimeMillis())) {
-            showLoadError(RainLoopLoadError.gone(WeatherNextAvailability.HOST, WeatherNextGoneStore.goneStatus(this)))
-            return
-        }
-        progressLoading.visibility = View.VISIBLE
         lifecycleScope.launch {
-            weatherNextClient.fetchManifest(domain)
-                .onSuccess { parsed ->
-                    WeatherNextGoneStore.clear(this@RainForecastActivity)
+            val store = WeatherNextGoneStore.of(this@RainForecastActivity)
+            // A host known gone answers at once; only a real request shows the spinner.
+            if (!WeatherNextAvailability.knownGone(store.goneAtMs, System.currentTimeMillis())) progressLoading.visibility = View.VISIBLE
+            when (val outcome = WeatherNextLoop.loadManifest(weatherNextClient, domain, store, System.currentTimeMillis())) {
+                is WeatherNextLoop.ManifestOutcome.Loaded -> {
+                    val parsed = outcome.manifest
                     manifest = parsed
                     tvModelRun.text = getString(R.string.rain_loop_model_run, WeatherNextForecastClient.formatUtcToLocal(parsed.init ?: parsed.run, use24HourClock = android.text.format.DateFormat.is24HourFormat(this@RainForecastActivity)))
                     filterFramesForLayer()
                 }
-                .onFailure {
-                    // 404/410: the host dropped the loop; for a day the viewer opens straight into this.
-                    if (it is WeatherNextGoneException) WeatherNextGoneStore.markGone(this@RainForecastActivity, it.status)
-                    showLoadError(WeatherNextAvailability.loadError(it))
-                }
+                is WeatherNextLoop.ManifestOutcome.Failed -> showLoadError(outcome.error)
+            }
         }
     }
 
     private fun filterFramesForLayer() {
         val m = manifest ?: return
-        val layerId = selectedLayer.id
-        framesForLayer = m.frames.filter { it.files.containsKey(layerId) }
+        framesForLayer = WeatherNextLoop.framesFor(m, selectedLayer.id)
         cachedBitmaps.values.forEach { it.recycle() }
         cachedBitmaps.clear()
         currentPos = 0.0
@@ -354,29 +338,29 @@ class RainForecastActivity : AppCompatActivity() {
         val maxSide = maxOf(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels)
 
         lifecycleScope.launch(Dispatchers.IO) {
-            WeatherNextFrameCache.pruneOtherRuns(loopDir, domain, layerId, m)
-            var loaded = 0
-            for (idx in snapshot.indices) {
-                if (selectedLayer.id != layerId) return@launch
-                val file = weatherNextClient.cachedFrame(loopDir, domain, layerId, m, snapshot[idx]).getOrNull() ?: continue
-                val bmp = decodeScaled(file, maxSide) ?: continue
-                loaded++
-                if (selectedLayer.id != layerId) {
-                    bmp.recycle()
-                    return@launch
-                }
-                cachedBitmaps.put(idx, bmp)?.recycle()
-                if (idx == 0) {
-                    withContext(Dispatchers.Main) {
-                        progressLoading.visibility = View.GONE
-                        renderFrame(0.0)
+            val error = WeatherNextLoop.prefetch(
+                client = weatherNextClient,
+                cacheDir = loopDir,
+                domain = domain,
+                layerId = layerId,
+                manifest = m,
+                frames = snapshot,
+                stillWanted = { selectedLayer.id == layerId },
+                decode = { decodeScaled(it, maxSide) },
+                onFrame = { idx, bmp ->
+                    cachedBitmaps.put(idx, bmp)?.recycle()
+                    if (idx == 0) {
+                        withContext(Dispatchers.Main) {
+                            progressLoading.visibility = View.GONE
+                            renderFrame(0.0)
+                        }
                     }
-                }
-            }
+                },
+                onDiscard = { it.recycle() },
+            )
             withContext(Dispatchers.Main) {
                 progressLoading.visibility = View.GONE
-                // Some frames missing: the loop plays the rest. None at all: say so.
-                if (loaded == 0 && selectedLayer.id == layerId) showLoadError(RainLoopLoadError.noFrames(WeatherNextAvailability.HOST, snapshot.size))
+                error?.let { showLoadError(it) }
             }
         }
     }
@@ -390,7 +374,7 @@ class RainForecastActivity : AppCompatActivity() {
         btnErrorRetry.setOnClickListener { fetchManifest() }
         btnUseOpenMeteo.setOnClickListener { openOpenMeteo(error) }
         errorPanel.visibility = View.VISIBLE
-        logAsync("SIM_LOOP_ERROR", "${error.logFields()} domain=${domain.id}", "WARN")
+        logAsync(WeatherNextLoop.ERROR_TAG, WeatherNextLoop.errorLine(error, domain), "WARN")
     }
 
     private fun hideLoadError() {
@@ -400,7 +384,7 @@ class RainForecastActivity : AppCompatActivity() {
 
     /** Same coordinates, Open-Meteo's own rain map; this viewer closes. */
     private fun openOpenMeteo(error: RainLoopLoadError) {
-        logAsync("SIM_LOOP_FALLBACK", "from=weathernext kind=${error.kind} to=open_meteo", "INFO")
+        logAsync(WeatherNextLoop.FALLBACK_TAG, WeatherNextLoop.fallbackLine(error), "INFO")
         startActivity(
             android.content.Intent(this, OpenMeteoRainLoopActivity::class.java).apply {
                 putExtra(OpenMeteoRainLoopActivity.EXTRA_LAT, lat)

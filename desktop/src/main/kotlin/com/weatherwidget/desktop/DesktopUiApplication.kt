@@ -1,6 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.remote.weathernext.WeatherNextDomain
+import com.weatherwidget.shared.rainmap.WeatherNextLoop
 import com.weatherwidget.shared.util.DayTap
 import com.weatherwidget.shared.util.SourceSwitchFetchRule
 import com.weatherwidget.shared.util.WeatherSourceOrdering
@@ -1303,14 +1304,14 @@ internal fun runDesktopUiApplication() = application {
                     httpClient = desktopClients.httpClient,
                     onClose = closeSimLoop,
                     onError = { error ->
-                        val message = "${error.logFields()} domain=${WeatherNextDomain.resolve(currentConfig.lat, currentConfig.lon).id}"
-                        Log.w("SIM_LOOP_ERROR", message)
-                        weatherDao.log("SIM_LOOP_ERROR", message, "WARN")
+                        val message = WeatherNextLoop.errorLine(error, WeatherNextDomain.resolve(currentConfig.lat, currentConfig.lon))
+                        Log.w(WeatherNextLoop.ERROR_TAG, message)
+                        weatherDao.log(WeatherNextLoop.ERROR_TAG, message, "WARN")
                     },
                     onUseOpenMeteo = { error ->
-                        val message = "from=weathernext kind=${error.kind} to=open_meteo"
-                        Log.i("SIM_LOOP_FALLBACK", message)
-                        weatherDao.log("SIM_LOOP_FALLBACK", message, "INFO")
+                        val message = WeatherNextLoop.fallbackLine(error)
+                        Log.i(WeatherNextLoop.FALLBACK_TAG, message)
+                        weatherDao.log(WeatherNextLoop.FALLBACK_TAG, message, "INFO")
                         simLoopForceOpenMeteo = true
                     },
                 )
