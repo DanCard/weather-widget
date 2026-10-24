@@ -372,6 +372,24 @@ class DesktopWeatherDaoTest {
         }
     }
 
+    /** Android's rule (user, 2026-10-24): this site only, `[start, end)`. Desktop took the box and the end hour. */
+    @Test
+    fun `getPriorDayBandForecast reads this site only and excludes the end hour`() {
+        val lat = 37.417
+        val lon = -122.089
+        val h0 = 1_780_682_400_000L
+        val h1 = h0 + 3_600_000L
+        val bucket = { hourMs: Long -> hourMs - 24 * 3_600_000L }
+        dao.upsertHourlyForecastHistory(lat, lon, "OPEN_METEO", bucket(h0), listOf(HourlyForecast(h0, 60f, "Cloudy", cloudCoverMid = 30)))
+        dao.upsertHourlyForecastHistory(lat, lon, "OPEN_METEO", bucket(h1), listOf(HourlyForecast(h1, 60f, "Cloudy", cloudCoverMid = 40)))
+        // Another town inside the ±0.1° read box, with an hour this site lacks.
+        dao.upsertHourlyForecastHistory(37.467, lon, "OPEN_METEO", bucket(h0 - 3_600_000L), listOf(HourlyForecast(h0 - 3_600_000L, 60f, "Cloudy", cloudCoverMid = 90)))
+
+        val bands = dao.getPriorDayBandForecast(lat, lon, "OPEN_METEO", h0 - 3_600_000L, h1)
+
+        assertEquals(mapOf(h0 to com.weatherwidget.shared.graph.CloudBands(mid = 30)), bands)
+    }
+
     @Test
     fun `getHourlyHistory keeps the freshest snapshot temp and coalesces precip from an older one`() {
         val lat = 40.0

@@ -93,6 +93,17 @@ freshest bucket first); `getHourlyHistory` (merged) stays for desktop's display 
 - `ClimateNormalsRun.Host` → `ClimateNormalsHostContract` (4 cases: empty cache, month needing both
   sides, other sites dropped, same site replaced) on `RoomClimateNormalsHost` / `DesktopClimateNormalsHost`;
   no divergence. 9 pending.
+- `PriorDayCloudRun.Host` → `PriorDayCloudHostContract` (5 cases: store → each platform's
+  `getPriorDayCloudForecast`). **Divergence, decided (user, 2026-10-24): Android's rule.** Desktop's read
+  merged every site in the ±0.1° box (a neighbouring town's curve could fill this site's hours) and
+  included the end hour; Android read this site only, end exclusive. Both now reduce through `:shared`
+  `PriorDayCloudForecast.coverByHour` (same-site rows; between two fragments the one nearer the centre —
+  Android's had been the last in `lat, lon` order). The old desktop read fails 2 of 5. No change on
+  today's data (desktop's site has one row per hour). Hosts `RoomPriorDayCloudHost` /
+  `DesktopPriorDayCloudHost`; throttle memory `PriorDayCloudRun.LastAttempt`. 8 pending.
+  Desktop `getPriorDayBandForecast` (mid/high band curve) had the same gap (box, end hour included);
+  now `:shared` `PriorDayBandForecast.selectAtSite` on both, `[start, end)` (user: Android's rule
+  there too). Tests: `PriorDayBandForecastTest`, `DesktopWeatherDaoTest` (fails on the old query).
 
 ## Verification
 - The `hourlyHistory` case fails on today's code on one side (which side depends on the decision) —

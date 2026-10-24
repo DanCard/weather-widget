@@ -29,6 +29,11 @@ object PriorDayCloudRun {
         suspend fun log(tag: String, message: String, level: String)
     }
 
+    /** The once-an-hour throttle's memory, kept by the caller across Hosts (one per call and site). */
+    class LastAttempt {
+        var ms = 0L
+    }
+
     /** Runs when [sourceId] is being fetched and is the one source with a previous-runs product. */
     suspend fun run(host: Host, sourceId: String, nowMs: Long) {
         if (sourceId != WeatherSource.OPEN_METEO.id) return

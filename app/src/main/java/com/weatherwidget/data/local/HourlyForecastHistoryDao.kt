@@ -166,18 +166,10 @@ interface HourlyForecastHistoryDao {
         lon: Double,
         source: String,
     ): Map<Long, Int> =
-        getPriorDayCloudCandidates(startDateTime, endDateTime, lat, lon, source)
-            .filter { LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon) }
-            // Total-preferred, like every other cloud read. The fallback still finds the rows
-            // written while the previous-runs variable was the LOW layer, which carry their value
-            // on cloudCoverLow; nothing needs migrating.
-            .mapNotNull { row ->
-                com.weatherwidget.shared.util.VisibleCloudCover.of(
-                    total = row.cloudCover, low = row.cloudCoverLow,
-                    mid = row.cloudCoverMid, high = row.cloudCoverHigh,
-                )?.let { row.dateTime to it }
-            }
-            .toMap()
+        com.weatherwidget.shared.graph.PriorDayCloudForecast.coverByHour(
+            getPriorDayCloudCandidates(startDateTime, endDateTime, lat, lon, source).map { it.toHourlyForecast() },
+            lat, lon,
+        )
 
     /**
      * Candidate band snapshots for [getPriorDayBandForecast].
@@ -215,8 +207,8 @@ interface HourlyForecastHistoryDao {
     ): List<HourlyForecastHistoryEntity>
 
     /**
-     * Same-site collapse before the reduction, for the same reason [getPriorDayCloudForecast] does
-     * it: the coarse box can gather a jitter fragment or a neighbouring town.
+     * This site's snapshots only ([com.weatherwidget.shared.graph.PriorDayBandForecast.selectAtSite],
+     * as desktop): the coarse box can gather a jitter fragment or a neighbouring town.
      */
     suspend fun getPriorDayBandForecast(
         startDateTime: Long,
@@ -225,7 +217,7 @@ interface HourlyForecastHistoryDao {
         lon: Double,
         source: String,
     ): Map<Long, com.weatherwidget.shared.graph.CloudBands> =
-        com.weatherwidget.shared.graph.PriorDayBandForecast.select(
+        com.weatherwidget.shared.graph.PriorDayBandForecast.selectAtSite(
             getPriorDayBandCandidates(
                 startDateTime = startDateTime,
                 endDateTime = endDateTime,
@@ -235,7 +227,6 @@ interface HourlyForecastHistoryDao {
                 lon = lon,
                 source = source,
             )
-                .filter { LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon) }
                 .map { row ->
                     com.weatherwidget.shared.graph.PriorDayBandForecast.BandSnapshot(
                         hourMs = row.dateTime,
@@ -244,8 +235,11 @@ interface HourlyForecastHistoryDao {
                             mid = row.cloudCoverMid,
                             high = row.cloudCoverHigh,
                         ),
+                        locationLat = row.locationLat,
+                        locationLon = row.locationLon,
                     )
                 },
+            lat, lon,
         )
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

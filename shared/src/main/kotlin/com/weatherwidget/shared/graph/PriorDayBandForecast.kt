@@ -1,5 +1,7 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.data.local.LocationMatch
+
 /**
  * The frozen "what were this hour's mid/high cloud bands predicted to be, ~24h beforehand" series.
  *
@@ -40,6 +42,9 @@ object PriorDayBandForecast {
         val hourMs: Long,
         val bucketMs: Long,
         val bands: CloudBands,
+        /** Storage-key site, for [selectAtSite]; null when not read from a location-keyed table. */
+        val locationLat: Double? = null,
+        val locationLon: Double? = null,
     )
 
     /**
@@ -61,4 +66,20 @@ object PriorDayBandForecast {
             .filter { it.bucketMs >= it.hourMs - MAX_LEAD_MS }
             .groupBy { it.hourMs }
             .mapValues { (_, candidates) -> candidates.maxBy { it.bucketMs }.bands }
+
+    /**
+     * [select] over this site's snapshots only ([LocationMatch.sameSite]), as both platforms' band
+     * reads do: the read's ±0.1° box can hold a neighbouring town (desktop used to take every site in
+     * it; user, 2026-10-24). Between two same-site fragments in one bucket, the one nearer the centre.
+     */
+    fun selectAtSite(snapshots: List<BandSnapshot>, centerLat: Double, centerLon: Double): Map<Long, CloudBands> =
+        select(
+            snapshots
+                .filter { s ->
+                    val lat = s.locationLat
+                    val lon = s.locationLon
+                    lat == null || lon == null || LocationMatch.sameSite(centerLat, centerLon, lat, lon)
+                }
+                .sortedBy { kotlin.math.abs((it.locationLat ?: centerLat) - centerLat) + kotlin.math.abs((it.locationLon ?: centerLon) - centerLon) },
+        )
 }

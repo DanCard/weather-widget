@@ -245,7 +245,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         getSyntheticCloudSeries(locationLat, locationLon, PriorDayCloudForecast.SOURCE_ID, startMs, endMs)
 
     /**
-     * Day-ago mid/high band predictions for the window, as hour -> bands.
+     * Day-ago mid/high band predictions for [startMs, endMs), as hour -> bands, this site only
+     * ([PriorDayBandForecast.selectAtSite], as Android).
      *
      * Its own query rather than [getHourlyHistory], which collapses to one freshest row per hour —
      * the opposite of what is needed here, where the point is to recover an OLD snapshot. Scoped to
@@ -256,10 +257,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val snapshots = mutableListOf<PriorDayBandForecast.BandSnapshot>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT dateTime, timestampToGroupPredictions, cloudCoverMid, cloudCoverHigh
+                SELECT dateTime, timestampToGroupPredictions, cloudCoverMid, cloudCoverHigh, locationLat, locationLon
                 FROM hourly_forecast_history
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
-                  AND dateTime >= ? AND dateTime <= ?
+                  AND dateTime >= ? AND dateTime < ?
                   AND timestampToGroupPredictions >= ? AND timestampToGroupPredictions <= ?
                   AND (cloudCoverMid IS NOT NULL OR cloudCoverHigh IS NOT NULL)
                 ORDER BY dateTime ASC, timestampToGroupPredictions ASC
@@ -281,20 +282,20 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             mid = rs.getNullableInt("cloudCoverMid"),
                             high = rs.getNullableInt("cloudCoverHigh"),
                         ),
+                        locationLat = rs.getDouble("locationLat"),
+                        locationLon = rs.getDouble("locationLon"),
                     )
                 }
             }
         }
-        return PriorDayBandForecast.select(snapshots)
+        return PriorDayBandForecast.selectAtSite(snapshots, locationLat, locationLon)
     }
 
+    /** [startMs, endMs), this site only — [PriorDayCloudForecast.coverByHour], as Android. */
     private fun getSyntheticCloudSeries(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Map<Long, Int> =
-        getHourlyHistory(locationLat, locationLon, source, startMs, endMs)
-            // Total-preferred, like every other cloud read. The fallback still finds the rows
-            // written while the previous-runs variable was the LOW layer, which carry their value
-            // on cloudCoverLow; nothing needs migrating.
-            .mapNotNull { row -> with(VisibleCloudCover) { row.visibleCloudCover() }?.let { row.dateTime to it } }
-            .toMap()
+        PriorDayCloudForecast.coverByHour(
+            getHourlyHistorySnapshots(locationLat, locationLon, source, startMs, endMs), locationLat, locationLon,
+        )
 
     /**
      * Hours in [startMs, endMs) that already have a `hourly_forecast_history` row for [source] at

@@ -1,5 +1,10 @@
 package com.weatherwidget.shared.graph
 
+import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.shared.util.VisibleCloudCover
+import kotlin.math.abs
+
 /**
  * The frozen "what was this hour forecast to be, ~24h before it happened" cloud-cover series.
  *
@@ -37,4 +42,25 @@ object PriorDayCloudForecast {
      * accumulating duplicates.
      */
     fun predictionBucketFor(hourStartMs: Long): Long = hourStartMs - LEAD_MS
+
+    /**
+     * Stored [SOURCE_ID] rows (the read's ±0.1° box, `[start, end)`) → hour → visible cloud %, on
+     * both platforms. This site's rows only ([LocationMatch.sameSite]): the box can hold a
+     * neighbouring town, whose curve desktop used to merge in (user, 2026-10-24). Between two
+     * same-site jitter fragments for one hour, the one nearer the centre. Total-preferred like every
+     * cloud read; rows written while the variable was the LOW layer carry it on `cloudCoverLow`.
+     */
+    fun coverByHour(rows: List<HourlyForecast>, centerLat: Double, centerLon: Double): Map<Long, Int> =
+        rows.asSequence()
+            .filter { row ->
+                val lat = row.locationLat
+                val lon = row.locationLon
+                lat == null || lon == null || LocationMatch.sameSite(centerLat, centerLon, lat, lon)
+            }
+            .groupBy { it.dateTime }
+            .mapNotNull { (hour, hourRows) ->
+                val nearest = hourRows.minBy { abs((it.locationLat ?: centerLat) - centerLat) + abs((it.locationLon ?: centerLon) - centerLon) }
+                with(VisibleCloudCover) { nearest.visibleCloudCover() }?.let { hour to it }
+            }
+            .toMap()
 }

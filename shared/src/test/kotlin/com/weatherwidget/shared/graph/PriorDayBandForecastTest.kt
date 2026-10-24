@@ -94,4 +94,25 @@ class PriorDayBandForecastTest {
     fun `an empty input yields an empty map`() {
         assertTrue(PriorDayBandForecast.select(emptyList()).isEmpty())
     }
+
+    @Test
+    fun `selectAtSite ignores a neighbouring town and prefers the nearer fragment in one bucket`() {
+        val lat = 37.417
+        val lon = -122.089
+        fun at(siteLat: Double, mid: Int, hourMs: Long = target) = PriorDayBandForecast.BandSnapshot(
+            hourMs = hourMs, bucketMs = hourMs - 24 * hour, bands = CloudBands(mid = mid),
+            locationLat = siteLat, locationLon = lon,
+        )
+
+        val selected = PriorDayBandForecast.selectAtSite(
+            listOf(
+                at(siteLat = 37.418, mid = 55), // jitter fragment, listed first
+                at(siteLat = lat, mid = 30),
+                at(siteLat = 37.467, mid = 90, hourMs = target + hour), // another town in the box
+            ),
+            lat, lon,
+        )
+
+        assertEquals(mapOf(target to CloudBands(mid = 30)), selected)
+    }
 }

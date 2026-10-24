@@ -470,21 +470,12 @@ class DesktopWeatherRepository(
     }
 
     /** The last prior-day cloud attempt ([PriorDayCloudRun]). */
-    private var lastPriorCloudFetchMs = 0L
+    private val lastPriorCloudFetch = PriorDayCloudRun.LastAttempt()
 
     /** The cloud graph's frozen forecast curve: `:shared` [PriorDayCloudRun] owns the rule; this stores rows. */
     private suspend fun maybeFetchPriorDayCloudForecast(now: Long) = PriorDayCloudRun.run(
-        object : PriorDayCloudRun.Host {
-            override var lastAttemptMs: Long
-                get() = lastPriorCloudFetchMs
-                set(value) { lastPriorCloudFetchMs = value }
-
-            override suspend fun fetch(pastDays: Int, nowMs: Long) = weatherService.fetchPriorDayCloudForecast(pastDays)
-
-            override suspend fun store(coverByHour: Map<Long, Int>, nowMs: Long) =
-                weatherDao.upsertPriorDayCloudForecast(latitude, longitude, coverByHour)
-
-            override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
+        DesktopPriorDayCloudHost(weatherDao, latitude, longitude, lastPriorCloudFetch) { pastDays, _ ->
+            weatherService.fetchPriorDayCloudForecast(pastDays)
         },
         sourceId = weatherSource,
         nowMs = now,

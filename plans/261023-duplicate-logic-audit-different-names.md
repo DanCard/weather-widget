@@ -310,11 +310,15 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   No visible change (the readers are one-time past-day backfills). Guard `HostContractCoverageTest`:
   10 ports pending.
 - 2026-10-24: `ClimateNormalsRun.Host` contract (Room / desktop SQLite, 4 cases) — no divergence. 9 pending.
+- 2026-10-24: `PriorDayCloudRun.Host` contract (5 cases, store → read-back). Desktop's prior-cloud read
+  merged a neighbouring town's rows and included the end hour; now `:shared`
+  `PriorDayCloudForecast.coverByHour` on both (user: Android's rule). 8 pending. The band curve's read
+  (`getPriorDayBandForecast`) had the same gap on desktop → `PriorDayBandForecast.selectAtSite` on both.
 
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:
 1. **Tier 3, the two DAOs** — continue Host by Host: the 10 in `HostContractCoverageTest.PENDING`,
-   smallest DB surface first (PriorDayCloudRun, NwsStationActualsRun, …). Pattern:
+   smallest DB surface first (NwsStationActualsRun, HourlyOnDemandRun, …). Pattern:
    abstract `<Runner>HostContract` in `:shared` testFixtures, extract each platform's Host into a
    class, seeds write raw rows, a case that tells the readings apart; any divergence → user decision.
 2. **B rest**: per-source fetch/persist, one source at a time as Runner + Host.

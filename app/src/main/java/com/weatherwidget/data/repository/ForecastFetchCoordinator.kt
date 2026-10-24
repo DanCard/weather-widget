@@ -78,45 +78,15 @@ internal class ForecastFetchCoordinator(
     private suspend fun fetchPriorDayCloudForecast(latitude: Double, longitude: Double) {
         val dao = hourlyForecastHistoryDao ?: return
         PriorDayCloudRun.run(
-            object : PriorDayCloudRun.Host {
-                override var lastAttemptMs: Long
-                    get() = lastPriorCloudFetchMs
-                    set(value) { lastPriorCloudFetchMs = value }
-
-                override suspend fun fetch(pastDays: Int, nowMs: Long) =
-                    openMeteoApi.getPriorDayCloudForecast(latitude, longitude, pastDays, nowMs)
-
-                override suspend fun store(coverByHour: Map<Long, Int>, nowMs: Long) = dao.insertAll(
-                    coverByHour.map { (hourMs, cover) ->
-                        com.weatherwidget.data.local.HourlyForecastHistoryEntity(
-                            dateTime = hourMs,
-                            // Quantized so GPS jitter overwrites instead of fragmenting the site.
-                            locationLat = com.weatherwidget.data.local.LocationMatch.quantize(latitude),
-                            locationLon = com.weatherwidget.data.local.LocationMatch.quantize(longitude),
-                            // NOT NULL in the schema but meaningless here; only cloud is read back.
-                            temperature = 0f,
-                            condition = "prior-run cloud",
-                            source = com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID,
-                            timestampToGroupPredictions =
-                                com.weatherwidget.shared.graph.PriorDayCloudForecast.predictionBucketFor(hourMs),
-                            // The previous-runs variable is the total column, filed where `cloudCover`
-                            // means it everywhere else; old LOW-variable rows are read through
-                            // VisibleCloudCover's band fallback.
-                            cloudCover = cover,
-                            cloudCoverLow = null,
-                            fetchedAt = nowMs,
-                        )
-                    },
-                )
-
-                override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
+            RoomPriorDayCloudHost(dao, appLogDao, latitude, longitude, lastPriorCloudFetch) { pastDays, nowMs ->
+                openMeteoApi.getPriorDayCloudForecast(latitude, longitude, pastDays, nowMs)
             },
             sourceId = WeatherSource.OPEN_METEO.id,
             nowMs = System.currentTimeMillis(),
         )
     }
 
-    private var lastPriorCloudFetchMs = 0L
+    private val lastPriorCloudFetch = PriorDayCloudRun.LastAttempt()
 
     /**
      * Whether an unforced sync has anything to fetch: a source whose LONG or SHORT horizon is due
