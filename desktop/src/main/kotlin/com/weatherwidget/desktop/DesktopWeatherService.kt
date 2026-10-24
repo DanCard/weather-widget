@@ -22,7 +22,6 @@ import com.weatherwidget.shared.observations.NwsStationLatestFetcher
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
-import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.observations.NwsBlend
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -576,8 +575,6 @@ class DesktopWeatherService(
 
         val observations = fetchNwsObservations(
             stationsDeferred.await(),
-            // A daily-only fetch has no fresh hours; the header's forecast fallback reads the stored ones.
-            bundle.rawHourlyPeriods.ifEmpty { storedNwsHourlyPeriods() },
             recentOnly = recentObservationsOnly,
         )
 
@@ -598,31 +595,6 @@ class DesktopWeatherService(
         )
     }
 
-    /** The stored NWS hours around now, as periods, for the header fallback of a daily-only fetch. */
-    private fun storedNwsHourlyPeriods(): List<NwsApi.HourlyForecastPeriod> {
-        val dao = weatherDao ?: return emptyList()
-        val now = System.currentTimeMillis()
-        val zone = java.time.ZoneId.systemDefault()
-        return dao.getHourlyForecasts(
-            LocationMatch.quantize(latitude),
-            LocationMatch.quantize(longitude),
-            WeatherSource.NWS.id,
-            now - 3 * 3_600_000L,
-            now + 3 * 3_600_000L,
-        ).map { row ->
-            val local = java.time.Instant.ofEpochMilli(row.dateTime).atZone(zone)
-            NwsApi.HourlyForecastPeriod(
-                startTime = row.dateTime,
-                localDate = local.toLocalDate().toString(),
-                localHour = local.hour,
-                temperature = row.temperature,
-                shortForecast = row.condition,
-                precipProbability = row.precipProbability,
-                cloudCover = row.cloudCover,
-            )
-        }
-    }
-
     /**
      * NWS current-observation fetch: per-station bundles → IDW current temp → stored readings.
      *
@@ -633,40 +605,41 @@ class DesktopWeatherService(
      */
     private suspend fun fetchNwsObservations(
         stations: List<NwsApi.StationInfo>,
-        hourlyRaw: List<NwsApi.HourlyForecastPeriod>,
         historyDays: Long = HISTORY_DAYS,
         recentOnly: Boolean = false,
     ): NwsObservationFetch {
+        val startMs = System.currentTimeMillis()
         val bundles = fetchObservationBundles(stations, historyDays, recentOnly)
+        val reading = nwsFetchReading(bundles, startMs)
 
-        // All station latest readings, including moderately stale ones — IDW applies its own
-        // time-decay weighting (1 - age/3h) so older stations reduce their own contribution
-        // automatically. Matching Android which uses a 3-hour staleness window rather than 30 min.
-        val allLatestReadings = bundles.mapNotNull { bundle ->
-            bundle.latest
-        }
-        // Subset used to decide whether a fresh observed temp is available for the header.
-        val freshLatestReadings = allLatestReadings.filter {
-            System.currentTimeMillis() - it.timestamp <= FRESH_OBSERVATION_MS
-        }
+        // The blend is NOT stored: like Android, the repository computes it from the station rows
+        // on read, so its 3h IDW decay is weighted at render time rather than frozen at fetch time
+        // (plans/261009-desktop-stops-storing-nws-blend.md). Here it only reports the cycle's reading.
+        return NwsObservationFetch(
+            currentTemp = reading?.temperature,
+            currentCondition = reading?.condition,
+            currentObservedAt = reading?.observedAt,
+            observations = nwsBundleRows(bundles),
+        )
+    }
 
-        // Real-or-nothing blend (shared with Android) for the header value; the forecast fallback
-        // below is header-only too.
-        val blend = NwsBlend.build(allLatestReadings, latitude, longitude, personalStationWeight)
-        val currentTemp = blend?.temperature
-            ?: TemperatureInterpolator.getInterpolatedTemperature(hourlyRaw.map { it.toHourlyForecast() })
-            ?: hourlyRaw.firstOrNull()?.temperature
+    /**
+     * `:shared` [NwsBlend.fetchReading] on each station's latest reading, logged as on Android. Null
+     * when nothing blends — no forecast or stale-station stand-in (user, 2026-10-24,
+     * plans/261024-nws-fetch-time-current-reading-shared.md).
+     */
+    private fun nwsFetchReading(bundles: List<NwsStationBundles.Bundle>, startMs: Long): NwsBlend.FetchReading? {
+        val latest = bundles.mapNotNull { it.latest }
+        val reading = NwsBlend.fetchReading(latest, latitude, longitude, personalStationWeight)
+        val line = NwsBlend.idwLine(reading, latest, nwsBundleRows(bundles).size, System.currentTimeMillis() - startMs)
+        weatherDao?.log(NwsBlend.IDW_TAG, line, "INFO")
+        Log.d(TAG, "NWS IDW blend: $line")
+        return reading
+    }
 
-        val closestBundle = bundles.minByOrNull {
-            com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(
-                latitude, longitude, it.station.lat, it.station.lon,
-            )
-        }
-        val currentCondition = closestBundle?.latest?.condition
-            ?: hourlyRaw.firstOrNull()?.shortForecast
-
-        // All readings (latest + historical) from all successful stations
-        val rawObservations = bundles.flatMap { bundle ->
+    /** All readings (latest + historical) from all successful stations. */
+    private fun nwsBundleRows(bundles: List<NwsStationBundles.Bundle>): List<ObservationReading> =
+        bundles.flatMap { bundle ->
             buildList {
                 bundle.latest?.let { add(it) }
                 addAll(bundle.historical)
@@ -674,22 +647,6 @@ class DesktopWeatherService(
                 bundle.cloudCarrier?.let { add(it) }
             }
         }
-
-        // The blend is NOT stored: like Android, the repository computes it from the station rows
-        // on read, so its 3h IDW decay is weighted at render time rather than frozen at fetch time
-        // (plans/261009-desktop-stops-storing-nws-blend.md). Here it only feeds the header value.
-        // The header's observed-at anchors on the freshest readings.
-        val latestReadings = freshLatestReadings.ifEmpty { allLatestReadings }
-        val observations = rawObservations
-
-        return NwsObservationFetch(
-            currentTemp = currentTemp,
-            currentCondition = currentCondition,
-            currentObservedAt = latestReadings.maxOfOrNull { it.timestamp }
-                ?: observations.firstOrNull()?.timestamp,
-            observations = observations,
-        )
-    }
 
     /** Result of [fetchNwsObservations]: the current-reading anchor plus the rows to persist. */
     private data class NwsObservationFetch(
@@ -911,6 +868,7 @@ class DesktopWeatherService(
     }
 
     private suspend fun fetchNwsObservationsOnly(recentOnly: Boolean): RawFetch = coroutineScope {
+        val startMs = System.currentTimeMillis()
         val grid = nwsApi.getGridPoint(latitude, longitude)
         
         // Resolve candidate observation stations once, then try official stations first.
@@ -919,42 +877,14 @@ class DesktopWeatherService(
         } ?: emptyList()
 
         val bundles = fetchObservationBundles(stations, recentOnly = recentOnly)
-        
-        val allLatestReadings = bundles.mapNotNull { bundle ->
-            bundle.latest
-        }
-        val freshLatestReadings = allLatestReadings.filter {
-            System.currentTimeMillis() - it.timestamp <= FRESH_OBSERVATION_MS
-        }
-
-        // Real-or-nothing blend (shared with Android) for the header value; the nearest-station
-        // fallback below is header-only too.
-        val blend = NwsBlend.build(allLatestReadings, latitude, longitude, personalStationWeight)
-        val currentTemp = blend?.temperature
-            ?: bundles.minByOrNull { com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(latitude, longitude, it.station.lat, it.station.lon) }?.latest?.temperature
-
-        val closestBundle = bundles.minByOrNull { com.weatherwidget.shared.observations.NwsObservationMapper.distanceKm(latitude, longitude, it.station.lat, it.station.lon) }
-        val currentCondition = closestBundle?.latest?.condition
-
-        // All readings (latest + historical) from all successful stations
-        val rawObservations = bundles.flatMap { bundle ->
-            buildList {
-                bundle.latest?.let { add(it) }
-                addAll(bundle.historical)
-                // Preserved API row when the web reading won the temperature merge (Android parity).
-                bundle.cloudCarrier?.let { add(it) }
-            }
-        }
-
-        // Blend feeds the header only; never stored (see fetchNwsObservations).
-        val latestReadings = freshLatestReadings.ifEmpty { allLatestReadings }
-        val observations = rawObservations
+        // Never stored (see fetchNwsObservations); no reading when nothing blends.
+        val reading = nwsFetchReading(bundles, startMs)
 
         RawFetch(
-            providerCurrentTemp = currentTemp,
-            providerCurrentCondition = currentCondition,
-            providerCurrentObservedAt = latestReadings.maxOfOrNull { it.timestamp } ?: observations.firstOrNull()?.timestamp,
-            rawObservations = observations
+            providerCurrentTemp = reading?.temperature,
+            providerCurrentCondition = reading?.condition,
+            providerCurrentObservedAt = reading?.observedAt,
+            rawObservations = nwsBundleRows(bundles),
         )
     }
 

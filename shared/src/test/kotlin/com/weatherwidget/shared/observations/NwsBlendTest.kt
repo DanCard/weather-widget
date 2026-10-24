@@ -115,4 +115,30 @@ class NwsBlendTest {
         val blend = NwsBlend.current(listOf(home, walk), lat, lon, personalStationWeight = 1.0, now)!!
         assertEquals(66f, blend.temperature, 0.01f)
     }
+
+    // The fetch-time reading (plans/261024-nws-fetch-time-current-reading-shared.md). Android took the
+    // condition from the nearest station and the time from the newest reading among all latest
+    // readings, a QC-failed one included; the temperature already skipped it.
+    @Test
+    fun `a QC-failed nearest station gives the fetch reading neither its condition nor its time`() {
+        val reading = NwsBlend.fetchReading(
+            listOf(
+                reading("AW020", ageMin = 2, temp = 99f, km = 1f, condition = "Hail", qcFailed = true),
+                reading("KNUQ", ageMin = 20, temp = 60f, km = 4f, condition = "Clear"),
+            ),
+            lat, lon, personalStationWeight = 1.0, nowMs = now,
+        )
+        assertNotNull(reading)
+        assertEquals(60f, reading!!.temperature, 0.01f)
+        assertEquals("Clear", reading.condition)
+        assertEquals(now - 20 * minute, reading.observedAt)
+    }
+
+    @Test
+    fun `no fetch reading when nothing blends`() {
+        // Desktop reported the nearest station's 3 h+ old temperature (or the forecast) as current.
+        val stale = listOf(reading("KNUQ", ageMin = 200, temp = 60f, km = 3f))
+        assertNull(NwsBlend.fetchReading(stale, lat, lon, personalStationWeight = 1.0, nowMs = now))
+        assertTrue(NwsBlend.idwLine(null, stale, storedCount = 4, totalMs = 12).startsWith("blended=none°F from 1 stations: KNUQ(3.0km)"))
+    }
 }

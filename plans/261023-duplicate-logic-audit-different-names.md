@@ -284,3 +284,9 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   the Android Months screen's; the stored delta and the raw-row fallback are gone on both platforms
   (user decisions after review); Android's no-repository window fixed (2 h → 3 h). Android's widget
   header paths still wire the shared pieces themselves — phase 2.
+- 2026-10-24: E, phase 2 done: every Android header path runs `CurrentTempRun` (`observe` + `header`);
+  the yesterday delta is pan-independent on every view (`plans/261024-shared-current-temp-run.md`).
+- 2026-10-24: E, NWS fetch-time reading → `:shared` `NwsBlend.fetchReading` on both platforms; the
+  displayed `NWS_BLEND` was already shared (`NwsBlend.current`). Desktop's no-blend fallbacks dropped
+  (user): no forecast or stale station as "current"
+  (`plans/261024-nws-fetch-time-current-reading-shared.md`). **E closed.**

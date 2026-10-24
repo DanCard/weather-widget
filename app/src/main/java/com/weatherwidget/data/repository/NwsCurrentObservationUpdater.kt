@@ -15,7 +15,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsMetarTextApi
 import com.weatherwidget.shared.observations.NwsMetarTextWeb
 import com.weatherwidget.shared.observations.NwsStationLatestFetcher
-import com.weatherwidget.shared.util.SpatialInterpolator
+import com.weatherwidget.shared.observations.NwsBlend
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import java.time.Instant
@@ -126,26 +126,19 @@ class NwsCurrentObservationUpdater private constructor(
             return null
         }
 
-        val blendedTemp = SpatialInterpolator.interpolateIDW(
-            latitude,
-            longitude,
-            latest.map { it.toReading() },
-            personalStationWeightProvider.currentWeight(),
-        ) ?: return null
-        val closest = latest.minBy { it.distanceKm }
-        val stationSummary = latest.joinToString { "${it.stationId}(${it.distanceKm}km)" }
-        appLogDao.log(
-            "NWS_IDW",
-            "blended=${blendedTemp}°F from ${latest.size} stations: $stationSummary " +
-                "stored=${stored.size} totalMs=$totalMs",
-        )
-        Log.d(TAG, "NWS IDW blend: $blendedTemp°F from $stationSummary stored=${stored.size} totalMs=$totalMs")
+        val latestReadings = latest.map { it.toReading() }
+        // `:shared` NwsBlend.fetchReading: no blend = no reading (no forecast or stale-station stand-in).
+        val reading = NwsBlend.fetchReading(latestReadings, latitude, longitude, personalStationWeightProvider.currentWeight())
+        val line = NwsBlend.idwLine(reading, latestReadings, stored.size, totalMs)
+        appLogDao.log(NwsBlend.IDW_TAG, line)
+        Log.d(TAG, "NWS IDW blend: $line")
+        reading ?: return null
 
         return CurrentReadingPayload(
             WeatherSource.NWS,
-            blendedTemp,
-            closest.condition,
-            latest.maxOf { it.timestamp },
+            reading.temperature,
+            reading.condition,
+            reading.observedAt,
         )
     }
 

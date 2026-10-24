@@ -60,6 +60,35 @@ object NwsBlend {
         return build(inputs, latitude, longitude, personalStationWeight, rowLatitude, rowLongitude, nowMs)
     }
 
+    /** The current reading an NWS observation cycle reports from the stations it just fetched. */
+    data class FetchReading(val temperature: Float, val condition: String, val observedAt: Long)
+
+    const val IDW_TAG = "NWS_IDW"
+
+    /**
+     * The fetch-time current reading from each station's [latestReadings]: [build]'s temperature,
+     * nearest usable condition and newest usable time, or null when nothing blends. No fallback to a
+     * forecast or a stale station's reading on either platform (user, 2026-10-24): "nothing blends"
+     * is no reading, and the header shows the bare forecast.
+     * See plans/261024-nws-fetch-time-current-reading-shared.md.
+     */
+    fun fetchReading(
+        latestReadings: List<ObservationReading>,
+        latitude: Double,
+        longitude: Double,
+        personalStationWeight: Double,
+        nowMs: Long = System.currentTimeMillis(),
+    ): FetchReading? =
+        build(latestReadings, latitude, longitude, personalStationWeight, nowMs = nowMs)
+            ?.let { FetchReading(it.temperature, it.condition, it.timestamp) }
+
+    /** The [IDW_TAG] line for a cycle's reading (both platforms). */
+    fun idwLine(reading: FetchReading?, latestReadings: List<ObservationReading>, storedCount: Int, totalMs: Long): String {
+        val stations = latestReadings.sortedBy { it.distanceKm }.joinToString { "${it.stationId}(${it.distanceKm}km)" }
+        return "blended=${reading?.temperature ?: "none"}°F from ${latestReadings.size} stations: $stations " +
+            "stored=$storedCount totalMs=$totalMs"
+    }
+
     /** Each station's newest reading that passed upstream QC, sorted by station id. */
     fun latestUsableByStation(readings: List<ObservationReading>): List<ObservationReading> =
         readings

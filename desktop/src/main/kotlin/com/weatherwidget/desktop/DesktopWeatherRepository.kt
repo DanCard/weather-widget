@@ -198,24 +198,26 @@ class DesktopWeatherRepository(
         return resolveForForecastResult(raw.hourly, raw.rawObservations, now, resultLogLevel = "VERBOSE")
     }
 
-    /** Null-cache fallback while the just-fetched rows are becoming visible to the cache read. */
+    /**
+     * Null-cache fallback while the just-fetched rows are becoming visible to the cache read: the
+     * cached path's rule ([resolveForForecastResult], `:shared` CurrentTempRun) on the fetched rows —
+     * the blend if one is there, else the bare forecast. A provider-current field is never the
+     * temperature here: NWS's was a forecast or a stale station's reading when nothing blended
+     * (plans/261024-nws-fetch-time-current-reading-shared.md).
+     */
     private fun rawFetchToSnapshot(raw: RawFetch): ForecastSnapshot {
-        val forecastOnlyTemp = if (!displaySource.supportsTemperatureActuals) {
-            resolveForForecastResult(raw.hourly, emptyList(), currentTimeMillis()).displayTemp
-        } else {
-            null
-        }
+        val observations = if (displaySource.supportsTemperatureActuals) raw.rawObservations else emptyList()
+        val resolved = resolveForForecastResult(raw.hourly, observations, currentTimeMillis())
         return ForecastSnapshot(
             raw = raw,
             resolved = ResolvedView(
-                // A provider-current field is an observation anchor only for sources whose
-                // contract says it is actual data. Open-Meteo instead resolves from its forecast
-                // timeline, exactly like the normal cached path.
-                currentTemp = forecastOnlyTemp ?: raw.providerCurrentTemp,
+                currentTemp = resolved.displayTemp,
                 currentCondition = raw.providerCurrentCondition,
                 currentObservedAt = raw.providerCurrentObservedAt.takeIf {
                     displaySource.supportsTemperatureActuals
                 },
+                appliedDelta = resolved.appliedDelta,
+                deltaFromYesterday = resolved.deltaFromYesterday,
             ),
         )
     }
@@ -1068,12 +1070,10 @@ class DesktopWeatherRepository(
                         val raw = weatherService.fetchFeedObservations(feed, recentOnly = true)
                         store(raw, feed)
                         if (feed == displayedFeed) displayedRaw = raw
-                        val temperature = raw.providerCurrentTemp
-                        return if (temperature != null) {
-                            CurrentConditionsRun.Reading(feed, temperature, raw.providerCurrentCondition, raw.providerCurrentObservedAt)
-                        } else {
-                            raw.rawObservations.maxByOrNull { it.timestamp }
-                                ?.let { CurrentConditionsRun.Reading(feed, it.temperature, it.condition, it.timestamp) }
+                        // The feed's own current reading only: an NWS cycle with nothing to blend is
+                        // no reading, as on Android — never its newest raw row (user, 2026-10-24).
+                        return raw.providerCurrentTemp?.let {
+                            CurrentConditionsRun.Reading(feed, it, raw.providerCurrentCondition, raw.providerCurrentObservedAt)
                         }
                     }
                     override fun recordSuccess(feed: WeatherSource) = Unit

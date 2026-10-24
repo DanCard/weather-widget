@@ -15,6 +15,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -38,6 +39,19 @@ class DesktopNwsBlendStaleTest {
             "a stale-only blend must not be stored as an observation; rows=${result.rawObservations.map { it.stationId }}",
             result.rawObservations.none { it.stationId == NwsBlend.STATION_ID },
         )
+    }
+
+    /**
+     * Nothing blends → no current reading. The observations-only path reported the nearest station's
+     * 5 h-old temperature as current (and the run counted it a success); Android reported none
+     * (`:shared` NwsBlend.fetchReading; plans/261024-nws-fetch-time-current-reading-shared.md).
+     */
+    @Test
+    fun `stale-only stations give no current reading`() = runTest {
+        val result = fetchWithReadingAgedHours(5)
+
+        assertNull("a 5 h-old station is not the current temperature", result.providerCurrentTemp)
+        assertNull(result.providerCurrentObservedAt)
     }
 
     /**
