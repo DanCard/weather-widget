@@ -22,19 +22,19 @@ settings = DesktopSettings(weatherSource = "NWS"),
 )
 
     @Test
-    fun `popup columns use the shared narrow and wide cell widths`() {
-        // 55dp cells below 436dp, 60dp from there (plans/261017-daily-density-narrow-only.md).
-        assertEquals(6, DesktopDailyForecastModel.columnsForWidthDp(337)) // (337+15)/55 = 6.4
-        assertEquals(8, DesktopDailyForecastModel.columnsForWidthDp(435)) // (435+15)/55 = 8.2
-        assertEquals(8, DesktopDailyForecastModel.columnsForWidthDp(436)) // (436+15)/60 = 7.5
-        assertEquals(9, DesktopDailyForecastModel.columnsForWidthDp(600)) // capped
+    fun `popup columns are the widget's, capped at nine`() {
+        // Shared cells and fit bias (DailyLayoutConstants); desktop's own +15 bias showed a day fewer.
+        assertEquals(7, DesktopDailyForecastModel.dimensions(337, 200).cols) // (337+30)/55 = 6.7
+        assertEquals(8, DesktopDailyForecastModel.dimensions(435, 200).cols) // (435+30)/55 = 8.5
+        assertEquals(8, DesktopDailyForecastModel.dimensions(436, 200).cols) // (436+30)/60 = 7.8
+        assertEquals(9, DesktopDailyForecastModel.dimensions(600, 200).cols) // capped
     }
 
     @Test
     fun `popup columns never decrease as width grows`() {
-        var previous = DesktopDailyForecastModel.columnsForWidthDp(0)
+        var previous = DesktopDailyForecastModel.dimensions(0, 200).cols
         for (widthDp in 1..1000) {
-            val columns = DesktopDailyForecastModel.columnsForWidthDp(widthDp)
+            val columns = DesktopDailyForecastModel.dimensions(widthDp, 200).cols
             assertTrue("${widthDp}dp -> $columns columns, ${widthDp - 1}dp -> $previous", columns >= previous)
             previous = columns
         }

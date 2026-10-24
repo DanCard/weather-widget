@@ -236,8 +236,8 @@ class MonthsViewActivity : AppCompatActivity(), MonthsScreenView.Listener {
         val shape = sizes[requested]?.takeIf { it.rows >= 2 }
             ?: sizes.values.filter { it.rows >= 2 }.maxByOrNull { it.widthDp * it.heightDp }
             ?: WidgetDimensions(
-                cols = WidgetSizeCalculator.columnsForWidthDp(FALLBACK_WIDTH_DP),
-                rows = WidgetSizeCalculator.rowsForHeightDp(FALLBACK_HEIGHT_DP),
+                cols = com.weatherwidget.shared.graph.DailyLayoutConstants.columnsForWidthDp(FALLBACK_WIDTH_DP),
+                rows = com.weatherwidget.shared.graph.DailyLayoutConstants.rowsForHeightDp(FALLBACK_HEIGHT_DP),
                 widthDp = FALLBACK_WIDTH_DP,
                 heightDp = FALLBACK_HEIGHT_DP,
                 isIconWidth = false,

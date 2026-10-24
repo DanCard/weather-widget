@@ -132,7 +132,7 @@ private fun OpenMeteoRainLoopContent(config: DesktopConfig, httpClient: HttpClie
             }
             .onFailure {
                 failed = true
-                status = rainLoopErrorText(RainLoopLoadError.of(it, RainGridRepository.HOST)) + " Click to retry."
+                status = RainLoopLoadError.of(it, RainGridRepository.HOST).englishText() + " Click to retry."
             }
     }
 

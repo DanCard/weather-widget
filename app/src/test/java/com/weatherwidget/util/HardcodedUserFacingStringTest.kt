@@ -88,6 +88,9 @@ class HardcodedUserFacingStringTest {
                     "BlendTableFormatter legend",
                 "No blended points in range." to "BlendTableFormatter.renderText empty state",
                 " from forecast" to "ForecastDeltaLabel default suffix (desktop); Android passes a localized suffix",
+                "just now" to "AgeFormatter.formatDuration default (desktop); Android passes R.string.freshness_just_now",
+                "This model run has no images for this layer." to
+                    "RainLoopLoadError.Line English template (desktop); Android resolves R.string.sim_loop_error_no_layer_frames (RainLoopErrorLineParityTest)",
                 "Tmrw: Recent History" to "TomorrowIoActuals station name",
                 "NWS Blended" to
                     "NwsBlend stored stationName (was inlined on Android and desktop before moving to :shared); stations lists hide the blend row",

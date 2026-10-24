@@ -33,12 +33,13 @@ object AgeFormatter {
     }
 
     /**
-     * Compact duration string: "just now", "15m", "1h 20m".
+     * Compact duration string: "just now", "15m", "1h 20m". [justNow] is the under-a-minute text
+     * (Android passes its translated `freshness_just_now`). Both Forecast History screens use this.
      */
-    fun formatDuration(durationMs: Long): String {
+    fun formatDuration(durationMs: Long, justNow: String = "just now"): String {
         val minutes = (durationMs.coerceAtLeast(0L)) / 60_000L
         return when {
-            minutes < 1L -> "just now"
+            minutes < 1L -> justNow
             minutes < 60L -> "${minutes}m"
             else -> {
                 val h = minutes / 60L

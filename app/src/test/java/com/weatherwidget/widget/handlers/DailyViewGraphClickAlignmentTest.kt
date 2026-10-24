@@ -469,7 +469,7 @@ class DailyViewGraphClickAlignmentTest {
         )
         applied.layout(0, 0, applied.measuredWidth, applied.measuredHeight)
         val broadcasts = shadowOf(context as android.app.Application).broadcastIntents
-        val expectedSlots = WidgetSizeCalculator.columnsForWidthDp(662)
+        val expectedSlots = com.weatherwidget.shared.graph.DailyLayoutConstants.columnsForWidthDp(662)
         assertEquals(12, expectedSlots)
 
         val bands = mapOf(

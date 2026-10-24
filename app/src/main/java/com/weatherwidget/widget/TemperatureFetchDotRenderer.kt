@@ -187,7 +187,7 @@ internal object TemperatureFetchDotRenderer {
     ) {
         val localDotPaint =
             Paint(input.paints.dotPaint).apply {
-                color = TemperatureGraphStyle.tempToColor(plan.lastObservedTemp)
+                color = com.weatherwidget.shared.graph.TemperatureColorModel.tempToColorArgb(plan.lastObservedTemp)
             }
         input.canvas.drawCircle(plan.clampedX, plan.fetchY, plan.dotRadius, localDotPaint)
         input.canvas.drawCircle(plan.clampedX, plan.fetchY, plan.dotRadius, input.paints.ringPaint)

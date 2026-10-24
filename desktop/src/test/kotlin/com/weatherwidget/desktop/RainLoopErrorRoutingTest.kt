@@ -24,16 +24,21 @@ class RainLoopErrorRoutingTest {
         val gh = "ajoros.github.io"
         assertEquals(
             "ajoros.github.io no longer serves the rain loop (HTTP 404). It may have been taken down.",
-            rainLoopErrorText(RainLoopLoadError.gone(gh, 404)),
+            RainLoopLoadError.gone(gh, 404).englishText(),
         )
-        assertEquals("ajoros.github.io answered HTTP 503.", rainLoopErrorText(RainLoopLoadError(RainLoopLoadError.Kind.HTTP, gh, 503)))
+        assertEquals("ajoros.github.io answered HTTP 503.", RainLoopLoadError(RainLoopLoadError.Kind.HTTP, gh, 503).englishText())
         assertEquals(
             "Couldn't reach api.open-meteo.com — check the network connection.",
-            rainLoopErrorText(RainLoopLoadError(RainLoopLoadError.Kind.OFFLINE, "api.open-meteo.com")),
+            RainLoopLoadError(RainLoopLoadError.Kind.OFFLINE, "api.open-meteo.com").englishText(),
         )
         assertEquals(
             "None of the rain loop's 100 images downloaded from ajoros.github.io.",
-            rainLoopErrorText(RainLoopLoadError.noFrames(gh, 100)),
+            RainLoopLoadError.noFrames(gh, 100).englishText(),
+        )
+        // Desktop's own copy printed a missing status as "HTTP null"; the shared line reads 404.
+        assertEquals(
+            "ajoros.github.io no longer serves the rain loop (HTTP 404). It may have been taken down.",
+            RainLoopLoadError(RainLoopLoadError.Kind.GONE, gh).englishText(),
         )
     }
 }

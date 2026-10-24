@@ -44,7 +44,6 @@ object PrecipitationGraphRenderer {
     private const val FAR_OUT_DATA_HOURS_THRESHOLD = 72L
     private const val Y_SCALE_HEADROOM_FACTOR = 1.15f
     private const val Y_SCALE_MIN = 10f
-    private const val RAIN_AMOUNT_PADDING_DP = 4f
     // NARROW zoom shows per-hour labels for the first few columns; the rightmost column sits at the
     // clipped window edge, so cap at the first 4.
     private const val PER_HOUR_MAX_COLUMNS = 4
@@ -486,7 +485,7 @@ object PrecipitationGraphRenderer {
             observed = observed,
             measureText = measureText,
             getTextBounds = getTextBounds,
-            paddingPx = dpToPx(RAIN_AMOUNT_PADDING_DP),
+            paddingPx = dpToPx(com.weatherwidget.shared.graph.RainAmountLabelPlacer.PADDING_DP),
         )
         return sharedPlacements.map {
             RainAmountPlacement(

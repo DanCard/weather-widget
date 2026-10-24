@@ -52,4 +52,31 @@ class TemperatureColorModelTest {
         assertEquals(TemperatureColorModel.green(base), TemperatureColorModel.green(faded))
         assertEquals(TemperatureColorModel.blue(base), TemperatureColorModel.blue(faded))
     }
+
+    @Test
+    fun `gradient stops put the high on top, the low at the bottom and each inside threshold between`() {
+        // 40..100 over 60: 90 at 1/6, 70 at 1/2, 50 at 5/6.
+        val stops = TemperatureColorModel.gradientStops(minTemp = 40f, maxTemp = 100f, tempRange = 60f)
+        val expected = listOf(0f, 1f / 6f, 0.5f, 5f / 6f, 1f)
+        assertEquals(expected.size, stops.size)
+        expected.zip(stops).forEach { (want, stop) -> assertEquals(want, stop.first, 1e-5f) }
+        assertEquals(TemperatureColorModel.COLOR_HOT, stops.first().second)
+        assertEquals(TemperatureColorModel.COLOR_MILD, stops[2].second)
+        assertEquals(TemperatureColorModel.COLOR_COLD, stops.last().second)
+    }
+
+    @Test
+    fun `gradient stops skip thresholds outside or on the range ends`() {
+        // 55..70: no threshold strictly inside (70 is the high itself).
+        val stops = TemperatureColorModel.gradientStops(minTemp = 55f, maxTemp = 70f, tempRange = 15f)
+        assertEquals(listOf(0f, 1f), stops.map { it.first })
+        assertEquals(TemperatureColorModel.COLOR_MILD, stops.first().second)
+    }
+
+    @Test
+    fun `a flat range collapses to one stop per position`() {
+        // range 0 is clamped to positions 0 and 1 only; nothing is duplicated.
+        val stops = TemperatureColorModel.gradientStops(minTemp = 60f, maxTemp = 60f, tempRange = 1f)
+        assertEquals(stops.map { it.first }.distinct(), stops.map { it.first })
+    }
 }

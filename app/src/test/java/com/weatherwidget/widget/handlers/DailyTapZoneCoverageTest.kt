@@ -33,7 +33,7 @@ class DailyTapZoneCoverageTest {
         // A density change (CELL_WIDTH_DP) moves every width's slot count; this is where it shows.
         // At the old 60dp this already failed at 662dp — the Fold inner widget — with 10 zones.
         for (widthDp in 1..DailyClickHandlerFactory.MAX_SUPPORTED_WIDTH_DP) {
-            val launcherColumns = WidgetSizeCalculator.columnsForWidthDp(widthDp)
+            val launcherColumns = com.weatherwidget.shared.graph.DailyLayoutConstants.columnsForWidthDp(widthDp)
             for (overlay in listOf(true, false)) {
                 val decision =
                     DailyLargeTodayOverlayPolicy.resolve(
@@ -61,7 +61,7 @@ class DailyTapZoneCoverageTest {
     fun `the Fold inner widget fits`() {
         // 662dp, the widget that showed the bug: 13 slots then, 12 since the wide cell width
         // (plans/261017-daily-density-narrow-only.md) — still more than the old 10 zones.
-        val slots = WidgetSizeCalculator.columnsForWidthDp(662)
+        val slots = com.weatherwidget.shared.graph.DailyLayoutConstants.columnsForWidthDp(662)
         assertEquals(12, slots)
         assertTrue(slots <= DailyClickHandlerFactory.DAILY_TAP_ZONE_COUNT)
     }

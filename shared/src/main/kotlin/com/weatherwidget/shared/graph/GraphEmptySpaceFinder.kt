@@ -340,6 +340,9 @@ object GraphEmptySpaceFinder {
  * Extracted from Android PrecipitationGraphRenderer and Desktop PrecipitationGraph.
  */
 object RainAmountLabelPlacer {
+    /** Clear space (dp) kept around a rain-amount label; both platforms pass `PADDING_DP × density`. */
+    const val PADDING_DP = 4f
+
     data class PlacementResult(
         val text: String,
         val x: Float,

@@ -926,7 +926,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         // Last forecast fetch
         forecastFetchView.text = if (lastFetchMs > 0L) {
-            getString(R.string.freshness_forecast_fetch_ago, formatRelativeTime(nowMs - lastFetchMs))
+            getString(R.string.freshness_forecast_fetch_ago, formatFetchAge(nowMs - lastFetchMs))
         } else {
             getString(R.string.freshness_forecast_fetch_never)
         }
@@ -940,7 +940,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             displayedDataView.text = getString(
                 R.string.freshness_displayed_data,
                 sourceName,
-                formatRelativeTime(nowMs - displayedFetchedAt),
+                formatFetchAge(nowMs - displayedFetchedAt),
             )
             displayedDataView.visibility = View.VISIBLE
         } else {
@@ -948,16 +948,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         }
     }
 
-    private fun formatRelativeTime(durationMs: Long): String {
-        val minutes = durationMs / 60_000
-        return when {
-            minutes < 1 -> getString(R.string.freshness_just_now)
-            minutes < 60 -> "${minutes}min"
-            else -> {
-                val hours = minutes / 60
-                val remainMin = minutes % 60
-                if (remainMin == 0L) "${hours}h" else "${hours}h ${remainMin}min"
-            }
-        }
-    }
+    /** Same compact duration as desktop's Forecast History ("15m", "1h 20m"). */
+    private fun formatFetchAge(durationMs: Long): String =
+        com.weatherwidget.shared.util.AgeFormatter.formatDuration(durationMs, getString(R.string.freshness_just_now))
 }

@@ -32,6 +32,43 @@ data class RainLoopLoadError(
     /** `SIM_LOOP_ERROR` fields. */
     fun logFields(): String = "kind=$kind host=$host status=${status ?: "-"} frames=$frameCount"
 
+    /**
+     * The on-screen line for an error. [english] is desktop's text and the same template as Android's
+     * `sim_loop_error_<name lowercased>` resource (same `%n$` positions; `RainLoopErrorLineParityTest`
+     * pins the two), so both platforms pick the line and fill it the same way.
+     */
+    enum class Line(val english: String) {
+        GONE("%1\$s no longer serves the rain loop (HTTP %2\$d). It may have been taken down."),
+        RATE_LIMITED("%1\$s refused the request: too many requests (HTTP 429). Try again later."),
+        HTTP("%1\$s answered HTTP %2\$d."),
+        TIMEOUT("%1\$s didn't answer in time."),
+        OFFLINE("Couldn't reach %1\$s — check the network connection."),
+        BAD_DATA("The data from %1\$s couldn't be read (unexpected format)."),
+        NO_LAYER_FRAMES("This model run has no images for this layer."),
+        NO_FRAMES("None of the rain loop's %1\$d images downloaded from %2\$s."),
+        OTHER("The rain loop from %1\$s couldn't be loaded."),
+    }
+
+    /** A [Line] and its format arguments, in the template's order. */
+    data class Message(val line: Line, val args: List<Any>)
+
+    /** Which line this error shows, with what. A missing status reads 404 for GONE, 0 for HTTP. */
+    fun message(): Message = when (kind) {
+        Kind.GONE -> Message(Line.GONE, listOf(host, status ?: 404))
+        Kind.RATE_LIMITED -> Message(Line.RATE_LIMITED, listOf(host))
+        Kind.HTTP -> Message(Line.HTTP, listOf(host, status ?: 0))
+        Kind.TIMEOUT -> Message(Line.TIMEOUT, listOf(host))
+        Kind.OFFLINE -> Message(Line.OFFLINE, listOf(host))
+        Kind.BAD_DATA -> Message(Line.BAD_DATA, listOf(host))
+        Kind.NO_FRAMES ->
+            if (frameCount == 0) Message(Line.NO_LAYER_FRAMES, emptyList())
+            else Message(Line.NO_FRAMES, listOf(frameCount, host))
+        Kind.OTHER -> Message(Line.OTHER, listOf(host))
+    }
+
+    /** Desktop's error line (English). Android resolves [message] against its string resources. */
+    fun englishText(): String = message().let { String.format(java.util.Locale.ROOT, it.line.english, *it.args.toTypedArray()) }
+
     companion object {
         fun hostOf(url: String): String = runCatching { URI(url).host }.getOrNull() ?: url
 

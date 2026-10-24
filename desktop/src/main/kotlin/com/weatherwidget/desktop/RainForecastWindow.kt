@@ -55,27 +55,6 @@ internal object WeatherNextDesktopState {
     @Volatile var goneStatus: Int = 404
 }
 
-/**
- * A rain loop's error line (WeatherNext or the Open-Meteo map): what failed, explicitly, naming the
- * host. Retry / "Use Open-Meteo rain map" are separate buttons.
- */
-internal fun rainLoopErrorText(error: RainLoopLoadError): String {
-    val host = error.host
-    return when (error.kind) {
-        RainLoopLoadError.Kind.GONE ->
-            "$host no longer serves the rain loop (HTTP ${error.status}). It may have been taken down."
-        RainLoopLoadError.Kind.RATE_LIMITED -> "$host refused the request: too many requests (HTTP 429). Try again later."
-        RainLoopLoadError.Kind.HTTP -> "$host answered HTTP ${error.status}."
-        RainLoopLoadError.Kind.TIMEOUT -> "$host didn't answer in time."
-        RainLoopLoadError.Kind.OFFLINE -> "Couldn't reach $host — check the network connection."
-        RainLoopLoadError.Kind.BAD_DATA -> "The data from $host couldn't be read (unexpected format)."
-        RainLoopLoadError.Kind.NO_FRAMES ->
-            if (error.frameCount == 0) "This model run has no images for this layer."
-            else "None of the rain loop's ${error.frameCount} images downloaded from $host."
-        RainLoopLoadError.Kind.OTHER -> "The rain loop from $host couldn't be loaded."
-    }
-}
-
 private val WEATHER_NEXT_JSON = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
 @Composable
@@ -611,7 +590,7 @@ private fun SimLoopErrorPanel(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = rainLoopErrorText(error),
+            text = error.englishText(),
             color = Color(0xFFFDE68A),
             fontSize = 14.sp,
         )

@@ -3,6 +3,7 @@ package com.weatherwidget.widget.handlers
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.view.Surface
+import com.weatherwidget.shared.graph.DailyLayoutConstants
 import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.widget.WidgetQueryWindows
 import org.junit.Assert.assertEquals
@@ -11,76 +12,14 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * Pure-function tests for the width->columns (and height->rows) mapping.
- *
- * These pin the column density: the Fold 4 cover (~337dp) and Pixel 7 Pro (~373dp) get 7 slots, the
- * Fold 4 full-width widget (~574dp) 10 and the Fold 4 inner widget (~662dp) 12. Density is set by
- * DailyLayoutConstants.cellWidthDp (55dp narrow, 60dp from 436dp) plus the COLUMN_FIT_BIAS_DP
- * round-up; see WidgetSizeCalculator and plans/261017-daily-density-narrow-only.md.
+ * Widget-side sizing: the forecast horizon against the widest widgets' columns, and the host
+ * orientation rules. The width->columns / height->rows math itself is `:shared`
+ * `DailyLayoutConstantsTest`.
  *
  * Kept as plain JUnit (no Robolectric) since the math is decoupled from Android plumbing.
  */
 @Category(ShortDuration::class)
 class WidgetSizeCalculatorColumnsTest {
-    @Test
-    fun columns_matchDocumentedSizeTable() {
-        // Representative widths: 55dp cells below 436dp, 60dp from there; bias 30.
-        assertEquals(1, WidgetSizeCalculator.columnsForWidthDp(40))
-        assertEquals(3, WidgetSizeCalculator.columnsForWidthDp(130))
-        assertEquals(4, WidgetSizeCalculator.columnsForWidthDp(210))
-        assertEquals(6, WidgetSizeCalculator.columnsForWidthDp(280))
-        assertEquals(7, WidgetSizeCalculator.columnsForWidthDp(350))
-    }
-
-    @Test
-    fun columns_pixel7ProFitsSevenDays() {
-        // Pixel 7 Pro reports ~373dp for the daily widget -> 7 columns.
-        // Verified on device 2A191FDH300PPW.
-        assertEquals(7, WidgetSizeCalculator.columnsForWidthDp(373))
-    }
-
-    @Test
-    fun columns_foldCoverFitsSevenSlotsForSixDaysWithOverlay() {
-        // Samsung Fold 4 cover display reports ~337dp -> 7 columns (slots).
-        // With the detailed Today overlay active (span=2), this yields 6 rendered days (Today + 5).
-        // Verified on live device RFCT70G352Y.
-        assertEquals(7, WidgetSizeCalculator.columnsForWidthDp(337))
-    }
-
-    @Test
-    fun columns_foldFullWidthFitsTenColumns() {
-        // Samsung Fold 4 full-width (6-span) widget reports ~574dp -> 10 columns (60dp cells).
-        assertEquals(10, WidgetSizeCalculator.columnsForWidthDp(574))
-    }
-
-    @Test
-    fun columns_foldInnerWidgetFitsTwelveSlotsForElevenDays() {
-        // Fold 4 inner widget 345 reports 662dp. 55dp cells made it 13 slots (12 days), too dense;
-        // 60dp cells give 12 slots = 11 days with the Today overlay. Verified on RFCT70G352Y.
-        assertEquals(12, WidgetSizeCalculator.columnsForWidthDp(662))
-        // 11->12 boundary under the wide cell.
-        assertEquals(11, WidgetSizeCalculator.columnsForWidthDp(659))
-        assertEquals(12, WidgetSizeCalculator.columnsForWidthDp(660))
-    }
-
-    @Test
-    fun columns_switchToWideCellsKeepsTheCount() {
-        // Both cell widths give 8 columns either side of the 436dp switch.
-        assertEquals(8, WidgetSizeCalculator.columnsForWidthDp(435))
-        assertEquals(8, WidgetSizeCalculator.columnsForWidthDp(436))
-    }
-
-    @Test
-    fun columns_neverDecreaseAsWidthGrows() {
-        // A cell-width switch at the wrong width would give a wider widget fewer columns.
-        var previous = WidgetSizeCalculator.columnsForWidthDp(0)
-        for (widthDp in 1..1000) {
-            val columns = WidgetSizeCalculator.columnsForWidthDp(widthDp)
-            assertTrue("${widthDp}dp -> $columns columns, ${widthDp - 1}dp -> $previous", columns >= previous)
-            previous = columns
-        }
-    }
-
     @Test
     fun `daily forecast horizon covers the render horizon of the widest widgets`() {
         // The daily view renders today + numColumns - 2 at offset 0, so the forecast/gap-fill
@@ -89,41 +28,13 @@ class WidgetSizeCalculatorColumnsTest {
         // nor a GENERIC_GAP row and painted a grey "cloudy" day over correct climate normals.
         val widestRealisticWidgetDp = 1280 // ~10" tablet, full width
         for (widthDp in intArrayOf(373, 574, 800, widestRealisticWidgetDp)) {
-            val renderHorizonDays = WidgetSizeCalculator.columnsForWidthDp(widthDp) - 2
+            val renderHorizonDays = DailyLayoutConstants.columnsForWidthDp(widthDp) - 2
             assertTrue(
                 "DAILY_FORECAST_DAYS=${WidgetQueryWindows.DAILY_FORECAST_DAYS} must cover the " +
                     "today+$renderHorizonDays render horizon of a ${widthDp}dp widget",
                 WidgetQueryWindows.DAILY_FORECAST_DAYS >= renderHorizonDays,
             )
         }
-    }
-
-    @Test
-    fun columns_roundUpBias_atSixToSevenBoundary() {
-        // The 6->7 boundary sits at width >= 328dp.
-        // Pinning both sides keeps the density a deliberate, stable choice.
-        assertEquals(6, WidgetSizeCalculator.columnsForWidthDp(327))
-        assertEquals(7, WidgetSizeCalculator.columnsForWidthDp(328))
-    }
-
-    @Test
-    fun columns_roundUpBias_atFiveToSixBoundary() {
-        // With the current density the 5->6 boundary sits at width >= 273dp.
-        assertEquals(5, WidgetSizeCalculator.columnsForWidthDp(272))
-        assertEquals(6, WidgetSizeCalculator.columnsForWidthDp(273))
-    }
-
-    @Test
-    fun columns_neverBelowOne() {
-        assertEquals(1, WidgetSizeCalculator.columnsForWidthDp(0))
-    }
-
-    @Test
-    fun rows_roundUpBias_atOneToTwoBoundary() {
-        // Height analogue: the 1->2 row boundary sits at height >= 110dp ((110+25)/90 = 1.5).
-        assertEquals(1, WidgetSizeCalculator.rowsForHeightDp(109))
-        assertEquals(2, WidgetSizeCalculator.rowsForHeightDp(110))
-        assertEquals(1, WidgetSizeCalculator.rowsForHeightDp(0))
     }
 
     @Test

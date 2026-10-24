@@ -33,6 +33,24 @@ object TemperatureColorModel {
         else -> blend(COLOR_MILD, COLOR_HOT, (temp - MILD_TEMP) / (HOT_THRESHOLD - MILD_TEMP))
     }
 
+    /**
+     * Stops for a vertical temperature gradient: [maxTemp] at 0 (top), [minTemp] at 1 (bottom), and a
+     * stop at each of [THRESHOLDS] strictly inside the range, at its position over [tempRange]. Sorted,
+     * one stop per position to 1e-4. Opaque; each platform applies its own alpha and colour type.
+     * Android's `buildTempGradient` and desktop's `buildColorStops` each built this list, and dropped
+     * duplicate positions differently (a locale-formatted string vs truncation to 1e-3).
+     */
+    fun gradientStops(minTemp: Float, maxTemp: Float, tempRange: Float): List<Pair<Float, Int>> {
+        fun posOf(t: Float): Float = ((maxTemp - t) / tempRange).coerceIn(0f, 1f)
+        return buildList {
+            add(0f to tempToColorArgb(maxTemp))
+            add(1f to tempToColorArgb(minTemp))
+            for (t in THRESHOLDS) {
+                if (t > minTemp && t < maxTemp) add(posOf(t) to tempToColorArgb(t))
+            }
+        }.sortedBy { it.first }.distinctBy { kotlin.math.round(it.first * 10_000f).toInt() }
+    }
+
     /** Linear interpolation between two opaque ARGB colors in integer RGB space. */
     fun blend(c1: Int, c2: Int, fraction: Float): Int {
         val f = fraction.coerceIn(0f, 1f)

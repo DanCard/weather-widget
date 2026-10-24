@@ -1,6 +1,5 @@
 package com.weatherwidget.widget
 
-import com.weatherwidget.shared.graph.TemperatureColorModel
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import com.weatherwidget.test.category.ShortDuration
@@ -48,50 +47,6 @@ class TemperatureGraphStyleTest {
     fun tempToY_invertedTempRange_handlesNegativeRange() {
         val result = TemperatureGraphStyle.tempToY(70f, 100f, 200f, 90f, -40f)
         assertEquals(200f, result, 0.01f)
-    }
-
-    // Tests for tempToColor
-
-    // tempToColor now delegates to the shared TemperatureColorModel (pure Kotlin bit math). These
-    // assert it forwards correctly; expected values come from the same shared model, which — unlike
-    // the old android.graphics.Color stub (every method returns 0) — yields real colors under
-    // plain JUnit. See TemperatureColorModelTest for the underlying blend math.
-
-    @Test
-    fun tempToColor_atFreezing_returnsColdColor() {
-        assertEquals(TemperatureColorModel.COLOR_COLD, TemperatureGraphStyle.tempToColor(32f))
-    }
-
-    @Test
-    fun tempToColor_atColdThreshold_returnsColdColor() {
-        assertEquals(TemperatureColorModel.COLOR_COLD, TemperatureGraphStyle.tempToColor(50f))
-    }
-
-    @Test
-    fun tempToColor_atMildThreshold_returnsMildColor() {
-        assertEquals(TemperatureColorModel.COLOR_MILD, TemperatureGraphStyle.tempToColor(70f))
-    }
-
-    @Test
-    fun tempToColor_atHotThreshold_returnsHotColor() {
-        assertEquals(TemperatureColorModel.COLOR_HOT, TemperatureGraphStyle.tempToColor(90f))
-    }
-
-    @Test
-    fun tempToColor_aboveHotThreshold_returnsHotColor() {
-        assertEquals(TemperatureColorModel.COLOR_HOT, TemperatureGraphStyle.tempToColor(100f))
-    }
-
-    @Test
-    fun tempToColor_betweenColdAndMild_returnsBlendedColor() {
-        val expected = TemperatureColorModel.blend(TemperatureColorModel.COLOR_COLD, TemperatureColorModel.COLOR_MILD, 0.5f)
-        assertEquals(expected, TemperatureGraphStyle.tempToColor(60f))
-    }
-
-    @Test
-    fun tempToColor_betweenMildAndHot_returnsBlendedColor() {
-        val expected = TemperatureColorModel.blend(TemperatureColorModel.COLOR_MILD, TemperatureColorModel.COLOR_HOT, 0.5f)
-        assertEquals(expected, TemperatureGraphStyle.tempToColor(80f))
     }
 
     // Tests for formatTemp

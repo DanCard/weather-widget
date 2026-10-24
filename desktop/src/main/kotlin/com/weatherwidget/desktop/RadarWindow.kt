@@ -134,7 +134,7 @@ private fun RadarContent(config: DesktopConfig, httpClient: HttpClient) {
                 failed = true
                 val host = RadarRepository.host(feed)
                 val error = if (it is NoRadarFramesException) RainLoopLoadError.noFrames(host, it.asked) else RainLoopLoadError.of(it, host)
-                status = rainLoopErrorText(error) + " Click to retry."
+                status = error.englishText() + " Click to retry."
             }
     }
 

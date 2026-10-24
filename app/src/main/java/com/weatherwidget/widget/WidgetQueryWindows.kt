@@ -16,7 +16,7 @@ object WidgetQueryWindows {
      * the startup, worker, and interactive render paths.
      *
      * This MUST cover the daily render horizon, which is **width-derived, not fixed**: the daily
-     * view draws `numColumns` columns (`WidgetSizeCalculator.columnsForWidthDp`, uncapped) reaching
+     * view draws `numColumns` columns (`DailyLayoutConstants.columnsForWidthDp`, uncapped) reaching
      * `today + numColumns - 2` at offset 0, and navigation reaches further still. When startup and
      * the worker used `7` here while a 10-column widget rendered `today+8`, that last column got
      * neither a real row nor a gap row: the icon fell back to `ic_weather_unknown` (a grey cloud)

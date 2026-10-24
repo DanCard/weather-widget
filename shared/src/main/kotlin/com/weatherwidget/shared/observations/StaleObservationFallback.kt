@@ -48,9 +48,8 @@ object StaleObservationFallback {
     }
 
     /**
-     * Compact age for the stale subtitle: "45min", "6h", "3d". Matches the abbreviation style
-     * `ForecastHistoryActivity.formatRelativeTime` already uses, so the two age labels in the app
-     * read the same; the surrounding "… ago" sentence is a localized resource on each platform.
+     * Compact age for the stale subtitle: "45min", "6h", "3d"; the surrounding "… ago" sentence is
+     * a localized resource on each platform.
      */
     fun formatAge(ageMs: Long): String {
         val minutes = ageMs.coerceAtLeast(0L) / 60_000L

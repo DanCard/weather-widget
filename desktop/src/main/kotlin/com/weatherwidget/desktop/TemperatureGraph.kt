@@ -167,7 +167,6 @@ internal fun hourlyPointsInWindow(
 
 // Delegates to the shared [TemperatureColorModel] (integer-RGB blend) so desktop produces the same
 // pixels as the Android widget for any temperature. Previously blended via Compose lerp().
-private fun tempToColor(temp: Float): Color = Color(TemperatureColorModel.tempToColorArgb(temp))
 
 @Composable
 fun TemperatureGraph(
@@ -782,7 +781,7 @@ fun TemperatureGraph(
             val outerRadius = dotRadius + 0.75f * scale
             drawCircle(color = Color.Black.copy(alpha = 0.26f), radius = outerRadius, center = Offset(fetchDotXVal, fetchDotYVal))
             drawCircle(color = Color.White, radius = dotRadius, center = Offset(fetchDotXVal, fetchDotYVal))
-            drawCircle(color = tempToColor(fetchDotPoint.actualTemp!!), radius = dotRadius - 1.5f * scale, center = Offset(fetchDotXVal, fetchDotYVal))
+            drawCircle(color = Color(TemperatureColorModel.tempToColorArgb(fetchDotPoint.actualTemp!!)), radius = dotRadius - 1.5f * scale, center = Offset(fetchDotXVal, fetchDotYVal))
         } else {
             // Dot is off-window (panned away): nothing to hover.
             nowDotTarget.clear()
@@ -1194,14 +1193,9 @@ private fun DrawScope.drawCloudAndPrecipOverlays(points: List<HourlyForecast>, s
 }
 
 private fun buildColorStops(minTemp: Float, maxTemp: Float, range: Float): Array<Pair<Float, Color>> {
-    fun posOf(t: Float): Float = ((maxTemp - t) / range).coerceIn(0f, 1f)
-    return buildList {
-        add(0f to tempToColor(maxTemp))
-        add(1f to tempToColor(minTemp))
-        for (t in TemperatureColorModel.THRESHOLDS) {
-            if (t > minTemp && t < maxTemp) add(posOf(t) to tempToColor(t))
-        }
-    }.sortedBy { it.first }.distinctBy { (it.first * 1000).toInt() }.toTypedArray()
+    return TemperatureColorModel.gradientStops(minTemp, maxTemp, range)
+        .map { (pos, argb) -> pos to Color(argb) }
+        .toTypedArray()
 }
 
 private fun computeTangents(coords: List<Offset>): List<Offset> = DesktopGraphUtils.computeTangents(coords)

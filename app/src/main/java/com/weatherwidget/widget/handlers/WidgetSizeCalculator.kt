@@ -40,35 +40,6 @@ object WidgetSizeCalculator {
     const val CELL_HEIGHT_DP = DailyLayoutConstants.CELL_HEIGHT_DP
     const val ICON_WIDTH_THRESHOLD_DP = DailyLayoutConstants.ICON_WIDTH_THRESHOLD_DP
 
-    /**
-     * Bias added to the reported widget width before dividing by
-     * [DailyLayoutConstants.cellWidthDp] (55dp below 436dp, 60dp from there).
-     *
-     * Combined with round-to-nearest (not floor), this rounds UP a widget that is within ~(this
-     * many) dp of the next column, fitting one more forecast day. The 5→6 boundary lands at width
-     * >= 273dp, 6→7 at >= 328dp, 7→8 at >= 383dp, 9→10 at >= 540dp and 11→12 at >= 660dp.
-     *
-     * Density is governed mainly by the cell width; this bias just nudges borderline widgets up.
-     * Representative results: Samsung Fold 4 cover (~337dp) → 7 columns (6 days with large Today
-     * overlay), Pixel 7 Pro (~373dp) → 7, Samsung Fold 4 full-width (~574dp) → 10, the Fold 4 inner
-     * widget at ~662dp → 12 (11 days).
-     * Days shown == columns (see NavigationUtils.getDayOffsets), minus one when the detailed Today
-     * overlay spans two slots.
-     *
-     * Data backing the rightmost columns: at >8 columns the narrow skip-yesterday rule is off
-     * (NavigationUtils.NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD), so a 10-column window is
-     * yesterday..+8. Every fetch requests ForecastHorizon.MAX_DAYS, so Open-Meteo covers
-     * through today+15 while NWS reaches ~today+6; columns past a source's real coverage
-     * render the climate-normal filler, which is the intended terminal state (no on-demand
-     * extension exists — a gap a max-depth fetch didn't fill is unfillable).
-     */
-    private const val COLUMN_FIT_BIAS_DP = 30
-
-    /**
-     * Row-count analogue of [COLUMN_FIT_BIAS_DP]: biases height toward the next row so a
-     * widget that is nearly tall enough is treated as the taller layout.
-     */
-    private const val ROW_FIT_BIAS_DP = 25
     private const val MAX_BITMAP_PIXELS = 225_000 // Limit bitmap to ~900KB (ARGB_8888 is 4 bytes/px)
     private const val PIXEL_LAUNCHER_PACKAGE = "com.google.android.apps.nexuslauncher"
 
@@ -119,8 +90,8 @@ object WidgetSizeCalculator {
             )
         }
 
-        val cols = columnsForWidthDp(width)
-        val rows = rowsForHeightDp(height)
+        val cols = DailyLayoutConstants.columnsForWidthDp(width)
+        val rows = DailyLayoutConstants.rowsForHeightDp(height)
         val isIconWidth = width <= ICON_WIDTH_THRESHOLD_DP
 
         return WidgetDimensions(
@@ -240,25 +211,6 @@ object WidgetSizeCalculator {
             it == Configuration.ORIENTATION_PORTRAIT ||
                 it == Configuration.ORIENTATION_LANDSCAPE
         }
-
-    /**
-     * Maps a widget width (dp) to the number of day columns the daily view shows.
-     *
-     * Pure (no Android dependencies) so the column math is directly unit-testable.
-     * Round-to-nearest plus [COLUMN_FIT_BIAS_DP] deliberately fits the extra forecast day
-     * for widgets near a column boundary (e.g. 6→7 columns at width >= 328dp).
-     */
-    fun columnsForWidthDp(widthDp: Int): Int =
-        ((widthDp + COLUMN_FIT_BIAS_DP).toFloat() / DailyLayoutConstants.cellWidthDp(widthDp))
-            .roundToInt()
-            .coerceAtLeast(1)
-
-    /**
-     * Maps a widget height (dp) to the number of rows, biased toward the taller layout.
-     * Pure counterpart to [columnsForWidthDp]; see [ROW_FIT_BIAS_DP].
-     */
-    fun rowsForHeightDp(heightDp: Int): Int =
-        ((heightDp + ROW_FIT_BIAS_DP).toFloat() / CELL_HEIGHT_DP).roundToInt().coerceAtLeast(1)
 
     /**
      * Get optimal bitmap size for the widget, applying downscaling if needed.

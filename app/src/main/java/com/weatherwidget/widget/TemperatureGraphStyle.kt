@@ -61,10 +61,6 @@ object TemperatureGraphStyle {
     val COLOR_ACTUAL_LABEL = WeatherConditionColors.OBSERVED
     val COLOR_FORECAST_LABEL = Color.parseColor("#C5DCFF")
 
-    // Temperature→color thresholds, colors, and blending live in the shared [TemperatureColorModel]
-    // so the desktop graph produces identical pixels for the same temperature.
-    fun tempToColor(temp: Float): Int = TemperatureColorModel.tempToColorArgb(temp)
-
     // Graph temperature formatting (no degree symbol; callers append "°") is the same contract as
     // the shared label resolver — delegate so there's a single source of truth.
     fun formatTemp(value: Float, useCelsius: Boolean): String = TemperatureLabelResolver.formatTemp(value, useCelsius)
@@ -317,17 +313,9 @@ object TemperatureGraphStyle {
         alphaTop: Int = 255,
         alphaBottom: Int = 255,
     ): LinearGradient {
-        fun tempToPos(t: Float): Float = ((maxTemp - t) / tempRange).coerceIn(0f, 1f)
-        val stops = mutableListOf<Pair<Float, Int>>()
-        stops.add(0f to tempToColor(maxTemp))
-        stops.add(1f to tempToColor(minTemp))
-        for (t in TemperatureColorModel.THRESHOLDS) {
-            if (t > minTemp && t < maxTemp) {
-                stops.add(tempToPos(t) to tempToColor(t))
-            }
-        }
-        stops.sortBy { it.first }
-        val unique = stops.distinctBy { "%.4f".format(it.first) }
+        // Temperature→color thresholds, colors, blending and the stop list live in the shared
+        // [TemperatureColorModel], so the desktop graph produces identical pixels.
+        val unique = TemperatureColorModel.gradientStops(minTemp, maxTemp, tempRange)
         val positions = unique.map { it.first }.toFloatArray()
         val colorsWithAlpha = unique.map { (pos, color) ->
             val alpha = (alphaTop + (alphaBottom - alphaTop) * pos).toInt().coerceIn(0, 255)

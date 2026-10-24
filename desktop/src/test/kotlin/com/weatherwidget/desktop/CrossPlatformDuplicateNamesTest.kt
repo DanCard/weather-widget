@@ -50,6 +50,7 @@ class CrossPlatformDuplicateNamesTest {
             "resetLogMemoForTesting" to ADAPTER, // SourceFetchGate loaders
             "getIconResource" to ADAPTER, // icon name is shared (DailyIconName); drawable lookup is not
             "showOutcome" to ADAPTER, // RefreshNotice.Gate.restart + outcomeLine; Toast vs Compose pill
+            "calculateRainAmountPlacements" to ADAPTER, // RainAmountLabelPlacer (+ PADDING_DP); rect types, Paint vs TextMeasurer
             "drawActualLine" to DRAWING,
             "drawDayLabels" to DRAWING,
             "drawGridAndAxes" to DRAWING,
@@ -62,11 +63,6 @@ class CrossPlatformDuplicateNamesTest {
             "labelFor" to GENERIC,
             "remove" to GENERIC,
             "update" to GENERIC,
-            "calculateRainAmountPlacements" to PENDING, // both wrap RainAmountLabelPlacer; unify the wrapper
-            "columnsForWidthDp" to PENDING, // widget/popup column count from width
-            "formatRelativeTime" to PENDING,
-            "rainLoopErrorText" to PENDING, // shared message key, platform strings
-            "tempToColor" to PENDING, // both delegate to TemperatureColorModel; drop the wrappers
         )
 
         fun declaredNames(root: File): Set<String> =

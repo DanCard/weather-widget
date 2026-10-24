@@ -210,3 +210,23 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   `RefreshToast.showOutcome`, as desktop. Still per platform: the surface (Toast / widget banner vs the
   Compose pill) and the strings (Android resources, desktop `RefreshNotice.text`). `showOutcome` is on
   the names allowlist as ADAPTER. Tag allowlist → 8.
+- 2026-10-23: §5 small items / 10-21 K — the five `PENDING` names, all resolved (names allowlist has
+  no PENDING group left):
+  - `columnsForWidthDp` → `:shared` `DailyLayoutConstants.columnsForWidthDp(widthDp, maxColumns)` /
+    `rowsForHeightDp`, with `COLUMN_FIT_BIAS_DP` / `ROW_FIT_BIAS_DP`. **Desktop drift fixed**: its
+    `+15` was Android's value before `457027da` (2026-06-20, 15 → 30); popups 163–177, 218–232, 273–287,
+    328–342, 383–397 and 480–494 dp now show one more column, as the widget does. Desktop keeps only
+    its 9-column cap. Width tests moved to `:shared` `DailyLayoutConstantsTest`.
+  - `tempToColor` wrappers gone; the twin underneath was the gradient stop list (Android
+    `buildTempGradient`, desktop `buildColorStops`; deduped on `"%.4f".format` vs `(pos*1000).toInt()`)
+    → `TemperatureColorModel.gradientStops`.
+  - `rainLoopErrorText` → `RainLoopLoadError.message()` (line + args) and `Line.english`; Android maps
+    the line to its resource, desktop prints `englishText()`. **Desktop bug fixed**: a GONE/HTTP error
+    with no status read "HTTP null". `RainLoopErrorLineParityTest` (app) pins each English template to
+    `values/strings.xml`.
+  - `formatRelativeTime` was a name coincidence (panel tooltip "2h ago" vs History's duration); the
+    real twin was Android History's own "1h 20min" vs desktop History's `AgeFormatter.formatDuration`
+    ("1h 20m"). Android History now calls the shared one (translated "just now" passed in) — Android's
+    History freshness line now reads "m", not "min".
+  - `calculateRainAmountPlacements`: the rule inside (4 dp padding) → `RainAmountLabelPlacer.PADDING_DP`;
+    the wrapper stays as ADAPTER (rect types, Paint vs TextMeasurer bounds).

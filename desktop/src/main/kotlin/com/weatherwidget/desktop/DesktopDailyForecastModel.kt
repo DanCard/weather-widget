@@ -15,7 +15,6 @@ import java.time.ZoneId
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
-import kotlin.math.roundToInt
 
 private const val TAG = "DesktopDailyModel"
 
@@ -65,16 +64,10 @@ object DesktopDailyForecastModel {
      */
     private const val DAILY_MAX_EXTRA_HISTORY = 14
 
-    /** Day columns for a popup [widthDp] wide; the cell width is shared with Android. */
-    fun columnsForWidthDp(widthDp: Int): Int =
-        ((widthDp + 15).toFloat() / DailyLayoutConstants.cellWidthDp(widthDp)).roundToInt()
-            .coerceAtLeast(1)
-            .coerceAtMost(MAX_DESKTOP_DAILY_COLUMNS)
-
     fun dimensions(widthDp: Int, heightDp: Int): DesktopWidgetDimensions {
-        val cols = columnsForWidthDp(widthDp)
-        val rows = ((heightDp + 25).toFloat() / CELL_HEIGHT_DP).roundToInt().coerceAtLeast(1)
-        val rawRows = (heightDp + 25).toFloat() / CELL_HEIGHT_DP
+        val cols = DailyLayoutConstants.columnsForWidthDp(widthDp, MAX_DESKTOP_DAILY_COLUMNS)
+        val rows = DailyLayoutConstants.rowsForHeightDp(heightDp)
+        val rawRows = (heightDp + DailyLayoutConstants.ROW_FIT_BIAS_DP).toFloat() / CELL_HEIGHT_DP
         return DesktopWidgetDimensions(
             cols = cols,
             rows = rows,

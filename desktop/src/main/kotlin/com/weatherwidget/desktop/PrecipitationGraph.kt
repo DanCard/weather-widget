@@ -487,7 +487,7 @@ private fun calculateRainAmountPlacements(
             val h = textMeasurer.measure(it, textStyle).size.height.toFloat()
             Pair(-h / 2f, h / 2f)
         },
-        paddingPx = 4f * dpToPx,
+        paddingPx = com.weatherwidget.shared.graph.RainAmountLabelPlacer.PADDING_DP * dpToPx,
     )
     return sharedPlacements.map {
         RainAmountPlacement(
