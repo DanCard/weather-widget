@@ -36,9 +36,6 @@ run {
         // Billed per request. Public apt builds (-PpublicBuild) bake none; the source is not
         // default-visible on desktop — the developer enables it in their own config.json.
         "GOOGLE_WEATHER" to "GOOGLE_WEATHER_API_KEY",
-        // Not a WeatherSource id: Synoptic is the NWS web-fallback transport, and this is a TOKEN
-        // minted from its API key rather than a key. It shares this map only for the plumbing.
-        "SYNOPTIC" to "SYNOPTIC_API_TOKEN",
     )
     val generatedDir = layout.buildDirectory.dir("generated/apikeys/kotlin")
     val generateApiKeys = tasks.register("generateDesktopApiKeys") {

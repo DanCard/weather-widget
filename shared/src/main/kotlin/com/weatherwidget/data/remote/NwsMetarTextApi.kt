@@ -14,10 +14,8 @@ import javax.inject.Inject
  * NWS's own latest-METAR text file, `tgftp.nws.noaa.gov/data/observations/metar/stations/{ID}.TXT`:
  * the NWS observation "web" leg on both platforms. No key, no token, `Cache-Control: no-cache`.
  *
- * The user's rule (2026-10-15): NWS actuals come from NWS servers only, and "web" means a plain fetch
- * with no token — never Synoptic (what `weather.gov/wrh/timeseries` loads in the browser) and never
- * aviationweather.gov (a stale CDN answer showed KNUQ 12:15 at 12:40, after this file had 12:35 at
- * 12:38). plans/261015-nws-web-leg-from-nws-tgftp-metar-text.md.
+ * This is the token-free primary web leg. A newer Synoptic reading may replace it when both the NWS
+ * API and this file are stale (user, 2026-10-23); aviationweather.gov remains unused.
  *
  * Two lines: `yyyy/MM/dd HH:mm` (UTC), then the raw report. Only stations that send METARs have a
  * file; any other ID redirects to a directory that 404s, which is [FetchOutcome.NoData].

@@ -17,20 +17,26 @@ import kotlinx.serialization.json.*
  * app stores the token and never holds the key. That also means a leaked build exposes a revocable
  * token rather than the account credential.
  *
- * It used to be a hardcoded literal here — a token scraped from
- * weather.gov's own public station viewer (value recorded in
- * `plans/260628-nws-stale-station-synoptic-fallback.md`). That was never this project's credential:
- * it rode NOAA's quota, and NOAA could rotate it at any time and silently kill the fallback. Blank
- * is now a first-class state — [isConfigured] is false and callers skip the fallback rather than
- * issuing a request that is guaranteed to be rejected.
+ * [mesoTokenApi] retrieves and caches the public browser token used by weather.gov's station viewer.
+ * An optional [tokenProvider] can also supply a test token directly.
  */
 class SynopticApi(
     private val httpClient: HttpClient,
     private val json: Json,
-    private val tokenProvider: () -> String?,
+    private val mesoTokenApi: MesoTokenApi? = null,
+    private val tokenProvider: () -> String? = { null },
 ) {
-    /** False when no token was baked in or entered; callers must skip Synoptic entirely. */
-    val isConfigured: Boolean get() = !tokenProvider().isNullOrBlank()
+    constructor(
+        httpClient: HttpClient,
+        json: Json,
+        tokenProvider: () -> String?,
+    ) : this(httpClient, json, mesoTokenApi = null, tokenProvider = tokenProvider)
+
+    /** True when the automatic weather.gov token source or a configured test token is available. */
+    val isConfigured: Boolean get() = mesoTokenApi != null || !tokenProvider().isNullOrBlank()
+
+    private suspend fun effectiveToken(forceRefresh: Boolean = false): String? =
+        mesoTokenApi?.token(forceRefresh) ?: tokenProvider()?.takeIf { it.isNotBlank() }
 
     companion object {
         private const val TAG = "SynopticApi"
@@ -269,7 +275,21 @@ class SynopticApi(
         recentMinutes: Long,
         stationNameFallback: String = ""
     ): FetchOutcome<List<NwsApi.Observation>> {
-        val token = tokenProvider()?.takeIf { it.isNotBlank() }
+        val initial = executeFetchSynopticObservations(stationId, recentMinutes, stationNameFallback, forceRefresh = false)
+        if (initial is FetchOutcome.Failed && canRefetchToken()) {
+            Log.i(TAG, "Synoptic observation fetch failed for $stationId (${initial.reason}); refetching token and retrying...")
+            return executeFetchSynopticObservations(stationId, recentMinutes, stationNameFallback, forceRefresh = true)
+        }
+        return initial
+    }
+
+    private suspend fun executeFetchSynopticObservations(
+        stationId: String,
+        recentMinutes: Long,
+        stationNameFallback: String,
+        forceRefresh: Boolean,
+    ): FetchOutcome<List<NwsApi.Observation>> {
+        val token = effectiveToken(forceRefresh)
             ?: return FetchOutcome.Failed("synoptic: no token configured")
         val response: String = try {
             val url = "https://api.synopticdata.com/v2/stations/timeseries"
@@ -314,7 +334,23 @@ class SynopticApi(
         recentMinutes: Long = 120,
         vars: List<String> = PARSED_VARS,
     ): FetchOutcome<List<RadiusStation>> {
-        val token = tokenProvider()?.takeIf { it.isNotBlank() }
+        val initial = executeFetchRadiusTimeseries(latitude, longitude, radiusMiles, recentMinutes, vars, forceRefresh = false)
+        if (initial is FetchOutcome.Failed && canRefetchToken()) {
+            Log.i(TAG, "Synoptic radius fetch failed (${initial.reason}); refetching token and retrying...")
+            return executeFetchRadiusTimeseries(latitude, longitude, radiusMiles, recentMinutes, vars, forceRefresh = true)
+        }
+        return initial
+    }
+
+    private suspend fun executeFetchRadiusTimeseries(
+        latitude: Double,
+        longitude: Double,
+        radiusMiles: Double,
+        recentMinutes: Long,
+        vars: List<String>,
+        forceRefresh: Boolean,
+    ): FetchOutcome<List<RadiusStation>> {
+        val token = effectiveToken(forceRefresh)
             ?: return FetchOutcome.Failed("synoptic: no token configured")
         val response: String = try {
             val url = "https://api.synopticdata.com/v2/stations/timeseries"
@@ -341,5 +377,8 @@ class SynopticApi(
         }
         return parseRadiusTimeseries(json, response)
     }
+
+    private fun canRefetchToken(): Boolean =
+        tokenProvider()?.takeIf { it.isNotBlank() } == null && mesoTokenApi != null
 
 }

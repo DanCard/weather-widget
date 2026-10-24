@@ -1,10 +1,9 @@
 package com.weatherwidget.shared.observations
 
 /**
- * Shared policy for the NWS current-observation secondary leg and the older historical Synoptic
- * substitution. Current fetch-both uses token-free Aviation Weather METARs; historical repair can
- * still consult Synoptic when configured. One station limit and one validity boundary keep Android
- * and desktop from drifting.
+ * Shared policy for NWS current-observation secondary legs. NWS's METAR text is fetched in parallel;
+ * Synoptic is consulted only when the API and METAR remain stale. One station limit and one validity
+ * boundary keep Android and desktop from drifting.
  */
 object ObservationFallbackPolicy {
 
@@ -12,7 +11,7 @@ object ObservationFallbackPolicy {
      * The Synoptic (web) fallback is a heavier out-of-band fetch, so it is limited to the nearest N
      * stations by distance rather than every candidate station.
      */
-    const val MAX_WEB_FALLBACK_STATIONS = 3
+    const val MAX_WEB_FALLBACK_STATIONS = 5
 
     // --- Fetch-first policy (plan 260721) ------------------------------------------------------
     // The latest-observation path no longer waits for the API to go stale before consulting the
@@ -24,7 +23,7 @@ object ObservationFallbackPolicy {
     const val FETCH_BOTH_ENABLED = true
 
     /** Nearest N stations fetch BOTH sources every cycle and use prefer-newest for display. */
-    const val WEB_FETCH_STATIONS = 3
+    const val WEB_FETCH_STATIONS = 5
 
     /**
      * Nearest N stations additionally fetch web purely to log the web-vs-API freshness metric
@@ -32,7 +31,7 @@ object ObservationFallbackPolicy {
      * their web reading into storage or the blend — they exist only to gather data on whether the
      * fetch-both set is worth widening past [WEB_FETCH_STATIONS].
      */
-    const val WEB_METRICS_STATIONS = 5
+    const val WEB_METRICS_STATIONS = 7
 
     /**
      * Window requested for a metrics-only web fetch. We only need the single newest reading to

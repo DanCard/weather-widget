@@ -7,7 +7,7 @@
 
 ## Important Guidelines
 
-- **Never clear app data** (`adb shell pm clear`) without explicit user consent. Cached data is valuable for testing and debugging.
+- **Never uninstall the app or clear app data** (`adb uninstall`, `pm uninstall`, `pm clear`) on ANY device or emulator without explicit user consent. Uninstalling permanently destroys widget host bindings, invalidates widget IDs, resets layout customizations, and removes widgets from the user's home screen. Cached data and existing widget placements are critical for testing and daily use.
 - **Plan files**: one new file per task, named `YYMMDD-kebab-title.md`, never overwriting an existing
   one. Two directories, chosen by subject:
   - **`performance/`** — latency, battery, CPU, memory, DB/query cost, render time.

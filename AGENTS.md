@@ -195,6 +195,7 @@ mismatches, feature implementation, layout/rendering changes, behavior explanati
 situations where the agent might assume or infer state instead of observing it.
 
 ### Hard Gate Rules
+- **NEVER uninstall the app or clear app data (`adb uninstall`, `pm uninstall`, `pm clear`) on any device or emulator without explicit user instruction.** Uninstalling destroys widget host bindings, invalidates widget IDs, resets layout customizations, and removes widgets from the user's home screen.
 - **Don't guess — verify.** Never assume what the runtime state is, what a widget is displaying,
   what an API returned, or what code path executed. Check with logs, screenshots, `adb`, database
   queries, or add targeted logging first.

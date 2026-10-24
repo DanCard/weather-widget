@@ -24,12 +24,13 @@ class ObservationFallbackPolicyTest {
     }
 
     @Test
-    fun `fallback is limited to the nearest three stations`() {
+    fun `fallback is limited to the nearest five stations`() {
         assertTrue(ObservationFallbackPolicy.shouldUseWebFallback(0, twoHoursAgo, now))
         assertTrue(ObservationFallbackPolicy.shouldUseWebFallback(1, twoHoursAgo, now))
         assertTrue(ObservationFallbackPolicy.shouldUseWebFallback(2, twoHoursAgo, now))
-        assertFalse(ObservationFallbackPolicy.shouldUseWebFallback(3, twoHoursAgo, now))
-        assertFalse(ObservationFallbackPolicy.shouldUseWebFallback(4, twoHoursAgo, now))
+        assertTrue(ObservationFallbackPolicy.shouldUseWebFallback(3, twoHoursAgo, now))
+        assertTrue(ObservationFallbackPolicy.shouldUseWebFallback(4, twoHoursAgo, now))
+        assertFalse(ObservationFallbackPolicy.shouldUseWebFallback(5, twoHoursAgo, now))
     }
 
     @Test
@@ -143,19 +144,20 @@ class ObservationFallbackPolicyTest {
     // --- Fetch-first policy (plan 260721) ------------------------------------------------------
 
     @Test
-    fun `fetch-both is unconditional for the nearest three stations`() {
+    fun `fetch-both is unconditional for the nearest five stations`() {
         // No staleness argument: the top WEB_FETCH_STATIONS fetch web every cycle, fresh or not.
         assertTrue(ObservationFallbackPolicy.shouldFetchWeb(0))
         assertTrue(ObservationFallbackPolicy.shouldFetchWeb(1))
         assertTrue(ObservationFallbackPolicy.shouldFetchWeb(2))
-        assertFalse(ObservationFallbackPolicy.shouldFetchWeb(3))
-        assertFalse(ObservationFallbackPolicy.shouldFetchWeb(4))
+        assertTrue(ObservationFallbackPolicy.shouldFetchWeb(3))
+        assertTrue(ObservationFallbackPolicy.shouldFetchWeb(4))
+        assertFalse(ObservationFallbackPolicy.shouldFetchWeb(5))
     }
 
     @Test
-    fun `metrics tier covers the nearest five stations`() {
-        for (index in 0..4) assertTrue("index $index", ObservationFallbackPolicy.shouldLogWebMetrics(index))
-        assertFalse(ObservationFallbackPolicy.shouldLogWebMetrics(5))
+    fun `metrics tier covers the nearest seven stations`() {
+        for (index in 0..6) assertTrue("index $index", ObservationFallbackPolicy.shouldLogWebMetrics(index))
+        assertFalse(ObservationFallbackPolicy.shouldLogWebMetrics(7))
     }
 
     @Test

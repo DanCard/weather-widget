@@ -37,6 +37,7 @@ class NwsObservationSource(
     private val appLogDao: AppLogDao,
     /** The web leg: NWS's own METAR text file (no token). Null = API only. */
     private val metarTextApi: NwsMetarTextApi? = null,
+    internal val synopticApi: com.weatherwidget.data.remote.SynopticApi? = null,
 ) {
     private val prefs = SharedPreferencesUtil.getPrefs(context, "weather_prefs")
 

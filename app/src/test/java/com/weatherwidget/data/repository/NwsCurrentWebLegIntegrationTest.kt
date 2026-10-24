@@ -9,6 +9,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.NwsMetarTextApi
+import com.weatherwidget.data.remote.SynopticApi
 import com.weatherwidget.test.RobolectricTest
 import com.weatherwidget.test.category.LongDuration
 import io.ktor.client.HttpClient
@@ -39,9 +40,9 @@ import java.util.Collections
  * shared NwsMetarTextWeb + the real [NwsMetarTextApi] over a mock HTTP engine + Room.
  *
  * KNUQ, 2026-10-15: api.weather.gov lagged at 11:55 while NWS's own METAR text file had 12:35. The
- * stored KNUQ row must be the text file's, filed as NWS's; stations without a METAR file keep their
- * API reading; and the NWS path asks no web host but NWS's (user: "NWS for NWS", no token —
- * plans/261015-nws-web-leg-from-nws-tgftp-metar-text.md).
+ * stored KNUQ row must be the text file's, filed as NWS's. With no Synoptic fallback injected,
+ * stations without a METAR file keep their API reading and no third-party host is asked. A second
+ * end-to-end case covers the user-approved stale-station Synoptic fallback (2026-10-23).
  */
 @Category(LongDuration::class)
 class NwsCurrentWebLegIntegrationTest : RobolectricTest() {
@@ -144,5 +145,52 @@ class NwsCurrentWebLegIntegrationTest : RobolectricTest() {
         val deltas = db.appLogDao().getLogsByTag("OBS_WEB_API_DELTA", 20).map { it.message }
         assertTrue(deltas.toString(), deltas.any { "station=KNUQ" in it && "transport=nws_metar_text" in it && "chosen=web" in it })
         Unit
+    }
+
+    @Test
+    fun `stale personal NWS station stores fresher Synoptic fallback`() = runBlocking {
+        val api = mockk<NwsApi>()
+        coEvery { api.getGridPoint(any(), any()) } returns NwsApi.GridPointInfo(
+            gridId = "MTR", gridX = 1, gridY = 1,
+            forecastUrl = "https://example.invalid/forecast",
+            observationStationsUrl = "https://example.invalid/stations",
+        )
+        coEvery { api.getObservationStations(any()) } returns listOf(stations.first())
+        val stale = NwsApi.Observation(
+            timestamp = iso(minutesAgo(240)), temperatureCelsius = 10f, textDescription = "Clear",
+        )
+        coEvery { api.getLatestObservationDetailedResult(any(), any()) } returns FetchOutcome.Success(stale)
+        coEvery { api.getObservations(any(), any(), any()) } returns listOf(stale)
+
+        val requested = mutableListOf<String>()
+        val synoptic = SynopticApi(
+            HttpClient(MockEngine { request ->
+                requested += request.url.toString()
+                respond(
+                    """{"SUMMARY":{"RESPONSE_CODE":1},"STATION":[{"STID":"AW020","NAME":"AW020","OBSERVATIONS":{"date_time":["${iso(minutesAgo(5))}"],"air_temp_set_1":[14.4]}}]}""",
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            }),
+            kotlinx.serialization.json.Json { ignoreUnknownKeys = true },
+            tokenProvider = { "configured-token" },
+        )
+        val dailyStore = DailyActualsStore(
+            db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(),
+            PersonalStationWeightProvider { 1.0 }, InMemoryReducedSignatureStore(),
+        )
+        val source = NwsObservationSource(context, api, db.appLogDao(), synopticApi = synoptic)
+        val updater = NwsCurrentObservationUpdater(source, db.observationDao(), db.appLogDao(), dailyStore)
+
+        updater.fetchNwsCurrent(lat, lon)
+
+        val row = db.observationDao().getRecentObservations(0L)
+            .filter { it.stationId == "AW020" }
+            .maxBy { it.timestamp }
+        assertEquals(minutesAgo(5).toInstant().toEpochMilli(), row.timestamp)
+        assertEquals(57.92f, row.temperature, 0.05f)
+        assertTrue(row.isWebFallback)
+        assertTrue(requested.isNotEmpty())
+        assertTrue(requested.all { it.contains("api.synopticdata.com") && it.contains("STID=AW020") })
+        assertTrue(db.appLogDao().getLogsByTag("OBS_SYNOPTIC_FALLBACK", 10).isNotEmpty())
     }
 }

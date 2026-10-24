@@ -142,10 +142,13 @@ class DesktopWeatherService(
         json,
         onRequest = { weatherDao?.log("GOOGLE_REQUEST", it, "INFO") },
     ) { effectiveKeys[WeatherSource.GOOGLE_WEATHER.id] }
-    // Synoptic: only where the user picked it as a source's actuals provider — never the NWS web leg.
-    // Its token rides the same baked-keys map under "SYNOPTIC" purely for the plumbing.
+    // MesoTokenApi retrieves and caches weather.gov's public browser token.
     private val synopticApi = injectedSynopticApi
-        ?: SynopticApi(httpClient, json) { effectiveKeys["SYNOPTIC"] }
+        ?: SynopticApi(
+            httpClient,
+            json,
+            mesoTokenApi = if (injectedHttpClient != null) MesoTokenApi(httpClient) else getOrCreateMesoTokenApi(httpClient),
+        )
     private val aviationWeatherApi = AviationWeatherApi(httpClient, json)
     private val nwsMetarTextApi = injectedNwsMetarTextApi ?: NwsMetarTextApi(httpClient)
 
@@ -763,6 +766,7 @@ class DesktopWeatherService(
             latestFetcher = latestFetcher,
             historyFetcher = historyFetcher,
             metarTextApi = nwsMetarTextApi,
+            synopticApi = synopticApi,
             windowStart = start,
             windowEnd = end,
             recentOnly = recentOnly,
@@ -960,6 +964,11 @@ class DesktopWeatherService(
     override fun close() = httpClient.close()
 
     companion object {
+        private var sharedMesoTokenApi: MesoTokenApi? = null
+
+        @Synchronized
+        internal fun getOrCreateMesoTokenApi(client: HttpClient): MesoTokenApi =
+            sharedMesoTokenApi ?: MesoTokenApi(client).also { sharedMesoTokenApi = it }
         // No fallback coordinates. "No location" is the absence of a config, not a stand-in for one;
         // a null config opens the location picker and must never silently show Google-HQ weather as
         // the user's own (the desktop analog of the Android H1 fix).

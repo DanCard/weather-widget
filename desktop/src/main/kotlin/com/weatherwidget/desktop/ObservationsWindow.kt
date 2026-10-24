@@ -445,9 +445,7 @@ internal fun ObservationsWindow(
                                         active = ActualsProviderResolver.providerIdFor(currentSource),
                                         options = ActualsProviderResolver.candidateOptions(
                                             defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource),
-                                            // Synoptic's token rides the baked-keys map under "SYNOPTIC" (DesktopWeatherService).
-                                            synopticConfigured = !DesktopApiKeys.DEFAULTS["SYNOPTIC"].isNullOrBlank() ||
-                                                !config.settings.apiKeys["SYNOPTIC"].isNullOrBlank(),
+                                            synopticConfigured = true,
                                         ) { !needsKeyFromUser(it, config.settings.apiKeys) },
                                         onChoose = { chosen ->
                                             val defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource)

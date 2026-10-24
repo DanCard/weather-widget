@@ -90,6 +90,7 @@ class NwsCurrentObservationUpdater private constructor(
             latestFetcher = observationSource.latestFetcher,
             historyFetcher = observationSource.historyFetcher,
             metarTextApi = metarTextApi,
+            synopticApi = observationSource.synopticApi,
             windowStart = end.minus(NwsStationBundles.RECENT_WINDOW_MINUTES, java.time.temporal.ChronoUnit.MINUTES),
             windowEnd = end,
             recentOnly = true,

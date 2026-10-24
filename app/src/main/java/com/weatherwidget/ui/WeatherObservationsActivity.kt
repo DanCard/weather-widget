@@ -465,7 +465,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private fun showActualsSourceChooser(activeId: String) {
         val options = ActualsProviderResolver.candidateOptions(
             defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource),
-            synopticConfigured = com.weatherwidget.BuildConfig.SYNOPTIC_API_TOKEN.isNotBlank(),
+            synopticConfigured = true,
         ) { com.weatherwidget.data.remote.BuiltInApiKeys.hasEffectiveKey(it, widgetStateManager) }
         if (options.isEmpty()) return
         ActualsProviderResolver.logPickerOpen(currentSource, options)

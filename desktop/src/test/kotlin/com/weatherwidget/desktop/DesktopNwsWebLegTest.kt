@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.NwsMetarTextApi
+import com.weatherwidget.data.remote.SynopticApi
 import com.weatherwidget.test.category.MediumDuration
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -29,9 +30,8 @@ import org.junit.experimental.categories.Category
 
 /**
  * The desktop NWS web leg end to end: [DesktopWeatherService] + shared NwsMetarTextWeb + the real
- * [NwsMetarTextApi] over a mock HTTP engine. NWS's own latest-METAR file is the only web transport
- * the NWS path may call — no Synoptic, no aviationweather.gov (user, 2026-10-15;
- * plans/261015-nws-web-leg-from-nws-tgftp-metar-text.md).
+ * [NwsMetarTextApi] over a mock HTTP engine. Fresh METAR data prevents any third-party request;
+ * a separate case covers the user-approved Synoptic fallback when NWS and METAR are stale.
  */
 @Category(MediumDuration::class)
 class DesktopNwsWebLegTest {
@@ -94,6 +94,49 @@ class DesktopNwsWebLegTest {
             "the NWS path must not call Synoptic or aviationweather.gov: $hosts",
             hosts.none { it == "api.synopticdata.com" || it == "aviationweather.gov" },
         )
+    }
+
+    @Test
+    fun `stale personal NWS station uses fresher Synoptic fallback`() = runBlocking {
+        val station = NwsApi.StationInfo("AW020", "AW020", 37.43, -122.08, StationType.PERSONAL)
+        val mockNwsApi = mockk<NwsApi>()
+        coEvery { mockNwsApi.getGridPoint(any(), any()) } returns
+            NwsApi.GridPointInfo("MTR", 80, 80, "http://dummy/forecast", "http://dummy/stations")
+        coEvery { mockNwsApi.getObservationStations(any()) } returns listOf(station)
+        val stale = NwsApi.Observation(
+            timestamp = ZonedDateTime.now(ZoneOffset.UTC).minusHours(4).format(DateTimeFormatter.ISO_INSTANT),
+            temperatureCelsius = 10f,
+            textDescription = "Clear",
+        )
+        coEvery { mockNwsApi.getObservations(any(), any(), any()) } returns listOf(stale)
+        coEvery { mockNwsApi.getLatestObservationDetailedResult(any(), any()) } returns FetchOutcome.Success(stale)
+
+        val fresh = ZonedDateTime.now(ZoneOffset.UTC).minusMinutes(5).format(DateTimeFormatter.ISO_INSTANT)
+        val hosts = mutableListOf<String>()
+        val client = HttpClient(MockEngine { request ->
+            hosts += request.url.host
+            if (request.url.host == "api.synopticdata.com") {
+                respond(
+                    """{"SUMMARY":{"RESPONSE_CODE":1},"STATION":[{"STID":"AW020","NAME":"AW020","OBSERVATIONS":{"date_time":["$fresh"],"air_temp_set_1":[14.4]}}]}""",
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            } else {
+                respondError(HttpStatusCode.NotFound)
+            }
+        })
+        val json = Json { ignoreUnknownKeys = true }
+        val service = DesktopWeatherService(
+            37.4220, -122.0841, "NWS",
+            injectedHttpClient = client,
+            injectedNwsApi = mockNwsApi,
+            injectedSynopticApi = SynopticApi(client, json, tokenProvider = { "configured-token" }),
+        )
+
+        val result = service.fetchObservationsOnly(recentOnly = false)
+
+        assertEquals(57.92f, result.providerCurrentTemp!!, 0.05f)
+        assertTrue("hosts asked: $hosts", "api.synopticdata.com" in hosts)
+        assertTrue("token scrape must not run with a configured token: $hosts", "www.weather.gov" !in hosts)
     }
 
     @Test

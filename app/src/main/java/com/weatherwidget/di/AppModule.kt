@@ -242,7 +242,8 @@ object AppModule {
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
         metarTextApi: com.weatherwidget.data.remote.NwsMetarTextApi,
-    ): NwsObservationSource = NwsObservationSource(context, nwsApi, appLogDao, metarTextApi)
+        synopticApi: com.weatherwidget.data.remote.SynopticApi,
+    ): NwsObservationSource = NwsObservationSource(context, nwsApi, appLogDao, metarTextApi, synopticApi)
 
     /**
      * Raw airport METARs from aviationweather.gov — the app's only station-observation source
@@ -387,19 +388,17 @@ object AppModule {
         credentialProvider.get()
     }
 
-    /**
-     * Synoptic takes a TOKEN minted from the API key, not the key itself — the data endpoints reject
-     * a raw key. Blank is a valid state: [SynopticApi.isConfigured] is false and the NWS web
-     * fallback is skipped rather than issuing requests guaranteed to be rejected.
-     */
+    /** Shared provider retrieves weather.gov's public browser token. */
     @Provides
     @Singleton
     fun provideSynopticApi(
         httpClient: HttpClient,
         json: Json,
-    ): SynopticApi = SynopticApi(httpClient, json) {
-        com.weatherwidget.BuildConfig.SYNOPTIC_API_TOKEN
-    }
+    ): SynopticApi = SynopticApi(
+        httpClient,
+        json,
+        mesoTokenApi = com.weatherwidget.data.remote.MesoTokenApi(httpClient),
+    )
 
     @Provides
     @Singleton

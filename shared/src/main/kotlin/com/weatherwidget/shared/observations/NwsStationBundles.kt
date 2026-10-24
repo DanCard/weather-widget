@@ -56,16 +56,19 @@ object NwsStationBundles {
         latestFetcher: NwsStationLatestFetcher,
         historyFetcher: NwsStationHistoryFetcher,
         metarTextApi: NwsMetarTextApi?,
+        synopticApi: com.weatherwidget.data.remote.SynopticApi? = null,
         windowStart: Instant,
         windowEnd: Instant,
         recentOnly: Boolean,
         host: Host,
     ): List<Bundle> = coroutineScope {
         val nearest = stations.take(MAX_STATIONS)
-        // The web leg: NWS's own latest-METAR file per station, started before the NWS station jobs
-        // so both transports overlap. No token and no third party
-        // (plans/261015-nws-web-leg-from-nws-tgftp-metar-text.md).
-        val web = metarTextApi?.let { NwsMetarTextWeb.start(this, it, nearest, latitude, longitude) }
+        // METAR starts alongside the API jobs. Synoptic is consulted only if both remain stale.
+        val primaryWeb = metarTextApi?.let { NwsMetarTextWeb.start(this, it, nearest, latitude, longitude) }
+        val web = SynopticStaleStationFallback.wrap(
+            primaryWeb, synopticApi, latitude, longitude,
+            log = { tag, message, level -> host.log(tag, message, level) },
+        )
 
         nearest.mapIndexed { index, station ->
             async {
