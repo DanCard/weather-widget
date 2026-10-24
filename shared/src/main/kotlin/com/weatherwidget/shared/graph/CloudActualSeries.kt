@@ -21,6 +21,13 @@ object CloudActualSeries {
             .toList()
 
     /**
+     * The observed curve an hourly cloud view draws: [startMs]..[endMs], never past [nowMs] — nothing
+     * after now has been observed. Both platforms; empty when the window is all future.
+     */
+    fun pointsUntil(values: Map<Long, Int>, startMs: Long, endMs: Long, nowMs: Long): List<TimedCloudCover> =
+        points(values, startMs, minOf(endMs, nowMs))
+
+    /**
      * Splits missing intervals instead of drawing a straight line across them. Cadence is inferred
      * from the MEDIAN positive step: a same-cadence series steps uniformly and the median is that
      * step, so 15-minute rows split beyond 30 minutes and hourly rows beyond two hours. For a

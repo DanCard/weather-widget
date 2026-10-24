@@ -256,3 +256,16 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   "host gone" was in memory and lost on every restart (`DesktopWeatherNextGoneStore`, file
   `weathernext_gone`). Tag allowlist → 6 (5 adapters + `HEADER_FIT`); no `UI_FLOW` entry besides it.
   Plan: `plans/261024-shared-weathernext-loop-player.md`.
+- 2026-10-24: 10-21 I, hourly precip/cloud inputs. Most was shared already (`ObservedPrecip.rowsFor` /
+  `byHour`, `CloudActualSeries.points`, `RainPeriodSelection`, `RainAmountLabelPlacer`;
+  `actualPrecipRowsForSource` was gone). What was still written per platform, now `:shared`:
+  - `ObservedPrecip.elapsedHourAmount` — an hour not begun has no rain actual (desktop
+    `buildRainHours`, Android `PrecipViewHandler`).
+  - `CloudActualSeries.pointsUntil` — the drawn cloud curve capped at now (desktop
+    `cloudActualPlotRange`, removed; Android read a second clock, `System.currentTimeMillis()`,
+    instead of the render's `now`).
+  - `ActualsProviderResolver.showsBorrowedLabel` — "Actuals: X" only for a borrowing source with
+    actuals drawn; 4 copies (cloud + temperature, both platforms). Android's cloud graph keyed on the
+    hourly vertices' snapped `actualCloudCover`; now on the drawn curve, as desktop.
+  - Tests: `:shared` `HourlyActualsInputsTest` (took over `CloudCoverActualPlotRangeTest`'s pre-roll
+    case); suite 5,878.

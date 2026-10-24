@@ -1059,8 +1059,7 @@ fun TemperatureGraph(
         // (no actual line points) suppress the annotation.
         val displaySource = WeatherSource.fromDisplaySource(displaySourceId)
         val actualsProviderId = ActualsProviderResolver.providerIdFor(displaySource)
-        val hasActualsInWindow = actualLinePoints.isNotEmpty()
-        if (actualsProviderId != displaySource.id && hasActualsInWindow) {
+        if (ActualsProviderResolver.showsBorrowedLabel(displaySource, drawsActuals = actualLinePoints.isNotEmpty())) {
             val provider = WeatherSource.fromId(actualsProviderId)
             val actualsSourceLabel = DominantStationLabel.formatActualsSourceLabel(
                 localizedPattern = "Actual temperature data from %1\$s",

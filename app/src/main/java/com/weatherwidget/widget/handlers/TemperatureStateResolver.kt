@@ -393,8 +393,7 @@ internal object TemperatureStateResolver {
             // Only shown when the visible window actually contains observed data; future-only
             // views (no actuals in graphHours) suppress the annotation.
             val actualsProviderId = ActualsProviderResolver.providerIdFor(displaySource)
-            val hasActualsInWindow = graphHours.any { it.isActual }
-            val actualsSourceLabel = if (actualsProviderId != displaySource.id && hasActualsInWindow) {
+            val actualsSourceLabel = if (ActualsProviderResolver.showsBorrowedLabel(displaySource, drawsActuals = graphHours.any { it.isActual })) {
                 val provider = WeatherSource.fromId(actualsProviderId)
                 temperatureActualsSourceLabel(context, provider.displayName)
             } else {

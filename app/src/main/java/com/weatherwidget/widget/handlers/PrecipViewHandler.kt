@@ -584,12 +584,9 @@ object PrecipViewHandler {
                         showLabel = p.showLabel,
                         isDateLabel = p.isDateLabel,
                         precipAmountMm = forecast.precipAmountMm,
-                        actualPrecipAmountMm =
-                            if (currentHour.isBefore(now)) {
-                                actualPrecipByHour[currentHour]
-                            } else {
-                                null
-                            },
+                        actualPrecipAmountMm = com.weatherwidget.shared.actuals.ObservedPrecip.elapsedHourAmount(
+                            currentHour, now, actualPrecipByHour,
+                        ),
                     ),
                 )
                 hourIndex++

@@ -458,11 +458,17 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
 
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
 
+            // The observed curve, capped at the render's now (it read a second clock here).
+            val actualSeries = CloudActualSeries.pointsUntil(
+                values = retroActual.hours,
+                startMs = windowStart,
+                endMs = windowEnd,
+                nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            )
             val actualsProviderId = com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(effectiveDisplaySource)
-            // Only show the borrowed-actuals label when the visible window actually contains
-            // observed cloud data; future-only views (no actuals in hours) suppress it.
-            val hasActualsInWindow = hours.any { it.actualCloudCover != null }
-            val dominantStationLabel = if (actualsProviderId != effectiveDisplaySource.id && hasActualsInWindow) {
+            // Named only when the curve is drawn — the hourly vertices' snapped actuals could say
+            // otherwise at a window edge (desktop already keyed on the drawn points).
+            val dominantStationLabel = if (com.weatherwidget.shared.observations.ActualsProviderResolver.showsBorrowedLabel(effectiveDisplaySource, drawsActuals = actualSeries.isNotEmpty())) {
                 val provider = WeatherSource.fromId(actualsProviderId)
                 localizedActualsSourceLabel(context, provider.displayName)
             } else {
@@ -480,11 +486,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     currentTime = now,
                     bitmapScale = bitmapDims.bitmapScale,
                     smoothIterations = zoom.smoothIterations,
-                    actualSeries = CloudActualSeries.points(
-                        values = retroActual.hours,
-                        startMs = windowStart,
-                        endMs = minOf(windowEnd, System.currentTimeMillis()),
-                    ),
+                    actualSeries = actualSeries,
                     hourLabelSpacingDp = hourLabelSpacingDp,
                     missingHours = missingHours,
                     totalHours = totalWindowHours,

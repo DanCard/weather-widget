@@ -93,6 +93,14 @@ object ActualsProviderResolver {
         source != WeatherSource.METAR && !source.supportsTemperatureActuals
 
     /**
+     * Whether an hourly graph names its actuals' provider ("Actuals: NWS"): the source's actuals come
+     * from another provider, and the window draws some — a future-only window says nothing. Every
+     * hourly graph, both platforms; [drawsActuals] is what is drawn, not a row field.
+     */
+    fun showsBorrowedLabel(source: WeatherSource, drawsActuals: Boolean): Boolean =
+        drawsActuals && providerIdFor(source) != source.id
+
+    /**
      * True when [source] may carry measured highs/lows in `daily_history` — either its own
      * observation product, or a borrowed one via [providerIdFor].
      *

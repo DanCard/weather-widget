@@ -59,6 +59,14 @@ object ObservedPrecip {
     }
 
     /**
+     * The observed amount an hourly rain view shows for [hour]: from [byHour] once the hour has begun
+     * before [now], else null — an hour that has not happened has no actual, whatever the rows hold
+     * (without it "Actual:" anchored on a future run; plans/260901-share-rain-period-selection.md).
+     */
+    fun elapsedHourAmount(hour: LocalDateTime, now: LocalDateTime, byHour: Map<LocalDateTime, Float>): Float? =
+        if (hour.isBefore(now)) byHour[hour.truncatedTo(ChronoUnit.HOURS)] else null
+
+    /**
      * The site's amount per local hour, for hours where some station within [MAX_STATION_KM] knew
      * it. Hours nobody knew are absent, not 0.
      */

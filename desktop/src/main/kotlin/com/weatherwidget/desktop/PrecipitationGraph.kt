@@ -41,7 +41,6 @@ import com.weatherwidget.shared.graph.*
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
 
 /** Rain-period types now live in :shared alongside the selection logic. */
@@ -438,11 +437,7 @@ internal fun buildRainHours(
         RainPeriodSelection.RainHour(
             dateTime = hour,
             precipAmountMm = forecast.precipAmountMm,
-            actualPrecipAmountMm = if (hour.isBefore(nowLdt)) {
-                actualByHour[hour.truncatedTo(ChronoUnit.HOURS)]
-            } else {
-                null
-            },
+            actualPrecipAmountMm = com.weatherwidget.shared.actuals.ObservedPrecip.elapsedHourAmount(hour, nowLdt, actualByHour),
         )
     }
 }

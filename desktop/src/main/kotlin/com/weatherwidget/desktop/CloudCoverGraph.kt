@@ -64,14 +64,6 @@ data class CloudGraphPlacementDebug(
     val actualsSourcePlacement: DominantStationLabel.Placement?,
 )
 
-/** The exact x-axis domain the cloud Canvas draws, bounded at NOW for actual history. */
-internal fun cloudActualPlotRange(points: List<HourlyForecast>, nowMs: Long): LongRange? {
-    if (points.isEmpty()) return null
-    val startMs = points.first().dateTime
-    val endMs = minOf(points.last().dateTime, nowMs)
-    return if (startMs <= endMs) startMs..endMs else null
-}
-
 
 @Composable
 fun CloudCoverGraph(
@@ -151,14 +143,12 @@ fun CloudCoverGraph(
         // `rememberHourlyGraphSetup` includes one pre-roll hour and the x geometry maps that first
         // point to the left edge. Clip to that plotted domain, not the minute-bearing nominal start
         // (e.g. 09:50), or valid 09:00–09:45 quarter-hour actuals disappear while 09:00 is visible.
-        val actualRange = cloudActualPlotRange(points, now)
-        val actualPoints = actualRange?.let { range ->
-            CloudActualSeries.points(
-                values = retroCloudActual,
-                startMs = range.first,
-                endMs = range.last,
-            )
-        }.orEmpty()
+        val actualPoints = if (points.isEmpty()) emptyList() else CloudActualSeries.pointsUntil(
+            values = retroCloudActual,
+            startMs = points.first().dateTime,
+            endMs = points.last().dateTime,
+            nowMs = now,
+        )
 
         // The forecast curve swaps in the frozen prediction wherever one exists.
         val forecastValues = points.mapIndexed { i, p ->
@@ -414,8 +404,7 @@ fun CloudCoverGraph(
         val displaySource = WeatherSource.fromDisplaySource(displaySourceId)
         val actualsProviderId = ActualsProviderResolver.providerIdFor(displaySource)
         val dominantSpanHours = (windowEnd - windowStart) / 3_600_000L
-        val hasActualsInWindow = actualPoints.isNotEmpty()
-        val dominantLabel = if (actualsProviderId != displaySource.id && hasActualsInWindow) {
+        val dominantLabel = if (ActualsProviderResolver.showsBorrowedLabel(displaySource, drawsActuals = actualPoints.isNotEmpty())) {
             val provider = WeatherSource.fromId(actualsProviderId)
             DominantStationLabel.plainLabelText(
                 localizedText = "Actual cloud cover data from ${provider.displayName}",
