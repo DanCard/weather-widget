@@ -22,7 +22,10 @@ object NowcastRefreshRun {
 
         val store: NowcastStore
 
-        /** Hourly rows near the site in [fromMs, toMs) — only their max chance is read ("rain plausible?"). */
+        /** Sources enabled and available at this location — the only ones whose rows count ([run]). */
+        val usableSourceIds: Set<String>
+
+        /** Every live `hourly_forecasts` row in the read box over [fromMs]..[toMs], all sources, uncollapsed. */
         suspend fun hourly(fromMs: Long, toMs: Long): List<HourlyForecast>
 
         /** The ~1 KB request; null when the platform cannot make it now. */
@@ -33,9 +36,12 @@ object NowcastRefreshRun {
 
     /** The fetch outcome, or null when skipped. */
     suspend fun run(host: Host, reason: String, nowMs: Long): NowcastFetcher.Outcome? {
-        // Hourly is read only when it can matter: Open-Meteo not shown skips first.
+        // Hourly is read only when it can matter: Open-Meteo not shown skips first. Only usable sources'
+        // rows count (user, 2026-10-24): a source turned off, or the Generic gap filler, keeps stale
+        // rows that must not trigger a request — Android counted every row in the box, desktop these.
         val hourly = if (host.openMeteoDisplayed) {
             host.hourly(nowMs - HOUR_MS, nowMs + NowcastRefreshPolicy.PLAUSIBLE_WINDOW_MS)
+                .filter { it.source in host.usableSourceIds }
         } else {
             emptyList()
         }

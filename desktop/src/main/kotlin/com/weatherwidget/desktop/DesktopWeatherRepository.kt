@@ -968,20 +968,15 @@ class DesktopWeatherRepository(
         reason: String,
     ): NowcastFetcher.Outcome? = withContext(Dispatchers.IO) {
         com.weatherwidget.shared.nowcast.NowcastRefreshRun.run(
-            object : com.weatherwidget.shared.nowcast.NowcastRefreshRun.Host {
-                override val lat = latitude
-                override val lon = longitude
-                override val openMeteoDisplayed = displaySource == WeatherSource.OPEN_METEO
-                override val store = store
-
-                // The usable sources' hourly at the site: only their max chance is read.
-                override suspend fun hourly(fromMs: Long, toMs: Long) =
-                    sources.distinct().flatMap { weatherDao.getHourlyForecasts(latitude, longitude, it, fromMs, toMs) }
-
-                override suspend fun fetch() = weatherService.refreshNowcast()
-
-                override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
-            },
+            DesktopNowcastHost(
+                weatherDao = weatherDao,
+                lat = latitude,
+                lon = longitude,
+                openMeteoDisplayed = displaySource == WeatherSource.OPEN_METEO,
+                usableSourceIds = sources.toSet(),
+                store = store,
+                fetch = { weatherService.refreshNowcast() },
+            ),
             reason = reason,
             nowMs = currentTimeMillis(),
         )

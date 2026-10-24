@@ -32,7 +32,6 @@ class HostContractCoverageTest {
         val PENDING = setOf(
             "GoogleHistoryRun.Host",
             "CurrentConditionsRun.Host",
-            "NowcastRefreshRun.Host",
         )
 
         fun kotlinFiles(root: File) = root.walkTopDown().filter { it.isFile && it.extension in setOf("kt", "java") }

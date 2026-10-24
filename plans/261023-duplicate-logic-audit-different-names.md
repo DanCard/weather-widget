@@ -328,11 +328,13 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   22 h by battery; not viewed in 8 days never; fetch-time labels) —
   `performance/261024-hourly-snapshot-windows-by-view-and-battery.md`.
 - 2026-10-24: `NwsStationBundles.Host` contract — no divergence. 3 pending.
+- 2026-10-24: `NowcastRefreshRun.Host` contract; "rain plausible?" counts usable sources only on both
+  (Android counted every row in the box; user). 2 pending.
 
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:
 1. **Tier 3, the two DAOs** — continue Host by Host: the rest of `HostContractCoverageTest.PENDING`,
-   smallest DB surface first (NowcastRefreshRun, GoogleHistoryRun, CurrentConditionsRun). Pattern:
+   smallest DB surface first (GoogleHistoryRun, CurrentConditionsRun). Pattern:
    abstract `<Runner>HostContract` in `:shared` testFixtures, extract each platform's Host into a
    class, seeds write raw rows, a case that tells the readings apart; any divergence → user decision.
 2. **B rest**: per-source fetch/persist, one source at a time as Runner + Host.

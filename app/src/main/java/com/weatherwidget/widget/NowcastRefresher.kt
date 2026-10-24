@@ -44,28 +44,44 @@ internal class NowcastRefresher(
     /** True when a nowcast was fetched (the caller's repaint then shows it). The rule is `:shared` [NowcastRefreshRun]. */
     suspend fun refreshIfDue(lat: Double, lon: Double, reason: String): Boolean {
         val outcome = NowcastRefreshRun.run(
-            object : NowcastRefreshRun.Host {
-                override val lat = lat
-                override val lon = lon
-                override val openMeteoDisplayed = WeatherSource.OPEN_METEO.id in widgetStateManager.getActiveDisplaySourceIds()
-                override val store = this@NowcastRefresher.store
-
-                // Raw proximity-box rows of every source on purpose (allow-listed): only their MAX
-                // chance is read, as a "rain plausible?" gate. A frozen fragment can at worst cost one
-                // extra ~1 KB request; it never reaches anything drawn.
-                override suspend fun hourly(fromMs: Long, toMs: Long) =
-                    WeatherDatabase.getDatabase(context).hourlyForecastDao()
-                        .getHourlyForecasts(fromMs, toMs, lat, lon)
-                        .map { it.toHourlyForecast() }
-
-                override suspend fun fetch() = NowcastFetcher(httpClient(), store, nowMs).refresh(lat, lon)
-
-                override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
-            },
+            RoomNowcastHost(
+                lat = lat,
+                lon = lon,
+                openMeteoDisplayed = WeatherSource.OPEN_METEO.id in widgetStateManager.getActiveDisplaySourceIds(),
+                usableSourceIds = widgetStateManager.getVisibleSourcesOrder().mapTo(HashSet()) { it.id },
+                store = store,
+                hourlyForecastDao = WeatherDatabase.getDatabase(context).hourlyForecastDao(),
+                appLogDao = appLogDao,
+                fetch = { NowcastFetcher(httpClient(), store, nowMs).refresh(lat, lon) },
+            ),
             reason = reason,
             nowMs = nowMs(),
         )
         return outcome is NowcastFetcher.Outcome.Fetched
     }
 
+}
+
+/**
+ * Room side of [NowcastRefreshRun] at one site; the fetch is passed in. Its hourly read is pinned to
+ * desktop's by `NowcastRefreshHostContract` (`:shared` testFixtures).
+ */
+internal class RoomNowcastHost(
+    override val lat: Double,
+    override val lon: Double,
+    override val openMeteoDisplayed: Boolean,
+    override val usableSourceIds: Set<String>,
+    override val store: NowcastStore,
+    private val hourlyForecastDao: com.weatherwidget.data.local.HourlyForecastDao,
+    private val appLogDao: AppLogDao,
+    private val fetch: suspend () -> NowcastFetcher.Outcome?,
+) : NowcastRefreshRun.Host {
+    // Raw proximity-box rows of every source on purpose (allow-listed): the run keeps the usable
+    // sources' and reads only their MAX chance, as a "rain plausible?" gate — never anything drawn.
+    override suspend fun hourly(fromMs: Long, toMs: Long) =
+        hourlyForecastDao.getHourlyForecasts(fromMs, toMs, lat, lon).map { it.toHourlyForecast() }
+
+    override suspend fun fetch() = fetch.invoke()
+
+    override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
 }

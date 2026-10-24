@@ -148,6 +148,13 @@ freshest bucket first); `getHourlyHistory` (merged) stays for desktop's display 
   `DesktopNwsStationBundlesHost` (clock passed in); no divergence. Desktop's half passes only since the
   quantized observation keys (`47a868a4`): before, its rows were raw-keyed and the stamp matched none.
   3 pending (GoogleHistoryRun, CurrentConditionsRun, NowcastRefreshRun).
+- `NowcastRefreshRun.Host` → `NowcastRefreshHostContract` (`hourly`: every source's live rows in the
+  read box, both ends inclusive). **Divergence, decided (user, 2026-10-24): usable sources only.**
+  Android counted every row in the box toward "rain plausible?" — a source turned off, or the Generic
+  filler, could trigger the ~1 KB request; desktop read only its usable sources. Now both Hosts return
+  the same raw rows plus `usableSourceIds`, and the run filters (`NowcastRefreshRunTest`: a disabled
+  source's 90 % no longer fetches). Hosts `RoomNowcastHost` / `DesktopNowcastHost`. 2 pending
+  (GoogleHistoryRun, CurrentConditionsRun).
 
 ## Verification
 - The `hourlyHistory` case fails on today's code on one side (which side depends on the decision) —

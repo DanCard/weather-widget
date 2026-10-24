@@ -20,6 +20,8 @@ class NowcastRefreshRunTest {
     private inner class FakeHost(
         override val openMeteoDisplayed: Boolean = true,
         val pop: Int = 60,
+        val rowSource: String = "OPEN_METEO",
+        override val usableSourceIds: Set<String> = setOf("OPEN_METEO", "NWS"),
         val outcome: NowcastFetcher.Outcome = NowcastFetcher.Outcome.Fetched(slots = 8, probed = false),
     ) : NowcastRefreshRun.Host {
         override val lat = 37.4
@@ -30,7 +32,7 @@ class NowcastRefreshRunTest {
         val logs = mutableListOf<String>()
         override suspend fun hourly(fromMs: Long, toMs: Long): List<HourlyForecast> {
             hourlyReads++
-            return listOf(HourlyForecast(dateTime = now, temperature = 60f, condition = "Rain", precipProbability = pop))
+            return listOf(HourlyForecast(dateTime = now, temperature = 60f, condition = "Rain", precipProbability = pop, source = rowSource))
         }
         override suspend fun fetch(): NowcastFetcher.Outcome { fetches++; return outcome }
         override suspend fun log(tag: String, message: String, level: String) { logs += "$tag/$level" }
@@ -65,5 +67,13 @@ class NowcastRefreshRunTest {
         val host = FakeHost(outcome = NowcastFetcher.Outcome.Failed("timeout"))
         NowcastRefreshRun.run(host, "test", now)
         assertEquals(listOf("NOWCAST_FETCH/WARN"), host.logs)
+    }
+
+    /** User, 2026-10-24: a source turned off (or the Generic filler) keeps stale rows; they do not count. */
+    @Test
+    fun rainFromASourceThatIsNotUsableDoesNotFetch() = runBlocking {
+        val host = FakeHost(pop = 90, rowSource = "TOMORROW_IO")
+        assertNull(NowcastRefreshRun.run(host, "test", now))
+        assertEquals(0, host.fetches)
     }
 }
