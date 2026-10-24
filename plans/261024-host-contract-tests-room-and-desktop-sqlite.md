@@ -121,6 +121,14 @@ freshest bucket first); `getHourlyHistory` (merged) stays for desktop's display 
   `DesktopHourlyOnDemandHost` (fetch passed in); no divergence. 6 pending. Noticed, both platforms:
   a neighbouring town's rows in the box count as coverage for `hoursToCover`, so a tap could skip a
   fetch when only the neighbour has that day — pinned as today's behaviour, not changed.
+- `WeatherApiHistoryRun.Host` → `WeatherApiHistoryHostContract` (3 cases: `storedObservations`, store →
+  read-back + the day reads as covered, `latestResult` by prefix) on `RoomWeatherApiHistoryHost` /
+  `DesktopWeatherApiHistoryHost` (fetch, and Android's extremes recompute, passed in). Desktop's
+  `storedObservations` read every api; now WeatherAPI only, as Android (no behaviour change: `decide`
+  already filtered). 5 pending. **Open (storage, both directions):** desktop writes every observation
+  at raw device coordinates (`37.4166014`), Android quantizes (`37.417`). Reads agree (box +
+  `ObservationSiteMerge`); keys differ, so a jittered fix on desktop would add rows rather than
+  replace them. Not a Host read — awaiting the user.
 
 ## Verification
 - The `hourlyHistory` case fails on today's code on one side (which side depends on the decision) —

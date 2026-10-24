@@ -943,33 +943,8 @@ class DesktopWeatherRepository(
     internal suspend fun backfillWeatherApiHistoryIfNeeded(now: Long): Int {
         if (weatherSource != WeatherSource.WEATHER_API.id) return 0
         val result = WeatherApiHistoryRun.run(
-            object : WeatherApiHistoryRun.Host {
-                override val lat = latitude
-                override val lon = longitude
-
-                override suspend fun storedObservations(startMs: Long, endMs: Long) =
-                    weatherDao.getObservationsInRange(startMs, endMs, latitude, longitude).map { it.toReading() }
-
-                override suspend fun latestResult(prefix: String) =
-                    weatherDao.getLatestLogByTagAndMessagePrefix(WeatherApiHistoryRun.RESULT_TAG, prefix)?.message
-
-                override suspend fun fetchHistory(date: LocalDate) =
-                    weatherService.fetchWeatherApiHistory(date).let { WeatherApiHistoryRun.History(it.hourly, it.daily.size) }
-
-                // The day's hours filed as WeatherAPI observations (the shared historical-actuals rule);
-                // its extremes are recomputed by this refresh's post-fetch pass.
-                override suspend fun store(targetHours: List<HourlyForecast>, date: LocalDate) =
-                    weatherDao.upsertObservations(
-                        HistoricalActualsBackfill.build(
-                            hourly = targetHours,
-                            latitude = latitude,
-                            longitude = longitude,
-                            sourceId = WeatherSource.WEATHER_API.id,
-                            nowMs = now,
-                        ).map { it.toEntity(now) },
-                    )
-
-                override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
+            DesktopWeatherApiHistoryHost(weatherDao, latitude, longitude, now) { date ->
+                weatherService.fetchWeatherApiHistory(date).let { WeatherApiHistoryRun.History(it.hourly, it.daily.size) }
             },
             nowMs = now,
         )

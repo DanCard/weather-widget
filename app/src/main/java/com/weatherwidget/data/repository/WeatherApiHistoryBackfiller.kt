@@ -39,29 +39,14 @@ internal class WeatherApiHistoryBackfiller(
         latitude: Double,
         longitude: Double,
     ): WeatherApiHistoryBackfillResult = WeatherApiHistoryRun.run(
-        object : WeatherApiHistoryRun.Host {
-            override val lat = latitude
-            override val lon = longitude
-
-            override suspend fun storedObservations(startMs: Long, endMs: Long) =
-                // Scoped to exactly what the run keeps.
-                observationDao.getObservationsInRange(startMs, endMs, latitude, longitude, setOf(WeatherSource.WEATHER_API.id))
-                    .map { it.toReading() }
-
-            override suspend fun latestResult(prefix: String) =
-                appLogDao.getLatestLogByTagAndMessagePrefix(WeatherApiHistoryRun.RESULT_TAG, prefix)?.message
-
-            override suspend fun fetchHistory(date: java.time.LocalDate) =
-                weatherApi.getHistory(latitude, longitude, date).let { WeatherApiHistoryRun.History(it.hourly, it.daily.size) }
-
-            override suspend fun store(targetHours: List<com.weatherwidget.data.model.HourlyForecast>, date: java.time.LocalDate) {
-                // The elapsed hours are filed as observations by saveHistoricalActuals.
-                hourlyStore.saveHourlyEntitiesFromShared(
-                    hourlyData = targetHours,
-                    latitude = latitude,
-                    longitude = longitude,
-                    sourceId = WeatherSource.WEATHER_API.id,
-                )
+        RoomWeatherApiHistoryHost(
+            lat = latitude,
+            lon = longitude,
+            observationDao = observationDao,
+            appLogDao = appLogDao,
+            hourlyStore = hourlyStore,
+            fetch = { date -> weatherApi.getHistory(latitude, longitude, date).let { WeatherApiHistoryRun.History(it.hourly, it.daily.size) } },
+            recompute = { date ->
                 observationRepository.recomputeDailyExtremesFromStoredObservations(
                     latitude = latitude,
                     longitude = longitude,
@@ -71,11 +56,47 @@ internal class WeatherApiHistoryBackfiller(
                     // Repair path: it distrusts what is stored, which is the whole reason it ran.
                     force = true,
                 )
-            }
-
-            override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
-        },
+            },
+        ),
         nowMs = nowProvider(),
         zoneId = zoneIdProvider(),
     )
+}
+
+/**
+ * Room side of [WeatherApiHistoryRun] at one site; the fetch and the day's extremes recompute are
+ * passed in. Its stored read and the store are pinned to desktop's by `WeatherApiHistoryHostContract`
+ * (`:shared` testFixtures).
+ */
+internal class RoomWeatherApiHistoryHost(
+    override val lat: Double,
+    override val lon: Double,
+    private val observationDao: ObservationDao,
+    private val appLogDao: AppLogDao,
+    private val hourlyStore: HourlyForecastStore,
+    private val fetch: suspend (java.time.LocalDate) -> WeatherApiHistoryRun.History,
+    private val recompute: suspend (java.time.LocalDate) -> Unit,
+) : WeatherApiHistoryRun.Host {
+    override suspend fun storedObservations(startMs: Long, endMs: Long) =
+        // Scoped to exactly what the run keeps.
+        observationDao.getObservationsInRange(startMs, endMs, lat, lon, setOf(WeatherSource.WEATHER_API.id))
+            .map { it.toReading() }
+
+    override suspend fun latestResult(prefix: String) =
+        appLogDao.getLatestLogByTagAndMessagePrefix(WeatherApiHistoryRun.RESULT_TAG, prefix)?.message
+
+    override suspend fun fetchHistory(date: java.time.LocalDate) = fetch(date)
+
+    override suspend fun store(targetHours: List<com.weatherwidget.data.model.HourlyForecast>, date: java.time.LocalDate) {
+        // The elapsed hours are filed as observations by saveHistoricalActuals.
+        hourlyStore.saveHourlyEntitiesFromShared(
+            hourlyData = targetHours,
+            latitude = lat,
+            longitude = lon,
+            sourceId = WeatherSource.WEATHER_API.id,
+        )
+        recompute(date)
+    }
+
+    override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
 }
