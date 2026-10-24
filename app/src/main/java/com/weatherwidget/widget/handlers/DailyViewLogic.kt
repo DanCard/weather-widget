@@ -242,9 +242,7 @@ object DailyViewLogic {
 
         val sharedHourly = hourlyForecasts.map { it.toHourlyForecast() }
         val shownRows = shownDailyRows("prepareTextDays", today, weatherByDate, forecastSnapshots.orEmpty(), displaySource, climateNormals)
-        val resolvedCurrentTemp = currentTemp ?: com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(
-            currentTemps, displaySource,
-        )?.temperature
+        val resolvedCurrentTemp = currentTemp
 
         return daySlots.mapIndexed { index, (dayIndex, date, isVisible) ->
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)

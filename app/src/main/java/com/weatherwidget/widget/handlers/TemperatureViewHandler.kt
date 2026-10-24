@@ -11,7 +11,6 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.widget.CurrentTemperatureDeltaState
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.FetchDotDebug
@@ -126,13 +125,6 @@ object TemperatureViewHandler {
                 hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
-                storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
-                currentLat = stateManager.getWidgetLocation(appWidgetId)?.first
-                    ?: currentTempHourlyForecasts.firstOrNull()?.locationLat
-                    ?: Double.NaN,
-                currentLon = stateManager.getWidgetLocation(appWidgetId)?.second
-                    ?: currentTempHourlyForecasts.firstOrNull()?.locationLon
-                    ?: Double.NaN,
                 smoothedForecasts = liveSmoothed,
             )
             val currentFormatted = liveResolution.displayTemp?.let {
@@ -258,14 +250,7 @@ object TemperatureViewHandler {
         )
         appLogDao.log(TAG, headerLog)
 
-        if (!deferCurrentTempResolution) {
-            val currentTempResolution = resolutionResult.currentTempResolution
-            if (currentTempResolution.shouldClearStoredDelta) {
-                stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
-            }
-            currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
-        } else {
-            val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
+        if (deferCurrentTempResolution) {
             scheduleCurrentTempRefinement(
                 CurrentTempRefinementParams(
                     context = context,
@@ -277,12 +262,9 @@ object TemperatureViewHandler {
                     currentTempHourlyForecasts = currentTempHourlyForecasts,
                     lastObservedTemp = lastObservedTemp,
                     observedAt = observedAt,
-                    currentLat = resolutionResult.lat,
-                    currentLon = resolutionResult.lon,
                     numColumns = dimensions.cols,
                     widthDp = dimensions.widthDp,
                     quickResolution = resolutionResult.currentTempResolution,
-                    storedDeltaState = storedDeltaState,
                     smoothedForecasts = resolutionResult.smoothedForecasts,
                 )
             )
@@ -333,12 +315,6 @@ object TemperatureViewHandler {
         observedAt: Long?,
         now: LocalDateTime,
     ) {
-        val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
-        // NaN rather than a hardcoded coordinate: the configured location is the primary source here,
-        // and if neither it nor the hourly rows supply one there is nothing to resolve a current temp
-        // against. See SunPositionUtils.UNKNOWN_LOCATION for how the decoration degrades.
-        val lat = configuredLocation?.first ?: currentTempHourlyForecasts.firstOrNull()?.locationLat ?: Double.NaN
-        val lon = configuredLocation?.second ?: currentTempHourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
         val smoothed = computeSmoothedForecasts(currentTempHourlyForecasts, displaySource)
         val resolution = CurrentTemperatureResolver.resolve(
             now = now,
@@ -346,13 +322,8 @@ object TemperatureViewHandler {
             hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
             lastObservedTemp = lastObservedTemp,
             observedAt = observedAt,
-            storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
-            currentLat = lat,
-            currentLon = lon,
             smoothedForecasts = smoothed,
         )
-        if (resolution.shouldClearStoredDelta) stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
-        resolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
 
         val partial = RemoteViews(context.packageName, com.weatherwidget.R.layout.widget_weather)
         val displayTemp = resolution.displayTemp
@@ -397,12 +368,9 @@ object TemperatureViewHandler {
         val currentTempHourlyForecasts: List<HourlyForecastEntity>,
         val lastObservedTemp: Float?,
         val observedAt: Long?,
-        val currentLat: Double,
-        val currentLon: Double,
         val numColumns: Int,
         val widthDp: Int,
         val quickResolution: CurrentTemperatureResolution,
-        val storedDeltaState: CurrentTemperatureDeltaState?,
         val smoothedForecasts: Map<Long, Float>?,
     )
 
@@ -419,16 +387,8 @@ object TemperatureViewHandler {
                     hourlyForecasts = params.currentTempHourlyForecasts.map { it.toHourlyForecast() },
                     lastObservedTemp = params.lastObservedTemp,
                     observedAt = params.observedAt,
-                    storedDeltaState = params.storedDeltaState,
-                    currentLat = params.currentLat,
-                    currentLon = params.currentLon,
                     smoothedForecasts = params.smoothedForecasts,
                 )
-
-            if (refined.shouldClearStoredDelta) {
-                params.stateManager.clearCurrentTempDeltaState(params.appWidgetId, params.displaySource)
-            }
-            refined.updatedDeltaState?.let { params.stateManager.setCurrentTempDeltaState(params.appWidgetId, params.displaySource, it) }
 
             if (!shouldApplyRefinedHeaderUpdate(params.quickResolution, refined)) {
                 return@launch

@@ -79,7 +79,7 @@ class CurrentTemperatureIntegrationTest {
         )
 
         val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
-        val lastObservedTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
+        val lastObservedTemp = observedNow(observations, WeatherSource.NWS, now)
         assertNotNull("Should resolve observed current temp from NWS observations", lastObservedTemp)
 
         val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
@@ -94,9 +94,6 @@ class CurrentTemperatureIntegrationTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = lastObservedTemp!!.temperature,
             observedAt = lastObservedTemp.observedAt,
-            storedDeltaState = null,
-            currentLat = lat,
-            currentLon = lon,
         )
 
         // Estimated at 10:15 (obs time) = 62.5
@@ -120,7 +117,7 @@ class CurrentTemperatureIntegrationTest {
         )
 
         val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
-        val lastObservedTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
+        val lastObservedTemp = observedNow(observations, WeatherSource.NWS, now)
 
         val result = CurrentTemperatureResolver.resolve(
             now = now,
@@ -128,9 +125,6 @@ class CurrentTemperatureIntegrationTest {
             hourlyForecasts = emptyList(),
             lastObservedTemp = lastObservedTemp!!.temperature,
             observedAt = lastObservedTemp.observedAt,
-            storedDeltaState = null,
-            currentLat = lat,
-            currentLon = lon,
         )
 
         assertEquals(72f, result.displayTemp!!, 0.01f)
@@ -147,7 +141,7 @@ class CurrentTemperatureIntegrationTest {
         insertHourlyForecast("11:00", 65f, fetchedAt)
 
         val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
-        val lastObservedTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
+        val lastObservedTemp = observedNow(observations, WeatherSource.NWS, now)
 
         val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
         val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
@@ -161,9 +155,6 @@ class CurrentTemperatureIntegrationTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = lastObservedTemp?.temperature,
             observedAt = lastObservedTemp?.observedAt,
-            storedDeltaState = null,
-            currentLat = lat,
-            currentLon = lon,
         )
 
         // Interpolated at 10:30 between 55 and 65 = 60
@@ -181,8 +172,8 @@ class CurrentTemperatureIntegrationTest {
 
         val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
 
-        val nwsObs = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
-        val weatherApiObs = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.WEATHER_API)
+        val nwsObs = observedNow(observations, WeatherSource.NWS, now)
+        val weatherApiObs = observedNow(observations, WeatherSource.WEATHER_API, now)
 
         assertNotNull("Should resolve NWS observation", nwsObs)
         assertNotNull("Should resolve WeatherAPI observation", weatherApiObs)
@@ -211,9 +202,6 @@ class CurrentTemperatureIntegrationTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = null,
             observedAt = null,
-            storedDeltaState = null,
-            currentLat = lat,
-            currentLon = lon,
         )
 
         assertTrue("Should detect stale estimate", result.isStaleEstimate)
@@ -221,7 +209,7 @@ class CurrentTemperatureIntegrationTest {
     }
 
     @Test
-    fun `stored delta is replaced by strict anchor delta for the active observation`() = runTest {
+    fun `the delta is measured from each new observation`() = runTest {
         val now = LocalDateTime.of(2026, 2, 25, 12, 0)
         val nowMs = toEpochMs(now)
         val fetchedAt = nowMs
@@ -230,17 +218,6 @@ class CurrentTemperatureIntegrationTest {
         insertHourlyForecast("10:00", 71f, fetchedAt)
         insertHourlyForecast("12:00", 70f, fetchedAt)
         insertHourlyForecast("13:00", 75f, fetchedAt)
-
-        // Stored delta from an older calculation should not decay or drift the active anchor formula.
-        val storedDelta = CurrentTemperatureDeltaState(
-            delta = -3f,
-            lastObservedTemp = 67f,
-            lastObservedAt = nowMs - (150 * 60 * 1000), // 2.5 hours
-            updatedAtMs = nowMs - (150 * 60 * 1000),
-            sourceId = WeatherSource.NWS.id,
-            locationLat = lat,
-            locationLon = lon,
-        )
 
         val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
         val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
@@ -255,9 +232,6 @@ class CurrentTemperatureIntegrationTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = 67f,
             observedAt = nowMs - (150 * 60 * 1000),
-            storedDeltaState = storedDelta,
-            currentLat = lat,
-            currentLon = lon,
         )
 
         assertEquals(-3f, result1.appliedDelta!!, 0.01f)
@@ -271,9 +245,6 @@ class CurrentTemperatureIntegrationTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = newObsTemp,
             observedAt = nowMs,
-            storedDeltaState = result1.updatedDeltaState,
-            currentLat = lat,
-            currentLon = lon,
         )
 
         // New observation at 12:00, estimated at 12:00 = 70, delta = 68 - 70 = -2
@@ -305,7 +276,7 @@ class CurrentTemperatureIntegrationTest {
         )
 
         val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
-        val lastObservedTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
+        val lastObservedTemp = observedNow(observations, WeatherSource.NWS, now)
         
         val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
         val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
@@ -317,9 +288,6 @@ class CurrentTemperatureIntegrationTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = lastObservedTemp!!.temperature,
             observedAt = lastObservedTemp.observedAt,
-            storedDeltaState = null,
-            currentLat = lat,
-            currentLon = lon,
         )
 
         // Forecast at 10:00 = 65.0. Obs at 10:00 = 66.0. Raw anchor delta = +1.0
@@ -352,7 +320,7 @@ class CurrentTemperatureIntegrationTest {
         )
 
         val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
-        val lastObservedTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)!!
+        val lastObservedTemp = observedNow(observations, WeatherSource.NWS, now)!!
         val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
         val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
         val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(startMs, endMs, lat, lon)
@@ -363,9 +331,6 @@ class CurrentTemperatureIntegrationTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = lastObservedTemp.temperature,
             observedAt = lastObservedTemp.observedAt,
-            storedDeltaState = null,
-            currentLat = lat,
-            currentLon = lon,
         )
 
         assertEquals(59f, result.observedTemp!!, 0.01f)
@@ -390,7 +355,7 @@ class CurrentTemperatureIntegrationTest {
         )
 
         val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
-        val lastObservedTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)!!
+        val lastObservedTemp = observedNow(observations, WeatherSource.NWS, now)!!
         val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
         val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
         val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(startMs, endMs, lat, lon)
@@ -401,9 +366,6 @@ class CurrentTemperatureIntegrationTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = lastObservedTemp.temperature,
             observedAt = lastObservedTemp.observedAt,
-            storedDeltaState = null,
-            currentLat = lat,
-            currentLon = lon,
         )
 
         assertEquals(result.observedTemp!!, result.displayTemp!!, 0.01f)
@@ -422,7 +384,7 @@ class CurrentTemperatureIntegrationTest {
         )
 
         val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
-        val lastObservedTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)!!
+        val lastObservedTemp = observedNow(observations, WeatherSource.NWS, now)!!
         val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
         val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
         val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(startMs, endMs, lat, lon)
@@ -433,9 +395,6 @@ class CurrentTemperatureIntegrationTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = lastObservedTemp.temperature,
             observedAt = lastObservedTemp.observedAt,
-            storedDeltaState = null,
-            currentLat = lat,
-            currentLon = lon,
         )
 
         assertEquals(58f, result.displayTemp!!, 0.01f)
@@ -494,4 +453,18 @@ private suspend fun insertObservation(
     private fun toEpochMs(dateTime: LocalDateTime): Long {
         return dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     }
+
+    /** The header's observed reading as production resolves it: the blend at [now]. */
+    private fun observedNow(
+        observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        source: WeatherSource,
+        now: LocalDateTime,
+    ) = com.weatherwidget.widget.handlers.CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
+        observations = observations,
+        hourlyForecasts = emptyList(),
+        displaySource = source,
+        lat = lat,
+        lon = lon,
+        now = now,
+    )
 }

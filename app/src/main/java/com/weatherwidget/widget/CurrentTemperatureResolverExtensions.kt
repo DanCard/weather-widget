@@ -11,9 +11,6 @@ fun CurrentTemperatureResolver.resolve(
     hourlyForecasts: List<HourlyForecastEntity>,
     lastObservedTemp: Float?,
     observedAt: Long?,
-    storedDeltaState: CurrentTemperatureDeltaState?,
-    currentLat: Double,
-    currentLon: Double,
     smoothedForecasts: Map<Long, Float>? = null,
 ): CurrentTemperatureResolution {
     return resolve(
@@ -22,9 +19,6 @@ fun CurrentTemperatureResolver.resolve(
         hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
         lastObservedTemp = lastObservedTemp,
         observedAt = observedAt,
-        storedDeltaState = storedDeltaState,
-        currentLat = currentLat,
-        currentLon = currentLon,
         smoothedForecasts = smoothedForecasts,
     )
 }

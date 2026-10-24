@@ -480,8 +480,10 @@ object WidgetRenderer {
                     userLat = locationLat,
                     userLon = locationLon,
                     nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                    lookbackHours = 12L,
-                    lookaheadHours = 2L,
+                    // The shared window, as every other caller: a hard-coded 2 h lookahead gave this
+                    // branch a different blend (and cache key) from the rest.
+                    lookbackHours = com.weatherwidget.widget.CurrentTemperatureResolver.RESOLUTION_LOOKBACK_HOURS,
+                    lookaheadHours = com.weatherwidget.widget.CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS,
                     personalStationWeight = stateManager.getPersonalStationWeight(),
                 )
                 resolved?.let { (temp, timestamp, fetchedAt) ->
@@ -493,15 +495,13 @@ object WidgetRenderer {
                     )
                 }
             }
-        val fallbackObservation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
-        val observation = graphStyleObs ?: fallbackObservation
+        val observation = graphStyleObs
         // Computed from the same rows the display selects from, so the graph handlers can tell "new
         // reading arrived" from "same data, one minute later" — see ObservationWatermark.
         val dataWatermarkMs = ObservationWatermark.of(watermarkRows, displaySource.id)
         val observationSource =
             when {
                 graphStyleObs != null -> "graph_style"
-                observation != null -> "raw_observation"
                 else -> "none"
             }
         Log.d(
@@ -509,8 +509,7 @@ object WidgetRenderer {
             "currentObservationSelection: widget=$appWidgetId viewMode=$viewMode zoom=$zoom " +
                 "source=${displaySource.id} selected=$observationSource " +
                 "graphStyleTemp=${graphStyleObs?.temperature} graphStyleObservedAt=${graphStyleObs?.observedAt} graphStyleRowFetchedAt=${graphStyleObs?.rowFetchedAt} " +
-                "fallbackTemp=${fallbackObservation?.temperature} fallbackObservedAt=${fallbackObservation?.observedAt} " +
-                "finalTemp=${observation?.temperature} finalObservedAt=${observation?.observedAt}",
+                                "finalTemp=${observation?.temperature} finalObservedAt=${observation?.observedAt}",
         )
 
         val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * WidgetConstants.MS_IN_A_DAY

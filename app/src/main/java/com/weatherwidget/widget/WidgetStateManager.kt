@@ -365,26 +365,6 @@ class WidgetStateManager internal constructor(
         widgetIds.forEach(locationStore::clearWidget)
     }
 
-    fun getCurrentTempDeltaState(
-        widgetId: Int,
-        source: WeatherSource,
-    ): CurrentTemperatureDeltaState? = deltaStore.get(widgetId, source)
-
-    fun setCurrentTempDeltaState(
-        widgetId: Int,
-        source: WeatherSource,
-        state: CurrentTemperatureDeltaState,
-    ) {
-        deltaStore.set(widgetId, source, state)
-    }
-
-    fun clearCurrentTempDeltaState(
-        widgetId: Int,
-        source: WeatherSource? = null,
-    ) {
-        deltaStore.clear(widgetId, source)
-    }
-
     fun getLastGraphRender(widgetId: Int): LastGraphRenderState? =
         presentationStore.lastGraphRender(widgetId)
 

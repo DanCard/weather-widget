@@ -43,9 +43,6 @@ class TemperatureConsistencyTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = observedTemp,
             observedAt = observedAt,
-            storedDeltaState = null,
-            currentLat = 37.0,
-            currentLon = -122.0,
             smoothedForecasts = dailySmoothed,
         )
 
@@ -59,9 +56,6 @@ class TemperatureConsistencyTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = observedTemp,
             observedAt = observedAt,
-            storedDeltaState = null,
-            currentLat = 37.0,
-            currentLon = -122.0,
             smoothedForecasts = tempSmoothed,
         )
 
@@ -135,9 +129,6 @@ class TemperatureConsistencyTest {
             hourlyForecasts = contractForecasts,
             lastObservedTemp = contractObservedTemp,
             observedAt = contractObservedAt,
-            storedDeltaState = null,
-            currentLat = 37.0,
-            currentLon = -122.0,
         )
 
         assertTrue(result.displayTemp!! < result.observedTemp!!)

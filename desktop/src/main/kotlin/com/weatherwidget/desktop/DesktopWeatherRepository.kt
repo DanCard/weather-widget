@@ -145,62 +145,24 @@ class DesktopWeatherRepository(
         now: Long,
         resultLogLevel: String = "DEBUG",
     ): ResolvedCurrentTemp {
-        val win = currentTempWindowFor(now)
-        val narrowObs = observations.filter { it.timestamp in win.minEpoch..win.maxEpoch }
-        val narrowHourly = hourly.filter { it.dateTime in win.minEpoch..win.maxEpoch }
-
-        val resolvedObs = ActualsAggregator.resolveCurrentObservation(
-            observations = narrowObs,
-            hourlyForecasts = narrowHourly,
-            displaySourceId = displaySource.id,
-            userLat = latitude,
-            userLon = longitude,
-            nowMs = now,
-            lookbackHours = CurrentTemperatureResolver.RESOLUTION_LOOKBACK_HOURS,
-            lookaheadHours = CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS,
-            personalStationWeight = personalStationWeight,
-        )
-
-        val lastObservedTemp = resolvedObs?.first
-        val observedAt = resolvedObs?.second
-
-        val smoothedForecasts = CurrentTemperatureResolver.computeSmoothedForecasts(
-            narrowHourly, displaySource.id
-        )
-
-        val resolution = CurrentTemperatureResolver.resolve(
-            now = win.nowLocal,
+        val run = com.weatherwidget.widget.CurrentTempRun.run(
+            hourly = hourly,
+            observations = observations,
             displaySource = displaySource,
-            hourlyForecasts = narrowHourly,
-            lastObservedTemp = lastObservedTemp,
-            observedAt = observedAt,
-            storedDeltaState = null,
-            currentLat = latitude,
-            currentLon = longitude,
-            smoothedForecasts = smoothedForecasts,
+            latitude = latitude,
+            longitude = longitude,
+            nowMs = now,
+            personalStationWeight = personalStationWeight,
             resultLogLevel = resultLogLevel,
         )
-        // Header delta (delta from yesterday): uses the FULL observation list, not the narrow
-        // current-temp window — the 24h-ago blend target never fits in the narrow window.
-        val deltaFromYesterday = YesterdayDeltaCalculator.computeDelta(
-            observations = observations,
-            hourlyForecasts = hourly,
-            displaySourceId = displaySource.id,
-            userLat = latitude,
-            userLon = longitude,
-            observedAtMs = observedAt,
-            currentObservedTemp = lastObservedTemp,
-            personalStationWeight = personalStationWeight,
-            zoneId = win.zoneId,
-        )
         return ResolvedCurrentTemp(
-            resolution.displayTemp,
-            resolution.appliedDelta,
-            deltaFromYesterday,
-            observedTemp = lastObservedTemp,
-            observedAt = observedAt,
-            windowObservations = narrowObs.size,
-            windowHourly = narrowHourly.size,
+            run.displayTemp,
+            run.appliedDelta,
+            run.deltaFromYesterday,
+            observedTemp = run.observedTemp,
+            observedAt = run.observedAt,
+            windowObservations = run.windowObservations,
+            windowHourly = run.windowHourly,
         )
     }
 

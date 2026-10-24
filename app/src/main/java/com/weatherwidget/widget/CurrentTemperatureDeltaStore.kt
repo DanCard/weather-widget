@@ -1,37 +1,19 @@
 package com.weatherwidget.widget
 
 import android.content.SharedPreferences
-import com.weatherwidget.data.model.WeatherSource
 
-/** Owns the source-scoped multi-field current-temperature delta preference record. */
+/**
+ * What is left of the retired current-temperature delta record (`widget_current_temp_delta_*`).
+ * The header no longer carries a stored delta forward — no reading in the window means the bare
+ * forecast, as on desktop (user, 2026-10-24; plans/261024-shared-current-temp-run.md) — so nothing
+ * reads or writes the per-source keys. Two jobs remain: the oldest installs kept a widget's
+ * coordinates under the un-suffixed lat/lon keys ([legacyLocation], read by [WidgetLocationStore]),
+ * and deleting a widget still removes its old keys ([clearWidget]). The keys are not purged
+ * otherwise: a purge could not tell a widget's only coordinates from a delta's.
+ */
 internal class CurrentTemperatureDeltaStore(
     private val prefs: SharedPreferences,
 ) {
-    fun get(widgetId: Int, source: WeatherSource): CurrentTemperatureDeltaState? {
-        read(deltaStateSuffix(widgetId, source))?.let { return it }
-
-        val legacy = read(widgetId.toString()) ?: return null
-        if (legacy.sourceId != source.id) return null
-
-        val editor = prefs.edit()
-        put(editor, deltaStateSuffix(widgetId, source), legacy)
-        remove(editor, widgetId.toString())
-        editor.apply()
-        return legacy
-    }
-
-    fun set(widgetId: Int, source: WeatherSource, state: CurrentTemperatureDeltaState) {
-        val editor = prefs.edit()
-        put(editor, deltaStateSuffix(widgetId, source), state)
-        editor.apply()
-    }
-
-    fun clear(widgetId: Int, source: WeatherSource? = null) {
-        val editor = prefs.edit()
-        remove(editor, source?.let { deltaStateSuffix(widgetId, it) } ?: widgetId.toString())
-        editor.apply()
-    }
-
     fun legacyLocation(widgetId: Int): WidgetLocation? {
         val lat = prefs.getString("$KEY_LAT_PREFIX$widgetId", null)?.toDoubleOrNull()
         val lon = prefs.getString("$KEY_LON_PREFIX$widgetId", null)?.toDoubleOrNull()
@@ -39,56 +21,12 @@ internal class CurrentTemperatureDeltaStore(
     }
 
     fun clearWidget(widgetId: Int, editor: SharedPreferences.Editor) {
-        remove(editor, widgetId.toString())
+        KEY_PREFIXES.forEach { prefix -> editor.remove("$prefix$widgetId") }
         prefs.all.keys
             .asSequence()
             .filter { key -> KEY_PREFIXES.any { prefix -> key.startsWith("$prefix${widgetId}_") } }
             .forEach(editor::remove)
     }
-
-    private fun put(
-        editor: SharedPreferences.Editor,
-        suffix: String,
-        state: CurrentTemperatureDeltaState,
-    ) {
-        editor
-            .putFloat("$KEY_DELTA_PREFIX$suffix", state.delta)
-            .putFloat("$KEY_OBSERVED_PREFIX$suffix", state.lastObservedTemp)
-            .putLong("$KEY_FETCHED_AT_PREFIX$suffix", state.lastObservedAt)
-            .putLong("$KEY_UPDATED_AT_PREFIX$suffix", state.updatedAtMs)
-            .putString("$KEY_SOURCE_PREFIX$suffix", state.sourceId)
-            .putString("$KEY_LAT_PREFIX$suffix", state.locationLat.toString())
-            .putString("$KEY_LON_PREFIX$suffix", state.locationLon.toString())
-    }
-
-    private fun remove(editor: SharedPreferences.Editor, suffix: String) {
-        KEY_PREFIXES.forEach { prefix -> editor.remove("$prefix$suffix") }
-    }
-
-    private fun read(suffix: String): CurrentTemperatureDeltaState? {
-        val deltaKey = "$KEY_DELTA_PREFIX$suffix"
-        val observedKey = "$KEY_OBSERVED_PREFIX$suffix"
-        val fetchedAtKey = "$KEY_FETCHED_AT_PREFIX$suffix"
-        if (!prefs.contains(deltaKey) || !prefs.contains(observedKey) || !prefs.contains(fetchedAtKey)) {
-            return null
-        }
-
-        val sourceId = prefs.getString("$KEY_SOURCE_PREFIX$suffix", null) ?: return null
-        val lat = prefs.getString("$KEY_LAT_PREFIX$suffix", null)?.toDoubleOrNull() ?: return null
-        val lon = prefs.getString("$KEY_LON_PREFIX$suffix", null)?.toDoubleOrNull() ?: return null
-        return CurrentTemperatureDeltaState(
-            delta = prefs.getFloat(deltaKey, 0f),
-            lastObservedTemp = prefs.getFloat(observedKey, 0f),
-            lastObservedAt = prefs.getLong(fetchedAtKey, 0L),
-            updatedAtMs = prefs.getLong("$KEY_UPDATED_AT_PREFIX$suffix", 0L),
-            sourceId = sourceId,
-            locationLat = lat,
-            locationLon = lon,
-        )
-    }
-
-    private fun deltaStateSuffix(widgetId: Int, source: WeatherSource): String =
-        "${widgetId}_${source.id}"
 
     private companion object {
         const val KEY_DELTA_PREFIX = "widget_current_temp_delta_"

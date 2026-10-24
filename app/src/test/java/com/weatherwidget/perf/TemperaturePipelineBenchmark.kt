@@ -104,9 +104,6 @@ class TemperaturePipelineBenchmark {
                 hourlyForecasts = hourlyForecasts,
                 lastObservedTemp = resolved.first,
                 observedAt = resolved.third, // ActualsAggregator.resolveCurrentObservation returns (temp, time, anchorTime)
-                storedDeltaState = null,
-                currentLat = lat,
-                currentLon = lon
             )
         }
     }

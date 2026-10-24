@@ -308,9 +308,7 @@ internal object DailyInteractionRenderer {
                 now = request.now,
                 personalStationWeight = stateManager.getPersonalStationWeight(),
             )
-        val observation =
-            graphStyleObservation
-                ?: ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
+        val observation = graphStyleObservation
         val smoothedForecasts =
             CurrentTemperatureResolver.computeSmoothedForecasts(
                 currentTempHourlyForecasts.map { it.toHourlyForecast() },

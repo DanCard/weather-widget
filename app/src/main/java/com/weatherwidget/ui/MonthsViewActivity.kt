@@ -35,9 +35,10 @@ import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.widget.ActiveLocationResolver
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.HourlyForecastLoader
-import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetDataBundle
 import com.weatherwidget.widget.WidgetDataBundleLoader
+import com.weatherwidget.data.local.toHourlyForecast
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.DailyViewHandler
 import com.weatherwidget.widget.handlers.DailyViewLogic
@@ -337,7 +338,16 @@ class MonthsViewActivity : AppCompatActivity(), MonthsScreenView.Listener {
         val skipYesterday = MonthsScreenLogic.skipYesterday(columns)
         val skipHistory = NavigationUtils.shouldSkipHistory(skipYesterday, s.dailyOffset)
         val centerDate = NavigationUtils.getDisplayCenterDate(ctx.today, s.dailyOffset, skipYesterday)
-        val observed = ObservationResolver.resolveObservedCurrentTemp(data.bundle.currentTemps, data.source)
+        // The widget header's own number (shared run): it printed the newest raw row instead.
+        val current = com.weatherwidget.widget.CurrentTempRun.run(
+            hourly = data.bundle.hourlyForecasts.map { it.toHourlyForecast() },
+            observations = data.bundle.currentTemps.map { it.toReading() },
+            displaySource = data.source,
+            latitude = data.lat,
+            longitude = data.lon,
+            nowMs = System.currentTimeMillis(),
+            personalStationWeight = widgetStateManager.getPersonalStationWeight(),
+        )
         val days = DailyViewLogic.prepareGraphDayInputs(
             now = LocalDateTime.now(),
             centerDate = centerDate,
@@ -353,8 +363,8 @@ class MonthsViewActivity : AppCompatActivity(), MonthsScreenView.Listener {
             dailyActuals = data.actuals,
             climateNormals = data.normals,
             currentTemps = data.bundle.currentTemps,
-            currentTemp = observed?.temperature,
-            observedAt = observed?.observedAt,
+            currentTemp = current.displayTemp,
+            observedAt = current.observedAt,
             allowTodayRainChanceLabel = true,
             use24HourClock = android.text.format.DateFormat.is24HourFormat(this),
             todayLabel = getString(R.string.today),
@@ -367,7 +377,7 @@ class MonthsViewActivity : AppCompatActivity(), MonthsScreenView.Listener {
         // The widget's header, minus what a past window has no value for: current temperature, its
         // icon and delta, and the rain chance appear only while today is on screen.
         val header = DailyForecastGraphRenderer.HeaderRenderData(
-            currentTempText = if (todayInView) observed?.temperature?.let { TempUtils.formatTemp(it, useCelsius) } else null,
+            currentTempText = if (todayInView) current.displayTemp?.let { TempUtils.formatTemp(it, useCelsius) } else null,
             dateText = if (days.size >= HeaderConstants.DATE_MIN_COLUMNS) {
                 (if (todayInView) ctx.today else days[(days.size - 1) / 2].date).format(DailyViewHandler.headerDateFormatter())
             } else null,

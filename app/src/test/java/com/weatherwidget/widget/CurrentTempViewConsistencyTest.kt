@@ -107,7 +107,15 @@ class CurrentTempViewConsistencyTest {
             ),
         )
 
-        val resolved = ObservationResolver.resolveObservedCurrentTemp(rows, WeatherSource.TOMORROW_IO)
+        // Through the header's own path (the blend at now), not the retired raw-row fallback.
+        val resolved = com.weatherwidget.widget.handlers.CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
+            observations = rows,
+            hourlyForecasts = emptyList(),
+            displaySource = WeatherSource.TOMORROW_IO,
+            lat = TestData.LAT,
+            lon = TestData.LON,
+            now = now,
+        )
 
         assertNotNull(resolved)
         assertEquals(75.60f, resolved!!.temperature, 0.001f)
@@ -119,8 +127,9 @@ class CurrentTempViewConsistencyTest {
         val currentTemps = buildCurrentTempsWithBlend()
         val hourlyForecasts = buildHourlyForecasts()
 
-        val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, WeatherSource.NWS)
-        assertNotNull("Should find a current temp observation", observation)
+        // The precomputed NWS_BLEND row: what the header used to anchor on.
+        val observation = currentTemps.firstOrNull { it.stationId == com.weatherwidget.shared.observations.NwsBlend.STATION_ID }
+        assertNotNull("The fixture carries an NWS_BLEND row", observation)
 
         // Graph view path: buildHourDataList → latest isObservedActual → CurrentTemperatureResolver
         val graphHours = buildHourDataList(
@@ -148,9 +157,6 @@ class CurrentTempViewConsistencyTest {
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = graphObservedTemp,
             observedAt = graphObservedAt,
-            storedDeltaState = null,
-            currentLat = TestData.LAT,
-            currentLon = TestData.LON,
         ).displayTemp
 
         // Compute display temp using NWS_BLEND (old source, should differ when stations are misaligned)
@@ -159,10 +165,7 @@ class CurrentTempViewConsistencyTest {
             displaySource = WeatherSource.NWS,
             hourlyForecasts = hourlyForecasts,
             lastObservedTemp = observation!!.temperature,
-            observedAt = observation.observedAt,
-            storedDeltaState = null,
-            currentLat = TestData.LAT,
-            currentLon = TestData.LON,
+            observedAt = observation.timestamp,
         ).displayTemp
 
         // The graph IDW temp must be used (not NWS_BLEND): station AW020 is 15 min old, KNUQ 30 min

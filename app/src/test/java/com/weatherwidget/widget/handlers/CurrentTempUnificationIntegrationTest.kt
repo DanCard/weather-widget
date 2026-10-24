@@ -57,7 +57,6 @@ class CurrentTempUnificationIntegrationTest {
         }
 
         val stateManager = mockk<WidgetStateManager>(relaxed = true)
-        every { stateManager.getCurrentTempDeltaState(appWidgetId, any()) } returns null
         every { stateManager.getZoomStage(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE
         every { stateManager.getZoomWindow(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE.window()
         every { stateManager.getHourlyOffset(appWidgetId) } returns 0
@@ -90,16 +89,12 @@ class CurrentTempUnificationIntegrationTest {
         // 2. Resolve Daily View
         // Simulate WidgetIntentRouter logic
         val smoothedForecasts = computeSmoothedForecasts(narrowWindow, WeatherSource.OPEN_METEO)
-        val (dailyViewResolution, _) = CurrentTempResolutionHelper.resolveAndPersistDelta(
+        val (dailyViewResolution, _) = CurrentTempResolutionHelper.resolveTimed(
             now = now,
             displaySource = WeatherSource.OPEN_METEO,
             hourlyForecasts = narrowWindow, // The fix: Daily view gets the narrow window here
             lastObservedTemp = null,
             observedAt = null,
-            stateManager = stateManager,
-            appWidgetId = appWidgetId,
-            lat = 0.0,
-            lon = 0.0,
             smoothedForecasts = smoothedForecasts
         )
 
@@ -159,7 +154,6 @@ class CurrentTempUnificationIntegrationTest {
         )
 
         val stateManager = mockk<WidgetStateManager>(relaxed = true)
-        every { stateManager.getCurrentTempDeltaState(appWidgetId, any()) } returns null
         every { stateManager.getZoomStage(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE
         every { stateManager.getZoomWindow(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE.window()
         // The resolver centres its observation read here, so the test must say where the widget is.
@@ -200,16 +194,12 @@ class CurrentTempUnificationIntegrationTest {
 
         // 3. Resolve Daily View
         val smoothedForecasts = computeSmoothedForecasts(narrowWindow, WeatherSource.OPEN_METEO)
-        val (dailyViewResolution, _) = CurrentTempResolutionHelper.resolveAndPersistDelta(
+        val (dailyViewResolution, _) = CurrentTempResolutionHelper.resolveTimed(
             now = now,
             displaySource = WeatherSource.OPEN_METEO,
             hourlyForecasts = narrowWindow,
             lastObservedTemp = graphStyleObs?.temperature,
             observedAt = graphStyleObs?.observedAt,
-            stateManager = stateManager,
-            appWidgetId = appWidgetId,
-            lat = 0.0,
-            lon = 0.0,
             smoothedForecasts = smoothedForecasts
         )
 
@@ -256,7 +246,6 @@ class CurrentTempUnificationIntegrationTest {
         }
 
         val stateManager = mockk<WidgetStateManager>(relaxed = true)
-        every { stateManager.getCurrentTempDeltaState(appWidgetId, any()) } returns null
         every { stateManager.getZoomStage(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE
         every { stateManager.getZoomWindow(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE.window()
         every { stateManager.getHourlyOffset(appWidgetId) } returns 0
@@ -314,7 +303,6 @@ class CurrentTempUnificationIntegrationTest {
         }
 
         val stateManager = mockk<WidgetStateManager>(relaxed = true)
-        every { stateManager.getCurrentTempDeltaState(appWidgetId, any()) } returns null
         every { stateManager.getZoomStage(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE
         every { stateManager.getZoomWindow(appWidgetId) } returns com.weatherwidget.widget.ZoomStage.WIDE.window()
         every { stateManager.getHourlyOffset(appWidgetId) } returns 0

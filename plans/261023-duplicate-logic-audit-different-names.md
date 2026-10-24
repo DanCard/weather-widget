@@ -279,3 +279,8 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   `TapOffsetHoursTest`), desktop the pointer's x for tap and wheel. **Desktop bug fixed:** both
   computed the instant as `Long + Float` (Float, 131 s steps at epoch size), so a tap or wheel a couple
   of minutes past a half hour centred the hour before (`TapZoomOffsetTest`: −5 on the old math, −6).
+- 2026-10-24: 10-21 E, current temperature — **phase 1 done**, phase 2 open
+  (`plans/261024-shared-current-temp-run.md`). `:shared` `CurrentTempRun` is desktop's pipeline and
+  the Android Months screen's; the stored delta and the raw-row fallback are gone on both platforms
+  (user decisions after review); Android's no-repository window fixed (2 h → 3 h). Android's widget
+  header paths still wire the shared pieces themselves — phase 2.

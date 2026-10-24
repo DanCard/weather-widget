@@ -252,16 +252,12 @@ object CloudCoverViewHandler {
         views.setViewVisibility(R.id.current_temp_delta_label, View.GONE)
 
         val (currentTempResolution, resolveMs) =
-            CurrentTempResolutionHelper.resolveAndPersistDelta(
+            CurrentTempResolutionHelper.resolveTimed(
                 now = now,
                 displaySource = effectiveDisplaySource,
                 hourlyForecasts = hourlyForecasts,
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
-                stateManager = stateManager,
-                appWidgetId = appWidgetId,
-                lat = lat,
-                lon = lon,
             )
         val currentTemp = currentTempResolution.displayTemp
         // Icon, temp and rain %: the shared header rule (desktop draws the same content).

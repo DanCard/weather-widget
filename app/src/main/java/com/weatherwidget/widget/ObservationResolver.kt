@@ -1,6 +1,5 @@
 package com.weatherwidget.widget
 
-import com.weatherwidget.shared.observations.NwsBlend
 import android.util.Log
 import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
@@ -12,9 +11,6 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualsAggregator
-import com.weatherwidget.shared.observations.ActualsProviderResolver
-import com.weatherwidget.shared.observations.ObservationSourceMatcher
-import com.weatherwidget.shared.observations.ObservationTimelineNormalizer
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -33,43 +29,6 @@ object ObservationResolver {
         val source: String,
         val rowFetchedAt: Long,
     )
-
-    /**
-     * Finds the most representative observation for the specified weather source from a list of
-     * _MAIN observations. For NWS, prefers the synthetic NWS_BLEND entity (IDW-weighted across
-     * multiple stations) so that the daily view and graph view header show the same temperature.
-     * Falls back to the most recent single-station observation when no blend is available.
-     */
-    fun resolveObservedCurrentTemp(
-        observations: List<ObservationEntity>,
-        displaySource: WeatherSource,
-    ): ObservedCurrentTemperature? {
-        val filtered = observations.filter {
-            ObservationSourceMatcher.matchesActualSource(
-                stationId = it.stationId,
-                api = it.api,
-                source = displaySource,
-            )
-        }
-        val selectionPool = ObservationTimelineNormalizer.normalize(
-            filtered.map { it.toReading() },
-            ActualsProviderResolver.providerIdFor(displaySource),
-        )
-        val maxTs = selectionPool.maxOfOrNull { it.timestamp }
-        val selected = if (maxTs != null) {
-            val candidates = selectionPool.filter { it.timestamp == maxTs }
-            candidates.find { it.stationId == NwsBlend.STATION_ID } ?: candidates.first()
-        } else null
-        Log.d("ObsResolver", "resolveObservedCurrentTemp: stationId=${selected?.stationId} temp=${selected?.temperature} source=${displaySource.id}")
-        return selected?.let { obs ->
-            ObservedCurrentTemperature(
-                temperature = obs.temperature,
-                observedAt = obs.timestamp,
-                source = obs.api,
-                rowFetchedAt = obs.fetchedAt,
-            )
-        }
-    }
 
     /**
      * Aggregates raw observations into daily highs and lows, grouped by source.

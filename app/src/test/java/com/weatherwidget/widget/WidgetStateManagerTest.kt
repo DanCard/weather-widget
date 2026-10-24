@@ -361,52 +361,6 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `toggleDisplaySource keeps current temp delta state`() {
-        val w = testWidgetId
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
-        val nwsState = CurrentTemperatureDeltaState(
-            delta = -5f,
-            lastObservedTemp = 83f,
-            lastObservedAt = 1000L,
-            updatedAtMs = 1000L,
-            sourceId = WeatherSource.NWS.id,
-            locationLat = 37.42,
-            locationLon = -122.08,
-        )
-        stateManager.setCurrentTempDeltaState(w, WeatherSource.NWS, nwsState)
-
-        stateManager.toggleDisplaySource(w)
-
-        val restored = stateManager.getCurrentTempDeltaState(w, WeatherSource.NWS)
-        assertNotNull(restored)
-        assertEquals(-5f, restored!!.delta, 0.01f)
-    }
-
-    @Test
-    fun `set and get current temp delta state is source scoped`() {
-        val w = 7
-        val nwsState = CurrentTemperatureDeltaState(
-            delta = -5f,
-            lastObservedTemp = 83f,
-            lastObservedAt = 1000L,
-            updatedAtMs = 1000L,
-            sourceId = WeatherSource.NWS.id,
-            locationLat = 37.42,
-            locationLon = -122.08,
-        )
-
-        stateManager.setCurrentTempDeltaState(w, WeatherSource.NWS, nwsState)
-
-        val restoredNws = stateManager.getCurrentTempDeltaState(w, WeatherSource.NWS)
-        val restoredMeteo = stateManager.getCurrentTempDeltaState(w, WeatherSource.OPEN_METEO)
-
-        assertNotNull(restoredNws)
-        assertEquals(WeatherSource.NWS.id, restoredNws?.sourceId)
-        assertEquals(-5f, restoredNws?.delta ?: 0f, 0.01f)
-        assertNull(restoredMeteo)
-    }
-
-    @Test
     fun `ZoomWindow enum has correct parameters`() {
         assertEquals(9L, ZoomStage.WIDE.window().backHours)
         assertEquals(9L, ZoomStage.WIDE.window().forwardHours)
@@ -748,30 +702,23 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `get current temp delta state migrates matching legacy widget scoped state`() {
+    fun `legacy delta-record coordinates still give a widget its location`() {
+        // The delta record is retired (2026-10-24), but the oldest installs kept a widget's only
+        // coordinates under its un-suffixed lat/lon keys; those must still resolve.
         val w = 9
         val context = ApplicationProvider.getApplicationContext<Context>()
-        WidgetStateManager.setPrefsNameOverrideForTesting("delta_migration_prefs")
-        val migrationPrefs = SharedPreferencesUtil.getPrefs(context, "delta_migration_prefs")
-        migrationPrefs.edit().clear().apply()
-        val migrationManager = WidgetStateManager(context)
-
-        migrationPrefs.edit()
-            .putFloat("widget_current_temp_delta_$w", -4f)
-            .putFloat("widget_current_temp_delta_observed_$w", 82f)
-            .putLong("widget_current_temp_delta_fetched_at_$w", 2000L)
-            .putLong("widget_current_temp_delta_updated_at_$w", 3000L)
-            .putString("widget_current_temp_delta_source_$w", WeatherSource.NWS.id)
+        WidgetStateManager.setPrefsNameOverrideForTesting("delta_legacy_location_prefs")
+        val legacyPrefs = SharedPreferencesUtil.getPrefs(context, "delta_legacy_location_prefs")
+        legacyPrefs.edit().clear()
             .putString("widget_current_temp_delta_lat_$w", "37.42")
             .putString("widget_current_temp_delta_lon_$w", "-122.08")
             .apply()
 
-        val migrated = migrationManager.getCurrentTempDeltaState(w, WeatherSource.NWS)
+        val location = WidgetStateManager(context).getWidgetLocation(w)
 
-        assertNotNull(migrated)
-        assertEquals(WeatherSource.NWS.id, migrated?.sourceId)
-        assertEquals(-4f, migrated?.delta ?: 0f, 0.01f)
-        assertFalse(migrationPrefs.contains("widget_current_temp_delta_$w"))
+        assertNotNull(location)
+        assertEquals(37.42, location!!.first, 1e-9)
+        assertEquals(-122.08, location.second, 1e-9)
         WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
     }
 

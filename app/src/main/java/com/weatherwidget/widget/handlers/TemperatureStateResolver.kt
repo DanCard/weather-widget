@@ -275,10 +275,6 @@ internal object TemperatureStateResolver {
             lastObservedTemp = lastObservedTemp,
             observedAt = observedAt,
             deferCurrentTempResolution = deferCurrentTempResolution,
-            appWidgetId = appWidgetId,
-            stateManager = stateManager,
-            lat = lat,
-            lon = lon,
             currentTempSmoothedForecasts = currentTempSmoothedForecasts,
         )
 
@@ -530,13 +526,8 @@ internal object TemperatureStateResolver {
         lastObservedTemp: Float?,
         observedAt: Long?,
         deferCurrentTempResolution: Boolean,
-        appWidgetId: Int,
-        stateManager: WidgetStateManager,
-        lat: Double,
-        lon: Double,
         currentTempSmoothedForecasts: Map<Long, Float>,
     ): Pair<CurrentTemperatureResolution, Long> {
-        val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
         val resolveStartMs = System.currentTimeMillis()
         val currentTempResolution = if (deferCurrentTempResolution) {
             val quick = CurrentTemperatureResolver.resolveQuick(
@@ -552,8 +543,6 @@ internal object TemperatureStateResolver {
                 observedTemp = quick.observedTemp,
                 isStaleEstimate = quick.isStaleEstimate,
                 appliedDelta = null,
-                updatedDeltaState = null,
-                shouldClearStoredDelta = false,
             )
         } else {
             CurrentTemperatureResolver.resolve(
@@ -562,9 +551,6 @@ internal object TemperatureStateResolver {
                 hourlyForecasts = currentTempHourlyForecasts.map { it.toHourlyForecast() },
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
-                storedDeltaState = storedDeltaState,
-                currentLat = lat,
-                currentLon = lon,
                 smoothedForecasts = currentTempSmoothedForecasts,
             )
         }
@@ -669,6 +655,6 @@ internal object TemperatureStateResolver {
 
     private fun emptyGraphState() = TemperatureWidgetState.GraphState(false, null, emptyList(), false)
 
-    private fun emptyResolution() = CurrentTemperatureResolution(null, null, null, false, null, null, false)
+    private fun emptyResolution() = CurrentTemperatureResolution(null, null, null, false, null)
 
 }

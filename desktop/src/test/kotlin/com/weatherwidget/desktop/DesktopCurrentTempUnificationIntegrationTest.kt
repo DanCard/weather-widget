@@ -137,9 +137,6 @@ class DesktopCurrentTempUnificationIntegrationTest {
             hourlyForecasts = narrowHourly,
             lastObservedTemp = resolvedTemp,
             observedAt = resolvedObsAt,
-            storedDeltaState = null,
-            currentLat = testLat,
-            currentLon = testLon,
             smoothedForecasts = smoothedForecasts
         )
 

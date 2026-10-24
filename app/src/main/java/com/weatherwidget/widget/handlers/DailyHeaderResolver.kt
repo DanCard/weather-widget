@@ -127,16 +127,12 @@ internal object DailyHeaderResolver {
         val today = now.toLocalDate()
 
         val (currentTempResolution, resolveMs) =
-            CurrentTempResolutionHelper.resolveAndPersistDelta(
+            CurrentTempResolutionHelper.resolveTimed(
                 now = now,
                 displaySource = displaySource,
                 hourlyForecasts = currentTempHourlyForecasts.ifEmpty { hourlyForecasts },
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
-                stateManager = stateManager,
-                appWidgetId = appWidgetId,
-                lat = lat,
-                lon = lon,
                 smoothedForecasts = smoothedForecasts,
             )
         val currentTemp = currentTempResolution.displayTemp

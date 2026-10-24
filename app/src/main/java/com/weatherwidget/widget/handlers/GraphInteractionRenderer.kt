@@ -164,23 +164,12 @@ internal object GraphInteractionRenderer {
         val today = request.now.toLocalDate()
         val zoneId = ZoneId.systemDefault()
         val todayEpoch = today.toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
-        val todayStartMs = today.atStartOfDay(zoneId).toInstant().toEpochMilli()
         val weatherList =
             database.forecastDao().getForecastsInRange(
                 todayEpoch,
                 todayEpoch,
                 location.lat,
                 location.lon,
-            )
-        val currentTemps =
-            request.repository?.getMainObservationsWithComputedNwsBlend(
-                location.lat,
-                location.lon,
-                todayStartMs,
-            ) ?: database.observationDao().getLatestMainObservations(
-                location.lat,
-                location.lon,
-                todayStartMs,
             )
         val currentTempHourlyForecasts =
             GraphDataLoader.loadCurrentTempResolutionHourlyForecasts(
@@ -201,9 +190,7 @@ internal object GraphInteractionRenderer {
                 now = request.now,
                 personalStationWeight = stateManager.getPersonalStationWeight(),
             )
-        val observation =
-            graphStyleObservation
-                ?: ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
+        val observation = graphStyleObservation
         CurrentTempStalenessLogger.log(
             database.appLogDao(),
             request.appWidgetId,

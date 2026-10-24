@@ -16,8 +16,6 @@ data class CurrentTemperatureResolution(
     val observedTemp: Float?,
     val isStaleEstimate: Boolean,
     val appliedDelta: Float?,
-    val updatedDeltaState: CurrentTemperatureDeltaState?,
-    val shouldClearStoredDelta: Boolean,
 )
 
 data class QuickCurrentTemperature(
@@ -145,9 +143,6 @@ object CurrentTemperatureResolver {
         hourlyForecasts: List<HourlyForecast>,
         lastObservedTemp: Float?,
         observedAt: Long?,
-        storedDeltaState: CurrentTemperatureDeltaState?,
-        currentLat: Double,
-        currentLon: Double,
         smoothedForecasts: Map<Long, Float>? = null,
         // Level for the CURR_TEMP_RESULT summary row. Sparse callers (Android widget updates,
         // desktop fetch-cycle loads) keep the persisted DEBUG default; high-frequency callers
@@ -168,8 +163,7 @@ object CurrentTemperatureResolver {
             "CURR_TEMP_RESOLVE",
             "resolve:start now=$now source=${displaySource.id} hourlyCount=${hourlyForecasts.size} " +
                 "strictCount=${strictHourlyForecasts.size} window=${window.start.toLocalTime()}..${window.end.toLocalTime()} " +
-                "obsTemp=$lastObservedTemp obsAt=$observedAt " +
-                "hasStored=${storedDeltaState != null}",
+                "obsTemp=$lastObservedTemp obsAt=$observedAt",
             // Per-resolution start breadcrumb: VERBOSE so it doesn't persist. The CURR_TEMP_RESULT
             // outcome below stays DEBUG (persisted) — that's the one summary worth querying.
             level = "VERBOSE",
@@ -185,44 +179,15 @@ object CurrentTemperatureResolver {
         // Set below when both estimates are taken from the newest run instead; see [newestRunIfObservationBracketIsOlder].
         var newestRun: List<HourlyForecast>? = null
         verboseLog("resolve:estimatedTemp=$estimatedTemp nowMs=$nowMs")
-        val scopeMatch =
-            storedDeltaState?.let {
-                it.sourceId == displaySource.id &&
-                    kotlin.math.abs(it.locationLat - currentLat) < 0.000001 &&
-                    kotlin.math.abs(it.locationLon - currentLon) < 0.000001
-            } ?: false
-        if (storedDeltaState != null && !scopeMatch) {
-            val mismatchReason =
-                buildList {
-                    if (storedDeltaState.sourceId != displaySource.id) add("source")
-                    if (kotlin.math.abs(storedDeltaState.locationLat - currentLat) >= 0.000001) add("lat")
-                    if (kotlin.math.abs(storedDeltaState.locationLon - currentLon) >= 0.000001) add("lon")
-                }.joinToString(",")
-            verboseLog(
-                "resolve:storedDelta scopeMismatch=$mismatchReason requestedSource=${displaySource.id} " +
-                    "requestedLat=$currentLat requestedLon=$currentLon",
-            )
-        }
-        verboseLog(
-            "resolve:storedDelta=" +
-                storedDeltaState?.let {
-                    "delta=${it.delta} observed=${it.lastObservedTemp} observedAt=${it.lastObservedAt} " +
-                        "updatedAt=${it.updatedAtMs} source=${it.sourceId} lat=${it.locationLat} lon=${it.locationLon}"
-                } +
-                " scopeMatch=$scopeMatch",
-        )
-        val scopedStoredDelta = if (scopeMatch) storedDeltaState else null
-        var appliedDelta: Float? = scopedStoredDelta?.delta
-        var updatedDeltaState: CurrentTemperatureDeltaState? = null
+        // The delta is measured fresh from this observation, or there is none: no reading in the
+        // window means the bare forecast on both platforms. A stored delta from an earlier reading
+        // was Android-only and never aged (user, 2026-10-24; plans/261024-shared-current-temp-run.md).
+        var appliedDelta: Float? = null
 
         var estimatedAtObservationTime: Float? = null
 
         if (lastObservedTemp != null && observedAt != null) {
-            val hasNewObservedReading = scopedStoredDelta?.lastObservedAt != observedAt
-            verboseLog(
-                "resolve:observed available hasNewObservedReading=$hasNewObservedReading " +
-                    "storedObservedAt=${scopedStoredDelta?.lastObservedAt}",
-            )
+            verboseLog("resolve:observed available observedAt=$observedAt")
             val obsTime = LocalDateTime.ofInstant(
                 java.time.Instant.ofEpochMilli(observedAt),
                 ZoneId.systemDefault()
@@ -250,20 +215,8 @@ object CurrentTemperatureResolver {
             if (estimatedAtObsTime != null) {
                 val rawDelta = lastObservedTemp - estimatedAtObsTime
                 appliedDelta = rawDelta
-                if (scopedStoredDelta == null || hasNewObservedReading || scopedStoredDelta.delta != rawDelta) {
-                    updatedDeltaState =
-                        CurrentTemperatureDeltaState(
-                            delta = rawDelta,
-                            lastObservedTemp = lastObservedTemp,
-                            lastObservedAt = observedAt,
-                            updatedAtMs = observedAt.coerceAtMost(nowMs),
-                            sourceId = displaySource.id,
-                            locationLat = currentLat,
-                            locationLon = currentLon,
-                        )
-                }
                 verboseLog(
-                    "resolve:anchorDelta rawDelta=$rawDelta updatedAt=${updatedDeltaState?.updatedAtMs ?: scopedStoredDelta?.updatedAtMs} " +
+                    "resolve:anchorDelta rawDelta=$rawDelta " +
                         "observedTemp=$lastObservedTemp estimatedAtObs=$estimatedAtObsTime nowForecast=$estimatedTemp",
                 )
             } else {
@@ -295,8 +248,6 @@ object CurrentTemperatureResolver {
             observedTemp = lastObservedTemp,
             isStaleEstimate = isStaleEstimate,
             appliedDelta = appliedDelta,
-            updatedDeltaState = updatedDeltaState,
-            shouldClearStoredDelta = !scopeMatch && storedDeltaState != null,
         )
     }
 

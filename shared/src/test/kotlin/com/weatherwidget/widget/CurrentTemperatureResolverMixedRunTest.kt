@@ -47,9 +47,6 @@ class CurrentTemperatureResolverMixedRunTest {
             hourlyForecasts = rows,
             lastObservedTemp = obs,
             observedAt = obsAt,
-            storedDeltaState = null,
-            currentLat = 37.417,
-            currentLon = -122.089,
         )
 
     @Test
