@@ -1596,6 +1596,50 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
+    /**
+     * Every `hourly_forecast_history` snapshot of [source] at the site with `dateTime` in
+     * [startMs, endMs), freshest snapshot first per hour, unmerged — Android's
+     * `HourlyForecastHistoryDao.getHistoryInRangeForBucketWindow` (`DailyHistoryRun.Host.hourlyHistory`).
+     * [HourlyForecastStitcher] does the merge [getHourlyHistory] does here.
+     */
+    fun getHourlyHistorySnapshots(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): List<HourlyForecast> {
+        val result = mutableListOf<HourlyForecast>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT dateTime, temperature, condition, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, source, locationLat, locationLon
+                FROM hourly_forecast_history
+                WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND dateTime >= ? AND dateTime < ?
+                ORDER BY dateTime ASC, timestampToGroupPredictions DESC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                stmt.setLong(4, startMs)
+                stmt.setLong(5, endMs)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(HourlyForecast(
+                        dateTime = rs.getLong("dateTime"),
+                        temperature = rs.getFloat("temperature"),
+                        condition = rs.getString("condition"),
+                        precipProbability = rs.getNullableInt("precipProbability"),
+                        cloudCover = rs.getNullableInt("cloudCover"),
+                        cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
+                        cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
+                        cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        source = rs.getString("source"),
+                        fetchedAt = rs.getLong("fetchedAt"),
+                        locationLat = rs.getDouble("locationLat"),
+                        locationLon = rs.getDouble("locationLon"),
+                    ))
+                }
+            }
+        }
+        return result
+    }
+
     fun getHourlyHistoryCount(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Int {
         db.getConnection().use { conn ->
             val sql = """

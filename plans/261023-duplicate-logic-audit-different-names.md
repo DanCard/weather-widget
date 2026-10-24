@@ -300,12 +300,22 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   `UI_FLOW` category is empty and removed. The duplicate-name allowlist holds only ADAPTER / DRAWING /
   GENERIC entries.
 
+- 2026-10-24: Tier 3 started — Host contract tests (`plans/261024-host-contract-tests-room-and-desktop-sqlite.md`).
+  The "known differing read" above was a misreading: Android `getForecastsInRange` and desktop
+  `getForecastsInRangeBySource` are different reads; the same-named pair returns the same rows. First
+  suite: `:shared` testFixtures `DailyHistoryHostContract`, run on Room (`RoomDailyHistoryHost`) and
+  desktop SQLite (`DesktopDailyHistoryHost`). Found and fixed: desktop's `hourlyHistory` returned its
+  display read (one merged row per hour across the box's sites, end hour included, future `Generic`
+  rows); now raw snapshots `[start, end)` like Android (user: option A) — the stitcher already merges.
+  No visible change (the readers are one-time past-day backfills). Guard `HostContractCoverageTest`:
+  10 ports pending.
+
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:
-1. **Tier 3, the two DAOs** (10-21 audit §3, option b, recommended): name each Host read by intent
-   and run one shared contract test suite against Room in-memory (`:app` Robolectric) and desktop
-   SQLite (temp file). Start with one read known to differ: Android `getForecastsInRange` returns the
-   newest batch, desktop `getForecastsInRangeBySource` every fetch. Plan first (AGENTS.md gate).
+1. **Tier 3, the two DAOs** — continue Host by Host: the 10 in `HostContractCoverageTest.PENDING`,
+   smallest DB surface first (ClimateNormalsRun, PriorDayCloudRun, NwsStationActualsRun, …). Pattern:
+   abstract `<Runner>HostContract` in `:shared` testFixtures, extract each platform's Host into a
+   class, seeds write raw rows, a case that tells the readings apart; any divergence → user decision.
 2. **B rest**: per-source fetch/persist, one source at a time as Runner + Host.
 Process that worked this session: find the twin → write a plan with the divergences and any user
 decision → approval → shared code + a test that fails on the old code → full suite incl.

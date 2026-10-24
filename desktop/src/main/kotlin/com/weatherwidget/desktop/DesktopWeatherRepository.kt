@@ -1276,45 +1276,7 @@ class DesktopWeatherRepository(
     internal suspend fun settlePastForecastOverlays(now: Long) =
         dailyHistoryRun.settlePastForecastOverlays(latitude, longitude, now)
 
-    private val dailyHistoryRun = DailyHistoryRun(object : DailyHistoryRun.Host {
-        override suspend fun dailyHistory(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
-            weatherDao.getExtremesInRange(startMs, endMs, latitude, longitude)
-
-        override suspend fun forecastFetches(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
-            weatherDao.getForecastFetchesInRange(startMs, endMs, latitude, longitude).map { it.toMaintenanceRow() }
-
-        override suspend fun hourlyForecasts(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
-            weatherDao.getHourlyForecastsAllSources(latitude, longitude, startMs, endMs)
-
-        override suspend fun hourlyHistory(startMs: Long, endMs: Long, latitude: Double, longitude: Double, source: String) =
-            weatherDao.getHourlyHistory(latitude, longitude, source, startMs, endMs, currentTimeMillis())
-
-        override suspend fun insertDailyHistory(rows: List<DailyHistory>) = weatherDao.upsertDailyHistory(rows)
-
-        override suspend fun updateForecastOverlay(row: DailyHistory) = weatherDao.updateForecastOverlay(row)
-
-        override suspend fun updatePriorForecast(row: DailyHistory) = weatherDao.updatePriorForecast(row)
-
-        override suspend fun isDone(marker: DailyHistoryRun.Marker) =
-            weatherDao.getRecentLogsByTags(listOf(marker.doneTag), limit = 1).isNotEmpty()
-
-        override suspend fun markDone(marker: DailyHistoryRun.Marker, summary: String) =
-            weatherDao.log(marker.doneTag, summary, "INFO")
-
-        override suspend fun lastUpkeepMs() =
-            weatherDao.getRecentLogsByTags(listOf(DailyHistoryRun.UPKEEP_TAG), limit = 1).firstOrNull()?.timestamp ?: 0L
-
-        // The UPKEEP_TAG row upkeepIfDue logs is the marker; app_logs keeps 72 h, past the 24 h interval.
-        override suspend fun markUpkeep(nowMs: Long) = Unit
-
-        override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
-    })
-
-    private val DailyHistoryRun.Marker.doneTag: String
-        get() = when (this) {
-            DailyHistoryRun.Marker.CHANCE_BACKFILL -> CHANCE_BACKFILL_DONE_TAG
-            DailyHistoryRun.Marker.FROZEN_DISPLAY_BACKFILL -> FROZEN_DISPLAY_BACKFILL_DONE_TAG
-        }
+    private val dailyHistoryRun = DailyHistoryRun(DesktopDailyHistoryHost(weatherDao))
 
     /**
      * One-time scrub of app_logs rows that still embed API credentials (Ktor exception text
@@ -1394,25 +1356,6 @@ class DesktopWeatherRepository(
         val repaired = weatherDao.repairUtcDatedPredictions()
         weatherDao.log(UTC_PREDICTION_DATE_REPAIR_DONE_TAG, "repaired=$repaired zone=${ZoneId.systemDefault()}")
     }
-
-    /** Flattens a desktop forecast row into the shared planner's row type. */
-    private fun DesktopForecastRow.toMaintenanceRow() =
-        DailyHistoryMaintenance.ForecastHistoryRow(
-            dateMs = targetDate,
-            source = source,
-            locationLat = locationLat ?: latitude,
-            locationLon = locationLon ?: longitude,
-            highTemp = highTemp,
-            lowTemp = lowTemp,
-            precipAmountMm = precipAmountMm,
-            condition = condition,
-            fetchedAt = fetchedAt,
-            isClimateNormal = isClimateNormal,
-            precipProbability = precipProbability,
-            daytimePrecipProbability = daytimePrecipProbability,
-            nighttimePrecipProbability = nighttimePrecipProbability,
-            batchFetchedAt = batchFetchedAt ?: fetchedAt,
-        )
 
     /** The display source's daily actuals, plus every source's history depth from the same read. */
     private class DailyActualsLoad(
@@ -1541,8 +1484,8 @@ class DesktopWeatherRepository(
         // from here and only deepens. Capped at the 18-month DB retention (cleanup deletes past that).
         private const val BASELINE_HISTORY_DAYS = 7
         private const val MAX_HISTORY_DAYS = 547
-        private const val CHANCE_BACKFILL_DONE_TAG = "CHANCE_BACKFILL_DONE"
-        private const val FROZEN_DISPLAY_BACKFILL_DONE_TAG = "FROZEN_DISPLAY_BACKFILL_DONE"
+        private const val CHANCE_BACKFILL_DONE_TAG = DesktopDailyHistoryHost.CHANCE_BACKFILL_DONE_TAG
+        private const val FROZEN_DISPLAY_BACKFILL_DONE_TAG = DesktopDailyHistoryHost.FROZEN_DISPLAY_BACKFILL_DONE_TAG
         private const val UTC_PREDICTION_DATE_REPAIR_DONE_TAG = "UTC_PREDICTION_DATE_REPAIR_DONE"
         private const val HISTORY_PRUNE_TAG = HistoryPruneSchedule.LOG_TAG
 
