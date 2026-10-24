@@ -104,6 +104,18 @@ freshest bucket first); `getHourlyHistory` (merged) stays for desktop's display 
   Desktop `getPriorDayBandForecast` (mid/high band curve) had the same gap (box, end hour included);
   now `:shared` `PriorDayBandForecast.selectAtSite` on both, `[start, end)` (user: Android's rule
   there too). Tests: `PriorDayBandForecastTest`, `DesktopWeatherDaoTest` (fails on the old query).
+- `NwsStationActualsRun.Host` → `NwsStationActualsHostContract` (6 cases: `dailyHistory`, `upsert`,
+  `nwsLiveHourly`, `nwsHourlyHistory`, the day's stitched NWS hourly, `storedObservations`).
+  **Divergence, decided (user, 2026-10-24): live + history fill.** The past-day blend's NWS hourly was
+  live rows collapsed to one site on Android (`unifyToNearestSite`), live + history snapshots on
+  desktop (`getHourlyWithHistory`). Now the Host has two raw reads and the shared run stitches them
+  (`NwsStationActualsRun.nwsHourlyForDay`, `HourlyForecastStitcher`: live wins every hour it has).
+  No change on today's data (live NWS rows cover every past hour in the lookback). Observations
+  already matched (`ObservationSiteMerge` on both). Hosts `RoomNwsStationActualsHost` /
+  `DesktopNwsStationActualsHost`; `NwsStationActualsStore` takes `HourlyForecastHistoryDao`. 7 pending.
+  Noticed, not changed: the live-day blend's hourly input differs too (Android
+  `ObservationResolver` callers vs desktop `recomputeDailyExtremes` → `getHourlyWithHistory` of the
+  displayed source) — not a Host read.
 
 ## Verification
 - The `hourlyHistory` case fails on today's code on one side (which side depends on the decision) —

@@ -41,7 +41,10 @@ class NwsStationActualsRunTest {
         val logs = mutableListOf<String>()
         override suspend fun dailyHistory(startMs: Long, endMs: Long) = rows
         override suspend fun stations(): List<NwsApi.StationInfo> { stationCalls++; return stationList }
-        override suspend fun nwsHourly(dayStartMs: Long, dayEndMs: Long) = emptyList<HourlyForecast>()
+        var live = emptyList<HourlyForecast>()
+        var history = emptyList<HourlyForecast>()
+        override suspend fun nwsLiveHourly(startMs: Long, endMs: Long) = live
+        override suspend fun nwsHourlyHistory(startMs: Long, endMs: Long) = history
         override suspend fun stationDay(station: NwsApi.StationInfo, startIso: String, endIso: String): List<ObservationReading> =
             if (failRequests) throw java.io.IOException("down") else emptyList()
         override suspend fun storedObservations(startMs: Long, endMs: Long) = emptyList<ObservationReading>()
@@ -92,5 +95,22 @@ class NwsStationActualsRunTest {
         assertEquals(DailyActualsSource.CACHED_OBSERVATIONS.storedValue, written.actualsSource)
         assertEquals(70f, written.computedHighTemp) // the blend is not the cache's to change
         assertNull(NwsStationActualsRun.applyCached(written, extreme, nowMs = 9L))
+    }
+
+    /** User, 2026-10-24: live rows win; history fills only hours with no live row (desktop's rule, now both). */
+    @Test
+    fun nwsHourlyForDayFillsHoursWithoutALiveRowFromHistory() = kotlinx.coroutines.runBlocking {
+        val h0 = 1_780_682_400_000L
+        val h1 = h0 + 3_600_000L
+        fun hr(t: Long, temp: Float, fetchedAt: Long) =
+            HourlyForecast(t, temp, "Cloudy", source = "NWS", fetchedAt = fetchedAt, locationLat = 37.4, locationLon = -122.0)
+        val host = FakeHost(rows = emptyList()).apply {
+            live = listOf(hr(h0, 60f, fetchedAt = 2))
+            history = listOf(hr(h0, 50f, fetchedAt = 9), hr(h1, 51f, fetchedAt = 9))
+        }
+
+        val hourly = NwsStationActualsRun.nwsHourlyForDay(host, h0, h1 + 3_600_000L, nowMs = h1 + 7_200_000L)
+
+        assertEquals(listOf(h0 to 60f, h1 to 51f), hourly.map { it.dateTime to it.temperature })
     }
 }

@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.HourlyForecastDao
+import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toHourlyForecast
@@ -16,7 +17,6 @@ import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.shared.actuals.StationDailyExtremes
 import com.weatherwidget.widget.WidgetConstants
-import com.weatherwidget.widget.handlers.GraphDataLoader
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
@@ -34,6 +34,7 @@ class NwsStationActualsStore @Inject constructor(
     private val observationDao: ObservationDao,
     private val hourlyForecastDao: HourlyForecastDao,
     private val appLogDao: AppLogDao,
+    private val hourlyForecastHistoryDao: HourlyForecastHistoryDao,
 ) {
     /**
      * Returns the NWS daily_history dates in range that still have no station-derived actual.
@@ -66,26 +67,26 @@ class NwsStationActualsStore @Inject constructor(
         observationDao.getObservationsInRange(startMs, endMs, latitude, longitude, apis = null).map { it.toReading() }
 
     /**
-     * NWS hourly rows for one day, collapsed to a single coordinate site.
-     *
-     * The raw proximity-box query spans every cached site in the box, and feeding un-collapsed
-     * fragments into a blend is the coordinate-fragmentation bug family that
-     * `HourlyProximityQueryAllowlistTest` exists to police — so the read stays behind
-     * `GraphDataLoader.unifyToNearestSite`.
+     * Live NWS hourly rows in the read box over [startMs, endMs), uncollapsed: the shared
+     * [com.weatherwidget.shared.actuals.NwsStationActualsRun.nwsHourlyForDay] stitches them with
+     * [nwsHourlyHistory] and keeps this site (`HourlyForecastStitcher`).
      */
-    internal suspend fun nwsHourlyForecastsForDay(
-        latitude: Double,
-        longitude: Double,
-        dayStartMs: Long,
-        dayEndMs: Long,
-    ): List<com.weatherwidget.data.model.HourlyForecast> =
-        GraphDataLoader.unifyToNearestSite(
-            hourlyForecastDao.getHourlyForecasts(dayStartMs, dayEndMs, latitude, longitude),
-            latitude,
-            longitude,
-        )
-            .filter { it.source == WeatherSource.NWS.id }
+    internal suspend fun nwsLiveHourly(latitude: Double, longitude: Double, startMs: Long, endMs: Long) =
+        hourlyForecastDao.getHourlyForecasts(startMs, endMs, latitude, longitude)
+            .filter { it.source == WeatherSource.NWS.id && it.dateTime < endMs }
             .map { it.toHourlyForecast() }
+
+    /** Every NWS `hourly_forecast_history` snapshot in the read box over [startMs, endMs). */
+    internal suspend fun nwsHourlyHistory(latitude: Double, longitude: Double, startMs: Long, endMs: Long) =
+        hourlyForecastHistoryDao.getHistoryInRangeForBucketWindow(
+            startDateTime = startMs,
+            endDateTime = endMs,
+            bucketStart = Long.MIN_VALUE,
+            bucketEnd = Long.MAX_VALUE,
+            lat = latitude,
+            lon = longitude,
+            source = WeatherSource.NWS.id,
+        ).map { it.toHourlyForecast() }
 
     /**
      * Writes station-derived daily extremes onto the NWS rows for the given dates.

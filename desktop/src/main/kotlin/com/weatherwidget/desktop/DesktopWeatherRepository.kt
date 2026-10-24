@@ -1490,31 +1490,18 @@ class DesktopWeatherRepository(
      * `:shared` [NwsStationActualsRun] (same as Android); this is its desktop host.
      */
     internal suspend fun fillNwsStationActualsIfNeeded(now: Long) = NwsStationActualsRun.run(
-        object : NwsStationActualsRun.Host {
-            override val lat = latitude
-            override val lon = longitude
-            override val personalStationWeight = this@DesktopWeatherRepository.personalStationWeight
-
-            override suspend fun dailyHistory(startMs: Long, endMs: Long) =
-                weatherDao.getExtremesInRange(startMs, endMs, latitude, longitude)
-
-            override suspend fun stations() = weatherService.nearestStationsForDailyActuals()
-
-            override suspend fun nwsHourly(dayStartMs: Long, dayEndMs: Long) =
-                weatherDao.getHourlyWithHistory(latitude, longitude, WeatherSource.NWS.id, dayStartMs, dayEndMs, Long.MAX_VALUE)
-
+        DesktopNwsStationActualsHost(
+            weatherDao = weatherDao,
+            lat = latitude,
+            lon = longitude,
+            personalStationWeight = personalStationWeight,
+            stations = { weatherService.nearestStationsForDailyActuals() },
             // The service answers null for a failed request (it logs the cause); the run needs it thrown.
-            override suspend fun stationDay(station: NwsApi.StationInfo, startIso: String, endIso: String) =
+            stationDay = { station, startIso, endIso ->
                 weatherService.fetchApiObservationDay(station, startIso, endIso)
                     ?: throw java.io.IOException("station day request failed")
-
-            override suspend fun storedObservations(startMs: Long, endMs: Long) =
-                weatherDao.getObservationsInRange(startMs, endMs, latitude, longitude).map { it.toReading() }
-
-            override suspend fun upsert(rows: List<DailyHistory>) = weatherDao.upsertDailyHistory(rows)
-
-            override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
-        },
+            },
+        ),
         nowMs = now,
     )
 

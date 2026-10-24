@@ -2,6 +2,7 @@ package com.weatherwidget.shared.actuals
 
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
@@ -34,8 +35,11 @@ object NwsStationActualsRun {
         /** Observation stations nearest first; empty when NWS can't say. */
         suspend fun stations(): List<NwsApi.StationInfo>
 
-        /** NWS hourly for one day at the site, for the blend. */
-        suspend fun nwsHourly(dayStartMs: Long, dayEndMs: Long): List<HourlyForecast>
+        /** Live `hourly_forecasts` NWS rows in the read box over [startMs, endMs), uncollapsed. */
+        suspend fun nwsLiveHourly(startMs: Long, endMs: Long): List<HourlyForecast>
+
+        /** Every `hourly_forecast_history` NWS snapshot in the read box over [startMs, endMs), uncollapsed. */
+        suspend fun nwsHourlyHistory(startMs: Long, endMs: Long): List<HourlyForecast>
 
         /** One station, one day; throws on a failed request, an empty list when it answered with nothing. */
         suspend fun stationDay(station: NwsApi.StationInfo, startIso: String, endIso: String): List<ObservationReading>
@@ -57,6 +61,21 @@ object NwsStationActualsRun {
             it.source == WeatherSource.NWS.id &&
                 (it.apiHighTemp == null || it.apiLowTemp == null || it.actualsSource == null)
         }.map { it.date }.distinct()
+
+    /**
+     * The NWS hourly the day's blend extrapolates across gaps with: this site's live rows, each hour
+     * a live row lacks filled from history snapshots ([HourlyForecastStitcher]). Desktop filled,
+     * Android read live rows only (user, 2026-10-24: fill on both). Live rows cover every past hour
+     * in the lookback in practice; the fill matters at a freshly adopted site.
+     */
+    suspend fun nwsHourlyForDay(host: Host, dayStartMs: Long, dayEndMs: Long, nowMs: Long): List<HourlyForecast> =
+        HourlyForecastStitcher.stitch(
+            current = host.nwsLiveHourly(dayStartMs, dayEndMs),
+            history = host.nwsHourlyHistory(dayStartMs, dayEndMs),
+            nowMs = nowMs,
+            centerLat = host.lat,
+            centerLon = host.lon,
+        )
 
     suspend fun run(host: Host, nowMs: Long, zone: ZoneId = ZoneId.systemDefault()) {
         // The range and the planner judge "today" from the same clock.
@@ -84,7 +103,7 @@ object NwsStationActualsRun {
             personalStationWeight = host.personalStationWeight,
             zone = zone,
             nowMs = nowMs,
-            hourlyForecastsForDay = { dayStartMs, dayEndMs -> host.nwsHourly(dayStartMs, dayEndMs) },
+            hourlyForecastsForDay = { dayStartMs, dayEndMs -> nwsHourlyForDay(host, dayStartMs, dayEndMs, nowMs) },
             // null == the request failed (Unavailable, retried); empty == answered with nothing
             // (Insufficient, falls back to stored observations). Never collapse the two.
             fetchStationDay = { stationId, startIso, endIso ->

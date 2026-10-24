@@ -58,6 +58,7 @@ class NwsStationActualsStoreTest {
             db.observationDao(),
             db.hourlyForecastDao(),
             db.appLogDao(),
+            db.hourlyForecastHistoryDao(),
         )
         dailyActualsStore = DailyActualsStore(
             db.observationDao(),

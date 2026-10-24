@@ -43,33 +43,20 @@ class NwsApiDailyActualsFetcher
         /** The rule is `:shared` [NwsStationActualsRun]; this is its Android host. */
         suspend fun fillMissingIfNeeded(latitude: Double, longitude: Double) =
             NwsStationActualsRun.run(
-                object : NwsStationActualsRun.Host {
-                    override val lat = latitude
-                    override val lon = longitude
-                    override val personalStationWeight = personalStationWeightProvider.currentWeight()
-
-                    override suspend fun dailyHistory(startMs: Long, endMs: Long) =
-                        stationActualsStore.dailyHistoryInRange(latitude, longitude, startMs, endMs)
-
-                    override suspend fun stations() = observationSource.stationsForLocation(latitude, longitude)
-
-                    override suspend fun nwsHourly(dayStartMs: Long, dayEndMs: Long) =
-                        stationActualsStore.nwsHourlyForecastsForDay(latitude, longitude, dayStartMs, dayEndMs)
-
+                RoomNwsStationActualsHost(
+                    lat = latitude,
+                    lon = longitude,
+                    personalStationWeight = personalStationWeightProvider.currentWeight(),
+                    store = stationActualsStore,
+                    appLogDao = appLogDao,
+                    stations = { observationSource.stationsForLocation(latitude, longitude) },
                     // Reuses NwsObservationSource.toEntity so readings carry the distanceKm /
                     // stationType enrichment StationDailyExtremes needs; nothing is stored.
-                    override suspend fun stationDay(station: NwsApi.StationInfo, startIso: String, endIso: String) =
+                    stationDay = { station, startIso, endIso ->
                         observationSource.fetchApiObservationsOnly(station, latitude, longitude, startIso, endIso)
                             .map { it.toReading() }
-
-                    override suspend fun storedObservations(startMs: Long, endMs: Long) =
-                        stationActualsStore.storedObservations(latitude, longitude, startMs, endMs)
-
-                    override suspend fun upsert(rows: List<com.weatherwidget.data.model.DailyHistory>) =
-                        stationActualsStore.upsertDailyHistory(rows)
-
-                    override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
-                },
+                    },
+                ),
                 nowMs = System.currentTimeMillis(),
             )
     }

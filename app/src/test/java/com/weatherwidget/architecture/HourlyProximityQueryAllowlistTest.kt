@@ -52,7 +52,7 @@ class HourlyProximityQueryAllowlistTest {
         "RoomDailyHistoryHost.kt" to "DailyHistoryRun.Host read; the shared freeze passes use site-aware rain and noon-cloud resolvers",
         "CurrentTempRepository.kt" to "pre-existing; audit before touching (current-temp windows)",
         "DailyActualsStore.kt" to "actuals context read is immediately wrapped in unifyToNearestSite",
-        "NwsStationActualsStore.kt" to "NWS actuals blend context read is immediately wrapped in unifyToNearestSite",
+        "NwsStationActualsStore.kt" to "NWS actuals blend context: NwsStationActualsRun.nwsHourlyForDay stitches it to this site (HourlyForecastStitcher)",
         "UIUpdateScheduler.kt" to "pre-existing; audit before touching (update cadence heuristics)",
         "DataFreshness.kt" to "staleness check; freshest row wins regardless of site",
         "NowcastRefresher.kt" to
