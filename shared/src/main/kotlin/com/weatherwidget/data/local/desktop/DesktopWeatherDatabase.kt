@@ -2,6 +2,8 @@ package com.weatherwidget.data.local.desktop
 
 import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.shared.observations.MetarPlausibility
+import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.shared.util.Log
 import java.nio.file.Path
 import java.sql.Connection
 import java.sql.DriverManager
@@ -214,8 +216,43 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 } else {
                     migrate(conn, currentVersion, SCHEMA_VERSION)
                 }
+                quantizeObservationSites(conn)
             }
         }
+    }
+
+    /**
+     * Observation rows written before desktop quantized their key (2026-10-24; Android always has,
+     * `withQuantizedLocation`) moved onto [LocationMatch.quantize]d coordinates, so a re-fetch at a
+     * jittered fix replaces rather than adds. Idempotent and cheap once done: one indexed DISTINCT.
+     * "Desktop" may be a laptop that moves (user, 2026-10-24). A clash with a row already on the
+     * quantized key is the same report; REPLACE keeps one.
+     */
+    private fun quantizeObservationSites(conn: Connection) {
+        val raw = mutableListOf<Pair<Double, Double>>()
+        conn.createStatement().use { stmt ->
+            stmt.executeQuery("SELECT DISTINCT locationLat, locationLon FROM observations").use { rs ->
+                while (rs.next()) {
+                    val lat = rs.getDouble(1)
+                    val lon = rs.getDouble(2)
+                    if (lat != LocationMatch.quantize(lat) || lon != LocationMatch.quantize(lon)) raw += lat to lon
+                }
+            }
+        }
+        if (raw.isEmpty()) return
+        conn.prepareStatement(
+            "UPDATE OR REPLACE observations SET locationLat = ?, locationLon = ? WHERE locationLat = ? AND locationLon = ?",
+        ).use { update ->
+            raw.forEach { (lat, lon) ->
+                update.setDouble(1, LocationMatch.quantize(lat))
+                update.setDouble(2, LocationMatch.quantize(lon))
+                update.setDouble(3, lat)
+                update.setDouble(4, lon)
+                update.addBatch()
+            }
+            update.executeBatch()
+        }
+        Log.i("DesktopWeatherDatabase", "quantizeObservationSites: moved sites=${raw.size}")
     }
 
     /** Shared with Android by way of [MetarPlausibility]; see the v24 block in [migrate]. */

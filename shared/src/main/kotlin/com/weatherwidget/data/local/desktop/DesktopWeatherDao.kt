@@ -646,8 +646,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setLong(3, obs.timestamp)
                         stmt.setFloat(4, obs.temperature)
                         stmt.setString(5, obs.condition)
-                        stmt.setDouble(6, obs.locationLat)
-                        stmt.setDouble(7, obs.locationLon)
+                        // Quantized like every other coordinate key (and Android's
+                        // withQuantizedLocation), so a re-fetch at a jittered fix replaces the row.
+                        stmt.setDouble(6, LocationMatch.quantize(obs.locationLat))
+                        stmt.setDouble(7, LocationMatch.quantize(obs.locationLon))
                         stmt.setFloat(8, obs.distanceKm)
                         stmt.setInt(9, obs.stationType.dbCode)
                         stmt.setLong(10, obs.fetchedAt)
@@ -1241,7 +1243,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             conn.prepareStatement(
                 """
                     SELECT MAX(fetchedAt) FROM observations
-                    WHERE locationLat = ? AND locationLon = ? AND api = ?
+                    WHERE ${LocationMatch.JDBC_SAME_SITE_WHERE} AND api = ?
                 """.trimIndent(),
             ).use { stmt ->
                 stmt.setDouble(1, locationLat)

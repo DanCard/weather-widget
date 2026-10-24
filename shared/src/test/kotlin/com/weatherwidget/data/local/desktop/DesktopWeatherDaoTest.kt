@@ -372,6 +372,60 @@ class DesktopWeatherDaoTest {
         }
     }
 
+    private fun obsAt(lat: Double, lon: Double, temp: Float = 60f, fetchedAt: Long = 1_000L) = DesktopObservationEntity(
+        stationId = "KNUQ", stationName = "Moffett", timestamp = 1_780_682_400_000L, temperature = temp,
+        condition = "Clear", locationLat = lat, locationLon = lon, fetchedAt = fetchedAt, api = "NWS",
+    )
+
+    private fun storedObservationSites(): List<Pair<Double, Double>> =
+        db.getConnection().use { conn ->
+            conn.createStatement().executeQuery("SELECT locationLat, locationLon FROM observations").use { rs ->
+                generateSequence { if (rs.next()) rs.getDouble(1) to rs.getDouble(2) else null }.toList()
+            }
+        }
+
+    /** User, 2026-10-24: "desktop" may be a laptop that moves — key observations like Android. */
+    @Test
+    fun `observations are keyed on quantized coordinates, so a jittered re-fetch replaces the row`() {
+        dao.upsertObservations(listOf(obsAt(37.4166014, -122.0888722, temp = 60f)))
+        dao.upsertObservations(listOf(obsAt(37.4169, -122.0891, temp = 61f)))
+
+        assertEquals(listOf(37.417 to -122.089), storedObservationSites())
+        assertEquals(listOf(61f), dao.getObservationsInRange(0L, Long.MAX_VALUE, 37.417, -122.089).map { it.temperature })
+    }
+
+    @Test
+    fun `the observation fetch time and the fetchedAt touch find quantized rows from raw device coordinates`() {
+        dao.upsertObservations(listOf(obsAt(37.4166014, -122.0888722, fetchedAt = 1_000L)))
+
+        assertEquals(1_000L, dao.getLatestObservationFetchedAt(37.4166014, -122.0888722, "NWS"))
+        dao.touchLatestObservationFetchedAt("KNUQ", 37.4166014, -122.0888722, nowMs = 5_000L)
+        assertEquals(5_000L, dao.getLatestObservationFetchedAt(37.4166014, -122.0888722, "NWS"))
+    }
+
+    @Test
+    fun `startup moves raw-coordinate observation rows onto the quantized key`() {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO observations (stationId, stationName, timestamp, temperature, condition, locationLat, locationLon, distanceKm, stationType, fetchedAt, api) " +
+                    "VALUES ('KNUQ', 'Moffett', ?, ?, 'Clear', ?, ?, 4, 1, 1000, 'NWS')",
+            ).use { stmt ->
+                // The same report at a raw site and already at the quantized one, plus another hour.
+                listOf(
+                    listOf(1_780_682_400_000L, 60f, 37.4166014, -122.0888722),
+                    listOf(1_780_682_400_000L, 61f, 37.417, -122.089),
+                    listOf(1_780_686_000_000L, 62f, 37.4166014, -122.0888722),
+                ).forEach { row -> row.forEachIndexed { i, v -> stmt.setObject(i + 1, v) }; stmt.executeUpdate() }
+            }
+        }
+
+        DesktopWeatherDatabase(tempDbPath).initialize()
+        DesktopWeatherDatabase(tempDbPath).initialize()
+
+        assertEquals(listOf(37.417 to -122.089, 37.417 to -122.089), storedObservationSites())
+        assertEquals(2, dao.getObservationsInRange(0L, Long.MAX_VALUE, 37.417, -122.089).size)
+    }
+
     /** Android's rule (user, 2026-10-24): this site only, `[start, end)`. Desktop took the box and the end hour. */
     @Test
     fun `getPriorDayBandForecast reads this site only and excludes the end hour`() {

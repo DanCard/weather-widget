@@ -320,7 +320,8 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
 - 2026-10-24: `HourlyOnDemandRun.Host` contract — no divergence. 6 pending. Open (both platforms):
   `hoursToCover` counts a neighbouring town's rows in the box as coverage.
 - 2026-10-24: `WeatherApiHistoryRun.Host` contract — desktop's coverage read narrowed to WeatherAPI rows
-  (no behaviour change). 5 pending. Open: desktop stores observations at raw coordinates, Android quantized.
+  (no behaviour change). 5 pending. Desktop stored observations at raw coordinates,
+  Android quantized → desktop quantizes too, existing rows moved at startup (user: desktop may be a laptop).
 
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:
