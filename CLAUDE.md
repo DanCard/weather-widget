@@ -418,6 +418,12 @@ One policy for Android and desktop, in `:shared` `RetentionPolicy` (user's decis
 | `climate_normals` | current location only |
 
 - `hourly_forecast_history` is also pruned daily to the snapshots something reads (below).
+- **Which fetches are snapshotted** (user, 2026-10-24): `:shared` `HourlySnapshotRun`, both platforms —
+  the displayed source every fetch; another source only when its last snapshot here is ≥ 11 h old
+  (charging or ≥ 70 %) / ≥ 22 h (< 70 %); a source not viewed in 8 days (`SourceFetchGate`) never. Each
+  snapshot is labelled with its own fetch time (no 4 h / 12 h windows; `ForecastHistoryPolicy` is gone),
+  and Android keeps every fetch's daily `forecasts` rows, as desktop. Logs `HOURLY_SNAPSHOT`
+  (`performance/261024-hourly-snapshot-windows-by-view-and-battery.md`).
 - `daily_history` upkeep (`:shared` `DailyHistoryRun`): after every fetch only the rain-chance freeze
   and yesterday's forecast-only rows (`afterFetch`); the month-wide passes — forecast-only rows, the
   one-time backfills, settle + "yesterday's forecast" — once per 24 h **on a charger** (`upkeepIfDue`,

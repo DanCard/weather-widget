@@ -1643,6 +1643,28 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
+    /**
+     * The label of [source]'s newest `hourly_forecast_history` snapshot at this site (same-site
+     * match), or null — `HourlySnapshotRun.Host.lastSnapshotMs`, as Android's `getLatestSnapshotLabel`.
+     */
+    fun getLatestHourlySnapshotLabel(locationLat: Double, locationLon: Double, source: String): Long? {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT MAX(timestampToGroupPredictions) FROM hourly_forecast_history WHERE ${LocationMatch.JDBC_SAME_SITE_WHERE} AND source = ?",
+            ).use { stmt ->
+                stmt.setDouble(1, locationLat)
+                stmt.setDouble(2, locationLon)
+                stmt.setString(3, source)
+                val rs = stmt.executeQuery()
+                if (rs.next()) {
+                    val label = rs.getLong(1)
+                    return if (rs.wasNull()) null else label
+                }
+            }
+        }
+        return null
+    }
+
     fun getHourlyHistoryCount(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Int {
         db.getConnection().use { conn ->
             val sql = """

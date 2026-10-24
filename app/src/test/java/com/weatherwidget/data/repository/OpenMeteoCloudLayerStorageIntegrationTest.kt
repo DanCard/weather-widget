@@ -73,12 +73,13 @@ class OpenMeteoCloudLayerStorageIntegrationTest : RobolectricTest() {
         ).single()
         assertEquals(listOf(90, 4, 72, 96), listOf(live.cloudCover, live.cloudCoverLow, live.cloudCoverMid, live.cloudCoverHigh))
 
+        // Each fetch is its own snapshot now (HourlySnapshotRun); the newest carries the merged layers.
         val history = db.hourlyForecastHistoryDao().getHistoryInRangeAllSnapshots(
             hour,
             hour + 1,
             lat,
             lon,
-        ).single()
+        ).maxBy { it.timestampToGroupPredictions }
         assertEquals(
             listOf(90, 4, 72, 96),
             listOf(history.cloudCover, history.cloudCoverLow, history.cloudCoverMid, history.cloudCoverHigh),

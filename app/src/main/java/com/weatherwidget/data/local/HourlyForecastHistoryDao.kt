@@ -242,6 +242,20 @@ interface HourlyForecastHistoryDao {
             lat, lon,
         )
 
+    /**
+     * The label of [source]'s newest snapshot at this site ([LocationMatch.sameSite] box), or null —
+     * `HourlySnapshotRun.Host.lastSnapshotMs`.
+     */
+    @Query(
+        """
+        SELECT MAX(timestampToGroupPredictions) FROM hourly_forecast_history
+        WHERE source = :source
+          AND locationLat BETWEEN :lat - ${LocationMatch.SAME_SITE_TOLERANCE_DEG} AND :lat + ${LocationMatch.SAME_SITE_TOLERANCE_DEG}
+          AND locationLon BETWEEN :lon - ${LocationMatch.SAME_SITE_TOLERANCE_DEG} AND :lon + ${LocationMatch.SAME_SITE_TOLERANCE_DEG}
+    """,
+    )
+    suspend fun getLatestSnapshotLabel(lat: Double, lon: Double, source: String): Long?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(history: List<HourlyForecastHistoryEntity>)
 

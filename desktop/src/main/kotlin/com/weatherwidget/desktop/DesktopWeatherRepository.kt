@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.shared.util.ClimateNormalsRun
 import com.weatherwidget.shared.actuals.DailyBlendWrite
 import com.weatherwidget.shared.history.WeatherApiHistoryRun
+import com.weatherwidget.shared.history.HourlySnapshotRun
 import com.weatherwidget.shared.actuals.NwsStationActualsRun
 import com.weatherwidget.shared.graph.PriorDayCloudRun
 import com.weatherwidget.shared.observations.CurrentConditionsRun
@@ -96,6 +97,11 @@ class DesktopWeatherRepository(
     },
     /** On a charger (no battery counts as charging): the daily-history upkeep's gate ([DailyHistoryRun.upkeepIfDue]). */
     private val isCharging: () -> Boolean = { PowerDetector.getPowerState().isCharging },
+    /**
+     * The config the hourly snapshot rule ([HourlySnapshotRun]) reads at write time — the displayed
+     * source and the 8-day view gate. Null saves every fetch (tests); production reads the config file.
+     */
+    private val snapshotConfig: () -> DesktopConfig? = { null },
 ) {
     data class RefreshOutcome(
         val snapshot: ForecastSnapshot,
@@ -415,8 +421,7 @@ class DesktopWeatherRepository(
                         now,
                         keep = HourlyOnDemand.keep(weatherSource, request),
                     )
-                    val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
-                    weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, forecastHours)
+                    snapshotLabel(now)?.let { weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, it, forecastHours) }
                     forecastHours.isNotEmpty()
                 },
                 weatherSource,
@@ -628,16 +633,11 @@ class DesktopWeatherRepository(
 
             val extremesCount = runPostFetchBackfills(now)
 
-            // Snapshot for history (Tier 1 simplification: 4h buckets)
-            val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
-            weatherDao.upsertHourlyForecastHistory(
-                latitude,
-                longitude,
-                weatherSource,
-                timestampToGroupPredictions,
-                forecastHours,
-            )
-            backfillElapsedHistory(result, now, timestampToGroupPredictions)
+            // The fetch's snapshot, if the shared rule keeps one (HourlySnapshotRun).
+            snapshotLabel(now)?.let { label ->
+                weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, label, forecastHours)
+                backfillElapsedHistory(result, now, label)
+            }
 
             // The cloud graph's frozen forecast curve. Throttled to once an hour: the day-ago
             // prediction for an elapsed hour never changes, so refetching it on every refresh would
@@ -711,9 +711,10 @@ class DesktopWeatherRepository(
             keep = HourlyOnDemand.keep(weatherSource, null, horizon),
         )
         markHorizon(horizon, result)
-        val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
-        weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, forecastHours)
-        backfillElapsedHistory(result, now, timestampToGroupPredictions)
+        snapshotLabel(now)?.let { label ->
+            weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, label, forecastHours)
+            backfillElapsedHistory(result, now, label)
+        }
         weatherDao.log(tag = "REFRESH_HOURLY", message = "source=$weatherSource hourly=${result.hourly.size} reason=$reason")
         return RefreshOutcome(
             snapshot = loadCached(now) ?: rawFetchToSnapshot(result),
@@ -793,6 +794,13 @@ class DesktopWeatherRepository(
      * is blank for a day while every payload carries the values (`ElapsedForecastBackfill`).
      * Same source only; existing rows are never touched, so in steady state this stores nothing.
      */
+    /** This fetch's snapshot label from the shared rule, or null to save none ([HourlySnapshotRun]). */
+    private suspend fun snapshotLabel(now: Long): Long? =
+        HourlySnapshotRun.run(
+            DesktopHourlySnapshotHost(weatherDao, weatherSource, latitude, longitude, snapshotConfig(), now),
+            now,
+        ).labelMs
+
     private suspend fun backfillElapsedHistory(result: RawFetch, now: Long, timestampToGroupPredictions: Long) {
         val summary = ElapsedForecastBackfill.backfill(
             result.hourly + result.elapsedHourly,

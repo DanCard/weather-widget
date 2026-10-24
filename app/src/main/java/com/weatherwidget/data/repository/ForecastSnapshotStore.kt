@@ -257,27 +257,8 @@ internal class ForecastSnapshotStore(
             )
         }
 
-        if (changedForecasts.isNotEmpty() && !userRefresh) {
-            val prioritySourceIds = widgetStateManager.getActiveDisplaySourceIds()
-            val bucketStart = ForecastHistoryPolicy.timestampToGroupPredictions(
-                nowMs,
-                sourceId,
-                prioritySourceIds,
-            )
-            val bucketEnd = bucketStart + ForecastHistoryPolicy.bucketMs(
-                sourceId,
-                prioritySourceIds,
-            )
-            forecastDao.deleteForecastsInBucket(
-                source = sourceId,
-                lat = keyLat,
-                lon = keyLon,
-                targetDates = changedForecasts.map { it.targetDate },
-                bucketStart = bucketStart,
-                bucketEnd = bucketEnd,
-            )
-        }
-
+        // Every fetch's changed rows are kept, as desktop does (user, 2026-10-24): the 4 h / 12 h window
+        // that used to thin them is gone with ForecastHistoryPolicy (HourlySnapshotRun).
         val currentBatchRows = unchangedBatchRows + changedForecasts
         if (currentBatchRows.isNotEmpty()) {
             forecastDao.insertAll(currentBatchRows)

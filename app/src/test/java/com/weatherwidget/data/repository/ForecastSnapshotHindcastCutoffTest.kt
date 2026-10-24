@@ -246,7 +246,9 @@ class ForecastSnapshotHindcastCutoffTest {
         )
         val withLow = db.forecastDao().getLatestForecastBySource("GOOGLE_WEATHER", LAT, LON)!!
         db.forecastDao().insertAll(
-            listOf(withLow.copy(lowTemp = null, fetchedAt = withLow.fetchedAt + 60_000L, batchFetchedAt = withLow.batchFetchedAt + 60_000L)),
+            // 1 ms after the first fetch and before the next save (fetch times are the real clock): a
+            // window thinning used to delete this row; every fetch's row is kept since 2026-10-24.
+            listOf(withLow.copy(lowTemp = null, fetchedAt = withLow.fetchedAt + 1L, batchFetchedAt = withLow.batchFetchedAt + 1L)),
         )
         Thread.sleep(5)
         repository.saveForecastSnapshot(

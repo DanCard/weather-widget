@@ -71,10 +71,10 @@ class ForecastDeduplicationBugReproTest {
 
     @Test
     fun `good forecast is not skipped after a regression`() = runTest {
-        // All three saves land in the same snapshot bucket (fetchedAt = now), so the forecast-history
-        // cadence cap collapses them to a single latest row. The bug this guards against is the GOOD
-        // forecast (Batch 3) being dropped by the dedup comparison after a regression — so the key
-        // assertion is that the surviving row carries the good (non-null) high temp, not the count.
+        // Every changed fetch keeps its own row since 2026-10-24 (no 4 h / 12 h window thins them, as on
+        // desktop). The bug this guards against is the GOOD forecast (Batch 3) being dropped by the dedup
+        // comparison after a regression — so the key assertion is that the newest row carries the good
+        // (non-null) high temp.
 
         // 1. Save a good forecast (Batch 1)
         repository.saveForecastSnapshot(
@@ -83,15 +83,15 @@ class ForecastDeduplicationBugReproTest {
         )
         assertEquals(1, db.forecastDao().getCount())
 
-        // 2. Save a regressed forecast (missing high) (Batch 2) — different, so it replaces in-bucket.
+        // 2. Save a regressed forecast (missing high) (Batch 2) — different, so it is a new row.
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = null, lowTemp = 54f)),
             LAT, LON, "NWS", batchFetchedAt = 2000L
         )
-        assertEquals(1, db.forecastDao().getCount())
+        assertEquals(2, db.forecastDao().getCount())
 
         // 3. Save the good forecast again (Batch 3) — strictly better than the current latest, so the
-        // dedup must NOT skip it; it replaces the regressed row within the bucket.
+        // dedup must NOT skip it.
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 80f, lowTemp = 54f)),
             LAT, LON, "NWS", batchFetchedAt = 3000L
@@ -111,7 +111,7 @@ class ForecastDeduplicationBugReproTest {
         assertNotNull("Tomorrow forecast should exist", tomorrowForecast)
         assertNotNull("High temp should NOT be null (good forecast must survive)", tomorrowForecast?.highTemp)
         assertEquals(80f, tomorrowForecast?.highTemp)
-        // Same-bucket saves collapse to one row under the cadence cap.
-        assertEquals(1, count)
+        // Batch 3 was saved, not skipped: one row per changed fetch.
+        assertEquals(3, count)
     }
 }

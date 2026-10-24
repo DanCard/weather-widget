@@ -151,4 +151,43 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
         assertTrue(live.isNotEmpty())
         assertTrue(live.all { it >= System.currentTimeMillis() - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS })
     }
+
+    /**
+     * One decision per fetch (user, 2026-10-24, HourlySnapshotRun): the backfill reuses the live
+     * snapshot's decision — a skipped fetch files nothing and does not ask (or log) again; a saved one
+     * files under the same label. On the emulator each skip was logged twice before this.
+     */
+    @Test
+    fun `the backfill reuses the fetch's snapshot decision`() = runTest {
+        val asked = mutableListOf<Long>()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        fun storeDeciding(label: Long?) = HourlyForecastStore(
+            hourlyForecastDao = db.hourlyForecastDao(),
+            hourlyForecastHistoryDao = db.hourlyForecastHistoryDao(),
+            observationDao = db.observationDao(),
+            widgetStateManager = WidgetStateManager(context),
+            clock = { now },
+            snapshotLabel = { _, _, _, t -> asked += t; label },
+        )
+        fun entities() = payload().filter { it.dateTime >= now - now % h }.map {
+            com.weatherwidget.data.local.HourlyForecastEntity(
+                dateTime = it.dateTime, locationLat = lat, locationLon = lon, temperature = it.temperature,
+                condition = it.condition, source = source, fetchedAt = now,
+            )
+        }
+
+        val skipping = storeDeciding(label = null)
+        skipping.saveHourlyEntities(entities())
+        assertEquals(null, skipping.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now + 2_000L))
+        assertEquals(1, asked.size)
+        assertTrue(historyRows().isEmpty())
+
+        asked.clear()
+        val saving = storeDeciding(label = now)
+        saving.saveHourlyEntities(entities())
+        saving.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now + 2_000L)
+        assertEquals(1, asked.size)
+        assertEquals(setOf(now), historyRows().map { it.timestampToGroupPredictions }.toSet())
+    }
 }
+

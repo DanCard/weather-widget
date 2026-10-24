@@ -247,7 +247,7 @@ internal fun runDesktopUiApplication() = application {
             val service = weatherService
             currentConfig?.let { cfg ->
                 service?.let {
-                    DesktopWeatherRepository(it, weatherDao, cfg.lat, cfg.lon, cfg.displaySource, cfg.personalStationWeight())
+                    DesktopWeatherRepository(it, weatherDao, cfg.lat, cfg.lon, cfg.displaySource, cfg.personalStationWeight(), snapshotConfig = { DesktopConfigStore().load() })
                 }
             }
         }
@@ -1059,7 +1059,7 @@ internal fun runDesktopUiApplication() = application {
                     personalStationWeight = cfg.personalStationWeight(),
                 )
                 try {
-                    DesktopWeatherRepository(service, weatherDao, cfg.lat, cfg.lon, source.id, cfg.personalStationWeight())
+                    DesktopWeatherRepository(service, weatherDao, cfg.lat, cfg.lon, source.id, cfg.personalStationWeight(), snapshotConfig = { DesktopConfigStore().load() })
                         .refresh(reason = "user_refresh:$origin", refillDay = refillDay, userRefresh = true)
                 } finally {
                     service.close()

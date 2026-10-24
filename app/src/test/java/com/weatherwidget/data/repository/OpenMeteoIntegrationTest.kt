@@ -224,7 +224,7 @@ class OpenMeteoIntegrationTest {
      * the "future only" filter regardless of wall-clock time.
      */
     @Test
-    fun `fetch populates hourly_forecast_history with cloud cover and a 4h-aligned bucket`() = runTest {
+    fun `fetch populates hourly_forecast_history with cloud cover under the fetch's own time`() = runTest {
         val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")
         val baseUtc = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
             .withMinute(0).withSecond(0).withNano(0)
@@ -281,13 +281,7 @@ class OpenMeteoIntegrationTest {
         assertEquals("history should capture all 3 future hours", 3, rows.size)
         // Cloud cover preserved (the whole point of the history record).
         assertEquals(listOf(40, 55, 70), rows.map { it.cloudCover })
-        // Each row's bucket = policy applied to its real fetchedAt, and 4h-aligned (primary source).
-        rows.forEach { r ->
-            assertEquals(
-                ForecastHistoryPolicy.timestampToGroupPredictions(r.fetchedAt, "OPEN_METEO", setOf("OPEN_METEO")),
-                r.timestampToGroupPredictions,
-            )
-            assertEquals("primary bucket must be 4h-aligned", 0L, r.timestampToGroupPredictions % ForecastHistoryPolicy.PRIMARY_BUCKET_MS)
-        }
+        // One snapshot, labelled with the fetch time (HourlySnapshotRun; no 4 h window since 2026-10-24).
+        rows.forEach { r -> assertEquals(r.fetchedAt, r.timestampToGroupPredictions) }
     }
 }

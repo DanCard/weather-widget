@@ -6,12 +6,12 @@ import androidx.room.Index
 
 /**
  * Historical snapshots of the hourly forecast — what each hour was *predicted* to be, captured at
- * a [timestampToGroupPredictions] (4h cadence for the primary source, 8h for others; see
- * [com.weatherwidget.data.repository.ForecastHistoryPolicy]).
+ * [timestampToGroupPredictions] — the fetch time, since 2026-10-24; which fetches are saved is
+ * `:shared` [com.weatherwidget.shared.history.HourlySnapshotRun]. Rows written before then carry the
+ * start of a 4 h / 12 h window.
  *
  * Unlike [HourlyForecastEntity] (latest-only, REPLACE-overwritten), this preserves prior
- * predictions: [timestampToGroupPredictions] is part of the primary key, so each bucket keeps its own row.
- * Fetches within the same bucket collapse to one snapshot (the latest, via REPLACE). Payload mirrors
+ * predictions: [timestampToGroupPredictions] is part of the primary key, so each snapshot keeps its own row. Payload mirrors
  * [HourlyForecastEntity]; [fetchedAt] is the real fetch time (kept for debugging/retention).
  */
 @Entity(

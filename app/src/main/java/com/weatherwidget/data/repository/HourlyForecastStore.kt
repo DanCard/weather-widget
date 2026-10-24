@@ -33,6 +33,13 @@ internal class HourlyForecastStore(
      */
     private val clock: () -> Long = System::currentTimeMillis,
     private val appLogDao: com.weatherwidget.data.local.AppLogDao? = null,
+    /**
+     * The `:shared` [com.weatherwidget.shared.history.HourlySnapshotRun] label for [sourceId]'s fetch at
+     * the site now, or null to save no snapshot ([RoomHourlySnapshotHost] in production). The default —
+     * every fetch, under its own time — is for tests.
+     */
+    private val snapshotLabel: suspend (sourceId: String, latitude: Double, longitude: Double, nowMs: Long) -> Long? =
+        { _, _, _, nowMs -> nowMs },
 ) {
     data class HistoricalActualsWriteSummary(
         val rowCount: Int,
@@ -86,7 +93,6 @@ internal class HourlyForecastStore(
                 newlyFetched,
             )
         }
-        val prioritySourceIds = widgetStateManager.getActiveDisplaySourceIds()
         // On-demand hours (past the routine 72 h) are always rewritten: their fetchedAt is what keeps
         // them counted as fresh for a tapped day (HourlyOnDemand.MAX_EXTENSION_AGE_MS).
         val extensionStartMs = HourlyOnDemand.extensionStartMs(sample.source, clock())
@@ -98,7 +104,8 @@ internal class HourlyForecastStore(
             hourlyForecastDao.insertAll(changedEntities)
         }
 
-        val historyRows = mergedEntities.filter { it.dateTime < snapshotUntilMs }.map { entity ->
+        val snapshotAt = decideSnapshot(sample.source, sample.locationLat, sample.locationLon, clock())
+        val historyRows = if (snapshotAt == null) emptyList() else mergedEntities.filter { it.dateTime < snapshotUntilMs }.map { entity ->
             HourlyForecastHistoryEntity(
                 dateTime = entity.dateTime,
                 locationLat = entity.locationLat,
@@ -106,11 +113,7 @@ internal class HourlyForecastStore(
                 temperature = entity.temperature,
                 condition = entity.condition,
                 source = entity.source,
-                timestampToGroupPredictions = ForecastHistoryPolicy.timestampToGroupPredictions(
-                    entity.fetchedAt,
-                    entity.source,
-                    prioritySourceIds,
-                ),
+                timestampToGroupPredictions = snapshotAt,
                 precipProbability = entity.precipProbability,
                 cloudCover = entity.cloudCover,
                 cloudCoverLow = entity.cloudCoverLow,
@@ -231,7 +234,7 @@ internal class HourlyForecastStore(
      *
      * Never touches `hourly_forecasts`, and never rewrites an existing snapshot: an hour with any
      * history row (in any bucket, on any same-site fragment) is left alone, so on a device in
-     * steady state this is a no-op every fetch. Filed under the regular [ForecastHistoryPolicy]
+     * steady state this is a no-op every fetch. Filed under the fetch's [com.weatherwidget.shared.history.HourlySnapshotRun]
      * bucket for the fetch, so the row is what it is — this fetch's forecast for that hour.
      */
     suspend fun backfillElapsedHistory(
@@ -241,16 +244,29 @@ internal class HourlyForecastStore(
         sourceId: String,
         nowMs: Long = clock(),
     ): ElapsedForecastBackfill.Summary? {
-        val bucket = ForecastHistoryPolicy.timestampToGroupPredictions(
-            nowMs,
-            sourceId,
-            widgetStateManager.getActiveDisplaySourceIds(),
-        )
+        // The fetch's own snapshot decision (decideSnapshot): saved → the same label, skipped → nothing.
+        val bucket = decideSnapshot(sourceId, latitude, longitude, nowMs) ?: return null
         return ElapsedForecastBackfill.backfill(
             hourlyData,
             nowMs,
             RoomElapsedHistoryStore(hourlyForecastHistoryDao, latitude, longitude, sourceId, bucket, nowMs),
         )
+    }
+
+    /** The last [snapshotLabel] decision per source and site: (decided at, label or null). */
+    private val recentSnapshotDecisions = java.util.concurrent.ConcurrentHashMap<Triple<String, Double, Double>, Pair<Long, Long?>>()
+
+    /**
+     * One snapshot decision per fetch: the live snapshot decides, and the elapsed-hour backfill that
+     * follows within [HourlySnapshotRun.SAME_FETCH_MS] reuses it rather than asking (and logging)
+     * again — as desktop passes its label on. A skip stays a skip for the backfill.
+     */
+    private suspend fun decideSnapshot(sourceId: String, latitude: Double, longitude: Double, nowMs: Long): Long? {
+        val key = Triple(sourceId, LocationMatch.quantize(latitude), LocationMatch.quantize(longitude))
+        recentSnapshotDecisions[key]?.let { (decidedAt, label) ->
+            if (nowMs - decidedAt in 0 until com.weatherwidget.shared.history.HourlySnapshotRun.SAME_FETCH_MS) return label
+        }
+        return snapshotLabel(sourceId, latitude, longitude, nowMs).also { recentSnapshotDecisions[key] = nowMs to it }
     }
 
     private suspend fun saveHistoricalActuals(
