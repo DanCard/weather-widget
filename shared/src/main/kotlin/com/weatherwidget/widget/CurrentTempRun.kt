@@ -19,16 +19,18 @@ import java.time.ZoneId
  */
 object CurrentTempRun {
     /**
-     * How far back the run's inputs must reach: the yesterday delta blends the readings around
-     * observedAt − 24 h (± 90 min), so 36 h covers it with room for a late observation. Android's
-     * reads take this window ([inputWindow]); the blend at now still cuts to the 12 h one.
+     * How far before the oldest reading the blend at now can anchor on ([buildCurrentTempResolutionWindow]'s
+     * start, 12 h back) the run's inputs must reach: the yesterday delta blends the readings around
+     * observedAt − 24 h ± its 90-min tolerance. 25.5 h before that start, so ≈ 37.5 h before now —
+     * a hard-coded 36 h lost the delta whenever the newest reading was over 10.5 h old.
      */
-    const val INPUT_LOOKBACK_HOURS = 36L
+    const val INPUT_LOOKBACK_BEFORE_WINDOW_MS =
+        YesterdayDeltaCalculator.YESTERDAY_OFFSET_MS + YesterdayDeltaCalculator.DEFAULT_TOLERANCE_MS
 
-    /** [nowLocal] − [INPUT_LOOKBACK_HOURS] … the resolution window's end, as epoch ms. */
+    /** [INPUT_LOOKBACK_BEFORE_WINDOW_MS] before the resolution window's start … its end, as epoch ms. */
     fun inputWindow(nowLocal: LocalDateTime, zoneId: ZoneId = ZoneId.systemDefault()): LongRange {
         val window = CurrentTemperatureResolver.buildCurrentTempResolutionWindow(nowLocal)
-        return nowLocal.minusHours(INPUT_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()..
+        return window.start.atZone(zoneId).toInstant().toEpochMilli() - INPUT_LOOKBACK_BEFORE_WINDOW_MS..
             window.end.atZone(zoneId).toInstant().toEpochMilli()
     }
 

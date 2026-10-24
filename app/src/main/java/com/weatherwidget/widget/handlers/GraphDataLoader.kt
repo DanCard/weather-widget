@@ -235,7 +235,7 @@ object GraphDataLoader {
 
     /**
      * Hourly rows for `:shared` CurrentTempRun's inputs ([com.weatherwidget.widget.CurrentTempRun.inputWindow]:
-     * back 36 h for the yesterday delta). Cut it with [nowCentred] for the header's own window.
+     * ≈ 37.5 h back for the yesterday delta). Cut it with [nowCentred] for the header's own window.
      */
     suspend fun loadCurrentTempInputHourlyForecasts(
         hourlyDao: HourlyForecastDao,

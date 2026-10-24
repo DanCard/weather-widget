@@ -444,7 +444,7 @@ object WidgetRenderer {
                 // Unscoped deliberately: these same rows feed ObservationWatermark, whose gate
                 // counts what actually arrived rather than what this source draws. The blend filters
                 // by source on its own, so narrowing the read would not change the temperature.
-                // From CurrentTempRun.inputWindow (36 h back) for the yesterday delta; the watermark
+                // From CurrentTempRun.inputWindow (≈ 37.5 h back) for the yesterday delta; the watermark
                 // is the newest row, which the earlier start cannot change.
                 val inputWindow = com.weatherwidget.widget.CurrentTempRun.inputWindow(now)
                 repository.getObservationsInRange(

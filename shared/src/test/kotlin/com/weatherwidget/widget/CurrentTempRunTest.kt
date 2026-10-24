@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualsAggregator
+import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -96,5 +97,20 @@ class CurrentTempRunTest {
     private companion object {
         const val LAT = 37.4220
         const val LON = -122.0841
+    }
+
+    @Test
+    fun `the input window reaches the yesterday window of the oldest reading the blend accepts`() {
+        // The blend at now can anchor on a reading as old as the resolution window's start; its
+        // yesterday delta then needs readings down to 24 h + 90 min before that. 36 h fell short
+        // once the newest reading was over 10.5 h old.
+        val nowLocal = LocalDateTime.of(2026, 10, 24, 14, 20)
+        val oldestAnchor = CurrentTemperatureResolver.buildCurrentTempResolutionWindow(nowLocal).start
+            .atZone(zone).toInstant().toEpochMilli()
+        val input = CurrentTempRun.inputWindow(nowLocal, zone)
+        val yesterdayWindowStart = oldestAnchor -
+            YesterdayDeltaCalculator.YESTERDAY_OFFSET_MS - YesterdayDeltaCalculator.DEFAULT_TOLERANCE_MS
+        assertEquals(yesterdayWindowStart, input.first)
+        assertEquals(37.5, (nowLocal.atZone(zone).toInstant().toEpochMilli() - input.first) / 3_600_000.0, 0.5)
     }
 }

@@ -198,3 +198,7 @@ in `app_logs`. Restart desktop.
 - Verified 2026-10-24 08:05: Pixel NWS `observe obs=534 windowObs=213 fromYesterday=-9.20`, header
   49.25 °F, matching the "-9.2 from yest" its background paint showed; Samsung GOOGLE_WEATHER
   `fromYesterday=-8.67`, 49.29 °F; desktop NWS 49.22 °F (blend inputs differ by 0.01 °F).
+- 2026-10-24, follow-up: the input window is derived, not 36 h — the resolution window's start
+  (the oldest reading the blend can anchor on) minus 24 h minus the yesterday delta's 90-min
+  tolerance, ≈ 37.5 h before now (`CurrentTempRun.INPUT_LOOKBACK_BEFORE_WINDOW_MS`). 36 h lost the
+  delta once the newest reading was over 10.5 h old. Pinned by `CurrentTempRunTest`.
