@@ -269,3 +269,13 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
     hourly vertices' snapped `actualCloudCover`; now on the drawn curve, as desktop.
   - Tests: `:shared` `HourlyActualsInputsTest` (took over `CloudCoverActualPlotRangeTest`'s pre-roll
     case); suite 5,878.
+- 2026-10-24: 10-21 J, tap zones — **closed; mostly not a twin.** Where a tap lands is platform input
+  by nature (Android widget: one view per zone, no coordinates; desktop: x/y against computed
+  geometry); what a zone opens (`DayClickResolver.resolveView`), the icon's home view
+  (`WeatherConditionResolver.resolveIconHome`, desktop `WeatherIcon` adapts it) and the header buttons
+  (`HeaderFit` / `HeaderButtons`) were shared already. The one twin: the hour a tap zooms on →
+  `HourlyZoomRules.tapOffsetHours(fraction, startOffsetHours, spanHours)`; Android
+  `HourlyTouchZoneMapper` passes zone / 12 (same results for every stage, span, offset and zone —
+  `TapOffsetHoursTest`), desktop the pointer's x for tap and wheel. **Desktop bug fixed:** both
+  computed the instant as `Long + Float` (Float, 131 s steps at epoch size), so a tap or wheel a couple
+  of minutes past a half hour centred the hour before (`TapZoomOffsetTest`: −5 on the old math, −6).

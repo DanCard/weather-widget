@@ -48,8 +48,7 @@ fun Modifier.hourlyPanZoomInput(
             val dy = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
             if (dy != 0f) {
                 val cursorX = event.changes.first().position.x
-                val cursorTimeMs = start + (cursorX / size.width.toFloat()) * (cutoff - start)
-                val cursorOffset = ((cursorTimeMs - nowMs) / 3_600_000f).roundToInt()
+                val cursorOffset = tapZoomOffset(cursorX / size.width.toDouble(), start, cutoff, nowMs)
                 currentOnZoomScroll(dy * DesktopGraphUtils.ZOOM_SENSITIVITY, cursorOffset)
             }
         }
@@ -104,12 +103,18 @@ fun Modifier.hourlyGraphTapInput(
                 onViewModeChange(WeatherIcon.resolveIconHome(iconRes))
             } else {
                 // Graph body: quick zoom in/out toggle centered on the tapped hour.
-                val clickedTimeMs = start + (offset.x / size.width.toFloat()) * (cutoff - start)
-                val clickedOffset = ((clickedTimeMs - nowMs) / 3_600_000f).roundToInt()
-                onToggleZoom(clickedOffset)
+                onToggleZoom(tapZoomOffset(offset.x / size.width.toDouble(), start, cutoff, nowMs))
             }
         }
     }
+
+/** The hour (offset from now) a body tap or wheel at [fraction] of the [start]..[cutoff] window zooms on. */
+internal fun tapZoomOffset(fraction: Double, start: Long, cutoff: Long, nowMs: Long): Int =
+    com.weatherwidget.shared.graph.HourlyZoomRules.tapOffsetHours(
+        fraction = fraction,
+        startOffsetHours = (start - nowMs) / 3_600_000.0,
+        spanHours = (cutoff - start) / 3_600_000.0,
+    )
 
 /** Computed window + point/painter state shared by the desktop hourly graphs. */
 internal data class HourlyGraphSetup(

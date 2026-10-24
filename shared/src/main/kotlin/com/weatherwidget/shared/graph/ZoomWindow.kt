@@ -1,5 +1,7 @@
 package com.weatherwidget.shared.graph
 
+import kotlin.math.roundToInt
+
 /**
  * The user-configurable part of the hourly zoom: how many hours the tight ([ZoomStage.NARROW]) view
  * spans, and how far a nav-arrow press scrolls at that span.
@@ -103,6 +105,16 @@ object HourlyZoomRules {
         zoom.stage == ZoomStage.NARROW -> narrowWidgetLabelInterval(zoom.totalSpanHours.toInt())
         else -> zoom.labelInterval
     }
+
+    /**
+     * The hour (offset from now) a tap centres the zoom on: the one at [fraction] (0 = left edge,
+     * 1 = right) of a window whose left edge is [startOffsetHours] from now and which spans
+     * [spanHours]. Android's 13 hour zones pass zone / 12, desktop the pointer's x / width. In hour
+     * offsets, not epoch millis: desktop computed the instant as a Float, ±65 s at epoch size, so a
+     * tap near a half hour could centre the wrong hour.
+     */
+    fun tapOffsetHours(fraction: Double, startOffsetHours: Double, spanHours: Double): Int =
+        (startOffsetHours + fraction * spanHours).roundToInt()
 }
 
 /**
