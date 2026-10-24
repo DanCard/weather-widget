@@ -94,16 +94,7 @@ class NwsCurrentObservationUpdater private constructor(
             windowStart = end.minus(NwsStationBundles.RECENT_WINDOW_MINUTES, java.time.temporal.ChronoUnit.MINUTES),
             windowEnd = end,
             recentOnly = true,
-            host = object : NwsStationBundles.Host {
-                override suspend fun touchLatest(stationId: String) = observationDao.touchLatestFetchedAt(
-                    stationId,
-                    LocationMatch.quantize(latitude),
-                    LocationMatch.quantize(longitude),
-                    System.currentTimeMillis(),
-                )
-
-                override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
-            },
+            host = RoomNwsStationBundlesHost(observationDao, appLogDao, latitude, longitude),
         )
 
         val stored = bundles.flatMap { it.rows }.map { it.toEntity() }
@@ -154,4 +145,26 @@ class NwsCurrentObservationUpdater private constructor(
             "INFO",
         )
     }
+}
+
+/**
+ * Room side of [NwsStationBundles] at one site. Pinned to desktop's by `NwsStationBundlesHostContract`
+ * (`:shared` testFixtures).
+ */
+internal class RoomNwsStationBundlesHost(
+    private val observationDao: com.weatherwidget.data.local.ObservationDao,
+    private val appLogDao: com.weatherwidget.data.local.AppLogDao,
+    private val latitude: Double,
+    private val longitude: Double,
+    private val clock: () -> Long = System::currentTimeMillis,
+) : NwsStationBundles.Host {
+    // This site's quantized key only: after a move the station's newest row may be a previous site's.
+    override suspend fun touchLatest(stationId: String) = observationDao.touchLatestFetchedAt(
+        stationId,
+        LocationMatch.quantize(latitude),
+        LocationMatch.quantize(longitude),
+        clock(),
+    )
+
+    override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
 }

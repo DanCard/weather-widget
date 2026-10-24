@@ -33,7 +33,6 @@ class HostContractCoverageTest {
             "GoogleHistoryRun.Host",
             "CurrentConditionsRun.Host",
             "NowcastRefreshRun.Host",
-            "NwsStationBundles.Host",
         )
 
         fun kotlinFiles(root: File) = root.walkTopDown().filter { it.isFile && it.extension in setOf("kt", "java") }

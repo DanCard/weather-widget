@@ -727,16 +727,7 @@ class DesktopWeatherService(
             windowStart = start,
             windowEnd = end,
             recentOnly = recentOnly,
-            host = object : NwsStationBundles.Host {
-                // This site's rows only, as Android: after a move the newest row may be a previous site's.
-                override suspend fun touchLatest(stationId: String) {
-                    weatherDao?.touchLatestObservationFetchedAt(stationId, latitude, longitude, System.currentTimeMillis())
-                }
-
-                override suspend fun log(tag: String, message: String, level: String) {
-                    weatherDao?.log(tag, message, level)
-                }
-            },
+            host = DesktopNwsStationBundlesHost(weatherDao, latitude, longitude),
         )
     }
 

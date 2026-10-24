@@ -142,6 +142,12 @@ freshest bucket first); `getHourlyHistory` (merged) stays for desktop's display 
   divergence. 4 pending. **Open:** the snapshot bucket itself — Android `ForecastHistoryPolicy` (in
   `:app`) files a displayed source every 4 h and a background one every 12 h ("DB-write savings");
   desktop files every source every 4 h, hard-coded in three places. Awaiting the user.
+- `NwsStationBundles.Host` → `NwsStationBundlesHostContract` (2 cases: `touchLatest` stamps only this
+  station's newest reading on this site's quantized key — not its older ones, another town's, a jitter
+  fragment's or another station's; nothing stored here → no change) on `RoomNwsStationBundlesHost` /
+  `DesktopNwsStationBundlesHost` (clock passed in); no divergence. Desktop's half passes only since the
+  quantized observation keys (`47a868a4`): before, its rows were raw-keyed and the stamp matched none.
+  3 pending (GoogleHistoryRun, CurrentConditionsRun, NowcastRefreshRun).
 
 ## Verification
 - The `hourlyHistory` case fails on today's code on one side (which side depends on the decision) —
