@@ -74,12 +74,8 @@ class HourlyOnDemandWorker
             // Re-checked against what is stored now: a quiet gap-fill or an earlier tap may have
             // stored the day since this was enqueued (:shared HourlyOnDemandRun, as desktop).
             val run = HourlyOnDemandRun.run(
-                object : HourlyOnDemandRun.Host {
-                    override suspend fun storedHourly() =
-                        NoHourlyDayClickCoordinator.storedHourlyForSource(database, source.id, lat, lon, nowMs)
-
-                    override suspend fun fetch(request: HourlyOnDemand.Request) =
-                        weatherRepository.fetchSourceOnDemand(lat, lon, source, request)
+                RoomHourlyOnDemandHost(database, source.id, lat, lon, nowMs) { request ->
+                    weatherRepository.fetchSourceOnDemand(lat, lon, source, request)
                 },
                 source.id,
                 day,

@@ -409,25 +409,15 @@ class DesktopWeatherRepository(
     suspend fun extendHourlyFor(date: LocalDate, now: Long = currentTimeMillis()): Boolean = withContext(Dispatchers.IO) {
         hourlyExtendMutex.withLock {
             val result = HourlyOnDemandRun.run(
-                object : HourlyOnDemandRun.Host {
-                    override suspend fun storedHourly() = weatherDao.getHourlyForecasts(
-                        LocationMatch.quantize(latitude),
-                        LocationMatch.quantize(longitude),
-                        weatherSource,
-                        now - 3_600_000L,
-                        now + HourlyOnDemand.REACH_HOURS * 3_600_000L,
+                DesktopHourlyOnDemandHost(weatherDao, weatherSource, latitude, longitude, now) { request ->
+                    val forecastHours = persistForecastResult(
+                        weatherService.fetchForecastAhead(request.hours),
+                        now,
+                        keep = HourlyOnDemand.keep(weatherSource, request),
                     )
-
-                    override suspend fun fetch(request: HourlyOnDemand.Request): Boolean {
-                        val forecastHours = persistForecastResult(
-                            weatherService.fetchForecastAhead(request.hours),
-                            now,
-                            keep = HourlyOnDemand.keep(weatherSource, request),
-                        )
-                        val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
-                        weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, forecastHours)
-                        return forecastHours.isNotEmpty()
-                    }
+                    val timestampToGroupPredictions = (now / (4 * 3600 * 1000L)) * (4 * 3600 * 1000L)
+                    weatherDao.upsertHourlyForecastHistory(latitude, longitude, weatherSource, timestampToGroupPredictions, forecastHours)
+                    forecastHours.isNotEmpty()
                 },
                 weatherSource,
                 date,

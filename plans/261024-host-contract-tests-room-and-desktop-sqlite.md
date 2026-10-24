@@ -116,6 +116,11 @@ freshest bucket first); `getHourlyHistory` (merged) stays for desktop's display 
   Noticed, not changed: the live-day blend's hourly input differs too (Android
   `ObservationResolver` callers vs desktop `recomputeDailyExtremes` → `getHourlyWithHistory` of the
   displayed source) — not a Host read.
+- `HourlyOnDemandRun.Host` → `HourlyOnDemandHostContract` (`storedHourly`: one source, the whole ±0.1°
+  box, an hour back through `REACH_HOURS`, both ends inclusive) on `RoomHourlyOnDemandHost` /
+  `DesktopHourlyOnDemandHost` (fetch passed in); no divergence. 6 pending. Noticed, both platforms:
+  a neighbouring town's rows in the box count as coverage for `hoursToCover`, so a tap could skip a
+  fetch when only the neighbour has that day — pinned as today's behaviour, not changed.
 
 ## Verification
 - The `hourlyHistory` case fails on today's code on one side (which side depends on the decision) —

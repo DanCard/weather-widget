@@ -317,11 +317,13 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
 - 2026-10-24: `NwsStationActualsRun.Host` contract (6 cases). The past-day blend's NWS hourly: Android
   live only, desktop live + history; now raw reads stitched in the shared run (user: fill on both).
   7 pending. Open: the live-day blend's hourly input differs by platform (not a Host read).
+- 2026-10-24: `HourlyOnDemandRun.Host` contract — no divergence. 6 pending. Open (both platforms):
+  `hoursToCover` counts a neighbouring town's rows in the box as coverage.
 
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:
 1. **Tier 3, the two DAOs** — continue Host by Host: the rest of `HostContractCoverageTest.PENDING`,
-   smallest DB surface first (HourlyOnDemandRun, WeatherApiHistoryRun, …). Pattern:
+   smallest DB surface first (WeatherApiHistoryRun, ElapsedForecastBackfill.Store, …). Pattern:
    abstract `<Runner>HostContract` in `:shared` testFixtures, extract each platform's Host into a
    class, seeds write raw rows, a case that tells the readings apart; any divergence → user decision.
 2. **B rest**: per-source fetch/persist, one source at a time as Runner + Host.
