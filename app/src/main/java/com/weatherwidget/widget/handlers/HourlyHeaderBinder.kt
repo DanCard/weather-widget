@@ -68,7 +68,7 @@ internal object HourlyHeaderBinder {
             hourly = true,
         )
         val fit = HeaderFit.resolve(measured)
-        android.util.Log.d("HourlyHeaderBinder", "HEADER_FIT view=hourly widthDp=$widthDp scale=$headerScale $fit $measured")
+        android.util.Log.d(HeaderFit.LOG_TAG, HeaderFit.logLine("hourly", widthDp.toFloat(), headerScale, fit, measured))
 
         HeaderRemoteViewsBinder.bindApiSource(
             context = context,

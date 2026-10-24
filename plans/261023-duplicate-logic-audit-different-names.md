@@ -295,3 +295,19 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   `:shared` `HourlyFooterLabels` (`plans/261024-shared-hourly-footer-labels.md`): Android labelled
   from the window's left edge (moved on every pan) and its precip/cloud graphs always labelled now;
   both platforms now label tidy clock hours, no "now" exception (user). **G closed.**
+- 2026-10-24: `HEADER_FIT` → `:shared` `HeaderFit.LOG_TAG` / `logLine` (one line format, both
+  platforms); measuring stays per platform (Paint vs TextMeasurer). Tag allowlist → 5 adapters; the
+  `UI_FLOW` category is empty and removed. The duplicate-name allowlist holds only ADAPTER / DRAWING /
+  GENERIC entries.
+
+## Next (handoff, 2026-10-24)
+Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:
+1. **Tier 3, the two DAOs** (10-21 audit §3, option b, recommended): name each Host read by intent
+   and run one shared contract test suite against Room in-memory (`:app` Robolectric) and desktop
+   SQLite (temp file). Start with one read known to differ: Android `getForecastsInRange` returns the
+   newest batch, desktop `getForecastsInRangeBySource` every fetch. Plan first (AGENTS.md gate).
+2. **B rest**: per-source fetch/persist, one source at a time as Runner + Host.
+Process that worked this session: find the twin → write a plan with the divergences and any user
+decision → approval → shared code + a test that fails on the old code → full suite incl.
+`:app:compileDebugAndroidTestKotlin` → install both phones, restart desktop, check the log line on a
+device → append Progress here.

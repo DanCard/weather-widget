@@ -31,6 +31,15 @@ package com.weatherwidget.shared.util
  * its own leading margin. Each platform measures and draws; this only decides.
  */
 object HeaderFit {
+    const val LOG_TAG = "HEADER_FIT"
+
+    /**
+     * The [LOG_TAG] line, both platforms: view, width (dp), header scale, the plan and what it was
+     * resolved from. [measured] is in each platform's own units (Android px, desktop dp).
+     */
+    fun logLine(view: String, widthDp: Float, scale: Float, plan: Plan, measured: Measured): String =
+        "view=$view widthDp=${"%.0f".format(widthDp)} scale=${"%.2f".format(scale)} $plan $measured"
+
     /**
      * How far right of the middle the buttons end, in dp before any header scaling. Measured
      * 2026-10-22: the 360dp emulator widget needs ≥ 65 for three buttons beside its weather icon;

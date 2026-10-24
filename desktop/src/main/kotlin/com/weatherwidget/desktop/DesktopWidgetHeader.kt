@@ -174,7 +174,7 @@ internal fun WidgetHeader(
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val measured = headerMeasured.copy(width = maxWidth.value)
             val fit = remember(measured) {
-                HeaderFit.resolve(measured).also { HeaderFitLog.changed(if (isHourly) "hourly" else "daily", it) }
+                HeaderFit.resolve(measured).also { HeaderFitLog.changed(if (isHourly) "hourly" else "daily", scale, it, measured) }
             }
             // The buttons end on HeaderFit's line right of the middle and the daily date starts just
             // after it, so neither the temperature's width nor home appearing on a source switch
@@ -441,15 +441,15 @@ private const val PRECIP_MARGIN_DP = 6f
 private const val SOURCE_LABEL_END_PADDING_DP = 6f
 private const val DELTA_CAPTION = "from yest"
 
-/** `HEADER_FIT` once per change (recomposition and resizes repeat the same plan). */
+/** [HeaderFit.LOG_TAG] once per plan change (recomposition and resizes repeat the same plan). */
 private object HeaderFitLog {
     @Volatile private var last: String? = null
 
-    fun changed(view: String, plan: HeaderFit.Plan) {
-        val line = "view=$view $plan"
-        if (line == last) return
-        last = line
-        Log.i("HEADER_FIT", line)
+    fun changed(view: String, scale: Float, plan: HeaderFit.Plan, measured: HeaderFit.Measured) {
+        val key = "view=$view $plan"
+        if (key == last) return
+        last = key
+        Log.i(HeaderFit.LOG_TAG, HeaderFit.logLine(view, measured.width, scale, plan, measured))
     }
 }
 

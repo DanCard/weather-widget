@@ -30,7 +30,6 @@ class CrossPlatformDuplicateLogTagsTest {
         val TAG = Regex(""""([A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+)\b""")
 
         private const val ADAPTER = "platform adapter: the rule is in :shared, each platform logs its own event source"
-        private const val UI_FLOW = "user-action flow written twice — pending a shared coordinator (audit 261023 §3)"
 
         val ALLOWED = mapOf(
             "GOOGLE_REQUEST" to ADAPTER, // OkHttp interceptor vs desktop HTTP client
@@ -38,7 +37,6 @@ class CrossPlatformDuplicateLogTagsTest {
             "SOURCE_VIEW_PROBABILITY" to ADAPTER, // SourceViewProbability, daily log per platform store
             "TIMEZONE_CHANGE" to ADAPTER, // broadcast vs daemon clock check
             "DOMINANT_TEMP_WATCH" to ADAPTER, // DominantTempWatch, prefs vs file store
-            "HEADER_FIT" to UI_FLOW, // measuring glue around shared HeaderFit
         )
 
         fun tags(root: File): Set<String> =

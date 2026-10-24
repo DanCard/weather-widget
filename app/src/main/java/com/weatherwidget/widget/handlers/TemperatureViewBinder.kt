@@ -91,7 +91,7 @@ internal object TemperatureViewBinder {
             hourly = true,
         )
         val fit = HeaderFit.resolve(measured)
-        Log.d("TemperatureViewBinder", "HEADER_FIT view=hourly widthDp=${state.widthDp} scale=$headerScale $fit $measured")
+        Log.d(HeaderFit.LOG_TAG, HeaderFit.logLine("hourly", state.widthDp.toFloat(), headerScale, fit, measured))
 
         // Explicitly set VISIBLE because DailyViewHandler sets these to INVISIBLE
         // when rendering the source label into the bitmap — RemoteViews updates are

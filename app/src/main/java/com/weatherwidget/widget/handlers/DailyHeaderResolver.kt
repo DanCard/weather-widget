@@ -227,7 +227,7 @@ internal object DailyHeaderResolver {
             wantMonths = buttons.wantMonths,
         )
         val fit = HeaderFit.resolve(measured)
-        Log.d(TAG, "HEADER_FIT view=daily widget=$appWidgetId widthDp=${dimensions.widthDp} scale=$headerScale $fit $measured")
+        Log.d(HeaderFit.LOG_TAG, "widget=$appWidgetId " + HeaderFit.logLine("daily", dimensions.widthDp.toFloat(), headerScale, fit, measured))
 
         val headerPrecipPlacement = DailyHeaderBinder.resolveHeaderPrecipPlacement(
             precipText = headerPrecipText,
