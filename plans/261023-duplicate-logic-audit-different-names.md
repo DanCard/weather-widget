@@ -230,3 +230,21 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
     History freshness line now reads "m", not "min".
   - `calculateRainAmountPlacements`: the rule inside (4 dp padding) → `RainAmountLabelPlacer.PADDING_DP`;
     the wrapper stays as ADAPTER (rect types, Paint vs TextMeasurer bounds).
+- 2026-10-24: §4 hour rounding + §5 small items (no behaviour change):
+  - The hourly window — centre rounded to the nearest hour half up, then `−back … +forward` — was
+    written 8× (Android `TemperatureHourDataBuilder`, `CloudCoverViewHandler` ×2, `PrecipViewHandler`,
+    `TemperatureGraphHoursLoader`, `GraphDataLoader`; desktop `temperatureGraphHourWindow`; `:shared`
+    `ActualTemperatureSeriesBuilder`, `CurrentTemperatureResolver`) beside an unused shared
+    `alignToNearestHourHalfUp`. Now `:shared` `WeatherTimeUtils.hourWindow` → `HourSpan` (or the
+    rounding alone).
+  - `ActualsAggregator.alignedCenterMs` (the current-observation blend's centre) rounded epoch millis
+    on **UTC** hours — :30 local in half-hour zones (India, Newfoundland). Now `alignedCenterMs(nowMs,
+    zoneId)` on the shared local rule (user, 2026-10-24); no change in whole-hour zones. Its doc said
+    "nearest 30-minute boundary" — it was always the nearest hour (window changes once per hour).
+    Test: Kolkata 14:50 → 15:00 local (old code: 14:30).
+  - `MIN/MAX_HOURLY_OFFSET` (±720 h) → `NavigationUtils`, beside the daily bounds.
+  - Observations `TAB_BLEND/OBSERVATIONS/FETCH_LOGS` + `BLEND_TABLE_POINTS` → `:shared`
+    `ObservationsTabs`; the ids are persisted (Android `last_selected_obs_tab`, desktop
+    `obsSelectedTab`), pinned by `HourWindowTest`.
+  - Tests: `:shared` `HourWindowTest` (half-up boundary, span across midnight, tab ids); full unit
+    suite 5,863 passed.

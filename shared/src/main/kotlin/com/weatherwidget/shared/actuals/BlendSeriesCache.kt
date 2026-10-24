@@ -11,9 +11,9 @@ import java.time.ZoneId
  * caller on the current-status path hands it arguments that change far more slowly than the path
  * runs:
  *
- *  - [ActualsAggregator.resolveCurrentObservationInternal] snaps its window centre to a 30-minute
- *    boundary ([ActualsAggregator.alignedCenterMs]), so a minute tick recomputes an identical
- *    series ~30 times per distinct window.
+ *  - [ActualsAggregator.resolveCurrentObservationInternal] snaps its window centre to the nearest
+ *    local hour ([ActualsAggregator.alignedCenterMs]), so a minute tick recomputes an identical
+ *    series ~60 times per distinct window.
  *  - [YesterdayDeltaCalculator.computeDelta] windows on an *observation* timestamp, which only
  *    moves when a new observation lands (~30 min at best).
  *

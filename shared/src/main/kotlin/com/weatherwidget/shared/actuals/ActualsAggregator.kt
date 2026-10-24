@@ -6,9 +6,11 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.WeatherSourceOrdering
+import com.weatherwidget.shared.util.WeatherTimeUtils
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
@@ -46,20 +48,22 @@ object ActualsAggregator {
     val blendCache = BlendSeriesCache()
 
     /**
-     * The centre the current-observation blend window is built around: [nowMs] snapped to the
-     * nearest 30-minute boundary.
+     * The centre the current-observation blend window is built around: [nowMs] rounded to the
+     * nearest **local** hour in [zoneId] (half up, at :30) — the same rule as every hourly window
+     * ([WeatherTimeUtils.alignToNearestHourHalfUp]). It rounded epoch millis on UTC hour boundaries,
+     * which put the centre on :30 local in half-hour zones (India, Newfoundland).
      *
      * Authoritative and public because it is what makes the blend memoizable — the window (and
-     * therefore the entire emitted series) is identical for every [nowMs] in the same half-hour, so
-     * a per-minute caller recomputes the same result ~30 times. [BlendSeriesCache] keys on the
+     * therefore the entire emitted series) is identical for every [nowMs] from one :30 to the next,
+     * so a per-minute caller recomputes the same result ~60 times. [BlendSeriesCache] keys on the
      * derived start/end; anything that needs to reason about that cadence must use this function
      * rather than restate the arithmetic.
      */
-    fun alignedCenterMs(nowMs: Long): Long {
-        val truncatedMs = (nowMs / 3600_000L) * 3600_000L
-        val minute = (nowMs % 3600_000L) / 60_000L
-        return if (minute >= 30) truncatedMs + 3600_000L else truncatedMs
-    }
+    fun alignedCenterMs(nowMs: Long, zoneId: ZoneId): Long =
+        WeatherTimeUtils.alignToNearestHourHalfUp(LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), zoneId))
+            .atZone(zoneId)
+            .toInstant()
+            .toEpochMilli()
 
     data class CurrentObservationResolution(
         val temperature: Float,
@@ -140,7 +144,7 @@ object ActualsAggregator {
         personalStationWeight: Double,
         includeDominantContribution: Boolean,
     ): CurrentObservationResolution? {
-        val alignedCenterMs = alignedCenterMs(nowMs)
+        val alignedCenterMs = alignedCenterMs(nowMs, zoneId)
 
         val contextStartMs = alignedCenterMs - (lookbackHours * 3600_000L)
         val contextEndMs = alignedCenterMs + (lookaheadHours * 3600_000L)

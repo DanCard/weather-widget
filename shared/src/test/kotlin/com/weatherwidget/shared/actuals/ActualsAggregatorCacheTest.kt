@@ -34,15 +34,24 @@ class ActualsAggregatorCacheTest {
     }
 
     @Test
-    fun `aligned centre snaps to the half hour`() {
+    fun `aligned centre snaps to the nearest hour`() {
         // This quantization is *why* the blend is memoizable — assert it directly so a change to it
         // fails here rather than silently shrinking the cache's hit rate.
         val base = epoch("2026-06-22T15:00:00")
-        assertEquals(base, ActualsAggregator.alignedCenterMs(base))
-        assertEquals(base, ActualsAggregator.alignedCenterMs(base + 29 * 60_000L))
-        assertEquals(base + 3600_000L, ActualsAggregator.alignedCenterMs(base + 30 * 60_000L))
-        assertEquals(base + 3600_000L, ActualsAggregator.alignedCenterMs(base + 59 * 60_000L))
-        assertEquals(base + 3600_000L, ActualsAggregator.alignedCenterMs(base + 60 * 60_000L))
+        assertEquals(base, ActualsAggregator.alignedCenterMs(base, zone))
+        assertEquals(base, ActualsAggregator.alignedCenterMs(base + 29 * 60_000L, zone))
+        assertEquals(base + 3600_000L, ActualsAggregator.alignedCenterMs(base + 30 * 60_000L, zone))
+        assertEquals(base + 3600_000L, ActualsAggregator.alignedCenterMs(base + 59 * 60_000L, zone))
+        assertEquals(base + 3600_000L, ActualsAggregator.alignedCenterMs(base + 60 * 60_000L, zone))
+    }
+
+    @Test
+    fun `aligned centre is a local hour in a half-hour zone`() {
+        // UTC+5:30: rounding epoch millis on UTC hours put the centre on :30 local (14:30 here).
+        val kolkata = ZoneId.of("Asia/Kolkata")
+        val now = LocalDateTime.parse("2026-06-22T14:50:00").atZone(kolkata).toInstant().toEpochMilli()
+        val expected = LocalDateTime.parse("2026-06-22T15:00:00").atZone(kolkata).toInstant().toEpochMilli()
+        assertEquals(expected, ActualsAggregator.alignedCenterMs(now, kolkata))
     }
 
     @Test
