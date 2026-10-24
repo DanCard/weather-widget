@@ -103,8 +103,10 @@ class DesktopHeaderFitTest {
         assertTrue("the widest header shows everything ($counts)", date >= 1)
         assertTrue("narrow headers must drop something, not squeeze ($counts)", icon < widths.size)
         // Counts cannot say more: a lower item may take room a higher one could not use (the 18dp
-        // icon where the 44dp button pair cannot fit at all). HeaderFitTest sweeps the full order.
-        assertTrue("buttons ≤ rain ≤ temp ($counts)", buttons <= rain && rain <= temp)
+        // icon where the 44dp button pair cannot fit at all, the narrow "40%" where the 30sp
+        // temperature cannot — the 100dp header). So no rain ≤ temp here; HeaderFitTest sweeps the
+        // full order.
+        assertTrue("buttons ≤ rain, buttons ≤ temp ($counts)", buttons <= rain && buttons <= temp)
         assertTrue("narrow headers must drop the buttons, not squeeze them ($counts)", buttons < widths.size)
     }
 
