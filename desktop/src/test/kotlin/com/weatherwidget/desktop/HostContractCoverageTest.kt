@@ -30,7 +30,6 @@ class HostContractCoverageTest {
         val CONTRACT_CLASS = Regex("""abstract\s+class\s+(\w+)""")
 
         val PENDING = setOf(
-            "ClimateNormalsRun.Host",
             "PriorDayCloudRun.Host",
             "NwsStationActualsRun.Host",
             "HourlyOnDemandRun.Host",

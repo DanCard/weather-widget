@@ -309,11 +309,12 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   rows); now raw snapshots `[start, end)` like Android (user: option A) — the stitcher already merges.
   No visible change (the readers are one-time past-day backfills). Guard `HostContractCoverageTest`:
   10 ports pending.
+- 2026-10-24: `ClimateNormalsRun.Host` contract (Room / desktop SQLite, 4 cases) — no divergence. 9 pending.
 
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:
 1. **Tier 3, the two DAOs** — continue Host by Host: the 10 in `HostContractCoverageTest.PENDING`,
-   smallest DB surface first (ClimateNormalsRun, PriorDayCloudRun, NwsStationActualsRun, …). Pattern:
+   smallest DB surface first (PriorDayCloudRun, NwsStationActualsRun, …). Pattern:
    abstract `<Runner>HostContract` in `:shared` testFixtures, extract each platform's Host into a
    class, seeds write raw rows, a case that tells the readings apart; any divergence → user decision.
 2. **B rest**: per-source fetch/persist, one source at a time as Runner + Host.

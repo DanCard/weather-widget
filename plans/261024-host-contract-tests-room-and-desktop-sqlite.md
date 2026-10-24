@@ -90,6 +90,9 @@ freshest bucket first); `getHourlyHistory` (merged) stays for desktop's display 
 - `:desktop` `HostContractCoverageTest`: every `interface Host|Store` in a `:shared` class needs an
   abstract contract in testFixtures extended in both `app/src/test` and `desktop/src/test`; 10 ports
   in `PENDING`, which only shrinks.
+- `ClimateNormalsRun.Host` → `ClimateNormalsHostContract` (4 cases: empty cache, month needing both
+  sides, other sites dropped, same site replaced) on `RoomClimateNormalsHost` / `DesktopClimateNormalsHost`;
+  no divergence. 9 pending.
 
 ## Verification
 - The `hourlyHistory` case fails on today's code on one side (which side depends on the decision) —

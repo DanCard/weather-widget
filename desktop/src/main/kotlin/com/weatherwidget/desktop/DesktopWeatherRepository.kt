@@ -1428,13 +1428,7 @@ class DesktopWeatherRepository(
      * @return true only if normals were just (re)fetched and cached, so callers can reload state.
      */
     suspend fun ensureClimateNormals(): Boolean = ClimateNormalsRun.warm(
-        object : ClimateNormalsRun.Host {
-            override suspend fun cached(locationKey: String) = weatherDao.getClimateNormals(locationKey)
-            override suspend fun fetchDailyTemps(start: String, end: String) = weatherService.fetchHistoricalDailyTemps(start, end)
-            override suspend fun store(locationKey: String, monthlyHigh: Map<Int, Float>, monthlyLow: Map<Int, Float>) =
-                weatherDao.upsertClimateNormals(locationKey, monthlyHigh, monthlyLow)
-            override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
-        },
+        DesktopClimateNormalsHost(weatherDao, weatherService::fetchHistoricalDailyTemps),
         latitude,
         longitude,
     ).fetched
