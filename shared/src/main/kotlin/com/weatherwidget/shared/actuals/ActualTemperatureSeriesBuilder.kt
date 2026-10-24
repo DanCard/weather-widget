@@ -10,6 +10,7 @@ import com.weatherwidget.shared.observations.ObservationTimelineNormalizer
 import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.util.WeatherTimeUtils
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -178,10 +179,8 @@ object ActualTemperatureSeriesBuilder {
         captureBreakdowns: Int = 0,
     ): ActualTemperatureSeriesResult {
         val forecastsByTime = HourlyForecastSelector.selectForecastsByTime(hourlyForecasts, displaySourceId, userLat, userLon)
-        val truncated = centerTime.truncatedTo(ChronoUnit.HOURS)
-        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        val startHour = alignedCenter.minusHours(backHours)
-        val endHour = alignedCenter.plusHours(forwardHours)
+        val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(centerTime)
+        val (startHour, endHour) = WeatherTimeUtils.hourWindow(centerTime, backHours, forwardHours)
         val startMs = startHour.atZone(zoneId).toInstant().toEpochMilli()
         val contextStartMs = alignedCenter.minusHours(contextLookbackHours).atZone(zoneId).toInstant().toEpochMilli()
         val contextEndMs = alignedCenter.plusHours(contextLookaheadHours).atZone(zoneId).toInstant().toEpochMilli()

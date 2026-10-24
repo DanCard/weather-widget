@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.content.SharedPreferences
 import android.util.Log
 import com.weatherwidget.shared.graph.HourlyZoomRules
+import com.weatherwidget.util.NavigationUtils
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDateTime
@@ -60,7 +61,7 @@ internal class WidgetPresentationStateStore(
             viewMode = mode,
             hourlyOffset = (values[hourlyOffsetKey(widgetId)] as? Number)
                 ?.toInt()
-                ?.coerceIn(WidgetStateManager.MIN_HOURLY_OFFSET, WidgetStateManager.MAX_HOURLY_OFFSET)
+                ?.coerceIn(NavigationUtils.MIN_HOURLY_OFFSET, NavigationUtils.MAX_HOURLY_OFFSET)
                 ?: 0,
             zoom = zoom,
             graphAnchorMs = (values[graphAnchorKey(widgetId)] as? Number)?.toLong(),
@@ -140,12 +141,12 @@ internal class WidgetPresentationStateStore(
 
     fun hourlyOffset(widgetId: Int): Int =
         prefs.getInt(hourlyOffsetKey(widgetId), 0)
-            .coerceIn(WidgetStateManager.MIN_HOURLY_OFFSET, WidgetStateManager.MAX_HOURLY_OFFSET)
+            .coerceIn(NavigationUtils.MIN_HOURLY_OFFSET, NavigationUtils.MAX_HOURLY_OFFSET)
 
     fun setHourlyOffset(widgetId: Int, offset: Int) {
         val clamped = offset.coerceIn(
-            WidgetStateManager.MIN_HOURLY_OFFSET,
-            WidgetStateManager.MAX_HOURLY_OFFSET,
+            NavigationUtils.MIN_HOURLY_OFFSET,
+            NavigationUtils.MAX_HOURLY_OFFSET,
         )
         val editor = prefs.edit()
         putHourlyPosition(editor, widgetId, clamped, null)
@@ -156,7 +157,7 @@ internal class WidgetPresentationStateStore(
         val current = state(widgetId)
         val navJump = current.zoom.window(narrowSpanHours()).navJump
         val next = (current.hourlyOffset + direction * navJump)
-            .coerceIn(WidgetStateManager.MIN_HOURLY_OFFSET, WidgetStateManager.MAX_HOURLY_OFFSET)
+            .coerceIn(NavigationUtils.MIN_HOURLY_OFFSET, NavigationUtils.MAX_HOURLY_OFFSET)
         setHourlyOffset(widgetId, next)
         return next
     }

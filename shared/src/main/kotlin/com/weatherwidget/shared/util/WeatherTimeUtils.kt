@@ -8,7 +8,19 @@ object WeatherTimeUtils {
         val truncatedHour = dateTime.truncatedTo(ChronoUnit.HOURS)
         return if (dateTime.minute >= 30) truncatedHour.plusHours(1) else truncatedHour
     }
+
+    /**
+     * An hourly window: [center] rounded to the nearest hour (half up), then [backHours] before and
+     * [forwardHours] after. Every hourly graph on both platforms frames its hours this way.
+     */
+    fun hourWindow(center: LocalDateTime, backHours: Long, forwardHours: Long): HourSpan {
+        val aligned = alignToNearestHourHalfUp(center)
+        return HourSpan(aligned.minusHours(backHours), aligned.plusHours(forwardHours))
+    }
 }
+
+/** Whole-hour bounds of an hourly window, both inclusive ([WeatherTimeUtils.hourWindow]). */
+data class HourSpan(val start: LocalDateTime, val end: LocalDateTime)
 
 /**
  * Standard age formatting utilities shared between platforms.

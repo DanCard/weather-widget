@@ -11,6 +11,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import com.weatherwidget.shared.observations.ObservationsTabs
 
 @Category(ShortDuration::class)
 class DesktopConfigStoreTest {
@@ -133,17 +134,17 @@ lat = 37.42,
 lon = -122.08,
 label = "Test",
 )
-        assertEquals(TAB_OBSERVATIONS, defaultConfig.obsSelectedTab)
+        assertEquals(ObservationsTabs.OBSERVATIONS, defaultConfig.obsSelectedTab)
 
         val configPath = Files.createTempDirectory("desktop-config-obs-tab").resolve("config.json")
         val store = DesktopConfigStore(configPath)
 
-        val updatedConfig = defaultConfig.copy(obsSelectedTab = TAB_FETCH_LOGS)
+        val updatedConfig = defaultConfig.copy(obsSelectedTab = ObservationsTabs.FETCH_LOGS)
         store.save(updatedConfig)
 
         val reloaded = store.load()
         requireNotNull(reloaded)
-        assertEquals(TAB_FETCH_LOGS, reloaded.obsSelectedTab)
+        assertEquals(ObservationsTabs.FETCH_LOGS, reloaded.obsSelectedTab)
     }
 
     @Test

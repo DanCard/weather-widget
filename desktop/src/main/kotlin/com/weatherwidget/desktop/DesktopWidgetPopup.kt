@@ -52,11 +52,9 @@ import java.time.ZoneId
 import kotlin.math.roundToInt
 
 private const val TAG = "Main"
-private const val MIN_HOURLY_OFFSET = -720
 
 /** Today's column solid high (the current temperature, while there is one) — lets tests compare it with the header. */
 internal val TodayColumnSolidHigh = SemanticsPropertyKey<Float?>("TodayColumnSolidHigh")
-private const val MAX_HOURLY_OFFSET = 720
 
 @Composable
 internal fun WidgetPopup(
@@ -191,7 +189,7 @@ internal fun WidgetPopup(
                                 if (newFactor != config.zoomFactor) {
                                     // Zooming in re-centers on the cursor; zooming out keeps the current center.
                                     val newOffset = if (deltaZoom < 0f) {
-                                        cursorOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET)
+                                        cursorOffset.coerceIn(NavigationUtils.MIN_HOURLY_OFFSET, NavigationUtils.MAX_HOURLY_OFFSET)
                                     } else {
                                         config.hourlyOffset
                                     }
@@ -199,7 +197,7 @@ internal fun WidgetPopup(
                                 }
                             }
                             val handlePan: (Int) -> Unit = { deltaHours ->
-                                val newOffset = (config.hourlyOffset + deltaHours).coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET)
+                                val newOffset = (config.hourlyOffset + deltaHours).coerceIn(NavigationUtils.MIN_HOURLY_OFFSET, NavigationUtils.MAX_HOURLY_OFFSET)
                                 if (newOffset != config.hourlyOffset) {
                                     onUpdateConfig(config.copy(hourlyOffset = newOffset))
                                 }
@@ -223,7 +221,7 @@ internal fun WidgetPopup(
                                             next,
                                             config.settings.narrowZoomSpanHours,
                                         ),
-                                        hourlyOffset = clickedOffset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET),
+                                        hourlyOffset = clickedOffset.coerceIn(NavigationUtils.MIN_HOURLY_OFFSET, NavigationUtils.MAX_HOURLY_OFFSET),
                                     )
                                 )
                             }
@@ -231,9 +229,9 @@ internal fun WidgetPopup(
                             SideEffect {
                                 onRegisterArrowKeyHandler { left ->
                                     val jump = DesktopGraphUtils.navJumpHours(config.zoomFactor)
-                                    if (left && config.hourlyOffset > MIN_HOURLY_OFFSET) {
+                                    if (left && config.hourlyOffset > NavigationUtils.MIN_HOURLY_OFFSET) {
                                         handlePan(-jump); true
-                                    } else if (!left && config.hourlyOffset < MAX_HOURLY_OFFSET) {
+                                    } else if (!left && config.hourlyOffset < NavigationUtils.MAX_HOURLY_OFFSET) {
                                         handlePan(jump); true
                                     } else false
                                 }
@@ -356,21 +354,21 @@ internal fun WidgetPopup(
                             }
                             NavArrow(
                                 alignment = Alignment.CenterStart,
-                                enabled = config.hourlyOffset > MIN_HOURLY_OFFSET,
+                                enabled = config.hourlyOffset > NavigationUtils.MIN_HOURLY_OFFSET,
                                 testTag = "hourly_nav_left",
                             ) {
                                 val jump = DesktopGraphUtils.navJumpHours(config.zoomFactor)
-                                val newOffset = (config.hourlyOffset - jump).coerceAtLeast(MIN_HOURLY_OFFSET)
+                                val newOffset = (config.hourlyOffset - jump).coerceAtLeast(NavigationUtils.MIN_HOURLY_OFFSET)
                                 Log.d(TAG, "HourlyNav: left jump=${-jump}h zoom=${config.zoomFactor} offset ${config.hourlyOffset}->$newOffset")
                                 onUpdateConfig(config.copy(hourlyOffset = newOffset))
                             }
                             NavArrow(
                                 alignment = Alignment.CenterEnd,
-                                enabled = config.hourlyOffset < MAX_HOURLY_OFFSET,
+                                enabled = config.hourlyOffset < NavigationUtils.MAX_HOURLY_OFFSET,
                                 testTag = "hourly_nav_right",
                             ) {
                                 val jump = DesktopGraphUtils.navJumpHours(config.zoomFactor)
-                                val newOffset = (config.hourlyOffset + jump).coerceAtMost(MAX_HOURLY_OFFSET)
+                                val newOffset = (config.hourlyOffset + jump).coerceAtMost(NavigationUtils.MAX_HOURLY_OFFSET)
                                 Log.d(TAG, "HourlyNav: right jump=+${jump}h zoom=${config.zoomFactor} offset ${config.hourlyOffset}->$newOffset")
                                 onUpdateConfig(config.copy(hourlyOffset = newOffset))
                             }

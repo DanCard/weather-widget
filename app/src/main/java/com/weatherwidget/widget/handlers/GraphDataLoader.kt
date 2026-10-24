@@ -22,8 +22,7 @@ object GraphDataLoader {
         zoom: ZoomWindow,
         now: LocalDateTime,
     ): GraphQueryWindow {
-        val truncatedCenter = centerTime.truncatedTo(ChronoUnit.HOURS)
-        val roundedCenter = if (centerTime.minute >= 30) truncatedCenter.plusHours(1) else truncatedCenter
+        val roundedCenter = com.weatherwidget.shared.util.WeatherTimeUtils.alignToNearestHourHalfUp(centerTime)
         // Size the query to what CONSUMES the forecasts, not to what is VISIBLE. The visible span is
         // zoom.backHours/forwardHours (±2h at NARROW), but ActualTemperatureSeriesBuilder blends over
         // contextLookback/LookaheadHours (72h/60h) and extrapolates each station forward via the

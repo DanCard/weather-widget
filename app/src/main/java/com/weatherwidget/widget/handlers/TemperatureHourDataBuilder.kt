@@ -168,10 +168,7 @@ internal fun buildHourDataResult(
     val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
 
     val zoneId = ZoneId.systemDefault()
-    val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-    val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-    val startHour = alignedCenter.minusHours(zoom.backHours)
-    val endHour = alignedCenter.plusHours(zoom.forwardHours)
+    val (startHour, endHour) = com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(centerTime, zoom.backHours, zoom.forwardHours)
     // NaN, never a hardcoded coordinate. This is the IDW reference point for the observation blend
     // and is derived from the rows being drawn, so it only fires when there are none — and a blend
     // with no rows produces nothing regardless. A real coordinate here would silently weight another

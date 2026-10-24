@@ -48,6 +48,7 @@ import com.weatherwidget.shared.actuals.BlendTableFormatter
 import com.weatherwidget.shared.observations.ActualsPickerLabels
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.ObservationOrigin
+import com.weatherwidget.shared.observations.ObservationsTabs
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.util.StationHistoryUrl
 import kotlinx.coroutines.Dispatchers
@@ -102,19 +103,6 @@ private enum class LogFilter(val label: String, val tags: List<String>) {
 /** How often the open window re-evaluates reading ages (see [nowMs] use in [ObservationList]). */
 private const val AGE_TICK_MS = 60_000L
 
-// Blend leads: it is the tab that explains the graph's observed dot, which is what the window is
-// usually opened to investigate.
-internal const val TAB_BLEND = 0
-internal const val TAB_OBSERVATIONS = 1
-internal const val TAB_FETCH_LOGS = 2
-
-/**
- * The Blend tab shows only the CURRENT blended point. History was dropped deliberately: the question
- * the tab answers is "why does the dot read what it reads right now", and a scrolling backlog of past
- * timestamps buried it. One table also buys the room for a much larger, readable font.
- */
-private const val BLEND_TABLE_POINTS = 1
-
 /**
  * Runs the blend for the Blend tab.
  *
@@ -156,7 +144,7 @@ private fun loadBlendTables(
         startMs = now - backMs,
         endMs = now + (2 * 3600 * 1000L),
         personalStationWeight = config.personalStationWeight(),
-        captureBreakdowns = BLEND_TABLE_POINTS,
+        captureBreakdowns = ObservationsTabs.BLEND_TABLE_POINTS,
     )
     return BlendTableFormatter.format(result.breakdowns, config.settings.useCelsius)
 }
@@ -273,7 +261,7 @@ internal fun ObservationsWindow(
 
                 // Only when the tab is actually showing: this re-runs the blend, which the two other
                 // tabs have no use for.
-                val tables = if (selectedTab == TAB_BLEND) {
+                val tables = if (selectedTab == ObservationsTabs.BLEND) {
                     loadBlendTables(weatherDao, config, currentSource)
                 } else {
                     emptyList()
@@ -282,7 +270,7 @@ internal fun ObservationsWindow(
                 withContext(Dispatchers.Main) {
                     observations = obs
                     logs = recentLogs
-                    if (selectedTab == TAB_BLEND) blendTables = tables
+                    if (selectedTab == ObservationsTabs.BLEND) blendTables = tables
                 }
             }
         }
@@ -349,7 +337,7 @@ internal fun ObservationsWindow(
                         }
 
                         // Fetch Logs tag filter — a small icon that opens a menu of LogFilter sets.
-                        if (selectedTab == TAB_FETCH_LOGS) {
+                        if (selectedTab == ObservationsTabs.FETCH_LOGS) {
                             var filterMenuOpen by remember { mutableStateOf(false) }
                             Box {
                                 IconButton(onClick = { filterMenuOpen = true }) {
@@ -406,24 +394,24 @@ internal fun ObservationsWindow(
                         }
                     ) {
                         Tab(
-                            selected = selectedTab == TAB_BLEND,
-                            onClick = { selectTab(TAB_BLEND) },
+                            selected = selectedTab == ObservationsTabs.BLEND,
+                            onClick = { selectTab(ObservationsTabs.BLEND) },
                             selectedContentColor = ObsStyle.accent,
                             unselectedContentColor = ObsStyle.textSecondary
                         ) {
                             Text("Blend", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
                         }
                         Tab(
-                            selected = selectedTab == TAB_OBSERVATIONS,
-                            onClick = { selectTab(TAB_OBSERVATIONS) },
+                            selected = selectedTab == ObservationsTabs.OBSERVATIONS,
+                            onClick = { selectTab(ObservationsTabs.OBSERVATIONS) },
                             selectedContentColor = ObsStyle.accent,
                             unselectedContentColor = ObsStyle.textSecondary
                         ) {
                             Text("Observations", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
                         }
                         Tab(
-                            selected = selectedTab == TAB_FETCH_LOGS,
-                            onClick = { selectTab(TAB_FETCH_LOGS) },
+                            selected = selectedTab == ObservationsTabs.FETCH_LOGS,
+                            onClick = { selectTab(ObservationsTabs.FETCH_LOGS) },
                             selectedContentColor = ObsStyle.accent,
                             unselectedContentColor = ObsStyle.textSecondary
                         ) {
@@ -433,8 +421,8 @@ internal fun ObservationsWindow(
 
                     Box(modifier = Modifier.weight(1f)) {
                         when (selectedTab) {
-                            TAB_BLEND -> BlendTableView(blendTables)
-                            TAB_OBSERVATIONS -> Column {
+                            ObservationsTabs.BLEND -> BlendTableView(blendTables)
+                            ObservationsTabs.OBSERVATIONS -> Column {
                                 // Only a forecast-only source gets the control. A source that ships
                                 // its own observations is not offered a choice, because borrowing
                                 // exists to fill an absence — regrading NWS against someone else's

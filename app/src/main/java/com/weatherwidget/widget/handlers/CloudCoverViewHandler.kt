@@ -91,10 +91,7 @@ object CloudCoverViewHandler {
         centerTime: LocalDateTime,
         zoom: com.weatherwidget.widget.ZoomWindow,
     ): Set<Long> {
-        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        val startHour = alignedCenter.minusHours(zoom.backHours)
-        val endHour = alignedCenter.plusHours(zoom.forwardHours)
+        val (startHour, endHour) = com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(centerTime, zoom.backHours, zoom.forwardHours)
         val zoneId = ZoneId.systemDefault()
         return buildSet {
             var currentHour = startHour
@@ -709,10 +706,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val entityByTime = hourlyForecasts.groupBy { it.dateTime }
             .mapValues { entry -> entry.value.find { it.source == displaySource.id } }
 
-        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        val startHour = alignedCenter.minusHours(zoom.backHours)
-        val endHour = alignedCenter.plusHours(zoom.forwardHours)
+        val alignedCenter = com.weatherwidget.shared.util.WeatherTimeUtils.alignToNearestHourHalfUp(centerTime)
+        val (startHour, endHour) = com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(centerTime, zoom.backHours, zoom.forwardHours)
         Log.d(
             TAG,
             "buildCloudHourDataList: centerTime=$centerTime alignedCenter=$alignedCenter " +

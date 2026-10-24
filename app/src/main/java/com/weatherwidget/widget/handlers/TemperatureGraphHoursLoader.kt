@@ -88,8 +88,7 @@ internal object TemperatureGraphHoursLoader {
             )
         }
 
-        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+        val alignedCenter = com.weatherwidget.shared.util.WeatherTimeUtils.alignToNearestHourHalfUp(centerTime)
 
         var obsQueryMs = 0L
         var obsPoolDiagnostics: ObservationPoolDiagnostics.Summary? = null

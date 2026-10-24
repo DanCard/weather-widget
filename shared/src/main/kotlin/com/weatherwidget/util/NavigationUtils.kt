@@ -12,6 +12,10 @@ object NavigationUtils {
      */
     const val NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD = 8
 
+    /** How far the hourly view pans from now, in hours: 30 days each way. */
+    const val MIN_HOURLY_OFFSET = -720
+    const val MAX_HOURLY_OFFSET = 720
+
     /**
      * Returns true when the widget should drop yesterday from its day window
      * (showing today + forecast instead of yesterday + today + forecast).

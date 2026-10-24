@@ -44,6 +44,7 @@ import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.BlendTable
 import com.weatherwidget.shared.actuals.BlendTableFormatter
 import com.weatherwidget.shared.observations.ObservationOrigin
+import com.weatherwidget.shared.observations.ObservationsTabs
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.observations.StaleObservationFallback
 import com.weatherwidget.util.StationHistoryUrl
@@ -134,7 +135,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private var loadObservationsJob: Job? = null
     private var loadFetchLogsJob: Job? = null
     private var loadBlendTableJob: Job? = null
-    private var selectedTab: Int = TAB_OBSERVATIONS
+    private var selectedTab: Int = ObservationsTabs.OBSERVATIONS
     private var widgetContentChanged = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -168,17 +169,17 @@ class WeatherObservationsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.close_button).setOnClickListener { finish() }
 
         val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(this, PREFS_NAME)
-        val defaultTab = prefs.getInt(PREF_KEY_LAST_TAB, TAB_OBSERVATIONS)
+        val defaultTab = prefs.getInt(PREF_KEY_LAST_TAB, ObservationsTabs.OBSERVATIONS)
         selectedTab = savedInstanceState?.getInt(STATE_SELECTED_TAB, defaultTab) ?: defaultTab
         widgetContentChanged = savedInstanceState?.getBoolean(STATE_WIDGET_CONTENT_CHANGED, false) ?: false
         findViewById<View>(R.id.blend_tab).setOnClickListener {
-            showTab(TAB_BLEND)
+            showTab(ObservationsTabs.BLEND)
         }
         findViewById<View>(R.id.observations_tab).setOnClickListener {
-            showTab(TAB_OBSERVATIONS)
+            showTab(ObservationsTabs.OBSERVATIONS)
         }
         findViewById<View>(R.id.fetch_logs_tab).setOnClickListener {
-            showTab(TAB_FETCH_LOGS)
+            showTab(ObservationsTabs.FETCH_LOGS)
         }
         showTab(selectedTab)
 
@@ -215,30 +216,30 @@ class WeatherObservationsActivity : AppCompatActivity() {
         prefs.edit().putInt(PREF_KEY_LAST_TAB, tab).apply()
 
         findViewById<View>(R.id.observations_content).visibility =
-            if (tab == TAB_OBSERVATIONS) View.VISIBLE else View.GONE
+            if (tab == ObservationsTabs.OBSERVATIONS) View.VISIBLE else View.GONE
         findViewById<View>(R.id.blend_content).visibility =
-            if (tab == TAB_BLEND) View.VISIBLE else View.GONE
+            if (tab == ObservationsTabs.BLEND) View.VISIBLE else View.GONE
         findViewById<View>(R.id.fetch_logs_content).visibility =
-            if (tab == TAB_FETCH_LOGS) View.VISIBLE else View.GONE
+            if (tab == ObservationsTabs.FETCH_LOGS) View.VISIBLE else View.GONE
 
         updateTab(
             tabView = findViewById(R.id.observations_tab),
             indicatorView = findViewById(R.id.observations_tab_indicator),
-            selected = tab == TAB_OBSERVATIONS,
+            selected = tab == ObservationsTabs.OBSERVATIONS,
         )
         updateTab(
             tabView = findViewById(R.id.blend_tab),
             indicatorView = findViewById(R.id.blend_tab_indicator),
-            selected = tab == TAB_BLEND,
+            selected = tab == ObservationsTabs.BLEND,
         )
         updateTab(
             tabView = findViewById(R.id.fetch_logs_tab),
             indicatorView = findViewById(R.id.fetch_logs_tab_indicator),
-            selected = tab == TAB_FETCH_LOGS,
+            selected = tab == ObservationsTabs.FETCH_LOGS,
         )
 
         // Runs the blend, so only pay for it while the tab is on screen.
-        if (tab == TAB_BLEND) loadBlendTable()
+        if (tab == ObservationsTabs.BLEND) loadBlendTable()
     }
 
     /**
@@ -295,7 +296,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                         startMs = sinceMs,
                         endMs = now,
                         personalStationWeight = widgetStateManager.getPersonalStationWeight(),
-                        captureBreakdowns = BLEND_TABLE_POINTS,
+                        captureBreakdowns = ObservationsTabs.BLEND_TABLE_POINTS,
                     )
                     BlendTableFormatter.format(result.breakdowns, widgetStateManager.useCelsius())
                 }
@@ -954,9 +955,6 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
 
     internal companion object {
-        private const val TAB_BLEND = 0
-        private const val TAB_OBSERVATIONS = 1
-        private const val TAB_FETCH_LOGS = 2
         private const val STATE_SELECTED_TAB = "selected_tab"
         private const val STATE_WIDGET_CONTENT_CHANGED = "widget_content_changed"
         private const val PREF_KEY_LAST_TAB = "last_selected_obs_tab"
@@ -968,12 +966,6 @@ class WeatherObservationsActivity : AppCompatActivity() {
         /** GpsResampler trigger name and app_logs outcome prefix live on this token. */
         internal const val TRIGGER_SOURCE = "observations_screen"
         private const val OBS_STALE_AUTO_REFRESH_TAG = "OBS_STALE_AUTO_REFRESH"
-
-        /**
-         * The Blend tab shows only the CURRENT blended point — the tab answers "why does the dot read
-         * what it reads right now", and a scrolling backlog of past timestamps buried that.
-         */
-        private const val BLEND_TABLE_POINTS = 1
 
         private const val BLEND_DATA_SP = 20f
         private const val BLEND_HEADER_SP = 16f

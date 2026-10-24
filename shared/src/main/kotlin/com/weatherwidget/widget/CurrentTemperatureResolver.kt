@@ -62,8 +62,7 @@ object CurrentTemperatureResolver {
     const val RESOLUTION_LOOKAHEAD_HOURS = 3L
 
     fun buildCurrentTempResolutionWindow(now: LocalDateTime): CurrentTempResolutionWindow {
-        val truncatedNow = now.truncatedTo(ChronoUnit.HOURS)
-        val roundedNow = if (now.minute >= 30) truncatedNow.plusHours(1) else truncatedNow
+        val roundedNow = com.weatherwidget.shared.util.WeatherTimeUtils.alignToNearestHourHalfUp(now)
         return CurrentTempResolutionWindow(
             start = roundedNow.minusHours(RESOLUTION_LOOKBACK_HOURS),
             end = roundedNow.plusHours(RESOLUTION_LOOKAHEAD_HOURS),

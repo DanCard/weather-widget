@@ -47,7 +47,6 @@ import com.weatherwidget.shared.util.Log
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -134,11 +133,8 @@ internal fun temperatureGraphHourWindow(
     zoneId: ZoneId = ZoneId.systemDefault()
 ): HourWindow {
     val center = LocalDateTime.ofInstant(Instant.ofEpochMilli(centerMs), zoneId)
-    val truncated = center.truncatedTo(ChronoUnit.HOURS)
-    val alignedCenter = if (center.minute >= 30) truncated.plusHours(1) else truncated
-    val startMs = alignedCenter.minusHours(backHours.toLong()).atZone(zoneId).toInstant().toEpochMilli()
-    val endMs = alignedCenter.plusHours(forwardHours.toLong()).atZone(zoneId).toInstant().toEpochMilli()
-    return HourWindow(startMs, endMs)
+    val span = com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(center, backHours.toLong(), forwardHours.toLong())
+    return HourWindow(span.start.atZone(zoneId).toInstant().toEpochMilli(), span.end.atZone(zoneId).toInstant().toEpochMilli())
 }
 
 /**

@@ -18,6 +18,7 @@ import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
+import com.weatherwidget.shared.observations.ObservationsTabs
 
 /**
  * The Settings-window-owned fields, nested so the settings/non-settings ownership boundary is
@@ -136,7 +137,7 @@ data class DesktopConfig(
     val obsWindowY: Float? = null,
     val obsWindowWidth: Float? = null,
     val obsWindowHeight: Float? = null,
-    val obsSelectedTab: Int = TAB_OBSERVATIONS,
+    val obsSelectedTab: Int = ObservationsTabs.OBSERVATIONS,
     // Open-Meteo rain map playback, seconds per forecast hour (`RainLoopSpeed`, clamped on read).
     val rainMapSecondsPerHour: Float = com.weatherwidget.shared.rainmap.RainLoopSpeed.DEFAULT_SECONDS,
     val historyWindowX: Float? = null,

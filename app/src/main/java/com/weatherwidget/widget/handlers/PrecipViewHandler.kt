@@ -606,9 +606,8 @@ object PrecipViewHandler {
         centerTime: LocalDateTime,
         zoom: com.weatherwidget.widget.ZoomWindow,
     ): Pair<LocalDateTime, LocalDateTime> {
-        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        return alignedCenter.minusHours(zoom.backHours) to alignedCenter.plusHours(zoom.forwardHours)
+        val (start, end) = com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(centerTime, zoom.backHours, zoom.forwardHours)
+        return start to end
     }
 
     /** Open-Meteo's 15-minute nowcast for the band; empty unless Open-Meteo is displayed with native coverage. */

@@ -7,6 +7,7 @@ import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.RecentLocationsHelper
+import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.SharedPreferencesUtil
 import java.time.LocalDateTime
 import javax.inject.Singleton
@@ -257,10 +258,10 @@ class WidgetStateManager internal constructor(
         presentationStore.navigateHourly(widgetId, 1)
 
     fun canNavigateHourlyLeft(widgetId: Int): Boolean =
-        getHourlyOffset(widgetId) > MIN_HOURLY_OFFSET
+        getHourlyOffset(widgetId) > NavigationUtils.MIN_HOURLY_OFFSET
 
     fun canNavigateHourlyRight(widgetId: Int): Boolean =
-        getHourlyOffset(widgetId) < MAX_HOURLY_OFFSET
+        getHourlyOffset(widgetId) < NavigationUtils.MAX_HOURLY_OFFSET
 
     /** The user's persisted stage selection. Use [getZoomWindow] when you need hours/geometry. */
     fun getZoomStage(widgetId: Int): ZoomStage = presentationStore.zoom(widgetId)
@@ -618,8 +619,6 @@ class WidgetStateManager internal constructor(
 
         const val MIN_DATE_OFFSET = -30
         const val MAX_DATE_OFFSET = 14
-        const val MIN_HOURLY_OFFSET = -720
-        const val MAX_HOURLY_OFFSET = 720
         const val HOURLY_NAV_JUMP = 6
 
         private val DEFAULT_VISIBLE_SOURCES =
