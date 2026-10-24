@@ -337,6 +337,8 @@ Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both lar
    smallest DB surface first (GoogleHistoryRun, CurrentConditionsRun). Pattern:
    abstract `<Runner>HostContract` in `:shared` testFixtures, extract each platform's Host into a
    class, seeds write raw rows, a case that tells the readings apart; any divergence → user decision.
+   Status, the step-by-step pattern, open items and gotchas: the "Status and handoff" section at the
+   top of `plans/261024-host-contract-tests-room-and-desktop-sqlite.md`.
 2. **B rest**: per-source fetch/persist, one source at a time as Runner + Host.
 Process that worked this session: find the twin → write a plan with the divergences and any user
 decision → approval → shared code + a test that fails on the old code → full suite incl.

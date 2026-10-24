@@ -1,7 +1,44 @@
 # Host contract tests: one suite, run on Room and on desktop SQLite
 
 Follows `261023-duplicate-logic-audit-different-names.md` → "Next" item 1 (10-21 audit Tier 3,
-option b). Plan only; no code changed yet.
+option b).
+
+## Status and handoff (2026-10-24, end of session)
+**9 of 11 Hosts done**, all committed on `main` (last: `23706316`), all three Android devices and
+desktop on that build. Details per Host under "Done" below.
+
+**Left:** `GoogleHistoryRun.Host` (3 DB ops: `coveredHistoryHours`, `liveHours`, `saveRefill`; Android
+`GoogleHistoryRefill` host, desktop `DesktopWeatherRepository.refillGoogleHistory`), then
+`CurrentConditionsRun.Host` (prefs + network; the only DB touch is inside `fetch` — expect a thin
+contract or a reasoned allowlist entry). `HostContractCoverageTest.PENDING` lists them and only shrinks.
+
+**Pattern (copy an existing one, e.g. `NowcastRefreshHostContract`):**
+1. Read both Host implementations and the DAO SQL behind each read/write; note every difference
+   (source scope, site match — exact key / same-site 0.002° / ±0.1° box —, end inclusive, ordering).
+2. Divergence → ask the user (recommendation first) before changing code; none → just pin it.
+3. Extract each platform's anonymous Host into a class (network/clock passed in as lambdas).
+4. Abstract `<Runner>HostContract` in `shared/src/testFixtures/.../shared/contract/`; seeds write raw
+   rows (desktop: plain INSERT via `db.getConnection()`, the DAO writers quantize/stamp the clock);
+   one case per reading that could differ. Subclasses: `app/src/test` (Robolectric, `TestDatabase`,
+   `@Category(LongDuration)`) and `desktop/src/test` (temp-file DB, `@Category(ShortDuration)`).
+5. Remove the entry from `PENDING`; a rule change gets a test that fails on the old code.
+6. `./gradlew :shared:test :desktop:test testDebugUnitTest :app:compileDebugAndroidTestKotlin`,
+   `installDebug`, `scripts/buildStart-desktop.sh`, crash check, then a Done bullet here + a Progress
+   line in the audit plan, commit.
+
+**Open items found, not changed (each needs a user decision):**
+- The live-day observation blend's hourly input differs: Android `ObservationResolver` callers vs
+  desktop `recomputeDailyExtremes` → `getHourlyWithHistory` of the displayed source.
+- `HourlyOnDemand.hoursToCover` (both platforms) counts a neighbouring town's rows in the ±0.1° box
+  as coverage, so a day tap can skip a fetch only the neighbour has.
+- Desktop `NWS_STATION_ACTUALS_OUTCOME requested=1 pulled=0` every run: today's row looks counted
+  as missing and then skipped — harmless noise, not investigated.
+- The Google Docs copies of this plan and the snapshot plan predate the latest edits.
+
+**Gotchas:** `HourlyProximityQueryAllowlistTest` lists files by name — moving a raw
+`getHourlyForecasts` call to a new file needs the entry moved. Desktop `DesktopWeatherRepository`
+splices: match on unique text, the same `nowMs = now,` appears several times. The Pixel drops off
+adb at times; `ANDROID_SERIAL=<id> ./gradlew installDebug` installs one device.
 
 ## Why
 Every shared runner reads through a `Host`, and each platform backs each Host read with its own DAO
@@ -37,7 +74,7 @@ cloud. What really differed: the end hour (inclusive on desktop) and `Generic` r
 every site in the box, before the stitcher's same-site filter. No visible effect today; the contract
 pins it.
 
-**Decision needed (recommendation first):**
+**Decision needed (recommendation first):** — decided A, see below.
 - **A (recommended)** — the contract is the stitcher's input: every snapshot of [source] only, freshest
   first per hour, end exclusive, no `Generic`. Desktop's Host switches to a raw read; the cloud
   coalescing — a rule, not a query — moves into `:shared` (stitcher or a `HourlyHistoryMerge`) so both
@@ -125,7 +162,7 @@ freshest bucket first); `getHourlyHistory` (merged) stays for desktop's display 
   read-back + the day reads as covered, `latestResult` by prefix) on `RoomWeatherApiHistoryHost` /
   `DesktopWeatherApiHistoryHost` (fetch, and Android's extremes recompute, passed in). Desktop's
   `storedObservations` read every api; now WeatherAPI only, as Android (no behaviour change: `decide`
-  already filtered). 5 pending. **Open (storage, both directions):** desktop writes every observation
+  already filtered). 5 pending. **Was open, resolved below (storage, both directions):** desktop wrote every observation
   at raw device coordinates (`37.4166014`), Android quantizes (`37.417`). Reads agree (box +
   `ObservationSiteMerge`); keys differ, so a jittered fix on desktop would add rows rather than
   replace them. **Decided (user, 2026-10-24): quantize on desktop too** ("Desktop is a misnomer.
@@ -139,9 +176,10 @@ freshest bucket first); `getHourlyHistory` (merged) stays for desktop's display 
 - `ElapsedForecastBackfill.Store` → `ElapsedForecastBackfillStoreContract` (2 cases: `coveredHours` =
   this source, this site, any bucket, `[start, end)`; insert → covered, a second backfill stores
   nothing) on `RoomElapsedHistoryStore` / `DesktopElapsedHistoryStore` (bucket passed in); no
-  divergence. 4 pending. **Open:** the snapshot bucket itself — Android `ForecastHistoryPolicy` (in
+  divergence. 4 pending. **Was open, resolved** by `HourlySnapshotRun` (`90066cdb`,
+  `performance/261024-hourly-snapshot-windows-by-view-and-battery.md`): the snapshot bucket itself — Android `ForecastHistoryPolicy` (in
   `:app`) files a displayed source every 4 h and a background one every 12 h ("DB-write savings");
-  desktop files every source every 4 h, hard-coded in three places. Awaiting the user.
+  desktop filed every source every 4 h, hard-coded in three places.
 - `NwsStationBundles.Host` → `NwsStationBundlesHostContract` (2 cases: `touchLatest` stamps only this
   station's newest reading on this site's quantized key — not its older ones, another town's, a jitter
   fragment's or another station's; nothing stored here → no change) on `RoomNwsStationBundlesHost` /
