@@ -87,7 +87,7 @@ class NwsCurrentFetchReadingTest : RobolectricTest() {
             PersonalStationWeightProvider { 1.0 },
             InMemoryReducedSignatureStore(),
         )
-        return NwsCurrentObservationUpdater(source, db.observationDao(), db.appLogDao(), store)
+        return NwsCurrentObservationUpdater(source, db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), store)
     }
 
     @Test

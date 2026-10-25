@@ -3,6 +3,7 @@ package com.weatherwidget.data.repository
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyHistoryDao
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
@@ -282,7 +283,9 @@ class NwsObservationBackfiller @Inject constructor(
                     (result.apiFailure?.let { " apiFetchFailed=$it" } ?: ""),
                 "INFO",
             )
-            if (result.entities.isNotEmpty()) observationDao.insertAll(result.entities)
+            if (result.entities.isNotEmpty()) {
+                writeObservations(observationDao, dailyHistoryDao, appLogDao, latitude, longitude, result.entities.map { it.toReading() })
+            }
             StationBackfill(result.entities, failed = result.entities.isEmpty() && result.apiFailure != null)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e

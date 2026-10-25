@@ -310,6 +310,33 @@ interface ObservationDao {
     @Query("DELETE FROM observations WHERE timestamp < :cutoffMs")
     suspend fun deleteOldObservations(cutoffMs: Long)
 
+    /** [api]'s [stationIds] rows on the exact quantized site [lat]/[lon], `timestamp` in [startMs, endMs). */
+    @Query(
+        """
+        SELECT stationId, timestamp, stationType FROM observations
+        WHERE api = :api AND stationId IN (:stationIds) AND locationLat = :lat AND locationLon = :lon
+          AND timestamp >= :startMs AND timestamp < :endMs
+    """,
+    )
+    suspend fun getKeysAtSite(
+        api: String,
+        stationIds: List<String>,
+        lat: Double,
+        lon: Double,
+        startMs: Long,
+        endMs: Long,
+    ): List<ObservationKeyRow>
+
+    /** Deletes [api]'s [stationId] rows on the exact quantized site [lat]/[lon] at [timestamps]. */
+    @Query(
+        """
+        DELETE FROM observations
+        WHERE api = :api AND stationId = :stationId AND locationLat = :lat AND locationLon = :lon
+          AND timestamp IN (:timestamps)
+    """,
+    )
+    suspend fun deleteAtSite(api: String, stationId: String, lat: Double, lon: Double, timestamps: List<Long>): Int
+
     // Generic retired-product cleanup (RetiredProductCleanup): the WHERE clauses come from the shared
     // RetiredActualsProducts registry, so they are raw SELECTs; the delete itself stays a checked query.
     @RawQuery
@@ -447,6 +474,9 @@ class ObservationRangeRead(
 
     val diagnostics: ObservationPoolDiagnostics.Summary by lazy(summarize)
 }
+
+/** [ObservationDao.getKeysAtSite]'s projection. */
+data class ObservationKeyRow(val stationId: String, val timestamp: Long, val stationType: StationType)
 
 /**
  * [ObservationDao.insertAll], then brings earlier rows of the same stations onto the type just

@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.shared.observations.NwsStationAttemptLog
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
@@ -30,6 +31,7 @@ internal const val MAX_NWS_STATIONS = 5
 class NwsCurrentObservationUpdater private constructor(
     private val observationSource: NwsObservationSource,
     private val observationDao: ObservationDao,
+    private val dailyHistoryDao: DailyHistoryDao,
     private val appLogDao: AppLogDao,
     private val dailyActualsStore: DailyActualsStore,
     private val metarTextApi: NwsMetarTextApi?,
@@ -40,6 +42,7 @@ class NwsCurrentObservationUpdater private constructor(
     constructor(
         observationSource: NwsObservationSource,
         observationDao: ObservationDao,
+        dailyHistoryDao: DailyHistoryDao,
         appLogDao: AppLogDao,
         dailyActualsStore: DailyActualsStore,
         metarTextApi: NwsMetarTextApi,
@@ -47,6 +50,7 @@ class NwsCurrentObservationUpdater private constructor(
     ) : this(
         observationSource,
         observationDao,
+        dailyHistoryDao,
         appLogDao,
         dailyActualsStore,
         metarTextApi,
@@ -58,10 +62,11 @@ class NwsCurrentObservationUpdater private constructor(
     internal constructor(
         observationSource: NwsObservationSource,
         observationDao: ObservationDao,
+        dailyHistoryDao: DailyHistoryDao,
         appLogDao: AppLogDao,
         dailyActualsStore: DailyActualsStore,
         personalStationWeightProvider: PersonalStationWeightProvider = PersonalStationWeightProvider { 1.0 },
-    ) : this(observationSource, observationDao, appLogDao, dailyActualsStore, null, personalStationWeightProvider, Unit)
+    ) : this(observationSource, observationDao, dailyHistoryDao, appLogDao, dailyActualsStore, null, personalStationWeightProvider, Unit)
 
     /**
      * One NWS observation cycle: per station its latest reading AND the last
@@ -98,7 +103,9 @@ class NwsCurrentObservationUpdater private constructor(
         )
 
         val stored = bundles.flatMap { it.rows }.map { it.toEntity() }
-        if (stored.isNotEmpty()) observationDao.insertAll(stored)
+        if (stored.isNotEmpty()) {
+            writeObservations(observationDao, dailyHistoryDao, appLogDao, latitude, longitude, stored.map { it.toReading() })
+        }
         val latest = bundles.mapNotNull { it.latest?.toEntity() }
         latest.forEach { reading ->
             observationDao.touchLatestFetchedAt(reading.stationId, reading.locationLat, reading.locationLon, System.currentTimeMillis())

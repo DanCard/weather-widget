@@ -7,7 +7,9 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.repository.MetarObservationSource
+import com.weatherwidget.data.repository.writeObservations
 import com.weatherwidget.shared.util.MetarFetchPolicy
 
 /**
@@ -91,7 +93,8 @@ internal class MetarObservationRefresher(
         try {
             val rows = source.fetchObservations(latitude, longitude, hours = hours)
             if (rows.isEmpty()) return
-            WeatherDatabase.getDatabase(context).observationDao().insertAll(rows)
+            val db = WeatherDatabase.getDatabase(context)
+            writeObservations(db.observationDao(), db.dailyHistoryDao(), appLogDao, latitude, longitude, rows.map { it.toReading() })
             appLogDao.log(
                 "METAR_OBS_STORED",
                 "reason=$reason tier=${tier.name} hours=$hours rows=${rows.size} " +

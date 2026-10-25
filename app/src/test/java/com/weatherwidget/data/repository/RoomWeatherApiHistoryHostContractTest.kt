@@ -26,7 +26,7 @@ class RoomWeatherApiHistoryHostContractTest : WeatherApiHistoryHostContract() {
         val hourlyStore = HourlyForecastStore(
             db.hourlyForecastDao(), db.hourlyForecastHistoryDao(), db.observationDao(),
             WidgetStateManager(ApplicationProvider.getApplicationContext<Context>()),
-            clock = { DAY_START + DAY }, appLogDao = db.appLogDao(),
+            clock = { DAY_START + DAY }, appLogDao = db.appLogDao(), dailyHistoryDao = db.dailyHistoryDao(),
         )
         val host = RoomWeatherApiHistoryHost(
             LAT, LON, db.observationDao(), db.appLogDao(), hourlyStore,

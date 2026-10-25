@@ -114,7 +114,7 @@ class NwsCurrentFetchRecomputeOnceTest : RobolectricTest() {
             }
         }
         val source = NwsObservationSource(context, api, db.appLogDao(), metarTextApi = null)
-        return NwsCurrentObservationUpdater(source, db.observationDao(), db.appLogDao(), dailyStore)
+        return NwsCurrentObservationUpdater(source, db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), dailyStore)
     }
 
     private fun at(date: LocalDate, hour: Int, minute: Int = 0): Long =

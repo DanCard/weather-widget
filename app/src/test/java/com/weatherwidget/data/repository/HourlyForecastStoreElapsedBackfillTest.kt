@@ -48,6 +48,8 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
             hourlyForecastHistoryDao = db.hourlyForecastHistoryDao(),
             observationDao = db.observationDao(),
             widgetStateManager = WidgetStateManager(context),
+            appLogDao = db.appLogDao(),
+            dailyHistoryDao = db.dailyHistoryDao(),
         )
     }
 
@@ -174,6 +176,8 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
             observationDao = db.observationDao(),
             widgetStateManager = WidgetStateManager(context),
             clock = { now },
+            appLogDao = db.appLogDao(),
+            dailyHistoryDao = db.dailyHistoryDao(),
             snapshotLabel = { _, _, _, t -> asked += t; label },
         )
         suspend fun fetch(on: HourlyForecastStore) =

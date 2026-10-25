@@ -345,6 +345,12 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   desktop SQLite. Android's NWS now a `RawFetch` like every source (`NwsDailyMapper.dailyForecasts`); the
   per-source save paths (`fetchAndSaveSharedForecast`, `fetchFromSilurian`, `saveDailyBatch`, desktop
   `withHourlySummaries` / `backfillElapsedHistory`) are gone.
+- 2026-10-25: B rest — observations phase 1 (`plans/261024-shared-observation-persist-rules.md`):
+  `:shared` `ObservationWriteRun` + Host owns every `observations` write's rules (own `fetchedAt`,
+  re-tag every api, personal thinning over the stored window, Tomorrow.io line per Tomorrow.io fetch,
+  retired-product cleanup per api); `ObservationWriteHostContract` on Room and desktop SQLite. Desktop
+  `persistObservations` and Android's NWS, current-conditions, provider-history and METAR writers go
+  through it. Phase 2 (O3, Synoptic refresher, Observations screen) left.
 
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:

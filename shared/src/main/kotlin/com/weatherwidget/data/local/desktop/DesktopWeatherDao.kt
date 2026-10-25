@@ -24,6 +24,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.orNullIfImplausibleTempF
 import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.actuals.RetiredProductCleanup
+import com.weatherwidget.shared.observations.ObservationWriteRun
 import com.weatherwidget.shared.util.ForecastTempRounding
 import com.weatherwidget.shared.util.SameDayExtremeCutoff
 import com.weatherwidget.shared.util.Log
@@ -650,6 +651,71 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stationIds.forEachIndexed { i, id -> stmt.setString(3 + i, id) }
                 stmt.setInt(3 + stationIds.size, stationType.dbCode)
                 return stmt.executeUpdate()
+            }
+        }
+    }
+
+    /** [api]'s [stationIds] rows on the exact quantized site, `timestamp` in [startMs, endMs). Android: `ObservationDao.getKeysAtSite`. */
+    fun observationKeysAtSite(
+        api: String,
+        stationIds: Collection<String>,
+        locationLat: Double,
+        locationLon: Double,
+        startMs: Long,
+        endMs: Long,
+    ): List<ObservationWriteRun.StoredKey> {
+        if (stationIds.isEmpty()) return emptyList()
+        val placeholders = stationIds.joinToString(",") { "?" }
+        val result = mutableListOf<ObservationWriteRun.StoredKey>()
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT stationId, timestamp, stationType FROM observations " +
+                    "WHERE api = ? AND stationId IN ($placeholders) AND locationLat = ? AND locationLon = ? " +
+                    "AND timestamp >= ? AND timestamp < ?",
+            ).use { stmt ->
+                var i = 1
+                stmt.setString(i++, api)
+                stationIds.forEach { stmt.setString(i++, it) }
+                stmt.setDouble(i++, locationLat)
+                stmt.setDouble(i++, locationLon)
+                stmt.setLong(i++, startMs)
+                stmt.setLong(i, endMs)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        result += ObservationWriteRun.StoredKey(
+                            rs.getString("stationId"),
+                            rs.getLong("timestamp"),
+                            StationType.fromDbCode(rs.getInt("stationType")),
+                        )
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    /** Deletes [api]'s [stationId] rows on the exact quantized site at [timestamps]. Android: `ObservationDao.deleteAtSite`. */
+    fun deleteObservationsAtSite(
+        api: String,
+        stationId: String,
+        locationLat: Double,
+        locationLon: Double,
+        timestamps: Collection<Long>,
+    ): Int = withWriteLock {
+        if (timestamps.isEmpty()) return@withWriteLock 0
+        db.getConnection().use { conn ->
+            timestamps.chunked(500).sumOf { chunk ->
+                conn.prepareStatement(
+                    "DELETE FROM observations WHERE api = ? AND stationId = ? AND locationLat = ? AND locationLon = ? " +
+                        "AND timestamp IN (${chunk.joinToString(",") { "?" }})",
+                ).use { stmt ->
+                    stmt.setString(1, api)
+                    stmt.setString(2, stationId)
+                    stmt.setDouble(3, locationLat)
+                    stmt.setDouble(4, locationLon)
+                    chunk.forEachIndexed { index, ts -> stmt.setLong(5 + index, ts) }
+                    stmt.executeUpdate()
+                }
             }
         }
     }

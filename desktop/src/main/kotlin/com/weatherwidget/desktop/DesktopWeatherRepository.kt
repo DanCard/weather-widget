@@ -45,10 +45,10 @@ import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.shared.actuals.NwsDailyExtremesFetch
 import com.weatherwidget.shared.actuals.NwsStationActualsMaintenance
 import com.weatherwidget.shared.actuals.StationDailyExtremes
-import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.observations.ActualsProviderResolver
+import com.weatherwidget.shared.observations.ObservationWriteRun
 import com.weatherwidget.shared.observations.ObservationTimelineNormalizer
 import com.weatherwidget.shared.history.ProviderHistoryDecision
 import com.weatherwidget.shared.history.ProviderHistoryFailureClass
@@ -380,7 +380,7 @@ class DesktopWeatherRepository(
                     nowMs = currentTimeMillis(),
                 )
                 if (backfill.isNotEmpty()) {
-                    weatherDao.upsertObservations(backfill.map { it.toEntity(currentTimeMillis()) })
+                    persistObservations(backfill, currentTimeMillis())
                     recomputeDailyExtremes(currentTimeMillis())
                     true
                 } else {
@@ -392,7 +392,7 @@ class DesktopWeatherRepository(
         runHistoryFetch(neededDays, "NWS") {
             val obs = weatherService.fetchObservationHistory(neededDays.toLong())
             if (obs.isNotEmpty()) {
-                weatherDao.upsertObservations(obs.map { it.toEntity(currentTimeMillis()) })
+                persistObservations(obs, currentTimeMillis())
                 true
             } else {
                 false
@@ -605,6 +605,7 @@ class DesktopWeatherRepository(
                 now,
                 keep = HourlyOnDemand.keep(weatherSource, null, fetchHorizon),
                 userRefresh = userRefresh,
+                borrowedFeed = borrowedPlan?.feed?.takeIf { borrowedRecovery.rawObservations.isNotEmpty() },
             )
             markHorizon(fetchHorizon, result)
             if (refillDay != null) refillStaleGoogleHours(result, now, refillDay)
@@ -723,7 +724,7 @@ class DesktopWeatherRepository(
         try {
             val readings = weatherService.fetchObservationHistory(DesktopWeatherService.HISTORY_DAYS)
             if (readings.isNotEmpty()) {
-                persistObservations(readings, now, tomorrowWindowHours = TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS)
+                persistObservations(readings, now)
             }
             val extremes = recomputeDailyExtremes(now)
             weatherDao.log(
@@ -806,6 +807,8 @@ class DesktopWeatherRepository(
         userRefresh: Boolean = false,
         /** False for an hourly-only fetch: daily rows a non-splitting source sent anyway are dropped. */
         daily: Boolean = true,
+        /** The actuals feed whose recovery rows [result] carries, when [refresh] merged one in. */
+        borrowedFeed: WeatherSource? = null,
     ): ForecastPersistRun.Result {
         recordProductQuotas(result, now)
         // Tomorrow's Timeline response also contains a revised six-hour lookback; that slice belongs
@@ -839,15 +842,16 @@ class DesktopWeatherRepository(
                     "hourlyTotal=${result.hourly.size}",
             )
         }
-        if (
-            result.rawObservations.isNotEmpty() ||
-            ActualsProviderResolver.providerIdFor(displaySource) == WeatherSource.TOMORROW_IO.id
-        ) {
-            persistObservations(
-                readings = result.rawObservations,
-                now = now,
-                tomorrowWindowHours = TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS,
-            )
+        // A Tomorrow.io fetch logs its five-minute line even when it brought no rows, as on Android
+        // (decision O4): its own forecast fetch with the full lookback, a borrowed recovery through the
+        // current-conditions fetcher with the incremental one.
+        val tomorrowIoHours = when {
+            weatherSource == WeatherSource.TOMORROW_IO.id && result.hourly.isNotEmpty() -> TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS
+            borrowedFeed == WeatherSource.TOMORROW_IO -> TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS
+            else -> null
+        }
+        if (result.rawObservations.isNotEmpty() || tomorrowIoHours != null) {
+            persistObservations(result.rawObservations, now, tomorrowIoHours)
         }
         return persisted
     }
@@ -934,7 +938,11 @@ class DesktopWeatherRepository(
             var stored = 0
             suspend fun store(raw: RawFetch, feed: WeatherSource?) {
                 if (raw.rawObservations.isNotEmpty() || feed == WeatherSource.TOMORROW_IO) {
-                    persistObservations(raw.rawObservations, currentTimeMillis(), TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS)
+                    persistObservations(
+                        raw.rawObservations,
+                        currentTimeMillis(),
+                        TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS.takeIf { feed == WeatherSource.TOMORROW_IO },
+                    )
                     stored += raw.rawObservations.size
                 }
             }
@@ -1027,55 +1035,17 @@ class DesktopWeatherRepository(
         }
     }
 
-    private fun persistObservations(
+    /**
+     * Every desktop `observations` write: the `:shared` [ObservationWriteRun], as Android. Set
+     * [tomorrowIoWindowHours] when this write is a Tomorrow.io fetch (its five-minute line).
+     */
+    private suspend fun persistObservations(
         readings: List<ObservationReading>,
         now: Long,
-        tomorrowWindowHours: Int,
-    ) {
-        val fiveMinute = readings.filter {
-            it.api == WeatherSource.TOMORROW_IO.id &&
-                it.stationId == TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID
-        }
-        val replacementCount = if (fiveMinute.isEmpty()) {
-            0
-        } else {
-            TomorrowIoActuals.replacements(
-                fiveMinute.map { TomorrowIoActuals.ReadingKey(it.stationId, it.timestamp, it.api, it.locationLat, it.locationLon) },
-                weatherDao.getObservationsInRange(
-                    fiveMinute.minOf { it.timestamp },
-                    fiveMinute.maxOf { it.timestamp } + 1L,
-                    latitude,
-                    longitude,
-                ).map { TomorrowIoActuals.ReadingKey(it.stationId, it.timestamp, it.api, it.locationLat, it.locationLon) },
-            )
-        }
-
-        weatherDao.upsertObservations(readings.map { it.toEntity(now) })
-        // Bring earlier Synoptic rows of these stations onto the type just fetched, so a
-        // reclassification (RAWS, 2026-10-03) reaches stored history the gap window never re-fetches.
-        readings.filter { it.api == WeatherSource.SYNOPTIC.id }
-            .groupBy({ it.stationType }, { it.stationId })
-            .forEach { (type, ids) -> weatherDao.retagStationType(WeatherSource.SYNOPTIC.id, ids.toSet(), type) }
-        val actualsProvider = ActualsProviderResolver.providerIdFor(displaySource)
-        if (actualsProvider == WeatherSource.TOMORROW_IO.id) {
-            weatherDao.log(
-                TomorrowIoActuals.FETCH_TAG,
-                TomorrowIoActuals.fetchLine(
-                    tomorrowWindowHours,
-                    fiveMinute.size,
-                    fiveMinute.minOfOrNull { it.timestamp },
-                    fiveMinute.maxOfOrNull { it.timestamp },
-                    replacementCount,
-                ),
-                "INFO",
-            )
-        }
-        // Retire any stored source's replaced observation products at this site. Shared with
-        // Android; only ever deletes old data — see RetiredProductCleanup.
-        readings.mapTo(HashSet()) { it.api }.forEach { api ->
-            weatherDao.retireProductsIfCovered(api, latitude, longitude)
-        }
-    }
+        tomorrowIoWindowHours: Int? = null,
+    ): ObservationWriteRun.Result =
+        ObservationWriteRun(DesktopObservationWriteHost(weatherDao, latitude, longitude))
+            .write(ObservationWriteRun.Write(readings, tomorrowIoWindowHours), now)
 
     /** Reads the stored observation window, (re)computes daily_history, and returns the row count. */
     internal fun recomputeDailyExtremes(now: Long): Int {

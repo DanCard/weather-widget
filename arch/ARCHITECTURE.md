@@ -27,6 +27,9 @@ Examples include:
 - `ForecastPersistRun`: ordered live-hourly, snapshot, elapsed-backfill, and daily-row persistence.
 - `HourlySnapshotRun`: which fetches receive history snapshots and their fetch-time labels.
 - `CurrentConditionsRun` and `CurrentTempRun`: observation/current-temperature behavior.
+- `ObservationWriteRun`: every `observations` write — own `fetchedAt`, station-type re-tag on every api,
+  personal stations thinned to one row per 10 minutes over the stored window (plus each station's
+  newest), the Tomorrow.io fetch line, and retired-product cleanup per api written.
 - `DailyHistoryRun` and `NwsStationActualsRun`: history maintenance and station-derived actuals.
 - `WeatherApiHistoryRun` and `GoogleHistoryRun`: provider-specific history workflows.
 

@@ -11,8 +11,6 @@ import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.HourlyForecastHistoryEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
-import com.weatherwidget.data.local.ObservationEntity
-import com.weatherwidget.data.local.withQuantizedLocation
 import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
@@ -37,7 +35,9 @@ internal class HourlyForecastStore(
      * rest of the fetch used the pinned one, and a 10:00 "daytime" hour vanished after 11:00.
      */
     private val clock: () -> Long = System::currentTimeMillis,
-    private val appLogDao: com.weatherwidget.data.local.AppLogDao? = null,
+    private val appLogDao: com.weatherwidget.data.local.AppLogDao,
+    /** For the observation write's retired-product cleanup ([writeObservations]). */
+    private val dailyHistoryDao: com.weatherwidget.data.local.DailyHistoryDao,
     /**
      * The `:shared` [com.weatherwidget.shared.history.HourlySnapshotRun] label for [sourceId]'s fetch at
      * the site now, or null to save no snapshot ([RoomHourlySnapshotHost] in production). The default —
@@ -86,7 +86,7 @@ internal class HourlyForecastStore(
             keyLon,
         ).values.map { it.toHourlyForecast() }
         val plan = HourlyForecastWrite.plan(hours, stored, sourceId, now, keepUntilMs)
-        plan.trimLine?.let { appLogDao?.log(HourlyOnDemand.TRIM_TAG, it, "VERBOSE") }
+        plan.trimLine?.let { appLogDao.log(HourlyOnDemand.TRIM_TAG, it, "VERBOSE") }
         if (plan.live.isEmpty()) return
         hourlyForecastDao.insertAll(plan.live.map { it.copy(locationLat = keyLat, locationLon = keyLon).toEntity(keyLat, keyLon) })
 
@@ -169,70 +169,30 @@ internal class HourlyForecastStore(
         return snapshotLabel(sourceId, latitude, longitude, nowMs).also { recentSnapshotDecisions[key] = nowMs to it }
     }
 
+    /**
+     * The provider history [HistoricalActualsBackfill] files from [hourlyData], written by the shared
+     * [com.weatherwidget.shared.observations.ObservationWriteRun]. [tomorrowIoWindowHours]: set for a
+     * Tomorrow.io fetch, whose five-minute line is logged even when it files nothing.
+     */
     suspend fun saveHistoricalActuals(
         hourlyData: List<HourlyForecast>,
         latitude: Double,
         longitude: Double,
         sourceId: String,
+        tomorrowIoWindowHours: Int? = null,
     ): HistoricalActualsWriteSummary {
-        val historicalObs = HistoricalActualsBackfill.build(
+        val readings = HistoricalActualsBackfill.build(
             hourly = hourlyData,
             latitude = latitude,
             longitude = longitude,
             sourceId = sourceId,
             nowMs = clock(),
-        ).map { reading ->
-            ObservationEntity(
-                stationId = reading.stationId,
-                stationName = reading.stationName,
-                timestamp = reading.timestamp,
-                temperature = reading.temperature,
-                condition = reading.condition,
-                locationLat = reading.locationLat,
-                locationLon = reading.locationLon,
-                distanceKm = reading.distanceKm,
-                stationType = reading.stationType,
-                fetchedAt = reading.fetchedAt,
-                api = reading.api,
-                precipAmountMm = reading.precipAmountMm,
-                cloudCover = reading.cloudCover,
-                cloudCoverLow = reading.cloudCoverLow,
-                cloudCoverMid = reading.cloudCoverMid,
-                cloudCoverHigh = reading.cloudCoverHigh,
-                cloudBaseLowMeters = reading.cloudBaseLowMeters,
-                cloudBaseMidMeters = reading.cloudBaseMidMeters,
-                cloudBaseHighMeters = reading.cloudBaseHighMeters,
-                cloudEnvelopeBaseMeters = reading.cloudEnvelopeBaseMeters,
-                cloudEnvelopeTopMeters = reading.cloudEnvelopeTopMeters,
-                cloudVerticalKind = reading.cloudVerticalKind,
-            ).withQuantizedLocation()
-        }
-        if (historicalObs.isEmpty()) return HistoricalActualsWriteSummary(0, 0)
-        if (sourceId != com.weatherwidget.data.model.WeatherSource.TOMORROW_IO.id) {
-            observationDao.insertAll(historicalObs)
-            return HistoricalActualsWriteSummary(historicalObs.size, 0)
-        }
-        val minTimestamp = historicalObs.minOf { it.timestamp }
-        val maxTimestamp = historicalObs.maxOf { it.timestamp }
-        val sample = historicalObs.first()
-        val existingKeys = observationDao.getObservationsInRange(
-            minTimestamp,
-            maxTimestamp,
-            sample.locationLat,
-            sample.locationLon,
-            listOf(sourceId),
-        ).asSequence()
-            .filter {
-                it.locationLat == sample.locationLat &&
-                    it.locationLon == sample.locationLon
-            }
-            .map { Triple(it.stationId, it.timestamp, it.api) }
-            .toSet()
-        val replacementCount = historicalObs.count {
-            Triple(it.stationId, it.timestamp, it.api) in existingKeys
-        }
-        observationDao.insertAll(historicalObs)
-        return HistoricalActualsWriteSummary(historicalObs.size, replacementCount)
+        )
+        if (readings.isEmpty() && tomorrowIoWindowHours == null) return HistoricalActualsWriteSummary(0, 0)
+        val written = writeObservations(
+            observationDao, dailyHistoryDao, appLogDao, latitude, longitude, readings, tomorrowIoWindowHours, clock(),
+        )
+        return HistoricalActualsWriteSummary(written.written, written.replacements)
     }
 
     companion object {

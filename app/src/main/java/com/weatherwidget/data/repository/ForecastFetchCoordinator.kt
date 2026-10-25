@@ -1,6 +1,5 @@
 package com.weatherwidget.data.repository
 
-import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.shared.graph.PriorDayCloudRun
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.model.ForecastParts
@@ -463,25 +462,13 @@ internal class ForecastFetchCoordinator(
      */
     private suspend fun saveProviderActuals(source: WeatherSource, result: RawFetch, latitude: Double, longitude: Double) {
         if (result.hourly.isEmpty()) return
-        val actualsWrite = hourlyStore.saveHistoricalActuals(
+        hourlyStore.saveHistoricalActuals(
             result.subHourly.ifEmpty { if (source == WeatherSource.TOMORROW_IO) emptyList() else result.hourly },
             latitude,
             longitude,
             source.id,
+            tomorrowIoWindowHours = TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS.takeIf { source == WeatherSource.TOMORROW_IO },
         )
-        if (source == WeatherSource.TOMORROW_IO) {
-            appLogDao.log(
-                TomorrowIoActuals.FETCH_TAG,
-                TomorrowIoActuals.fetchLine(
-                    TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS,
-                    actualsWrite.rowCount,
-                    result.subHourly.minOfOrNull { it.dateTime },
-                    result.subHourly.maxOfOrNull { it.dateTime },
-                    actualsWrite.replacementCount,
-                ),
-                "INFO",
-            )
-        }
     }
 
     /** The views' quota banners: the shared [QuotaState.record] rule over the widget's prefs. */

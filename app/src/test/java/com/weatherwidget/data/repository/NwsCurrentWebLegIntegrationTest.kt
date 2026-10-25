@@ -120,7 +120,7 @@ class NwsCurrentWebLegIntegrationTest : RobolectricTest() {
         )
         val source = NwsObservationSource(context, api, db.appLogDao(), metarTextApi = null)
         val updater = NwsCurrentObservationUpdater(
-            source, db.observationDao(), db.appLogDao(), dailyStore,
+            source, db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), dailyStore,
             NwsMetarTextApi(http), PersonalStationWeightProvider { 1.0 },
         )
 
@@ -179,7 +179,7 @@ class NwsCurrentWebLegIntegrationTest : RobolectricTest() {
             PersonalStationWeightProvider { 1.0 }, InMemoryReducedSignatureStore(),
         )
         val source = NwsObservationSource(context, api, db.appLogDao(), synopticApi = synoptic)
-        val updater = NwsCurrentObservationUpdater(source, db.observationDao(), db.appLogDao(), dailyStore)
+        val updater = NwsCurrentObservationUpdater(source, db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), dailyStore)
 
         updater.fetchNwsCurrent(lat, lon)
 

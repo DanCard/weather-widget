@@ -39,6 +39,8 @@ class HourlyForecastStoreWriteTest : RobolectricTest() {
         observationDao = db.observationDao(),
         widgetStateManager = WidgetStateManager(ApplicationProvider.getApplicationContext<Context>()),
         clock = { clock },
+        appLogDao = db.appLogDao(),
+        dailyHistoryDao = db.dailyHistoryDao(),
     )
 
     @Before

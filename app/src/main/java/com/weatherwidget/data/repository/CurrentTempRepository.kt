@@ -1,6 +1,5 @@
 package com.weatherwidget.data.repository
 
-import com.weatherwidget.shared.actuals.TomorrowIoActuals
 import com.weatherwidget.data.remote.FetchErrorCode
 import android.content.Context
 import android.location.Location
@@ -10,7 +9,6 @@ import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
-import com.weatherwidget.data.local.withQuantizedLocation
 import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.log
@@ -116,67 +114,18 @@ class CurrentTempRepository
             } catch (e: Exception) {
                 null
             } ?: return null
-            val entities = result.readings.map { it.toEntity() }
-            if (feed == WeatherSource.TOMORROW_IO) {
-                storeTomorrowIoHistory(entities, latitude, longitude)
-            } else {
-                entities.forEach { insertCurrentObservation(it) }
+            // One shared write (ObservationWriteRun); a Tomorrow.io fetch logs its five-minute line
+            // even when it brought no rows.
+            val tomorrowIoHours = TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS.takeIf { feed == WeatherSource.TOMORROW_IO }
+            if (result.readings.isNotEmpty() || tomorrowIoHours != null) {
+                writeObservations(observationDao, dailyHistoryDao, appLogDao, latitude, longitude, result.readings, tomorrowIoHours)
             }
+            if (feed != WeatherSource.TOMORROW_IO) result.readings.forEach { logCurrentObservationInsert(it.toEntity()) }
             return result.current?.let { CurrentReadingPayload(it.source, it.temperature, it.condition, it.observedAt) }
         }
 
-        /** Tomorrow.io's five-minute window: one batch, with how many rows it replaced, then the retired-product cleanup. */
-        private suspend fun storeTomorrowIoHistory(entities: List<ObservationEntity>, latitude: Double, longitude: Double) {
-            val replacementCount = if (entities.isEmpty()) {
-                0
-            } else {
-                val sample = entities.first()
-                TomorrowIoActuals.replacements(
-                    entities.map { it.readingKey() },
-                    observationDao.getObservationsInRange(
-                        entities.minOf { it.timestamp },
-                        entities.maxOf { it.timestamp },
-                        sample.locationLat,
-                        sample.locationLon,
-                        listOf(WeatherSource.TOMORROW_IO.id),
-                    ).map { it.readingKey() },
-                )
-            }
-            if (entities.isNotEmpty()) observationDao.insertAll(entities)
-            appLogDao.log(
-                TomorrowIoActuals.FETCH_TAG,
-                TomorrowIoActuals.fetchLine(
-                    TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS,
-                    entities.size,
-                    entities.minOfOrNull { it.timestamp },
-                    entities.maxOfOrNull { it.timestamp },
-                    replacementCount,
-                ),
-                "INFO",
-            )
-            RetiredProductCleanupRunner.runFor(
-                api = WeatherSource.TOMORROW_IO.id,
-                latitude = latitude,
-                longitude = longitude,
-                observationDao = observationDao,
-                dailyHistoryDao = dailyHistoryDao,
-                appLogDao = appLogDao,
-            )
-        }
-
-        private fun ObservationEntity.readingKey() =
-            TomorrowIoActuals.ReadingKey(stationId, timestamp, api, locationLat, locationLon)
-
         private fun extractCurrentErrorCode(exception: Exception): String =
             FetchErrorCode.of(exception) { NetworkRestrictionHelper.isBackgroundDataRestricted(context) }
-
-        private suspend fun insertCurrentObservation(obsEntity: ObservationEntity) {
-            // Snap the device location to the shared write-key grid so Open-Meteo/Tomorrow current
-            // obs key the same site as NWS instead of a raw-double fragment (plan 260721, Fix A).
-            val quantized = obsEntity.withQuantizedLocation()
-            observationDao.insertAll(listOf(quantized))
-            logCurrentObservationInsert(quantized)
-        }
 
         private suspend fun logCurrentObservationInsert(obsEntity: ObservationEntity) {
             val nowMs = System.currentTimeMillis()

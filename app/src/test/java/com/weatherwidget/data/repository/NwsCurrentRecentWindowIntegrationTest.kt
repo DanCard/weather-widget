@@ -72,7 +72,7 @@ class NwsCurrentRecentWindowIntegrationTest : RobolectricTest() {
         )
         val updater = NwsCurrentObservationUpdater(
             NwsObservationSource(context, api, db.appLogDao(), metarTextApi = null),
-            db.observationDao(), db.appLogDao(), dailyStore,
+            db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), dailyStore,
         )
 
         val payload = updater.fetchNwsCurrent(lat, lon)

@@ -79,6 +79,7 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
             widgetStateManager = widgetStateManager,
             clock = { clockMs },
             appLogDao = appLogDao,
+            dailyHistoryDao = db.dailyHistoryDao(),
         )
         coordinator = ForecastFetchCoordinator(
             context = context,

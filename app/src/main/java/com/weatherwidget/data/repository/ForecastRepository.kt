@@ -104,6 +104,7 @@ class ForecastRepository
             widgetStateManager = widgetStateManager,
             clock = { clock() },
             appLogDao = appLogDao,
+            dailyHistoryDao = dailyHistoryDao,
             snapshotLabel = RoomHourlySnapshotHost.labeler(context, widgetStateManager, hourlyForecastHistoryDao, appLogDao),
         )
         private val dailyHistorySnapshotter = DailyHistorySnapshotter(
@@ -324,18 +325,8 @@ class ForecastRepository
                         fetchPlan,
                         fetchContext,
                     )
-                    // Retire any source's replaced observation products at this site (shared with
-                    // desktop; only ever deletes old data — see RetiredProductCleanup).
-                    for (source in sourcesToFetch) {
-                        RetiredProductCleanupRunner.runFor(
-                            api = source.id,
-                            latitude = latitude,
-                            longitude = longitude,
-                            observationDao = observationDao,
-                            dailyHistoryDao = dailyHistoryDao,
-                            appLogDao = appLogDao,
-                        )
-                    }
+                    // Retired observation products are cleaned up by each observation write
+                    // (ObservationWriteRun, shared with desktop), per api written.
                     climateNormalsRepository.warmBestEffort(
                         latitude,
                         longitude,

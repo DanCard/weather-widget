@@ -33,6 +33,8 @@ class OpenMeteoCloudLayerStorageIntegrationTest : RobolectricTest() {
             hourlyForecastHistoryDao = db.hourlyForecastHistoryDao(),
             observationDao = db.observationDao(),
             widgetStateManager = WidgetStateManager(context),
+            appLogDao = db.appLogDao(),
+            dailyHistoryDao = db.dailyHistoryDao(),
         )
     }
 

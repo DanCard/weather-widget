@@ -154,6 +154,7 @@ private fun legacyComponents(
         currentUpdater = NwsCurrentObservationUpdater(
             source,
             observationDao,
+            dailyHistoryDao,
             appLogDao,
             dailyActualsStore,
             weightProvider,
