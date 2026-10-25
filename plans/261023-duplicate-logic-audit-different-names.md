@@ -339,6 +339,12 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   `DailyForecastWrite` (prior = this site's row, unchanged rows re-stamped, NULL/NULL dropped, ended
   NWS period dropped; Android's rule, user), phase 2 `HourlyForecastWrite` (nullable fields kept,
   `fetchedAt` = last confirmed on both). Today's "yesterday's forecast" pick now also sees the shown row.
+- 2026-10-24: B rest phase 3 — `:shared` `ForecastPersistRun` + Host owns the whole fetch→store order
+  (live hours, snapshot + elapsed backfill under one label, SHORT daily filter, `DAILY_HOURLY_MISMATCH`,
+  `DAILY_SUMMARY`, daily summaries, `DailyForecastWrite`); `ForecastPersistHostContract` on Room and
+  desktop SQLite. Android's NWS now a `RawFetch` like every source (`NwsDailyMapper.dailyForecasts`); the
+  per-source save paths (`fetchAndSaveSharedForecast`, `fetchFromSilurian`, `saveDailyBatch`, desktop
+  `withHourlySummaries` / `backfillElapsedHistory`) are gone.
 
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:
@@ -346,7 +352,9 @@ Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both lar
    and `HostContractCoverageTest` keeps new ones from skipping it. Open items it found (each needs a
    user decision): the "Status and handoff" section of
    `plans/261024-host-contract-tests-room-and-desktop-sqlite.md`.
-2. **B rest**: per-source fetch/persist, one source at a time as Runner + Host.
+2. **B rest**: forecast persistence is one runner (`ForecastPersistRun`, 2026-10-24). Left: observations
+   persistence (`saveHistoricalActuals` vs `persistObservations`, incl. Tomorrow.io's 5-min merge) and
+   the fetch registry / `refresh()` orchestration — same pattern, one at a time.
 Process that worked this session: find the twin → write a plan with the divergences and any user
 decision → approval → shared code + a test that fails on the old code → full suite incl.
 `:app:compileDebugAndroidTestKotlin` → install both phones, restart desktop, check the log line on a

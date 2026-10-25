@@ -139,7 +139,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableInt(10, h.cloudCoverMid)
                         stmt.setNullableInt(11, h.cloudCoverHigh)
                         stmt.setNullableFloat(12, h.precipAmountMm)
-                        stmt.setLong(13, now)
+                        stmt.setLong(13, h.fetchedAt.takeIf { it > 0L } ?: now)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -355,7 +355,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableInt(11, h.cloudCoverMid)
                         stmt.setNullableInt(12, h.cloudCoverHigh)
                         stmt.setNullableFloat(13, h.precipAmountMm)
-                        stmt.setLong(14, now)
+                        stmt.setLong(14, h.fetchedAt.takeIf { it > 0L } ?: now)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -369,7 +369,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     }
 
     /** A stored `forecasts` row's primary key, for re-stamping its `batchFetchedAt`. */
-    private data class ForecastKey(val targetDate: Long, val dateOfPrediction: Long, val fetchedAt: Long)
+    data class ForecastKey(val targetDate: Long, val dateOfPrediction: Long, val fetchedAt: Long)
 
     /** [source]'s rows dated [start]..[end] on this site's exact quantized key — the prior rows [DailyForecastWrite] reads. */
     private fun storedAtSite(
@@ -428,6 +428,110 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
+    /** [storedAtSite] on its own connection: the desktop `ForecastPersistRun` Host's daily read. */
+    fun storedForecastsAtSite(
+        locationLat: Double,
+        locationLon: Double,
+        source: String,
+        start: LocalDate,
+        end: LocalDate,
+    ): List<DailyForecastWrite.Stored<ForecastKey>> = db.getConnection().use { conn ->
+        storedAtSite(conn, LocationMatch.quantize(locationLat), LocationMatch.quantize(locationLon), source, start, end)
+    }
+
+    /** A [DailyForecastWrite.Plan]'s rows and re-stamps, in one transaction (the `ForecastPersistRun` Host's daily write). */
+    fun writeForecastPlan(
+        locationLat: Double,
+        locationLon: Double,
+        source: String,
+        write: List<DailyForecastWrite.Row>,
+        restamp: List<ForecastKey>,
+        nowMs: Long,
+    ) = withWriteLock {
+        db.getConnection().use { conn ->
+            conn.autoCommit = false
+            try {
+                writeForecastPlan(conn, LocationMatch.quantize(locationLat), LocationMatch.quantize(locationLon), source, write, restamp, nowMs)
+                conn.commit()
+            } catch (e: Exception) {
+                conn.rollback()
+                throw e
+            }
+        }
+    }
+
+    private fun writeForecastPlan(
+        conn: Connection,
+        keyLat: Double,
+        keyLon: Double,
+        source: String,
+        write: List<DailyForecastWrite.Row>,
+        restamp: List<ForecastKey>,
+        nowMs: Long,
+    ) {
+        if (restamp.isNotEmpty()) {
+            conn.prepareStatement(
+                "UPDATE forecasts SET batchFetchedAt = ? WHERE targetDate = ? AND dateOfPrediction = ? " +
+                    "AND locationLat = ? AND locationLon = ? AND source = ? AND fetchedAt = ?",
+            ).use { stmt ->
+                for (key in restamp) {
+                    stmt.setLong(1, nowMs)
+                    stmt.setLong(2, key.targetDate)
+                    stmt.setLong(3, key.dateOfPrediction)
+                    stmt.setDouble(4, keyLat)
+                    stmt.setDouble(5, keyLon)
+                    stmt.setString(6, source)
+                    stmt.setLong(7, key.fetchedAt)
+                    stmt.addBatch()
+                }
+                stmt.executeBatch()
+            }
+        }
+        if (write.isEmpty()) return
+        val sql = """
+            INSERT OR REPLACE INTO forecasts
+            (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition,
+             nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm,
+             daytimePrecipProbability, nighttimePrecipProbability, batchFetchedAt, fetchedAt,
+             hindcastHighTemp, hindcastLowTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax,
+             hourlyDayPrecipPeakAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """.trimIndent()
+        conn.prepareStatement(sql).use { stmt ->
+            // The local date of this write (shared with Android), never the UTC date.
+            val todayEpoch = PredictionDate.epochMs(nowMs)
+            for (row in write) {
+                val v = row.values
+                stmt.setLong(1, row.date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+                stmt.setLong(2, todayEpoch)
+                stmt.setDouble(3, keyLat)
+                stmt.setDouble(4, keyLon)
+                // NULL is a real value: NWS drops today's low in the evening and ends on a
+                // low-only day. Readers handle the gap (DailyPartialDayRepair).
+                stmt.setNullableFloat(5, v.highTemp)
+                stmt.setNullableFloat(6, v.lowTemp)
+                stmt.setString(7, v.condition)
+                stmt.setString(8, v.iconToken)
+                stmt.setInt(9, 0)
+                stmt.setString(10, source)
+                stmt.setNullableInt(11, v.precipProbability)
+                stmt.setNullableFloat(12, v.precipAmountMm)
+                stmt.setNullableInt(13, v.daytimePrecipProbability)
+                stmt.setNullableInt(14, v.nighttimePrecipProbability)
+                stmt.setLong(15, nowMs)
+                stmt.setLong(16, nowMs)
+                stmt.setNullableFloat(17, v.hindcastHighTemp)
+                stmt.setNullableFloat(18, v.hindcastLowTemp)
+                stmt.setNullableInt(19, v.summary.noonCloudPercent)
+                stmt.setNullableInt(20, v.summary.dayPrecipMax)
+                stmt.setNullableInt(21, v.summary.nightPrecipMax)
+                stmt.setNullableLong(22, v.summary.dayPrecipPeakAt)
+                stmt.addBatch()
+            }
+            stmt.executeBatch()
+        }
+    }
+
     /**
      * One fetch's daily rows for [source] at this site: the `:shared` [DailyForecastWrite] rule (same
      * as Android's `ForecastSnapshotStore.saveForecastSnapshot`) decides which rows are written and
@@ -470,66 +574,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     .orEmpty()
                 val plan = DailyForecastWrite.plan(incoming, stored, source, nowMs, batchFetchedAt = nowMs, userRefresh = userRefresh)
                 lines = plan.lines
-                if (plan.restamp.isNotEmpty()) {
-                    conn.prepareStatement(
-                        "UPDATE forecasts SET batchFetchedAt = ? WHERE targetDate = ? AND dateOfPrediction = ? " +
-                            "AND locationLat = ? AND locationLon = ? AND source = ? AND fetchedAt = ?",
-                    ).use { stmt ->
-                        for (key in plan.restamp) {
-                            stmt.setLong(1, nowMs)
-                            stmt.setLong(2, key.targetDate)
-                            stmt.setLong(3, key.dateOfPrediction)
-                            stmt.setDouble(4, keyLat)
-                            stmt.setDouble(5, keyLon)
-                            stmt.setString(6, source)
-                            stmt.setLong(7, key.fetchedAt)
-                            stmt.addBatch()
-                        }
-                        stmt.executeBatch()
-                    }
-                }
-                val sql = """
-                    INSERT OR REPLACE INTO forecasts
-                    (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition,
-                     nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm,
-                     daytimePrecipProbability, nighttimePrecipProbability, batchFetchedAt, fetchedAt,
-                     hindcastHighTemp, hindcastLowTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax,
-                     hourlyDayPrecipPeakAt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """.trimIndent()
-                conn.prepareStatement(sql).use { stmt ->
-                    // The local date of this write (shared with Android), never the UTC date.
-                    val todayEpoch = PredictionDate.epochMs(nowMs)
-                    for (row in plan.write) {
-                        val v = row.values
-                        stmt.setLong(1, row.date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
-                        stmt.setLong(2, todayEpoch)
-                        stmt.setDouble(3, keyLat)
-                        stmt.setDouble(4, keyLon)
-                        // NULL is a real value: NWS drops today's low in the evening and ends on a
-                        // low-only day. Readers handle the gap (DailyPartialDayRepair).
-                        stmt.setNullableFloat(5, v.highTemp)
-                        stmt.setNullableFloat(6, v.lowTemp)
-                        stmt.setString(7, v.condition)
-                        stmt.setString(8, v.iconToken)
-                        stmt.setInt(9, 0)
-                        stmt.setString(10, source)
-                        stmt.setNullableInt(11, v.precipProbability)
-                        stmt.setNullableFloat(12, v.precipAmountMm)
-                        stmt.setNullableInt(13, v.daytimePrecipProbability)
-                        stmt.setNullableInt(14, v.nighttimePrecipProbability)
-                        stmt.setLong(15, nowMs)
-                        stmt.setLong(16, nowMs)
-                        stmt.setNullableFloat(17, v.hindcastHighTemp)
-                        stmt.setNullableFloat(18, v.hindcastLowTemp)
-                        stmt.setNullableInt(19, v.summary.noonCloudPercent)
-                        stmt.setNullableInt(20, v.summary.dayPrecipMax)
-                        stmt.setNullableInt(21, v.summary.nightPrecipMax)
-                        stmt.setNullableLong(22, v.summary.dayPrecipPeakAt)
-                        stmt.addBatch()
-                    }
-                    stmt.executeBatch()
-                }
+                writeForecastPlan(conn, keyLat, keyLon, source, plan.write, plan.restamp, nowMs)
                 conn.commit()
             } catch (e: Exception) {
                 conn.rollback()

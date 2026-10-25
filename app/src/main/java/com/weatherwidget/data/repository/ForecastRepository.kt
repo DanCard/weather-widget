@@ -442,7 +442,7 @@ class ForecastRepository
         internal suspend fun fetchFromNws(
             latitude: Double,
             longitude: Double,
-        ): List<ForecastEntity> {
+        ): com.weatherwidget.data.model.RawFetch {
             return fetchCoordinator.fetchFromNws(latitude, longitude)
         }
 

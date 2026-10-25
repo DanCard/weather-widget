@@ -122,3 +122,25 @@ Each phase: tests that fail on the old code for each decided divergence, full su
   "a forecast unchanged for three days…" (Android) both fail without the builder change.
   What two dates cannot tell — a fetch in the 24 h before the cutoff when the device was off then but
   confirmed the forecast after — draws solid rather than dashed; not worth a column.
+- 2026-10-24, phase 3: `:shared` `ForecastPersistRun` + `Host<K>` — one source's fetch stored in one order
+  on both: live hours (`HourlyForecastWrite`), the fetch's `HourlySnapshotRun` label asked **once** for
+  the snapshot and the elapsed-hour backfill (`hourly + elapsedHourly`, failure logged
+  `HOURLY_HISTORY_BACKFILL_FAIL`, never fatal), then the daily rows: past days and a SHORT fetch's days
+  4+ dropped, `DAILY_HOURLY_MISMATCH`, summaries = the download, else the row as sent, else the hours
+  stored now (exact key), `DAILY_SUMMARY`, `DailyForecastWrite`. Quotas, horizon markers, observations
+  stay with the caller. Hosts: Android `RoomForecastPersistHost` (via `HourlyForecastStore.forecastPersistHost`,
+  which keeps the per-fetch snapshot decision), desktop `DesktopForecastPersistHost` (DAO split into
+  `storedForecastsAtSite` / `writeForecastPlan`; `upsertForecasts` kept as their one-transaction wrapper).
+  Contract `ForecastPersistHostContract` (6 cases, both platforms).
+  Android: every registry entry returns `RawFetch`; one `persistFetch` (quotas → provider actuals →
+  runner) runs inside `safeFetch`; side effects that need the answer stored first (Open-Meteo prior-day
+  cloud, WeatherAPI history) are `afterPersist`. NWS: `NwsForecastMapper.fetchFromNws` → `RawFetch`,
+  daily rows from `:shared` `NwsDailyMapper.dailyForecasts(acc)` (desktop's builder), diagnostics kept.
+  Drift fixed on the way: Silurian's daily `iconToken` (= condition) now set in `SilurianApi` — desktop
+  stored none; NWS daily summaries include the grid's elapsed hours on desktop too; desktop's on-demand
+  fetch now runs the elapsed backfill; desktop's hourly / history upserts keep the row's `fetchedAt`
+  (wall clock only when 0) — a pinned-clock fetch was stamped with the real time.
+  Tests: `ForecastPersistRunTest` (7), the contract on both platforms (the `fetchedAt` case fails on the
+  old desktop DAO); `HourlyForecastStoreElapsedBackfillTest` and `ForecastHorizonPlanRoboTest` now go
+  through the runner (the old daily-only check passed vacuously against the unused `saveForecastSnapshot`).
+  Full suite: shared 2693, desktop 720, app 2601 — 0 failures; `:app:compileDebugAndroidTestKotlin` ok.

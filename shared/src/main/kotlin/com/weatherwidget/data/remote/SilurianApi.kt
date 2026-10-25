@@ -98,6 +98,8 @@ class SilurianApi(
                 highTemp = obj.floatOrNull("max_temperature") ?: obj.floatOrNull("temperature") ?: return@mapNotNull null,
                 lowTemp = obj.floatOrNull("min_temperature") ?: obj.floatOrNull("temperature") ?: return@mapNotNull null,
                 condition = weatherCodeToCondition(obj["weather_code"]?.jsonPrimitive?.contentOrNull),
+                // The condition is Silurian's daily icon (Android stored it so; desktop stored none).
+                iconToken = weatherCodeToCondition(obj["weather_code"]?.jsonPrimitive?.contentOrNull),
                 precipProbability = obj.intOrNull("precipitation_probability"),
                 precipAmountMm = obj.floatOrNull("precipitation_accumulation")?.let { it * INCHES_TO_MM },
             )

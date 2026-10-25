@@ -20,7 +20,8 @@
   (user, 2026-10-21, after repeated parity bugs). The shared code owns the whole rule — windows, source
   scope, which rows, gates, log tags and levels; each platform only implements the Host's reads and
   writes (`DailyHistoryRun`, `CurrentConditionsRun`, `GoogleHistoryRun`, `QuotaState`,
-  `ForecastHorizonMarkers`, `ElapsedForecastBackfill.Store`). The daily view's columns come from
+  `ForecastHorizonMarkers`, `ElapsedForecastBackfill.Store`, `ForecastPersistRun` — every source's fetch stored
+  in one order, `plans/261024-shared-forecast-persist-rules.md`). The daily view's columns come from
   `:shared` `DailyColumnBuilder` on both platforms, pinned by the `DailyParity` golden fixtures
   (`plans/261023-shared-daily-column-builder.md`). A shared *planner* fed by per-platform
   glue is not enough — the glue drifted (`plans/261021-android-desktop-shared-code-audit.md`).

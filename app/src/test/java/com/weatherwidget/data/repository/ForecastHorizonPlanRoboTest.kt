@@ -59,6 +59,11 @@ class ForecastHorizonPlanRoboTest {
     private val openMeteo = mockk<OpenMeteoApi>()
     private val weatherApi = mockk<WeatherApi>()
     private val snapshotStore = mockk<ForecastSnapshotStore>(relaxed = true)
+    /** Where the shared ForecastPersistRun writes every source's rows. */
+    private val persistHost = mockk<RoomForecastPersistHost>(relaxed = true)
+    private val hourlyStore = mockk<HourlyForecastStore>(relaxed = true) {
+        every { forecastPersistHost(any(), any(), any(), any(), any()) } returns persistHost
+    }
 
     @Before
     fun setup() {
@@ -70,7 +75,7 @@ class ForecastHorizonPlanRoboTest {
         every { wsm.getLastLongFetch(any(), any(), any()) } answers { lastLong[firstArg()] }
         every { wsm.getLastShortFetch(any(), any(), any()) } answers { lastShort[firstArg()] }
         val raw = RawFetch(
-            daily = listOf(DailyForecast(date = "2026-10-12", highTemp = 70f, lowTemp = 50f, condition = "Sunny")),
+            daily = listOf(DailyForecast(date = java.time.LocalDate.now().plusDays(1).toString(), highTemp = 70f, lowTemp = 50f, condition = "Sunny")),
             hourly = listOf(HourlyForecast(dateTime = now + hour, temperature = 60f, condition = "Sunny")),
         )
         coEvery { openMeteo.getForecast(any(), any(), any(), any(), any()) } returns raw
@@ -96,7 +101,7 @@ class ForecastHorizonPlanRoboTest {
         openWeatherMapApi = null,
         nwsForecastMapper = mockk(relaxed = true),
         snapshotStore = snapshotStore,
-        hourlyStore = mockk(relaxed = true),
+        hourlyStore = hourlyStore,
         weatherApiHistoryBackfiller = mockk(relaxed = true),
         nwsApiDailyActualsFetcher = mockk(relaxed = true),
         clock = { now },
@@ -211,7 +216,8 @@ class ForecastHorizonPlanRoboTest {
     fun `hourly-only on WeatherAPI (daily refused) makes its one full request but drops the daily rows`() = runBlocking {
         coordinator().fetchFromAllApis(lat, lon, mapOf(WEATHER_API to ForecastParts.HOURLY), ctx())
         coVerify(exactly = 1) { weatherApi.getForecast(lat, lon, any()) }
-        coVerify(exactly = 0) { snapshotStore.saveForecastSnapshot(any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { persistHost.writeDaily(any(), any(), any()) }
+        coVerify(exactly = 1) { persistHost.writeHourly(any()) }
         verify { wsm.markShortFetch(WEATHER_API.id, lat, lon, now) }
     }
 
@@ -219,6 +225,7 @@ class ForecastHorizonPlanRoboTest {
     fun `a daily-only fetch (hours refused) asks Open-Meteo for daily and saves it`() = runBlocking {
         coordinator().fetchFromAllApis(lat, lon, mapOf(OPEN_METEO to ForecastParts.DAILY), ctx())
         coVerify { openMeteo.getForecast(lat, lon, any(), any(), ForecastParts.DAILY) }
-        coVerify(exactly = 1) { snapshotStore.saveForecastSnapshot(any(), any(), any(), OPEN_METEO.id, any(), any()) }
+        coVerify(exactly = 1) { hourlyStore.forecastPersistHost(any(), any(), OPEN_METEO.id, lat, lon) }
+        coVerify(exactly = 1) { persistHost.writeDaily(match { it.size == 1 }, any(), now) }
     }
 }

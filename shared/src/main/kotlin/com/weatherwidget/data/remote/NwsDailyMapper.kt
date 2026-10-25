@@ -237,9 +237,11 @@ object NwsDailyMapper {
         extremes: NwsApi.DailyTemperatureExtremes,
         today: LocalDate,
         hourlyPeriods: List<NwsApi.HourlyForecastPeriod> = emptyList(),
-    ): List<DailyForecast> {
-        val acc = assemble(periods, extremes, hourlyPeriods, today).acc
-        return acc.temperatureMap.map { (date, temps) ->
+    ): List<DailyForecast> = dailyForecasts(assemble(periods, extremes, hourlyPeriods, today).acc)
+
+    /** The assembled days as the shared model (Android logs [assemble]'s diagnostics first). */
+    fun dailyForecasts(acc: NwsDayAccumulator): List<DailyForecast> =
+        acc.temperatureMap.map { (date, temps) ->
             DailyForecast(
                 date = date,
                 highTemp = temps.first,
@@ -259,7 +261,6 @@ object NwsDailyMapper {
                 },
             )
         }.sortedBy { it.date }
-    }
 
     /** Today's max hourly precip chance, and every day's summed hourly precip amount. */
     fun initPrecipFromHourly(

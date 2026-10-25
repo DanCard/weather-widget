@@ -66,7 +66,7 @@ class SourceFetchGateRoboTest {
         every { wsm.getVisibleSourcesOrder() } returns listOf(NWS, OPEN_METEO, SILURIAN)
         every { wsm.isSourceVisible(any()) } answers { firstArg<WeatherSource>() in listOf(NWS, OPEN_METEO, SILURIAN) }
         val nwsMapper = mockk<NwsForecastMapper>()
-        coEvery { nwsMapper.fetchFromNws(any(), any()) } returns NwsForecastMapper.NwsFetchResult(emptyList(), emptyList())
+        coEvery { nwsMapper.fetchFromNws(any(), any()) } returns com.weatherwidget.data.model.RawFetch()
         return ForecastFetchCoordinator(
             context = context,
             appLogDao = mockk(relaxed = true),

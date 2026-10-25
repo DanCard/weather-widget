@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.ForecastPersistRun
 import com.weatherwidget.test.RobolectricTest
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
@@ -21,9 +22,9 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * plans/260911-backfill-elapsed-hour-forecast-history-on-fresh-site.md test #6: the store +
- * history DAO together file a payload's elapsed hours as history only where the site has none,
- * never touch the live table, and are a no-op on a second pass.
+ * plans/260911-backfill-elapsed-hour-forecast-history-on-fresh-site.md test #6: the `:shared`
+ * [ForecastPersistRun] on the store's Room Host files a payload's elapsed hours as history only where
+ * the site has none, never touches the live table, and is a no-op on a second pass.
  */
 @Category(LongDuration::class)
 class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
@@ -71,13 +72,19 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
         source = source,
     )
 
+    /** The payload as a provider's separately sent elapsed hours: the backfill alone, no live rows. */
+    private suspend fun backfill(hours: List<HourlyForecast>, on: HourlyForecastStore = store) =
+        ForecastPersistRun(on.forecastPersistHost(db.forecastDao(), db.appLogDao(), source, lat, lon))
+            .persist(ForecastPersistRun.Fetch(hourly = emptyList(), elapsedHourly = hours, daily = null, keep = null), now)
+            .elapsed
+
     private suspend fun liveRows() = db.hourlyForecastDao().getHourlyForecastsBySource(
         now - 24 * h, now + 24 * h, LocationMatch.quantize(lat), LocationMatch.quantize(lon), source,
     )
 
     @Test
     fun `fresh site - elapsed hours are filed as history and the live table is untouched`() = runTest {
-        val summary = store.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now)!!
+        val summary = backfill(payload())!!
 
         val elapsed = payload().filter { it.dateTime < now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
         assertEquals(elapsed.size, summary.offered)
@@ -92,10 +99,10 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
 
     @Test
     fun `second pass stores nothing`() = runTest {
-        store.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now)
+        backfill(payload())
         val before = historyRows()
 
-        val again = store.backfillElapsedHistory(payload().map { it.copy(temperature = 0f) }, lat, lon, source, nowMs = now)!!
+        val again = backfill(payload().map { it.copy(temperature = 0f) })!!
 
         assertEquals(0, again.stored)
         assertEquals(before.size, again.covered)
@@ -117,7 +124,7 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
         )
         db.hourlyForecastHistoryDao().insertAll(listOf(genuine))
 
-        val summary = store.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now)!!
+        val summary = backfill(payload())!!
 
         assertEquals(1, summary.covered)
         val rowsForHour = historyRows().filter { it.dateTime == snapshotted }
@@ -136,7 +143,7 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
         db.hourlyForecastHistoryDao().insertAll(listOf(rowAt(LocationMatch.quantize(lat) + 0.001, LocationMatch.quantize(lon))))
         db.hourlyForecastHistoryDao().insertAll(listOf(rowAt(lat + 0.05, lon).copy(dateTime = t - h)))
 
-        val summary = store.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now)!!
+        val summary = backfill(payload())!!
 
         val stored = historyRows().filter { it.locationLat == LocationMatch.quantize(lat) }.map { it.dateTime }
         assertTrue("jitter fragment covers $t", t !in stored)
@@ -153,12 +160,12 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
     }
 
     /**
-     * One decision per fetch (user, 2026-10-24, HourlySnapshotRun): the backfill reuses the live
-     * snapshot's decision — a skipped fetch files nothing and does not ask (or log) again; a saved one
-     * files under the same label. On the emulator each skip was logged twice before this.
+     * One decision per fetch (user, 2026-10-24, HourlySnapshotRun): the run asks the store's decision
+     * once — a skipped fetch files nothing; a saved one files the snapshot and the elapsed hours under
+     * the same label.
      */
     @Test
-    fun `the backfill reuses the fetch's snapshot decision`() = runTest {
+    fun `the snapshot and the backfill share the store's one decision`() = runTest {
         val asked = mutableListOf<Long>()
         val context = ApplicationProvider.getApplicationContext<Context>()
         fun storeDeciding(label: Long?) = HourlyForecastStore(
@@ -169,25 +176,19 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
             clock = { now },
             snapshotLabel = { _, _, _, t -> asked += t; label },
         )
-        fun entities() = payload().filter { it.dateTime >= now - now % h }.map {
-            com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = it.dateTime, locationLat = lat, locationLon = lon, temperature = it.temperature,
-                condition = it.condition, source = source, fetchedAt = now,
-            )
-        }
+        suspend fun fetch(on: HourlyForecastStore) =
+            ForecastPersistRun(on.forecastPersistHost(db.forecastDao(), db.appLogDao(), source, lat, lon))
+                .persist(ForecastPersistRun.Fetch(hourly = payload(), daily = null, keep = null), now)
 
-        val skipping = storeDeciding(label = null)
-        skipping.saveHourlyEntities(entities())
-        assertEquals(null, skipping.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now + 2_000L))
+        assertEquals(null, fetch(storeDeciding(label = null)).snapshotLabel)
         assertEquals(1, asked.size)
         assertTrue(historyRows().isEmpty())
 
         asked.clear()
-        val saving = storeDeciding(label = now)
-        saving.saveHourlyEntities(entities())
-        saving.backfillElapsedHistory(payload(), lat, lon, source, nowMs = now + 2_000L)
+        fetch(storeDeciding(label = now))
         assertEquals(1, asked.size)
         assertEquals(setOf(now), historyRows().map { it.timestampToGroupPredictions }.toSet())
+        // Elapsed (backfilled) and upcoming (snapshotted) hours both landed.
+        assertTrue(historyRows().any { it.dateTime < now } && historyRows().any { it.dateTime > now })
     }
 }
-

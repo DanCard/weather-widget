@@ -3,9 +3,9 @@ package com.weatherwidget.data.repository
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
-import com.weatherwidget.data.local.ForecastEntity
-import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.NwsDailyMapper
@@ -42,21 +42,17 @@ class NwsForecastMapper @Inject constructor(
     )
 
     /**
-     * @param elapsedHourly the issuance's already-elapsed hours from the raw grid, as the shared
-     *   model — history-only material for `HourlyForecastStore.backfillElapsedHistory`, never
-     *   written to the live table. Empty when the grid leg failed.
+     * The NWS forecast as the shared [RawFetch] every source is stored from (`ForecastPersistRun`),
+     * the same model desktop's NWS fetch builds. [RawFetch.elapsedHourly]: the issuance's
+     * already-elapsed hours from the raw grid — history-only material for the elapsed-hour backfill,
+     * never written live; empty when the grid leg failed. The daily rows go through
+     * [NwsDailyMapper.dailyForecasts], as on desktop; this adds Android's diagnostic lines.
      */
-    data class NwsFetchResult(
-        val forecasts: List<ForecastEntity>,
-        val hourly: List<HourlyForecastEntity>,
-        val elapsedHourly: List<HourlyForecast> = emptyList(),
-    )
-
     suspend fun fetchFromNws(
         latitude: Double,
         longitude: Double,
         parts: com.weatherwidget.data.model.ForecastParts = com.weatherwidget.data.model.ForecastParts.BOTH,
-    ): NwsFetchResult = coroutineScope {
+    ): RawFetch = coroutineScope {
         val grid = nwsApi.getGridPoint(latitude, longitude)
         val bundle = NwsForecastFetch.fetch(nwsApi, grid, parts)
         bundle.gridpointsFailure?.let { e ->
@@ -96,8 +92,8 @@ class NwsForecastMapper @Inject constructor(
         // Hourly-only (ForecastParts.HOURLY): no /forecast periods were asked, so there is no daily
         // batch to assemble or summarize; the caller stores the hours only.
         if (!parts.daily) {
-            val (hourlyOnly, elapsedOnly) = hourlyResult(bundle, hourlyPeriods, latitude, longitude)
-            return@coroutineScope NwsFetchResult(emptyList(), hourlyOnly, elapsedOnly)
+            val (hourlyOnly, elapsedOnly) = hourlyResult(bundle, hourlyPeriods)
+            return@coroutineScope RawFetch(hourly = hourlyOnly, elapsedHourly = elapsedOnly)
         }
 
         persistNwsPeriodSummary(grid.forecastUrl, forecastPeriods)
@@ -161,51 +157,27 @@ class NwsForecastMapper @Inject constructor(
             )
         }
 
-        val forecastEntities = acc.temperatureMap.map { (dateString, temperatures) ->
-            val (pStart, pEnd) = acc.periodTimeMap[dateString] ?: (null to null)
-            ForecastEntity(
-                targetDate = LocalDate.parse(dateString).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                dateOfPrediction = todayDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                locationLat = latitude,
-                locationLon = longitude,
-                highTemp = temperatures.first,
-                lowTemp = temperatures.second,
-                condition = acc.conditionMap[dateString] ?: "Unknown",
-                nativeDailyIconToken = acc.conditionMap[dateString],
-                isClimateNormal = false,
-                source = WeatherSource.NWS.id,
-                precipProbability = acc.precipProbabilityMap[dateString],
-                daytimePrecipProbability = acc.daytimePrecipProbabilityMap[dateString],
-                nighttimePrecipProbability = acc.nighttimePrecipProbabilityMap[dateString],
-                precipAmountMm = acc.precipAmountMap[dateString],
-                periodStartTime = pStart?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
-                periodEndTime = pEnd?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
-            )
-        }
-        val batchSummary = buildBatchSummary(forecastPeriods, forecastEntities, preservedTerminalLowOnlyDay)
+        val daily = NwsDailyMapper.dailyForecasts(acc)
+        val batchSummary = buildBatchSummary(forecastPeriods, daily, preservedTerminalLowOnlyDay)
         persistNwsBatchSummary(grid.forecastUrl, batchSummary)
 
-        val (hourlyEntities, elapsedHourly) = hourlyResult(bundle, hourlyPeriods, latitude, longitude)
-        NwsFetchResult(forecastEntities, hourlyEntities, elapsedHourly)
+        val (hourly, elapsedHourly) = hourlyResult(bundle, hourlyPeriods)
+        RawFetch(hourly = hourly, elapsedHourly = elapsedHourly, daily = daily)
     }
 
-    /** The live hourly rows and the issuance's elapsed hours, from [bundle]. */
+    /** The forecast hours and the issuance's elapsed hours, from [bundle]. */
     private suspend fun hourlyResult(
         bundle: com.weatherwidget.data.remote.NwsForecastBundle,
         hourlyPeriods: List<com.weatherwidget.data.remote.NwsApi.HourlyForecastPeriod>,
-        latitude: Double,
-        longitude: Double,
-    ): Pair<List<HourlyForecastEntity>, List<HourlyForecast>> {
+    ): Pair<List<HourlyForecast>, List<HourlyForecast>> {
         val nowMs = System.currentTimeMillis()
-        val hourlyEntities = hourlyPeriods.map { period ->
+        val hourly = hourlyPeriods.map { period ->
             val periodAgeMs = nowMs - period.startTime
             if (periodAgeMs > 0 && period.startTime % (3600 * 1000L) == 0L) {
                 appLogDao.log("NWS_HOURLY_STALE", "time=${Instant.ofEpochMilli(period.startTime).atZone(ZoneId.systemDefault()).toLocalDateTime()} temp=${period.temperature} ageMin=${periodAgeMs / 60000}")
             }
-            HourlyForecastEntity(
+            HourlyForecast(
                 dateTime = period.startTime,
-                locationLat = latitude,
-                locationLon = longitude,
                 temperature = period.temperature,
                 condition = period.shortForecast,
                 source = WeatherSource.NWS.id,
@@ -230,7 +202,7 @@ class NwsForecastMapper @Inject constructor(
             )
         }
 
-        return hourlyEntities to elapsedHourly
+        return hourly to elapsedHourly
     }
 
     suspend fun logTodayDiagnostics(
@@ -279,15 +251,11 @@ class NwsForecastMapper @Inject constructor(
 
     fun buildBatchSummary(
         forecastPeriods: List<NwsApi.ForecastPeriod>,
-        forecastEntities: List<ForecastEntity>,
+        daily: List<DailyForecast>,
         preservedTerminalLowOnlyDay: Pair<String, Float>?,
     ): NwsBatchSummary {
         val lastPeriod = forecastPeriods.lastOrNull()
-        val mappedMaxTargetDate =
-            forecastEntities
-                .maxByOrNull { it.targetDate }
-                ?.targetDate
-                ?.let { LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY).toString() }
+        val mappedMaxTargetDate = daily.maxOfOrNull { it.date }
 
         return NwsBatchSummary(
             periodCount = forecastPeriods.size,
@@ -296,7 +264,7 @@ class NwsForecastMapper @Inject constructor(
             lastPeriodEnd = lastPeriod?.endTime,
             lastPeriodTemp = lastPeriod?.temperature,
             lastPeriodIsDaytime = lastPeriod?.isDaytime,
-            mappedCount = forecastEntities.size,
+            mappedCount = daily.size,
             mappedMaxTargetDate = mappedMaxTargetDate,
             terminalLowOnlyPreserved = preservedTerminalLowOnlyDay != null,
             preservedDate = preservedTerminalLowOnlyDay?.first,

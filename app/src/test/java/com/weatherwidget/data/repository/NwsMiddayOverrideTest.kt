@@ -116,7 +116,7 @@ class NwsMiddayOverrideTest {
         )
         coEvery { nwsApi.getObservationStations(any()) } returns emptyList()
         val result = repository.fetchFromNws(testLat, testLon)
-        val tomorrowEntry = result.find { it.targetDate == dateEpoch(tomorrow) }
+        val tomorrowEntry = result.daily.find { it.date == tomorrow.toString() }
         assertEquals("Fog then Partly Sunny", tomorrowEntry?.condition)
     }
 }

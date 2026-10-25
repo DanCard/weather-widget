@@ -32,7 +32,7 @@ class ForecastFetchCoordinatorCoverageTest {
     private val nwsActuals: NwsApiDailyActualsFetcher = mockk(relaxed = true)
 
     private fun coordinator(): ForecastFetchCoordinator {
-        coEvery { nwsMapper.fetchFromNws(any(), any()) } returns NwsForecastMapper.NwsFetchResult(emptyList(), emptyList())
+        coEvery { nwsMapper.fetchFromNws(any(), any()) } returns com.weatherwidget.data.model.RawFetch()
         return ForecastFetchCoordinator(
             context = context,
             appLogDao = mockk(relaxed = true),

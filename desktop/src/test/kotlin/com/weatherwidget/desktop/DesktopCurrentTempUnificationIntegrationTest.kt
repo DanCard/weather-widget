@@ -65,7 +65,8 @@ class DesktopCurrentTempUnificationIntegrationTest {
                     temperature = 70f + (i * 0.5f), // Gradual curve
                     condition = "Sunny",
                     source = WeatherSource.WEATHER_API.id,
-                    fetchedAt = nowMs
+                    // Fresh for the cache's wall-clock age check (the upsert keeps a row's own stamp).
+                    fetchedAt = System.currentTimeMillis()
                 )
             )
         }

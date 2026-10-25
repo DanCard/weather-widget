@@ -64,13 +64,13 @@ class DesktopForecastPersistTest {
     @Test
     fun `a reply without cloud keeps the stored cloud, and every hour is stamped as confirmed now`() = runTest {
         refresh(hourly(cloud = 40), now)
-        val beforeSecond = System.currentTimeMillis()
         refresh(hourly(cloud = null), now + hour / 2)
 
         val stored = storedHours()
         assertEquals(3, stored.size)
         assertEquals("the reply lacked cloud; the stored value stays", listOf(40, 40, 40), stored.map { it.cloudCover })
-        assertTrue("fetchedAt = the confirming fetch", stored.all { it.fetchedAt >= beforeSecond })
+        // The fetch's own clock, as on Android — not the wall clock at the write.
+        assertEquals("fetchedAt = the confirming fetch", setOf(now + hour / 2), stored.map { it.fetchedAt }.toSet())
     }
 
     @Test
