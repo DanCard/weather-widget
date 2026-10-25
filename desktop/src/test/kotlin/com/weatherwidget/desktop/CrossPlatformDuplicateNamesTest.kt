@@ -33,7 +33,6 @@ class CrossPlatformDuplicateNamesTest {
         private const val PENDING = "real twin — pending a move to :shared"
 
         val ALLOWED: Map<String, String> = mapOf(
-            "googleNeedsHistory" to ADAPTER, // GoogleHistoryRun
             "refillStaleGoogleHours" to ADAPTER, // GoogleHistoryRun
             "markHorizon" to ADAPTER, // ForecastHorizonMarkers.mark
             "recordProductQuotas" to ADAPTER, // QuotaState.record

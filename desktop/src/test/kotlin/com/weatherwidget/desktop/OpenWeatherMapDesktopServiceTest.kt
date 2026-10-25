@@ -10,7 +10,6 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -19,7 +18,7 @@ import org.junit.experimental.categories.Category
 class OpenWeatherMapDesktopServiceTest {
 
     @Test
-    fun `full refresh returns forecast and populates current observation in rawObservations`() = runTest {
+    fun `full refresh carries the provider current but files it as no observation`() = runTest {
         val engine = MockEngine { request ->
             val content = when {
                 request.url.encodedPath == "/data/2.5/weather" -> currentWeatherJson()
@@ -43,16 +42,19 @@ class OpenWeatherMapDesktopServiceTest {
         try {
             val result = service.fetchForecast()
 
-            assertEquals(76.5f, result.providerCurrentTemp!!, 0.01f)
+            assertEquals(71.2f, result.providerCurrentTemp!!, 0.01f)
             assertEquals("Clear", result.providerCurrentCondition)
-            assertEquals(1724419200000L, result.providerCurrentObservedAt)
+            assertEquals(CURRENT_DT_MS, result.providerCurrentObservedAt)
 
-            val obs = result.rawObservations.find { it.stationId == "OPEN_WEATHER_MAP_MAIN" }
-            assertNotNull(obs)
-            assertEquals(WeatherSource.OPEN_WEATHER_MAP.id, obs!!.api)
-            assertEquals(76.5f, obs.temperature, 0.01f)
-            assertEquals("Clear", obs.condition)
-            assertEquals(1724419200000L, obs.timestamp)
+            // Current readings come only from the current-conditions path (SourceFetchTable, F1); the
+            // forecast's elapsed 3-hourly slots are still filed as provider history.
+            assertTrue(
+                "no row from the current endpoint: ${result.rawObservations}",
+                result.rawObservations.none { it.timestamp == CURRENT_DT_MS },
+            )
+            val history = result.rawObservations.single { it.timestamp == 1724419200000L }
+            assertEquals("OPEN_WEATHER_MAP_MAIN", history.stationId)
+            assertEquals(76.5f, history.temperature, 0.01f)
         } finally {
             service.close()
         }
@@ -83,11 +85,12 @@ class OpenWeatherMapDesktopServiceTest {
         try {
             val result = service.fetchObservationsOnly(recentOnly = true)
 
-            assertEquals(76.5f, result.providerCurrentTemp!!, 0.01f)
+            assertEquals(71.2f, result.providerCurrentTemp!!, 0.01f)
             assertEquals(1, result.rawObservations.size)
             val obs = result.rawObservations.single()
             assertEquals("OPEN_WEATHER_MAP_MAIN", obs.stationId)
-            assertEquals(76.5f, obs.temperature, 0.01f)
+            assertEquals(71.2f, obs.temperature, 0.01f)
+            assertEquals(CURRENT_DT_MS, obs.timestamp)
         } finally {
             service.close()
         }
@@ -97,8 +100,8 @@ class OpenWeatherMapDesktopServiceTest {
         {
           "coord": { "lon": -122.08, "lat": 37.42 },
           "weather": [{ "id": 800, "main": "Clear", "description": "clear sky", "icon": "01d" }],
-          "main": { "temp": 76.5, "feels_like": 76.0, "temp_min": 74.0, "temp_max": 78.0, "humidity": 45 },
-          "dt": 1724419200
+          "main": { "temp": 71.2, "feels_like": 71.0, "temp_min": 70.0, "temp_max": 72.0, "humidity": 45 },
+          "dt": 1724420700
         }
     """.trimIndent()
 
@@ -123,4 +126,9 @@ class OpenWeatherMapDesktopServiceTest {
           ]
         }
     """.trimIndent()
+
+    private companion object {
+        /** The current endpoint's reading time: 25 min after the first forecast slot, so the two rows differ. */
+        const val CURRENT_DT_MS = 1724420700000L
+    }
 }

@@ -34,6 +34,7 @@ import com.weatherwidget.data.remote.NwsPointUnavailableException
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.SilurianApi
+import com.weatherwidget.data.remote.SourceFetchTable
 import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.widget.ForecastFetchContext
@@ -244,107 +245,50 @@ internal class ForecastFetchCoordinator(
         horizons: Map<WeatherSource, ForecastHorizonCadence.Horizon?> = emptyMap(),
         plan: Map<WeatherSource, ForecastParts> = emptyMap(),
     ): Map<WeatherSource, SourceFetchEntry> = buildMap {
-        // What each request asks for: a non-splitting source always asks for everything.
-        fun parts(source: WeatherSource) = ForecastParts.requested(source, plan[source] ?: ForecastParts.BOTH)
-        put(WeatherSource.NWS, SourceFetchEntry(WeatherSource.NWS) { lat, lon ->
-            nwsForecastMapper.fetchFromNws(lat, lon, parts(WeatherSource.NWS))
-        })
-        openWeatherMapApi?.let { api ->
-            put(WeatherSource.OPEN_WEATHER_MAP, SourceFetchEntry(WeatherSource.OPEN_WEATHER_MAP) { lat, lon ->
-                api.getForecast(lat, lon)
-            })
-        }
-        put(
-            WeatherSource.OPEN_METEO,
-            SourceFetchEntry(
-                WeatherSource.OPEN_METEO,
-                // Only Open-Meteo has a previous-runs product, and this rides its fetch so
-                // the call is never spent when Open-Meteo is not being fetched at all.
-                afterPersist = { lat, lon -> fetchPriorDayCloudForecast(lat, lon) },
-            ) { lat, lon ->
-                openMeteoApi.getForecast(lat, lon, historyDays = 7, parts = parts(WeatherSource.OPEN_METEO)).also { raw ->
-                    // The same reply's next 3 h of 15-minute precipitation: the nowcast, for free.
-                    raw.nowcast?.let { com.weatherwidget.widget.AndroidNowcast.store(context).saveSeries(lat, lon, it) }
-                }
-            },
-        )
-        put(
-            WeatherSource.WEATHER_API,
-            SourceFetchEntry(
-                WeatherSource.WEATHER_API,
-                // Actuals: on the daily cadence, not the hourly one.
-                afterPersist = { lat, lon ->
-                    if (plan[WeatherSource.WEATHER_API]?.daily != false) weatherApiHistoryBackfiller.backfillIfNeeded(lat, lon)
-                },
-            ) { lat, lon -> weatherApi.getForecast(lat, lon) },
-        )
-        put(WeatherSource.SILURIAN, SourceFetchEntry(WeatherSource.SILURIAN) { lat, lon ->
-            silurianApi.getForecast(lat, lon, parts(WeatherSource.SILURIAN))
-        })
-        googleWeatherApi?.let { api ->
-            put(WeatherSource.GOOGLE_WEATHER, SourceFetchEntry(WeatherSource.GOOGLE_WEATHER) { lat, lon ->
-                val nowMs = clock()
-                val storedHours = hourlyStore.storedHourlyForSite(
-                    lat,
-                    lon,
-                    WeatherSource.GOOGLE_WEATHER.id,
-                    startMs = nowMs - 3_600_000L,
-                    endMs = nowMs + (GoogleWeatherApi.FORECAST_HOURS + 2) * 3_600_000L,
-                )
-                run {
-                    api.getForecast(
-                        lat,
-                        lon,
-                        // An on-demand day needs no elapsed hours; history/hours has a 20/day quota.
-                        includeHistory = fetchContext?.hourlyAhead == null &&
-                            googleNeedsHistory(lat, lon, fetchContext?.historyRefillDay),
-                        storedHours = storedHours,
-                        parts = parts(WeatherSource.GOOGLE_WEATHER),
-                        hoursAhead = HourlyOnDemand.askHours(WeatherSource.GOOGLE_WEATHER.id, fetchContext?.hourlyAhead, horizons[WeatherSource.GOOGLE_WEATHER]),
-                    ).also {
-                        appLogDao.log(GoogleWeatherApi.HOURS_PAGES_TAG, api.hoursPagesLine(onDemandDay = fetchContext?.hourlyAhead != null), "INFO")
-                        fetchContext?.historyRefillDay?.let { day -> refillStaleGoogleHours(it, lat, lon, day) }
-                    }
-                }
-            })
-        }
-        tomorrowIoApi?.let { api ->
-            put(WeatherSource.TOMORROW_IO, SourceFetchEntry(WeatherSource.TOMORROW_IO) { lat, lon ->
-                run {
-                    coroutineScope {
-                        val forecastDeferred = async { api.getForecast(lat, lon, parts(WeatherSource.TOMORROW_IO)) }
-                        val historyDeferred = async {
-                            // Actuals: on the daily cadence, not the hourly one.
-                            if (plan[WeatherSource.TOMORROW_IO]?.daily == false) return@async null
-                            runCatching {
-                                api.getFiveMinuteHistory(
-                                    lat,
-                                    lon,
-                                    TomorrowIoApi.FULL_ACTUALS_LOOKBACK_HOURS,
-                                )
-                            }.onFailure { error ->
-                                if (error is CancellationException) throw error
-                                appLogDao.log(
-                                    "FETCH_TMRW_5M_FAIL",
-                                    "full history unavailable; retaining cached actuals: ${error.javaClass.simpleName}",
-                                    "WARN",
-                                )
-                            }.getOrNull()
+        // What each source asks for is the `:shared` SourceFetchTable's, as on desktop.
+        fun entry(source: WeatherSource, afterPersist: suspend (Double, Double) -> Unit = { _, _ -> }) {
+            if (!sourceFetchTable.serves(source)) return
+            put(
+                source,
+                SourceFetchEntry(source, afterPersist) { lat, lon ->
+                    val request = SourceFetchTable.Request(
+                        parts = plan[source] ?: ForecastParts.BOTH,
+                        horizon = horizons[source],
+                        onDemand = fetchContext?.hourlyAhead,
+                        refillDay = fetchContext?.historyRefillDay,
+                    )
+                    sourceFetchTable.fetch(source, lat, lon, request, clock()).also { raw ->
+                        if (source == WeatherSource.GOOGLE_WEATHER) {
+                            fetchContext?.historyRefillDay?.let { day -> refillStaleGoogleHours(raw, lat, lon, day) }
                         }
-                        val forecast = forecastDeferred.await()
-                        val history = historyDeferred.await()
-                        forecast.copy(
-                            subHourly = history?.subHourly.orEmpty(),
-                            providerCurrentTemp = history?.providerCurrentTemp,
-                            providerCurrentCondition = history?.providerCurrentCondition,
-                            providerCurrentObservedAt = history?.providerCurrentObservedAt,
-                            providerCurrentCloudCover = history?.providerCurrentCloudCover,
-                        )
                     }
-                }
-            })
+                },
+            )
         }
+        entry(WeatherSource.NWS)
+        entry(WeatherSource.OPEN_WEATHER_MAP)
+        // Only Open-Meteo has a previous-runs product, and this rides its fetch so the call is never
+        // spent when Open-Meteo is not being fetched at all.
+        entry(WeatherSource.OPEN_METEO) { lat, lon -> fetchPriorDayCloudForecast(lat, lon) }
+        // Actuals: on the daily cadence, not the hourly one.
+        entry(WeatherSource.WEATHER_API) { lat, lon ->
+            if (plan[WeatherSource.WEATHER_API]?.daily != false) weatherApiHistoryBackfiller.backfillIfNeeded(lat, lon)
+        }
+        entry(WeatherSource.SILURIAN)
+        entry(WeatherSource.GOOGLE_WEATHER)
+        entry(WeatherSource.TOMORROW_IO)
     }
+
+    private val sourceFetchTable = SourceFetchTable(
+        RoomSourceFetchHost(
+            calls = SourceFetchTable.Calls.of(openMeteoApi, silurianApi, weatherApi, openWeatherMapApi, tomorrowIoApi, googleWeatherApi),
+            hourlyStore = hourlyStore,
+            appLogDao = appLogDao,
+            nws = { lat, lon, parts -> nwsForecastMapper.fetchFromNws(lat, lon, parts) },
+            needsHistory = { lat, lon, refillDay -> googleNeedsHistory(lat, lon, refillDay) },
+            nowcast = { lat, lon, series -> com.weatherwidget.widget.AndroidNowcast.store(context).saveSeries(lat, lon, series) },
+        ),
+    )
 
     /** Every one of [sourcesToFetch], both parts. */
     suspend fun fetchFromAllApis(
