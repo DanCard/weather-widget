@@ -125,7 +125,7 @@ class CurrentConditionsFetcher(
         val history = call(latitude, longitude, TomorrowIoApi.INCREMENTAL_ACTUALS_LOOKBACK_HOURS)
         val now = nowMs()
         val readings = HistoricalActualsBackfill.build(
-            hourly = history.subHourly.ifEmpty { history.hourly },
+            hourly = HistoricalActualsBackfill.actualsInput(WeatherSource.TOMORROW_IO.id, history.subHourly, history.hourly),
             latitude = latitude,
             longitude = longitude,
             sourceId = WeatherSource.TOMORROW_IO.id,

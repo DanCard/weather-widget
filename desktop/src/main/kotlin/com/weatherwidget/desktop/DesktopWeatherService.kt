@@ -302,9 +302,9 @@ class DesktopWeatherService(
     private fun withHistoricalActuals(result: RawFetch, sourceId: String): RawFetch =
         result.copy(
             rawObservations = result.rawObservations + HistoricalActualsBackfill.build(
-                // Prefer a provider's native sub-hour actual product when its source contract
-                // permits historical actuals; forecast-only sources are rejected by the builder.
-                hourly = result.subHourly.ifEmpty { result.hourly },
+                // The shared input rule: native sub-hour product, else hourly, never Tomorrow.io's
+                // forecast hours; forecast-only sources are rejected by the builder.
+                hourly = HistoricalActualsBackfill.actualsInput(sourceId, result.subHourly, result.hourly),
                 latitude = latitude,
                 longitude = longitude,
                 sourceId = sourceId,

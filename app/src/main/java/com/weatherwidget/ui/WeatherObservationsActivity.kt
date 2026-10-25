@@ -30,7 +30,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
-import com.weatherwidget.data.local.insertAllRetaggingStationTypes
 import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.LocationMatch
@@ -38,6 +37,7 @@ import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
+import com.weatherwidget.data.repository.writeObservations
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
@@ -112,6 +112,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     @Inject
     lateinit var observationDao: ObservationDao
+
+    @Inject
+    lateinit var dailyHistoryDao: com.weatherwidget.data.local.DailyHistoryDao
 
     @Inject
     lateinit var forecastDao: com.weatherwidget.data.local.ForecastDao
@@ -391,6 +394,11 @@ class WeatherObservationsActivity : AppCompatActivity() {
             val metar = metarObservationSource
             val synoptic = synopticObservationSource
             val dao = observationDao
+            val historyDao = dailyHistoryDao
+            val logDao = appLogDao
+            suspend fun store(rows: List<ObservationEntity>) {
+                if (rows.isNotEmpty()) writeObservations(dao, historyDao, logDao, lat, lon, rows.map { it.toReading() })
+            }
             val override = refreshFetchOverride
             userRefreshRunner.start("user_observations_screen", afterDetached = repaintWidgetAfterDetach()) {
                 if (override != null) {
@@ -414,14 +422,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
                         stateManager.getActualsProvider(it)
                     }
                 ) {
-                    WeatherSource.METAR -> {
-                        val rows = metar.fetchObservations(lat, lon, hours = 24)
-                        if (rows.isNotEmpty()) dao.insertAll(rows)
-                    }
-                    WeatherSource.SYNOPTIC -> {
-                        val rows = synoptic.fetchObservations(lat, lon, hours = 24)
-                        if (rows.isNotEmpty()) dao.insertAllRetaggingStationTypes(rows)
-                    }
+                    // Both through the shared write (ObservationWriteRun), as every other observation path.
+                    WeatherSource.METAR -> store(metar.fetchObservations(lat, lon, hours = 24))
+                    WeatherSource.SYNOPTIC -> store(synoptic.fetchObservations(lat, lon, hours = 24))
                     else -> Unit
                 }
             }.await()

@@ -22,6 +22,7 @@ import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.shared.util.ForecastPersistRun
 import com.weatherwidget.data.remote.ApiAccessException
@@ -463,7 +464,7 @@ internal class ForecastFetchCoordinator(
     private suspend fun saveProviderActuals(source: WeatherSource, result: RawFetch, latitude: Double, longitude: Double) {
         if (result.hourly.isEmpty()) return
         hourlyStore.saveHistoricalActuals(
-            result.subHourly.ifEmpty { if (source == WeatherSource.TOMORROW_IO) emptyList() else result.hourly },
+            HistoricalActualsBackfill.actualsInput(source.id, result.subHourly, result.hourly),
             latitude,
             longitude,
             source.id,

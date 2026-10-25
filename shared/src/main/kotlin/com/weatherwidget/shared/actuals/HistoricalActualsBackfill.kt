@@ -26,6 +26,15 @@ object HistoricalActualsBackfill {
     fun syntheticStationId(sourceId: String): String = "${sourceId}_MAIN"
 
     /**
+     * The series a fetch of [sourceId] files as actuals: its native sub-hour product ([subHourly]),
+     * else its [hourly] list — except Tomorrow.io, whose hourly rows are forecasts: its five-minute
+     * product or nothing. [build] stamps every Tomorrow.io row as that product, so this is the one
+     * place that keeps forecast hours out of it (decision O3; it was three call sites' own guard).
+     */
+    fun actualsInput(sourceId: String, subHourly: List<HourlyForecast>, hourly: List<HourlyForecast>): List<HourlyForecast> =
+        subHourly.ifEmpty { if (sourceId == WeatherSource.TOMORROW_IO.id) emptyList() else hourly }
+
+    /**
      * @param hourly the source's history list, typically fetched with a `past_days` window so it
      *   spans both history and forecast. Only entries at or before [nowMs] are kept.
      * @param sourceId the [WeatherSource] id these hours belong to; becomes the observation `api`.

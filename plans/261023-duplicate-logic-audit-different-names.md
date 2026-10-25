@@ -351,6 +351,9 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   retired-product cleanup per api); `ObservationWriteHostContract` on Room and desktop SQLite. Desktop
   `persistObservations` and Android's NWS, current-conditions, provider-history and METAR writers go
   through it. Phase 2 (O3, Synoptic refresher, Observations screen) left.
+- 2026-10-25: B rest — observations phase 2: O3 input rule shared; Synoptic refresher and Observations
+  screen through `ObservationWriteRun`. Every Android/desktop observation write now goes through it except
+  the WeatherAPI history Host's store. Left in B: the fetch registry / `refresh()` orchestration.
 
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:

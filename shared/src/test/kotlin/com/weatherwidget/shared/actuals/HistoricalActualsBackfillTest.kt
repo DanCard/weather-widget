@@ -162,4 +162,19 @@ class HistoricalActualsBackfillTest {
             ).isEmpty()
         )
     }
+
+    @Test
+    fun `actuals input is the sub-hour product, else hourly, but never Tomorrow io's forecast hours`() {
+        val hourly = listOf(hour(-2, 60f), hour(-1, 61f))
+        val subHourly = listOf(hour(-1, 62f))
+
+        assertEquals(subHourly, HistoricalActualsBackfill.actualsInput(WeatherSource.OPEN_METEO.id, subHourly, hourly))
+        assertEquals(hourly, HistoricalActualsBackfill.actualsInput(WeatherSource.WEATHER_API.id, emptyList(), hourly))
+        assertEquals(subHourly, HistoricalActualsBackfill.actualsInput(WeatherSource.TOMORROW_IO.id, subHourly, hourly))
+        assertEquals(
+            "Tomorrow.io's hourly rows are forecasts; filed, build() would stamp them as its five-minute product",
+            emptyList<HourlyForecast>(),
+            HistoricalActualsBackfill.actualsInput(WeatherSource.TOMORROW_IO.id, emptyList(), hourly),
+        )
+    }
 }

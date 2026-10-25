@@ -99,3 +99,11 @@ a day's rows on a device, Progress line in the audit plan.
     AW020 reports every 9–13 min). Yesterday's blend identical on every source (desktop and Pixel, ±0.00).
     O1 not yet visible on a device: the fast personal stations (Pixel F4751/G6550/G4110/G8106, 26–30
     extra rows/day each) are written only by `SynopticObservationRefresher` — phase 2.
+- 2026-10-25 — Phase 2. O3: `HistoricalActualsBackfill.actualsInput` (sub-hour product, else hourly, never
+  Tomorrow.io's forecast hours) replaces three call sites' guards — Android provider history, desktop
+  `withHistoricalActuals`, and the shared `CurrentConditionsFetcher` (not in the table above); no behaviour
+  change, Tomorrow.io's history call fills `subHourly` only. Synoptic refresher and the Observations screen
+  write through the run; `insertAllRetaggingStationTypes` deleted. `SYNOPTIC_OBS_STORED` now reports
+  `thinned=` (deleted over the stored window) and `retagged=`. `SynopticRefresherThinningTest` failed on
+  the old batch-only write (`[0, 5, 10, 15]`). Device check of O1 on the Pixel pending its next full sync.
+

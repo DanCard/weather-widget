@@ -637,7 +637,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     /**
      * Sets [stationType] on every stored [api] row of [stationIds] that carries a different type —
      * a station's type is a property of the station, not of the fetch. Same rule as Android's
-     * `insertAllRetaggingStationTypes`; see plans/261003-raws-station-type.md.
+     * `ObservationDao.retagStationType`, both called by `ObservationWriteRun`; see plans/261003-raws-station-type.md.
      */
     fun retagStationType(api: String, stationIds: Collection<String>, stationType: StationType): Int {
         if (stationIds.isEmpty()) return 0

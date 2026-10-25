@@ -5,13 +5,13 @@ import android.content.ComponentName
 import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.local.insertAllRetaggingStationTypes
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.logException
+import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.SynopticObservationSource
-import com.weatherwidget.shared.observations.PersonalStationThinning
+import com.weatherwidget.data.repository.writeObservations
 import com.weatherwidget.shared.util.SynopticBackoffStore
 import com.weatherwidget.shared.util.SynopticFetchGate
 import com.weatherwidget.shared.util.SynopticFetchPolicy
@@ -96,21 +96,19 @@ internal class SynopticObservationRefresher(
             if (outcome !is FetchOutcome.Success) return
             val fetched = outcome.value
             if (fetched.isEmpty()) return
-            // Personal stations report every ~5 min, are weighted 0.05 and never carry sky; storing
-            // them at full density made them 80% of the Synoptic rows on the reporting device, and
-            // the table's size is what a cold read pays for. See PersonalStationThinning.
-            val rows = PersonalStationThinning.thin(
-                rows = fetched,
-                stationOf = { it.stationId },
-                stationTypeOf = { it.stationType },
-                timestampOf = { it.timestamp },
+            // The shared write (ObservationWriteRun): personal stations report every ~5 min, are
+            // weighted 0.05 and never carry sky, so it thins them to one row per 10 min over the
+            // stored rows — thinning this batch alone kept every fetch's newest row (Pixel 7.2/h
+            // against 6/h, 2026-10-25). See PersonalStationThinning.
+            val db = WeatherDatabase.getDatabase(context)
+            val written = writeObservations(
+                db.observationDao(), db.dailyHistoryDao(), appLogDao, latitude, longitude, fetched.map { it.toReading() },
             )
-            WeatherDatabase.getDatabase(context).observationDao().insertAllRetaggingStationTypes(rows)
             appLogDao.log(
                 "SYNOPTIC_OBS_STORED",
-                "reason=$reason tier=${tier.name} recentMin=$recentMinutes rows=${rows.size} " +
-                    "fetched=${fetched.size} thinned=${fetched.size - rows.size} " +
-                    "stations=${rows.map { it.stationId }.distinct().joinToString("|")}",
+                "reason=$reason tier=${tier.name} recentMin=$recentMinutes fetched=${fetched.size} " +
+                    "thinned=${written.thinned} retagged=${written.retagged} " +
+                    "stations=${fetched.map { it.stationId }.distinct().joinToString("|")}",
                 "INFO",
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
