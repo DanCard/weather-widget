@@ -631,7 +631,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             FetchMetadata.getLastCurrentTempFetchTime(context)
         }.takeIf { it > 0L }
         val intervalMs = forecastIntervalMs ?: DataFreshness.deviceFetchContext(context, stateManager).let {
-            com.weatherwidget.data.remote.ForecastHorizonCadence.soonestIntervalMs(
+            com.weatherwidget.data.remote.ForecastHorizonCadence.intervalMs(
                 isCharging = it.isCharging,
                 batteryLevel = it.batteryLevel,
                 isScreenOn = it.isScreenInteractive,

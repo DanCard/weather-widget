@@ -27,19 +27,17 @@ class SharedFetchStepsTest {
     )
 
     @Test
-    fun `every horizon mark is logged, LONG marks both cadences`() = runBlocking {
+    fun `every horizon mark is logged, only a judged fetch restarts the cadence`() = runBlocking {
         // Desktop wrote its marker rows but never the FORECAST_HORIZON line Android logs.
         val marks = mutableListOf<String>()
         val logs = mutableListOf<String>()
         val markers = object : ForecastHorizonMarkers {
             override fun lastLongMs(): Long? = null
-            override fun lastShortMs(): Long? = null
             override suspend fun markLong(nowMs: Long) { marks += "long" }
-            override suspend fun markShort(nowMs: Long) { marks += "short" }
         }
         ForecastHorizonMarkers.mark(markers, "NWS", ForecastHorizonCadence.Horizon.LONG, now) { tag, msg, _ -> logs += "$tag $msg" }
         ForecastHorizonMarkers.mark(markers, "NWS", null, now) { tag, msg, _ -> logs += "$tag $msg" }
-        assertEquals(listOf("short", "long", "short"), marks)
+        assertEquals(listOf("long"), marks)
         assertEquals(listOf("FORECAST_HORIZON source=NWS horizon=LONG", "FORECAST_HORIZON source=NWS horizon=unjudged"), logs)
     }
 

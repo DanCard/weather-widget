@@ -58,11 +58,7 @@ object ForecastFetchPlan {
         val heldUntil = SourceQuotaBlocks.fullyBlockedUntil(sourceId, nowMs)
         val scheduledDue = if (decision != null) decision.due != null else dueWithoutDecision(sourceId)
         val parts = forced ?: if (scheduledDue) ForecastParts.unblocked(SourceQuotaBlocks.blockedProducts(sourceId, nowMs)) else null
-        val nextDue = decision?.let {
-            val nextHorizon = it.shortDueAtMs?.takeIf { short -> short < it.longDueAtMs }
-                ?.let { ForecastHorizonCadence.Horizon.SHORT } ?: ForecastHorizonCadence.Horizon.LONG
-            ForecastSchedule.Due(sourceId, nextHorizon, ForecastSchedule.heldPast(it.nextDueAtMs, heldUntil) ?: it.nextDueAtMs)
-        }
+        val nextDue = decision?.let { ForecastSchedule.Due(sourceId, ForecastSchedule.heldPast(it.dueAtMs, heldUntil) ?: it.dueAtMs) }
         return Source(
             sourceId = sourceId,
             parts = parts,

@@ -59,7 +59,7 @@ enum class ForecastParts(val daily: Boolean, val hourly: Boolean) {
 
         /**
          * `FETCH_PLAN` app_logs message, both platforms: `parts=NWS:BOTH,OPEN_METEO:BOTH
-         * horizons=NWS:SHORT(long=8h/3h,short=4h/4h),…` — what is fetched, and each source's horizon
+         * horizons=NWS:LONG(every=4h/4h),…` — what is fetched, and each source's horizon
          * decision ([com.weatherwidget.data.remote.ForecastHorizonCadence.logFragment]).
          */
         /** Tag of [planLogLine], both platforms. */

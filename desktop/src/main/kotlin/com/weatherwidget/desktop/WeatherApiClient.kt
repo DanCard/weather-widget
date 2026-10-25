@@ -40,9 +40,8 @@ interface WeatherApiClient {
         fetchForecast(recentObservationsOnly, parts)
 
     /**
-     * [horizon]: the LONG/SHORT fetch the caller chose ([com.weatherwidget.data.remote.ForecastHorizonCadence]),
-     * so what a billed source is asked for matches what the caller stores — a user Refresh is LONG
-     * whatever the markers say. Clients whose request does not follow the horizon ignore it.
+     * [horizon]: LONG for a judged fetch, null when unjudged ([com.weatherwidget.data.remote.ForecastHorizonCadence]),
+     * so what a billed source is asked for matches what the caller stores. Clients whose request does not follow the horizon ignore it.
      */
     suspend fun fetchForecast(
         recentObservationsOnly: Boolean,

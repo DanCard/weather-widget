@@ -24,12 +24,12 @@ data class ForecastFetchContext(
      */
     val historyRefillDay: java.time.LocalDate? = null,
     /**
-     * The user's manual Refresh: the displayed sources ([activeSourceIds]) make a LONG fetch
-     * ([com.weatherwidget.data.remote.ForecastHorizonCadence.forced]).
+     * The user's manual Refresh: the displayed sources ([activeSourceIds]) write their daily rows even
+     * when unchanged. Every fetch is LONG ([com.weatherwidget.data.remote.ForecastHorizonCadence]).
      */
     val userRefresh: Boolean = false,
     /**
-     * The user's next alarm, else the learned unplug time: on a charger, LONG comes due in the lead
+     * The user's next alarm, else the learned unplug time: on a charger, a fetch comes due in the lead
      * before it ([com.weatherwidget.data.remote.ForecastHorizonCadence.preWakeAtMs]). Null when neither.
      */
     val wakeAtMs: Long? = null,
@@ -47,10 +47,10 @@ object ForecastFetchPolicy {
     const val CHARGING_TICK_MINUTES = 60L
 
     /**
-     * Off a charger with a high battery: the SHORT screen-on interval, so a 4-h SHORT fetch is never
-     * held to a longer tick.
+     * Off a charger with a high battery: the screen-on interval, so a 4-h fetch is never held to a
+     * longer tick.
      */
-    const val HIGH_BATTERY_TICK_MINUTES = com.weatherwidget.data.remote.ForecastHorizonCadence.SHORT_SCREEN_ON_HOURS * 60L
+    const val HIGH_BATTERY_TICK_MINUTES = com.weatherwidget.data.remote.ForecastHorizonCadence.SCREEN_ON_HOURS * 60L
 
     private const val OFF_CHARGER_LOW_BATTERY_TICK_MINUTES = 24 * 60L
 

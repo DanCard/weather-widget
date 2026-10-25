@@ -27,9 +27,9 @@ import java.time.LocalDate
 
 /**
  * The desktop forecast loop's planning against a real DB: [DesktopWeatherRepository] writes the
- * LONG / SHORT markers, [DesktopForecastPlanner] reads them back into what is due now and when the
+ * marker, [DesktopForecastPlanner] reads them back into what is due now and when the
  * source is next due, and [ForecastSchedule] turns that into the sleep. One rule for every source.
- * performance/261016-unified-long-short-forecast-horizons.md
+ * performance/261025-every-forecast-fetch-long.md
  */
 @Category(ShortDuration::class)
 class DesktopForecastPlannerTest {
@@ -51,7 +51,7 @@ class DesktopForecastPlannerTest {
         hourly = (1..5).map { HourlyForecast(dateTime = (System.currentTimeMillis() / hour + it) * hour, temperature = 60f, condition = "Cloudy") },
     )
 
-    /** Battery 90 %, unplugged, screen on unless given: LONG 8 h, SHORT 4 h. */
+    /** Battery 90 %, unplugged, screen on unless given: every 4 h. */
     private fun planner(charging: Boolean = false, level: Int = 90, screenOn: Boolean = true) =
         DesktopForecastPlanner(dao, lat, lon, PowerDetector.PowerState(charging, level), screenOn)
 
@@ -77,7 +77,7 @@ class DesktopForecastPlannerTest {
     }
 
     @Test
-    fun `after a LONG fetch nothing is due, SHORT comes due in 4 h and the loop sleeps the 2 h cap`() = runTest {
+    fun `after a fetch nothing is due, the next comes due in 4 h and the loop sleeps the 2 h cap`() = runTest {
         fetch()
         val now = System.currentTimeMillis()
 
@@ -85,43 +85,33 @@ class DesktopForecastPlannerTest {
         assertNull(plan.parts)
         assertNull(plan.horizon)
         val next = planner().next(listOf(om), now)!!
-        assertEquals(Horizon.SHORT, next.horizon)
+        assertEquals(om, next.sourceId)
         assertTrue("next due ≈ 4 h out", next.atMs in now + 4 * hour - grace - minute..now + 4 * hour)
         assertEquals(ForecastSchedule.Reason.CAP, ForecastSchedule.sleep(next, now, fetchFailed = false).reason)
     }
 
     @Test
-    fun `five hours after a LONG fetch SHORT is due, nine hours after LONG is`() = runTest {
+    fun `five hours after a fetch the next is due, and it is LONG`() = runTest {
+        // Was SHORT before 2026-10-25.
         fetch()
         val now = System.currentTimeMillis()
-        assertEquals(Horizon.SHORT, planner().plan(om, now + 5 * hour).horizon)
-        assertEquals(Horizon.LONG, planner().plan(om, now + 9 * hour).horizon)
+        assertNull(planner().plan(om, now + 3 * hour).horizon)
+        assertEquals(Horizon.LONG, planner().plan(om, now + 5 * hour).horizon)
     }
 
     @Test
-    fun `a SHORT fetch moves SHORT only`() = runTest {
-        fetch(horizon = Horizon.LONG)
-        fetch(horizon = Horizon.SHORT)
-        val now = System.currentTimeMillis()
-        assertNull("SHORT just ran", planner().plan(om, now + 3 * hour).horizon)
-        assertEquals("LONG still 8 h after the LONG fetch", Horizon.LONG, planner().plan(om, now + 8 * hour).horizon)
-    }
-
-    @Test
-    fun `screen off makes SHORT 8 h`() = runTest {
+    fun `screen off makes it 8 h`() = runTest {
         fetch()
         val now = System.currentTimeMillis()
         val next = planner(screenOn = false).next(listOf(om), now)!!
-        assertEquals(Horizon.SHORT, next.horizon)
         assertTrue(next.atMs - now in 8 * hour - grace - minute..8 * hour)
     }
 
     @Test
-    fun `below 70 percent only LONG, a day apart`() = runTest {
+    fun `below 70 percent a day apart`() = runTest {
         fetch()
         val now = System.currentTimeMillis()
         val next = planner(level = 60).next(listOf(om), now)!!
-        assertEquals(Horizon.LONG, next.horizon)
         assertTrue(next.atMs - now in 24 * hour - grace - minute..24 * hour)
         assertNull(planner(level = 60).plan(om, now + 23 * hour).horizon)
     }

@@ -419,15 +419,6 @@ class WidgetStateManager internal constructor(
 
     fun markLongFetch(sourceId: String, lat: Double, lon: Double, atMs: Long) = writeMarker(KEY_LONG_FETCH_PREFIX + sourceId, lat, lon, atMs)
 
-    /**
-     * The last forecast fetch of either horizon for [sourceId] at the site — what the SHORT cadence is
-     * measured from. A marker, not the rows' `fetchedAt`: the hourly save skips unchanged rows, so
-     * their newest `fetchedAt` can lag a fetch.
-     */
-    fun getLastShortFetch(sourceId: String, lat: Double, lon: Double): Long? = readMarker(KEY_SHORT_FETCH_PREFIX + sourceId, lat, lon)
-
-    fun markShortFetch(sourceId: String, lat: Double, lon: Double, atMs: Long) = writeMarker(KEY_SHORT_FETCH_PREFIX + sourceId, lat, lon, atMs)
-
     private fun readMarker(key: String, lat: Double, lon: Double): Long? =
         com.weatherwidget.data.remote.ForecastHorizonCadence.Marker.decode(prefs.getString(key, null))?.forSite(lat, lon)
 
@@ -588,7 +579,6 @@ class WidgetStateManager internal constructor(
         /** Global: place name of a setup-screen location change whose first fetch has not landed. */
         const val KEY_PENDING_LOCATION_FETCH = "widget_pending_location_fetch"
         private const val KEY_LONG_FETCH_PREFIX = "forecast_long_fetch_"
-        private const val KEY_SHORT_FETCH_PREFIX = "forecast_short_fetch_"
 
         /** Global: JSON array of recent locations. */
         const val KEY_RECENT_LOCATIONS = "recent_locations"

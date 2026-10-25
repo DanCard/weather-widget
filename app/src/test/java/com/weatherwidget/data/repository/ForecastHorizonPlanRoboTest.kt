@@ -38,9 +38,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Android's sync plan under the one horizon rule: a source is fetched (both parts) when its LONG or
- * SHORT horizon is due by its markers, the same for the displayed source and every other one; quota
- * blocks drop a product; a force fetches both. performance/261016-unified-long-short-forecast-horizons.md
+ * Android's sync plan under the one cadence: a source is fetched (both parts, always LONG) when it is
+ * due by its marker, the same for the displayed source and every other one; quota blocks drop a
+ * product; a force fetches both. performance/261025-every-forecast-fetch-long.md
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -54,7 +54,6 @@ class ForecastHorizonPlanRoboTest {
     private val now = System.currentTimeMillis()
 
     private val lastLong = mutableMapOf<String, Long?>()
-    private val lastShort = mutableMapOf<String, Long?>()
     private val wsm = mockk<WidgetStateManager>(relaxed = true)
     private val openMeteo = mockk<OpenMeteoApi>()
     private val weatherApi = mockk<WeatherApi>()
@@ -73,7 +72,6 @@ class ForecastHorizonPlanRoboTest {
         every { wsm.getVisibleSourcesOrder() } returns listOf(NWS, OPEN_METEO, WEATHER_API)
         every { wsm.isSourceVisible(any()) } answers { firstArg<WeatherSource>() in listOf(NWS, OPEN_METEO, WEATHER_API) }
         every { wsm.getLastLongFetch(any(), any(), any()) } answers { lastLong[firstArg()] }
-        every { wsm.getLastShortFetch(any(), any(), any()) } answers { lastShort[firstArg()] }
         val raw = RawFetch(
             daily = listOf(DailyForecast(date = java.time.LocalDate.now().plusDays(1).toString(), highTemp = 70f, lowTemp = 50f, condition = "Sunny")),
             hourly = listOf(HourlyForecast(dateTime = now + hour, temperature = 60f, condition = "Sunny")),
@@ -116,12 +114,11 @@ class ForecastHorizonPlanRoboTest {
     private fun plan(c: ForecastFetchContext = ctx(), force: Boolean = false) =
         coordinator().planFetch(noRows, force, null, c, null, lat, lon)
 
-    private fun fetchedAgo(source: WeatherSource, longH: Long, shortH: Long) {
-        lastLong[source.id] = now - longH * hour
-        lastShort[source.id] = now - shortH * hour
+    private fun fetchedAgo(source: WeatherSource, h: Long) {
+        lastLong[source.id] = now - h * hour
     }
 
-    private fun allFresh() = listOf(NWS, OPEN_METEO, WEATHER_API).forEach { fetchedAgo(it, 1, 1) }
+    private fun allFresh() = listOf(NWS, OPEN_METEO, WEATHER_API).forEach { fetchedAgo(it, 1) }
 
     @Test
     fun `nothing due plans nothing and needs no network`() {
@@ -134,15 +131,14 @@ class ForecastHorizonPlanRoboTest {
     fun `a never-fetched source is due at once`() {
         allFresh()
         lastLong[OPEN_METEO.id] = null
-        lastShort[OPEN_METEO.id] = null
         assertEquals(mapOf(OPEN_METEO to ForecastParts.BOTH), plan())
     }
 
     @Test
     fun `a source not on screen follows the same rule as the displayed one`() {
         allFresh()
-        fetchedAgo(NWS, longH = 6, shortH = 5)
-        fetchedAgo(OPEN_METEO, longH = 6, shortH = 5)
+        fetchedAgo(NWS, 5)
+        fetchedAgo(OPEN_METEO, 5)
         assertEquals(mapOf(NWS to ForecastParts.BOTH, OPEN_METEO to ForecastParts.BOTH), plan())
     }
 
@@ -157,20 +153,20 @@ class ForecastHorizonPlanRoboTest {
     }
 
     @Test
-    fun `screen off waits 8 h for SHORT`() {
+    fun `screen off waits 8 h`() {
         allFresh()
-        fetchedAgo(NWS, longH = 6, shortH = 5)
+        fetchedAgo(NWS, 5)
         assertEquals(emptyMap<WeatherSource, ForecastParts>(), plan(ctx(screenOn = false)))
-        fetchedAgo(NWS, longH = 9, shortH = 8)
+        fetchedAgo(NWS, 8)
         assertEquals(mapOf(NWS to ForecastParts.BOTH), plan(ctx(screenOn = false)))
     }
 
     @Test
-    fun `below 70 percent only a day-old LONG is due`() {
+    fun `below 70 percent only a day-old fetch is due`() {
         allFresh()
-        fetchedAgo(NWS, longH = 23, shortH = 10)
+        fetchedAgo(NWS, 23)
         assertEquals(emptyMap<WeatherSource, ForecastParts>(), plan(ctx(battery = 60)))
-        fetchedAgo(NWS, longH = 24, shortH = 1)
+        fetchedAgo(NWS, 24)
         assertEquals(mapOf(NWS to ForecastParts.BOTH), plan(ctx(battery = 60)))
     }
 
@@ -178,7 +174,7 @@ class ForecastHorizonPlanRoboTest {
     @Test
     fun `a quota-blocked product is dropped, a fully blocked source not planned`() {
         allFresh()
-        fetchedAgo(NWS, longH = 13, shortH = 13)
+        fetchedAgo(NWS, 13)
         SourceQuotaBlocks.block(NWS.id, ForecastProduct.HOURLY, now + 3 * hour)
         assertEquals(mapOf(NWS to ForecastParts.DAILY), plan())
         SourceQuotaBlocks.block(NWS.id, ForecastProduct.DAILY, now + 3 * hour)
@@ -194,20 +190,16 @@ class ForecastHorizonPlanRoboTest {
     }
 
     @Test
-    fun `requiresNetworkFetch wakes for a SHORT horizon`() {
+    fun `requiresNetworkFetch wakes 4 h after a fetch with the screen on`() {
         allFresh()
-        fetchedAgo(NWS, longH = 5, shortH = 4)
+        fetchedAgo(NWS, 4)
         assertTrue(coordinator().requiresNetworkFetch(noRows, ctx(), null, lat, lon))
     }
 
     @Test
-    fun `a SHORT fetch marks SHORT only, a LONG one both`() = runBlocking {
-        fetchedAgo(OPEN_METEO, longH = 5, shortH = 4)
-        coordinator().fetchFromAllApis(lat, lon, mapOf(OPEN_METEO to ForecastParts.BOTH), ctx())
-        verify { wsm.markShortFetch(OPEN_METEO.id, lat, lon, now) }
-        verify(exactly = 0) { wsm.markLongFetch(any(), any(), any(), any()) }
-
-        fetchedAgo(OPEN_METEO, longH = 12, shortH = 4)
+    fun `a fetch 4 h after the last is LONG and moves the marker`() = runBlocking {
+        // Was SHORT before 2026-10-25, which left the LONG marker where it was.
+        fetchedAgo(OPEN_METEO, 4)
         coordinator().fetchFromAllApis(lat, lon, mapOf(OPEN_METEO to ForecastParts.BOTH), ctx())
         verify { wsm.markLongFetch(OPEN_METEO.id, lat, lon, now) }
     }
@@ -218,7 +210,7 @@ class ForecastHorizonPlanRoboTest {
         coVerify(exactly = 1) { weatherApi.getForecast(lat, lon, any()) }
         coVerify(exactly = 0) { persistHost.writeDaily(any(), any(), any()) }
         coVerify(exactly = 1) { persistHost.writeHourly(any()) }
-        verify { wsm.markShortFetch(WEATHER_API.id, lat, lon, now) }
+        verify { wsm.markLongFetch(WEATHER_API.id, lat, lon, now) }
     }
 
     @Test

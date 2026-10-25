@@ -25,11 +25,10 @@ import java.nio.file.Files
 import java.time.LocalDate
 
 /**
- * [DesktopWeatherRepository] + [DesktopWeatherDao] + [DesktopForecastHorizon]: a LONG refresh stores
- * every daily row and sets both markers; a SHORT one rewrites only the next 3 days, and the daily
- * view still reads days 4+ from the LONG fetch (newest row per day, not newest batch); the "older
- * forecasts" reader skips exactly the rows shown.
- * performance/261016-unified-long-short-forecast-horizons.md
+ * [DesktopWeatherRepository] + [DesktopWeatherDao] + [DesktopForecastHorizon]: every refresh is LONG,
+ * stores every daily row and sets the marker; a newer fetch covering fewer days leaves the later days
+ * to the older rows (newest row per day, not newest batch); the "older forecasts" reader skips
+ * exactly the rows shown. performance/261025-every-forecast-fetch-long.md
  */
 @Category(ShortDuration::class)
 class DesktopForecastHorizonStorageTest {
@@ -44,14 +43,14 @@ class DesktopForecastHorizonStorageTest {
     private val today = LocalDate.now()
     private val now = today.atTime(10, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-    private fun daily(high: Float) = (0 until 8).map { DailyForecast(today.plusDays(it.toLong()).toString(), high, 50f, "Cloudy") }
+    private fun daily(high: Float, days: Int = 8) = (0 until days).map { DailyForecast(today.plusDays(it.toLong()).toString(), high, 50f, "Cloudy") }
     private val hourly = (1..5).map { HourlyForecast(dateTime = (now / hour + it) * hour, temperature = 60f, condition = "Cloudy") }
 
     private fun repo() = DesktopWeatherRepository(service, dao, lat, lon, om)
     private fun markers(source: String = om, la: Double = lat, lo: Double = lon) = DesktopForecastHorizon(dao, source, la, lo)
 
-    private suspend fun refresh(high: Float, horizon: Horizon, at: Long = now) {
-        coEvery { service.fetchForecast(false) } returns RawFetch(daily = daily(high), hourly = hourly)
+    private suspend fun refresh(high: Float, horizon: Horizon?, at: Long = now, days: Int = 8) {
+        coEvery { service.fetchForecast(false) } returns RawFetch(daily = daily(high, days), hourly = hourly)
         repo().refresh(now = at, reason = "test", horizon = horizon)
     }
 
@@ -64,19 +63,30 @@ class DesktopForecastHorizonStorageTest {
     }
 
     @Test
-    fun `a LONG refresh stores every daily row and sets both markers`() = runTest {
+    fun `a LONG refresh stores every daily row and sets the marker`() = runTest {
         refresh(high = 70f, horizon = Horizon.LONG)
 
         assertEquals((0 until 8).map { today.plusDays(it.toLong()) }.toSet(), shownHighs().keys)
         assertNotNull(markers().lastLongFetch())
-        assertNotNull(markers().lastShortFetch())
     }
 
     @Test
-    fun `a SHORT refresh rewrites the next 3 days, the view keeps days 4+ from the LONG fetch`() = runTest {
+    fun `a refresh 4 h later, judged at fetch time, rewrites all 8 days`() = runTest {
+        // Was SHORT before 2026-10-25: days 4+ kept the earlier fetch's 70.
         refresh(high = 70f, horizon = Horizon.LONG)
         Thread.sleep(5)
-        refresh(high = 80f, horizon = Horizon.SHORT, at = now + 4 * hour)
+        refresh(high = 80f, horizon = null, at = now + 4 * hour)
+
+        val highs = shownHighs()
+        assertEquals(8, highs.size)
+        assertTrue(highs.toString(), (0L until 8L).all { highs[today.plusDays(it)] == 80f })
+    }
+
+    @Test
+    fun `a newer fetch covering fewer days keeps the later days from the older one`() = runTest {
+        refresh(high = 70f, horizon = Horizon.LONG)
+        Thread.sleep(5)
+        refresh(high = 80f, horizon = Horizon.LONG, at = now + 4 * hour, days = 3)
 
         val highs = shownHighs()
         assertEquals("all 8 days still shown", 8, highs.size)
@@ -87,29 +97,29 @@ class DesktopForecastHorizonStorageTest {
     @Test
     fun `rows more than 36 h older than the newest fetch are not shown`() = runTest {
         dao.upsertForecasts(lat, lon, om, daily(60f), nowMs = now - 40 * hour)
-        refresh(high = 80f, horizon = Horizon.SHORT)
+        refresh(high = 80f, horizon = Horizon.LONG, days = 3)
 
         val highs = shownHighs()
-        assertEquals("only the SHORT fetch's 3 days", (0L..2L).map { today.plusDays(it) }.toSet(), highs.keys)
+        assertEquals("only the newest fetch's 3 days", (0L..2L).map { today.plusDays(it) }.toSet(), highs.keys)
     }
 
     @Test
     fun `older forecasts are every row but the one shown, per day`() = runTest {
         refresh(high = 70f, horizon = Horizon.LONG)
         Thread.sleep(5)
-        refresh(high = 80f, horizon = Horizon.SHORT, at = now + 4 * hour)
+        refresh(high = 80f, horizon = Horizon.LONG, at = now + 4 * hour, days = 3)
 
         val start = today.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
         val snapshots = dao.getDailyForecastSnapshots(start, start + 10 * 86_400_000L, lat, lon, om)
-        assertEquals("tomorrow: the LONG row is the older forecast", listOf(70f), snapshots[today.plusDays(1).toString()]?.map { it.highTemp })
-        assertNull("day 5: the LONG row is the one shown", snapshots[today.plusDays(5).toString()])
+        assertEquals("tomorrow: the first fetch's row is the older forecast", listOf(70f), snapshots[today.plusDays(1).toString()]?.map { it.highTemp })
+        assertNull("day 5: the first fetch's row is the one shown", snapshots[today.plusDays(5).toString()])
     }
 
     @Test
-    fun `a SHORT refresh moves the SHORT marker only`() = runTest {
-        refresh(high = 70f, horizon = Horizon.SHORT)
-        assertNotNull(markers().lastShortFetch())
-        assertNull(markers().lastLongFetch())
+    fun `a refresh with no horizon given is judged LONG and moves the marker`() = runTest {
+        coEvery { service.fetchForecast(false) } returns RawFetch(daily = daily(70f), hourly = hourly)
+        DesktopWeatherRepository(service, dao, lat, lon, om).refresh(now = now, reason = "test")
+        assertNotNull("with a DB every refresh is judged LONG", markers().lastLongFetch())
     }
 
     @Test
@@ -127,12 +137,12 @@ class DesktopForecastHorizonStorageTest {
     fun `an hourly-only refresh (daily refused) stores hours, no daily rows and no REFRESH row`() = runTest {
         coEvery { service.fetchForecast(true, ForecastParts.HOURLY) } returns RawFetch(daily = daily(70f), hourly = hourly)
 
-        repo().refresh(now = now, reason = "test", parts = ForecastParts.HOURLY, horizon = Horizon.SHORT)
+        repo().refresh(now = now, reason = "test", parts = ForecastParts.HOURLY, horizon = Horizon.LONG)
 
         assertTrue(dao.getHourlyForecasts(lat, lon, om, now, now + 10 * hour).isNotEmpty())
         assertTrue("daily rows untouched", dao.getDailyForecasts(lat, lon, om).isEmpty())
         assertNull("no daily fetch recorded", dao.getLastSuccessfulFetch(om))
-        assertNotNull(markers().lastShortFetch())
+        assertNotNull(markers().lastLongFetch())
     }
 
     @Test
@@ -155,7 +165,7 @@ class DesktopForecastHorizonStorageTest {
 
     @Test
     fun `no DB means no horizon, the unchanged routine fetch`() {
-        assertNull(DesktopForecastHorizon(null, om, lat, lon).forced(now))
+        assertNull(DesktopForecastHorizon(null, om, lat, lon).forced())
         assertNull(DesktopForecastHorizon(null, om, lat, lon).decision(now))
     }
 

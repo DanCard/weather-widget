@@ -510,7 +510,7 @@ class DesktopWeatherRepository(
         parts: ForecastParts? = null,
         /** The horizon a scheduled refresh planned ([DesktopForecastPlanner]); null = judge it now. */
         horizon: ForecastHorizonCadence.Horizon? = null,
-        /** The user's Refresh button: a LONG fetch ([ForecastHorizonCadence.forced]). */
+        /** The user's Refresh button: an unchanged daily row is written anyway ([DailyForecastWrite]). */
         userRefresh: Boolean = false,
     ): ForecastSnapshot = refreshWithOutcome(
         now,
@@ -544,10 +544,9 @@ class DesktopWeatherRepository(
     ): RefreshOutcome = withContext(Dispatchers.IO) {
         Log.i(TAG, "refresh() started source=$weatherSource")
         val fetchParts = parts ?: ForecastParts.BOTH
-        // LONG or SHORT (ForecastHorizonCadence): what this fetch stores (and, for a user Refresh,
-        // what a billed source is asked for). Chosen before the fetch writes its markers.
+        // LONG, like every fetch (ForecastHorizonCadence); null only without a DB.
         val fetchHorizon = horizon
-            ?: DesktopForecastHorizon(weatherDao, weatherSource, latitude, longitude).forced(now, userRefresh)
+            ?: DesktopForecastHorizon(weatherDao, weatherSource, latitude, longitude).forced()
         if (!fetchParts.daily) return@withContext refreshHourlyOnly(now, reason, fetchHorizon)
         // Entry marker. The terminal REFRESH row below only lands on success, so without this an
         // aborted fetch is invisible unless it also throws (the catch logs a WARN); a hang or a
@@ -605,7 +604,6 @@ class DesktopWeatherRepository(
                 result,
                 now,
                 keep = HourlyOnDemand.keep(weatherSource, null, fetchHorizon),
-                horizon = fetchHorizon,
                 userRefresh = userRefresh,
             )
             markHorizon(fetchHorizon, result)
@@ -677,7 +675,7 @@ class DesktopWeatherRepository(
         }
     }
 
-    /** A fetch that answered restarts the SHORT cadence, a LONG one the LONG cadence too ([DesktopForecastHorizon]). */
+    /** A judged fetch that answered restarts the cadence ([DesktopForecastHorizon]). */
     private suspend fun markHorizon(horizon: ForecastHorizonCadence.Horizon?, result: RawFetch) {
         if (result.daily.isEmpty() && result.hourly.isEmpty()) return
         DesktopForecastHorizon(weatherDao, weatherSource, latitude, longitude).mark(horizon)
@@ -804,8 +802,6 @@ class DesktopWeatherRepository(
         now: Long,
         /** Live and snapshot horizons: a LONG fetch keeps 8 days live, 72 h snapshotted. */
         keep: HourlyOnDemand.Keep = HourlyOnDemand.keep(weatherSource, null),
-        /** A SHORT fetch stores only the next [ForecastHorizonCadence.SHORT_DAYS] daily rows. */
-        horizon: ForecastHorizonCadence.Horizon? = null,
         /** The user's Refresh: an unchanged daily row is written anyway ([DailyForecastWrite]). */
         userRefresh: Boolean = false,
         /** False for an hourly-only fetch: daily rows a non-splitting source sent anyway are dropped. */
@@ -822,7 +818,6 @@ class DesktopWeatherRepository(
                 elapsedHourly = result.elapsedHourly,
                 daily = result.daily.takeIf { daily },
                 keep = keep.untilMs(now),
-                horizon = horizon,
                 userRefresh = userRefresh,
             ),
             now,

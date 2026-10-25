@@ -1752,9 +1752,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 if (rs.next()) rs.getLong(1) else 0L
             }
 
-            // The newest row per day at that site, as Android's reads: a SHORT fetch rewrites only
-            // the next 3 days, and days past them keep the last LONG fetch's rows
-            // (performance/261016-unified-long-short-forecast-horizons.md). Reading only the newest
+            // The newest row per day at that site, as Android's reads: a newer fetch that covers
+            // fewer days leaves the later days to the previous fetch's rows. Reading only the newest
             // batch would drop them.
             val sql = """
                 SELECT * FROM forecasts

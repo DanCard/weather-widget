@@ -1,7 +1,6 @@
 package com.weatherwidget.data.remote
 
 import com.weatherwidget.data.remote.ForecastSchedule.Due
-import com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon
 import com.weatherwidget.data.remote.ForecastSchedule.Reason
 import com.weatherwidget.shared.util.BatteryTier
 import com.weatherwidget.test.category.ShortDuration
@@ -31,33 +30,33 @@ class ForecastScheduleTest {
     @Test
     fun `the earliest due across sources is next`() {
         val next = ForecastSchedule.next(
-            listOf(Due("NWS", Horizon.LONG, now + 3 * hour), Due("OPEN_METEO", Horizon.SHORT, now + hour), Due("NWS", Horizon.SHORT, now + 2 * hour)),
+            listOf(Due("NWS", now + 3 * hour), Due("OPEN_METEO", now + hour), Due("NWS", now + 2 * hour)),
         )
-        assertEquals(Due("OPEN_METEO", Horizon.SHORT, now + hour), next)
+        assertEquals(Due("OPEN_METEO", now + hour), next)
         assertNull(ForecastSchedule.next(emptyList()))
     }
 
     @Test
     fun `sleep until due, capped at 2 h, floored at 1 min`() {
-        assertEquals(ForecastSchedule.Sleep(37 * minute, Reason.DUE, Due("NWS", Horizon.SHORT, now + 37 * minute)),
-            ForecastSchedule.sleep(Due("NWS", Horizon.SHORT, now + 37 * minute), now, fetchFailed = false))
-        assertEquals(2 * hour, ForecastSchedule.sleep(Due("NWS", Horizon.LONG, now + 5 * hour), now, false).ms)
+        assertEquals(ForecastSchedule.Sleep(37 * minute, Reason.DUE, Due("NWS", now + 37 * minute)),
+            ForecastSchedule.sleep(Due("NWS", now + 37 * minute), now, fetchFailed = false))
+        assertEquals(2 * hour, ForecastSchedule.sleep(Due("NWS", now + 5 * hour), now, false).ms)
         assertEquals(Reason.CAP, ForecastSchedule.sleep(null, now, false).reason)
-        assertEquals(minute, ForecastSchedule.sleep(Due("NWS", Horizon.LONG, now - hour), now, false).ms)
+        assertEquals(minute, ForecastSchedule.sleep(Due("NWS", now - hour), now, false).ms)
     }
 
     @Test
     fun `after a failed fetch a still-due source waits 15 min, a later one its own time`() {
-        val stillDue = ForecastSchedule.sleep(Due("NWS", Horizon.LONG, now - minute), now, fetchFailed = true)
+        val stillDue = ForecastSchedule.sleep(Due("NWS", now - minute), now, fetchFailed = true)
         assertEquals(15 * minute, stillDue.ms)
         assertEquals(Reason.RETRY, stillDue.reason)
-        assertEquals(40 * minute, ForecastSchedule.sleep(Due("NWS", Horizon.LONG, now + 40 * minute), now, true).ms)
+        assertEquals(40 * minute, ForecastSchedule.sleep(Due("NWS", now + 40 * minute), now, true).ms)
     }
 
     @Test
-    fun `log line names the reason and the next horizon`() {
-        assertEquals("sleepMin=37 reason=DUE next=NWS:SHORT",
-            ForecastSchedule.sleep(Due("NWS", Horizon.SHORT, now + 37 * minute), now, false).logLine())
+    fun `log line names the reason and the next source`() {
+        assertEquals("sleepMin=37 reason=DUE next=NWS",
+            ForecastSchedule.sleep(Due("NWS", now + 37 * minute), now, false).logLine())
         assertEquals("sleepMin=120 reason=CAP", ForecastSchedule.sleep(null, now, false).logLine())
     }
 

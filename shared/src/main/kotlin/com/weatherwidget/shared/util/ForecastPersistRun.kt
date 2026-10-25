@@ -4,7 +4,6 @@ import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.HourlyForecast
-import com.weatherwidget.data.remote.ForecastHorizonCadence
 import com.weatherwidget.data.remote.HourlyOnDemand
 import kotlinx.coroutines.CancellationException
 import java.time.LocalDate
@@ -17,8 +16,7 @@ import java.time.ZoneId
  * 1. The live hours ([HourlyForecastWrite]) over this site's stored rows.
  * 2. The fetch's snapshot, if [Host.snapshotLabel] keeps one, and under the same label the payload's
  *    elapsed hours where the site has none ([ElapsedForecastBackfill]).
- * 3. The daily rows ([DailyForecastWrite]): a SHORT fetch's first [ForecastHorizonCadence.SHORT_DAYS]
- *    only, each day's summaries from the whole download, else the row as sent, else the hours stored
+ * 3. The daily rows ([DailyForecastWrite]): every day from today, each day's summaries from the whole download, else the row as sent, else the hours stored
  *    now (step 1's, plus hours a Google one-page fetch left in place) — [DailyHourlySummaries].
  *
  * Quota banners, horizon markers and observations stay with the caller; the Host reads and writes rows.
@@ -63,7 +61,6 @@ class ForecastPersistRun<K>(private val host: Host<K>) {
         val elapsedHourly: List<HourlyForecast> = emptyList(),
         val daily: List<DailyForecast>?,
         val keep: HourlyOnDemand.KeepUntil?,
-        val horizon: ForecastHorizonCadence.Horizon? = null,
         val userRefresh: Boolean = false,
     )
 
@@ -90,7 +87,7 @@ class ForecastPersistRun<K>(private val host: Host<K>) {
         if (label != null && snapshot.isNotEmpty()) host.writeSnapshot(label, snapshot)
         val elapsed = label?.let { backfillElapsed(history, it, nowMs) }
 
-        val daily = fetch.daily?.let { persistDaily(it, history, fetch.horizon, fetch.userRefresh, nowMs, zone) }
+        val daily = fetch.daily?.let { persistDaily(it, history, fetch.userRefresh, nowMs, zone) }
         return Result(
             liveHours = hourlyPlan?.live?.size ?: 0,
             snapshotLabel = label,
@@ -122,7 +119,6 @@ class ForecastPersistRun<K>(private val host: Host<K>) {
     private suspend fun persistDaily(
         daily: List<DailyForecast>,
         payload: List<HourlyForecast>,
-        horizon: ForecastHorizonCadence.Horizon?,
         userRefresh: Boolean,
         nowMs: Long,
         zone: ZoneId,
@@ -131,7 +127,7 @@ class ForecastPersistRun<K>(private val host: Host<K>) {
         val today = PredictionDate.of(nowMs, zone)
         val dated = daily.mapNotNull { day ->
             val date = runCatching { LocalDate.parse(day.date) }.getOrNull() ?: return@mapNotNull null
-            (day to date).takeIf { !date.isBefore(today) && ForecastHorizonCadence.storesDailyDate(horizon, date, today) }
+            (day to date).takeIf { !date.isBefore(today) }
         }
         if (dated.isEmpty()) return null
 

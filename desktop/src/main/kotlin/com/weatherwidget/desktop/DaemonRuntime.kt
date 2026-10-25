@@ -357,7 +357,7 @@ internal class DaemonRuntime(
                         if (isScreenWakeSignalLine(line)) {
                             onPresenceTransition(presence.markPresent("unblank"))
                             kickObservationCatchUp("screensaver:wake")
-                            // Screen on shortens the displayed daily cadence (6 h → 4 h).
+                            // Screen on shortens the forecast cadence (8 h → 4 h).
                             wakeForecastLoop("screen")
                         }
                     }
@@ -550,10 +550,10 @@ internal class DaemonRuntime(
     // then fetch exactly what is stale. Forecast freshness belongs to the displayed source; actual
     // temperature freshness belongs to that source's resolved provider at this location.
     // [reason] is for log provenance only.
-    /** The soonest the displayed source's forecast comes due again now ([ForecastHorizonCadence]). */
+    /** How often the displayed source's forecast comes due now ([ForecastHorizonCadence]). */
     private fun activeForecastCadenceMs(): Long {
         val (isCharging, level) = PowerDetector.getPowerState()
-        return ForecastHorizonCadence.soonestIntervalMs(isCharging, level, ScreenStateDetector.isScreenOn())
+        return ForecastHorizonCadence.intervalMs(isCharging, level, ScreenStateDetector.isScreenOn())
     }
 
     suspend fun runLaunchRefresh(activeRepo: DesktopWeatherRepository, config: DesktopConfig, reason: String) {
@@ -1020,10 +1020,10 @@ internal class DaemonRuntime(
                 }
             }
 
-            // 3c. Forecast fetch loop. Sleeps until the earliest LONG or SHORT due time across the
+            // 3c. Forecast fetch loop. Sleeps until the earliest due time across the
             // sources (shared ForecastSchedule), capped at 2 h, and is woken sooner by a power-tier change
             // or the screen coming on. Every wake re-plans each source (ForecastHorizonCadence, one rule
-            // for every source). performance/261016-unified-long-short-forecast-horizons.md
+            // for every source). performance/261025-every-forecast-fetch-long.md
             launch {
                 // The launch refresh owns the first minutes; planning now would fetch beside it. After
                 // a startup or a resume the loop plans as soon as it is done (forecastLoopWaitsForLaunch).
@@ -1038,8 +1038,8 @@ internal class DaemonRuntime(
                     val (isCharging, level) = PowerDetector.getPowerState()
                     val screenOn = ScreenStateDetector.isScreenOn()
                     val activeSource = config.displaySource
-                    // Slower forecast fetch for other APIs — only those viewed in the last 8 days;
-                    // the rest are fetched when the user switches to them (SourceFetchGate).
+                    // Other APIs on the same cadence — only those viewed in the last 8 days; the rest
+                    // are fetched when the user switches to them (SourceFetchGate).
                     val nonActiveSources = DesktopSourceFetchGate.otherSources(weatherDao, config)
                     val sources = listOf(activeSource) + nonActiveSources
 

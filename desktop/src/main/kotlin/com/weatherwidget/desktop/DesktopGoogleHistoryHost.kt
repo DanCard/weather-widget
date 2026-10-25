@@ -25,8 +25,11 @@ internal class DesktopGoogleHistoryHost(
             rowLat == null || rowLon == null || LocationMatch.sameSite(keyLat, keyLon, rowLat, rowLon)
         }
 
-    override suspend fun saveRefill(rows: List<HourlyForecast>) =
-        weatherDao.upsertHourlyForecasts(latitude, longitude, WeatherSource.GOOGLE_WEATHER.id, rows)
+    /** Stamped now whatever the row carries, as Android's: a fresh `fetchedAt` is what marks the hour no longer stale. */
+    override suspend fun saveRefill(rows: List<HourlyForecast>) {
+        val now = System.currentTimeMillis()
+        weatherDao.upsertHourlyForecasts(latitude, longitude, WeatherSource.GOOGLE_WEATHER.id, rows.map { it.copy(fetchedAt = now) })
+    }
 
     override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
 }

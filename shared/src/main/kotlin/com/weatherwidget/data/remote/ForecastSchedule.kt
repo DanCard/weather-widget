@@ -5,7 +5,7 @@ package com.weatherwidget.data.remote
  * When a forecast loop next has something to fetch, so it can sleep until then instead of checking on a
  * fixed tick (user, 2026-10-11; performance/261011-desktop-forecast-loop-sleep-until-due.md).
  *
- * Each source has a LONG and a SHORT due time ([ForecastHorizonCadence]); the loop sleeps until the
+ * Each source has one due time ([ForecastHorizonCadence]); the loop sleeps until the
  * earliest, capped at [MAX_SLEEP_MS] for changes it cannot hear, and re-plans on every wake — the
  * sleep is a forecast, the fetch decision is always "is it due now?". Pure: the desktop daemon uses
  * it; Android's WorkManager tick could.
@@ -25,8 +25,8 @@ object ForecastSchedule {
     /** After a failed fetch the source is still due; wait this long before trying again (the old tick). */
     const val FAILURE_RETRY_MS = 15 * MINUTE_MS
 
-    /** One source's next due instant, and which horizon comes due then. */
-    data class Due(val sourceId: String, val horizon: ForecastHorizonCadence.Horizon, val atMs: Long)
+    /** One source's next due instant. */
+    data class Due(val sourceId: String, val atMs: Long)
 
     /**
      * When a part fetched at [lastMs] on an [intervalMs] cadence is next due: never when the cadence is
@@ -58,7 +58,7 @@ object ForecastSchedule {
         /** `FORECAST_LOOP_SLEEP` app_logs message. */
         fun logLine(): String =
             "sleepMin=${ms / MINUTE_MS} reason=$reason" +
-                (next?.let { " next=${it.sourceId}:${it.horizon}" } ?: "")
+                (next?.let { " next=${it.sourceId}" } ?: "")
     }
 
     /**

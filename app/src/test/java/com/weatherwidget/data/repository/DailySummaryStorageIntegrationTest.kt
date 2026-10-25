@@ -27,6 +27,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -216,7 +217,7 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
         )
     }
 
-    /** A routine fetch on a charger with the screen on: LONG when due, else SHORT. */
+    /** A routine fetch on a charger with the screen on: LONG, due every 4 h. */
     private val routineContext = ForecastFetchContext(
         isCharging = true,
         isScreenInteractive = true,
@@ -237,22 +238,18 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
     }
 
     @Test
-    fun `a SHORT fetch after a LONG one leaves the hours past 72 h as the LONG fetch stored them`() = runTest {
+    fun `a fetch 5 h after the last rewrites the hours past 72 h too`() = runTest {
+        // Was SHORT before 2026-10-25 (performance/261025-every-forecast-fetch-long.md): hours past 72 h kept the older fetch's values.
         fetch(download(seed = 5), routineContext)
         val probe = (clockMs / hour) * hour + 150 * hour
         val before = liveHourly().single { it.dateTime == probe }
 
-        clockMs += 5 * hour // SHORT due (4 h), LONG not (8 h)
+        clockMs += 5 * hour
         fetch(download(seed = 40), routineContext)
 
         val after = liveHourly().single { it.dateTime == probe }
-        assertEquals(before.cloudCover, after.cloudCover)
-        assertEquals(before.fetchedAt, after.fetchedAt)
-        val nearProbe = (clockMs / hour) * hour + 10 * hour
-        assertEquals("inside 72 h the SHORT fetch wrote", (40 + nearProbe.let { ms ->
-            val first = at(today, 0)
-            ((ms - first) / (24 * hour)).toInt() * 7 + ((ms - first) / hour % 24).toInt()
-        }) % 100, liveHourly().single { it.dateTime == nearProbe }.cloudCover)
+        assertNotEquals(before.cloudCover, after.cloudCover)
+        assertEquals(clockMs, after.fetchedAt)
     }
 
     @Test

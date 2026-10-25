@@ -698,8 +698,8 @@ class WeatherWidgetWorker
             const val KEY_SOURCE_SWITCH_ID = "source_switch_id"
 
             /**
-             * The user's manual Refresh: the displayed source makes a LONG fetch
-             * ([com.weatherwidget.data.remote.ForecastHorizonCadence.forced]).
+             * The user's manual Refresh: the displayed source writes its daily rows even when unchanged
+             * ([com.weatherwidget.shared.util.DailyForecastWrite]).
              */
             const val KEY_USER_REFRESH = "user_refresh"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L

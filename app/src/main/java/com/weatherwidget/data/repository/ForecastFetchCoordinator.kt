@@ -84,7 +84,7 @@ internal class ForecastFetchCoordinator(
     private val lastPriorCloudFetch = PriorDayCloudRun.LastAttempt()
 
     /**
-     * Whether an unforced sync has anything to fetch: a source whose LONG or SHORT horizon is due
+     * Whether an unforced sync has anything to fetch: a source whose fetch is due
      * ([horizonDecision]). [backgroundSources] is [com.weatherwidget.shared.sourceview.SourceFetchGate]'s
      * forecast set; null (gate unavailable) means every visible source, as before the gate.
      */
@@ -116,9 +116,8 @@ internal class ForecastFetchCoordinator(
      * change: user, 2026-10-10) — is limited to [backgroundSources]; a source not viewed in 8 days is
      * fetched on demand only (performance/261010-fetch-only-sources-likely-to-be-viewed.md).
      *
-     * A force takes both parts; an unforced sync takes a source whose horizon is due
-     * ([ForecastHorizonCadence]), less any quota-refused product ([ForecastParts.unblocked]). Which
-     * horizon each fetch is ([fetchHorizon]) is judged again at fetch time from the same markers.
+     * A force takes both parts; an unforced sync takes a source whose fetch is due
+     * ([ForecastHorizonCadence]), less any quota-refused product ([ForecastParts.unblocked]).
      */
     fun planFetch(
         cachedForecasts: List<ForecastEntity>,
@@ -175,8 +174,7 @@ internal class ForecastFetchCoordinator(
             isCharging = fetchContext.isCharging,
             batteryLevel = fetchContext.batteryLevel,
             isScreenOn = fetchContext.isScreenInteractive,
-            lastLongMs = horizonMarkers(source, latitude, longitude).lastLongMs(),
-            lastShortMs = horizonMarkers(source, latitude, longitude).lastShortMs(),
+            lastFetchMs = horizonMarkers(source, latitude, longitude).lastLongMs(),
             nowMs = clock(),
             wakeAtMs = fetchContext.wakeAtMs,
         )
@@ -201,8 +199,8 @@ internal class ForecastFetchCoordinator(
      * `if` guards did.
      */
     /**
-     * Last instants (exclusive) of hourly a fetch of [source] stores, live and snapshot: 72 h
-     * routinely, a LONG fetch's 8 days live, deeper for the on-demand day it was asked for
+     * Last instants (exclusive) of hourly a fetch of [source] stores, live and snapshot: a judged
+     * (LONG) fetch's 8 days live and 72 h snapshotted, 72 h when unjudged, deeper for the on-demand day it was asked for
      * ([HourlyOnDemand.keep]). Past them, only the daily row's summaries are kept
      * ([DailyHourlySummaries]).
      */
@@ -214,31 +212,17 @@ internal class ForecastFetchCoordinator(
         HourlyOnDemand.keep(source.id, fetchContext?.hourlyAhead, horizon).untilMs(clock())
 
     /**
-     * LONG or SHORT for a fetch of [source] at the site ([ForecastHorizonCadence.forced]: a user's
-     * Refresh of the displayed source is LONG; anything else takes what is due, at least SHORT). Null
-     * when the context is unknown or the fetch is an on-demand day, which have their own horizon.
+     * Every fetch is LONG ([ForecastHorizonCadence]). Null when the context is unknown or the fetch
+     * is an on-demand day, which has its own horizon.
      */
-    private fun fetchHorizon(
-        source: WeatherSource,
-        latitude: Double,
-        longitude: Double,
-        fetchContext: ForecastFetchContext?,
-    ): ForecastHorizonCadence.Horizon? {
-        if (fetchContext == null || fetchContext.hourlyAhead != null) return null
-        return ForecastHorizonCadence.forced(
-            horizonDecision(source, fetchContext, latitude, longitude),
-            userRefresh = isUserRefreshOf(source, fetchContext),
-        )
-    }
+    private fun fetchHorizon(fetchContext: ForecastFetchContext?): ForecastHorizonCadence.Horizon? =
+        ForecastHorizonCadence.Horizon.LONG.takeIf { fetchContext != null && fetchContext.hourlyAhead == null }
 
-    /** A manual Refresh is LONG for the displayed source only; others keep the routine rule. */
+    /** A manual Refresh of a displayed source: an unchanged daily row is written anyway ([com.weatherwidget.shared.util.DailyForecastWrite]). */
     private fun isUserRefreshOf(source: WeatherSource, fetchContext: ForecastFetchContext?): Boolean =
         fetchContext?.userRefresh == true && source.id in fetchContext.activeSourceIds
 
-    /**
-     * A fetch that answered restarts the SHORT cadence; a LONG one also restarts the LONG cadence
-     * ([ForecastHorizonCadence]). Logged `FORECAST_HORIZON`.
-     */
+    /** A judged fetch that answered restarts the cadence ([ForecastHorizonCadence]). Logged `FORECAST_HORIZON`. */
     private suspend fun markHorizon(
         horizon: ForecastHorizonCadence.Horizon?,
         source: WeatherSource,
@@ -251,9 +235,7 @@ internal class ForecastFetchCoordinator(
     /** [source]'s horizon markers at the site, in the widget's prefs. */
     private fun horizonMarkers(source: WeatherSource, latitude: Double, longitude: Double) = object : ForecastHorizonMarkers {
         override fun lastLongMs() = widgetStateManager.getLastLongFetch(source.id, latitude, longitude)
-        override fun lastShortMs() = widgetStateManager.getLastShortFetch(source.id, latitude, longitude)
         override suspend fun markLong(nowMs: Long) = widgetStateManager.markLongFetch(source.id, latitude, longitude, nowMs)
-        override suspend fun markShort(nowMs: Long) = widgetStateManager.markShortFetch(source.id, latitude, longitude, nowMs)
     }
 
     private fun buildFetchRegistry(
@@ -383,7 +365,7 @@ internal class ForecastFetchCoordinator(
         fetchContext: ForecastFetchContext? = null,
     ) = coroutineScope {
         val sourcesToFetch = plan.keys
-        val horizons = sourcesToFetch.associateWith { fetchHorizon(it, latitude, longitude, fetchContext) }
+        val horizons = sourcesToFetch.associateWith { fetchHorizon(fetchContext) }
         val registry = buildFetchRegistry(fetchContext, horizons, plan)
         // The network choke point. `visibleSources()` already drops sources that cannot serve the
         // *stored* active location; this re-checks against the coordinates actually being fetched,
@@ -430,7 +412,7 @@ internal class ForecastFetchCoordinator(
         fetchContext: ForecastFetchContext,
     ): Boolean {
         if (!SourceCoverage.supports(source.id, latitude, longitude)) return false
-        val horizon = fetchHorizon(source, latitude, longitude, fetchContext)
+        val horizon = fetchHorizon(fetchContext)
         val entry = buildFetchRegistry(fetchContext, mapOf(source to horizon))[source] ?: return false
         safeFetch(entry.tag, source, latitude, longitude) {
             entry.fetch(latitude, longitude)?.also {
@@ -467,7 +449,6 @@ internal class ForecastFetchCoordinator(
                 elapsedHourly = result.elapsedHourly,
                 daily = result.daily.takeIf { parts.daily },
                 keep = hourlyKeepUntilMs(source, fetchContext, horizon),
-                horizon = horizon,
                 userRefresh = isUserRefreshOf(source, fetchContext),
             ),
             clock(),

@@ -18,9 +18,8 @@ object DataFreshness {
     private const val TAG = "DataFreshness"
 
     /**
-     * True when any visible source's newest fetch is older than the soonest horizon interval
-     * ([com.weatherwidget.data.remote.ForecastHorizonCadence.soonestIntervalMs]; the sync then picks
-     * the horizon from its markers) and it is not refused until a known time ([SourceQuotaBlocks]).
+     * True when any visible source's newest fetch is older than the cadence interval
+     * ([com.weatherwidget.data.remote.ForecastHorizonCadence.intervalMs]) and it is not refused until a known time ([SourceQuotaBlocks]).
      *
      * This used rank thresholds (60/90/120 min by list position) that disagreed with the cadence, and
      * counted a quota-blocked source as stale — so on 2026-10-07 every refresh action forced a fetch
@@ -50,7 +49,7 @@ object DataFreshness {
     }
 
     private fun intervalMinutes(fetchContext: ForecastFetchContext): Long =
-        com.weatherwidget.data.remote.ForecastHorizonCadence.soonestIntervalMs(
+        com.weatherwidget.data.remote.ForecastHorizonCadence.intervalMs(
             isCharging = fetchContext.isCharging,
             batteryLevel = fetchContext.batteryLevel,
             isScreenOn = fetchContext.isScreenInteractive,

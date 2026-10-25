@@ -222,7 +222,7 @@ class DesktopWeatherService(
         recentObservationsOnly,
         parts,
         refillDay,
-        DesktopForecastHorizon(weatherDao, weatherSource, latitude, longitude).forced(System.currentTimeMillis()),
+        DesktopForecastHorizon(weatherDao, weatherSource, latitude, longitude).forced(),
     )
 
     override suspend fun fetchForecast(

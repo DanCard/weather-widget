@@ -3,7 +3,6 @@ package com.weatherwidget.shared.util
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.HourlyForecast
-import com.weatherwidget.data.remote.ForecastHorizonCadence
 import com.weatherwidget.test.category.ShortDuration
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -112,11 +111,12 @@ class ForecastPersistRunTest {
     }
 
     @Test
-    fun `a SHORT fetch stores its first three days only`() {
+    fun `every fetch stores all eight days`() {
+        // A SHORT fetch stored three until 2026-10-25 (performance/261025-every-forecast-fetch-long.md).
         val host = FakeHost()
-        persist(host, ForecastPersistRun.Fetch(hourly = emptyList(), daily = (0L..7L).map { day(it) }, keep = null, horizon = ForecastHorizonCadence.Horizon.SHORT))
+        persist(host, ForecastPersistRun.Fetch(hourly = emptyList(), daily = (0L..7L).map { day(it) }, keep = null))
 
-        assertEquals((0L..2L).map { today.plusDays(it) }, host.daily.map { it.date })
+        assertEquals((0L..7L).map { today.plusDays(it) }, host.daily.map { it.date })
     }
 
     @Test

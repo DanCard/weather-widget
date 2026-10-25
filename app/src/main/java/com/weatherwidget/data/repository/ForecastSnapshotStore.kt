@@ -92,9 +92,8 @@ internal class ForecastSnapshotStore(
 
     /**
      * The rows the daily view shows: at the newest fetch's site, from its first day on, each day's
-     * newest batch. A SHORT fetch rewrites only the next 3 days; days past them keep the last LONG
-     * fetch's rows (performance/261016-unified-long-short-forecast-horizons.md) — reading only the
-     * newest batch filled them with climate normals. A day whose newest row is more than
+     * newest batch. A newer fetch that covers fewer days leaves the later days to the previous fetch's
+     * rows — reading only the newest batch filled them with climate normals (2026-10-16). A day whose newest row is more than
      * [ForecastHorizonCadence.MAX_CARRIED_ROW_AGE_HOURS] older than the newest fetch is left to the
      * climate normal, as when a newer fetch covers fewer days. [rows] are ordered newest first per day.
      */

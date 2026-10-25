@@ -7,12 +7,11 @@ import com.weatherwidget.data.remote.ForecastHorizonMarkers
 
 /**
  * The desktop's inputs to the shared [ForecastHorizonCadence] for [weatherSource] at the site: the
- * machine's power and screen state and two markers read back from `app_logs` — the decision itself
- * is `:shared`, as on Android (performance/261016-unified-long-short-forecast-horizons.md).
+ * machine's power and screen state and one marker read back from `app_logs` — the decision itself
+ * is `:shared`, as on Android (performance/261025-every-forecast-fetch-long.md).
  *
- * Markers are log rows (message `source=… site=lat,lon`): [LONG_TAG] for the last LONG fetch,
- * [SHORT_TAG] for the last fetch of either horizon (Android keeps both in prefs). app_logs keeps 72 h,
- * longer than the 24 h longest interval, so no new table is needed. The service (what to ask a billed
+ * Markers are log rows (message `source=… site=lat,lon`) tagged [LONG_TAG] (Android keeps it in
+ * prefs). app_logs keeps 72 h, longer than the 24 h longest interval, so no new table is needed. The service (what to ask a billed
  * source for) and the repository (what to store) both read them before the fetch writes them, so
  * they agree.
  */
@@ -29,18 +28,10 @@ internal class DesktopForecastHorizon(
 
     fun lastLongFetch(): Long? = weatherDao?.getLatestLogByTagAndMessagePrefix(LONG_TAG, prefix)?.timestamp
 
-    fun lastShortFetch(): Long? = weatherDao?.getLatestLogByTagAndMessagePrefix(SHORT_TAG, prefix)?.timestamp
-
     override fun lastLongMs(): Long? = lastLongFetch()
-
-    override fun lastShortMs(): Long? = lastShortFetch()
 
     override suspend fun markLong(nowMs: Long) {
         weatherDao?.log(tag = LONG_TAG, message = prefix, level = "INFO")
-    }
-
-    override suspend fun markShort(nowMs: Long) {
-        weatherDao?.log(tag = SHORT_TAG, message = prefix, level = "INFO")
     }
 
     /** [ForecastHorizonCadence.decide] for this source now; null without a DB (not judged). */
@@ -51,20 +42,13 @@ internal class DesktopForecastHorizon(
             isCharging = isCharging,
             batteryLevel = level,
             isScreenOn = screenOn(),
-            lastLongMs = lastLongFetch(),
-            lastShortMs = lastShortFetch(),
+            lastFetchMs = lastLongFetch(),
             nowMs = nowMs,
         )
     }
 
-    /**
-     * The horizon of a fetch made now outside the schedule ([ForecastHorizonCadence.forced]): the
-     * user's Refresh is LONG; anything else what is due, at least SHORT. Null without a DB.
-     */
-    fun forced(nowMs: Long, userRefresh: Boolean = false): ForecastHorizonCadence.Horizon? {
-        weatherDao ?: return null
-        return ForecastHorizonCadence.forced(if (userRefresh) null else decision(nowMs), userRefresh)
-    }
+    /** The horizon of a fetch made now outside the schedule: LONG, like every fetch. Null without a DB (not judged). */
+    fun forced(): ForecastHorizonCadence.Horizon? = ForecastHorizonCadence.Horizon.LONG.takeIf { weatherDao != null }
 
     /** A fetch of [horizon] answered ([ForecastHorizonMarkers.mark], shared with Android). */
     suspend fun mark(horizon: ForecastHorizonCadence.Horizon?, nowMs: Long = System.currentTimeMillis()) {
@@ -74,6 +58,5 @@ internal class DesktopForecastHorizon(
 
     companion object {
         const val LONG_TAG = "FORECAST_LONG_FETCH"
-        const val SHORT_TAG = "FORECAST_SHORT_FETCH"
     }
 }
