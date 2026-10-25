@@ -1,0 +1,5 @@
+# Gitignored files Claude Code copies into each new worktree (.gitignore syntax).
+# Without local.properties a worktree's debug build bakes empty API keys: Google and
+# Silurian then fail with "…_API_KEY is missing." on any device it is installed on (2026-10-25).
+local.properties
+app/google-services.json
