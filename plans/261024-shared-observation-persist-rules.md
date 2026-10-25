@@ -94,4 +94,8 @@ a day's rows on a device, Progress line in the audit plan.
   - Phase 2 left: O3 (Tomorrow.io guard into `HistoricalActualsBackfill`), Synoptic refresher and
     Observations screen through the run, delete `insertAllRetaggingStationTypes`. Not in this plan:
     `DesktopWeatherApiHistoryHost.store` still upserts directly (its `WeatherApiHistoryRun` Host).
-
+  - Device check 2026-10-25 11:52 (both phones + desktop on the phase 1 build): NWS cycles stored through
+    the run (`stored=101/102`), no errors, no `OBS_WRITE` (nothing to re-tag or thin: NWS personal
+    AW020 reports every 9–13 min). Yesterday's blend identical on every source (desktop and Pixel, ±0.00).
+    O1 not yet visible on a device: the fast personal stations (Pixel F4751/G6550/G4110/G8106, 26–30
+    extra rows/day each) are written only by `SynopticObservationRefresher` — phase 2.
