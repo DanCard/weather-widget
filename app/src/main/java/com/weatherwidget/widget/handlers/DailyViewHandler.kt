@@ -218,12 +218,8 @@ object DailyViewHandler : WidgetViewHandler {
         val today = now.toLocalDate()
         val skipHistory = NavigationUtils.shouldSkipHistory(skipYesterday, dateOffset)
         val centerDate = NavigationUtils.getDisplayCenterDate(today, dateOffset, skipYesterday)
-        // Eligibility is based on the post-widening date count. At a far navigation fringe Today
-        // can be the tenth/rightmost date but disappear when the count drops to nine; retain the
-        // ordinary ten-column layout there rather than enabling an overlay with no Today column.
-        val overlayCandidateColumns = (numColumns - 1).coerceAtLeast(1)
         val overlayVisibleRange =
-            NavigationUtils.getVisibleDateRange(today, dateOffset, overlayCandidateColumns, skipYesterday)
+            NavigationUtils.getVisibleDateRange(today, dateOffset, numColumns, skipYesterday)
         val todayVisible =
             !today.isBefore(overlayVisibleRange.first) && !today.isAfter(overlayVisibleRange.second)
         val largeTodayDecision =

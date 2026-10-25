@@ -12,7 +12,7 @@ import java.time.LocalDate
 @Category(ShortDuration::class)
 class DailyLargeTodayOverlayPolicyTest {
     @Test
-    fun `ten by four daily graph with Today uses nine dates`() {
+    fun `ten by four daily graph with Today uses ten dates`() {
         val decision =
             DailyLargeTodayOverlayPolicy.resolve(
                 launcherColumns = 10,
@@ -22,7 +22,7 @@ class DailyLargeTodayOverlayPolicyTest {
             )
 
         assertTrue(decision.enabled)
-        assertEquals(9, decision.displayColumns)
+        assertEquals(10, decision.displayColumns)
     }
 
     @Test
@@ -40,7 +40,7 @@ class DailyLargeTodayOverlayPolicyTest {
     }
 
     @Test
-    fun `Today consumes two visual slots while other dates consume one`() {
+    fun `Today consumes one visual slot matching other dates`() {
         val slots =
             DailyLargeTodayOverlayPolicy.slots(
                 todayFlags = listOf(false, true, false, false, false, false, false, false, false),
@@ -49,9 +49,9 @@ class DailyLargeTodayOverlayPolicyTest {
 
         assertEquals(9, slots.size)
         assertEquals(DailyLargeTodayOverlayPolicy.Slot(0, 1), slots[0])
-        assertEquals(DailyLargeTodayOverlayPolicy.Slot(1, 2), slots[1])
-        assertEquals(DailyLargeTodayOverlayPolicy.Slot(3, 1), slots[2])
-        assertEquals(10, slots.last().start + slots.last().span)
+        assertEquals(DailyLargeTodayOverlayPolicy.Slot(1, 1), slots[1])
+        assertEquals(DailyLargeTodayOverlayPolicy.Slot(2, 1), slots[2])
+        assertEquals(9, slots.last().start + slots.last().span)
     }
 
     @Test
@@ -71,8 +71,8 @@ class DailyLargeTodayOverlayPolicyTest {
                 enabled = true,
             )
 
-        assertEquals(listOf(0, 3, 6), slots.map { it.start })
-        assertEquals(listOf(1, 2, 1), slots.map { it.span })
+        assertEquals(listOf(0, 3, 5), slots.map { it.start })
+        assertEquals(listOf(1, 1, 1), slots.map { it.span })
     }
 
     @Test

@@ -210,7 +210,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
             now = now
         )
 
-        assertEquals(8, state.days.size) // detailed Today mode removes one date from the 9-column base
+        assertEquals(9, state.days.size) // detailed Today mode preserves all 9 columns
         assertTrue(state.largeTodayOverlayEnabled)
 
         val jun1 = state.days.find { it.date == LocalDate.parse("2026-06-01") }!!
@@ -666,13 +666,13 @@ settings = DesktopSettings(weatherSource = "NWS"),
         val cfg = config.copy(dateOffset = 0, dailyExtraHistory = 3)
         val state = buildModel(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
-        // Overlay-enabled → 8 base columns + 3 prepended history days.
+        // Overlay-enabled → 9 base columns + 3 prepended history days.
         assertEquals(3, state.clampedExtraHistory)
-        assertEquals(11, state.days.size)
+        assertEquals(12, state.days.size)
         // Base left edge is yesterday (06-09); three more history days push it to 06-06.
         assertEquals(LocalDate.parse("2026-06-06"), state.days.first().date)
-        // Right edge stays anchored at the base rightmost (one fewer column now, so 06-16).
-        assertEquals(LocalDate.parse("2026-06-16"), state.days.last().date)
+        // Right edge stays anchored at the base rightmost (06-17).
+        assertEquals(LocalDate.parse("2026-06-17"), state.days.last().date)
         assertTrue(state.canZoomOut) // 3 < available history (8)
         assertTrue(state.canZoomIn)  // 3 > 0
     }
@@ -706,7 +706,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
 
         // Capped at DAILY_MAX_EXTRA_HISTORY (14) despite 20 days of available history.
         assertEquals(14, state.clampedExtraHistory)
-        assertEquals(8 + 14, state.days.size)
+        assertEquals(9 + 14, state.days.size)
         assertEquals(LocalDate.parse("2026-05-26"), state.days.first().date) // 06-09 minus 14
         assertFalse(state.canZoomOut)
     }
@@ -722,7 +722,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
         val state = buildModel(cfg, forecast, DesktopDailyForecastModel.dimensions(600, 400), now)
 
         assertEquals(0, state.clampedExtraHistory)
-        assertEquals(8, state.days.size)
+        assertEquals(9, state.days.size)
         assertTrue(state.largeTodayOverlayEnabled)
         assertFalse(state.canZoomIn) // nothing to trim
         assertTrue(state.canZoomOut) // history available to reveal
@@ -744,7 +744,7 @@ todayOverlayDominantTemp = true)),
         )
 
         assertTrue(state.largeTodayOverlayEnabled)
-        assertEquals(8, state.days.size)
+        assertEquals(9, state.days.size)
         assertEquals("62.6°", state.todayOverlay?.dominantTempText)
         assertEquals("fcst", state.todayOverlay?.deltaCaptionText)
         assertEquals("+0.4", state.todayOverlay?.deltaValueText)

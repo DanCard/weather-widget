@@ -9,7 +9,7 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class LargeTodayOverlayPolicyTest {
     @Test
-    fun `Android ten by four and desktop nine by four each remove one date`() {
+    fun `Android ten by four and desktop nine by four preserve available date count`() {
         val android = LargeTodayOverlayPolicy.resolve(
             LargeTodayOverlayPolicy.Profile.ANDROID_WIDGET, 10, 4, true, true,
         )
@@ -18,13 +18,13 @@ class LargeTodayOverlayPolicyTest {
         )
 
         assertTrue(android.enabled)
-        assertEquals(9, android.displayColumns)
+        assertEquals(10, android.displayColumns)
         assertTrue(desktop.enabled)
-        assertEquals(8, desktop.displayColumns)
+        assertEquals(9, desktop.displayColumns)
     }
 
     @Test
-    fun `small Android widget enables the overlay once Today keeps a full day column`() {
+    fun `small Android widget enables the overlay and preserves column count`() {
         val decision = LargeTodayOverlayPolicy.resolve(
             LargeTodayOverlayPolicy.Profile.ANDROID_WIDGET,
             availableColumns = 5,
@@ -34,7 +34,7 @@ class LargeTodayOverlayPolicyTest {
         )
 
         assertTrue(decision.enabled)
-        assertEquals(4, decision.displayColumns)
+        assertEquals(5, decision.displayColumns)
     }
 
     @Test
@@ -62,6 +62,6 @@ class LargeTodayOverlayPolicyTest {
         )
 
         assertTrue(decision.enabled)
-        assertEquals(8, decision.displayColumns)
+        assertEquals(9, decision.displayColumns)
     }
 }

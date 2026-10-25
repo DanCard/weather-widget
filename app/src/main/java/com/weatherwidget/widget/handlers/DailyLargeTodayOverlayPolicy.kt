@@ -5,9 +5,9 @@ import com.weatherwidget.shared.graph.LargeTodayOverlayPolicy
 
 /** Pure eligibility and visual-slot policy for the large daily Today overlay. */
 internal object DailyLargeTodayOverlayPolicy {
-    const val MIN_LAUNCHER_COLUMNS = 10
+    const val MIN_LAUNCHER_COLUMNS = 3
     const val MIN_LAUNCHER_ROWS = LargeTodayOverlayPolicy.MIN_ROWS
-    const val TODAY_SLOT_SPAN = 2
+    const val TODAY_SLOT_SPAN = 1
 
     data class Decision(
         val enabled: Boolean,
@@ -55,7 +55,7 @@ internal object DailyLargeTodayOverlayPolicy {
             columnIndices.zip(todayFlags).firstOrNull { (_, isToday) -> isToday }?.first
         return columnIndices.zip(todayFlags).map { (columnIndex, isToday) ->
             val span = if (enabled && isToday) TODAY_SLOT_SPAN else 1
-            val insertedTodaySlot = if (enabled && todayColumn != null && columnIndex > todayColumn) 1 else 0
+            val insertedTodaySlot = if (enabled && todayColumn != null && columnIndex > todayColumn) TODAY_SLOT_SPAN - 1 else 0
             Slot(start = columnIndex + insertedTodaySlot, span = span)
         }
     }

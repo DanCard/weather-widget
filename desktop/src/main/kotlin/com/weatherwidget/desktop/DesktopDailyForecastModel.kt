@@ -88,18 +88,11 @@ object DesktopDailyForecastModel {
 
     private fun overlayDecision(config: DesktopConfig, dimensions: DesktopWidgetDimensions, today: LocalDate): LargeTodayOverlayPolicy.Decision {
         val skipYesterday = NavigationUtils.shouldSkipYesterday(dimensions.cols)
-        val overlayCandidateColumns = (dimensions.cols - 1).coerceAtLeast(1)
-        // The eligibility window must be the window the user actually SEES. `getVisibleDateRange`
-        // knows nothing about the zoom-out extra-history columns, which `historyOffsets` in [build]
-        // prepends — so the raw range starts `dailyExtraHistory` days later than the rendered one.
-        // With a forward dateOffset the two disagreed enough to report today as off-screen while it
-        // sat in column 2, and the whole Today overlay switched itself off
-        // (dateOffset=3 + dailyExtraHistory=3 -> candidate range today+2..today+12, today absent).
         val overlayCandidateRawRange =
             NavigationUtils.getVisibleDateRange(
                 today,
                 config.dateOffset,
-                overlayCandidateColumns,
+                dimensions.cols,
                 skipYesterday,
             )
         val overlayCandidateRange =

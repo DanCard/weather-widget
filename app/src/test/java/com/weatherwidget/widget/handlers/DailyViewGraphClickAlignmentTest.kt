@@ -189,21 +189,21 @@ class DailyViewGraphClickAlignmentTest {
         val applied = viewsSlot.captured.apply(context, root)
         val broadcasts = shadowOf(context as android.app.Application).broadcastIntents
 
-        // This 10x4 launcher size activates the wide Today overlay: Today consumes slots 1-2, so
-        // logical column 7 (today+6) is visual slot 8.
-        val zone8 = applied.findViewById<View>(R.id.graph_day9_zone)
-        assertEquals("Zone 8 should be VISIBLE", View.VISIBLE, zone8.visibility)
+        // This 10x4 launcher size activates the wide Today overlay: Today consumes 1 slot (slot 1), so
+        // logical column 7 (today+6) is visual slot 7.
+        val zone7 = applied.findViewById<View>(R.id.graph_day8_zone)
+        assertEquals("Zone 7 should be VISIBLE", View.VISIBLE, zone7.visibility)
         val countBefore = broadcasts.size
-        zone8.performClick()
+        zone7.performClick()
         assertEquals("Zone 7 click should fire a broadcast", countBefore + 1, broadcasts.size)
         assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(col7Str, broadcasts.last().getStringExtra("date"))
 
-        // The final empty logical column shifts to visual slot 9 and remains visible for stability.
-        val zone9 = applied.findViewById<View>(R.id.graph_day10_zone)
-        assertEquals("Zone 9 should be VISIBLE", View.VISIBLE, zone9.visibility)
-        val bottomZone9 = applied.findViewById<View>(R.id.graph_bottom_day10_zone)
-        assertEquals("Bottom zone 9 should be VISIBLE", View.VISIBLE, bottomZone9.visibility)
+        // The final empty logical column is in visual slot 8 (day9_zone) and remains visible for stability.
+        val zone8 = applied.findViewById<View>(R.id.graph_day9_zone)
+        assertEquals("Zone 8 should be VISIBLE", View.VISIBLE, zone8.visibility)
+        val bottomZone8 = applied.findViewById<View>(R.id.graph_bottom_day9_zone)
+        assertEquals("Bottom zone 8 should be VISIBLE", View.VISIBLE, bottomZone8.visibility)
     }
 
     @Test
@@ -255,19 +255,19 @@ class DailyViewGraphClickAlignmentTest {
         val applied = viewsSlot.captured.apply(context, root)
         val broadcasts = shadowOf(context as android.app.Application).broadcastIntents
 
-        // Today occupies visual slots 1-2, so logical column 3 (today+2) shifts to visual slot 4.
+        // Today occupies visual slot 1, so logical column 3 (today+2) is visual slot 3.
         assertEquals("Zone 0 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day1_zone).visibility)
-        assertEquals("Zone 4 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day5_zone).visibility)
+        assertEquals("Zone 3 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day4_zone).visibility)
         assertEquals("Bottom zone 0 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_bottom_day1_zone).visibility)
-        assertEquals("Bottom zone 4 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_bottom_day5_zone).visibility)
+        assertEquals("Bottom zone 3 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_bottom_day4_zone).visibility)
 
         // Zone 0 = yesterday — click fires broadcast
         applied.findViewById<View>(R.id.graph_day1_zone).performClick()
         assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(yesterdayStr, broadcasts.last().getStringExtra("date"))
 
-        // Visual slot 4 = today+2 (skippedStr) — click fires broadcast
-        applied.findViewById<View>(R.id.graph_day5_zone).performClick()
+        // Visual slot 3 = today+2 (skippedStr) — click fires broadcast
+        applied.findViewById<View>(R.id.graph_day4_zone).performClick()
         assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(skippedStr, broadcasts.last().getStringExtra("date"))
     }
@@ -493,12 +493,11 @@ class DailyViewGraphClickAlignmentTest {
                 LocalDate.parse(broadcasts.last().getStringExtra("date"))
             }
 
-            // Today covers two adjacent slots; every other slot is its own day, consecutive left to right.
+            // Each slot is its own day, consecutive left to right.
             val todayZones = dates.indices.filter { dates[it] == today }
-            assertEquals("$band: Today must own exactly two adjacent zones, dates=$dates", 2, todayZones.size)
-            assertEquals("$band: Today's zones must be adjacent", todayZones[0] + 1, todayZones[1])
+            assertEquals("$band: Today must own exactly one zone, dates=$dates", 1, todayZones.size)
             val distinct = dates.distinct()
-            assertEquals("$band: dates=$dates", expectedSlots - 1, distinct.size)
+            assertEquals("$band: dates=$dates", expectedSlots, distinct.size)
             distinct.zipWithNext().forEach { (a, b) ->
                 assertEquals("$band: consecutive days left to right, dates=$dates", a.plusDays(1), b)
             }

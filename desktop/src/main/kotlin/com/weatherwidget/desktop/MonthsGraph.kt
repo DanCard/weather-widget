@@ -97,7 +97,7 @@ object DesktopMonthsModel {
 
     /**
      * Applies a zoom action to [config]. The daily view's column count is asked per candidate offset
-     * ([DesktopDailyForecastModel.displayColumns]): it draws one fewer while its Today overlay is on.
+     * ([DesktopDailyForecastModel.displayColumns]).
      */
     fun apply(
         action: MonthsZoomAction,

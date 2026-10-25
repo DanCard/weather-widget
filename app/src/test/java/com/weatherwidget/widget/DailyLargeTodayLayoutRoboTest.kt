@@ -186,7 +186,7 @@ class DailyLargeTodayLayoutRoboTest {
     }
 
     @Test
-    fun `both launcher slots across wide Today column open Today`() {
+    fun `launcher slots across Today and tomorrow open their respective days`() {
         val context = ApplicationProvider.getApplicationContext<android.app.Application>()
         val now = LocalDateTime.of(2026, 8, 4, 12, 0)
         val days =
@@ -215,15 +215,16 @@ class DailyLargeTodayLayoutRoboTest {
         )
         val applied = views.apply(context, FrameLayout(context))
 
-        val firstTodaySlot = applied.findViewById<View>(R.id.graph_day2_zone)
-        val secondTodaySlot = applied.findViewById<View>(R.id.graph_day3_zone)
-        firstTodaySlot.performClick()
-        secondTodaySlot.performClick()
+        val todaySlot = applied.findViewById<View>(R.id.graph_day2_zone)
+        val tomorrowSlot = applied.findViewById<View>(R.id.graph_day3_zone)
+        todaySlot.performClick()
+        tomorrowSlot.performClick()
 
         val broadcasts = shadowOf(context).broadcastIntents.takeLast(2)
         assertEquals(2, broadcasts.size)
         assertTrue(broadcasts.all { it.action == WidgetActions.ACTION_DAY_CLICK })
-        assertTrue(broadcasts.all { it.getStringExtra("date") == now.toLocalDate().toString() })
+        assertEquals(now.toLocalDate().toString(), broadcasts[0].getStringExtra("date"))
+        assertEquals(now.toLocalDate().plusDays(1).toString(), broadcasts[1].getStringExtra("date"))
     }
 
     @Test

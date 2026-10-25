@@ -43,11 +43,9 @@ object DailyLayoutConstants {
      * >= 273dp, 6→7 at >= 328dp, 7→8 at >= 383dp, 9→10 at >= 540dp and 11→12 at >= 660dp.
      *
      * Density is governed mainly by the cell width; this bias just nudges borderline widths up.
-     * Representative results: Samsung Fold 4 cover (~337dp) → 7 columns (6 days with large Today
-     * overlay), Pixel 7 Pro (~373dp) → 7, Samsung Fold 4 full-width (~574dp) → 10, the Fold 4 inner
-     * widget at ~662dp → 12 (11 days).
-     * Days shown == columns (see NavigationUtils.getDayOffsets), minus one when the detailed Today
-     * overlay spans two slots.
+     * Representative results: Samsung Fold 4 cover (~337dp) → 7 columns, Pixel 7 Pro (~373dp) → 7,
+     * Samsung Fold 4 full-width (~574dp) → 10, the Fold 4 inner widget at ~662dp → 12 (12 days).
+     * Days shown == columns (see NavigationUtils.getDayOffsets).
      *
      * Data backing the rightmost columns: at >8 columns the narrow skip-yesterday rule is off
      * (NavigationUtils.NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD), so a 10-column window is
