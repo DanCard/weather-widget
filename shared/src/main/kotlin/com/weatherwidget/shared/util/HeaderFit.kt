@@ -282,4 +282,36 @@ object HeaderFit {
             (if (plan.showCaption) m.caption else 0f) +
             (if (plan.showRain) m.rain else 0f) +
             (if (plan.placement == ButtonPlacement.INLINE && plan.buttons > 0) m.inlineLead + plan.buttons * m.inlineButton else 0f)
+
+    /**
+     * Left edge of the source API button, centered in the space between the date slot and the gear icon.
+     *
+     * To keep the horizontal position consistent across views without jumping when switching between
+     * daily (with date) and hourly (without date), both views anchor to the same nominal date slot
+     * ([dateLeft] + [nominalDateWidth]). When the date is dropped by [plan] on very narrow headers,
+     * it centers in the free space after the buttons (or left cluster).
+     */
+    fun sourceLeft(
+        m: Measured,
+        plan: Plan,
+        sourceWidth: Float,
+        gearWidth: Float,
+        nominalDateWidth: Float,
+    ): Float {
+        val gearLeft = m.width - gearWidth
+        val leftAnchor: Float = if (plan.showDate && m.date > 0f) {
+            val dLeft = dateLeft(m, plan) ?: (m.width / 2f + (m.seamOffset ?: 0f) + m.gap)
+            dLeft + m.date
+        } else {
+            val nominalDateLeft = buttonsSpan(m, plan)?.second?.plus(m.gap)
+                ?: (m.width / 2f + (m.seamOffset ?: 0f) + m.gap)
+            if (nominalDateLeft + nominalDateWidth + m.gap + sourceWidth <= gearLeft) {
+                nominalDateLeft + nominalDateWidth
+            } else {
+                buttonsSpan(m, plan)?.second ?: (leftClusterWidth(m, plan) + m.gap)
+            }
+        }
+        val freeSpan = gearLeft - leftAnchor
+        return leftAnchor + (freeSpan - sourceWidth) / 2f
+    }
 }

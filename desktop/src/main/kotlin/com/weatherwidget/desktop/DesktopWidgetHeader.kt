@@ -138,9 +138,12 @@ internal fun WidgetHeader(
     val headerMeasured = remember(content, scale, isHourly, buttonsWant, dateText, headerTextMeasurer, density, headerWidthDp) {
         fun widthDp(text: String, style: androidx.compose.ui.text.TextStyle) =
             with(density) { headerTextMeasurer.measure(text, style).size.width.toDp().value }
+        val sourceWidth = widthDp(content.sourceLabel, sourceStyle)
+        val nominalDateWidth = widthDp(dateText, dateStyle)
+        val gearWidth = 14 * scale
         HeaderFit.Measured(
             width = 0f, // the BoxWithConstraints below supplies it
-            rightCluster = widthDp(content.sourceLabel, sourceStyle) + SOURCE_LABEL_END_PADDING_DP + 14 * scale,
+            rightCluster = sourceWidth + spacingDp + gearWidth,
             gap = spacingDp,
             seamOffset = HeaderFit.SEAM_OFFSET_DP * scale,
             temp = widthDp(content.tempText ?: "—", tempStyle),
@@ -148,7 +151,7 @@ internal fun WidgetHeader(
                 ?.let { PRECIP_MARGIN_DP + widthDp(it, precipStyle) } ?: 0f,
             delta = content.deltaText?.let { DELTA_MARGIN_DP + widthDp(it, deltaStyle) } ?: 0f,
             icon = if (content.iconName != null) 18 * scale else 0f,
-            date = if (isHourly) 0f else widthDp(dateText, dateStyle),
+            date = if (isHourly) 0f else nominalDateWidth,
             caption = if (content.deltaText != null) CAPTION_MARGIN_DP + widthDp(DELTA_CAPTION, captionStyle) else 0f,
             baseButtons = buttonsWant.baseButtons,
             wantHome = buttonsWant.wantHome,
@@ -260,42 +263,13 @@ internal fun WidgetHeader(
                 // date) are overlays at HeaderFit's positions, below.
                 Spacer(Modifier.weight(1f))
 
-                // Right cluster: API source + Settings gear. Content-sized, like the left cluster —
-                // it is pinned to the right edge by the spacer's weight, not by a width share.
-                Row(
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val visibleSources = config.effectiveSources
-                    // Show the shared short label (e.g. "Meteo"), matching Android's API indicator, rather
-                    // than the raw stored id ("OPEN_METEO"). One source of truth: WeatherSource.shortDisplayName.
-                    val sourceLabel = content.sourceLabel
-                    if (visibleSources.size > 1) {
-                        Text(
-                            text = sourceLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = (10 * scale).sp,
-                            modifier = Modifier.clickable {
-                                cycleDisplaySource(config, onUpdateConfig)
-                            }.padding(end = SOURCE_LABEL_END_PADDING_DP.dp)
-                        )
-                    } else {
-                        Text(
-                            text = sourceLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = (10 * scale).sp,
-                            color = Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.padding(end = SOURCE_LABEL_END_PADDING_DP.dp)
-                        )
-                    }
-                    Icon(
-                        painter = painterResource("drawable/ic_settings_gear.xml"),
-                        contentDescription = "Settings",
-                        modifier = Modifier.size((14 * scale).dp).clickable { onOpenSettings() },
-                        tint = Color.White.copy(alpha = 0.7f)
-                    )
-                }
+                // Settings gear: pinned to the right edge.
+                Icon(
+                    painter = painterResource("drawable/ic_settings_gear.xml"),
+                    contentDescription = "Settings",
+                    modifier = Modifier.size((14 * scale).dp).clickable { onOpenSettings() },
+                    tint = Color.White.copy(alpha = 0.7f)
+                )
             }
             // The buttons HeaderButtons shows, in its order (home first, history last), ending on
             // HeaderFit's line. Sizes and tints match Android's 0xAAFFFFFF / 0x99FFFFFF icons. The
@@ -397,6 +371,32 @@ internal fun WidgetHeader(
                     modifier = Modifier.align(Alignment.CenterStart).offset(x = x.dp).testTag("daily_header_date"),
                 )
             }
+            val sourceWidthDp = with(density) { headerTextMeasurer.measure(content.sourceLabel, sourceStyle).size.width.toDp().value }
+            val nominalDateWidthDp = with(density) { headerTextMeasurer.measure(dateText, dateStyle).size.width.toDp().value }
+            val sourceLeft = HeaderFit.sourceLeft(
+                m = measured,
+                plan = fit,
+                sourceWidth = sourceWidthDp,
+                gearWidth = 14 * scale,
+                nominalDateWidth = nominalDateWidthDp,
+            )
+            val visibleSources = config.effectiveSources
+            Text(
+                text = content.sourceLabel,
+                style = sourceStyle,
+                color = Color.White.copy(alpha = if (visibleSources.size > 1) 0.6f else 0.5f),
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .offset(x = sourceLeft.dp, y = (-1.5f * scale).dp)
+                    .then(
+                        if (visibleSources.size > 1) {
+                            Modifier.clickable { cycleDisplaySource(config, onUpdateConfig) }
+                        } else Modifier
+                    )
+                    .testTag("header_source_label"),
+            )
         }
     }
 }
@@ -416,12 +416,11 @@ internal object DesktopHeaderDate {
  */
 internal const val HEADER_TEMP_BASE_SP = 12f
 
-// Leading margins of the left cluster's pieces and the source label's end padding: drawn and
-// measured from the same numbers so the fit and the layout agree.
+// Leading margins of the left cluster's pieces: drawn and measured from the same numbers so the
+// fit and the layout agree.
 private const val DELTA_MARGIN_DP = 2f
 private const val CAPTION_MARGIN_DP = 3f
 private const val PRECIP_MARGIN_DP = 6f
-private const val SOURCE_LABEL_END_PADDING_DP = 6f
 private const val DELTA_CAPTION = "from yest"
 
 /** [HeaderFit.LOG_TAG] once per plan change (recomposition and resizes repeat the same plan). */

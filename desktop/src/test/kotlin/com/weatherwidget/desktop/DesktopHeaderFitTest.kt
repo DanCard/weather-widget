@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTouchInput
@@ -284,6 +285,28 @@ class DesktopHeaderFitTest {
         composeTestRule.waitForIdle()
         assertEquals(1, opened.size)
         assertTrue("source untouched: $configChanges", configChanges.isEmpty())
+    }
+
+    @Test
+    fun sourceLabelIsCenteredBetweenDateAndGearInDailyAndMatchesHourly() {
+        // Daily view: source label centered between date and gear
+        header(config.copy(viewMode = ViewMode.DAILY))
+        val dateBounds = composeTestRule.onAllNodesWithTag("daily_header_date", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+        val dailySourceBounds = composeTestRule.onAllNodesWithTag("header_source_label", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+        val gearBounds = composeTestRule.onAllNodesWithContentDescription("Settings", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+
+        val leftGap = dailySourceBounds.left - dateBounds.right
+        val rightGap = gearBounds.left - dailySourceBounds.right
+        assertEquals("source label centered between date and gear: leftGap=$leftGap rightGap=$rightGap", leftGap, rightGap, 1.5f)
+
+        // Hourly view: source label stays at the exact same horizontal position
+        header(config.copy(viewMode = ViewMode.TEMPERATURE))
+        val hourlySourceBounds = composeTestRule.onAllNodesWithTag("header_source_label", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+        assertEquals("hourly source label matches daily position exactly (no jump across views)", dailySourceBounds.left, hourlySourceBounds.left, 1f)
     }
 }
 

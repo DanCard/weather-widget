@@ -429,4 +429,44 @@ class HeaderFitTest {
             span?.let { (_, r) -> assertTrue("date overlaps the buttons ($where): $plan", d >= r + m.gap - 0.01f) }
         }
     }
+
+    @Test
+    fun `sourceLeft is centered between date and gear in daily and matches hourly exactly`() {
+        val mDaily = full(width = 800f, inline = false)
+        val planDaily = HeaderFit.resolve(mDaily)
+        assertTrue(planDaily.showDate)
+
+        val sourceWidth = 24f
+        val gearWidth = 14f
+        val dateWidth = mDaily.date // 46f
+
+        val dailySourceLeft = HeaderFit.sourceLeft(
+            m = mDaily,
+            plan = planDaily,
+            sourceWidth = sourceWidth,
+            gearWidth = gearWidth,
+            nominalDateWidth = dateWidth,
+        )
+
+        val dateRight = HeaderFit.dateLeft(mDaily, planDaily)!! + dateWidth
+        val gearLeft = mDaily.width - gearWidth
+        val leftGap = dailySourceLeft - dateRight
+        val rightGap = gearLeft - (dailySourceLeft + sourceWidth)
+        assertEquals("symmetrical gap on both sides of source label in daily view", leftGap, rightGap, 0.001f)
+
+        // Hourly view has m.date = 0f
+        val mHourly = mDaily.copy(date = 0f)
+        val planHourly = HeaderFit.resolve(mHourly)
+        assertFalse(planHourly.showDate)
+
+        val hourlySourceLeft = HeaderFit.sourceLeft(
+            m = mHourly,
+            plan = planHourly,
+            sourceWidth = sourceWidth,
+            gearWidth = gearWidth,
+            nominalDateWidth = dateWidth,
+        )
+
+        assertEquals("hourly sourceLeft matches daily sourceLeft exactly (no jump)", dailySourceLeft, hourlySourceLeft, 0.001f)
+    }
 }
