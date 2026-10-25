@@ -97,7 +97,7 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   long-press; `ZoomStage.next`), and each step is a new bitmap. Proposed: **the span in hours is the
   shared input**; label interval, smoothing, date mode and footer labels are functions of it
   (`HourlyAxisPlan`). Android's stages become preset spans, desktop's wheel any span — same rule at
-  the same span. Awaiting the user's OK.
+  the same span. **Approved by the user 2026-10-25** ("ok on G").
 - Vacuum threshold: 8 MB on both (decided).
 
 ## Progress

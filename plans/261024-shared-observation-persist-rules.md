@@ -106,4 +106,8 @@ a day's rows on a device, Progress line in the audit plan.
   write through the run; `insertAllRetaggingStationTypes` deleted. `SYNOPTIC_OBS_STORED` now reports
   `thinned=` (deleted over the stored window) and `retagged=`. `SynopticRefresherThinningTest` failed on
   the old batch-only write (`[0, 5, 10, 15]`). Device check of O1 on the Pixel pending its next full sync.
+  - Device check 2026-10-25 12:24 (Pixel, phase 2 build): first Synoptic write `thinned=138` (the 24 h
+    backlog of leaked rows), the next `thinned=40` (its own batch). No personal station above the floor in
+    the last 24 h (was 26–30 extra rows/day each); F4751, G4110, G6550, G8106 at exactly 6.0 rows/h (was
+    7.1–7.2). Yesterday's blend: unchanged except Silurian's low −0.03° (within the 0.1° bound). O1 done.
 
