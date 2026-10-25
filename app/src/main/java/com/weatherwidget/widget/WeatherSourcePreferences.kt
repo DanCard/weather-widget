@@ -327,8 +327,8 @@ internal class WeatherSourcePreferences(
     }
 
     /**
-     * One-time, for builds whose defaults include Google (debug only — the only builds with a baked
-     * key): enable it on an install that already has a stored list, as primary, and switch every
+     * One-time, for builds whose defaults include Google (debug builds that baked a Google key; see
+     * [DefaultVisibleSources]): enable it on an install that already has a stored list, as primary, and switch every
      * widget to it. Flag-gated like the Silurian migration, so a later untick sticks.
      */
     private fun migrateGoogleWeatherEnabledIfNeeded() {

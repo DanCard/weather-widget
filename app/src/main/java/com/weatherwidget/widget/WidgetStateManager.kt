@@ -6,6 +6,7 @@ import com.weatherwidget.BuildConfig
 import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.BuiltInApiKeys
 import com.weatherwidget.shared.util.RecentLocationsHelper
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -591,23 +592,10 @@ class WidgetStateManager internal constructor(
         const val HOURLY_NAV_JUMP = 6
 
         private val DEFAULT_VISIBLE_SOURCES =
-            if (BuildConfig.DEBUG) {
-                // Google first: enabling it makes it primary (user's call 2026-10-06). Debug-only
-                // because only debug builds carry a baked Google key.
-                listOf(
-                    WeatherSource.GOOGLE_WEATHER,
-                    WeatherSource.NWS,
-                    WeatherSource.OPEN_METEO,
-                    WeatherSource.SILURIAN,
-                    WeatherSource.TOMORROW_IO,
-                )
-            } else {
-                listOf(
-                    WeatherSource.NWS,
-                    WeatherSource.OPEN_METEO,
-                    WeatherSource.SILURIAN,
-                )
-            }
+            DefaultVisibleSources.forBuild(
+                debug = BuildConfig.DEBUG,
+                hasBakedGoogleKey = BuiltInApiKeys.baked(WeatherSource.GOOGLE_WEATHER) != null,
+            )
 
         @Synchronized
         fun setPrefsNameOverrideForTesting(prefsName: String?) {

@@ -19,7 +19,8 @@ import org.robolectric.Shadows.shadowOf
 /**
  * Real [WeatherSourcePreferences] + SharedPreferences + bound widgets: enabling Google makes it
  * primary and every widget follows; the debug migration does that once and a later untick sticks;
- * builds whose defaults lack Google (release) never migrate. User's calls 2026-10-06.
+ * builds whose defaults lack Google (release, or debug without a baked key) never migrate. User's calls
+ * 2026-10-06 and 2026-10-25.
  */
 @Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
@@ -27,11 +28,9 @@ class GoogleWeatherPrimaryIntegrationTest {
     private lateinit var context: Context
     private val widgetA = 101
     private val widgetB = 202
-    private val debugDefaults = listOf(
-        WeatherSource.GOOGLE_WEATHER, WeatherSource.NWS, WeatherSource.OPEN_METEO,
-        WeatherSource.SILURIAN, WeatherSource.TOMORROW_IO,
-    )
-    private val releaseDefaults = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN)
+    private val debugDefaults = DefaultVisibleSources.forBuild(debug = true, hasBakedGoogleKey = true)
+    private val keylessDebugDefaults = DefaultVisibleSources.forBuild(debug = true, hasBakedGoogleKey = false)
+    private val releaseDefaults = DefaultVisibleSources.forBuild(debug = false, hasBakedGoogleKey = false)
 
     @Before
     fun setup() {
@@ -102,6 +101,18 @@ class GoogleWeatherPrimaryIntegrationTest {
         val prefs = preferences(releaseDefaults)
         assertEquals(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN), prefs.enabledSources())
         assertEquals(WeatherSource.NWS, prefs.currentDisplaySource(widgetA))
+    }
+
+    @Test
+    fun `keyless debug build neither defaults to Google nor migrates it in`() {
+        prefsStore().edit().clear().commit()
+        assertEquals(WeatherSource.NWS, preferences(keylessDebugDefaults).primarySource())
+
+        seedExistingInstall()
+        val prefs = preferences(keylessDebugDefaults)
+        assertEquals(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN), prefs.enabledSources())
+        assertEquals(WeatherSource.NWS, prefs.currentDisplaySource(widgetA))
+        assertEquals(WeatherSource.OPEN_METEO, prefs.currentDisplaySource(widgetB))
     }
 
     @Test
