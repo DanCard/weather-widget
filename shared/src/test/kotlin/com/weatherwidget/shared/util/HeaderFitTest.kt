@@ -469,4 +469,76 @@ class HeaderFitTest {
 
         assertEquals("hourly sourceLeft matches daily sourceLeft exactly (no jump)", dailySourceLeft, hourlySourceLeft, 0.001f)
     }
+
+    @Test
+    fun `floatingSeamOffset centers buttons in roomy row and balances slack`() {
+        // Roomy 800px row: 4 buttons of 47px = 188px
+        val m = Measured(
+            width = 800f,
+            rightCluster = 50f,
+            gap = 14f,
+            temp = 42f,
+            rain = 30f,
+            delta = 22f,
+            icon = 18f,
+            date = 42f,
+            caption = 42f,
+            baseButtons = 2,
+            centreButton = 47f,
+            minCentreButton = 21f,
+        )
+        val offset = HeaderFit.floatingSeamOffset(m, nominalDateWidth = 42f, nominalButtons = 4)
+        // Buttons width = 4 * 47 = 188. Center is 400. targetRight = 400 + 188/2 = 494. seamOffset = 94.
+        assertEquals(94f, offset, 0.01f)
+
+        val plan = HeaderFit.resolve(m.copy(seamOffset = offset))
+        assertTrue("date shown with floating seam", plan.showDate)
+        assertEquals(HeaderFit.ButtonPlacement.CENTER to HeaderFit.Seam.RIGHT_OF_MIDDLE, plan.placement to plan.seam)
+    }
+
+    @Test
+    fun `floatingSeamOffset floats right to clear a wide left cluster`() {
+        // Left cluster is 350px. Buttons centered at 300px would collide (300 - 94 = 206 < 350 + 14 = 364).
+        val m = Measured(
+            width = 600f,
+            rightCluster = 40f,
+            gap = 14f,
+            temp = 150f,
+            rain = 100f,
+            delta = 60f,
+            icon = 40f,
+            date = 0f,
+            baseButtons = 2,
+            centreButton = 30f,
+            minCentreButton = 20f,
+        )
+        val offset = HeaderFit.floatingSeamOffset(m, nominalDateWidth = 0f, nominalButtons = 4)
+        // Buttons width = 4 * 30 = 120. minRight = leftCluster (350) + gap (14) + buttonsWidth (120) = 484.
+        // middle = 300. slotRight = 484. seamOffset = 484 - 300 = 184.
+        assertEquals(184f, offset, 0.01f)
+        val plan = HeaderFit.resolve(m.copy(seamOffset = offset))
+        val (slotLeft, slotRight) = HeaderFit.buttonsSpan(m.copy(seamOffset = offset), plan)!!
+        assertTrue("buttons clear left cluster: slotLeft=$slotLeft", slotLeft >= 350f + 14f)
+    }
+
+    @Test
+    fun `floatingSeamOffset produces identical seamOffset across daily and hourly views`() {
+        val mDaily = Measured(
+            width = 778f,
+            rightCluster = 85f,
+            gap = 30f,
+            temp = 90f,
+            delta = 44f,
+            icon = 40f,
+            date = 88f,
+            caption = 80f,
+            baseButtons = 2,
+            centreButton = 50f,
+            minCentreButton = 40f,
+        )
+        val mHourly = mDaily.copy(date = 0f)
+        val dailyOffset = HeaderFit.floatingSeamOffset(mDaily, nominalDateWidth = 88f)
+        val hourlyOffset = HeaderFit.floatingSeamOffset(mHourly, nominalDateWidth = 88f)
+        assertEquals("daily and hourly seam offset match exactly", dailyOffset, hourlyOffset, 0.001f)
+    }
 }

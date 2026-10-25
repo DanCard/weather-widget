@@ -282,7 +282,7 @@ class DesktopHeaderFitTest {
             .fetchSemanticsNodes().single().boundsInRoot
         val zone = bounds("header_touch_extension_end")
         val date = bounds("daily_header_date")
-        val slotRight = with(composeTestRule.density) { (400f + HeaderFit.SEAM_OFFSET_DP).dp.toPx() }
+        val slotRight = with(composeTestRule.density) { FLOATING_SLOT_RIGHT_DP.dp.toPx() }
         assertEquals(slotRight, zone.left, 1.5f)
         assertEquals((slotRight + date.left) / 2f, zone.right, 1.5f)
 
@@ -326,7 +326,8 @@ class DesktopHeaderFitTest {
 }
 
 /**
- * Where the last button's icon ends in an 800dp header at scale 1: its zone ends on HeaderFit's line
- * 70dp right of the middle, and the icon sits centred in it, half the shared air short of that.
+ * Where the last button's icon ends in an 800dp header at scale 1: its zone ends on HeaderFit's
+ * floating seam line, and the icon sits centred in it, half the shared air short of that.
  */
-private val LINE_ICON_RIGHT_DP = 400f + HeaderFit.SEAM_OFFSET_DP - HeaderButtonZone.airDp(800f) / 2f
+private val FLOATING_SLOT_RIGHT_DP = 400f + 94f
+private val LINE_ICON_RIGHT_DP = FLOATING_SLOT_RIGHT_DP - HeaderButtonZone.airDp(800f) / 2f

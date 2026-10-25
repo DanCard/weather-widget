@@ -135,23 +135,27 @@ internal fun WidgetHeader(
         HeaderButtons.daily(observationsInView = observationsInView, home = homeAction != null, months = wantMonthsButton)
     }
     val graphSelectorStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = (13 * scale).sp)
-    val headerMeasured = remember(content, scale, isHourly, buttonsWant, dateText, headerTextMeasurer, density, headerWidthDp) {
+    val sourceWidthDp = remember(content.sourceLabel, sourceStyle, headerTextMeasurer, density) {
+        with(density) { headerTextMeasurer.measure(content.sourceLabel, sourceStyle).size.width.toDp().value }
+    }
+    val nominalDateWidthDp = remember(dateText, dateStyle, headerTextMeasurer, density) {
+        with(density) { headerTextMeasurer.measure(dateText, dateStyle).size.width.toDp().value }
+    }
+    val headerMeasured = remember(content, scale, isHourly, buttonsWant, dateText, headerTextMeasurer, density, headerWidthDp, sourceWidthDp, nominalDateWidthDp) {
         fun widthDp(text: String, style: androidx.compose.ui.text.TextStyle) =
             with(density) { headerTextMeasurer.measure(text, style).size.width.toDp().value }
-        val sourceWidth = widthDp(content.sourceLabel, sourceStyle)
-        val nominalDateWidth = widthDp(dateText, dateStyle)
         val gearWidth = 14 * scale
         HeaderFit.Measured(
             width = 0f, // the BoxWithConstraints below supplies it
-            rightCluster = sourceWidth + gearWidth,
+            rightCluster = sourceWidthDp + gearWidth,
             gap = spacingDp,
-            seamOffset = HeaderFit.SEAM_OFFSET_DP * scale,
+            seamOffset = 0f, // BoxWithConstraints computes floatingSeamOffset dynamically
             temp = widthDp(content.tempText ?: "—", tempStyle),
             rain = content.precipText?.takeIf { content.precipFontScale != null }
                 ?.let { PRECIP_MARGIN_DP + widthDp(it, precipStyle) } ?: 0f,
             delta = content.deltaText?.let { DELTA_MARGIN_DP + widthDp(it, deltaStyle) } ?: 0f,
             icon = if (content.iconName != null) 18 * scale else 0f,
-            date = if (isHourly) 0f else nominalDateWidth,
+            date = if (isHourly) 0f else nominalDateWidthDp,
             caption = if (content.deltaText != null) CAPTION_MARGIN_DP + widthDp(DELTA_CAPTION, captionStyle) else 0f,
             baseButtons = buttonsWant.baseButtons,
             wantHome = buttonsWant.wantHome,
@@ -173,7 +177,22 @@ internal fun WidgetHeader(
             ) { toggleWeatherSource() }
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val measured = headerMeasured.copy(width = maxWidth.value)
+            val measuredWidth = maxWidth.value
+            val unscaledWidthDp = measuredWidth / scale
+            val centreButton = HeaderButtonZone.zoneDp(CENTRE_ICON_DP, unscaledWidthDp) * scale
+            val minCentreButton = HeaderButtonZone.minZoneDp(CENTRE_ICON_DP) * scale
+            val withWidth = headerMeasured.copy(
+                width = measuredWidth,
+                centreButton = centreButton,
+                minCentreButton = minCentreButton,
+            )
+            val seamOffset = remember(withWidth, nominalDateWidthDp) {
+                HeaderFit.floatingSeamOffset(
+                    withWidth,
+                    nominalDateWidth = nominalDateWidthDp,
+                )
+            }
+            val measured = withWidth.copy(seamOffset = seamOffset)
             val fit = remember(measured) {
                 HeaderFit.resolve(measured).also { HeaderFitLog.changed(if (isHourly) "hourly" else "daily", scale, it, measured) }
             }
@@ -371,8 +390,6 @@ internal fun WidgetHeader(
                     modifier = Modifier.align(Alignment.CenterStart).offset(x = x.dp).testTag("daily_header_date"),
                 )
             }
-            val sourceWidthDp = with(density) { headerTextMeasurer.measure(content.sourceLabel, sourceStyle).size.width.toDp().value }
-            val nominalDateWidthDp = with(density) { headerTextMeasurer.measure(dateText, dateStyle).size.width.toDp().value }
             val sourceLeft = HeaderFit.sourceLeft(
                 m = measured,
                 plan = fit,

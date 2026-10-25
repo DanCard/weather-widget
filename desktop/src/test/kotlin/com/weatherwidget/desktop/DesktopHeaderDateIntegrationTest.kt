@@ -144,4 +144,30 @@ class DesktopHeaderDateIntegrationTest {
             1.5f,
         )
     }
+
+    @Test
+    fun dailyDateRemainsVisibleWhenWindowIsMadeTaller() {
+        // Taller window where uiScale grows to ~2.28 while width is 778dp
+        composeTestRule.setContent {
+            Box(Modifier.requiredSize(778.dp, 730.dp)) {
+                WidgetPopup(
+                    config = baseConfig.copy(viewMode = ViewMode.DAILY),
+                    forecast = sampleForecast(),
+                    dataStatus = DataStatus.Live(System.currentTimeMillis()),
+                    resolvedCurrentTemp = 71f,
+                    resolvedDeltaFromYesterday = 2.2f,
+                    onUpdateLocation = {},
+                    onUpdateConfig = {},
+                    onOpenSettings = {},
+                    onOpenObservations = {},
+                    onOpenHistory = {},
+                )
+            }
+        }
+        composeTestRule.waitForIdle()
+
+        val dateNode = composeTestRule.onAllNodesWithTag("daily_header_date", useUnmergedTree = true)
+            .fetchSemanticsNodes().singleOrNull()
+        assertTrue("Daily header date must remain visible on tall 778x730 window (uiScale ~ 2.28)", dateNode != null)
+    }
 }

@@ -314,4 +314,47 @@ object HeaderFit {
         val freeSpan = gearLeft - leftAnchor
         return leftAnchor + (freeSpan - sourceWidth) / 2f
     }
+
+    /**
+     * Calculates a dynamic floating seam offset from the middle of the row ([Measured.width] / 2)
+     * so that the navigation buttons float adaptively rather than sticking to a fixed offset:
+     * - Centered in the row when space permits.
+     * - Floating rightward if needed to avoid colliding with the left cluster.
+     * - Floating leftward if needed to preserve room for the date, source API, and right cluster.
+     *
+     * Anchoring to the nominal full button set ([nominalButtons]) and [nominalDateWidth] guarantees
+     * that:
+     * 1. Home button appearing/disappearing on source toggle never causes the date or buttons to jump.
+     * 2. Switching between daily (with date) and hourly (without date) never causes elements to jump.
+     */
+    fun floatingSeamOffset(
+        m: Measured,
+        nominalDateWidth: Float = m.date,
+        nominalButtons: Int = 4,
+    ): Float {
+        if (m.width <= 0f) return 0f
+        val buttonWidth = if (m.centreButton > 0f) m.centreButton else m.minCentreButton
+        val buttonsCount = maxOf(
+            nominalButtons,
+            m.baseButtons + (if (m.wantHome) 1 else 0) + (if (m.wantMonths) 1 else 0),
+        )
+        val buttonsWidth = if (buttonsCount > 0 && buttonWidth > 0f) {
+            buttonsCount * buttonWidth + (buttonsCount - 1) * m.centreButtonSpacing
+        } else 0f
+
+        // The caption ("from yest") is the lowest priority (8) and is added only if it fits
+        // in free space; it must never push buttons or date.
+        val leftCluster = m.icon + m.temp + m.delta + m.rain
+        val minRight = leftCluster + m.gap + buttonsWidth
+        val maxRight = m.width - m.rightCluster - 2 * m.gap - nominalDateWidth
+        val targetRight = m.width / 2f + buttonsWidth / 2f
+
+        val slotRight = if (minRight <= maxRight) {
+            targetRight.coerceIn(minRight, maxRight)
+        } else {
+            val maxRightNoDate = m.width - m.rightCluster - m.gap
+            targetRight.coerceIn(minRight, maxOf(minRight, maxRightNoDate))
+        }
+        return slotRight - m.width / 2f
+    }
 }
