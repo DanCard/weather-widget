@@ -7,15 +7,32 @@ import io.ktor.client.request.get
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+/**
+ * weather.gov's mesoToken, scraped and cached. The token [Cache] can outlive this instance: desktop
+ * shares one across its services while each fetches with its own [httpClient] — a shared instance kept
+ * the first service's client, closed after a loop restart, and every later token request failed with
+ * "Parent job is Completed" (2026-10-24).
+ */
 class MesoTokenApi(
     private val httpClient: HttpClient,
     private val nowMs: () -> Long = System::currentTimeMillis,
+    private val cache: Cache = Cache(),
 ) {
-    private val mutex = Mutex()
-    private var cachedToken: String? = null
-    private var lastFailureMs: Long = 0L
+    /** The token and failure backoff, shareable between instances. */
+    class Cache {
+        internal val mutex = Mutex()
+        internal var token: String? = null
+        internal var lastFailureMs: Long = 0L
+    }
 
-    suspend fun token(forceRefresh: Boolean = false): String? = mutex.withLock {
+    private var cachedToken: String?
+        get() = cache.token
+        set(value) { cache.token = value }
+    private var lastFailureMs: Long
+        get() = cache.lastFailureMs
+        set(value) { cache.lastFailureMs = value }
+
+    suspend fun token(forceRefresh: Boolean = false): String? = cache.mutex.withLock {
         val now = nowMs()
         if (!forceRefresh) {
             if (cachedToken != null) return@withLock cachedToken

@@ -146,7 +146,7 @@ class DesktopWeatherService(
         ?: SynopticApi(
             httpClient,
             json,
-            mesoTokenApi = if (injectedHttpClient != null) MesoTokenApi(httpClient) else getOrCreateMesoTokenApi(httpClient),
+            mesoTokenApi = if (injectedHttpClient != null) MesoTokenApi(httpClient) else MesoTokenApi(httpClient, cache = sharedMesoTokenCache),
         )
     private val aviationWeatherApi = AviationWeatherApi(httpClient, json)
     private val nwsMetarTextApi = injectedNwsMetarTextApi ?: NwsMetarTextApi(httpClient)
@@ -885,11 +885,11 @@ class DesktopWeatherService(
     override fun close() = httpClient.close()
 
     companion object {
-        private var sharedMesoTokenApi: MesoTokenApi? = null
-
-        @Synchronized
-        internal fun getOrCreateMesoTokenApi(client: HttpClient): MesoTokenApi =
-            sharedMesoTokenApi ?: MesoTokenApi(client).also { sharedMesoTokenApi = it }
+        /**
+         * One mesoToken for the process, fetched with whichever service's client asks: the services
+         * (and their clients) are replaced on every loop restart, the token is not.
+         */
+        private val sharedMesoTokenCache = MesoTokenApi.Cache()
         // No fallback coordinates. "No location" is the absence of a config, not a stand-in for one;
         // a null config opens the location picker and must never silently show Google-HQ weather as
         // the user's own (the desktop analog of the Android H1 fix).

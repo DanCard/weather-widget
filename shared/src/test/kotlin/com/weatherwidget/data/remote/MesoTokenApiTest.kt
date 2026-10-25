@@ -47,6 +47,21 @@ class MesoTokenApiTest {
     }
 
     @Test
+    fun `a shared cache outlives a closed client - the next instance fetches with its own`() = runBlocking {
+        val cache = MesoTokenApi.Cache()
+        fun client() = HttpClient(MockEngine {
+            respond("var mesoToken = '$token';", headers = headersOf(HttpHeaders.ContentType, "text/javascript"))
+        })
+        val first = client()
+        assertEquals(token, MesoTokenApi(first, cache = cache).token())
+        first.close()
+
+        val second = MesoTokenApi(client(), cache = cache)
+        assertTrue("token shared", second.hasCachedToken)
+        assertEquals("refreshed through the live client, not the closed one", token, second.token(forceRefresh = true))
+    }
+
+    @Test
     fun `failure cache is short and retries automatically`() = runBlocking {
         var requests = 0
         var now = 1_000_000L
