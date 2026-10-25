@@ -49,6 +49,8 @@ class PositionDailyIconsRoboTest {
         showHome: Boolean = false,
         centreOffsetDp: Float = 0f,
         centreZoneDp: Float = HeaderWidthChecker.centerIconZoneWidthDp(widthDp),
+        extraStartDp: Float = 0f,
+        extraEndDp: Float = 0f,
     ): View {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         // The daily graph path hides everything first, then re-enables what it wants.
@@ -65,8 +67,7 @@ class PositionDailyIconsRoboTest {
             shown = HeaderButtons.shown(want, plan),
             widthDp = widthDp,
             density = context.resources.displayMetrics.density,
-            centreOffsetDp = centreOffsetDp,
-            centreZoneDp = centreZoneDp,
+            centre = CentreButtonsLayout(centreOffsetDp, centreZoneDp, extraStartDp, extraEndDp),
         )
         return views.apply(context, FrameLayout(context))
     }
@@ -171,6 +172,25 @@ class PositionDailyIconsRoboTest {
         assertEquals(40f, HeaderWidthChecker.centerIconZoneWidthDp(440), 0.01f)
         assertEquals(52f, HeaderWidthChecker.centerIconZoneWidthDp(500), 0.01f)
         assertEquals(26f, HeaderWidthChecker.minCenterIconZoneWidthDp(), 0.01f)
+    }
+
+    @Test
+    fun `the end zones reach into the free space and keep their icons in place`() {
+        // A tap just past history (or before the first button) must open it, not fall through to
+        // the root's source toggle; the padding keeps each icon centred in its own zone.
+        val density = context.resources.displayMetrics.density
+        val v = apply(
+            HeaderFit.ButtonPlacement.CENTER, showObservations = true, widthDp = 440,
+            centreZoneDp = 32f, extraStartDp = 10f, extraEndDp = 20f,
+        )
+        val obs = v.findViewById<View>(R.id.weather_stations_touch_zone)
+        val history = v.findViewById<View>(R.id.forecast_history_activity_touch_zone)
+        assertEquals((32f * density).toInt() + (10f * density).toInt(), obs.layoutParams.width)
+        assertEquals((10f * density).toInt(), obs.paddingLeft)
+        assertEquals(0, obs.paddingRight)
+        assertEquals((32f * density).toInt() + (20f * density).toInt(), history.layoutParams.width)
+        assertEquals((20f * density).toInt(), history.paddingRight)
+        assertEquals(0, history.paddingLeft)
     }
 
     @Test
@@ -285,11 +305,15 @@ class PositionDailyIconsRoboTest {
         assertEquals(0, view.containerLeftMargin())
 
         // On the line: four 25dp buttons end 70dp right of the middle, so their centre is 20dp right.
+        // The end zones reach unequally into the free space beside them, which moves the
+        // container's centre by half the difference — never the buttons.
         val (lineMeasured, line) = hourlyRow(440, HeaderFit.Seam.RIGHT_OF_MIDDLE)
         RemoteViews(context.packageName, R.layout.widget_weather).apply {
             positionCenterIcons(this, 440, density, isPrecipVisible = false, measured = lineMeasured, fit = line, shown = HeaderButtons.shown(HeaderButtons.hourly(true), line))
         }.reapply(context, view)
-        assertEquals(20f * density, view.containerLeftMargin().toFloat(), 1f)
+        val centre = centreButtonsLayout(lineMeasured, line, 440, density)
+        assertEquals(20f, centre.offsetDp - (centre.extraEndDp - centre.extraStartDp) / 2f, 0.01f)
+        assertEquals(centre.offsetDp * density, view.containerLeftMargin().toFloat(), 1f)
     }
 
     @Test

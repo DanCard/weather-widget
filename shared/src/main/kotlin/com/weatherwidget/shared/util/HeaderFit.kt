@@ -247,6 +247,23 @@ object HeaderFit {
     }
 
     /**
+     * Where the CENTER buttons' touch zones reach: halfway across the free space on each side, so a
+     * tap nearer a button opens it and one nearer the neighbour reaches the neighbour (user,
+     * 2026-10-25: a tap just past history changed the source). The left neighbour is the left
+     * cluster; the right one the date when shown (it stays the source toggle's), else the source
+     * label. The extra goes to the first and last buttons; the icons do not move. Null when there
+     * are no CENTER buttons.
+     */
+    fun buttonsTouchSpan(m: Measured, plan: Plan): Pair<Float, Float>? {
+        val (slotLeft, slotRight) = buttonsSpan(m, plan) ?: return null
+        val leftNeighbour = leftClusterWidth(m, plan)
+        val rightNeighbour = dateLeft(m, plan) ?: (m.width - m.rightCluster)
+        val left = minOf(slotLeft, (leftNeighbour + slotLeft) / 2f)
+        val right = maxOf(slotRight, (slotRight + rightNeighbour) / 2f)
+        return left to right
+    }
+
+    /**
      * Left edge of the date as [plan] lays it out, or null when it is not shown. After the CENTER
      * buttons; without them, at the line where they would end — pushed right of a long left
      * cluster rather than dropped, since nothing then competes for that spot.

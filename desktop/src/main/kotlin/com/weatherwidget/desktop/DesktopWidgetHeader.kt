@@ -298,114 +298,94 @@ internal fun WidgetHeader(
                 }
             }
             // The buttons HeaderButtons shows, in its order (home first, history last), ending on
-            // HeaderFit's line. Sizes and tints match Android's 0xAAFFFFFF / 0x99FFFFFF icons.
-            buttonsSpan?.let { (groupLeft, _) ->
+            // HeaderFit's line. Sizes and tints match Android's 0xAAFFFFFF / 0x99FFFFFF icons. The
+            // whole zone is the button, and two invisible extensions carry the first and last
+            // halfway to their neighbours (HeaderFit.buttonsTouchSpan): a click nearer a button
+            // never falls through to the header's source toggle. Separate boxes, so the drawn
+            // row stays at the slot to the pixel.
+            buttonsSpan?.let { (slotLeft, slotRight) ->
                 val zoneDp = fit.centreZone.takeIf { it > 0f } ?: measured.centreButton
-                Row(
-                    modifier = Modifier.align(Alignment.CenterStart).offset(x = groupLeft.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    for (button in HeaderButtons.shown(buttonsWant, fit)) Box(
-                        modifier = Modifier.width(zoneDp.dp),
-                        contentAlignment = Alignment.Center,
-                    ) { when (button) {
-                        HeaderButton.HOME -> if (isHourly) {
-                            Icon(
-                                painter = painterResource("drawable/ic_home.xml"),
-                                contentDescription = "Daily view",
-                                tint = Color.White.copy(alpha = 0.6f),
-                                modifier = Modifier.size(iconSizeDp.dp).clickable {
-                                    onUpdateConfig(config.copy(viewMode = ViewMode.DAILY))
-                                }.testTag("switch_to_daily")
-                            )
-                        } else {
-                            Icon(
-                                painter = painterResource("drawable/ic_home.xml"),
-                                contentDescription =
-                                    if (homeAction == PreferredSourceHome.HomeAction.RECENTER_TODAY) {
-                                        "Back to today"
-                                    } else {
-                                        "Back to the preferred weather source"
-                                    },
-                                tint = Color.White.copy(alpha = 0.6f),
-                                modifier = Modifier.size(iconSizeDp.dp).clickable {
-                                    if (homeAction == PreferredSourceHome.HomeAction.RECENTER_TODAY) {
-                                        // Zoom-out is kept: homeDateOffset already moves the
-                                        // window forward by it, so yesterday is the one history day.
-                                        // From the months view this also returns to the daily view.
-                                        onUpdateConfig(config.copy(dateOffset = homeDateOffset, monthsView = false))
-                                        return@clickable
-                                    }
-                                    val preferred =
-                                        PreferredSourceHome.preferredSourceId(config.effectiveSources)
-                                    if (preferred != null) {
-                                        onUpdateConfig(
-                                            config.copy(
-                                                settings = config.settings.copy(weatherSource = preferred),
-                                            ),
-                                        )
-                                        DesktopSourceViews.record(
-                                            preferred,
-                                            config.effectiveSources,
-                                            config.viewMode,
-                                            com.weatherwidget.shared.sourceview.SourceViewTrigger.HOME,
-                                        )
-                                    }
-                                }.testTag("daily_home_button")
+                val (touchLeft, touchRight) = HeaderFit.buttonsTouchSpan(measured, fit) ?: (slotLeft to slotRight)
+                val shownButtons = HeaderButtons.shown(buttonsWant, fit)
+                // A little taller than the icons, so a click just above or below one still lands.
+                val buttonHeightDp = iconSizeDp + 8 * scale
+                fun onClick(button: HeaderButton): () -> Unit = when (button) {
+                    HeaderButton.HOME -> if (isHourly) {
+                        { onUpdateConfig(config.copy(viewMode = ViewMode.DAILY)) }
+                    } else {
+                        {
+                            if (homeAction == PreferredSourceHome.HomeAction.RECENTER_TODAY) {
+                                // Zoom-out is kept: homeDateOffset already moves the window forward
+                                // by it, so yesterday is the one history day. From the months view
+                                // this also returns to the daily view.
+                                onUpdateConfig(config.copy(dateOffset = homeDateOffset, monthsView = false))
+                            } else {
+                                val preferred = PreferredSourceHome.preferredSourceId(config.effectiveSources)
+                                if (preferred != null) {
+                                    onUpdateConfig(
+                                        config.copy(
+                                            settings = config.settings.copy(weatherSource = preferred),
+                                        ),
+                                    )
+                                    DesktopSourceViews.record(
+                                        preferred,
+                                        config.effectiveSources,
+                                        config.viewMode,
+                                        com.weatherwidget.shared.sourceview.SourceViewTrigger.HOME,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    // The date only scopes the window's Refresh (a previous day's Google history
+                    // refill), as for history below.
+                    HeaderButton.OBSERVATIONS -> {
+                        { onOpenObservations(if (!isHourly && todayInView) LocalDate.now() else targetHour.toLocalDate()) }
+                    }
+                    HeaderButton.GRAPH_SELECTOR -> {
+                        { onUpdateConfig(config.copy(viewMode = GraphSelector.next(config.viewMode))) }
+                    }
+                    HeaderButton.MONTHS -> {
+                        {
+                            onUpdateConfig(
+                                config.copy(
+                                    monthsView = true,
+                                    monthsSpan = com.weatherwidget.shared.months.MonthsSpan.DEFAULT.months,
+                                    monthsEnd = null,
+                                ),
                             )
                         }
-                        // Current observations: ic_thermometer, not the 🌡️ emoji the graph selector
-                        // uses for its temperature hint. The date only scopes the window's Refresh
-                        // (a previous day's Google history refill), as for history below.
-                        HeaderButton.OBSERVATIONS -> Icon(
-                            painter = painterResource("drawable/ic_thermometer.xml"),
-                            contentDescription = "Weather station observations",
-                            tint = Color.White.copy(alpha = 0.67f),
-                            modifier = Modifier.size(iconSizeDp.dp).clickable {
-                                onOpenObservations(
-                                    if (!isHourly && todayInView) LocalDate.now() else targetHour.toLocalDate(),
-                                )
-                            }.testTag(if (isHourly) "open_observations_header" else "open_observations_header_daily")
-                        )
-                        HeaderButton.GRAPH_SELECTOR -> Text(
-                            text = graphSelectorEmoji,
-                            style = graphSelectorStyle,
-                            color = Color.White,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.wrapContentWidth(unbounded = true).clickable {
-                                onUpdateConfig(config.copy(viewMode = GraphSelector.next(config.viewMode)))
-                            }.testTag("graph_selector")
-                        )
-                        HeaderButton.MONTHS -> Icon(
-                            painter = painterResource("drawable/ic_months_view.xml"),
-                            contentDescription = "Months view",
-                            tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size(iconSizeDp.dp).clickable {
-                                onUpdateConfig(
-                                    config.copy(
-                                        monthsView = true,
-                                        monthsSpan = com.weatherwidget.shared.months.MonthsSpan.DEFAULT.months,
-                                        monthsEnd = null,
-                                    ),
-                                )
-                            }.testTag("open_months_view_daily")
-                        )
-                        // Hourly: the viewed window's centre date (Android: centerTime.toLocalDate()),
-                        // so panning back to Wednesday opens Wednesday. Daily: today while today is
-                        // on screen, otherwise the viewed date.
-                        HeaderButton.HISTORY -> Icon(
-                            painter = painterResource("drawable/ic_forecast_history_line.xml"),
-                            contentDescription = "Forecast history",
-                            tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size(iconSizeDp.dp).clickable {
-                                onOpenHistory(
-                                    if (!isHourly && todayInView) LocalDate.now() else targetHour.toLocalDate(),
-                                )
-                            }.testTag(if (isHourly) "open_forecast_history" else "open_forecast_history_daily")
-                        )
-                    } }
+                    }
+                    // Hourly: the viewed window's centre date (Android: centerTime.toLocalDate()), so
+                    // panning back to Wednesday opens Wednesday. Daily: today while today is on
+                    // screen, otherwise the viewed date.
+                    HeaderButton.HISTORY -> {
+                        { onOpenHistory(if (!isHourly && todayInView) LocalDate.now() else targetHour.toLocalDate()) }
+                    }
                 }
+                Row(
+                    modifier = Modifier.align(Alignment.CenterStart).offset(x = slotLeft.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    for (button in shownButtons) Box(
+                        modifier = Modifier
+                            .size(width = zoneDp.dp, height = buttonHeightDp.dp)
+                            .clickable(onClick = onClick(button))
+                            .testTag(headerButtonTag(button, isHourly)),
+                        contentAlignment = Alignment.Center,
+                    ) { HeaderButtonGlyph(button, isHourly, homeAction, iconSizeDp, graphSelectorEmoji, graphSelectorStyle) }
+                }
+                for (ext in listOf(
+                    TouchExtension(shownButtons.first(), touchLeft, slotLeft, "header_touch_extension_start"),
+                    TouchExtension(shownButtons.last(), slotRight, touchRight, "header_touch_extension_end"),
+                )) if (ext.toDp > ext.fromDp) Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .offset(x = ext.fromDp.dp)
+                        .size(width = (ext.toDp - ext.fromDp).dp, height = buttonHeightDp.dp)
+                        .clickable(onClick = onClick(ext.button))
+                        .testTag(ext.tag),
+                )
             }
             dateLeft?.let { x ->
                 Text(
@@ -455,6 +435,75 @@ private object HeaderFitLog {
         Log.i(HeaderFit.LOG_TAG, HeaderFit.logLine(view, measured.width, scale, plan, measured))
     }
 }
+
+/**
+ * A header button's test tag, on its zone (the click target); its icon carries the same tag plus
+ * `_icon`, for tests that need where it is drawn.
+ */
+internal fun headerButtonTag(button: HeaderButton, isHourly: Boolean): String = when (button) {
+    HeaderButton.HOME -> if (isHourly) "switch_to_daily" else "daily_home_button"
+    HeaderButton.OBSERVATIONS -> if (isHourly) "open_observations_header" else "open_observations_header_daily"
+    HeaderButton.GRAPH_SELECTOR -> "graph_selector"
+    HeaderButton.MONTHS -> "open_months_view_daily"
+    HeaderButton.HISTORY -> if (isHourly) "open_forecast_history" else "open_forecast_history_daily"
+}
+
+/** One header button's icon, drawn centred in its zone (the zone is the click target). */
+@Composable
+private fun HeaderButtonGlyph(
+    button: HeaderButton,
+    isHourly: Boolean,
+    homeAction: PreferredSourceHome.HomeAction?,
+    iconSizeDp: Float,
+    graphSelectorEmoji: String,
+    graphSelectorStyle: androidx.compose.ui.text.TextStyle,
+) {
+    val iconTag = headerButtonTag(button, isHourly) + "_icon"
+    val iconModifier = Modifier.size(iconSizeDp.dp).testTag(iconTag)
+    when (button) {
+        HeaderButton.HOME -> Icon(
+            painter = painterResource("drawable/ic_home.xml"),
+            contentDescription = when {
+                isHourly -> "Daily view"
+                homeAction == PreferredSourceHome.HomeAction.RECENTER_TODAY -> "Back to today"
+                else -> "Back to the preferred weather source"
+            },
+            tint = Color.White.copy(alpha = 0.6f),
+            modifier = iconModifier,
+        )
+        // Current observations: ic_thermometer, not the 🌡️ emoji the graph selector uses for its
+        // temperature hint.
+        HeaderButton.OBSERVATIONS -> Icon(
+            painter = painterResource("drawable/ic_thermometer.xml"),
+            contentDescription = "Weather station observations",
+            tint = Color.White.copy(alpha = 0.67f),
+            modifier = iconModifier,
+        )
+        HeaderButton.GRAPH_SELECTOR -> Text(
+            text = graphSelectorEmoji,
+            style = graphSelectorStyle,
+            color = Color.White,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.wrapContentWidth(unbounded = true).testTag(iconTag),
+        )
+        HeaderButton.MONTHS -> Icon(
+            painter = painterResource("drawable/ic_months_view.xml"),
+            contentDescription = "Months view",
+            tint = Color.White.copy(alpha = 0.6f),
+            modifier = iconModifier,
+        )
+        HeaderButton.HISTORY -> Icon(
+            painter = painterResource("drawable/ic_forecast_history_line.xml"),
+            contentDescription = "Forecast history",
+            tint = Color.White.copy(alpha = 0.6f),
+            modifier = iconModifier,
+        )
+    }
+}
+
+/** An invisible click area beside the centred row, from [fromDp] to [toDp], that is [button]. */
+private data class TouchExtension(val button: HeaderButton, val fromDp: Float, val toDp: Float, val tag: String)
 
 /** A centred header button's icon, before the header scale; its zone adds `HeaderButtonZone`'s air. */
 private const val CENTRE_ICON_DP = 15f

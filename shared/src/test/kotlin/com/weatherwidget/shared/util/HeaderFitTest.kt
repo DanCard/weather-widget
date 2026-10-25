@@ -141,6 +141,26 @@ class HeaderFitTest {
     }
 
     @Test
+    fun `button touch zones reach halfway to their neighbours`() {
+        // Three 40s on the middle span 90–210. Left: halfway to the 60 temp → 75. Right: halfway
+        // to the source label at 230 → 220, or to an 8-wide date at 216 → 213.
+        val m = Measured(
+            width = 300f, rightCluster = 70f, gap = 6f, temp = 60f,
+            baseButtons = 3, centreButton = 40f, inlineButton = 30f, inlineLead = 4f,
+        )
+        val plan = HeaderFit.resolve(m)
+        assertEquals(90f to 210f, HeaderFit.buttonsSpan(m, plan))
+        assertEquals(75f to 220f, HeaderFit.buttonsTouchSpan(m, plan))
+
+        val withDate = m.copy(date = 8f)
+        val datePlan = HeaderFit.resolve(withDate)
+        assertTrue(datePlan.showDate)
+        assertEquals(75f to 213f, HeaderFit.buttonsTouchSpan(withDate, datePlan))
+
+        assertNull(HeaderFit.buttonsTouchSpan(m, plan.copy(placement = ButtonPlacement.INLINE)))
+    }
+
+    @Test
     fun `the date never narrows the buttons`() {
         // Three 40s on the middle end at 210; a 20 date needs them to end by 198 (224 - 20 - 6),
         // which a 32 zone would allow — but the buttons' air outranks the date.

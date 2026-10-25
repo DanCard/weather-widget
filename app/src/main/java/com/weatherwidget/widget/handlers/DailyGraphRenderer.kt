@@ -352,9 +352,7 @@ internal object DailyGraphRenderer {
             widthDp = dimensions.widthDp,
             density = ctx.context.resources.displayMetrics.density,
             scale = headerScale,
-            // Slot centre relative to the widget's, in dp: the container is centre_horizontal.
-            centreOffsetDp = buttonsSpan?.let { (l, r) -> ((l + r) / 2f - measured.width / 2f) / ctx.context.resources.displayMetrics.density } ?: 0f,
-            centreZoneDp = HeaderWidthChecker.centerIconZoneWidthDp(fit, dimensions.widthDp, ctx.context.resources.displayMetrics.density),
+            centre = centreButtonsLayout(measured, fit, dimensions.widthDp, ctx.context.resources.displayMetrics.density),
         )
         if (observationsInView != headerState.observationsInView) {
             Log.w(

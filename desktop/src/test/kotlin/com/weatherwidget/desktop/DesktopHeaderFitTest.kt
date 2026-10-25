@@ -7,6 +7,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.dp
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastSnapshot
@@ -129,7 +133,7 @@ class DesktopHeaderFitTest {
             }
         }
         composeTestRule.waitForIdle()
-        val bounds = composeTestRule.onAllNodesWithTag("open_forecast_history_daily", useUnmergedTree = true)
+        val bounds = composeTestRule.onAllNodesWithTag("open_forecast_history_daily_icon", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
         // History, the last button, ends its zone on the line 70dp right of the middle (the icon half
         // the shared air before it); the date starts after it.
@@ -157,7 +161,7 @@ class DesktopHeaderFitTest {
             }
         }
         composeTestRule.waitForIdle()
-        val history = composeTestRule.onAllNodesWithTag("open_forecast_history", useUnmergedTree = true)
+        val history = composeTestRule.onAllNodesWithTag("open_forecast_history_icon", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
         val rightDp = with(composeTestRule.density) { history.right.toDp().value }
         assertEquals(LINE_ICON_RIGHT_DP, rightDp, 1f)
@@ -183,8 +187,9 @@ class DesktopHeaderFitTest {
         composeTestRule.waitForIdle()
     }
 
+    /** Where a button's icon starts (its `_icon` tag; the plain tag is its wider click zone). */
     private fun leftDp(tag: String): Float? =
-        composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().singleOrNull()
+        composeTestRule.onAllNodesWithTag(tag + "_icon", useUnmergedTree = true).fetchSemanticsNodes().singleOrNull()
             ?.let { with(composeTestRule.density) { it.boundsInRoot.left.toDp().value } }
 
     @Test
@@ -200,7 +205,7 @@ class DesktopHeaderFitTest {
     fun hourlyObservationsHideWhenTodayIsOffScreenAndOnlyHomeMoves() {
         header(config.copy(viewMode = ViewMode.TEMPERATURE), headerTime = LocalDateTime.now().plusHours(48))
         assertEquals("observations: no today on screen", null, leftDp("open_observations_header"))
-        val history = composeTestRule.onAllNodesWithTag("open_forecast_history", useUnmergedTree = true)
+        val history = composeTestRule.onAllNodesWithTag("open_forecast_history_icon", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
         assertEquals(LINE_ICON_RIGHT_DP, with(composeTestRule.density) { history.right.toDp().value }, 1f)
         assertTrue("home still leftmost", leftDp("switch_to_daily")!! < leftDp("graph_selector")!!)
@@ -231,7 +236,7 @@ class DesktopHeaderFitTest {
             }
         }
         composeTestRule.waitForIdle()
-        fun lefts(tag: String) = composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
+        fun lefts(tag: String) = composeTestRule.onAllNodesWithTag(tag + "_icon", useUnmergedTree = true).fetchSemanticsNodes()
             .sortedBy { it.boundsInRoot.top }
             .map { with(composeTestRule.density) { it.boundsInRoot.left.toDp().value } }
         val home = lefts("daily_home_button")
@@ -242,6 +247,43 @@ class DesktopHeaderFitTest {
         assertEquals("observations did not move", obs[0], obs[1], 0.5f)
         assertEquals("history did not move", history[0], history[1], 0.5f)
         assertTrue("home left of observations", home.single() < obs[1])
+    }
+
+    @Test
+    fun aClickPastHistoryOpensHistoryUpToHalfwayToTheDate() {
+        // The history zone reaches halfway from its slot to the date; nearer the date the click is
+        // the header's source toggle, as before (user, 2026-10-25).
+        val opened = mutableListOf<LocalDate>()
+        val configChanges = mutableListOf<DesktopConfig>()
+        composeTestRule.setContent {
+            Box(Modifier.requiredWidth(800.dp)) {
+                WidgetHeader(
+                    config = config,
+                    forecast = snapshot(),
+                    resolvedCurrentTemp = 64f,
+                    resolvedDeltaFromYesterday = 2.2f,
+                    onUpdateConfig = { configChanges += it },
+                    onOpenSettings = {},
+                    onOpenObservations = {},
+                    onOpenHistory = { opened += it },
+                    onUpdateLocation = {},
+                )
+            }
+        }
+        composeTestRule.waitForIdle()
+        fun bounds(tag: String) = composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+        val zone = bounds("header_touch_extension_end")
+        val date = bounds("daily_header_date")
+        val slotRight = with(composeTestRule.density) { (400f + HeaderFit.SEAM_OFFSET_DP).dp.toPx() }
+        assertEquals(slotRight, zone.left, 1.5f)
+        assertEquals((slotRight + date.left) / 2f, zone.right, 1.5f)
+
+        composeTestRule.onNodeWithTag("header_touch_extension_end")
+            .performTouchInput { click(Offset(width - 2f, height / 2f)) }
+        composeTestRule.waitForIdle()
+        assertEquals(1, opened.size)
+        assertTrue("source untouched: $configChanges", configChanges.isEmpty())
     }
 }
 

@@ -520,23 +520,17 @@ internal fun positionCenterIcons(
         // Centred buttons end on HeaderFit's line (as the daily ones do, so history stays put when
         // switching views) unless only the middle had room; a reapply keeps whatever margin the
         // last update set, so it is always written.
-        val centreOffsetDp = HeaderFit.buttonsSpan(measured, fit)
-            ?.let { (l, r) -> ((l + r) / 2f - measured.width / 2f) / density } ?: 0f
+        val centre = centreButtonsLayout(measured, fit, widthDp, density)
         views.setViewLayoutMargin(
             R.id.hourly_center_header_container,
             RemoteViews.MARGIN_LEFT,
-            centreOffsetDp,
+            centre.offsetDp,
             android.util.TypedValue.COMPLEX_UNIT_DIP,
         )
-    }
-
-    if (floatingVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val touchWidthDp = HeaderWidthChecker.centerIconZoneWidthDp(fit, widthDp, density)
-        val touchWidthPx = (touchWidthDp * density).toInt()
-        for (id in listOf(R.id.graph_selector_touch_zone, R.id.weather_stations_touch_zone, R.id.home_touch_zone, R.id.forecast_history_activity_touch_zone)) {
-            views.setViewLayoutWidth(id, touchWidthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)
+        if (floatingVis == View.VISIBLE) {
+            applyCentreZones(views, shown, centre, density)
+            Log.d("HomeShortcut", "positionCenterIcons: floating zones $centre for widthDp=$widthDp")
         }
-        Log.d("HomeShortcut", "positionCenterIcons: floating touch zones resized to ${touchWidthDp}dp for widthDp=$widthDp")
     }
 
 }
@@ -581,6 +575,57 @@ internal enum class HeaderButtonViews(
  * Every view is written: RemoteViews visibility is sticky across partial pushes, so a daily render's
  * months or home would otherwise survive into the hourly header, and the other way round.
  */
+/**
+ * The CENTER buttons' container offset (dp right of the widget's centre), one zone's width, and how
+ * far the first and last zones reach past their icons' zones into the free space beside them
+ * ([HeaderFit.buttonsTouchSpan]) — so a tap just past history opens history rather than falling
+ * through to the root's source toggle. Zones resize only on API 31+, so no reach below it.
+ */
+internal data class CentreButtonsLayout(
+    val offsetDp: Float = 0f,
+    val zoneDp: Float,
+    val extraStartDp: Float = 0f,
+    val extraEndDp: Float = 0f,
+)
+
+internal fun centreButtonsLayout(
+    measured: HeaderFit.Measured,
+    fit: HeaderFit.Plan,
+    widthDp: Int,
+    density: Float,
+): CentreButtonsLayout {
+    val zoneDp = HeaderWidthChecker.centerIconZoneWidthDp(fit, widthDp, density)
+    val slot = HeaderFit.buttonsSpan(measured, fit) ?: return CentreButtonsLayout(zoneDp = zoneDp)
+    val touch = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        HeaderFit.buttonsTouchSpan(measured, fit) ?: slot
+    } else slot
+    return CentreButtonsLayout(
+        // The container is centre_horizontal: its centre is the touch span's.
+        offsetDp = ((touch.first + touch.second) / 2f - measured.width / 2f) / density,
+        zoneDp = zoneDp,
+        extraStartDp = (slot.first - touch.first) / density,
+        extraEndDp = (touch.second - slot.second) / density,
+    )
+}
+
+/**
+ * Sizes the floating zones: [CentreButtonsLayout.zoneDp] each, the first [shown] one widened by
+ * [CentreButtonsLayout.extraStartDp] and padded by as much on its start so its icon stays put, the
+ * last likewise at its end. Every zone's padding is written, since a reapply keeps the last one's.
+ */
+internal fun applyCentreZones(views: RemoteViews, shown: List<HeaderButton>, centre: CentreButtonsLayout, density: Float) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    val first = shown.firstOrNull()
+    val last = shown.lastOrNull()
+    for (v in HeaderButtonViews.entries) {
+        val startPx = if (v.button == first) (centre.extraStartDp * density).toInt() else 0
+        val endPx = if (v.button == last) (centre.extraEndDp * density).toInt() else 0
+        val widthPx = (centre.zoneDp * density).toInt() + startPx + endPx
+        views.setViewLayoutWidth(v.zone, widthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)
+        views.setViewPadding(v.zone, startPx, 0, endPx, 0)
+    }
+}
+
 internal fun showHeaderButtons(views: RemoteViews, placement: HeaderFit.ButtonPlacement, shown: List<HeaderButton>) {
     val floating = placement == HeaderFit.ButtonPlacement.CENTER
     val inline = placement == HeaderFit.ButtonPlacement.INLINE
@@ -614,10 +659,8 @@ internal fun positionDailyIcons(
     widthDp: Int,
     density: Float,
     scale: Float = 1.0f,
-    /** How far right of the widget's centre the CENTER buttons' centre sits, in dp ([HeaderFit.buttonsSpan]). */
-    centreOffsetDp: Float = 0f,
-    /** One CENTER zone, in dp: what the fit chose ([HeaderWidthChecker.centerIconZoneWidthDp]). */
-    centreZoneDp: Float = HeaderWidthChecker.centerIconZoneWidthDp(widthDp),
+    /** Where the CENTER zones sit and how wide they are ([centreButtonsLayout]). */
+    centre: CentreButtonsLayout = CentreButtonsLayout(zoneDp = HeaderWidthChecker.centerIconZoneWidthDp(widthDp)),
 ) {
     val floating = placement == HeaderFit.ButtonPlacement.CENTER
     val inline = placement == HeaderFit.ButtonPlacement.INLINE
@@ -639,37 +682,31 @@ internal fun positionDailyIcons(
         views.setViewLayoutMargin(
             R.id.hourly_center_header_container,
             RemoteViews.MARGIN_LEFT,
-            if (floating) centreOffsetDp else 0f,
+            if (floating) centre.offsetDp else 0f,
             android.util.TypedValue.COMPLEX_UNIT_DIP,
         )
         // Zones wide enough that the buttons read as separate controls (:shared HeaderButtonZone).
         // Widths must match what the fit measured, or the reserved slot and the drawn buttons
         // disagree.
-        val zoneDp =
-            if (inline) HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP
-            else centreZoneDp
-        val widthPx = (zoneDp * density).toInt().toFloat()
-        val ids =
-            if (inline) listOf(
+        if (inline) {
+            val widthPx = (HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP * density).toInt().toFloat()
+            for (id in listOf(
                 R.id.weather_stations_touch_zone_inline,
                 R.id.home_touch_zone_inline,
                 R.id.months_view_touch_zone_inline,
                 R.id.forecast_history_activity_touch_zone_inline,
-            ) else listOf(
-                R.id.weather_stations_touch_zone,
-                R.id.home_touch_zone,
-                R.id.months_view_touch_zone,
-                R.id.forecast_history_activity_touch_zone,
-            )
-        for (id in ids) {
-            views.setViewLayoutWidth(id, widthPx, android.util.TypedValue.COMPLEX_UNIT_PX)
+            )) {
+                views.setViewLayoutWidth(id, widthPx, android.util.TypedValue.COMPLEX_UNIT_PX)
+            }
+        } else {
+            applyCentreZones(views, shown, centre, density)
         }
     }
 
     Log.d(
         "DailyHeaderIcons",
         "positionDailyIcons: placement=$placement shown=$shown widthDp=$widthDp " +
-            "zoneDp=$centreZoneDp scale=$scale",
+            "centre=$centre scale=$scale",
     )
 }
 
