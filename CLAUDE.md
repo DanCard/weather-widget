@@ -341,6 +341,11 @@ Also desktop Linux app that is intended to be the same as Android weather widget
   `HeaderFit` for every header, daily and hourly, both platforms (Android measures in
   `HeaderWidthChecker.measureHeader`); the hourly inline zones squeeze to 28dp, then the icon and
   temperature to 80 %, before anything drops (`plans/261022-shared-header-fit-priority.md`).
+  **Centred button air** (user, 2026-10-25): every centred button sits in a zone of its icon plus
+  `:shared` `HeaderButtonZone` air (6 / 12 / 20 / 32dp by width, < 360 / 420 / 450 / more), daily and
+  hourly, both platforms; `HeaderFit` narrows the zones to 6dp air before a rung change or losing
+  home — the weather icon may narrow them, the date and "from yest" never
+  (`plans/261025-shared-header-button-air.md`; the hourly 24dp zone left the Pixel's icons 4dp apart).
   **Button order** (user, 2026-10-22), left to right: daily home · observations · months · history;
   hourly home · observations · graph selector · history — home first (the one that comes and goes
   on a source switch, so nothing else moves), history last on both. Hourly observations only while

@@ -59,32 +59,10 @@ object HeaderConstants {
      */
     const val PRECIP_EXTRA_DROP_DP = 2f
     const val CENTER_ICON_SIZE_DP = 20f
-    // Daily-view header buttons (current observations / forecast history). Zone widths are FIXED
-    // rather than following the hourly view's width-dependent 32/40/48 ladder, so one constant
-    // feeds both the fit math (HeaderWidthChecker.measureHeader) and the layout
-    // (positionDailyIcons).
-    //
-    // The hourly header packs FOUR icons into 24dp zones, which reads fine as a row. Two icons at
-    // that pitch read as a single glued-together control (reported on Samsung), so the daily pair
-    // gets a wider zone — 20dp icon in a 40dp zone leaves ~20dp of air between them instead of ~4.
-    // Applied via setViewLayoutWidth, so it needs API 31+; below that the XML width stands and the
-    // fit math must measure THAT, hence the two constants.
-    // Wide headers can afford the airy zone; narrow ones cannot — every dp of zone is a dp taken
-    // from the gap the date has to fit into on the right, and 40dp zones cost that gap 16dp, which
-    // is the difference between the date showing and being dropped on a ~350dp widget.
-    // Four rungs: extra-wide / wide / medium / narrow. Wide widgets (>=450dp) get 52dp zones
-    // so adjacent buttons have 32dp of air, avoiding accidental misclicks.
-    const val DAILY_CENTER_ICON_ZONE_EXTRA_WIDE_DP = 52f
-    const val DAILY_CENTER_ICON_ZONE_WIDE_DP = 40f
-    const val DAILY_CENTER_ICON_ZONE_MEDIUM_DP = 32f
-    const val DAILY_CENTER_ICON_ZONE_NARROW_DP = 24f
-    const val DAILY_CENTER_ICON_ZONE_XML_WIDTH_DP = 24f
-    /** At or above this width the daily buttons use the spacious extra-wide zone. */
-    const val DAILY_EXTRA_WIDE_HEADER_MIN_WIDTH_DP = 450
-    /** At or above this width the daily buttons use the airy zone. Mirrors the inline-nav cutoff. */
-    const val DAILY_WIDE_HEADER_MIN_WIDTH_DP = 420
-    /** At or above this width they get the middle zone; below it the header cannot spare the air. */
-    const val DAILY_MEDIUM_HEADER_MIN_WIDTH_DP = 360
+    // Centred header buttons (daily and hourly): the zone is the icon plus :shared
+    // HeaderButtonZone's air, set via setViewLayoutWidth (API 31+); below that this XML width stands
+    // and the fit must measure it.
+    const val CENTER_ICON_ZONE_XML_WIDTH_DP = 24f
     const val DAILY_INLINE_ICON_ZONE_WIDTH_DP = 32f
     const val DAILY_INLINE_FIRST_ZONE_MARGIN_DP = 1f
     const val GRAPH_SELECTOR_TEXT_SIZE_DP = 16f

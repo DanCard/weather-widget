@@ -48,6 +48,7 @@ class PositionDailyIconsRoboTest {
         widthDp: Int = 440,
         showHome: Boolean = false,
         centreOffsetDp: Float = 0f,
+        centreZoneDp: Float = HeaderWidthChecker.centerIconZoneWidthDp(widthDp),
     ): View {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         // The daily graph path hides everything first, then re-enables what it wants.
@@ -65,6 +66,7 @@ class PositionDailyIconsRoboTest {
             widthDp = widthDp,
             density = context.resources.displayMetrics.density,
             centreOffsetDp = centreOffsetDp,
+            centreZoneDp = centreZoneDp,
         )
         return views.apply(context, FrameLayout(context))
     }
@@ -162,33 +164,22 @@ class PositionDailyIconsRoboTest {
     @Test
     fun `the zone ladder gives a mid-width header air between the buttons`() {
         // A 20dp icon in a 24dp zone leaves 4dp of air and the row reads as one control — what a
-        // Pixel 7 Pro (~412dp) showed once the home button made it three icons. Assert the rung
-        // itself, not just that layout matches measurement, so the pitch cannot quietly regress.
-        assertEquals(
-            HeaderConstants.DAILY_CENTER_ICON_ZONE_NARROW_DP,
-            HeaderWidthChecker.dailyCenterIconZoneWidthDp(340),
-            0.01f,
-        )
-        assertEquals(
-            HeaderConstants.DAILY_CENTER_ICON_ZONE_MEDIUM_DP,
-            HeaderWidthChecker.dailyCenterIconZoneWidthDp(412),
-            0.01f,
-        )
-        assertEquals(
-            HeaderConstants.DAILY_CENTER_ICON_ZONE_WIDE_DP,
-            HeaderWidthChecker.dailyCenterIconZoneWidthDp(440),
-            0.01f,
-        )
-        assertEquals(
-            HeaderConstants.DAILY_CENTER_ICON_ZONE_EXTRA_WIDE_DP,
-            HeaderWidthChecker.dailyCenterIconZoneWidthDp(500),
-            0.01f,
-        )
-        assertTrue(
-            "every rung must clear the 20dp glyph with room to spare",
-            HeaderConstants.DAILY_CENTER_ICON_ZONE_MEDIUM_DP >=
-                HeaderConstants.CENTER_ICON_SIZE_DP + 8f,
-        )
+        // Pixel 7 Pro (373dp, hourly) showed on 2026-10-25. Assert the rungs themselves (the shared
+        // HeaderButtonZone air around the 20dp icon), daily and hourly alike, and the 6dp floor.
+        assertEquals(26f, HeaderWidthChecker.centerIconZoneWidthDp(340), 0.01f)
+        assertEquals(32f, HeaderWidthChecker.centerIconZoneWidthDp(373), 0.01f)
+        assertEquals(40f, HeaderWidthChecker.centerIconZoneWidthDp(440), 0.01f)
+        assertEquals(52f, HeaderWidthChecker.centerIconZoneWidthDp(500), 0.01f)
+        assertEquals(26f, HeaderWidthChecker.minCenterIconZoneWidthDp(), 0.01f)
+    }
+
+    @Test
+    fun `a zone the fit narrowed is the zone laid out`() {
+        val density = context.resources.displayMetrics.density
+        val v = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true, widthDp = 440, centreZoneDp = 29f)
+        for (id in listOf(R.id.weather_stations_touch_zone, R.id.forecast_history_activity_touch_zone)) {
+            assertEquals((29f * density).toInt(), v.findViewById<View>(id).layoutParams.width)
+        }
     }
 
     @Test
@@ -205,7 +196,7 @@ class PositionDailyIconsRoboTest {
                 showHome = true,
             )
             val expectedPx =
-                (HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp) * density).toInt()
+                (HeaderWidthChecker.centerIconZoneWidthDp(widthDp) * density).toInt()
             for (id in listOf(
                 R.id.weather_stations_touch_zone,
                 R.id.home_touch_zone,
@@ -248,7 +239,7 @@ class PositionDailyIconsRoboTest {
             val v = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true, widthDp = widthDp)
             val zone = v.findViewById<View>(R.id.forecast_history_activity_touch_zone)
             val expectedPx =
-                (HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp) * density).toInt()
+                (HeaderWidthChecker.centerIconZoneWidthDp(widthDp) * density).toInt()
             assertEquals(
                 "widthDp=$widthDp",
                 expectedPx,

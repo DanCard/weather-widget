@@ -3,6 +3,7 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import android.graphics.Paint
 import android.util.TypedValue
+import com.weatherwidget.shared.util.HeaderButtonZone
 import com.weatherwidget.shared.util.HeaderFit
 
 object HeaderWidthChecker {
@@ -45,34 +46,29 @@ object HeaderWidthChecker {
         android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
 
     /**
-     * Width of the daily header button pair when centred, in dp, for [iconCount] buttons.
-     * Unscaled, like the zones [positionDailyIcons] lays out; the bitmap renderer applies its own
-     * labelScale.
+     * A centred header button's preferred zone, daily and hourly alike: the icon plus the shared
+     * [HeaderButtonZone] air for this width. Unscaled, like the zones [positionDailyIcons] /
+     * [positionCenterIcons] lay out. Below API 31 the XML width stands (zones cannot be resized),
+     * so measurement uses that.
      */
-    fun dailyCenterIconsWidthDp(iconCount: Int, widthDp: Int): Float =
-        if (iconCount <= 0) 0f else dailyCenterIconZoneWidthDp(widthDp) * iconCount
-
-    /**
-     * Zone width [positionDailyIcons] will actually apply, so measurement and layout cannot drift.
-     *
-     * Three rungs — airy / middle / tight — because a 20dp icon in a 24dp zone leaves 4dp of air
-     * and the buttons read as one control. The wider zones are set via `setViewLayoutWidth`
-     * (API 31+); below that the 24dp XML width stands, which happens to equal the tight zone.
-     */
-    fun dailyCenterIconZoneWidthDp(widthDp: Int): Float {
+    fun centerIconZoneWidthDp(widthDp: Int): Float =
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) {
-            return HeaderConstants.DAILY_CENTER_ICON_ZONE_NARROW_DP
+            HeaderConstants.CENTER_ICON_ZONE_XML_WIDTH_DP
+        } else {
+            HeaderButtonZone.zoneDp(HeaderConstants.CENTER_ICON_SIZE_DP, widthDp.toFloat())
         }
-        return when {
-            widthDp >= HeaderConstants.DAILY_EXTRA_WIDE_HEADER_MIN_WIDTH_DP ->
-                HeaderConstants.DAILY_CENTER_ICON_ZONE_EXTRA_WIDE_DP
-            widthDp >= HeaderConstants.DAILY_WIDE_HEADER_MIN_WIDTH_DP ->
-                HeaderConstants.DAILY_CENTER_ICON_ZONE_WIDE_DP
-            widthDp >= HeaderConstants.DAILY_MEDIUM_HEADER_MIN_WIDTH_DP ->
-                HeaderConstants.DAILY_CENTER_ICON_ZONE_MEDIUM_DP
-            else -> HeaderConstants.DAILY_CENTER_ICON_ZONE_NARROW_DP
+
+    /** Narrowest [HeaderFit] may squeeze a centred zone to; the XML width below API 31 (no squeeze). */
+    fun minCenterIconZoneWidthDp(): Float =
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) {
+            HeaderConstants.CENTER_ICON_ZONE_XML_WIDTH_DP
+        } else {
+            HeaderButtonZone.minZoneDp(HeaderConstants.CENTER_ICON_SIZE_DP)
         }
-    }
+
+    /** The centred zone [fit] chose, in dp; the preferred one when it chose none. */
+    fun centerIconZoneWidthDp(fit: HeaderFit.Plan, widthDp: Int, density: Float): Float =
+        fit.centreZone.takeIf { it > 0f }?.let { it / density } ?: centerIconZoneWidthDp(widthDp)
 
     /** Width of the daily header button pair when inline in the left cluster, in dp. */
     fun dailyInlineIconsWidthDp(iconCount: Int): Float =
@@ -135,19 +131,13 @@ object HeaderWidthChecker {
             baseButtons = baseButtons,
             wantHome = wantHome,
             wantMonths = wantMonths,
-            centreButton = dpToPx(context, if (hourly) hourlyCenterIconZoneWidthDp(widthDp) else dailyCenterIconZoneWidthDp(widthDp)),
+            centreButton = dpToPx(context, centerIconZoneWidthDp(widthDp)),
+            minCentreButton = dpToPx(context, minCenterIconZoneWidthDp()),
             inlineButton = dpToPx(context, if (hourly) nominalInlineZoneWidthDp(widthDp) else HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP),
             inlineLead = dpToPx(context, if (hourly) INLINE_NAV_FIRST_ZONE_MARGIN_DP.toFloat() else HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP),
             minInlineButton = if (hourly && canResizeInlineZones()) dpToPx(context, HOURLY_MIN_INLINE_ZONE_DP) else 0f,
             minTextScale = if (hourly) HOURLY_MIN_TEXT_SCALE else 1f,
         )
-    }
-
-    /** The hourly header's centred zone width [positionCenterIcons] applies (API 31+). */
-    fun hourlyCenterIconZoneWidthDp(widthDp: Int): Float = when {
-        widthDp >= 450 -> 56f
-        widthDp >= 420 -> 40f
-        else -> 24f
     }
 
     fun computeHeaderScale(

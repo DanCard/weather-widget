@@ -20,6 +20,7 @@ import com.weatherwidget.shared.util.HeaderContent
 import com.weatherwidget.shared.util.GraphSelector
 import com.weatherwidget.shared.util.HeaderButton
 import com.weatherwidget.shared.util.HeaderButtons
+import com.weatherwidget.shared.util.HeaderButtonZone
 import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.PreferredSourceHome
@@ -93,7 +94,7 @@ internal fun WidgetHeader(
     val toggleWeatherSource = { cycleDisplaySource(config, onUpdateConfig) }
 
     // Daily header inputs, decided before layout so the shared fit can weigh every item.
-    val iconSizeDp = 15 * scale
+    val iconSizeDp = CENTRE_ICON_DP * scale
     val spacingDp = 14 * scale
     // The home button never changes the view (the daily view is already home in that sense). It
     // resets the SOURCE when another one is shown, else — on the preferred source with today panned
@@ -117,7 +118,6 @@ internal fun WidgetHeader(
     val dateStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (12 * scale).sp)
     // The shared drop order (`HeaderFit`, plans/261022-shared-header-fit-priority.md), daily and
     // hourly alike: the hourly row has no date.
-    val hourlySpacingDp = 12 * scale
     // Cycling graph selector: the emoji names the view it switches to.
     val graphSelectorEmoji = GraphSelector.emoji(config.viewMode)
     // Which buttons the row wants (HeaderButtons): hourly observations only while the graph shows
@@ -135,7 +135,7 @@ internal fun WidgetHeader(
         HeaderButtons.daily(observationsInView = observationsInView, home = homeAction != null, months = wantMonthsButton)
     }
     val graphSelectorStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = (13 * scale).sp)
-    val headerMeasured = remember(content, scale, isHourly, graphSelectorEmoji, buttonsWant, dateText, headerTextMeasurer, density) {
+    val headerMeasured = remember(content, scale, isHourly, buttonsWant, dateText, headerTextMeasurer, density, headerWidthDp) {
         fun widthDp(text: String, style: androidx.compose.ui.text.TextStyle) =
             with(density) { headerTextMeasurer.measure(text, style).size.width.toDp().value }
         HeaderFit.Measured(
@@ -153,13 +153,11 @@ internal fun WidgetHeader(
             baseButtons = buttonsWant.baseButtons,
             wantHome = buttonsWant.wantHome,
             wantMonths = buttonsWant.wantMonths,
-            // The hourly row's emoji is not icon-sized: the average keeps the row's true width, so it
-            // ends on the line.
-            centreButton = if (isHourly) {
-                val n = buttonsWant.baseButtons
-                (widthDp(graphSelectorEmoji, graphSelectorStyle) + (n - 1) * iconSizeDp) / n
-            } else iconSizeDp,
-            centreButtonSpacing = if (isHourly) hourlySpacingDp else spacingDp,
+            // Each button sits centred in a zone of its icon plus the shared air (HeaderButtonZone,
+            // as Android's widget), which the fit may narrow; the graph selector's emoji is
+            // centred in the same zone.
+            centreButton = HeaderButtonZone.zoneDp(CENTRE_ICON_DP, headerWidthDp / scale) * scale,
+            minCentreButton = HeaderButtonZone.minZoneDp(CENTRE_ICON_DP) * scale,
         )
     }
 
@@ -302,12 +300,15 @@ internal fun WidgetHeader(
             // The buttons HeaderButtons shows, in its order (home first, history last), ending on
             // HeaderFit's line. Sizes and tints match Android's 0xAAFFFFFF / 0x99FFFFFF icons.
             buttonsSpan?.let { (groupLeft, _) ->
+                val zoneDp = fit.centreZone.takeIf { it > 0f } ?: measured.centreButton
                 Row(
                     modifier = Modifier.align(Alignment.CenterStart).offset(x = groupLeft.dp),
-                    horizontalArrangement = Arrangement.spacedBy((if (isHourly) hourlySpacingDp else spacingDp).dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    for (button in HeaderButtons.shown(buttonsWant, fit)) when (button) {
+                    for (button in HeaderButtons.shown(buttonsWant, fit)) Box(
+                        modifier = Modifier.width(zoneDp.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { when (button) {
                         HeaderButton.HOME -> if (isHourly) {
                             Icon(
                                 painter = painterResource("drawable/ic_home.xml"),
@@ -370,7 +371,9 @@ internal fun WidgetHeader(
                             text = graphSelectorEmoji,
                             style = graphSelectorStyle,
                             color = Color.White,
-                            modifier = Modifier.clickable {
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.wrapContentWidth(unbounded = true).clickable {
                                 onUpdateConfig(config.copy(viewMode = GraphSelector.next(config.viewMode)))
                             }.testTag("graph_selector")
                         )
@@ -401,7 +404,7 @@ internal fun WidgetHeader(
                                 )
                             }.testTag(if (isHourly) "open_forecast_history" else "open_forecast_history_daily")
                         )
-                    }
+                    } }
                 }
             }
             dateLeft?.let { x ->
@@ -452,6 +455,9 @@ private object HeaderFitLog {
         Log.i(HeaderFit.LOG_TAG, HeaderFit.logLine(view, measured.width, scale, plan, measured))
     }
 }
+
+/** A centred header button's icon, before the header scale; its zone adds `HeaderButtonZone`'s air. */
+private const val CENTRE_ICON_DP = 15f
 
 /** The current temp stays the header's largest text, above the smaller delta and rain % (user, 2026-10-22). */
 internal const val HEADER_CURRENT_TEMP_SP = 17f

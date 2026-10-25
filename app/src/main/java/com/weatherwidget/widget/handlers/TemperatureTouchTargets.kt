@@ -531,7 +531,7 @@ internal fun positionCenterIcons(
     }
 
     if (floatingVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val touchWidthDp = HeaderWidthChecker.hourlyCenterIconZoneWidthDp(widthDp)
+        val touchWidthDp = HeaderWidthChecker.centerIconZoneWidthDp(fit, widthDp, density)
         val touchWidthPx = (touchWidthDp * density).toInt()
         for (id in listOf(R.id.graph_selector_touch_zone, R.id.weather_stations_touch_zone, R.id.home_touch_zone, R.id.forecast_history_activity_touch_zone)) {
             views.setViewLayoutWidth(id, touchWidthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)
@@ -616,6 +616,8 @@ internal fun positionDailyIcons(
     scale: Float = 1.0f,
     /** How far right of the widget's centre the CENTER buttons' centre sits, in dp ([HeaderFit.buttonsSpan]). */
     centreOffsetDp: Float = 0f,
+    /** One CENTER zone, in dp: what the fit chose ([HeaderWidthChecker.centerIconZoneWidthDp]). */
+    centreZoneDp: Float = HeaderWidthChecker.centerIconZoneWidthDp(widthDp),
 ) {
     val floating = placement == HeaderFit.ButtonPlacement.CENTER
     val inline = placement == HeaderFit.ButtonPlacement.INLINE
@@ -640,13 +642,12 @@ internal fun positionDailyIcons(
             if (floating) centreOffsetDp else 0f,
             android.util.TypedValue.COMPLEX_UNIT_DIP,
         )
-        // Widen the zones so the pair reads as two controls, not one glued-together blob. The
-        // hourly header gets away with 24dp zones because it packs four icons; two at that pitch
-        // sit ~4dp apart. Widths must match what dailyCenterIconsWidthDp/dailyInlineIconsWidthDp
-        // measured, or the reserved slot and the drawn buttons disagree.
+        // Zones wide enough that the buttons read as separate controls (:shared HeaderButtonZone).
+        // Widths must match what the fit measured, or the reserved slot and the drawn buttons
+        // disagree.
         val zoneDp =
             if (inline) HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP
-            else HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp)
+            else centreZoneDp
         val widthPx = (zoneDp * density).toInt().toFloat()
         val ids =
             if (inline) listOf(
@@ -668,7 +669,7 @@ internal fun positionDailyIcons(
     Log.d(
         "DailyHeaderIcons",
         "positionDailyIcons: placement=$placement shown=$shown widthDp=$widthDp " +
-            "zoneDp=${HeaderWidthChecker.dailyCenterIconZoneWidthDp(widthDp)} scale=$scale",
+            "zoneDp=$centreZoneDp scale=$scale",
     )
 }
 

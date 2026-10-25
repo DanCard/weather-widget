@@ -49,7 +49,7 @@ class HeaderFitTest {
                 Plan(
                     showTemp = true, showRain = true, showDelta = true, showIcon = true, showDate = true,
                     showCaption = false, buttons = 4, homeShown = true, monthsShown = true,
-                    placement = ButtonPlacement.CENTER, seam = Seam.RIGHT_OF_MIDDLE,
+                    placement = ButtonPlacement.CENTER, seam = Seam.RIGHT_OF_MIDDLE, centreZone = 30f,
                 ),
                 plan,
             )
@@ -101,6 +101,57 @@ class HeaderFitTest {
         assertEquals(1132.69f, date, 0.01f)
         assertEquals(date, HeaderFit.dateLeft(m.copy(wantHome = true), withHome)!!, 0f)
         assertEquals(date, HeaderFit.dateLeft(m.copy(baseButtons = 1, wantHome = true), onePanned)!!, 0f)
+    }
+
+    @Test
+    fun `the Pixel 7 Pro hourly header gets its buttons 12dp apart`() {
+        // Logged 2026-10-25 (373dp, 2.625): 24dp zones left 4dp between the icons. At the shared
+        // 32dp zone three buttons on the middle span 363.6–615.6, clear of the 231 the left
+        // cluster needs and the 623.1 the source label leaves.
+        val m = Measured(
+            width = 979.125f, rightCluster = 340.25f, gap = 15.75f, seamOffset = HeaderFit.SEAM_OFFSET_DP * 2.625f,
+            temp = 108f, rain = 39f, icon = 68.25f, caption = 93.25f, baseButtons = 3,
+            centreButton = HeaderButtonZone.zoneDp(20f, 373f) * 2.625f,
+            minCentreButton = HeaderButtonZone.minZoneDp(20f) * 2.625f,
+            inlineButton = 105f, inlineLead = 2.625f, minInlineButton = 73.5f, minTextScale = 0.8f,
+        )
+        val plan = HeaderFit.resolve(m)
+        assertEquals(ButtonPlacement.CENTER to Seam.MIDDLE, plan.placement to plan.seam)
+        assertEquals(3, plan.buttons)
+        assertEquals(84f, plan.centreZone, 0.01f)
+        assertTrue("icon kept: $plan", plan.showIcon && plan.showTemp && plan.showRain)
+    }
+
+    @Test
+    fun `crowded centred buttons narrow toward their floor before leaving the middle`() {
+        // Left cluster needs 96; three 40s centred on 150 would start at 90. Narrowed to 36 they
+        // start at 96 exactly. With a 100 temp even the 30 floor does not fit: off the middle.
+        val m = Measured(
+            width = 300f, rightCluster = 70f, gap = 6f, temp = 90f,
+            baseButtons = 3, centreButton = 40f, minCentreButton = 30f, inlineButton = 30f, inlineLead = 4f,
+        )
+        val plan = HeaderFit.resolve(m)
+        assertEquals(ButtonPlacement.CENTER to Seam.MIDDLE, plan.placement to plan.seam)
+        assertEquals(36f, plan.centreZone, 0.01f)
+        assertEquals(96f, HeaderFit.buttonsSpan(m, plan)!!.first, 0.01f)
+        assertTrue(HeaderFit.fits(m, plan))
+
+        val tooTight = HeaderFit.resolve(m.copy(temp = 100f))
+        assertFalse("off the middle: $tooTight", tooTight.placement == ButtonPlacement.CENTER && tooTight.seam == Seam.MIDDLE)
+    }
+
+    @Test
+    fun `the date never narrows the buttons`() {
+        // Three 40s on the middle end at 210; a 20 date needs them to end by 198 (224 - 20 - 6),
+        // which a 32 zone would allow — but the buttons' air outranks the date.
+        val m = Measured(
+            width = 300f, rightCluster = 70f, gap = 6f, temp = 60f, date = 20f,
+            baseButtons = 3, centreButton = 40f, minCentreButton = 30f,
+        )
+        val plan = HeaderFit.resolve(m)
+        assertEquals(40f, plan.centreZone, 0f)
+        assertFalse("date dropped: $plan", plan.showDate)
+        assertTrue("an 8 date fits beside full zones", HeaderFit.resolve(m.copy(date = 8f)).showDate)
     }
 
     @Test

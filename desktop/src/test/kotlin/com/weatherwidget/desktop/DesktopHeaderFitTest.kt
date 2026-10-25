@@ -13,6 +13,7 @@ import com.weatherwidget.data.model.ForecastSnapshot
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.ResolvedView
+import com.weatherwidget.shared.util.HeaderButtonZone
 import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
@@ -130,9 +131,10 @@ class DesktopHeaderFitTest {
         composeTestRule.waitForIdle()
         val bounds = composeTestRule.onAllNodesWithTag("open_forecast_history_daily", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
-        // History, the last button, ends on the line 70dp right of the middle; the date starts after it.
+        // History, the last button, ends its zone on the line 70dp right of the middle (the icon half
+        // the shared air before it); the date starts after it.
         val rightDp = with(composeTestRule.density) { bounds.right.toDp().value }
-        assertEquals(400f + HeaderFit.SEAM_OFFSET_DP, rightDp, 1f)
+        assertEquals(LINE_ICON_RIGHT_DP, rightDp, 1f)
         val date = composeTestRule.onAllNodesWithTag("daily_header_date", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
         assertTrue("date at ${date.left} after the buttons' ${bounds.right}", date.left > bounds.right)
@@ -158,7 +160,7 @@ class DesktopHeaderFitTest {
         val history = composeTestRule.onAllNodesWithTag("open_forecast_history", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
         val rightDp = with(composeTestRule.density) { history.right.toDp().value }
-        assertEquals(400f + HeaderFit.SEAM_OFFSET_DP, rightDp, 1f)
+        assertEquals(LINE_ICON_RIGHT_DP, rightDp, 1f)
         composeTestRule.onAllNodesWithTag("graph_selector", useUnmergedTree = true).fetchSemanticsNodes().single()
     }
 
@@ -200,7 +202,7 @@ class DesktopHeaderFitTest {
         assertEquals("observations: no today on screen", null, leftDp("open_observations_header"))
         val history = composeTestRule.onAllNodesWithTag("open_forecast_history", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
-        assertEquals(400f + HeaderFit.SEAM_OFFSET_DP, with(composeTestRule.density) { history.right.toDp().value }, 1f)
+        assertEquals(LINE_ICON_RIGHT_DP, with(composeTestRule.density) { history.right.toDp().value }, 1f)
         assertTrue("home still leftmost", leftDp("switch_to_daily")!! < leftDp("graph_selector")!!)
     }
 
@@ -242,3 +244,9 @@ class DesktopHeaderFitTest {
         assertTrue("home left of observations", home.single() < obs[1])
     }
 }
+
+/**
+ * Where the last button's icon ends in an 800dp header at scale 1: its zone ends on HeaderFit's line
+ * 70dp right of the middle, and the icon sits centred in it, half the shared air short of that.
+ */
+private val LINE_ICON_RIGHT_DP = 400f + HeaderFit.SEAM_OFFSET_DP - HeaderButtonZone.airDp(800f) / 2f

@@ -254,7 +254,7 @@ internal object DailyGraphRenderer {
                 // Non-zero only when the buttons are CENTER-placed. Inline buttons get no slot: the
                 // fit never keeps the date beside them (HeaderFit.fits).
                 centerIconsWidthDp = if (fit.placement == HeaderFit.ButtonPlacement.CENTER) {
-                    HeaderWidthChecker.dailyCenterIconsWidthDp(fit.buttons, dimensions.widthDp)
+                    buttonsSpan?.let { (l, r) -> (r - l) / ctx.context.resources.displayMetrics.density } ?: 0f
                 } else 0f,
                 centerIconsLeftFraction = buttonsSpan?.let { it.first / measured.width } ?: 0.5f,
                 dateLeftFraction = HeaderFit.dateLeft(measured, fit)?.let { it / measured.width },
@@ -354,6 +354,7 @@ internal object DailyGraphRenderer {
             scale = headerScale,
             // Slot centre relative to the widget's, in dp: the container is centre_horizontal.
             centreOffsetDp = buttonsSpan?.let { (l, r) -> ((l + r) / 2f - measured.width / 2f) / ctx.context.resources.displayMetrics.density } ?: 0f,
+            centreZoneDp = HeaderWidthChecker.centerIconZoneWidthDp(fit, dimensions.widthDp, ctx.context.resources.displayMetrics.density),
         )
         if (observationsInView != headerState.observationsInView) {
             Log.w(

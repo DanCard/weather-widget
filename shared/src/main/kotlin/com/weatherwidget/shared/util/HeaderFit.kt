@@ -23,6 +23,12 @@ package com.weatherwidget.shared.util
  * which cannot see the RemoteViews button row, and it was painted straight over them (emulator,
  * 360dp, 2026-10-21). Desktop has no INLINE rung.
  *
+ * CENTER buttons take the widest zone that fits beside the items above them, down to
+ * [Measured.minCentreButton] (the air around each icon, `HeaderButtonZone`); they narrow before
+ * stepping down a rung or losing home. The weather icon may narrow them too; the date and
+ * "from yest" never do — the buttons' air outranks them (Pixel 7 Pro, 2026-10-25: 4dp of air read as
+ * one control).
+ *
  * INLINE buttons compress before anything drops (Android's hourly header, user 2026-10-09): the
  * zones narrow toward [Measured.minInlineButton], then the weather icon and temperature shrink
  * together toward [Measured.minTextScale]; "from yest" is kept only where it needs neither.
@@ -80,8 +86,10 @@ object HeaderFit {
         val baseButtons: Int = 0,
         val wantHome: Boolean = false,
         val wantMonths: Boolean = false,
-        /** One centred button; [centreButtonSpacing] between neighbours. */
+        /** One centred button at its preferred width; [centreButtonSpacing] between neighbours. */
         val centreButton: Float = 0f,
+        /** Narrowest a centred button may be squeezed to; 0 = not at all. */
+        val minCentreButton: Float = 0f,
         val centreButtonSpacing: Float = 0f,
         /** One inline button zone; 0 means there is no INLINE rung (desktop). */
         val inlineButton: Float = 0f,
@@ -107,6 +115,8 @@ object HeaderFit {
         val placement: ButtonPlacement = ButtonPlacement.HIDDEN,
         /** Which line CENTER buttons hang off. */
         val seam: Seam = Seam.RIGHT_OF_MIDDLE,
+        /** The centred button width used (≤ [Measured.centreButton] when squeezed); 0 unless CENTER. */
+        val centreZone: Float = 0f,
         /** The inline zone width used (≤ [Measured.inlineButton] when squeezed); 0 unless INLINE. */
         val inlineZone: Float = 0f,
         /** Scale for the weather icon and temperature (< 1 only when squeezed beside INLINE buttons). */
@@ -115,18 +125,19 @@ object HeaderFit {
 
     fun resolve(m: Measured): Plan {
         var plan = Plan(seam = if (m.seamOffset != null) Seam.RIGHT_OF_MIDDLE else Seam.MIDDLE)
-        fun offer(candidate: Plan): Boolean = fits(m, candidate).also { if (it) plan = candidate }
+        fun offer(candidate: Plan, narrowButtons: Boolean = true): Boolean =
+            fitted(m, candidate, narrowButtons)?.also { plan = it } != null
 
         if (m.temp > 0f) offer(plan.copy(showTemp = true))
         if (m.rain > 0f) offer(plan.copy(showRain = true))
         if (m.delta > 0f) offer(plan.copy(showDelta = true))
         offerButtons(m, plan)?.let { plan = it }
         if (m.icon > 0f) offer(plan.copy(showIcon = true))
-        if (m.date > 0f) offer(plan.copy(showDate = true))
+        if (m.date > 0f) offer(plan.copy(showDate = true), narrowButtons = false)
         if (m.caption > 0f && plan.showDelta && !plan.showRain) {
             // Only where it fits as laid out: it never narrows the zones or shrinks the temperature.
             val withCaption = plan.copy(showCaption = true)
-            if (squeeze(m, withCaption) == squeeze(m, plan)) offer(withCaption)
+            if (squeeze(m, withCaption) == squeeze(m, plan)) offer(withCaption, narrowButtons = false)
         }
         val (zone, scale) = squeeze(m, plan) ?: (0f to 1f)
         return plan.copy(inlineZone = zone, textScale = scale)
@@ -144,9 +155,12 @@ object HeaderFit {
             add(ButtonPlacement.CENTER to Seam.MIDDLE)
             if (m.inlineButton > 0f) add(ButtonPlacement.INLINE to from.seam)
         }
+        // A rung's buttons may narrow (fitted); on a new rung they start from their preferred width.
         fun place(count: Int, rungsToTry: List<Pair<ButtonPlacement, Seam>>, base: Plan): Plan? =
-            rungsToTry.map { (placement, seam) -> base.copy(buttons = count, placement = placement, seam = seam) }
-                .firstOrNull { fits(m, it) }
+            rungsToTry.firstNotNullOfOrNull { (placement, seam) ->
+                val sameRung = placement == base.placement && seam == base.seam
+                fitted(m, base.copy(buttons = count, placement = placement, seam = seam, centreZone = if (sameRung) base.centreZone else 0f))
+            }
 
         var placed = place(m.baseButtons, rungs, from) ?: return null
         val rung = rungs.indexOf(placed.placement to placed.seam)
@@ -160,8 +174,35 @@ object HeaderFit {
         return placed
     }
 
-    /** Whether [plan] fits the row as [m] measures it, squeezing INLINE buttons if it must. */
-    fun fits(m: Measured, plan: Plan): Boolean = squeeze(m, plan) != null
+    /** Whether [plan] fits the row as [m] measures it, narrowing CENTER or squeezing INLINE buttons if it must. */
+    fun fits(m: Measured, plan: Plan): Boolean = fitted(m, plan) != null
+
+    /**
+     * [plan] with the widest centred zone it fits at — no wider than the zone it already has
+     * ([centreWidth]), and only that one unless [narrowButtons]; null when it does not fit.
+     */
+    private fun fitted(m: Measured, plan: Plan, narrowButtons: Boolean = true): Plan? {
+        if (plan.placement != ButtonPlacement.CENTER || plan.buttons <= 0) {
+            return if (squeeze(m, plan) != null) plan.copy(centreZone = 0f) else null
+        }
+        val widest = plan.copy(centreZone = centreWidth(m, plan))
+        if (fitsAsLaidOut(m, widest)) return widest
+        val floor = minOf(m.minCentreButton, widest.centreZone)
+        if (!narrowButtons || floor <= 0f || floor == widest.centreZone) return null
+        if (!fitsAsLaidOut(m, plan.copy(centreZone = floor))) return null
+        // Fitting only gets easier as the zone narrows: bisect for the widest that fits.
+        var fits = floor
+        var tooWide = widest.centreZone
+        repeat(24) {
+            val mid = (fits + tooWide) / 2f
+            if (fitsAsLaidOut(m, plan.copy(centreZone = mid))) fits = mid else tooWide = mid
+        }
+        return plan.copy(centreZone = fits)
+    }
+
+    /** One centred button's width as [plan] lays it out: its [Plan.centreZone], else the preferred. */
+    private fun centreWidth(m: Measured, plan: Plan): Float =
+        plan.centreZone.takeIf { it > 0f } ?: m.centreButton
 
     /**
      * The inline zone width and icon/temperature scale [plan] needs, nominal first (0 zone when not
@@ -197,7 +238,7 @@ object HeaderFit {
     /** Left and right edges of the CENTER buttons as [plan] lays them out; null when there are none. */
     fun buttonsSpan(m: Measured, plan: Plan): Pair<Float, Float>? {
         if (plan.placement != ButtonPlacement.CENTER || plan.buttons <= 0) return null
-        val width = plan.buttons * m.centreButton + (plan.buttons - 1) * m.centreButtonSpacing
+        val width = plan.buttons * centreWidth(m, plan) + (plan.buttons - 1) * m.centreButtonSpacing
         val middle = m.width / 2f
         return when (plan.seam) {
             Seam.RIGHT_OF_MIDDLE -> (middle + (m.seamOffset ?: 0f)).let { right -> right - width to right }
