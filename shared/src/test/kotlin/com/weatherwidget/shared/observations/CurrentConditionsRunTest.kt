@@ -43,8 +43,8 @@ class CurrentConditionsRunTest {
         override fun displayedSourceIds() = displayed
         override fun lastRunMs(latitude: Double, longitude: Double) = lastRun
         override fun setLastRunMs(latitude: Double, longitude: Double, ms: Long) { lastRun = ms }
-        override fun lowPriorityDue(feedId: String, intervalMs: Long) = clock() - (attempts[feedId] ?: 0L) >= intervalMs
-        override fun markAttempt(feedId: String) { attempts[feedId] = clock() }
+        override fun lastAttemptMs(feedId: String) = attempts[feedId] ?: 0L
+        override fun markAttempt(feedId: String, ms: Long) { attempts[feedId] = ms }
         override suspend fun fetch(feed: WeatherSource, latitude: Double, longitude: Double): CurrentConditionsRun.Reading? {
             fetched += feed
             if (feed in failing) throw ApiAccessException(feed, 429, "quota", "${feed.id} 429")
@@ -98,6 +98,17 @@ class CurrentConditionsRunTest {
         now += CurrentConditionsRun.LOW_PRIORITY_INTERVAL_MS
         run.run(lat, lon, null, "charging_loop", force = false)
         assertTrue(TOMORROW_IO in host.fetched && WEATHER_API in host.fetched)
+    }
+
+    @Test
+    fun `a clock set back before a feed's last attempt does not throttle it`() = runBlocking {
+        // Desktop's old in-memory throttle read a negative elapsed time as "not due" until the clock
+        // caught up again; Android's (now the run's) reads it as due (user, 2026-10-24).
+        val host = FakeHost(listOf(NWS, OPEN_METEO, GOOGLE_WEATHER, TOMORROW_IO), displayed = setOf(NWS.id))
+        host.attempts[TOMORROW_IO.id] = now + 3 * CurrentConditionsRun.LOW_PRIORITY_INTERVAL_MS
+        run(host).run(lat, lon, null, "charging_loop", force = false)
+        assertTrue(TOMORROW_IO in host.fetched)
+        assertEquals("marked at the attempt's own time", now, host.attempts[TOMORROW_IO.id])
     }
 
     @Test

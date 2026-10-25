@@ -339,11 +339,10 @@ class WidgetStateManager internal constructor(
 
     fun fetchStateNowMs(): Long = fetchStateStore.nowMs()
 
-    fun shouldFetchCurrentTempForSource(sourceId: String, minIntervalMs: Long): Boolean =
-        fetchStateStore.shouldFetchCurrentTempForSource(sourceId, minIntervalMs)
+    fun currentTempAttemptMs(sourceId: String): Long = fetchStateStore.currentTempAttemptMs(sourceId)
 
-    fun markCurrentTempFetched(sourceId: String) {
-        fetchStateStore.markCurrentTempFetched(sourceId)
+    fun markCurrentTempFetched(sourceId: String, ms: Long) {
+        fetchStateStore.markCurrentTempFetched(sourceId, ms)
     }
 
     fun getWidgetLocation(widgetId: Int): Pair<Double, Double>? =

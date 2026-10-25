@@ -1011,34 +1011,24 @@ class DesktopWeatherRepository(
                 }
             }
             val run = CurrentConditionsRun(
-                object : CurrentConditionsRun.Host {
-                    override fun visibleSources() = visibleSources ?: listOf(displaySource)
-                    override fun displayedSourceIds() = setOf(displaySource.id)
-                    override fun lastRunMs(latitude: Double, longitude: Double) =
-                        DesktopCurrentConditionsMemory.lastRunMs(latitude, longitude)
-                    override fun setLastRunMs(latitude: Double, longitude: Double, ms: Long) =
-                        DesktopCurrentConditionsMemory.setLastRunMs(latitude, longitude, ms)
-                    override fun lowPriorityDue(feedId: String, intervalMs: Long) =
-                        DesktopCurrentConditionsMemory.due(feedId, intervalMs, currentTimeMillis())
-                    override fun markAttempt(feedId: String) =
-                        DesktopCurrentConditionsMemory.markAttempt(feedId, currentTimeMillis())
-                    override suspend fun fetch(feed: WeatherSource, latitude: Double, longitude: Double): CurrentConditionsRun.Reading? {
+                DesktopCurrentConditionsHost(
+                    visibleSources = visibleSources ?: listOf(displaySource),
+                    displayedSourceIds = setOf(displaySource.id),
+                    memory = DesktopCurrentConditionsMemory.PROCESS,
+                    weatherDao = weatherDao,
+                    fetch = { feed ->
                         val raw = weatherService.fetchFeedObservations(feed, recentOnly = true)
                         store(raw, feed)
                         if (feed == displayedFeed) displayedRaw = raw
                         // The feed's own current reading only: an NWS cycle with nothing to blend is
                         // no reading, as on Android — never its newest raw row (user, 2026-10-24).
-                        return raw.providerCurrentTemp?.let {
+                        raw.providerCurrentTemp?.let {
                             CurrentConditionsRun.Reading(feed, it, raw.providerCurrentCondition, raw.providerCurrentObservedAt)
                         }
-                    }
-                    override fun recordSuccess(feed: WeatherSource) = Unit
+                    },
                     // The daemon's failure banner reads the displayed feed's failure, raised below.
-                    override fun recordFailure(feed: WeatherSource, error: Exception) {
-                        if (feed == displayedFeed) displayedFailure = error
-                    }
-                    override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
-                },
+                    recordFailure = { feed, error -> if (feed == displayedFeed) displayedFailure = error },
+                ),
                 nowMs = currentTimeMillis,
             )
             run.run(

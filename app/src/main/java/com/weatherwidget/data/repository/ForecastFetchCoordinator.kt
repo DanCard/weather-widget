@@ -609,31 +609,8 @@ internal class ForecastFetchCoordinator(
     }
 
     private fun googleHistory(latitude: Double, longitude: Double): GoogleHistoryRun? {
-        val dao = hourlyForecastHistoryDao ?: return null
-        val keyLat = LocationMatch.quantize(latitude)
-        val keyLon = LocationMatch.quantize(longitude)
-        val google = WeatherSource.GOOGLE_WEATHER.id
-        return GoogleHistoryRun(object : GoogleHistoryRun.Host {
-            override suspend fun coveredHistoryHours(startMs: Long, endMs: Long) =
-                dao.getHistoryInRangeForBucketWindow(
-                    startDateTime = startMs,
-                    endDateTime = endMs,
-                    bucketStart = Long.MIN_VALUE,
-                    bucketEnd = Long.MAX_VALUE,
-                    lat = keyLat,
-                    lon = keyLon,
-                    source = google,
-                ).filter { LocationMatch.sameSite(keyLat, keyLon, it.locationLat, it.locationLon) }
-                    .map { it.dateTime }
-
-            override suspend fun liveHours(startMs: Long, endMs: Long) =
-                hourlyStore.storedHourlyForSite(latitude, longitude, google, startMs, endMs)
-
-            override suspend fun saveRefill(rows: List<HourlyForecast>) =
-                hourlyStore.saveRefillHours(rows, latitude, longitude, google)
-
-            override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
-        })
+        hourlyForecastHistoryDao ?: return null
+        return GoogleHistoryRun(hourlyStore.googleHistoryHost(latitude, longitude, appLogDao))
     }
 
     private suspend fun fetchFromSilurian(

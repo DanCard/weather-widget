@@ -330,15 +330,18 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
 - 2026-10-24: `NwsStationBundles.Host` contract — no divergence. 3 pending.
 - 2026-10-24: `NowcastRefreshRun.Host` contract; "rain plausible?" counts usable sources only on both
   (Android counted every row in the box; user). 2 pending.
+- 2026-10-24: `GoogleHistoryRun.Host` contract; live hours read every same-site fragment on both
+  (Android read the exact key only; user). 1 pending.
+- 2026-10-24: `CurrentConditionsRun.Host` contract (stores only); the low-priority throttle moved into
+  the run, Android's rule — a clock set back counts as due (desktop waited; user). **Tier 3 done:
+  `HostContractCoverageTest.PENDING` is empty.**
 
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:
-1. **Tier 3, the two DAOs** — continue Host by Host: the rest of `HostContractCoverageTest.PENDING`,
-   smallest DB surface first (GoogleHistoryRun, CurrentConditionsRun). Pattern:
-   abstract `<Runner>HostContract` in `:shared` testFixtures, extract each platform's Host into a
-   class, seeds write raw rows, a case that tells the readings apart; any divergence → user decision.
-   Status, the step-by-step pattern, open items and gotchas: the "Status and handoff" section at the
-   top of `plans/261024-host-contract-tests-room-and-desktop-sqlite.md`.
+1. ~~**Tier 3, the two DAOs**~~ — done 2026-10-24: every runner Host has a contract on both platforms
+   and `HostContractCoverageTest` keeps new ones from skipping it. Open items it found (each needs a
+   user decision): the "Status and handoff" section of
+   `plans/261024-host-contract-tests-room-and-desktop-sqlite.md`.
 2. **B rest**: per-source fetch/persist, one source at a time as Runner + Host.
 Process that worked this session: find the twin → write a plan with the divergences and any user
 decision → approval → shared code + a test that fails on the old code → full suite incl.

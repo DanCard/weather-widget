@@ -73,29 +73,17 @@ class CurrentTempRepository
          * Phase 3). This side supplies the stores and the per-feed fetch.
          */
         private val run = CurrentConditionsRun(
-            object : CurrentConditionsRun.Host {
-                override fun visibleSources() = widgetStateManager.getVisibleSourcesOrder()
-                override fun displayedSourceIds() = widgetStateManager.getActiveDisplaySourceIds()
-                override fun lastRunMs(latitude: Double, longitude: Double) =
-                    FetchMetadata.getLastCurrentTempFetchTime(context, latitude, longitude)
-                override fun setLastRunMs(latitude: Double, longitude: Double, ms: Long) =
-                    FetchMetadata.setLastCurrentTempFetchTime(context, latitude, longitude, ms)
-                override fun lowPriorityDue(feedId: String, intervalMs: Long) =
-                    widgetStateManager.shouldFetchCurrentTempForSource(feedId, intervalMs)
-                override fun markAttempt(feedId: String) = widgetStateManager.markCurrentTempFetched(feedId)
-                override suspend fun fetch(feed: WeatherSource, latitude: Double, longitude: Double) =
+            AndroidCurrentConditionsHost(
+                context,
+                widgetStateManager,
+                appLogDao,
+                fetch = { feed, latitude, longitude ->
                     fetchFromSource(feed, latitude, longitude)?.let {
                         CurrentConditionsRun.Reading(it.source, it.temperature, it.condition, it.observedAt)
                     }
-                override fun recordSuccess(feed: WeatherSource) = widgetStateManager.recordSourceFetchSuccess(feed)
-                override fun recordFailure(feed: WeatherSource, error: Exception) =
-                    widgetStateManager.recordSourceFetchFailure(
-                        feed,
-                        extractCurrentErrorCode(error),
-                        ApiKeyRedaction.redact(error.message ?: error.javaClass.simpleName),
-                    )
-                override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
-            },
+                },
+                errorCode = ::extractCurrentErrorCode,
+            ),
         )
 
         suspend fun refreshCurrentTemperature(

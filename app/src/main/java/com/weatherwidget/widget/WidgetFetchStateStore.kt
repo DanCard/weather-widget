@@ -45,15 +45,12 @@ internal class WidgetFetchStateStore(
 
     fun nowMs(): Long = clock.millis()
 
-    fun shouldFetchCurrentTempForSource(sourceId: String, minIntervalMs: Long): Boolean =
-        cooldownElapsed(
-            lastMs = prefs.getLong("$KEY_CURRENT_TEMP_FETCH_PREFIX$sourceId", 0L),
-            cooldownMs = minIntervalMs,
-        )
+    fun currentTempAttemptMs(sourceId: String): Long =
+        prefs.getLong("$KEY_CURRENT_TEMP_FETCH_PREFIX$sourceId", 0L)
 
-    fun markCurrentTempFetched(sourceId: String) {
+    fun markCurrentTempFetched(sourceId: String, ms: Long) {
         prefs.edit()
-            .putLong("$KEY_CURRENT_TEMP_FETCH_PREFIX$sourceId", clock.millis())
+            .putLong("$KEY_CURRENT_TEMP_FETCH_PREFIX$sourceId", ms)
             .apply()
     }
 

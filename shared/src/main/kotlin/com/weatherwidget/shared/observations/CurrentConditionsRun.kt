@@ -35,9 +35,9 @@ class CurrentConditionsRun(
         fun lastRunMs(latitude: Double, longitude: Double): Long
         fun setLastRunMs(latitude: Double, longitude: Double, ms: Long)
 
-        /** Whether a low-priority [feedId] is due again after [intervalMs] since its last attempt. */
-        fun lowPriorityDue(feedId: String, intervalMs: Long): Boolean
-        fun markAttempt(feedId: String)
+        /** When [feedId] was last attempted, 0 when never; whether it is due again is [lowPriorityDue]. */
+        fun lastAttemptMs(feedId: String): Long
+        fun markAttempt(feedId: String, ms: Long)
 
         /** Fetch and store [feed]'s current conditions; null when it returned none. Throws on failure. */
         suspend fun fetch(feed: WeatherSource, latitude: Double, longitude: Double): Reading?
@@ -113,7 +113,7 @@ class CurrentConditionsRun(
                     val feedStart = nowMs()
                     // Recorded up front so the throttle window starts even when the fetch fails (a 429
                     // must not invite rapid retries against a tight quota).
-                    host.markAttempt(feed.id)
+                    host.markAttempt(feed.id, feedStart)
                     try {
                         val reading = host.fetch(feed, latitude, longitude)
                         if (reading != null) {
@@ -164,7 +164,7 @@ class CurrentConditionsRun(
             val skip = !bypassThrottle &&
                 consumers.none { it.id in displayed } &&
                 rank >= LOW_PRIORITY_RANK &&
-                !host.lowPriorityDue(feed.id, LOW_PRIORITY_INTERVAL_MS)
+                !lowPriorityDue(host.lastAttemptMs(feed.id), nowMs())
             if (skip) throttled[feed] = rank
             !skip
         }
@@ -211,6 +211,17 @@ class CurrentConditionsRun(
 
         /** A low-priority feed is fetched at most this often (tight free-plan quotas, e.g. Tomorrow.io). */
         const val LOW_PRIORITY_INTERVAL_MS = 3_600_000L
+
+        /**
+         * A low-priority feed last attempted at [lastAttemptMs] (0 = never) is due at [nowMs] once
+         * [LOW_PRIORITY_INTERVAL_MS] has passed — or when the clock is now before that attempt (a clock
+         * set back must not throttle a feed until it catches up; Android's rule, user 2026-10-24).
+         */
+        fun lowPriorityDue(lastAttemptMs: Long, nowMs: Long): Boolean {
+            if (lastAttemptMs == 0L) return true
+            val elapsed = nowMs - lastAttemptMs
+            return elapsed < 0L || elapsed >= LOW_PRIORITY_INTERVAL_MS
+        }
 
         private val timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
         private fun time(ms: Long?): String = ms?.let { timeFormat.format(Instant.ofEpochMilli(it)) } ?: "none"

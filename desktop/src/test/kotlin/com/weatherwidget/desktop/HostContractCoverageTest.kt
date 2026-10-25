@@ -29,10 +29,7 @@ class HostContractCoverageTest {
         val PORT = Regex("""^\s+(?:fun\s+)?interface\s+(Host|Store)\b""", RegexOption.MULTILINE)
         val CONTRACT_CLASS = Regex("""abstract\s+class\s+(\w+)""")
 
-        val PENDING = setOf(
-            "GoogleHistoryRun.Host",
-            "CurrentConditionsRun.Host",
-        )
+        val PENDING = emptySet<String>()
 
         fun kotlinFiles(root: File) = root.walkTopDown().filter { it.isFile && it.extension in setOf("kt", "java") }
     }

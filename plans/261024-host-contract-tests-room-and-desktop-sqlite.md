@@ -4,15 +4,10 @@ Follows `261023-duplicate-logic-audit-different-names.md` → "Next" item 1 (10-
 option b).
 
 ## Status and handoff (2026-10-24, end of session)
-**9 of 11 Hosts done**, all committed on `main` (last: `23706316`), all three Android devices and
-desktop on that build. Details per Host under "Done" below.
+**All 11 Hosts done**; `HostContractCoverageTest.PENDING` is empty, so a new runner Host fails the
+build until it has a contract extended on both platforms. Details per Host under "Done" below.
 
-**Left:** `GoogleHistoryRun.Host` (3 DB ops: `coveredHistoryHours`, `liveHours`, `saveRefill`; Android
-`GoogleHistoryRefill` host, desktop `DesktopWeatherRepository.refillGoogleHistory`), then
-`CurrentConditionsRun.Host` (prefs + network; the only DB touch is inside `fetch` — expect a thin
-contract or a reasoned allowlist entry). `HostContractCoverageTest.PENDING` lists them and only shrinks.
-
-**Pattern (copy an existing one, e.g. `NowcastRefreshHostContract`):**
+**Pattern for a new Host (copy an existing one, e.g. `NowcastRefreshHostContract`):**
 1. Read both Host implementations and the DAO SQL behind each read/write; note every difference
    (source scope, site match — exact key / same-site 0.002° / ±0.1° box —, end inclusive, ordering).
 2. Divergence → ask the user (recommendation first) before changing code; none → just pin it.
@@ -21,7 +16,7 @@ contract or a reasoned allowlist entry). `HostContractCoverageTest.PENDING` list
    rows (desktop: plain INSERT via `db.getConnection()`, the DAO writers quantize/stamp the clock);
    one case per reading that could differ. Subclasses: `app/src/test` (Robolectric, `TestDatabase`,
    `@Category(LongDuration)`) and `desktop/src/test` (temp-file DB, `@Category(ShortDuration)`).
-5. Remove the entry from `PENDING`; a rule change gets a test that fails on the old code.
+5. A rule change gets a test that fails on the old code.
 6. `./gradlew :shared:test :desktop:test testDebugUnitTest :app:compileDebugAndroidTestKotlin`,
    `installDebug`, `scripts/buildStart-desktop.sh`, crash check, then a Done bullet here + a Progress
    line in the audit plan, commit.
