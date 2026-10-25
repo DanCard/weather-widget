@@ -169,9 +169,14 @@ class DesktopHeaderFitTest {
         composeTestRule.onAllNodesWithTag("graph_selector", useUnmergedTree = true).fetchSemanticsNodes().single()
     }
 
-    private fun header(config: DesktopConfig, headerTime: LocalDateTime = LocalDateTime.now()) {
+    private fun header(
+        config: DesktopConfig,
+        headerTime: LocalDateTime = LocalDateTime.now(),
+        scale: Float = 1f,
+        widthDp: Int = 800,
+    ) {
         composeTestRule.setContent {
-            Box(Modifier.requiredWidth(800.dp)) {
+            Box(Modifier.requiredWidth(widthDp.dp)) {
                 WidgetHeader(
                     config = config,
                     forecast = snapshot(),
@@ -182,6 +187,7 @@ class DesktopHeaderFitTest {
                     onOpenObservations = {},
                     onUpdateLocation = {},
                     headerTime = headerTime,
+                    scale = scale,
                 )
             }
         }
@@ -307,6 +313,15 @@ class DesktopHeaderFitTest {
         val hourlySourceBounds = composeTestRule.onAllNodesWithTag("header_source_label", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
         assertEquals("hourly source label matches daily position exactly (no jump across views)", dailySourceBounds.left, hourlySourceBounds.left, 1f)
+    }
+
+    @Test
+    fun dateRemainsVisibleOnScaledDesktopWindow() {
+        // User's desktop window: ~778dp width, scale ~2.08
+        header(config.copy(viewMode = ViewMode.DAILY), scale = 2.08f, widthDp = 778)
+        val dateNodes = composeTestRule.onAllNodesWithTag("daily_header_date", useUnmergedTree = true)
+            .fetchSemanticsNodes()
+        assertEquals("date must remain visible on scaled desktop window", 1, dateNodes.size)
     }
 }
 

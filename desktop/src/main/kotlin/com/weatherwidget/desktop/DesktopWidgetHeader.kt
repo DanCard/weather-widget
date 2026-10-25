@@ -143,7 +143,7 @@ internal fun WidgetHeader(
         val gearWidth = 14 * scale
         HeaderFit.Measured(
             width = 0f, // the BoxWithConstraints below supplies it
-            rightCluster = sourceWidth + spacingDp + gearWidth,
+            rightCluster = sourceWidth + gearWidth,
             gap = spacingDp,
             seamOffset = HeaderFit.SEAM_OFFSET_DP * scale,
             temp = widthDp(content.tempText ?: "—", tempStyle),
