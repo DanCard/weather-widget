@@ -130,8 +130,23 @@ object DailyColumnBuilder {
         // high from the newest before 16:00 yesterday (PriorDayForecast, shared with Android and the
         // history freeze). Its condition follows the high's row.
         val zone = ZoneId.systemDefault()
+        // The shown row is a candidate too when it was first seen before yesterday's cutoffs: an
+        // unchanged forecast is stored once and re-stamped (DailyForecastWrite), so one first seen days
+        // ago and confirmed since is the shown row, not an older fetch — skipping it left today with no
+        // left bar (2026-10-24). One first seen later is today's forecast, never yesterday's.
+        val shownCandidate = forecast?.takeIf { !it.isClimateNormal }?.let { row ->
+            val firstSeen = row.fetchedAt?.takeIf { it < PriorDayForecast.highCutoffMs(date, ZoneId.systemDefault()) }
+                ?: return@let null
+            DailyForecastSnapshot(
+                date = row.date, highTemp = row.highTemp, lowTemp = row.lowTemp, condition = row.condition,
+                iconToken = row.iconToken, precipProbability = row.precipProbability, precipAmountMm = row.precipAmountMm,
+                fetchedAt = firstSeen, daytimePrecipProbability = row.daytimePrecipProbability,
+                nighttimePrecipProbability = row.nighttimePrecipProbability,
+                lastConfirmedAt = row.lastConfirmedAt ?: firstSeen,
+            )
+        }
         val todayPick = PriorDayForecast.select(
-            snapshots, date, zone,
+            snapshots + listOfNotNull(shownCandidate), date, zone,
             fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
             fallbackToEarliest = true, lastConfirmedAt = { it.lastConfirmedAt },
         )

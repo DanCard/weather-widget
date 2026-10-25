@@ -64,13 +64,68 @@ class DesktopWeatherDaoTest {
             DailyForecast("2026-06-03", 82f, 62f, "Partly Cloudy")
         )
 
-        dao.upsertForecasts(lat, lon, source, daily)
+        dao.upsertForecasts(lat, lon, source, daily, nowMs = JUNE_1)
         
         val cached = dao.getDailyForecasts(lat, lon, source)
         assertEquals(2, cached.size)
         assertEquals("2026-06-02", cached[0].date)
         assertEquals(82f, cached[1].highTemp)
     }
+
+    @Test
+    fun `an unchanged daily row is re-stamped, not stored again`() {
+        val lat = 37.417
+        val lon = -122.089
+        val tomorrow = java.time.LocalDate.now().plusDays(1).toString()
+        val now = System.currentTimeMillis()
+        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast(tomorrow, 70f, 50f, "Clear")), nowMs = now - HOUR)
+        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast(tomorrow, 70f, 50f, "Clear")), nowMs = now)
+
+        assertEquals(listOf(1L to now), forecastRows(lat, lon, "NWS", tomorrow))
+    }
+
+    @Test
+    fun `a day sent with neither high nor low is not stored`() {
+        val tomorrow = java.time.LocalDate.now().plusDays(1).toString()
+        dao.upsertForecasts(37.417, -122.089, "NWS", listOf(DailyForecast(tomorrow, null, null, "Clear")))
+
+        assertEquals(emptyList<Pair<Long, Long>>(), forecastRows(37.417, -122.089, "NWS", tomorrow))
+    }
+
+    @Test
+    fun `the prior row is this site's, never another site in the box`() {
+        val today = java.time.LocalDate.now()
+        val zone = java.time.ZoneId.systemDefault()
+        // Another town 5.5 km north, inside the ±0.1° box, had today's high at 99.
+        dao.upsertForecasts(37.467, -122.089, "NWS", listOf(DailyForecast(today.toString(), 99f, 50f, "Clear")), nowMs = today.atTime(5, 0).atZone(zone).toInstant().toEpochMilli())
+        // This site's first fetch comes after the high cutoff: its high has no prior here.
+        dao.upsertForecasts(37.417, -122.089, "NWS", listOf(DailyForecast(today.toString(), 80f, 50f, "Clear")), nowMs = today.atTime(17, 0).atZone(zone).toInstant().toEpochMilli())
+
+        db.getConnection().use { conn ->
+            conn.prepareStatement("SELECT highTemp, hindcastHighTemp FROM forecasts WHERE locationLat = 37.417 AND source = 'NWS'").use { stmt ->
+                val rs = stmt.executeQuery()
+                assertTrue(rs.next())
+                assertEquals(0f, rs.getFloat("highTemp"), 0f)
+                assertTrue("this site's high is unknown, not the neighbour's 99", rs.wasNull())
+                assertEquals(80f, rs.getFloat("hindcastHighTemp"), 0f)
+            }
+        }
+    }
+
+    /** (row count, newest batchFetchedAt) per stored row of [date]. */
+    private fun forecastRows(lat: Double, lon: Double, source: String, date: String): List<Pair<Long, Long>> =
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT COUNT(*) AS n, MAX(batchFetchedAt) AS b FROM forecasts WHERE locationLat = ? AND locationLon = ? AND source = ? AND targetDate = ? HAVING COUNT(*) > 0",
+            ).use { stmt ->
+                stmt.setDouble(1, lat)
+                stmt.setDouble(2, lon)
+                stmt.setString(3, source)
+                stmt.setLong(4, java.time.LocalDate.parse(date).toEpochDay() * 86_400_000L)
+                val rs = stmt.executeQuery()
+                buildList { while (rs.next()) add(rs.getLong("n") to rs.getLong("b")) }
+            }
+        }
 
     @Test
     fun `test daily forecast snapshots exclude latest batch`() {
@@ -80,9 +135,8 @@ class DesktopWeatherDaoTest {
         val date = java.time.LocalDate.parse("2026-06-02")
         val epoch = date.toEpochDay() * 86_400_000L
 
-        dao.upsertForecasts(lat, lon, source, listOf(DailyForecast("2026-06-02", 78f, 59f, "Cloudy")))
-        Thread.sleep(5)
-        dao.upsertForecasts(lat, lon, source, listOf(DailyForecast("2026-06-02", 81f, 61f, "Sunny")))
+        dao.upsertForecasts(lat, lon, source, listOf(DailyForecast("2026-06-02", 78f, 59f, "Cloudy")), nowMs = JUNE_1)
+        dao.upsertForecasts(lat, lon, source, listOf(DailyForecast("2026-06-02", 81f, 61f, "Sunny")), nowMs = JUNE_1 + HOUR)
 
         val latest = dao.getDailyForecasts(lat, lon, source)
         val snapshots = dao.getDailyForecastSnapshots(epoch, epoch, lat, lon, source)
@@ -100,14 +154,13 @@ class DesktopWeatherDaoTest {
         val epoch = date.toEpochDay() * 86_400_000L
 
         // Two NWS snapshots (distinct fetchedAt) plus one Open-Meteo snapshot for the target day.
-        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast("2026-06-20", 80f, 60f, "Sunny")))
-        Thread.sleep(5)
-        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast("2026-06-20", 83f, 61f, "Sunny")))
-        dao.upsertForecasts(lat, lon, "OPEN_METEO", listOf(DailyForecast("2026-06-20", 81f, 62f, "Cloudy")))
+        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast("2026-06-20", 80f, 60f, "Sunny")), nowMs = JUNE_1)
+        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast("2026-06-20", 83f, 61f, "Sunny")), nowMs = JUNE_1 + HOUR)
+        dao.upsertForecasts(lat, lon, "OPEN_METEO", listOf(DailyForecast("2026-06-20", 81f, 62f, "Cloudy")), nowMs = JUNE_1)
 
         // Noise that must be excluded: a different target day, and a far-away location.
-        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast("2026-06-21", 70f, 50f, "Rain")))
-        dao.upsertForecasts(10.0, 10.0, "NWS", listOf(DailyForecast("2026-06-20", 99f, 88f, "Hot")))
+        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast("2026-06-21", 70f, 50f, "Rain")), nowMs = JUNE_1)
+        dao.upsertForecasts(10.0, 10.0, "NWS", listOf(DailyForecast("2026-06-20", 99f, 88f, "Hot")), nowMs = JUNE_1)
 
         val evolution = dao.getForecastEvolution(epoch, lat, lon)
 
@@ -124,7 +177,7 @@ class DesktopWeatherDaoTest {
         val targetEpoch = java.time.LocalDate.parse("2026-06-20").toEpochDay() * 86_400_000L
         val postTargetEpoch = java.time.LocalDate.parse("2026-06-21").toEpochDay() * 86_400_000L
 
-        dao.upsertForecasts(lat, lon, "OPEN_METEO", listOf(DailyForecast("2026-06-20", 80f, 60f, "Sunny")))
+        dao.upsertForecasts(lat, lon, "OPEN_METEO", listOf(DailyForecast("2026-06-20", 80f, 60f, "Sunny")), nowMs = JUNE_1)
 
         db.getConnection().use { conn ->
             conn.prepareStatement(
@@ -482,7 +535,7 @@ class DesktopWeatherDaoTest {
         val now = System.currentTimeMillis()
         
         val daily = listOf(DailyForecast("2026-06-02", 80f, 60f, "Sunny"))
-        dao.upsertForecasts(lat, lon, source, daily)
+        dao.upsertForecasts(lat, lon, source, daily, nowMs = JUNE_1)
         
         // Assert it exists
         assertEquals(1, dao.getDailyForecasts(lat, lon, source).size)
@@ -599,5 +652,9 @@ class DesktopWeatherDaoTest {
     private companion object {
         /** A "now" this far ahead puts every table's retention cutoff in the future. */
         const val WIPE_EVERYTHING_MS = 1_000L * 24 * 3_600_000L
+        const val HOUR = 3_600_000L
+
+        /** Noon on 2026-06-01, before the June days these tests seed: a past day's forecast is never stored (DailyForecastWrite). */
+        val JUNE_1 = java.time.LocalDate.parse("2026-06-01").atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
     }
 }

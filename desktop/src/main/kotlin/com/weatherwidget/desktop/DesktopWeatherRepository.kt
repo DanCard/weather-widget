@@ -10,6 +10,8 @@ import com.weatherwidget.shared.observations.CurrentConditionsRun
 import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.shared.util.DailyPrecipPeriods
 import com.weatherwidget.shared.util.DailyHourlyConsistency
+import com.weatherwidget.shared.util.DailyForecastWrite
+import com.weatherwidget.shared.util.HourlyForecastWrite
 import com.weatherwidget.shared.util.DailyHourlySummaries
 import com.weatherwidget.data.local.HistoryPruneSchedule
 import com.weatherwidget.data.local.LocationMatch
@@ -610,6 +612,7 @@ class DesktopWeatherRepository(
                 now,
                 keep = HourlyOnDemand.keep(weatherSource, null, fetchHorizon),
                 horizon = fetchHorizon,
+                userRefresh = userRefresh,
             )
             markHorizon(fetchHorizon, result)
             if (refillDay != null) refillStaleGoogleHours(result, now, refillDay)
@@ -866,6 +869,8 @@ class DesktopWeatherRepository(
         keep: HourlyOnDemand.Keep = HourlyOnDemand.keep(weatherSource, null),
         /** A SHORT fetch stores only the next [ForecastHorizonCadence.SHORT_DAYS] daily rows. */
         horizon: ForecastHorizonCadence.Horizon? = null,
+        /** The user's Refresh: an unchanged daily row is written anyway ([DailyForecastWrite]). */
+        userRefresh: Boolean = false,
     ): List<HourlyForecast> {
         recordProductQuotas(result, now)
         // Preserve the forecast that was actually shown for elapsed hours. Tomorrow's Timeline
@@ -876,13 +881,18 @@ class DesktopWeatherRepository(
         // daily view needs from the rest (DailyHourlySummaries,
         // performance/261010-daily-view-summaries-instead-of-far-hourly.md,
         // performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md).
-        val keepUntil = keep.untilMs(now)
-        val upcoming = result.hourly.filter { it.dateTime >= now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
-        val trim = HourlyOnDemand.trim(upcoming, keepUntil, now, weatherSource) { it.dateTime }
-        trim.logMessage?.let { weatherDao.log(HourlyOnDemand.TRIM_TAG, it, "VERBOSE") }
-        val forecastHours = trim.live
-        val snapshotHours = trim.snapshot
-        weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, forecastHours)
+        // The live rows: the `:shared` HourlyForecastWrite rule (same as Android) over this site's stored
+        // rows — elapsed hours dropped, the fetch's horizon, a field the reply lacks kept from the row.
+        val keyLat = LocationMatch.quantize(latitude)
+        val keyLon = LocationMatch.quantize(longitude)
+        val stored = HourlyForecastWrite.readRange(result.hourly)?.let { range ->
+            weatherDao.getHourlyForecasts(keyLat, keyLon, weatherSource, range.first, range.last)
+                .filter { it.locationLat == keyLat && it.locationLon == keyLon }
+        }.orEmpty()
+        val hourlyPlan = HourlyForecastWrite.plan(result.hourly, stored, weatherSource, now, keep.untilMs(now))
+        hourlyPlan.trimLine?.let { weatherDao.log(HourlyOnDemand.TRIM_TAG, it, "VERBOSE") }
+        val snapshotHours = hourlyPlan.snapshot
+        weatherDao.upsertHourlyForecasts(latitude, longitude, weatherSource, hourlyPlan.live)
         val today = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
         val forecastDaily = withHourlySummaries(
             result.daily.filter {
@@ -893,7 +903,7 @@ class DesktopWeatherRepository(
             },
             result.hourly,
         )
-        weatherDao.upsertForecasts(latitude, longitude, weatherSource, forecastDaily, nowMs = now)
+        weatherDao.upsertForecasts(latitude, longitude, weatherSource, forecastDaily, nowMs = now, userRefresh = userRefresh)
 
         // NWS api actuals are NOT written here. The gridpoint maxTemperature/minTemperature
         // this used to store are the raw NDFD *forecast* grid, so every past day's "actual"

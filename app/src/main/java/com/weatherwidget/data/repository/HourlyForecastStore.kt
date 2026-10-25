@@ -17,6 +17,8 @@ import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.GoogleHistoryRun
+import com.weatherwidget.data.local.toEntity
+import com.weatherwidget.shared.util.HourlyForecastWrite
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.widget.WidgetStateManager
 
@@ -58,76 +60,57 @@ internal class HourlyForecastStore(
      * `performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md`
      */
     suspend fun saveHourlyEntities(rawEntities: List<HourlyForecastEntity>, keepUntilMs: HourlyOnDemand.KeepUntil? = null) {
-        if (rawEntities.isEmpty()) return
-        val snapshotUntilMs = keepUntilMs?.snapshotMs ?: Long.MAX_VALUE
-        val kept = if (keepUntilMs == null) {
-            rawEntities
-        } else {
-            HourlyOnDemand.trim(rawEntities, keepUntilMs, clock(), rawEntities.first().source) { it.dateTime }
-                .also { trim -> trim.logMessage?.let { appLogDao?.log(HourlyOnDemand.TRIM_TAG, it, "VERBOSE") } }
-                .live
-        }
-        if (kept.isEmpty()) return
+        val sample = rawEntities.firstOrNull() ?: return
+        saveHourly(rawEntities.map { it.toHourlyForecast() }, sample.locationLat, sample.locationLon, sample.source, keepUntilMs)
+    }
 
-        val entities = kept.map {
-            it.copy(
-                locationLat = LocationMatch.quantize(it.locationLat),
-                locationLon = LocationMatch.quantize(it.locationLon),
-            )
-        }
-        val minDateTime = entities.minOf { it.dateTime }
-        val maxDateTime = entities.maxOf { it.dateTime }
-        val sample = entities.first()
-        val existingByDateTime = siteExactExistingByDateTime(
-            hourlyForecastDao.getHourlyForecastsBySource(
-                minDateTime,
-                maxDateTime,
-                sample.locationLat,
-                sample.locationLon,
-                sample.source,
-            ),
-            sample.locationLat,
-            sample.locationLon,
+    /**
+     * [sourceId]'s live rows from [hours]: the `:shared` [HourlyForecastWrite] rule (same as desktop)
+     * over this site's stored rows, then the fetch's snapshot if [decideSnapshot] keeps one.
+     */
+    private suspend fun saveHourly(
+        hours: List<HourlyForecast>,
+        latitude: Double,
+        longitude: Double,
+        sourceId: String,
+        keepUntilMs: HourlyOnDemand.KeepUntil?,
+    ) {
+        val range = HourlyForecastWrite.readRange(hours) ?: return
+        val now = clock()
+        val keyLat = LocationMatch.quantize(latitude)
+        val keyLon = LocationMatch.quantize(longitude)
+        val stored = siteExactExistingByDateTime(
+            hourlyForecastDao.getHourlyForecastsBySource(range.first, range.last, keyLat, keyLon, sourceId),
+            keyLat,
+            keyLon,
+        ).values.map { it.toHourlyForecast() }
+        val plan = HourlyForecastWrite.plan(hours, stored, sourceId, now, keepUntilMs)
+        plan.trimLine?.let { appLogDao?.log(HourlyOnDemand.TRIM_TAG, it, "VERBOSE") }
+        if (plan.live.isEmpty()) return
+        hourlyForecastDao.insertAll(plan.live.map { it.copy(locationLat = keyLat, locationLon = keyLon).toEntity(keyLat, keyLon) })
+
+        val snapshotAt = decideSnapshot(sourceId, keyLat, keyLon, now) ?: return
+        if (plan.snapshot.isEmpty()) return
+        hourlyForecastHistoryDao.insertAll(
+            plan.snapshot.map { hour ->
+                HourlyForecastHistoryEntity(
+                    dateTime = hour.dateTime,
+                    locationLat = keyLat,
+                    locationLon = keyLon,
+                    temperature = hour.temperature,
+                    condition = hour.condition,
+                    source = sourceId,
+                    timestampToGroupPredictions = snapshotAt,
+                    precipProbability = hour.precipProbability,
+                    cloudCover = hour.cloudCover,
+                    cloudCoverLow = hour.cloudCoverLow,
+                    cloudCoverMid = hour.cloudCoverMid,
+                    cloudCoverHigh = hour.cloudCoverHigh,
+                    precipAmountMm = hour.precipAmountMm,
+                    fetchedAt = hour.fetchedAt,
+                )
+            },
         )
-        val mergedEntities = entities.map { newlyFetched ->
-            mergePreservingNullableFields(
-                existingByDateTime[newlyFetched.dateTime],
-                newlyFetched,
-            )
-        }
-        // On-demand hours (past the routine 72 h) are always rewritten: their fetchedAt is what keeps
-        // them counted as fresh for a tapped day (HourlyOnDemand.MAX_EXTENSION_AGE_MS).
-        val extensionStartMs = HourlyOnDemand.extensionStartMs(sample.source, clock())
-        val changedEntities = mergedEntities.filter { merged ->
-            (extensionStartMs != null && merged.dateTime >= extensionStartMs) ||
-                hasMeaningfulHourlyChange(existingByDateTime[merged.dateTime], merged)
-        }
-        if (changedEntities.isNotEmpty()) {
-            hourlyForecastDao.insertAll(changedEntities)
-        }
-
-        val snapshotAt = decideSnapshot(sample.source, sample.locationLat, sample.locationLon, clock())
-        val historyRows = if (snapshotAt == null) emptyList() else mergedEntities.filter { it.dateTime < snapshotUntilMs }.map { entity ->
-            HourlyForecastHistoryEntity(
-                dateTime = entity.dateTime,
-                locationLat = entity.locationLat,
-                locationLon = entity.locationLon,
-                temperature = entity.temperature,
-                condition = entity.condition,
-                source = entity.source,
-                timestampToGroupPredictions = snapshotAt,
-                precipProbability = entity.precipProbability,
-                cloudCover = entity.cloudCover,
-                cloudCoverLow = entity.cloudCoverLow,
-                cloudCoverMid = entity.cloudCoverMid,
-                cloudCoverHigh = entity.cloudCoverHigh,
-                precipAmountMm = entity.precipAmountMm,
-                fetchedAt = entity.fetchedAt,
-            )
-        }
-        if (historyRows.isNotEmpty()) {
-            hourlyForecastHistoryDao.insertAll(historyRows)
-        }
     }
 
     /**
@@ -159,35 +142,14 @@ internal class HourlyForecastStore(
         historicalData: List<HourlyForecast> = hourlyData,
         keepUntilMs: HourlyOnDemand.KeepUntil? = null,
     ): HistoricalActualsWriteSummary {
-        val now = clock()
-        // Deliberately drops elapsed hours: `hourly_forecasts` is a forecast archive, and letting a
-        // `past_days` payload rewrite past rows would destroy the record of what was predicted.
+        // Elapsed hours are dropped (HourlyForecastWrite): `hourly_forecasts` is a forecast archive, and
+        // letting a `past_days` payload rewrite past rows would destroy the record of what was predicted.
         // Providers with a distinct actuals-capable historical product pass that series through
         // historicalData. Tomorrow.io passes only its separate five-minute Timeline result; its
         // elapsed hourly forecast rows are never reclassified as observations.
         // The elapsed hours are not lost, though: the caller hands them to [backfillElapsedHistory],
         // which files them as history only where the site has no snapshot yet (same boundary).
-        val futureData = hourlyData.filter { it.dateTime >= now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
-        saveHourlyEntities(
-            futureData.map {
-                HourlyForecastEntity(
-                    dateTime = it.dateTime,
-                    locationLat = latitude,
-                    locationLon = longitude,
-                    temperature = it.temperature,
-                    condition = it.condition,
-                    source = sourceId,
-                    precipProbability = it.precipProbability,
-                    cloudCover = it.cloudCover,
-                    cloudCoverLow = it.cloudCoverLow,
-                    cloudCoverMid = it.cloudCoverMid,
-                    cloudCoverHigh = it.cloudCoverHigh,
-                    precipAmountMm = it.precipAmountMm,
-                    fetchedAt = now,
-                )
-            },
-            keepUntilMs,
-        )
+        saveHourly(hourlyData, latitude, longitude, sourceId, keepUntilMs)
         return saveHistoricalActuals(historicalData, latitude, longitude, sourceId)
     }
 
@@ -306,22 +268,6 @@ internal class HourlyForecastStore(
 
     companion object {
         @VisibleForTesting
-        internal fun hasMeaningfulHourlyChange(
-            existing: HourlyForecastEntity?,
-            newlyFetched: HourlyForecastEntity,
-        ): Boolean {
-            if (existing == null) return true
-            return existing.temperature != newlyFetched.temperature ||
-                existing.condition != newlyFetched.condition ||
-                existing.precipProbability != newlyFetched.precipProbability ||
-                existing.precipAmountMm != newlyFetched.precipAmountMm ||
-                existing.cloudCover != newlyFetched.cloudCover ||
-                existing.cloudCoverLow != newlyFetched.cloudCoverLow ||
-                existing.cloudCoverMid != newlyFetched.cloudCoverMid ||
-                existing.cloudCoverHigh != newlyFetched.cloudCoverHigh
-        }
-
-        @VisibleForTesting
         internal fun siteExactExistingByDateTime(
             boxRows: List<HourlyForecastEntity>,
             lat: Double,
@@ -329,23 +275,6 @@ internal class HourlyForecastStore(
         ): Map<Long, HourlyForecastEntity> =
             boxRows.filter { it.locationLat == lat && it.locationLon == lon }
                 .associateBy { it.dateTime }
-
-        @VisibleForTesting
-        internal fun mergePreservingNullableFields(
-            existing: HourlyForecastEntity?,
-            newlyFetched: HourlyForecastEntity,
-        ): HourlyForecastEntity {
-            if (existing == null) return newlyFetched
-            return newlyFetched.copy(
-                cloudCover = newlyFetched.cloudCover ?: existing.cloudCover,
-                cloudCoverLow = newlyFetched.cloudCoverLow ?: existing.cloudCoverLow,
-                cloudCoverMid = newlyFetched.cloudCoverMid ?: existing.cloudCoverMid,
-                cloudCoverHigh = newlyFetched.cloudCoverHigh ?: existing.cloudCoverHigh,
-                precipProbability = newlyFetched.precipProbability
-                    ?: existing.precipProbability,
-                precipAmountMm = newlyFetched.precipAmountMm ?: existing.precipAmountMm,
-            )
-        }
     }
 }
 

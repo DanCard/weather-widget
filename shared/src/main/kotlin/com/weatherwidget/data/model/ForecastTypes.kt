@@ -62,6 +62,14 @@ data class DailyForecast(
     val hourlyNightPrecipMax: Int? = null,
     // Epoch ms of the first hour holding hourlyDayPrecipMax (the daily view's peak-hour label).
     val hourlyDayPrecipPeakAt: Long? = null,
+    // NWS only: epoch ms the day's daytime period ends; a row whose period is over is not stored
+    // (DailyForecastWrite). Never persisted.
+    val periodEndMs: Long? = null,
+    // Read back only (never written from here): when the stored row was first fetched and when a fetch
+    // last confirmed it (`batchFetchedAt`; an unchanged forecast is stored once and re-stamped). Lets
+    // the shown row stand as "yesterday's forecast" (PriorDayForecast) when it has not changed since.
+    val fetchedAt: Long? = null,
+    val lastConfirmedAt: Long? = null,
 ) {
     val hourlySummary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary
         get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt)
@@ -92,9 +100,9 @@ data class DailyForecastSnapshot(
     val hindcastHighTemp: Float? = null,
     val hindcastLowTemp: Float? = null,
     /**
-     * When this forecast was last confirmed — what "stale" is judged by. Desktop writes a row per
-     * fetch, so it is [fetchedAt]; Android stores an unchanged forecast once and re-stamps its
-     * `batchFetchedAt`, while its `fetchedAt` stays the first sighting.
+     * When this forecast was last confirmed — what "stale" is judged by: the row's `batchFetchedAt`.
+     * Both platforms store an unchanged forecast once and re-stamp it (DailyForecastWrite), so
+     * [fetchedAt] stays the first sighting.
      */
     val lastConfirmedAt: Long = fetchedAt,
 )

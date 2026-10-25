@@ -54,8 +54,10 @@ class DesktopWeatherDaoSourceIsolationTest {
 
     @Test
     fun `getDailyForecasts returns only the requested source`() {
-        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast("2026-06-19", 80f, 60f, "Sunny")))
-        dao.upsertForecasts(lat, lon, "OPEN_METEO", listOf(DailyForecast("2026-06-19", 51f, 41f, "Cloudy")))
+        // Written before the day: a forecast for a past day is never stored (DailyForecastWrite).
+        val june1 = java.time.LocalDate.parse("2026-06-01").atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        dao.upsertForecasts(lat, lon, "NWS", listOf(DailyForecast("2026-06-19", 80f, 60f, "Sunny")), nowMs = june1)
+        dao.upsertForecasts(lat, lon, "OPEN_METEO", listOf(DailyForecast("2026-06-19", 51f, 41f, "Cloudy")), nowMs = june1)
 
         assertEquals(80f, dao.getDailyForecasts(lat, lon, "NWS").single().highTemp)
         assertEquals(51f, dao.getDailyForecasts(lat, lon, "OPEN_METEO").single().highTemp)

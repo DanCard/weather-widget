@@ -37,6 +37,9 @@ class DesktopForecastOnlyHistoryRowsTest {
 
     private fun epochDay(date: LocalDate) = date.toEpochDay() * 86_400_000L
 
+    /** When the seeded forecasts were fetched: before yesterday, as a real one was (a past day's is never stored). */
+    private val twoDaysAgoNoon get() = yesterday.minusDays(1).atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
     @Before
     fun setup() {
         tempDbPath = Files.createTempFile("weather-forecast-only-test", ".db")
@@ -59,6 +62,7 @@ class DesktopForecastOnlyHistoryRowsTest {
                 DailyForecast(date = yesterday.toString(), highTemp = 73.6f, lowTemp = 58.3f, condition = "Clear", source = source),
                 DailyForecast(date = today.toString(), highTemp = 80f, lowTemp = 60f, condition = "Clear", source = source),
             ),
+            nowMs = twoDaysAgoNoon,
         )
 
         runBlocking { repository.ensureForecastOnlyHistoryRows(System.currentTimeMillis()) }
@@ -80,6 +84,7 @@ class DesktopForecastOnlyHistoryRowsTest {
             listOf(
                 DailyForecast(date = yesterday.toString(), highTemp = 73f, lowTemp = 58f, condition = "Clear", source = source),
             ),
+            nowMs = twoDaysAgoNoon,
         )
         dao.upsertDailyHistory(
             listOf(

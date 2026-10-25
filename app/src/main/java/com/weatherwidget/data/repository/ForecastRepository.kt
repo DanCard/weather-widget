@@ -680,15 +680,6 @@ class ForecastRepository
                 WeatherRetentionManager.APP_LOG_PROTECTED_TAGS
 
             @VisibleForTesting
-            internal fun hasMeaningfulHourlyChange(
-                existing: HourlyForecastEntity?,
-                newlyFetched: HourlyForecastEntity,
-            ): Boolean = HourlyForecastStore.hasMeaningfulHourlyChange(
-                existing,
-                newlyFetched,
-            )
-
-            @VisibleForTesting
             internal fun siteExactExistingByDateTime(
                 boxRows: List<HourlyForecastEntity>,
                 lat: Double,
@@ -698,28 +689,6 @@ class ForecastRepository
                     boxRows,
                     lat,
                     lon,
-                )
-
-            @VisibleForTesting
-            internal fun siteExactLatestForecastByDate(
-                boxRows: List<ForecastEntity>,
-                lat: Double,
-                lon: Double,
-            ): Map<Long, ForecastEntity> =
-                ForecastSnapshotStore.siteExactLatestForecastByDate(
-                    boxRows,
-                    lat,
-                    lon,
-                )
-
-            @VisibleForTesting
-            internal fun mergePreservingNullableFields(
-                existing: HourlyForecastEntity?,
-                newlyFetched: HourlyForecastEntity,
-            ): HourlyForecastEntity =
-                HourlyForecastStore.mergePreservingNullableFields(
-                    existing,
-                    newlyFetched,
                 )
         }
     }

@@ -71,6 +71,8 @@ fun ForecastEntity.toDailyForecast(date: java.time.LocalDate) = com.weatherwidge
     hourlyDayPrecipMax = hourlyDayPrecipMax,
     hourlyNightPrecipMax = hourlyNightPrecipMax,
     hourlyDayPrecipPeakAt = hourlyDayPrecipPeakAt,
+    fetchedAt = fetchedAt,
+    lastConfirmedAt = batchFetchedAt,
 )
 
 /** This row as one of a day's older fetches for the shared daily model. */

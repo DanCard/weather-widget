@@ -3,6 +3,7 @@ package com.weatherwidget.data.local.desktop
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.shared.util.PartialForecastDays
 import com.weatherwidget.shared.util.DailyPrecipPeriods
+import com.weatherwidget.shared.util.DailyForecastWrite
 import com.weatherwidget.shared.util.PredictionDate
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.DailyActual
@@ -367,96 +368,126 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
-    /**
-     * Newest stored high/low for one day at this site — the last real prediction to keep when a
-     * post-cutoff batch would otherwise overwrite it with a hindcast (see [SameDayExtremeCutoff]).
-     */
-    private data class LatestForecast(
-        val high: Float?,
-        val low: Float?,
-        val fetchedAt: Long,
-        val summary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary,
-    )
+    /** A stored `forecasts` row's primary key, for re-stamping its `batchFetchedAt`. */
+    private data class ForecastKey(val targetDate: Long, val dateOfPrediction: Long, val fetchedAt: Long)
 
-    private fun latestForecast(
+    /** [source]'s rows dated [start]..[end] on this site's exact quantized key — the prior rows [DailyForecastWrite] reads. */
+    private fun storedAtSite(
         conn: Connection,
         keyLat: Double,
         keyLon: Double,
         source: String,
-        targetDate: Long,
-    ): LatestForecast? {
+        start: LocalDate,
+        end: LocalDate,
+    ): List<DailyForecastWrite.Stored<ForecastKey>> {
         val sql = """
-            SELECT highTemp, lowTemp, fetchedAt, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt FROM forecasts
-            WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate = ?
-            ORDER BY batchFetchedAt DESC, fetchedAt DESC
-            LIMIT 1
+            SELECT * FROM forecasts
+            WHERE locationLat = ? AND locationLon = ? AND source = ? AND targetDate >= ? AND targetDate <= ?
         """.trimIndent()
         return conn.prepareStatement(sql).use { stmt ->
             stmt.setDouble(1, keyLat)
             stmt.setDouble(2, keyLon)
             stmt.setString(3, source)
-            stmt.setLong(4, targetDate)
+            stmt.setLong(4, start.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+            stmt.setLong(5, end.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
             val rs = stmt.executeQuery()
-            if (!rs.next()) return@use null
-            LatestForecast(
-                high = rs.getNullableFloat("highTemp"),
-                low = rs.getNullableFloat("lowTemp"),
-                fetchedAt = rs.getLong("fetchedAt"),
-                summary = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(
-                    noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
-                    dayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
-                    nightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
-                    dayPrecipPeakAt = rs.getNullableLong("hourlyDayPrecipPeakAt"),
-                ),
-            )
+            buildList {
+                while (rs.next()) {
+                    val targetDate = rs.getLong("targetDate")
+                    val dateOfPrediction = rs.getLong("dateOfPrediction")
+                    val fetchedAt = rs.getLong("fetchedAt")
+                    add(
+                        DailyForecastWrite.Stored(
+                            date = LocalDate.ofEpochDay(targetDate / 86_400_000L),
+                            values = DailyForecastWrite.Values(
+                                highTemp = rs.getNullableFloat("highTemp"),
+                                lowTemp = rs.getNullableFloat("lowTemp"),
+                                condition = rs.getString("condition"),
+                                iconToken = rs.getString("nativeDailyIconToken"),
+                                precipProbability = rs.getNullableInt("precipProbability"),
+                                precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                                daytimePrecipProbability = rs.getNullableInt("daytimePrecipProbability"),
+                                nighttimePrecipProbability = rs.getNullableInt("nighttimePrecipProbability"),
+                                hindcastHighTemp = rs.getNullableFloat("hindcastHighTemp"),
+                                hindcastLowTemp = rs.getNullableFloat("hindcastLowTemp"),
+                                summary = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(
+                                    noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
+                                    dayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
+                                    nightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
+                                    dayPrecipPeakAt = rs.getNullableLong("hourlyDayPrecipPeakAt"),
+                                ),
+                            ),
+                            dateOfPrediction = dateOfPrediction,
+                            batchFetchedAt = rs.getLong("batchFetchedAt"),
+                            fetchedAt = fetchedAt,
+                            ref = ForecastKey(targetDate, dateOfPrediction, fetchedAt),
+                        ),
+                    )
+                }
+            }
         }
     }
 
     /**
-     * Newest stored row for the day that has a low. The latest row may have none (a source that no
-     * longer reports the night ending this morning), so [latestForecast] cannot be the one to keep from.
+     * One fetch's daily rows for [source] at this site: the `:shared` [DailyForecastWrite] rule (same
+     * as Android's `ForecastSnapshotStore.saveForecastSnapshot`) decides which rows are written and
+     * which existing ones only take this fetch's `batchFetchedAt` ([nowMs]); this writes the plan.
      */
-    private fun latestForecastWithLow(
-        conn: Connection,
-        keyLat: Double,
-        keyLon: Double,
-        source: String,
-        targetDate: Long,
-    ): LatestForecast? {
-        val sql = """
-            SELECT highTemp, lowTemp, fetchedAt FROM forecasts
-            WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate = ? AND lowTemp IS NOT NULL
-            ORDER BY fetchedAt DESC
-            LIMIT 1
-        """.trimIndent()
-        return conn.prepareStatement(sql).use { stmt ->
-            stmt.setDouble(1, keyLat)
-            stmt.setDouble(2, keyLon)
-            stmt.setString(3, source)
-            stmt.setLong(4, targetDate)
-            val rs = stmt.executeQuery()
-            if (!rs.next()) return@use null
-            LatestForecast(
-                high = rs.getNullableFloat("highTemp"),
-                low = rs.getNullableFloat("lowTemp"),
-                fetchedAt = rs.getLong("fetchedAt"),
-                summary = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(),
-            )
-        }
-    }
-
     fun upsertForecasts(
         locationLat: Double,
         locationLon: Double,
         source: String,
         daily: List<DailyForecast>,
         nowMs: Long = System.currentTimeMillis(),
+        userRefresh: Boolean = false,
     ) = withWriteLock {
+        val keyLat = LocationMatch.quantize(locationLat)
+        val keyLon = LocationMatch.quantize(locationLon)
+        val incoming = daily.mapNotNull { d ->
+            val date = runCatching { LocalDate.parse(d.date) }.getOrNull() ?: return@mapNotNull null
+            DailyForecastWrite.Incoming(
+                date = date,
+                highTemp = d.highTemp,
+                lowTemp = d.lowTemp,
+                condition = d.condition,
+                iconToken = d.iconToken,
+                precipProbability = d.precipProbability,
+                precipAmountMm = d.precipAmountMm,
+                daytimePrecipProbability = d.daytimePrecipProbability,
+                nighttimePrecipProbability = d.nighttimePrecipProbability,
+                summary = d.hourlySummary,
+                isClimateNormal = d.isClimateNormal,
+                periodEndMs = d.periodEndMs,
+            )
+        }
         // app_logs writes use their own connection; never call log() inside this transaction.
-        val pendingLogs = mutableListOf<Pair<String, String>>()
+        var lines: List<DailyForecastWrite.Line> = emptyList()
         db.getConnection().use { conn ->
             conn.autoCommit = false
             try {
+                val stored = DailyForecastWrite.readRange(incoming, nowMs)
+                    ?.let { storedAtSite(conn, keyLat, keyLon, source, it.start, it.endInclusive) }
+                    .orEmpty()
+                val plan = DailyForecastWrite.plan(incoming, stored, source, nowMs, batchFetchedAt = nowMs, userRefresh = userRefresh)
+                lines = plan.lines
+                if (plan.restamp.isNotEmpty()) {
+                    conn.prepareStatement(
+                        "UPDATE forecasts SET batchFetchedAt = ? WHERE targetDate = ? AND dateOfPrediction = ? " +
+                            "AND locationLat = ? AND locationLon = ? AND source = ? AND fetchedAt = ?",
+                    ).use { stmt ->
+                        for (key in plan.restamp) {
+                            stmt.setLong(1, nowMs)
+                            stmt.setLong(2, key.targetDate)
+                            stmt.setLong(3, key.dateOfPrediction)
+                            stmt.setDouble(4, keyLat)
+                            stmt.setDouble(5, keyLon)
+                            stmt.setString(6, source)
+                            stmt.setLong(7, key.fetchedAt)
+                            stmt.addBatch()
+                        }
+                        stmt.executeBatch()
+                    }
+                }
                 val sql = """
                     INSERT OR REPLACE INTO forecasts
                     (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition,
@@ -467,86 +498,34 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
-                    val now = nowMs
                     // The local date of this write (shared with Android), never the UTC date.
-                    val todayEpoch = PredictionDate.epochMs(now)
-                    // Quantize the storage key so coordinate jitter between fetches lands on the
-                    // same PK instead of stranding a stale per-precision site (see LocationMatch.quantize).
-                    val keyLat = LocationMatch.quantize(locationLat)
-                    val keyLon = LocationMatch.quantize(locationLon)
-                    for (d in daily) {
-                        val targetDate = LocalDate.parse(d.date).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-                        // Parity with Android (ForecastRepository): today keeps decimals, future days
-                        // round to integer. Climate normals are stored as-is. Shared rule keeps both
-                        // platforms writing identical values for the same fetch.
-                        val isToday = targetDate == todayEpoch
-                        var highToStore = if (d.isClimateNormal) d.highTemp
-                            else ForecastTempRounding.forStorage(d.highTemp, isToday) ?: d.highTemp
-                        var lowToStore = if (d.isClimateNormal) d.lowTemp
-                            else ForecastTempRounding.forStorage(d.lowTemp, isToday) ?: d.lowTemp
-                        // The frozen side's raw value, kept for the past-day dashed fallback; no
-                        // reader takes hindcast* as a forecast.
-                        var hindcastHigh: Float? = null
-                        var hindcastLow: Float? = null
-                        val prior = latestForecast(conn, keyLat, keyLon, source, targetDate)
-                        // A fetch that did not cover a window keeps the previous row's value
-                        // (DailyHourlySummaries, same as Android's ForecastSnapshotStore).
-                        val summary = com.weatherwidget.shared.util.DailyHourlySummaries.carryForward(d.hourlySummary, prior?.summary)
-                        val periods = DailyPrecipPeriods.resolve(
-                            providerDay = d.daytimePrecipProbability,
-                            providerNight = d.nighttimePrecipProbability,
-                            hourly = summary,
-                        )
-                        if (!d.isClimateNormal) {
-                            val filtered = SameDayExtremeCutoff.filter(
-                                targetDate = LocalDate.parse(d.date),
-                                highTemp = highToStore,
-                                lowTemp = lowToStore,
-                                nowMs = now,
-                            )
-                            if (!filtered.frozeLow && lowToStore == null && isToday) {
-                                val withLow = latestForecastWithLow(conn, keyLat, keyLon, source, targetDate)
-                                lowToStore = SameDayExtremeCutoff.keptTodayLow(isToday, withLow?.low, withLow?.fetchedAt, now)
-                            }
-                            if (filtered.frozeAny) {
-                                if (filtered.frozeHigh) {
-                                    hindcastHigh = highToStore
-                                    highToStore = prior?.high
-                                }
-                                if (filtered.frozeLow) {
-                                    hindcastLow = lowToStore
-                                    lowToStore = prior?.low
-                                }
-                                pendingLogs += "FORECAST_SKIP_HINDCAST" to
-                                    "date=${d.date} source=$source " +
-                                    "froze=${listOfNotNull("high".takeIf { filtered.frozeHigh }, "low".takeIf { filtered.frozeLow }).joinToString("+")} " +
-                                    "prior_high=${prior?.high} prior_low=${prior?.low}"
-                            }
-                        }
-                        stmt.setLong(1, targetDate)
-                        stmt.setLong(2, minOf(todayEpoch, targetDate)) // prediction date cannot exceed target date
+                    val todayEpoch = PredictionDate.epochMs(nowMs)
+                    for (row in plan.write) {
+                        val v = row.values
+                        stmt.setLong(1, row.date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+                        stmt.setLong(2, todayEpoch)
                         stmt.setDouble(3, keyLat)
                         stmt.setDouble(4, keyLon)
                         // NULL is a real value: NWS drops today's low in the evening and ends on a
                         // low-only day. Readers handle the gap (DailyPartialDayRepair).
-                        stmt.setNullableFloat(5, highToStore)
-                        stmt.setNullableFloat(6, lowToStore)
-                        stmt.setString(7, d.condition)
-                        stmt.setString(8, d.iconToken)
-                        stmt.setInt(9, if (d.isClimateNormal) 1 else 0)
+                        stmt.setNullableFloat(5, v.highTemp)
+                        stmt.setNullableFloat(6, v.lowTemp)
+                        stmt.setString(7, v.condition)
+                        stmt.setString(8, v.iconToken)
+                        stmt.setInt(9, 0)
                         stmt.setString(10, source)
-                        stmt.setNullableInt(11, d.precipProbability)
-                        stmt.setNullableFloat(12, d.precipAmountMm)
-                        stmt.setNullableInt(13, periods.day)
-                        stmt.setNullableInt(14, periods.night)
-                        stmt.setLong(15, now)
-                        stmt.setLong(16, now)
-                        stmt.setNullableFloat(17, hindcastHigh)
-                        stmt.setNullableFloat(18, hindcastLow)
-                        stmt.setNullableInt(19, summary.noonCloudPercent)
-                        stmt.setNullableInt(20, summary.dayPrecipMax)
-                        stmt.setNullableInt(21, summary.nightPrecipMax)
-                        stmt.setNullableLong(22, summary.dayPrecipPeakAt)
+                        stmt.setNullableInt(11, v.precipProbability)
+                        stmt.setNullableFloat(12, v.precipAmountMm)
+                        stmt.setNullableInt(13, v.daytimePrecipProbability)
+                        stmt.setNullableInt(14, v.nighttimePrecipProbability)
+                        stmt.setLong(15, nowMs)
+                        stmt.setLong(16, nowMs)
+                        stmt.setNullableFloat(17, v.hindcastHighTemp)
+                        stmt.setNullableFloat(18, v.hindcastLowTemp)
+                        stmt.setNullableInt(19, v.summary.noonCloudPercent)
+                        stmt.setNullableInt(20, v.summary.dayPrecipMax)
+                        stmt.setNullableInt(21, v.summary.nightPrecipMax)
+                        stmt.setNullableLong(22, v.summary.dayPrecipPeakAt)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -557,7 +536,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 throw e
             }
         }
-        pendingLogs.forEach { (tag, message) -> log(tag = tag, message = message, level = "INFO") }
+        lines.forEach { log(tag = it.tag, message = it.message, level = it.level) }
     }
 
     /**
@@ -1767,6 +1746,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         hourlyDayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
                         hourlyNightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
                         hourlyDayPrecipPeakAt = rs.getNullableLong("hourlyDayPrecipPeakAt"),
+                        fetchedAt = rs.getLong("fetchedAt"),
+                        lastConfirmedAt = rs.getLong("batchFetchedAt"),
                     ))
                 }
             }
@@ -1933,6 +1914,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             nighttimePrecipProbability = rs.getNullableInt("nighttimePrecipProbability"),
                             hindcastHighTemp = rs.getNullableFloat("hindcastHighTemp").orNullIfImplausibleTempF(),
                             hindcastLowTemp = rs.getNullableFloat("hindcastLowTemp").orNullIfImplausibleTempF(),
+                            // An unchanged forecast is stored once and re-stamped (DailyForecastWrite).
+                            lastConfirmedAt = rs.getLong("batchFetchedAt"),
                         )
                     )
                 }

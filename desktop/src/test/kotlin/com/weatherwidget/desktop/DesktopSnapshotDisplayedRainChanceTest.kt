@@ -265,6 +265,8 @@ class DesktopSnapshotDisplayedRainChanceTest {
                     source = source, precipAmountMm = 0.5f,
                 ),
             ),
+            // Fetched the day before: a past day's forecast is never stored (DailyForecastWrite).
+            nowMs = past.minusDays(1).atTime(12, 0).atZone(zone).toInstant().toEpochMilli(),
         )
         // getDailyForecastSnapshots excludes the newest batch (it's the live forecast, not a
         // snapshot). In production a past date's batches are never the newest overall; recreate
@@ -322,6 +324,8 @@ class DesktopSnapshotDisplayedRainChanceTest {
                     source = source,
                 ),
             ),
+            // Fetched the day before: a past day's forecast is never stored (DailyForecastWrite).
+            nowMs = past.minusDays(1).atTime(12, 0).atZone(zone).toInstant().toEpochMilli(),
         )
         Thread.sleep(5)
         dao.upsertForecasts(

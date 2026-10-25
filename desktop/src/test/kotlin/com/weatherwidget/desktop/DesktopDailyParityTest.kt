@@ -45,6 +45,9 @@ class DesktopDailyParityTest {
                 daytimePrecipProbability = r.dayPrecip,
                 nighttimePrecipProbability = r.nightPrecip,
                 noonCloudPercent = r.noonCloud,
+                // As the reader stamps it: a fixture row is one fetch, never re-stamped.
+                fetchedAt = r.fetchedAt,
+                lastConfirmedAt = r.fetchedAt,
             )
         }
         val snapshots = fixture.allRows().mapKeys { it.key.toString() }.mapValues { (_, rows) ->

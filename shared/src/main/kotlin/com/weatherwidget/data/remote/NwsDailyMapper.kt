@@ -254,6 +254,9 @@ object NwsDailyMapper {
                 // app's 8am/8pm day/night boundary.
                 daytimePrecipProbability = acc.daytimePrecipProbabilityMap[date],
                 nighttimePrecipProbability = acc.nighttimePrecipProbabilityMap[date],
+                periodEndMs = acc.periodTimeMap[date]?.second?.let {
+                    runCatching { java.time.ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull()
+                },
             )
         }.sortedBy { it.date }
     }

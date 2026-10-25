@@ -381,13 +381,49 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `prepareGraphDays today - a forecast unchanged for three days is yesterday's forecast`() {
+        // Stored once three days ago and re-stamped by every fetch since (DailyForecastWrite): the
+        // shown row is the only copy, and it was current at yesterday's cutoffs (2026-10-24).
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        fun ms(t: LocalDateTime) = t.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val weatherByDate = mapOf(
+            today to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
+                .copy(fetchedAt = ms(now.minusDays(3)), batchFetchedAt = ms(now.minusHours(1))),
+        )
+
+        val days = DailyViewLogic.prepareGraphDays(
+            todayLabel = "Today",
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = emptyMap(),
+        )
+
+        val todayData = days.first { it.date == today }
+        assertEquals(80f, todayData.snapshotHigh!!, 0.1f)
+        assertEquals(60f, todayData.snapshotLow!!, 0.1f)
+        assertEquals("confirmed after both cutoffs: solid", false, todayData.snapshotIsStale)
+    }
+
+    @Test
     fun `prepareGraphDays today ignores Generic fallback snapshot when source snapshot is missing`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
+        // Fetched this morning: the shown row is today's forecast, not a candidate for yesterday's.
+        val fetchedToday = now.minusHours(3).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val weatherByDate = mapOf(
-            today to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
+            today to createWeather(todayStr, highTemp = 80f, lowTemp = 60f).copy(fetchedAt = fetchedToday, batchFetchedAt = fetchedToday)
         )
 
         val snapshots = mapOf(

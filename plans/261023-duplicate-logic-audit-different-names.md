@@ -335,6 +335,10 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
 - 2026-10-24: `CurrentConditionsRun.Host` contract (stores only); the low-priority throttle moved into
   the run, Android's rule — a clock set back counts as due (desktop waited; user). **Tier 3 done:
   `HostContractCoverageTest.PENDING` is empty.**
+- 2026-10-24: B rest started — `plans/261024-shared-forecast-persist-rules.md`. Phase 1 `:shared`
+  `DailyForecastWrite` (prior = this site's row, unchanged rows re-stamped, NULL/NULL dropped, ended
+  NWS period dropped; Android's rule, user), phase 2 `HourlyForecastWrite` (nullable fields kept,
+  `fetchedAt` = last confirmed on both). Today's "yesterday's forecast" pick now also sees the shown row.
 
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:
