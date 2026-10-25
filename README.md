@@ -2,7 +2,7 @@
 
 [![Get it on Google Play](https://img.shields.io/badge/Google%20Play-Weather%20Analyzer%20Widget-414141?logo=googleplay)](https://play.google.com/store/apps/details?id=com.weatherwidget)
 
-Android and Linux weather widget.  Graphs daily , hourly forecast for temperature, cloud cover and rain.
+Android and Linux weather widget. Graphs daily and hourly forecasts for temperature, cloud cover, and rain.
 
 ## Overview
 
@@ -14,12 +14,13 @@ It also includes a **Linux desktop companion** (Compose for Desktop) that shares
 
 * **History comparison:**
   * Header row shows delta from prior day
-  * Delta from from forecast for current temp
+  * Delta from forecast for current temp
   * Able to view prior day forecast for comparison to today
 * **Multi-Source Weather Forecast Integration:**
-  * Seamless toggling between primary weather providers: NWS (US-only, official government data), Open-Meteo (global, no API key), and Silurian.
-  * Hidden/configurable support for Tomorrow.io, WeatherAPI, Visual Crossing, and OpenWeatherMap (key-based).
-  * Priority fallback logic to fetch from alternate sources if a primary source is unavailable or lacks coverage for the current location.
+  * Configurable providers: NWS (US-only, official government data), Open-Meteo, Silurian,
+    Tomorrow.io, WeatherAPI, OpenWeatherMap, and Google Weather.
+  * NWS and Open-Meteo need no API key; the other providers accept keys in Settings or from a local build.
+  * Priority fallback logic fetches from alternate sources if a primary source is unavailable or lacks coverage for the current location.
 * **Adaptive Android Widget Layouts:**
   * Dynamically adapts its UI layout to fit any widget size from 1x1 up to 8+ columns and 2+ rows.
   * *1x1:* Show high/low extrema, weather condition icon, and current temp (if space allows).
@@ -37,14 +38,14 @@ It also includes a **Linux desktop companion** (Compose for Desktop) that shares
   * Real-time current temperature estimation by interpolating hourly forecast data points, saving battery by avoiding redundant network fetches.
   * Support for both Celsius and Fahrenheit, updating all labels and graphs automatically.
 * **Detailed Forecast Accuracy Tracking:**
-  * Captures daily 1-day-ahead forecast snapshots before an 8:00 PM cutoff.
+  * Captures forecast snapshots throughout each day's evolution for later comparison with actuals.
   * Retrieves historical observations from NWS (with up to 5 nearby fallback stations for resilience).
   * Compares predictions vs. observations to compute detailed 30-day statistics: high/low error margins, directional temperature bias, and a 0-5 rating score.
   * *Forecast History Activity:* Inspect forecast evolution over time relative to actual weather.
 * **Battery & Power-Aware Sync System:**
-  * Separation of light UI updates (10-16 min) from heavy network operations.
-  * Dynamic API fetch intervals based on battery levels (scaling from 60 min on charger down to 480 min/suspended under low battery).
-  * WorkManager-based updating with work-stall recovery to prevent frozen widgets on devices with aggressive OEM battery-saving controls.
+  * Lightweight UI refreshes use cached data separately from forecast and observation network fetches.
+  * Fetch scheduling adapts to battery level, charging, and screen state, reducing or suspending background work when power is limited.
+  * WorkManager, alarms, and opportunistic jobs provide updates and stall recovery on devices with aggressive OEM battery-saving controls.
 * **Linux Desktop Companion App (Compose Multiplatform):**
   * System-tray temperature icon and tray context menu.
   * Graphical pop-up window showing hourly/daily graphs and details, mirroring the Android layout.
@@ -76,18 +77,19 @@ Settings.
 
 ## Setup Instructions
 
-To build and run this project locally, you will need a valid Weather API Key. 
+A debug build needs **Java 21** but no API key for the keyless NWS and Open-Meteo sources.
 
-1.  Clone the repository.
-2.  Create a file named `local.properties` in the root directory of the project if it doesn't already exist.
-3.  Add your API key to the `local.properties` file using the following format:
+1. Clone the repository and open it in Android Studio.
+2. Sync the Gradle files, then build and run on an emulator or physical device.
+3. Optional: add provider keys to `local.properties` for local builds, or enter them in the app's
+   Settings. For example:
 
-    ```properties
-    WEATHER_API_KEY=your_actual_api_key_here
-    ```
+   ```properties
+   WEATHER_API_KEY=your_actual_api_key_here
+   ```
 
-4.  Open the project in Android Studio and sync with Gradle files.
-5.  Build and run the application on an emulator or physical device.
+Release builds have additional signing and provider-key validation; see the build configuration and
+[operations](arch/operations.md) for release commands.
 
 ## Desktop App (Linux)
 
@@ -136,9 +138,9 @@ Daily autostart uses `scripts/desktop-app-launcher-and-autostart.sh`, which laun
 distributable at `desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop`.
 If the distributable is missing, the script rebuilds it once with `:desktop:createDistributable`.
 Use `scripts/buildStart-desktop.sh` to test a newly built daily app immediately.
-Launching again does not produce a second tray icon: the new instance touches a `.quit` trigger file
-that the running instance is watching, so the incumbent exits and the newest launch takes over
-(last-launch-wins). Brief tray overlap during the handoff is expected.
+Launching again does not produce a second tray icon: the new instance writes a `.quit-<launchId>`
+trigger file that the running instance detects, so the incumbent exits and the newest launch takes
+over (last-launch-wins). Brief tray overlap during the handoff is expected.
 
 ### Tray icon
 

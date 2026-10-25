@@ -1,601 +1,106 @@
-## Project Overview
+# Weather Widget agent guide
 
-**Weather Widget** is an Android widget application that displays weather forecasts with multiple API support.
-There is also a Linux app that is intended to function similarly.
+Weather Widget is an Android home-screen widget and Linux desktop app. The Gradle modules are
+`:app` (Android), `:shared` (pure JVM weather logic and API clients), and `:desktop` (Compose for
+Desktop). Keep user-visible behavior consistent across Android and desktop unless the user explicitly
+limits a task to one platform.
 
-### Key Features
-- **Multiple API Sources**: NWS (US-only, official government data), Open-Meteo (global, no API key), and Silurian are the default-visible sources. Tomorrow.io has a tight free quota, so it is **not default-visible** (Android enables it only in debug builds; desktop never by default) but remains user-selectable on both platforms via `WeatherSourceOrdering.ALL_CONFIGURABLE`. OpenWeatherMap (free 2.5 `/weather` + `/forecast` endpoints, key required) and WeatherAPI are likewise configurable but not default-visible; OpenWeatherMap is appended last when enabled (no longer pinned there). Google Weather (key required, billed per request, forecast-only) is default-visible in Android debug builds only, becomes primary when enabled, and its key is baked into debug builds only. Visual Crossing remains in the `WeatherSource` enum but is hidden/deprecated. API clients live in `:shared` (`shared/.../data/remote/`), not `:app`.
-- **Resizable Widget**: Adapts layout from 1x1 (single day) to 8+ columns (7+ days)
-- **Multiple View Modes**: Daily view (forecast bars), Hourly view (temperature curve), and more
-- **Temperature Interpolation**: Smooth current temperature display using hourly forecast data
-- **Forecast Accuracy Tracking**: Compares predictions vs actual observations
-- **Forecast History Viewer**: Activity to inspect forecast evolution and compare with actuals
-- **App Log Auditing**: Persists fetch and cleanup events for diagnostics
-- **Battery-Aware Updates**: Adjusts fetch intervals based on battery level (60-480 min)
+## Working rules
 
-## Dual-Platform Changes (Memory)
+1. **Verify before diagnosing or changing behavior.** Use logs, database queries, screenshots, API
+   responses, or targeted instrumentation. Do not guess what ran or what a widget displays.
+2. **Review significant changes before editing.** Present the evidence, root cause, and proposed fix,
+   then wait for approval. Routine releases and explicit single-purpose instructions such as "run
+   tests" or "commit" are exempt. After approval, continue through verification without unnecessary
+   check-ins.
+3. **Verify runtime changes on a device/emulator or in the desktop app.** A successful build alone
+   does not prove rendering, scheduling, persistence, or interaction behavior.
+4. **Do not commit unless explicitly requested.** Never make mid-task commits.
+5. **Preserve user state.** Never uninstall the app or clear app data (`adb uninstall`,
+   `pm uninstall`, `pm clear`) without explicit user instruction. This destroys widget bindings and
+   customized placements.
+6. **Do not cancel a running `WeatherWidgetWorker`.** Immediate unique work uses `KEEP` or
+   `APPEND_OR_REPLACE`, never `REPLACE`; delayed work may use `REPLACE`, and periodic work uses
+   `UPDATE`. Cancellation can cause a native ART crash that bypasses the JVM crash logger. See
+   [operations](arch/operations.md) for diagnosis and safe recovery.
+7. **Leave `leaveApksInstalledAfterRun` enabled.** Removing it can uninstall test APKs and remove
+   home-screen widgets.
 
-**Apply every change to BOTH Android (`:app`) and Linux Desktop (`:desktop`) unless the user
-explicitly restricts the request to a single platform.** This includes UI/layout/settings
-reordering, preferences, default values, and behavior — not just feature logic.
+## Architecture rules
 
-When a settings section is added, removed, or reordered in the Android layout
-(`app/src/main/res/layout/activity_settings.xml`), mirror the same change in the desktop settings
-window (`desktop/src/main/kotlin/com/weatherwidget/desktop/SettingsWindow.kt`), and vice versa.
+- Put shared weather behavior in `:shared`, not in parallel Android and desktop implementations.
+  A shared runner owns the complete rule—windows, source scope, ordering, gates, and logging—while
+  each platform supplies a `Host` for storage, system state, and I/O. A shared planner with substantial
+  per-platform glue is not sufficient.
+- `:shared` must remain free of Android `Context`, Room, RemoteViews, and widget preferences.
+- `:app` owns Android lifecycle, Room, Hilt, scheduling, activities, and RemoteViews glue.
+- `:desktop` owns Compose UI and Linux integration, using its desktop SQLite host implementations.
+- Mirror feature, preference, default, and settings-layout changes on both platforms. In particular,
+  keep `activity_settings.xml` and `SettingsWindow.kt` consistent.
+- Preserve location identity: coordinate-keyed writes and reads must follow the shared `LocationMatch`
+  quantization and site-matching rules.
 
-## Review Fixes Before Implementing (Memory)
+See [architecture](arch/ARCHITECTURE.md) for the current structural map.
 
-**Before implementing any significant change or bugfix, first present the root-cause analysis and the
-proposed fix plan, and wait for the user's approval before editing code.** (Evidence-gathering —
-screenshots, logs, DB queries — comes first as usual; the gate applies to code edits.) After
-approval, proceed through implementation, tests, build, and on-device verification without further
-check-ins unless the plan needs to change.
+## Code and persistence conventions
 
-**Exemptions (proceed immediately without asking for approval):**
-- Routine release operations requested by the user: bumping `versionCode`/`versionName`, writing Fastlane changelogs, running release validation tests, and pushing/promoting builds via Fastlane (no plan or summary files needed).
-- Explicit single-purpose instructions (e.g., "commit", "run tests", "reformat code").
+- Use idiomatic Kotlin, data classes for values, constructor injection, structured coroutines, and
+  `suspend` functions for asynchronous work.
+- Use `goAsync()` for non-trivial `BroadcastReceiver` work and finish the pending result in `finally`.
+- Do not silently swallow exceptions. Preserve cancellation and log other failures with context.
+- Define `private const val TAG = "ClassName"` where appropriate and keep useful diagnostic logging.
+- Use `Log.v` for high-frequency render/tick/poll traces; VERBOSE stays out of the persistent DB log.
+  `Log.d` and above may persist to `app_logs`, so keep those events sparse and queryable. Use
+  `Log.e(TAG, message, exception)` for errors.
+- Log important state transitions and API calls through the existing logging facilities.
+- Add a Room migration for every Android schema change and make the corresponding desktop SQLite
+  schema/migration change. Keep exported Room schemas current and test migrations with real SQLite.
+  The authoritative definitions are `WeatherDatabase.kt` and `DesktopWeatherDatabase.kt`; do not copy
+  their version numbers into documentation.
+- Add migrations rather than relying on destructive fallback for normal upgrades.
 
-## Technology Stack
+## Build and test
 
-| Component | Technology |
-|-----------|------------|
-| Language | Kotlin 2.3.10 |
-| Build System | Gradle 8.13 + AGP 9.1.0, Kotlin DSL |
-| Compile/Min/Target SDK | 35 / 26 / 35 |
-| Java Version | 21 |
-| DI Framework | Hilt 2.59.2 |
-| Database | Room 2.7.0 |
-| HTTP Client | Ktor 2.3.7 (OkHttp engine) |
-| Background Work | WorkManager 2.9.0 |
-| Serialization | kotlinx.serialization 1.7.3 |
-| Testing | JUnit 4 + Robolectric + mockk 1.13.9 |
-| Modules | `:app` (Android) · `:shared` (JVM weather/API code) · `:desktop` (Compose for Desktop) |
-
-## Build Commands
-
-Use plain `./gradlew ...` by default.
-
-```bash
-# Build debug APK
-./gradlew assembleDebug
-
-# Install to device/emulator
-./gradlew installDebug
-
-# Build release
-./gradlew assembleRelease
-
-# Clean build
-./gradlew clean
-
-# Run all tests
-./gradlew test
-
-# Play Store Fastlane Commands (fastlane binary path: ~/.local/share/gem/ruby/3.3.0/bin/fastlane)
-FASTLANE=~/.local/share/gem/ruby/3.3.0/bin/fastlane
-$FASTLANE beta       # Upload release to Open Beta track
-$FASTLANE run upload_to_play_store track:beta track_promote_to:production version_code:<VERSION> changes_not_sent_for_review:false # Promote Beta to Production
-```
-
-## Project Structure
-
-```
-app/src/main/java/com/weatherwidget/
-├── WeatherWidgetApp.kt           # Application + WorkManager config
-├── data/
-│   ├── local/              # Room entities, DAOs, and database
-│   │   ├── AppLogEntity.kt
-│   │   ├── WeatherEntity.kt
-│   │   ├── ForecastSnapshotEntity.kt
-│   │   ├── HourlyForecastEntity.kt
-│   │   ├── WeatherDao.kt
-│   │   ├── ForecastSnapshotDao.kt
-│   │   ├── HourlyForecastDao.kt
-│   │   └── WeatherDatabase.kt
-│   │   (API clients moved to :shared — shared/.../data/remote/:
-│   │    NwsApi, OpenMeteoApi, SilurianApi, TomorrowIoApi, OpenWeatherMapApi;
-│   │    WeatherSource enum is in shared/.../data/model/)
-│   ├── repository/         # Data coordination layer
-│   │   └── WeatherRepository.kt
-│   └── ApiLogger.kt        # API call logging
-├── di/
-│   └── AppModule.kt        # Hilt dependency providers
-├── stats/
-│   ├── AccuracyCalculator.kt
-│   └── AccuracyStatistics.kt
-├── ui/                     # Activities (settings, config, etc.)
-│   ├── ConfigActivity.kt
-│   ├── SettingsActivity.kt
-│   ├── StatisticsActivity.kt
-│   ├── ForecastHistoryActivity.kt
-│   └── DailyAccuracyAdapter.kt
-├── util/
-│   ├── TemperatureInterpolator.kt
-│   ├── NavigationUtils.kt
-│   ├── WeatherIconMapper.kt
-│   ├── RainAnalyzer.kt
-│   └── SunPositionUtils.kt
-└── widget/                 # Widget core components
-    ├── WeatherWidgetProvider.kt    # Main widget lifecycle
-    ├── WeatherWidgetWorker.kt      # Background data fetch
-    ├── WidgetStateManager.kt       # Per-widget state persistence
-    ├── DailyForecastGraphRenderer.kt # Daily view graph rendering
-    ├── HourlyTemperatureGraphRenderer.kt # Hourly view temp curve with min/max labels
-    ├── PrecipitationGraphRenderer.kt # Hourly precipitation graph
-    ├── GraphRenderUtils.kt          # Shared graph utilities (smoothing, bezier, labels)
-    ├── ForecastEvolutionRenderer.kt # Forecast history graphs
-    ├── UIUpdateScheduler.kt        # AlarmManager-based UI updates
-    ├── UIUpdateReceiver.kt
-    ├── OpportunisticUpdateJobService.kt  # JobScheduler for Android 8+
-    ├── ScreenOnReceiver.kt         # Screen unlock handler
-    └── DataFreshness.kt            # Staleness checking
-```
-
-## Code Style Guidelines
-
-### Formatting
-- Use Kotlin idioms over Java-style code
-- Use data classes for value objects
-
-### Logging
-- Define `private const val TAG = "ClassName"` at top of file
-- Use appropriate log levels:
-  - `Log.v(TAG, "message")` for **high-frequency / per-frame / per-tick / per-poll traces** (render
-    breadcrumbs, the every-~2-min current-temp resolver, label-placement decisions, etc.)
-  - `Log.d(TAG, "message")` for low-frequency debug diagnostics worth keeping
-  - `Log.i(TAG, "message")` for informational events
-  - `Log.e(TAG, "message", exception)` for errors (always include exception)
-- Log important state transitions and data fetches
-- Do not be eager to delete debug logging
-- **VERBOSE vs the DB log — the key rule.** The shared `Log` (`shared/.../util/Log.kt`) has two
-  routing decisions: the *ephemeral* sink (logcat / desktop console) shows everything including
-  VERBOSE; the *persistent* DB log (`app_logs`, queried with `sqlite3`) is reserved for **sparse,
-  queryable events**. `VERBOSE` is the explicit "do not persist" tier: it stays visible ephemerally
-  but is dropped at the persistence boundary (the `CurrentTemperatureResolver.dbLogger` wiring skips
-  `level == "VERBOSE"`). So:
-  - **Anything that fires every frame/tick/poll → `Log.v`.** Otherwise it swamps `app_logs` (the
-    `CurrentTempResolver` tag once grew to ~62k rows / ~96% of the table) and forces read-side
-    filters to dig real events back out.
-  - **`DEBUG` and above persist** to `app_logs` — fine for genuinely sparse breadcrumbs. Use database
-    logging for important, low-frequency state you want to query later (e.g. one summary row per
-    resolution like `CURR_TEMP_RESULT`, not the per-step trace).
-  - On **Android** `app_logs` is the only persistent log (no file sink), so prefer a periodic
-    *summary* at DEBUG over persisting a full trace.  Use VERBOSE for frequent render logs.
-
-### Error Handling
-- Don't silently swallow exceptions - log them
-
-### Dependency Injection
-- Use Hilt for DI
-- Annotate singletons with `@Singleton`
-- Use `@Inject constructor(...)` for constructor injection
-- Use `@ApplicationContext` qualifier when needing Context
-- Provide dependencies in `AppModule.kt`
-
-### Coroutines
-- Use `suspend` functions for async work
-- Use `runTest` in unit tests for coroutine testing
-- Use `coroutineScope` for structured concurrency
-- Use `goAsync()` in BroadcastReceivers to avoid ANRs
-
-### Database (Room)
-- Add migrations in `WeatherDatabase.kt` when changing schema
-- Use `OnConflictStrategy.REPLACE` for upserts
-
-### API Calls
-- Use Ktor client for HTTP requests
-- Define data classes for request/response bodies
-- Parse JSON using kotlinx.serialization
-- Handle network errors gracefully with try-catch
-- Log API calls via `ApiLogger`
-
-## Evidence-First Protocol
-Applies to **all** agent work: bug reports, regressions, "why is this happening?" analysis, data
-mismatches, feature implementation, layout/rendering changes, behavior explanations, and any
-situations where the agent might assume or infer state instead of observing it.
-
-### Hard Gate Rules
-- **NEVER uninstall the app or clear app data (`adb uninstall`, `pm uninstall`, `pm clear`) on any device or emulator without explicit user instruction.** Uninstalling destroys widget host bindings, invalidates widget IDs, resets layout customizations, and removes widgets from the user's home screen.
-- **Don't guess — verify.** Never assume what the runtime state is, what a widget is displaying,
-  what an API returned, or what code path executed. Check with logs, screenshots, `adb`, database
-  queries, or add targeted logging first.
-- Do not guess at root cause.
-- Do not propose or implement a fix until evidence is collected.
-- If database and logs are not accessible, stop and ask for the exact missing command/data needed.
-- For live widget questions about what icon/value/layout is currently showing on emulator/device,
-  verify with runtime evidence first via adb (screenshot, logcat, database dump).
-- If logcat is missing, consider adding logging and/or asking the user to reproduce. A screenshot
-  and analyzing it is often the fastest path to truth.
-- When implementing features or making changes that affect runtime behavior, verify the result on
-  device/emulator before declaring the work done — don't assume the code works because it looks
-  correct.
-- **A DB scrub is not a fix until the writer is redeployed.** Cleaning rows then restarting a
-  pre-change APK / `weather-widget-desktop` re-inserts the junk on the next fetch. After any
-  writer-policy change: `installDebug` / `:desktop:createDistributable` first, then scrub (or
-  re-scrub the gap). Symptom: "the scrub didn't work" with a post-scrub fetch timestamp on the row.
-
-## Testing Guidelines
-
-### Test Location and Framework Preference
-
-**Like to have Robolectric (JVM) tests for each instrumented (androidTest/emulator) tests.**
-
-**An integration test is defined by what it connects, not by its scaffolding:** any test that
-connects two or more modules/components is an integration test — whether it uses Robolectric, an
-instrumented (`androidTest`) test, or no scaffolding at all (plain JVM). Framework choice is
-governed by the needs below; it does not decide unit-vs-integration.
-
-1. **Pure logic** (no Android dependencies): Write as plain unit tests in `test/` with no framework.
-2. **Needs Android Context, SharedPreferences, Room, or Resources**: Extend `com.weatherwidget.test.RobolectricTest` (which provides `@RunWith(RobolectricTestRunner::class)`, `@Config(sdk = [34])`, and `@Category(LongDuration::class)`). Use `ApplicationProvider.getApplicationContext()` for Context. Single-component tests here are unit tests; multi-component ones are integration tests.
-3. **Needs real Canvas/Bitmap rendering, RemoteViews + performClick, real View.measure/layout, or real SQLite migrations**: Only then write instrumented tests in `androidTest/`.
-
-**`@Category` is required in ALL THREE modules — `:app`, `:desktop`, `:shared`.** Every test class
-declares exactly one duration bucket and the build fails otherwise, enforced per module by
-`validateUnitTestDurations` / `validateDesktopTestCategories` / `validateSharedTestCategories`. Each
-module has its own markers under `<module>/src/test/.../com/weatherwidget/test/category/`, all using
-the same package and names so `@Category` lines read identically everywhere.
-
-Bucket by the class's measured wall time: **Short <0.2s, Medium 0.2–2s, Long ≥2s.**
-
-| Module | One bucket | All buckets |
-|---|---|---|
-| `:app` | `:app:testShortDebugUnitTest` | `:app:testByDurationDebugUnitTest` |
-| `:desktop` | `:desktop:testShortDesktop` | `:desktop:testByDurationDesktop` |
-| `:shared` | `:shared:testShortShared` | `:shared:testByDurationShared` |
-
-`:shared` is currently all-Short (513 tests in ~0.9s, pure JVM logic); its Medium/Long buckets are
-empty on purpose and run as no-ops. `scripts/unit-tests.sh` still drives whole-module
-`:shared:test` / `:desktop:test`, which now fail fast on an uncategorized test.
-
-### Running All Tests
-
-**Use `./scripts/staggered-tests.sh` as the full-suite gate** (e.g. after each refactor phase). It
-runs every JVM unit test across all three modules and buckets, then the instrumented/emulator
-suite, staggered so the unit-test Gradle build finishes before the device phase starts (concurrent
-build + instrumentation has produced truncated per-emulator logs). Emulators in the device phase
-run in parallel after a single `assembleDebug`.
+Use Java 21 and plain `./gradlew` commands:
 
 ```bash
-./scripts/staggered-tests.sh                 # all unit tests, then all emulator tests
-./scripts/staggered-tests.sh --install       # also installDebug AFTER both phases pass
-./scripts/staggered-tests.sh --emulator-args "-c com.weatherwidget.widget.SomeTest"
+./gradlew assembleDebug                 # Android debug APK
+./gradlew installDebug                  # install on connected targets
+./gradlew :desktop:createDistributable  # desktop app used by autostart
+./gradlew :desktop:run                  # desktop development run
+
+./scripts/unit-tests.sh                 # JVM tests in all modules
+./scripts/emulator-tests.sh             # instrumented tests on connected emulators
+./scripts/staggered-tests.sh            # full JVM + emulator gate
+./scripts/staggered-tests.sh --install  # install only after the gate passes
 ```
 
-Individual layers, when iterating:
-
-```bash
-./scripts/unit-tests.sh                      # all JVM unit tests (all modules + buckets)
-./scripts/unit-tests.sh Short                # one bucket only
-./scripts/unit-tests.sh --cached             # reuse prior build output
-./scripts/emulator-tests.sh                  # instrumented tests on all connected emulators
-./scripts/emulator-tests.sh -c <TestClass>   # focused instrumented test
-```
-
-Notes:
-- Do **not** pass `--install` to `scripts/unit-tests.sh` while emulator tests run: its `installDebug`
-broadcasts to every device, force-stopping the instrumentation. `staggered-tests.sh` defers the
-install for exactly this reason.
-- `staggered-tests.sh` skips the emulator phase when unit tests fail, and retries transient
-emulator/runner disconnects up to 3 times.
-- Logs land in `logs/staggered-tests/` (unit, per-emulator, and install logs), auto-pruned after
-14 days.
-
-### Test Structure
-```kotlin
-class TemperatureInterpolatorTest {
-
-    private lateinit var interpolator: TemperatureInterpolator
-
-    @Before
-    fun setup() {
-        interpolator = TemperatureInterpolator()
-    }
-
-    @Test
-    fun `getInterpolatedTemperature returns null for empty list`() {
-        val result = interpolator.getInterpolatedTemperature(emptyList(), LocalDateTime.now())
-        assertNull(result)
-    }
-}
-```
-
-### Testing Conventions
-- Write descriptive test names using backticks explaining behavior
-- Test happy paths and edge cases
-- When running a focused Android instrumented test and multiple devices are attached, prefer emulator-only execution first to avoid slow multi-device `connectedDebugAndroidTest` runs.
-- Use `./scripts/emulator-tests.sh -c <fully.qualified.TestClass>` by default for emulator-only instrumented test iterations unless the user explicitly wants all connected devices.
-
-## Documentation Preferences
-
-### Session Logs
-- Include user prompts
-- Prefer numbered lists over bulleted lists in `session-logs/` for long lists.
-
-### Plans & Summaries
-- A plan or summary file isn't needed for simple or routine changes (e.g., version bumps, Play Store releases, minor fixes). Never create `plans/` or `summaries/` files for routine releases or simple tasks.
-- Prefer a plan for moderate and large changes. Only create plan files for complex, multi-step, or non-trivial architectural tasks.
-- User prefers verbose output. Always keep the user informed about what is happening.
-- Always write or copy plan files directly to the `plans/` directory in the repository root.
-- When committing changes associated with plans, explicitly reference the plan file paths in the commit message.
-
-## Widget Development
-
-### Widget-Only App Considerations
-- Primary entry point is `WeatherWidgetProvider` (AppWidgetProvider)
-- Use RemoteViews for widget layouts (limited widget support)
-- All user interactions via PendingIntents on widget elements
-
-### Update System Architecture
-The widget uses a two-tier update system to minimize battery impact:
-
-| Update Type | Frequency | Method | Wakeup | Purpose |
-|-------------|-----------|--------|--------|---------|
-| **Current Temp UI** | 15-60 min | AlarmManager | No (opportunistic) | Update interpolated temp from cache |
-| **Opportunistic UI** | ~30 min | JobScheduler | No (piggyback) | Update when system already awake |
-| **Data Fetch** | 60-480 min | WorkManager | Yes (controlled) | Fetch from APIs |
-| **User Interaction** | Immediate | Direct DB read | N/A | Instant UI update + conditional fetch |
-| **Screen Unlock** | Immediate | Direct DB read | N/A | UI update + fetch if charging & stale |
-
-### NEVER cancel a running WeatherWidgetWorker (native-crash trap)
-Cancelling an in-flight `WeatherWidgetWorker` — most easily via `ExistingWorkPolicy.REPLACE`
-enqueuing a new request under a unique name whose worker is already running — resumes the cancelled
-coroutine's continuation and **segfaults the ART interpreter** (`SIGSEGV`/`SIGABRT` on the
-`DefaultDispatch` thread, inside `doWork`). This is fatal and, crucially, **invisible to the JVM
-crash logger** (native crashes never reach the `CRASH` app_logs row), so it long masqueraded as a
-"dead / unresponsive widget" or a "battery" problem. It bites hardest on `debuggable` builds (no
-AOT → everything runs in the interpreter).
-
-Rules when enqueuing widget work:
-- **Immediate/expedited unique work → `KEEP` or `APPEND_OR_REPLACE`, never `REPLACE`.** `KEEP` when a
-  duplicate is redundant (an in-flight sync already produces fresh data); `APPEND_OR_REPLACE` when the
-  latest state must still render/run (it runs *after* the current worker instead of killing it).
-- **`REPLACE` is only safe for delayed / not-yet-running work** (e.g. `_ui_delayed`, a `REPLACE_DELAYED`
-  heartbeat) — there is no live coroutine to cancel.
-- **Periodic work uses `ExistingPeriodicWorkPolicy.UPDATE`** (mutates params without cancelling the
-  running instance) — keep it that way.
-- Explicit `cancelUniqueWork(...)` (loop teardown in `ScreenOnReceiver`-driven `*.cancel()` and
-  `onDisabled`) can still hit a running worker at screen/power transitions — an accepted low-frequency
-  residual; do not add new cancel-by-name paths.
-
-Diagnosing: query `app_logs` for `PROC_EXIT` rows (see `ProcessExitLogger` — logs
-`ApplicationExitInfo`, the only in-app source that captures native/LMK/ANR deaths) and read
-tombstones via `adb shell dumpsys dropbox --print` (`data_app_native_crash` / `SYSTEM_TOMBSTONE`). A
-`SYNC_CANCELLED stopReason=1` immediately before a `PROC_EXIT reason=CRASH_NATIVE` is the signature.
-A crash-loop poisons WorkManager's queue (persisted work keeps retrying); clear it **without**
-`pm clear`: `am force-stop`, then `run-as com.weatherwidget rm -f no_backup/androidx.work.workdb{,-shm,-wal}`
-(the WorkManager DB is in `no_backup/`, not `databases/`; `weather_database` is untouched).
-
-### Widget Size Adaptation
-- **1x1**: Today's high (+ current temp if space)
-- **1x3**: Yesterday, today, tomorrow (text only)
-- **2x3**: Graphical bars with high/low ranges
-- **4+ cols**: Additional forecast days (2-5 days)
-- **2+ rows**: Graph view; **1 row**: Text view
-
-### Handle Resize Events
-Always use `goAsync()` with coroutines in receivers for non-blocking operations:
-```kotlin
-override fun onAppWidgetOptionsChanged(...) {
-    val pendingResult = goAsync()
-    CoroutineScope(Dispatchers.IO).launch {
-        try {
-            handleResizeDirect(context, appWidgetManager, appWidgetId)
-        } finally {
-            pendingResult.finish()
-        }
-    }
-}
-```
-
-### Navigation
-- Daily view: Navigate by days (30 days history, 14 days forecast)
-- Hourly view: Navigate by 6-hour chunks (±24h window)
-- All navigation uses direct database reads for instant UI feedback
-
-## Desktop App Development
-
-### Desktop Architecture
-- **Dual-Platform Parity**: Whenever feature changes, UI preferences, default tabs, or behavior modifications are requested, ALWAYS evaluate and apply corresponding changes to both Android (`:app`) and Linux Desktop (`:desktop`) unless the user explicitly restricts the request to a single platform.
-- `:desktop` is a JetBrains Compose for Desktop tray/window app that reuses `:shared` weather models and API clients.
-- `:shared` owns clean JVM weather/API code; do not pull Android `Context`, Room repositories, RemoteViews, or widget preferences into `:desktop`.
-- The desktop app uses its own thin orchestration (`DesktopWeatherService`) and desktop-only config/location classes.
-
-### Desktop Location Handling
-- Saved desktop location lives at `${XDG_CONFIG_HOME:-$HOME/.config}/weather-widget/config.json`.
-- First launch with no config opens the location picker immediately.
-- Phone GPS via ADB and IP lookup run in parallel while manual picker controls remain usable.
-- IP lookup is only a prefill/fallback suggestion; it should not auto-save or close the picker.
-- A fresh phone GPS/fused fix may auto-save and close the picker. If phone lookup fails or is stale, leave the picker open and keep the diagnostic log visible.
-- The picker log belongs at the bottom of the picker window and should grow when the window is resized taller.
-
-### Desktop ADB Location Notes
-- Plain `adb` may not be on `PATH`; desktop code should fall back to `/home/dcar/.Android/Sdk/platform-tools/adb` and Android SDK env vars.
-- When multiple devices are connected, skip emulators and target real phones with `adb -s <serial> ...`.
-- In Android `dumpsys location`, `Location[...] et=...` is an elapsed-realtime timestamp, not a fix age. Compute age as `phone /proc/uptime - location et`.
-- `dumpsys location` output can be large. When running it through `ProcessBuilder`, drain stdout while the process is running; waiting for process exit before reading can deadlock and cause false timeouts.
-
-### Desktop Window Behavior
-- The weather window uses a standard system title bar so it can be resized/minimized/closed by the window manager.
-- Closing the weather window hides it to the tray; it does not exit the app.
-- Tray `Quit` should close long-lived resources such as the desktop `HttpClient` before calling `exitApplication()`.
-
-### Desktop autostart chain
-
-```
-~/.config/autostart/weather-widget-desktop.desktop
-  Exec= scripts/desktop-app-launcher-and-autostart.sh
-        └─ exec's: desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop
-                   └─ this binary IS the createDistributable output (jpackage launcher)
-```
-
-
-## Data Model
-
-### WeatherEntity
-- Tracks `isActual` flag to distinguish observations from forecasts
-- `fetchedAt` timestamp for staleness checking
-- Nullable `highTemp`/`lowTemp` for partial data handling
-
-### ForecastSnapshotEntity
-- Stores 1-day-ahead predictions before 8pm cutoff
-- Enables comparison of predicted vs actual temperatures
-- Used for accuracy tracking display
-
-### HourlyForecastEntity
-- Enables smooth current temperature transitions via interpolation
-- Used for UI-only updates without network requests
-- Source-tagged for dual-API support
-
-### AppLogEntity
-- Stores diagnostic logs for fetches, merges, and cleanup events
-- Used for quick auditing in debug flows
-
-## Device Identification
-
-```bash
-# List connected devices
-adb devices
-
-# Verify device identity
-adb -s <device_id> shell "getprop ro.product.manufacturer && getprop ro.product.model"
-```
-
-### Safe Multi-Device SDK Query
-Use this when you need `ro.build.version.sdk` for every connected device. It safely handles device serials with spaces and avoids stdin issues that can skip later devices in a loop.
-
-```bash
-ADB=/home/dcar/.Android/Sdk/platform-tools/adb
-$ADB devices | sed '1d;/^$/d' | while IFS=$'\t' read -r serial state; do
-  if [ "$state" = "device" ]; then
-    sdk=$($ADB -s "$serial" shell getprop ro.build.version.sdk </dev/null 2>/dev/null | tr -d '\r')
-    echo "$serial => sdk=${sdk:-<empty>}"
-  else
-    echo "$serial => state=$state (not queried)"
-  fi
-done
-```
-
-### adb Paths
-- SDK path note: on this machine use `~/.Android/Sdk` (not `~/Android/Sdk`) for both `adb` and `emulator` commands.
-
-**Example from this project:**
-- `2A191FDH300PPW` - Appears like Samsung ID, but is actually **Google Pixel 7 Pro**
-- `RFCT71FR9NT` - Appears like Pixel ID, but is actually **Samsung SM-F936U1**
-
-**Lesson:** Device ID formats are unreliable for identification. Always verify with `getprop` before assuming which physical device corresponds to which ID.
-
-## Source Preference Toggles (runtime prefs, no code)
-
-Enable/disable a weather source by editing preferences only. Do **not** change `WeatherSource`, `ALL_CONFIGURABLE`, or defaults in code for a user preference request.
-
-| Platform | Store | Key |
-|---|---|---|
-| Android | SharedPreferences `widget_state_prefs` | `visible_sources_order` (CSV of `WeatherSource.id`) |
-| Desktop | `${XDG_CONFIG_HOME:-$HOME/.config}/weather-widget/config.json` | `settings.visibleSources` |
-
-Ids: `NWS`, `OPEN_METEO`, `SILURIAN`, `TOMORROW_IO`, `WEATHER_API` (UI label "WAPI"), `OPEN_WEATHER_MAP`.
-
-Procedure:
-1. **Force-stop the app first** — `adb -s <serial> shell am force-stop com.weatherwidget`, and stop `weather-widget-desktop` before editing `config.json`. Otherwise an in-memory save overwrites the edit.
-2. Edit the enabled list (Android via `run-as com.weatherwidget`, desktop as a normal file edit). Leave at least one source on.
-3. Wake Android (`am start -n com.weatherwidget/.ui.SettingsActivity`), restart desktop if needed.
-
-Notes:
-- `WeatherSourceOrdering.sanitizeVisibleIds` keeps only stored ids — a removed source is not re-added (an empty list falls back to `DEFAULT_VISIBLE_IDS`).
-- API keys (`api_key_*` / `settings.apiKeys`), `actuals_provider_*`, and `widget_display_source_<id>` are independent. Clear them only if you also want to drop keys or a widget is currently displaying the source being disabled.
-- This is prefs-only deactivation; the source remains user-selectable in Settings UI unless code changes.
-
-## Testing the Widget
-
-- **Prefer pure-function extraction for testability.** mockk (1.13.9) is available and used where
-  mocking Android/WorkManager interactions is unavoidable (e.g. `UIUpdateReceiverTest`,
-  `CurrentTempUpdateSchedulerTest` verify `enqueueUniqueWork` policies), but extract pure logic and
-  test it framework-free first.
-- See [arch/testing-strategy.md](arch/testing-strategy.md) for full analysis and rationale
-
-### Emulator Inspection Preference
-- User phrase mapping: when the user says "look at emulator", assume the emulator is already running.
-- Default inspection actions: take a screenshot and/or inspect runtime logs with `adb logcat`.
-- If the user says the widget still looks wrong after a change, treat the emulator screenshot and renderer-specific logcat as the source of truth over code inspection. Add targeted placement/rejection logging first, then decide the fix from the observed runtime evidence.
-
-### Runtime Source Discovery
-- For live widget/API mismatch questions, do not ask the user for the location first if runtime context can provide it.
-- Default order of operations: inspect a running emulator, otherwise inspect connected devices, otherwise start an available emulator.
-- Verify the actual device/emulator identity with `adb shell getprop` instead of inferring from the serial format.
-- Collect evidence from app state, widget state, logs, and the active NWS/Open-Meteo endpoint before asking the user follow-up questions.
-- Only ask the user for location or endpoint details after those runtime discovery paths are exhausted.
-
-### Available Emulators
-- `Generic_Foldable_API36`
-- `Medium_Phone_API_36`
-
-### Instrumented Tests
-The `leaveApksInstalledAfterRun` flag in `gradle.properties` prevents post-test APK uninstall (which would remove all widget instances from the home screen). Do not remove this property.
-
-```bash
-# Run on all connected devices (emulator + physical)
-./gradlew connectedDebugAndroidTest
-
-# Filter to a specific instrumented test class (connected tests do NOT support --tests)
-./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.weatherwidget.widget.HourlyTemperatureGraphLabelTest
-
-# Filter to a specific instrumented test method
-./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.weatherwidget.widget.HourlyTemperatureGraphLabelTest#highLabel_isDrawnAtMaximumTemperature
-
-# Emulator-only
-./scripts/emulator-tests.sh                                        # all tests
-./scripts/emulator-tests.sh -c com.weatherwidget.util.RainAnalyzerIntegrationTest  # specific class
-```
-
-- Assume the user wants the emulator to remain running after tests unless they explicitly request shutdown.
-
-### Emulator Resize Troubleshooting
-- On Pixel/Nexus Launcher emulators, resizing from the left edge can "bounce back" when the widget is on the top row or near constrained cells.
-- Symptom: Launcher shows resize handles, but drag snaps back and `onAppWidgetOptionsChanged` may not fire.
-- Workaround: Move the widget down one row (or to an area with more free cells), then resize.
-- This is launcher placement behavior (emulator-specific), not necessarily a widget rendering bug.
-
-### Testing Checklist
-- [ ] Widget displays on different sizes
-- [ ] Navigation arrows work (left/right)
-- [ ] API toggle switches between NWS/Open-Meteo
-- [ ] View toggle switches between Daily/Hourly
-- [ ] Current temperature interpolates smoothly
-- [ ] Graph renders correctly on 2+ row widgets
-- [ ] Text mode works on 1 row widgets
-
-## Git Conventions
-
-- **No Mid-Task Commits**: Do NOT commit code, tests, or documentation changes mid-task. Only perform commits when explicitly requested by the user.
-
-### Commit Message Strategy
-- **Format**:
-    - **First Line**: A concise, high-level summary (under 72 characters) in the imperative mood (e.g., "Improve graph label placement...").
-    - **Body**: A **succinct numbered or bulleted list** — one line or two per point. **Not prose
-      paragraphs.**
-- **Length**: Keep it short. The full narrative belongs in `plans/` and `summaries/`; the commit
-  message points at those rather than restating them.
-- **Content**: Cover the "why" as well as the "what", but in list form and only where it is not
-  obvious from the diff.
-- **Scope**: Include all related changes (code, tests, documentation, and `plans/`), and reference
-  the plan/summary file paths (Documentation Preferences -> Plans).
-- **Do not derive the style from `git log`.** Commits before 2026-09-01 are long prose and are not
-  the standard to match.
-
-## Architecture Reference
-
-For detailed architecture documentation, see:
-- `/arch/ARCHITECTURE.md` - Comprehensive system architecture
-- `/arch/BitmapScalingArchitectureAnalysis-260203.md` - Bitmap rendering details
-
-## Configuration Files
-
-- `gradle/libs.versions.toml` - Dependency version catalog
-- `app/build.gradle.kts` - App-level build configuration
-- `build.gradle.kts` - Project-level build configuration
-- `settings.gradle.kts` - Project structure settings
-- `gradle.properties` - Gradle build properties
-
-## Commands
-- `./gradlew :desktop:createDistributable` — build the project
-- `./gradlew :desktop:run` — start the project
+Prefer pure JVM tests, Robolectric for Android dependencies, and instrumented tests only for real
+rendering, view/RemoteViews behavior, or SQLite migrations. Every test must follow the repository's
+category rules. Use `scripts/emulator-tests.sh -c <fully.qualified.TestClass>` for focused device
+iterations. Do not run `installDebug` concurrently with instrumentation. See
+[testing strategy](arch/testing-strategy.md) for categories, runner behavior, and focused commands.
+
+## Runtime and release references
+
+- [Operations](arch/operations.md): device evidence, source toggles, worker recovery, desktop
+  autostart/single-instance behavior, and releases.
+- [Forecast and observation cadence](arch/hourly-forecast-update-cadence.md): forecast cadence,
+  worker ticks, observations, and repaint behavior.
+- [Retention and pruning](arch/data-pruning.md): active data, settled history, and snapshot cleanup.
+- [Daily-history extremes](arch/daily-history-extremes.md): actuals provenance and accuracy baselines.
+- [APT repository](docs/APT_REPO.md): desktop installation and publishing.
+
+When changing documented behavior, update the relevant living document in the same change.
+
+## Documentation and commits
+
+- Do not create plan or summary files for simple fixes or routine releases. Put plans for complex work
+  directly in `plans/`, with a `YYMMDD-kebab-title.md` name; use `performance/` for performance
+  investigations. Do not overwrite an existing plan.
+- Dated plans, summaries, notes, and session logs are historical records, not current documentation.
+  Link to them for evidence without treating their old behavior as authoritative.
+- Session logs include user prompts and prefer numbered lists for long sequences.
+- Commit messages use an imperative summary under 72 characters and a succinct bulleted or numbered
+  body. Include related docs/tests and reference associated plan paths. Do not imitate older prose-heavy
+  commit history.

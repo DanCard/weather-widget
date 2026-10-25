@@ -17,7 +17,7 @@ sudo apt install weather-widget-desktop
 Upgrades then arrive via normal `sudo apt upgrade`.
 
 The published build ships **without** premium API keys (NWS and Open-Meteo work out of the box,
-no key needed). Keys for Silurian / WeatherAPI / OpenWeatherMap / Visual Crossing / Tomorrow.io
+no key needed). Keys for Silurian, Tomorrow.io, WeatherAPI, OpenWeatherMap, and Google Weather
 can be added in Settings.
 
 ## Publishing a release (maintainer)

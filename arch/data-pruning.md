@@ -1,139 +1,83 @@
-# Data pruning and retention
+# Data retention and snapshot pruning
 
-Last verified 2026-10-09. Android `:app`, desktop `:desktop` and `:shared` share the rules below; each
-platform runs them in its own place.
+Android and desktop share retention rules from `:shared`, but execute them through their own storage
+layers. Two mechanisms are involved:
 
-## The short answer
+- **Age-based retention** bounds how long each table remains available.
+- **Hourly snapshot pruning** removes forecast variants that no reader can select, while retaining
+  the active comparison windows and a smaller settled archive.
 
-Two things delete stored weather data. They have different goals and run at different times:
+## Age-based retention
 
-| | Goal | What it deletes | Changes what is drawn? | When |
-|---|---|---|---|---|
-| **Retention** | Bound how far back the DB reaches | Rows **older** than a per-table age | Only data past the age limit; screens stop at those limits anyway (history browsing 30 days) | Every sync / refresh |
-| **Snapshot prune** | Space | **Redundant copies** of the same forecast hour in `hourly_forecast_history` | **No**, by construction | Once a day, **only while charging with the screen off** |
+The authoritative durations are in
+`shared/src/main/kotlin/com/weatherwidget/data/local/RetentionPolicy.kt`.
 
-Nothing else prunes. The on-demand-hours prune added on 2026-10-09 was removed the same day (see
-[Removed](#removed-on-demand-hours-prune)).
-
-## Retention (age-based)
-
-One policy for both platforms: `:shared` `RetentionPolicy` (user's decision, 2026-09-30).
-
-| Table | Kept |
+| Data | Retention |
 |---|---|
-| `daily_history` | 18 months (`DAILY_HISTORY_DAYS`) — the long record: accuracy stats, history |
-| `api_usage_stats`, desktop `network_usage` | 90 days (`USAGE_DAYS`) — Usage stats' 90-day and month columns |
-| `forecasts`, `hourly_forecasts`, `hourly_forecast_history`, `current_status`, `station_cache` | 30 days (`DEFAULT_DAYS`) |
-| `observations` | 10 days (`OBSERVATION_DAYS`) |
-| `app_logs` | 72 h (`APP_LOG_HOURS`) plus row caps; desktop keeps its permanent `*_BACKFILL_DONE` markers |
-| `climate_normals` | current location only |
+| `daily_history` | 18 months |
+| `hourly_forecast_history` | 30-day active window, then one settled row per source/site/hour for 18 months |
+| `forecasts`, `hourly_forecasts`, `current_status`, `station_cache` | 30 days |
+| `observations` | 10 days |
+| `api_usage_stats`, desktop `network_usage` | 90 days |
+| `source_view_days` | 30 days |
+| `app_logs` | 72 hours plus row caps; permanent desktop backfill markers are exempt |
+| `climate_normals` | Current location only |
 
-- **Android:** `WeatherRetentionManager.cleanOldData()`, at the end of each successful
-  `getWeatherData` fetch.
-- **Desktop:** `DesktopWeatherDao.applyRetention()` inside each `refresh()`.
+Android runs retention through `WeatherRetentionManager`; desktop runs it through
+`DesktopWeatherDao.applyRetention()`. Saved configuration and API keys are preferences/configuration,
+not weather rows, and are not erased by this schedule.
 
-These are plain indexed `DELETE … WHERE <time> < cutoff` statements, cheap enough to run inside a sync,
-so they are not gated on power or screen.
+## Which hourly snapshots are written
 
-**Open question (2026-10-09, unanswered):** should retention also wait for charging + screen off,
-like the snapshot prune? Against: it is cheap, and gating it could let rows outlive their limit on a
-device or notebook that is rarely charged with the screen off. For: one rule for all housekeeping.
-A `cleanOldData` run once took 96 s under the sync mutex and stalled a sync, so "cheap" is worth
-re-measuring before deciding.
+`HourlySnapshotRun` labels a snapshot with the fetch's actual time, not the start of a four- or
+twelve-hour bucket.
 
-## Snapshot prune (`hourly_forecast_history`)
+- The displayed source is snapshotted on every fetch.
+- Another recently viewed source is snapshotted when its previous snapshot is at least 11 hours old
+  on a charger/high battery, or 22 hours old below that threshold.
+- A source outside the recent-view background set is not snapshotted.
+- Live-hourly writes and elapsed-hour backfill from the same fetch reuse one label.
 
-### Why it exists
+`ForecastPersistRun` coordinates the live-hourly, snapshot, elapsed-backfill, and daily writes so both
+platforms use the same order.
 
-Every forecast fetch writes a full snapshot of every hour it returns into `hourly_forecast_history`,
-keyed by a 4-hour bucket (`timestampToGroupPredictions`). At a site the phone stays at, each hour
-accumulated about **30 copies per source**. On the Pixel 7 Pro (2026-09-29) that table plus its two
-indexes was **50 MB of a 95 MB database**. Retention alone cannot help: the copies are all younger than
-30 days. See `performance/260929-hourly-history-snapshot-retention.md`.
+## Active-window prune rule
 
-### What is kept, what is pruned
+`HistorySnapshotRetention` is the specification; Android and desktop SQL pruning are tested against
+it. Within the 30-day active window, the union of these rows is kept for each source/site/hour:
 
-The spec is `:shared` `HistorySnapshotRetention`. For each (source, site, hour) it keeps the union of
-what the readers use, and deletes the rest:
+1. The newest snapshot by label and by `fetchedAt` for history stitching.
+2. The newest non-null value for each field that stitching may coalesce, such as cloud and
+   precipitation fields.
+3. The newest sufficiently old snapshot carrying the mid/high-cloud band used by prior-day graphs.
+4. The newest snapshot captured on the previous local day for rain-accuracy comparisons.
 
-1. **The newest copy**, by bucket and by `fetchedAt`: the hourly graphs' stitcher
-   (`HourlyForecastLoader`, `GraphDataLoader`, desktop `getHourlyWithHistory`).
-2. **The newest copy with a value for each nullable field** (cloud cover per band, precip %, precip
-   amount): the stitcher fills a null field on the newest copy from older ones (NWS near-term sky
-   cover).
-3. **The newest copy made ≥ 24 h before the hour that carries a mid or high cloud band**: the cloud
-   graph's "yesterday's forecast" band (`PriorDayBandForecast`).
-4. **The newest copy captured on the hour's previous local day**: rain accuracy's "1-day-ahead"
-   forecast (`RainAccuracyCalculator`).
+Rows needed by any one reader survive even when another reader would not select them. A new reader
+of older snapshots must be added to this shared rule and its equivalence tests before pruning can be
+considered safe.
 
-Measured on the Pixel DB: rules 1–3 kept 149k of 248k rows (−40 %); long-stay sites shrink about 10×.
+## Settled archive
 
-### Why it changes nothing on screen
+For hours older than the active window, the rule keeps one row per source, forecast hour, and site
+cluster. The latest `fetchedAt` wins, with the latest snapshot label breaking ties. General retention
+then deletes settled hours beyond 18 months. This preserves a long forecast-evolution record without
+keeping every active-window variant for the same period.
 
-Each rule keeps "the newest row within a window that never moves". New snapshots only ever arrive with
-later buckets, so a row that is not the newest in its window now can never become the newest later.
-Pruning is therefore safe for future hours as well as past ones, and running it twice changes nothing.
-Every reader gets the same result before and after; the SQL prune on both platforms is tested against
-the shared spec.
+## When pruning runs
 
-**Rule for new code:** any new reader of older snapshots must add its window to
-`HistorySnapshotRetention` and its equivalence tests, or the prune will delete what it reads.
+Snapshot pruning runs at most once per 24 hours and only during housekeeping conditions: charging
+with the screen off. Android enqueues `HistoryPruneWorker` with charging/idle constraints rather than
+running the prune inside a fetch. Desktop checks AC/screen state in the daemon and may vacuum after a
+prune when useful.
 
-One-shot repairs that read *every* snapshot (`FrozenRainChanceRepair`, the frozen-display and chance
-backfills) must have finished first; both platforms skip the prune until their done-flags are set.
-
-### When it runs
-
-At most once per 24 h, and **only while charging with the screen off** (user, 2026-10-09: pruning is
-housekeeping, never worth battery or a busy device):
-
-- **Android:** after a fetch, `ForecastRepository.pruneHistorySnapshotsIfDue()` *enqueues*
-  `HistoryPruneWorker` (unique, KEEP) — it never runs inside the fetch. Its first pass took 96 s on
-  the Pixel and, back when it ran under `syncMutex`, stalled a forced sync to 113 s. The job's
-  constraints are **charging + device idle**: the screen off and the phone unused for a while. On a
-  phone charged overnight it runs then.
-- **Desktop:** `DesktopWeatherRepository.pruneHistorySnapshotsIfDue()` inside the daemon's refresh.
-  When it is due but `housekeepingAllowed()` is false, it returns without a log row, so the next
-  refresh asks again. That check is: on AC (`PowerDetector`; no battery counts as AC) and screen off
-  (`ScreenStateDetector`, via `xset` DPMS or `loginctl` LockedHint). An undetectable screen counts
-  as on, so the prune waits. A pass takes about 0.1 s here and is followed by `VACUUM` when the free
-  list is large enough.
-
-Log tag on both platforms: `HISTORY_PRUNE` (`days= scanned= deleted= kept= ms=`, or
-`skipped=…_pending`).
-
-## Removed: on-demand-hours prune
-
-Added and removed on 2026-10-09 (`plans/261009-google-hourly-on-demand-past-72h.md`). Google keeps
-72 h of hourly routinely. A tapped day past that is fetched on demand (`HourlyOnDemand`), and routine
-fetches never refresh those extra hours. The prune deleted them once they were 12 h old.
-
-It was removed for two reasons:
-
-- **It caused visible inconsistency.** Those rows are not only the tapped day's hourly graph: the
-  daily view reads them for each future day's **noon cloud shading** (`DailyNoonCloudCover`, at
-  render time). After a tap, days past 72 h gained cloud shading; 12–36 h later the prune deleted the
-  rows and the shading disappeared. The same day looked different depending on when you last tapped.
-- **It was not needed.** A tap already ignores on-demand rows older than 12 h
-  (`HourlyOnDemand.MAX_EXTENSION_AGE_MS`) and refetches, so stale rows are never trusted for the
-  tapped day. The space is a few hundred rows, and the 30-day retention removes them.
-
-**Lesson:** before deleting rows to save space, list everything that reads them — including the daily
-view's render-time reads of hourly data (day/night rain %, noon cloud), not only the screen that
-fetched them.
-
-**Since 2026-10-10** those render-time reads have a fallback on the `forecasts` row
-(`DailyHourlySummaries`), and every source stores hourly to 72 h only — a trim before writing, not a
-prune (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`). On-demand rows are still
-never pruned.
+One-time repairs that need every historical snapshot must finish before the first prune; both
+platforms retain their completion gates. Pruning is idempotent and uses `HISTORY_PRUNE` diagnostics.
 
 ## Key files
 
-| Concern | File |
-|---|---|
-| Retention ages | `shared/.../data/local/RetentionPolicy.kt` |
-| Snapshot keep rule (spec) | `shared/.../data/local/HistorySnapshotRetention.kt` |
-| Android retention + prune trigger | `app/.../data/repository/WeatherRetentionManager.kt`, `ForecastRepository.kt` |
-| Android prune job + constraints | `app/.../data/repository/HistoryPruneWorker.kt`, `HistorySnapshotPruner` |
-| Desktop retention + prune | `shared/.../data/local/desktop/DesktopWeatherDao.kt` (`applyRetention`, `pruneHourlyHistorySnapshots`), `desktop/.../DesktopWeatherRepository.kt` (`pruneHistorySnapshotsIfDue`, `housekeepingAllowed`) |
-| Tests | `HistoryPruneWorkerTest` (constraints), `DesktopHousekeepingGateTest` (gate), snapshot-retention equivalence tests |
+- Ages: `shared/.../data/local/RetentionPolicy.kt`
+- Keep/settle specification: `shared/.../data/local/HistorySnapshotRetention.kt`
+- Snapshot creation: `shared/.../history/HourlySnapshotRun.kt`
+- Persistence order: `shared/.../util/ForecastPersistRun.kt`
+- Android execution: `WeatherRetentionManager.kt`, `HistoryPruneWorker.kt`, `HistorySnapshotPruner`
+- Desktop execution: `DesktopWeatherDao.kt`, `DesktopWeatherRepository.kt`
