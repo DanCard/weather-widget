@@ -8,7 +8,10 @@ limits a task to one platform.
 ## Working rules
 
 1. **Verify before diagnosing or changing behavior.** Use logs, database queries, screenshots, API
-   responses, or targeted instrumentation. Do not guess what ran or what a widget displays.
+   responses, or targeted instrumentation. Do not guess what ran or what a widget displays. If the
+   database or logs are not accessible, stop and ask for the exact missing command or data. When the
+   user says the widget still looks wrong, the emulator/device screenshot and renderer logcat outrank
+   code inspection; add targeted logging before choosing a fix.
 2. **Review significant changes before editing.** Present the evidence, root cause, and proposed fix,
    then wait for approval. Routine releases and explicit single-purpose instructions such as "run
    tests" or "commit" are exempt. After approval, continue through verification without unnecessary
@@ -25,6 +28,8 @@ limits a task to one platform.
    [operations](arch/operations.md) for diagnosis and safe recovery.
 7. **Leave `leaveApksInstalledAfterRun` enabled.** Removing it can uninstall test APKs and remove
    home-screen widgets.
+8. **Never run `./gradlew connectedDebugAndroidTest`.** It targets every connected device, including
+   physical phones, and can remove their widgets. Use `./scripts/emulator-tests.sh` instead.
 
 ## Architecture rules
 

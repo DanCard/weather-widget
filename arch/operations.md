@@ -63,6 +63,20 @@ Display-source IDs are `NWS`, `OPEN_METEO`, `SILURIAN`, `TOMORROW_IO`, `WEATHER_
 `OPEN_WEATHER_MAP`, and `GOOGLE_WEATHER`. METAR and Synoptic are actuals feeds, not display sources.
 Visual Crossing is not configurable.
 
+Fresh-install defaults are `NWS`, `OPEN_METEO`, `SILURIAN` (`WeatherSourceOrdering.DEFAULT_VISIBLE_IDS`).
+Android debug builds instead default to `GOOGLE_WEATHER` first plus `TOMORROW_IO`
+(`WidgetStateManager.DEFAULT_VISIBLE_SOURCES`). A debug build bakes in `GOOGLE_WEATHER_API_KEY` from
+the builder's gitignored `local.properties` or environment, or `""` when neither is set; release
+builds always get `""`. That default checks only `BuildConfig.DEBUG`, not whether a key exists, so a
+debug build without a key still lists Google first but cannot fetch it until a key is entered in
+Settings. Release users can enable Google with their own key. Enabling
+`GOOGLE_WEATHER` makes it primary (`PRIMARY_ON_ENABLE`); every other newly enabled source is appended.
+
+NWS stays in the stored list everywhere. Outside NWS coverage, `SourceCoverage.effectiveSources`
+filters it out each time the list is read, and falls back to Open-Meteo if nothing usable remains.
+Neither change is ever written back. So a missing NWS abroad is expected, not a preference to edit;
+do not remove NWS from the stored list, or it stays off after the user returns to the U.S.
+
 1. Force-stop Android (`$ADB -s <serial> shell am force-stop com.weatherwidget`) or stop the desktop
    app so an in-memory save cannot overwrite the edit.
 2. Edit the enabled list, using `run-as com.weatherwidget` for Android preferences. Keep at least one

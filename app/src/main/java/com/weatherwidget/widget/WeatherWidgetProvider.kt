@@ -40,7 +40,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         // source: this 500ms onUpdate debounce (repeated system broadcasts), the resize debounce
         // in WidgetInteractionCoordinator.awaitLatestResizeRequest, and WidgetUpdateTracker's
         // replace-by-cancel of the prior job for the same widget. None of these cancels a running
-        // WeatherWidgetWorker (see the WorkManager enqueue-policy rules in AGENTS.md).
+        // WeatherWidgetWorker (see the WorkManager enqueue-policy rules in AGENTS.md and arch/operations.md).
         val now = SystemClock.elapsedRealtime()
         val filteredIds = appWidgetIds.filter { id ->
             val last = lastUpdateByWidgetId[id] ?: 0L

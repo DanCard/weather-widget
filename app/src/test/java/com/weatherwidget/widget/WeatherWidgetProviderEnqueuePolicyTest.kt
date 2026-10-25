@@ -34,7 +34,7 @@ import org.robolectric.annotation.Config
  * Guards the crash-prevention invariant for [WidgetWorkScheduler]'s worker enqueues: an
  * *immediate* (running-capable) unique work must NEVER use [ExistingWorkPolicy.REPLACE], because
  * REPLACE cancels a running [WeatherWidgetWorker] and cancelling its coroutine continuation segfaults
- * the ART interpreter (see AGENTS.md "NEVER cancel a running WeatherWidgetWorker"). Only *delayed*
+ * the ART interpreter (see the WeatherWidgetWorker native-crash trap in arch/operations.md). Only *delayed*
  * (not-yet-running) work may use REPLACE. These are the highest-churn enqueue sites, so a regression
  * here silently reintroduces the native crash.
  */

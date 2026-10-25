@@ -18,7 +18,7 @@ import org.junit.experimental.categories.Category
  * section titles still render after the body was rewritten to use [com.weatherwidget.desktop.theme.SettingsCard]
  * instead of inline Text + Spacer boilerplate.
  *
- * Compose UI tests are LongDuration on :desktop per AGENTS.md (full Compose harness startup),
+ * Compose UI tests are LongDuration on :desktop (full Compose harness startup; arch/testing-strategy.md),
  * so this is bucketed accordingly. Assertions on sections below the scroll fold use
  * [assertExists] (semantics tree) rather than [assertIsDisplayed] (on-screen) so the test
  * doesn't depend on the window's pixel height vs. the form's natural length.

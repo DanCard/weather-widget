@@ -83,6 +83,6 @@ For individual layers:
 
 With no arguments, `unit-tests.sh` includes all four app categories and runs `:shared:test` and `:desktop:test`. Selecting one or more categories runs only those app categories. Emulator logs go to `logs/emulator-tests/`; emulators remain running after the script exits.
 
-Prefer `emulator-tests.sh` for focused instrumentation so attached physical devices are not included accidentally. The underlying `./gradlew connectedDebugAndroidTest` runs on **all** connected devices; it accepts `-Pandroid.testInstrumentationRunnerArguments.class=<fully.qualified.Class[#method]>`, not `--tests`.
+Always use `emulator-tests.sh` for instrumentation. **Never run `./gradlew connectedDebugAndroidTest` directly**: it targets **all** connected devices, including physical phones, and can remove their widgets.
 
 `gradle.properties` sets `android.injected.androidTest.leaveApksInstalledAfterRun=true`, and `emulator-tests.sh` preserves APKs by default. Keep that protection: uninstalling the app removes launcher widget instances. See [operations.md](operations.md) for runtime inspection and device-safety procedures.
