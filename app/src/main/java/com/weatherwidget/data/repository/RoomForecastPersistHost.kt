@@ -58,7 +58,7 @@ internal class RoomForecastPersistHost(
         storedForecastsAtSite(forecastDao, keyLat, keyLon, sourceId, from, to)
 
     override suspend fun writeDaily(write: List<DailyForecastWrite.Row>, restamp: List<ForecastEntity>, nowMs: Long) =
-        writeForecastPlan(forecastDao, keyLat, keyLon, sourceId, write, restamp, batchFetchedAt = nowMs, nowMs = nowMs)
+        writeForecastPlan(forecastDao, keyLat, keyLon, sourceId, write, restamp, lastConfirmedAt = nowMs, nowMs = nowMs)
 
     override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
 }
@@ -80,7 +80,7 @@ internal suspend fun storedForecastsAtSite(
         source = sourceId,
     ).filter { it.locationLat == keyLat && it.locationLon == keyLon }.map { it.toStored() }
 
-/** A [DailyForecastWrite.Plan]: [restamp] rows take [batchFetchedAt]; [write] rows are new, dated today. */
+/** A [DailyForecastWrite.Plan]: [restamp] rows take [lastConfirmedAt]; [write] rows are new, dated today. */
 internal suspend fun writeForecastPlan(
     forecastDao: ForecastDao,
     keyLat: Double,
@@ -88,11 +88,11 @@ internal suspend fun writeForecastPlan(
     sourceId: String,
     write: List<DailyForecastWrite.Row>,
     restamp: List<ForecastEntity>,
-    batchFetchedAt: Long,
+    lastConfirmedAt: Long,
     nowMs: Long,
 ) {
     val todayEpoch = PredictionDate.epochMs(nowMs)
-    val rows = restamp.map { it.copy(batchFetchedAt = batchFetchedAt) } +
+    val rows = restamp.map { it.copy(lastConfirmedAt = lastConfirmedAt) } +
         write.map { row ->
             val v = row.values
             ForecastEntity(
@@ -109,7 +109,7 @@ internal suspend fun writeForecastPlan(
                 daytimePrecipProbability = v.daytimePrecipProbability,
                 nighttimePrecipProbability = v.nighttimePrecipProbability,
                 precipAmountMm = v.precipAmountMm,
-                batchFetchedAt = batchFetchedAt,
+                lastConfirmedAt = lastConfirmedAt,
                 fetchedAt = nowMs,
                 hindcastHighTemp = v.hindcastHighTemp,
                 hindcastLowTemp = v.hindcastLowTemp,
@@ -134,7 +134,7 @@ internal fun ForecastEntity.toStored() = DailyForecastWrite.Stored(
         summary = hourlySummary,
     ),
     dateOfPrediction = dateOfPrediction,
-    batchFetchedAt = batchFetchedAt,
+    lastConfirmedAt = lastConfirmedAt,
     fetchedAt = fetchedAt,
     ref = this,
 )

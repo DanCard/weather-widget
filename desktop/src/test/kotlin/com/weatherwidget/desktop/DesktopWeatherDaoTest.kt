@@ -415,7 +415,7 @@ class DesktopWeatherDaoTest {
         database.getConnection().use { conn ->
             conn.prepareStatement(
                 """INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp,
-                   condition, isClimateNormal, source, batchFetchedAt, fetchedAt)
+                   condition, isClimateNormal, source, lastConfirmedAt, fetchedAt)
                    VALUES (?, ?, 37.417, -122.089, 80, 60, 'Sunny', 0, ?, ?, ?)""",
             ).use { stmt ->
                 stmt.setLong(1, dayEpoch(targetDate))
@@ -479,7 +479,7 @@ class DesktopWeatherDaoTest {
     private fun setForecastBatchStamp(value: Long) {
         database.getConnection().use { conn ->
             conn.createStatement().use { stmt ->
-                stmt.execute("UPDATE forecasts SET batchFetchedAt = $value, fetchedAt = $value")
+                stmt.execute("UPDATE forecasts SET lastConfirmedAt = $value, fetchedAt = $value")
             }
         }
     }

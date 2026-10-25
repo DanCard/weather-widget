@@ -51,7 +51,7 @@ class DesktopSettleForecastOverlayTest {
 
     private fun insertFetch(fetchedAt: Long, high: Float, low: Float) = exec(
         "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
-            "condition, isClimateNormal, source, batchFetchedAt, fetchedAt) VALUES " +
+            "condition, isClimateNormal, source, lastConfirmedAt, fetchedAt) VALUES " +
             "($dateMs, $dateMs, $lat, $lon, $high, $low, 'Clear', 0, 'OPEN_METEO', $fetchedAt, $fetchedAt)",
     )
 

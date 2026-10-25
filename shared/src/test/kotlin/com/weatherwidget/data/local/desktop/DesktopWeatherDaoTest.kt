@@ -112,11 +112,11 @@ class DesktopWeatherDaoTest {
         }
     }
 
-    /** (row count, newest batchFetchedAt) per stored row of [date]. */
+    /** (row count, newest lastConfirmedAt) per stored row of [date]. */
     private fun forecastRows(lat: Double, lon: Double, source: String, date: String): List<Pair<Long, Long>> =
         db.getConnection().use { conn ->
             conn.prepareStatement(
-                "SELECT COUNT(*) AS n, MAX(batchFetchedAt) AS b FROM forecasts WHERE locationLat = ? AND locationLon = ? AND source = ? AND targetDate = ? HAVING COUNT(*) > 0",
+                "SELECT COUNT(*) AS n, MAX(lastConfirmedAt) AS b FROM forecasts WHERE locationLat = ? AND locationLon = ? AND source = ? AND targetDate = ? HAVING COUNT(*) > 0",
             ).use { stmt ->
                 stmt.setDouble(1, lat)
                 stmt.setDouble(2, lon)
@@ -181,7 +181,7 @@ class DesktopWeatherDaoTest {
 
         db.getConnection().use { conn ->
             conn.prepareStatement(
-                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, source, batchFetchedAt, fetchedAt) " +
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, source, lastConfirmedAt, fetchedAt) " +
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             ).use { stmt ->
                 stmt.setLong(1, targetEpoch)

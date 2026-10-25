@@ -54,7 +54,7 @@ class ClimateGapFiller(private val climateNormalDao: ClimateNormalDao) {
                 isClimateNormal = true,
                 source = WeatherSource.GENERIC_GAP.id,
                 fetchedAt = 0L,
-                batchFetchedAt = 0L,
+                lastConfirmedAt = 0L,
             )
         }
     }

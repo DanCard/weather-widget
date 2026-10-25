@@ -321,7 +321,7 @@ class GoogleWeatherFetchIntegrationTest {
     private fun storedPeriods(): Map<Long, Pair<Int?, Int?>> =
         db.openHelper.readableDatabase.query(
             "SELECT targetDate, daytimePrecipProbability, nighttimePrecipProbability FROM forecasts " +
-                "WHERE source = ? AND batchFetchedAt = (SELECT MAX(batchFetchedAt) FROM forecasts WHERE source = ?)",
+                "WHERE source = ? AND lastConfirmedAt = (SELECT MAX(lastConfirmedAt) FROM forecasts WHERE source = ?)",
             arrayOf(source, source),
         ).use { c ->
             buildMap {

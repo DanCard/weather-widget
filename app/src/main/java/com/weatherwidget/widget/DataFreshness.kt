@@ -28,25 +28,25 @@ object DataFreshness {
      */
     fun isStaleForSources(
         visibleSources: List<WeatherSource>,
-        batchFetchedAtBySource: Map<String, Long>,
+        lastConfirmedAtBySource: Map<String, Long>,
         nowMs: Long,
         fetchContext: ForecastFetchContext,
     ): Boolean = visibleSources.any { source ->
-        dueState(source, batchFetchedAtBySource[source.id], nowMs, fetchContext) == DueState.DUE
+        dueState(source, lastConfirmedAtBySource[source.id], nowMs, fetchContext) == DueState.DUE
     }
 
     internal enum class DueState { DUE, FRESH, BLOCKED }
 
     internal fun dueState(
         source: WeatherSource,
-        batchFetchedAt: Long?,
+        lastConfirmedAt: Long?,
         nowMs: Long,
         fetchContext: ForecastFetchContext,
     ): DueState {
         if (SourceQuotaBlocks.isFullyBlocked(source.id, nowMs)) return DueState.BLOCKED
-        if (batchFetchedAt == null) return DueState.DUE
+        if (lastConfirmedAt == null) return DueState.DUE
         val interval = intervalMinutes(fetchContext)
-        return if (ForecastFetchPolicy.isDue(batchFetchedAt, interval, nowMs)) DueState.DUE else DueState.FRESH
+        return if (ForecastFetchPolicy.isDue(lastConfirmedAt, interval, nowMs)) DueState.DUE else DueState.FRESH
     }
 
     private fun intervalMinutes(fetchContext: ForecastFetchContext): Long =
@@ -87,19 +87,19 @@ object DataFreshness {
             }
 
             val nowMs = System.currentTimeMillis()
-            val batchFetchedAtBySource = mutableMapOf<String, Long>()
+            val lastConfirmedAtBySource = mutableMapOf<String, Long>()
             for (source in visibleSources) {
                 val latestForSource = forecastDao.getLatestWeatherBySource(source.id)
                 if (latestForSource == null) {
                     Log.d(TAG, "Source ${source.id} has no data, considering stale")
                     return true
                 }
-                batchFetchedAtBySource[source.id] = latestForSource.batchFetchedAt
+                lastConfirmedAtBySource[source.id] = latestForSource.lastConfirmedAt
             }
 
             val result = isStaleForSources(
                 visibleSources,
-                batchFetchedAtBySource,
+                lastConfirmedAtBySource,
                 nowMs,
                 deviceFetchContext(context, stateManager),
             )
@@ -135,9 +135,9 @@ object DataFreshness {
                 if (latestForSource == null) {
                     "${source.id}:missing"
                 } else {
-                    val ageMinutes = (nowMs - latestForSource.batchFetchedAt) / 60000L
+                    val ageMinutes = (nowMs - latestForSource.lastConfirmedAt) / 60000L
                     val interval = "${intervalMinutes(fetchContext)}m"
-                    val state = dueState(source, latestForSource.batchFetchedAt, nowMs, fetchContext)
+                    val state = dueState(source, latestForSource.lastConfirmedAt, nowMs, fetchContext)
                         .name.lowercase()
                     "${source.id}:${ageMinutes}m/$interval:$state"
                 }
@@ -172,7 +172,7 @@ object DataFreshness {
             for (source in visibleSources) {
                 val latestForSource = forecastDao.getLatestWeatherBySource(source.id)
                 if (latestForSource != null) {
-                    val ageMs = nowMs - latestForSource.batchFetchedAt
+                    val ageMs = nowMs - latestForSource.lastConfirmedAt
                     maxAgeMs = if (maxAgeMs == null) ageMs else Math.max(maxAgeMs, ageMs)
                 }
             }

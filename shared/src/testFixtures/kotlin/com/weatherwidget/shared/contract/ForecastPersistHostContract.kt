@@ -14,7 +14,7 @@ import java.time.LocalDate
  * What [ForecastPersistRun.Host] reads and writes, on Android's Room Host and desktop's SQLite Host
  * (`plans/261024-shared-forecast-persist-rules.md`, phase 3): every read is this source on the site's
  * exact quantized key — a jitter fragment's rows are another site's prior (decision D1) — a written row
- * keeps every field and its own `fetchedAt`, and a re-stamp moves `batchFetchedAt` only.
+ * keeps every field and its own `fetchedAt`, and a re-stamp moves `lastConfirmedAt` only.
  */
 abstract class ForecastPersistHostContract {
     /**
@@ -81,17 +81,17 @@ abstract class ForecastPersistHostContract {
 
         val stored = host.storedDaily(DAY0, DAY0.plusDays(3)).single()
         assertEquals(full.values, stored.values)
-        assertEquals(listOf(PredictionDate.epochMs(T0), T0, T0), listOf(stored.dateOfPrediction, stored.batchFetchedAt, stored.fetchedAt))
+        assertEquals(listOf(PredictionDate.epochMs(T0), T0, T0), listOf(stored.dateOfPrediction, stored.lastConfirmedAt, stored.fetchedAt))
     }
 
     @Test
-    fun `a re-stamp moves batchFetchedAt only, writing no row`() = runBlocking {
+    fun `a re-stamp moves lastConfirmedAt only, writing no row`() = runBlocking {
         val host = open()(SOURCE, LAT, LON)
         host.writeDaily(listOf(row(DAY0.plusDays(1))), emptyList(), T0)
         restampAll(host, T0 + HOUR)
 
         val stored = host.storedDaily(DAY0, DAY0.plusDays(3)).single()
-        assertEquals(listOf(T0 + HOUR, T0), listOf(stored.batchFetchedAt, stored.fetchedAt))
+        assertEquals(listOf(T0 + HOUR, T0), listOf(stored.lastConfirmedAt, stored.fetchedAt))
     }
 
     @Suppress("UNCHECKED_CAST")

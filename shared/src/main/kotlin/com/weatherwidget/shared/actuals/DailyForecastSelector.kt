@@ -29,7 +29,7 @@ object DailyForecastSelector {
      * centre ([LocationMatch.sameSite]) — discarding both jitter-stale fragments left at an old
      * fetch coordinate and genuinely-different neighbouring markers (e.g. the default location vs
      * a GPS fix), unless that would leave nothing; 2) take the freshest remaining row by
-     * ([batchFetchedAt], then [fetchedAt]). Freshest-wins makes every device converge, because
+     * ([lastConfirmedAt], then [fetchedAt]). Freshest-wins makes every device converge, because
      * they all share the latest fetch.
      *
      * Output preserves targetDate-ascending order (the DAO contract).
@@ -42,7 +42,7 @@ object DailyForecastSelector {
         source: (T) -> String,
         locationLat: (T) -> Double,
         locationLon: (T) -> Double,
-        batchFetchedAt: (T) -> Long,
+        lastConfirmedAt: (T) -> Long,
         fetchedAt: (T) -> Long = { 0L },
     ): List<T> =
         rows.groupBy { targetDate(it) to source(it) }
@@ -52,7 +52,7 @@ object DailyForecastSelector {
                     LocationMatch.sameSite(centerLat, centerLon, locationLat(it), locationLon(it))
                 }
                 val candidates = sameSite.ifEmpty { group }
-                val picked = candidates.maxWithOrNull(compareBy(batchFetchedAt, fetchedAt))
+                val picked = candidates.maxWithOrNull(compareBy(lastConfirmedAt, fetchedAt))
                 // Lambda-form VERBOSE, deliberately: this runs once per (date, source) group over the
                 // whole loaded window — measured 3635 lines in one capture on a 3-widget Fold. As a
                 // plain Log.d its arguments were always evaluated, so the droppedBatches
@@ -61,8 +61,8 @@ object DailyForecastSelector {
                 // back on with `adb shell setprop log.tag.DailyForecastSelector VERBOSE`.
                 Log.v(TAG) {
                     "dedup: date=${key.first} source=${key.second} rows=${group.size} " +
-                        "sameSite=${sameSite.size} pickedBatch=${picked?.let(batchFetchedAt)} " +
-                        "droppedBatches=${group.filter { it !== picked }.map(batchFetchedAt)}"
+                        "sameSite=${sameSite.size} pickedConfirmed=${picked?.let(lastConfirmedAt)} " +
+                        "droppedBatches=${group.filter { it !== picked }.map(lastConfirmedAt)}"
                 }
                 picked
             }

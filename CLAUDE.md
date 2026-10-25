@@ -384,7 +384,7 @@ forecast (`ForecastOverlaySettle`). The left bar on every column (today included
 `PriorDayForecast`: low from the newest fetch before 06:00 the previous day, high from the newest
 before 16:00 the previous day, last confirmed no more than 48 h before that anchor
 (`PriorDayForecast.MAX_PICK_AGE_HOURS`; aged by **last confirmation** — Android re-stamps an
-unchanged row's `batchFetchedAt`, so first-seen age lost stable forecasts). Never frozen older than
+unchanged row's `lastConfirmedAt`, so first-seen age lost stable forecasts). Never frozen older than
 that (a week-old fetch had stood in), but the **live** bar shows an older forecast dashed rather than
 no bar (user, 2026-10-23); frozen for history into
 `daily_history.priorForecastHigh/LowTemp` (Room v73 / desktop v26). See `plans/261005-past-days-triple-bar-prior-forecast-at-cutoffs.md`. When a past day

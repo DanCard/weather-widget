@@ -55,7 +55,7 @@ class DesktopPriorForecastFreezeTest {
 
     private fun insertFetch(fetchedAt: Long, high: Float, low: Float) = exec(
         "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
-            "condition, isClimateNormal, source, batchFetchedAt, fetchedAt) VALUES " +
+            "condition, isClimateNormal, source, lastConfirmedAt, fetchedAt) VALUES " +
             "($dateMs, $dateMs, $lat, $lon, $high, $low, 'Clear', 0, 'OPEN_METEO', $fetchedAt, $fetchedAt)",
     )
 
@@ -124,7 +124,7 @@ class DesktopPriorForecastFreezeTest {
         exec("ALTER TABLE forecasts DROP COLUMN hindcastLowTemp")
         exec(
             "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, " +
-                "source, batchFetchedAt, fetchedAt) VALUES ($dateMs, $dateMs, $lat, $lon, 80, 60, 'Clear', 'NWS', 1, 1)",
+                "source, lastConfirmedAt, fetchedAt) VALUES ($dateMs, $dateMs, $lat, $lon, 80, 60, 'Clear', 'NWS', 1, 1)",
         )
 
         DesktopWeatherDatabase(path).initialize()

@@ -104,11 +104,11 @@ class WeatherGapIntegrationTest {
     @Test
     fun `getCachedDataBySource returns provider for overlapping dates and generic for provider gaps`() = runTest {
         seedNormals()
-        val providerBatchFetchedAt = 1_000L
+        val providerConfirmedAt = 1_000L
         db.forecastDao().insertAll(
             listOf(
-                forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f, batchFetchedAt = providerBatchFetchedAt, fetchedAt = 10_000L),
-                forecast(tomorrowStr, WeatherSource.SILURIAN, 71f, 51f, batchFetchedAt = providerBatchFetchedAt, fetchedAt = 10_001L),
+                forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f, lastConfirmedAt = providerConfirmedAt, fetchedAt = 10_000L),
+                forecast(tomorrowStr, WeatherSource.SILURIAN, 71f, 51f, lastConfirmedAt = providerConfirmedAt, fetchedAt = 10_001L),
             ),
         )
 
@@ -139,19 +139,19 @@ class WeatherGapIntegrationTest {
         seedNormals()
         // More than ForecastHorizonCadence.MAX_CARRIED_ROW_AGE_HOURS apart: the older rows are too old
         // to stand in past the newer fetch's horizon.
-        val newerBatchFetchedAt = 200 * 3_600_000L
-        val olderBatchFetchedAt = newerBatchFetchedAt - 40 * 3_600_000L
+        val newerConfirmedAt = 200 * 3_600_000L
+        val olderConfirmedAt = newerConfirmedAt - 40 * 3_600_000L
         val sameDayForecastDate = todayStr
 
         db.forecastDao().insertAll(
             listOf(
-                forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_000L),
-                forecast(tomorrowStr, WeatherSource.SILURIAN, 71f, 51f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_001L),
-                forecast(dayAfterTomorrowStr, WeatherSource.SILURIAN, 72f, 52f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_002L),
-                forecast(threeDaysOutStr, WeatherSource.SILURIAN, 73f, 53f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_003L),
+                forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f, dateOfPrediction = sameDayForecastDate, lastConfirmedAt = olderConfirmedAt, fetchedAt = 10_000L),
+                forecast(tomorrowStr, WeatherSource.SILURIAN, 71f, 51f, dateOfPrediction = sameDayForecastDate, lastConfirmedAt = olderConfirmedAt, fetchedAt = 10_001L),
+                forecast(dayAfterTomorrowStr, WeatherSource.SILURIAN, 72f, 52f, dateOfPrediction = sameDayForecastDate, lastConfirmedAt = olderConfirmedAt, fetchedAt = 10_002L),
+                forecast(threeDaysOutStr, WeatherSource.SILURIAN, 73f, 53f, dateOfPrediction = sameDayForecastDate, lastConfirmedAt = olderConfirmedAt, fetchedAt = 10_003L),
 
-                forecast(todayStr, WeatherSource.SILURIAN, 74f, 54f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_000L),
-                forecast(tomorrowStr, WeatherSource.SILURIAN, 75f, 55f, dateOfPrediction = sameDayForecastDate, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_001L),
+                forecast(todayStr, WeatherSource.SILURIAN, 74f, 54f, dateOfPrediction = sameDayForecastDate, lastConfirmedAt = newerConfirmedAt, fetchedAt = 20_000L),
+                forecast(tomorrowStr, WeatherSource.SILURIAN, 75f, 55f, dateOfPrediction = sameDayForecastDate, lastConfirmedAt = newerConfirmedAt, fetchedAt = 20_001L),
             ),
         )
 
@@ -175,16 +175,16 @@ class WeatherGapIntegrationTest {
     @Test
     fun `getCachedDataBySource shows a recent longer fetch's rows past a newer shorter one`() = runTest {
         seedNormals()
-        val newerBatchFetchedAt = 200 * 3_600_000L
-        val olderBatchFetchedAt = newerBatchFetchedAt - 4 * 3_600_000L
+        val newerConfirmedAt = 200 * 3_600_000L
+        val olderConfirmedAt = newerConfirmedAt - 4 * 3_600_000L
 
         db.forecastDao().insertAll(
             listOf(
-                forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_000L),
-                forecast(dayAfterTomorrowStr, WeatherSource.SILURIAN, 72f, 52f, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_002L),
-                forecast(threeDaysOutStr, WeatherSource.SILURIAN, 73f, 53f, batchFetchedAt = olderBatchFetchedAt, fetchedAt = 10_003L),
-                forecast(todayStr, WeatherSource.SILURIAN, 74f, 54f, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_000L),
-                forecast(tomorrowStr, WeatherSource.SILURIAN, 75f, 55f, batchFetchedAt = newerBatchFetchedAt, fetchedAt = 20_001L),
+                forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f, lastConfirmedAt = olderConfirmedAt, fetchedAt = 10_000L),
+                forecast(dayAfterTomorrowStr, WeatherSource.SILURIAN, 72f, 52f, lastConfirmedAt = olderConfirmedAt, fetchedAt = 10_002L),
+                forecast(threeDaysOutStr, WeatherSource.SILURIAN, 73f, 53f, lastConfirmedAt = olderConfirmedAt, fetchedAt = 10_003L),
+                forecast(todayStr, WeatherSource.SILURIAN, 74f, 54f, lastConfirmedAt = newerConfirmedAt, fetchedAt = 20_000L),
+                forecast(tomorrowStr, WeatherSource.SILURIAN, 75f, 55f, lastConfirmedAt = newerConfirmedAt, fetchedAt = 20_001L),
             ),
         )
 
@@ -203,7 +203,7 @@ class WeatherGapIntegrationTest {
         lowTemp: Float,
         isClimateNormal: Boolean = false,
         dateOfPrediction: String = todayStr,
-        batchFetchedAt: Long = System.currentTimeMillis(),
+        lastConfirmedAt: Long = System.currentTimeMillis(),
         fetchedAt: Long = System.currentTimeMillis(),
     ) = com.weatherwidget.data.local.ForecastEntity(
         targetDate = dateEpoch(date),
@@ -215,7 +215,7 @@ class WeatherGapIntegrationTest {
         condition = if (isClimateNormal) "Historical Avg" else "Sunny",
         isClimateNormal = isClimateNormal,
         source = source.id,
-        batchFetchedAt = batchFetchedAt,
+        lastConfirmedAt = lastConfirmedAt,
         fetchedAt = fetchedAt,
     )
 }

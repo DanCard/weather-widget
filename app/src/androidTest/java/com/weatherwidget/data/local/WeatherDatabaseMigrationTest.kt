@@ -926,4 +926,24 @@ class WeatherDatabaseMigrationTest {
             assertTrue(c.isNull(1))
         }
     }
+
+    @Test
+    fun migrate81To82_renamesBatchFetchedAtToLastConfirmedAt() {
+        helper.createDatabase(testDb, 81).apply {
+            execSQL(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
+                    "condition, isClimateNormal, source, batchFetchedAt, fetchedAt) VALUES " +
+                    "(1791244800000, 1791244800000, 37.417, -122.089, 70.0, 50.0, 'Clear', 0, 'OPEN_METEO', 12345, 10000)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 82, true, WeatherDatabase.MIGRATION_81_82)
+
+        db.query("SELECT lastConfirmedAt, fetchedAt FROM forecasts").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(12345L, c.getLong(0))
+            assertEquals(10000L, c.getLong(1))
+        }
+    }
 }

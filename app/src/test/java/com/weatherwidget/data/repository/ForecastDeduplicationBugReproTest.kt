@@ -79,14 +79,14 @@ class ForecastDeduplicationBugReproTest {
         // 1. Save a good forecast (Batch 1)
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 80f, lowTemp = 54f)),
-            LAT, LON, "NWS", batchFetchedAt = 1000L
+            LAT, LON, "NWS", lastConfirmedAt = 1000L
         )
         assertEquals(1, db.forecastDao().getCount())
 
         // 2. Save a regressed forecast (missing high) (Batch 2) — different, so it is a new row.
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = null, lowTemp = 54f)),
-            LAT, LON, "NWS", batchFetchedAt = 2000L
+            LAT, LON, "NWS", lastConfirmedAt = 2000L
         )
         assertEquals(2, db.forecastDao().getCount())
 
@@ -94,12 +94,12 @@ class ForecastDeduplicationBugReproTest {
         // dedup must NOT skip it.
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 80f, lowTemp = 54f)),
-            LAT, LON, "NWS", batchFetchedAt = 3000L
+            LAT, LON, "NWS", lastConfirmedAt = 3000L
         )
 
         val count = db.forecastDao().getCount()
 
-        // getForecastsInRange returns the row with MAX batchFetchedAt. If Batch 3 were wrongly skipped,
+        // getForecastsInRange returns the row with MAX lastConfirmedAt. If Batch 3 were wrongly skipped,
         // the surviving row would be the regressed Batch 2 (null high) — the real regression signal.
         val forecasts = repository.getForecastsInRange(
             LocalDate.now().toEpochDay() * 86400000L,

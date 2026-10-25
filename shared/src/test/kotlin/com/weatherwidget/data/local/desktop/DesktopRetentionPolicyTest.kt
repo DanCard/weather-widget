@@ -44,7 +44,7 @@ class DesktopRetentionPolicyTest {
     private fun insert(table: String, ageDays: Double, id: Int) {
         val t = now - (ageDays * day).toLong()
         when (table) {
-            "forecasts" -> exec("INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, source, batchFetchedAt, fetchedAt) VALUES ($id, $id, 1, 1, 1, 1, 'c', 'NWS', $t, $t)")
+            "forecasts" -> exec("INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, source, lastConfirmedAt, fetchedAt) VALUES ($id, $id, 1, 1, 1, 1, 'c', 'NWS', $t, $t)")
             "hourly_forecasts" -> exec("INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, fetchedAt) VALUES ($id, 1, 1, 1, 'c', 'NWS', $t)")
             "hourly_forecast_history" -> exec("INSERT INTO hourly_forecast_history (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, fetchedAt) VALUES ($t, 1, 1, 1, 'c', 'NWS', $id, $t)")
             "observations" -> exec("INSERT INTO observations (stationId, stationName, timestamp, temperature, condition, locationLat, locationLon, fetchedAt, api) VALUES ('S$id', 'S', $id, 1, 'c', 1, 1, $t, 'NWS')")

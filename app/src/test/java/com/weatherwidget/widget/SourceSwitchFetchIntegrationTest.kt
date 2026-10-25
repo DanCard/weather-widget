@@ -83,7 +83,7 @@ class SourceSwitchFetchIntegrationTest {
                 ForecastEntity(
                     targetDate = todayUtc, dateOfPrediction = todayUtc, locationLat = lat, locationLon = lon,
                     highTemp = 80f, lowTemp = 60f, condition = "Clear", source = WeatherSource.GOOGLE_WEATHER.id,
-                    fetchedAt = now, batchFetchedAt = now,
+                    fetchedAt = now, lastConfirmedAt = now,
                 ),
             ),
         )

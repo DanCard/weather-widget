@@ -38,27 +38,27 @@ internal class ForecastSnapshotStore(
     /**
      * One fetch's daily rows for [sourceId] at this site: the `:shared` [DailyForecastWrite] rule
      * (same as desktop) decides which rows are written and which existing ones only take this fetch's
-     * [batchFetchedAt]; this reads the site's rows and writes the plan.
+     * [lastConfirmedAt]; this reads the site's rows and writes the plan.
      */
     suspend fun saveForecastSnapshot(
         weatherForecasts: List<ForecastEntity>,
         latitude: Double,
         longitude: Double,
         sourceId: String,
-        batchFetchedAt: Long? = null,
+        lastConfirmedAt: Long? = null,
         nowMs: Long = clock(),
         userRefresh: Boolean = false,
     ) {
-        val effectiveBatchFetchedAt = batchFetchedAt ?: nowMs
+        val effectiveLastConfirmedAt = lastConfirmedAt ?: nowMs
         val keyLat = LocationMatch.quantize(latitude)
         val keyLon = LocationMatch.quantize(longitude)
         val incoming = weatherForecasts.map { it.toIncoming() }
         val stored = DailyForecastWrite.readRange(incoming, nowMs)
             ?.let { storedForecastsAtSite(forecastDao, keyLat, keyLon, sourceId, it.start, it.endInclusive) }
             .orEmpty()
-        val plan = DailyForecastWrite.plan(incoming, stored, sourceId, nowMs, effectiveBatchFetchedAt, userRefresh)
+        val plan = DailyForecastWrite.plan(incoming, stored, sourceId, nowMs, effectiveLastConfirmedAt, userRefresh)
         plan.lines.forEach { appLogDao.log(it.tag, it.message, it.level) }
-        writeForecastPlan(forecastDao, keyLat, keyLon, sourceId, plan.write, plan.restamp, effectiveBatchFetchedAt, nowMs)
+        writeForecastPlan(forecastDao, keyLat, keyLon, sourceId, plan.write, plan.restamp, effectiveLastConfirmedAt, nowMs)
     }
 
     private fun ForecastEntity.toIncoming() = DailyForecastWrite.Incoming(
@@ -99,14 +99,14 @@ internal class ForecastSnapshotStore(
      * climate normal, as when a newer fetch covers fewer days. [rows] are ordered newest first per day.
      */
     internal fun shownRows(rows: List<ForecastEntity>): List<ForecastEntity> {
-        val newest = rows.maxByOrNull { it.batchFetchedAt } ?: return emptyList()
+        val newest = rows.maxByOrNull { it.lastConfirmedAt } ?: return emptyList()
         val atSite = rows.filter { it.locationLat == newest.locationLat && it.locationLon == newest.locationLon }
-        val firstDay = atSite.filter { it.batchFetchedAt == newest.batchFetchedAt }.minOf { it.targetDate }
+        val firstDay = atSite.filter { it.lastConfirmedAt == newest.lastConfirmedAt }.minOf { it.targetDate }
         val shownBatch = atSite.filter { it.targetDate >= firstDay }
             .groupBy { it.targetDate }
-            .mapValues { (_, day) -> day.maxOf { it.batchFetchedAt } }
-            .filterValues { com.weatherwidget.data.remote.ForecastHorizonCadence.showsCarriedRow(it, newest.batchFetchedAt) }
-        return atSite.filter { shownBatch[it.targetDate] == it.batchFetchedAt }
+            .mapValues { (_, day) -> day.maxOf { it.lastConfirmedAt } }
+            .filterValues { com.weatherwidget.data.remote.ForecastHorizonCadence.showsCarriedRow(it, newest.lastConfirmedAt) }
+        return atSite.filter { shownBatch[it.targetDate] == it.lastConfirmedAt }
     }
 
     suspend fun getCachedDataBySource(
@@ -124,13 +124,13 @@ internal class ForecastSnapshotStore(
             longitude,
             source.id,
         )
-        val latestBatchFetchedAt = sourceData.maxOfOrNull { it.batchFetchedAt }
+        val latestLastConfirmedAt = sourceData.maxOfOrNull { it.lastConfirmedAt }
         val liveSourceData = shownRows(sourceData)
 
         if (source == WeatherSource.NWS) {
             appLogDao.log(
                 "NWS_BATCH_RENDER_SUMMARY",
-                "batch=$latestBatchFetchedAt liveCount=${liveSourceData.size} " +
+                "batch=$latestLastConfirmedAt liveCount=${liveSourceData.size} " +
                     "liveMinDate=${formatEpochDate(liveSourceData.minOfOrNull { it.targetDate })} " +
                     "liveMaxDate=${formatEpochDate(liveSourceData.maxOfOrNull { it.targetDate })}",
             )

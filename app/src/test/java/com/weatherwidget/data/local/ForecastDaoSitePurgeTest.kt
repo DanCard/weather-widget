@@ -50,7 +50,7 @@ class ForecastDaoSitePurgeTest {
         lowTemp = 55f,
         condition = "Sunny",
         source = source,
-        batchFetchedAt = 1_000L,
+        lastConfirmedAt = 1_000L,
         fetchedAt = 1_000L,
     )
 

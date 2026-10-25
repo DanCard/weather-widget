@@ -63,7 +63,7 @@ abstract class DailyHistoryHostContract {
         )
         val fetch = rows.single { it.highTemp == 72f }
         assertEquals(T2, fetch.fetchedAt)
-        assertEquals(T2, fetch.batchFetchedAt)
+        assertEquals(T2, fetch.lastConfirmedAt)
         assertEquals("NWS", fetch.source)
     }
 
@@ -186,7 +186,7 @@ abstract class DailyHistoryHostContract {
             DailyHistoryMaintenance.ForecastHistoryRow(
                 dateMs = dateMs, source = "NWS", locationLat = lat, locationLon = LON,
                 highTemp = high, lowTemp = 40f, precipAmountMm = null, condition = "Sunny",
-                fetchedAt = fetchedAt, isClimateNormal = false, batchFetchedAt = fetchedAt,
+                fetchedAt = fetchedAt, isClimateNormal = false, lastConfirmedAt = fetchedAt,
             )
 
         fun hr(dateTime: Long, temp: Float, source: String, lat: Double = LAT, cloud: Int? = null, fetchedAt: Long = T1) =

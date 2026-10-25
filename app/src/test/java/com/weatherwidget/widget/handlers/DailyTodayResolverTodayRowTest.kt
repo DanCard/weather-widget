@@ -35,7 +35,7 @@ class DailyTodayResolverTodayRowTest {
         condition = "Sunny",
         source = source,
         fetchedAt = fetchedAt,
-        batchFetchedAt = fetchedAt,
+        lastConfirmedAt = fetchedAt,
     )
 
     @Test

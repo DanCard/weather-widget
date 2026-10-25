@@ -63,13 +63,13 @@ class DailyHistoryRunTest {
         high: Float = 70f,
         low: Float = 55f,
         fetchedAt: Long,
-        batchFetchedAt: Long = fetchedAt,
+        lastConfirmedAt: Long = fetchedAt,
         nightChance: Int? = null,
     ) = DailyHistoryMaintenance.ForecastHistoryRow(
         dateMs = utc(date), source = source, locationLat = lat, locationLon = lon,
         highTemp = high, lowTemp = low, precipAmountMm = null, condition = "Cloudy",
         fetchedAt = fetchedAt, isClimateNormal = false,
-        nighttimePrecipProbability = nightChance, batchFetchedAt = batchFetchedAt,
+        nighttimePrecipProbability = nightChance, lastConfirmedAt = lastConfirmedAt,
     )
 
     private fun history(date: LocalDate, source: String) = DailyHistory(
@@ -127,8 +127,8 @@ class DailyHistoryRunTest {
     @Test
     fun `newest per day and source is the freshest batch`() {
         val day = today.minusDays(1)
-        val older = forecast(day, "NWS", high = 60f, fetchedAt = 2_000L, batchFetchedAt = 1_000L)
-        val newer = forecast(day, "NWS", high = 65f, fetchedAt = 1_500L, batchFetchedAt = 1_500L)
+        val older = forecast(day, "NWS", high = 60f, fetchedAt = 2_000L, lastConfirmedAt = 1_000L)
+        val newer = forecast(day, "NWS", high = 65f, fetchedAt = 1_500L, lastConfirmedAt = 1_500L)
 
         val picked = DailyHistoryRun.newestPerDaySource(listOf(older, newer), lat, lon)
 

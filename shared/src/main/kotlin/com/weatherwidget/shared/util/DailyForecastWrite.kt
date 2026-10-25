@@ -8,7 +8,7 @@ import java.time.ZoneId
 /**
  * One fetch's daily rows for one source at one site, as both platforms store them (Android's rule,
  * user 2026-10-24; `plans/261024-shared-forecast-persist-rules.md`): which rows are written, which
- * existing rows are only re-stamped with this fetch's `batchFetchedAt`, and the `SNAPSHOT_*` lines.
+ * existing rows are only re-stamped with this fetch's `lastConfirmedAt`, and the `SNAPSHOT_*` lines.
  *
  * - Past days, climate normals and an already-ended NWS period are not written.
  * - A same-day high/low past its [SameDayExtremeCutoff] keeps the prior row's value (the sent one
@@ -58,7 +58,7 @@ object DailyForecastWrite {
         val date: LocalDate,
         val values: Values,
         val dateOfPrediction: Long,
-        val batchFetchedAt: Long,
+        val lastConfirmedAt: Long,
         val fetchedAt: Long,
         val ref: K,
     )
@@ -82,7 +82,7 @@ object DailyForecastWrite {
         stored: List<Stored<K>>,
         sourceId: String,
         nowMs: Long,
-        batchFetchedAt: Long = nowMs,
+        lastConfirmedAt: Long = nowMs,
         userRefresh: Boolean = false,
         zone: ZoneId = ZoneId.systemDefault(),
     ): Plan<K> {
@@ -100,7 +100,7 @@ object DailyForecastWrite {
         if (candidates.isEmpty()) return Plan(emptyList(), emptyList(), lines)
 
         val newestFirst = compareByDescending<Stored<K>> { it.dateOfPrediction }
-            .thenByDescending { it.batchFetchedAt }
+            .thenByDescending { it.lastConfirmedAt }
             .thenByDescending { it.fetchedAt }
         val priorByDate = stored.sortedWith(newestFirst).distinctBy { it.date }.associateBy { it.date }
         // Newest stored row per day that has a low: the newest row may have none (a source that no
@@ -207,7 +207,7 @@ object DailyForecastWrite {
         if (sourceId == WeatherSource.NWS.id) {
             lines += Line(
                 "NWS_BATCH_SAVE_SUMMARY",
-                "batch=$batchFetchedAt " +
+                "batch=$lastConfirmedAt " +
                     "rawCount=${incoming.size} rawMaxDate=${incoming.maxOfOrNull { it.date }} " +
                     "filteredCount=${rows.size} filteredMaxDate=${rows.maxOfOrNull { it.date }} " +
                     "savedCount=${write.size} savedMaxDate=${write.maxOfOrNull { it.date }} " +

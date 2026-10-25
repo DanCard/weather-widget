@@ -368,7 +368,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
-    /** A stored `forecasts` row's primary key, for re-stamping its `batchFetchedAt`. */
+    /** A stored `forecasts` row's primary key, for re-stamping its `lastConfirmedAt`. */
     data class ForecastKey(val targetDate: Long, val dateOfPrediction: Long, val fetchedAt: Long)
 
     /** [source]'s rows dated [start]..[end] on this site's exact quantized key — the prior rows [DailyForecastWrite] reads. */
@@ -418,7 +418,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                                 ),
                             ),
                             dateOfPrediction = dateOfPrediction,
-                            batchFetchedAt = rs.getLong("batchFetchedAt"),
+                            lastConfirmedAt = rs.getLong("lastConfirmedAt"),
                             fetchedAt = fetchedAt,
                             ref = ForecastKey(targetDate, dateOfPrediction, fetchedAt),
                         ),
@@ -471,7 +471,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     ) {
         if (restamp.isNotEmpty()) {
             conn.prepareStatement(
-                "UPDATE forecasts SET batchFetchedAt = ? WHERE targetDate = ? AND dateOfPrediction = ? " +
+                "UPDATE forecasts SET lastConfirmedAt = ? WHERE targetDate = ? AND dateOfPrediction = ? " +
                     "AND locationLat = ? AND locationLon = ? AND source = ? AND fetchedAt = ?",
             ).use { stmt ->
                 for (key in restamp) {
@@ -492,7 +492,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             INSERT OR REPLACE INTO forecasts
             (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition,
              nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm,
-             daytimePrecipProbability, nighttimePrecipProbability, batchFetchedAt, fetchedAt,
+             daytimePrecipProbability, nighttimePrecipProbability, lastConfirmedAt, fetchedAt,
              hindcastHighTemp, hindcastLowTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax,
              hourlyDayPrecipPeakAt)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -535,7 +535,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     /**
      * One fetch's daily rows for [source] at this site: the `:shared` [DailyForecastWrite] rule (same
      * as Android's `ForecastSnapshotStore.saveForecastSnapshot`) decides which rows are written and
-     * which existing ones only take this fetch's `batchFetchedAt` ([nowMs]); this writes the plan.
+     * which existing ones only take this fetch's `lastConfirmedAt` ([nowMs]); this writes the plan.
      */
     fun upsertForecasts(
         locationLat: Double,
@@ -572,7 +572,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 val stored = DailyForecastWrite.readRange(incoming, nowMs)
                     ?.let { storedAtSite(conn, keyLat, keyLon, source, it.start, it.endInclusive) }
                     .orEmpty()
-                val plan = DailyForecastWrite.plan(incoming, stored, source, nowMs, batchFetchedAt = nowMs, userRefresh = userRefresh)
+                val plan = DailyForecastWrite.plan(incoming, stored, source, nowMs, lastConfirmedAt = nowMs, userRefresh = userRefresh)
                 lines = plan.lines
                 writeForecastPlan(conn, keyLat, keyLon, source, plan.write, plan.restamp, nowMs)
                 conn.commit()
@@ -1730,9 +1730,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             // The newest fetch: its site (the box can hold more than one quantized site) and its
             // first day, below which nothing is read — as when only that batch was read.
             val latestSiteSql = """
-                SELECT locationLat, locationLon, batchFetchedAt FROM forecasts
+                SELECT locationLat, locationLon, lastConfirmedAt FROM forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
-                ORDER BY batchFetchedAt DESC LIMIT 1
+                ORDER BY lastConfirmedAt DESC LIMIT 1
             """.trimIndent()
             val (site, latestBatch) = conn.prepareStatement(latestSiteSql).use { stmt ->
                 stmt.setDouble(1, locationLat)
@@ -1742,7 +1742,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 if (rs.next()) (rs.getDouble(1) to rs.getDouble(2)) to rs.getLong(3) else null
             } ?: return emptyList()
             val firstDay = conn.prepareStatement(
-                "SELECT MIN(targetDate) FROM forecasts WHERE locationLat = ? AND locationLon = ? AND source = ? AND batchFetchedAt = ?",
+                "SELECT MIN(targetDate) FROM forecasts WHERE locationLat = ? AND locationLon = ? AND source = ? AND lastConfirmedAt = ?",
             ).use { stmt ->
                 stmt.setDouble(1, site.first)
                 stmt.setDouble(2, site.second)
@@ -1759,7 +1759,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             val sql = """
                 SELECT * FROM forecasts
                 WHERE locationLat = ? AND locationLon = ? AND source = ? AND targetDate >= ?
-                ORDER BY targetDate ASC, batchFetchedAt DESC, fetchedAt DESC
+                ORDER BY targetDate ASC, lastConfirmedAt DESC, fetchedAt DESC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setDouble(1, site.first)
@@ -1773,7 +1773,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     if (targetDate == lastTargetDate) continue
                     lastTargetDate = targetDate
                     // Too old beside the newest fetch: the day is left to the climate normal.
-                    if (!com.weatherwidget.data.remote.ForecastHorizonCadence.showsCarriedRow(rs.getLong("batchFetchedAt"), latestBatch)) continue
+                    if (!com.weatherwidget.data.remote.ForecastHorizonCadence.showsCarriedRow(rs.getLong("lastConfirmedAt"), latestBatch)) continue
                     val dateStr = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(targetDate), ZoneOffset.UTC).toString()
                     result.add(DailyForecast(
                         date = dateStr,
@@ -1792,7 +1792,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         hourlyNightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
                         hourlyDayPrecipPeakAt = rs.getNullableLong("hourlyDayPrecipPeakAt"),
                         fetchedAt = rs.getLong("fetchedAt"),
-                        lastConfirmedAt = rs.getLong("batchFetchedAt"),
+                        lastConfirmedAt = rs.getLong("lastConfirmedAt"),
                     ))
                 }
             }
@@ -1883,7 +1883,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = linkedMapOf<String, MutableList<DailyForecastSnapshot>>()
         db.getConnection().use { conn ->
             val latestBatchSql = """
-                SELECT MAX(batchFetchedAt) FROM forecasts
+                SELECT MAX(lastConfirmedAt) FROM forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
             """.trimIndent()
             val latestBatch = conn.prepareStatement(latestBatchSql).use { stmt ->
@@ -1898,11 +1898,11 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             // fetch leaves days past its 3 in an older batch, which is then the one shown.
             val shownBatchByDate: Map<Long, Long> = conn.prepareStatement(
                 """
-                SELECT targetDate, MAX(batchFetchedAt) FROM forecasts
+                SELECT targetDate, MAX(lastConfirmedAt) FROM forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
                     AND targetDate >= (
                         SELECT MIN(targetDate) FROM forecasts
-                        WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND batchFetchedAt = ?
+                        WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND lastConfirmedAt = ?
                     )
                 GROUP BY targetDate
                 """.trimIndent(),
@@ -1926,7 +1926,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             val sql = """
                 SELECT targetDate, highTemp, lowTemp, condition, nativeDailyIconToken,
                     precipProbability, daytimePrecipProbability, nighttimePrecipProbability,
-                    precipAmountMm, fetchedAt, batchFetchedAt, hindcastHighTemp, hindcastLowTemp
+                    precipAmountMm, fetchedAt, lastConfirmedAt, hindcastHighTemp, hindcastLowTemp
                 FROM forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
                     AND targetDate >= ? AND targetDate <= ?
@@ -1941,7 +1941,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 val rs = stmt.executeQuery()
                 while (rs.next()) {
                     val targetDate = rs.getLong("targetDate")
-                    if (shownBatchByDate[targetDate] == rs.getLong("batchFetchedAt")) continue
+                    if (shownBatchByDate[targetDate] == rs.getLong("lastConfirmedAt")) continue
                     val dateStr = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(targetDate), ZoneOffset.UTC).toString()
                     result.getOrPut(dateStr) { mutableListOf() }.add(
                         DailyForecastSnapshot(
@@ -1960,7 +1960,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             hindcastHighTemp = rs.getNullableFloat("hindcastHighTemp").orNullIfImplausibleTempF(),
                             hindcastLowTemp = rs.getNullableFloat("hindcastLowTemp").orNullIfImplausibleTempF(),
                             // An unchanged forecast is stored once and re-stamped (DailyForecastWrite).
-                            lastConfirmedAt = rs.getLong("batchFetchedAt"),
+                            lastConfirmedAt = rs.getLong("lastConfirmedAt"),
                         )
                     )
                 }
@@ -2207,11 +2207,11 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<DesktopForecastRow>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT targetDate, dateOfPrediction, source, highTemp, lowTemp, fetchedAt, batchFetchedAt,
+                SELECT targetDate, dateOfPrediction, source, highTemp, lowTemp, fetchedAt, lastConfirmedAt,
                     locationLat, locationLon, condition, precipAmountMm, isClimateNormal,
                     precipProbability, daytimePrecipProbability, nighttimePrecipProbability FROM forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND targetDate >= ? AND targetDate <= ?
-                ORDER BY targetDate ASC, batchFetchedAt DESC, fetchedAt DESC
+                ORDER BY targetDate ASC, lastConfirmedAt DESC, fetchedAt DESC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setDouble(1, locationLat)
@@ -2232,7 +2232,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         isClimateNormal = rs.getInt("isClimateNormal") == 1,
                         locationLat = rs.getDouble("locationLat"),
                         locationLon = rs.getDouble("locationLon"),
-                        batchFetchedAt = rs.getLong("batchFetchedAt"),
+                        lastConfirmedAt = rs.getLong("lastConfirmedAt"),
                         precipProbability = rs.getNullableInt("precipProbability"),
                         daytimePrecipProbability = rs.getNullableInt("daytimePrecipProbability"),
                         nighttimePrecipProbability = rs.getNullableInt("nighttimePrecipProbability"),
@@ -2279,7 +2279,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             val sql = """
                 SELECT targetDate, dateOfPrediction, source, highTemp, lowTemp, fetchedAt FROM forecasts
                 WHERE targetDate = ? AND dateOfPrediction <= ? AND ${LocationMatch.JDBC_WHERE}
-                ORDER BY dateOfPrediction ASC, batchFetchedAt ASC, fetchedAt ASC
+                ORDER BY dateOfPrediction ASC, lastConfirmedAt ASC, fetchedAt ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setLong(1, targetDate)

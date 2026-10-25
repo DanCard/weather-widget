@@ -47,13 +47,15 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                         periodStartTime INTEGER,
                         periodEndTime INTEGER,
                         precipAmountMm REAL,
-                        batchFetchedAt INTEGER NOT NULL,
+                        lastConfirmedAt INTEGER NOT NULL,
                         fetchedAt INTEGER NOT NULL,
                         PRIMARY KEY (targetDate, dateOfPrediction, locationLat, locationLon, source, fetchedAt)
                     )
                 """.trimIndent())
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_forecasts_location ON forecasts(locationLat, locationLon)")
-                stmt.execute("CREATE INDEX IF NOT EXISTS idx_forecasts_batch ON forecasts(targetDate, source, locationLat, locationLon, batchFetchedAt)")
+                if (tableColumns(stmt, "forecasts").contains("lastConfirmedAt")) {
+                    stmt.execute("CREATE INDEX IF NOT EXISTS idx_forecasts_confirmed ON forecasts(targetDate, source, locationLat, locationLon, lastConfirmedAt)")
+                }
 
                 // Hourly Forecasts
                 stmt.execute("""
@@ -642,7 +644,8 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             // v32: Google's daily low moved to the morning it ends; stored rows shifted the same way,
             // once. Room MIGRATION_78_79. plans/261010-google-daily-low-filed-under-the-morning-it-ends.md
             if (from < 32) {
-                GOOGLE_LOW_SHIFT_SQL.forEach { stmt.execute(it) }
+                val batchCol = if (tableColumns(stmt, "forecasts").contains("lastConfirmedAt")) "lastConfirmedAt" else "batchFetchedAt"
+                googleLowShiftSql(batchCol).forEach { stmt.execute(it) }
             }
             // v33: `source_last_view`, created by initialize()'s CREATE TABLE IF NOT EXISTS before
             // migrate() runs; nothing to move. Room MIGRATION_79_80.
@@ -651,6 +654,15 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             // Room MIGRATION_80_81. plans/261018-daily-rain-chance-peak-hour.md
             if (from < 34) {
                 addColumnIfMissing(stmt, "forecasts", FORECAST_DAY_PRECIP_PEAK_COLUMN, "INTEGER")
+            }
+            // v35: rename forecasts.batchFetchedAt to lastConfirmedAt.
+            // Room MIGRATION_81_82. plans/261025-rename-batchfetchedat-to-lastconfirmedat.md
+            if (from < 35) {
+                if (tableColumns(stmt, "forecasts").contains("batchFetchedAt")) {
+                    stmt.execute("DROP INDEX IF EXISTS idx_forecasts_batch")
+                    stmt.execute("ALTER TABLE forecasts RENAME COLUMN batchFetchedAt TO lastConfirmedAt")
+                    stmt.execute("CREATE INDEX IF NOT EXISTS idx_forecasts_confirmed ON forecasts(targetDate, source, locationLat, locationLon, lastConfirmedAt)")
+                }
             }
             stmt.execute("PRAGMA user_version = $to")
         }
@@ -786,7 +798,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 34
+        const val SCHEMA_VERSION = 35
 
         /**
          * Requests per local day, source and endpoint ([com.weatherwidget.data.remote.ApiUsageClassifier]).
@@ -837,20 +849,22 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
          * originals from a copy so no row sees an already-shifted neighbour. Shared by desktop v32
          * and Room MIGRATION_78_79. plans/261010-google-daily-low-filed-under-the-morning-it-ends.md
          */
-        val GOOGLE_LOW_SHIFT_SQL = listOf(
+        fun googleLowShiftSql(batchCol: String = "batchFetchedAt") = listOf(
             "DROP TABLE IF EXISTS google_low_shift_src",
             "CREATE TEMP TABLE google_low_shift_src AS SELECT targetDate, locationLat, locationLon, " +
-                "batchFetchedAt, fetchedAt, lowTemp, hindcastLowTemp FROM forecasts WHERE source = 'GOOGLE_WEATHER'",
+                "$batchCol, fetchedAt, lowTemp, hindcastLowTemp FROM forecasts WHERE source = 'GOOGLE_WEATHER'",
             "UPDATE forecasts SET " +
                 "lowTemp = (SELECT p.lowTemp FROM google_low_shift_src p WHERE p.locationLat = forecasts.locationLat " +
-                "AND p.locationLon = forecasts.locationLon AND p.batchFetchedAt = forecasts.batchFetchedAt " +
+                "AND p.locationLon = forecasts.locationLon AND p.$batchCol = forecasts.$batchCol " +
                 "AND p.targetDate = forecasts.targetDate - 86400000 ORDER BY p.fetchedAt DESC LIMIT 1), " +
                 "hindcastLowTemp = (SELECT p.hindcastLowTemp FROM google_low_shift_src p WHERE p.locationLat = forecasts.locationLat " +
-                "AND p.locationLon = forecasts.locationLon AND p.batchFetchedAt = forecasts.batchFetchedAt " +
+                "AND p.locationLon = forecasts.locationLon AND p.$batchCol = forecasts.$batchCol " +
                 "AND p.targetDate = forecasts.targetDate - 86400000 ORDER BY p.fetchedAt DESC LIMIT 1) " +
                 "WHERE source = 'GOOGLE_WEATHER'",
             "DROP TABLE google_low_shift_src",
         )
+
+        val GOOGLE_LOW_SHIFT_SQL = googleLowShiftSql("batchFetchedAt")
 
         /**
          * Column list shared by the desktop `daily_history` CREATE TABLE and the v19 rebuild (and by

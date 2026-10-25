@@ -82,7 +82,7 @@ class ClimateGapFillerTest {
 
         assertEquals(WeatherSource.GENERIC_GAP.id, gap.source)
         assertEquals(0L, gap.fetchedAt)
-        assertEquals(0L, gap.batchFetchedAt)
+        assertEquals(0L, gap.lastConfirmedAt)
         assertTrue(gap.isClimateNormal)
         assertEquals(70f, gap.highTemp)
         assertEquals(50f, gap.lowTemp)

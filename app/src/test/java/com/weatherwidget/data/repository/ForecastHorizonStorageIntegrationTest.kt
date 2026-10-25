@@ -140,7 +140,7 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
 
         val rows = dailyRows()
         assertTrue("all 16 days stored", (0L until 16L).all { it in rows })
-        assertTrue(rows.values.all { it.batchFetchedAt == clockMs })
+        assertTrue(rows.values.all { it.lastConfirmedAt == clockMs })
         val hours = liveHourly()
         assertTrue("not stored past 8 days", hours.all { it.dateTime < clockMs + 192 * hour })
         assertTrue("reaches into day 8", hours.any { it.dateTime >= clockMs + 168 * hour })
@@ -157,8 +157,8 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
         fetch(seed = 50, high)
 
         val rows = dailyRows()
-        assertTrue("today and the next two days rewritten", (0L..2L).all { rows.getValue(it).batchFetchedAt == clockMs })
-        assertTrue("days 4+ keep the LONG fetch's rows", (3L until 16L).all { rows.getValue(it).batchFetchedAt == longClock })
+        assertTrue("today and the next two days rewritten", (0L..2L).all { rows.getValue(it).lastConfirmedAt == clockMs })
+        assertTrue("days 4+ keep the LONG fetch's rows", (3L until 16L).all { rows.getValue(it).lastConfirmedAt == longClock })
         assertTrue("hourly still stored to 72 h", liveHourly().any { it.dateTime >= clockMs + 48 * hour && it.fetchedAt == clockMs })
         assertEquals("LONG marker not advanced", longClock, widgetStateManager.getLastLongFetch(om.id, lat, lon))
         assertEquals(clockMs, widgetStateManager.getLastShortFetch(om.id, lat, lon))
@@ -171,7 +171,7 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
 
         fetch(seed = 50, high)
 
-        assertTrue(dailyRows().values.all { it.batchFetchedAt == clockMs })
+        assertTrue(dailyRows().values.all { it.lastConfirmedAt == clockMs })
         assertEquals(clockMs, widgetStateManager.getLastLongFetch(om.id, lat, lon))
     }
 
@@ -184,8 +184,8 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
         fetch(seed = 50, low)
 
         val rows = dailyRows()
-        assertEquals(clockMs, rows.getValue(0L).batchFetchedAt)
-        assertEquals(longClock, rows.getValue(5L).batchFetchedAt)
+        assertEquals(clockMs, rows.getValue(0L).lastConfirmedAt)
+        assertEquals(longClock, rows.getValue(5L).lastConfirmedAt)
         assertEquals(longClock, widgetStateManager.getLastLongFetch(om.id, lat, lon))
     }
 
@@ -196,7 +196,7 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
 
         fetch(seed = 50, low.copy(userRefresh = true))
 
-        assertTrue(dailyRows().values.all { it.batchFetchedAt == clockMs })
+        assertTrue(dailyRows().values.all { it.lastConfirmedAt == clockMs })
         assertEquals(clockMs, widgetStateManager.getLastLongFetch(om.id, lat, lon))
     }
 
@@ -208,7 +208,7 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
 
         fetch(seed = 50, high.copy(userRefresh = true, activeSourceIds = setOf(WeatherSource.NWS.id)))
 
-        assertEquals("SHORT: day 6 untouched", longClock, dailyRows().getValue(6L).batchFetchedAt)
+        assertEquals("SHORT: day 6 untouched", longClock, dailyRows().getValue(6L).lastConfirmedAt)
     }
 
     @Test
@@ -222,7 +222,7 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
 
         val after = dailyRows().getValue(10L)
         assertEquals(before.noonCloudPercent, after.noonCloudPercent)
-        assertEquals(before.batchFetchedAt, after.batchFetchedAt)
+        assertEquals(before.lastConfirmedAt, after.lastConfirmedAt)
     }
 
     /** Hourly checks for a day: fetch whenever a horizon is due; count what each fetch was. */
@@ -267,7 +267,7 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
         assertEquals("LONG", coordinator.horizonDecision(om, beforeAlarm, lat, lon)?.due?.name)
         fetch(seed = 50, beforeAlarm)
 
-        assertEquals("LONG stored the far day", clockMs, dailyRows().getValue(10L).batchFetchedAt)
+        assertEquals("LONG stored the far day", clockMs, dailyRows().getValue(10L).lastConfirmedAt)
         assertEquals(clockMs, widgetStateManager.getLastLongFetch(om.id, lat, lon))
         clockMs += 10 * 60_000L
         assertNull("snoozed: nothing due", coordinator.horizonDecision(om, night.copy(wakeAtMs = alarm + 9 * 60_000L), lat, lon)?.due)

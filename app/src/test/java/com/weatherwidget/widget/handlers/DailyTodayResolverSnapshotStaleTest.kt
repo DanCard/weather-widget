@@ -13,7 +13,7 @@ import java.time.ZoneId
 /**
  * The today column's snapshot bar is dashed when a side's forecast was last confirmed more than a
  * day before its anchor (06:00 / 16:00 yesterday). Age is measured from the last fetch that returned
- * the values (`batchFetchedAt`), not the first (`fetchedAt`). Pixel 7 Pro, 2026-10-01: NWS 84/58
+ * the values (`lastConfirmedAt`), not the first (`fetchedAt`). Pixel 7 Pro, 2026-10-01: NWS 84/58
  * first stored 09-29 08:39, re-confirmed unchanged through 09-30, drew dashed because it was judged
  * from `fetchedAt`.
  */
@@ -35,10 +35,10 @@ class DailyTodayResolverSnapshotStaleTest {
         condition = "Sunny",
         source = "NWS",
         fetchedAt = fetchedAt,
-        batchFetchedAt = confirmedAt,
+        lastConfirmedAt = confirmedAt,
     )
 
-    /** Today's left bar as the widget builds it from [r] (the shared builder, Android's batchFetchedAt). */
+    /** Today's left bar as the widget builds it from [r] (the shared builder, Android's lastConfirmedAt). */
     private fun stale(r: ForecastEntity?) =
         DailyViewLogic.prepareGraphDays(
             todayLabel = "Today",

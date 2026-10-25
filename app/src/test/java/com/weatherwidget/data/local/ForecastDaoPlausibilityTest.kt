@@ -50,7 +50,7 @@ class ForecastDaoPlausibilityTest {
         lowTemp = -100f,
         condition = "Sunny",
         source = "NWS",
-        batchFetchedAt = 1_000L,
+        lastConfirmedAt = 1_000L,
         fetchedAt = 1_000L,
     )
 
@@ -146,7 +146,7 @@ class ForecastDaoPlausibilityTest {
 
     @Test
     fun `healthy rows pass through completely untouched`() = runTest {
-        val healthy = poisonedRow().copy(lowTemp = 58f, fetchedAt = 2_000L, batchFetchedAt = 2_000L)
+        val healthy = poisonedRow().copy(lowTemp = 58f, fetchedAt = 2_000L, lastConfirmedAt = 2_000L)
         dao.insertForecast(healthy)
 
         val row = dao.getForecastForDate(targetDate, lat, lon)

@@ -118,14 +118,14 @@ class ForecastSnapshotDaoTest {
 
     @Test
     fun `getLatestForecastsInRangeForSources returns latest batch per source per date`() = runTest {
-        // Two batches for the same date+source — only the newer batchFetchedAt should survive
+        // Two batches for the same date+source — only the newer lastConfirmedAt should survive
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
-            batchFetchedAt = 1000L, fetchedAt = 1000L, highTemp = 70f))
+            lastConfirmedAt = 1000L, fetchedAt = 1000L, highTemp = 70f))
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
-            batchFetchedAt = 2000L, fetchedAt = 2000L, highTemp = 72f))
+            lastConfirmedAt = 2000L, fetchedAt = 2000L, highTemp = 72f))
         // Different source on the same date — kept independently
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "OPEN_METEO",
-            batchFetchedAt = 1500L, fetchedAt = 1500L, highTemp = 73f))
+            lastConfirmedAt = 1500L, fetchedAt = 1500L, highTemp = 73f))
 
         val rows = dao.getLatestForecastsInRangeForSources(
             dateEpoch("2026-05-06"), dateEpoch("2026-05-06"),
@@ -155,9 +155,9 @@ class ForecastSnapshotDaoTest {
         // complete row of any age win: a week-old 90/74 drew over the day's 69.5 (2026-10-09).
         // Today's column completes a partial row via PartialForecastDays.todayRow (age-bounded).
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
-            batchFetchedAt = 2000L, fetchedAt = 2000L, highTemp = 72f, lowTemp = null))
+            lastConfirmedAt = 2000L, fetchedAt = 2000L, highTemp = 72f, lowTemp = null))
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
-            batchFetchedAt = 1000L, fetchedAt = 1000L, highTemp = 90f, lowTemp = 74f))
+            lastConfirmedAt = 1000L, fetchedAt = 1000L, highTemp = 90f, lowTemp = 74f))
 
         val rows = dao.getLatestForecastsInRangeForSources(
             dateEpoch("2026-05-06"), dateEpoch("2026-05-06"),
@@ -171,17 +171,17 @@ class ForecastSnapshotDaoTest {
     @Test
     fun `getLatestForecastsInRange returns the newest one-sided batch and skips rows with no temps`() = runTest {
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
-            batchFetchedAt = 3000L, fetchedAt = 3000L, highTemp = null, lowTemp = null))
+            lastConfirmedAt = 3000L, fetchedAt = 3000L, highTemp = null, lowTemp = null))
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
-            batchFetchedAt = 2000L, fetchedAt = 2000L, highTemp = null, lowTemp = 53f))
+            lastConfirmedAt = 2000L, fetchedAt = 2000L, highTemp = null, lowTemp = 53f))
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
-            batchFetchedAt = 1000L, fetchedAt = 1000L, highTemp = 72f, lowTemp = 53f))
+            lastConfirmedAt = 1000L, fetchedAt = 1000L, highTemp = 72f, lowTemp = 53f))
 
         val rows = dao.getLatestForecastsInRange(
             dateEpoch("2026-05-06"), dateEpoch("2026-05-06"), LAT, LON)
 
         assertEquals(1, rows.size)
-        assertEquals(2000L, rows[0].batchFetchedAt)
+        assertEquals(2000L, rows[0].lastConfirmedAt)
     }
 
     @Test
@@ -212,7 +212,7 @@ class ForecastSnapshotDaoTest {
                 targetDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 dateOfPrediction = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 source = "NWS",
-                batchFetchedAt = 1000L + offset,
+                lastConfirmedAt = 1000L + offset,
                 fetchedAt = 1000L + offset,
             ))
         }

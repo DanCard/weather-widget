@@ -30,9 +30,9 @@ class DesktopDailyHistoryHostContractTest : DailyHistoryHostContract() {
     private class RawSeed(private val db: DesktopWeatherDatabase) : Seed {
         override fun forecast(row: DailyHistoryMaintenance.ForecastHistoryRow, dateOfPrediction: Long) = insert(
             "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, " +
-                "isClimateNormal, source, precipAmountMm, batchFetchedAt, fetchedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "isClimateNormal, source, precipAmountMm, lastConfirmedAt, fetchedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             row.dateMs, dateOfPrediction, row.locationLat, row.locationLon, row.highTemp, row.lowTemp, row.condition,
-            if (row.isClimateNormal) 1 else 0, row.source, row.precipAmountMm, row.batchFetchedAt, row.fetchedAt,
+            if (row.isClimateNormal) 1 else 0, row.source, row.precipAmountMm, row.lastConfirmedAt, row.fetchedAt,
         )
 
         override fun hourly(row: HourlyForecast) = insert(

@@ -47,7 +47,7 @@ class ForecastPersistRun<K>(private val host: Host<K>) {
         /** This source's daily rows dated [from]..[to]. */
         suspend fun storedDaily(from: LocalDate, to: LocalDate): List<DailyForecastWrite.Stored<K>>
 
-        /** [write] as new rows (`dateOfPrediction` = today, both stamps [nowMs]); [restamp] take `batchFetchedAt` = [nowMs]. */
+        /** [write] as new rows (`dateOfPrediction` = today, both stamps [nowMs]); [restamp] take `lastConfirmedAt` = [nowMs]. */
         suspend fun writeDaily(write: List<DailyForecastWrite.Row>, restamp: List<K>, nowMs: Long)
 
         suspend fun log(tag: String, message: String, level: String)
@@ -175,7 +175,7 @@ class ForecastPersistRun<K>(private val host: Host<K>) {
 
         val range = DailyForecastWrite.readRange(incoming, nowMs, zone)
         val storedDaily = range?.let { host.storedDaily(it.start, it.endInclusive) }.orEmpty()
-        val plan = DailyForecastWrite.plan(incoming, storedDaily, source, nowMs, batchFetchedAt = nowMs, userRefresh = userRefresh, zone = zone)
+        val plan = DailyForecastWrite.plan(incoming, storedDaily, source, nowMs, lastConfirmedAt = nowMs, userRefresh = userRefresh, zone = zone)
         plan.lines.forEach { host.log(it.tag, it.message, it.level) }
         if (plan.write.isNotEmpty() || plan.restamp.isNotEmpty()) host.writeDaily(plan.write, plan.restamp, nowMs)
         return plan

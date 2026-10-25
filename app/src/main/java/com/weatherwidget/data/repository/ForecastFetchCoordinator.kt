@@ -537,7 +537,7 @@ internal class ForecastFetchCoordinator(
     ): Boolean {
         val lastSourceFetchTime = forecasts
             .filter { it.source == source.id }
-            .maxOfOrNull { it.batchFetchedAt } ?: 0L
+            .maxOfOrNull { it.lastConfirmedAt } ?: 0L
         val position = widgetStateManager.getVisibleSourcesOrder().indexOf(source)
         val threshold = ForecastStalenessPolicy.getStalenessThresholdMs(position)
         return System.currentTimeMillis() - lastSourceFetchTime >= threshold

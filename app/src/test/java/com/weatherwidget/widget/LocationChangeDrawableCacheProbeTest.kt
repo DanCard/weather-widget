@@ -76,7 +76,7 @@ class LocationChangeDrawableCacheProbeTest {
                         locationLat = site.first,
                         locationLon = site.second,
                         fetchedAt = fetchedAt,
-                        batchFetchedAt = fetchedAt,
+                        lastConfirmedAt = fetchedAt,
                     ),
                 ),
             )

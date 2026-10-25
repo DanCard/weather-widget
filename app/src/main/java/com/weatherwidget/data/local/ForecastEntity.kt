@@ -8,7 +8,7 @@ import androidx.room.Index
     primaryKeys = ["targetDate", "dateOfPrediction", "locationLat", "locationLon", "source", "fetchedAt"],
     indices = [
         Index(value = ["locationLat", "locationLon"]),
-        Index(value = ["targetDate", "source", "locationLat", "locationLon", "batchFetchedAt"]),
+        Index(value = ["targetDate", "source", "locationLat", "locationLon", "lastConfirmedAt"]),
     ],
 )
 data class ForecastEntity(
@@ -28,7 +28,7 @@ data class ForecastEntity(
     val periodStartTime: Long? = null,  // NWS only: epoch millis of daytime forecast period start
     val periodEndTime: Long? = null,    // NWS only: epoch millis of daytime forecast period end
     val precipAmountMm: Float? = null, // Daily precipitation amount in millimeters
-    val batchFetchedAt: Long = System.currentTimeMillis(), // Shared across all rows from one provider fetch batch
+    val lastConfirmedAt: Long = System.currentTimeMillis(), // When this forecast was last confirmed by a fetch
     val fetchedAt: Long = System.currentTimeMillis(),
     // Same-day high/low the source sent after its SameDayExtremeCutoff: kept, never read as a
     // forecast (highTemp/lowTemp hold the last pre-cutoff value). Past-day dashed fallback only.
@@ -72,7 +72,7 @@ fun ForecastEntity.toDailyForecast(date: java.time.LocalDate) = com.weatherwidge
     hourlyNightPrecipMax = hourlyNightPrecipMax,
     hourlyDayPrecipPeakAt = hourlyDayPrecipPeakAt,
     fetchedAt = fetchedAt,
-    lastConfirmedAt = batchFetchedAt,
+    lastConfirmedAt = lastConfirmedAt,
 )
 
 /** This row as one of a day's older fetches for the shared daily model. */
@@ -89,6 +89,6 @@ fun ForecastEntity.toDailyForecastSnapshot(date: java.time.LocalDate) = com.weat
     nighttimePrecipProbability = nighttimePrecipProbability,
     hindcastHighTemp = hindcastHighTemp,
     hindcastLowTemp = hindcastLowTemp,
-    // The dedup skip re-stamps batchFetchedAt; fetchedAt stays the first sighting.
-    lastConfirmedAt = batchFetchedAt,
+    // The dedup skip re-stamps lastConfirmedAt; fetchedAt stays the first sighting.
+    lastConfirmedAt = lastConfirmedAt,
 )

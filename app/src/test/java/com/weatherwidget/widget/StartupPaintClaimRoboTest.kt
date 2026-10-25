@@ -60,7 +60,7 @@ class StartupPaintClaimRoboTest {
                     locationLat = 37.42,
                     locationLon = -122.08,
                     fetchedAt = now,
-                    batchFetchedAt = now,
+                    lastConfirmedAt = now,
                 ),
             ),
         )

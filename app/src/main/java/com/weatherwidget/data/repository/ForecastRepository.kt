@@ -483,7 +483,7 @@ class ForecastRepository
             latitude: Double,
             longitude: Double,
             sourceId: String,
-            batchFetchedAt: Long = clock(),
+            lastConfirmedAt: Long = clock(),
             nowMs: Long = clock(),
             userRefresh: Boolean = false,
         ) {
@@ -492,7 +492,7 @@ class ForecastRepository
                 latitude,
                 longitude,
                 sourceId,
-                batchFetchedAt,
+                lastConfirmedAt,
                 nowMs,
                 userRefresh,
             )

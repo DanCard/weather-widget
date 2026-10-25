@@ -166,5 +166,5 @@ internal fun ForecastEntity.toMaintenanceRow() =
         precipProbability = precipProbability,
         daytimePrecipProbability = daytimePrecipProbability,
         nighttimePrecipProbability = nighttimePrecipProbability,
-        batchFetchedAt = batchFetchedAt,
+        lastConfirmedAt = lastConfirmedAt,
     )

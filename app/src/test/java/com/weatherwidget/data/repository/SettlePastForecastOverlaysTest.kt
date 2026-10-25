@@ -69,7 +69,7 @@ class SettlePastForecastOverlaysTest : RobolectricTest() {
         condition = "Clear",
         source = WeatherSource.OPEN_METEO.id,
         fetchedAt = fetchedAt,
-        batchFetchedAt = fetchedAt,
+        lastConfirmedAt = fetchedAt,
     )
 
     @Test

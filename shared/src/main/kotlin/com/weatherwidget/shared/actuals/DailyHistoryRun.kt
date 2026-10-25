@@ -280,7 +280,7 @@ class DailyHistoryRun(
                 source = { it.source },
                 locationLat = { it.locationLat },
                 locationLon = { it.locationLon },
-                batchFetchedAt = { it.batchFetchedAt },
+                lastConfirmedAt = { it.lastConfirmedAt },
                 fetchedAt = { it.fetchedAt },
             )
     }

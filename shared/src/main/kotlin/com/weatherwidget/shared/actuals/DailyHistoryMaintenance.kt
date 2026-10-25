@@ -58,8 +58,8 @@ object DailyHistoryMaintenance {
         val precipProbability: Int? = null,
         val daytimePrecipProbability: Int? = null,
         val nighttimePrecipProbability: Int? = null,
-        /** The fetch batch this row came from; [DailyHistoryRun] picks each day's newest batch by it. */
-        val batchFetchedAt: Long = fetchedAt,
+        /** When this forecast was last confirmed; [DailyHistoryRun] picks each day's newest row by it. */
+        val lastConfirmedAt: Long = fetchedAt,
     )
 
     /** Result of [planSnapshotDisplayedRainChance]: rows to write plus the log lines they imply. */
@@ -315,12 +315,12 @@ object DailyHistoryMaintenance {
             val pick = PriorDayForecast.select(
                 candidates, date, zoneId,
                 fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
-                // Aged by last confirmation: Android re-stamps an unchanged row's batch.
-                fallbackToEarliest = false, lastConfirmedAt = { it.batchFetchedAt },
+                // Aged by last confirmation: Android re-stamps an unchanged row.
+                fallbackToEarliest = false, lastConfirmedAt = { it.lastConfirmedAt },
             )
             fun tooOldFrozen(frozen: Float?, cutoffMs: Long, valueOf: (ForecastHistoryRow) -> Float?): Boolean =
                 frozen != null && candidates.any {
-                    valueOf(it) == frozen && PriorDayForecast.isTooOld(minOf(it.batchFetchedAt, cutoffMs), cutoffMs)
+                    valueOf(it) == frozen && PriorDayForecast.isTooOld(minOf(it.lastConfirmedAt, cutoffMs), cutoffMs)
                 }
             val updated = history.copy(
                 priorForecastHighTemp = pick.highRow?.highTemp

@@ -125,7 +125,7 @@ data class DesktopForecastRow(
     // Filled by getForecastFetchesInRange (DailyHistoryRun reads); other reads leave the defaults.
     val locationLat: Double? = null,
     val locationLon: Double? = null,
-    val batchFetchedAt: Long? = null,
+    val lastConfirmedAt: Long? = null,
     val precipProbability: Int? = null,
     val daytimePrecipProbability: Int? = null,
     val nighttimePrecipProbability: Int? = null,

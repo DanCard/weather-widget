@@ -111,7 +111,7 @@ class ForecastSnapshotDeduplicationTest {
                     lat = LAT,
                     lon = LON,
                     fetchedAt = 1_000L,
-                    batchFetchedAt = 1_000L,
+                    lastConfirmedAt = 1_000L,
                 ),
                 TestData.forecast(
                     targetDate = tomorrow,
@@ -122,7 +122,7 @@ class ForecastSnapshotDeduplicationTest {
                     lat = neighboringLat,
                     lon = neighboringLon,
                     fetchedAt = 2_000L,
-                    batchFetchedAt = 2_000L,
+                    lastConfirmedAt = 2_000L,
                 ),
             ),
         )
@@ -140,7 +140,7 @@ class ForecastSnapshotDeduplicationTest {
             LAT,
             LON,
             "NWS",
-            batchFetchedAt = 3_000L,
+            lastConfirmedAt = 3_000L,
         )
 
         val displaySiteLatest = db.forecastDao()
@@ -152,14 +152,14 @@ class ForecastSnapshotDeduplicationTest {
                 "NWS",
             )
             .filter { it.locationLat == LAT && it.locationLon == LON }
-            .maxBy { it.batchFetchedAt }
+            .maxBy { it.lastConfirmedAt }
 
         assertEquals(
             "neighboring fragment must not mask the revised display-site high",
             75f,
             displaySiteLatest.highTemp,
         )
-        assertEquals(3_000L, displaySiteLatest.batchFetchedAt)
+        assertEquals(3_000L, displaySiteLatest.lastConfirmedAt)
     }
 
     @Test
@@ -179,14 +179,14 @@ class ForecastSnapshotDeduplicationTest {
             LAT,
             LON,
             WeatherSource.OPEN_METEO.id,
-            batchFetchedAt = 1_000L,
+            lastConfirmedAt = 1_000L,
         )
         repository.saveForecastSnapshot(
             forecasts,
             LAT,
             LON,
             WeatherSource.OPEN_METEO.id,
-            batchFetchedAt = 2_000L,
+            lastConfirmedAt = 2_000L,
         )
 
         assertEquals("unchanged second fetch must not append history rows", 16, db.forecastDao().getCount())
@@ -194,7 +194,7 @@ class ForecastSnapshotDeduplicationTest {
         val latestBatch = repository.getCachedDataBySource(LAT, LON, WeatherSource.OPEN_METEO)
             .filter { it.source == WeatherSource.OPEN_METEO.id }
         assertEquals("all sixteen provider days must remain in the latest coherent batch", 16, latestBatch.size)
-        assertTrue(latestBatch.all { it.batchFetchedAt == 2_000L })
+        assertTrue(latestBatch.all { it.lastConfirmedAt == 2_000L })
     }
 
     @Test
@@ -221,7 +221,7 @@ class ForecastSnapshotDeduplicationTest {
     @Test
     fun `terminal low only nws row is persisted and returned in latest batch`() = runTest {
         val dayAfterTomorrow = LocalDate.now().plusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val batchFetchedAt = 1_234_567L
+        val lastConfirmedAt = 1_234_567L
         repository.saveForecastSnapshot(
             listOf(
                 TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f),
@@ -230,7 +230,7 @@ class ForecastSnapshotDeduplicationTest {
             LAT,
             LON,
             "NWS",
-            batchFetchedAt = batchFetchedAt,
+            lastConfirmedAt = lastConfirmedAt,
         )
 
         val storedRows = db.forecastDao().getForecastsInRangeBySource(
@@ -243,7 +243,7 @@ class ForecastSnapshotDeduplicationTest {
         val terminalRow = storedRows.first { it.targetDate == dateEpoch(dayAfterTomorrow) }
         assertNull(terminalRow.highTemp)
         assertEquals(48f, terminalRow.lowTemp)
-        assertEquals(batchFetchedAt, terminalRow.batchFetchedAt)
+        assertEquals(lastConfirmedAt, terminalRow.lastConfirmedAt)
 
         val latestBatch = repository.getCachedDataBySource(LAT, LON, WeatherSource.NWS)
         val latestTerminalRow = latestBatch.first { it.targetDate == dateEpoch(dayAfterTomorrow) }
@@ -258,19 +258,19 @@ class ForecastSnapshotDeduplicationTest {
     fun `userRefresh creates a snapshot even when forecast values are identical`() = runTest {
         val weather = listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f, condition = "Sunny"))
         // First fetch
-        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", batchFetchedAt = 1_000L, nowMs = 1_000L, userRefresh = false)
+        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", lastConfirmedAt = 1_000L, nowMs = 1_000L, userRefresh = false)
         assertEquals(1, db.forecastDao().getCount())
 
         // Routine background sync with identical data: skipped
-        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", batchFetchedAt = 70_000L, nowMs = 70_000L, userRefresh = false)
+        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", lastConfirmedAt = 70_000L, nowMs = 70_000L, userRefresh = false)
         assertEquals(1, db.forecastDao().getCount())
 
         // User-initiated refresh: creates a new snapshot without deleting the earlier one
-        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", batchFetchedAt = 150_000L, nowMs = 150_000L, userRefresh = true)
+        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", lastConfirmedAt = 150_000L, nowMs = 150_000L, userRefresh = true)
         assertEquals(2, db.forecastDao().getCount())
 
         // Rapid double-tap within 60s: debounced
-        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", batchFetchedAt = 170_000L, nowMs = 170_000L, userRefresh = true)
+        repository.saveForecastSnapshot(weather, LAT, LON, "NWS", lastConfirmedAt = 170_000L, nowMs = 170_000L, userRefresh = true)
         assertEquals(2, db.forecastDao().getCount())
     }
 }

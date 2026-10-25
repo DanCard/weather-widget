@@ -79,7 +79,7 @@ class DesktopForecastPersistTest {
         refresh(hourly(cloud = 40), now + hour)
 
         database.getConnection().use { conn ->
-            conn.prepareStatement("SELECT targetDate, COUNT(*) AS n, MAX(batchFetchedAt) AS b FROM forecasts WHERE source = ? GROUP BY targetDate").use { stmt ->
+            conn.prepareStatement("SELECT targetDate, COUNT(*) AS n, MAX(lastConfirmedAt) AS b FROM forecasts WHERE source = ? GROUP BY targetDate").use { stmt ->
                 stmt.setString(1, om)
                 val rs = stmt.executeQuery()
                 var days = 0

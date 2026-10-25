@@ -43,7 +43,7 @@ class PastDayTripleBarDataIntegrationTest : RobolectricTest() {
         condition = "Clear",
         source = source.id,
         fetchedAt = fetchedAt,
-        batchFetchedAt = fetchedAt,
+        lastConfirmedAt = fetchedAt,
     )
 
     private fun row(e: ForecastEntity) = DailyHistoryMaintenance.ForecastHistoryRow(

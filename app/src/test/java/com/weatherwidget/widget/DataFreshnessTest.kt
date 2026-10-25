@@ -94,14 +94,14 @@ class DataFreshnessTest {
         val freshTime = now - (10 * 60 * 1000L)
         val visibleSources = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO)
 
-        val batchFetchedAtBySource = mapOf(
+        val lastConfirmedAtBySource = mapOf(
             WeatherSource.NWS.id to staleTime,
             WeatherSource.OPEN_METEO.id to freshTime,
         )
 
         assertTrue(
             "Should be stale because NWS is stale",
-            DataFreshness.isStaleForSources(visibleSources, batchFetchedAtBySource, now, chargingScreenOn)
+            DataFreshness.isStaleForSources(visibleSources, lastConfirmedAtBySource, now, chargingScreenOn)
         )
     }
 
@@ -111,14 +111,14 @@ class DataFreshnessTest {
         val freshTime = now - (10 * 60 * 1000L)
         val visibleSources = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO)
 
-        val batchFetchedAtBySource = mapOf(
+        val lastConfirmedAtBySource = mapOf(
             WeatherSource.NWS.id to freshTime,
             WeatherSource.OPEN_METEO.id to freshTime,
         )
 
         assertFalse(
             "Should not be stale when all sources are fresh",
-            DataFreshness.isStaleForSources(visibleSources, batchFetchedAtBySource, now, chargingScreenOn)
+            DataFreshness.isStaleForSources(visibleSources, lastConfirmedAtBySource, now, chargingScreenOn)
         )
     }
 
@@ -126,22 +126,22 @@ class DataFreshnessTest {
     fun `isStaleForSources returns true when visible source has no data`() {
         val visibleSources = listOf(WeatherSource.NWS)
 
-        val batchFetchedAtBySource = emptyMap<String, Long>()
+        val lastConfirmedAtBySource = emptyMap<String, Long>()
 
         assertTrue(
             "Should be stale when source has no data",
-            DataFreshness.isStaleForSources(visibleSources, batchFetchedAtBySource, System.currentTimeMillis(), chargingScreenOn)
+            DataFreshness.isStaleForSources(visibleSources, lastConfirmedAtBySource, System.currentTimeMillis(), chargingScreenOn)
         )
     }
 
     @Test
     fun `isStaleForSources returns false when no sources are visible`() {
         val visibleSources = emptyList<WeatherSource>()
-        val batchFetchedAtBySource = emptyMap<String, Long>()
+        val lastConfirmedAtBySource = emptyMap<String, Long>()
 
         assertFalse(
             "Should not be stale when no sources are visible",
-            DataFreshness.isStaleForSources(visibleSources, batchFetchedAtBySource, System.currentTimeMillis(), chargingScreenOn)
+            DataFreshness.isStaleForSources(visibleSources, lastConfirmedAtBySource, System.currentTimeMillis(), chargingScreenOn)
         )
     }
 }

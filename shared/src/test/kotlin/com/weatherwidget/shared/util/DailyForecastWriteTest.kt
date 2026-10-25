@@ -32,7 +32,7 @@ class DailyForecastWriteTest {
         date,
         DailyForecastWrite.Values(high, low, "Clear", null, null, null, null, null, null, null, summary),
         dateOfPrediction = predicted.toEpochDay() * 86_400_000L,
-        batchFetchedAt = batch,
+        lastConfirmedAt = batch,
         fetchedAt = fetchedAt,
         ref = ref,
     )

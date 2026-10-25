@@ -28,7 +28,7 @@ object TestData {
         isClimateNormal: Boolean = false,
         precipProbability: Int? = null,
         fetchedAt: Long = System.currentTimeMillis(),
-        batchFetchedAt: Long = fetchedAt,
+        lastConfirmedAt: Long = fetchedAt,
         lat: Double = LAT,
         lon: Double = LON,
     ) = ForecastEntity(
@@ -43,7 +43,7 @@ object TestData {
         source = source,
         precipProbability = precipProbability,
         fetchedAt = fetchedAt,
-        batchFetchedAt = batchFetchedAt,
+        lastConfirmedAt = lastConfirmedAt,
     )
 
     fun observation(

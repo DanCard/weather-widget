@@ -109,7 +109,7 @@ class AccuracyCalculatorIntegrationTest {
                     condition = "Clear",
                     source = source.id,
                     fetchedAt = fetchedAt,
-                    batchFetchedAt = fetchedAt,
+                    lastConfirmedAt = fetchedAt,
                 ),
             ),
         )

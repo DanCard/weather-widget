@@ -73,7 +73,7 @@ class ForecastOnlyHistoryRowsTest : RobolectricTest() {
         source = source,
         isClimateNormal = isClimateNormal,
         fetchedAt = fetchedAt,
-        batchFetchedAt = fetchedAt,
+        lastConfirmedAt = fetchedAt,
     )
 
     private fun historyRow(

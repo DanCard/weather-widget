@@ -59,7 +59,7 @@ internal class DesktopDailyHistoryHost(private val weatherDao: DesktopWeatherDao
             precipProbability = precipProbability,
             daytimePrecipProbability = daytimePrecipProbability,
             nighttimePrecipProbability = nighttimePrecipProbability,
-            batchFetchedAt = batchFetchedAt ?: fetchedAt,
+            lastConfirmedAt = lastConfirmedAt ?: fetchedAt,
         )
 
     companion object {

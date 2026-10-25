@@ -44,7 +44,7 @@ class RoomDailyHistoryHostContractTest : DailyHistoryHostContract() {
                     locationLat = row.locationLat, locationLon = row.locationLon,
                     highTemp = row.highTemp, lowTemp = row.lowTemp, condition = row.condition,
                     isClimateNormal = row.isClimateNormal, source = row.source, precipAmountMm = row.precipAmountMm,
-                    batchFetchedAt = row.batchFetchedAt, fetchedAt = row.fetchedAt,
+                    lastConfirmedAt = row.lastConfirmedAt, fetchedAt = row.fetchedAt,
                 ),
             )
         }

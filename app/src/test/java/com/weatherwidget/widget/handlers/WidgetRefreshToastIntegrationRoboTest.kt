@@ -100,7 +100,7 @@ class WidgetRefreshToastIntegrationRoboTest {
                 ForecastEntity(
                     targetDate = todayUtc, dateOfPrediction = todayUtc, locationLat = lat, locationLon = lon,
                     highTemp = 70f, lowTemp = 50f, condition = "Clear", source = source.id,
-                    fetchedAt = now, batchFetchedAt = now,
+                    fetchedAt = now, lastConfirmedAt = now,
                 ),
             ),
         )

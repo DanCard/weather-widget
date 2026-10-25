@@ -18,9 +18,9 @@ class DailyForecastSelectorTest {
         val source: String,
         val lat: Double,
         val lon: Double,
-        val batchFetchedAt: Long,
+        val lastConfirmedAt: Long,
         val highTemp: Float,
-        val fetchedAt: Long = batchFetchedAt,
+        val fetchedAt: Long = lastConfirmedAt,
     )
 
     private fun select(rows: List<Row>, centerLat: Double = siteA.first, centerLon: Double = siteA.second) =
@@ -32,7 +32,7 @@ class DailyForecastSelectorTest {
             source = { it.source },
             locationLat = { it.lat },
             locationLon = { it.lon },
-            batchFetchedAt = { it.batchFetchedAt },
+            lastConfirmedAt = { it.lastConfirmedAt },
             fetchedAt = { it.fetchedAt },
         )
 
@@ -40,8 +40,8 @@ class DailyForecastSelectorTest {
     fun `stale abandoned-site row loses to the freshest batch (the 74-vs-77 bug)`() {
         val rows = listOf(
             // Stale site B row sorts FIRST (as it did on-device, by rowid) — first-match must not win.
-            Row(targetDate = 100L, source = "NWS", lat = siteB.first, lon = siteB.second, batchFetchedAt = 1_000L, highTemp = 74f),
-            Row(targetDate = 100L, source = "NWS", lat = siteA.first, lon = siteA.second, batchFetchedAt = 9_000L, highTemp = 77f),
+            Row(targetDate = 100L, source = "NWS", lat = siteB.first, lon = siteB.second, lastConfirmedAt = 1_000L, highTemp = 74f),
+            Row(targetDate = 100L, source = "NWS", lat = siteA.first, lon = siteA.second, lastConfirmedAt = 9_000L, highTemp = 77f),
         )
         val picked = select(rows)
         assertEquals(1, picked.size)
@@ -52,8 +52,8 @@ class DailyForecastSelectorTest {
     fun `genuinely different neighbouring marker is excluded even when fresher`() {
         val defaultMarkerLat = 37.422 // ~0.005° away: a real different marker, not jitter
         val rows = listOf(
-            Row(100L, "NWS", siteA.first, siteA.second, batchFetchedAt = 5_000L, highTemp = 76f),
-            Row(100L, "NWS", defaultMarkerLat, siteA.second, batchFetchedAt = 9_999L, highTemp = 50f),
+            Row(100L, "NWS", siteA.first, siteA.second, lastConfirmedAt = 5_000L, highTemp = 76f),
+            Row(100L, "NWS", defaultMarkerLat, siteA.second, lastConfirmedAt = 9_999L, highTemp = 50f),
         )
         assertEquals(76f, select(rows).single().highTemp, 0f)
     }
@@ -61,8 +61,8 @@ class DailyForecastSelectorTest {
     @Test
     fun `off-site rows are kept when no same-site row exists`() {
         val rows = listOf(
-            Row(100L, "NWS", 37.422, -122.0841, batchFetchedAt = 1_000L, highTemp = 70f),
-            Row(100L, "NWS", 37.422, -122.0841, batchFetchedAt = 2_000L, highTemp = 71f),
+            Row(100L, "NWS", 37.422, -122.0841, lastConfirmedAt = 1_000L, highTemp = 70f),
+            Row(100L, "NWS", 37.422, -122.0841, lastConfirmedAt = 2_000L, highTemp = 71f),
         )
         assertEquals(71f, select(rows).single().highTemp, 0f)
     }
@@ -70,8 +70,8 @@ class DailyForecastSelectorTest {
     @Test
     fun `sources stay independent per day`() {
         val rows = listOf(
-            Row(100L, "NWS", siteA.first, siteA.second, batchFetchedAt = 9_000L, highTemp = 77f),
-            Row(100L, "OPEN_METEO", siteB.first, siteB.second, batchFetchedAt = 1_000L, highTemp = 80f),
+            Row(100L, "NWS", siteA.first, siteA.second, lastConfirmedAt = 9_000L, highTemp = 77f),
+            Row(100L, "OPEN_METEO", siteB.first, siteB.second, lastConfirmedAt = 1_000L, highTemp = 80f),
         )
         val picked = select(rows)
         assertEquals(2, picked.size)
@@ -81,8 +81,8 @@ class DailyForecastSelectorTest {
     @Test
     fun `equal batch ties break on fetchedAt`() {
         val rows = listOf(
-            Row(100L, "NWS", siteA.first, siteA.second, batchFetchedAt = 5_000L, highTemp = 75f, fetchedAt = 1L),
-            Row(100L, "NWS", siteA.first, siteA.second, batchFetchedAt = 5_000L, highTemp = 76f, fetchedAt = 2L),
+            Row(100L, "NWS", siteA.first, siteA.second, lastConfirmedAt = 5_000L, highTemp = 75f, fetchedAt = 1L),
+            Row(100L, "NWS", siteA.first, siteA.second, lastConfirmedAt = 5_000L, highTemp = 76f, fetchedAt = 2L),
         )
         assertEquals(76f, select(rows).single().highTemp, 0f)
     }
@@ -90,9 +90,9 @@ class DailyForecastSelectorTest {
     @Test
     fun `output stays targetDate-ascending after grouping`() {
         val rows = listOf(
-            Row(200L, "NWS", siteA.first, siteA.second, batchFetchedAt = 9_000L, highTemp = 78f),
-            Row(100L, "NWS", siteB.first, siteB.second, batchFetchedAt = 1_000L, highTemp = 74f),
-            Row(100L, "NWS", siteA.first, siteA.second, batchFetchedAt = 9_000L, highTemp = 77f),
+            Row(200L, "NWS", siteA.first, siteA.second, lastConfirmedAt = 9_000L, highTemp = 78f),
+            Row(100L, "NWS", siteB.first, siteB.second, lastConfirmedAt = 1_000L, highTemp = 74f),
+            Row(100L, "NWS", siteA.first, siteA.second, lastConfirmedAt = 9_000L, highTemp = 77f),
         )
         assertEquals(listOf(100L, 200L), select(rows).map { it.targetDate })
     }

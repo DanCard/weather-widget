@@ -60,7 +60,7 @@ object PriorDayForecast {
      * A row qualifies for a cutoff when it was first seen before it ([fetchedAt]) and last confirmed
      * no more than [MAX_PICK_AGE_HOURS] before it ([lastConfirmedAt]; a confirmation after the cutoff
      * means it was still current then). The newest first-seen qualifier wins — the version current
-     * at the cutoff. Android stores an unchanged forecast once and re-stamps its `batchFetchedAt`, so
+     * at the cutoff. Android stores an unchanged forecast once and re-stamps its `lastConfirmedAt`, so
      * aging it by first sighting dropped a stable forecast after two days (2026-10-23).
      *
      * @param fallbackToEarliest when no usable row qualifies for a cutoff, take the earliest usable
@@ -152,7 +152,7 @@ object PriorDayForecast {
      * ([com.weatherwidget.shared.graph.StandInBarStyle]). A fallback row fetched after its cutoff is
      * not stale.
      *
-     * @param lastConfirmedAtMillis Android `batchFetchedAt` (dedup re-stamps it), desktop `fetchedAt`.
+     * @param lastConfirmedAtMillis When the row was last confirmed (`lastConfirmedAt`).
      */
     fun isStale(lastConfirmedAtMillis: Long, cutoffMs: Long): Boolean =
         cutoffMs - lastConfirmedAtMillis > STALE_SLACK_HOURS * 3_600_000L

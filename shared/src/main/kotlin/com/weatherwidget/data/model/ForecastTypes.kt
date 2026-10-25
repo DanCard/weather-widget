@@ -66,7 +66,7 @@ data class DailyForecast(
     // (DailyForecastWrite). Never persisted.
     val periodEndMs: Long? = null,
     // Read back only (never written from here): when the stored row was first fetched and when a fetch
-    // last confirmed it (`batchFetchedAt`; an unchanged forecast is stored once and re-stamped). Lets
+    // last confirmed it (`lastConfirmedAt`; an unchanged forecast is stored once and re-stamped). Lets
     // the shown row stand as "yesterday's forecast" (PriorDayForecast) when it has not changed since.
     val fetchedAt: Long? = null,
     val lastConfirmedAt: Long? = null,
@@ -100,7 +100,7 @@ data class DailyForecastSnapshot(
     val hindcastHighTemp: Float? = null,
     val hindcastLowTemp: Float? = null,
     /**
-     * When this forecast was last confirmed — what "stale" is judged by: the row's `batchFetchedAt`.
+     * When this forecast was last confirmed — what "stale" is judged by: the row's `lastConfirmedAt`.
      * Both platforms store an unchanged forecast once and re-stamp it (DailyForecastWrite), so
      * [fetchedAt] stays the first sighting.
      */

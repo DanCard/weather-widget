@@ -390,7 +390,7 @@ class DailyViewHandlerTest {
         fun ms(t: LocalDateTime) = t.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val weatherByDate = mapOf(
             today to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
-                .copy(fetchedAt = ms(now.minusDays(3)), batchFetchedAt = ms(now.minusHours(1))),
+                .copy(fetchedAt = ms(now.minusDays(3)), lastConfirmedAt = ms(now.minusHours(1))),
         )
 
         val days = DailyViewLogic.prepareGraphDays(
@@ -423,7 +423,7 @@ class DailyViewHandlerTest {
         // Fetched this morning: the shown row is today's forecast, not a candidate for yesterday's.
         val fetchedToday = now.minusHours(3).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val weatherByDate = mapOf(
-            today to createWeather(todayStr, highTemp = 80f, lowTemp = 60f).copy(fetchedAt = fetchedToday, batchFetchedAt = fetchedToday)
+            today to createWeather(todayStr, highTemp = 80f, lowTemp = 60f).copy(fetchedAt = fetchedToday, lastConfirmedAt = fetchedToday)
         )
 
         val snapshots = mapOf(

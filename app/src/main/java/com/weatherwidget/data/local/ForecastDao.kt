@@ -21,7 +21,7 @@ import com.weatherwidget.shared.actuals.DailyForecastSelector
  */
 @Dao
 interface ForecastDao {
-    @Query("SELECT * FROM forecasts ORDER BY batchFetchedAt DESC, fetchedAt DESC LIMIT 1")
+    @Query("SELECT * FROM forecasts ORDER BY lastConfirmedAt DESC, fetchedAt DESC LIMIT 1")
     suspend fun getLatestWeatherRaw(): ForecastEntity?
 
     suspend fun getLatestWeather(): ForecastEntity? = getLatestWeatherRaw()?.withPlausibleTemps()
@@ -31,7 +31,7 @@ interface ForecastDao {
         SELECT * FROM forecasts
         WHERE source = :source
         AND ${LocationMatch.ROOM_WHERE}
-        ORDER BY batchFetchedAt DESC, fetchedAt DESC
+        ORDER BY lastConfirmedAt DESC, fetchedAt DESC
         LIMIT 1
     """,
     )
@@ -51,7 +51,7 @@ interface ForecastDao {
         """
         SELECT * FROM forecasts
         WHERE source = :source
-        ORDER BY batchFetchedAt DESC, fetchedAt DESC
+        ORDER BY lastConfirmedAt DESC, fetchedAt DESC
         LIMIT 1
     """,
     )
@@ -65,7 +65,7 @@ interface ForecastDao {
         SELECT * FROM forecasts
         WHERE targetDate = :targetDate
         AND ${LocationMatch.ROOM_WHERE}
-        ORDER BY dateOfPrediction DESC, batchFetchedAt DESC, fetchedAt DESC
+        ORDER BY dateOfPrediction DESC, lastConfirmedAt DESC, fetchedAt DESC
         LIMIT 1
     """,
     )
@@ -87,7 +87,7 @@ interface ForecastDao {
         WHERE targetDate = :targetDate
         AND dateOfPrediction = :dateOfPrediction
         AND ${LocationMatch.ROOM_WHERE}
-        ORDER BY batchFetchedAt DESC, fetchedAt DESC
+        ORDER BY lastConfirmedAt DESC, fetchedAt DESC
         LIMIT 1
     """,
     )
@@ -140,8 +140,8 @@ interface ForecastDao {
         WHERE ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
-        AND batchFetchedAt = (
-            SELECT MAX(batchFetchedAt) FROM forecasts f2
+        AND lastConfirmedAt = (
+            SELECT MAX(lastConfirmedAt) FROM forecasts f2
             WHERE f2.targetDate = f1.targetDate
             AND f2.source = f1.source
             AND f2.locationLat = f1.locationLat
@@ -172,8 +172,8 @@ interface ForecastDao {
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         AND source IN (:sources)
-        AND batchFetchedAt = (
-            SELECT MAX(batchFetchedAt) FROM forecasts f2
+        AND lastConfirmedAt = (
+            SELECT MAX(lastConfirmedAt) FROM forecasts f2
             WHERE f2.targetDate = f1.targetDate
             AND f2.source = f1.source
             AND f2.locationLat = f1.locationLat
@@ -206,8 +206,8 @@ interface ForecastDao {
         AND ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
-        AND batchFetchedAt = (
-            SELECT MAX(batchFetchedAt) FROM forecasts f2
+        AND lastConfirmedAt = (
+            SELECT MAX(lastConfirmedAt) FROM forecasts f2
             WHERE f2.targetDate = f1.targetDate
             AND f2.source = f1.source
             AND f2.locationLat = f1.locationLat
@@ -248,8 +248,8 @@ interface ForecastDao {
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         AND (highTemp IS NOT NULL OR lowTemp IS NOT NULL)
-        AND batchFetchedAt = (
-            SELECT MAX(batchFetchedAt) FROM forecasts f2
+        AND lastConfirmedAt = (
+            SELECT MAX(lastConfirmedAt) FROM forecasts f2
             WHERE f2.targetDate = f1.targetDate
             AND f2.source = f1.source
             AND f2.locationLat = f1.locationLat
@@ -283,8 +283,8 @@ interface ForecastDao {
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         AND (highTemp IS NOT NULL OR lowTemp IS NOT NULL)
-        AND batchFetchedAt = (
-            SELECT MAX(batchFetchedAt) FROM forecasts f2
+        AND lastConfirmedAt = (
+            SELECT MAX(lastConfirmedAt) FROM forecasts f2
             WHERE f2.targetDate = f1.targetDate
             AND f2.source = f1.source
             AND f2.locationLat = f1.locationLat
@@ -354,7 +354,7 @@ interface ForecastDao {
         WHERE ${LocationMatch.ROOM_WHERE}
         AND targetDate >= :startDate
         AND targetDate <= :endDate
-        ORDER BY targetDate ASC, batchFetchedAt DESC, fetchedAt DESC
+        ORDER BY targetDate ASC, lastConfirmedAt DESC, fetchedAt DESC
     """,
     )
     suspend fun getAllForecastsInRangeRaw(
@@ -379,7 +379,7 @@ interface ForecastDao {
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         AND source IN (:sources)
-        ORDER BY targetDate ASC, batchFetchedAt DESC, fetchedAt DESC
+        ORDER BY targetDate ASC, lastConfirmedAt DESC, fetchedAt DESC
     """,
     )
     suspend fun getAllForecastsInRangeForSourcesRaw(
@@ -406,7 +406,7 @@ interface ForecastDao {
         AND source = :source
         AND targetDate >= :startDate
         AND targetDate <= :endDate
-        ORDER BY targetDate ASC, dateOfPrediction DESC, batchFetchedAt DESC, fetchedAt DESC
+        ORDER BY targetDate ASC, dateOfPrediction DESC, lastConfirmedAt DESC, fetchedAt DESC
     """,
     )
     suspend fun getForecastsInRangeBySourceRaw(
@@ -470,7 +470,7 @@ interface ForecastDao {
         WHERE targetDate = :targetDate
         AND dateOfPrediction <= :targetDate
         AND ${LocationMatch.ROOM_WHERE}
-        ORDER BY dateOfPrediction ASC, batchFetchedAt ASC, fetchedAt ASC
+        ORDER BY dateOfPrediction ASC, lastConfirmedAt ASC, fetchedAt ASC
     """,
     )
     suspend fun getForecastEvolutionRaw(
@@ -534,7 +534,7 @@ private fun collapseSites(rows: List<ForecastEntity>, lat: Double, lon: Double):
         source = { it.source },
         locationLat = { it.locationLat },
         locationLon = { it.locationLon },
-        batchFetchedAt = { it.batchFetchedAt },
+        lastConfirmedAt = { it.lastConfirmedAt },
         fetchedAt = { it.fetchedAt },
     )
 

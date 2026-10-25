@@ -39,6 +39,36 @@ class DesktopGoogleLowShiftTest {
     private fun sql(block: (java.sql.Statement) -> Unit) =
         DriverManager.getConnection("jdbc:sqlite:${dbPath.toAbsolutePath()}").use { c -> c.createStatement().use(block) }
 
+    private fun createV31Table() = sql {
+        it.execute("""
+            CREATE TABLE IF NOT EXISTS forecasts (
+                targetDate INTEGER NOT NULL,
+                dateOfPrediction INTEGER NOT NULL,
+                locationLat REAL NOT NULL,
+                locationLon REAL NOT NULL,
+                highTemp REAL,
+                lowTemp REAL,
+                condition TEXT NOT NULL,
+                nativeDailyIconToken TEXT,
+                isClimateNormal INTEGER NOT NULL DEFAULT 0,
+                source TEXT NOT NULL,
+                precipProbability INTEGER,
+                daytimePrecipProbability INTEGER,
+                nighttimePrecipProbability INTEGER,
+                periodStartTime INTEGER,
+                periodEndTime INTEGER,
+                precipAmountMm REAL,
+                batchFetchedAt INTEGER NOT NULL,
+                fetchedAt INTEGER NOT NULL,
+                hindcastHighTemp REAL,
+                hindcastLowTemp REAL,
+                PRIMARY KEY (targetDate, dateOfPrediction, locationLat, locationLon, source, fetchedAt)
+            )
+        """.trimIndent())
+        it.execute("CREATE INDEX IF NOT EXISTS idx_forecasts_batch ON forecasts(targetDate, source, locationLat, locationLon, batchFetchedAt)")
+        it.execute("PRAGMA user_version = 31")
+    }
+
     private fun insert(source: String, targetDate: Long, low: Float?, batch: Long, hindcastLow: Float? = null) = sql {
         it.execute(
             "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, " +
@@ -50,7 +80,7 @@ class DesktopGoogleLowShiftTest {
     private fun lows(source: String, batch: Long): List<Float?> {
         val out = mutableListOf<Float?>()
         sql { st ->
-            st.executeQuery("SELECT lowTemp FROM forecasts WHERE source = '$source' AND batchFetchedAt = $batch ORDER BY targetDate").use { rs ->
+            st.executeQuery("SELECT lowTemp FROM forecasts WHERE source = '$source' AND lastConfirmedAt = $batch ORDER BY targetDate").use { rs ->
                 while (rs.next()) out += rs.getFloat(1).takeUnless { rs.wasNull() }
             }
         }
@@ -66,13 +96,12 @@ class DesktopGoogleLowShiftTest {
         LocalDate.now(ZoneId.systemDefault()).atTime(h, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
     private fun upgradeFrom31() {
-        sql { it.execute("PRAGMA user_version = 31") }
         DesktopWeatherDatabase(dbPath).initialize()
     }
 
     @Test
     fun `upgrading shifts each batch's Google lows one day later, batches and sources independent, once`() {
-        DesktopWeatherDatabase(dbPath).initialize()
+        createV31Table()
         val b1 = 1_000L
         val b2 = 2_000L
         listOf(49f, 50f, 48f).forEachIndexed { i, low -> insert(google, d10 + i * day, low, b1, hindcastLow = if (i == 0) 49.5f else null) }
@@ -85,7 +114,7 @@ class DesktopGoogleLowShiftTest {
         assertEquals("a batch's first day has no D−1 in it", listOf(null, 51f), lows(google, b2))
         assertEquals("other sources untouched", listOf(55f, 54f), lows(WeatherSource.OPEN_METEO.id, b1))
         sql { st ->
-            st.executeQuery("SELECT hindcastLowTemp FROM forecasts WHERE source = '$google' AND batchFetchedAt = $b1 AND targetDate = ${d10 + day}").use { rs ->
+            st.executeQuery("SELECT hindcastLowTemp FROM forecasts WHERE source = '$google' AND lastConfirmedAt = $b1 AND targetDate = ${d10 + day}").use { rs ->
                 rs.next(); assertEquals(49.5f, rs.getFloat(1))
             }
         }

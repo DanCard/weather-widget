@@ -596,6 +596,6 @@ class CurrentTempTouchRoutingRoboTest {
         source = WeatherSource.NWS.id,
         precipProbability = 20,
         fetchedAt = fetchedAt,
-        batchFetchedAt = fetchedAt,
+        lastConfirmedAt = fetchedAt,
     )
 }

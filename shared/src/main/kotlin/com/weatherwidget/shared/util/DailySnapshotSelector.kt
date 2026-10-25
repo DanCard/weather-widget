@@ -20,10 +20,8 @@ object DailySnapshotSelector {
 
     /**
      * @param lastConfirmedAtMillis When a fetch last returned this row's values — NOT when the row was
-     *   first written. Android deduplicates unchanged re-fetches (no new row; only `batchFetchedAt` is
-     *   re-stamped), so there it is `batchFetchedAt`; `fetchedAt` would age an unchanging forecast into
-     *   "stale" while it is being re-confirmed. Desktop writes a row per fetch, so its `fetchedAt` is
-     *   already the last confirmation.
+     *   first written. Deduplication of unchanged re-fetches re-stamps `lastConfirmedAt`; `fetchedAt`
+     *   would age an unchanging forecast into "stale" while it is being re-confirmed.
      */
     fun isStale(lastConfirmedAtMillis: Long, nowMillis: Long): Boolean =
         nowMillis - lastConfirmedAtMillis > STALE_AFTER_HOURS * 3_600_000L

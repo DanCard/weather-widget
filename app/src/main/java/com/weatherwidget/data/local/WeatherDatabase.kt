@@ -13,7 +13,7 @@ import com.weatherwidget.shared.observations.MetarPlausibility
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class, SourceViewDayEntity::class, SourceViewTrackingEntity::class, SourceLastViewEntity::class],
-    version = 81,
+    version = 82,
     exportSchema = true,
 )
 @TypeConverters(CloudVerticalKindConverters::class, StationTypeConverters::class)
@@ -888,6 +888,21 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Rename `forecasts.batchFetchedAt` to `lastConfirmedAt`. Same column rename as desktop v35.
+         * plans/261025-rename-batchfetchedat-to-lastconfirmedat.md
+         */
+        val MIGRATION_81_82 = object : Migration(81, 82) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt`")
+                db.execSQL("ALTER TABLE `forecasts` RENAME COLUMN `batchFetchedAt` TO `lastConfirmedAt`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_lastConfirmedAt` " +
+                        "ON `forecasts` (`targetDate`, `source`, `locationLat`, `locationLon`, `lastConfirmedAt`)",
+                )
+            }
+        }
+
         /** First write wins, so running it on every open only ever fills a missing row. */
         private fun insertSourceViewTrackingStart(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -972,7 +987,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76, MIGRATION_76_77, MIGRATION_77_78, MIGRATION_78_79, MIGRATION_79_80, MIGRATION_80_81)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76, MIGRATION_76_77, MIGRATION_77_78, MIGRATION_78_79, MIGRATION_79_80, MIGRATION_80_81, MIGRATION_81_82)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

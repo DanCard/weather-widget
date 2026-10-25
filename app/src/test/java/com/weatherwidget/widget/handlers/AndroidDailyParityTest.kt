@@ -40,7 +40,7 @@ class AndroidDailyParityTest {
         precipProbability = r.precip,
         daytimePrecipProbability = r.dayPrecip,
         nighttimePrecipProbability = r.nightPrecip,
-        batchFetchedAt = r.fetchedAt,
+        lastConfirmedAt = r.fetchedAt,
         fetchedAt = r.fetchedAt,
         noonCloudPercent = r.noonCloud,
     )
