@@ -26,6 +26,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.shared.util.ForecastPersistRun
 import com.weatherwidget.data.remote.ApiAccessException
+import com.weatherwidget.data.remote.BuiltInApiKeys
 import com.weatherwidget.data.remote.FetchErrorCode
 import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.data.remote.GoogleQuota
@@ -589,7 +590,14 @@ internal class ForecastFetchCoordinator(
             }
             else -> appLogDao.log(
                 tag,
-                "source=${source.id} error=${exception.message}",
+                "source=${source.id} error=${exception.message}" +
+                    // Which half of the key resolution came back empty: `bakedLen=0` is a build made
+                    // without local.properties (2026-10-25: a worktree's APK on the emulator).
+                    if (exception.message?.contains("API_KEY is missing") == true) {
+                        " keys=${BuiltInApiKeys.describe(source, widgetStateManager)}"
+                    } else {
+                        ""
+                    },
                 "WARN",
             )
         }

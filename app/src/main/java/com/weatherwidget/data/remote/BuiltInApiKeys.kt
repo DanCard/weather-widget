@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import android.util.Log
 import com.weatherwidget.BuildConfig
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WidgetStateManager
@@ -28,7 +29,35 @@ object BuiltInApiKeys {
 
     /** User-entered key wins; a missing or blank one falls back to [baked]. */
     fun effectiveKey(source: WeatherSource, widgetStateManager: WidgetStateManager): String? =
-        widgetStateManager.getApiKey(source)?.trim()?.takeIf { it.isNotBlank() } ?: baked(source)
+        (widgetStateManager.getApiKey(source)?.trim()?.takeIf { it.isNotBlank() } ?: baked(source)).also {
+            if (it == null && source.requiresApiKey) Log.w(TAG, "No key for ${source.id}: ${describe(source, widgetStateManager)}")
+        }
+
+    /**
+     * How [source]'s key resolved, for a "key is missing" failure: the stored user key's state, the
+     * baked key's length and the build. Lengths only — never any part of a key.
+     */
+    fun describe(source: WeatherSource, widgetStateManager: WidgetStateManager): String {
+        val user = widgetStateManager.getApiKey(source)
+        val userState = when {
+            user == null -> "absent"
+            user.isBlank() -> "blank"
+            else -> "set(len=${user.trim().length})"
+        }
+        val bakedLength = when (source) {
+            WeatherSource.OPEN_WEATHER_MAP -> BuildConfig.OPEN_WEATHER_MAP_API_KEY
+            WeatherSource.SILURIAN -> BuildConfig.SILURIAN_API_KEY
+            WeatherSource.TOMORROW_IO -> BuildConfig.TOMORROW_IO_API_KEY
+            WeatherSource.WEATHER_API -> BuildConfig.WEATHER_API_KEY
+            WeatherSource.VISUAL_CROSSING -> BuildConfig.VISUAL_CROSSING_API_KEY
+            WeatherSource.GOOGLE_WEATHER -> BuildConfig.GOOGLE_WEATHER_API_KEY
+            else -> null
+        }?.length
+        return "userKey=$userState bakedLen=${bakedLength ?: "n/a"} debug=${BuildConfig.DEBUG} " +
+            "versionCode=${BuildConfig.VERSION_CODE} package=${BuildConfig.APPLICATION_ID}"
+    }
+
+    private const val TAG = "BuiltInApiKeys"
 
     fun hasEffectiveKey(source: WeatherSource, widgetStateManager: WidgetStateManager): Boolean =
         effectiveKey(source, widgetStateManager) != null
