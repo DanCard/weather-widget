@@ -127,3 +127,26 @@ Platform:
 - Desktop web leg changes from `NwsStationBundles` (Synoptic + METAR text) to the history fetcher's
   METAR-text leg for this pass — the same leg Android's backfill uses. The current-reading path keeps
   `NwsStationBundles`.
+
+## Progress
+
+- 2026-10-25 — Phase 1 (`c401aa63`): `:shared` `NwsGapFillRun.daily` on both platforms;
+  `NwsGapFillHostContract` on Room and desktop SQLite. Desktop, 17:55: `OBS_WINDOW_REFRESH source=NWS
+  need=none rows=0 stations=0 … ms=23` (the old 7-day pull took 4–14 s per wake).
+- 2026-10-25 — Phase 2 (`d85ba408`): `NwsGapFillRun.recent` + `:shared` `ObservationBackfillRetryPolicy`;
+  desktop `ObservationWindowRetry` retries `UNREACHABLE` on the shared schedule.
+- 2026-10-25 — Device check of the phase 2 build (installed 19:42 on both phones, desktop relaunched
+  19:42):
+  - Daily pass, both phones (logcat; the shared `Log.d` need line is not persisted on Android):
+    `NwsGapFillRun: History check required=[10-23, 10-24, 10-25] … missing=[] incomplete=[]` — complete
+    days, no station calls. No `NWS_DAILY_BACKFILL_*` rows on the Pixel since 10-22, consistent with
+    days already complete.
+  - Recent pass, Pixel 19:43: `OBS_HOURLY_BACKFILL_START lookbackHours=72` → five `_STATION` lines →
+    `_DONE stations=5 failedStations=0 rows=658 affectedDates=[10-22..10-25]`; same tags and shape as
+    the old build (Samsung 19:15). Recomputed the same 4 days as before; one outlier
+    (`DAILY_RECOMPUTE_PERF date=2026-10-22 total=41360ms`, 13.8 s at 18:27) one minute after install with
+    a parallel sync painting widgets — contention, not added work.
+  - Desktop: launch `action=NONE`, so no wake pass yet; the `UNREACHABLE` retry is covered by
+    `ObservationWindowRetryTest` and has not occurred live.
+- Asymmetry left: desktop logs a skipped daily pass at INFO (`need=none`); Android's skip shows only
+  in logcat. Not changed.

@@ -362,16 +362,22 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   takes its observations through the shared `fullRefreshFetch` pull. Next twin: the week's NWS gap-fill
   (Android `NwsObservationBackfiller` vs desktop `refreshObservationWindow`).
 
-## Next (handoff, 2026-10-24)
-Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:
-1. ~~**Tier 3, the two DAOs**~~ — done 2026-10-24: every runner Host has a contract on both platforms
-   and `HostContractCoverageTest` keeps new ones from skipping it. Open items it found (each needs a
-   user decision): the "Status and handoff" section of
-   `plans/261024-host-contract-tests-room-and-desktop-sqlite.md`.
-2. **B rest**: forecast persistence is one runner (`ForecastPersistRun`, 2026-10-24). Left: observations
-   persistence (`saveHistoricalActuals` vs `persistObservations`, incl. Tomorrow.io's 5-min merge) and
-   the fetch registry / `refresh()` orchestration — same pattern, one at a time.
-Process that worked this session: find the twin → write a plan with the divergences and any user
+- 2026-10-25: NWS observation gap-fill (`plans/261025-shared-nws-gap-fill.md`). Phase 1: `:shared`
+  `NwsGapFillRun.daily` — need-gated 3-day pass on both (desktop's 7-day pull on every wake removed).
+  Phase 2: `NwsGapFillRun.recent` + shared `ObservationBackfillRetryPolicy`; desktop retries unreachable
+  on the shared schedule. Device check on both phones and desktop recorded in the plan. **B closed.**
+
+## Next (handoff, 2026-10-25)
+Every lettered item (A–K), B and the tag guardrail are done. Left:
+1. **Host-contract open items** — each needs a user decision; see "Status and handoff" in
+   `plans/261024-host-contract-tests-room-and-desktop-sqlite.md`: live-day blend hourly input
+   (Android `ObservationResolver` callers vs desktop `recomputeDailyExtremes` → `getHourlyWithHistory`),
+   `HourlyOnDemand.hoursToCover` counting a neighbour's rows, desktop
+   `NWS_STATION_ACTUALS_OUTCOME requested=1 pulled=0`.
+2. **Second audit round** — the guard tests see only equal names and logged tags. 30 hand-sync
+   comments ("matches / mirrors Android") remain in `desktop/src/main` (2026-10-25: `DailyForecastGraph`
+   8, `TemperatureGraph` 5, `SettingsWindow` 5, `DesktopWeatherRepository` 5); re-run the twin-file score.
+Process that worked: find the twin → write a plan with the divergences and any user
 decision → approval → shared code + a test that fails on the old code → full suite incl.
 `:app:compileDebugAndroidTestKotlin` → install both phones, restart desktop, check the log line on a
 device → append Progress here.
