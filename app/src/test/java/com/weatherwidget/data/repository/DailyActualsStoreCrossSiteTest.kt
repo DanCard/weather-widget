@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.StationType
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -123,7 +124,8 @@ class DailyActualsStoreCrossSiteTest : RobolectricTest() {
     private suspend fun rowAt(lat: Double, lon: Double): DailyHistoryEntity? =
         db.dailyHistoryDao()
             .getExtremesInRange(dateMillis(today), dateMillis(today), lat, lon)
-            .firstOrNull { it.locationLat == lat && it.locationLon == lon }
+            // Rows are filed under the rounded site (DailyHistoryKey).
+            .firstOrNull { it.locationLat == LocationMatch.quantize(lat) && it.locationLon == LocationMatch.quantize(lon) }
 
     /** Home: full day of observations, real overnight low. */
     private suspend fun seedHomeFullDay() {

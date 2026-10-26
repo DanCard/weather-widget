@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import kotlinx.coroutines.runBlocking
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
@@ -90,8 +91,7 @@ class DesktopDailyBlendHourlyInputTest {
             currentTimeMillis = { now },
         )
 
-        repository.recomputeDailyExtremes(now)
-
+        runBlocking { repository.recomputeDailyExtremes(now) }
         val row = dao.getExtremesInRange(yesterdayKey, yesterdayKey, lat, lon)
             .single { it.source == WeatherSource.OPEN_METEO.id }
         val high = row.computedHighTemp!!

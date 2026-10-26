@@ -2,7 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.shared.observations.NwsGapFillRun
 import com.weatherwidget.shared.util.ClimateNormalsRun
-import com.weatherwidget.shared.actuals.DailyBlendWrite
+import com.weatherwidget.shared.actuals.DailyBlendRecomputeRun
 import com.weatherwidget.shared.history.WeatherApiHistoryRun
 import com.weatherwidget.shared.history.HourlySnapshotRun
 import com.weatherwidget.shared.actuals.NwsStationActualsRun
@@ -774,7 +774,7 @@ class DesktopWeatherRepository(
         weatherService = weatherService,
         weatherDao = weatherDao,
         store = { persistObservations(it, now) },
-        recompute = { recomputeDailyExtremes(now) },
+        recompute = { days -> recomputeDailyExtremesForDays(days, now) },
     )
 
     /**
@@ -1077,56 +1077,21 @@ class DesktopWeatherRepository(
         ObservationWriteRun(DesktopObservationWriteHost(weatherDao, latitude, longitude))
             .write(ObservationWriteRun.Write(readings, tomorrowIoWindowHours), now)
 
-    /** Reads the stored observation window, (re)computes daily_history, and returns the row count. */
-    internal fun recomputeDailyExtremes(now: Long): Int {
-        val windowStart = now - (HISTORY_WINDOW_DAYS + 1) * 86_400_000L
-        val windowEnd = now + 86_400_000L
-        val observations = weatherDao.getObservationsInRange(windowStart, windowEnd, latitude, longitude)
-
-        val readings = observations.map { it.toReading() }
-        val extremes = ActualsAggregator.aggregateStored(
-            observations = readings,
-            windowStartMs = windowStart,
-            windowEndMs = windowEnd,
-            readHourlyAllSources = { start, end -> weatherDao.getHourlyForecastsAllSources(latitude, longitude, start, end) },
-            locationLat = latitude,
-            locationLon = longitude,
-            updatedAtMs = now,
-            personalStationWeight = personalStationWeight,
-        )
-
-        // Written per day by the shared rule (DailyBlendWrite, same as Android): this site's rows
-        // only, unchanged rows skipped, and a conditional write of the blend columns alone — it
-        // compared against the first row anywhere in the box and rewrote every row in full.
-        val zone = ZoneId.systemDefault()
-        val today = LocalDate.now(zone)
-        val existingByDate = weatherDao.getExtremesInRange(windowStart, windowEnd, latitude, longitude).groupBy { it.date }
-        var written = 0
-        extremes.groupBy { it.date }.forEach { (dateMs, newRows) ->
-            val date = LocalDate.ofEpochDay(dateMs / 86_400_000L)
-            val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
-            val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-            val plan = DailyBlendWrite.plan(
-                date = date,
-                today = today,
-                newRows = newRows,
-                existingInBox = existingByDate[dateMs].orEmpty(),
-                latitude = latitude,
-                longitude = longitude,
-                dayReadings = readings.filter { it.timestamp in dayStart until dayEnd },
-                zone = zone,
-            )
-            if (plan.inserts.isNotEmpty()) weatherDao.upsertDailyHistory(plan.inserts)
-            plan.updates.forEach { update ->
-                if (weatherDao.updateBlendIfUnchanged(update.merged, update.newUpdatedAt, update.expectedUpdatedAt) == 0) {
-                    DailyBlendWrite.raceLine(update, date).let { weatherDao.log(it.tag, it.message, it.level) }
-                }
-            }
-            plan.logs.forEach { weatherDao.log(it.tag, it.message, it.level) }
-            written += plan.inserts.size + plan.updates.size
-        }
-        return written
+    /**
+     * The stored daily blend for the last [DailyBlendRecomputeRun.MAX_DAYS_BACK] days through today:
+     * the `:shared` run, as Android — one whole day at a time, unchanged days skipped. Returns rows written.
+     */
+    internal suspend fun recomputeDailyExtremes(now: Long): Int {
+        val today = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
+        return DailyBlendRecomputeRun.range(blendRecomputeHost(), today.minusDays(DailyBlendRecomputeRun.MAX_DAYS_BACK), today, now)
     }
+
+    /** Forced recompute of [days] (a repair path: the gap fill just stored their observations). */
+    internal suspend fun recomputeDailyExtremesForDays(days: Set<LocalDate>, now: Long): Int =
+        days.sorted().sumOf { DailyBlendRecomputeRun.day(blendRecomputeHost(), it, now, force = true) }
+
+    internal fun blendRecomputeHost() =
+        DesktopDailyBlendRecomputeHost(weatherDao, latitude, longitude, personalStationWeight, weatherDao.blendSignatures)
 
     /**
      * Creates forecast-only `daily_history` rows ([DailyHistoryWriter.FORECAST_ONLY_ROW]) for past
@@ -1345,7 +1310,6 @@ class DesktopWeatherRepository(
 
     companion object {
         private const val TAG = "DesktopWeatherRepository"
-        private const val HISTORY_WINDOW_DAYS = 7L
         /** [refreshObservationWindow]: NWS never answered — worth a retry. */
         const val OBS_WINDOW_UNREACHABLE = -1
 

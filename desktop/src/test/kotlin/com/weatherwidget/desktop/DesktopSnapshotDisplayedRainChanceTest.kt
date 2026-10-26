@@ -384,7 +384,7 @@ class DesktopSnapshotDisplayedRainChanceTest {
             ),
         )
 
-        repository.recomputeDailyExtremes(System.currentTimeMillis())
+        runBlocking { repository.recomputeDailyExtremes(System.currentTimeMillis()) }
 
         val stored = dao.getExtremesInRange(todayStart, todayStart, lat, lon).first { it.source == source }
         assertEquals("Recompute should have changed the high temp", 70f, stored.computedHighTemp!!, 0.1f)

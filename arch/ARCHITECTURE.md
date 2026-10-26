@@ -32,6 +32,8 @@ Examples include:
   newest), the Tomorrow.io fetch line, and retired-product cleanup per api written.
 - `DailyHistoryRun` and `NwsStationActualsRun`: history maintenance and station-derived actuals.
 - `NwsGapFillRun`: the need-gated 3-day NWS station-history fill (which days, which stations, when to stop).
+- `DailyBlendRecomputeRun`: the stored daily blend recompute — one whole local day at a time, 9 days back,
+  unchanged days skipped by observation signature, existing rows read by their exact date key.
 - `WeatherApiHistoryRun` and `GoogleHistoryRun`: provider-specific history workflows.
 - `SourceFetchTable`: what each source's forecast fetch requests, and (`runFollowUps`) which of the
   history runners above ride that fetch, a failed one included.
@@ -56,6 +58,7 @@ Important persisted concepts are:
 - `hourly_forecast_history`: forecast snapshots for evolution, prior-day comparisons, and accuracy.
 - `observations`: station/provider observations with provenance and quality metadata.
 - `daily_history`: settled daily actuals, frozen forecast comparisons, and source/writer provenance.
+  Keyed on the rounded site (`DailyHistoryKey`, `LocationMatch.quantize`) on both platforms.
 - `app_logs` and API/network usage tables: diagnostics and quota visibility.
 
 Location is part of data identity. `LocationMatch` defines coordinate quantization and the site-match

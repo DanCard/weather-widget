@@ -169,8 +169,9 @@ class NwsStationActualsStoreTest {
 
     @Test
     fun `persist writes the station extreme onto every same-date NWS fragment`() = runTest {
-        // Legacy un-quantized fragment alongside the quantized one, same physical site.
-        db.dailyHistoryDao().insertAll(listOf(nwsRow(), nwsRow(rowLat = lat, rowLon = lon)))
+        // A neighbouring rounded fragment of the same physical site (within SAME_SITE_TOLERANCE_DEG).
+        // Raw-fix fragments no longer exist: writes round, and MIGRATION_82_83 merged the old ones.
+        db.dailyHistoryDao().insertAll(listOf(nwsRow(), nwsRow(rowLat = keyLat + 0.001)))
 
         store.persistNwsDailyActuals(lat, lon, mapOf(yesterdayEpoch to actuals()))
 

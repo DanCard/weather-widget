@@ -221,6 +221,10 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
                 quantizeObservationSites(conn)
             }
         }
+        // daily_history needs its rows merged, not just re-keyed, so it runs through the DAO's mapper.
+        DesktopWeatherDao(this).quantizeDailyHistoryKeys().takeIf { it > 0 }?.let {
+            Log.i("DesktopWeatherDatabase", "quantizeDailyHistoryKeys: rewrote rows=$it")
+        }
     }
 
     /**

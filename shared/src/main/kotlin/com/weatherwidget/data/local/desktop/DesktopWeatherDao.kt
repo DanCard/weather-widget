@@ -18,6 +18,7 @@ import com.weatherwidget.shared.graph.PriorDayCloudForecast
 import com.weatherwidget.data.model.CurrentStatus
 import com.weatherwidget.data.model.CloudVerticalKind
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.shared.actuals.DailyHistoryKey
 import com.weatherwidget.data.local.ObservationSiteMerge
 import com.weatherwidget.data.local.RetiredActualsProducts
 import com.weatherwidget.data.remote.NwsApi
@@ -38,6 +39,13 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 
 class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
+    /**
+     * [com.weatherwidget.shared.actuals.DailyBlendRecomputeRun]'s unchanged-day signatures for this
+     * database. Here, not on a repository: repositories are rebuilt on every config or source change,
+     * and the signatures describe this database's rows (keys carry the site), for as long as it is open.
+     */
+    val blendSignatures = com.weatherwidget.shared.actuals.InMemoryReducedSignatureStore()
+
 
     companion object {
         /** Marker in the NOT NULL `condition` column of prior-run cloud rows; never displayed. */
@@ -859,53 +867,87 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
 
+    /** Every row is filed under its rounded site ([DailyHistoryKey]), the same boundary Room applies. */
     fun upsertDailyHistory(extremes: List<DailyHistory>) {
         db.getConnection().use { conn ->
             conn.autoCommit = false
             try {
-                val sql = """
-                    INSERT OR REPLACE INTO daily_history
-                    (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp, apiStationId, apiStationDistanceKm, actualsSource, lastWriter, computedHighAt, computedLowAt, priorForecastHighTemp, priorForecastLowTemp)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """.trimIndent()
-                conn.prepareStatement(sql).use { stmt ->
-                    for (ex in extremes) {
-                        stmt.setLong(1, ex.date)
-                        stmt.setString(2, ex.source)
-                        stmt.setDouble(3, ex.locationLat)
-                        stmt.setDouble(4, ex.locationLon)
-                    stmt.setNullableFloat(5, ex.computedHighTemp)
-                    stmt.setNullableFloat(6, ex.computedLowTemp)
-                        stmt.setString(7, ex.condition)
-                        stmt.setLong(8, ex.updatedAt)
-                        stmt.setNullableFloat(9, ex.precipAmountMm)
-                        stmt.setNullableFloat(10, ex.precipDayMm)
-                        stmt.setNullableFloat(11, ex.precipNightMm)
-                        stmt.setNullableInt(12, ex.forecastDayPrecipChance)
-                        stmt.setNullableInt(13, ex.forecastNightPrecipChance)
-                        stmt.setNullableFloat(14, ex.forecastHighTemp)
-                        stmt.setNullableFloat(15, ex.forecastLowTemp)
-                        stmt.setNullableFloat(16, ex.forecastPrecipAmountMm)
-                        stmt.setNullableInt(17, ex.noonCloudPercent)
-                        stmt.setNullableFloat(18, ex.apiHighTemp)
-                        stmt.setNullableFloat(19, ex.apiLowTemp)
-                        stmt.setString(20, ex.apiStationId)
-                        stmt.setNullableFloat(21, ex.apiStationDistanceKm)
-                        stmt.setString(22, ex.actualsSource)
-                        stmt.setString(23, ex.lastWriter)
-                        stmt.setNullableLong(24, ex.computedHighAt)
-                        stmt.setNullableLong(25, ex.computedLowAt)
-                        stmt.setNullableFloat(26, ex.priorForecastHighTemp)
-                        stmt.setNullableFloat(27, ex.priorForecastLowTemp)
-                        stmt.addBatch()
-                    }
-                    stmt.executeBatch()
-                }
+                insertDailyHistory(conn, extremes.map(DailyHistoryKey::quantized))
                 conn.commit()
             } catch (e: Exception) {
                 conn.rollback()
                 throw e
             }
+        }
+    }
+
+    /**
+     * One-time move of every `daily_history` row onto its rounded key, colliding fragments merged
+     * ([DailyHistoryKey.mergeAll]). Idempotent: once every row is rounded and alone, it reads and
+     * returns 0. Returns the rows rewritten.
+     */
+    fun quantizeDailyHistoryKeys(): Int {
+        val rows = db.getConnection().use { conn ->
+            conn.createStatement().use { stmt ->
+                stmt.executeQuery("SELECT * FROM daily_history").use { rs ->
+                    buildList { while (rs.next()) add(readDailyHistoryRow(rs)) }
+                }
+            }
+        }
+        val merged = DailyHistoryKey.mergeAll(rows)
+        if (merged.size == rows.size && rows.all(DailyHistoryKey::isQuantized)) return 0
+        db.getConnection().use { conn ->
+            conn.autoCommit = false
+            try {
+                conn.createStatement().use { it.execute("DELETE FROM daily_history") }
+                insertDailyHistory(conn, merged)
+                conn.commit()
+            } catch (e: Exception) {
+                conn.rollback()
+                throw e
+            }
+        }
+        return merged.size
+    }
+
+    private fun insertDailyHistory(conn: java.sql.Connection, extremes: List<DailyHistory>) {
+        val sql = """
+            INSERT OR REPLACE INTO daily_history
+            (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp, apiStationId, apiStationDistanceKm, actualsSource, lastWriter, computedHighAt, computedLowAt, priorForecastHighTemp, priorForecastLowTemp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """.trimIndent()
+        conn.prepareStatement(sql).use { stmt ->
+            for (ex in extremes) {
+                stmt.setLong(1, ex.date)
+                stmt.setString(2, ex.source)
+                stmt.setDouble(3, ex.locationLat)
+                stmt.setDouble(4, ex.locationLon)
+                stmt.setNullableFloat(5, ex.computedHighTemp)
+                stmt.setNullableFloat(6, ex.computedLowTemp)
+                stmt.setString(7, ex.condition)
+                stmt.setLong(8, ex.updatedAt)
+                stmt.setNullableFloat(9, ex.precipAmountMm)
+                stmt.setNullableFloat(10, ex.precipDayMm)
+                stmt.setNullableFloat(11, ex.precipNightMm)
+                stmt.setNullableInt(12, ex.forecastDayPrecipChance)
+                stmt.setNullableInt(13, ex.forecastNightPrecipChance)
+                stmt.setNullableFloat(14, ex.forecastHighTemp)
+                stmt.setNullableFloat(15, ex.forecastLowTemp)
+                stmt.setNullableFloat(16, ex.forecastPrecipAmountMm)
+                stmt.setNullableInt(17, ex.noonCloudPercent)
+                stmt.setNullableFloat(18, ex.apiHighTemp)
+                stmt.setNullableFloat(19, ex.apiLowTemp)
+                stmt.setString(20, ex.apiStationId)
+                stmt.setNullableFloat(21, ex.apiStationDistanceKm)
+                stmt.setString(22, ex.actualsSource)
+                stmt.setString(23, ex.lastWriter)
+                stmt.setNullableLong(24, ex.computedHighAt)
+                stmt.setNullableLong(25, ex.computedLowAt)
+                stmt.setNullableFloat(26, ex.priorForecastHighTemp)
+                stmt.setNullableFloat(27, ex.priorForecastLowTemp)
+                stmt.addBatch()
+            }
+            stmt.executeBatch()
         }
     }
 
@@ -2083,6 +2125,33 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
         return result
     }
+
+    /**
+     * The day's observation content signature for [com.weatherwidget.shared.actuals.DailyBlendRecomputeRun]'s
+     * unchanged skip — the same SQL as Android's `ObservationDao.observationSignatureInRange` (see its
+     * note: every column the daily reduction reads is summed, so a revised row in place still counts).
+     */
+    fun observationSignatureInRange(startTs: Long, endTs: Long, locationLat: Double, locationLon: Double): String? =
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                """
+                SELECT COUNT(*) || '|' || COALESCE(MAX(timestamp), 0) || '|' ||
+                       COALESCE(SUM(CAST(ROUND(temperature * 100) AS INTEGER)), 0) || '|' ||
+                       COALESCE(SUM(CAST(ROUND(precipAmountMm * 100) AS INTEGER)), 0) || '|' ||
+                       COALESCE(SUM(cloudCover), 0) || '|' ||
+                       COALESCE(SUM(cloudCoverLow), 0) || '|' ||
+                       COALESCE(SUM(qcFailed), 0)
+                FROM observations
+                WHERE timestamp >= ? AND timestamp < ? AND ${LocationMatch.JDBC_WHERE}
+                """.trimIndent(),
+            ).use { stmt ->
+                stmt.setLong(1, startTs)
+                stmt.setLong(2, endTs)
+                stmt.setDouble(3, locationLat)
+                stmt.setDouble(4, locationLon)
+                stmt.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
+            }
+        }
 
     fun getObservationsInRange(startTs: Long, endTs: Long, locationLat: Double, locationLon: Double): List<DesktopObservationEntity> {
         val result = mutableListOf<DesktopObservationEntity>()

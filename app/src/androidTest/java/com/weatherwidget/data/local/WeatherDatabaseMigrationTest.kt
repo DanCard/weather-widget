@@ -946,4 +946,47 @@ class WeatherDatabaseMigrationTest {
             assertEquals(10000L, c.getLong(1))
         }
     }
+
+    /** Two fragments of one day merge onto the rounded key: the newest blend, the older frozen forecast and api actual. */
+    @Test
+    fun migrate82To83_roundsDailyHistoryKeysAndMergesFragments() {
+        helper.createDatabase(testDb, 82).apply {
+            execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, " +
+                    "condition, updatedAt, forecastHighTemp, apiHighTemp, apiLowTemp, apiStationId, actualsSource) VALUES " +
+                    "(1792800000000, 'NWS', 37.41683197021484, -122.08903503417969, 80.0, 50.0, 'Clear', 100, 86.0, " +
+                    "84.0, 55.4, 'KNUQ', 'nws_station_pull')",
+            )
+            execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, " +
+                    "condition, updatedAt, lastWriter) VALUES " +
+                    "(1792800000000, 'NWS', 37.417, -122.089, 81.0, 51.0, 'Sunny', 200, 'blend_recompute')",
+            )
+            execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, " +
+                    "condition, updatedAt) VALUES (1792800000000, 'OPEN_METEO', 37.4166014, -122.0888722, 70.0, 49.0, 'Clear', 5)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 83, true, WeatherDatabase.MIGRATION_82_83)
+
+        db.query(
+            "SELECT source, locationLat, locationLon, computedHighTemp, forecastHighTemp, apiStationId, lastWriter " +
+                "FROM daily_history ORDER BY source",
+        ).use { c ->
+            assertEquals(2, c.count)
+            assertTrue(c.moveToFirst())
+            assertEquals("NWS", c.getString(0))
+            assertEquals(37.417, c.getDouble(1), 0.0)
+            assertEquals(-122.089, c.getDouble(2), 0.0)
+            assertEquals("the newest blend is the base", 81.0, c.getDouble(3), 0.001)
+            assertEquals("the older fragment's frozen forecast fills the gap", 86.0, c.getDouble(4), 0.001)
+            assertEquals("KNUQ", c.getString(5))
+            assertEquals("blend_recompute", c.getString(6))
+            assertTrue(c.moveToNext())
+            assertEquals("OPEN_METEO", c.getString(0))
+            assertEquals(37.417, c.getDouble(1), 0.0)
+        }
+    }
 }

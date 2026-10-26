@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.shared.actuals.InMemoryReducedSignatureStore
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider

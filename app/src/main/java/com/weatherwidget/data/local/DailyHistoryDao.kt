@@ -9,8 +9,20 @@ import androidx.sqlite.db.SupportSQLiteQuery
 
 @Dao
 interface DailyHistoryDao {
+    /** Writes rows at the keys given; every caller goes through [insertAll]. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(extremes: List<DailyHistoryEntity>)
+    suspend fun insertAllAtKeys(extremes: List<DailyHistoryEntity>)
+
+    /**
+     * Every row filed under its rounded site (`:shared` DailyHistoryKey), the boundary desktop's
+     * `upsertDailyHistory` applies too, so no writer can mint a raw-fix key.
+     */
+    suspend fun insertAll(extremes: List<DailyHistoryEntity>) =
+        insertAllAtKeys(
+            extremes.map {
+                it.copy(locationLat = LocationMatch.quantize(it.locationLat), locationLon = LocationMatch.quantize(it.locationLon))
+            },
+        )
 
     /**
      * Optimistic, field-limited write for the blend recompute. Sets ONLY the columns the blend

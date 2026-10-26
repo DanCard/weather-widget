@@ -26,6 +26,13 @@ same thing as an independent thermometer measurement. The stored recompute takes
 shared rule on both platforms (`ActualsAggregator.aggregateStored`): every source at the site over the
 same window as the observations, so each source's row extrapolates against its own forecast.
 
+The recompute itself is `DailyBlendRecomputeRun` on both platforms: one whole local day at a time
+(observations over the day ± 24 h), reaching 9 days back, skipping a day whose observation signature
+is unchanged since it was last reduced (forced on the repair paths), and reading the day's existing
+rows by their exact date key before `DailyBlendWrite` plans field-limited updates. Rows are filed
+under the rounded site (`DailyHistoryKey`); the 2026-10-25 migration merged older raw-fix fragments,
+newest first with gaps filled from the others.
+
 The current observation table can include NWS, METAR, Synoptic, and provider analysis/history data.
 Provenance matters: Synoptic web-fallback rows filed under NWS represent redistributed station
 observations, while a forecast-only provider's elapsed forecast hours must not become measured

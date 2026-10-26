@@ -13,7 +13,7 @@ import com.weatherwidget.shared.observations.MetarPlausibility
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class, SourceViewDayEntity::class, SourceViewTrackingEntity::class, SourceLastViewEntity::class],
-    version = 82,
+    version = 83,
     exportSchema = true,
 )
 @TypeConverters(CloudVerticalKindConverters::class, StationTypeConverters::class)
@@ -903,6 +903,66 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        // Data only: every daily_history row onto its rounded site (LocationMatch.quantize), colliding
+        // fragments of one (date, source, site) merged by the shared rule desktop's
+        // quantizeDailyHistoryKeys uses (DailyHistoryKey.mergeAll: newest fragment, gaps filled).
+        // Writers recorded the raw GPS fix of the moment — one site's days sat on 13 keys on the Pixel.
+        // plans/261025-shared-daily-blend-recompute.md, phase 0. No schema change.
+        val MIGRATION_82_83 = object : Migration(82, 83) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val rows = mutableListOf<com.weatherwidget.data.model.DailyHistory>()
+                db.query("SELECT * FROM `daily_history`").use { c ->
+                    fun float(name: String) = c.getColumnIndexOrThrow(name).let { if (c.isNull(it)) null else c.getFloat(it) }
+                    fun int(name: String) = c.getColumnIndexOrThrow(name).let { if (c.isNull(it)) null else c.getInt(it) }
+                    fun long(name: String) = c.getColumnIndexOrThrow(name).let { if (c.isNull(it)) null else c.getLong(it) }
+                    fun text(name: String) = c.getColumnIndexOrThrow(name).let { if (c.isNull(it)) null else c.getString(it) }
+                    while (c.moveToNext()) {
+                        rows += com.weatherwidget.data.model.DailyHistory(
+                            date = long("date")!!, source = text("source")!!,
+                            locationLat = c.getDouble(c.getColumnIndexOrThrow("locationLat")),
+                            locationLon = c.getDouble(c.getColumnIndexOrThrow("locationLon")),
+                            computedHighTemp = float("computedHighTemp"), computedLowTemp = float("computedLowTemp"),
+                            condition = text("condition")!!, updatedAt = long("updatedAt")!!,
+                            precipAmountMm = float("precipAmountMm"), precipDayMm = float("precipDayMm"),
+                            precipNightMm = float("precipNightMm"),
+                            forecastDayPrecipChance = int("forecastDayPrecipChance"),
+                            forecastNightPrecipChance = int("forecastNightPrecipChance"),
+                            forecastHighTemp = float("forecastHighTemp"), forecastLowTemp = float("forecastLowTemp"),
+                            forecastPrecipAmountMm = float("forecastPrecipAmountMm"), noonCloudPercent = int("noonCloudPercent"),
+                            apiHighTemp = float("apiHighTemp"), apiLowTemp = float("apiLowTemp"),
+                            apiStationId = text("apiStationId"), apiStationDistanceKm = float("apiStationDistanceKm"),
+                            actualsSource = text("actualsSource"), lastWriter = text("lastWriter"),
+                            computedHighAt = long("computedHighAt"), computedLowAt = long("computedLowAt"),
+                            priorForecastHighTemp = float("priorForecastHighTemp"),
+                            priorForecastLowTemp = float("priorForecastLowTemp"),
+                        )
+                    }
+                }
+                val merged = com.weatherwidget.shared.actuals.DailyHistoryKey.mergeAll(rows)
+                if (merged.size == rows.size && rows.all(com.weatherwidget.shared.actuals.DailyHistoryKey::isQuantized)) return
+                db.execSQL("DELETE FROM `daily_history`")
+                merged.forEach { r ->
+                    db.execSQL(
+                        "INSERT INTO `daily_history` (date, source, locationLat, locationLon, computedHighTemp, " +
+                            "computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, " +
+                            "forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, " +
+                            "forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp, apiStationId, " +
+                            "apiStationDistanceKm, actualsSource, lastWriter, computedHighAt, computedLowAt, " +
+                            "priorForecastHighTemp, priorForecastLowTemp) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        arrayOf<Any?>(
+                            r.date, r.source, r.locationLat, r.locationLon, r.computedHighTemp, r.computedLowTemp,
+                            r.condition, r.updatedAt, r.precipAmountMm, r.precipDayMm, r.precipNightMm,
+                            r.forecastDayPrecipChance, r.forecastNightPrecipChance, r.forecastHighTemp, r.forecastLowTemp,
+                            r.forecastPrecipAmountMm, r.noonCloudPercent, r.apiHighTemp, r.apiLowTemp, r.apiStationId,
+                            r.apiStationDistanceKm, r.actualsSource, r.lastWriter, r.computedHighAt, r.computedLowAt,
+                            r.priorForecastHighTemp, r.priorForecastLowTemp,
+                        ),
+                    )
+                }
+            }
+        }
+
         /** First write wins, so running it on every open only ever fills a missing row. */
         private fun insertSourceViewTrackingStart(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -987,7 +1047,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76, MIGRATION_76_77, MIGRATION_77_78, MIGRATION_78_79, MIGRATION_79_80, MIGRATION_80_81, MIGRATION_81_82)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76, MIGRATION_76_77, MIGRATION_77_78, MIGRATION_78_79, MIGRATION_79_80, MIGRATION_80_81, MIGRATION_81_82, MIGRATION_82_83)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

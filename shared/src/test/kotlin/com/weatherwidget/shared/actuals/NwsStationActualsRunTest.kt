@@ -68,6 +68,16 @@ class NwsStationActualsRunTest {
         assertEquals(emptyList<String>(), host.logs)
     }
 
+    /** Desktop and Pixel logged `requested=1 pulled=0` on every run: today's row, then dropped by the planner. */
+    @Test
+    fun todayAloneMissingAsksNothing() = runBlocking {
+        val todayKey = LocalDate.of(2026, 10, 23).toEpochDay() * 86_400_000L
+        val host = FakeHost(rows = listOf(row().copy(date = todayKey)))
+        NwsStationActualsRun.run(host, nowMs = now, zone = zone)
+        assertEquals(0, host.stationCalls)
+        assertEquals(emptyList<String>(), host.logs)
+    }
+
     @Test
     fun noStationsIsNeverSilent() = runBlocking {
         val host = FakeHost(rows = listOf(row()), stationList = emptyList())

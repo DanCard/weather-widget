@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import kotlinx.coroutines.runBlocking
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
@@ -102,8 +103,7 @@ class DesktopApiActualsMergeTest {
         val now = System.currentTimeMillis()
         dao.upsertObservations(coveredStation("KNUQ", 3.83f, 60.8f, 75.2f).map { it.toEntity(now) })
 
-        repository.recomputeDailyExtremes(now)
-
+        runBlocking { repository.recomputeDailyExtremes(now) }
         val stored = storedNwsRow()
         assertNull("the stored pool must not become an actual", stored.apiHighTemp)
         assertNull(stored.apiStationId)
@@ -117,7 +117,7 @@ class DesktopApiActualsMergeTest {
     fun `a past day resolved from the pull keeps its blend across a recompute`() {
         val now = System.currentTimeMillis()
         dao.upsertObservations(coveredStation("KNUQ", 3.83f, 60.8f, 75.2f).map { it.toEntity(now) })
-        repository.recomputeDailyExtremes(now)
+        runBlocking { repository.recomputeDailyExtremes(now) }
         dao.upsertDailyHistory(
             listOf(
                 storedNwsRow().copy(
@@ -134,9 +134,8 @@ class DesktopApiActualsMergeTest {
         )
 
         // TWICE — see the Android sibling: one pass passes even when the merge drops actualsSource.
-        repository.recomputeDailyExtremes(now + 1000)
-        repository.recomputeDailyExtremes(now + 2000)
-
+        runBlocking { repository.recomputeDailyExtremes(now + 1000) }
+        runBlocking { repository.recomputeDailyExtremes(now + 2000) }
         val row = storedNwsRow()
         assertEquals("frozen once resolved from the endpoint", 74.6f, row.computedHighTemp)
         assertEquals(
@@ -150,7 +149,7 @@ class DesktopApiActualsMergeTest {
     fun `a cache-resolved day does not freeze its blend`() {
         val now = System.currentTimeMillis()
         dao.upsertObservations(coveredStation("KNUQ", 3.83f, 60.8f, 75.2f).map { it.toEntity(now) })
-        repository.recomputeDailyExtremes(now)
+        runBlocking { repository.recomputeDailyExtremes(now) }
         dao.upsertDailyHistory(
             listOf(
                 storedNwsRow().copy(
@@ -163,8 +162,10 @@ class DesktopApiActualsMergeTest {
             ),
         )
 
-        repository.recomputeDailyExtremes(now + 1000)
-
+        // The observations are unchanged, so the unchanged-day skip would leave the row alone; this
+        // pins the guard (StoredBlendGuard), not the skip, so the next recompute must run.
+        dao.blendSignatures.clear()
+        runBlocking { repository.recomputeDailyExtremes(now + 1000) }
         assertNotEquals(
             "a cache-derived blend must stay recomputable",
             99.9f,
@@ -176,7 +177,7 @@ class DesktopApiActualsMergeTest {
     fun `an api actual survives a later blend recompute`() {
         val now = System.currentTimeMillis()
         dao.upsertObservations(coveredStation("KNUQ", 3.83f, 60.8f, 75.2f).map { it.toEntity(now) })
-        repository.recomputeDailyExtremes(now)
+        runBlocking { repository.recomputeDailyExtremes(now) }
         val seeded = storedNwsRow().copy(
             apiHighTemp = 75.2f,
             apiLowTemp = 60.8f,
@@ -185,8 +186,7 @@ class DesktopApiActualsMergeTest {
         )
         dao.upsertDailyHistory(listOf(seeded))
 
-        repository.recomputeDailyExtremes(now + 1000)
-
+        runBlocking { repository.recomputeDailyExtremes(now + 1000) }
         val stored = storedNwsRow()
         assertEquals("the pull owns this field", 75.2f, stored.apiHighTemp)
         assertEquals("KNUQ", stored.apiStationId)

@@ -233,7 +233,7 @@ object AppModule {
     @Singleton
     fun provideReducedSignatureStore(
         store: com.weatherwidget.data.repository.PersistedReducedSignatureStore,
-    ): com.weatherwidget.data.repository.ReducedSignatureStore = store
+    ): com.weatherwidget.shared.actuals.ReducedSignatureStore = store
 
     @Provides
     @Singleton

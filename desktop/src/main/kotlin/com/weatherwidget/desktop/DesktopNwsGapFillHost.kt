@@ -15,7 +15,7 @@ internal class DesktopNwsGapFillHost(
     private val weatherService: WeatherApiClient,
     private val weatherDao: DesktopWeatherDao,
     private val store: suspend (List<ObservationReading>) -> Unit,
-    private val recompute: () -> Unit,
+    private val recompute: suspend (Set<LocalDate>) -> Unit,
 ) : NwsGapFillRun.Host {
     override suspend fun stations(latitude: Double, longitude: Double) = weatherService.nwsObservationStations()
 
@@ -39,8 +39,8 @@ internal class DesktopNwsGapFillHost(
         weatherDao.getObservationsInRange(startMs, endMs, latitude, longitude)
             .map { NwsGapFillRun.ObsStamp(it.timestamp, it.api, it.stationId) }
 
-    /** Desktop recomputes its whole observation window (no unchanged-input skip to bypass), so [days] is covered. */
-    override suspend fun recomputeExtremes(latitude: Double, longitude: Double, days: Set<LocalDate>) = recompute()
+    /** Forced, as Android: the days' observations just changed, so the unchanged-input skip must not apply. */
+    override suspend fun recomputeExtremes(latitude: Double, longitude: Double, days: Set<LocalDate>) = recompute(days)
 
     override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
 }

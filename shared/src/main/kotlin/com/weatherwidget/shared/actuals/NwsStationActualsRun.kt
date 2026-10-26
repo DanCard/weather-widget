@@ -81,8 +81,11 @@ object NwsStationActualsRun {
         // The range and the planner judge "today" from the same clock.
         val today = java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
         val startMs = today.minusDays(NwsDailyExtremesFetch.MAX_LOOKBACK_DAYS).toEpochDay() * DAY_MS
-        val endMs = today.toEpochDay() * DAY_MS
-        val missing = missingDates(host.dailyHistory(startMs, endMs))
+        val todayMs = today.toEpochDay() * DAY_MS
+        // Past days only, the planner's rule (NwsDailyExtremesFetch.resolveForDates): today's row has no
+        // station actual until the day ends, and counting it made every run look up stations (an
+        // uncached NWS /points request) only for the planner to drop it — `requested=1 pulled=0`.
+        val missing = missingDates(host.dailyHistory(startMs, todayMs - DAY_MS)).filter { it < todayMs }
         if (missing.isEmpty()) return
 
         // Personal stations included: the blend interpolates across all of them, discounted by the
