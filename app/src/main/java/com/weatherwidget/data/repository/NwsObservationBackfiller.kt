@@ -66,7 +66,7 @@ class NwsObservationBackfiller @Inject constructor(
 
         override suspend fun observations(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
             observationDao.getObservationsInRange(startMs, endMs, latitude, longitude, setOf(WeatherSource.NWS.id))
-                .map { NwsGapFillRun.ObsStamp(it.timestamp, it.api, it.stationId) }
+                .map { NwsGapFillRun.ObsStamp(it.timestamp, it.api, it.stationId, it.stationType) }
 
         override suspend fun recomputeExtremes(latitude: Double, longitude: Double, days: Set<LocalDate>) {
             days.forEach { day ->

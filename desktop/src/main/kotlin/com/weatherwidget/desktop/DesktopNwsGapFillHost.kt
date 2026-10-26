@@ -37,7 +37,7 @@ internal class DesktopNwsGapFillHost(
 
     override suspend fun observations(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
         weatherDao.getObservationsInRange(startMs, endMs, latitude, longitude)
-            .map { NwsGapFillRun.ObsStamp(it.timestamp, it.api, it.stationId) }
+            .map { NwsGapFillRun.ObsStamp(it.timestamp, it.api, it.stationId, it.stationType) }
 
     /** Forced, as Android: the days' observations just changed, so the unchanged-input skip must not apply. */
     override suspend fun recomputeExtremes(latitude: Double, longitude: Double, days: Set<LocalDate>) = recompute(days)

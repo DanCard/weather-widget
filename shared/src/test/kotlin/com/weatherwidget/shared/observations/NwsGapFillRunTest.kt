@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.observations
 
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
@@ -35,10 +36,14 @@ class NwsGapFillRunTest {
 
     private fun station(id: String) = NwsApi.StationInfo(id = id, name = id, lat = lat, lon = lon)
 
-    private fun reading(stationId: String, ts: Long) = ObservationReading(
+    private fun reading(stationId: String, ts: Long, type: StationType = StationType.OFFICIAL) = ObservationReading(
         stationId = stationId, stationName = stationId, timestamp = ts, temperature = 60f,
-        condition = "Clear", locationLat = lat, locationLon = lon, api = "NWS",
+        condition = "Clear", locationLat = lat, locationLon = lon, api = "NWS", stationType = type,
     )
+
+    /** Official readings every two hours over [hours] of [day]. */
+    private fun everyTwoHours(stationId: String, day: LocalDate, hours: IntProgression = 0..22) =
+        hours.step(2).map { reading(stationId, at(day, it)) }
 
     private inner class FakeHost(
         var stationsOutcome: FetchOutcome<List<NwsApi.StationInfo>> =
@@ -52,10 +57,10 @@ class NwsGapFillRunTest {
         val logs = mutableListOf<String>()
         var stationLookups = 0
 
-        /** A complete stored day: an NWS daily row plus an afternoon station reading. */
+        /** A complete stored day: an NWS daily row plus official readings every two hours. */
         fun complete(day: LocalDate) {
             dayRows += NwsGapFillRun.DayRow(key(day), WeatherSource.NWS.id)
-            obs += NwsGapFillRun.ObsStamp(at(day, 15), "NWS", "KNUQ")
+            (0..22 step 2).forEach { obs += NwsGapFillRun.ObsStamp(at(day, it), "NWS", "KNUQ", StationType.OFFICIAL) }
         }
 
         override suspend fun stations(latitude: Double, longitude: Double) = stationsOutcome.also { stationLookups++ }
@@ -70,7 +75,7 @@ class NwsGapFillRunTest {
         }
 
         override suspend fun store(rows: List<ObservationReading>, latitude: Double, longitude: Double) {
-            obs += rows.map { NwsGapFillRun.ObsStamp(it.timestamp, it.api, it.stationId) }
+            obs += rows.map { NwsGapFillRun.ObsStamp(it.timestamp, it.api, it.stationId, it.stationType) }
         }
 
         override suspend fun dailyHistoryRows(startDayMs: Long, endDayMs: Long, latitude: Double, longitude: Double) =
@@ -150,17 +155,63 @@ class NwsGapFillRunTest {
     }
 
     @Test
+    fun `today with a row but an overnight official hole is needed - personal stations do not close it`() = runBlocking<Unit> {
+        // Desktop, 2026-10-26: asleep 00:36-08:22; KNUQ at 00:15 then 06:55, AW020 all night.
+        val host = FakeHost(windows = { id -> NwsGapFillRun.StationRows(everyTwoHours(id, today, 0..8), false) }).apply {
+            complete(today.minusDays(2)); complete(today.minusDays(1))
+            dayRows += NwsGapFillRun.DayRow(key(today), "NWS")
+            obs += NwsGapFillRun.ObsStamp(at(today, 0, 15), "NWS", "KNUQ", StationType.OFFICIAL)
+            obs += NwsGapFillRun.ObsStamp(at(today, 6, 55), "NWS", "KNUQ", StationType.OFFICIAL)
+            obs += NwsGapFillRun.ObsStamp(at(today, 8, 15), "NWS", "KNUQ", StationType.OFFICIAL)
+            (0..8).forEach { obs += NwsGapFillRun.ObsStamp(at(today, it, 10), "NWS", "AW020", StationType.PERSONAL) }
+        }
+
+        val result = run(host, nowMs = at(today, 8, 23))
+
+        assertEquals(setOf(today), result.needed)
+        assertEquals(listOf("KNUQ"), host.fetched)
+        assertEquals(emptySet<LocalDate>(), result.remaining)
+        assertEquals(listOf(setOf(today)), host.recomputed)
+    }
+
+    @Test
+    fun `a past day with afternoon rows but a long midday official hole is needed`() = runBlocking<Unit> {
+        val yesterday = today.minusDays(1)
+        val host = FakeHost().apply {
+            complete(today.minusDays(2)); complete(today)
+            dayRows += NwsGapFillRun.DayRow(key(yesterday), "NWS")
+            listOf(0, 2, 4, 6, 14, 16, 18, 20, 22).forEach {
+                obs += NwsGapFillRun.ObsStamp(at(yesterday, it), "NWS", "KNUQ", StationType.OFFICIAL)
+            }
+        }
+
+        assertEquals(setOf(yesterday), run(host).needed)
+    }
+
+    @Test
+    fun `official holes of up to 3 h are not a need, today's trailing edge included`() = runBlocking<Unit> {
+        val host = FakeHost().apply {
+            complete(today.minusDays(2)); complete(today.minusDays(1))
+            dayRows += NwsGapFillRun.DayRow(key(today), "NWS")
+            listOf(0, 3, 6).forEach { obs += NwsGapFillRun.ObsStamp(at(today, it), "NWS", "KNUQ", StationType.OFFICIAL) }
+        }
+
+        assertEquals(emptySet<LocalDate>(), run(host, nowMs = at(today, 9)).needed)
+        assertEquals(setOf(today), run(host, nowMs = at(today, 9, 1)).needed)
+    }
+
+    @Test
     fun `stops at the first station that completes the need`() = runBlocking<Unit> {
         val yesterday = today.minusDays(1)
         val host = FakeHost(windows = { id ->
-            NwsGapFillRun.StationRows(listOf(reading(id, at(yesterday, 6)), reading(id, at(yesterday, 15))), false)
+            NwsGapFillRun.StationRows(everyTwoHours(id, yesterday), false)
         }).apply { complete(today.minusDays(2)); complete(today) }
 
         val result = run(host)
 
         assertEquals(listOf("KNUQ"), host.fetched)
         assertEquals(emptySet<LocalDate>(), result.remaining)
-        assertEquals(2, result.rows)
+        assertEquals(12, result.rows)
         assertFalse(result.unreachable)
     }
 
@@ -168,8 +219,8 @@ class NwsGapFillRunTest {
     fun `a station that leaves the day incomplete passes to the next`() = runBlocking<Unit> {
         val yesterday = today.minusDays(1)
         val host = FakeHost(windows = { id ->
-            val hour = if (id == "KNUQ") 6 else 15
-            NwsGapFillRun.StationRows(listOf(reading(id, at(yesterday, hour))), false)
+            val hours = if (id == "KNUQ") 0..12 else 0..22
+            NwsGapFillRun.StationRows(everyTwoHours(id, yesterday, hours), false)
         }).apply { complete(today.minusDays(2)); complete(today) }
 
         val result = run(host)

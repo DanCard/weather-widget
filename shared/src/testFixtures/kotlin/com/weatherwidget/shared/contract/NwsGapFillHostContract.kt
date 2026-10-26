@@ -71,11 +71,14 @@ abstract class NwsGapFillHostContract {
     }
 
     @Test
-    fun `store - the stored rows read back with their api and station`() = runBlocking {
+    fun `store - the stored rows read back with their api, station and type`() = runBlocking {
         host.store(listOf(obs("KNUQ", H0, "NWS"), obs("KSJC", H0 + HOUR, "NWS")), LAT, LON)
 
         assertEquals(
-            setOf(NwsGapFillRun.ObsStamp(H0, "NWS", "KNUQ"), NwsGapFillRun.ObsStamp(H0 + HOUR, "NWS", "KSJC")),
+            setOf(
+                NwsGapFillRun.ObsStamp(H0, "NWS", "KNUQ", StationType.OFFICIAL),
+                NwsGapFillRun.ObsStamp(H0 + HOUR, "NWS", "KSJC", StationType.OFFICIAL),
+            ),
             host.observations(H0, H0 + 2 * HOUR, LAT, LON).toSet(),
         )
     }

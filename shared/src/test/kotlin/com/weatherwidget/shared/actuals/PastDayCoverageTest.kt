@@ -79,4 +79,43 @@ class PastDayCoverageTest {
 
         assertFalse(pastDayLacksAfternoonCoverage(obs, future, zone, today, daytimeHour = 14))
     }
+
+    // --- dayHasOfficialGap ---
+
+    private val hourlyDay = (0..23).map { ts("2026-05-31T%02d:00".format(it)) }
+
+    @Test
+    fun `hourly official readings leave no gap`() {
+        assertFalse(dayHasOfficialGap(hourlyDay, LocalDate.of(2026, 5, 31), zone, ts("2026-06-01T10:00")))
+    }
+
+    @Test
+    fun `a hole of more than 3 h mid-day is a gap`() {
+        val holed = hourlyDay.filterNot { it in ts("2026-05-31T09:00")..ts("2026-05-31T12:00") }
+
+        assertTrue(dayHasOfficialGap(holed, LocalDate.of(2026, 5, 31), zone, ts("2026-06-01T10:00")))
+    }
+
+    @Test
+    fun `the edges count - a late first reading or an early last one is a gap`() {
+        val date = LocalDate.of(2026, 5, 31)
+        val now = ts("2026-06-01T10:00")
+
+        assertTrue(dayHasOfficialGap(hourlyDay.filter { it >= ts("2026-05-31T03:30") }, date, zone, now))
+        assertTrue(dayHasOfficialGap(hourlyDay.filter { it <= ts("2026-05-31T20:30") }, date, zone, now))
+    }
+
+    @Test
+    fun `today is judged only up to now`() {
+        val obs = listOf(ts("2026-06-01T00:10"), ts("2026-06-01T02:00"), ts("2026-06-01T04:00"))
+
+        assertFalse(dayHasOfficialGap(obs, today, zone, ts("2026-06-01T07:00")))
+        assertTrue(dayHasOfficialGap(obs, today, zone, ts("2026-06-01T07:01")))
+    }
+
+    @Test
+    fun `no readings is one long hole once the span passes 3 h`() {
+        assertFalse(dayHasOfficialGap(emptyList(), today, zone, ts("2026-06-01T03:00")))
+        assertTrue(dayHasOfficialGap(emptyList(), today, zone, ts("2026-06-01T03:01")))
+    }
 }

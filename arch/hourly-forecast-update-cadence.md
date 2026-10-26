@@ -71,8 +71,10 @@ real gap.
 
 Recent NWS station history is filled by the shared `NwsGapFillRun` daily pass — Android's full sync,
 desktop's launch/wake catch-up after it publishes. It runs only when day−2, yesterday or (from 02:00)
-today has no NWS `daily_history` row, or a past day's NWS rows stop before 14:00
-(`pastDayLacksAfternoonCoverage`); then it asks up to five stations, nearest first, for the last
+today has no NWS `daily_history` row, a past day's NWS rows stop before 14:00
+(`pastDayLacksAfternoonCoverage`), or a day's official-station rows leave a hole of over 3 h, today
+counted up to now (`dayHasOfficialGap`, so a wake after a night asleep refills the night even though
+personal stations covered it through the Synoptic fallback); then it asks up to five stations, nearest first, for the last
 3 days and stops once every needed day is complete. A complete week makes no request. Logs:
 `NWS_DAILY_BACKFILL_*` on both platforms, plus desktop's `OBS_WINDOW_REFRESH need=…` summary.
 Android's render-detected observation gap runs the same runner's recent pass (every station, the last

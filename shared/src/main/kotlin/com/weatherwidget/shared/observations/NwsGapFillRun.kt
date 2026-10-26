@@ -1,9 +1,11 @@
 package com.weatherwidget.shared.observations
 
 import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.shared.actuals.dayHasOfficialGap
 import com.weatherwidget.shared.actuals.pastDayLacksAfternoonCoverage
 import com.weatherwidget.shared.util.Log
 import kotlinx.coroutines.CancellationException
@@ -71,7 +73,12 @@ object NwsGapFillRun {
 
     data class DayRow(val dateMs: Long, val source: String)
 
-    data class ObsStamp(val timestamp: Long, val api: String, val stationId: String)
+    data class ObsStamp(
+        val timestamp: Long,
+        val api: String,
+        val stationId: String,
+        val stationType: StationType = StationType.UNKNOWN,
+    )
 
     data class Result(
         /** Days the need check asked for; empty = nothing to do, and nothing was fetched. */
@@ -89,7 +96,8 @@ object NwsGapFillRun {
 
     /**
      * The daily pass: fills the last [BACKFILL_DAYS] when day−2, yesterday or (from 02:00) today has no
-     * NWS daily_history row, or a past one was reduced from an overnight-only slice. Stations are
+     * NWS daily_history row, a past one was reduced from an overnight-only slice, or a day's official
+     * stations went quiet for over 3 h (today up to now — a wake after a night asleep). Stations are
      * tried nearest first and the pass stops as soon as every needed day is complete.
      */
     suspend fun daily(host: Host, latitude: Double, longitude: Double, nowMs: Long, zone: ZoneId): Result {
@@ -103,7 +111,7 @@ object NwsGapFillRun {
             if (now.hour >= TODAY_FROM_HOUR) add(rangeEnd)
         }
         val existing = nwsDayKeys(host, rangeStart, rangeEnd, latitude, longitude)
-        val incomplete = incompletePastDays(host, existing, latitude, longitude, zone, today)
+        val incomplete = incompleteDays(host, existing, latitude, longitude, zone, today, nowMs)
         val missing = required - existing
         Log.d(
             TAG,
@@ -145,7 +153,7 @@ object NwsGapFillRun {
             val days = fetch.rows.map { Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate() }.toSet()
             host.recomputeExtremes(latitude, longitude, days)
             val rowDates = nwsDayKeys(host, rangeStart, rangeEnd, latitude, longitude)
-            val stillIncomplete = incompletePastDays(host, rowDates, latitude, longitude, zone, today)
+            val stillIncomplete = incompleteDays(host, rowDates, latitude, longitude, zone, today, nowMs)
             remaining.removeAll(rowDates - stillIncomplete)
             if (remaining.isEmpty()) break
         }
@@ -280,24 +288,31 @@ object NwsGapFillRun {
             .filter { it.source == WeatherSource.NWS.id }
             .mapTo(mutableSetOf()) { it.dateMs }
 
-    /** Past [dayKeys] whose own NWS station rows (the blend's synthetic row excluded) stop before the afternoon. */
-    private suspend fun incompletePastDays(
+    /**
+     * [dayKeys] whose own NWS station rows (the blend's synthetic row excluded) leave the day short: a
+     * past day that stops before the afternoon, or any day, today up to [nowMs], whose official
+     * stations leave a hole ([dayHasOfficialGap]). Personal stations reach the store through the
+     * Synoptic fallback's 12 h window even after a night asleep, so they cannot close that hole.
+     */
+    private suspend fun incompleteDays(
         host: Host,
         dayKeys: Set<Long>,
         latitude: Double,
         longitude: Double,
         zone: ZoneId,
         today: LocalDate,
+        nowMs: Long,
     ): Set<Long> =
         dayKeys.filterTo(mutableSetOf()) { key ->
             val date = LocalDate.ofEpochDay(key / MS_IN_A_DAY)
-            if (!date.isBefore(today)) return@filterTo false
+            if (date.isAfter(today)) return@filterTo false
             val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
             val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-            val timestamps = host.observations(dayStart, dayEnd, latitude, longitude)
+            val stamps = host.observations(dayStart, dayEnd, latitude, longitude)
                 .filter { it.api == WeatherSource.NWS.id && it.stationId != NwsBlend.STATION_ID }
-                .map { it.timestamp }
-            pastDayLacksAfternoonCoverage(timestamps, date, zone, today)
+            val official = stamps.filter { !it.stationType.isDiscounted }.map { it.timestamp }
+            pastDayLacksAfternoonCoverage(stamps.map { it.timestamp }, date, zone, today) ||
+                dayHasOfficialGap(official, date, zone, nowMs)
         }
 
     private fun LocalDate.dayKey(): Long = toEpochDay() * MS_IN_A_DAY

@@ -26,3 +26,32 @@ fun pastDayLacksAfternoonCoverage(
         Instant.ofEpochMilli(ms).atZone(zone).hour >= daytimeHour
     }
 }
+
+/** The longest silence official stations may leave in a day before its history is re-pulled. */
+const val MAX_OFFICIAL_GAP_MS = 3 * 3_600_000L
+
+/**
+ * True when official-station readings ([obsTimestampsMs]) leave a hole longer than [maxGapMs] in
+ * [date]'s span — midnight to the next midnight, or to [nowMs] for today — counting the edges, so a
+ * day with no readings at all is one long hole. The desktop slept 00:36–08:22 on 2026-10-26: its
+ * NWS row existed, personal stations covered the night through the Synoptic fallback, and the day's
+ * low came out 48.0° against the Pixel's back-filled 51.2°. Callers pass only official stations,
+ * since personal ones are not what the blend leans on.
+ */
+fun dayHasOfficialGap(
+    obsTimestampsMs: List<Long>,
+    date: LocalDate,
+    zone: ZoneId,
+    nowMs: Long,
+    maxGapMs: Long = MAX_OFFICIAL_GAP_MS,
+): Boolean {
+    val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
+    val end = minOf(date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli(), nowMs)
+    if (end - start <= maxGapMs) return false
+    var previous = start
+    for (ts in obsTimestampsMs.filter { it in start until end }.sorted()) {
+        if (ts - previous > maxGapMs) return true
+        previous = ts
+    }
+    return end - previous > maxGapMs
+}
