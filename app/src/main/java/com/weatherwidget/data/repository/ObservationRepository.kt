@@ -76,7 +76,7 @@ class ObservationRepository private constructor(
         latitude: Double,
         longitude: Double,
         lookbackHours: Long,
-    ): RecentBackfillResult =
+    ): com.weatherwidget.shared.observations.NwsGapFillRun.RecentResult =
         components.backfiller.backfillRecentNwsObservations(latitude, longitude, lookbackHours)
 
     internal suspend fun recomputeDailyExtremesFromStoredObservations(

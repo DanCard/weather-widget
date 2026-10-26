@@ -393,7 +393,7 @@ object WidgetWorkScheduler {
      * start only after the current run finishes, never alongside it, and a repaint request in the
      * meantime is still deduplicated by KEEP. The "no APPEND" rule below is about render bursts
      * stacking identical fetches; here one finishing run appends exactly one successor, at most
-     * [ObservationBackfillRetryPolicy.RETRY_DELAYS_MS].size times.
+     * [com.weatherwidget.shared.observations.ObservationBackfillRetryPolicy.RETRY_DELAYS_MS].size times.
      */
     internal fun enqueueObservationBackfillRetry(
         context: Context,

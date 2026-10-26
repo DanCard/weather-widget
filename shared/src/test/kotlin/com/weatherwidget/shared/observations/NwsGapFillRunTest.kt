@@ -79,7 +79,10 @@ class NwsGapFillRunTest {
         override suspend fun observations(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
             obs.filter { it.timestamp in startMs until endMs }
 
+        val recomputed = mutableListOf<Set<LocalDate>>()
+
         override suspend fun recomputeExtremes(latitude: Double, longitude: Double, days: Set<LocalDate>) {
+            recomputed += days
             days.forEach { day ->
                 if (dayRows.none { it.dateMs == key(day) && it.source == "NWS" }) dayRows += NwsGapFillRun.DayRow(key(day), "NWS")
             }
@@ -250,5 +253,75 @@ class NwsGapFillRunTest {
     @Test(expected = CancellationException::class)
     fun `cancellation propagates`() = runBlocking<Unit> {
         run(FakeHost(windows = { throw CancellationException("stop") }))
+    }
+
+    // --- recent(): the render-gap pass ---
+
+    private suspend fun recent(host: FakeHost, lookbackHours: Long = 72, nowMs: Long = at(today, 10)) =
+        NwsGapFillRun.recent(host, lat, lon, lookbackHours, nowMs, zone)
+
+    @Test
+    fun `recent tries every station - no early stop`() = runBlocking<Unit> {
+        val host = FakeHost(windows = { id -> NwsGapFillRun.StationRows(listOf(reading(id, at(today, 6))), false) })
+
+        val result = recent(host)
+
+        assertEquals(listOf("KNUQ", "KSJC", "KPAO"), host.fetched)
+        assertEquals(3, result.rowsFetched)
+        assertEquals(3, result.stationsTried)
+    }
+
+    @Test
+    fun `recent asks for lookbackHours, and skips the daily need check`() = runBlocking<Unit> {
+        val host = FakeHost().apply { (0L..2L).forEach { complete(today.minusDays(it)) } }
+        val now = at(today, 10)
+
+        recent(host, lookbackHours = 24, nowMs = now)
+
+        val (start, end) = host.requests.first()
+        assertEquals(Instant.ofEpochMilli(now).minusSeconds(24 * 3600L), Instant.parse(start))
+        assertEquals(Instant.ofEpochMilli(now), Instant.parse(end))
+        assertTrue(host.logs.any { it.startsWith("OBS_HOURLY_BACKFILL_START") && "lookbackHours=24" in it })
+    }
+
+    @Test
+    fun `recent recomputes the whole affected span once, gap days included`() = runBlocking<Unit> {
+        val host = FakeHost(windows = { id ->
+            NwsGapFillRun.StationRows(listOf(reading(id, at(today.minusDays(2), 9)), reading(id, at(today, 9))), false)
+        })
+
+        val result = recent(host)
+
+        assertEquals(listOf(setOf(today.minusDays(2), today.minusDays(1), today)), host.recomputed)
+        assertEquals(setOf(today.minusDays(2), today), result.affectedDates)
+        assertTrue(host.logs.any { it.startsWith("OBS_HOURLY_BACKFILL_DONE") && "rows=6" in it })
+    }
+
+    @Test
+    fun `recent with no rows recomputes nothing`() = runBlocking<Unit> {
+        val host = FakeHost()
+
+        recent(host)
+
+        assertEquals(emptyList<Set<LocalDate>>(), host.recomputed)
+    }
+
+    @Test
+    fun `recent - lookup failure is unreachable, an empty list is not`() = runBlocking<Unit> {
+        val failed = FakeHost(stationsOutcome = FetchOutcome.Failed("HttpRequestTimeoutException: timeout"))
+        assertTrue(recent(failed).unreachable)
+        assertTrue(failed.logs.any { it.startsWith("OBS_HOURLY_BACKFILL_FAIL") && "reason=stations_unreachable" in it })
+
+        assertFalse(recent(FakeHost(stationsOutcome = FetchOutcome.NoData)).unreachable)
+    }
+
+    @Test
+    fun `recent - every station failing is unreachable, one answering is not`() = runBlocking<Unit> {
+        assertTrue(recent(FakeHost(windows = { NwsGapFillRun.StationRows(emptyList(), false, apiFailure = "IOException") })).unreachable)
+
+        val oneAnswers = FakeHost(windows = { id ->
+            if (id == "KSJC") NwsGapFillRun.StationRows(emptyList(), false) else NwsGapFillRun.StationRows(emptyList(), false, apiFailure = "IOException")
+        })
+        assertFalse(recent(oneAnswers).unreachable)
     }
 }

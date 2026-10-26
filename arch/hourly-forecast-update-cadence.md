@@ -75,6 +75,11 @@ today has no NWS `daily_history` row, or a past day's NWS rows stop before 14:00
 (`pastDayLacksAfternoonCoverage`); then it asks up to five stations, nearest first, for the last
 3 days and stops once every needed day is complete. A complete week makes no request. Logs:
 `NWS_DAILY_BACKFILL_*` on both platforms, plus desktop's `OBS_WINDOW_REFRESH need=…` summary.
+Android's render-detected observation gap runs the same runner's recent pass (every station, the last
+72 h, `OBS_HOURLY_BACKFILL_*`). A fill that never reached NWS — station lookup failed or every station
+failed, not an answered-but-empty one — retries on the shared `ObservationBackfillRetryPolicy`
+(10 s → 1 m → 4 m): Android as delayed worker requests, desktop as coroutine delays after the wake,
+stopping if the location or source changes (`OBS_HOURLY_BACKFILL_RETRY` on both).
 
 Interpolating a current temperature from cached hourly rows is a UI operation, not a network fetch.
 Repaints can therefore be more frequent than observation requests without changing provider usage.

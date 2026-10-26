@@ -167,6 +167,80 @@ object NwsGapFillRun {
         )
     }
 
+    data class RecentResult(
+        val stationsTried: Int,
+        val rowsFetched: Int,
+        val affectedDates: Set<LocalDate>,
+        /**
+         * NWS never answered: the station lookup failed, or every station's fetch failed. Distinct from
+         * an answered-but-empty backfill, which is a real data limit and must not be retried quickly
+         * ([ObservationBackfillRetryPolicy]).
+         */
+        val unreachable: Boolean = false,
+    )
+
+    /**
+     * The recent-window pass: every station's last [lookbackHours] (no early stop — the gap being
+     * repaired is in the graph's hours, not a daily row), then the affected days' extremes recomputed.
+     * Android runs it for a render-detected observation gap.
+     */
+    suspend fun recent(
+        host: Host,
+        latitude: Double,
+        longitude: Double,
+        lookbackHours: Long,
+        nowMs: Long,
+        zone: ZoneId,
+    ): RecentResult {
+        val now = Instant.ofEpochMilli(nowMs)
+        val startIso = DateTimeFormatter.ISO_INSTANT.format(now.minusSeconds(lookbackHours * 3600L))
+        val endIso = DateTimeFormatter.ISO_INSTANT.format(now)
+        host.log(
+            "OBS_HOURLY_BACKFILL_START",
+            "lat=$latitude lon=$longitude lookbackHours=$lookbackHours start=$startIso end=$endIso",
+            "INFO",
+        )
+
+        val stationsOutcome = host.stations(latitude, longitude)
+        val stations = stationsOutcome.valueOrNull().orEmpty().take(MAX_STATIONS)
+        if (stations.isEmpty()) {
+            val unreachable = stationsOutcome is FetchOutcome.Failed
+            host.log(
+                "OBS_HOURLY_BACKFILL_FAIL",
+                "lat=$latitude lon=$longitude reason=${if (unreachable) "stations_unreachable" else "no_stations"}",
+                "WARN",
+            )
+            return RecentResult(0, 0, emptySet(), unreachable = unreachable)
+        }
+
+        var rows = 0
+        var failed = 0
+        val affected = mutableSetOf<LocalDate>()
+        for ((index, station) in stations.withIndex()) {
+            val fetch = fetchAndStore(
+                host, station, index, latitude, longitude, startIso, endIso,
+                fallbackLogTag = "OBS_HOURLY_WEB_FALLBACK",
+                stationLogTag = "OBS_HOURLY_BACKFILL_STATION",
+            )
+            if (fetch.failed) failed++
+            rows += fetch.rows.size
+            affected += fetch.rows.map { Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate() }
+        }
+
+        if (affected.isNotEmpty()) {
+            // The whole span, gaps included, as Android's range recompute did.
+            val days = generateSequence(affected.min()) { it.plusDays(1) }.takeWhile { !it.isAfter(affected.max()) }.toSet()
+            host.recomputeExtremes(latitude, longitude, days)
+        }
+        host.log(
+            "OBS_HOURLY_BACKFILL_DONE",
+            "lat=$latitude lon=$longitude stations=${stations.size} failedStations=$failed rows=$rows " +
+                "affectedDates=${affected.sorted()}",
+            "INFO",
+        )
+        return RecentResult(stations.size, rows, affected, unreachable = failed == stations.size)
+    }
+
     private class StationFetch(val rows: List<ObservationReading>, val failed: Boolean)
 
     private suspend fun fetchAndStore(

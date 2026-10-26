@@ -738,9 +738,10 @@ class DesktopWeatherRepository(
      * the shared [NwsGapFillRun] (as Android's full sync) — when day−2, yesterday or today lacks NWS
      * history, the last 3 days per station, nearest first, stored as a refresh stores them and the
      * extremes recomputed; nothing at all when every day is complete. It pulled 7 days on every wake
-     * (plans/261025-shared-nws-gap-fill.md). Best-effort: NWS unreachable or a failure logs and returns
-     * -1, because the forecast and current reading were already published. Returns the readings stored
-     * (0 when nothing was needed or the source's actuals do not come from NWS).
+     * (plans/261025-shared-nws-gap-fill.md). Best-effort, because the forecast and current reading were
+     * already published: returns the readings stored (0 when nothing was needed or the source's actuals
+     * do not come from NWS), [OBS_WINDOW_UNREACHABLE] when NWS never answered (the daemon retries it on
+     * the shared schedule, [ObservationWindowRetry]), or [OBS_WINDOW_FAILED] on any other failure.
      */
     suspend fun refreshObservationWindow(now: Long = currentTimeMillis()): Int = withContext(Dispatchers.IO) {
         // Any source whose actuals come from NWS, not only NWS itself (ActualsFeedPolicy).
@@ -755,7 +756,7 @@ class DesktopWeatherRepository(
                     "remaining=${result.remaining.sorted()} ms=${System.currentTimeMillis() - startedAt}",
                 level = if (result.unreachable) "WARN" else "INFO",
             )
-            if (result.unreachable) -1 else result.rows
+            if (result.unreachable) OBS_WINDOW_UNREACHABLE else result.rows
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -764,7 +765,7 @@ class DesktopWeatherRepository(
                 message = "source=$weatherSource failed ms=${System.currentTimeMillis() - startedAt}: $e",
                 level = "WARN",
             )
-            -1
+            OBS_WINDOW_FAILED
         }
     }
 
@@ -1344,6 +1345,12 @@ class DesktopWeatherRepository(
     companion object {
         private const val TAG = "DesktopWeatherRepository"
         private const val HISTORY_WINDOW_DAYS = 7L
+        /** [refreshObservationWindow]: NWS never answered — worth a retry. */
+        const val OBS_WINDOW_UNREACHABLE = -1
+
+        /** [refreshObservationWindow]: failed for another reason — not retried. */
+        const val OBS_WINDOW_FAILED = -2
+
         private const val ACTUALS_HISTORY_DAYS = 547L
         private const val FRESH_OBSERVATION_MS = 30 * 60 * 1000L
         private const val GAP_HORIZON_DAYS = 16L

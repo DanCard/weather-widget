@@ -288,7 +288,7 @@ class WeatherWidgetWorker
                         "rows=${result.rowsFetched} unreachable=${result.unreachable} affectedDates=${result.affectedDates.sorted()}",
                     "INFO",
                 )
-                ObservationBackfillRetryPolicy.nextRetryDelayMs(result, input.backfillAttempt)?.let { delayMs ->
+                com.weatherwidget.shared.observations.ObservationBackfillRetryPolicy.nextRetryDelayMs(result.unreachable, input.backfillAttempt)?.let { delayMs ->
                     val nextAttempt = input.backfillAttempt + 1
                     WidgetWorkScheduler.enqueueObservationBackfillRetry(
                         context = context,
@@ -300,8 +300,10 @@ class WeatherWidgetWorker
                         delayMs = delayMs,
                     )
                     appLogDao.log(
-                        "OBS_HOURLY_BACKFILL_RETRY",
-                        "reason=${input.backfillReason} attempt=$nextAttempt delayMs=$delayMs",
+                        com.weatherwidget.shared.observations.ObservationBackfillRetryPolicy.LOG_TAG,
+                        com.weatherwidget.shared.observations.ObservationBackfillRetryPolicy.logMessage(
+                            input.backfillReason, nextAttempt, delayMs,
+                        ),
                         "INFO",
                     )
                 }
@@ -634,7 +636,7 @@ class WeatherWidgetWorker
             const val KEY_OBSERVATION_BACKFILL_ONLY = "observation_backfill_only"
             const val KEY_OBSERVATION_BACKFILL_HOURS = "observation_backfill_hours"
             const val KEY_OBSERVATION_BACKFILL_REASON = "observation_backfill_reason"
-            /** Retry number of an observation backfill (0 = first run); see [ObservationBackfillRetryPolicy]. */
+            /** Retry number of an observation backfill (0 = first run); see [com.weatherwidget.shared.observations.ObservationBackfillRetryPolicy]. */
             const val KEY_OBSERVATION_BACKFILL_ATTEMPT = "observation_backfill_attempt"
             const val KEY_BACKFILL_LAT = "backfill_lat"
             const val KEY_BACKFILL_LON = "backfill_lon"

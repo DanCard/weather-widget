@@ -700,9 +700,23 @@ internal class DaemonRuntime(
             if (observationWindowDeferred) {
                 // Already published: a stalled or failed window costs history depth, never the
                 // forecast or the current reading. refreshObservationWindow logs its own outcome.
-                if (activeRepo.refreshObservationWindow() > 0) {
+                val publishStored: suspend () -> Unit = {
                     activeRepo.loadCached()?.let { panelPublisher.publishForecastState(it) }
                     notifyDataUpdated()
+                }
+                val outcome = activeRepo.refreshObservationWindow()
+                if (outcome > 0) publishStored()
+                if (outcome == DesktopWeatherRepository.OBS_WINDOW_UNREACHABLE) {
+                    // NWS never answered: retry on the shared schedule without holding up this wake.
+                    daemonScope.launch {
+                        ObservationWindowRetry.run(
+                            firstOutcome = outcome,
+                            refresh = { activeRepo.refreshObservationWindow() },
+                            stillCurrent = { repo === activeRepo && stillDisplayed() },
+                            onStored = publishStored,
+                            log = { tag, message, level -> weatherDao.log(tag, message, level) },
+                        )
+                    }
                 }
             }
 
