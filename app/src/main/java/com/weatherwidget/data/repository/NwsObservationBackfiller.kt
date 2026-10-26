@@ -71,7 +71,7 @@ class NwsObservationBackfiller @Inject constructor(
         override suspend fun recomputeExtremes(latitude: Double, longitude: Double, days: Set<LocalDate>) {
             days.forEach { day ->
                 // Repair path: it distrusts what is stored, which is the whole reason it ran.
-                dailyActualsStore.recomputeDailyExtremesForDay(latitude, longitude, day, emptyList(), force = true)
+                dailyActualsStore.recomputeDailyExtremesForDay(latitude, longitude, day, force = true)
             }
         }
 

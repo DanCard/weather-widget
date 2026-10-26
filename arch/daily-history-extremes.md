@@ -22,7 +22,9 @@ The blend combines retained observation/analysis rows with hourly context throug
 code, including `ActualTemperatureSeriesBuilder` and `ActualsAggregator`. Station selection,
 quality control, personal-station weighting, coverage, and gap handling all affect the result.
 Hourly forecasts can provide change-over-gap context; this is why the blend is not automatically the
-same thing as an independent thermometer measurement.
+same thing as an independent thermometer measurement. The stored recompute takes that hourly by one
+shared rule on both platforms (`ActualsAggregator.aggregateStored`): every source at the site over the
+same window as the observations, so each source's row extrapolates against its own forecast.
 
 The current observation table can include NWS, METAR, Synoptic, and provider analysis/history data.
 Provenance matters: Synoptic web-fallback rows filed under NWS represent redistributed station

@@ -152,7 +152,7 @@ internal class WidgetDataBundleLoader(
             if (recompute) {
                 val start = LocalDate.now().minusDays(2)
                 val yesterday = LocalDate.now().minusDays(1)
-                weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, start, yesterday, hourlyForecasts)
+                weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, start, yesterday)
             }
             weatherRepository.getDailyActualsWithLiveToday(lat, lon, hourlyForecasts, activeSourceList, lookbackDays)
         } catch (e: Exception) {

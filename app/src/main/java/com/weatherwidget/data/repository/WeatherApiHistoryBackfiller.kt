@@ -52,7 +52,6 @@ internal class WeatherApiHistoryBackfiller(
                     longitude = longitude,
                     startDate = date,
                     endDateInclusive = date,
-                    hourlyForecasts = emptyList(),
                     // Repair path: it distrusts what is stored, which is the whole reason it ran.
                     force = true,
                 )

@@ -207,6 +207,38 @@ object ActualsAggregator {
     }
 
     /**
+     * The stored daily recompute, one rule for both platforms: [observations] cover
+     * [[windowStartMs], [windowEndMs]), and the hourly forecast is read over that same window for
+     * EVERY source at the site ([readHourlyAllSources]). Each source's row extrapolates across its
+     * stations' reading gaps against its own forecast ([aggregate] keys `sourceHourly` on the row's
+     * source), so a row whose source's hourly is missing loses those stations — desktop used to read
+     * the displayed source's last 72 h alone (lows up to 0.07 °F apart on older days, 2026-10-25),
+     * and Android's widget bundle passed its graph list instead of reading.
+     *
+     * Inline so the read runs in the caller's context: Room's DAO suspends, desktop's JDBC does not.
+     */
+    inline fun aggregateStored(
+        observations: List<ObservationReading>,
+        windowStartMs: Long,
+        windowEndMs: Long,
+        readHourlyAllSources: (startMs: Long, endMs: Long) -> List<HourlyForecast>,
+        locationLat: Double,
+        locationLon: Double,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        updatedAtMs: Long = System.currentTimeMillis(),
+        personalStationWeight: Double = 1.0,
+    ): List<DailyHistory> =
+        aggregate(
+            observations = observations,
+            hourlyForecasts = readHourlyAllSources(windowStartMs, windowEndMs),
+            locationLat = locationLat,
+            locationLon = locationLon,
+            zoneId = zoneId,
+            updatedAtMs = updatedAtMs,
+            personalStationWeight = personalStationWeight,
+        )
+
+    /**
      * Aggregates raw observations into daily highs and lows.
      */
     fun aggregate(

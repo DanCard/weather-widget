@@ -84,7 +84,7 @@ class GoogleWeatherBorrowedActualsIntegrationTest : RobolectricTest() {
                 obs("GOOGLE_WEATHER_MAIN", WeatherSource.GOOGLE_WEATHER.id, at(15), 99.0f),
         )
 
-        store.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
+        store.recomputeDailyExtremesForDay(lat, lon, yesterday)
         val actuals = store.getDailyActualsWithLiveToday(lat, lon, emptyList(), listOf(WeatherSource.GOOGLE_WEATHER.id))
 
         val row = actuals[WeatherSource.GOOGLE_WEATHER.id]?.get(yesterday)

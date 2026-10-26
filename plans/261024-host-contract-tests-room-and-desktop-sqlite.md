@@ -24,6 +24,22 @@ build until it has a contract extended on both platforms. Details per Host under
 **Open items found, not changed (each needs a user decision):**
 - The live-day observation blend's hourly input differs: Android `ObservationResolver` callers vs
   desktop `recomputeDailyExtremes` → `getHourlyWithHistory` of the displayed source.
+  Measured 2026-10-25 (replay of the desktop DB through `ActualsAggregator.aggregate`, desktop's
+  actuals-provider map installed, two hourly inputs): the aggregator gives each source's row only that
+  source's hourly (`sourceHourly`), used for `extrapolateForward` across reading gaps and today's
+  forecast-precip fallback. Desktop passes the displayed source's last 72 h only; Android's empty-list
+  path passes every source over the day's context window. 8 of 56 day×source rows differed, all on
+  days outside desktop's 72 h (10-17, 10-21), lows by ≤ 0.07 °F, highs never; none inside the window.
+  Cross-device row comparisons are confounded (Pixel: Silurian → Synoptic, Tomorrow.io own feed;
+  desktop: Tomorrow.io → NWS). Not yet measured: Android callers that pass their own hourly list
+  (`WidgetDataBundleLoader`).
+  **Resolved (user approved 2026-10-25):** `:shared` `ActualsAggregator.aggregateStored` owns the input
+  — every source over the observation window, read through a platform lambda (inline, so Room's
+  suspend read works). Desktop `recomputeDailyExtremes` uses `getHourlyForecastsAllSources`; Android's
+  per-day recompute always reads (the `hourlyForecasts` parameter is gone from the recompute chain, so
+  the widget bundle no longer passes its graph list). `DesktopDailyBlendHourlyInputTest` fails on the
+  old input (high 60.0 vs < 55). Pixel/Samsung after install: `DAILY_RECOMPUTE_PERF` hourly=222/103 ms,
+  extremes as before.
 - `HourlyOnDemand.hoursToCover` (both platforms) counts a neighbouring town's rows in the ±0.1° box
   as coverage, so a day tap can skip a fetch only the neighbour has.
 - Desktop `NWS_STATION_ACTUALS_OUTCOME requested=1 pulled=0` every run: today's row looks counted

@@ -24,7 +24,6 @@ import com.weatherwidget.shared.actuals.DailyActualsAssembler
 import com.weatherwidget.shared.actuals.DailyHistoryWriter
 import com.weatherwidget.shared.actuals.StoredBlendGuard
 import com.weatherwidget.widget.DailyActualsBySource
-import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.handlers.GraphDataLoader
 import java.time.Instant
@@ -169,7 +168,6 @@ class DailyActualsStore @Inject constructor(
         longitude: Double,
         startDate: LocalDate,
         endDateInclusive: LocalDate,
-        hourlyForecasts: List<HourlyForecastEntity>,
         /** See [recomputeDailyExtremesForDay]; true for the repair paths. */
         force: Boolean = false,
     ) {
@@ -177,7 +175,7 @@ class DailyActualsStore @Inject constructor(
         var current = startDate
         while (!current.isAfter(endDateInclusive)) {
             if (!current.isBefore(cutoffDate)) {
-                recomputeDailyExtremesForDay(latitude, longitude, current, hourlyForecasts, force)
+                recomputeDailyExtremesForDay(latitude, longitude, current, force)
             } else {
                 Log.d(TAG, "recomputeDailyExtremesFromStoredObservations: skipping pruned date $current")
             }
@@ -189,7 +187,6 @@ class DailyActualsStore @Inject constructor(
         latitude: Double,
         longitude: Double,
         date: LocalDate,
-        hourlyForecasts: List<HourlyForecastEntity>,
         /**
          * Recompute even when nothing has been written for the day since the last one.
          *
@@ -235,27 +232,29 @@ class DailyActualsStore @Inject constructor(
         val dayObs = contextObs.filter { it.timestamp in startTs until endTs }
         if (dayObs.isEmpty()) return
 
-        val effectiveHourly = hourlyForecasts.ifEmpty {
-            GraphDataLoader.unifyToNearestSite(
-                hourlyForecastDao.getHourlyForecasts(
-                    contextStartTs,
-                    contextEndTs,
-                    latitude,
-                    longitude,
-                ),
-                latitude,
-                longitude,
+        // The hourly input is the shared rule's (every source over the observation window), read here.
+        var effectiveHourly = emptyList<HourlyForecastEntity>()
+        var afterHourlyMs = afterQueryMs
+        val newExtremes = ActualsAggregator
+            .aggregateStored(
+                observations = contextObs.map { it.toReading() },
+                windowStartMs = contextStartTs,
+                windowEndMs = contextEndTs,
+                readHourlyAllSources = { start, end ->
+                    effectiveHourly = GraphDataLoader.unifyToNearestSite(
+                        hourlyForecastDao.getHourlyForecasts(start, end, latitude, longitude),
+                        latitude,
+                        longitude,
+                    )
+                    afterHourlyMs = SystemClock.elapsedRealtime()
+                    effectiveHourly.map { it.toHourlyForecast() }
+                },
+                locationLat = latitude,
+                locationLon = longitude,
+                zoneId = zone,
+                personalStationWeight = personalStationWeightProvider.currentWeight(),
             )
-        }
-        val afterHourlyMs = SystemClock.elapsedRealtime()
-        val newExtremes = ObservationResolver
-            .computeDailyExtremes(
-                contextObs,
-                effectiveHourly,
-                latitude,
-                longitude,
-                personalStationWeightProvider.currentWeight(),
-            )
+            .map { it.toEntity() }
             .filter { it.date == dateMillis }
         // NOTE: apiHighTemp/apiLowTemp are deliberately NOT derived here. The stored observation
         // pool is a mix of NWS API rows and Synoptic rows from the prefer-newest latest path, and

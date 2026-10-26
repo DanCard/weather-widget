@@ -156,9 +156,9 @@ class YesterdayActualHighConsistencyTest {
         }
         db.hourlyForecastDao().insertAll(forecasts)
 
-        // 3. Recompute daily extremes
+        // 3. Recompute daily extremes (reads the forecasts stored above)
         repository.recomputeDailyExtremesFromStoredObservations(
-            lat, lon, yesterday, yesterday, forecasts
+            lat, lon, yesterday, yesterday
         )
 
         // 4. Get Daily View Data

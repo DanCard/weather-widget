@@ -167,7 +167,7 @@ class ObservationRepositoryDailyMergeTest {
 
         // Run 1: station observations carry temps but no measured precip yet (the row is null).
         db.observationDao().insertAll(listOf(obs(t10, null), obs(t14, null)))
-        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday, emptyList())
+        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday)
         val afterRun1 = db.dailyHistoryDao().getExtremesInRange(yStart, yStart, lat, lon)
             .first { it.source == WeatherSource.NWS.id }
         assertNull("Precip should be null before measured precip arrives", afterRun1.precipAmountMm)
@@ -176,7 +176,7 @@ class ObservationRepositoryDailyMergeTest {
         db.observationDao().insertAll(listOf(obs(t10, 2.0f), obs(t14, 3.0f)))
 
         // Run 2: only precip differs — the gate must persist it.
-        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday, emptyList())
+        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday)
         val afterRun2 = db.dailyHistoryDao().getExtremesInRange(yStart, yStart, lat, lon)
             .first { it.source == WeatherSource.NWS.id }
         assertEquals(5.0f, afterRun2.precipAmountMm!!, 0.01f) // 2.0 + 3.0 measured
@@ -228,7 +228,7 @@ class ObservationRepositoryDailyMergeTest {
             ),
         )
 
-        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, today, today, emptyList())
+        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, today, today)
 
         val afterRecompute = db.dailyHistoryDao().getExtremesInRange(todayStart, todayStart, lat, lon)
             .first { it.source == WeatherSource.NWS.id }
@@ -255,7 +255,7 @@ class ObservationRepositoryDailyMergeTest {
         db.observationDao().insertAll(listOf(obs))
         
         // Recomputation should skip this day since it is 10 days ago (older than 9-day cutoff)
-        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, tenDaysAgo, tenDaysAgo, emptyList())
+        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, tenDaysAgo, tenDaysAgo)
         
         val extremes = db.dailyHistoryDao().getExtremesInRange(tenDaysAgoStart, tenDaysAgoStart, lat, lon)
         assertTrue("Daily extreme should not be inserted or recomputed for a day older than 9 days", extremes.isEmpty())
@@ -299,7 +299,7 @@ class ObservationRepositoryDailyMergeTest {
             },
         )
 
-        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday, emptyList(), force = true)
+        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday, force = true)
 
         val row = db.dailyHistoryDao().getExtremesInRange(yesterdayKey, yesterdayKey, lat, lon)
             .single { it.source == WeatherSource.SILURIAN.id }

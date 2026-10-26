@@ -155,7 +155,7 @@ class DailyActualsStoreCrossSiteTest : RobolectricTest() {
         db.dailyHistoryDao().insertAll(listOf(historyRow(homeLat, homeLon, high = 72.3f, low = 57.0f)))
 
         // Anchored at the stub, exactly as the widget was at 18:41:58.
-        store.recomputeDailyExtremesForDay(stubLat, stubLon, today, emptyList())
+        store.recomputeDailyExtremesForDay(stubLat, stubLon, today)
 
         val home = rowAt(homeLat, homeLon)
         assertNotNull("home row must still exist", home)
@@ -175,7 +175,7 @@ class DailyActualsStoreCrossSiteTest : RobolectricTest() {
         val jitterLon = homeLon + 0.0001
         db.dailyHistoryDao().insertAll(listOf(historyRow(jitterLat, jitterLon, high = 1f, low = 1f)))
 
-        store.recomputeDailyExtremesForDay(homeLat, homeLon, today, emptyList())
+        store.recomputeDailyExtremesForDay(homeLat, homeLon, today)
 
         val all = db.dailyHistoryDao()
             .getExtremesInRange(dateMillis(today), dateMillis(today), homeLat, homeLon)
@@ -193,7 +193,7 @@ class DailyActualsStoreCrossSiteTest : RobolectricTest() {
         seedStubAfternoonOnly()
         db.dailyHistoryDao().insertAll(listOf(historyRow(homeLat, homeLon, high = 72.3f, low = 57.0f)))
 
-        store.recomputeDailyExtremesForDay(stubLat, stubLon, today, emptyList())
+        store.recomputeDailyExtremesForDay(stubLat, stubLon, today)
 
         // Documents the deliberate scope limit: the stub gets its own (truncated) row. Making the
         // DISPLAY correct while standing there is the backfill/forecast-fallback plan, not this fix.
@@ -261,7 +261,7 @@ class DailyActualsStoreCrossSiteTest : RobolectricTest() {
             ),
         )
 
-        store.recomputeDailyExtremesForDay(homeLat, homeLon, yesterday, emptyList())
+        store.recomputeDailyExtremesForDay(homeLat, homeLon, yesterday)
 
         val row = db.dailyHistoryDao()
             .getExtremesInRange(dateMillis(yesterday), dateMillis(yesterday), homeLat, homeLon)
@@ -279,7 +279,7 @@ class DailyActualsStoreCrossSiteTest : RobolectricTest() {
         seedHomeFullDay()
         db.dailyHistoryDao().insertAll(listOf(historyRow(homeLat, homeLon, high = 1f, low = 1f)))
 
-        store.recomputeDailyExtremesForDay(homeLat, homeLon, today, emptyList())
+        store.recomputeDailyExtremesForDay(homeLat, homeLon, today)
 
         val row = rowAt(homeLat, homeLon)!!
         assertEquals(72.3f, row.computedHighTemp!!, 0.01f)
@@ -309,7 +309,7 @@ class DailyActualsStoreCrossSiteTest : RobolectricTest() {
             ),
         )
 
-        store.recomputeDailyExtremesForDay(homeLat, homeLon, yesterday, emptyList())
+        store.recomputeDailyExtremesForDay(homeLat, homeLon, yesterday)
 
         val row = db.dailyHistoryDao()
             .getExtremesInRange(dateMillis(yesterday), dateMillis(yesterday), homeLat, homeLon)

@@ -189,7 +189,7 @@ class NwsCurrentFetchRecomputeOnceTest : RobolectricTest() {
 
         // A forced reduction by a fresh store sees every stored row; the fetch's own result must
         // already match it — the per-station version could persist a run that missed a station.
-        store(RecordingSignatures()).recomputeDailyExtremesForDay(lat, lon, day, emptyList(), force = true)
+        store(RecordingSignatures()).recomputeDailyExtremesForDay(lat, lon, day, force = true)
         val full = db.dailyHistoryDao().getExtremesInRange(dayMs, dayMs, lat, lon)
             .single { it.source == WeatherSource.NWS.id }
 

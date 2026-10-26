@@ -1082,12 +1082,13 @@ class DesktopWeatherRepository(
         val windowStart = now - (HISTORY_WINDOW_DAYS + 1) * 86_400_000L
         val windowEnd = now + 86_400_000L
         val observations = weatherDao.getObservationsInRange(windowStart, windowEnd, latitude, longitude)
-        val hourly = weatherDao.getHourlyWithHistory(latitude, longitude, weatherSource, now - (72 * 3600 * 1000L), now + 86_400_000L, 48 * 3600 * 1000L)
 
         val readings = observations.map { it.toReading() }
-        val extremes = ActualsAggregator.aggregate(
+        val extremes = ActualsAggregator.aggregateStored(
             observations = readings,
-            hourlyForecasts = hourly,
+            windowStartMs = windowStart,
+            windowEndMs = windowEnd,
+            readHourlyAllSources = { start, end -> weatherDao.getHourlyForecastsAllSources(latitude, longitude, start, end) },
             locationLat = latitude,
             locationLon = longitude,
             updatedAtMs = now,

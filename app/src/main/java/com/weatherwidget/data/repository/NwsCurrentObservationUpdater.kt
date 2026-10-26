@@ -117,7 +117,7 @@ class NwsCurrentObservationUpdater private constructor(
         stored
             .map { Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate() }
             .distinct()
-            .forEach { date -> dailyActualsStore.recomputeDailyExtremesForDay(latitude, longitude, date, emptyList()) }
+            .forEach { date -> dailyActualsStore.recomputeDailyExtremesForDay(latitude, longitude, date) }
         val totalMs = System.currentTimeMillis() - fetchStartMs
         if (latest.isEmpty()) {
             appLogDao.log("NWS_FETCH_FAIL_ALL", "stationsTried=${stations.size} totalMs=$totalMs", "WARN")

@@ -82,11 +82,11 @@ class DailyActualsStoreSignaturePersistenceTest : RobolectricTest() {
         db.observationDao().insertAll(listOf(obs(at(3), 55f), obs(at(9), 62f), obs(at(15), 71f), obs(at(21), 60f)))
         val shared = InMemoryReducedSignatureStore()
 
-        store(shared).recomputeDailyExtremesForDay(lat, lon, day, emptyList())
+        store(shared).recomputeDailyExtremesForDay(lat, lon, day)
         assertEquals("first reduction must run", 0, skipCount())
 
         // "Process restart": a fresh store, same persisted signatures.
-        store(shared).recomputeDailyExtremesForDay(lat, lon, day, emptyList())
+        store(shared).recomputeDailyExtremesForDay(lat, lon, day)
         assertEquals("unchanged day must be skipped by the new instance", 1, skipCount())
     }
 
@@ -94,8 +94,8 @@ class DailyActualsStoreSignaturePersistenceTest : RobolectricTest() {
     fun `an in-memory-only store recomputes after a restart`() = runTest {
         db.observationDao().insertAll(listOf(obs(at(3), 55f), obs(at(9), 62f), obs(at(15), 71f), obs(at(21), 60f)))
 
-        store(InMemoryReducedSignatureStore()).recomputeDailyExtremesForDay(lat, lon, day, emptyList())
-        store(InMemoryReducedSignatureStore()).recomputeDailyExtremesForDay(lat, lon, day, emptyList())
+        store(InMemoryReducedSignatureStore()).recomputeDailyExtremesForDay(lat, lon, day)
+        store(InMemoryReducedSignatureStore()).recomputeDailyExtremesForDay(lat, lon, day)
 
         assertEquals("proves the shared store is what carries the skip", 0, skipCount())
     }
@@ -105,12 +105,12 @@ class DailyActualsStoreSignaturePersistenceTest : RobolectricTest() {
         db.observationDao().insertAll(listOf(obs(at(3), 55f), obs(at(9), 62f), obs(at(15), 71f), obs(at(21), 60f)))
         val shared = InMemoryReducedSignatureStore()
 
-        store(shared).recomputeDailyExtremesForDay(lat, lon, day, emptyList())
+        store(shared).recomputeDailyExtremesForDay(lat, lon, day)
         db.observationDao().insertAll(listOf(obs(at(18), 68f)))
-        store(shared).recomputeDailyExtremesForDay(lat, lon, day, emptyList())
+        store(shared).recomputeDailyExtremesForDay(lat, lon, day)
         assertEquals("changed observations must not be skipped", 0, skipCount())
 
-        store(shared).recomputeDailyExtremesForDay(lat, lon, day, emptyList(), force = true)
+        store(shared).recomputeDailyExtremesForDay(lat, lon, day, force = true)
         assertEquals("force must bypass the signature", 0, skipCount())
     }
 }

@@ -159,7 +159,7 @@ class NwsStationActualsStoreTest {
             ),
         )
 
-        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
+        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday)
 
         val row = nwsRows().single()
         assertNull("the sparse stored pool must not become an actual", row.apiHighTemp)
@@ -226,8 +226,8 @@ class NwsStationActualsStoreTest {
 
         // TWICE: a single recompute passed even when the merge dropped actualsSource, because the
         // guard reads the value the PREVIOUS write left behind. The second pass is what catches it.
-        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
-        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
+        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday)
+        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday)
 
         val row = nwsRows().first()
         assertEquals("frozen once resolved from the endpoint", 74.6f, row.computedHighTemp)
@@ -248,7 +248,7 @@ class NwsStationActualsStoreTest {
             ),
         )
 
-        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
+        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday)
 
         val row = nwsRows().first()
         assertNull("guard must not apply without the marker", row.apiStationId)
@@ -283,7 +283,7 @@ class NwsStationActualsStoreTest {
             ),
         )
 
-        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
+        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday)
 
         val row = nwsRows().first()
         assertEquals("the pull owns this field; the recompute must carry it through", 75.2f, row.apiHighTemp)
@@ -328,7 +328,7 @@ class NwsStationActualsStoreTest {
             listOf(observation(3, 60.8f, "KNUQ", 3.83f), observation(15, 73.4f, "KNUQ", 3.83f)),
         )
 
-        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
+        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday)
 
         assertEquals(74.6f, nwsRows().first().computedHighTemp)
     }
@@ -342,7 +342,7 @@ class NwsStationActualsStoreTest {
             listOf(observation(3, 60.8f, "KNUQ", 3.83f), observation(15, 73.4f, "KNUQ", 3.83f)),
         )
 
-        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
+        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday)
 
         assertNotEquals(
             "the recompute must still be able to improve a cache-derived day's blend",
@@ -407,7 +407,7 @@ class NwsStationActualsStoreTest {
             listOf(observation(3, 60.8f, "KNUQ", 3.83f), observation(15, 73.4f, "KNUQ", 3.83f)),
         )
 
-        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday, emptyList())
+        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday)
 
         val row = nwsRows().single()
         // Not owned by the recompute — every one of these must come through unchanged.

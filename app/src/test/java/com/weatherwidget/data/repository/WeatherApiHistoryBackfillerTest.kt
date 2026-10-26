@@ -75,7 +75,6 @@ class WeatherApiHistoryBackfillerTest {
                 lon,
                 yesterday,
                 yesterday,
-                emptyList(),
                 // A backfiller is a repair path: it must recompute even when nothing has been
                 // written since the last one, which is exactly the case the settled-day skip
                 // would otherwise catch. See DailyActualsStore.recomputeDailyExtremesForDay.
