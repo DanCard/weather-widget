@@ -33,6 +33,8 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
     private val zone = ZoneId.of("Europe/Warsaw")
     private val hourMs = 3_600_000L
     private val t0 = 1_790_640_000_000L // 2026-09-29T08:00Z
+    /** Pinned clock: the generated hours stay in the active tier (wall clock aged them into the settled one). */
+    private val nowMs = t0
 
     @Before
     fun setUp() {
@@ -77,9 +79,9 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
             db.clearAllTables()
             val full = generate(seed)
             db.hourlyForecastHistoryDao().insertAll(full)
-            val expected = HistorySnapshotRetention.keptKeys(full.map { it.toRetentionRow() }, zone)
+            val expected = HistorySnapshotRetention.keptKeys(full.map { it.toRetentionRow() }, zone, nowMs)
 
-            val result = HistorySnapshotPruner(db.hourlyForecastHistoryDao(), db.appLogDao(), zone = { zone }).prune()
+            val result = HistorySnapshotPruner(db.hourlyForecastHistoryDao(), db.appLogDao(), zone = { zone }).prune(nowMs = nowMs)
 
             val remaining = db.hourlyForecastHistoryDao().getAllInDateTimeRange(Long.MIN_VALUE, Long.MAX_VALUE)
             assertEquals("seed=$seed", expected, remaining.map { it.key() }.toSet())
@@ -92,8 +94,8 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
     fun `a second prune deletes nothing`() = runTest {
         db.hourlyForecastHistoryDao().insertAll(generate(7))
         val pruner = HistorySnapshotPruner(db.hourlyForecastHistoryDao(), db.appLogDao(), zone = { zone })
-        pruner.prune()
-        assertEquals(0, pruner.prune().deleted)
+        pruner.prune(nowMs = nowMs)
+        assertEquals(0, pruner.prune(nowMs = nowMs).deleted)
     }
 
     @Test
@@ -102,7 +104,7 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
         val old = generate(21)
         dao.insertAll(old)
         val pruner = HistorySnapshotPruner(dao, db.appLogDao(), zone = { zone })
-        pruner.prune()
+        pruner.prune(nowMs = nowMs)
 
         // New fetch: fresh snapshots for hours of ONE local day, fetched after the last pass.
         val lastPass = old.maxOf { it.fetchedAt } + 1
@@ -112,14 +114,14 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
         }
         dao.insertAll(fresh)
 
-        val result = pruner.prune(touchedSinceFetchedAt = lastPass)
+        val result = pruner.prune(touchedSinceFetchedAt = lastPass, nowMs = nowMs)
 
         assertEquals("only the touched day is visited", 1, result.days)
         // Fixpoint: what is left is exactly what the spec keeps of what is left.
         val all = dao.getAllInDateTimeRange(Long.MIN_VALUE, Long.MAX_VALUE)
         assertTrue("the fresh snapshots were considered", result.scanned > 0)
         assertEquals(
-            HistorySnapshotRetention.keptKeys(all.map { it.toRetentionRow() }, zone),
+            HistorySnapshotRetention.keptKeys(all.map { it.toRetentionRow() }, zone, nowMs),
             all.map { it.key() }.toSet(),
         )
     }
@@ -136,7 +138,7 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
     fun `rain accuracy's prior-day pick is identical on full and pruned rows`() {
         repeat(200) { seed ->
             val full = generate(seed)
-            val keep = HistorySnapshotRetention.keptKeys(full.map { it.toRetentionRow() }, zone)
+            val keep = HistorySnapshotRetention.keptKeys(full.map { it.toRetentionRow() }, zone, nowMs)
             val kept = full.filter { it.key() in keep }
             // Exactly RainAccuracyCalculator's query: hours of `date`, snapshots captured the day before.
             val dates = full.map { Instant.ofEpochMilli(it.dateTime).atZone(zone).toLocalDate() }.distinct()

@@ -72,7 +72,8 @@ class HistorySnapshotRetentionTest {
     )
 
     private fun pruned(rows: List<HistorySnapshotRetention.Row>): List<HistorySnapshotRetention.Row> {
-        val keep = HistorySnapshotRetention.keptKeys(rows, zone)
+        // Pinned to t0: on the wall clock these hours age out of the active tier the tests exercise.
+        val keep = HistorySnapshotRetention.keptKeys(rows, zone, nowMs = t0)
         return rows.filter { it.key in keep }
     }
 
