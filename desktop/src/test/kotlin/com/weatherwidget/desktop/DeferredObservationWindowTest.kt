@@ -66,22 +66,23 @@ class DeferredObservationWindowTest {
         api = "NWS",
     )
 
-    private fun stubForecast(recentOnly: Boolean) {
-        coEvery { weatherService.fetchForecast(recentOnly) } returns RawFetch(
-            hourly = listOf(HourlyForecast(now, 72f, "Clear")),
+    // NWS forecasts carry no observations (F6); the deferral shows in the observation pull's window.
+    private fun stubForecast() {
+        coEvery { weatherService.fetchForecast() } returns RawFetch(hourly = listOf(HourlyForecast(now, 72f, "Clear")))
+        coEvery { weatherService.fetchObservationsOnly(any(), any()) } returns RawFetch(
             rawObservations = listOf(reading("KNUQ", now - 10 * 60_000L, 71f)),
         )
     }
 
     @Test
     fun `deferred refresh publishes from the recent window without the 7-day pull`() = runTest {
-        stubForecast(recentOnly = true)
+        stubForecast()
 
         val outcome = repo().refreshWithOutcome(now, deferObservationWindow = true)
 
         assertEquals(1, outcome.snapshot.raw.hourly.size)
-        coVerify(exactly = 1) { weatherService.fetchForecast(true) }
-        coVerify(exactly = 0) { weatherService.fetchForecast(false) }
+        coVerify(exactly = 1) { weatherService.fetchObservationsOnly(true, any()) }
+        coVerify(exactly = 0) { weatherService.fetchObservationsOnly(false, any()) }
         coVerify(exactly = 0) { weatherService.fetchObservationHistory(any()) }
         val refreshRow = dao.getLatestLogByTagAndMessagePrefix("REFRESH", "source=NWS")
         assertNotNull(refreshRow)
@@ -90,11 +91,11 @@ class DeferredObservationWindowTest {
 
     @Test
     fun `default refresh is unchanged - full window, no deferral marker`() = runTest {
-        stubForecast(recentOnly = false)
+        stubForecast()
 
         repo().refreshWithOutcome(now)
 
-        coVerify(exactly = 1) { weatherService.fetchForecast(false) }
+        coVerify(exactly = 1) { weatherService.fetchObservationsOnly(false, any()) }
         val refreshRow = dao.getLatestLogByTagAndMessagePrefix("REFRESH", "source=NWS")!!
         assertTrue(refreshRow.message, !refreshRow.message.contains("obsWindow"))
     }
@@ -157,7 +158,7 @@ class DeferredObservationWindowTest {
                 ),
             ),
         )
-        coEvery { weatherService.fetchForecast(false) } returns RawFetch(hourly = listOf(HourlyForecast(now, 64f, "Clear")))
+        coEvery { weatherService.fetchForecast() } returns RawFetch(hourly = listOf(HourlyForecast(now, 64f, "Clear")))
         coEvery { weatherService.fetchObservationsOnly(true, any()) } returns RawFetch(
             rawObservations = listOf(reading("KNUQ", now - 15 * 60_000L, 64.4f)),
         )
@@ -174,7 +175,7 @@ class DeferredObservationWindowTest {
 
     @Test
     fun `google borrowing NWS - no stored rows takes the full pull`() = withGoogleBorrowingNws {
-        coEvery { weatherService.fetchForecast(false) } returns RawFetch(hourly = listOf(HourlyForecast(now, 64f, "Clear")))
+        coEvery { weatherService.fetchForecast() } returns RawFetch(hourly = listOf(HourlyForecast(now, 64f, "Clear")))
         coEvery { weatherService.fetchObservationsOnly(false, any()) } returns RawFetch()
 
         repo(source = "GOOGLE_WEATHER").refreshWithOutcome(now)

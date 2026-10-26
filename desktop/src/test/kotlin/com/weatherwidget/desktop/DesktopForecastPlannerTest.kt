@@ -56,7 +56,7 @@ class DesktopForecastPlannerTest {
         DesktopForecastPlanner(dao, lat, lon, PowerDetector.PowerState(charging, level), screenOn)
 
     private suspend fun fetch(source: String = om, horizon: Horizon = Horizon.LONG) {
-        coEvery { service.fetchForecast(any()) } returns raw
+        coEvery { service.fetchForecast() } returns raw
         DesktopWeatherRepository(service, dao, lat, lon, source).refresh(reason = "test", horizon = horizon)
     }
 

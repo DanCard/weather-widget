@@ -42,7 +42,7 @@ class DesktopNwsForecastOnlyRefreshTest {
         tempDbPath = Files.createTempFile("weather-nws-forecast-only-test", ".db")
         database = DesktopWeatherDatabase(tempDbPath).apply { initialize() }
         dao = DesktopWeatherDao(database)
-        coEvery { service.fetchForecast(any()) } returns RawFetch(hourly = listOf(HourlyForecast(now, 72f, "Clear")))
+        coEvery { service.fetchForecast() } returns RawFetch(hourly = listOf(HourlyForecast(now, 72f, "Clear")))
         coEvery { service.fetchObservationsOnly(any(), any()) } returns RawFetch(rawObservations = listOf(reading(now - 10 * 60_000L)))
     }
 

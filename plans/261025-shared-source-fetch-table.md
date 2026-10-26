@@ -140,8 +140,9 @@ Each phase: tests that fail on the old code for each decided divergence, full su
     `NWS_BATCH_SUMMARY`, `NWS_TODAY_SOURCE`, …).
   - `ActualsFeedPolicy.fullRefreshFetch`: NWS displaying itself now gets the pull (was null), so desktop's NWS
     refresh stores observations through `fetchObservationsOnly` — logged `BORROWED_NWS_RECOVERY source=NWS`.
-  - `WeatherApiClient.fetchForecast(recentObservationsOnly)` is now ignored; removing it is mechanical (60 call
-    sites, 18 files) and left as a follow-up.
+  - `WeatherApiClient.fetchForecast(recentObservationsOnly)` was then ignored; removed in a follow-up
+    (35 test sites in 11 files plus the 3 main files). `deferObservationWindow` stays: it still narrows
+    the observation pull, which `DeferredObservationWindowTest` now asserts via `fetchObservationsOnly(true, …)`.
   - Tests failing on the old policy: `ActualsFeedPolicyTest` (NWS-self case; the every-provider loop pinned
     the old null), `DesktopNwsForecastOnlyRefreshTest` (week on a gap, recent window when stored reaches the
     last hour). Full suite 6080: one failure, `HistorySnapshotPrunerTest` rain-accuracy prior-day pick, which

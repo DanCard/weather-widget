@@ -16,38 +16,37 @@ import java.time.LocalDate
  */
 interface WeatherApiClient {
     /**
-     * [recentObservationsOnly] is ignored by [DesktopWeatherService]: no forecast fetch pulls station
-     * observations since NWS's became forecast-only (F6, plans/261025-shared-source-fetch-table.md);
-     * the refresh takes them through [fetchObservationsOnly]. Kept until the call sites are migrated.
+     * The displayed source's forecast. No forecast fetch pulls station observations since NWS's became
+     * forecast-only (F6, plans/261025-shared-source-fetch-table.md); the refresh takes them through
+     * [fetchObservationsOnly].
      */
-    suspend fun fetchForecast(recentObservationsOnly: Boolean = false): RawFetch
+    suspend fun fetchForecast(): RawFetch
 
     /**
      * [parts] ([ForecastParts]): which parts of the forecast to ask for — a source whose API can drop
      * one ([ForecastParts.splits]) does; the others make their one full request. An hourly-only fetch
      * also skips what keeps the daily cadence (Tomorrow.io's 5-minute history).
      */
-    suspend fun fetchForecast(recentObservationsOnly: Boolean, parts: ForecastParts): RawFetch =
-        fetchForecast(recentObservationsOnly)
+    suspend fun fetchForecast(parts: ForecastParts): RawFetch =
+        fetchForecast()
 
     /**
      * [refillDay]: a previous day the user refreshed on the Forecast History screen. Google then also
      * requests `history/hours` when that day's stored elapsed hours went stale
      * ([com.weatherwidget.data.remote.GoogleHistoryRefill]). Clients without such a product ignore it.
      */
-    suspend fun fetchForecast(recentObservationsOnly: Boolean, parts: ForecastParts, refillDay: LocalDate?): RawFetch =
-        fetchForecast(recentObservationsOnly, parts)
+    suspend fun fetchForecast(parts: ForecastParts, refillDay: LocalDate?): RawFetch =
+        fetchForecast(parts)
 
     /**
      * [horizon]: LONG for a judged fetch, null when unjudged ([com.weatherwidget.data.remote.ForecastHorizonCadence]),
      * so what a billed source is asked for matches what the caller stores. Clients whose request does not follow the horizon ignore it.
      */
     suspend fun fetchForecast(
-        recentObservationsOnly: Boolean,
         parts: ForecastParts,
         refillDay: LocalDate?,
         horizon: com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon?,
-    ): RawFetch = fetchForecast(recentObservationsOnly, parts, refillDay)
+    ): RawFetch = fetchForecast(parts, refillDay)
 
     /**
      * Google's `history/hours` alone (one billed request), for a previous day's refill that must not
@@ -60,7 +59,7 @@ interface WeatherApiClient {
      * ([com.weatherwidget.data.remote.HourlyOnDemand]): its normal fetch, [hoursAhead] deep where the
      * source takes a horizon (Google), without the observation window.
      */
-    suspend fun fetchForecastAhead(hoursAhead: Int): RawFetch = fetchForecast(recentObservationsOnly = true)
+    suspend fun fetchForecastAhead(hoursAhead: Int): RawFetch = fetchForecast()
 
     /** Legacy Open-Meteo history backfill entry point; pinned as uncalled by a regression test. */
     suspend fun fetchHistory(historyDays: Int): RawFetch

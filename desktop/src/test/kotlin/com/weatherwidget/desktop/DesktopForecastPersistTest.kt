@@ -48,7 +48,7 @@ class DesktopForecastPersistTest {
     private val daily = (1..3).map { DailyForecast(today.plusDays(it.toLong()).toString(), 70f, 50f, "Cloudy") }
 
     private suspend fun refresh(hours: List<HourlyForecast>, at: Long) {
-        coEvery { service.fetchForecast(false) } returns RawFetch(daily = daily, hourly = hours)
+        coEvery { service.fetchForecast() } returns RawFetch(daily = daily, hourly = hours)
         DesktopWeatherRepository(service, dao, lat, lon, om).refresh(now = at, reason = "test", horizon = Horizon.LONG)
     }
 

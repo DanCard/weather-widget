@@ -65,9 +65,9 @@ class LaunchRefreshJobsTest {
                 release.await()
                 return raw
             }
+            coEvery { svc.fetchForecast() } coAnswers { held() }
             coEvery { svc.fetchForecast(any()) } coAnswers { held() }
             coEvery { svc.fetchForecast(any(), any()) } coAnswers { held() }
-            coEvery { svc.fetchForecast(any(), any(), any()) } coAnswers { held() }
         }
         val repo = DesktopWeatherRepository(client, dao, lat, lon, source)
     }

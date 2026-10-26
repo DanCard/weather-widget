@@ -41,7 +41,7 @@ class DesktopRefreshFollowUpsTest {
         tempDbPath = Files.createTempFile("weather-follow-ups-test", ".db")
         database = DesktopWeatherDatabase(tempDbPath).apply { initialize() }
         dao = DesktopWeatherDao(database)
-        coEvery { service.fetchForecast(any()) } returns RawFetch(hourly = listOf(HourlyForecast(now, 72f, "Clear")))
+        coEvery { service.fetchForecast() } returns RawFetch(hourly = listOf(HourlyForecast(now, 72f, "Clear")))
         coEvery { service.nearestStationsForDailyActuals() } returns emptyList()
         // Yesterday's NWS row without a station-derived actual: the run has a date to fill, so it asks for stations.
         val yesterday = java.time.LocalDate.now().minusDays(1).toEpochDay() * 86_400_000L
@@ -86,7 +86,7 @@ class DesktopRefreshFollowUpsTest {
     @Test
     fun `a failed NWS refresh still fills station actuals`() = runTest {
         // The station endpoints are not the gridpoint ones: a forecast outage keeps the actuals, as on Android.
-        coEvery { service.fetchForecast(any()) } throws java.io.IOException("gridpoints 500")
+        coEvery { service.fetchForecast() } throws java.io.IOException("gridpoints 500")
 
         runCatching { refresh(WeatherSource.NWS) }
 

@@ -581,19 +581,17 @@ class DesktopWeatherRepository(
                 val forecast = async { when {
                         // The one horizon the service cannot derive from the markers itself.
                         userRefresh -> weatherService.fetchForecast(
-                            recentObservationsOnly = deferObservationWindow,
                             parts = fetchParts,
                             refillDay = refillDay,
                             horizon = fetchHorizon,
                         )
                         refillDay != null -> weatherService.fetchForecast(
-                            recentObservationsOnly = deferObservationWindow,
                             parts = fetchParts,
                             refillDay = refillDay,
                         )
                         fetchParts != ForecastParts.BOTH ->
-                            weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow, parts = fetchParts)
-                        else -> weatherService.fetchForecast(recentObservationsOnly = deferObservationWindow)
+                            weatherService.fetchForecast(parts = fetchParts)
+                        else -> weatherService.fetchForecast()
                     } }
                 val recovery = async { fetchBorrowedRecovery(borrowedPlan, userLocationChange) }
                 forecast.await() to recovery.await()
@@ -718,7 +716,7 @@ class DesktopWeatherRepository(
             message = "reason=$reason parts=HOURLY horizon=$horizon source=$weatherSource lat=$latitude lon=$longitude",
             level = "INFO",
         )
-        val result = weatherService.fetchForecast(recentObservationsOnly = true, parts = ForecastParts.HOURLY)
+        val result = weatherService.fetchForecast(parts = ForecastParts.HOURLY)
         persistForecastResult(
             result.copy(rawObservations = emptyList()),
             now,

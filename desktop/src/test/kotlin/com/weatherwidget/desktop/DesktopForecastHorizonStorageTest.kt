@@ -50,7 +50,7 @@ class DesktopForecastHorizonStorageTest {
     private fun markers(source: String = om, la: Double = lat, lo: Double = lon) = DesktopForecastHorizon(dao, source, la, lo)
 
     private suspend fun refresh(high: Float, horizon: Horizon?, at: Long = now, days: Int = 8) {
-        coEvery { service.fetchForecast(false) } returns RawFetch(daily = daily(high, days), hourly = hourly)
+        coEvery { service.fetchForecast() } returns RawFetch(daily = daily(high, days), hourly = hourly)
         repo().refresh(now = at, reason = "test", horizon = horizon)
     }
 
@@ -117,25 +117,25 @@ class DesktopForecastHorizonStorageTest {
 
     @Test
     fun `a refresh with no horizon given is judged LONG and moves the marker`() = runTest {
-        coEvery { service.fetchForecast(false) } returns RawFetch(daily = daily(70f), hourly = hourly)
+        coEvery { service.fetchForecast() } returns RawFetch(daily = daily(70f), hourly = hourly)
         DesktopWeatherRepository(service, dao, lat, lon, om).refresh(now = now, reason = "test")
         assertNotNull("with a DB every refresh is judged LONG", markers().lastLongFetch())
     }
 
     @Test
     fun `a user refresh asks for and stores a LONG fetch`() = runTest {
-        coEvery { service.fetchForecast(false, ForecastParts.BOTH, null, Horizon.LONG) } returns RawFetch(daily = daily(70f), hourly = hourly)
+        coEvery { service.fetchForecast(ForecastParts.BOTH, null, Horizon.LONG) } returns RawFetch(daily = daily(70f), hourly = hourly)
 
         repo().refresh(now = now, reason = "user_refresh:popup", userRefresh = true)
 
-        coVerify(exactly = 1) { service.fetchForecast(false, ForecastParts.BOTH, null, Horizon.LONG) }
+        coVerify(exactly = 1) { service.fetchForecast(ForecastParts.BOTH, null, Horizon.LONG) }
         assertNotNull(markers().lastLongFetch())
         assertEquals(8, shownHighs().size)
     }
 
     @Test
     fun `an hourly-only refresh (daily refused) stores hours, no daily rows and no REFRESH row`() = runTest {
-        coEvery { service.fetchForecast(true, ForecastParts.HOURLY) } returns RawFetch(daily = daily(70f), hourly = hourly)
+        coEvery { service.fetchForecast(ForecastParts.HOURLY) } returns RawFetch(daily = daily(70f), hourly = hourly)
 
         repo().refresh(now = now, reason = "test", parts = ForecastParts.HOURLY, horizon = Horizon.LONG)
 
@@ -147,11 +147,11 @@ class DesktopForecastHorizonStorageTest {
 
     @Test
     fun `a daily-only refresh (hours refused) asks for daily and stores it`() = runTest {
-        coEvery { service.fetchForecast(false, ForecastParts.DAILY) } returns RawFetch(daily = daily(70f))
+        coEvery { service.fetchForecast(ForecastParts.DAILY) } returns RawFetch(daily = daily(70f))
 
         repo().refresh(now = now, reason = "test", parts = ForecastParts.DAILY, horizon = Horizon.LONG)
 
-        coVerify(exactly = 1) { service.fetchForecast(false, ForecastParts.DAILY) }
+        coVerify(exactly = 1) { service.fetchForecast(ForecastParts.DAILY) }
         assertEquals(8, shownHighs().size)
     }
 

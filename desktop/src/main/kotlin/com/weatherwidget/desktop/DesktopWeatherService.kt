@@ -208,25 +208,22 @@ class DesktopWeatherService(
      * path honours the number — the other sources return whatever their API provides, and days
      * past a source's real coverage render climate-normal filler by design.
      */
-    override suspend fun fetchForecast(recentObservationsOnly: Boolean): RawFetch =
-        fetchForecast(recentObservationsOnly, ForecastParts.BOTH)
+    override suspend fun fetchForecast(): RawFetch =
+        fetchForecast(ForecastParts.BOTH)
 
-    override suspend fun fetchForecast(recentObservationsOnly: Boolean, parts: ForecastParts): RawFetch =
-        fetchForecast(recentObservationsOnly, parts, refillDay = null)
+    override suspend fun fetchForecast(parts: ForecastParts): RawFetch =
+        fetchForecast(parts, refillDay = null)
 
     override suspend fun fetchForecast(
-        recentObservationsOnly: Boolean,
         parts: ForecastParts,
         refillDay: java.time.LocalDate?,
     ): RawFetch = fetchForecast(
-        recentObservationsOnly,
         parts,
         refillDay,
         DesktopForecastHorizon(weatherDao, weatherSource, latitude, longitude).forced(),
     )
 
     override suspend fun fetchForecast(
-        recentObservationsOnly: Boolean,
         parts: ForecastParts,
         refillDay: java.time.LocalDate?,
         horizon: com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon?,
@@ -305,7 +302,7 @@ class DesktopWeatherService(
                 WeatherSource.GOOGLE_WEATHER.id,
             )
         } else {
-            fetchForecast(recentObservationsOnly = true)
+            fetchForecast()
         }
 
     /** The shared table over this service's clients, NWS's forecast-only fetch included (F6). */

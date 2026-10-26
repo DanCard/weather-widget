@@ -70,7 +70,7 @@ class DesktopDailySummaryStorageTest {
 
     /** A LONG refresh: every daily row is written (a SHORT one would keep days 4+ as they were). */
     private suspend fun refreshWith(hourly: List<HourlyForecast>) {
-        coEvery { service.fetchForecast(false) } returns RawFetch(daily = daily, hourly = hourly)
+        coEvery { service.fetchForecast() } returns RawFetch(daily = daily, hourly = hourly)
         repo().refresh(now = now, reason = "test", horizon = com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon.LONG)
     }
 
@@ -133,7 +133,7 @@ class DesktopDailySummaryStorageTest {
     @Test
     fun `a fetch whose daily agrees with its hourly logs no mismatch`() = runTest {
         val agreeing = days.map { DailyForecast(it.toString(), 60f, 60f, "Cloudy", precipProbability = 20) }
-        coEvery { service.fetchForecast(false) } returns RawFetch(daily = agreeing, hourly = download(seed = 5))
+        coEvery { service.fetchForecast() } returns RawFetch(daily = agreeing, hourly = download(seed = 5))
         repo().refresh(now = now, reason = "test", horizon = com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon.LONG)
 
         assertTrue(dao.getRecentLogs(500).none { it.tag == DailyHourlyConsistency.LOG_TAG })

@@ -82,7 +82,7 @@ class DesktopRateLimitBannerTest {
     fun `a refresh whose later hour pages were refused logs the partial rate limit`() = runTest {
         val today = LocalDate.now()
         val hourMs = (System.currentTimeMillis() / 3_600_000L) * 3_600_000L
-        coEvery { service.fetchForecast(false) } returns RawFetch(
+        coEvery { service.fetchForecast() } returns RawFetch(
             daily = (0 until 10).map { DailyForecast(today.plusDays(it.toLong()).toString(), 70f, 50f, "Cloudy") },
             hourly = (0 until 48).map { HourlyForecast(hourMs + it * 3_600_000L, 60f, "Cloudy") },
             partialRateLimitDetail = "status 429. Detail: ${body("1/min/{project}/{user}", "20")}",

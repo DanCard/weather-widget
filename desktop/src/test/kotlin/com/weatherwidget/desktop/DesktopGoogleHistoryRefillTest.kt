@@ -103,11 +103,11 @@ class DesktopGoogleHistoryRefillTest {
     @Test
     fun `refreshing yesterday replaces only yesterday's stale live hours`() = runTest {
         seed()
-        coEvery { service.fetchForecast(false, ForecastParts.BOTH, yesterday) } returns fetchWithHistory
+        coEvery { service.fetchForecast(ForecastParts.BOTH, yesterday) } returns fetchWithHistory
 
         repo().refresh(now = now, reason = "user_refresh:history", refillDay = yesterday)
 
-        coVerify(exactly = 1) { service.fetchForecast(false, ForecastParts.BOTH, yesterday) }
+        coVerify(exactly = 1) { service.fetchForecast(ForecastParts.BOTH, yesterday) }
         staleYesterday.filter { it != freshHour }.forEach { assertEquals("stale hour $it refilled", 69.5f, live(it).temperature) }
         assertEquals("a current hour keeps its forecast", 66f, live(freshHour).temperature)
         staleToday.forEach { assertEquals("today is not the refreshed day", 71.7f, live(it).temperature) }
@@ -120,7 +120,7 @@ class DesktopGoogleHistoryRefillTest {
     @Test
     fun `the stitched hourly read draws the refilled values`() = runTest {
         seed()
-        coEvery { service.fetchForecast(false, ForecastParts.BOTH, yesterday) } returns fetchWithHistory
+        coEvery { service.fetchForecast(ForecastParts.BOTH, yesterday) } returns fetchWithHistory
 
         repo().refresh(now = now, reason = "user_refresh:history", refillDay = yesterday)
 
@@ -135,22 +135,22 @@ class DesktopGoogleHistoryRefillTest {
     @Test
     fun `a refresh without a refill day leaves stale hours alone`() = runTest {
         seed()
-        coEvery { service.fetchForecast(false) } returns fetchWithHistory
+        coEvery { service.fetchForecast() } returns fetchWithHistory
 
         repo().refresh(now = now, reason = "user_refresh:settings")
 
-        coVerify(exactly = 0) { service.fetchForecast(any(), any(), any<java.time.LocalDate>()) }
+        coVerify(exactly = 0) { service.fetchForecast(any(), any<java.time.LocalDate>()) }
         staleHours.filter { it != freshHour }.forEach { assertEquals(71.7f, live(it).temperature) }
     }
 
     @Test
     fun `a second refresh of yesterday finds nothing stale`() = runTest {
         seed()
-        coEvery { service.fetchForecast(false, ForecastParts.BOTH, yesterday) } returns fetchWithHistory
+        coEvery { service.fetchForecast(ForecastParts.BOTH, yesterday) } returns fetchWithHistory
         repo().refresh(now = now, reason = "user_refresh:history", refillDay = yesterday)
         val refilledAt = live(staleYesterday.first()).fetchedAt
 
-        coEvery { service.fetchForecast(false, ForecastParts.BOTH, yesterday) } returns fetchWithHistory.copy(
+        coEvery { service.fetchForecast(ForecastParts.BOTH, yesterday) } returns fetchWithHistory.copy(
             providerHistoryHourly = staleHours.map { HourlyForecast(it, 50f, "Clear") },
         )
         repo().refresh(now = now, reason = "user_refresh:history", refillDay = yesterday)
@@ -171,10 +171,10 @@ class DesktopGoogleHistoryRefillTest {
     }
 
     private fun noForecastFetched() {
+        coVerify(exactly = 0) { service.fetchForecast() }
         coVerify(exactly = 0) { service.fetchForecast(any()) }
-        coVerify(exactly = 0) { service.fetchForecast(any(), any()) }
-        coVerify(exactly = 0) { service.fetchForecast(any(), any(), any<java.time.LocalDate>()) }
-        coVerify(exactly = 0) { service.fetchForecast(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { service.fetchForecast(any(), any<java.time.LocalDate>()) }
+        coVerify(exactly = 0) { service.fetchForecast(any(), any(), any()) }
         coVerify(exactly = 0) { service.fetchForecastAhead(any()) }
     }
 
