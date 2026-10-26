@@ -33,10 +33,9 @@ class RoomSourceFetchTableHostContractTest : SourceFetchTableHostContract() {
         )
         return object : Db {
             override fun host() = RoomSourceFetchHost(
-                calls = SourceFetchTable.Calls(openMeteo = { _, _, _, _ -> RawFetch() }),
+                calls = SourceFetchTable.Calls(nws = { _, _, _ -> RawFetch() }, openMeteo = { _, _, _, _ -> RawFetch() }),
                 hourlyStore = store,
                 appLogDao = db.appLogDao(),
-                nws = { _, _, _ -> RawFetch() },
                 needsHistory = { _, _, _ -> false },
                 nowcast = { _, _, _ -> },
             )

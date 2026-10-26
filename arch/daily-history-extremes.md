@@ -35,7 +35,11 @@ actuals.
 station observations, reanalysis, archived provider history, recent analysis, or none. It drives
 baseline eligibility; it does not assert that every product is a direct observation.
 
-NWS station actuals are maintained by `NwsStationActualsRun` on both platforms. The runner:
+NWS station actuals are maintained by `NwsStationActualsRun` on both platforms. It runs as a follow-up
+of an NWS fetch that asked for the daily part (`SourceFetchTable.runFollowUps`), even when that forecast
+fetch failed: the station endpoints are separate from the gridpoint ones. Prior-day cloud rides every
+Open-Meteo fetch and WeatherAPI history a daily WeatherAPI fetch; those two need a stored reply, and an
+on-demand single-day fetch runs none. The runner:
 
 1. Finds NWS dates with missing values or provenance.
 2. Reads nearby stations and requests one station/day at a time from

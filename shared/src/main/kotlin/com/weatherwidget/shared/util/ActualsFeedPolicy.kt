@@ -45,9 +45,11 @@ object ActualsFeedPolicy {
      * The observation pull a full refresh of [displaySource] must make alongside its forecast
      * fetch, or null when none is needed.
      *
-     * None is needed when the source is its own provider, because its forecast fetch already
-     * supplies the actuals (NWS station readings, Tomorrow.io's five-minute history, the re-filed
-     * past hours of the others). It is also null when no feed serves this location.
+     * None is needed when the source is its own provider and its forecast fetch already supplies the
+     * actuals (Tomorrow.io's five-minute history, the re-filed past hours of the others). NWS is the
+     * exception: its forecast fetch is the forecast only on both platforms (`NwsForecastReply`, F6 in
+     * plans/261025-shared-source-fetch-table.md), so NWS displaying itself takes this pull too. It is
+     * also null when no feed serves this location.
      *
      * For NWS, the recent window is enough whenever the stored rows already reach into it.
      * Observations are stored per site, not per displayed source, so the week another source (or
@@ -69,7 +71,7 @@ object ActualsFeedPolicy {
         actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
     ): ObservationFetch? {
         val feed = feedFor(displaySource, latitude, longitude, actualsPreference) ?: return null
-        if (feed == displaySource) return null
+        if (feed == displaySource && feed != WeatherSource.NWS) return null
         val storedCoversGap = newestStoredFeedMs != null && nowMs - newestStoredFeedMs < NWS_RECENT_WINDOW_COVERS_GAP_MS
         return ObservationFetch(
             feed = feed,

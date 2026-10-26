@@ -1,6 +1,5 @@
 package com.weatherwidget.data.model
 
-import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.actuals.BlendContribution
 
 data class HourlyForecast(
@@ -223,7 +222,6 @@ data class RawFetch(
     val rawObservations: List<ObservationReading> = emptyList(),
     val dailyActuals: Map<String, DailyHistory> = emptyMap(),
     val dailySnapshots: Map<String, List<DailyForecastSnapshot>> = emptyMap(),
-    val nwsDailyExtremes: NwsApi.DailyTemperatureExtremes? = null,
     val providerCurrentTemp: Float? = null,
     val providerCurrentCondition: String? = null,
     val providerCurrentObservedAt: Long? = null,

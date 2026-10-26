@@ -18,7 +18,11 @@ import java.time.LocalDate
  * `ObservationWriteRun`'s. A forecast reply's provider *current* reading is not filed here — current
  * readings come only from the current-conditions path (decision F1).
  *
- * NWS stays the platform's own ([Host.fetchNws]) until its observation pull (F6) is decided.
+ * NWS's is [NwsForecastReply]: the forecast only on both platforms (F6).
+ *
+ * What rides a source's fetch is [runFollowUps], on both platforms: which jobs ([followUps]), whether a
+ * failed fetch still runs them, their order and their failure logging. The platform only supplies
+ * [FollowUpJobs], each one a `:shared` runner over its contract-tested host.
  */
 class SourceFetchTable(private val host: Host) {
     /**
@@ -26,6 +30,8 @@ class SourceFetchTable(private val host: Host) {
      * the `:shared` clients; a null call is a source this build does not provision.
      */
     class Calls(
+        /** [NwsForecastReply.fetch] in production. */
+        val nws: suspend (lat: Double, lon: Double, parts: ForecastParts) -> RawFetch,
         val openMeteo: suspend (lat: Double, lon: Double, historyDays: Int, parts: ForecastParts) -> RawFetch,
         val silurian: (suspend (lat: Double, lon: Double, parts: ForecastParts) -> RawFetch)? = null,
         val weatherApi: (suspend (lat: Double, lon: Double) -> RawFetch)? = null,
@@ -37,6 +43,7 @@ class SourceFetchTable(private val host: Host) {
     ) {
         companion object {
             fun of(
+                nws: suspend (lat: Double, lon: Double, parts: ForecastParts) -> RawFetch,
                 openMeteo: OpenMeteoApi,
                 silurian: SilurianApi?,
                 weatherApi: WeatherApi?,
@@ -44,6 +51,7 @@ class SourceFetchTable(private val host: Host) {
                 tomorrowIo: TomorrowIoApi?,
                 google: GoogleWeatherApi?,
             ) = Calls(
+                nws = nws,
                 openMeteo = { lat, lon, historyDays, parts -> openMeteo.getForecast(lat, lon, historyDays = historyDays, parts = parts) },
                 silurian = silurian?.let { api -> { lat, lon, parts -> api.getForecast(lat, lon, parts) } },
                 weatherApi = weatherApi?.let { api -> { lat, lon -> api.getForecast(lat, lon) } },
@@ -68,9 +76,6 @@ class SourceFetchTable(private val host: Host) {
 
     interface Host {
         val calls: Calls
-
-        /** NWS's forecast fetch with [parts], the platform's own until F6 is decided. */
-        suspend fun fetchNws(latitude: Double, longitude: Double, parts: ForecastParts): RawFetch
 
         /** Google's live hours on the site's exact quantized key, `dateTime` in [startMs, endMs] (decision F2). */
         suspend fun storedGoogleHours(latitude: Double, longitude: Double, startMs: Long, endMs: Long): List<HourlyForecast>
@@ -111,7 +116,7 @@ class SourceFetchTable(private val host: Host) {
         val parts = ForecastParts.requested(source, request.parts)
         val calls = host.calls
         return when (source) {
-            WeatherSource.NWS -> host.fetchNws(latitude, longitude, parts)
+            WeatherSource.NWS -> calls.nws(latitude, longitude, parts)
             WeatherSource.OPEN_METEO -> calls.openMeteo(latitude, longitude, OPEN_METEO_HISTORY_DAYS, parts)
                 // The same reply's next 3 h of 15-minute precipitation: the nowcast, for free.
                 .also { raw -> raw.nowcast?.let { host.saveNowcast(latitude, longitude, it) } }
@@ -175,7 +180,76 @@ class SourceFetchTable(private val host: Host) {
             .also { host.log(GoogleWeatherApi.HOURS_PAGES_TAG, calls.googlePagesLine(onDemand != null), "INFO") }
     }
 
+    /** A job that rides one source's fetch, each run by its `:shared` runner. */
+    enum class FollowUp(
+        /** Runs even when the source's forecast fetch failed: its requests do not depend on that reply. */
+        val afterFailedFetch: Boolean,
+    ) {
+        /** `PriorDayCloudRun`: the cloud graph's frozen forecast curve, from Open-Meteo's previous runs. */
+        PRIOR_DAY_CLOUD(afterFailedFetch = false),
+
+        /** `WeatherApiHistoryRun`: WeatherAPI's prior-day provider history. */
+        WEATHER_API_HISTORY(afterFailedFetch = false),
+
+        /**
+         * `NwsStationActualsRun`: NWS's own daily actuals from `/stations/{id}/observations` — not the
+         * gridpoint endpoints, so a forecast outage keeps the day's actuals (user, 2026-10-25).
+         */
+        NWS_STATION_ACTUALS(afterFailedFetch = true),
+    }
+
+    /** The platform's handle on each [FollowUp]'s `:shared` runner, bound to the site being fetched. */
+    class FollowUpJobs(
+        val priorDayCloud: suspend () -> Unit,
+        /** The hours stored (0 unless fetched). */
+        val weatherApiHistory: suspend () -> Int,
+        val nwsStationActuals: suspend () -> Unit,
+        val log: suspend (tag: String, message: String, level: String) -> Unit,
+    )
+
     companion object {
+        /**
+         * What rides a stored fetch of [source] that asked for [parts] — the plan's parts, not
+         * [ForecastParts.requested]'s widening, so an hourly-only WeatherAPI fetch is not a daily one.
+         * Prior-day cloud is Open-Meteo's product (F3); WeatherAPI history (F4) and NWS station actuals
+         * (F5) are daily products, on the daily cadence. Run once per owning source's fetch, never per
+         * visible source.
+         */
+        fun followUps(source: WeatherSource, parts: ForecastParts): List<FollowUp> = when (source) {
+            WeatherSource.OPEN_METEO -> listOf(FollowUp.PRIOR_DAY_CLOUD)
+            WeatherSource.WEATHER_API -> listOfNotNull(FollowUp.WEATHER_API_HISTORY.takeIf { parts.daily })
+            WeatherSource.NWS -> listOfNotNull(FollowUp.NWS_STATION_ACTUALS.takeIf { parts.daily })
+            else -> emptyList()
+        }
+
+        /**
+         * [source]'s [followUps] after its fetch with [parts], in order; [stored] is whether the fetch
+         * answered and was persisted (else only [FollowUp.afterFailedFetch] jobs run). A job's failure
+         * is logged `FOLLOW_UP_FAIL` and never fails the fetch or the next job. Returns the WeatherAPI
+         * history hours stored, for the platform's refresh summary.
+         */
+        suspend fun runFollowUps(source: WeatherSource, parts: ForecastParts, stored: Boolean, jobs: FollowUpJobs): Int {
+            var historyHours = 0
+            for (followUp in followUps(source, parts)) {
+                if (!stored && !followUp.afterFailedFetch) continue
+                try {
+                    when (followUp) {
+                        FollowUp.PRIOR_DAY_CLOUD -> jobs.priorDayCloud()
+                        FollowUp.WEATHER_API_HISTORY -> historyHours = jobs.weatherApiHistory()
+                        FollowUp.NWS_STATION_ACTUALS -> jobs.nwsStationActuals()
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    jobs.log(FOLLOW_UP_FAIL_TAG, "followUp=$followUp source=${source.id} stored=$stored error=${e.javaClass.simpleName}: ${e.message}", "WARN")
+                }
+            }
+            return historyHours
+        }
+
+        /** A follow-up job that threw ([runFollowUps]); the fetch it rode is kept. */
+        const val FOLLOW_UP_FAIL_TAG = "FOLLOW_UP_FAIL"
+
         /** Open-Meteo's `past_days`: the provider history its actuals come from. */
         const val OPEN_METEO_HISTORY_DAYS = 7
 

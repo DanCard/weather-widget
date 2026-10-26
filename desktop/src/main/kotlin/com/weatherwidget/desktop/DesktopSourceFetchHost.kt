@@ -1,9 +1,7 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
-import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.HourlyForecast
-import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.SourceFetchTable
 import com.weatherwidget.shared.nowcast.NowcastSeries
@@ -19,12 +17,9 @@ import java.time.LocalDate
 internal class DesktopSourceFetchHost(
     override val calls: SourceFetchTable.Calls,
     private val weatherDao: DesktopWeatherDao?,
-    private val nws: suspend (parts: ForecastParts) -> RawFetch,
     private val needsHistory: suspend (refillDay: LocalDate?) -> Boolean,
     private val nowcastStore: NowcastStore?,
 ) : SourceFetchTable.Host {
-    override suspend fun fetchNws(latitude: Double, longitude: Double, parts: ForecastParts) = nws(parts)
-
     override suspend fun storedGoogleHours(latitude: Double, longitude: Double, startMs: Long, endMs: Long): List<HourlyForecast> =
         weatherDao?.getHourlyForecasts(latitude, longitude, WeatherSource.GOOGLE_WEATHER.id, startMs, endMs)
             ?.filter { it.locationLat == latitude && it.locationLon == longitude }

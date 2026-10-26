@@ -1,6 +1,7 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.shared.graph.PriorDayCloudRun
+import com.weatherwidget.shared.history.WeatherApiHistoryRun
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.remote.ForecastFetchPlan
@@ -186,10 +187,9 @@ internal class ForecastFetchCoordinator(
         targetSourceId != null &&
             widgetStateManager.getVisibleSourcesOrder().none { it.id == targetSourceId }
 
-    /** [fetch]: the network call and its own side effects; [afterPersist]: what needs the answer stored first. */
+    /** [fetch]: the network call and its own side effects; what rides the stored answer is [runFollowUps]. */
     private class SourceFetchEntry(
         source: WeatherSource,
-        val afterPersist: suspend (Double, Double) -> Unit = { _, _ -> },
         val fetch: suspend (Double, Double) -> RawFetch?,
     ) {
         val tag: String = requireNotNull(SourceFetchLogTags.failureTag(source)) { "no failure tag for ${source.id}" }
@@ -246,11 +246,11 @@ internal class ForecastFetchCoordinator(
         plan: Map<WeatherSource, ForecastParts> = emptyMap(),
     ): Map<WeatherSource, SourceFetchEntry> = buildMap {
         // What each source asks for is the `:shared` SourceFetchTable's, as on desktop.
-        fun entry(source: WeatherSource, afterPersist: suspend (Double, Double) -> Unit = { _, _ -> }) {
+        fun entry(source: WeatherSource) {
             if (!sourceFetchTable.serves(source)) return
             put(
                 source,
-                SourceFetchEntry(source, afterPersist) { lat, lon ->
+                SourceFetchEntry(source) { lat, lon ->
                     val request = SourceFetchTable.Request(
                         parts = plan[source] ?: ForecastParts.BOTH,
                         horizon = horizons[source],
@@ -267,13 +267,8 @@ internal class ForecastFetchCoordinator(
         }
         entry(WeatherSource.NWS)
         entry(WeatherSource.OPEN_WEATHER_MAP)
-        // Only Open-Meteo has a previous-runs product, and this rides its fetch so the call is never
-        // spent when Open-Meteo is not being fetched at all.
-        entry(WeatherSource.OPEN_METEO) { lat, lon -> fetchPriorDayCloudForecast(lat, lon) }
-        // Actuals: on the daily cadence, not the hourly one.
-        entry(WeatherSource.WEATHER_API) { lat, lon ->
-            if (plan[WeatherSource.WEATHER_API]?.daily != false) weatherApiHistoryBackfiller.backfillIfNeeded(lat, lon)
-        }
+        entry(WeatherSource.OPEN_METEO)
+        entry(WeatherSource.WEATHER_API)
         entry(WeatherSource.SILURIAN)
         entry(WeatherSource.GOOGLE_WEATHER)
         entry(WeatherSource.TOMORROW_IO)
@@ -281,10 +276,17 @@ internal class ForecastFetchCoordinator(
 
     private val sourceFetchTable = SourceFetchTable(
         RoomSourceFetchHost(
-            calls = SourceFetchTable.Calls.of(openMeteoApi, silurianApi, weatherApi, openWeatherMapApi, tomorrowIoApi, googleWeatherApi),
+            calls = SourceFetchTable.Calls.of(
+                nws = { lat, lon, parts -> nwsForecastMapper.fetchFromNws(lat, lon, parts) },
+                openMeteo = openMeteoApi,
+                silurian = silurianApi,
+                weatherApi = weatherApi,
+                openWeatherMap = openWeatherMapApi,
+                tomorrowIo = tomorrowIoApi,
+                google = googleWeatherApi,
+            ),
             hourlyStore = hourlyStore,
             appLogDao = appLogDao,
-            nws = { lat, lon, parts -> nwsForecastMapper.fetchFromNws(lat, lon, parts) },
             needsHistory = { lat, lon, refillDay -> googleNeedsHistory(lat, lon, refillDay) },
             nowcast = { lat, lon, series -> com.weatherwidget.widget.AndroidNowcast.store(context).saveSeries(lat, lon, series) },
         ),
@@ -323,7 +325,6 @@ internal class ForecastFetchCoordinator(
                 source to safeFetch(entry.tag, source, latitude, longitude) {
                     entry.fetch(latitude, longitude)?.also {
                         persistFetch(source, it, latitude, longitude, fetchContext, horizons[source], plan.getValue(source))
-                        entry.afterPersist(latitude, longitude)
                     }
                 }
             }
@@ -333,22 +334,31 @@ internal class ForecastFetchCoordinator(
             if (fetched != null) markHorizon(horizons[source], source, latitude, longitude)
         }
 
-        // NWS daily actuals from a dedicated /stations/{id}/observations pull. Idempotent: only
-        // dates still missing a station-derived actual trigger a request. It writes NWS's own
-        // daily_history rows only — borrowers read the provider's stored observations — so it rides
-        // the NWS forecast fetch, gated with it (SourceFetchGate).
-        if (WeatherSource.NWS in servable && plan[WeatherSource.NWS]?.daily == true) {
-            runCatching { nwsApiDailyActualsFetcher?.fillMissingIfNeeded(latitude, longitude) }
-                .onFailure { if (it is CancellationException) throw it }
+        // What rides each fetch, a failed one included, is the `:shared` rule, as on desktop.
+        val jobs = followUpJobs(latitude, longitude)
+        fetchedBySource.forEach { (source, fetched) ->
+            SourceFetchTable.runFollowUps(source, plan.getValue(source), stored = fetched != null, jobs)
         }
     }
+
+    /** This site's [SourceFetchTable.FollowUpJobs]: each one the `:shared` runner's Room host. */
+    private fun followUpJobs(latitude: Double, longitude: Double) = SourceFetchTable.FollowUpJobs(
+        priorDayCloud = { fetchPriorDayCloudForecast(latitude, longitude) },
+        weatherApiHistory = {
+            weatherApiHistoryBackfiller.backfillIfNeeded(latitude, longitude)
+                .let { if (it.status == WeatherApiHistoryRun.Status.FETCHED) it.storedHours else 0 }
+        },
+        nwsStationActuals = { nwsApiDailyActualsFetcher?.fillMissingIfNeeded(latitude, longitude) },
+        log = { tag, message, level -> appLogDao.log(tag, message, level) },
+    )
 
     /**
      * One source only: a tapped or panned-to day's on-demand hourly
      * (`plans/261009-on-demand-hourly-shared-single-source-fetch.md`). The same per-source
      * fetch-and-save the full sync runs — [fetchContext]'s `hourlyAhead` deepens Google's hours; every
      * other source's single call returns its whole horizon anyway — and nothing else: no other
-     * source, actuals recompute, repairs or widget paint. True when the source answered.
+     * source, follow-ups ([SourceFetchTable.runFollowUps]; desktop's on-demand fetch runs none either),
+     * actuals recompute, repairs or widget paint. True when the source answered.
      */
     suspend fun fetchSingleSource(
         latitude: Double,
@@ -362,7 +372,6 @@ internal class ForecastFetchCoordinator(
         safeFetch(entry.tag, source, latitude, longitude) {
             entry.fetch(latitude, longitude)?.also {
                 persistFetch(source, it, latitude, longitude, fetchContext, horizon, ForecastParts.BOTH)
-                entry.afterPersist(latitude, longitude)
             }
         } ?: return false
         markHorizon(horizon, source, latitude, longitude)

@@ -86,7 +86,7 @@ class ActualsFeedPolicyTest {
                 val pref = prefs(source to provider)
                 val feed = ActualsFeedPolicy.feedFor(source, usLat, usLon, pref)!!
                 val plan = ActualsFeedPolicy.fullRefreshFetch(source, usLat, usLon, false, null, now, pref)
-                if (feed == source) {
+                if (feed == source && feed != WeatherSource.NWS) {
                     assertNull("$source supplies its own actuals in its forecast fetch", plan)
                 } else {
                     assertNotNull("$source with provider $provider must fetch $feed on a full refresh", plan)
@@ -120,6 +120,17 @@ class ActualsFeedPolicyTest {
         )
         assertFalse(stale!!.recentOnly)
         assertFalse(none!!.recentOnly)
+    }
+
+    @Test
+    fun `NWS displaying itself takes the same pull, its forecast fetch being forecast only`() {
+        // F6 (plans/261025-shared-source-fetch-table.md): desktop's NWS forecast fetch pulled 7 days of
+        // station observations itself, so this was null; now the borrower rule decides the window.
+        val fresh = ActualsFeedPolicy.fullRefreshFetch(WeatherSource.NWS, usLat, usLon, false, now - 35 * 60_000L, now, prefs())
+        val gap = ActualsFeedPolicy.fullRefreshFetch(WeatherSource.NWS, usLat, usLon, false, null, now, prefs())
+
+        assertEquals(ActualsFeedPolicy.ObservationFetch(WeatherSource.NWS, recentOnly = true), fresh)
+        assertEquals(ActualsFeedPolicy.ObservationFetch(WeatherSource.NWS, recentOnly = false), gap)
     }
 
     @Test

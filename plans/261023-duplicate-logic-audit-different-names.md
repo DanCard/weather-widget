@@ -354,6 +354,13 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
 - 2026-10-25: B rest — observations phase 2: O3 input rule shared; Synoptic refresher and Observations
   screen through `ObservationWriteRun`. Every Android/desktop observation write now goes through it except
   the WeatherAPI history Host's store. Left in B: the fetch registry / `refresh()` orchestration.
+- 2026-10-25: B rest — fetch registry (`plans/261025-shared-source-fetch-table.md`). Phase 1: `:shared`
+  `SourceFetchTable` owns each source's request (F1 current reading not filed from a forecast reply, F2
+  Google stored hours on the exact key). Phase 2: `SourceFetchTable.runFollowUps` owns what rides a fetch
+  (prior-day cloud, WeatherAPI history, NWS station actuals — incl. after a failed NWS fetch) on both.
+  F6: NWS's forecast fetch is `:shared` `NwsForecastReply` on both, forecast only; desktop's NWS refresh
+  takes its observations through the shared `fullRefreshFetch` pull. Next twin: the week's NWS gap-fill
+  (Android `NwsObservationBackfiller` vs desktop `refreshObservationWindow`).
 
 ## Next (handoff, 2026-10-24)
 Small twins are done (A, C, D, E, F, G, H, I, J, K, tags). What's left, both large:

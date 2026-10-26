@@ -233,9 +233,9 @@ class DesktopWeatherService(
     ): RawFetch = runCatching {
         // What each source asks for is the `:shared` SourceFetchTable's, as on Android.
         val source = WeatherSource.fromId(weatherSource)
-        if (!sourceFetchTable(recentObservationsOnly).serves(source)) throw IllegalArgumentException("Unsupported weather source: $weatherSource")
+        if (!sourceFetchTable.serves(source)) throw IllegalArgumentException("Unsupported weather source: $weatherSource")
         val request = SourceFetchTable.Request(parts = parts, horizon = horizon, refillDay = refillDay)
-        val reply = sourceFetchTable(recentObservationsOnly).fetch(source, latitude, longitude, request, System.currentTimeMillis())
+        val reply = sourceFetchTable.fetch(source, latitude, longitude, request, System.currentTimeMillis())
         // NWS supplies real station readings and is never backfilled from its own hours.
         if (source == WeatherSource.NWS) reply else withHistoricalActuals(reply, weatherSource)
     }.getOrElse { e ->
@@ -280,7 +280,8 @@ class DesktopWeatherService(
      * past hours are never filed as observations and the actual line stays empty (the bug NWS never
      * had). The shared helper re-files the past slice of the source's hourly list as observation
      * rows — matching Android, which routes every source through saveHistoricalActuals. NWS is the
-     * one exception: it supplies real station readings in fetchNwsForecast and must not be backfilled.
+     * one exception: its actuals are real station readings (the observation path) and its forecast
+     * hours must not be backfilled as observations.
      */
     private fun withHistoricalActuals(result: RawFetch, sourceId: String): RawFetch =
         result.copy(
@@ -299,7 +300,7 @@ class DesktopWeatherService(
         if (weatherSource == WeatherSource.GOOGLE_WEATHER.id) {
             val request = SourceFetchTable.Request(onDemand = HourlyOnDemand.Request(WeatherSource.GOOGLE_WEATHER.id, hoursAhead))
             withHistoricalActuals(
-                sourceFetchTable(recentObservationsOnly = true)
+                sourceFetchTable
                     .fetch(WeatherSource.GOOGLE_WEATHER, latitude, longitude, request, System.currentTimeMillis()),
                 WeatherSource.GOOGLE_WEATHER.id,
             )
@@ -307,20 +308,27 @@ class DesktopWeatherService(
             fetchForecast(recentObservationsOnly = true)
         }
 
-    private val sourceFetchCalls by lazy {
-        SourceFetchTable.Calls.of(openMeteo, silurian, weatherApi, openWeatherMap, tomorrowIo, googleWeather)
+    /** The shared table over this service's clients, NWS's forecast-only fetch included (F6). */
+    private val sourceFetchTable by lazy {
+        SourceFetchTable(
+            DesktopSourceFetchHost(
+                calls = SourceFetchTable.Calls.of(
+                    nws = { lat, lon, parts ->
+                        NwsForecastReply.fetch(nwsApi, lat, lon, parts, log = { tag, message, level -> weatherDao?.log(tag, message, level) })
+                    },
+                    openMeteo = openMeteo,
+                    silurian = silurian,
+                    weatherApi = weatherApi,
+                    openWeatherMap = openWeatherMap,
+                    tomorrowIo = tomorrowIo,
+                    google = googleWeather,
+                ),
+                weatherDao = weatherDao,
+                needsHistory = { refillDay -> googleNeedsHistory(refillDay) },
+                nowcastStore = nowcastStore,
+            ),
+        )
     }
-
-    /** The shared table over this service's clients; NWS stays this service's own fetch until F6. */
-    private fun sourceFetchTable(recentObservationsOnly: Boolean) = SourceFetchTable(
-        DesktopSourceFetchHost(
-            calls = sourceFetchCalls,
-            weatherDao = weatherDao,
-            nws = { parts -> fetchNwsForecast(recentObservationsOnly, parts) },
-            needsHistory = { refillDay -> googleNeedsHistory(refillDay) },
-            nowcastStore = nowcastStore,
-        ),
-    )
 
     /** [GoogleHistoryRun.needsHistory] at this site; without a DB, always. */
     private suspend fun googleNeedsHistory(refillDay: java.time.LocalDate?): Boolean {
@@ -356,8 +364,8 @@ class DesktopWeatherService(
 
     /**
      * On-demand deep history of NWS station observations for the graph's pink actual line, used when
-     * the user zooms/pans the hourly graph past the [HISTORY_DAYS] window the normal forecast fetch
-     * covers. Resolves the same observation stations as [fetchNwsForecast] and only widens the
+     * the user zooms/pans the hourly graph past the [HISTORY_DAYS] observation window a refresh
+     * covers. Resolves the same observation stations as [fetchObservationsOnly] and only widens the
      * historical window — the station set (≤ [MAX_OBSERVATION_STATIONS]) and the number of API calls
      * are unchanged; each station call simply returns more rows. Returns the flattened station
      * readings (latest + historical) for persistence. Best-effort: empty list on any failure, so a
@@ -418,87 +426,6 @@ class DesktopWeatherService(
         return openMeteo.getHistoricalDailyTemps(latitude, longitude, startDate, endDate)
     }
 
-    /**
-     * [parts]: daily-only skips `/forecast/hourly` (the current-temp fallback then interpolates the
-     * stored hours); hourly-only skips `/forecast` and the station observations, which keep the daily
-     * cadence.
-     */
-    private suspend fun fetchNwsForecast(
-        recentObservationsOnly: Boolean = false,
-        parts: ForecastParts = ForecastParts.BOTH,
-    ): RawFetch = coroutineScope {
-        val grid = nwsApi.getGridPoint(latitude, longitude)
-        if (!parts.daily) {
-            val bundle = NwsForecastFetch.fetch(nwsApi, grid, parts)
-            bundle.gridpointsFailure?.let { Log.w(TAG, "gridpoints fetch failed: $it") }
-            return@coroutineScope RawFetch(
-                hourly = bundle.hourlyPeriods.map { it.toHourlyForecast() },
-                elapsedHourly = bundle.elapsedHourlyPeriods.map { it.toHourlyForecast() },
-            )
-        }
-
-        // Resolve candidate observation stations concurrently with the forecast fetch, then try
-        // official stations first for the historical window that drives actuals. Observation
-        // fetches are best-effort: if they fail the forecast still renders from hourly/daily feeds.
-        val stationsDeferred = async {
-            bestEffort("observation stations") {
-                grid.observationStationsUrl?.let { url -> getCachedOrFetchStations(url) }
-            } ?: emptyList()
-        }
-
-        val bundle = NwsForecastFetch.fetch(nwsApi, grid, parts)
-        // Preserves the previous bestEffort("gridpoints") diagnostic.
-        bundle.gridpointsFailure?.let { Log.w(TAG, "gridpoints fetch failed: $it") }
-
-        val observations = fetchNwsObservations(
-            stationsDeferred.await(),
-            recentOnly = recentObservationsOnly,
-        )
-
-        RawFetch(
-            providerCurrentTemp = observations.currentTemp,
-            providerCurrentCondition = observations.currentCondition,
-            providerCurrentObservedAt = observations.currentObservedAt,
-            hourly = bundle.hourlyPeriods.map { it.toHourlyForecast() },
-            elapsedHourly = bundle.elapsedHourlyPeriods.map { it.toHourlyForecast() },
-            daily = NwsDailyMapper.buildDailyForecasts(
-                bundle.forecastPeriods,
-                bundle.gridpoints.dailyTemperatures,
-                LocalDate.now(),
-                bundle.hourlyPeriods,
-            ),
-            rawObservations = observations.observations,
-            nwsDailyExtremes = bundle.gridpoints.dailyTemperatures,
-        )
-    }
-
-    /**
-     * NWS current-observation fetch: per-station bundles → IDW current temp → stored readings.
-     *
-     * Split out of [fetchNwsForecast] (Phase 3a of
-     * plans/260909-nws-fetch-unification.md) so the desktop forecast path mirrors Android's
-     * `NwsForecastMapper` (forecast only) and the observation path mirrors `NwsCurrentObservationUpdater`.
-     * Behavior is unchanged.
-     */
-    private suspend fun fetchNwsObservations(
-        stations: List<NwsApi.StationInfo>,
-        historyDays: Long = HISTORY_DAYS,
-        recentOnly: Boolean = false,
-    ): NwsObservationFetch {
-        val startMs = System.currentTimeMillis()
-        val bundles = fetchObservationBundles(stations, historyDays, recentOnly)
-        val reading = nwsFetchReading(bundles, startMs)
-
-        // The blend is NOT stored: like Android, the repository computes it from the station rows
-        // on read, so its 3h IDW decay is weighted at render time rather than frozen at fetch time
-        // (plans/261009-desktop-stops-storing-nws-blend.md). Here it only reports the cycle's reading.
-        return NwsObservationFetch(
-            currentTemp = reading?.temperature,
-            currentCondition = reading?.condition,
-            currentObservedAt = reading?.observedAt,
-            observations = nwsBundleRows(bundles),
-        )
-    }
 
     /**
      * `:shared` [NwsBlend.fetchReading] on each station's latest reading, logged as on Android. Null
@@ -525,13 +452,6 @@ class DesktopWeatherService(
             }
         }
 
-    /** Result of [fetchNwsObservations]: the current-reading anchor plus the rows to persist. */
-    private data class NwsObservationFetch(
-        val currentTemp: Float?,
-        val currentCondition: String?,
-        val currentObservedAt: Long?,
-        val observations: List<ObservationReading>,
-    )
 
     /**
      * Runs a best-effort supplementary fetch. Failures degrade to null (callers fall back to the

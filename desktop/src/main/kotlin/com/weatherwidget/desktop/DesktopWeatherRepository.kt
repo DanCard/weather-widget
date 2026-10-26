@@ -19,6 +19,7 @@ import com.weatherwidget.data.remote.GoogleHistoryRefill
 import com.weatherwidget.data.remote.GoogleHistoryRun
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.HourlyOnDemand
+import com.weatherwidget.data.remote.SourceFetchTable
 import com.weatherwidget.data.remote.HourlyOnDemandRun
 import com.weatherwidget.data.remote.ForecastHorizonCadence
 import com.weatherwidget.data.remote.NwsApi
@@ -474,7 +475,9 @@ class DesktopWeatherRepository(
 
     /**
      * The observation pull a full refresh makes for a source whose actuals come from another feed
-     * (a borrowing source, or one redirected by the user's actuals-provider choice). Which feed, and
+     * (a borrowing source, or one redirected by the user's actuals-provider choice), and for NWS
+     * itself, whose forecast fetch is the forecast only (F6). Logged `BORROWED_NWS_RECOVERY` either
+     * way, `source=` telling the two apart. Which feed, and
      * whether to narrow it to the recent window, is [ActualsFeedPolicy.fullRefreshFetch], shared
      * with Android. The frequent observations loop fetches only the recent window; this bounded
      * recovery pull makes sure a suspend/restart gap, or a provider switch, doesn't stay visible once
@@ -557,6 +560,9 @@ class DesktopWeatherRepository(
                 "source=$weatherSource lat=$latitude lon=$longitude",
             level = "INFO",
         )
+        // For the failure path: a failed fetch still runs the follow-ups that do not need its reply.
+        var stored = false
+        var followUpsRan = false
         try {
             // NOTE: no Open-Meteo history backfill here. GENERIC_GAP is future-only; past forecast history
             // must come only from real accumulated NWS snapshots (a fresh install simply starts sparse and
@@ -607,6 +613,7 @@ class DesktopWeatherRepository(
                 userRefresh = userRefresh,
                 borrowedFeed = borrowedPlan?.feed?.takeIf { borrowedRecovery.rawObservations.isNotEmpty() },
             )
+            stored = true
             markHorizon(fetchHorizon, result)
             if (refillDay != null) refillStaleGoogleHours(result, now, refillDay)
 
@@ -625,15 +632,12 @@ class DesktopWeatherRepository(
                     level = "INFO",
                 )
             }
-            val historyObsCount = backfillWeatherApiHistoryIfNeeded(now)
+            // What rides this source's fetch is the `:shared` rule, as on Android. Before the extremes
+            // recompute, so WeatherAPI's history hours count in this refresh's actuals.
+            followUpsRan = true
+            val historyObsCount = runFollowUps(fetchParts, stored = true, now)
 
             val extremesCount = runPostFetchBackfills(now)
-
-            // The cloud graph's frozen forecast curve. Throttled to once an hour: the day-ago
-            // prediction for an elapsed hour never changes, so refetching it on every refresh would
-            // buy nothing. Best-effort and non-fatal — the service returns empty for any source
-            // without a previous-runs product, and for any failure.
-            maybeFetchPriorDayCloudForecast(now)
 
             // Best-effort: ensure climate normals are cached for the future-day fallback. One network
             // fetch per location, then served from cache; never fails the main refresh.
@@ -671,9 +675,29 @@ class DesktopWeatherRepository(
                 )
             } else {
                 weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(displaySource.id, e), "WARN")
+                if (!followUpsRan) runFollowUps(fetchParts, stored, now)
             }
             throw e
         }
+    }
+
+    /**
+     * `:shared` [SourceFetchTable.runFollowUps] for this repository's source (none for a source with no
+     * fetch, such as GENERIC_GAP). Returns the WeatherAPI history hours stored.
+     */
+    private suspend fun runFollowUps(parts: ForecastParts, stored: Boolean, now: Long): Int {
+        val source = WeatherSource.entries.firstOrNull { it.id == weatherSource } ?: return 0
+        return SourceFetchTable.runFollowUps(
+            source,
+            parts,
+            stored,
+            SourceFetchTable.FollowUpJobs(
+                priorDayCloud = { maybeFetchPriorDayCloudForecast(now) },
+                weatherApiHistory = { backfillWeatherApiHistoryIfNeeded(now) },
+                nwsStationActuals = { fillNwsStationActualsIfNeeded(now) },
+                log = { tag, message, level -> weatherDao.log(tag, message, level) },
+            ),
+        )
     }
 
     /** A judged fetch that answered restarts the cadence ([DesktopForecastHorizon]). */
@@ -702,6 +726,7 @@ class DesktopWeatherRepository(
             daily = false,
         )
         markHorizon(horizon, result)
+        runFollowUps(ForecastParts.HOURLY, stored = true, now)
         weatherDao.log(tag = "REFRESH_HOURLY", message = "source=$weatherSource hourly=${result.hourly.size} reason=$reason")
         return RefreshOutcome(
             snapshot = loadCached(now) ?: rawFetchToSnapshot(result),
@@ -857,16 +882,15 @@ class DesktopWeatherRepository(
     }
 
     /**
-     * Post-fetch data-derivation steps: recompute daily extremes from stored observations, fill
-     * NWS station actuals, ensure forecast-only history rows, snapshot the displayed rain chance,
-     * and run the one-time chance/frozen-column backfills. Returns the count of recomputed
+     * Post-fetch data-derivation steps: recompute daily extremes from stored observations,
+     * ensure forecast-only history rows, snapshot the displayed rain chance, and run the one-time
+     * chance/frozen-column backfills. NWS station actuals are a follow-up ([runFollowUps]). Returns the count of recomputed
      * extreme rows for the [refresh] pipeline-health log.
      */
     private suspend fun runPostFetchBackfills(now: Long): Int {
         // Derive actual daily highs/lows from the stored observation window — the actuals that
         // forecast-accuracy comparisons are measured against.
         val extremesCount = recomputeDailyExtremes(now)
-        fillNwsStationActualsIfNeeded(now)
         dailyHistoryRun.afterFetch(latitude, longitude, now)
         repairUtcDatedPredictionsIfNeeded()
         dailyHistoryRun.upkeepIfDue(latitude, longitude, now, isCharging())

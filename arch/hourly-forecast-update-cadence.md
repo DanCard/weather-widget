@@ -63,6 +63,12 @@ desktop uses its observation loop. Screen-on catch-up fetches only when the rele
 and battery policy permit it. Other enabled sources follow `NonPrimaryObservationPolicy`, not the
 displayed source's table.
 
+A forecast fetch never carries station observations or a current reading: NWS's is the forecast only
+on both platforms (`NwsForecastReply`). Desktop's full refresh adds the shared
+`ActualsFeedPolicy.fullRefreshFetch` observation pull for the displayed source's feed — NWS displaying
+itself included — taking the recent window when stored rows reach the last hour and the week only on a
+real gap.
+
 Interpolating a current temperature from cached hourly rows is a UI operation, not a network fetch.
 Repaints can therefore be more frequent than observation requests without changing provider usage.
 

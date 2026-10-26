@@ -87,4 +87,65 @@ Each phase: tests that fail on the old code for each decided divergence, full su
     Android's did; a failed Tomorrow.io history now logs `FETCH_TMRW_5M_FAIL` on desktop too (was logcat);
     on a failed history the forecast reply keeps its own current fields (desktop's; Android never read them).
   - Follow-ups (F3–F5) unchanged: Android `afterPersist`, desktop `refresh` — phase 2.
-
+- 2026-10-25 — Phase 2 (F3–F5; F6 not yet measured). `:shared` `SourceFetchTable.runFollowUps(source,
+  parts, stored, FollowUpJobs)` owns which follow-ups ride a fetch (`followUps`: prior-day cloud on
+  Open-Meteo, WeatherAPI history / NWS station actuals on a daily fetch of their own source — the plan's
+  parts, not `requested`'s widening), whether a failed fetch still runs them (`FollowUp.afterFailedFetch`:
+  NWS station actuals only), their order and `FOLLOW_UP_FAIL` logging. Platforms pass `FollowUpJobs` (each
+  an existing shared runner, so no new Host port / contract).
+  - User 2026-10-25: keep Android's NWS timing (station actuals even when the NWS forecast fetch failed),
+    and desktop and phone run the same code. Desktop now runs them from its failure path too.
+  - Android: `SourceFetchEntry.afterPersist` and the post-loop NWS block gone; one `runFollowUps` per
+    fetched source after the loop. `fetchSingleSource` (on-demand day) runs none, as desktop's
+    `extendHourlyFor` (it ran WeatherAPI history / prior-day cloud before).
+  - Desktop: `refresh` runs them right after persist (WeatherAPI history before the extremes recompute, as
+    before; NWS station actuals now also before it, was after); `refreshHourlyOnly` runs them too (prior-day
+    cloud on an hourly-only Open-Meteo fetch). F3 was already gated inside `PriorDayCloudRun` (no service
+    call for other sources); F5 was not — every visible source's refresh ran the NWS station-actuals read.
+  - Tests that fail on the old code: `DesktopRefreshFollowUpsTest` (3 of 4: Open-Meteo / other source ran
+    NWS station actuals; failed NWS refresh ran none), `ForecastFetchCoordinatorFollowUpsTest` (on-demand
+    ran WeatherAPI history). `SourceFetchTableTest`: the table, failed-fetch rule, failure logging.
+  - Full suite 6068 passed, `:app:compileDebugAndroidTestKotlin` ok; installed on both phones and both
+    emulators; desktop restarted 16:28 — first refresh (Tomorrow.io) ran no follow-ups, no
+    `SOURCE_ERROR` / `REFRESH_FAIL` since 12:25.
+  - Phase 1 open check closed: desktop's `GOOGLE_HOURS_PAGES pages=8 reason=no_stored_hours_given
+    hours=192` is a LONG 192 h fetch (Google ignores stored hours past 72 h, `GoogleWeatherApi`), not F2;
+    stored Google rows are on the quantized key.
+  - Pixel `app_logs` (backup 2026-10-25 16:46): Google `pages=8 reason=no_stored_hours_given hours=192` at
+    14:31, the same line as desktop's for the site (F2 device check). No follow-up lines since the ~16:25
+    install yet; desktop logged `NWS_STATION_ACTUALS_OUTCOME` 53× in 2 days against the Pixel's 8 (F5).
+- 2026-10-25 — F6 measured (desktop `weather.db`, Pixel backup `backups/20261025_164643_pixel_7_pro_*`):
+  - Coverage is the same without it: NWS rows per day at the site, last 8 days, desktop vs Pixel within
+    ±9 rows/day, same stations (4–5) every day. The Pixel's NWS forecast fetch pulls no observations; its
+    week comes from `NwsObservationBackfiller` (gap-targeted, `OBS_HOURLY_BACKFILL_REQ` 155 in 2 days) and
+    the current cycle.
+  - Desktop pulls the whole 7-day window ~10×/day: 6 inside non-deferred NWS forecast fetches + 15
+    `OBS_WINDOW_REFRESH` in 2 days, each 5 stations, ~960–1040 rows, 4–14 s (one 337 s). Every pull
+    rewrites the window (`INSERT OR REPLACE`, NWS history readings carry no `fetchedAt`): grouping NWS rows
+    by write minute, the latest window pull owns 495 rows, the one before 383 — a re-write, not new data.
+  - Borrowers already use the shared `ActualsFeedPolicy.fullRefreshFetch` rule (recent 90-min window when
+    stored rows reach the last hour, 7 days only on a real gap): 41 recent pulls, 0 full, in 2 days. NWS
+    itself is exempt (`feed == displaySource → null`), so its forecast fetch always takes 7 days.
+  - Recommendation: Android's — the NWS forecast fetch is forecast only on both (`NwsForecastFetch` through
+    the table; `Host.fetchNws` and desktop's in-fetch station pull go; the fetch-time current reading goes
+    with it, as F1). Desktop's NWS refresh then takes its observation pull through `fullRefreshFetch` like a
+    borrower (recent unless a real gap). Not in this plan: sharing the week's gap-fill itself (Android
+    `NwsObservationBackfiller` vs desktop `refreshObservationWindow`) — the next twin, its own plan.
+- 2026-10-25 — F6 approved as recommended (user) and done:
+  - `:shared` `NwsForecastReply.fetch` is the NWS forecast fetch on both (Android's `NwsForecastMapper` body
+    and diagnostic lines moved there; the class is now a thin Hilt adapter). NWS is `SourceFetchTable.Calls.nws`;
+    `Host.fetchNws` gone. Desktop's `fetchNwsForecast` / `fetchNwsObservations` / `NwsObservationFetch` deleted,
+    and with them the fetch-time current reading and `RawFetch.nwsDailyExtremes` (set, never read). Desktop
+    NWS hours now carry `fetchedAt` and desktop writes Android's NWS diagnostic tags (`NWS_PERIOD_SUMMARY`,
+    `NWS_BATCH_SUMMARY`, `NWS_TODAY_SOURCE`, …).
+  - `ActualsFeedPolicy.fullRefreshFetch`: NWS displaying itself now gets the pull (was null), so desktop's NWS
+    refresh stores observations through `fetchObservationsOnly` — logged `BORROWED_NWS_RECOVERY source=NWS`.
+  - `WeatherApiClient.fetchForecast(recentObservationsOnly)` is now ignored; removing it is mechanical (60 call
+    sites, 18 files) and left as a follow-up.
+  - Tests failing on the old policy: `ActualsFeedPolicyTest` (NWS-self case; the every-provider loop pinned
+    the old null), `DesktopNwsForecastOnlyRefreshTest` (week on a gap, recent window when stored reaches the
+    last hour). Full suite 6080: one failure, `HistorySnapshotPrunerTest` rain-accuracy prior-day pick, which
+    fails on the pre-change code too (pre-existing, time-dependent). `:app:compileDebugAndroidTestKotlin` ok.
+  - Installed on 3 devices (both phones, one emulator), desktop restarted 17:15. Device check pending: the
+    next desktop NWS refresh (~18:13) — `BORROWED_NWS_RECOVERY source=NWS recentOnly=true`, NWS diagnostic
+    tags, no `SOURCE_ERROR` / `REFRESH_FAIL`.

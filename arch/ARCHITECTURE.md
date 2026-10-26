@@ -32,6 +32,8 @@ Examples include:
   newest), the Tomorrow.io fetch line, and retired-product cleanup per api written.
 - `DailyHistoryRun` and `NwsStationActualsRun`: history maintenance and station-derived actuals.
 - `WeatherApiHistoryRun` and `GoogleHistoryRun`: provider-specific history workflows.
+- `SourceFetchTable`: what each source's forecast fetch requests, and (`runFollowUps`) which of the
+  history runners above ride that fetch, a failed one included.
 
 A shared planner that leaves ordering or policy in platform glue is not equivalent; that arrangement
 previously allowed Android and desktop to drift. Host contract tests exercise the same runner against

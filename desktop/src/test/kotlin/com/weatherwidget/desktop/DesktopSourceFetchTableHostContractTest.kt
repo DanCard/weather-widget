@@ -22,9 +22,8 @@ class DesktopSourceFetchTableHostContractTest : SourceFetchTableHostContract() {
         val dao = DesktopWeatherDao(DesktopWeatherDatabase(path).apply { initialize() })
         return object : Db {
             override fun host() = DesktopSourceFetchHost(
-                calls = SourceFetchTable.Calls(openMeteo = { _, _, _, _ -> RawFetch() }),
+                calls = SourceFetchTable.Calls(nws = { _, _, _ -> RawFetch() }, openMeteo = { _, _, _, _ -> RawFetch() }),
                 weatherDao = dao,
-                nws = { RawFetch() },
                 needsHistory = { false },
                 nowcastStore = null,
             )

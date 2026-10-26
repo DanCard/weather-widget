@@ -16,17 +16,16 @@ import java.time.LocalDate
  */
 interface WeatherApiClient {
     /**
-     * [recentObservationsOnly] narrows NWS's station-observation pull to the recent window (as in
-     * [fetchObservationsOnly]) instead of the 7-day one, so a catch-up refresh can publish without
-     * waiting on ~2 MB-per-station history bodies; the caller then fills the window with
-     * [fetchObservationHistory]. Ignored by every other source.
+     * [recentObservationsOnly] is ignored by [DesktopWeatherService]: no forecast fetch pulls station
+     * observations since NWS's became forecast-only (F6, plans/261025-shared-source-fetch-table.md);
+     * the refresh takes them through [fetchObservationsOnly]. Kept until the call sites are migrated.
      */
     suspend fun fetchForecast(recentObservationsOnly: Boolean = false): RawFetch
 
     /**
      * [parts] ([ForecastParts]): which parts of the forecast to ask for — a source whose API can drop
      * one ([ForecastParts.splits]) does; the others make their one full request. An hourly-only fetch
-     * also skips what keeps the daily cadence (station observations, Tomorrow.io's 5-minute history).
+     * also skips what keeps the daily cadence (Tomorrow.io's 5-minute history).
      */
     suspend fun fetchForecast(recentObservationsOnly: Boolean, parts: ForecastParts): RawFetch =
         fetchForecast(recentObservationsOnly)
