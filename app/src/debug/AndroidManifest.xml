@@ -7,6 +7,10 @@
     android:exported="true" is required rather than incidental: `adb shell am broadcast` runs as the
     shell uid, and a non-exported receiver is unreachable from it even with an explicit component.
     That export is precisely why this must not exist outside a debug build.
+
+    android:permission="android.permission.DUMP" is the second lock: the adb shell holds DUMP and
+    ordinary apps cannot, so even on a debug phone no other installed app can move the location or
+    trigger a billed sync through these receivers.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -14,10 +18,21 @@
         <receiver
             android:name="com.weatherwidget.debug.DebugLocationReceiver"
             android:enabled="true"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="com.weatherwidget.debug.SET_LOCATION" />
                 <action android:name="com.weatherwidget.debug.CLEAR_LOCATION" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="com.weatherwidget.debug.DebugSyncReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="com.weatherwidget.debug.REFRESH" />
+                <action android:name="com.weatherwidget.debug.FULL_SYNC" />
             </intent-filter>
         </receiver>
     </application>
