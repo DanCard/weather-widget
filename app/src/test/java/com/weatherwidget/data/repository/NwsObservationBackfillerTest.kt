@@ -66,7 +66,7 @@ class NwsObservationBackfillerTest {
     @Test(expected = CancellationException::class)
     fun `daily backfill station discovery cancellation propagates`() = runTest {
         val source = mockk<NwsObservationSource>()
-        coEvery { source.stationsForLocation(any(), any()) } throws CancellationException("stop")
+        coEvery { source.stationsForLocationOutcome(any(), any()) } throws CancellationException("stop")
 
         subject(source).backfillNwsObservationsIfNeeded(37.42, -122.08)
     }

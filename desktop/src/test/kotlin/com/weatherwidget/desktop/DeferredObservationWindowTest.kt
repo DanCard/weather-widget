@@ -23,9 +23,11 @@ import java.nio.file.Path
 
 /**
  * The wake catch-up publishes before it fills history: `refreshWithOutcome(deferObservationWindow
- * = true)` asks NWS for the recent observation window only and never touches the 7-day pull, and
- * [DesktopWeatherRepository.refreshObservationWindow] stores that pull afterwards. Real DB, mocked
- * network seam. performance/261004-desktop-wake-refresh-stalls-on-7day-obs-window.md.
+ * = true)` asks NWS for the recent observation window only, and
+ * [DesktopWeatherRepository.refreshObservationWindow] then runs the shared NwsGapFillRun daily pass —
+ * a 3-day pull only for days that are missing or incomplete. Real DB, mocked network seam.
+ * performance/261004-desktop-wake-refresh-stalls-on-7day-obs-window.md,
+ * plans/261025-shared-nws-gap-fill.md.
  */
 @Category(ShortDuration::class)
 class DeferredObservationWindowTest {
@@ -75,7 +77,7 @@ class DeferredObservationWindowTest {
     }
 
     @Test
-    fun `deferred refresh publishes from the recent window without the 7-day pull`() = runTest {
+    fun `deferred refresh publishes from the recent window without the history fill`() = runTest {
         stubForecast()
 
         val outcome = repo().refreshWithOutcome(now, deferObservationWindow = true)
@@ -83,7 +85,7 @@ class DeferredObservationWindowTest {
         assertEquals(1, outcome.snapshot.raw.hourly.size)
         coVerify(exactly = 1) { weatherService.fetchObservationsOnly(true, any()) }
         coVerify(exactly = 0) { weatherService.fetchObservationsOnly(false, any()) }
-        coVerify(exactly = 0) { weatherService.fetchObservationHistory(any()) }
+        coVerify(exactly = 0) { weatherService.fetchNwsStationWindow(any(), any(), any(), any(), any()) }
         val refreshRow = dao.getLatestLogByTagAndMessagePrefix("REFRESH", "source=NWS")
         assertNotNull(refreshRow)
         assertTrue(refreshRow!!.message, refreshRow.message.endsWith("obsWindow=deferred"))
@@ -100,38 +102,79 @@ class DeferredObservationWindowTest {
         assertTrue(refreshRow.message, !refreshRow.message.contains("obsWindow"))
     }
 
-    @Test
-    fun `observation window phase stores the 7-day history`() = runTest {
-        val history = (1..48).map { h -> reading("KSJC", now - h * 3600_000L, 60f + h % 10) }
-        coEvery { weatherService.fetchObservationHistory(DesktopWeatherService.HISTORY_DAYS) } returns history
+    // --- The deferred window is the shared NwsGapFillRun daily pass (plans/261025-shared-nws-gap-fill.md) ---
 
-        val stored = repo().refreshObservationWindow(now)
+    private val knuq = com.weatherwidget.data.remote.NwsApi.StationInfo("KNUQ", "KNUQ", lat, lon)
 
-        assertEquals(48, stored)
-        val inDb = dao.getObservationsInRange(now - 49 * 3600_000L, now, lat, lon)
-            .count { it.stationId == "KSJC" }
-        assertEquals(48, inDb)
-        val row = dao.getLatestLogByTagAndMessagePrefix("OBS_WINDOW_REFRESH", "source=NWS rows=48")
-        assertNotNull(row)
+    /** Hourly KNUQ readings over the last 72 h: every past day reaches the afternoon. */
+    private val threeDays = (1..72).map { h -> reading("KNUQ", now - h * 3600_000L, 60f + h % 10) }
+
+    private fun stubGapFill(rows: List<ObservationReading> = threeDays) {
+        coEvery { weatherService.nwsObservationStations() } returns
+            com.weatherwidget.data.remote.FetchOutcome.Success(listOf(knuq))
+        coEvery { weatherService.fetchNwsStationWindow(any(), any(), any(), any(), any()) } returns
+            com.weatherwidget.shared.observations.NwsGapFillRun.StationRows(rows, usedWebFallback = false)
     }
 
     @Test
-    fun `observation window failure is logged and swallowed - the forecast is already out`() = runTest {
-        coEvery { weatherService.fetchObservationHistory(any()) } throws
-            EOFException("Invalid chunk: content block of size 49152 ended unexpectedly")
+    fun `observation window fills the missing days with a 3-day pull, not 7`() = runTest {
+        stubGapFill()
 
         val stored = repo().refreshObservationWindow(now)
 
-        assertEquals(-1, stored)
-        val row = dao.getLatestLogByTagAndMessagePrefix("OBS_WINDOW_REFRESH", "source=NWS failed")
+        assertEquals(72, stored)
+        val start = java.time.Instant.ofEpochMilli(now).minus(java.time.Duration.ofDays(3)).toString()
+        coVerify(exactly = 1) { weatherService.fetchNwsStationWindow(knuq, 0, start, any(), "NWS_DAILY_WEB_FALLBACK") }
+        coVerify(exactly = 0) { weatherService.fetchObservationHistory(any()) }
+        val inDb = dao.getObservationsInRange(now - 73 * 3600_000L, now, lat, lon).count { it.stationId == "KNUQ" }
+        assertEquals(72, inDb)
+        val row = dao.getLatestLogByTagAndMessagePrefix("OBS_WINDOW_REFRESH", "source=NWS need=[")
+        assertNotNull(row)
+        assertTrue(row!!.message, "rows=72" in row.message && "remaining=[]" in row.message)
+    }
+
+    @Test
+    fun `a wake with every day complete makes no request`() = runTest {
+        stubGapFill()
+        repo().refreshObservationWindow(now)
+
+        assertEquals(0, repo().refreshObservationWindow(now))
+
+        coVerify(exactly = 1) { weatherService.fetchNwsStationWindow(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 1) { weatherService.nwsObservationStations() }
+        assertNotNull(dao.getLatestLogByTagAndMessagePrefix("OBS_WINDOW_REFRESH", "source=NWS need=none rows=0"))
+    }
+
+    @Test
+    fun `NWS unreachable is logged and swallowed - the forecast is already out`() = runTest {
+        coEvery { weatherService.nwsObservationStations() } returns
+            com.weatherwidget.data.remote.FetchOutcome.Failed("HttpRequestTimeoutException: timeout")
+
+        assertEquals(-1, repo().refreshObservationWindow(now))
+
+        val row = dao.getLatestLogByTagAndMessagePrefix("OBS_WINDOW_REFRESH", "source=NWS need=")
         assertNotNull(row)
         assertEquals("WARN", row!!.level)
+        assertTrue(row.message, "unreachable=true" in row.message)
+    }
+
+    @Test
+    fun `a station window that throws is logged per station and reads as unreachable`() = runTest {
+        coEvery { weatherService.nwsObservationStations() } returns
+            com.weatherwidget.data.remote.FetchOutcome.Success(listOf(knuq))
+        coEvery { weatherService.fetchNwsStationWindow(any(), any(), any(), any(), any()) } throws
+            EOFException("Invalid chunk: content block of size 49152 ended unexpectedly")
+
+        assertEquals(-1, repo().refreshObservationWindow(now))
+
+        assertNotNull(dao.getLatestLogByTagAndMessagePrefix("NWS_DAILY_BACKFILL_STATION_FAIL", "station=KNUQ"))
     }
 
     @Test
     fun `non-NWS sources have no deferred window and make no request`() = runTest {
         assertEquals(0, repo(source = "OPEN_METEO").refreshObservationWindow(now))
-        coVerify(exactly = 0) { weatherService.fetchObservationHistory(any()) }
+        coVerify(exactly = 0) { weatherService.nwsObservationStations() }
+        coVerify(exactly = 0) { weatherService.fetchNwsStationWindow(any(), any(), any(), any(), any()) }
     }
 
     // --- Borrowed NWS (plans/261007-desktop-borrowed-nws-actuals-not-fetched-on-full-refresh.md) ---
@@ -185,9 +228,8 @@ class DeferredObservationWindowTest {
 
     @Test
     fun `google borrowing NWS - deferred window applies`() = withGoogleBorrowingNws {
-        coEvery { weatherService.fetchObservationHistory(DesktopWeatherService.HISTORY_DAYS) } returns
-            listOf(reading("KSJC", now - 3600_000L, 60f))
+        stubGapFill()
 
-        assertEquals(1, repo(source = "GOOGLE_WEATHER").refreshObservationWindow(now))
+        assertEquals(72, repo(source = "GOOGLE_WEATHER").refreshObservationWindow(now))
     }
 }

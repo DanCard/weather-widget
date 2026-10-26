@@ -6,7 +6,9 @@ import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.RawFetch
+import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.shared.observations.NwsGapFillRun
 import java.time.LocalDate
 
 /**
@@ -96,6 +98,21 @@ interface WeatherApiClient {
     suspend fun fetchFeedObservations(feed: WeatherSource, recentOnly: Boolean = true): RawFetch
 
     suspend fun nearestStationsForDailyActuals(): List<NwsApi.StationInfo>
+
+    /**
+     * This site's NWS observation stations for the shared [NwsGapFillRun]: [FetchOutcome.Failed] when
+     * NWS never answered, so the fill can tell "unreachable" from "no stations here".
+     */
+    suspend fun nwsObservationStations(): FetchOutcome<List<NwsApi.StationInfo>> = FetchOutcome.NoData
+
+    /** One station's [startIso, endIso) window for [NwsGapFillRun], with NWS's METAR-text web leg (as Android). */
+    suspend fun fetchNwsStationWindow(
+        station: NwsApi.StationInfo,
+        index: Int,
+        startIso: String,
+        endIso: String,
+        fallbackLogTag: String,
+    ): NwsGapFillRun.StationRows = NwsGapFillRun.StationRows(emptyList(), usedWebFallback = false)
 
     suspend fun fetchApiObservationDay(
         station: NwsApi.StationInfo,

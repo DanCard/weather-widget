@@ -31,6 +31,7 @@ Examples include:
   personal stations thinned to one row per 10 minutes over the stored window (plus each station's
   newest), the Tomorrow.io fetch line, and retired-product cleanup per api written.
 - `DailyHistoryRun` and `NwsStationActualsRun`: history maintenance and station-derived actuals.
+- `NwsGapFillRun`: the need-gated 3-day NWS station-history fill (which days, which stations, when to stop).
 - `WeatherApiHistoryRun` and `GoogleHistoryRun`: provider-specific history workflows.
 - `SourceFetchTable`: what each source's forecast fetch requests, and (`runFollowUps`) which of the
   history runners above ride that fetch, a failed one included.

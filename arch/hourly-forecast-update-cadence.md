@@ -69,6 +69,13 @@ on both platforms (`NwsForecastReply`). Desktop's full refresh adds the shared
 itself included — taking the recent window when stored rows reach the last hour and the week only on a
 real gap.
 
+Recent NWS station history is filled by the shared `NwsGapFillRun` daily pass — Android's full sync,
+desktop's launch/wake catch-up after it publishes. It runs only when day−2, yesterday or (from 02:00)
+today has no NWS `daily_history` row, or a past day's NWS rows stop before 14:00
+(`pastDayLacksAfternoonCoverage`); then it asks up to five stations, nearest first, for the last
+3 days and stops once every needed day is complete. A complete week makes no request. Logs:
+`NWS_DAILY_BACKFILL_*` on both platforms, plus desktop's `OBS_WINDOW_REFRESH need=…` summary.
+
 Interpolating a current temperature from cached hourly rows is a UI operation, not a network fetch.
 Repaints can therefore be more frequent than observation requests without changing provider usage.
 

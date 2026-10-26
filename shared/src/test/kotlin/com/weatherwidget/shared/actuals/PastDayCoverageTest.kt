@@ -1,4 +1,4 @@
-package com.weatherwidget.data.repository
+package com.weatherwidget.shared.actuals
 
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertFalse

@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.observations.NwsGapFillRun
 import com.weatherwidget.shared.util.ClimateNormalsRun
 import com.weatherwidget.shared.actuals.DailyBlendWrite
 import com.weatherwidget.shared.history.WeatherApiHistoryRun
@@ -733,30 +734,28 @@ class DesktopWeatherRepository(
     }
 
     /**
-     * Second half of a [refreshWithOutcome] run with `deferObservationWindow = true`: the NWS
-     * station-observation pull over [DesktopWeatherService.HISTORY_DAYS], stored the same way the
-     * full refresh stores it, then today's and past days' extremes recomputed from it. Best-effort:
-     * a failure logs and returns -1, because the forecast and current reading were already
-     * published. Returns the number of readings stored (0 when the source's actuals do not come
-     * from NWS, the only feed with a deferred window).
+     * Second half of a [refreshWithOutcome] run with `deferObservationWindow = true`: the daily pass of
+     * the shared [NwsGapFillRun] (as Android's full sync) — when day−2, yesterday or today lacks NWS
+     * history, the last 3 days per station, nearest first, stored as a refresh stores them and the
+     * extremes recomputed; nothing at all when every day is complete. It pulled 7 days on every wake
+     * (plans/261025-shared-nws-gap-fill.md). Best-effort: NWS unreachable or a failure logs and returns
+     * -1, because the forecast and current reading were already published. Returns the readings stored
+     * (0 when nothing was needed or the source's actuals do not come from NWS).
      */
     suspend fun refreshObservationWindow(now: Long = currentTimeMillis()): Int = withContext(Dispatchers.IO) {
         // Any source whose actuals come from NWS, not only NWS itself (ActualsFeedPolicy).
         if (!ActualsFeedPolicy.hasDeferredHistoryWindow(displaySource, latitude, longitude)) return@withContext 0
         val startedAt = System.currentTimeMillis()
         try {
-            val readings = weatherService.fetchObservationHistory(DesktopWeatherService.HISTORY_DAYS)
-            if (readings.isNotEmpty()) {
-                persistObservations(readings, now)
-            }
-            val extremes = recomputeDailyExtremes(now)
+            val result = NwsGapFillRun.daily(nwsGapFillHost(now), latitude, longitude, now, ZoneId.systemDefault())
             weatherDao.log(
                 tag = "OBS_WINDOW_REFRESH",
-                message = "source=$weatherSource rows=${readings.size} extremes=$extremes " +
-                    "ms=${System.currentTimeMillis() - startedAt}",
-                level = "INFO",
+                message = "source=$weatherSource need=${result.needed.sorted().ifEmpty { "none" }} rows=${result.rows} " +
+                    "stations=${result.stationsTried} unreachable=${result.unreachable} " +
+                    "remaining=${result.remaining.sorted()} ms=${System.currentTimeMillis() - startedAt}",
+                level = if (result.unreachable) "WARN" else "INFO",
             )
-            readings.size
+            if (result.unreachable) -1 else result.rows
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -768,6 +767,14 @@ class DesktopWeatherRepository(
             -1
         }
     }
+
+    /** The fill's Host: stores and recomputes exactly as a refresh does. Also run by `DesktopNwsGapFillHostContractTest`. */
+    internal fun nwsGapFillHost(now: Long) = DesktopNwsGapFillHost(
+        weatherService = weatherService,
+        weatherDao = weatherDao,
+        store = { persistObservations(it, now) },
+        recompute = { recomputeDailyExtremes(now) },
+    )
 
     /**
      * The desktop Observations Refresh on a previous day: the [GoogleHistoryRefill] of [day] alone —

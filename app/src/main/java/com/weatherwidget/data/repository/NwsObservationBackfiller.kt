@@ -7,8 +7,9 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.WidgetConstants
+import com.weatherwidget.shared.observations.NwsGapFillRun
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -35,13 +36,6 @@ private data class StationBackfill(
     val failed: Boolean,
 )
 
-private data class DailyBackfillNeed(
-    val dates: Set<Long>,
-    val rangeStartEpoch: Long,
-    val rangeEndEpoch: Long,
-    val today: LocalDate,
-)
-
 @Singleton
 class NwsObservationBackfiller @Inject constructor(
     private val observationSource: NwsObservationSource,
@@ -50,131 +44,63 @@ class NwsObservationBackfiller @Inject constructor(
     private val appLogDao: AppLogDao,
     private val dailyActualsStore: DailyActualsStore,
 ) {
+    /** The daily pass of the shared [NwsGapFillRun]: need-gated, 3 days, nearest station first. */
     internal suspend fun backfillNwsObservationsIfNeeded(
         latitude: Double,
         longitude: Double,
     ) {
-        val localZone = ZoneId.systemDefault()
-        val now = ZonedDateTime.now(localZone)
-        val need = dailyBackfillNeed(latitude, longitude, localZone, now)
-        if (need.dates.isEmpty()) return
+        NwsGapFillRun.daily(gapFillHost, latitude, longitude, System.currentTimeMillis(), ZoneId.systemDefault())
+    }
 
-        val stations = observationSource
-            .stationsForLocation(latitude, longitude)
-            .take(MAX_NWS_STATIONS)
-        if (stations.isEmpty()) {
-            appLogDao.log(
-                "NWS_DAILY_BACKFILL_FAIL",
-                "lat=$latitude lon=$longitude reason=no_stations",
-                "WARN",
-            )
-            return
-        }
+    /** Also run by `RoomNwsGapFillHostContractTest` against a real Room database. */
+    internal val gapFillHost = object : NwsGapFillRun.Host {
+        override suspend fun stations(latitude: Double, longitude: Double) =
+            observationSource.stationsForLocationOutcome(latitude, longitude)
 
-        val startTime = DateTimeFormatter.ISO_INSTANT.format(
-            now.minusDays(WeatherConfig.NWS_BACKFILL_DAYS.toLong()).toInstant(),
-        )
-        val endTime = DateTimeFormatter.ISO_INSTANT.format(now.toInstant())
-        val remainingDates = need.dates.toMutableSet()
-        for ((index, station) in stations.withIndex()) {
-            val entities = fetchAndStoreStation(
-                station = station,
+        override suspend fun fetchStation(
+            station: com.weatherwidget.data.remote.NwsApi.StationInfo,
+            index: Int,
+            latitude: Double,
+            longitude: Double,
+            startIso: String,
+            endIso: String,
+            fallbackLogTag: String,
+        ): NwsGapFillRun.StationRows {
+            val result = observationSource.fetchHistorical(
+                stationInfo = station,
                 stationIndex = index,
                 latitude = latitude,
                 longitude = longitude,
-                startTime = startTime,
-                endTime = endTime,
-                webWindowMinutes = WeatherConfig.NWS_BACKFILL_DAYS * 24 * 60L,
-                fallbackLogTag = "NWS_DAILY_WEB_FALLBACK",
-                stationLogTag = "NWS_DAILY_BACKFILL_STATION",
-            ).entities
-            if (entities.isEmpty()) continue
+                startTime = startIso,
+                endTime = endIso,
+                webWindowMinutes = NwsGapFillRun.BACKFILL_DAYS * 24 * 60L,
+                fallbackLogTag = fallbackLogTag,
+            )
+            return NwsGapFillRun.StationRows(result.entities.map { it.toReading() }, result.usedWebFallback, result.apiFailure)
+        }
 
-            val distinctDays = entities
-                .map { java.time.Instant.ofEpochMilli(it.timestamp).atZone(localZone).toLocalDate() }
-                .distinct()
-            distinctDays.forEach { day ->
-                dailyActualsStore.recomputeDailyExtremesForDay(
-                    latitude,
-                    longitude,
-                    day,
-                    emptyList(),
-                    // Repair path: it distrusts what is stored, which is the whole reason it ran.
-                    force = true,
-                )
+        override suspend fun store(rows: List<ObservationReading>, latitude: Double, longitude: Double) {
+            writeObservations(observationDao, dailyHistoryDao, appLogDao, latitude, longitude, rows)
+        }
+
+        override suspend fun dailyHistoryRows(startDayMs: Long, endDayMs: Long, latitude: Double, longitude: Double) =
+            dailyHistoryDao.getExtremesInRange(startDayMs, endDayMs, latitude, longitude)
+                .map { NwsGapFillRun.DayRow(it.date, it.source) }
+
+        override suspend fun observations(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
+            observationDao.getObservationsInRange(startMs, endMs, latitude, longitude, setOf(WeatherSource.NWS.id))
+                .map { NwsGapFillRun.ObsStamp(it.timestamp, it.api, it.stationId) }
+
+        override suspend fun recomputeExtremes(latitude: Double, longitude: Double, days: Set<LocalDate>) {
+            days.forEach { day ->
+                // Repair path: it distrusts what is stored, which is the whole reason it ran.
+                dailyActualsStore.recomputeDailyExtremesForDay(latitude, longitude, day, emptyList(), force = true)
             }
-            val rowDates = dailyHistoryDao
-                .getExtremesInRange(
-                    need.rangeStartEpoch,
-                    need.rangeEndEpoch,
-                    latitude,
-                    longitude,
-                )
-                .filter { it.source == WeatherSource.NWS.id }
-                .map { it.date }
-                .toSet()
-            val stillIncomplete = dailyActualsStore.incompletelyCoveredPastDates(
-                rowDates,
-                latitude,
-                longitude,
-                localZone,
-                need.today,
-            )
-            remainingDates.removeAll(rowDates - stillIncomplete)
-            if (remainingDates.isEmpty()) break
         }
 
-        if (remainingDates.isNotEmpty()) {
-            appLogDao.log(
-                "NWS_DAILY_BACKFILL_INCOMPLETE",
-                "lat=$latitude lon=$longitude remaining=${remainingDates.toLocalDates()}",
-                "WARN",
-            )
-            Log.w(TAG, "Daily backfill still missing/incomplete for ${remainingDates.toLocalDates()}")
+        override suspend fun log(tag: String, message: String, level: String) {
+            appLogDao.log(tag, message, level)
         }
-    }
-
-    private suspend fun dailyBackfillNeed(
-        latitude: Double,
-        longitude: Double,
-        localZone: ZoneId,
-        now: ZonedDateTime,
-    ): DailyBackfillNeed {
-        val dayMinus2 = now.minusDays(2).toLocalDate()
-        val yesterday = now.minusDays(1).toLocalDate()
-        val today = now.toLocalDate()
-        val rangeStartEpoch = dayMinus2.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val rangeEndEpoch = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val requiredDates = buildSet {
-            add(rangeStartEpoch)
-            add(yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY)
-            if (now.hour >= 2) add(rangeEndEpoch)
-        }
-        val existingDates = dailyHistoryDao
-            .getExtremesInRange(rangeStartEpoch, rangeEndEpoch, latitude, longitude)
-            .filter { it.source == WeatherSource.NWS.id }
-            .map { it.date }
-            .toSet()
-        val incompleteDates = dailyActualsStore.incompletelyCoveredPastDates(
-            existingDates,
-            latitude,
-            longitude,
-            localZone,
-            today,
-        )
-        val missingDates = requiredDates - existingDates
-        Log.d(
-            TAG,
-            "History check required=${requiredDates.toLocalDates()} existing=${existingDates.toLocalDates()} " +
-                "missing=${missingDates.toLocalDates()} incomplete=${incompleteDates.toLocalDates()} " +
-                "hour=${now.hour}",
-        )
-        return DailyBackfillNeed(
-            dates = missingDates + incompleteDates,
-            rangeStartEpoch = rangeStartEpoch,
-            rangeEndEpoch = rangeEndEpoch,
-            today = today,
-        )
     }
 
     internal suspend fun backfillRecentNwsObservations(
@@ -299,7 +225,4 @@ class NwsObservationBackfiller @Inject constructor(
             StationBackfill(emptyList(), failed = true)
         }
     }
-
-    private fun Set<Long>.toLocalDates(): List<LocalDate> =
-        map { LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }
 }

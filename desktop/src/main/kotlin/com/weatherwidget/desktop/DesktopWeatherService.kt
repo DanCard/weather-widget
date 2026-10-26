@@ -18,6 +18,7 @@ import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
 import com.weatherwidget.shared.observations.NwsMetarTextWeb
 import com.weatherwidget.shared.observations.NwsObservationMapper
 import com.weatherwidget.shared.observations.NwsStationHistoryFetcher
+import com.weatherwidget.shared.observations.NwsGapFillRun
 import com.weatherwidget.shared.observations.NwsStationLatestFetcher
 import com.weatherwidget.shared.observations.ObservationFallbackPolicy
 import com.weatherwidget.shared.config.ForecastHorizon
@@ -492,23 +493,7 @@ class DesktopWeatherService(
         } else {
             end.minus(historyDays, ChronoUnit.DAYS)
         }
-        val historyFetcher = NwsStationHistoryFetcher(
-            observations = { station, startIso, endIso ->
-                withStallRetry(
-                    timeoutMs = OBSERVATION_WINDOW_TIMEOUT_MS,
-                    onRetry = { attempt, cause ->
-                        Log.w(TAG, "observations window ${station.id} attempt $attempt failed, retrying: $cause")
-                        weatherDao?.log(
-                            "OBS_WINDOW_RETRY",
-                            "station=${station.id} attempt=$attempt recentOnly=$recentOnly cause=${cause.javaClass.simpleName}",
-                            "INFO",
-                        )
-                    },
-                ) { nwsApi.getObservations(station.id, startIso, endIso) }
-                    .also { Log.i(TAG, "observations window: station=${station.id} type=${station.type} recentOnly=$recentOnly count=${it.size}") }
-            },
-            log = { tag, message, level -> weatherDao?.log(tag, message, level) },
-        )
+        val historyFetcher = stallRetriedHistoryFetcher("recentOnly=$recentOnly")
         // The per-station step is :shared NwsStationBundles, the same pass Android's current-temp cycle runs.
         return NwsStationBundles.fetch(
             stations = stations,
@@ -523,6 +508,51 @@ class DesktopWeatherService(
             recentOnly = recentOnly,
             host = DesktopNwsStationBundlesHost(weatherDao, latitude, longitude),
         )
+    }
+
+    /** [NwsStationHistoryFetcher] over the stall-retried observations window; [context] tags its log lines. */
+    private fun stallRetriedHistoryFetcher(context: String) = NwsStationHistoryFetcher(
+        observations = { station, startIso, endIso ->
+            withStallRetry(
+                timeoutMs = OBSERVATION_WINDOW_TIMEOUT_MS,
+                onRetry = { attempt, cause ->
+                    Log.w(TAG, "observations window ${station.id} attempt $attempt failed, retrying: $cause")
+                    weatherDao?.log(
+                        "OBS_WINDOW_RETRY",
+                        "station=${station.id} attempt=$attempt $context cause=${cause.javaClass.simpleName}",
+                        "INFO",
+                    )
+                },
+            ) { nwsApi.getObservations(station.id, startIso, endIso) }
+                .also { Log.i(TAG, "observations window: station=${station.id} type=${station.type} $context count=${it.size}") }
+        },
+        log = { tag, message, level -> weatherDao?.log(tag, message, level) },
+    )
+
+    override suspend fun nwsObservationStations(): FetchOutcome<List<NwsApi.StationInfo>> =
+        try {
+            val url = nwsApi.getGridPoint(latitude, longitude).observationStationsUrl
+            if (url.isNullOrEmpty()) FetchOutcome.NoData else FetchOutcome.Success(getCachedOrFetchStations(url))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "gap-fill station lookup failed: $e")
+            FetchOutcome.failed(e)
+        }
+
+    override suspend fun fetchNwsStationWindow(
+        station: NwsApi.StationInfo,
+        index: Int,
+        startIso: String,
+        endIso: String,
+        fallbackLogTag: String,
+    ): NwsGapFillRun.StationRows {
+        val history = stallRetriedHistoryFetcher("gapFill").fetch(
+            station, index, latitude, longitude, startIso, endIso,
+            web = { NwsMetarTextWeb.fetchReading(nwsMetarTextApi, station, latitude, longitude).valueOrNull() },
+            fallbackLogTag = fallbackLogTag,
+        )
+        return NwsGapFillRun.StationRows(history.rows, history.usedWebFallback, history.apiFailure)
     }
 
     /** Shared hardened parse (see [NwsObservationMapper]); retained as a seam for tests. */

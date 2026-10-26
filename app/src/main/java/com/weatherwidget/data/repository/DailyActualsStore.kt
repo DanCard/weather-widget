@@ -2,7 +2,6 @@ package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.toEntity
 import com.weatherwidget.shared.actuals.DailyBlendWrite
-import com.weatherwidget.shared.observations.NwsBlend
 import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.VisibleForTesting
@@ -54,7 +53,6 @@ private const val EXTREMA_WINDOW_DIAG_TAG = "EXTREMA_WINDOW_DIAG"
  * of a miss is one recompute.
  */
 private const val MAX_TRACKED_DAYS = 256
-private const val DAYTIME_COVERAGE_HOUR = 14
 
 @VisibleForTesting
 /**
@@ -74,19 +72,6 @@ internal fun blendInputApi(
         ActualsProviderResolver.providerIdFor(source)
     } else {
         ActualsProviderResolver.providerIdFor(source, preference)
-    }
-}
-
-internal fun pastDayLacksAfternoonCoverage(
-    obsTimestampsMs: List<Long>,
-    date: LocalDate,
-    zone: ZoneId,
-    today: LocalDate,
-    daytimeHour: Int = DAYTIME_COVERAGE_HOUR,
-): Boolean {
-    if (!date.isBefore(today) || obsTimestampsMs.isEmpty()) return false
-    return obsTimestampsMs.none { ms ->
-        Instant.ofEpochMilli(ms).atZone(zone).hour >= daytimeHour
     }
 }
 
@@ -431,28 +416,6 @@ class DailyActualsStore @Inject constructor(
                 .let { appLogDao.log(it.tag, it.message, it.level) }
         }
     }
-
-    internal suspend fun incompletelyCoveredPastDates(
-        dayKeyEpochs: Set<Long>,
-        latitude: Double,
-        longitude: Double,
-        zone: ZoneId,
-        today: LocalDate,
-    ): Set<Long> =
-        dayKeyEpochs.filterTo(mutableSetOf()) { dayKeyEpoch ->
-            val date = LocalDate.ofEpochDay(dayKeyEpoch / WidgetConstants.MS_IN_A_DAY)
-            if (!date.isBefore(today)) return@filterTo false
-            val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
-            val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-            val timestamps = observationDao
-                // Scoped to exactly what the filter below keeps. This runs inside the daily
-                // recompute, which is where the worst reads of 2026-09-07 were measured
-                // (spanH=72 apis=ALL, 37,551 candidates, 8,325ms under contention).
-                .getObservationsInRange(dayStart, dayEnd, latitude, longitude, setOf(WeatherSource.NWS.id))
-                .filter { it.api == WeatherSource.NWS.id && it.stationId != NwsBlend.STATION_ID }
-                .map { it.timestamp }
-            pastDayLacksAfternoonCoverage(timestamps, date, zone, today)
-        }
 
     private suspend fun observationSignature(
         startTs: Long,

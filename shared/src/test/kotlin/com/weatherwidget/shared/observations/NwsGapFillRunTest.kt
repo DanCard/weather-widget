@@ -1,0 +1,254 @@
+package com.weatherwidget.shared.observations
+
+import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.FetchOutcome
+import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.test.category.ShortDuration
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.experimental.categories.Category
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
+
+/**
+ * [NwsGapFillRun.daily] against an in-memory Host: storing rows adds observations, and recomputing a
+ * day files its NWS daily_history row, so the need re-check after each station sees real state.
+ */
+@Category(ShortDuration::class)
+class NwsGapFillRunTest {
+    private val zone = ZoneId.of("America/Los_Angeles")
+    private val today = LocalDate.of(2026, 10, 25)
+    private val lat = 37.417
+    private val lon = -122.089
+
+    private fun at(day: LocalDate, hour: Int, minute: Int = 0): Long =
+        LocalDateTime.of(day, java.time.LocalTime.of(hour, minute)).atZone(zone).toInstant().toEpochMilli()
+
+    private fun key(day: LocalDate) = day.toEpochDay() * 86_400_000L
+
+    private fun station(id: String) = NwsApi.StationInfo(id = id, name = id, lat = lat, lon = lon)
+
+    private fun reading(stationId: String, ts: Long) = ObservationReading(
+        stationId = stationId, stationName = stationId, timestamp = ts, temperature = 60f,
+        condition = "Clear", locationLat = lat, locationLon = lon, api = "NWS",
+    )
+
+    private inner class FakeHost(
+        var stationsOutcome: FetchOutcome<List<NwsApi.StationInfo>> =
+            FetchOutcome.Success(listOf(station("KNUQ"), station("KSJC"), station("KPAO"))),
+        val windows: (String) -> NwsGapFillRun.StationRows = { NwsGapFillRun.StationRows(emptyList(), false) },
+    ) : NwsGapFillRun.Host {
+        val dayRows = mutableListOf<NwsGapFillRun.DayRow>()
+        val obs = mutableListOf<NwsGapFillRun.ObsStamp>()
+        val fetched = mutableListOf<String>()
+        val requests = mutableListOf<Pair<String, String>>()
+        val logs = mutableListOf<String>()
+        var stationLookups = 0
+
+        /** A complete stored day: an NWS daily row plus an afternoon station reading. */
+        fun complete(day: LocalDate) {
+            dayRows += NwsGapFillRun.DayRow(key(day), WeatherSource.NWS.id)
+            obs += NwsGapFillRun.ObsStamp(at(day, 15), "NWS", "KNUQ")
+        }
+
+        override suspend fun stations(latitude: Double, longitude: Double) = stationsOutcome.also { stationLookups++ }
+
+        override suspend fun fetchStation(
+            station: NwsApi.StationInfo, index: Int, latitude: Double, longitude: Double,
+            startIso: String, endIso: String, fallbackLogTag: String,
+        ): NwsGapFillRun.StationRows {
+            fetched += station.id
+            requests += startIso to endIso
+            return windows(station.id)
+        }
+
+        override suspend fun store(rows: List<ObservationReading>, latitude: Double, longitude: Double) {
+            obs += rows.map { NwsGapFillRun.ObsStamp(it.timestamp, it.api, it.stationId) }
+        }
+
+        override suspend fun dailyHistoryRows(startDayMs: Long, endDayMs: Long, latitude: Double, longitude: Double) =
+            dayRows.filter { it.dateMs in startDayMs..endDayMs }
+
+        override suspend fun observations(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
+            obs.filter { it.timestamp in startMs until endMs }
+
+        override suspend fun recomputeExtremes(latitude: Double, longitude: Double, days: Set<LocalDate>) {
+            days.forEach { day ->
+                if (dayRows.none { it.dateMs == key(day) && it.source == "NWS" }) dayRows += NwsGapFillRun.DayRow(key(day), "NWS")
+            }
+        }
+
+        override suspend fun log(tag: String, message: String, level: String) {
+            logs += "$tag $message"
+        }
+    }
+
+    private suspend fun run(host: FakeHost, nowMs: Long = at(today, 10)) =
+        NwsGapFillRun.daily(host, lat, lon, nowMs, zone)
+
+    @Test
+    fun `complete days make no station lookup and no fetch`() = runBlocking<Unit> {
+        val host = FakeHost().apply { (0L..2L).forEach { complete(today.minusDays(it)) } }
+
+        val result = run(host)
+
+        assertEquals(emptySet<LocalDate>(), result.needed)
+        assertEquals(0, host.stationLookups)
+        assertEquals(emptyList<String>(), host.fetched)
+    }
+
+    @Test
+    fun `today joins the need only from 02 00`() = runBlocking<Unit> {
+        val host = FakeHost().apply { complete(today.minusDays(2)); complete(today.minusDays(1)) }
+
+        assertEquals(emptySet<LocalDate>(), run(host, nowMs = at(today, 1, 59)).needed)
+        assertEquals(setOf(today), run(host, nowMs = at(today, 2)).needed)
+    }
+
+    @Test
+    fun `a past day with only morning rows is needed`() = runBlocking<Unit> {
+        val host = FakeHost().apply {
+            complete(today.minusDays(2)); complete(today)
+            dayRows += NwsGapFillRun.DayRow(key(today.minusDays(1)), "NWS")
+            obs += NwsGapFillRun.ObsStamp(at(today.minusDays(1), 6), "NWS", "KNUQ")
+        }
+
+        assertEquals(setOf(today.minusDays(1)), run(host).needed)
+    }
+
+    @Test
+    fun `the blend's synthetic row does not count as afternoon coverage`() = runBlocking<Unit> {
+        val yesterday = today.minusDays(1)
+        val host = FakeHost().apply {
+            complete(today.minusDays(2)); complete(today)
+            dayRows += NwsGapFillRun.DayRow(key(yesterday), "NWS")
+            obs += NwsGapFillRun.ObsStamp(at(yesterday, 6), "NWS", "KNUQ")
+            obs += NwsGapFillRun.ObsStamp(at(yesterday, 16), "NWS", NwsBlend.STATION_ID)
+        }
+
+        assertEquals(setOf(yesterday), run(host).needed)
+    }
+
+    @Test
+    fun `another source's daily row does not satisfy the need`() = runBlocking<Unit> {
+        val host = FakeHost().apply {
+            complete(today.minusDays(2)); complete(today)
+            dayRows += NwsGapFillRun.DayRow(key(today.minusDays(1)), "OPEN_METEO")
+        }
+
+        assertEquals(setOf(today.minusDays(1)), run(host).needed)
+    }
+
+    @Test
+    fun `stops at the first station that completes the need`() = runBlocking<Unit> {
+        val yesterday = today.minusDays(1)
+        val host = FakeHost(windows = { id ->
+            NwsGapFillRun.StationRows(listOf(reading(id, at(yesterday, 6)), reading(id, at(yesterday, 15))), false)
+        }).apply { complete(today.minusDays(2)); complete(today) }
+
+        val result = run(host)
+
+        assertEquals(listOf("KNUQ"), host.fetched)
+        assertEquals(emptySet<LocalDate>(), result.remaining)
+        assertEquals(2, result.rows)
+        assertFalse(result.unreachable)
+    }
+
+    @Test
+    fun `a station that leaves the day incomplete passes to the next`() = runBlocking<Unit> {
+        val yesterday = today.minusDays(1)
+        val host = FakeHost(windows = { id ->
+            val hour = if (id == "KNUQ") 6 else 15
+            NwsGapFillRun.StationRows(listOf(reading(id, at(yesterday, hour))), false)
+        }).apply { complete(today.minusDays(2)); complete(today) }
+
+        val result = run(host)
+
+        assertEquals(listOf("KNUQ", "KSJC"), host.fetched)
+        assertEquals(emptySet<LocalDate>(), result.remaining)
+    }
+
+    @Test
+    fun `asks each station for the last 3 days`() = runBlocking<Unit> {
+        val host = FakeHost()
+        val now = at(today, 10)
+
+        run(host, nowMs = now)
+
+        val (start, end) = host.requests.first()
+        assertEquals(Instant.ofEpochMilli(now).minusSeconds(3 * 86_400L), Instant.parse(start))
+        assertEquals(Instant.ofEpochMilli(now), Instant.parse(end))
+    }
+
+    @Test
+    fun `tries at most the shared station cap`() = runBlocking<Unit> {
+        val host = FakeHost(stationsOutcome = FetchOutcome.Success((1..8).map { station("S$it") }))
+
+        run(host)
+
+        assertEquals(NwsGapFillRun.MAX_STATIONS, host.fetched.size)
+    }
+
+    @Test
+    fun `station lookup failure is unreachable and fetches nothing`() = runBlocking<Unit> {
+        val host = FakeHost(stationsOutcome = FetchOutcome.Failed("HttpRequestTimeoutException: timeout"))
+
+        val result = run(host)
+
+        assertTrue(result.unreachable)
+        assertEquals(emptyList<String>(), host.fetched)
+        assertTrue(host.logs.any { it.startsWith("NWS_DAILY_BACKFILL_FAIL") && "reason=stations_unreachable" in it })
+    }
+
+    @Test
+    fun `an answered empty station list is not unreachable`() = runBlocking<Unit> {
+        val host = FakeHost(stationsOutcome = FetchOutcome.NoData)
+
+        val result = run(host)
+
+        assertFalse(result.unreachable)
+        assertTrue(host.logs.any { it.startsWith("NWS_DAILY_BACKFILL_FAIL") && "reason=no_stations" in it })
+    }
+
+    @Test
+    fun `every station failing is unreachable`() = runBlocking<Unit> {
+        val host = FakeHost(windows = { NwsGapFillRun.StationRows(emptyList(), false, apiFailure = "IOException") })
+
+        assertTrue(run(host).unreachable)
+    }
+
+    @Test
+    fun `stations answering empty are a real limit, logged incomplete, not unreachable`() = runBlocking<Unit> {
+        val host = FakeHost()
+
+        val result = run(host)
+
+        assertFalse(result.unreachable)
+        assertEquals(result.needed, result.remaining)
+        assertTrue(host.logs.any { it.startsWith("NWS_DAILY_BACKFILL_INCOMPLETE") })
+    }
+
+    @Test
+    fun `a throwing station is logged and the next one is tried`() = runBlocking<Unit> {
+        val host = FakeHost(windows = { id ->
+            if (id == "KNUQ") throw java.io.IOException("reset") else NwsGapFillRun.StationRows(emptyList(), false)
+        })
+
+        run(host)
+
+        assertTrue(host.logs.any { it.startsWith("NWS_DAILY_BACKFILL_STATION_FAIL station=KNUQ") })
+        assertTrue("KSJC" in host.fetched)
+    }
+
+    @Test(expected = CancellationException::class)
+    fun `cancellation propagates`() = runBlocking<Unit> {
+        run(FakeHost(windows = { throw CancellationException("stop") }))
+    }
+}
