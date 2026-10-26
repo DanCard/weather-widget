@@ -88,8 +88,8 @@ iterations. Do not run `installDebug` concurrently with instrumentation. See
 
 ## Runtime and release references
 
-- [Operations](arch/operations.md): device evidence, source toggles, worker recovery, desktop
-  autostart/single-instance behavior, and releases.
+- [Operations](arch/operations.md): device evidence, debug adb hooks, source toggles, worker
+  recovery, desktop autostart/single-instance behavior, and releases.
 - [Forecast and observation cadence](arch/hourly-forecast-update-cadence.md): forecast cadence,
   worker ticks, observations, and repaint behavior.
 - [Retention and pruning](arch/data-pruning.md): active data, settled history, and snapshot cleanup.

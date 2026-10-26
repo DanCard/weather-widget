@@ -46,6 +46,28 @@ Use focused instrumented runs through `scripts/emulator-tests.sh -c <fully.quali
 an attached physical phone is not included accidentally. Keep emulators running unless the user asks
 otherwise. See [testing strategy](testing-strategy.md) for the full test commands.
 
+### Debug-build adb hooks
+
+Debug APKs carry two receivers in `app/src/debug` (absent from release), exported so `adb shell` can
+reach them and gated on `android.permission.DUMP` so other apps cannot:
+
+```bash
+# Exactly the widget's Refresh tap: syncs only stale sources ("up to date" banner otherwise).
+$ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.REFRESH \
+  -n com.weatherwidget/com.weatherwidget.debug.DebugSyncReceiver
+# Forced full sync of every enabled source (billed): SYNC_START force=true reason=debug_full_sync.
+$ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.FULL_SYNC \
+  -n com.weatherwidget/com.weatherwidget.debug.DebugSyncReceiver
+# Location override for the passive background read (coordinates as strings), and its reset.
+$ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.SET_LOCATION \
+  -n com.weatherwidget/com.weatherwidget.debug.DebugLocationReceiver --es lat 37.7749 --es lon -122.4194
+$ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.CLEAR_LOCATION \
+  -n com.weatherwidget/com.weatherwidget.debug.DebugLocationReceiver
+```
+
+`FULL_SYNC` enqueues through `WidgetWorkScheduler.enqueueForcedSync` with KEEP, so it never cancels a
+running worker. Prefer an emulator; a forced sync on a phone spends its provider quotas.
+
 If launcher resize handles bounce back on an emulator, move the widget away from a constrained top
 row/edge and retry. Verify whether `onAppWidgetOptionsChanged` fired before treating it as a renderer
 bug.
