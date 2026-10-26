@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.HourlyForecast
 import java.time.LocalDate
 import java.time.ZoneId
@@ -144,7 +145,9 @@ object HourlyOnDemand {
      * The horizon that covers [date] to its last hour, or null when no fetch is needed or none can
      * help:
      * - a past day, or one starting past the source's [HourlyHorizon.maxHours];
-     * - a day [storedHourly] covers (this source's rows at the site: a row at or past the day's last
+     * - a day [storedHourly] covers (this source's rows at the site — only [LocationMatch.sameSite] rows
+     *   count, for coverage and for "fetched recently", since the hourly view shows this site's rows;
+     *   the box read used to let a neighbouring town's rows vouch for a day it had and this site did not: a row at or past the day's last
      *   wanted hour — any age inside the routine window, fetched within [MAX_LONG_ROW_AGE_MS] out to
      *   [HourlyHorizon.longHours], within [MAX_EXTENSION_AGE_MS] past that);
      * - a day inside the routine window when the source was fetched within [MAX_EXTENSION_AGE_MS]: its
@@ -155,6 +158,24 @@ object HourlyOnDemand {
      *   its data ends where the API's does (NWS: ~150 h).
      */
     fun hoursToCover(
+        sourceId: String,
+        date: LocalDate,
+        zoneId: ZoneId,
+        nowMs: Long,
+        storedHourly: List<HourlyForecast>,
+        siteLat: Double,
+        siteLon: Double,
+    ): Int? {
+        val siteHourly = storedHourly.filter { row ->
+            val lat = row.locationLat
+            val lon = row.locationLon
+            // A row without coordinates (a consumer that didn't set them) is kept, as the selector keeps it.
+            lat == null || lon == null || LocationMatch.sameSite(siteLat, siteLon, lat, lon)
+        }
+        return hoursToCoverAtSite(sourceId, date, zoneId, nowMs, siteHourly)
+    }
+
+    private fun hoursToCoverAtSite(
         sourceId: String,
         date: LocalDate,
         zoneId: ZoneId,
@@ -224,6 +245,8 @@ object HourlyOnDemand {
         zoneId: ZoneId,
         nowMs: Long,
         storedHourly: List<HourlyForecast>,
+        siteLat: Double,
+        siteLon: Double,
         hasHourlyForDay: (LocalDate) -> Boolean,
     ): PanAction {
         val today = java.time.Instant.ofEpochMilli(nowMs).atZone(zoneId).toLocalDate()
@@ -232,7 +255,7 @@ object HourlyOnDemand {
         if (last.isBefore(first)) return PanAction.Nothing
         val days = generateSequence(first) { it.plusDays(1) }.takeWhile { !it.isAfter(last) }.toList()
         days.asReversed().firstNotNullOfOrNull { day ->
-            hoursToCover(sourceId, day, zoneId, nowMs, storedHourly)?.let { PanAction.Fetch(day, it) }
+            hoursToCover(sourceId, day, zoneId, nowMs, storedHourly, siteLat, siteLon)?.let { PanAction.Fetch(day, it) }
         }?.let { return it }
         return days.firstOrNull { !hasHourlyForDay(it) }?.let { PanAction.NoDataMessage(it) } ?: PanAction.Nothing
     }

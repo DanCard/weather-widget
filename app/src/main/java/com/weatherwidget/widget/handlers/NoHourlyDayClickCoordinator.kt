@@ -114,7 +114,7 @@ object NoHourlyDayClickCoordinator {
         val effectiveLat = if (lat != 0.0) lat else latestWeather?.locationLat ?: return null
         val effectiveLon = if (lon != 0.0) lon else latestWeather?.locationLon ?: return null
         val stored = storedHourlyForSource(database, sourceId, effectiveLat, effectiveLon, nowMs)
-        return HourlyOnDemand.hoursToCover(sourceId, date, ZoneId.systemDefault(), nowMs, stored)
+        return HourlyOnDemand.hoursToCover(sourceId, date, ZoneId.systemDefault(), nowMs, stored, effectiveLat, effectiveLon)
     }
 
     /** [sourceId]'s hourly rows at the site from the current hour through [HourlyOnDemand.REACH_HOURS]. */

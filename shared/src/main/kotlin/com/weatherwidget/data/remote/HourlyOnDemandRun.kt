@@ -18,6 +18,10 @@ object HourlyOnDemandRun {
     const val TAG = "HOURLY_ON_DEMAND"
 
     interface Host {
+        /** The site the rows must be at to count ([HourlyOnDemand.hoursToCover]). */
+        val lat: Double
+        val lon: Double
+
         /** This source's stored hourly at the site, current hour through [HourlyOnDemand.REACH_HOURS]. */
         suspend fun storedHourly(): List<HourlyForecast>
 
@@ -47,7 +51,7 @@ object HourlyOnDemandRun {
     suspend fun run(host: Host, sourceId: String, date: LocalDate, zone: ZoneId, nowMs: Long): Result {
         val stored = host.storedHourly()
         val storedLast = stored.maxOfOrNull { it.dateTime }
-        val hours = HourlyOnDemand.hoursToCover(sourceId, date, zone, nowMs, stored)
+        val hours = HourlyOnDemand.hoursToCover(sourceId, date, zone, nowMs, stored, host.lat, host.lon)
             ?: return Result(Outcome.COVERED, null, stored.size, storedLast, 0L)
         val start = System.nanoTime()
         val outcome: Outcome

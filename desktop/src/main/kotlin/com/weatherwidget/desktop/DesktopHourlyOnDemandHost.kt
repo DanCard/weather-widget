@@ -12,8 +12,8 @@ import com.weatherwidget.data.remote.HourlyOnDemandRun
 internal class DesktopHourlyOnDemandHost(
     private val weatherDao: DesktopWeatherDao,
     private val sourceId: String,
-    private val lat: Double,
-    private val lon: Double,
+    override val lat: Double,
+    override val lon: Double,
     private val nowMs: Long,
     private val fetch: suspend (HourlyOnDemand.Request) -> Boolean,
 ) : HourlyOnDemandRun.Host {

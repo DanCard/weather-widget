@@ -87,7 +87,9 @@ Repaints can therefore be more frequent than observation requests without changi
 ## Targeted and early refreshes
 
 A day tap or graph navigation can request missing hourly coverage through `HourlyOnDemand` rather
-than forcing every source to sync. User Refresh, source switches, history-specific refills, and
+than forcing every source to sync. Only this site's stored rows (`LocationMatch.sameSite`) count as
+covering a day or as a recent fetch, on both platforms — the view shows the site's rows, so a nearby
+town's rows in the read box must not skip a fetch. User Refresh, source switches, history-specific refills, and
 location changes have their own targeted scope. These paths do not make routine forecast cadence
 equivalent to "fetch everything on every interaction."
 

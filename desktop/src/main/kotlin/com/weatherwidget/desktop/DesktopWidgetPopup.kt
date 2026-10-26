@@ -262,6 +262,8 @@ internal fun WidgetPopup(
                                     ZoneId.systemDefault(),
                                     System.currentTimeMillis(),
                                     hourly.filter { it.source == null || it.source == config.displaySource },
+                                    config.lat,
+                                    config.lon,
                                 ) { day -> NoHourlyChecker.hasHourlyForDay(hourly, day, hourlySourceIds) }
                                 if (action != HourlyOnDemand.PanAction.Nothing) {
                                     // Which source's rows the decision saw: right after a source switch the
@@ -541,6 +543,8 @@ internal fun WidgetPopup(
                                     ZoneId.systemDefault(),
                                     System.currentTimeMillis(),
                                     snapshot.raw.hourly.filter { it.source == null || it.source == config.displaySource },
+                                    config.lat,
+                                    config.lon,
                                 )
                                 // The day's hourly view opens either way, empty where data is missing.
                                 onUpdateConfig(nextConfig)

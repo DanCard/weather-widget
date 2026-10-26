@@ -127,6 +127,8 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
             java.time.ZoneId.systemDefault(),
             System.currentTimeMillis(),
             emptyList(),
+            com.weatherwidget.widget.TestLocations.LAT,
+            com.weatherwidget.widget.TestLocations.LON,
         ) != null
         val expected = if (fetchable) "Fetching hourly forecast for" else "No hourly forecast for"
         assertTrue("Expected \"$expected…\": $message", message!!.startsWith(expected))

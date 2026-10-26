@@ -197,7 +197,7 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
     @Test
     fun `an on-demand fetch keeps the free source's whole horizon`() = runTest {
         val day6 = today.plusDays(6)
-        val hours = HourlyOnDemand.hoursToCover(om.id, day6, zone, clockMs, emptyList())!!
+        val hours = HourlyOnDemand.hoursToCover(om.id, day6, zone, clockMs, emptyList(), lat, lon)!!
         fetch(
             download(seed = 5),
             ForecastFetchContext(
@@ -214,7 +214,7 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
         assertEquals(
             "a fresh deep fetch: nothing more to fetch for any day",
             null,
-            HourlyOnDemand.hoursToCover(om.id, today.plusDays(12), zone, clockMs, live.map { it.toHourlyForecast() }),
+            HourlyOnDemand.hoursToCover(om.id, today.plusDays(12), zone, clockMs, live.map { it.toHourlyForecast() }, lat, lon),
         )
     }
 
@@ -258,9 +258,9 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
         fetch(download(seed = 5), routineContext)
         val stored = liveHourly().map { it.toHourlyForecast() }
 
-        assertEquals(null, HourlyOnDemand.hoursToCover(om.id, today.plusDays(4), zone, clockMs, stored))
+        assertEquals(null, HourlyOnDemand.hoursToCover(om.id, today.plusDays(4), zone, clockMs, stored, lat, lon))
         clockMs += 30 * hour
-        assertEquals("30 h later the LONG rows still vouch", null, HourlyOnDemand.hoursToCover(om.id, today.plusDays(5), zone, clockMs, stored))
+        assertEquals("30 h later the LONG rows still vouch", null, HourlyOnDemand.hoursToCover(om.id, today.plusDays(5), zone, clockMs, stored, lat, lon))
     }
 
     /** The widget's daily paint reads the 72 h store and the rows; it must draw what the full download drew. */

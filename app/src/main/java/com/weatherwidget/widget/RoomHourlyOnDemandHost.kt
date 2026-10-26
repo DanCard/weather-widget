@@ -12,8 +12,8 @@ import com.weatherwidget.widget.handlers.NoHourlyDayClickCoordinator
 internal class RoomHourlyOnDemandHost(
     private val database: WeatherDatabase,
     private val sourceId: String,
-    private val lat: Double,
-    private val lon: Double,
+    override val lat: Double,
+    override val lon: Double,
     private val nowMs: Long,
     private val fetch: suspend (HourlyOnDemand.Request) -> Boolean,
 ) : HourlyOnDemandRun.Host {

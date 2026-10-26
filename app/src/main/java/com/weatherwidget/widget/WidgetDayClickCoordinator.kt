@@ -287,7 +287,7 @@ internal object WidgetDayClickCoordinator {
                 database, stateManager, appWidgetId, day.toString(), latest.locationLat, latest.locationLon,
             )
         }
-        val action = HourlyOnDemand.panAction(sourceId, windowStartMs, windowEndMs, zone, nowMs, stored) { hasHourlyByDay[it] ?: false }
+        val action = HourlyOnDemand.panAction(sourceId, windowStartMs, windowEndMs, zone, nowMs, stored, latest.locationLat, latest.locationLon) { hasHourlyByDay[it] ?: false }
         return HourlyWindow(sourceId, latest, daysInView, action)
     }
 

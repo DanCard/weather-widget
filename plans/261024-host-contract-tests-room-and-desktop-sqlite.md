@@ -40,10 +40,16 @@ build until it has a contract extended on both platforms. Details per Host under
   the widget bundle no longer passes its graph list). `DesktopDailyBlendHourlyInputTest` fails on the
   old input (high 60.0 vs < 55). Pixel/Samsung after install: `DAILY_RECOMPUTE_PERF` hourly=222/103 ms,
   extremes as before.
-- `HourlyOnDemand.hoursToCover` (both platforms) counts a neighbouring town's rows in the ±0.1° box
-  as coverage, so a day tap can skip a fetch only the neighbour has.
-- Desktop `NWS_STATION_ACTUALS_OUTCOME requested=1 pulled=0` every run: today's row looks counted
-  as missing and then skipped — harmless noise, not investigated.
+- ~~`HourlyOnDemand.hoursToCover` (both platforms) counts a neighbouring town's rows in the ±0.1° box
+  as coverage~~ — fixed 2026-10-25 (user: "fix 2a"): only `LocationMatch.sameSite` rows count, for
+  coverage and for "fetched recently"; the site comes in as required arguments (`HourlyOnDemandRun.Host`
+  exposes it). Measured first: neighbour sites in the box (Pixel 6, Samsung 3, desktop 0) never reached
+  past the home site's last hour, so it had not misfired on this data.
+- ~~Desktop `NWS_STATION_ACTUALS_OUTCOME requested=1 pulled=0` every run~~ — resolved 2026-10-25
+  (`4ff650c7`): today's row counted as missing (both platforms), costing an uncached `/points` lookup
+  per run; `NwsStationActualsRun` now counts past days only. Chasing it found desktop's recompute
+  damaging every day at its window edge — fixed by the shared `DailyBlendRecomputeRun`
+  (`plans/261025-shared-daily-blend-recompute.md`).
 - The Google Docs copies of this plan and the snapshot plan predate the latest edits.
 
 **Gotchas:** `HourlyProximityQueryAllowlistTest` lists files by name — moving a raw

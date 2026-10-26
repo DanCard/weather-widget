@@ -367,16 +367,20 @@ Also re-label `fetchPriorDayCloudForecast` in the name allowlist from ADAPTER to
   Phase 2: `NwsGapFillRun.recent` + shared `ObservationBackfillRetryPolicy`; desktop retries unreachable
   on the shared schedule. Device check on both phones and desktop recorded in the plan. **B closed.**
 
+- 2026-10-25: hourly input of the stored recompute shared (`ActualsAggregator.aggregateStored`,
+  `c06b7d3a`). Then the recompute loop itself (`plans/261025-shared-daily-blend-recompute.md`,
+  `4ff650c7`): `:shared` `DailyBlendRecomputeRun` replaces Android's per-day body and desktop's window
+  loop (which replaced rows at its edge); `daily_history` keyed on the rounded site on both
+  (`DailyHistoryKey`, Room v83 + desktop merge); station-actuals today-row noise fixed.
+
 ## Next (handoff, 2026-10-25)
 Every lettered item (A–K), B and the tag guardrail are done. Left:
-1. **Host-contract open items** — each needs a user decision; see "Status and handoff" in
-   `plans/261024-host-contract-tests-room-and-desktop-sqlite.md`: live-day blend hourly input
-   (Android `ObservationResolver` callers vs desktop `recomputeDailyExtremes` → `getHourlyWithHistory`),
-   `HourlyOnDemand.hoursToCover` counting a neighbour's rows, desktop
-   `NWS_STATION_ACTUALS_OUTCOME requested=1 pulled=0`.
+1. ~~**Host-contract open items**~~ — all done 2026-10-25 (blend input, station actuals, on-demand
+   neighbour coverage).
 2. **Second audit round** — the guard tests see only equal names and logged tags. 30 hand-sync
    comments ("matches / mirrors Android") remain in `desktop/src/main` (2026-10-25: `DailyForecastGraph`
-   8, `TemperatureGraph` 5, `SettingsWindow` 5, `DesktopWeatherRepository` 5); re-run the twin-file score.
+   8, `TemperatureGraph` 5, `SettingsWindow` 5, `DesktopWeatherRepository` 5); re-run the twin-file score. Cleanup to ride along: `ObservationResolver.computeDailyExtremes` has only
+   test callers (19) since the shared recompute.
 Process that worked: find the twin → write a plan with the divergences and any user
 decision → approval → shared code + a test that fails on the old code → full suite incl.
 `:app:compileDebugAndroidTestKotlin` → install both phones, restart desktop, check the log line on a

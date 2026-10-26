@@ -25,6 +25,8 @@ class HourlyOnDemandRunTest {
         (0 until count).map { HourlyForecast(now + it * hour, 60f, "Clear", source = google, fetchedAt = fetchedAt) }
 
     private class Host(val stored: List<HourlyForecast>, val answer: () -> Boolean = { true }) : HourlyOnDemandRun.Host {
+        override val lat = 37.417
+        override val lon = -122.089
         val requests = mutableListOf<HourlyOnDemand.Request>()
         override suspend fun storedHourly() = stored
         override suspend fun fetch(request: HourlyOnDemand.Request): Boolean { requests += request; return answer() }

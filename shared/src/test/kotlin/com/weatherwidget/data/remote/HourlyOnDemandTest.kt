@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -62,24 +63,24 @@ class HourlyOnDemandTest {
     @Test
     fun `any source fetches a day it has nothing stored for`() {
         // Thu Oct 15 starts 140.6 h out, inside NWS's 156 h.
-        assertEquals(156, HourlyOnDemand.hoursToCover(nws, today.plusDays(6), zone, now, emptyList()))
+        assertEquals(156, HourlyOnDemand.hoursToCover(nws, today.plusDays(6), zone, now, emptyList(), 37.417, -122.089))
     }
 
     @Test
     fun `a source fetched recently whose data simply ends sooner is not fetched again`() {
         // Stored to 150 h, fresh: the day's wanted end (the 156 h edge) is not covered, but another
         // fetch would bring the same thing.
-        assertNull(HourlyOnDemand.hoursToCover(nws, today.plusDays(6), zone, now, nwsRows(150)))
+        assertNull(HourlyOnDemand.hoursToCover(nws, today.plusDays(6), zone, now, nwsRows(150), 37.417, -122.089))
         assertEquals(
             "13 h old: refetch",
             156,
-            HourlyOnDemand.hoursToCover(nws, today.plusDays(6), zone, now, nwsRows(150, fetchedAt = now - 13 * hour)),
+            HourlyOnDemand.hoursToCover(nws, today.plusDays(6), zone, now, nwsRows(150, fetchedAt = now - 13 * hour), 37.417, -122.089),
         )
     }
 
     @Test
     fun `a day starting past the source's own horizon fetches nothing`() {
-        assertNull("Fri Oct 16 starts 164.6 h out, past NWS's 156 h", HourlyOnDemand.hoursToCover(nws, today.plusDays(7), zone, now, emptyList()))
+        assertNull("Fri Oct 16 starts 164.6 h out, past NWS's 156 h", HourlyOnDemand.hoursToCover(nws, today.plusDays(7), zone, now, emptyList(), 37.417, -122.089))
     }
 
     @Test
@@ -101,6 +102,36 @@ class HourlyOnDemandTest {
         assertEquals(HourlyOnDemand.REACH_HOURS, HourlyOnDemand.hoursAhead(WeatherSource.OPEN_METEO.id, HourlyOnDemand.Request(WeatherSource.OPEN_METEO.id, 96)))
     }
 
+    /**
+     * Only this site's rows vouch: the hourly view shows the site's rows, so a neighbouring town's
+     * fresh rows in the ±0.1° box (a phone's day trip) used to skip a fetch the site still needed.
+     */
+    @Test
+    fun `a neighbour's rows do not cover a day this site lacks`() {
+        val om = WeatherSource.OPEN_METEO.id
+        fun omRows(through: Int, lat: Double, from: Int = 0) = (from..through).map {
+            HourlyForecast(
+                now - Math.floorMod(now, hour) + it * hour, 60f, "Clear", source = om, fetchedAt = now,
+                locationLat = lat, locationLon = -122.089,
+            )
+        }
+        val day6 = today.plusDays(6)
+        val home = omRows(71, lat = 37.417)
+
+        assertNotNull(
+            "a neighbour 5 km away does not vouch",
+            HourlyOnDemand.hoursToCover(om, day6, zone, now, home + omRows(240, lat = 37.467, from = 72), 37.417, -122.089),
+        )
+        assertNull(
+            "a same-site fragment (GPS jitter) does",
+            HourlyOnDemand.hoursToCover(om, day6, zone, now, home + omRows(240, lat = 37.4175, from = 72), 37.417, -122.089),
+        )
+        assertNotNull(
+            "nor does a neighbour's recent fetch count as this site's",
+            HourlyOnDemand.hoursToCover(om, today.plusDays(1), zone, now, omRows(10, lat = 37.467), 37.417, -122.089),
+        )
+    }
+
     /** Open-Meteo stored to 72 h by the routine fetch: day 6 is on demand, like Google's. */
     @Test
     fun `a free source stored to 72 h fetches a later day, and not again once that fetch is fresh`() {
@@ -109,17 +140,17 @@ class HourlyOnDemandTest {
             HourlyForecast(now - Math.floorMod(now, hour) + it * hour, 60f, "Clear", source = om, fetchedAt = fetchedAt)
         }
         val day6 = today.plusDays(6)
-        val hours = HourlyOnDemand.hoursToCover(om, day6, zone, now, omRows(71))!!
+        val hours = HourlyOnDemand.hoursToCover(om, day6, zone, now, omRows(71), 37.417, -122.089)!!
         assertTrue("reaches day 6's last hour", hours >= ((ms(day6, 23) - (now - Math.floorMod(now, hour))) / hour + 1).toInt())
-        assertNull("covered once stored", HourlyOnDemand.hoursToCover(om, day6, zone, now, omRows(240)))
+        assertNull("covered once stored", HourlyOnDemand.hoursToCover(om, day6, zone, now, omRows(240), 37.417, -122.089))
         assertNull(
             "a 13 h-old fetch still vouches for day 6: inside a LONG fetch's 8 days, 36 h is the limit",
-            HourlyOnDemand.hoursToCover(om, day6, zone, now, omRows(71) + omRows(240, fetchedAt = now - 13 * hour).drop(72)),
+            HourlyOnDemand.hoursToCover(om, day6, zone, now, omRows(71) + omRows(240, fetchedAt = now - 13 * hour).drop(72), 37.417, -122.089),
         )
         assertEquals(
             "a 37 h-old one no longer does",
             hours,
-            HourlyOnDemand.hoursToCover(om, day6, zone, now, omRows(71) + omRows(240, fetchedAt = now - 37 * hour).drop(72)),
+            HourlyOnDemand.hoursToCover(om, day6, zone, now, omRows(71) + omRows(240, fetchedAt = now - 37 * hour).drop(72), 37.417, -122.089),
         )
     }
 
@@ -131,13 +162,13 @@ class HourlyOnDemandTest {
     @Test
     fun `Google's day 5 from a LONG fetch 20 h ago is covered, no billed fetch`() {
         val day5 = today.plusDays(4)
-        assertNull(HourlyOnDemand.hoursToCover(google, day5, zone, now, longRows(google, 191, now - 20 * hour)))
+        assertNull(HourlyOnDemand.hoursToCover(google, day5, zone, now, longRows(google, 191, now - 20 * hour), 37.417, -122.089))
     }
 
     @Test
     fun `Google's day 5 from a LONG fetch 40 h ago is fetched again`() {
         val day5 = today.plusDays(4)
-        val hours = HourlyOnDemand.hoursToCover(google, day5, zone, now, longRows(google, 191, now - 40 * hour))
+        val hours = HourlyOnDemand.hoursToCover(google, day5, zone, now, longRows(google, 191, now - 40 * hour), 37.417, -122.089)
         assertEquals("Fri 03:00 → Tue 23:00, plus the current hour", 117, hours)
     }
 
@@ -145,30 +176,30 @@ class HourlyOnDemandTest {
     fun `Google past 8 days still needs a fetch within 12 h`() {
         val day9 = today.plusDays(8)
         val stored = longRows(google, 191, now - hour)
-        assertEquals(213, HourlyOnDemand.hoursToCover(google, day9, zone, now, stored))
+        assertEquals(213, HourlyOnDemand.hoursToCover(google, day9, zone, now, stored, 37.417, -122.089))
     }
 
     @Test
     fun `Open-Meteo's day 9 past a fresh LONG fetch's 8 days is fetched, not declared out of reach`() {
         val om = WeatherSource.OPEN_METEO.id
         val day9 = today.plusDays(8)
-        val hours = HourlyOnDemand.hoursToCover(om, day9, zone, now, longRows(om, 191, now - hour))
+        val hours = HourlyOnDemand.hoursToCover(om, day9, zone, now, longRows(om, 191, now - hour), 37.417, -122.089)
         assertEquals(HourlyOnDemand.REACH_HOURS, hours?.let { HourlyOnDemand.hoursAhead(om, HourlyOnDemand.Request(om, it)) })
         assertNull(
             "once an on-demand fetch kept the whole horizon, nothing more to fetch",
-            HourlyOnDemand.hoursToCover(om, today.plusDays(10), zone, now, longRows(om, 239, now - hour)),
+            HourlyOnDemand.hoursToCover(om, today.plusDays(10), zone, now, longRows(om, 239, now - hour), 37.417, -122.089),
         )
     }
 
     @Test
     fun `NWS's whole horizon fits a LONG fetch, so a fresh one means nothing more to fetch`() {
         // Thu Oct 15 runs past NWS's 156 h; a LONG fetch an hour ago stored all the API had (150 h).
-        assertNull(HourlyOnDemand.hoursToCover(nws, today.plusDays(6), zone, now, longRows(nws, 150, now - hour)))
+        assertNull(HourlyOnDemand.hoursToCover(nws, today.plusDays(6), zone, now, longRows(nws, 150, now - hour), 37.417, -122.089))
     }
 
     @Test
     fun `next Thursday needs hours through its 23 00`() {
-        val hours = HourlyOnDemand.hoursToCover(google, LocalDate.of(2026, 10, 15), zone, now, routine)!!
+        val hours = HourlyOnDemand.hoursToCover(google, LocalDate.of(2026, 10, 15), zone, now, routine, 37.417, -122.089)!!
 
         // 03:00 Fri → 23:00 Thu is 164 hours, plus the current hour.
         assertEquals(165, hours)
@@ -177,66 +208,66 @@ class HourlyOnDemandTest {
 
     @Test
     fun `days inside the routine window need nothing`() {
-        assertNull(HourlyOnDemand.hoursToCover(google, today, zone, now, routine))
-        assertNull(HourlyOnDemand.hoursToCover(google, today.plusDays(2), zone, now, routine))
+        assertNull(HourlyOnDemand.hoursToCover(google, today, zone, now, routine, 37.417, -122.089))
+        assertNull(HourlyOnDemand.hoursToCover(google, today.plusDays(2), zone, now, routine, 37.417, -122.089))
     }
 
     @Test
     fun `a day stored to its last hour needs nothing, one hour short still fetches`() {
-        assertEquals("Monday ends past the routine 72 h", 93, HourlyOnDemand.hoursToCover(google, monday, zone, now, routine))
-        assertNull(HourlyOnDemand.hoursToCover(google, monday, zone, now, routine + row(ms(monday, 23))))
-        assertEquals(93, HourlyOnDemand.hoursToCover(google, monday, zone, now, routine + row(ms(monday, 22))))
+        assertEquals("Monday ends past the routine 72 h", 93, HourlyOnDemand.hoursToCover(google, monday, zone, now, routine, 37.417, -122.089))
+        assertNull(HourlyOnDemand.hoursToCover(google, monday, zone, now, routine + row(ms(monday, 23)), 37.417, -122.089))
+        assertEquals(93, HourlyOnDemand.hoursToCover(google, monday, zone, now, routine + row(ms(monday, 22)), 37.417, -122.089))
     }
 
     @Test
     fun `hours a LONG fetch keeps count for 36 hours, on-demand hours past them for 12`() {
         // Monday 23:00 is 92 h out, inside a LONG fetch's 192 h: refreshed only every 8–24 h.
-        assertNull(HourlyOnDemand.hoursToCover(google, monday, zone, now, routine + row(ms(monday, 23), fetchedAt = now - 35 * hour)))
-        assertEquals(93, HourlyOnDemand.hoursToCover(google, monday, zone, now, routine + row(ms(monday, 23), fetchedAt = now - 37 * hour)))
+        assertNull(HourlyOnDemand.hoursToCover(google, monday, zone, now, routine + row(ms(monday, 23), fetchedAt = now - 35 * hour), 37.417, -122.089))
+        assertEquals(93, HourlyOnDemand.hoursToCover(google, monday, zone, now, routine + row(ms(monday, 23), fetchedAt = now - 37 * hour), 37.417, -122.089))
         // Sunday the 18th, 23:00, is 236 h out, past it: only an on-demand fetch stores there.
         val sunday = today.plusDays(9)
-        assertNull(HourlyOnDemand.hoursToCover(google, sunday, zone, now, routine + row(ms(sunday, 23), fetchedAt = now - 11 * hour)))
-        assertEquals(237, HourlyOnDemand.hoursToCover(google, sunday, zone, now, routine + row(ms(sunday, 23), fetchedAt = now - 13 * hour)))
+        assertNull(HourlyOnDemand.hoursToCover(google, sunday, zone, now, routine + row(ms(sunday, 23), fetchedAt = now - 11 * hour), 37.417, -122.089))
+        assertEquals(237, HourlyOnDemand.hoursToCover(google, sunday, zone, now, routine + row(ms(sunday, 23), fetchedAt = now - 13 * hour), 37.417, -122.089))
     }
 
     @Test
     fun `routine-window rows count however old`() {
         val old = routine.map { it.copy(fetchedAt = 0L) }
-        assertNull(HourlyOnDemand.hoursToCover(google, today.plusDays(1), zone, now, old))
+        assertNull(HourlyOnDemand.hoursToCover(google, today.plusDays(1), zone, now, old, 37.417, -122.089))
     }
 
     @Test
     fun `never asks for less than the routine horizon`() {
-        assertEquals(GoogleWeatherApi.FORECAST_HOURS, HourlyOnDemand.hoursToCover(google, today, zone, now, emptyList()))
+        assertEquals(GoogleWeatherApi.FORECAST_HOURS, HourlyOnDemand.hoursToCover(google, today, zone, now, emptyList(), 37.417, -122.089))
     }
 
     @Test
     fun `past days and days beyond the loaders' reach fetch nothing`() {
-        assertNull(HourlyOnDemand.hoursToCover(google, today.minusDays(1), zone, now, emptyList()))
+        assertNull(HourlyOnDemand.hoursToCover(google, today.minusDays(1), zone, now, emptyList(), 37.417, -122.089))
         assertNull(
             "starts past now + 240 h",
-            HourlyOnDemand.hoursToCover(google, today.plusDays(11), zone, now, emptyList()),
+            HourlyOnDemand.hoursToCover(google, today.plusDays(11), zone, now, emptyList(), 37.417, -122.089),
         )
     }
 
     @Test
     fun `every daily column a week or more out gets a full day`() {
         // Fri Oct 16 (the reported day+7 that got only 00:00–03:00 at a 168 h reach): through 23:00.
-        assertEquals(189, HourlyOnDemand.hoursToCover(google, today.plusDays(7), zone, now, routine))
-        assertEquals(237, HourlyOnDemand.hoursToCover(google, today.plusDays(9), zone, now, routine))
+        assertEquals(189, HourlyOnDemand.hoursToCover(google, today.plusDays(7), zone, now, routine, 37.417, -122.089))
+        assertEquals(237, HourlyOnDemand.hoursToCover(google, today.plusDays(9), zone, now, routine, 37.417, -122.089))
     }
 
     @Test
     fun `a day straddling the reach is fetched only up to it`() {
         // Mon Oct 19 starts 236.6 h out; the reach ends at 03:24 that morning.
-        assertEquals(HourlyOnDemand.REACH_HOURS, HourlyOnDemand.hoursToCover(google, today.plusDays(10), zone, now, routine))
+        assertEquals(HourlyOnDemand.REACH_HOURS, HourlyOnDemand.hoursToCover(google, today.plusDays(10), zone, now, routine, 37.417, -122.089))
     }
 
     private fun window(fromDay: LocalDate, fromHour: Int, toDay: LocalDate, toHour: Int) =
         ms(fromDay, fromHour) to ms(toDay, toHour)
 
     private fun pan(source: String, w: Pair<Long, Long>, stored: List<HourlyForecast>, hasDay: (LocalDate) -> Boolean) =
-        HourlyOnDemand.panAction(source, w.first, w.second, zone, now, stored, hasDay)
+        HourlyOnDemand.panAction(source, w.first, w.second, zone, now, stored, 37.417, -122.089, hasDay)
 
     @Test
     fun `a window resting on an uncovered Google day fetches it`() {
