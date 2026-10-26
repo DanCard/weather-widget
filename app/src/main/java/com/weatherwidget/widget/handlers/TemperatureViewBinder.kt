@@ -89,6 +89,8 @@ internal object TemperatureViewBinder {
             wantHome = headerButtons.wantHome,
             wantMonths = headerButtons.wantMonths,
             hourly = true,
+            line = header.line,
+            nominalDate = HeaderWidthChecker.nominalDate(LocalDateTime.now().toLocalDate()),
         )
         val fit = HeaderFit.resolve(measured)
         Log.d(HeaderFit.LOG_TAG, HeaderFit.logLine("hourly", state.widthDp.toFloat(), headerScale, fit, measured))

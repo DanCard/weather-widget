@@ -24,6 +24,7 @@ internal object TemperatureHeaderStateBuilder {
         lon: Double,
         precipProbability: Int?,
         useCelsius: Boolean,
+        line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
     ): Pair<TemperatureWidgetState.HeaderState, Int?> {
         // Icon, temp, rain % and delta: the shared header rule (desktop draws the same content).
         val content = HeaderContent.build(
@@ -59,6 +60,7 @@ internal object TemperatureHeaderStateBuilder {
             isCurrentTempVisible = content.tempText != null,
             isDeltaVisible = content.deltaText != null,
             isStaleEstimate = currentTempResolution.isStaleEstimate,
+            line = line,
         )
         return headerState to content.computedPrecipProbability
     }

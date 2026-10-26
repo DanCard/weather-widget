@@ -234,6 +234,21 @@ object GraphDataLoader {
             .ifEmpty { "none" }
 
     /**
+     * Every one of [sourceIds]' hourly rows at this site in [startMs]..[endMs], for the header
+     * line's reserve (`HeaderWidthChecker.lineInputs`): the render paths load only the displayed
+     * sources'.
+     */
+    suspend fun loadHeaderLineHourlyForecasts(
+        hourlyDao: HourlyForecastDao,
+        lat: Double,
+        lon: Double,
+        startMs: Long,
+        endMs: Long,
+        sourceIds: List<String>,
+    ): List<HourlyForecastEntity> =
+        unifyToNearestSite(hourlyDao.getHourlyForecastsForSources(startMs, endMs, lat, lon, sourceIds), lat, lon)
+
+    /**
      * Hourly rows for `:shared` CurrentTempRun's inputs ([com.weatherwidget.widget.CurrentTempRun.inputWindow]:
      * ≈ 37.5 h back for the yesterday delta). Cut it with [nowCentred] for the header's own window.
      */

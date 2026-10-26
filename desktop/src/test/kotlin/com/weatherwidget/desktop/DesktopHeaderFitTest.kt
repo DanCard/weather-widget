@@ -44,7 +44,7 @@ class DesktopHeaderFitTest {
 
     private val widths = (100..800 step 25).toList()
 
-    private fun snapshot(): ForecastSnapshot {
+    private fun snapshot(precip: Int = 40): ForecastSnapshot {
         val zone = ZoneId.systemDefault()
         val hourStart = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS)
         // Source-less rows match any display source: a flat 40 % across the lookahead.
@@ -53,13 +53,13 @@ class DesktopHeaderFitTest {
                 dateTime = hourStart.plusHours(h.toLong()).atZone(zone).toInstant().toEpochMilli(),
                 temperature = 64f,
                 condition = "Cloudy",
-                precipProbability = 40,
+                precipProbability = precip,
             )
         }
         val today = LocalDate.now()
         return ForecastSnapshot(
             raw = RawFetch(
-                daily = listOf(DailyForecast(today.toString(), 75f, 55f, "Cloudy", precipProbability = 40)),
+                daily = listOf(DailyForecast(today.toString(), 75f, 55f, "Cloudy", precipProbability = precip)),
                 hourly = hourly,
             ),
             resolved = ResolvedView(currentTemp = 64f, currentCondition = "Cloudy", deltaFromYesterday = 2.2f),
@@ -254,6 +254,92 @@ class DesktopHeaderFitTest {
         assertEquals("observations did not move", obs[0], obs[1], 0.5f)
         assertEquals("history did not move", history[0], history[1], 0.5f)
         assertTrue("home left of observations", home.single() < obs[1])
+    }
+
+    @Test
+    fun aSourceSwitchOnTheSquareWindowMovesNeitherTheButtonsNorTheDate() {
+        // User's window, 2026-10-26: 802dp at ×2.45. NWS → Meteo slid every button and the date
+        // ~20 px, following the wider source label; home appearing on the left is the only change.
+        // Dry, as it was: a rain % holds the line on the left and hides the slide.
+        composeTestRule.setContent {
+            Column {
+                for (source in listOf("NWS", "OPEN_METEO")) {
+                    Box(Modifier.requiredWidth(802.dp)) {
+                        WidgetHeader(
+                            config = config.copy(settings = config.settings.copy(weatherSource = source)),
+                            forecast = snapshot(precip = 0),
+                            resolvedCurrentTemp = 64f,
+                            resolvedDeltaFromYesterday = 2.2f,
+                            onUpdateConfig = {},
+                            onOpenSettings = {},
+                            onOpenObservations = {},
+                            onUpdateLocation = {},
+                            scale = 2.45f,
+                        )
+                    }
+                }
+            }
+        }
+        composeTestRule.waitForIdle()
+        fun lefts(tag: String) = composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
+            .sortedBy { it.boundsInRoot.top }
+            .map { with(composeTestRule.density) { it.boundsInRoot.left.toDp().value } }
+        for (tag in listOf("open_forecast_history_daily_icon", "open_observations_header_daily_icon", "daily_header_date")) {
+            val found = lefts(tag)
+            assertEquals("$tag on both headers: $found", 2, found.size)
+            assertEquals("$tag did not move", found[0], found[1], 0.5f)
+        }
+    }
+
+    @Test
+    fun aSourceSwitchOnARainyDayMovesNeitherTheButtonsNorTheDate() {
+        // NWS 5 %, Open-Meteo 70 %: the rain % differs in digits and size, which moved the line
+        // until the header reserved the widest visible source's (user, 2026-10-26).
+        val zone = ZoneId.systemDefault()
+        val hourStart = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS)
+        val rows = listOf("NWS" to 5, "OPEN_METEO" to 70).flatMap { (source, precip) ->
+            (0..9).map { h ->
+                HourlyForecast(
+                    dateTime = hourStart.plusHours(h.toLong()).atZone(zone).toInstant().toEpochMilli(),
+                    temperature = 64f,
+                    condition = "Cloudy",
+                    precipProbability = precip,
+                    source = source,
+                )
+            }
+        }
+        val base = snapshot(precip = 0)
+        val rainy = base.copy(raw = base.raw.copy(hourly = rows), allSourcesHourly = rows)
+        composeTestRule.setContent {
+            Column {
+                for (source in listOf("NWS", "OPEN_METEO")) {
+                    Box(Modifier.requiredWidth(802.dp)) {
+                        WidgetHeader(
+                            config = config.copy(settings = config.settings.copy(weatherSource = source)),
+                            forecast = rainy,
+                            resolvedCurrentTemp = 64f,
+                            resolvedDeltaFromYesterday = 2.2f,
+                            onUpdateConfig = {},
+                            onOpenSettings = {},
+                            onOpenObservations = {},
+                            onUpdateLocation = {},
+                            scale = 2.45f,
+                        )
+                    }
+                }
+            }
+        }
+        composeTestRule.waitForIdle()
+        fun lefts(tag: String) = composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
+            .sortedBy { it.boundsInRoot.top }
+            .map { with(composeTestRule.density) { it.boundsInRoot.left.toDp().value } }
+        for (tag in listOf("open_forecast_history_daily_icon", "open_observations_header_daily_icon")) {
+            val found = lefts(tag)
+            assertEquals("$tag on both headers: $found", 2, found.size)
+            assertEquals("$tag did not move", found[0], found[1], 0.5f)
+        }
+        val dates = lefts("daily_header_date")
+        assertTrue("the date shows on both or neither: $dates", dates.size != 1)
     }
 
     @Test

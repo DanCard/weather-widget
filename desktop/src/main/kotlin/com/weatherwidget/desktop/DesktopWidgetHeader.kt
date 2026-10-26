@@ -22,6 +22,7 @@ import com.weatherwidget.shared.util.HeaderButton
 import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderButtonZone
 import com.weatherwidget.shared.util.HeaderFit
+import com.weatherwidget.shared.util.HeaderLine
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.PreferredSourceHome
 import java.time.Instant
@@ -141,6 +142,34 @@ internal fun WidgetHeader(
     val nominalDateWidthDp = remember(dateText, dateStyle, headerTextMeasurer, density) {
         with(density) { headerTextMeasurer.measure(dateText, dateStyle).size.width.toDp().value }
     }
+    // What every visible source would show now, for the shared line's reserve (HeaderLine), and
+    // how wide each piece draws here: a source tap then moves neither the buttons nor the date.
+    val lineInputs = remember(forecast.allSourcesHourly, config.effectiveSources, config.viewMode, nowLocal, targetHour, config.lat, config.lon, headerWidthDp) {
+        HeaderContent.lineInputs(
+            view = desktopHeaderView(config.viewMode),
+            hourly = forecast.allSourcesHourly,
+            sourceIds = config.effectiveSources.map { WeatherSource.fromDisplaySource(it).id },
+            now = nowLocal,
+            centerTime = targetHour,
+            lat = config.lat,
+            lon = config.lon,
+            widthDp = headerWidthDp,
+        )
+    }
+    val lineMeasure = remember(scale, tempStyle, deltaStyle, precipStyle, dateStyle, sourceStyle, headerTextMeasurer, density) {
+        fun widthDp(text: String, style: androidx.compose.ui.text.TextStyle) =
+            with(density) { headerTextMeasurer.measure(text, style).size.width.toDp().value }
+        HeaderLine.Measure { piece, text, fontScale ->
+            when (piece) {
+                HeaderLine.Piece.TEMP -> widthDp(text, tempStyle)
+                HeaderLine.Piece.DELTA -> DELTA_MARGIN_DP + widthDp(text, deltaStyle)
+                HeaderLine.Piece.RAIN ->
+                    PRECIP_MARGIN_DP + widthDp(text, precipStyle.copy(fontSize = (HEADER_TEMP_BASE_SP * fontScale * scale).sp))
+                HeaderLine.Piece.DATE -> widthDp(text, dateStyle)
+                HeaderLine.Piece.SOURCE -> widthDp(text, sourceStyle) + 14 * scale
+            }
+        }
+    }
     val headerMeasured = remember(content, scale, isHourly, buttonsWant, dateText, headerTextMeasurer, density, headerWidthDp, sourceWidthDp, nominalDateWidthDp) {
         fun widthDp(text: String, style: androidx.compose.ui.text.TextStyle) =
             with(density) { headerTextMeasurer.measure(text, style).size.width.toDp().value }
@@ -149,7 +178,7 @@ internal fun WidgetHeader(
             width = 0f, // the BoxWithConstraints below supplies it
             rightCluster = sourceWidthDp + gearWidth,
             gap = spacingDp,
-            seamOffset = 0f, // BoxWithConstraints computes floatingSeamOffset dynamically
+            seamOffset = 0f, // HeaderLine.place floats it, below
             temp = widthDp(content.tempText ?: "—", tempStyle),
             rain = content.precipText?.takeIf { content.precipFontScale != null }
                 ?.let { PRECIP_MARGIN_DP + widthDp(it, precipStyle) } ?: 0f,
@@ -181,18 +210,15 @@ internal fun WidgetHeader(
             val unscaledWidthDp = measuredWidth / scale
             val centreButton = HeaderButtonZone.zoneDp(CENTRE_ICON_DP, unscaledWidthDp) * scale
             val minCentreButton = HeaderButtonZone.minZoneDp(CENTRE_ICON_DP) * scale
-            val withWidth = headerMeasured.copy(
-                width = measuredWidth,
-                centreButton = centreButton,
-                minCentreButton = minCentreButton,
-            )
-            val seamOffset = remember(withWidth, nominalDateWidthDp) {
-                HeaderFit.floatingSeamOffset(
-                    withWidth,
-                    nominalDateWidth = nominalDateWidthDp,
+            val measured = remember(headerMeasured, measuredWidth, centreButton, minCentreButton, lineMeasure, lineInputs, dateText) {
+                HeaderLine.place(
+                    headerMeasured.copy(width = measuredWidth, centreButton = centreButton, minCentreButton = minCentreButton),
+                    lineMeasure,
+                    lineInputs,
+                    iconSlot = 18 * scale,
+                    nominalDate = dateText,
                 )
             }
-            val measured = withWidth.copy(seamOffset = seamOffset)
             val fit = remember(measured) {
                 HeaderFit.resolve(measured).also { HeaderFitLog.changed(if (isHourly) "hourly" else "daily", scale, it, measured) }
             }
@@ -546,12 +572,7 @@ internal fun desktopHeaderContent(
     useCelsius: Boolean,
     widthDp: Int,
 ): HeaderContent.Content {
-    val view = when (viewMode) {
-        ViewMode.DAILY -> HeaderContent.View.DAILY
-        ViewMode.PRECIPITATION -> HeaderContent.View.PRECIPITATION
-        ViewMode.CLOUD_COVER -> HeaderContent.View.CLOUD_COVER
-        else -> HeaderContent.View.TEMPERATURE
-    }
+    val view = desktopHeaderView(viewMode)
     val today = forecast.raw.daily.firstOrNull { it.date == now.toLocalDate().toString() }
     val content = HeaderContent.build(
         view = view,
@@ -578,6 +599,13 @@ internal fun desktopHeaderContent(
 }
 
 private const val DESKTOP_HEADER_COLUMNS = 5
+
+private fun desktopHeaderView(viewMode: ViewMode): HeaderContent.View = when (viewMode) {
+    ViewMode.DAILY -> HeaderContent.View.DAILY
+    ViewMode.PRECIPITATION -> HeaderContent.View.PRECIPITATION
+    ViewMode.CLOUD_COVER -> HeaderContent.View.CLOUD_COVER
+    else -> HeaderContent.View.TEMPERATURE
+}
 
 /** `HEADER_CONTENT` once per change (recomposition repeats the same). */
 private object HeaderContentLog {

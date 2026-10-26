@@ -64,6 +64,8 @@ internal object DailyHeaderResolver {
         deltaFromYesterday: Float?,
         dateOffset: Int,
         skipYesterday: Boolean,
+        /** What every visible source would show now ([HeaderWidthChecker.lineInputs]); null: fixed line. */
+        line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
     ): HeaderResolution {
         val resolution = resolveState(
             context = context,
@@ -86,6 +88,7 @@ internal object DailyHeaderResolver {
             deltaFromYesterday = deltaFromYesterday,
             dateOffset = dateOffset,
             skipYesterday = skipYesterday,
+            line = line,
         )
         bind(
             context = context,
@@ -120,6 +123,8 @@ internal object DailyHeaderResolver {
         deltaFromYesterday: Float?,
         dateOffset: Int,
         skipYesterday: Boolean,
+        /** What every visible source would show now ([HeaderWidthChecker.lineInputs]); null: fixed line. */
+        line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
     ): HeaderResolution {
         val today = now.toLocalDate()
 
@@ -225,6 +230,8 @@ internal object DailyHeaderResolver {
             baseButtons = if (dimensions.isIconWidth) 0 else buttons.baseButtons,
             wantHome = buttons.wantHome,
             wantMonths = buttons.wantMonths,
+            line = line,
+            nominalDate = HeaderWidthChecker.nominalDate(today),
         )
         val fit = HeaderFit.resolve(measured)
         Log.d(HeaderFit.LOG_TAG, "widget=$appWidgetId " + HeaderFit.logLine("daily", dimensions.widthDp.toFloat(), headerScale, fit, measured))

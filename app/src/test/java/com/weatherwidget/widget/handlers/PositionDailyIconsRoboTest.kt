@@ -167,7 +167,8 @@ class PositionDailyIconsRoboTest {
         // A 20dp icon in a 24dp zone leaves 4dp of air and the row reads as one control — what a
         // Pixel 7 Pro (373dp, hourly) showed on 2026-10-25. Assert the rungs themselves (the shared
         // HeaderButtonZone air around the 20dp icon), daily and hourly alike, and the 6dp floor.
-        assertEquals(26f, HeaderWidthChecker.centerIconZoneWidthDp(340), 0.01f)
+        // Narrow headers prefer 8dp (2026-10-26); only the squeeze reaches the floor.
+        assertEquals(28f, HeaderWidthChecker.centerIconZoneWidthDp(340), 0.01f)
         assertEquals(32f, HeaderWidthChecker.centerIconZoneWidthDp(373), 0.01f)
         assertEquals(40f, HeaderWidthChecker.centerIconZoneWidthDp(440), 0.01f)
         assertEquals(52f, HeaderWidthChecker.centerIconZoneWidthDp(500), 0.01f)

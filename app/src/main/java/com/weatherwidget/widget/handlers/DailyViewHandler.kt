@@ -3,6 +3,7 @@
  */
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.HeaderContent
 import com.weatherwidget.shared.util.HeaderFit
 import com.weatherwidget.shared.util.DailyColumnSource
 import android.app.PendingIntent
@@ -373,6 +374,9 @@ object DailyViewHandler : WidgetViewHandler {
             deltaFromYesterday = deltaFromYesterday,
             dateOffset = dateOffset,
             skipYesterday = skipYesterday,
+            line = HeaderWidthChecker.lineInputs(
+                context, stateManager, HeaderContent.View.DAILY, now, now, lat, lon, dimensions.widthDp,
+            ),
         )
 
         val currentTemp = headerResolution.state.currentTemp

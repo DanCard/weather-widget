@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.HeaderContent
 import com.weatherwidget.data.model.ForecastProduct
 import android.content.Context
 import android.util.Log
@@ -287,6 +288,9 @@ internal object TemperatureStateResolver {
             lon = lon,
             precipProbability = precipProbability,
             useCelsius = useCelsius,
+            line = HeaderWidthChecker.lineInputs(
+                context, stateManager, HeaderContent.View.TEMPERATURE, now, centerTime, lat, lon, dimensions.widthDp,
+            ),
         )
 
         // 6. Graph Rendering

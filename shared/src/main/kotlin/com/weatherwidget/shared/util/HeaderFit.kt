@@ -326,11 +326,16 @@ object HeaderFit {
      * that:
      * 1. Home button appearing/disappearing on source toggle never causes the date or buttons to jump.
      * 2. Switching between daily (with date) and hourly (without date) never causes elements to jump.
+     *
+     * [reservedLeft] and [reservedRight] stand in for the live clusters when wider ([HeaderLine]
+     * builds them from every visible source), so a source tap does not move the line.
      */
     fun floatingSeamOffset(
         m: Measured,
         nominalDateWidth: Float = m.date,
         nominalButtons: Int = 4,
+        reservedLeft: Float = 0f,
+        reservedRight: Float = 0f,
     ): Float {
         if (m.width <= 0f) return 0f
         val buttonWidth = if (m.centreButton > 0f) m.centreButton else m.minCentreButton
@@ -344,15 +349,16 @@ object HeaderFit {
 
         // The caption ("from yest") is the lowest priority (8) and is added only if it fits
         // in free space; it must never push buttons or date.
-        val leftCluster = m.icon + m.temp + m.delta + m.rain
+        val leftCluster = maxOf(m.icon + m.temp + m.delta + m.rain, reservedLeft)
+        val rightCluster = maxOf(m.rightCluster, reservedRight)
         val minRight = leftCluster + m.gap + buttonsWidth
-        val maxRight = m.width - m.rightCluster - 2 * m.gap - nominalDateWidth
+        val maxRight = m.width - rightCluster - 2 * m.gap - nominalDateWidth
         val targetRight = m.width / 2f + buttonsWidth / 2f
 
         val slotRight = if (minRight <= maxRight) {
             targetRight.coerceIn(minRight, maxRight)
         } else {
-            val maxRightNoDate = m.width - m.rightCluster - m.gap
+            val maxRightNoDate = m.width - rightCluster - m.gap
             targetRight.coerceIn(minRight, maxOf(minRight, maxRightNoDate))
         }
         return slotRight - m.width / 2f

@@ -123,6 +123,28 @@ class HeaderFitTest {
     }
 
     @Test
+    fun `desktop's square window keeps 8dp air, unmoved by what a source tap changes`() {
+        // Screenshot 2026-10-26: 802dp at scale 2.45 reads as a 327dp header, whose preferred air
+        // was the 6dp floor — clumped with half the row empty. Rain %, delta and home come and go
+        // on a source tap; the zone must not, or every button slides (user, 2026-10-26).
+        val scale = 2.45f
+        val m = Measured(
+            width = 802f, rightCluster = 205f, gap = 8f, seamOffset = HeaderFit.SEAM_OFFSET_DP * scale,
+            temp = 100f, icon = 44f, baseButtons = 3,
+            centreButton = HeaderButtonZone.zoneDp(15f, 802f / scale) * scale,
+            minCentreButton = HeaderButtonZone.minZoneDp(15f) * scale,
+        )
+        val plain = HeaderFit.resolve(m)
+        assertEquals(ButtonPlacement.CENTER to Seam.RIGHT_OF_MIDDLE, plain.placement to plain.seam)
+        assertEquals(23f * scale, plain.centreZone, 0.01f)
+        for (other in listOf(m.copy(rain = 60f), m.copy(delta = 40f), m.copy(wantHome = true), m.copy(rightCluster = 150f))) {
+            val plan = HeaderFit.resolve(other)
+            assertEquals("$other", plain.centreZone, plan.centreZone, 0f)
+            assertEquals("right end stays: $other", HeaderFit.buttonsSpan(m, plain)!!.second, HeaderFit.buttonsSpan(other, plan)!!.second, 0f)
+        }
+    }
+
+    @Test
     fun `crowded centred buttons narrow toward their floor before leaving the middle`() {
         // Left cluster needs 96; three 40s centred on 150 would start at 90. Narrowed to 36 they
         // start at 96 exactly. With a 100 temp even the 30 floor does not fit: off the middle.
@@ -540,5 +562,25 @@ class HeaderFitTest {
         val dailyOffset = HeaderFit.floatingSeamOffset(mDaily, nominalDateWidth = 88f)
         val hourlyOffset = HeaderFit.floatingSeamOffset(mHourly, nominalDateWidth = 88f)
         assertEquals("daily and hourly seam offset match exactly", dailyOffset, hourlyOffset, 0.001f)
+    }
+
+    @Test
+    fun `floatingSeamOffset stays put across a source tap when both clusters are reserved`() {
+        // Desktop 2026-10-26: NWS → Meteo slid the row ~20 px left — a wider source label, a
+        // different temperature and delta, rain % coming and going. With the room reserved
+        // (widest of each), none of them moves the line.
+        val nws = Measured(
+            width = 802f, rightCluster = 90f, gap = 8f,
+            temp = 100f, delta = 60f, icon = 44f, date = 100f,
+            baseButtons = 3, centreButton = 56f, minCentreButton = 51f,
+        )
+        val meteo = nws.copy(rightCluster = 115f, temp = 104f, delta = 52f, rain = 120f)
+        fun offset(m: Measured) = HeaderFit.floatingSeamOffset(m, nominalDateWidth = 100f, reservedLeft = 340f, reservedRight = 120f)
+        assertEquals(offset(nws), offset(meteo), 0f)
+        assertEquals(offset(nws), offset(nws.copy(delta = 0f, rain = 0f, rightCluster = 60f)), 0f)
+        assertTrue(
+            "unreserved, the line followed the text",
+            HeaderFit.floatingSeamOffset(nws, nominalDateWidth = 100f) != HeaderFit.floatingSeamOffset(meteo, nominalDateWidth = 100f),
+        )
     }
 }

@@ -11,7 +11,8 @@ class HeaderButtonZoneTest {
 
     @Test
     fun `air grows with the header's width and never goes below the 6dp floor`() {
-        assertEquals(6f, HeaderButtonZone.airDp(340f), 0f)
+        assertEquals(8f, HeaderButtonZone.airDp(327f), 0f) // desktop's square window: was the 6dp floor
+        assertEquals(8f, HeaderButtonZone.airDp(340f), 0f)
         assertEquals(12f, HeaderButtonZone.airDp(360f), 0f)
         assertEquals(12f, HeaderButtonZone.airDp(373f), 0f) // Pixel 7 Pro: was 4dp on the hourly header
         assertEquals(20f, HeaderButtonZone.airDp(420f), 0f)

@@ -170,4 +170,31 @@ class DesktopHeaderDateIntegrationTest {
             .fetchSemanticsNodes().singleOrNull()
         assertTrue("Daily header date must remain visible on tall 778x730 window (uiScale ~ 2.28)", dateNode != null)
     }
+
+    @Test
+    fun dailyDateRemainsVisibleOnTheUsersSquareWindow() {
+        // 802×785 (uiScale ~ 2.45), 2026-10-26: reserving the widest temperature, delta and rain %
+        // for the button line pushed the date out here.
+        composeTestRule.setContent {
+            Box(Modifier.requiredSize(802.dp, 785.dp)) {
+                WidgetPopup(
+                    config = baseConfig.copy(viewMode = ViewMode.DAILY),
+                    forecast = sampleForecast(),
+                    dataStatus = DataStatus.Live(System.currentTimeMillis()),
+                    resolvedCurrentTemp = 71f,
+                    resolvedDeltaFromYesterday = 2.2f,
+                    onUpdateLocation = {},
+                    onUpdateConfig = {},
+                    onOpenSettings = {},
+                    onOpenObservations = {},
+                    onOpenHistory = {},
+                )
+            }
+        }
+        composeTestRule.waitForIdle()
+
+        val dateNode = composeTestRule.onAllNodesWithTag("daily_header_date", useUnmergedTree = true)
+            .fetchSemanticsNodes().singleOrNull()
+        assertTrue("Daily header date must remain visible on the 802x785 window (uiScale ~ 2.45)", dateNode != null)
+    }
 }

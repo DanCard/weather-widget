@@ -4,6 +4,10 @@ import android.content.Context
 import android.graphics.Paint
 import android.util.TypedValue
 import com.weatherwidget.shared.util.HeaderButtonZone
+import com.weatherwidget.shared.util.HeaderContent
+import com.weatherwidget.shared.util.HeaderLine
+import com.weatherwidget.shared.util.SourceCoverage
+import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.shared.util.HeaderFit
 
 object HeaderWidthChecker {
@@ -106,14 +110,25 @@ object HeaderWidthChecker {
         wantHome: Boolean,
         wantMonths: Boolean,
         hourly: Boolean = false,
+        /**
+         * What every visible source would show now ([HeaderContent.lineInputs]): the shared line
+         * ([HeaderLine]) is placed against it, so a source tap moves neither buttons nor date.
+         * Null keeps the fixed [HeaderFit.SEAM_OFFSET_DP] line.
+         */
+        line: HeaderLine.Inputs? = null,
+        /** The daily date, passed by hourly headers too so the line matches across views. */
+        nominalDate: String? = null,
     ): HeaderFit.Measured {
         val widthPx = dpToPx(context, widthDp.toFloat())
         fun scaledDp(dp: Float) = dpToPx(context, dp) * headerScale
         fun scaledText(text: String?, sizeDp: Float, marginDp: Float = 0f) =
             if (text.isNullOrBlank()) 0f else scaledDp(marginDp) + textWidthPx(context, text, sizeDp) * headerScale
-        return HeaderFit.Measured(
+        fun rightCluster(sourceText: String) =
+            (widthPx - resolveApiLeftPx(context, widthPx, sourceText, apiTextSizeDp)) * headerScale
+        val iconSlot = scaledDp(HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP)
+        val measured = HeaderFit.Measured(
             width = widthPx,
-            rightCluster = (widthPx - resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)) * headerScale,
+            rightCluster = rightCluster(apiSourceText),
             gap = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP),
             // The line the buttons end on; positionDailyIcons can only move them off the middle on
             // API 31+ (setViewLayoutMargin).
@@ -125,7 +140,7 @@ object HeaderWidthChecker {
             rain = if (precipTextSizeDp == null) 0f
                 else scaledText(precipText, precipTextSizeDp, HeaderConstants.PRECIP_MARGIN_START_DP),
             delta = scaledText(deltaText, HeaderConstants.DELTA_TEXT_SIZE_DP, HeaderConstants.DELTA_MARGIN_START_DP),
-            icon = if (includeIcon) scaledDp(HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP) else 0f,
+            icon = if (includeIcon) iconSlot else 0f,
             date = scaledText(dateText, HeaderConstants.DATE_TEXT_SIZE_DP),
             caption = scaledText(deltaLabelText, HeaderConstants.DELTA_LABEL_TEXT_SIZE_DP, HeaderConstants.DELTA_LABEL_MARGIN_START_DP),
             baseButtons = baseButtons,
@@ -138,7 +153,66 @@ object HeaderWidthChecker {
             minInlineButton = if (hourly && canResizeInlineZones()) dpToPx(context, HOURLY_MIN_INLINE_ZONE_DP) else 0f,
             minTextScale = if (hourly) HOURLY_MIN_TEXT_SCALE else 1f,
         )
+        line ?: return measured
+        val measure = HeaderLine.Measure { piece, text, fontScale ->
+            when (piece) {
+                HeaderLine.Piece.TEMP -> currentTempTextWidthPx(context, text, currentTempSizeDp) * headerScale
+                HeaderLine.Piece.DELTA ->
+                    scaledText(text, HeaderConstants.DELTA_TEXT_SIZE_DP, HeaderConstants.DELTA_MARGIN_START_DP)
+                HeaderLine.Piece.RAIN ->
+                    scaledText(text, HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP * fontScale, HeaderConstants.PRECIP_MARGIN_START_DP)
+                HeaderLine.Piece.DATE -> scaledText(text, HeaderConstants.DATE_TEXT_SIZE_DP)
+                HeaderLine.Piece.SOURCE -> rightCluster(text)
+            }
+        }
+        return HeaderLine.place(measured, measure, line, iconSlot = if (includeIcon) iconSlot else 0f, nominalDate = nominalDate)
     }
+
+    /**
+     * [HeaderContent.lineInputs] for the widget's visible sources at this site: what
+     * [measureHeader]'s shared line reserves. Reads its own rows — every visible source over the
+     * header's 6 h rain window — because the render paths load only the displayed sources'.
+     */
+    @Suppress("LongParameterList")
+    suspend fun lineInputs(
+        context: Context,
+        stateManager: com.weatherwidget.widget.WidgetStateManager,
+        view: HeaderContent.View,
+        now: java.time.LocalDateTime,
+        centerTime: java.time.LocalDateTime,
+        lat: Double,
+        lon: Double,
+        widthDp: Int,
+    ): HeaderLine.Inputs {
+        val sourceIds = SourceCoverage.effectiveSources(stateManager.getVisibleSourcesOrder().map { it.id }, lat, lon)
+        val zone = java.time.ZoneId.systemDefault()
+        val fromMs = minOf(now, centerTime).minusHours(1).atZone(zone).toInstant().toEpochMilli()
+        val toMs = maxOf(now, centerTime).plusHours(LINE_RAIN_WINDOW_HOURS).atZone(zone).toInstant().toEpochMilli()
+        val rows = GraphDataLoader.loadHeaderLineHourlyForecasts(
+            com.weatherwidget.data.local.WeatherDatabase.getDatabase(context).hourlyForecastDao(),
+            lat,
+            lon,
+            fromMs,
+            toMs,
+            sourceIds + com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+        )
+        return HeaderContent.lineInputs(
+            view = view,
+            hourly = rows.map { it.toHourlyForecast() },
+            sourceIds = sourceIds,
+            now = now,
+            centerTime = centerTime,
+            lat = lat,
+            lon = lon,
+            widthDp = widthDp,
+        )
+    }
+
+    /** The header's rain % looks 6 h ahead; one more covers the hour it starts in. */
+    private const val LINE_RAIN_WINDOW_HOURS = 7L
+
+    /** The daily header's date, reserved by every header's line so it matches across views. */
+    fun nominalDate(today: java.time.LocalDate): String = today.format(DailyViewHandler.headerDateFormatter())
 
     fun computeHeaderScale(
         context: Context,

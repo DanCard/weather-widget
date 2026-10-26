@@ -309,6 +309,9 @@ object CloudCoverViewHandler {
             numRows = numRows,
             sourceIndicator = sourceIndicator,
             buttons = headerButtons,
+            line = HeaderWidthChecker.lineInputs(
+                context, stateManager, HeaderContent.View.CLOUD_COVER, now, centerTime, lat, lon, dimensions.widthDp,
+            ),
         )
         val headerScale = headerResult.headerScale
         val fit = headerResult.fit

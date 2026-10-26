@@ -291,6 +291,11 @@ data class ForecastSnapshot(
     val retroCloudBands: Map<Long, com.weatherwidget.shared.graph.CloudBands> = emptyMap(),
     /** Dominant station contribution for borrowed cloud actuals. */
     val dominantCloudContribution: BlendContribution? = null,
+    /**
+     * Every source's live hourly rows at the site, for the desktop header's rain % reserve
+     * (`HeaderContent.precipLabels`). Empty where nothing reserves.
+     */
+    val allSourcesHourly: List<HourlyForecast> = emptyList(),
 )
 
 sealed class DataStatus {

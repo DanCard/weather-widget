@@ -241,6 +241,9 @@ object PrecipViewHandler {
             numRows = numRows,
             sourceIndicator = sourceIndicator,
             buttons = headerButtons,
+            line = HeaderWidthChecker.lineInputs(
+                context, stateManager, HeaderContent.View.PRECIPITATION, now, centerTime, lat, lon, dimensions.widthDp,
+            ),
         )
         val headerScale = headerResult.headerScale
         val fit = headerResult.fit

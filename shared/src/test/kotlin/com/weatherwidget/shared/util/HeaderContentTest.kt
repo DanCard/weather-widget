@@ -119,4 +119,28 @@ class HeaderContentTest {
     fun tempIsOneDecimal() {
         assertEquals(String.format("%.1f°", 62.7f), build(View.DAILY, emptyList(), LocalDateTime.of(2026, 6, 1, 12, 0)).tempText)
     }
+
+    @Test
+    fun precipLabelsAreWhatEachSourceWouldShow() {
+        // Desktop reserves the widest of these (user, 2026-10-26): each must be exactly the label
+        // build gives that source, and a dry source none.
+        val now = LocalDateTime.of(2026, 6, 1, 13, 0)
+        val hourly = (0..6).flatMap { h ->
+            val t = now.plusHours(h.toLong())
+            listOf(row(t, 5, source = "NWS"), row(t, 70, source = "OPEN_METEO"), row(t, 0, condition = "Clear", source = "SILURIAN"))
+        }
+        for (view in listOf(View.DAILY, View.TEMPERATURE)) {
+            val labels = HeaderContent.precipLabels(view, hourly, listOf("NWS", "OPEN_METEO", "SILURIAN"), now, now, lat, lon)
+            for (source in listOf("NWS", "OPEN_METEO")) {
+                val shown = HeaderContent.build(
+                    view = view, hourly = hourly, displaySourceId = source, dailyFallback = null,
+                    fallbackDailyPrecip = null, currentTemp = 62.7f, isStaleEstimate = false, numColumns = 5,
+                    deltaFromYesterday = 2.9f, now = now, centerTime = now, lat = lat, lon = lon,
+                    useCelsius = false, widthDp = 400,
+                )
+                assertEquals("$view $source", HeaderContent.PrecipLabel(shown.precipText!!, shown.precipFontScale!!), labels[source])
+            }
+            assertNull("$view dry source", labels["SILURIAN"])
+        }
+    }
 }

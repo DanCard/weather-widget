@@ -32,6 +32,8 @@ internal object HourlyHeaderBinder {
         sourceIndicator: String?,
         /** Which buttons the row wants ([HeaderButtons.hourly]). */
         buttons: HeaderButtons.Want,
+        /** What every visible source would show now, for the shared line ([HeaderWidthChecker.lineInputs]). */
+        line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
     ): HeaderResult {
         val safeSourceIndicator = sourceIndicator ?: ""
         val headerScale = HeaderWidthChecker.computeHeaderScale(
@@ -66,6 +68,8 @@ internal object HourlyHeaderBinder {
             wantHome = buttons.wantHome,
             wantMonths = buttons.wantMonths,
             hourly = true,
+            line = line,
+            nominalDate = HeaderWidthChecker.nominalDate(java.time.LocalDate.now()),
         )
         val fit = HeaderFit.resolve(measured)
         android.util.Log.d(HeaderFit.LOG_TAG, HeaderFit.logLine("hourly", widthDp.toFloat(), headerScale, fit, measured))

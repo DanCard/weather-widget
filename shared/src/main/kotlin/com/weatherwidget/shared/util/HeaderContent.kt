@@ -77,7 +77,6 @@ object HeaderContent {
         iconHourly: List<HourlyForecast> = hourly,
         zone: ZoneId = ZoneId.systemDefault(),
     ): Content {
-        val sourceName = WeatherSource.fromId(displaySourceId).shortDisplayName
         val precip = precipitation(view, hourly, displaySourceId, fallbackDailyPrecip, now, centerTime, lat, lon)
         val precipText = precip.probability?.let { "$it%" }
         return Content(
@@ -93,12 +92,59 @@ object HeaderContent {
                 DailyRainLabels.headerPrecipFontScale(it, isDailyView = view == View.DAILY, isNightPrecip = precip.isNight)
             },
             isNightPrecip = precip.isNight,
-            sourceLabel = if (view.isHourly) {
-                HeaderFormatter.formatSourceIndicator(centerTime, now, sourceName, widthDp)
-            } else {
-                sourceName
-            },
+            sourceLabel = sourceLabel(view, displaySourceId, now, centerTime, widthDp),
         )
+    }
+
+    /** "Meteo"; an hourly view panned off today names the day ("Thursday • Meteo"). */
+    fun sourceLabel(view: View, sourceId: String, now: LocalDateTime, centerTime: LocalDateTime, widthDp: Int): String {
+        val sourceName = WeatherSource.fromId(sourceId).shortDisplayName
+        return if (view.isHourly) HeaderFormatter.formatSourceIndicator(centerTime, now, sourceName, widthDp) else sourceName
+    }
+
+    /**
+     * Each of [sourceIds]' label and the rain % it would show now, for [HeaderLine]'s reserve.
+     * [hourly] holds every source's rows.
+     */
+    @Suppress("LongParameterList")
+    fun lineInputs(
+        view: View,
+        hourly: List<HourlyForecast>,
+        sourceIds: List<String>,
+        now: LocalDateTime,
+        centerTime: LocalDateTime,
+        lat: Double,
+        lon: Double,
+        widthDp: Int,
+    ): HeaderLine.Inputs = HeaderLine.Inputs(
+        sourceLabels = sourceIds.map { sourceLabel(view, it, now, centerTime, widthDp) },
+        rainLabels = precipLabels(view, hourly, sourceIds, now, centerTime, lat, lon).values.filterNotNull(),
+    )
+
+    /** A rain % as [build] would show it: its text and font-size multiplier. */
+    data class PrecipLabel(val text: String, val fontScale: Float)
+
+    /**
+     * The rain % [build] would show for each of [sourceIds] (null where hidden), by the same rule,
+     * so a header can reserve room for the widest and a source tap does not move what sits beside
+     * it (user, 2026-10-26). No daily fallback: [hourly] holds every source's live rows.
+     */
+    fun precipLabels(
+        view: View,
+        hourly: List<HourlyForecast>,
+        sourceIds: List<String>,
+        now: LocalDateTime,
+        centerTime: LocalDateTime,
+        lat: Double,
+        lon: Double,
+    ): Map<String, PrecipLabel?> = sourceIds.associateWith { sourceId ->
+        val precip = precipitation(view, hourly, sourceId, null, now, centerTime, lat, lon)
+        precip.probability?.let {
+            PrecipLabel(
+                text = "$it%",
+                fontScale = DailyRainLabels.headerPrecipFontScale(it, isDailyView = view == View.DAILY, isNightPrecip = precip.isNight),
+            )
+        }
     }
 
     /**
