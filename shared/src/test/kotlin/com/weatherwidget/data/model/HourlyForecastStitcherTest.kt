@@ -65,49 +65,78 @@ class HourlyForecastStitcherTest {
     }
 
     @Test
-    fun `past hour - latest live forecast wins over older history snapshot`() {
-        val past = now - 5_000L
-        // Past hours are no longer special-cased: the freshest forecast (the live row) wins, just like
-        // future hours. The older history snapshot does not override it.
-        val current = listOf(fc(past, 76f, "Sunny", cloudCover = 5, fetchedAt = 9_000L))
+    fun `past hour - pre-hour history snapshot wins over post-hour live hindcast`() {
+        val past = now - 5_000L // 5_000L
+        // Post-hour live fetch (9_000L > 5_000L) is a hindcast / assimilation; pre-hour history snapshot
+        // (1_000L <= 5_000L) represents the forecast active when the hour arrived and must not be overwritten.
+        val current = listOf(fc(past, 76f, "Sunny", cloudCover = 5, precipProbability = 10, fetchedAt = 9_000L))
+        val history = listOf(fc(past, 71f, "Cloudy", cloudCover = 60, precipProbability = 80, fetchedAt = 1_000L))
+
+        val stitched = stitch(current, history)
+
+        assertEquals(1, stitched.size)
+        val row = stitched.first()
+        assertEquals(71f, row.temperature, 0f) // pre-hour forecast, not post-hour hindcast
+        assertEquals("Cloudy", row.condition)
+        assertEquals(60, row.cloudCover)
+        assertEquals(80, row.precipProbability)
+    }
+
+    @Test
+    fun `past hour - pre-hour live forecast wins over older pre-hour history snapshot`() {
+        val past = now - 5_000L // 5_000L
+        // Both were fetched before the hour: freshest pre-hour forecast wins.
+        val current = listOf(fc(past, 76f, "Sunny", cloudCover = 5, fetchedAt = 4_000L))
         val history = listOf(fc(past, 71f, "Cloudy", cloudCover = 60, fetchedAt = 1_000L))
 
         val stitched = stitch(current, history)
 
         assertEquals(1, stitched.size)
         val row = stitched.first()
-        assertEquals(76f, row.temperature, 0f) // latest live forecast, not the older snapshot
+        assertEquals(76f, row.temperature, 0f)
         assertEquals("Sunny", row.condition)
         assertEquals(5, row.cloudCover)
     }
 
     @Test
-    fun `past hour - live supplies temp while the freshest history bucket backfills cloud cover`() {
+    fun `past hour - live supplies temp while pre-hour history backfills cloud cover`() {
         val past = now - 5_000L
-        // Live (freshest) has the temp but dropped skyCover; the freshest history bucket carries it.
-        val current = listOf(fc(past, 76f, "Sunny", cloudCover = null, fetchedAt = 9_000L))
+        // Live was fetched before the hour (4_500L <= 5_000L) but dropped skyCover; history (4_000L) backfills it.
+        val current = listOf(fc(past, 76f, "Sunny", cloudCover = null, fetchedAt = 4_500L))
         val history = listOf(
             fc(past, 71f, "Clear", cloudCover = null, fetchedAt = 1_000L),
             fc(past, 73f, "Cloudy", cloudCover = 60, fetchedAt = 4_000L),
         )
 
         val row = stitch(current, history).first()
-        assertEquals(76f, row.temperature, 0f) // live (freshest) temp
+        assertEquals(76f, row.temperature, 0f) // live pre-hour temp
         assertEquals(60, row.cloudCover) // backfilled from history
     }
 
     @Test
-    fun `past hour with no live row falls back to the freshest history snapshot`() {
+    fun `past hour with no live row freezes at freshest pre-hour history snapshot`() {
         val past = now - 5_000L
-        // Fully-past days age out of the live table; the latest (freshest) snapshot then represents
-        // the most accurate forecast we have for that hour — not the earliest long-range one.
+        // 1_000L was fetched before the hour; 8_000L was fetched after the hour. Pre-hour snapshot wins.
         val history = listOf(
-            fc(past, 79f, "Hot", fetchedAt = 1_000L),   // stale 6-day-out prediction
-            fc(past, 73f, "Mild", fetchedAt = 8_000L),  // latest revision
+            fc(past, 79f, "Hot", fetchedAt = 1_000L),   // pre-hour prediction
+            fc(past, 73f, "Mild", fetchedAt = 8_000L),  // post-hour revision
         )
 
         val row = stitch(emptyList(), history).first()
-        assertEquals(73f, row.temperature, 0f) // freshest snapshot, not the earliest
+        assertEquals(79f, row.temperature, 0f) // pre-hour snapshot wins
+        assertEquals("Hot", row.condition)
+    }
+
+    @Test
+    fun `past hour with no pre-hour snapshot falls back to available snapshot`() {
+        val past = now - 5_000L
+        // If app was installed after the hour, only post-hour snapshots exist; fall back to earliest available.
+        val history = listOf(
+            fc(past, 73f, "Mild", fetchedAt = 8_000L),
+        )
+
+        val row = stitch(emptyList(), history).first()
+        assertEquals(73f, row.temperature, 0f)
         assertEquals("Mild", row.condition)
     }
 

@@ -355,6 +355,7 @@ object DailyColumnBuilder {
             // The forecast snapshot holds the displayed source's rows only.
             rowIsDisplaySource = true,
             rowIsClimateNormal = forecast?.isClimateNormal == true,
+            isToday = isToday,
         ) {
             com.weatherwidget.shared.util.DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(
                 hourly = hourly,

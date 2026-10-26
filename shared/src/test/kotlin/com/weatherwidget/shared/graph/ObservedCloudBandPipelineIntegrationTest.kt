@@ -74,7 +74,7 @@ class ObservedCloudBandPipelineIntegrationTest {
         snapshots: List<PriorDayBandForecast.BandSnapshot>,
     ): List<CloudPoint> = runBlocking {
         val actuals = MetarCloudBlender.fromSiteRows(
-            startMs = now - 12 * hour,
+            startMs = now - 36 * hour,
             endMs = now + hour,
             sourceId = WeatherSource.OPEN_METEO.id,
             readSiteRows = { _, _ -> observed },
@@ -91,9 +91,9 @@ class ObservedCloudBandPipelineIntegrationTest {
 
     @Test
     fun `a missed band forecast and its actual survive the whole path`() {
-        val target = now - 4 * hour
+        val target = now - 28 * hour
         val points = runPipeline(
-            liveHours = listOf(liveHour(-4, mid = 20)),
+            liveHours = listOf(liveHour(-28, mid = 20)),
             observed = listOf(observedRow(target, mid = 20)),
             snapshots = listOf(snapshot(target, leadHours = 25, mid = 85)),
         )
@@ -107,9 +107,9 @@ class ObservedCloudBandPipelineIntegrationTest {
 
     @Test
     fun `an accurate band actual remains available to the pink trail`() {
-        val target = now - 4 * hour
+        val target = now - 28 * hour
         val points = runPipeline(
-            liveHours = listOf(liveHour(-4, mid = 62)),
+            liveHours = listOf(liveHour(-28, mid = 62)),
             observed = listOf(observedRow(target, mid = 62)),
             snapshots = listOf(snapshot(target, leadHours = 24, mid = 60)),
         )
@@ -206,7 +206,7 @@ class ObservedCloudBandPipelineIntegrationTest {
                 cloudVerticalKind = CloudVerticalKind.CUMULATIVE_LAYERS,
             )
         val actuals = MetarCloudBlender.fromSiteRows(
-            startMs = now - 12 * hour,
+            startMs = now - 36 * hour,
             endMs = now + hour,
             sourceId = WeatherSource.NWS.id,
             readSiteRows = { _, _ -> listOf(row) },

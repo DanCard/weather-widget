@@ -95,18 +95,13 @@ object CloudSeriesBuilder {
         nowMs: Long,
         priorBands: Map<Long, CloudBands> = emptyMap(),
         retroBands: Map<Long, CloudBands> = emptyMap(),
+        zoneId: java.time.ZoneId = java.time.ZoneId.systemDefault(),
     ): List<CloudPoint> {
-        // Only the FORECAST curve cares where "now" falls. A day-ago prediction is a comparison for
-        // an hour that has already happened; the current and future hours want the live row instead.
-        //
-        // The ACTUAL curve gets no such gate. This used to null the actual for the hour containing
-        // nowMs on the grounds that it was "still in progress", which cost the graph its rightmost
-        // 1-2 hours: measured 2026-08-21 11:16, the NWS METAR blend had 11:00 = 65% ready from
-        // KNUQ@10:55/KPAO@10:47, and the graph drew 10:00's 100% as its latest actual while the
-        // marine layer was visibly breaking up. An observation is not "in progress" — it is a
-        // measurement that already happened. Future hours need no gate either: observations cannot
-        // exist for them, and both platforms' read windows stop at `now`.
-        val currentHourStart = nowMs - Math.floorMod(nowMs, 3_600_000L)
+        // A day-ago prediction is only compared for past days (prior to today).
+        // For hours of today, the forecast continues updating until the hour passes, and keeps
+        // the last pre-hour forecast from HourlyForecastStitcher rather than reverting to a day ago.
+        val todayStartMs = java.time.Instant.ofEpochMilli(nowMs).atZone(zoneId)
+            .toLocalDate().atStartOfDay(zoneId).toInstant().toEpochMilli()
         // Bit-mask-free nearest lookup: the map is a few thousand keys at most and this property
         // exists only for the hourly-aligned fallback render and the frozenCoverage diagnostic —
         // O(hours × keys) is paid nowhere hot.
@@ -119,16 +114,17 @@ object CloudSeriesBuilder {
             .sortedBy { it.dateTime }
             .map { hour ->
                 val live = hour.visibleCloudCover()
-                val frozen = if (hour.dateTime < currentHourStart) priorForecast[hour.dateTime] else null
-                // Same shape as the low band above, and the same reason: for an elapsed hour the
-                // live row has already been retro-corrected by later runs, so drawing it as the
+                val isPastDay = hour.dateTime < todayStartMs
+                val frozen = if (isPastDay) priorForecast[hour.dateTime] else null
+                // Same shape as the low band above, and the same reason: for an elapsed hour of a
+                // past day the live row has already been retro-corrected by later runs, so drawing it as the
                 // forecast destroys the only record of what was predicted.
                 val liveBands = CloudBands(
                     low = hour.cloudCoverLow?.coerceIn(0, 100),
                     mid = hour.cloudCoverMid?.coerceIn(0, 100),
                     high = hour.cloudCoverHigh?.coerceIn(0, 100),
                 )
-                val frozenBands = if (hour.dateTime < currentHourStart) priorBands[hour.dateTime] else null
+                val frozenBands = if (isPastDay) priorBands[hour.dateTime] else null
                 CloudPoint(
                     timeMs = hour.dateTime,
                     // No day-ago prediction for this hour: fall back to the live value so the curve

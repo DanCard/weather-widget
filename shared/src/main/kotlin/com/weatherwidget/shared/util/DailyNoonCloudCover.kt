@@ -38,10 +38,11 @@ object DailyNoonCloudCover {
         rowPercent: Int?,
         rowIsDisplaySource: Boolean,
         rowIsClimateNormal: Boolean,
+        isToday: Boolean = false,
         hourlyNoon: () -> Int?,
     ): Int? =
         (if (isPast) frozenPercent else null)
-            ?: rowPercent?.takeIf { !isPast && rowIsDisplaySource && !rowIsClimateNormal }
+            ?: (if (isToday) hourlyNoon() ?: rowPercent else rowPercent)?.takeIf { !isPast && rowIsDisplaySource && !rowIsClimateNormal }
             ?: hourlyNoon()
 
     /**
@@ -99,22 +100,18 @@ object DailyNoonCloudCover {
             displaySourceId
         }
         val noon = date.atTime(12, 0)
-        // Freshest wins among duplicate noon rows, matching HourlyForecastSelector's rule for the
-        // same table. One site accumulates several rows per hour at sub-precision coordinate
-        // fragments, and unifying to the nearest site does NOT reduce them to one: a fragment
-        // 0.001 degrees away is legitimately `LocationMatch.sameSite`, so it survives unification
-        // by design. Only fetchedAt separates a current forecast from a five-day-old one at the
-        // same site, and taking the first match instead made the daily bar flap between the two
-        // as the row order changed with the query window (2026-08-27: 50% vs a 08-22 26%).
-        // maxByOrNull keeps the first of equal fetchedAt values, so rows without one (synthesized
-        // gap fills, fetchedAt = 0) behave exactly as before.
-        return hourly.asSequence()
+        val noonMs = noon.atZone(zone).toInstant().toEpochMilli()
+        val matching = hourly.asSequence()
             .filter { it.source == targetSourceId }
             .filter { LocalDateTime.ofInstant(Instant.ofEpochMilli(it.dateTime), zone) == noon }
             .filter { with(VisibleCloudCover) { it.visibleCloudCover() } != null }
-            .maxByOrNull { it.fetchedAt }
-            ?.let { with(VisibleCloudCover) { it.visibleCloudCover() } }
-            ?.coerceIn(0, 100)
+            .toList()
+        if (matching.isEmpty()) return null
+        val preNoon = matching.filter { it.fetchedAt in 1..noonMs }
+        val chosen = preNoon.maxByOrNull { it.fetchedAt }
+            ?: matching.filter { it.fetchedAt <= noonMs }.maxByOrNull { it.fetchedAt }
+            ?: matching.minByOrNull { it.fetchedAt }
+        return chosen?.let { with(VisibleCloudCover) { it.visibleCloudCover() } }?.coerceIn(0, 100)
     }
 
     /** Noon cloud cover as 0–100 percent for the target source; 0 when noon data is missing. */

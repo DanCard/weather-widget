@@ -29,10 +29,10 @@ class CloudSeriesBuilderTest {
      * prediction and the actual curve the correction — not the same number twice.
      */
     @Test
-    fun `past hour splits the stored actual from the day-ago prediction`() {
-        val target = now - 5 * hour
+    fun `past day hour splits the stored actual from the day-ago prediction`() {
+        val target = now - 28 * hour
         val points = CloudSeriesBuilder.build(
-            liveHours = listOf(live(-5, 99)),
+            liveHours = listOf(live(-28, 99)),
             priorForecast = mapOf(target to 100),
             retroActual = mapOf(target to 50),
             nowMs = now,
@@ -45,10 +45,26 @@ class CloudSeriesBuilderTest {
     }
 
     @Test
-    fun `missing prior forecast falls back to live and says so`() {
+    fun `today elapsed hour keeps settled forecast and does not swap in day-ago prediction`() {
         val target = now - 5 * hour
         val points = CloudSeriesBuilder.build(
-            liveHours = listOf(live(-5, 50)),
+            liveHours = listOf(live(-5, 88)),
+            priorForecast = mapOf(target to 15),
+            retroActual = mapOf(target to 50),
+            nowMs = now,
+        )
+
+        assertEquals(1, points.size)
+        assertEquals("forecast curve keeps settled forecast", 88, points[0].forecastCover)
+        assertEquals("actual curve draws the stored actual", 50, points[0].actualCover)
+        assertTrue("today elapsed hours are not marked frozen", !points[0].isFrozen)
+    }
+
+    @Test
+    fun `missing prior forecast falls back to live and says so`() {
+        val target = now - 28 * hour
+        val points = CloudSeriesBuilder.build(
+            liveHours = listOf(live(-28, 50)),
             priorForecast = emptyMap(),
             retroActual = mapOf(target to 50),
             nowMs = now,
@@ -66,9 +82,9 @@ class CloudSeriesBuilderTest {
      */
     @Test
     fun `a stored actual is drawn even when every live row predates its own hour`() {
-        val target = now - 5 * hour
+        val target = now - 28 * hour
         val points = CloudSeriesBuilder.build(
-            liveHours = listOf(live(-5, 99, fetchedAt = target - hour)),
+            liveHours = listOf(live(-28, 99, fetchedAt = target - hour)),
             priorForecast = mapOf(target to 100),
             retroActual = mapOf(target to 8),
             nowMs = now,
@@ -81,9 +97,9 @@ class CloudSeriesBuilderTest {
     /** The converse: `fetchedAt` no longer manufactures an actual on its own. */
     @Test
     fun `a past hour with no filed actual draws no actual`() {
-        val target = now - 5 * hour
+        val target = now - 28 * hour
         val points = CloudSeriesBuilder.build(
-            liveHours = listOf(live(-5, 50, fetchedAt = target + 2 * hour)),
+            liveHours = listOf(live(-28, 50, fetchedAt = target + 2 * hour)),
             priorForecast = mapOf(target to 100),
             retroActual = emptyMap(),
             nowMs = now,
@@ -209,9 +225,9 @@ class CloudSeriesBuilderTest {
     @Test
     fun `frozen coverage reports the share of past points with a real prediction`() {
         val points = CloudSeriesBuilder.build(
-            liveHours = listOf(live(-4, 10), live(-3, 20), live(-2, 30), live(-1, 40)),
-            priorForecast = mapOf(now - 4 * hour to 90, now - 3 * hour to 90),
-            retroActual = (1..4).associate { now - it * hour to 10 * it },
+            liveHours = listOf(live(-28, 10), live(-27, 20), live(-26, 30), live(-25, 40)),
+            priorForecast = mapOf(now - 28 * hour to 90, now - 27 * hour to 90),
+            retroActual = (25..28).associate { now - it * hour to 10 * (it - 24) },
             nowMs = now,
         )
 

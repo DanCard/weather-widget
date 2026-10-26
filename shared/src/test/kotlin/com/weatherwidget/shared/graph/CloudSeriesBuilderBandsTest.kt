@@ -40,10 +40,10 @@ class CloudSeriesBuilderBandsTest {
      * retro-corrected, so reading its bands straight off drew the ACTUAL in the forecast's grey.
      */
     @Test
-    fun `past hour splits the retro-corrected bands from the day-ago band prediction`() {
-        val target = now - 5 * hour
+    fun `past day hour splits the retro-corrected bands from the day-ago band prediction`() {
+        val target = now - 28 * hour
         val points = CloudSeriesBuilder.build(
-            liveHours = listOf(live(-5, mid = 20, high = 15)),
+            liveHours = listOf(live(-28, mid = 20, high = 15)),
             priorForecast = emptyMap(),
             retroActual = emptyMap(),
             nowMs = now,
@@ -57,6 +57,24 @@ class CloudSeriesBuilderBandsTest {
         assertEquals(20, point.actualBands.mid)
         assertEquals(15, point.actualBands.high)
         assertTrue(point.isFrozenBands)
+    }
+
+    @Test
+    fun `today elapsed hour keeps live bands and does not swap in day-ago bands`() {
+        val target = now - 5 * hour
+        val points = CloudSeriesBuilder.build(
+            liveHours = listOf(live(-5, mid = 20, high = 15)),
+            priorForecast = emptyMap(),
+            retroActual = emptyMap(),
+            nowMs = now,
+            priorBands = mapOf(target to CloudBands(mid = 80, high = 70)),
+            retroBands = mapOf(target to CloudBands(mid = 20, high = 15)),
+        )
+
+        val point = points.single()
+        assertEquals(20, point.forecastBands.mid)
+        assertEquals(15, point.forecastBands.high)
+        assertFalse(point.isFrozenBands)
     }
 
     @Test
@@ -101,9 +119,9 @@ class CloudSeriesBuilderBandsTest {
      */
     @Test
     fun `isFrozen and isFrozenBands move independently`() {
-        val target = now - 2 * hour
+        val target = now - 28 * hour
         val point = CloudSeriesBuilder.build(
-            liveHours = listOf(live(-2, cover = 30, mid = 44)),
+            liveHours = listOf(live(-28, cover = 30, mid = 44)),
             priorForecast = mapOf(target to 90),
             retroActual = emptyMap(),
             nowMs = now,

@@ -28,7 +28,7 @@
 2026-10-23 ghost=-
 2026-10-23 icon=ic_weather_clear
 2026-10-23 priorIcon=ic_weather_clear
-2026-10-23 noonCloud=10
+2026-10-23 noonCloud=20
 2026-10-23 dayRain=0
 2026-10-23 nightRain=0
 2026-10-23 rainLabel=-
