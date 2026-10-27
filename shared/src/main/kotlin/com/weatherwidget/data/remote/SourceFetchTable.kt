@@ -9,7 +9,6 @@ import com.weatherwidget.shared.nowcast.NowcastSeries
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import java.time.LocalDate
 
 /**
  * What one source's forecast fetch asks its provider for, on both platforms (user 2026-10-25;
@@ -81,7 +80,7 @@ class SourceFetchTable(private val host: Host) {
         suspend fun storedGoogleHours(latitude: Double, longitude: Double, startMs: Long, endMs: Long): List<HourlyForecast>
 
         /** `GoogleHistoryRun.needsHistory` at this site. */
-        suspend fun googleNeedsHistory(latitude: Double, longitude: Double, refillDay: LocalDate?, nowMs: Long): Boolean
+        suspend fun googleNeedsHistory(latitude: Double, longitude: Double, nowMs: Long): Boolean
 
         fun saveNowcast(latitude: Double, longitude: Double, series: NowcastSeries)
 
@@ -90,14 +89,12 @@ class SourceFetchTable(private val host: Host) {
 
     /**
      * [parts]: what the plan asked for ([ForecastParts.requested] widens it for a source that cannot
-     * split). [onDemand]: a tapped day's deeper hours (only Google asks differently). [refillDay]: a past
-     * day's History refresh, which needs Google's history.
+     * split). [onDemand]: a tapped day's deeper hours (only Google asks differently).
      */
     data class Request(
         val parts: ForecastParts = ForecastParts.BOTH,
         val horizon: ForecastHorizonCadence.Horizon? = null,
         val onDemand: HourlyOnDemand.Request? = null,
-        val refillDay: LocalDate? = null,
     )
 
     /** False for a source this build has no client for; its fetch is skipped, not failed. */
@@ -166,7 +163,7 @@ class SourceFetchTable(private val host: Host) {
         val onDemand = request.onDemand?.takeIf { it.sourceId == WeatherSource.GOOGLE_WEATHER.id }
         val google = GoogleRequest(
             // An on-demand day needs no elapsed hours; history/hours has a 20/day quota.
-            includeHistory = onDemand == null && host.googleNeedsHistory(latitude, longitude, request.refillDay, nowMs),
+            includeHistory = onDemand == null && host.googleNeedsHistory(latitude, longitude, nowMs),
             storedHours = host.storedGoogleHours(
                 LocationMatch.quantize(latitude),
                 LocationMatch.quantize(longitude),

@@ -255,13 +255,8 @@ internal class ForecastFetchCoordinator(
                         parts = plan[source] ?: ForecastParts.BOTH,
                         horizon = horizons[source],
                         onDemand = fetchContext?.hourlyAhead,
-                        refillDay = fetchContext?.historyRefillDay,
                     )
-                    sourceFetchTable.fetch(source, lat, lon, request, clock()).also { raw ->
-                        if (source == WeatherSource.GOOGLE_WEATHER) {
-                            fetchContext?.historyRefillDay?.let { day -> refillStaleGoogleHours(raw, lat, lon, day) }
-                        }
-                    }
+                    sourceFetchTable.fetch(source, lat, lon, request, clock())
                 },
             )
         }
@@ -287,7 +282,7 @@ internal class ForecastFetchCoordinator(
             ),
             hourlyStore = hourlyStore,
             appLogDao = appLogDao,
-            needsHistory = { lat, lon, refillDay -> googleNeedsHistory(lat, lon, refillDay) },
+            needsHistory = { lat, lon -> googleNeedsHistory(lat, lon) },
             nowcast = { lat, lon, series -> com.weatherwidget.widget.AndroidNowcast.store(context).saveSeries(lat, lon, series) },
         ),
     )
@@ -438,19 +433,9 @@ internal class ForecastFetchCoordinator(
         }
 
     /** [GoogleHistoryRun.needsHistory] at this site; without a history DAO, always. */
-    private suspend fun googleNeedsHistory(latitude: Double, longitude: Double, refillDay: java.time.LocalDate?): Boolean {
-        val run = googleHistory(latitude, longitude) ?: return true
-        return run.needsHistory(refillDay, clock())
-    }
-
-    /** A past day's History refresh: [GoogleHistoryRun.refill]. */
-    private suspend fun refillStaleGoogleHours(result: RawFetch, latitude: Double, longitude: Double, day: java.time.LocalDate) {
-        googleHistory(latitude, longitude)?.refill(result.providerHistoryHourly, day, clock())
-    }
-
-    private fun googleHistory(latitude: Double, longitude: Double): GoogleHistoryRun? {
-        hourlyForecastHistoryDao ?: return null
-        return GoogleHistoryRun(hourlyStore.googleHistoryHost(latitude, longitude, appLogDao))
+    private suspend fun googleNeedsHistory(latitude: Double, longitude: Double): Boolean {
+        hourlyForecastHistoryDao ?: return true
+        return GoogleHistoryRun(hourlyStore.googleHistoryHost(latitude, longitude)).needsHistory(clock())
     }
 
     /** Without a cadence context (no device state or site): the old rank thresholds. */

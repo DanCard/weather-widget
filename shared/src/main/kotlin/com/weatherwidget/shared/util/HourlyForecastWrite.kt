@@ -14,7 +14,7 @@ import com.weatherwidget.data.remote.HourlyOnDemand
  * - A field this fetch lacks (cloud, chance, amount) keeps the stored row's value — a reply without
  *   sky cover never blanks it.
  * - Every hour written is stamped [nowMs]: `fetchedAt` means "last confirmed", which
- *   `GoogleHistoryRefill.staleHours` and the on-demand coverage read.
+ *   the on-demand coverage reads.
  *
  * The platform reads this source's live rows on the site's exact quantized key ([readRange]) and
  * writes [Plan.live] live and [Plan.snapshot] under the fetch's snapshot label.

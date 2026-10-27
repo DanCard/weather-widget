@@ -10,14 +10,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * What [GoogleHistoryRun.Host] reads and writes, on Android's Room Host and desktop's SQLite Host
- * (plans/261024-host-contract-tests-room-and-desktop-sqlite.md): Google's rows on every same-site
- * fragment — history `[start, end)` any bucket, live both ends inclusive — and the refill written over
- * the quantized key's live row, stamped now. Which hour is stale is the run's (each hour's newest row).
+ * What [GoogleHistoryRun.Host] reads, on Android's Room Host and desktop's SQLite Host
+ * (plans/261024-host-contract-tests-room-and-desktop-sqlite.md): Google's history hours on every
+ * same-site fragment, `[start, end)`, any bucket.
  */
 abstract class GoogleHistoryHostContract {
     interface Seed {
-        /** Writes a live `hourly_forecasts` row as given. */
+        /** Writes a live `hourly_forecasts` row as given (never read by the run; staleness no longer matters). */
         fun live(row: HourlyForecast)
 
         /** Writes an `hourly_forecast_history` row as given, under [bucket]. */
@@ -40,57 +39,24 @@ abstract class GoogleHistoryHostContract {
         assertEquals(setOf(H0, H0 + HOUR), host.coveredHistoryHours(H0, H0 + 4 * HOUR).toSet())
     }
 
+    /**
+     * The previous-day refill is gone (plans/261027-remove-google-history-refill.md): `history/hours`
+     * is requested only for a site with no history in the last day, however stale its live hours are.
+     */
     @Test
-    fun `liveHours - Google, every same-site fragment, both ends inclusive`() = runBlocking {
-        val (host, seed) = open()
-        seed.live(hr(H0, 10))
-        seed.live(hr(H0, 20, lat = FRAGMENT_LAT)) // the same hour on a fragment: both come back
-        seed.live(hr(H0 + HOUR, 30, lat = FRAGMENT_LAT)) // an hour only a fragment has
-        seed.live(hr(H0 + 2 * HOUR, 40, lat = TOWN_LAT))
-        seed.live(hr(H0 + 3 * HOUR, 50, source = NWS))
-        seed.live(hr(H0 + 4 * HOUR, 60)) // the end
-        seed.live(hr(H0 + 5 * HOUR, 70))
-
-        assertEquals(setOf(10, 20, 30, 60), host.liveHours(H0, H0 + 4 * HOUR).map { it.precipProbability }.toSet())
-    }
-
-    @Test
-    fun `saveRefill - replaces the quantized key's live row, stamped now, fragments and history untouched`() = runBlocking {
-        val (host, seed) = open()
-        seed.live(hr(H0, 10))
-        seed.live(hr(H0, 20, lat = FRAGMENT_LAT))
-        seed.history(hr(H0, 30), bucket = H0 - 8 * HOUR)
-        val before = System.currentTimeMillis()
-
-        host.saveRefill(listOf(hr(H0, 90, lat = LAT, lon = LON).copy(temperature = 71.5f, fetchedAt = 0)))
-
-        val rows = host.liveHours(H0, H0).associateBy { it.precipProbability }
-        assertEquals(setOf(20, 90), rows.keys)
-        val refilled = rows.getValue(90)
-        assertEquals(71.5f, refilled.temperature)
-        assertEquals(KEY_LAT, refilled.locationLat!!, 1e-9)
-        assertEquals(KEY_LON, refilled.locationLon!!, 1e-9)
-        assertTrue("fetchedAt ${refilled.fetchedAt} stamped now (≥ $before)", refilled.fetchedAt >= before)
-        assertEquals(H0 - 2 * HOUR, rows.getValue(20).fetchedAt)
-        assertEquals(setOf(H0), host.coveredHistoryHours(H0, H0 + HOUR).toSet())
-    }
-
-    @Test
-    fun `run - an hour kept current on a fragment only is not stale, a refill clears a stale one`() = runBlocking {
-        val (host, seed) = open()
+    fun `run - history only for a site without coverage, never for stale live hours`() = runBlocking {
         val now = System.currentTimeMillis()
-        val fresh = now - Math.floorMod(now, HOUR) - 3 * HOUR
-        val stale = fresh - HOUR
-        seed.live(hr(fresh, 10, lat = FRAGMENT_LAT).copy(fetchedAt = fresh - HOUR))
-        seed.live(hr(stale, 20).copy(fetchedAt = stale - 7 * HOUR))
-        val run = GoogleHistoryRun(host)
+        val hourStart = now - Math.floorMod(now, HOUR)
+        val stale = hourStart - 5 * HOUR
 
-        val before = run.staleHours(null, now)
-        assertFalse("fragment-only hour fetched 1 h ahead is current", fresh in before)
-        assertTrue("hour fetched 7 h ahead is stale", stale in before)
+        val (bare, bareSeed) = open()
+        bareSeed.live(hr(stale, 10).copy(fetchedAt = stale - 8 * HOUR))
+        assertTrue("no history at the site", GoogleHistoryRun(bare).needsHistory(now))
 
-        host.saveRefill(listOf(hr(stale, 30)))
-        assertFalse(stale in run.staleHours(null, System.currentTimeMillis()))
+        val (covered, coveredSeed) = open()
+        coveredSeed.live(hr(stale, 10).copy(fetchedAt = stale - 8 * HOUR))
+        coveredSeed.history(hr(stale - HOUR, 20), bucket = stale - 9 * HOUR)
+        assertFalse("covered site, stale live hour", GoogleHistoryRun(covered).needsHistory(now))
     }
 
     companion object {

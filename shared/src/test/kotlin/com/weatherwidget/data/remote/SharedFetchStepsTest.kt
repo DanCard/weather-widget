@@ -10,11 +10,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.time.Instant
-import java.time.ZoneId
 
 /**
  * The post-fetch steps both platforms now run from `:shared` ([ForecastHorizonMarkers.mark],
- * [GoogleHistoryRun], [ElapsedForecastBackfill.backfill]); each case pins a behaviour one platform
+ * [ElapsedForecastBackfill.backfill]); each case pins a behaviour one platform
  * lacked before (plans/261021-android-desktop-shared-code-audit.md §3 B).
  */
 @Category(ShortDuration::class)
@@ -39,32 +38,6 @@ class SharedFetchStepsTest {
         ForecastHorizonMarkers.mark(markers, "NWS", null, now) { tag, msg, _ -> logs += "$tag $msg" }
         assertEquals(listOf("long"), marks)
         assertEquals(listOf("FORECAST_HORIZON source=NWS horizon=LONG", "FORECAST_HORIZON source=NWS horizon=unjudged"), logs)
-    }
-
-    @Test
-    fun `a past day's refill writes only its stale hours and logs them`() = runBlocking {
-        val zone = ZoneId.systemDefault()
-        val day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().minusDays(1)
-        val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
-        val freshHour = dayStart + 10 * hour
-        val staleHour = dayStart + 11 * hour
-        val saved = mutableListOf<HourlyForecast>()
-        val logs = mutableListOf<String>()
-        val run = GoogleHistoryRun(object : GoogleHistoryRun.Host {
-            override suspend fun coveredHistoryHours(startMs: Long, endMs: Long) = emptyList<Long>()
-            override suspend fun liveHours(startMs: Long, endMs: Long) = listOf(
-                row(freshHour, fetchedAt = freshHour - hour),
-                row(staleHour, fetchedAt = staleHour - 3 * 24 * hour),
-            ).filter { it.dateTime in startMs..endMs }
-            override suspend fun saveRefill(rows: List<HourlyForecast>) { saved += rows }
-            override suspend fun log(tag: String, message: String, level: String) { logs += tag }
-        })
-
-        run.refill(listOf(row(freshHour, now), row(staleHour, now)), day, now)
-
-        assertTrue(saved.none { it.dateTime == freshHour })
-        assertTrue(saved.any { it.dateTime == staleHour })
-        assertEquals(listOf(GoogleHistoryRefill.LOG_TAG), logs)
     }
 
     @Test

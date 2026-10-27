@@ -294,33 +294,6 @@ class GoogleWeatherApiTest {
         assertTrue(result.daily.isEmpty() && result.hourly.isEmpty())
     }
 
-    // The desktop Observations Refresh of a previous day: the refill alone, never the forecast
-    // (plans/261014-observations-refresh-fetches-observations-only.md).
-    @Test
-    fun `getHistory costs exactly one history request and returns only elapsed hours`() = runBlocking {
-        val result = api().getHistory(37.422, -122.084)
-        assertEquals(1, requests.size)
-        assertTrue(requests.single().url.encodedPath.endsWith("history/hours:lookup"))
-        assertEquals(24, result.providerHistoryHourly.size)
-        assertTrue(result.daily.isEmpty())
-        assertEquals(null, result.providerCurrentTemp)
-    }
-
-    @Test
-    fun `a getHistory 429 returns nothing and blocks history until the quota resets`() = runBlocking {
-        historyStatus = HttpStatusCode.TooManyRequests
-        val api = api()
-
-        assertTrue(api.getHistory(37.422, -122.084).providerHistoryHourly.isEmpty())
-        assertTrue(api.getHistory(37.422, -122.084).providerHistoryHourly.isEmpty())
-        assertEquals("no second call into an exhausted quota", 1, historyCalls())
-
-        clockMs = java.time.Instant.parse("2026-10-07T07:00:01Z").toEpochMilli()
-        historyStatus = HttpStatusCode.OK
-        assertEquals(24, api.getHistory(37.422, -122.084).providerHistoryHourly.size)
-        assertEquals(2, historyCalls())
-    }
-
     @Test
     fun `key travels in the header, never the url`() = runBlocking {
         api(key = "SECRET123").getForecast(37.422, -122.084)

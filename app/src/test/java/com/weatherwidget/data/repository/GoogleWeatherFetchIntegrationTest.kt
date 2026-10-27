@@ -203,16 +203,12 @@ class GoogleWeatherFetchIntegrationTest {
         assertEquals(9, requests.count { it.url.host == "weather.googleapis.com" })
     }
 
-    // --- GoogleHistoryRefill: a past day's History refresh rewrites its stale hours from history/hours ---
+    // --- No refill (plans/261027-remove-google-history-refill.md): stale elapsed hours stay as forecast ---
 
     private val hourMs = 3_600_000L
-    private val zone = java.time.ZoneId.systemDefault()
     private val nowHour get() = Instant.now().truncatedTo(ChronoUnit.HOURS).toEpochMilli()
     /** Elapsed hours inside the 24 h history window, all kept from one fetch 30 h ago (2026-10-09's shape). */
     private val staleHours get() = (3..20).map { nowHour - it * hourMs }
-    private fun dayOf(ms: Long) = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
-    /** The day of the oldest seeded hour — yesterday unless the test runs after 20:00. */
-    private val refillDay get() = dayOf(staleHours.last())
 
     /** Live rows with an old fetchedAt, and one history snapshot so the site is not "fresh". */
     private suspend fun seedStaleHours() {
@@ -242,36 +238,12 @@ class GoogleWeatherFetchIntegrationTest {
         source, dateTime,
     )
 
+    /** The History screen's Refresh, on any day: a covered site never spends `history/hours` quota. */
     @Test
-    fun `a past day's history refresh refills that day's stale hours, live table only`() = runTest {
+    fun `a history refresh leaves stale hours and skips history on a covered site`() = runTest {
         seedStaleHours()
 
-        repository().fetchSourceOnDemand(lat, lon, WeatherSource.GOOGLE_WEATHER, request = null, historyRefillDay = refillDay)
-
-        assertEquals(1, requests.count { it.url.encodedPath.endsWith("history/hours:lookup") })
-        val (onDay, otherDays) = staleHours.partition { dayOf(it) == refillDay }
-        onDay.forEach { assertTrue("hour $it refilled", liveTemp(it) != 99L) }
-        otherDays.forEach { assertEquals("hour $it is not on the refreshed day", 99L, liveTemp(it)) }
-        assertEquals(
-            "the as-issued snapshot is untouched",
-            1L,
-            count("SELECT COUNT(*) FROM hourly_forecast_history WHERE source = ? AND dateTime = ? AND temperature = 99", source, staleHours.last()),
-        )
-        assertTrue(
-            db.appLogDao().getRecentLogs(200).any {
-                it.tag == com.weatherwidget.data.remote.GoogleHistoryRefill.LOG_TAG &&
-                    // Hours on that day with no row at all are stale too, so refilled may exceed the seeded ones.
-                    it.message.startsWith("day=$refillDay ") &&
-                    Regex(""" refilled=(\d+) """).find(it.message)!!.groupValues[1].toInt() >= onDay.size
-            },
-        )
-    }
-
-    @Test
-    fun `a refresh without a refill day leaves stale hours and skips history`() = runTest {
-        seedStaleHours()
-
-        repository().fetchSourceOnDemand(lat, lon, WeatherSource.GOOGLE_WEATHER, request = null)
+        repository().fetchSourceOnDemand(lat, lon, WeatherSource.GOOGLE_WEATHER, request = null, userRefresh = true)
 
         assertEquals(0, requests.count { it.url.encodedPath.endsWith("history/hours:lookup") })
         staleHours.forEach { assertEquals(99L, liveTemp(it)) }

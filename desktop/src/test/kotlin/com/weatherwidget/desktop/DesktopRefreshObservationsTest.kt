@@ -155,9 +155,7 @@ class DesktopRefreshObservationsTest {
 
         io.mockk.coVerify(exactly = 0) { weatherService.fetchForecast() }
         io.mockk.coVerify(exactly = 0) { weatherService.fetchForecast(any()) }
-        io.mockk.coVerify(exactly = 0) { weatherService.fetchForecast(any(), any<java.time.LocalDate>()) }
-        io.mockk.coVerify(exactly = 0) { weatherService.fetchForecast(any(), any(), any()) }
-        io.mockk.coVerify(exactly = 0) { weatherService.fetchGoogleHistory() }
+        io.mockk.coVerify(exactly = 0) { weatherService.fetchForecast(any(), any()) }
         assertEquals(listOf("KNUQ"), dao.getObservationsInRange(now - 3600_000L, now + 3600_000L, lat, lon).map { it.stationId })
         val logs = dao.getRecentLogs(100)
         assertTrue(logs.any { it.tag == "CURR_FETCH_START" && "reason=user_refresh:observations" in it.message })

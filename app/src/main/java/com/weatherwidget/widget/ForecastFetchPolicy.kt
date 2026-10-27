@@ -18,12 +18,6 @@ data class ForecastFetchContext(
      */
     val hourlyAhead: com.weatherwidget.data.remote.HourlyOnDemand.Request? = null,
     /**
-     * A previous day refreshed on the Forecast History screen: the only fetch that may refill that
-     * day's stale elapsed Google hours from `history/hours`
-     * ([com.weatherwidget.data.remote.GoogleHistoryRefill]). Null on every other sync.
-     */
-    val historyRefillDay: java.time.LocalDate? = null,
-    /**
      * The user's manual Refresh: the displayed sources ([activeSourceIds]) write their daily rows even
      * when unchanged. Every fetch is LONG ([com.weatherwidget.data.remote.ForecastHorizonCadence]).
      */

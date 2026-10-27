@@ -212,27 +212,19 @@ class DesktopWeatherService(
     override suspend fun fetchForecast(): RawFetch =
         fetchForecast(ForecastParts.BOTH)
 
-    override suspend fun fetchForecast(parts: ForecastParts): RawFetch =
-        fetchForecast(parts, refillDay = null)
-
-    override suspend fun fetchForecast(
-        parts: ForecastParts,
-        refillDay: java.time.LocalDate?,
-    ): RawFetch = fetchForecast(
+    override suspend fun fetchForecast(parts: ForecastParts): RawFetch = fetchForecast(
         parts,
-        refillDay,
         DesktopForecastHorizon(weatherDao, weatherSource, latitude, longitude).forced(),
     )
 
     override suspend fun fetchForecast(
         parts: ForecastParts,
-        refillDay: java.time.LocalDate?,
         horizon: com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon?,
     ): RawFetch = runCatching {
         // What each source asks for is the `:shared` SourceFetchTable's, as on Android.
         val source = WeatherSource.fromId(weatherSource)
         if (!sourceFetchTable.serves(source)) throw IllegalArgumentException("Unsupported weather source: $weatherSource")
-        val request = SourceFetchTable.Request(parts = parts, horizon = horizon, refillDay = refillDay)
+        val request = SourceFetchTable.Request(parts = parts, horizon = horizon)
         val reply = sourceFetchTable.fetch(source, latitude, longitude, request, System.currentTimeMillis())
         // NWS supplies real station readings and is never backfilled from its own hours.
         if (source == WeatherSource.NWS) reply else withHistoricalActuals(reply, weatherSource)
@@ -322,17 +314,17 @@ class DesktopWeatherService(
                     google = googleWeather,
                 ),
                 weatherDao = weatherDao,
-                needsHistory = { refillDay -> googleNeedsHistory(refillDay) },
+                needsHistory = { googleNeedsHistory() },
                 nowcastStore = nowcastStore,
             ),
         )
     }
 
     /** [GoogleHistoryRun.needsHistory] at this site; without a DB, always. */
-    private suspend fun googleNeedsHistory(refillDay: java.time.LocalDate?): Boolean {
+    private suspend fun googleNeedsHistory(): Boolean {
         val dao = weatherDao ?: return true
         return GoogleHistoryRun(DesktopGoogleHistoryHost(dao, latitude, longitude))
-            .needsHistory(refillDay, System.currentTimeMillis())
+            .needsHistory(System.currentTimeMillis())
     }
 
     /**
@@ -585,8 +577,6 @@ class DesktopWeatherService(
         // never set one, and the header then comes from the shared blend of the rows.
         return if (feed != null && feed != source) RawFetch(rawObservations = fetched.rawObservations) else fetched
     }
-
-    override suspend fun fetchGoogleHistory(): RawFetch = googleWeather.getHistory(latitude, longitude)
 
     override suspend fun fetchFeedObservations(feed: WeatherSource, recentOnly: Boolean): RawFetch =
         fetchFeed(feed, recentOnly, userLocationChange = false)

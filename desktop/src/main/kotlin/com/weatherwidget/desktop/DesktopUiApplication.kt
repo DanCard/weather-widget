@@ -163,9 +163,6 @@ internal fun runDesktopUiApplication() = application {
         // date (Android parity: TemperatureTouchTargets passes centerTime.toLocalDate()), so
         // opening history while viewing a past day lands on THAT day, not today.
         var historyInitialDate by remember { mutableStateOf(LocalDate.now()) }
-        // The popup's viewed day when Observations was opened: its refresh refills a past day's
-        // stale Google hours (GoogleHistoryRefill), as the History window's refresh does.
-        var observationsViewedDate by remember { mutableStateOf(LocalDate.now()) }
         var observationsVisible by remember { mutableStateOf(false) }
         var obsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
@@ -883,7 +880,6 @@ internal fun runDesktopUiApplication() = application {
             }
         }
 
-        /** [refillDay]: see [DesktopWeatherRepository.refresh]; set only by a past day's History refresh. */
         /**
          * A Forecast History Refresh's ending, on the History window: "Refreshed Google · Hourly
          * forecast quota used · resets 12 AM" — the shared rule Android's History screen uses
@@ -900,7 +896,7 @@ internal fun runDesktopUiApplication() = application {
             refreshNotice.showOutcome(outcome, WeatherSource.fromId(sourceId).shortDisplayName, refreshNoticeSurface(origin), origin)
         }
 
-        fun requestFullRefresh(origin: String, refillDay: java.time.LocalDate? = null) {
+        fun requestFullRefresh(origin: String) {
             val repo = repository
             weatherDao.log(
                 "REFRESH_CLICK",
@@ -931,7 +927,7 @@ internal fun runDesktopUiApplication() = application {
             // Through the shared runner on the application-owned scope: removing either child window
             // from composition cannot cancel the fetch or discard its result.
             val refresh = refreshRunner.start("user_refresh:$origin") {
-                val snapshot = repo.refresh(reason = "user_refresh:$origin", refillDay = refillDay, userRefresh = true)
+                val snapshot = repo.refresh(reason = "user_refresh:$origin", userRefresh = true)
                 // The daily NWS gap fill, as Android's Refresh runs it: need-gated, so a complete
                 // 3 days costs no request. Only a wake ran it before, so a fill that wake judged
                 // unneeded had no manual way out (2026-10-27: cloud actuals stopped at 01:00).
@@ -978,16 +974,15 @@ internal fun runDesktopUiApplication() = application {
 
         /**
          * The Observations window's Refresh: current observations only — the displayed source's
-         * forced recent-only fetch the current-temp loop makes, never the forecast (user, 2026-10-14).
-         * On a previous day ([refillDay]) also that day's Google `history/hours` refill, alone
-         * (plans/261014-observations-refresh-fetches-observations-only.md).
+         * forced recent-only fetch the current-temp loop makes, never the forecast (user, 2026-10-14;
+         * plans/261014-observations-refresh-fetches-observations-only.md), on any viewed day.
          */
-        fun requestObservationsRefresh(refillDay: java.time.LocalDate?) {
+        fun requestObservationsRefresh() {
             val origin = "observations"
             val repo = repository
             weatherDao.log(
                 "REFRESH_CLICK",
-                "origin=$origin scope=observations refillDay=$refillDay repository=" +
+                "origin=$origin scope=observations repository=" +
                     (if (repo == null) "NULL (no-op)" else "present"),
                 "INFO",
             )
@@ -1006,14 +1001,7 @@ internal fun runDesktopUiApplication() = application {
             refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.OBSERVATIONS), RefreshNoticeSurface.OBSERVATIONS, origin)
             // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
             val refresh = refreshRunner.start("user_refresh:$origin") {
-                val snapshot = repo.refreshObservations(reason = "user_refresh:$origin")
-                if (refillDay == null) {
-                    snapshot
-                } else {
-                    // Reload so the refilled hours are in what the popup draws.
-                    repo.refillGoogleHistory(refillDay)
-                    repo.loadCached() ?: snapshot
-                }
+                repo.refreshObservations(reason = "user_refresh:$origin")
             }
             uiScope.launch {
                 try {
@@ -1041,10 +1029,10 @@ internal fun runDesktopUiApplication() = application {
          * source goes through [requestFullRefresh] — this window's repository is built for it — and
          * any other source through a repository of its own, as the daemon's non-active loop does.
          */
-        fun requestSourceRefresh(source: WeatherSource, origin: String, refillDay: java.time.LocalDate? = null) {
+        fun requestSourceRefresh(source: WeatherSource, origin: String) {
             val cfg = currentConfig ?: return
             if (source.id == cfg.displaySource) {
-                requestFullRefresh(origin, refillDay)
+                requestFullRefresh(origin)
                 return
             }
             weatherDao.log("REFRESH_CLICK", "origin=$origin source=${source.id}", "INFO")
@@ -1065,7 +1053,7 @@ internal fun runDesktopUiApplication() = application {
                 )
                 try {
                     DesktopWeatherRepository(service, weatherDao, cfg.lat, cfg.lon, source.id, cfg.personalStationWeight(), snapshotConfig = { DesktopConfigStore().load() })
-                        .refresh(reason = "user_refresh:$origin", refillDay = refillDay, userRefresh = true)
+                        .refresh(reason = "user_refresh:$origin", userRefresh = true)
                 } finally {
                     service.close()
                 }
@@ -1111,13 +1099,7 @@ internal fun runDesktopUiApplication() = application {
                 onConfigUpdate = { newConfig -> saveConfigAndNotify(newConfig, "observations") },
                 dataUpdateCount = dataUpdateCount,
                 isRefreshing = refreshInFlight,
-                onRefreshSource = { source, viewedDate ->
-                    requestSourceRefresh(
-                        source,
-                        "history",
-                        com.weatherwidget.data.remote.GoogleHistoryRefill.refillDay(viewedDate, java.time.LocalDate.now()),
-                    )
-                },
+                onRefreshSource = { source -> requestSourceRefresh(source, "history") },
                 onOpenSettings = {
                     settingsVisible = true
                     settingsShowRequestId++
@@ -1134,11 +1116,7 @@ internal fun runDesktopUiApplication() = application {
                 // live DB instead of freezing at the snapshot taken when the window was opened.
                 dataUpdateCount = dataUpdateCount,
                 isRefreshing = refreshInFlight,
-                onRefreshData = {
-                    requestObservationsRefresh(
-                        com.weatherwidget.data.remote.GoogleHistoryRefill.refillDay(observationsViewedDate, LocalDate.now()),
-                    )
-                },
+                onRefreshData = { requestObservationsRefresh() },
                 onClose = { observationsVisible = false },
                 onConfigUpdate = { newConfig ->
                     saveConfigAndNotify(newConfig, "observations-window")
@@ -1241,8 +1219,7 @@ internal fun runDesktopUiApplication() = application {
                     settingsVisible = true
                     settingsShowRequestId++
                 },
-                onOpenObservations = { viewedDate ->
-                    observationsViewedDate = viewedDate
+                onOpenObservations = { _ ->
                     observationsVisible = true
                     obsShowRequestId++
                 },

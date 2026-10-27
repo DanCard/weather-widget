@@ -7,8 +7,7 @@ package com.weatherwidget.data.model
  *
  * - **Hour not yet started** (`hourMs >= nowMs`): the newest fetch, so the forecast keeps updating.
  * - **Hour started** (`hourMs < nowMs`): the newest fetch **at or before the hour**
- *   (`fetchedAt <= hourMs`), however old. Later fetches are hindcasts, model assimilations, or
- *   `GoogleHistoryRefill` rewrites, and never replace the prediction that was in effect when the
+ *   (`fetchedAt <= hourMs`), however old. Later fetches are hindcasts and model assimilations, and never replace the prediction that was in effect when the
  *   hour arrived (user, 2026-10-27: "Freeze wins always"). When none predates the hour (app
  *   installed afterwards), the **earliest** fetch stands in: the closest thing to a prediction, and
  *   deterministic.

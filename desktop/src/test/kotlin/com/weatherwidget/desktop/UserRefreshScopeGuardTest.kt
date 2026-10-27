@@ -56,10 +56,10 @@ class UserRefreshScopeGuardTest {
             File("desktop/src/main/kotlin/com/weatherwidget/desktop/DesktopUiApplication.kt"),
         ).firstOrNull { it.isFile }
         assertTrue("could not locate DesktopUiApplication.kt from ${File(".").absolutePath}", file != null)
-        val call = Regex("""\.(refreshObservations|refillGoogleHistory)\(""")
+        val call = Regex("""\.refreshObservations\(""")
         val text = file!!.readText()
 
-        assertTrue("expected both observations-refresh calls", UserRefreshCallSites.count(text, call) >= 2)
+        assertTrue("expected the observations-refresh call", UserRefreshCallSites.count(text, call) >= 1)
         val offenders = UserRefreshCallSites.uncovered(text, call)
         if (offenders.isNotEmpty()) {
             fail("Observations refresh call(s) outside refreshRunner.start { … }: lines $offenders")

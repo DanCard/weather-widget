@@ -299,25 +299,6 @@ class GoogleWeatherApi(
         return parseCurrent(fetchJson(apiKey, "/currentConditions:lookup", lat, lon))
     }
 
-    /**
-     * `history/hours` alone — ONE billed request, nothing else — as [RawFetch.providerHistoryHourly].
-     * For a previous day's refill that must not refetch the forecast (desktop Observations Refresh;
-     * plans/261014-observations-refresh-fetches-observations-only.md). Best-effort like the history
-     * inside [getForecast]: a failure (a 429 blocks history until the reset) returns an empty fetch.
-     */
-    suspend fun getHistory(lat: Double, lon: Double): RawFetch {
-        val apiKey = apiKeyProvider()
-        if (apiKey.isNullOrBlank()) {
-            throw IllegalStateException("GOOGLE_WEATHER_API_KEY is missing.")
-        }
-        if (nowMs() < historyBlockedUntilMs) {
-            Log.d(TAG, "history skipped blockedUntil=$historyBlockedUntilMs")
-            return RawFetch()
-        }
-        val history = fetchHistoryOrNull(apiKey, lat, lon) ?: return RawFetch()
-        return parse(null, null, emptyList(), history["historyHours"]?.jsonArray.orEmpty())
-    }
-
     private suspend fun fetchForecastHours(
         apiKey: String,
         lat: Double,
@@ -405,7 +386,7 @@ class GoogleWeatherApi(
             "parsed daily=${daily.size} hourly=${hourly.size} elapsed=${elapsed.size} " +
                 "currentTemp=${current?.degrees("temperature")}",
         )
-        return (current?.let(::parseCurrent) ?: RawFetch()).copy(daily = daily, hourly = hourly, providerHistoryHourly = elapsed)
+        return (current?.let(::parseCurrent) ?: RawFetch()).copy(daily = daily, hourly = hourly)
     }
 
     private fun parseCurrent(current: JsonObject): RawFetch =

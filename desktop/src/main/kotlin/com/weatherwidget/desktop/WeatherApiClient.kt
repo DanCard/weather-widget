@@ -33,28 +33,13 @@ interface WeatherApiClient {
         fetchForecast()
 
     /**
-     * [refillDay]: a previous day the user refreshed on the Forecast History screen. Google then also
-     * requests `history/hours` when that day's stored elapsed hours went stale
-     * ([com.weatherwidget.data.remote.GoogleHistoryRefill]). Clients without such a product ignore it.
-     */
-    suspend fun fetchForecast(parts: ForecastParts, refillDay: LocalDate?): RawFetch =
-        fetchForecast(parts)
-
-    /**
      * [horizon]: LONG for a judged fetch, null when unjudged ([com.weatherwidget.data.remote.ForecastHorizonCadence]),
      * so what a billed source is asked for matches what the caller stores. Clients whose request does not follow the horizon ignore it.
      */
     suspend fun fetchForecast(
         parts: ForecastParts,
-        refillDay: LocalDate?,
         horizon: com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon?,
-    ): RawFetch = fetchForecast(parts, refillDay)
-
-    /**
-     * Google's `history/hours` alone (one billed request), for a previous day's refill that must not
-     * refetch the forecast — the desktop Observations Refresh. Empty for every other client.
-     */
-    suspend fun fetchGoogleHistory(): RawFetch = RawFetch()
+    ): RawFetch = fetchForecast(parts)
 
     /**
      * The displayed source's forecast for a tapped or panned-to day

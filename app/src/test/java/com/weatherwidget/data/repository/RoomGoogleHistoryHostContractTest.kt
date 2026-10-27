@@ -22,7 +22,7 @@ class RoomGoogleHistoryHostContractTest : GoogleHistoryHostContract() {
 
     override fun open(): Pair<GoogleHistoryRun.Host, Seed> {
         val db = TestDatabase.create().also { databases.add(it) }
-        val host = RoomGoogleHistoryHost(db.hourlyForecastDao(), db.hourlyForecastHistoryDao(), db.appLogDao(), LAT, LON)
+        val host = RoomGoogleHistoryHost(db.hourlyForecastHistoryDao(), LAT, LON)
         return host to object : Seed {
             override fun live(row: HourlyForecast) = runBlocking {
                 db.hourlyForecastDao().insertAll(

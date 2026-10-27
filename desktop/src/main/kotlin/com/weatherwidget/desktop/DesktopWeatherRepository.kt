@@ -16,8 +16,6 @@ import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.ForecastParts
 import com.weatherwidget.data.model.*
 import com.weatherwidget.data.remote.ApiAccessException
-import com.weatherwidget.data.remote.GoogleHistoryRefill
-import com.weatherwidget.data.remote.GoogleHistoryRun
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.data.remote.SourceFetchTable
@@ -509,11 +507,6 @@ class DesktopWeatherRepository(
         userLocationChange: Boolean = false,
         /** Why this refresh runs, for `REFRESH_ENTER` (each full Google refresh spends quota). */
         reason: String = "unspecified",
-        /**
-         * A previous day refreshed on the Forecast History screen: Google may refill its stale
-         * elapsed hours from `history/hours` ([GoogleHistoryRefill]). Null on every other refresh.
-         */
-        refillDay: LocalDate? = null,
         /** The parts a scheduled refresh planned ([ForecastParts.unblocked]); null = a forced refresh (both). */
         parts: ForecastParts? = null,
         /** The horizon a scheduled refresh planned ([DesktopForecastPlanner]); null = judge it now. */
@@ -524,7 +517,6 @@ class DesktopWeatherRepository(
         now,
         userLocationChange,
         reason = reason,
-        refillDay = refillDay,
         parts = parts,
         horizon = horizon,
         userRefresh = userRefresh,
@@ -545,7 +537,6 @@ class DesktopWeatherRepository(
          */
         deferObservationWindow: Boolean = false,
         reason: String = "unspecified",
-        refillDay: LocalDate? = null,
         parts: ForecastParts? = null,
         horizon: ForecastHorizonCadence.Horizon? = null,
         userRefresh: Boolean = false,
@@ -587,12 +578,7 @@ class DesktopWeatherRepository(
                         // The one horizon the service cannot derive from the markers itself.
                         userRefresh -> weatherService.fetchForecast(
                             parts = fetchParts,
-                            refillDay = refillDay,
                             horizon = fetchHorizon,
-                        )
-                        refillDay != null -> weatherService.fetchForecast(
-                            parts = fetchParts,
-                            refillDay = refillDay,
                         )
                         fetchParts != ForecastParts.BOTH ->
                             weatherService.fetchForecast(parts = fetchParts)
@@ -618,7 +604,6 @@ class DesktopWeatherRepository(
             )
             stored = true
             markHorizon(fetchHorizon, result)
-            if (refillDay != null) refillStaleGoogleHours(result, now, refillDay)
 
             if (borrowedPlan != null) {
                 val feedId = borrowedPlan.feed.id
@@ -778,34 +763,6 @@ class DesktopWeatherRepository(
         store = { persistObservations(it, now) },
         recompute = { days -> recomputeDailyExtremesForDays(days, now) },
     )
-
-    /**
-     * The desktop Observations Refresh on a previous day: the [GoogleHistoryRefill] of [day] alone —
-     * one `history/hours` request, no forecast — and only when the displayed source is Google and
-     * the day has stale hours, so nothing is billed when there is nothing to fix
-     * (plans/261014-observations-refresh-fetches-observations-only.md).
-     */
-    suspend fun refillGoogleHistory(day: LocalDate) = withContext(Dispatchers.IO) {
-        if (weatherSource != WeatherSource.GOOGLE_WEATHER.id) return@withContext
-        if (googleHistory.staleHours(day, currentTimeMillis()).isEmpty()) {
-            weatherDao.log(GoogleHistoryRefill.LOG_TAG, "day=$day stale=0 reason=nothing_stale", "INFO")
-            return@withContext
-        }
-        val result = weatherService.fetchGoogleHistory()
-        if (result.providerHistoryHourly.isEmpty()) {
-            weatherDao.log(GoogleHistoryRefill.LOG_TAG, "day=$day reason=history_unavailable", "INFO")
-            return@withContext
-        }
-        refillStaleGoogleHours(result, currentTimeMillis(), day)
-    }
-
-    private val googleHistory get() = GoogleHistoryRun(DesktopGoogleHistoryHost(weatherDao, latitude, longitude))
-
-    /** A previous day's Forecast History refresh: [GoogleHistoryRun.refill], Google only. */
-    private suspend fun refillStaleGoogleHours(result: RawFetch, now: Long, day: LocalDate) {
-        if (weatherSource != WeatherSource.GOOGLE_WEATHER.id) return
-        googleHistory.refill(result.providerHistoryHourly, day, now)
-    }
 
     /**
      * Files the elapsed hours [persistForecastResult] dropped from the live write into history —

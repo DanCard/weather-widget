@@ -36,7 +36,7 @@ class RoomSourceFetchTableHostContractTest : SourceFetchTableHostContract() {
                 calls = SourceFetchTable.Calls(nws = { _, _, _ -> RawFetch() }, openMeteo = { _, _, _, _ -> RawFetch() }),
                 hourlyStore = store,
                 appLogDao = db.appLogDao(),
-                needsHistory = { _, _, _ -> false },
+                needsHistory = { _, _ -> false },
                 nowcast = { _, _, _ -> },
             )
 

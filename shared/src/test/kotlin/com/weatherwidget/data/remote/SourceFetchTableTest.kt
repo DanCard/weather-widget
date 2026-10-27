@@ -12,7 +12,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
-import java.time.LocalDate
 
 /** What each source's fetch asks for, once for both platforms (`plans/261025-shared-source-fetch-table.md`). */
 @Category(ShortDuration::class)
@@ -43,7 +42,7 @@ class SourceFetchTableTest {
             return stored
         }
 
-        override suspend fun googleNeedsHistory(latitude: Double, longitude: Double, refillDay: LocalDate?, nowMs: Long) = needsHistory
+        override suspend fun googleNeedsHistory(latitude: Double, longitude: Double, nowMs: Long) = needsHistory
 
         override fun saveNowcast(latitude: Double, longitude: Double, series: NowcastSeries) { nowcasts += series }
 

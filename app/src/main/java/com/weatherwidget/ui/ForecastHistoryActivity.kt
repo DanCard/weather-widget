@@ -807,14 +807,12 @@ class ForecastHistoryActivity : AppCompatActivity() {
             val startedAtMs = System.currentTimeMillis()
             val lat = targetLat
             val lon = targetLon
-            // A past day may refill its stale Google hours from history/hours.
-            val refillDay = com.weatherwidget.data.remote.GoogleHistoryRefill.refillDay(targetLocalDate, LocalDate.now())
             val repository = weatherRepository
             val appContext = applicationContext
             val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
             val ok = try {
-                // App scope, not lifecycleScope: leaving History mid-fetch must not discard it (a
-                // past Google day's history/hours is billed whether or not the result is kept).
+                // App scope, not lifecycleScope: leaving History mid-fetch must not discard it (the
+                // fetch is billed whether or not the result is kept).
                 userRefreshRunner.start(
                     "history_refresh",
                     afterDetached = { fetched -> if (fetched) sendUiOnlyWidgetRefresh(appContext, widgetId) },
@@ -824,7 +822,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
                         lon,
                         source,
                         request = null,
-                        historyRefillDay = refillDay,
                         userRefresh = true,
                     )
                 }.await()

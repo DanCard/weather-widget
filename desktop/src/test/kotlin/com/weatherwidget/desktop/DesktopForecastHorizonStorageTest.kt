@@ -124,11 +124,11 @@ class DesktopForecastHorizonStorageTest {
 
     @Test
     fun `a user refresh asks for and stores a LONG fetch`() = runTest {
-        coEvery { service.fetchForecast(ForecastParts.BOTH, null, Horizon.LONG) } returns RawFetch(daily = daily(70f), hourly = hourly)
+        coEvery { service.fetchForecast(ForecastParts.BOTH, Horizon.LONG) } returns RawFetch(daily = daily(70f), hourly = hourly)
 
         repo().refresh(now = now, reason = "user_refresh:popup", userRefresh = true)
 
-        coVerify(exactly = 1) { service.fetchForecast(ForecastParts.BOTH, null, Horizon.LONG) }
+        coVerify(exactly = 1) { service.fetchForecast(ForecastParts.BOTH, Horizon.LONG) }
         assertNotNull(markers().lastLongFetch())
         assertEquals(8, shownHighs().size)
     }

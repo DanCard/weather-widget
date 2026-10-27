@@ -149,9 +149,9 @@ internal class HourlyForecastStore(
         return saveHistoricalActuals(historicalData, latitude, longitude, sourceId)
     }
 
-    /** [GoogleHistoryRun]'s Room side at this site, on this store's DAOs and clock. */
-    fun googleHistoryHost(latitude: Double, longitude: Double, appLogDao: com.weatherwidget.data.local.AppLogDao): GoogleHistoryRun.Host =
-        RoomGoogleHistoryHost(hourlyForecastDao, hourlyForecastHistoryDao, appLogDao, latitude, longitude, clock)
+    /** [GoogleHistoryRun]'s Room side at this site. */
+    fun googleHistoryHost(latitude: Double, longitude: Double): GoogleHistoryRun.Host =
+        RoomGoogleHistoryHost(hourlyForecastHistoryDao, latitude, longitude)
 
     /** The last [snapshotLabel] decision per source and site: (decided at, label or null). */
     private val recentSnapshotDecisions = java.util.concurrent.ConcurrentHashMap<Triple<String, Double, Double>, Pair<Long, Long?>>()
@@ -262,17 +262,13 @@ internal class RoomElapsedHistoryStore(
 }
 
 /**
- * Room side of [GoogleHistoryRun] at one site: Google's rows on every same-site fragment (the run keeps
- * each hour's newest), the refill written on the quantized key. Pinned to desktop's by
- * `GoogleHistoryHostContract` (`:shared` testFixtures).
+ * Room side of [GoogleHistoryRun] at one site: Google's history hours on every same-site fragment.
+ * Pinned to desktop's by `GoogleHistoryHostContract` (`:shared` testFixtures).
  */
 internal class RoomGoogleHistoryHost(
-    private val hourlyForecastDao: HourlyForecastDao,
     private val historyDao: HourlyForecastHistoryDao,
-    private val appLogDao: com.weatherwidget.data.local.AppLogDao,
     latitude: Double,
     longitude: Double,
-    private val clock: () -> Long = System::currentTimeMillis,
 ) : GoogleHistoryRun.Host {
     private val keyLat = LocationMatch.quantize(latitude)
     private val keyLon = LocationMatch.quantize(longitude)
@@ -289,43 +285,4 @@ internal class RoomGoogleHistoryHost(
             source = google,
         ).filter { LocationMatch.sameSite(keyLat, keyLon, it.locationLat, it.locationLon) }
             .map { it.dateTime }
-
-    // Every same-site fragment, not only the exact key: an hour stored only on a fragment still
-    // counts, and GoogleHistoryRefill.staleHours judges each hour by its newest row.
-    override suspend fun liveHours(startMs: Long, endMs: Long) =
-        hourlyForecastDao.getHourlyForecastsBySource(startMs, endMs, keyLat, keyLon, google)
-            .filter { LocationMatch.sameSite(keyLat, keyLon, it.locationLat, it.locationLon) }
-            .map { it.toHourlyForecast() }
-
-    /**
-     * A past day's Forecast History refresh: Google `history/hours` values written over that day's
-     * live rows whose forecast went stale ([com.weatherwidget.data.remote.GoogleHistoryRefill]). Live table only, always written
-     * (fresh fetchedAt is what marks the hour no longer stale); the history snapshots keep the
-     * as-issued forecast.
-     */
-    override suspend fun saveRefill(rows: List<HourlyForecast>) {
-        if (rows.isEmpty()) return
-        val now = clock()
-        hourlyForecastDao.insertAll(
-            rows.map {
-                HourlyForecastEntity(
-                    dateTime = it.dateTime,
-                    locationLat = keyLat,
-                    locationLon = keyLon,
-                    temperature = it.temperature,
-                    condition = it.condition,
-                    source = google,
-                    precipProbability = it.precipProbability,
-                    cloudCover = it.cloudCover,
-                    cloudCoverLow = it.cloudCoverLow,
-                    cloudCoverMid = it.cloudCoverMid,
-                    cloudCoverHigh = it.cloudCoverHigh,
-                    precipAmountMm = it.precipAmountMm,
-                    fetchedAt = now,
-                )
-            },
-        )
-    }
-
-    override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
 }

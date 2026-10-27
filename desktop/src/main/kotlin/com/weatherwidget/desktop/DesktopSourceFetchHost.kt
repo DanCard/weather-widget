@@ -6,7 +6,6 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.SourceFetchTable
 import com.weatherwidget.shared.nowcast.NowcastSeries
 import com.weatherwidget.shared.nowcast.NowcastStore
-import java.time.LocalDate
 
 /**
  * Desktop side of [SourceFetchTable]: Google's stored hours on the site's exact key, as Android's
@@ -17,7 +16,7 @@ import java.time.LocalDate
 internal class DesktopSourceFetchHost(
     override val calls: SourceFetchTable.Calls,
     private val weatherDao: DesktopWeatherDao?,
-    private val needsHistory: suspend (refillDay: LocalDate?) -> Boolean,
+    private val needsHistory: suspend () -> Boolean,
     private val nowcastStore: NowcastStore?,
 ) : SourceFetchTable.Host {
     override suspend fun storedGoogleHours(latitude: Double, longitude: Double, startMs: Long, endMs: Long): List<HourlyForecast> =
@@ -25,7 +24,7 @@ internal class DesktopSourceFetchHost(
             ?.filter { it.locationLat == latitude && it.locationLon == longitude }
             .orEmpty()
 
-    override suspend fun googleNeedsHistory(latitude: Double, longitude: Double, refillDay: LocalDate?, nowMs: Long) = needsHistory(refillDay)
+    override suspend fun googleNeedsHistory(latitude: Double, longitude: Double, nowMs: Long) = needsHistory()
 
     override fun saveNowcast(latitude: Double, longitude: Double, series: NowcastSeries) {
         nowcastStore?.saveSeries(latitude, longitude, series)

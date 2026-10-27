@@ -5,7 +5,6 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.SourceFetchTable
 import com.weatherwidget.shared.nowcast.NowcastSeries
-import java.time.LocalDate
 
 /**
  * Room side of [SourceFetchTable]: Google's stored hours on the site's exact key, as desktop's
@@ -15,14 +14,14 @@ internal class RoomSourceFetchHost(
     override val calls: SourceFetchTable.Calls,
     private val hourlyStore: HourlyForecastStore,
     private val appLogDao: AppLogDao,
-    private val needsHistory: suspend (latitude: Double, longitude: Double, refillDay: LocalDate?) -> Boolean,
+    private val needsHistory: suspend (latitude: Double, longitude: Double) -> Boolean,
     private val nowcast: (latitude: Double, longitude: Double, series: NowcastSeries) -> Unit,
 ) : SourceFetchTable.Host {
     override suspend fun storedGoogleHours(latitude: Double, longitude: Double, startMs: Long, endMs: Long) =
         hourlyStore.storedHourlyForSite(latitude, longitude, WeatherSource.GOOGLE_WEATHER.id, startMs, endMs)
 
-    override suspend fun googleNeedsHistory(latitude: Double, longitude: Double, refillDay: LocalDate?, nowMs: Long) =
-        needsHistory(latitude, longitude, refillDay)
+    override suspend fun googleNeedsHistory(latitude: Double, longitude: Double, nowMs: Long) =
+        needsHistory(latitude, longitude)
 
     override fun saveNowcast(latitude: Double, longitude: Double, series: NowcastSeries) = nowcast(latitude, longitude, series)
 
