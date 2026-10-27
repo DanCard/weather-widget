@@ -154,18 +154,46 @@ object HeaderWidthChecker {
             minTextScale = if (hourly) HOURLY_MIN_TEXT_SCALE else 1f,
         )
         line ?: return measured
-        val measure = HeaderLine.Measure { piece, text, fontScale ->
-            when (piece) {
-                HeaderLine.Piece.TEMP -> currentTempTextWidthPx(context, text, currentTempSizeDp) * headerScale
-                HeaderLine.Piece.DELTA ->
-                    scaledText(text, HeaderConstants.DELTA_TEXT_SIZE_DP, HeaderConstants.DELTA_MARGIN_START_DP)
-                HeaderLine.Piece.RAIN ->
-                    scaledText(text, HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP * fontScale, HeaderConstants.PRECIP_MARGIN_START_DP)
-                HeaderLine.Piece.DATE -> scaledText(text, HeaderConstants.DATE_TEXT_SIZE_DP)
-                HeaderLine.Piece.SOURCE -> rightCluster(text)
-            }
-        }
+        val measure = lineMeasure(context, widthPx, headerScale, apiTextSizeDp, currentTempSizeDp)
         return HeaderLine.place(measured, measure, line, iconSlot = if (includeIcon) iconSlot else 0f, nominalDate = nominalDate)
+    }
+
+    /** Header pieces at [headerScale], as [measureHeader] draws them, for [HeaderLine]. */
+    private fun lineMeasure(
+        context: Context,
+        widthPx: Float,
+        headerScale: Float,
+        apiTextSizeDp: Float,
+        currentTempSizeDp: Float,
+    ) = HeaderLine.Measure { piece, text, fontScale ->
+        fun scaledText(sizeDp: Float, marginDp: Float = 0f) =
+            if (text.isBlank()) 0f
+            else (dpToPx(context, marginDp) + textWidthPx(context, text, sizeDp)) * headerScale
+        when (piece) {
+            HeaderLine.Piece.TEMP -> currentTempTextWidthPx(context, text, currentTempSizeDp) * headerScale
+            HeaderLine.Piece.DELTA -> scaledText(HeaderConstants.DELTA_TEXT_SIZE_DP, HeaderConstants.DELTA_MARGIN_START_DP)
+            HeaderLine.Piece.RAIN ->
+                scaledText(HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP * fontScale, HeaderConstants.PRECIP_MARGIN_START_DP)
+            HeaderLine.Piece.DATE -> scaledText(HeaderConstants.DATE_TEXT_SIZE_DP)
+            HeaderLine.Piece.SOURCE -> (widthPx - resolveApiLeftPx(context, widthPx, text, apiTextSizeDp)) * headerScale
+        }
+    }
+
+    /**
+     * The header buttons' icon scale: [WIDE_HEADER_SCALE] on any header at least
+     * [WIDE_HEADER_MIN_WIDTH_DP] wide, whatever the row shows, so a source tap never resizes them
+     * (Fold 4, 2026-10-27: they shrank on Google, the one source with a rain %). Capped so the icon
+     * keeps [HeaderButtonZone.MIN_AIR_DP] inside a zone the fit narrowed.
+     */
+    fun buttonScale(widthDp: Int, fit: HeaderFit.Plan, density: Float): Float {
+        if (widthDp < WIDE_HEADER_MIN_WIDTH_DP) return 1f
+        val zoneDp = when (fit.placement) {
+            HeaderFit.ButtonPlacement.CENTER -> centerIconZoneWidthDp(fit, widthDp, density)
+            HeaderFit.ButtonPlacement.INLINE -> fit.inlineZone.takeIf { it > 0f }?.let { it / density }
+            HeaderFit.ButtonPlacement.HIDDEN -> null
+        } ?: return WIDE_HEADER_SCALE
+        val roomy = (zoneDp - HeaderButtonZone.MIN_AIR_DP) / HeaderConstants.CENTER_ICON_SIZE_DP
+        return roomy.coerceIn(1f, WIDE_HEADER_SCALE)
     }
 
     /**
@@ -224,13 +252,18 @@ object HeaderWidthChecker {
         precipText: String?,
         precipTextSizeDp: Float?,
         currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
+        /**
+         * What every visible source would show ([HeaderLine.reserve]): occupancy is judged against
+         * it, so every source gets the same scale. Wider live text still counts.
+         */
+        line: HeaderLine.Inputs? = null,
     ): Float {
         val widthPx = dpToPx(context, widthDp.toFloat())
         if (widthPx <= 0f) return 1f
 
         if (widthDp < WIDE_HEADER_MIN_WIDTH_DP) return 1f
 
-        val leftClusterRight = resolveLeftClusterRightPx(
+        val liveLeft = resolveLeftClusterRightPx(
             context = context,
             currentTempText = currentTempText,
             deltaText = deltaText,
@@ -242,8 +275,12 @@ object HeaderWidthChecker {
         val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
 
         // Occupied = left cluster + (widthPx - apiLeft), i.e. the right cluster width
-        val rightClusterWidth = (widthPx - apiLeft).coerceAtLeast(0f)
-        val occupiedWidth = leftClusterRight + rightClusterWidth
+        val liveRight = (widthPx - apiLeft).coerceAtLeast(0f)
+        val reserve = line?.let {
+            val iconSlot = dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP)
+            HeaderLine.reserve(lineMeasure(context, widthPx, 1f, apiTextSizeDp, currentTempSizeDp), it, iconSlot)
+        }
+        val occupiedWidth = maxOf(liveLeft, reserve?.left ?: 0f) + maxOf(liveRight, reserve?.right ?: 0f)
         val occupancy = occupiedWidth / widthPx
 
         return if (occupancy < WIDE_HEADER_OCCUPANCY_THRESHOLD) WIDE_HEADER_SCALE else 1f

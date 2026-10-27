@@ -319,6 +319,8 @@ internal object DailyGraphRenderer {
         // The observations button stays while today OR yesterday is on screen — its station-history
         // affordance is date-independent. Dropped only when both are off.
         val observationsInView = displayDays.any { it.isToday || it.date == ctx.today.minusDays(1) }
+        // Width only, never the source shown: a source tap must not resize the buttons.
+        val buttonScale = HeaderWidthChecker.buttonScale(dimensions.widthDp, fit, ctx.context.resources.displayMetrics.density)
         setupHistoryShortcutAt(
             context = ctx.context,
             views = ctx.views,
@@ -327,16 +329,16 @@ internal object DailyGraphRenderer {
             lat = lat,
             lon = lon,
             displaySource = ctx.displaySource,
-            scale = headerScale,
+            scale = buttonScale,
         )
-        setupWeatherStationsShortcut(ctx.context, ctx.views, ctx.appWidgetId, scale = headerScale)
+        setupWeatherStationsShortcut(ctx.context, ctx.views, ctx.appWidgetId, scale = buttonScale)
         // Bound only when shown: leaving the home PendingIntent behind on a header that no longer
         // offers it would arm a no-op tap target under a hidden zone.
         headerState.homeAction?.let { action ->
-            setupDailyHomeShortcut(ctx.context, ctx.views, ctx.appWidgetId, action, scale = headerScale)
+            setupDailyHomeShortcut(ctx.context, ctx.views, ctx.appWidgetId, action, scale = buttonScale)
         }
         if (fit.monthsShown) {
-            setupMonthsViewShortcut(ctx.context, ctx.views, ctx.appWidgetId, ctx.displaySource, lat, lon, scale = headerScale)
+            setupMonthsViewShortcut(ctx.context, ctx.views, ctx.appWidgetId, ctx.displaySource, lat, lon, scale = buttonScale)
         }
         positionDailyIcons(
             views = ctx.views,

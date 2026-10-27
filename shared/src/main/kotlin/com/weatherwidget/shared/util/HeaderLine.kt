@@ -44,6 +44,22 @@ object HeaderLine {
         val rainLabels: List<HeaderContent.PrecipLabel>,
     )
 
+    /** The room reserved beside the buttons: the left cluster and the source label's cluster. */
+    data class Reserve(val left: Float, val right: Float)
+
+    /**
+     * What any visible source could need, measured by [measure]. Android also decides its wide-header
+     * scale from this, so a source tap cannot rescale the row (Fold 4, 2026-10-27: Google's rain %
+     * dropped it from ×1.35 to ×1.0 and the buttons shrank and moved).
+     */
+    fun reserve(measure: Measure, inputs: Inputs, iconSlot: Float): Reserve {
+        val widestRain = inputs.rainLabels.maxOfOrNull { measure.width(Piece.RAIN, it.text, it.fontScale) } ?: 0f
+        val left = iconSlot + measure.width(Piece.TEMP, RESERVE_TEMP_TEXT, 1f) +
+            measure.width(Piece.DELTA, RESERVE_DELTA_TEXT, 1f) + widestRain
+        val right = inputs.sourceLabels.maxOfOrNull { measure.width(Piece.SOURCE, it, 1f) } ?: 0f
+        return Reserve(left, right)
+    }
+
     /**
      * [m] with the line placed against the reserve, and the widest source's cluster for the fit.
      * Unchanged where the platform cannot move the row off the middle (`seamOffset == null`).
@@ -58,10 +74,7 @@ object HeaderLine {
         nominalDate: String?,
     ): HeaderFit.Measured {
         if (m.seamOffset == null) return m
-        val widestRain = inputs.rainLabels.maxOfOrNull { measure.width(Piece.RAIN, it.text, it.fontScale) } ?: 0f
-        val left = iconSlot + measure.width(Piece.TEMP, RESERVE_TEMP_TEXT, 1f) +
-            measure.width(Piece.DELTA, RESERVE_DELTA_TEXT, 1f) + widestRain
-        val right = inputs.sourceLabels.maxOfOrNull { measure.width(Piece.SOURCE, it, 1f) } ?: 0f
+        val (left, right) = reserve(measure, inputs, iconSlot)
         val fitted = m.copy(rightCluster = maxOf(m.rightCluster, right))
         val nominalDateWidth = nominalDate?.let { measure.width(Piece.DATE, it, 1f) } ?: m.date
         return fitted.copy(

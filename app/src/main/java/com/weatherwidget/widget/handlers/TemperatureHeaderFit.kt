@@ -39,6 +39,7 @@ internal object TemperatureHeaderFit {
             deltaText = header.deltaText,
             precipText = header.precipProbability,
             precipTextSizeDp = header.precipTextSizeDp,
+            line = header.line,
         )
         // The stations zone in the inline nav row shows only for today, so the header fit needs
         // Current observations only while the graph shows some of today (:shared HeaderButtons).

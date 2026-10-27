@@ -8,6 +8,7 @@ import com.weatherwidget.shared.util.HeaderLine
 import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -72,5 +73,50 @@ class HeaderWidthCheckerLineTest {
         assertEquals("buttons and date stay put", nws, meteo)
         val (oldNws, oldMeteo) = spans(null)
         assertNotEquals("the fixed line moved them", oldNws, oldMeteo)
+    }
+
+    private fun scale(widthDp: Int, source: String, rain: String?, line: HeaderLine.Inputs?) =
+        HeaderWidthChecker.computeHeaderScale(
+            context = context,
+            widthDp = widthDp,
+            apiSourceText = source,
+            apiTextSizeDp = 12.6f,
+            currentTempText = "61.3°",
+            deltaText = null,
+            precipText = rain,
+            precipTextSizeDp = rain?.let { HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP },
+            line = line,
+        )
+
+    @Test
+    fun aSourceTapDoesNotRescaleTheHeader() {
+        // Fold 4, 2026-10-27: Google, the one source with a rain %, drew at ×1.0 and the dry
+        // sources at ×1.35 — every tap onto or off Google rescaled the row and moved the buttons.
+        // A wide right cluster, as on the Fold (174dp): only the rain % differs between sources.
+        val label = "Tomorrow.io - Silurian"
+        val wet = HeaderLine.Inputs(
+            sourceLabels = listOf(label),
+            rainLabels = listOf(HeaderContent.PrecipLabel("70%", 1f)),
+        )
+        val flipped = (450..1000 step 5).firstOrNull { scale(it, label, null, null) != scale(it, label, "70%", null) }
+        assertNotNull("some width rescaled on live text alone", flipped)
+        assertEquals(
+            "same scale on every source at ${flipped}dp",
+            scale(flipped!!, label, null, wet),
+            scale(flipped, label, "70%", wet),
+        )
+    }
+
+    @Test
+    fun buttonScaleIsWidthOnly() {
+        val density = context.resources.displayMetrics.density
+        val centre = HeaderFit.Plan(buttons = 3, placement = HeaderFit.ButtonPlacement.CENTER)
+        val inline = HeaderFit.Plan(buttons = 3, placement = HeaderFit.ButtonPlacement.INLINE, inlineZone = 48f * density)
+        assertEquals(1.35f, HeaderWidthChecker.buttonScale(545, centre, density), 0.001f)
+        assertEquals(1.35f, HeaderWidthChecker.buttonScale(545, inline, density), 0.001f)
+        assertEquals(1f, HeaderWidthChecker.buttonScale(400, centre, density), 0.001f)
+        // A zone squeezed to 28dp keeps 6dp of air around the icon: 22 / 20.
+        val squeezed = inline.copy(inlineZone = 28f * density)
+        assertEquals(1.1f, HeaderWidthChecker.buttonScale(545, squeezed, density), 0.001f)
     }
 }

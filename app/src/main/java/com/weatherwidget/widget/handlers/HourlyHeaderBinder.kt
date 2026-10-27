@@ -45,6 +45,7 @@ internal object HourlyHeaderBinder {
             deltaText = null,
             precipText = if (isPrecipVisible && headerPrecipProbability != null) "$headerPrecipProbability%" else null,
             precipTextSizeDp = precipTextSizeDp,
+            line = line,
         )
 
         val precipText = if (isPrecipVisible && headerPrecipProbability != null) "$headerPrecipProbability%" else null

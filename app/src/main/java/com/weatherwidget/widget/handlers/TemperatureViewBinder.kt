@@ -58,6 +58,8 @@ internal object TemperatureViewBinder {
             today = LocalDateTime.now().toLocalDate(),
         )
         Log.d(HeaderFit.LOG_TAG, HeaderFit.logLine("hourly", state.widthDp.toFloat(), headerScale, fit, measured))
+        // Width only, never the source shown: a source tap must not resize the buttons.
+        val buttonScale = HeaderWidthChecker.buttonScale(state.widthDp, fit, context.resources.displayMetrics.density)
 
         // Explicitly set VISIBLE because DailyViewHandler sets these to INVISIBLE
         // when rendering the source label into the bitmap — RemoteViews updates are
@@ -139,17 +141,17 @@ HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVis
         )
         setupNavigationButtons(context, views, appWidgetId, stateManager)
         setupApiToggle(context, views, appWidgetId, state.numRows, scale = headerScale)
-        setupHomeShortcut(context, views, appWidgetId, scale = headerScale)
+        setupHomeShortcut(context, views, appWidgetId, scale = buttonScale)
         setupSettingsShortcut(context, views, appWidgetId)
-        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, state.displaySource, scale = headerScale)
-        setupWeatherStationsShortcut(context, views, appWidgetId, scale = headerScale)
+        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, state.displaySource, scale = buttonScale)
+        setupWeatherStationsShortcut(context, views, appWidgetId, scale = buttonScale)
 
         setupGraphSelectorShortcut(
             context = context,
             views = views,
             appWidgetId = appWidgetId,
             currentViewMode = com.weatherwidget.widget.ViewMode.TEMPERATURE,
-            scale = headerScale,
+            scale = buttonScale,
         )
 
         positionCenterIcons(

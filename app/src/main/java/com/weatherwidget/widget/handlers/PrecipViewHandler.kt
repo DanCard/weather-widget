@@ -247,20 +247,22 @@ object PrecipViewHandler {
         )
         val headerScale = headerResult.headerScale
         val fit = headerResult.fit
+        // Width only, never the source shown: a source tap must not resize the buttons.
+        val buttonScale = HeaderWidthChecker.buttonScale(dimensions.widthDp, fit, context.resources.displayMetrics.density)
 
-        setupHomeShortcut(context, views, appWidgetId, scale = headerScale)
+        setupHomeShortcut(context, views, appWidgetId, scale = buttonScale)
         if (!isIconWidth) {
             setupSettingsShortcut(context, views, appWidgetId)
         }
-        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource, scale = headerScale)
-        setupWeatherStationsShortcut(context, views, appWidgetId, scale = headerScale)
+        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource, scale = buttonScale)
+        setupWeatherStationsShortcut(context, views, appWidgetId, scale = buttonScale)
 
         setupGraphSelectorShortcut(
             context = context,
             views = views,
             appWidgetId = appWidgetId,
             currentViewMode = com.weatherwidget.widget.ViewMode.PRECIPITATION,
-            scale = headerScale,
+            scale = buttonScale,
         )
 
         // Setup API toggle (skipped at 1 icon wide — target is hidden)

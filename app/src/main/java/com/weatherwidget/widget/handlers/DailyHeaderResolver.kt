@@ -183,6 +183,7 @@ internal object DailyHeaderResolver {
             precipText = headerPrecipText,
             precipTextSizeDp = precipTextSizeDp,
             currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
+            line = line,
         )
 
         // Daily header buttons. `observationsInView` uses the shared visible-date-range helper rather
