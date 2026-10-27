@@ -1,6 +1,7 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.SettledForecastPick
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.graph.SeriesSmoothing
@@ -77,7 +78,7 @@ object CurrentTemperatureResolver {
         // GENERIC_GAP (per-source strictness); drop those buckets rather than assert them present.
         val bucketCount = hourlyForecasts.groupBy { it.dateTime }.size
         val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
-            .mapNotNull { (time, rows) -> pickBestForecast(rows, displaySourceId)?.let { time to it } }
+            .mapNotNull { (time, rows) -> pickBestForecast(rows, displaySourceId, now)?.let { time to it } }
             .toMap()
         if (forecastsByTime.size < bucketCount) {
             verboseLog(
@@ -99,16 +100,19 @@ object CurrentTemperatureResolver {
     private fun pickBestForecast(
         rows: List<HourlyForecast>,
         sourceId: String,
+        nowMs: Long,
     ): HourlyForecast? {
         val candidates = when {
             rows.any { it.source == sourceId } -> rows.filter { it.source == sourceId }
             rows.any { it.source == WeatherSource.GENERIC_GAP.id } -> rows.filter { it.source == WeatherSource.GENERIC_GAP.id }
             else -> emptyList()
         }
-        // The latest forecast wins for every hour, past or future. (Previously past hours used the
-        // earliest snapshot — the stale 6–7-day-out long-range prediction — which inflated the
-        // interpolated current temp. See HourlyForecastStitcher for the same fix on the graph line.)
-        return candidates.maxByOrNull { it.fetchedAt }
+        // The graph's rule (SettledForecastPick): an hour not yet started takes the newest fetch; a
+        // started one — the current hour included — its newest fetch at or before the hour. Android
+        // fed live rows (a post-hour hindcast for the current hour) while desktop fed stitched ones,
+        // so the two headers could disagree and Android's left its own graph line.
+        // plans/261027-current-temp-reads-settled-hourly.md
+        return candidates.firstOrNull()?.let { SettledForecastPick.pick(candidates, it.dateTime, nowMs) }
     }
 
     // Per-resolution trace breadcrumb. VERBOSE: shown in the ephemeral sink (logcat / desktop console)
@@ -175,6 +179,7 @@ object CurrentTemperatureResolver {
                 targetTime = now,
                 source = displaySource,
                 smoothedForecasts = smoothedForecasts,
+                nowMs = nowMs,
             )
         // Set below when both estimates are taken from the newest run instead; see [newestRunIfObservationBracketIsOlder].
         var newestRun: List<HourlyForecast>? = null
@@ -198,6 +203,7 @@ object CurrentTemperatureResolver {
                     targetTime = obsTime,
                     source = displaySource,
                     smoothedForecasts = smoothedForecasts,
+                    nowMs = nowMs,
                 )
             // Both estimates must come from ONE forecast run when the observation sits on an older
             // run that the newest run contradicts; otherwise the correction measures the old run's
@@ -264,6 +270,7 @@ object CurrentTemperatureResolver {
                 targetTime = now,
                 source = displaySource,
                 smoothedForecasts = smoothedForecasts,
+                nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             )
         val isStaleEstimate = isStaleHourlyData(now, displaySource, hourlyForecasts)
         val displayTemp = estimatedTemp ?: lastObservedTemp
@@ -382,6 +389,8 @@ object CurrentTemperatureResolver {
         targetTime: LocalDateTime,
         source: WeatherSource,
         smoothedForecasts: Map<Long, Float>?,
+        /** Real now, not [targetTime]: whether an hour has started decides which fetch stands for it. */
+        nowMs: Long,
     ): Float? {
         if (hourlyForecasts.isEmpty()) return null
 
@@ -393,7 +402,7 @@ object CurrentTemperatureResolver {
 
         val sourceScopedForecasts =
             hourlyForecasts.groupBy { it.dateTime }
-                .mapValues { (_, rows) -> pickBestForecast(rows, source.id) }
+                .mapValues { (_, rows) -> pickBestForecast(rows, source.id, nowMs) }
 
         val currentHourForecast = sourceScopedForecasts[targetHourMs]
         val nextHourForecast = sourceScopedForecasts[nextHourMs]

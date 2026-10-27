@@ -165,7 +165,11 @@ object CurrentTempRun {
             hourlyForecasts = windowHourly,
             lastObservedTemp = observedTemp,
             observedAt = observedAt,
-            smoothedForecasts = CurrentTemperatureResolver.computeSmoothedForecasts(windowHourly, displaySource.id),
+            smoothedForecasts = CurrentTemperatureResolver.computeSmoothedForecasts(
+                windowHourly,
+                displaySource.id,
+                now = nowLocal.atZone(zoneId).toInstant().toEpochMilli(),
+            ),
             resultLogLevel = resultLogLevel,
         )
     }

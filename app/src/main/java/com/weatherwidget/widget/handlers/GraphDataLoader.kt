@@ -252,16 +252,42 @@ object GraphDataLoader {
      * Hourly rows for `:shared` CurrentTempRun's inputs ([com.weatherwidget.widget.CurrentTempRun.inputWindow]:
      * ≈ 37.5 h back for the yesterday delta). Cut it with [nowCentred] for the header's own window.
      */
+    /**
+     * The current-temp input: live + history over [CurrentTempRun.inputWindow], stitched per source
+     * like the graph and desktop's `getHourlyWithHistory`. Live rows alone held a post-hour hindcast
+     * for the current hour, so Android's header disagreed with desktop's and left its own graph line
+     * (plans/261027-current-temp-reads-settled-hourly.md). History is read for [displaySource] and
+     * `GENERIC_GAP` only — the resolver uses nothing else, and this runs on the tap path.
+     */
     suspend fun loadCurrentTempInputHourlyForecasts(
         hourlyDao: HourlyForecastDao,
+        historyDao: HourlyForecastHistoryDao,
+        displaySource: WeatherSource,
         lat: Double,
         lon: Double,
         now: LocalDateTime,
     ): List<HourlyForecastEntity> {
         val window = com.weatherwidget.widget.CurrentTempRun.inputWindow(now)
-        return hourlyDao.getHourlyForecasts(window.first, window.last, lat, lon).filter {
+        val live = hourlyDao.getHourlyForecasts(window.first, window.last, lat, lon).filter {
             LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon)
         }
+        val history = historyDao.getHistoryInRangeForBucketWindowForSources(
+            startDateTime = window.first,
+            endDateTime = window.last + 1,
+            bucketStart = Long.MIN_VALUE,
+            bucketEnd = Long.MAX_VALUE,
+            lat = lat,
+            lon = lon,
+            sources = listOf(displaySource.id, WeatherSource.GENERIC_GAP.id),
+        )
+        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        return HourlyForecastStitcher.stitchBySource(
+            current = live.map { it.toHourlyForecast() },
+            history = history.map { it.toHourlyForecast() },
+            nowMs = nowMs,
+            centerLat = lat,
+            centerLon = lon,
+        ).map { it.toEntity(lat, lon) }
     }
 
     /**

@@ -174,6 +174,8 @@ internal object GraphInteractionRenderer {
         val currentTempInputHourly =
             GraphDataLoader.loadCurrentTempInputHourlyForecasts(
                 database.hourlyForecastDao(),
+                database.hourlyForecastHistoryDao(),
+                displaySource,
                 location.lat,
                 location.lon,
                 request.now,

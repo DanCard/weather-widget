@@ -287,9 +287,13 @@ internal object DailyInteractionRenderer {
             )
         val observationsMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
+        val stateManager = WidgetStateManager(context)
+        val displaySource = stateManager.getCurrentDisplaySource(request.appWidgetId)
         val currentTempInputHourly =
             GraphDataLoader.loadCurrentTempInputHourlyForecasts(
                 hourlyDao,
+                database.hourlyForecastHistoryDao(),
+                displaySource,
                 lat,
                 lon,
                 request.now,
@@ -297,8 +301,6 @@ internal object DailyInteractionRenderer {
         val currentTempHourlyForecasts = GraphDataLoader.nowCentred(currentTempInputHourly, request.now)
         val currentHourlyMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
-        val stateManager = WidgetStateManager(context)
-        val displaySource = stateManager.getCurrentDisplaySource(request.appWidgetId)
         val observation =
             CurrentTempResolver.observe(
                 repository = request.repository,
