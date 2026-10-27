@@ -1,0 +1,1 @@
+Release 26102701: Unified current temperature estimation from settled hourly forecasts; past hour values frozen at pre-hour forecasts across hourly and daily history; shared official station observation gap-fill and quiet-station recovery; aligned daytime cloud and precipitation calculations; adaptive header button layout; general stability and performance improvements.

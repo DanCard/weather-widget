@@ -147,7 +147,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.AppImage)
             packageName = "weather-widget-desktop"
-            packageVersion = "1.0.0"
+            packageVersion = "26102701"
             description = "Weather Widget — tray temperature + forecast accuracy"
             vendor = "weather-widget"
 
