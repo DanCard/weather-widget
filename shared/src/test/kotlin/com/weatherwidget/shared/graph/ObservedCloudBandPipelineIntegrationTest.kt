@@ -220,7 +220,8 @@ class ObservedCloudBandPipelineIntegrationTest {
         )
 
         val point = points.single()
-        assertEquals(75, point.actualCover)
+        // (0.50 * 44 + 0.25 * 75) / 0.75 = 40.75 / 0.75 = 54.33 -> 54
+        assertEquals(54, point.actualCover)
         assertEquals(44, point.actualBands.low)
         assertEquals(75, point.actualBands.mid)
         assertNull(point.actualBands.high)

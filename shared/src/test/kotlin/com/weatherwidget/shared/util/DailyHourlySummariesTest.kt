@@ -110,11 +110,13 @@ class DailyHourlySummariesTest {
     }
 
     @Test
-    fun `noon is the visible cloud — total, else the largest band — as DailyNoonCloudCover reads it`() {
-        val withTotal = series(at(start, 0), at(start.plusDays(1), 0), cloudLow = { 15 }, cloud = { 90 })
-        assertEquals(90, DailyHourlySummaries.forDate(withTotal, start, source, zone).noonCloudPercent)
+    fun `noon is the visible cloud — weighted sum of bands, else total — as DailyNoonCloudCover reads it`() {
+        val withTotalAndBands = series(at(start, 0), at(start.plusDays(1), 0), cloudLow = { 15 }, cloud = { 90 })
+        assertEquals(15, DailyHourlySummaries.forDate(withTotalAndBands, start, source, zone).noonCloudPercent)
         val bandOnly = series(at(start, 0), at(start.plusDays(1), 0), cloudLow = { 15 }, cloud = { null })
         assertEquals(15, DailyHourlySummaries.forDate(bandOnly, start, source, zone).noonCloudPercent)
+        val withTotalOnly = series(at(start, 0), at(start.plusDays(1), 0), cloudLow = { null }, cloud = { 90 })
+        assertEquals(90, DailyHourlySummaries.forDate(withTotalOnly, start, source, zone).noonCloudPercent)
         val none = series(at(start, 0), at(start.plusDays(1), 0), cloudLow = { null }, cloud = { null })
         assertNull(DailyHourlySummaries.forDate(none, start, source, zone).noonCloudPercent)
     }

@@ -600,7 +600,7 @@ class MetarCloudBlenderTest {
     @Test
     fun `fromSiteRows pins non-NWS sources to their synthetic backfill row and reports the total`() = runBlocking {
         val readings = listOf(
-            // Total wins over the low layer (reversed 2026-08-27; see VisibleCloudCover).
+            // Bands take priority over total via VisibleCloudCover (50% low / 25% mid / 25% high).
             reading("WEATHER_API_MAIN", hour, cloudLow = 30, distanceKm = 0f,
                 api = WeatherSource.WEATHER_API.id)
                 .copy(cloudCover = 70),
@@ -617,7 +617,7 @@ class MetarCloudBlenderTest {
         )
 
         assertEquals(
-            mapOf(hour to 70, (hour + 3_600_000L) to 55),
+            mapOf(hour to 30, (hour + 3_600_000L) to 55),
             result.hours,
         )
         assertFalse(result.isMetarBlend)

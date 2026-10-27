@@ -459,17 +459,22 @@ object MetarCloudBlender {
             )
             if (!layers.isEmpty) pointBands[ts] = layers
 
-            // The drawn line is the max of the blended bands, not the blend of per-station totals.
+            // The drawn line is the weighted sum of the blended bands, not the blend of per-station totals.
             // Those differ whenever a station is silent on bands but votes on the total: measured
             // 2026-08-27 at noon, KNUQ's CLR (3.8 km, 69% of the IDW weight) pulled the line to 23
             // while KPAO/KSJC's mid deck put the m glyph at 75 — the glyph sitting far above the
             // line it was supposed to explain. A band-silent station carries no layer information,
-            // so it must not drag the line below what layer-reporters saw; per station the total is
-            // max(bands) already (VisibleCloudCover), and this makes the drawn curve obey the same
+            // so it must not drag the line below what layer-reporters saw; per station the bands are
+            // weighted already (VisibleCloudCover), and this makes the drawn curve obey the same
             // rule per point. When no band exists at all the blended total stays as the fallback,
             // so stations that report only a total keep drawing a line.
-            listOfNotNull(layers.low, layers.mid, layers.high).maxOrNull()?.let { bandMax ->
-                pointValues[ts] = bandMax
+            VisibleCloudCover.of(
+                total = null,
+                low = layers.low,
+                mid = layers.mid,
+                high = layers.high,
+            )?.let { bandValue ->
+                pointValues[ts] = bandValue
             }
 
             // From the CONTRIBUTING readings, not all of them: a station whose clear report was

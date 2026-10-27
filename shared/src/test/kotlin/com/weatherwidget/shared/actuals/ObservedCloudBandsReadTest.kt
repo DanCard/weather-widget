@@ -70,10 +70,9 @@ class ObservedCloudBandsReadTest {
         val result = read(listOf(openMeteoRow(mid = 44, high = 100)))
 
         assertEquals(CloudBands(low = 30, mid = 44, high = 100), result.bands[hour])
-        // The main curve reads the row's total. This row carries none — Open-Meteo backfill rows
-        // that predate the total column, and every station row — so it falls back to the bands'
-        // maximum, which for cumulative layers IS the total. See VisibleCloudCover.
-        assertEquals(100, result.hours[hour])
+        // The main curve computes the weighted sum of bands (50% low, 25% mid, 25% high):
+        // 0.50 * 30 + 0.25 * 44 + 0.25 * 100 = 15 + 11 + 25 = 51. See VisibleCloudCover.
+        assertEquals(51, result.hours[hour])
     }
 
     @Test
@@ -143,7 +142,8 @@ class ObservedCloudBandsReadTest {
         )
 
         assertEquals(CloudBands(low = 30, mid = 44, high = 70), result.bands[hour])
-        assertEquals(70, result.hours[hour])
+        // 0.50 * 30 + 0.25 * 44 + 0.25 * 70 = 15 + 11 + 17.5 = 43.5 -> 44
+        assertEquals(44, result.hours[hour])
     }
 
     @Test
@@ -171,7 +171,8 @@ class ObservedCloudBandsReadTest {
             readSiteRows = { _, _ -> listOf(first, second) },
         )
 
-        assertEquals("the line is the max of the blended bands (mid 60 > low 40)", 60, result.hours[hour])
+        // (0.50 * 40 + 0.25 * 60) / 0.75 = 35 / 0.75 = 46.67 -> 47
+        assertEquals("the line is the weighted sum of the blended bands", 47, result.hours[hour])
         assertEquals(CloudBands(low = 40, mid = 60), result.bands[hour])
     }
 }

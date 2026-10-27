@@ -264,13 +264,9 @@ class CloudSeriesBuilderTest {
 
     /** Low wins over total on the live curve, or the curve steps at "now" under thin cirrus. */
     @Test
-    fun `the live curve draws the total column, not the low layer`() {
-        // Reversed 2026-08-27. Preferring the low layer here painted a clear sky over a covered one
-        // on 12.9% of stored Open-Meteo hours; the `m`/`h` glyph trails, which did not exist when
-        // the low preference was chosen, are now what says WHICH layer the total is made of. See
-        // VisibleCloudCover.
+    fun `the live curve draws the total column when bands are absent`() {
         val points = CloudSeriesBuilder.build(
-            liveHours = listOf(live(+2, 95).copy(cloudCoverLow = 8)),
+            liveHours = listOf(live(+2, 95)),
             priorForecast = emptyMap(),
             retroActual = emptyMap(),
             nowMs = now,
@@ -279,9 +275,9 @@ class CloudSeriesBuilderTest {
         assertEquals(95, points[0].forecastCover)
     }
 
-    /** A station row carries no total; its cumulative layers are the whole report. */
+    /** When bands are present, the weighted sum (50% low, 25% mid, 25% high) is drawn. */
     @Test
-    fun `a row with only bands draws their maximum`() {
+    fun `a row with bands draws their weighted sum`() {
         val points = CloudSeriesBuilder.build(
             liveHours = listOf(
                 live(+2, null).copy(cloudCoverLow = 19, cloudCoverMid = 75, cloudCoverHigh = 44),
@@ -291,6 +287,7 @@ class CloudSeriesBuilderTest {
             nowMs = now,
         )
 
-        assertEquals(75, points[0].forecastCover)
+        // 0.50 * 19 + 0.25 * 75 + 0.25 * 44 = 9.5 + 18.75 + 11 = 39.25 -> 39
+        assertEquals(39, points[0].forecastCover)
     }
 }

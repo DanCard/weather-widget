@@ -95,10 +95,7 @@ class CloudCoverViewHandlerTest {
     }
 
     @Test
-    fun `buildCloudHourDataList draws the total column on the live curve`() {
-        // Reversed 2026-08-27; see VisibleCloudCover. The low band is still carried through on
-        // lowCover, unfetched from the curve but needed to tell a redundant band glyph from an
-        // explanatory one.
+    fun `buildCloudHourDataList draws the weighted sum of bands on the live curve`() {
         val now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val hours = listOf(
             hourly(now.plusHours(1).toString(), WeatherSource.OPEN_METEO, 95).copy(cloudCoverLow = 8),
@@ -113,7 +110,8 @@ class CloudCoverViewHandlerTest {
         )
 
         assertEquals(1, result.size)
-        assertEquals(95, result[0].cloudCover)
+        // With only low band present, normalized weight is 100% -> 8
+        assertEquals(8, result[0].cloudCover)
         assertEquals(8, result[0].lowCover)
     }
 

@@ -85,8 +85,8 @@ class AboveCeilingDeckPersistenceTest {
         // stays on the mid band even though those candidates' own anchors report no mid layer.
         assertEquals("the deck persists to :55", 75, result.bands[hour + 55 * min]?.mid)
         assertEquals("the deck persists into the next hour", 75, result.bands[hour + 75 * min]?.mid)
-        // The drawn line is still the max of the blended bands.
-        assertEquals(75, result.hours[hour + 55 * min])
+        // The drawn line is the weighted sum of the blended bands (50% low, 25% mid, 25% high).
+        assertEquals(26, result.hours[hour + 55 * min])
         assertTrue("the persistence must be readable in app_logs", result.stats.summary().contains("stickyDeck="))
     }
 

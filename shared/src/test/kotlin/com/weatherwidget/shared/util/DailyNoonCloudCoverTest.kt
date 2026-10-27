@@ -64,13 +64,24 @@ class DailyNoonCloudCoverTest {
     }
 
     @Test
-    fun reportsTotalCloudWhenOpenMeteoTotalAndLowDiverge() {
-        // Reversed 2026-08-27: the day icon reports the TOTAL, like every other cloud read. A noon
-        // sample of "column overcast, ground clear" is an overcast noon — the icon saying otherwise
-        // was the daily-view face of the 12.9% of hours where the graph painted a clear sky over a
-        // covered one. See VisibleCloudCover.
+    fun reportsWeightedSumWhenOpenMeteoBandsArePresent() {
+        // Computes weighted sum: 0.50 * 0 + 0.25 * 100 + 0.25 * 100 = 50
         val hourly = listOf(
-            hour(12, 100, WeatherSource.OPEN_METEO.id).copy(cloudCoverLow = 0),
+            hour(12, 100, WeatherSource.OPEN_METEO.id).copy(
+                cloudCoverLow = 0,
+                cloudCoverMid = 100,
+                cloudCoverHigh = 100,
+            ),
+        )
+
+        assertEquals(50, resolve(hourly, WeatherSource.OPEN_METEO.id))
+        assertEquals(50, resolveMeasured(hourly, WeatherSource.OPEN_METEO.id))
+    }
+
+    @Test
+    fun reportsTotalCloudWhenBandsAreAbsent() {
+        val hourly = listOf(
+            hour(12, 100, WeatherSource.OPEN_METEO.id),
         )
 
         assertEquals(100, resolve(hourly, WeatherSource.OPEN_METEO.id))

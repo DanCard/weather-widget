@@ -34,7 +34,7 @@ import org.junit.experimental.categories.Category
 class OpenMeteoTotalCloudViewParityIntegrationTest : RobolectricTest() {
 
     @Test
-    fun `hourly graph and daily bar both report the total column`() {
+    fun `hourly graph and daily bar both report the weighted sum with parity`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val center = LocalDateTime.now().plusDays(1).withHour(12).withMinute(0).withSecond(0).withNano(0)
         val rows = (8..16).map { hour ->
@@ -48,6 +48,8 @@ class OpenMeteoTotalCloudViewParityIntegrationTest : RobolectricTest() {
                 precipProbability = 0,
                 cloudCover = 100,
                 cloudCoverLow = 0,
+                cloudCoverMid = 100,
+                cloudCoverHigh = 100,
                 fetchedAt = System.currentTimeMillis(),
             )
         }
@@ -61,14 +63,15 @@ class OpenMeteoTotalCloudViewParityIntegrationTest : RobolectricTest() {
         )
 
         assertTrue("fixture hours must reach the graph boundary", graphHours.isNotEmpty())
+        // 0.50 * 0 + 0.25 * 100 + 0.25 * 100 = 50
         assertEquals(
-            "hourly graph must report the total column even when the cloud is all aloft",
-            List(graphHours.size) { 100 },
+            "hourly graph must report the weighted sum consistently",
+            List(graphHours.size) { 50 },
             graphHours.map { it.cloudCover },
         )
         assertEquals(
             "daily bar must report the same value at noon — one sky, one number",
-            100,
+            50,
             DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(
                 hourly = rows.map { it.toHourlyForecast() },
                 date = center.toLocalDate(),

@@ -109,7 +109,7 @@ class CeilometerBlindSpotBlendIntegrationTest {
      * the blended bands, so it follows KSJC's mid deck regardless of the SKC low vote.
      */
     @Test
-    fun `an SKC station casts its clear vote on the low band while the line follows the max band`() {
+    fun `an SKC station casts its clear vote on the low band while the line follows the weighted bands`() {
         val result = blend(
             listOf(
                 station("KPAO", 3.0f, 0, "KPAO 271947Z 33007KT 10SM SKC 23/16 A2998", isMetar = true),
@@ -119,6 +119,7 @@ class CeilometerBlindSpotBlendIntegrationTest {
 
         assertEquals(0, result.stats.ceilometerBlindBuckets)
         assertEquals("the SKC low vote is kept", 0, result.bands[hour]?.low)
-        assertEquals("the line is the max of the blended bands", 75, result.hours[hour])
+        // (0.50 * 0 + 0.25 * 75) / 0.75 = 18.75 / 0.75 = 25
+        assertEquals("the line is the weighted sum of the blended bands", 25, result.hours[hour])
     }
 }
