@@ -46,7 +46,7 @@
 2026-10-24 fcstLow=-
 2026-10-24 ghost=-
 2026-10-24 icon=ic_weather_clear
-2026-10-24 noonCloud=10
+2026-10-24 noonCloud=0
 2026-10-24 dayRain=0
 2026-10-24 nightRain=0
 2026-10-24 rainLabel=-

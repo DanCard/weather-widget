@@ -29,12 +29,10 @@ object DailyNoonCloudCover {
 
     /**
      * A daily column's noon cloud %, both platforms (the daily bar's sky, `AdaptiveBarStrokes`): a
-     * past day's frozen value ([frozenPercent], daily_history); today / future the column's own
-     * forecast row ([rowPercent], DailyHourlySummaries) when it is a real row of the displayed
-     * source — never a climate-normal stand-in; else measured from stored hourly ([hourlyNoon]).
-     * Null = unknown. Android gated the row on its source, desktop on climate normal (2026-10-23).
-     * Today ([isToday]) prefers [hourlyNoon] over the row, so the column matches the hourly graph's
-     * 12:00 point; the row is the fallback.
+     * past day's frozen value ([frozenPercent], daily_history); today / future uses measured hourly
+     * ([hourlyNoon]) so the column always matches the hourly graph's 12:00 point, with the forecast
+     * row ([rowPercent], DailyHourlySummaries) as the fallback when hourly noon data is absent.
+     * Null = unknown.
      */
     fun forColumn(
         isPast: Boolean,
@@ -47,7 +45,7 @@ object DailyNoonCloudCover {
     ): Int? {
         if (isPast) frozenPercent?.let { return it }
         val row = rowPercent?.takeIf { !isPast && rowIsDisplaySource && !rowIsClimateNormal }
-        return if (isToday) hourlyNoon() ?: row else row ?: hourlyNoon()
+        return hourlyNoon() ?: row
     }
 
     /**

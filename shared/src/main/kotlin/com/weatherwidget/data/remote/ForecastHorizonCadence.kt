@@ -108,7 +108,7 @@ object ForecastHorizonCadence {
             preWakeAt - nowMs <= hours * HOUR_MS && nowMs - lastFetchMs < LOW_BATTERY_HOURS * HOUR_MS
         val intervalDueAt = dueAtMs(lastFetchMs, hours, nowMs)
         val dueAt = when {
-            waits -> preWakeAt!!
+            waits -> preWakeAt
             preWakeAt != null -> minOf(intervalDueAt, preWakeAt)
             else -> intervalDueAt
         }

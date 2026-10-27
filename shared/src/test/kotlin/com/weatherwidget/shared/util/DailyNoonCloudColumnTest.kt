@@ -27,8 +27,9 @@ class DailyNoonCloudColumnTest {
     }
 
     @Test
-    fun todayTakesTheRowThenHourly() {
-        assertEquals(91, column(row = 91, hourly = 5))
+    fun activeDayTakesHourlyThenTheRow() {
+        assertEquals(5, column(row = 91, hourly = 5))
+        assertEquals(91, column(row = 91, hourly = null))
         assertEquals(5, column(row = null, hourly = 5))
         assertNull(column())
     }
