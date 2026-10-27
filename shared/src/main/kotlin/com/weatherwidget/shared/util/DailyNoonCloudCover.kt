@@ -52,10 +52,10 @@ object DailyNoonCloudCover {
 
     /**
      * Site-aware variant for callers holding raw proximity-box rows. Selects the freshest row per
-     * hour **at the display site** before resolving noon. Its only caller (`DailyHistoryRun`) passes
-     * the live table alone, which holds no pre-noon row once a post-noon fetch overwrote it, so
-     * this can freeze a hindcast where the graph shows the pre-noon forecast; the fix is to pass
-     * stitched rows (follow-up, plans/261027-pre-hour-freeze-retention-and-shared-pick.md). It also excludes a
+     * hour **at the display site** before resolving noon. Its caller (`DailyHistoryRun`) passes the
+     * stitched hourly — one settled row per hour per source — so that step changes nothing there;
+     * fed the live table alone it froze a post-noon hindcast
+     * (plans/261027-daily-freeze-reads-stitched-hourly.md). It also excludes a
      * genuinely-different neighbouring marker — one far enough away to fail
      * [com.weatherwidget.data.local.LocationMatch.sameSite], which
      * [resolveMeasuredNoonCloudCoverPercent] cannot tell apart from the display site since it has

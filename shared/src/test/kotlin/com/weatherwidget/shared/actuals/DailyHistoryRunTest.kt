@@ -44,8 +44,9 @@ class DailyHistoryRunTest {
             forecasts.filter { it.dateMs in startMs..endMs }
         override suspend fun hourlyForecasts(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
             hourly.filter { it.dateTime in startMs..endMs }
+        val hourlyHistory = mutableListOf<HourlyForecast>()
         override suspend fun hourlyHistory(startMs: Long, endMs: Long, latitude: Double, longitude: Double, source: String) =
-            emptyList<HourlyForecast>()
+            hourlyHistory.filter { it.source == source && it.dateTime in startMs..endMs }
         override suspend fun insertDailyHistory(rows: List<DailyHistory>) { inserted += rows }
         override suspend fun updateForecastOverlay(row: DailyHistory) { overlayUpdates += row }
         override suspend fun updatePriorForecast(row: DailyHistory) { priorUpdates += row }
@@ -108,6 +109,48 @@ class DailyHistoryRunTest {
 
         val frozen = host.inserted.single { it.date == utc(yesterday) }
         assertEquals(60, frozen.forecastNightPrecipChance)
+    }
+
+    private fun hr(dateTime: Long, fetchedAt: Long, cloud: Int? = null, chance: Int? = null, source: String = "OPEN_METEO") =
+        HourlyForecast(
+            dateTime = dateTime, temperature = 60f, condition = "Cloudy", source = source, cloudCover = cloud,
+            precipProbability = chance, fetchedAt = fetchedAt, locationLat = lat, locationLon = lon,
+        )
+
+    /**
+     * Desktop DB, 2026-10-26: OPEN_METEO noon froze at 94% — the 12:27 hindcast, the only noon row
+     * left in the live table — while the graph drew the 10% pre-noon forecast.
+     * plans/261027-daily-freeze-reads-stitched-hourly.md
+     */
+    @Test
+    fun `noon cloud freezes at the pre-noon forecast the graph draws, not the live hindcast`() = runBlocking {
+        val host = FakeHost()
+        host.history += history(today, "OPEN_METEO")
+        host.forecasts += forecast(today, "OPEN_METEO", fetchedAt = local(today, 6))
+        val noon = local(today, 12)
+        host.hourly += hr(noon, fetchedAt = noon + 27 * 60_000L, cloud = 94)
+        host.hourlyHistory += hr(noon, fetchedAt = noon - 20 * 60_000L, cloud = 10)
+        host.hourlyHistory += hr(noon, fetchedAt = noon + 27 * 60_000L, cloud = 94)
+
+        DailyHistoryRun(host) { pacific }.snapshotDisplayedRainChance(lat, lon, local(today, 15))
+
+        assertEquals(10, host.inserted.single { it.date == utc(today) }.noonCloudPercent)
+    }
+
+    /** The same stitched hours set the day chance: an elapsed hour counts what was forecast before it. */
+    @Test
+    fun `day rain chance freezes from the pre-hour forecast of elapsed hours`() = runBlocking {
+        val host = FakeHost()
+        host.history += history(today, "OPEN_METEO")
+        host.forecasts += forecast(today, "OPEN_METEO", fetchedAt = local(today, 6))
+        val nine = local(today, 9)
+        host.hourly += hr(nine, fetchedAt = local(today, 10), chance = 0)
+        host.hourlyHistory += hr(nine, fetchedAt = local(today, 8), chance = 60)
+        host.hourlyHistory += hr(nine, fetchedAt = local(today, 10), chance = 0)
+
+        DailyHistoryRun(host) { pacific }.snapshotDisplayedRainChance(lat, lon, local(today, 15))
+
+        assertEquals(60, host.inserted.single { it.date == utc(today) }.forecastDayPrecipChance)
     }
 
     @Test
