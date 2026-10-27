@@ -114,6 +114,11 @@ Shared graph code computes series, geometry, extrema, label placement, overlays,
 Canvas/RemoteViews and desktop Compose execute those plans with platform text measurement and drawing.
 This keeps label and layout decisions testable on the JVM and minimizes platform-specific drift.
 
+Hourly-graph labels share one top limit, `GraphLabelArea.TOP` (the canvas edge, not the plot top), so
+no placer carries its own exception. Android's RemoteViews header sits over the bitmap's top strip, so
+its drawn items (`HeaderFit.occupiedSpans`, mapped by `TemperatureHeaderFit.graphObstacles`) are
+obstacles for every label; desktop's header is a row above the canvas and needs none.
+
 Android's `WeatherWidgetProvider` and interaction coordinators route widget actions, serialize
 interactions per widget, load cached state, and paint through the widget render pipeline. RemoteViews
 cannot describe arbitrary touch regions, so renderers and click routing must agree on the same geometry.

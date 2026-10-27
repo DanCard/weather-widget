@@ -814,7 +814,7 @@ fun TemperatureGraph(
                     delta = appliedDelta,
                     currentTemp = deltaCurrentTemp,
                     spanHours = deltaSpanHours,
-                    plot = GraphRect(0f, top, w, footer.graphBottom(h, scale)),
+                    plot = GraphLabelArea.rect(w, footer.graphBottom(h, scale)),
                     drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
                     curveYsAt = ::visibleCurveYsAt,
                     metricsForScale = { fontScale ->
@@ -908,7 +908,7 @@ fun TemperatureGraph(
                 }
                 return textMeasurer.measure(annotated, dominantStyle)
             }
-            val dominantPlot = GraphRect(0f, top, w, footer.graphBottom(h, scale))
+            val dominantPlot = GraphLabelArea.rect(w, footer.graphBottom(h, scale))
             val dominantPadPx = 2f * scale
             val scaled =
                 DominantStationLabel.placeWithFontFallback(
@@ -1021,7 +1021,7 @@ fun TemperatureGraph(
                 val placements = GhostLineLabel.placeAll(
                     candidates = ghostCandidates,
                     spanHours = ghostSpanHours,
-                    plot = GraphRect(0f, top, w, footer.graphBottom(h, scale)),
+                    plot = GraphLabelArea.rect(w, footer.graphBottom(h, scale)),
                     ghostLineStartX = transitionX,
                     drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
                     curveYAt = { x -> getCurveYAtX(x) },
@@ -1091,7 +1091,7 @@ fun TemperatureGraph(
                         },
                         actualsSourceBaseStyle.copy(fontSize = (DOMINANT_STATION_LABEL_SP * scale * fontScale).sp),
                     )
-                val actualsSourcePlot = GraphRect(0f, top, w, footer.graphBottom(h, scale))
+                val actualsSourcePlot = GraphLabelArea.rect(w, footer.graphBottom(h, scale))
                 val actualsSourceScaled =
                     DominantStationLabel.placeWithFontFallback(
                         text = actualsSourceText,

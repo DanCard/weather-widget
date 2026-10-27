@@ -53,7 +53,7 @@ internal object ValleyCascade {
         for (shiftSign in listOf(-1, 1)) {
             val shiftedX = centerX + shiftSign * shiftAmount
             val shiftedBounds = GraphRect(shiftedX - halfWidth, verticalPlacement.top, shiftedX + halfWidth, verticalPlacement.bottom)
-            val onScreen = shiftedBounds.top >= 0f && shiftedBounds.bottom <= heightPx &&
+            val onScreen = shiftedBounds.top >= GraphLabelArea.TOP && shiftedBounds.bottom <= heightPx &&
                 shiftedBounds.left >= 0f && shiftedBounds.right <= widthPx
             if (!onScreen) continue
 

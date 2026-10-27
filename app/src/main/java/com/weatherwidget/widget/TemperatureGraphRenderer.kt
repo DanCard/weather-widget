@@ -7,6 +7,7 @@ import com.weatherwidget.R
 import android.graphics.RectF
 import android.util.Log
 import com.weatherwidget.shared.graph.DominantStationLabel
+import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.NavArrowGeometry
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.shared.graph.LabelPlacementDebug
@@ -131,6 +132,12 @@ object TemperatureGraphRenderer {
         onDominantStationPlaced: ((DominantStationDebug) -> Unit)? = null,
         onActualsSourcePlaced: ((ActualsSourceDebug) -> Unit)? = null,
         onForecastDeltaPlaced: ((ForecastDeltaDebug) -> Unit)? = null,
+        /**
+         * The RemoteViews header's items in bitmap px (`TemperatureHeaderFit.graphObstacles`). Every
+         * label may rise to the bitmap top (`GraphLabelArea.TOP`); these keep it out from under the
+         * header row that the launcher draws over that strip.
+         */
+        headerObstacles: List<GraphRect> = emptyList(),
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -189,6 +196,8 @@ object TemperatureGraphRenderer {
 
         job?.ensureActive()
         val obstacles = TemperatureGraphObstacleRegistry()
+        obstacles.addAll(TemperatureGraphObstacleType.HEADER, headerObstacles.map { RectF(it.left, it.top, it.right, it.bottom) })
+        Log.v(TAG, "HeaderObstacles: ${headerObstacles.joinToString { "${it.left.toInt()}..${it.right.toInt()}x${it.top.toInt()}..${it.bottom.toInt()}" }}")
 
         onActualLineResolved?.invoke(
             ActualLineDebug(

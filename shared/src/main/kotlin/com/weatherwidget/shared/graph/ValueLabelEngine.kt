@@ -353,7 +353,7 @@ object ValueLabelEngine {
                 )
                 val bounds = GraphRect(x - textWidth / 2f, vp.top, x + textWidth / 2f, vp.bottom)
 
-                val exceedsTop = bounds.top < 0f
+                val exceedsTop = bounds.top < GraphLabelArea.TOP
                 // A low value placed below may extend past the safeBottom buffer (down to the full
                 // canvas) — this is what keeps a low edge label (curve near the bottom) from vanishing.
                 val isLowPreferredBelow = !placeAbove && value <= config.lowPreferBelowMaxValue

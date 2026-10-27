@@ -177,4 +177,42 @@ class GhostLineLabelTest {
         val far = p.first { it.centerX == 340f }
         assertNotNull(far)
     }
+
+    /**
+     * The Fold 4, 2026-10-27 (`plans/261027-shared-graph-label-top-limit.md`): the ghost line peaks at
+     * 67.4° on a 68° scale, so 3 PM sits ~10px under the plot top (15.7), and the forecast HIGH `65°`
+     * fills the room below it. Desktop labeled it; Android did not.
+     */
+    private val foldPlotTop = 15.7f
+    private val foldPeak = GhostLineLabel.Candidate(x = 426f, ghostY = 26.2f, expectedTemp = 67.4f, hasHourLabel = true)
+    private val foldHighLabel = GraphRect(395f, 35f, 428f, 62f)
+
+    private fun placeFoldPeak(plot: GraphRect, drawnBounds: List<GraphRect> = listOf(foldHighLabel)) =
+        GhostLineLabel.placeAll(
+            candidates = listOf(foldPeak),
+            spanHours = 18,
+            plot = plot,
+            ghostLineStartX = 300f,
+            drawnBounds = drawnBounds,
+            curveYAt = { 68f }, // the forecast curve under the peak
+            metrics = metrics,
+            padPx = 4f,
+            gapPx = 3f,
+        )
+
+    @Test
+    fun `a peak at the plot top is labeled above it, inside the shared label area`() {
+        // The old rule (plot top) had no room above and the HIGH label below.
+        assertTrue(placeFoldPeak(GraphRect(0f, foldPlotTop, 511f, 412f)).isEmpty())
+
+        val placed = placeFoldPeak(GraphLabelArea.rect(511f, 412f)).single()
+        assertEquals("67.4°", placed.text)
+        assertTrue("above the line, rising past the plot top: ${placed.box}", placed.box.bottom <= foldPeak.ghostY && placed.box.top < foldPlotTop)
+    }
+
+    @Test
+    fun `a header item over the peak keeps the label out`() {
+        val headerSourceLabel = GraphRect(400f, 0f, 470f, 22f)
+        assertTrue(placeFoldPeak(GraphLabelArea.rect(511f, 412f), listOf(foldHighLabel, headerSourceLabel)).isEmpty())
+    }
 }

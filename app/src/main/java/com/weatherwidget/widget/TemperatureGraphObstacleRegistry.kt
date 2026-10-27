@@ -3,6 +3,8 @@ package com.weatherwidget.widget
 import android.graphics.RectF
 
 enum class TemperatureGraphObstacleType {
+    /** The RemoteViews header row laid over the bitmap's top strip. */
+    HEADER,
     ICON,
     TEMPERATURE_LABEL,
     DAY_LABEL,

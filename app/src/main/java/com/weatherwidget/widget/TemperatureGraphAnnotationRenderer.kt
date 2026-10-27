@@ -8,6 +8,7 @@ import android.util.Log
 import com.weatherwidget.R
 import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.graph.GhostLineLabel
+import com.weatherwidget.shared.graph.GraphLabelArea
 import com.weatherwidget.shared.graph.GraphEmptySpaceFinder
 import com.weatherwidget.shared.graph.GraphRect
 import com.weatherwidget.shared.graph.NavArrowGeometry
@@ -126,8 +127,11 @@ internal object TemperatureGraphAnnotationRenderer {
             }
         val neutralIconBounds =
             drawnIconBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
-        val fetchDotHardBounds =
-            fetchDotBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
+        // The header row over the bitmap's top strip is as hard as the fetch dot: a HIGH label may
+        // rise to the bitmap top (GraphLabelArea.TOP), never under a header item.
+        val hardBounds =
+            (fetchDotBounds + headerBounds(input))
+                .map { GraphRect(it.left, it.top, it.right, it.bottom) }
         val placements =
             TemperatureLabelEngine.computePlacements(
                 hours = hours,
@@ -147,7 +151,7 @@ internal object TemperatureGraphAnnotationRenderer {
                 tempToY = input::tempToY,
                 metrics = textMetrics,
                 drawnIconBounds = neutralIconBounds,
-                reservedHardBounds = fetchDotHardBounds,
+                reservedHardBounds = hardBounds,
                 useCelsius = input.useCelsius,
             )
 
@@ -346,7 +350,7 @@ internal object TemperatureGraphAnnotationRenderer {
                         delta = delta,
                         currentTemp = currentTemp,
                         spanHours = spanHours,
-                        plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
+                        plot = input.labelArea(),
                         drawnBounds = input.graphObstacles(),
                         curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
                         metricsForScale = { scale ->
@@ -474,7 +478,7 @@ internal object TemperatureGraphAnnotationRenderer {
                 DominantStationLabel.placeWithFontFallback(
                     text = text,
                     spanHours = spanHours,
-                    plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
+                    plot = input.labelArea(),
                     drawnBounds = input.graphObstacles(),
                     curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
                     metricsForScale = { scale ->
@@ -538,6 +542,9 @@ internal object TemperatureGraphAnnotationRenderer {
         }
     }
 
+    private fun headerBounds(input: Input): List<RectF> =
+        input.obstacles.snapshot().filter { it.type == TemperatureGraphObstacleType.HEADER }.map { it.bounds }
+
     private fun scaledPaint(base: Paint, scale: Float): Paint =
         if (scale == 1f) base else Paint(base).apply { textSize = base.textSize * scale }
 
@@ -587,7 +594,7 @@ internal object TemperatureGraphAnnotationRenderer {
             GhostLineLabel.placeAll(
                 candidates = candidates,
                 spanHours = spanHours,
-                plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
+                plot = input.labelArea(),
                 ghostLineStartX = fetchDotX,
                 drawnBounds = input.graphObstacles(),
                 curveYAt = { sampleVisibleCurveY(input, it) },
@@ -672,7 +679,7 @@ internal object TemperatureGraphAnnotationRenderer {
                 DominantStationLabel.placeWithFontFallback(
                     text = labelText,
                     spanHours = spanHours,
-                    plot = GraphRect(0f, input.graphTop, input.widthPx.toFloat(), input.graphBottom),
+                    plot = input.labelArea(),
                     drawnBounds = input.graphObstacles(),
                     curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
                     metricsForScale = { scale ->
@@ -859,6 +866,12 @@ internal object TemperatureGraphAnnotationRenderer {
      * vertical that `curveYsAt` cannot express, the arrows because they are RemoteViews children
      * composited over this bitmap rather than ink on it.
      */
+    /**
+     * Where free-floating labels may go: the shared label area, from the bitmap top (not the plot
+     * top) down to the plot bottom. The header row over that strip is in [graphObstacles].
+     */
+    private fun Input.labelArea(): GraphRect = GraphLabelArea.rect(widthPx.toFloat(), graphBottom)
+
     private fun Input.labelVetoBounds(): List<GraphRect> = nowLineVeto() + navArrowVeto()
 
     /** The arrows as veto rects, also surfaced on [DominantStationDebug] so tests need not guess. */

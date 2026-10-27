@@ -46,53 +46,17 @@ internal object TemperatureViewBinder {
         }
         ApiSourceWarningHelper.hideSourceWarning(views)
 
-        // 2. Header.
-        val headerScale = HeaderWidthChecker.computeHeaderScale(
+        // 2. Header. The fit is shared with the resolver, which maps it into the bitmap as label
+        // obstacles (TemperatureHeaderFit).
+        val (headerScale, headerButtons, deltaLabelText, measured, fit) = TemperatureHeaderFit.resolve(
             context = context,
+            header = header,
             widthDp = state.widthDp,
-            apiSourceText = header.sourceIndicator,
-            apiTextSizeDp = HeaderConstants.apiTextSizeDp(state.numRows),
-            currentTempText = header.currentTemp,
-            deltaText = header.deltaText,
-            precipText = header.precipProbability,
-            precipTextSizeDp = header.precipTextSizeDp,
+            numRows = state.numRows,
+            zoom = state.zoom,
+            centerTime = centerTime,
+            today = LocalDateTime.now().toLocalDate(),
         )
-        // The stations zone in the inline nav row shows only for today, so the header fit needs
-        // Current observations only while the graph shows some of today (:shared HeaderButtons).
-        val headerButtons = HeaderButtons.hourly(
-            observationsInView = HeaderButtons.hourlyObservationsInView(
-                centre = centerTime,
-                backHours = state.zoom.backHours,
-                forwardHours = state.zoom.forwardHours,
-                today = LocalDateTime.now().toLocalDate(),
-            ),
-        )
-
-        // The shared drop order (HeaderFit): inline nav zones squeeze, then the icon and
-        // temperature shrink, before anything drops; "from yest" only where it needs neither.
-        val deltaLabelText = context.getString(R.string.header_delta_from_yesterday)
-        val measured = HeaderWidthChecker.measureHeader(
-            context = context,
-            widthDp = state.widthDp,
-            headerScale = headerScale,
-            apiSourceText = header.sourceIndicator,
-            apiTextSizeDp = HeaderConstants.apiTextSizeDp(state.numRows),
-            currentTempText = header.currentTemp,
-            currentTempSizeDp = header.currentTempSizeDp,
-            deltaText = if (header.isDeltaVisible) header.deltaText else null,
-            deltaLabelText = deltaLabelText,
-            precipText = if (header.isPrecipVisible) header.precipProbability else null,
-            precipTextSizeDp = header.precipTextSizeDp,
-            dateText = null,
-            includeIcon = true,
-            baseButtons = headerButtons.baseButtons,
-            wantHome = headerButtons.wantHome,
-            wantMonths = headerButtons.wantMonths,
-            hourly = true,
-            line = header.line,
-            nominalDate = HeaderWidthChecker.nominalDate(LocalDateTime.now().toLocalDate()),
-        )
-        val fit = HeaderFit.resolve(measured)
         Log.d(HeaderFit.LOG_TAG, HeaderFit.logLine("hourly", state.widthDp.toFloat(), headerScale, fit, measured))
 
         // Explicitly set VISIBLE because DailyViewHandler sets these to INVISIBLE

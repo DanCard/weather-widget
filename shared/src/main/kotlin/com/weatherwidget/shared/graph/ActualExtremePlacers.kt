@@ -82,8 +82,8 @@ internal object ActualExtremePlacers {
         var top = placement.top
         var bottom = placement.bottom
         var baselineY = placement.baselineY
-        if (placeAbove && top < 0f) {
-            val shift = -top
+        if (placeAbove && top < GraphLabelArea.TOP) {
+            val shift = GraphLabelArea.TOP - top
             top += shift
             bottom += shift
             baselineY += shift
@@ -115,7 +115,7 @@ internal object ActualExtremePlacers {
                     else -> maxOf(top, slidV.top)
                 }
                 val slid = GraphRect(slidX - halfWidth, slidTop, slidX + halfWidth, slidTop + (bottom - top))
-                val onScreen = slid.left >= 0f && slid.right <= widthPx && slid.top >= 0f && slid.bottom <= heightPx
+                val onScreen = slid.left >= 0f && slid.right <= widthPx && slid.top >= GraphLabelArea.TOP && slid.bottom <= heightPx
                 if (onScreen && !blocked(candidate.role, slid, placeAbove, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) {
                     Log.d(
                         TAG,
@@ -144,7 +144,7 @@ internal object ActualExtremePlacers {
             bounds = GraphRect(x - halfWidth, top, x + halfWidth, bottom)
         }
 
-        val offscreen = if (placeAbove) top < 0f else bottom > heightPx
+        val offscreen = if (placeAbove) top < GraphLabelArea.TOP else bottom > heightPx
         if (offscreen || blocked(candidate.role, bounds, placeAbove, drawnLabelMetas, drawnIconBounds, reservedHardBounds, labelHeight)) {
             Log.d(
                 TAG,

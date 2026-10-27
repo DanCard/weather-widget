@@ -234,7 +234,7 @@ internal object CurveFitPlacer {
                     geometry.clampedX - geometry.textWidth / 2f, newV.top,
                     geometry.clampedX + geometry.textWidth / 2f, newV.bottom
                 )
-                if (newBounds.top < 0f || newBounds.bottom > heightPx) {
+                if (newBounds.top < GraphLabelArea.TOP || newBounds.bottom > heightPx) {
                     Log.v(TAG, "CurveAdjust: role=${candidate.role} idx=$idx FAILED offscreen newBounds=(${newBounds.left},${newBounds.top},${newBounds.right},${newBounds.bottom})")
                     return Outcome.GAVE_UP
                 }
