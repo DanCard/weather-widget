@@ -141,6 +141,61 @@ class HourlyForecastStitcherTest {
     }
 
     @Test
+    fun `past hour with no pre-hour row - earliest fetch wins in any input order`() {
+        val past = now - 5_000L
+        val live = fc(past, 75f, "Live", fetchedAt = 9_500L)
+        val history = listOf(
+            fc(past, 73f, "Mid", fetchedAt = 8_000L),
+            fc(past, 70f, "Earliest", fetchedAt = 6_000L),
+            fc(past, 74f, "Late", fetchedAt = 9_000L),
+        )
+
+        for (order in listOf(history, history.reversed(), history.shuffled(kotlin.random.Random(7)))) {
+            assertEquals("Earliest", stitch(listOf(live), order).single().condition)
+        }
+    }
+
+    @Test
+    fun `past hour - newer pre-hour history snapshot beats older pre-hour live row`() {
+        val past = now - 5_000L
+        val current = listOf(fc(past, 76f, "Older", fetchedAt = 2_000L))
+        val history = listOf(fc(past, 71f, "Newer", fetchedAt = 4_000L))
+
+        assertEquals("Newer", stitch(current, history).single().condition)
+    }
+
+    @Test
+    fun `null field borrows from the nearest pre-hour snapshot, not list order`() {
+        val past = now - 5_000L
+        val current = listOf(fc(past, 76f, "Sunny", cloudCover = null, fetchedAt = 4_500L))
+        val history = listOf(
+            fc(past, 70f, "LongRange", cloudCover = 10, fetchedAt = 500L), // six days out, listed first
+            fc(past, 73f, "Recent", cloudCover = 60, fetchedAt = 4_000L),
+            fc(past, 72f, "Hindcast", cloudCover = 95, fetchedAt = 9_000L),
+        )
+
+        assertEquals(60, stitch(current, history).single().cloudCover)
+    }
+
+    /** 2a3293ef froze today's hours only: at 00:01 yesterday's 23:00 flipped to the hindcast. */
+    @Test
+    fun `yesterday's hour keeps its pre-hour forecast across midnight`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val day = java.time.LocalDate.of(2026, 10, 26)
+        fun at(h: Int, m: Int, d: java.time.LocalDate = day) = d.atTime(h, m).atZone(zone).toInstant().toEpochMilli()
+        val hour = at(23, 0)
+        val history = listOf(
+            fc(hour, 60f, "PreHour", fetchedAt = at(22, 40)),
+            fc(hour, 55f, "Hindcast", fetchedAt = at(23, 30)),
+        )
+        fun stitchAt(nowMs: Long) =
+            HourlyForecastStitcher.stitch(emptyList(), history, nowMs, lat, lon).single().condition
+
+        assertEquals("PreHour", stitchAt(at(23, 59)))
+        assertEquals("PreHour", stitchAt(at(0, 1, day.plusDays(1))))
+    }
+
+    @Test
     fun `same-site fragments collapse to the freshest, off-site marker is dropped`() {
         val future = now + 5_000L
         val current = listOf(

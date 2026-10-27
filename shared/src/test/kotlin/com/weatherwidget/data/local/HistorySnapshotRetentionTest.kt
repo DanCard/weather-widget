@@ -26,7 +26,7 @@ class HistorySnapshotRetentionTest {
     private val centre = 52.2334 to 20.9703
     private val t0 = 1_790_640_000_000L // 2026-09-29T08:00Z, hour-aligned
 
-    private fun generate(seed: Int): List<HistorySnapshotRetention.Row> {
+    private fun generate(seed: Int, postHour: Boolean = false): List<HistorySnapshotRetention.Row> {
         val rnd = Random(seed)
         // Offsets: same spot, jitter (<0.002), borrow range (<0.01), and a different town (0.05).
         val siteOffsets = listOf(0.0, 0.0012, 0.006, 0.05).shuffled(rnd).take(1 + rnd.nextInt(4))
@@ -38,7 +38,12 @@ class HistorySnapshotRetentionTest {
             val hours = (0 until 6).map { t0 + (it - 2) * 24 * hourMs + rnd.nextInt(24) * hourMs }.distinct()
             for (hour in hours) {
                 val depth = 1 + rnd.nextInt(35)
-                val buckets = (0 until depth).map { hour - (1 + rnd.nextInt(96)) * hourMs }.distinct()
+                // postHour adds hindcasts: fetches up to a day after the hour, which the settled pick
+                // must ignore for a started hour and retention must therefore not keep in its place.
+                val buckets = (0 until depth).map {
+                    if (postHour && rnd.nextInt(4) == 0) hour + rnd.nextInt(24) * hourMs + 60_000L
+                    else hour - (1 + rnd.nextInt(96)) * hourMs
+                }.distinct()
                 for (b in buckets) {
                     // fetchedAt usually tracks the bucket, sometimes ties or inverts.
                     val fetchedAt = when (rnd.nextInt(6)) {
@@ -90,6 +95,51 @@ class HistorySnapshotRetentionTest {
         }
     }
 
+    /**
+     * The same equivalence with a real "now" ([t0]) and post-hour hindcasts in the stacks, so hours
+     * before t0 take the settled (pre-hour) pick. The test above passes nowMs = 0, which treats every
+     * hour as not started — the gap that let 2a3293ef read pre-hour rows retention did not keep.
+     */
+    @Test
+    fun `stitched hourly series is identical on full and pruned history for started hours`() {
+        repeat(300) { seed ->
+            val full = generate(seed, postHour = true)
+            val kept = pruned(full)
+            val live = full.filter { it.bucket % 7 == 0L }.map { it.toHourly() }
+            val expected = HourlyForecastStitcher.stitchBySource(live, daoOrder(full).map { it.toHourly() }, t0, centre.first, centre.second)
+            val actual = HourlyForecastStitcher.stitchBySource(live, daoOrder(kept).map { it.toHourly() }, t0, centre.first, centre.second)
+            assertEquals("seed=$seed", expected, actual)
+        }
+    }
+
+    /** Desktop DB, NWS 2026-10-25 12:00: last pre-noon fetch 11:44, newest 12:01 — neither rule 1–4 kept 11:44. */
+    @Test
+    fun `the newest pre-hour snapshot survives behind a post-hour hindcast`() {
+        val noon = t0 + 4 * hourMs
+        val minute = 60_000L
+        val early = HistorySnapshotRetention.Row("NWS", noon, 52.2334, 20.9703, noon - 6 * hourMs, noon - 6 * hourMs + 5 * minute)
+        val preNoon = HistorySnapshotRetention.Row("NWS", noon, 52.2334, 20.9703, noon - 16 * minute, noon - 16 * minute)
+        val hindcast = HistorySnapshotRetention.Row("NWS", noon, 52.2334, 20.9703, noon + minute, noon + minute)
+
+        val keep = HistorySnapshotRetention.keptKeys(listOf(early, preNoon, hindcast), zone, nowMs = noon + hourMs)
+
+        assertTrue(preNoon.key in keep)
+        assertTrue(early.key !in keep)
+    }
+
+    @Test
+    fun `with no pre-hour snapshot the earliest is kept`() {
+        val hour = t0 + 4 * hourMs
+        val first = HistorySnapshotRetention.Row("NWS", hour, 52.2334, 20.9703, hour + hourMs, hour + hourMs)
+        val second = HistorySnapshotRetention.Row("NWS", hour, 52.2334, 20.9703, hour + 3 * hourMs, hour + 3 * hourMs)
+        val third = HistorySnapshotRetention.Row("NWS", hour, 52.2334, 20.9703, hour + 5 * hourMs, hour + 5 * hourMs)
+
+        val keep = HistorySnapshotRetention.keptKeys(listOf(first, second, third), zone, nowMs = hour + 6 * hourMs)
+
+        assertTrue(first.key in keep)
+        assertTrue(second.key !in keep)
+    }
+
     @Test
     fun `prior-day band is identical on full and pruned history`() {
         fun band(rows: List<HistorySnapshotRetention.Row>, source: String) = PriorDayBandForecast.select(
@@ -125,16 +175,16 @@ class HistorySnapshotRetentionTest {
         // 5 snapshots for the same past hour, across slightly different coordinates in the same city
         val rows = listOf(
             HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.841, 24.031, pastHour - 5 * hourMs, pastHour - 4 * hourMs),
-            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.843, 24.032, pastHour - 3 * hourMs, pastHour - 2 * hourMs),
-            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.840, 24.029, pastHour - 1 * hourMs, pastHour + 10_000L), // latest fetchedAt winner
-            HistorySnapshotRetention.Row("NWS", pastHour, 49.841, 24.031, pastHour - 5 * hourMs, pastHour - 4 * hourMs),
-            HistorySnapshotRetention.Row("NWS", pastHour, 49.842, 24.030, pastHour - 1 * hourMs, pastHour + 20_000L), // NWS winner
+            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.843, 24.032, pastHour - 3 * hourMs, pastHour - 2 * hourMs), // newest pre-hour: winner
+            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.840, 24.029, pastHour - 1 * hourMs, pastHour + 10_000L), // post-hour hindcast
+            HistorySnapshotRetention.Row("NWS", pastHour, 49.841, 24.031, pastHour - 5 * hourMs, pastHour - 4 * hourMs), // NWS winner
+            HistorySnapshotRetention.Row("NWS", pastHour, 49.842, 24.030, pastHour - 1 * hourMs, pastHour + 20_000L), // post-hour hindcast
         )
         val keep = HistorySnapshotRetention.keptKeys(rows, zone, nowMs = t0)
-        // Exactly 2 rows kept: 1 for OPEN_METEO and 1 for NWS
+        // Exactly 2 rows kept, each the stitcher's settled pick: the newest fetched at or before the hour.
         assertEquals(2, keep.size)
-        assertTrue(keep.contains(rows[2].key))
-        assertTrue(keep.contains(rows[4].key))
+        assertTrue(keep.contains(rows[1].key))
+        assertTrue(keep.contains(rows[3].key))
     }
 
     @Test

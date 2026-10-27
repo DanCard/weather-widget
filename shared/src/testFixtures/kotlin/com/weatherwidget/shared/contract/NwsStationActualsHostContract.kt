@@ -84,12 +84,16 @@ abstract class NwsStationActualsHostContract {
         assertEquals(setOf(50f, 51f), host.nwsHourlyHistory(H0, H0 + 2 * HOUR).map { it.temperature }.toSet())
     }
 
-    /** User, 2026-10-24: live wins every hour it has; history fills the rest (desktop's rule, now both). */
+    /**
+     * User, 2026-10-24: live wins every hour it has; history fills the rest (desktop's rule, now both).
+     * Every fetch overwrites the live row as it writes its snapshot, so the live row is never older
+     * than history; rows compete on `fetchedAt` (SettledForecastPick).
+     */
     @Test
     fun `the day's NWS hourly - live wins, history fills hours without a live row`() = runBlocking {
-        seed.hourly(hr(H0, 60f, "NWS", fetchedAt = T1))
-        seed.hourlyHistory(hr(H0, 50f, "NWS", fetchedAt = T2), snapshotBucketMs = T2)
-        seed.hourlyHistory(hr(H0 + HOUR, 51f, "NWS", fetchedAt = T2), snapshotBucketMs = T2)
+        seed.hourly(hr(H0, 60f, "NWS", fetchedAt = T2))
+        seed.hourlyHistory(hr(H0, 50f, "NWS", fetchedAt = T1), snapshotBucketMs = T1)
+        seed.hourlyHistory(hr(H0 + HOUR, 51f, "NWS", fetchedAt = T1), snapshotBucketMs = T1)
 
         val hourly = NwsStationActualsRun.nwsHourlyForDay(host, H0, H0 + 2 * HOUR, nowMs = H0 + 3 * HOUR)
 

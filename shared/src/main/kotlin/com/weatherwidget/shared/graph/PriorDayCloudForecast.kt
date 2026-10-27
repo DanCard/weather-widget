@@ -21,9 +21,9 @@ import kotlin.math.abs
  * Rows are stored in `hourly_forecast_history`, whose stated purpose ("what each hour was
  * *predicted* to be, captured at a `timestampToGroupPredictions`") this matches exactly, under
  * [SOURCE_ID] rather than the real source id. That separation is load-bearing:
- * `HourlyForecastStitcher.stitch`'s history fallback picks the row with the greatest `fetchedAt`,
- * so a freshly-fetched row carrying a 24h-old prediction filed under `OPEN_METEO` could win as
- * "the latest forecast" for a past hour that has aged out of the live table — silently changing the
+ * `HourlyForecastStitcher.stitch` picks among an hour's rows by `fetchedAt` (`SettledForecastPick`),
+ * so a row carrying a 24h-old prediction filed under `OPEN_METEO` with a misleading `fetchedAt` could
+ * win as the forecast for a past hour — silently changing the
  * temperature and precipitation graphs. Under a distinct id that cannot happen.
  */
 object PriorDayCloudForecast {

@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local
 
+import com.weatherwidget.data.model.SettledForecastPick
 import java.time.Instant
 import java.time.ZoneId
 
@@ -10,11 +11,16 @@ import java.time.ZoneId
  * at holds ~30 copies per source (Kyiv, 2026-09-29), and the table plus its indexes was 50 MB of a
  * 95 MB database. Per (source, site, hour) — site = the exact stored coordinates — the readers need:
  *
- * 1. **Newest** by `timestampToGroupPredictions` and by `fetchedAt`: `HourlyForecastStitcher` picks
- *    `maxBy { fetchedAt }` (Android `HourlyForecastLoader`/`GraphDataLoader`, desktop
- *    `getHourlyWithHistory`), and the one-time desktop/Android backfills read the freshest per hour.
- * 2. **Newest non-null per coalesced field** by bucket: the stitcher fills a null field on its pick
- *    from the first non-null row in bucket-DESC order (NWS near-term skyCover).
+ * 1. **Newest** by `timestampToGroupPredictions` and by `fetchedAt`: the one-time desktop/Android
+ *    backfills read the freshest per hour, as does `HourlyForecastSelector`.
+ * 2. **Newest non-null per coalesced field** by bucket (NWS near-term skyCover).
+ * 5. **Settled pick** ([SettledForecastPick]): `HourlyForecastStitcher` (Android
+ *    `HourlyForecastLoader`/`GraphDataLoader`, desktop `getHourlyWithHistory`) and
+ *    `DailyNoonCloudCover` read the newest row fetched at or before the hour — else the earliest —
+ *    and fill its null fields from that same window, newest first. So keep that row and, per
+ *    coalesced field, the newest non-null row in the window. Before this rule (2a3293ef) the
+ *    pre-hour row was kept only when it happened to be the previous day's newest, so a same-day
+ *    11:44 forecast for noon was pruned behind a 12:01 hindcast and the frozen line reverted.
  * 3. **Prior-day band:** newest bucket at least [BAND_LEAD_MS] before the hour among rows carrying a
  *    mid or high band (`PriorDayBandForecast.select`).
  * 4. **Rain accuracy:** newest bucket captured on the hour's previous local calendar day
@@ -22,7 +28,9 @@ import java.time.ZoneId
  *
  * Each is "the newest row within a window that never moves", and new snapshots only ever arrive with
  * later buckets, so a row that is not the newest in its window now can never become it later —
- * pruning is safe for future hours as well as past ones, and idempotent.
+ * pruning is safe for future hours as well as past ones, and idempotent. Rule 5 for an hour not yet
+ * started keeps the newest fetch, which is also the newest pre-hour row once it starts; its
+ * earliest-row fallback applies only when no row predates the hour, and none can arrive afterwards.
  *
  * Keeping each site's own maxima preserves every reader's cross-site maximum, so readers that merge
  * sites (the stitcher's same-site/borrow sets, rain accuracy's unfiltered box) see the same result.
@@ -97,6 +105,13 @@ object HistorySnapshotRetention {
                 val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
                 val prevDayStart = day.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
                 keepMax(group.filter { it.bucket in prevDayStart until dayStart }, kept) { it.bucket }
+                // 5. settled pick and its per-field backfill, from the same window (ties: keep all)
+                val window = SettledForecastPick.backfillOrder(group, hour, nowMs) { it.fetchedAt }
+                keepFetchedAtOf(window.firstOrNull(), window, kept)
+                for (field in coalescedFields) {
+                    val withField = window.filter { field(it) != null }
+                    keepFetchedAtOf(withField.firstOrNull(), withField, kept)
+                }
             }
         }
 
@@ -107,13 +122,12 @@ object HistorySnapshotRetention {
                 val cluster = clusterMap[it.lat to it.lon] ?: (it.lat to it.lon)
                 GroupKey(it.source, it.dateTime, cluster.first, cluster.second)
             }.forEach { (_, group) ->
-                // Keep strictly one row per hour per source per city cluster.
-                // The snapshot fetched latest (closest to or after the hour occurred) wins; break ties with latest bucket.
-                val maxFetched = group.maxOf { it.fetchedAt }
-                val fetchedWinners = group.filter { it.fetchedAt == maxFetched }
-                val maxBucket = fetchedWinners.maxOf { it.bucket }
-                val winner = fetchedWinners.first { it.bucket == maxBucket }
-                kept += winner.key
+                // Keep strictly one row per hour per source per city cluster: the stitcher's settled
+                // pick, so an archived hour draws the same forecast it did while active. Ties on
+                // fetchedAt break to the latest bucket.
+                val hour = group.first().dateTime
+                val pickedAt = SettledForecastPick.pick(group, hour, nowMs) { it.fetchedAt }!!.fetchedAt
+                kept += group.filter { it.fetchedAt == pickedAt }.maxBy { it.bucket }.key
             }
         }
 
@@ -141,6 +155,11 @@ object HistorySnapshotRetention {
     }
 
     private data class GroupKey(val source: String, val dateTime: Long, val lat: Double, val lon: Double)
+
+    private fun keepFetchedAtOf(best: Row?, rows: List<Row>, into: MutableSet<Key>) {
+        if (best == null) return
+        rows.filter { it.fetchedAt == best.fetchedAt }.forEach { into += it.key }
+    }
 
     private inline fun keepMax(rows: List<Row>, into: MutableSet<Key>, selector: (Row) -> Long) {
         if (rows.isEmpty()) return

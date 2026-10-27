@@ -1657,6 +1657,11 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
+    /**
+     * Every snapshot of [source] (plus future-only `Generic`) at the site with `dateTime` in
+     * [startMs, endMs], freshest snapshot first per hour and unmerged: [getHourlyWithHistory]'s
+     * history side, matching Android's render-path read. Pinned by `StitchedHourlyReadContract`.
+     */
     fun getHourlyHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, nowMs: Long = System.currentTimeMillis()): List<HourlyForecast> {
         val result = mutableListOf<HourlyForecast>()
         db.getConnection().use { conn ->
@@ -1680,20 +1685,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setLong(6, endMs)
                 stmt.setString(7, source)
                 val rs = stmt.executeQuery()
-                // One merged row per (dateTime, source). The query is ordered snapshotBucket DESC, so
-                // the FRESHEST snapshot of an hour is seen first and supplies temperature and
-                // condition — the latest forecast, matching the live line and HourlyForecastStitcher.
-                // (This feeds the stitcher's `history` fallback, used only for hours that have aged out
-                // of the live table.) Older snapshots of the same hour only backfill nullable fields the
-                // freshest one is missing — chiefly cloudCover: NWS frequently omits sky cover on the
-                // near-term hours, yet provided it for that same hour when it sat further out in the
-                // forecast horizon, so coalescing across buckets keeps the cloud-cover graph populated.
-                val merged = LinkedHashMap<Pair<Long, String>, HourlyForecast>()
+                // Every snapshot, unmerged — the same rows Android's
+                // `getHistoryInRangeForBucketWindow` hands the shared HourlyForecastStitcher, which
+                // owns selection (SettledForecastPick) and the null-field backfill. This used to merge
+                // to the freshest snapshot per hour here, which left the stitcher no pre-hour forecast
+                // to freeze a past hour at: desktop drew the 12:27 hindcast (94%) for 2026-10-26 noon.
                 while (rs.next()) {
-                    val dateTime = rs.getLong("dateTime")
-                    val rowSource = rs.getString("source")
-                    val row = HourlyForecast(
-                        dateTime = dateTime,
+                    result += HourlyForecast(
+                        dateTime = rs.getLong("dateTime"),
                         temperature = rs.getFloat("temperature"),
                         condition = rs.getString("condition"),
                         precipProbability = rs.getNullableInt("precipProbability"),
@@ -1702,30 +1701,12 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
                         cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
-                        source = rowSource,
+                        source = rs.getString("source"),
                         fetchedAt = rs.getLong("fetchedAt"),
                         locationLat = rs.getDouble("locationLat"),
                         locationLon = rs.getDouble("locationLon"),
                     )
-                    val key = dateTime to rowSource
-                    val existing = merged[key]
-                    if (existing == null) {
-                        merged[key] = row
-                    } else if (existing.cloudCover == null || existing.cloudCoverLow == null ||
-                        existing.cloudCoverMid == null || existing.cloudCoverHigh == null ||
-                        existing.precipProbability == null || existing.precipAmountMm == null
-                    ) {
-                        merged[key] = existing.copy(
-                            precipProbability = existing.precipProbability ?: row.precipProbability,
-                            cloudCover = existing.cloudCover ?: row.cloudCover,
-                            cloudCoverLow = existing.cloudCoverLow ?: row.cloudCoverLow,
-                            cloudCoverMid = existing.cloudCoverMid ?: row.cloudCoverMid,
-                            cloudCoverHigh = existing.cloudCoverHigh ?: row.cloudCoverHigh,
-                            precipAmountMm = existing.precipAmountMm ?: row.precipAmountMm,
-                        )
-                    }
                 }
-                result.addAll(merged.values)
             }
         }
         return result
@@ -1735,7 +1716,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      * Every `hourly_forecast_history` snapshot of [source] at the site with `dateTime` in
      * [startMs, endMs), freshest snapshot first per hour, unmerged — Android's
      * `HourlyForecastHistoryDao.getHistoryInRangeForBucketWindow` (`DailyHistoryRun.Host.hourlyHistory`).
-     * [HourlyForecastStitcher] does the merge [getHourlyHistory] does here.
+     * Unlike [getHourlyHistory] (also unmerged): source only, no `Generic`, end exclusive.
      */
     fun getHourlyHistorySnapshots(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): List<HourlyForecast> {
         val result = mutableListOf<HourlyForecast>()

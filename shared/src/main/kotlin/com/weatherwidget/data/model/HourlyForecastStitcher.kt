@@ -8,16 +8,14 @@ import com.weatherwidget.shared.graph.PriorDayCloudForecast
  * snapshots (`hourly_forecast_history`) into one forecast per hour, shared by Android
  * (`GraphDataLoader`) and desktop (`DesktopWeatherDao.getHourlyWithHistory`).
  *
- * Rule across all metrics (temperature, cloud cover, and precipitation probability/amount):
- * **an hour continues to update until that hour is in the past; once in the past, it freezes at the
- * last forecast fetched at or before that hour** (`fetchedAt <= dateTime`).
+ * Rule across all metrics (temperature, cloud cover, and precipitation probability/amount), every
+ * day alike: [SettledForecastPick] — **an hour keeps updating until it starts ([nowMs]), then
+ * freezes at the last forecast fetched at or before it**; with no pre-hour fetch, the earliest
+ * fetch. Live and history rows compete on `fetchedAt` alone, and a null field borrows from the same
+ * window, nearest first. `HistorySnapshotRetention` keeps exactly the history rows this reads.
  *
- * For future hours (`dateTime >= nowMs`), all fetches occurred before the hour, so the freshest fetch
- * wins and the forecast continues updating with each new fetch.
- * For past hours (`dateTime < nowMs`), fetches arriving after the hour (`fetchedAt > dateTime`) are
- * post-hoc hindcasts or model assimilations — they must never overwrite the real prediction that was
- * in effect when the hour arrived. If no pre-hour fetch exists (e.g. app installed after the hour), it
- * falls back to the earliest available fetch.
+ * Commit 2a3293ef applied the freeze to today's elapsed hours only, so at midnight yesterday's hours
+ * reverted to freshest-wins and the past line jumped.
  *
  * Both sides first collapse same-site fragments via [LocationMatch.sameSite]: float-keyed rows that
  * GPS jitter splits into ~10 cm-apart silos are merged, and genuinely-different neighbouring markers
@@ -84,8 +82,8 @@ object HourlyForecastStitcher {
      *
      * [PriorDayCloudForecast.SOURCE_ID] rows live in `hourly_forecast_history` beside the app's own
      * snapshots, but they describe a *deliberately stale* prediction (~24h before the hour) while
-     * carrying a fresh `fetchedAt`. Freshest-wins would therefore promote one to "the latest
-     * forecast" for any hour the live table has dropped — changing the temperature and precipitation
+     * carrying a fresh `fetchedAt`. A fetchedAt-ordered pick could therefore promote one to "the
+     * forecast" for an hour the live table has dropped — changing the temperature and precipitation
      * lines, which read this same stitched list.
      *
      * Every production caller happens to scope its history query to one real source today, so this
@@ -110,37 +108,14 @@ object HourlyForecastStitcher {
         val historyByTime = groupSameSite(history, centerLat, centerLon)
 
         val times = (currentByTime.keys + historyByTime.keys).toSortedSet()
-        val zoneId = java.time.ZoneId.systemDefault()
-        val todayStartMs = if (nowMs > 0L) {
-            java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(nowMs), zoneId)
-                .toLocalDate()
-                .atStartOfDay(zoneId)
-                .toInstant()
-                .toEpochMilli()
-        } else {
-            0L
-        }
-
         return times.mapNotNull { time ->
-            val liveRows = currentByTime[time].orEmpty()
-            val historyRows = historyByTime[time].orEmpty()
-            val isTodayElapsedHour = nowMs > 0L && time in todayStartMs until nowMs
-
-            val base = if (isTodayElapsedHour) {
-                val preHourLive = liveRows.filter { it.fetchedAt <= time }.maxByOrNull { it.fetchedAt }
-                val preHourHistory = historyRows.filter { it.fetchedAt <= time }.maxByOrNull { it.fetchedAt }
-                preHourLive ?: preHourHistory ?: liveRows.maxByOrNull { it.fetchedAt } ?: historyRows.firstOrNull()
-            } else {
-                liveRows.maxByOrNull { it.fetchedAt } ?: historyRows.maxByOrNull { it.fetchedAt }
-            } ?: return@mapNotNull null
-
-            val allSameSite = liveRows + historyRows
-            val backfillPool = if (isTodayElapsedHour) {
-                allSameSite.filter { it.fetchedAt <= time }.ifEmpty { allSameSite }
-            } else {
-                allSameSite
-            }
-
+            // Live first so a live row wins an exact fetchedAt tie with its own snapshot.
+            val backfillPool = SettledForecastPick.backfillOrder(
+                rows = currentByTime[time].orEmpty() + historyByTime[time].orEmpty(),
+                hourMs = time,
+                nowMs = nowMs,
+            )
+            val base = backfillPool.firstOrNull() ?: return@mapNotNull null
             base.copy(
                 cloudCover = base.cloudCover ?: backfillPool.firstNotNullOfOrNull { it.cloudCover },
                 cloudCoverLow = base.cloudCoverLow ?: backfillPool.firstNotNullOfOrNull { it.cloudCoverLow },
@@ -157,8 +132,8 @@ object HourlyForecastStitcher {
      * display source of every installed widget plus `GENERIC_GAP`).
      *
      * [stitch] collapses to **one row per hour**, so handing it rows from several sources at once
-     * silently drops every source but the freshest one for that hour. This stitches each source
-     * independently and concatenates, so per-hour freshness selection still happens — just scoped
+     * silently drops every source but the one picked for that hour. This stitches each source
+     * independently and concatenates, so per-hour [SettledForecastPick] selection still happens — just scoped
      * within a source, which is the only comparison that means anything.
      */
     fun stitchBySource(

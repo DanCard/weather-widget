@@ -1,6 +1,7 @@
 package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.SettledForecastPick
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.HourlyForecastSelector
 import java.time.Instant
@@ -14,8 +15,9 @@ import java.time.ZoneId
  * total column is used only when a source or legacy row has no separate low-cloud value.
  *
  * When several rows exist for noon — the normal case, since one site accumulates a row per fetch
- * at sub-precision coordinate fragments — the **freshest** (`fetchedAt`) wins. Callers must pass
- * rows that carry `fetchedAt`; mapping it away silently reinstates first-row-wins.
+ * at sub-precision coordinate fragments — [SettledForecastPick] chooses: the newest fetch at or
+ * before noon, the same row the hourly graph draws at 12:00. Callers must pass rows that carry
+ * `fetchedAt`; mapping it away silently reinstates first-row-wins.
  *
  * When noon data is missing, assumes **0%** (clear) rather than borrowing a non-noon hour or
  * another API source.
@@ -31,6 +33,8 @@ object DailyNoonCloudCover {
      * forecast row ([rowPercent], DailyHourlySummaries) when it is a real row of the displayed
      * source — never a climate-normal stand-in; else measured from stored hourly ([hourlyNoon]).
      * Null = unknown. Android gated the row on its source, desktop on climate normal (2026-10-23).
+     * Today ([isToday]) prefers [hourlyNoon] over the row, so the column matches the hourly graph's
+     * 12:00 point; the row is the fallback.
      */
     fun forColumn(
         isPast: Boolean,
@@ -40,14 +44,18 @@ object DailyNoonCloudCover {
         rowIsClimateNormal: Boolean,
         isToday: Boolean = false,
         hourlyNoon: () -> Int?,
-    ): Int? =
-        (if (isPast) frozenPercent else null)
-            ?: (if (isToday) hourlyNoon() ?: rowPercent else rowPercent)?.takeIf { !isPast && rowIsDisplaySource && !rowIsClimateNormal }
-            ?: hourlyNoon()
+    ): Int? {
+        if (isPast) frozenPercent?.let { return it }
+        val row = rowPercent?.takeIf { !isPast && rowIsDisplaySource && !rowIsClimateNormal }
+        return if (isToday) hourlyNoon() ?: row else row ?: hourlyNoon()
+    }
 
     /**
      * Site-aware variant for callers holding raw proximity-box rows. Selects the freshest row per
-     * hour **at the display site** before resolving noon, which additionally excludes a
+     * hour **at the display site** before resolving noon. Its only caller (`DailyHistoryRun`) passes
+     * the live table alone, which holds no pre-noon row once a post-noon fetch overwrote it, so
+     * this can freeze a hindcast where the graph shows the pre-noon forecast; the fix is to pass
+     * stitched rows (follow-up, plans/261027-pre-hour-freeze-retention-and-shared-pick.md). It also excludes a
      * genuinely-different neighbouring marker — one far enough away to fail
      * [com.weatherwidget.data.local.LocationMatch.sameSite], which
      * [resolveMeasuredNoonCloudCoverPercent] cannot tell apart from the display site since it has
@@ -106,12 +114,11 @@ object DailyNoonCloudCover {
             .filter { LocalDateTime.ofInstant(Instant.ofEpochMilli(it.dateTime), zone) == noon }
             .filter { with(VisibleCloudCover) { it.visibleCloudCover() } != null }
             .toList()
-        if (matching.isEmpty()) return null
-        val preNoon = matching.filter { it.fetchedAt in 1..noonMs }
-        val chosen = preNoon.maxByOrNull { it.fetchedAt }
-            ?: matching.filter { it.fetchedAt <= noonMs }.maxByOrNull { it.fetchedAt }
-            ?: matching.minByOrNull { it.fetchedAt }
-        return chosen?.let { with(VisibleCloudCover) { it.visibleCloudCover() } }?.coerceIn(0, 100)
+        // No "now" here: a noon that has not come yet has only pre-noon fetches, so the settled
+        // rule already returns the newest — the same answer the stitcher's not-started branch gives.
+        return SettledForecastPick.pick(matching, noonMs, nowMs = Long.MAX_VALUE)
+            ?.let { with(VisibleCloudCover) { it.visibleCloudCover() } }
+            ?.coerceIn(0, 100)
     }
 
     /** Noon cloud cover as 0–100 percent for the target source; 0 when noon data is missing. */

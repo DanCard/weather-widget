@@ -434,7 +434,7 @@ class DesktopWeatherRepositoryTest {
                 condition = "Clear",
                 cloudCover = null,
                 source = "NWS",
-                fetchedAt = now,
+                fetchedAt = now - 2 * 3600_000L,
             ),
             HourlyForecast(
                 dateTime = now + 3600_000L,
@@ -452,7 +452,7 @@ class DesktopWeatherRepositoryTest {
                 condition = "Cloudy",
                 cloudCover = 82,
                 source = "NWS",
-                fetchedAt = now - 10_000L,
+                fetchedAt = now - 4 * 3600_000L,
             ),
         )
 
@@ -463,8 +463,9 @@ class DesktopWeatherRepositoryTest {
         assertNotNull(result)
 
         val merged = result!!.raw.hourly.associateBy { it.dateTime }
-        // Past hour shows the LATEST forecast: the live row wins for temp/condition, and history only
-        // backfills the cloudCover the live row was missing — see HourlyForecastStitcher.
+        // Past hour shows the newest PRE-HOUR forecast (the live row, fetched 2 h before it) for
+        // temp/condition; the older snapshot only backfills the cloudCover the live row was missing
+        // — see SettledForecastPick.
         val repaired = merged[now - 3600_000L]!!
         assertEquals(82, repaired.cloudCover) // backfilled from history (live had null)
         assertEquals(70f, repaired.temperature, 0.0f) // live forecast, not the history snapshot

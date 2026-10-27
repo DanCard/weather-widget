@@ -498,15 +498,15 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
-    fun `getHourlyHistory keeps the freshest snapshot temp and coalesces precip from an older one`() {
+    fun `getHourlyHistory returns every snapshot unmerged, freshest first`() {
         val lat = 40.0
         val lon = -75.0
         val source = "NWS"
         val hour = 1_780_682_400_000L
 
-        // Freshest snapshot = the latest forecast for this hour (matching the live line). Here it
-        // carries temp/condition/cloud but dropped precip probability; an older snapshot supplies the
-        // precip, which is coalesced in.
+        // Selection and null-field backfill belong to the shared HourlyForecastStitcher
+        // (SettledForecastPick). Merging here to the freshest snapshot left desktop no pre-hour
+        // forecast to freeze a past hour at — see StitchedHourlyReadContract.
         dao.upsertHourlyForecastHistory(
             lat, lon, source, timestampToGroupPredictions = 1_780_500_000_000L,
             listOf(HourlyForecast(hour, 60f, "Cloudy", precipProbability = 20, cloudCover = null)),
@@ -518,13 +518,10 @@ class DesktopWeatherDaoTest {
 
         val history = dao.getHourlyHistory(lat, lon, source, hour - 1, hour + 1)
 
-        assertEquals(1, history.size)
-        // Temperature/condition/cloud come from the freshest snapshot (the latest forecast)...
-        assertEquals(64f, history[0].temperature)
-        assertEquals("Sunny", history[0].condition)
-        assertEquals(75, history[0].cloudCover)
-        // ...while the missing precip probability is coalesced from the older snapshot.
-        assertEquals(20, history[0].precipProbability)
+        assertEquals(
+            listOf(Triple(64f, 75, null), Triple(60f, null, 20)),
+            history.map { Triple(it.temperature, it.cloudCover, it.precipProbability) },
+        )
     }
 
     @Test

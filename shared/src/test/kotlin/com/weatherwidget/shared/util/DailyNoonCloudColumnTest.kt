@@ -33,6 +33,19 @@ class DailyNoonCloudColumnTest {
         assertNull(column())
     }
 
+    /** Today matches the hourly graph's 12:00 point first; the row only fills a missing hourly noon. */
+    @Test
+    fun todayTakesHourlyThenTheRowWithOneScan() {
+        var scans = 0
+        fun today(row: Int?, hourly: Int?, climateNormal: Boolean = false) =
+            DailyNoonCloudCover.forColumn(false, null, row, true, climateNormal, isToday = true) { scans++; hourly }
+
+        assertEquals(5, today(row = 91, hourly = 5))
+        assertEquals(91, today(row = 91, hourly = null))
+        assertNull(today(row = 91, hourly = null, climateNormal = true))
+        assertEquals(3, scans)
+    }
+
     @Test
     fun rowFromAnotherSourceIsSkipped() {
         // Android's gate (2026-10-23 audit): a row of another source must not set this column's sky.

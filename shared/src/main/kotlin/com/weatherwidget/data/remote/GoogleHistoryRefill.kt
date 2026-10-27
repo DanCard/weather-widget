@@ -26,6 +26,11 @@ import java.time.ZoneId
  * the next refresh of that day finds nothing stale and requests nothing. The window is 24 h, so in
  * practice the refillable day is yesterday, and only its hours still inside the window.
  * See plans/261010-google-history-refills-stale-elapsed-hours.md.
+ *
+ * Since 2026-10-27 the stitched hourly line freezes every started hour at its newest pre-hour
+ * forecast, however stale (`SettledForecastPick`, user: "Freeze wins always"), so a refilled live
+ * row is drawn only for hours with no pre-hour snapshot left. Readers of the live table alone still
+ * see it. plans/261027-pre-hour-freeze-retention-and-shared-pick.md
  */
 object GoogleHistoryRefill {
     private const val HOUR_MS = 3_600_000L

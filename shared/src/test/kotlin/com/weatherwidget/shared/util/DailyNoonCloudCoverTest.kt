@@ -40,6 +40,19 @@ class DailyNoonCloudCoverTest {
     private fun resolveMeasured(hourly: List<HourlyForecast>, displaySource: String, rowSource: String? = null) =
         DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(hourly, date, displaySource, rowSource, zone)
 
+    /** The settled pick (SettledForecastPick): the 11:30 forecast, not the 14:00 hindcast, however stale. */
+    @Test
+    fun aPastNoonTakesTheNewestPreNoonForecast() {
+        val noonMs = date.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+        val hourly = listOf(
+            siteHour(cloud = 10, lat = 37.4, lon = -122.0, fetchedAt = noonMs - 3 * 86_400_000L),
+            siteHour(cloud = 30, lat = 37.4, lon = -122.0, fetchedAt = noonMs - 30 * 60_000L),
+            siteHour(cloud = 94, lat = 37.4, lon = -122.0, fetchedAt = noonMs + 2 * 3_600_000L),
+        )
+
+        assertEquals(30, resolveMeasured(hourly, "NWS"))
+    }
+
     @Test
     fun returnsOnlyTheDisplayedSourcesCloud() {
         val hourly = listOf(

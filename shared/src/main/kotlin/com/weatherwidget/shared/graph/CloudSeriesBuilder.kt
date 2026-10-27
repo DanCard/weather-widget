@@ -31,7 +31,10 @@ data class CloudBands(
 
 data class CloudPoint(
     val timeMs: Long,
-    /** Frozen day-ago prediction for past hours; the live row for the current and future hours. */
+    /**
+     * Frozen day-ago prediction for hours of past days; otherwise the stitched row, which for
+     * today's elapsed hours is already the pre-hour forecast (`SettledForecastPick`).
+     */
     val forecastCover: Int?,
     /**
      * The low-cloud actual for this hour, read from `observations`. Drawn for **every** hour one was
@@ -41,7 +44,8 @@ data class CloudPoint(
      */
     val actualCover: Int?,
     /**
-     * False when no day-ago prediction was available and [forecastCover] fell back to the live row.
+     * False when no day-ago prediction was used and [forecastCover] is the stitched row — always the
+     * case for today's hours, whose stitched row is the pre-hour forecast rather than a hindcast.
      * That fallback is a hindcast wearing the forecast's clothes, so it must stay distinguishable —
      * for diagnostics, for tests, and so the render can decline to imply an accuracy comparison it
      * cannot actually make.

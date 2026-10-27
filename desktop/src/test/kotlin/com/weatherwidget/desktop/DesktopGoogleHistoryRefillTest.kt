@@ -117,8 +117,13 @@ class DesktopGoogleHistoryRefillTest {
         assertTrue(log.any { it.message.startsWith("day=$yesterday stale=${staleYesterday.size - 1} refilled=${staleYesterday.size - 1} ") })
     }
 
+    /**
+     * User, 2026-10-27: "Freeze wins always" (SettledForecastPick). A refill is a post-hour rewrite,
+     * so the stitched line draws it only where no pre-hour forecast survives: the hour with an
+     * as-issued snapshot keeps its 71.7; the others had only their (now overwritten) live row.
+     */
     @Test
-    fun `the stitched hourly read draws the refilled values`() = runTest {
+    fun `the stitched hourly read keeps a pre-hour snapshot over the refill`() = runTest {
         seed()
         coEvery { service.fetchForecast(ForecastParts.BOTH, yesterday) } returns fetchWithHistory
 
@@ -129,7 +134,8 @@ class DesktopGoogleHistoryRefillTest {
             lat, lon, google, refilled.first(), refilled.last(), maxAgeMs = Long.MAX_VALUE / 2, nowMs = now,
         )
         assertEquals(refilled, stitched.map { it.dateTime })
-        assertTrue(stitched.all { it.temperature == 69.5f })
+        assertEquals(71.7f, stitched.first().temperature)
+        assertTrue(stitched.drop(1).all { it.temperature == 69.5f })
     }
 
     @Test

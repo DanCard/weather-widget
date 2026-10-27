@@ -197,10 +197,10 @@ object GraphDataLoader {
             )
         }
 
-        // Same shared merge desktop uses: the latest forecast wins for every hour — live (freshest)
-        // wins whenever present, and the freshest history snapshot backfills hours live lacks plus any
-        // missing nullable fields; same-site fragments are collapsed. All raw buckets/fragments are
-        // passed in — the stitcher does the selection.
+        // Same shared merge desktop uses: each hour is the newest forecast fetched at or before it
+        // (SettledForecastPick), live and history rows alike, with null fields filled from that same
+        // window; same-site fragments are collapsed. All raw buckets/fragments are passed in — the
+        // stitcher does the selection.
         val nowMs = now.atZone(zoneId).toInstant().toEpochMilli()
         val stitched = HourlyForecastStitcher.stitch(
             current = currentRows.map { it.toHourlyForecast() },

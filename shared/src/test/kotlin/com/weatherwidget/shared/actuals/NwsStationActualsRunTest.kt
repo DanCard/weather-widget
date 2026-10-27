@@ -107,7 +107,11 @@ class NwsStationActualsRunTest {
         assertNull(NwsStationActualsRun.applyCached(written, extreme, nowMs = 9L))
     }
 
-    /** User, 2026-10-24: live rows win; history fills only hours with no live row (desktop's rule, now both). */
+    /**
+     * User, 2026-10-24: live rows win; history fills only hours with no live row (desktop's rule, now
+     * both). Every fetch overwrites the live row as it writes its snapshot, so the live row is never
+     * older than this site's history; rows compete on `fetchedAt` (SettledForecastPick).
+     */
     @Test
     fun nwsHourlyForDayFillsHoursWithoutALiveRowFromHistory() = kotlinx.coroutines.runBlocking {
         val h0 = 1_780_682_400_000L
@@ -115,8 +119,8 @@ class NwsStationActualsRunTest {
         fun hr(t: Long, temp: Float, fetchedAt: Long) =
             HourlyForecast(t, temp, "Cloudy", source = "NWS", fetchedAt = fetchedAt, locationLat = 37.4, locationLon = -122.0)
         val host = FakeHost(rows = emptyList()).apply {
-            live = listOf(hr(h0, 60f, fetchedAt = 2))
-            history = listOf(hr(h0, 50f, fetchedAt = 9), hr(h1, 51f, fetchedAt = 9))
+            live = listOf(hr(h0, 60f, fetchedAt = 9))
+            history = listOf(hr(h0, 50f, fetchedAt = 2), hr(h1, 51f, fetchedAt = 2))
         }
 
         val hourly = NwsStationActualsRun.nwsHourlyForDay(host, h0, h1 + 3_600_000L, nowMs = h1 + 7_200_000L)

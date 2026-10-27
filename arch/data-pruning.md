@@ -46,11 +46,15 @@ platforms use the same order.
 `HistorySnapshotRetention` is the specification; Android and desktop SQL pruning are tested against
 it. Within the 30-day active window, the union of these rows is kept for each source/site/hour:
 
-1. The newest snapshot by label and by `fetchedAt` for history stitching.
-2. The newest non-null value for each field that stitching may coalesce, such as cloud and
-   precipitation fields.
+1. The newest snapshot by label and by `fetchedAt`, for the backfills and `HourlyForecastSelector`.
+2. The newest non-null value by label for each coalesced field, such as cloud and precipitation
+   fields.
 3. The newest sufficiently old snapshot carrying the mid/high-cloud band used by prior-day graphs.
 4. The newest snapshot captured on the previous local day for rain-accuracy comparisons.
+5. The settled pick (`SettledForecastPick`), which history stitching and daily noon cloud read:
+   the newest snapshot fetched at or before the hour, or the earliest snapshot when none predates
+   it. Also kept, per coalesced field, is the first non-null value in that same window, newest
+   first.
 
 Rows needed by any one reader survive even when another reader would not select them. A new reader
 of older snapshots must be added to this shared rule and its equivalence tests before pruning can be
@@ -59,7 +63,8 @@ considered safe.
 ## Settled archive
 
 For hours older than the active window, the rule keeps one row per source, forecast hour, and site
-cluster. The latest `fetchedAt` wins, with the latest snapshot label breaking ties. General retention
+cluster: the settled pick (rule 5), with the latest snapshot label breaking `fetchedAt` ties, so an
+archived hour draws the same forecast it drew while active. General retention
 then deletes settled hours beyond 18 months. This preserves a long forecast-evolution record without
 keeping every active-window variant for the same period.
 
