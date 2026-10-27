@@ -75,6 +75,7 @@ class WidgetRefreshToastIntegrationRoboTest {
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
         ActiveLocationResolver.persist(context, lat, lon)
         context.getSharedPreferences("widget_refresh", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("weather_fetch_metadata", Context.MODE_PRIVATE).edit().clear().commit()
         SourceQuotaBlocks.reset()
         RefreshToast.resetForTesting()
         RefreshScheduler.setIsRefreshDisabledForTesting(false)
@@ -243,7 +244,7 @@ class WidgetRefreshToastIntegrationRoboTest {
     }
 
     @Test
-    fun `tap to refresh on fresh data says up to date, ui-only repaints say nothing`() = runBlocking {
+    fun `tap to refresh queues the forecast on first tap, throttles second tap within 10 minutes, ui-only repaints say nothing`() = runBlocking {
         val upToDate = RefreshNotice.NotQueued(RefreshNotice.Reason.UP_TO_DATE, "NWS", ageMs = 10 * 60_000L)
         mockkObject(WidgetIntentRouter, DataFreshness)
         coEvery { WidgetIntentRouter.renderWidgetFromCache(any(), any(), any()) } returns upToDate
@@ -254,7 +255,14 @@ class WidgetRefreshToastIntegrationRoboTest {
         assertEquals(null, banner())
 
         WidgetRefreshCoordinator.refresh(context, uiOnly = false, repository, widgetId)
-        assertEquals("NWS forecast up to date · 10m ago", banner())
+        assertEquals("Forecast refresh queued", banner())
+
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RefreshNotice.DURATION_MS))
+        assertEquals(null, banner())
+
+        RefreshToast.resetForTesting()
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, repository, widgetId)
+        assertEquals("Not doing because last refresh was 0 minutes ago, and wait another 10 minutes before asking for a refresh", banner())
     }
 
     @Test

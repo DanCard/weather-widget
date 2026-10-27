@@ -44,6 +44,7 @@
     <string name="refresh_already_queued">更新はすでにキューにあります</string>
     <string name="refresh_in_progress">更新はすでに実行中です</string>
     <string name="refresh_quota_blocked">%1$sの上限に達しました · 次回の更新は%2$s以降</string>
+    <string name="refresh_rate_limited">前回の更新が%1$s前のためスキップしました。次の更新まであと%2$sお待ちください</string>
     <string name="nav_previous">前の日</string>
     <string name="nav_next">次の日</string>
     <string name="weather_icon_desc">天気アイコン</string>

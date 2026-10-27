@@ -37,9 +37,11 @@ import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
+import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.writeObservations
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.util.UserRefreshThrottle
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesBuilder
 import com.weatherwidget.shared.actuals.BlendTable
 import com.weatherwidget.shared.actuals.BlendTableFormatter
@@ -380,7 +382,24 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 )
                 return@launch
             }
-            
+
+            val nowMs = System.currentTimeMillis()
+            val lastRefresh = FetchMetadata.getLastUserRefreshTime(this@WeatherObservationsActivity)
+            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
+                is UserRefreshThrottle.Decision.Throttled -> {
+                    val notice = com.weatherwidget.shared.util.RefreshNotice.NotQueued(
+                        com.weatherwidget.shared.util.RefreshNotice.Reason.RATE_LIMITED,
+                        elapsedMinutes = decision.elapsedMinutes,
+                        remainingMinutes = decision.remainingMinutes,
+                    )
+                    com.weatherwidget.widget.RefreshToast.show(this@WeatherObservationsActivity, "observations_refresh", notice)
+                    return@launch
+                }
+                is UserRefreshThrottle.Decision.Allowed -> {
+                    FetchMetadata.setLastUserRefreshTime(this@WeatherObservationsActivity, nowMs)
+                }
+            }
+
             findViewById<View>(R.id.refresh_button).isEnabled = false
             findViewById<View>(R.id.refresh_button).alpha = 0.5f
             com.weatherwidget.widget.RefreshToast.show(this@WeatherObservationsActivity, "observations_refresh", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.OBSERVATIONS))

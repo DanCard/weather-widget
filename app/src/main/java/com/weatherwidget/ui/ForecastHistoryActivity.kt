@@ -39,6 +39,7 @@ import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.util.UserRefreshThrottle
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.widget.EvolutionPoint
 import com.weatherwidget.widget.ForecastEvolutionRenderer
@@ -795,6 +796,25 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 }
             }
             return
+        }
+        val nowMs = System.currentTimeMillis()
+        val lastRefresh = FetchMetadata.getLastUserRefreshTime(this)
+        when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
+            is UserRefreshThrottle.Decision.Throttled -> {
+                val notice = com.weatherwidget.shared.util.RefreshNotice.NotQueued(
+                    com.weatherwidget.shared.util.RefreshNotice.Reason.RATE_LIMITED,
+                    elapsedMinutes = decision.elapsedMinutes,
+                    remainingMinutes = decision.remainingMinutes,
+                )
+                lifecycleScope.launch {
+                    appLogDao.log("HISTORY_REFRESH_TAP", "outcome=throttled elapsedMin=${decision.elapsedMinutes} waitMin=${decision.remainingMinutes} $tapContext", "INFO")
+                    com.weatherwidget.widget.RefreshToast.show(this@ForecastHistoryActivity, "history_refresh", notice)
+                }
+                return
+            }
+            is UserRefreshThrottle.Decision.Allowed -> {
+                FetchMetadata.setLastUserRefreshTime(this, nowMs)
+            }
         }
         refreshInFlight = true
         val refreshButton = findViewById<View>(R.id.refresh_button)

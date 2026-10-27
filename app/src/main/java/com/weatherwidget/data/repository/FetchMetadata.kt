@@ -12,6 +12,7 @@ object FetchMetadata {
     private const val PREFS_NAME = "weather_fetch_metadata"
     private const val KEY_LAST_FULL_FETCH = "last_full_fetch_time"
     private const val KEY_LAST_CURRENT_TEMP_FETCH = "last_current_temp_fetch_time"
+    private const val KEY_LAST_USER_REFRESH = "last_user_refresh_time"
     private const val KEY_LAST_FORECAST_SOURCE_SUCCESS_PREFIX = "last_forecast_source_success"
 
     private fun getPrefs(context: Context): SharedPreferences {
@@ -32,6 +33,14 @@ object FetchMetadata {
 
     fun setLastCurrentTempFetchTime(context: Context, time: Long) {
         getPrefs(context).edit().putLong(KEY_LAST_CURRENT_TEMP_FETCH, time).apply()
+    }
+
+    fun getLastUserRefreshTime(context: Context): Long {
+        return getPrefs(context).getLong(KEY_LAST_USER_REFRESH, 0L)
+    }
+
+    fun setLastUserRefreshTime(context: Context, time: Long) {
+        getPrefs(context).edit().putLong(KEY_LAST_USER_REFRESH, time).apply()
     }
 
     /**

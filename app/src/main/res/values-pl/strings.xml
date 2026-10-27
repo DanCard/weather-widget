@@ -44,6 +44,7 @@
     <string name="refresh_already_queued">Odświeżanie już w kolejce</string>
     <string name="refresh_in_progress">Odświeżanie już trwa</string>
     <string name="refresh_quota_blocked">Osiągnięto limit %1$s · następne odświeżenie po %2$s</string>
+    <string name="refresh_rate_limited">Nie wykonano, ponieważ ostatnie odświeżenie było %1$s temu, poczekaj jeszcze %2$s przed ponownym odświeżeniem</string>
     <string name="nav_previous">Poprzednie dni</string>
     <string name="nav_next">Następne dni</string>
     <string name="weather_icon_desc">Ikona warunków pogodowych</string>

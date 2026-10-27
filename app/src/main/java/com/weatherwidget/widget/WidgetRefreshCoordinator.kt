@@ -8,8 +8,10 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.shared.util.RefreshNotice
+import com.weatherwidget.shared.util.UserRefreshThrottle
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import kotlinx.coroutines.CancellationException
 
@@ -20,6 +22,7 @@ internal object WidgetRefreshCoordinator {
         uiOnly: Boolean,
         repository: WeatherRepository,
         requestedWidgetId: Int? = null,
+        userInitiated: Boolean = !uiOnly,
     ) {
         restartHeartbeats(context)
         val snapshot = BatterySnapshotProvider.snapshot(context)
@@ -29,16 +32,44 @@ internal object WidgetRefreshCoordinator {
         val freshnessSummary = DataFreshness.getVisibleSourceFreshnessSummary(context)
         WeatherDatabase.getDatabase(context).appLogDao().log(
             "REFRESH_DECISION",
-            "uiOnlyRequested=$uiOnly charging=$isCharging interactive=${powerManager.isInteractive} " +
+            "uiOnlyRequested=$uiOnly userInitiated=$userInitiated charging=$isCharging interactive=${powerManager.isInteractive} " +
                 "isDataStale=$isDataStale targetWidget=${requestedWidgetId ?: "all"} $freshnessSummary",
             "INFO",
         )
         val cacheNotice = repaintFromCache(context, repository, requestedWidgetId)
         Log.d(
             TAG,
-            "Direct cache repaint target=${requestedWidgetId ?: "all"} uiOnly=$uiOnly stale=$isDataStale",
+            "Direct cache repaint target=${requestedWidgetId ?: "all"} uiOnly=$uiOnly userInitiated=$userInitiated stale=$isDataStale",
         )
-        val syncNotice = if (WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
+        val syncNotice = if (userInitiated) {
+            val nowMs = System.currentTimeMillis()
+            val lastUserRefreshMs = FetchMetadata.getLastUserRefreshTime(context)
+            when (val decision = UserRefreshThrottle.check(lastUserRefreshMs, nowMs)) {
+                is UserRefreshThrottle.Decision.Throttled -> {
+                    WeatherDatabase.getDatabase(context).appLogDao().log(
+                        "USER_REFRESH_THROTTLED",
+                        "elapsedMin=${decision.elapsedMinutes} waitMin=${decision.remainingMinutes}",
+                        "INFO",
+                    )
+                    RefreshNotice.NotQueued(
+                        RefreshNotice.Reason.RATE_LIMITED,
+                        elapsedMinutes = decision.elapsedMinutes,
+                        remainingMinutes = decision.remainingMinutes,
+                    )
+                }
+                is UserRefreshThrottle.Decision.Allowed -> {
+                    FetchMetadata.setLastUserRefreshTime(context, nowMs)
+                    val pending = WidgetWorkScheduler.pendingOneTimeSync(context)
+                    WidgetWorkScheduler.enqueueRequiredImmediateSync(
+                        context = context,
+                        forceRefresh = true,
+                        reason = "widget_tap_to_refresh",
+                        userRefresh = true,
+                    )
+                    pending?.let { RefreshNotice.NotQueued(it) } ?: RefreshNotice.Queued(RefreshNotice.Kind.FORECAST)
+                }
+            }
+        } else if (WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
             val pending = WidgetWorkScheduler.pendingOneTimeSync(context)
             // Not forced: "stale" now means some source is due under the cadence, and a normal sync
             // fetches exactly the due sources. Forcing refetched every source, fresh or not.
@@ -51,12 +82,16 @@ internal object WidgetRefreshCoordinator {
         } else {
             null
         }
-        if (WidgetRefreshPolicy.shouldRunHistoryGapFillAfterRefresh(uiOnly, isDataStale)) {
+        if (userInitiated) {
+            if (syncNotice !is RefreshNotice.NotQueued) {
+                enqueueHistoryGapFill(context)
+            }
+        } else if (WidgetRefreshPolicy.shouldRunHistoryGapFillAfterRefresh(uiOnly, isDataStale)) {
             enqueueHistoryGapFill(context)
         }
         // "Tap to refresh" is the user asking for data, so it says what happened either way. The
         // ui-only repaints app screens send on close stay silent.
-        if (!uiOnly) {
+        if (userInitiated) {
             RefreshNotice.merge(cacheNotice, syncNotice)?.let { notice ->
                 val ids = requestedWidgetId?.let { intArrayOf(it) }
                     ?: AppWidgetManager.getInstance(context)

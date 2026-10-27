@@ -41,8 +41,12 @@ import dagger.hilt.android.AndroidEntryPoint
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.BuiltInApiKeys
+import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
+import com.weatherwidget.shared.util.RefreshNotice
+import com.weatherwidget.shared.util.UserRefreshThrottle
+import com.weatherwidget.widget.RefreshToast
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import android.Manifest
 import android.content.SharedPreferences
@@ -147,6 +151,25 @@ class SettingsActivity : AppCompatActivity() {
         // Refresh data button
         val refreshDataButton = findViewById<Button>(R.id.refresh_data_button)
         refreshDataButton.setOnClickListener {
+            val nowMs = System.currentTimeMillis()
+            val lastRefresh = FetchMetadata.getLastUserRefreshTime(this)
+            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
+                is UserRefreshThrottle.Decision.Throttled -> {
+                    val notice = RefreshNotice.NotQueued(
+                        RefreshNotice.Reason.RATE_LIMITED,
+                        elapsedMinutes = decision.elapsedMinutes,
+                        remainingMinutes = decision.remainingMinutes,
+                    )
+                    lifecycleScope.launch {
+                        RefreshToast.show(this@SettingsActivity, "settings_refresh", notice)
+                    }
+                    return@setOnClickListener
+                }
+                is UserRefreshThrottle.Decision.Allowed -> {
+                    FetchMetadata.setLastUserRefreshTime(this, nowMs)
+                }
+            }
+
             val forecastRefreshWork =
                 WidgetWorkScheduler.enqueueRequiredImmediateSync(
                     context = this,

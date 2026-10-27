@@ -25,6 +25,7 @@ object WidgetActions {
      */
     const val EXTRA_PRECIP_GATE = "com.weatherwidget.EXTRA_PRECIP_GATE"
     const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"
+    const val EXTRA_PASSIVE = "com.weatherwidget.EXTRA_PASSIVE"
     const val EXTRA_ZOOM_CENTER_OFFSET = "com.weatherwidget.EXTRA_ZOOM_CENTER_OFFSET"
     const val EXTRA_TOAST_MESSAGE = "com.weatherwidget.EXTRA_TOAST_MESSAGE"
     const val EXTRA_INTERACTION_SOURCE = "com.weatherwidget.EXTRA_INTERACTION_SOURCE"

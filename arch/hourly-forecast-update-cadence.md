@@ -101,6 +101,27 @@ town's rows in the read box must not skip a fetch. User Refresh, source switches
 location changes have their own targeted scope. These paths do not make routine forecast cadence
 equivalent to "fetch everything on every interaction."
 
+### User-initiated refresh throttle (10-minute limit)
+
+User-initiated manual refresh triggers (Android widget tap-to-refresh, Settings "Refresh data",
+Forecast History refresh, Observations refresh, and Desktop UI refresh buttons) bypass routine
+background cadence checks so that an explicit user tap can fetch immediately. However, manual user
+refreshes are limited across both platforms to at most once every 10 minutes via `UserRefreshThrottle`:
+
+- **Throttled (< 10 minutes since last user refresh)**:
+  - Network syncs and gap fills are suppressed.
+  - A user-visible notice is shown (Android home widget message banner, in-app `Toast.LENGTH_LONG`
+    on Settings/History/Observations, or Compose `RefreshNoticePill` on Desktop):
+    `"Not doing because last refresh was X minute(s) ago, and wait another Y minute(s) before asking for a refresh"`.
+  - Logged with `USER_REFRESH_THROTTLED elapsedMin=… waitMin=…` and `REFRESH_TOAST … none=RATE_LIMITED`.
+- **Allowed (≥ 10 minutes or first user refresh)**:
+  - Last user refresh timestamp is recorded (`FetchMetadata` on Android, UI state on Desktop).
+  - Immediate forced forecast sync and history gap fill are enqueued.
+  - A user-visible notice indicates that the refresh is queued.
+- **Passive events are exempt**:
+  - Background periodic worker ticks, power connect/disconnect events, screen unlock repaints
+    (`EXTRA_PASSIVE = true`), and UI-only ticks do not check, update, or get blocked by this throttle.
+
 Android screen-on receivers registered at runtime work only while the process is alive. Manifest
 `USER_PRESENT` delivery has measured unreliable, and manifest `ACTION_SCREEN_ON` registration is not
 a substitute for the runtime receiver.
@@ -111,5 +132,6 @@ a substitute for the runtime receiver.
 - Forecast worker tick: `ForecastFetchPolicy.kt` and `BatteryTier.kt`
 - Observation cadence: `CurrentTempCadence.kt` and `NonPrimaryObservationPolicy.kt`
 - Targeted hourly coverage: `HourlyOnDemand.kt` and `HourlyOnDemandRun.kt`
+- User-initiated refresh throttle: `UserRefreshThrottle.kt`
 - Snapshot timing: `HourlySnapshotRun.kt`
 - Desktop planning: `ForecastSchedule.kt` and `DesktopForecastPlanner.kt`

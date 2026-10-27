@@ -110,6 +110,13 @@ object RefreshToast {
                 RefreshNotice.formatAge(notice.ageMs ?: 0L),
             ).trim()
             RefreshNotice.Reason.ALREADY_QUEUED -> context.getString(R.string.refresh_already_queued)
+            RefreshNotice.Reason.RATE_LIMITED -> {
+                val x = notice.elapsedMinutes ?: 0
+                val y = notice.remainingMinutes ?: 1
+                val xStr = com.weatherwidget.shared.util.UserRefreshThrottle.formatMinutes(x)
+                val yStr = com.weatherwidget.shared.util.UserRefreshThrottle.formatMinutes(y)
+                context.getString(R.string.refresh_rate_limited, xStr, yStr)
+            }
             RefreshNotice.Reason.IN_PROGRESS -> context.getString(R.string.refresh_in_progress)
             RefreshNotice.Reason.QUOTA -> context.getString(
                 R.string.refresh_quota_blocked,

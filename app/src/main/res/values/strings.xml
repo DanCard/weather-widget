@@ -44,6 +44,7 @@
     <string name="refresh_already_queued">Refresh already queued</string>
     <string name="refresh_in_progress">Refresh already in progress</string>
     <string name="refresh_quota_blocked">%1$s limit reached · next refresh after %2$s</string>
+    <string name="refresh_rate_limited">Not doing because last refresh was %1$s ago, and wait another %2$s before asking for a refresh</string>
     <string name="nav_previous">Previous days</string>
     <string name="nav_next">Next days</string>
     <string name="weather_icon_desc">Weather condition icon</string>

@@ -44,6 +44,7 @@
     <string name="refresh_already_queued">Đã có lượt làm mới trong hàng đợi</string>
     <string name="refresh_in_progress">Đang làm mới</string>
     <string name="refresh_quota_blocked">Đã đạt giới hạn %1$s · làm mới tiếp theo sau %2$s</string>
+    <string name="refresh_rate_limited">Không thực hiện vì lần làm mới cuối là %1$s trước, hãy đợi thêm %2$s trước khi yêu cầu làm mới</string>
     <string name="nav_previous">Những ngày trước</string>
     <string name="nav_next">Những ngày sau</string>
     <string name="weather_icon_desc">Biểu tượng điều kiện thời tiết</string>

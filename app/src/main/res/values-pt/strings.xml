@@ -44,6 +44,7 @@
     <string name="refresh_already_queued">Atualização já na fila</string>
     <string name="refresh_in_progress">Atualização já em andamento</string>
     <string name="refresh_quota_blocked">Limite de %1$s atingido · próxima atualização após %2$s</string>
+    <string name="refresh_rate_limited">Não realizada porque a última atualização foi há %1$s, aguarde mais %2$s antes de solicitar atualização</string>
     <string name="nav_previous">Dias anteriores</string>
     <string name="nav_next">Próximos dias</string>
     <string name="weather_icon_desc">Ícone de condição meteorológica</string>

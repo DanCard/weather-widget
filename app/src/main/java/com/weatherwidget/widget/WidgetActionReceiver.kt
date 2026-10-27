@@ -59,11 +59,14 @@ class WidgetActionReceiver : BroadcastReceiver() {
                         AppWidgetManager.EXTRA_APPWIDGET_ID,
                         AppWidgetManager.INVALID_APPWIDGET_ID,
                     ).takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+                val uiOnly = intent.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false)
+                val isPassive = intent.getBooleanExtra(WidgetActions.EXTRA_PASSIVE, false)
                 WidgetRefreshCoordinator.refresh(
-                    context,
-                    intent.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false),
-                    repository,
-                    requestedWidgetId,
+                    context = context,
+                    uiOnly = uiOnly,
+                    repository = repository,
+                    requestedWidgetId = requestedWidgetId,
+                    userInitiated = !uiOnly && !isPassive,
                 )
             }
         },

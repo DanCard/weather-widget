@@ -44,6 +44,7 @@
     <string name="refresh_already_queued">มีการรีเฟรชอยู่ในคิวแล้ว</string>
     <string name="refresh_in_progress">กำลังรีเฟรชอยู่</string>
     <string name="refresh_quota_blocked">ถึงขีดจำกัดของ %1$s · รีเฟรชครั้งถัดไปหลัง %2$s</string>
+    <string name="refresh_rate_limited">ไม่ดำเนินการเนื่องจากรีเฟรชล่าสุดเมื่อ %1$s ก่อน โปรดรออีก %2$s ก่อนขอรีเฟรชใหม่</string>
     <string name="nav_previous">วันก่อนหน้า</string>
     <string name="nav_next">วันถัดไป</string>
     <string name="weather_icon_desc">ไอคอนสภาพอากาศ</string>

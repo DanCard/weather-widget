@@ -145,6 +145,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
         val providerIntent =
             Intent(context, WidgetActionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_REFRESH
+                putExtra(WidgetActions.EXTRA_PASSIVE, true)
                 if (uiOnly) {
                     putExtra(WidgetActions.EXTRA_UI_ONLY, true)
                 }

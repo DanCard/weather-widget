@@ -44,6 +44,7 @@
     <string name="refresh_already_queued">Penyegaran sudah dalam antrean</string>
     <string name="refresh_in_progress">Penyegaran sedang berlangsung</string>
     <string name="refresh_quota_blocked">Batas %1$s tercapai · penyegaran berikutnya setelah %2$s</string>
+    <string name="refresh_rate_limited">Tidak dilakukan karena penyegaran terakhir %1$s yang lalu, tunggu %2$s lagi sebelum meminta penyegaran</string>
     <string name="nav_previous">Hari sebelumnya</string>
     <string name="nav_next">Hari berikutnya</string>
     <string name="weather_icon_desc">Ikon kondisi cuaca</string>

@@ -44,6 +44,7 @@
     <string name="refresh_already_queued">Yenileme zaten sırada</string>
     <string name="refresh_in_progress">Yenileme zaten sürüyor</string>
     <string name="refresh_quota_blocked">%1$s sınırına ulaşıldı · sonraki yenileme %2$s sonrası</string>
+    <string name="refresh_rate_limited">Son yenileme %1$s önce olduğu için yapılmıyor, tekrar yenileme istemeden önce %2$s daha bekleyin</string>
     <string name="nav_previous">Önceki günler</string>
     <string name="nav_next">Sonraki günler</string>
     <string name="weather_icon_desc">Hava durumu simgesi</string>

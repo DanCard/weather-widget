@@ -44,6 +44,7 @@
     <string name="refresh_already_queued">Оновлення вже в черзі</string>
     <string name="refresh_in_progress">Оновлення вже триває</string>
     <string name="refresh_quota_blocked">Ліміт %1$s вичерпано · наступне оновлення після %2$s</string>
+    <string name="refresh_rate_limited">Не виконується, оскільки останнє оновлення було %1$s тому, зачекайте ще %2$s перед новим оновленням</string>
     <string name="nav_previous">Попередні дні</string>
     <string name="nav_next">Наступні дні</string>
     <string name="weather_icon_desc">Значок погодних умов</string>

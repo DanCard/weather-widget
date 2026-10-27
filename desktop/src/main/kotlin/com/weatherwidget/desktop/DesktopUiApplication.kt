@@ -88,6 +88,7 @@ import javax.swing.SwingUtilities
 import androidx.compose.runtime.CompositionLocalProvider
 import com.weatherwidget.shared.util.RefreshNotice
 import com.weatherwidget.shared.util.RefreshOutcome
+import com.weatherwidget.shared.util.UserRefreshThrottle
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import kotlin.math.roundToInt
 
@@ -178,6 +179,7 @@ internal fun runDesktopUiApplication() = application {
         // Owned here rather than in either child window: full refresh work runs on uiScope and
         // survives closing Settings or Stations/Observations.
         var refreshInFlight by remember { mutableStateOf(false) }
+        var lastUserRefreshMs by remember { mutableStateOf<Long?>(null) }
         val desktopClients = remember { DesktopClients(weatherDao) }
         // Held as a top-level remember so SettingsWindow can call friendlyName() directly for the
         // reverse-geocoded location label, without going through the higher-level LocationResolver
@@ -920,6 +922,30 @@ internal fun runDesktopUiApplication() = application {
                 return
             }
 
+            val nowMs = System.currentTimeMillis()
+            when (val decision = UserRefreshThrottle.check(lastUserRefreshMs, nowMs)) {
+                is UserRefreshThrottle.Decision.Throttled -> {
+                    weatherDao.log(
+                        "REFRESH_CLICK",
+                        "origin=$origin suppressed=rate_limited elapsedMin=${decision.elapsedMinutes} waitMin=${decision.remainingMinutes}",
+                        "INFO",
+                    )
+                    refreshNotice.show(
+                        RefreshNotice.NotQueued(
+                            RefreshNotice.Reason.RATE_LIMITED,
+                            elapsedMinutes = decision.elapsedMinutes,
+                            remainingMinutes = decision.remainingMinutes,
+                        ),
+                        surface,
+                        origin,
+                    )
+                    return
+                }
+                is UserRefreshThrottle.Decision.Allowed -> {
+                    lastUserRefreshMs = nowMs
+                }
+            }
+
             refreshInFlight = true
             refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST), surface, origin)
             val startedAtMs = System.currentTimeMillis()
@@ -997,6 +1023,31 @@ internal fun runDesktopUiApplication() = application {
                 )
                 return
             }
+
+            val nowMs = System.currentTimeMillis()
+            when (val decision = UserRefreshThrottle.check(lastUserRefreshMs, nowMs)) {
+                is UserRefreshThrottle.Decision.Throttled -> {
+                    weatherDao.log(
+                        "REFRESH_CLICK",
+                        "origin=$origin suppressed=rate_limited elapsedMin=${decision.elapsedMinutes} waitMin=${decision.remainingMinutes}",
+                        "INFO",
+                    )
+                    refreshNotice.show(
+                        RefreshNotice.NotQueued(
+                            RefreshNotice.Reason.RATE_LIMITED,
+                            elapsedMinutes = decision.elapsedMinutes,
+                            remainingMinutes = decision.remainingMinutes,
+                        ),
+                        RefreshNoticeSurface.OBSERVATIONS,
+                        origin,
+                    )
+                    return
+                }
+                is UserRefreshThrottle.Decision.Allowed -> {
+                    lastUserRefreshMs = nowMs
+                }
+            }
+
             refreshInFlight = true
             refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.OBSERVATIONS), RefreshNoticeSurface.OBSERVATIONS, origin)
             // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
@@ -1041,6 +1092,31 @@ internal fun runDesktopUiApplication() = application {
                 refreshNotice.show(RefreshNotice.NotQueued(RefreshNotice.Reason.IN_PROGRESS), refreshNoticeSurface(origin), origin)
                 return
             }
+
+            val nowMs = System.currentTimeMillis()
+            when (val decision = UserRefreshThrottle.check(lastUserRefreshMs, nowMs)) {
+                is UserRefreshThrottle.Decision.Throttled -> {
+                    weatherDao.log(
+                        "REFRESH_CLICK",
+                        "origin=$origin source=${source.id} suppressed=rate_limited elapsedMin=${decision.elapsedMinutes} waitMin=${decision.remainingMinutes}",
+                        "INFO",
+                    )
+                    refreshNotice.show(
+                        RefreshNotice.NotQueued(
+                            RefreshNotice.Reason.RATE_LIMITED,
+                            elapsedMinutes = decision.elapsedMinutes,
+                            remainingMinutes = decision.remainingMinutes,
+                        ),
+                        refreshNoticeSurface(origin),
+                        origin,
+                    )
+                    return
+                }
+                is UserRefreshThrottle.Decision.Allowed -> {
+                    lastUserRefreshMs = nowMs
+                }
+            }
+
             refreshInFlight = true
             refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST), refreshNoticeSurface(origin), origin)
             val startedAtMs = System.currentTimeMillis()

@@ -14,7 +14,7 @@ sealed interface RefreshNotice {
     enum class Kind { FORECAST, OBSERVATIONS, BOTH }
 
     /** Ordered by how specific the reason is: [merge] keeps the higher one. */
-    enum class Reason { UP_TO_DATE, ALREADY_QUEUED, IN_PROGRESS, QUOTA, NO_LOCATION }
+    enum class Reason { UP_TO_DATE, RATE_LIMITED, ALREADY_QUEUED, IN_PROGRESS, QUOTA, NO_LOCATION }
 
     data class Queued(val kind: Kind) : RefreshNotice
 
@@ -28,6 +28,10 @@ sealed interface RefreshNotice {
         val ageMs: Long? = null,
         /** When the quota block ends (QUOTA only). */
         val untilMs: Long? = null,
+        /** How many minutes ago the last user refresh was (RATE_LIMITED only). */
+        val elapsedMinutes: Int? = null,
+        /** How many minutes to wait before asking for a refresh (RATE_LIMITED only). */
+        val remainingMinutes: Int? = null,
     ) : RefreshNotice
 
     /**
@@ -99,6 +103,12 @@ sealed interface RefreshNotice {
                     val subject = notice.sourceName?.let { "$it $what" } ?: what.replaceFirstChar { it.uppercase() }
                     notice.ageMs?.let { "$subject up to date · ${formatAge(it)} ago" } ?: "$subject up to date"
                 }
+                Reason.RATE_LIMITED -> {
+                    UserRefreshThrottle.formatMessage(
+                        notice.elapsedMinutes ?: 0,
+                        notice.remainingMinutes ?: 1,
+                    )
+                }
                 Reason.ALREADY_QUEUED -> "Refresh already queued"
                 Reason.IN_PROGRESS -> "Refresh already in progress"
                 Reason.QUOTA -> {
@@ -119,6 +129,8 @@ sealed interface RefreshNotice {
                 if (notice.reason == Reason.UP_TO_DATE) append(" subject=${notice.subject}")
                 notice.ageMs?.let { append(" ageMin=${it / 60_000L}") }
                 notice.untilMs?.let { append(" until=$it") }
+                notice.elapsedMinutes?.let { append(" elapsedMin=$it") }
+                notice.remainingMinutes?.let { append(" waitMin=$it") }
             }
         }
     }

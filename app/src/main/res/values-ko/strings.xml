@@ -44,6 +44,7 @@
     <string name="refresh_already_queued">새로고침이 이미 대기 중</string>
     <string name="refresh_in_progress">새로고침이 이미 진행 중</string>
     <string name="refresh_quota_blocked">%1$s 한도 도달 · 다음 새로고침은 %2$s 이후</string>
+    <string name="refresh_rate_limited">마지막 새로고침이 %1$s 전이므로 건너뜁니다. 다시 요청하기 전에 %2$s 더 기다려 주세요</string>
     <string name="nav_previous">이전 날짜</string>
     <string name="nav_next">다음 날짜</string>
     <string name="weather_icon_desc">날씨 상태 아이콘</string>

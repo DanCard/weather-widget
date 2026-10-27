@@ -50,6 +50,24 @@ class RefreshNoticeStateTest {
     }
 
     @Test
+    fun `rate limited notice displays formatted message on desktop surface`() {
+        state.show(
+            NotQueued(Reason.RATE_LIMITED, elapsedMinutes = 3, remainingMinutes = 7),
+            RefreshNoticeSurface.SETTINGS,
+            "settings",
+        )
+
+        assertEquals(
+            "Not doing because last refresh was 3 minutes ago, and wait another 7 minutes before asking for a refresh",
+            state.textFor(RefreshNoticeSurface.SETTINGS),
+        )
+        assertEquals(
+            listOf("origin=settings none=RATE_LIMITED elapsedMin=3 waitMin=7 shown"),
+            logged,
+        )
+    }
+
+    @Test
     fun `a second notice within four seconds is suppressed and logged`() {
         state.show(Queued(Kind.OBSERVATIONS), RefreshNoticeSurface.OBSERVATIONS, "observations")
         nowMs += 500L

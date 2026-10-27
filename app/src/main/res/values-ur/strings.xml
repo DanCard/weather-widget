@@ -44,6 +44,7 @@
     <string name="refresh_already_queued">ریفریش پہلے سے قطار میں ہے</string>
     <string name="refresh_in_progress">ریفریش پہلے سے جاری ہے</string>
     <string name="refresh_quota_blocked">%1$s کی حد پوری ہو گئی · اگلا ریفریش %2$s کے بعد</string>
+    <string name="refresh_rate_limited">ریفریش نہیں ہو رہا کیونکہ آخری ریفریش %1$s پہلے ہوا تھا، دوبارہ ریفریش مانگنے سے پہلے مزید %2$s انتظار کریں</string>
     <string name="nav_previous">پچھلے دن</string>
     <string name="nav_next">اگلے دن</string>
     <string name="weather_icon_desc">موسمی حالت کا آئیکن</string>

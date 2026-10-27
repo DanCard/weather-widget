@@ -108,6 +108,19 @@ class RefreshNoticeTest {
     }
 
     @Test
+    fun `rate limited text and log detail`() {
+        val rateLimited = NotQueued(Reason.RATE_LIMITED, elapsedMinutes = 3, remainingMinutes = 7)
+        assertEquals(
+            "Not doing because last refresh was 3 minutes ago, and wait another 7 minutes before asking for a refresh",
+            text(rateLimited),
+        )
+        assertEquals(
+            "none=RATE_LIMITED elapsedMin=3 waitMin=7",
+            RefreshNotice.logDetail(rateLimited),
+        )
+    }
+
+    @Test
     fun `in flight, already queued and no location`() {
         assertEquals("Refresh already in progress", text(NotQueued(Reason.IN_PROGRESS)))
         assertEquals("Refresh already queued", text(NotQueued(Reason.ALREADY_QUEUED)))
