@@ -21,6 +21,16 @@ object WidgetRefreshPolicy {
     ): Boolean = !uiOnlyRequested && isDataStale
 
     /**
+     * A Refresh tap on fresh data still repairs station history: the stale branch's sync runs the
+     * daily NWS gap fill itself, so only the fresh branch needs it. Before this, a fill the wake had
+     * judged unneeded (desktop 2026-10-27, cloud actuals stopped at 01:00) had no manual way out.
+     */
+    fun shouldRunHistoryGapFillAfterRefresh(
+        uiOnlyRequested: Boolean,
+        isDataStale: Boolean,
+    ): Boolean = !uiOnlyRequested && !isDataStale
+
+    /**
      * Worker-level network allowance based on refresh mode.
      */
     fun isNetworkAllowedForWorker(uiOnlyRefresh: Boolean): Boolean = !uiOnlyRefresh

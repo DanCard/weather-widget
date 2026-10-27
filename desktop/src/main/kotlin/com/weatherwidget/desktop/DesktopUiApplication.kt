@@ -931,7 +931,12 @@ internal fun runDesktopUiApplication() = application {
             // Through the shared runner on the application-owned scope: removing either child window
             // from composition cannot cancel the fetch or discard its result.
             val refresh = refreshRunner.start("user_refresh:$origin") {
-                repo.refresh(reason = "user_refresh:$origin", refillDay = refillDay, userRefresh = true)
+                val snapshot = repo.refresh(reason = "user_refresh:$origin", refillDay = refillDay, userRefresh = true)
+                // The daily NWS gap fill, as Android's Refresh runs it: need-gated, so a complete
+                // 3 days costs no request. Only a wake ran it before, so a fill that wake judged
+                // unneeded had no manual way out (2026-10-27: cloud actuals stopped at 01:00).
+                val served = currentConfig?.effectiveSources?.map(WeatherSource::fromId).orEmpty()
+                if (repo.refreshObservationWindow(served, reason = "user_refresh:$origin") > 0) repo.loadCached() ?: snapshot else snapshot
             }
             uiScope.launch {
                 try {

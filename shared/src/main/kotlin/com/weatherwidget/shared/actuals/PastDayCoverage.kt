@@ -27,8 +27,13 @@ fun pastDayLacksAfternoonCoverage(
     }
 }
 
-/** The longest silence official stations may leave in a day before its history is re-pulled. */
-const val MAX_OFFICIAL_GAP_MS = 3 * 3_600_000L
+/**
+ * The longest silence official stations may leave in a day before its history is re-pulled: one
+ * hourly METAR cycle plus 15 min for a late report. 3 h missed the desktop's wake on 2026-10-27 —
+ * asleep 00:40–06:55, the wake fetch's stray KNUQ 03:15 and KSJC 05:53 rows split the night into
+ * 2 h 40 m holes, so the fill said need=none and the cloud actuals stopped at 01:00.
+ */
+const val MAX_OFFICIAL_GAP_MS = 75 * 60_000L
 
 /**
  * True when official-station readings ([obsTimestampsMs]) leave a hole longer than [maxGapMs] in

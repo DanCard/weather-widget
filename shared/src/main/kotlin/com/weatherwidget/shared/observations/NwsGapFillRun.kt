@@ -7,6 +7,7 @@ import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.actuals.dayHasOfficialGap
 import com.weatherwidget.shared.actuals.pastDayLacksAfternoonCoverage
+import com.weatherwidget.shared.util.ActualsFeedPolicy
 import com.weatherwidget.shared.util.Log
 import kotlinx.coroutines.CancellationException
 import java.time.Instant
@@ -94,10 +95,41 @@ object NwsGapFillRun {
         val unreachable: Boolean,
     )
 
+    /** The one summary line of a [dailyForSources] run, on both platforms. */
+    const val RESULT_LOG_TAG = "NWS_DAILY_BACKFILL_RESULT"
+
+    /**
+     * Every trigger's entry to the daily pass — Android's full sync and Refresh tap, desktop's
+     * launch/wake catch-up and Refresh: runs [daily] only when one of [sourcesServed] takes its actuals
+     * from NWS ([ActualsFeedPolicy.requiresFeed]), then logs one [RESULT_LOG_TAG] line. Visible
+     * sources, not only the displayed one: the station rows feed every source that borrows NWS
+     * actuals, and desktop gating on the displayed source alone left a borrower unfilled while Android
+     * filled it. Null when no served source reads NWS — nothing was asked.
+     */
+    suspend fun dailyForSources(
+        host: Host,
+        latitude: Double,
+        longitude: Double,
+        sourcesServed: Collection<WeatherSource>,
+        reason: String,
+        nowMs: Long,
+        zone: ZoneId,
+    ): Result? {
+        if (!ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, sourcesServed, latitude, longitude)) return null
+        val result = daily(host, latitude, longitude, nowMs, zone)
+        host.log(
+            RESULT_LOG_TAG,
+            "reason=$reason need=${result.needed.sorted().ifEmpty { "none" }} rows=${result.rows} " +
+                "stations=${result.stationsTried} unreachable=${result.unreachable} remaining=${result.remaining.sorted()}",
+            if (result.unreachable) "WARN" else "INFO",
+        )
+        return result
+    }
+
     /**
      * The daily pass: fills the last [BACKFILL_DAYS] when day−2, yesterday or (from 02:00) today has no
      * NWS daily_history row, a past one was reduced from an overnight-only slice, or a day's official
-     * stations went quiet for over 3 h (today up to now — a wake after a night asleep). Stations are
+     * stations went quiet for over 75 min (today up to now — a wake after a night asleep). Stations are
      * tried nearest first and the pass stops as soon as every needed day is complete.
      */
     suspend fun daily(host: Host, latitude: Double, longitude: Double, nowMs: Long, zone: ZoneId): Result {

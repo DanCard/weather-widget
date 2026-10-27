@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyHistoryDao
@@ -68,7 +69,7 @@ class NwsObservationBackfillerTest {
         val source = mockk<NwsObservationSource>()
         coEvery { source.stationsForLocationOutcome(any(), any()) } throws CancellationException("stop")
 
-        subject(source).backfillNwsObservationsIfNeeded(37.42, -122.08)
+        subject(source).backfillNwsObservationsIfNeeded(37.42, -122.08, listOf(WeatherSource.NWS), "test")
     }
 
     @Test(expected = CancellationException::class)

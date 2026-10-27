@@ -11,6 +11,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.shared.util.RefreshNotice
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
+import kotlinx.coroutines.CancellationException
 
 /** Owns cache repaint, freshness decisions, and widget heartbeat recovery. */
 internal object WidgetRefreshCoordinator {
@@ -50,6 +51,9 @@ internal object WidgetRefreshCoordinator {
         } else {
             null
         }
+        if (WidgetRefreshPolicy.shouldRunHistoryGapFillAfterRefresh(uiOnly, isDataStale)) {
+            enqueueHistoryGapFill(context)
+        }
         // "Tap to refresh" is the user asking for data, so it says what happened either way. The
         // ui-only repaints app screens send on close stay silent.
         if (!uiOnly) {
@@ -78,6 +82,28 @@ internal object WidgetRefreshCoordinator {
                 context,
                 isScreenInteractive = powerManager.isInteractive,
             )
+        }
+    }
+
+    /**
+     * Fresh-data Refresh: the daily NWS gap fill alone. The worker runs the shared
+     * [com.weatherwidget.shared.observations.NwsGapFillRun.dailyForSources], which owns the "does a
+     * visible source read NWS?" gate, so it is not repeated here. Best-effort: the toast already
+     * reflects the repaint.
+     */
+    private suspend fun enqueueHistoryGapFill(context: Context) {
+        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+        try {
+            val (lat, lon) = ActiveLocationResolver.resolve(
+                context, WidgetStateManager(context), WeatherDatabase.getDatabase(context).forecastDao(),
+            ) ?: return
+            WidgetWorkScheduler.enqueueHistoryGapFill(context, lat, lon, reason = "user_refresh:widget")
+            appLogDao.log("OBS_DAILY_GAP_FILL_ENQUEUE", "reason=user_refresh:widget", "INFO")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "History gap-fill enqueue failed", e)
+            appLogDao.log("OBS_DAILY_GAP_FILL_ENQUEUE_FAIL", "${e.javaClass.simpleName}: ${e.message}", "ERROR")
         }
     }
 

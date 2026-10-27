@@ -128,7 +128,7 @@ class FullSyncPipelineUiOnlyGateTest {
         // THE regression guard. This call sat outside the gate on 2026-08-23.
         coVerify(exactly = 0) { metarRefresher.refreshIfDue(any(), any(), any(), any(), any()) }
         coVerify(exactly = 0) { synopticRefresher.refreshIfDue(any(), any(), any(), any(), any()) }
-        coVerify(exactly = 0) { weatherRepository.backfillNwsObservationsIfNeeded(any(), any()) }
+        coVerify(exactly = 0) { weatherRepository.backfillNwsObservationsIfNeeded(any(), any(), any(), any()) }
 
         // The fetch still runs, but forbidden from going out to the network, and never forced.
         val networkAllowed = slot<Boolean>()
@@ -194,7 +194,7 @@ class FullSyncPipelineUiOnlyGateTest {
         assertEquals(lat, metarLat.captured, COORD_TOLERANCE)
         assertEquals(lon, metarLon.captured, COORD_TOLERANCE)
 
-        coVerify(exactly = 1) { weatherRepository.backfillNwsObservationsIfNeeded(any(), any()) }
+        coVerify(exactly = 1) { weatherRepository.backfillNwsObservationsIfNeeded(any(), any(), any(), any()) }
 
         val networkAllowed = slot<Boolean>()
         coVerify(exactly = 1) {

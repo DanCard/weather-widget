@@ -61,6 +61,8 @@ object WidgetWorkScheduler {
      */
     const val WORK_NAME_CURRENT_TEMP_NOW = "weather_widget_current_temp_now"
     const val WORK_NAME_OBSERVATION_BACKFILL = "weather_widget_observation_backfill"
+    /** [enqueueHistoryGapFill]'s own name: a pending recent-pass backfill must not absorb it under KEEP. */
+    const val WORK_NAME_HISTORY_GAP_FILL = "weather_widget_history_gap_fill"
     const val WORK_NAME_UI = "weather_widget_one_time_ui"
 
     /** The sync [PreWakeFetchScheduler] arms before the user's alarm; its own name, so no other sync replaces it. */
@@ -386,6 +388,44 @@ object WidgetWorkScheduler {
             .build()
 
     /**
+     * The daily NWS gap-fill pass on its own, for a Refresh tap on fresh data
+     * ([WidgetRefreshPolicy.shouldRunHistoryGapFillAfterRefresh]). Need-gated in the shared runner, so
+     * a complete 3 days makes no request. KEEP: a second tap while one is pending joins it, and a
+     * running worker is never cancelled (AGENTS.md rule 6).
+     */
+    internal fun enqueueHistoryGapFill(
+        context: Context,
+        latitude: Double,
+        longitude: Double,
+        reason: String,
+    ): OneTimeWorkRequest {
+        val request =
+            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                .setInputData(
+                    Data.Builder()
+                        .putBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, true)
+                        .putBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_DAILY, true)
+                        .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LAT, latitude)
+                        .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, longitude)
+                        .putString(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON, reason)
+                        .tagTestModeEnqueue()
+                        .build(),
+                )
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build(),
+                )
+                .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WORK_NAME_HISTORY_GAP_FILL,
+            ExistingWorkPolicy.KEEP,
+            request,
+        )
+        return request
+    }
+
+    /**
      * Retry of an observation backfill that never reached NWS, enqueued by that backfill's own run.
      *
      * APPEND_OR_REPLACE, deliberately unlike [enqueueRequiredObservationBackfill]'s KEEP: the caller
@@ -606,6 +646,8 @@ object WidgetWorkScheduler {
             data.getBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_ONLY, false),
             data.getBoolean(WeatherWidgetWorker.KEY_NONPRIMARY_CURRENT_TEMP_ONLY, false),
             data.getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, false),
+            // The daily gap fill and the recent pass are different work; coalescing drops one.
+            data.getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_DAILY, false),
             data.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE) ?: "",
             // A source switch's run owns its banner; folding it into another run would pin it.
             data.getString(WeatherWidgetWorker.KEY_SOURCE_SWITCH_ID) ?: "",
@@ -647,7 +689,10 @@ object WidgetWorkScheduler {
                 .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
                 .addTag(signatureTag)
                 .apply {
-                    if (inputData.getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, false)) {
+                    // The recent pass only: a parked daily gap fill must not read as a pending repair.
+                    if (inputData.getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, false) &&
+                        !inputData.getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_DAILY, false)
+                    ) {
                         addTag(DEFERRED_OBSERVATION_BACKFILL_TAG)
                     }
                 }

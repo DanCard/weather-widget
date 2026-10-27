@@ -268,6 +268,16 @@ class WeatherWidgetWorker
                     )
                     return@handleWorkerExceptions Result.success()
                 }
+                if (input.backfillDaily) {
+                    // The daily pass is need-gated and has no retry ladder or cooldown of its own: a
+                    // fill NWS never answered is asked again by the next sync or Refresh tap.
+                    // The shared entry gates on the visible sources and logs NWS_DAILY_BACKFILL_RESULT.
+                    val result = weatherRepository.backfillNwsObservationsIfNeeded(
+                        input.backfillLat, input.backfillLon, widgetStateManager.getVisibleSourcesOrder(), input.backfillReason,
+                    )
+                    if ((result?.rows ?: 0) > 0) painter.refreshWidgetsFromCache()
+                    return@handleWorkerExceptions Result.success()
+                }
                 appLogDao.log(
                     "OBS_HOURLY_BACKFILL_RUN",
                     "reason=${input.backfillReason} lat=${input.backfillLat} lon=${input.backfillLon} lookbackHours=${input.backfillHours}",
@@ -638,6 +648,8 @@ class WeatherWidgetWorker
             const val KEY_OBSERVATION_BACKFILL_REASON = "observation_backfill_reason"
             /** Retry number of an observation backfill (0 = first run); see [com.weatherwidget.shared.observations.ObservationBackfillRetryPolicy]. */
             const val KEY_OBSERVATION_BACKFILL_ATTEMPT = "observation_backfill_attempt"
+            /** An observation backfill that runs the shared daily gap-fill pass instead of the recent one. */
+            const val KEY_OBSERVATION_BACKFILL_DAILY = "observation_backfill_daily"
             const val KEY_BACKFILL_LAT = "backfill_lat"
             const val KEY_BACKFILL_LON = "backfill_lon"
 

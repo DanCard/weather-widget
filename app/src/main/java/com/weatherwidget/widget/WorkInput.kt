@@ -20,6 +20,8 @@ internal data class WorkInput(
     val backfillReason: String,
     /** See [WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ATTEMPT]. */
     val backfillAttempt: Int = 0,
+    /** See [WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_DAILY]. */
+    val backfillDaily: Boolean = false,
     /** See [WeatherWidgetWorker.KEY_REQUESTED_AT_MS]; 0 when the enqueue path did not stamp it. */
     val requestedAtMs: Long = 0L,
     /** See [WeatherWidgetWorker.KEY_STARTUP_DEFERRED]. */
@@ -61,6 +63,7 @@ internal data class WorkInput(
                 backfillHours = data.getLong(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS, WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS),
                 backfillReason = data.getString(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON) ?: "unspecified",
                 backfillAttempt = data.getInt(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ATTEMPT, 0),
+                backfillDaily = data.getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_DAILY, false),
                 requestedAtMs = data.getLong(WeatherWidgetWorker.KEY_REQUESTED_AT_MS, 0L),
                 startupDeferred = data.getBoolean(WeatherWidgetWorker.KEY_STARTUP_DEFERRED, false),
                 locationChangePlace = data.getString(WeatherWidgetWorker.KEY_LOCATION_CHANGE_PLACE),

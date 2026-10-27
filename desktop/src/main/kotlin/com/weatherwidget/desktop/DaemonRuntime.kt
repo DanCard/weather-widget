@@ -704,14 +704,16 @@ internal class DaemonRuntime(
                     activeRepo.loadCached()?.let { panelPublisher.publishForecastState(it) }
                     notifyDataUpdated()
                 }
-                val outcome = activeRepo.refreshObservationWindow()
+                // Every visible source, as Android's sync: a borrower of NWS actuals needs the fill too.
+                val served = config.effectiveSources.map(WeatherSource::fromId)
+                val outcome = activeRepo.refreshObservationWindow(served, reason = "launch:$reason")
                 if (outcome > 0) publishStored()
                 if (outcome == DesktopWeatherRepository.OBS_WINDOW_UNREACHABLE) {
                     // NWS never answered: retry on the shared schedule without holding up this wake.
                     daemonScope.launch {
                         ObservationWindowRetry.run(
                             firstOutcome = outcome,
-                            refresh = { activeRepo.refreshObservationWindow() },
+                            refresh = { activeRepo.refreshObservationWindow(served, reason = "launch_retry:$reason") },
                             stillCurrent = { repo === activeRepo && stillDisplayed() },
                             onStored = publishStored,
                             log = { tag, message, level -> weatherDao.log(tag, message, level) },

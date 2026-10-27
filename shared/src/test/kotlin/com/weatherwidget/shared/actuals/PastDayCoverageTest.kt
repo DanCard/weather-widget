@@ -90,7 +90,7 @@ class PastDayCoverageTest {
     }
 
     @Test
-    fun `a hole of more than 3 h mid-day is a gap`() {
+    fun `a mid-day hole is a gap`() {
         val holed = hourlyDay.filterNot { it in ts("2026-05-31T09:00")..ts("2026-05-31T12:00") }
 
         assertTrue(dayHasOfficialGap(holed, LocalDate.of(2026, 5, 31), zone, ts("2026-06-01T10:00")))
@@ -107,15 +107,33 @@ class PastDayCoverageTest {
 
     @Test
     fun `today is judged only up to now`() {
-        val obs = listOf(ts("2026-06-01T00:10"), ts("2026-06-01T02:00"), ts("2026-06-01T04:00"))
+        val obs = listOf(ts("2026-06-01T00:10"), ts("2026-06-01T01:20"), ts("2026-06-01T02:30"))
 
-        assertFalse(dayHasOfficialGap(obs, today, zone, ts("2026-06-01T07:00")))
-        assertTrue(dayHasOfficialGap(obs, today, zone, ts("2026-06-01T07:01")))
+        assertFalse(dayHasOfficialGap(obs, today, zone, ts("2026-06-01T03:45")))
+        assertTrue(dayHasOfficialGap(obs, today, zone, ts("2026-06-01T03:46")))
     }
 
     @Test
-    fun `no readings is one long hole once the span passes 3 h`() {
-        assertFalse(dayHasOfficialGap(emptyList(), today, zone, ts("2026-06-01T03:00")))
-        assertTrue(dayHasOfficialGap(emptyList(), today, zone, ts("2026-06-01T03:01")))
+    fun `no readings is one long hole once the span passes 75 min`() {
+        assertFalse(dayHasOfficialGap(emptyList(), today, zone, ts("2026-06-01T01:15")))
+        assertTrue(dayHasOfficialGap(emptyList(), today, zone, ts("2026-06-01T01:16")))
+    }
+
+    @Test
+    fun `one late hourly METAR is not a gap`() {
+        val metars = (0..9).map { ts("2026-06-01T%02d:53".format(it)) }
+            .map { if (it == ts("2026-06-01T05:53")) ts("2026-06-01T06:03") else it }
+
+        assertFalse(dayHasOfficialGap(listOf(ts("2026-06-01T00:00")) + metars, today, zone, ts("2026-06-01T10:00")))
+    }
+
+    @Test
+    fun `stray wake readings do not hide a night asleep`() {
+        // Desktop, 2026-10-27: asleep 00:40-06:55; the wake fetch stored KNUQ 03:15 and KSJC 05:53,
+        // leaving holes of 2 h 40 m and 2 h 38 m that the old 3 h limit passed.
+        val obs = listOf("00:00", "00:15", "00:35", "03:15", "05:53", "05:55", "06:35", "06:40", "06:53")
+            .map { ts("2026-06-01T$it") }
+
+        assertTrue(dayHasOfficialGap(obs, today, zone, ts("2026-06-01T06:55")))
     }
 }

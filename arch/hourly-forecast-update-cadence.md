@@ -69,14 +69,20 @@ on both platforms (`NwsForecastReply`). Desktop's full refresh adds the shared
 itself included — taking the recent window when stored rows reach the last hour and the week only on a
 real gap.
 
-Recent NWS station history is filled by the shared `NwsGapFillRun` daily pass — Android's full sync,
-desktop's launch/wake catch-up after it publishes. It runs only when day−2, yesterday or (from 02:00)
-today has no NWS `daily_history` row, a past day's NWS rows stop before 14:00
-(`pastDayLacksAfternoonCoverage`), or a day's official-station rows leave a hole of over 3 h, today
-counted up to now (`dayHasOfficialGap`, so a wake after a night asleep refills the night even though
-personal stations covered it through the Synoptic fallback); then it asks up to five stations, nearest first, for the last
-3 days and stops once every needed day is complete. A complete week makes no request. Logs:
-`NWS_DAILY_BACKFILL_*` on both platforms, plus desktop's `OBS_WINDOW_REFRESH need=…` summary.
+Recent NWS station history is filled by the shared `NwsGapFillRun` daily pass. Every trigger enters
+through `NwsGapFillRun.dailyForSources` — Android's full sync, desktop's launch/wake catch-up after it
+publishes, and a user Refresh on both platforms (desktop Settings → Refresh after its fetch; Android's
+widget Refresh on fresh data enqueues it alone as `WORK_NAME_HISTORY_GAP_FILL`, since a stale tap's
+sync runs it already). That entry owns the source gate: it runs when any visible source takes its
+actuals from NWS (`ActualsFeedPolicy.requiresFeed`), not only the displayed one. The pass itself runs
+only when day−2, yesterday or (from 02:00) today has no NWS `daily_history` row, a past day's NWS rows
+stop before 14:00 (`pastDayLacksAfternoonCoverage`), or a day's official-station rows leave a hole of
+over 75 min (one hourly METAR cycle plus a late report), today counted up to now (`dayHasOfficialGap`,
+so a wake after a night asleep refills the night even though personal stations covered it through the
+Synoptic fallback and the wake fetch stored a few stray official rows); then it asks up to five
+stations, nearest first, for the last 3 days and stops once every needed day is complete. A complete
+week makes no request. Logs, identical on both platforms: one `NWS_DAILY_BACKFILL_RESULT
+reason=… need=… rows=…` line per run plus the per-station `NWS_DAILY_BACKFILL_*` lines.
 Android's render-detected observation gap runs the same runner's recent pass (every station, the last
 72 h, `OBS_HOURLY_BACKFILL_*`). A fill that never reached NWS — station lookup failed or every station
 failed, not an answered-but-empty one — retries on the shared `ObservationBackfillRetryPolicy`

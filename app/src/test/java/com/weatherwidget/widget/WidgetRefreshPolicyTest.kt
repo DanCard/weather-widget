@@ -65,6 +65,16 @@ class WidgetRefreshPolicyTest {
     }
 
     @Test
+    fun `a refresh on fresh data runs the history gap fill, and only then`() {
+        assertTrue(WidgetRefreshPolicy.shouldRunHistoryGapFillAfterRefresh(uiOnlyRequested = false, isDataStale = false))
+        // Stale: the sync it enqueues runs the daily pass itself.
+        assertFalse(WidgetRefreshPolicy.shouldRunHistoryGapFillAfterRefresh(uiOnlyRequested = false, isDataStale = true))
+        // A screen's repaint on close is not a request for data.
+        assertFalse(WidgetRefreshPolicy.shouldRunHistoryGapFillAfterRefresh(uiOnlyRequested = true, isDataStale = false))
+        assertFalse(WidgetRefreshPolicy.shouldRunHistoryGapFillAfterRefresh(uiOnlyRequested = true, isDataStale = true))
+    }
+
+    @Test
     fun `worker network allowance mirrors ui-only mode`() {
         assertFalse(WidgetRefreshPolicy.isNetworkAllowedForWorker(uiOnlyRefresh = true))
         assertTrue(WidgetRefreshPolicy.isNetworkAllowedForWorker(uiOnlyRefresh = false))

@@ -70,7 +70,10 @@ class ObservationRepository private constructor(
     internal suspend fun backfillNwsObservationsIfNeeded(
         latitude: Double,
         longitude: Double,
-    ) = components.backfiller.backfillNwsObservationsIfNeeded(latitude, longitude)
+        sourcesServed: Collection<com.weatherwidget.data.model.WeatherSource>,
+        reason: String,
+    ): com.weatherwidget.shared.observations.NwsGapFillRun.Result? =
+        components.backfiller.backfillNwsObservationsIfNeeded(latitude, longitude, sourcesServed, reason)
 
     internal suspend fun backfillRecentNwsObservations(
         latitude: Double,

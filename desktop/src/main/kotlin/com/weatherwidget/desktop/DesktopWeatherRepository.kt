@@ -743,30 +743,28 @@ class DesktopWeatherRepository(
      * history, the last 3 days per station, nearest first, stored as a refresh stores them and the
      * extremes recomputed; nothing at all when every day is complete. It pulled 7 days on every wake
      * (plans/261025-shared-nws-gap-fill.md). Best-effort, because the forecast and current reading were
-     * already published: returns the readings stored (0 when nothing was needed or the source's actuals
-     * do not come from NWS), [OBS_WINDOW_UNREACHABLE] when NWS never answered (the daemon retries it on
-     * the shared schedule, [ObservationWindowRetry]), or [OBS_WINDOW_FAILED] on any other failure.
+     * already published: returns the readings stored (0 when nothing was needed or no source in
+     * [sourcesServed] takes its actuals from NWS — [NwsGapFillRun.dailyForSources] owns that gate and the
+     * `NWS_DAILY_BACKFILL_RESULT` line), [OBS_WINDOW_UNREACHABLE] when NWS never answered (the daemon
+     * retries it on the shared schedule, [ObservationWindowRetry]), or [OBS_WINDOW_FAILED] on any other
+     * failure. Also run by the Settings Refresh, after its fetch.
      */
-    suspend fun refreshObservationWindow(now: Long = currentTimeMillis()): Int = withContext(Dispatchers.IO) {
-        // Any source whose actuals come from NWS, not only NWS itself (ActualsFeedPolicy).
-        if (!ActualsFeedPolicy.hasDeferredHistoryWindow(displaySource, latitude, longitude)) return@withContext 0
-        val startedAt = System.currentTimeMillis()
+    suspend fun refreshObservationWindow(
+        sourcesServed: List<WeatherSource>,
+        reason: String,
+        now: Long = currentTimeMillis(),
+    ): Int = withContext(Dispatchers.IO) {
         try {
-            val result = NwsGapFillRun.daily(nwsGapFillHost(now), latitude, longitude, now, ZoneId.systemDefault())
-            weatherDao.log(
-                tag = "OBS_WINDOW_REFRESH",
-                message = "source=$weatherSource need=${result.needed.sorted().ifEmpty { "none" }} rows=${result.rows} " +
-                    "stations=${result.stationsTried} unreachable=${result.unreachable} " +
-                    "remaining=${result.remaining.sorted()} ms=${System.currentTimeMillis() - startedAt}",
-                level = if (result.unreachable) "WARN" else "INFO",
-            )
+            val result = NwsGapFillRun.dailyForSources(
+                nwsGapFillHost(now), latitude, longitude, sourcesServed, reason, now, ZoneId.systemDefault(),
+            ) ?: return@withContext 0
             if (result.unreachable) OBS_WINDOW_UNREACHABLE else result.rows
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             weatherDao.log(
                 tag = "OBS_WINDOW_REFRESH",
-                message = "source=$weatherSource failed ms=${System.currentTimeMillis() - startedAt}: $e",
+                message = "source=$weatherSource reason=$reason failed: $e",
                 level = "WARN",
             )
             OBS_WINDOW_FAILED

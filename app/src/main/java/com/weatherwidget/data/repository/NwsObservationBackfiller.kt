@@ -21,13 +21,20 @@ class NwsObservationBackfiller @Inject constructor(
     private val appLogDao: AppLogDao,
     private val dailyActualsStore: DailyActualsStore,
 ) {
-    /** The daily pass of the shared [NwsGapFillRun]: need-gated, 3 days, nearest station first. */
+    /**
+     * The daily pass of the shared [NwsGapFillRun] through its one entry, [NwsGapFillRun.dailyForSources]:
+     * gated on [sourcesServed] reading NWS, need-gated, 3 days, nearest station first. Null when no
+     * served source reads NWS.
+     */
     internal suspend fun backfillNwsObservationsIfNeeded(
         latitude: Double,
         longitude: Double,
-    ) {
-        NwsGapFillRun.daily(gapFillHost, latitude, longitude, System.currentTimeMillis(), ZoneId.systemDefault())
-    }
+        sourcesServed: Collection<WeatherSource>,
+        reason: String,
+    ): NwsGapFillRun.Result? =
+        NwsGapFillRun.dailyForSources(
+            gapFillHost, latitude, longitude, sourcesServed, reason, System.currentTimeMillis(), ZoneId.systemDefault(),
+        )
 
     /** Also run by `RoomNwsGapFillHostContractTest` against a real Room database. */
     internal val gapFillHost = object : NwsGapFillRun.Host {

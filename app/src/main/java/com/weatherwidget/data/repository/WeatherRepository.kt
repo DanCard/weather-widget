@@ -126,8 +126,13 @@ class WeatherRepository
         internal suspend fun fetchFromNws(latitude: Double, longitude: Double) = 
             forecastRepository.fetchFromNws(latitude, longitude)
             
-        suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) =
-            observationRepository.backfillNwsObservationsIfNeeded(latitude, longitude)
+        suspend fun backfillNwsObservationsIfNeeded(
+            latitude: Double,
+            longitude: Double,
+            sourcesServed: Collection<WeatherSource>,
+            reason: String,
+        ): com.weatherwidget.shared.observations.NwsGapFillRun.Result? =
+            observationRepository.backfillNwsObservationsIfNeeded(latitude, longitude, sourcesServed, reason)
         internal suspend fun backfillRecentNwsObservations(
             latitude: Double,
             longitude: Double,

@@ -18,7 +18,9 @@ import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.widget.handlers.HourlyBackfillGate
 import com.weatherwidget.widget.handlers.observationBackfillSiteKey
+import com.weatherwidget.shared.observations.NwsGapFillRun
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -81,7 +83,7 @@ class ObservationBackfillAttemptIntegrationTest {
         )
     }
 
-    private fun backfillWorker(repository: WeatherRepository): WeatherWidgetWorker {
+    private fun backfillWorker(repository: WeatherRepository, daily: Boolean = false): WeatherWidgetWorker {
         val factory = object : WorkerFactory() {
             override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
                 WeatherWidgetWorker(
@@ -96,6 +98,7 @@ class ObservationBackfillAttemptIntegrationTest {
             .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, lon)
             .putLong(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS, 72L)
             .putString(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON, "test_gap")
+            .putBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_DAILY, daily)
             .build()
         return TestListenableWorkerBuilder<WeatherWidgetWorker>(context).setInputData(input).setWorkerFactory(factory).build()
     }
@@ -152,5 +155,43 @@ class ObservationBackfillAttemptIntegrationTest {
         val ownLane = androidx.work.WorkManager.getInstance(context)
             .getWorkInfosForUniqueWork(WidgetWorkScheduler.WORK_NAME_OBSERVATION_BACKFILL).get()
         assertTrue("no second backfill in its own lane: $ownLane", ownLane.none { !it.state.isFinished })
+    }
+
+    /** Desktop 2026-10-27: a Refresh on fresh data ran no fill, so a missed overnight hole stayed. */
+    @Test
+    fun `a daily gap fill runs the daily pass, not the recent one, and leaves the recent cooldown alone`() = runBlocking {
+        val repository = mockk<WeatherRepository>(relaxed = true)
+        coEvery { repository.backfillNwsObservationsIfNeeded(lat, lon, any(), "test_gap") } returns
+            NwsGapFillRun.Result(needed = emptySet(), remaining = emptySet(), stationsTried = 0, rows = 0, unreachable = false)
+
+        val result = backfillWorker(repository, daily = true).doWork()
+
+        assertEquals(ListenableWorker.Result.success(), result)
+        coVerify(exactly = 1) { repository.backfillNwsObservationsIfNeeded(lat, lon, any(), "test_gap") }
+        coVerify(exactly = 0) { repository.backfillRecentNwsObservations(any(), any(), any()) }
+        assertEquals("the recent pass's cooldown is not stamped", 0L, stateManager.observationBackfillAttemptedAtMs(siteKey))
+    }
+
+    @Test
+    fun `a parked daily gap fill neither coalesces with a parked recent backfill nor reads as one`() = runBlocking {
+        stateManager.markMissingActualsRefreshRequested(7, requestKey)
+        val daily = Data.Builder()
+            .putBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, true)
+            .putBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_DAILY, true)
+            .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LAT, lat)
+            .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, lon)
+            .build()
+        val recent = Data.Builder()
+            .putBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, true)
+            .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LAT, lat)
+            .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, lon)
+            .build()
+
+        val (dailyOutcome, _) = WidgetWorkScheduler.enqueueStartupDeferred(context, daily, 15_000L, java.util.UUID.randomUUID())
+        assertTrue("a parked daily fill is not a pending recent repair", gate().request)
+        val (recentOutcome, _) = WidgetWorkScheduler.enqueueStartupDeferred(context, recent, 15_000L, java.util.UUID.randomUUID())
+
+        assertEquals(WidgetWorkScheduler.DeferredEnqueueOutcome.ENQUEUED, dailyOutcome)
+        assertEquals(WidgetWorkScheduler.DeferredEnqueueOutcome.ENQUEUED, recentOutcome)
     }
 }
