@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">Đặt lại</string>
     <string name="error_details_label_failures">Lỗi liên tiếp</string>
     <string name="error_details_label_last_attempt">Lần thử cuối</string>
+    <string name="error_details_label_last_success">Lần cập nhật thành công gần nhất</string>
     <string name="error_details_limit_per_day">%1$s mỗi ngày, dùng chung cho mọi thiết bị dùng khóa này</string>
     <string name="error_details_limit_per_minute">%1$s mỗi phút</string>
     <string name="error_details_show_response">Hiện phản hồi đầy đủ</string>

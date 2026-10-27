@@ -389,6 +389,7 @@
     <string name="error_details_label_resets">Se reinicia</string>
     <string name="error_details_label_failures">Fallos seguidos</string>
     <string name="error_details_label_last_attempt">Último intento</string>
+    <string name="error_details_label_last_success">Última actualización correcta</string>
     <string name="error_details_limit_per_day">%1$s al día, compartido por todos los dispositivos que usan esta clave</string>
     <string name="error_details_limit_per_minute">%1$s por minuto</string>
     <string name="error_details_show_response">Mostrar respuesta completa</string>

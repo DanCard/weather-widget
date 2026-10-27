@@ -91,6 +91,14 @@ At a high level:
 5. Repaint from stored state. UI interactions read cached data immediately and request network work
    only when the relevant policy says it is due.
 
+A failed fetch, quota block, or rate limit shows a failure pill over the graph on both platforms. The pill
+stays until the failure or block ends: there is no dismissal. Clicking it opens the details, worded from
+`:shared` `SourceErrorDetails`, which describes the pill that opened it: headline, explanation, the
+provider's request, status, message and quota details, failures in a row, last attempt and success, and
+the full response. Android shows them on `SourceErrorDetailsActivity` with localized text; desktop shows
+them on the popup's details card with the shared English, kept equal to `values/strings.xml` by
+`SourceErrorDetailsEnglishParityTest`.
+
 Forecast cadence (every fetch LONG), observation cadence, worker wakeups, and user-triggered refreshes are
 separate concerns. The current tables are in
 [forecast and observation cadence](hourly-forecast-update-cadence.md).

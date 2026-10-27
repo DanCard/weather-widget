@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">リセット</string>
     <string name="error_details_label_failures">連続失敗回数</string>
     <string name="error_details_label_last_attempt">最終試行</string>
+    <string name="error_details_label_last_success">最後に成功した更新</string>
     <string name="error_details_limit_per_day">1日あたり%1$s(このキーを使う全端末で共有)</string>
     <string name="error_details_limit_per_minute">1分あたり%1$s</string>
     <string name="error_details_show_response">レスポンス全体を表示</string>

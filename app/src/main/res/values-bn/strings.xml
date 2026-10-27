@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">রিসেট</string>
     <string name="error_details_label_failures">পরপর ব্যর্থতা</string>
     <string name="error_details_label_last_attempt">শেষ চেষ্টা</string>
+    <string name="error_details_label_last_success">সর্বশেষ সফল আপডেট</string>
     <string name="error_details_limit_per_day">দিনে %1$s, এই কী ব্যবহারকারী সব ডিভাইসে ভাগ করা</string>
     <string name="error_details_limit_per_minute">মিনিটে %1$s</string>
     <string name="error_details_show_response">পুরো উত্তর দেখান</string>

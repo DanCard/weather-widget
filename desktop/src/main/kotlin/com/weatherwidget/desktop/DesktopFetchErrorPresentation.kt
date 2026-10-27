@@ -1,9 +1,13 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.remote.QuotaNotice
-import com.weatherwidget.data.remote.QuotaNoticeText
-import com.weatherwidget.data.remote.ProviderErrorDetails
-import com.weatherwidget.data.remote.RateLimitNoticeText
+import com.weatherwidget.data.local.desktop.CurrentTempStatus
+import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
+import com.weatherwidget.data.local.desktop.DesktopQuotaState
+import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.model.ForecastProduct
+import com.weatherwidget.data.remote.FetchErrorCode
+import com.weatherwidget.data.remote.QuotaScope
+import com.weatherwidget.data.remote.SourceErrorDetails
 
 /** What the shared failure pill ([com.weatherwidget.shared.graph.FailureBannerLayout]) is worded from. */
 internal data class DesktopFailurePill(
@@ -12,138 +16,41 @@ internal data class DesktopFailurePill(
     val failureTimeMs: Long,
 )
 
-internal data class DesktopFetchErrorPresentation(
-    val title: String,
-    val bodyLines: List<String>,
-    val retryLine: String,
-    /** A daily-quota refusal ([desktopQuotaPresentation]): the daily view shows these, and only these. */
-    val quota: Boolean = false,
-    /** A short-window (per-minute) 429 ([RateLimitNotice]): every view shows it, for a minute. */
-    val rateLimit: Boolean = false,
-)
-
-/** Converts persisted fetch-failure details into honest, user-facing desktop banner copy. */
-internal fun desktopFetchErrorPresentation(
-    sourceDisplayName: String,
-    className: String,
-    detail: String,
-    /** When the failure was recorded: a quota resets at the midnight Pacific after it, not after now. */
-    failureMs: Long,
-): DesktopFetchErrorPresentation {
-    val statusCode = if (className == "ApiAccessException" || className == "GoogleDailyQuotaException") {
-        Regex("""\bstatus\s+(\d{3})\b""", RegexOption.IGNORE_CASE)
-            .find(detail)
-            ?.groupValues
-            ?.get(1)
-            ?.toIntOrNull()
-    } else {
-        null
-    }
-    val titleName = sourceDisplayName.uppercase()
-
-    QuotaNotice.forSourceFailure(statusCode, failureMs, detail)?.let {
-        return desktopQuotaPresentation(sourceDisplayName, it)
-    }
-
-    return when (statusCode) {
-        429 -> DesktopFetchErrorPresentation(
-            title = RateLimitNoticeText.headline(sourceDisplayName),
-            bodyLines = listOf(
-                "$sourceDisplayName rejected this request because its API rate limit was reached.",
-                "HTTP 429 — Too Many Requests",
-            ) + QuotaNoticeText.detailLines(ProviderErrorDetails.parse(detail)) + listOf(
-                "Cached $sourceDisplayName weather is still being displayed.",
-                "No other weather provider was substituted.",
-            ),
-            retryLine = "The limit is per minute: Refresh works again shortly.",
-            rateLimit = true,
-        )
-
-        401 -> DesktopFetchErrorPresentation(
-            title = "$titleName AUTHORIZATION FAILED",
-            bodyLines = listOf(
-                "$sourceDisplayName rejected the configured API key.",
-                "HTTP 401 — Unauthorized",
-                "Cached $sourceDisplayName weather is still being displayed.",
-                "No other weather provider was substituted.",
-            ),
-            retryLine = "Check the configured API key before retrying.",
-        )
-
-        403 -> DesktopFetchErrorPresentation(
-            title = "$titleName ACCESS DENIED",
-            bodyLines = listOf(
-                "$sourceDisplayName denied access to this API resource.",
-                "HTTP 403 — Forbidden",
-                "Cached $sourceDisplayName weather is still being displayed.",
-                "No other weather provider was substituted.",
-            ),
-            retryLine = "Check the API key and plan permissions before retrying.",
-        )
-
-        else -> {
-            val host = when {
-                detail.contains("open-meteo.com") -> "api.open-meteo.com"
-                detail.contains("weather.gov") -> "api.weather.gov"
-                detail.contains("tomorrow.io") -> "api.tomorrow.io"
-                detail.contains("weatherapi.com") -> "api.weatherapi.com"
-                detail.contains("visualcrossing.com") -> "weather.visualcrossing.com"
-                detail.contains("openweathermap.org") -> "api.openweathermap.org"
-                detail.contains("silurian", ignoreCase = true) -> "silurian API"
-                else -> ""
-            }
-            val friendlyError = when (className) {
-                "ConnectTimeoutException" -> "Connection timed out after 10 seconds."
-                "SocketTimeoutException" -> "The weather service stopped responding."
-                "UnknownHostException" -> "The weather service could not be found (DNS lookup failed)."
-                else -> detail.substringBefore(" [").ifBlank { "The weather request failed." }
-            }
-            DesktopFetchErrorPresentation(
-                title = "$titleName WEATHER UPDATE FAILED",
-                bodyLines = listOfNotNull(
-                    friendlyError,
-                    host.takeIf { it.isNotEmpty() }?.let { "Service: $it" },
-                    "Cached $sourceDisplayName weather is still being displayed.",
-                    "No other weather provider was substituted.",
-                ),
-                retryLine = "The next scheduled refresh will try again.",
-            )
-        }
-    }
-}
-
 /**
- * A daily-quota refusal, worded like the Android widget pill and error page (shared [QuotaNoticeText]):
- * "<SOURCE> UPDATES PAUSED", "<which> quota used · resets <time>", the quota's name and limit, and the
- * explanation. Covers the whole source and a single forecast product alike.
+ * A stored current-temp failure, classified as Android records it ([FetchErrorCode.fromLogged]):
+ * a daily quota is bannered on every view until it resets, a per-minute 429 on every view for a minute.
  */
-internal fun desktopQuotaPresentation(
-    sourceDisplayName: String,
-    notice: QuotaNotice,
-): DesktopFetchErrorPresentation {
-    val resetTime = QuotaNoticeText.formatResetTime(notice.resetAtMs)
-    return DesktopFetchErrorPresentation(
-        title = QuotaNoticeText.headline(sourceDisplayName),
-        bodyLines = listOf(QuotaNoticeText.summary(notice.scope, resetTime)) +
-            QuotaNoticeText.detailLines(notice.provider),
-        retryLine = QuotaNoticeText.explanation(resetTime),
-        quota = true,
+internal data class DesktopFailureKind(val code: String, val quota: Boolean, val rateLimit: Boolean)
+
+internal fun desktopFailureKind(status: CurrentTempStatus): DesktopFailureKind {
+    val code = FetchErrorCode.fromLogged(
+        CurrentTempStatusLog.parseFailureClassName(status.message),
+        CurrentTempStatusLog.parseFailureDetail(status.message),
     )
+    return DesktopFailureKind(code, quota = QuotaScope.ofErrorCode(code) != null, rateLimit = code == "HTTP_429")
 }
 
 /**
- * A fetch whose later hourly pages a per-minute limit refused: the earlier pages were stored
- * (`plans/261016-quota-refusals-always-show-a-banner.md`).
+ * What the details card shows for the pill on screen — the shared [SourceErrorDetails] rule over
+ * desktop's stores. [sourceFailure] is the failed status row the pill shows; null when the pill is a
+ * product quota block or a partial rate limit, so the card describes that and not an older failure.
  */
-internal fun desktopPartialRateLimitPresentation(
-    sourceDisplayName: String,
-    detail: String,
-): DesktopFetchErrorPresentation = DesktopFetchErrorPresentation(
-    title = RateLimitNoticeText.headline(sourceDisplayName),
-    bodyLines = listOf(
-        "${RateLimitNoticeText.short(partial = true)}: $sourceDisplayName refused the later hourly pages.",
-        "The hours received were saved; later hours keep their earlier forecast.",
-    ) + QuotaNoticeText.detailLines(ProviderErrorDetails.parse(detail)),
-    retryLine = "The limit is per minute: Refresh works again shortly.",
-    rateLimit = true,
-)
+internal fun desktopSourceErrorDetails(
+    weatherDao: DesktopWeatherDao,
+    sourceId: String,
+    sourceFailure: CurrentTempStatus?,
+    viewed: ForecastProduct,
+    nowMs: Long,
+): SourceErrorDetails.Content? {
+    val quotas = DesktopQuotaState(weatherDao)
+    val facts = SourceErrorDetails.Facts(
+        failureCount = if (sourceFailure != null) weatherDao.getCurrentTempFailureStreak(sourceId).coerceAtLeast(1) else 0,
+        lastErrorCode = sourceFailure?.let { desktopFailureKind(it).code },
+        lastFailureMs = sourceFailure?.timestamp,
+        lastFailureDetail = sourceFailure?.let { CurrentTempStatusLog.parseFailureDetail(it.message) },
+        productQuota = { product -> quotas.productQuota(sourceId, product, nowMs) },
+        rateLimit = quotas.partialRateLimit(sourceId, nowMs)?.let { SourceErrorDetails.RateLimit(it.atMs, partial = true, detail = it.detail) },
+        lastSuccessMs = weatherDao.getLastSuccessfulFetch(sourceId),
+    )
+    return SourceErrorDetails.build(facts, viewed, nowMs)
+}

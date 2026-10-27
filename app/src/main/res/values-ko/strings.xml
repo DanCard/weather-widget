@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">초기화</string>
     <string name="error_details_label_failures">연속 실패</string>
     <string name="error_details_label_last_attempt">마지막 시도</string>
+    <string name="error_details_label_last_success">마지막 성공한 업데이트</string>
     <string name="error_details_limit_per_day">하루 %1$s회, 이 키를 쓰는 모든 기기가 공유</string>
     <string name="error_details_limit_per_minute">분당 %1$s회</string>
     <string name="error_details_show_response">전체 응답 보기</string>

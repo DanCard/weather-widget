@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">Zurückgesetzt</string>
     <string name="error_details_label_failures">Fehler in Folge</string>
     <string name="error_details_label_last_attempt">Letzter Versuch</string>
+    <string name="error_details_label_last_success">Letzte erfolgreiche Aktualisierung</string>
     <string name="error_details_limit_per_day">%1$s pro Tag, geteilt von allen Geräten mit diesem Schlüssel</string>
     <string name="error_details_limit_per_minute">%1$s pro Minute</string>
     <string name="error_details_show_response">Vollständige Antwort zeigen</string>

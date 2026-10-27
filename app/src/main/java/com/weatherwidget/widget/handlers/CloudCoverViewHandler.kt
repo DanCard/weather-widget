@@ -529,6 +529,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 errorCode = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).errorCode,
                 bannerSinceMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).bannerSinceMs,
                 sourceId = effectiveDisplaySource.id,
+                product = ForecastProduct.HOURLY,
             )
         } else {
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)

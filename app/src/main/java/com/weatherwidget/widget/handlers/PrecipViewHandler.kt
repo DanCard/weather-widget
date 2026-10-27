@@ -415,6 +415,7 @@ object PrecipViewHandler {
                 errorCode = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).errorCode,
                 bannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
                 sourceId = displaySource.id,
+                product = ForecastProduct.HOURLY,
             )
 
             val radarZone = SimLoopTouchTarget.apply(

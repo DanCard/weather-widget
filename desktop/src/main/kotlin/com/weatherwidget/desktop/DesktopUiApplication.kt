@@ -54,7 +54,9 @@ import com.weatherwidget.shared.util.WeatherConditionResolver
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
+import com.weatherwidget.data.local.desktop.CurrentTempStatus
 import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
+import com.weatherwidget.data.remote.SourceErrorDetails
 import com.weatherwidget.data.local.desktop.DesktopQuotaState
 import com.weatherwidget.data.remote.RateLimitNotice
 import com.weatherwidget.data.remote.QuotaNotice
@@ -222,11 +224,11 @@ internal fun runDesktopUiApplication() = application {
         // The shared pill drawn over the graph for [currentTempFetchError] (its text is the details
         // card the pill opens). Null for the warm-up notice, which has no pill.
         var currentTempFetchPill by remember { mutableStateOf<DesktopFailurePill?>(null) }
+        // What the pill's details card shows (shared [SourceErrorDetails], as Android's error page).
+        var currentTempFetchDetails by remember { mutableStateOf<SourceErrorDetails.Content?>(null) }
         // True when the failure is offline-classified during the post-wake grace window: the banner
         // renders as a calm "waiting for network" notice instead of a hard error.
         var currentTempFetchIsWarmup by remember { mutableStateOf(false) }
-        var currentTempFetchTimestamp by remember { mutableStateOf(0L) }
-        var dismissedErrorTimestamp by remember { mutableStateOf(0L) }
         // Banner state lives only in this UI process; without a durable transition row the
         // "did a banner appear during that resume?" question is unanswerable after the fact.
         var lastLoggedBannerState by remember { mutableStateOf("none") }
@@ -665,22 +667,18 @@ internal fun runDesktopUiApplication() = application {
                 }
             }
             
-            // A forecast product's quota block, on every view ([QuotaNotice.bannerBlock], the rule the
-            // widget uses): the viewed product's block first, else the other's.
-            data class ProductQuotaBanner(val product: ForecastProduct, val loggedAt: Long, val text: String)
-            fun productQuotaBanner(src: String): ProductQuotaBanner? {
-                val quotas = DesktopQuotaState(weatherDao)
-                val nowMs = System.currentTimeMillis()
-                val (product, quota) = QuotaNotice.bannerBlock(QuotaNotice.productOf(activeConfig.viewMode)) { product ->
-                    quotas.productQuota(src, product, nowMs)?.takeIf { it.sinceMs > dismissedErrorTimestamp }
-                } ?: return null
-                val notice = QuotaNotice.forProductBlock(product, quota.untilMs, quota.detail)
-                val presentation = desktopQuotaPresentation(WeatherSource.fromId(src).displayName, notice)
-                return ProductQuotaBanner(
-                    product,
-                    quota.sinceMs,
-                    (listOf(presentation.title) + presentation.bodyLines + listOf("", presentation.retryLine)).joinToString("\n"),
-                )
+            // The pill's text line and the details card it opens, both from the shared rule
+            // ([SourceErrorDetails], as Android's error page). [sourceFailure]: the status row the pill
+            // shows, null for a product quota block or a partial rate limit.
+            fun showDetails(src: String, sourceFailure: CurrentTempStatus?, nowMs: Long): Boolean {
+                val details = desktopSourceErrorDetails(
+                    weatherDao, src, sourceFailure, QuotaNotice.productOf(activeConfig.viewMode), nowMs,
+                ) ?: return false
+                val displayName = WeatherSource.fromId(src).displayName
+                currentTempFetchDetails = details
+                currentTempFetchError = SourceErrorDetails.English.headline(displayName, details.headline) + "\n" +
+                    SourceErrorDetails.English.summary(details.summary)
+                return true
             }
 
             fun updateStatus() {
@@ -700,24 +698,16 @@ internal fun runDesktopUiApplication() = application {
                 // The daily view shows a source-wide failure only when it is a quota (it says when
                 // updates resume); other current-temp failures stay on the hourly graphs. A per-minute
                 // 429 shows on every view, for a minute (plans/261016-quota-refusals-always-show-a-banner.md).
-                val sourceFailure = status?.takeIf { !it.ok && it.timestamp > dismissedErrorTimestamp }?.takeIf {
-                    val presentation = desktopFetchErrorPresentation(
-                        "", CurrentTempStatusLog.parseFailureClassName(it.message),
-                        CurrentTempStatusLog.parseFailureDetail(it.message), it.timestamp,
-                    )
+                val sourceFailure = status?.takeIf { !it.ok }?.takeIf {
+                    val kind = desktopFailureKind(it)
                     when {
-                        presentation.rateLimit -> RateLimitNotice.isShowing(it.timestamp, statusNow)
-                        else -> isHourly || presentation.quota
+                        kind.rateLimit -> RateLimitNotice.isShowing(it.timestamp, statusNow)
+                        else -> isHourly || kind.quota
                     }
                 }
                 if (status != null && sourceFailure != null) {
-                    val timeFmt = DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault())
-                    val attemptFmt = DateTimeFormatter.ofPattern("H:mm:ss").withZone(ZoneId.systemDefault())
                     val now = System.currentTimeMillis()
-                    
-                    val msg = status.message
-                    val className = CurrentTempStatusLog.parseFailureClassName(msg)
-                    val detail = CurrentTempStatusLog.parseFailureDetail(msg)
+                    val className = CurrentTempStatusLog.parseFailureClassName(status.message)
                     val displayName = WeatherSource.fromId(src).displayName
 
                     graceJob?.cancel()
@@ -731,9 +721,9 @@ internal fun runDesktopUiApplication() = application {
                         isNetworkWarmupWindow(wakeEventMs, now)
                     ) {
                         currentTempFetchError = "${displayName.uppercase()} WEATHER UPDATE\nWaiting for network to warm up…"
+                        currentTempFetchDetails = null
                         currentTempFetchPill = null
                         currentTempFetchIsWarmup = true
-                        currentTempFetchTimestamp = status.timestamp
                         
                         val timeRemaining = (wakeEventMs ?: 0L) + NETWORK_WARMUP_GRACE_MS - now
                         if (timeRemaining > 0) {
@@ -747,67 +737,49 @@ internal fun runDesktopUiApplication() = application {
                     }
                     currentTempFetchIsWarmup = false
 
-                    val presentation = desktopFetchErrorPresentation(displayName, className, detail, status.timestamp)
-                    if (presentation.rateLimit) expireRateLimitBannerAfter(status.timestamp)
-                    val lastSuccessfulUpdateMs = weatherDao.getLastSuccessfulFetch(src)
-                    val lastSuccessfulLine = if (lastSuccessfulUpdateMs != null) {
-                        val timeStr = timeFmt.format(Instant.ofEpochMilli(lastSuccessfulUpdateMs))
-                        val ageStr = formatAge(now - lastSuccessfulUpdateMs)
-                        "Last successful update: $timeStr ($ageStr ago)"
-                    } else {
-                        "Last successful update: None"
-                    }
-
-                    val attemptTimeStr = attemptFmt.format(Instant.ofEpochMilli(status.timestamp))
+                    val kind = desktopFailureKind(status)
+                    if (kind.rateLimit) expireRateLimitBannerAfter(status.timestamp)
                     currentTempFetchPill = DesktopFailurePill(
                         sourceLabel = displayName,
-                        errorCode = if (presentation.rateLimit) RateLimitNotice.ERROR_CODE else FetchErrorCode.fromLogged(className, detail),
+                        errorCode = if (kind.rateLimit) RateLimitNotice.ERROR_CODE else kind.code,
                         failureTimeMs = status.timestamp,
                     )
-                    currentTempFetchError = buildList {
-                        add(presentation.title)
-                        addAll(presentation.bodyLines)
-                        add("")
-                        add(lastSuccessfulLine)
-                        add("Last attempt: $attemptTimeStr")
-                        add(presentation.retryLine)
-                    }.joinToString("\n")
-                    currentTempFetchTimestamp = status.timestamp
+                    showDetails(src, status, now)
                 } else {
                     currentTempFetchIsWarmup = false
                     // No source-wide failure: a forecast product may still be refused while the other
                     // keeps updating, so the refresh succeeded but those days/hours are not (user,
-                    // 2026-10-07) — bannered on every view (user, 2026-10-21).
-                    val productQuota = productQuotaBanner(src)
+                    // 2026-10-07) — bannered on every view (user, 2026-10-21): the viewed product's
+                    // block first, else the other's ([QuotaNotice.bannerBlock], the rule the widget uses).
+                    val quotas = DesktopQuotaState(weatherDao)
+                    val productQuota = QuotaNotice.bannerBlock(QuotaNotice.productOf(activeConfig.viewMode)) { product ->
+                        quotas.productQuota(src, product, statusNow)
+                    }
                     // Else hourly pages a per-minute limit cut short, on every view for a minute.
-                    val partialRateLimit = if (productQuota != null) null else DesktopQuotaState(weatherDao).partialRateLimit(src, statusNow)
-                        ?.takeIf { it.atMs > dismissedErrorTimestamp }
+                    val partialRateLimit = if (productQuota != null) null else quotas.partialRateLimit(src, statusNow)
                     val displayName = WeatherSource.fromId(src).displayName
                     when {
                         productQuota != null -> {
-                            currentTempFetchError = productQuota.text
                             currentTempFetchPill = DesktopFailurePill(
                                 sourceLabel = displayName,
-                                errorCode = GoogleQuota.errorCodeFor(productQuota.product),
-                                failureTimeMs = productQuota.loggedAt,
+                                errorCode = GoogleQuota.errorCodeFor(productQuota.first),
+                                failureTimeMs = productQuota.second.sinceMs,
                             )
-                            currentTempFetchTimestamp = productQuota.loggedAt
+                            showDetails(src, null, statusNow)
                         }
                         partialRateLimit != null -> {
                             val loggedAt = partialRateLimit.atMs
-                            val presentation = desktopPartialRateLimitPresentation(displayName, partialRateLimit.detail.orEmpty())
-                            currentTempFetchError = (listOf(presentation.title) + presentation.bodyLines + listOf("", presentation.retryLine))
-                                .joinToString("\n")
                             currentTempFetchPill = DesktopFailurePill(
                                 sourceLabel = displayName,
                                 errorCode = RateLimitNotice.ERROR_CODE_PARTIAL,
                                 failureTimeMs = loggedAt,
                             )
-                            currentTempFetchTimestamp = loggedAt
+                            showDetails(src, null, statusNow)
                             expireRateLimitBannerAfter(loggedAt)
                         }
                         else -> {
                             currentTempFetchError = null
+                            currentTempFetchDetails = null
                             currentTempFetchPill = null
                         }
                     }
@@ -1324,11 +1296,7 @@ internal fun runDesktopUiApplication() = application {
                 currentTempFetchError = currentTempFetchError,
                 currentTempFetchPill = currentTempFetchPill,
                 currentTempFetchIsWarmup = currentTempFetchIsWarmup,
-                onDismissCurrentTempError = {
-                    dismissedErrorTimestamp = currentTempFetchTimestamp
-                    currentTempFetchError = null
-                    currentTempFetchPill = null
-                },
+                currentTempFetchDetails = currentTempFetchDetails,
             )
         }
 
@@ -1457,8 +1425,6 @@ internal fun refreshNoticeSurface(origin: String): RefreshNoticeSurface = when (
     else -> RefreshNoticeSurface.SETTINGS
 }
 
-private fun formatAge(ageMillis: Long): String =
-    com.weatherwidget.shared.util.AgeFormatter.formatAgeOld(ageMillis)
 
 /**
  * Which rain loop the pill opens: Open-Meteo's map when Open-Meteo is shown, or when the WeatherNext

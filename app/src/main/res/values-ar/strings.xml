@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">إعادة الضبط</string>
     <string name="error_details_label_failures">إخفاقات متتالية</string>
     <string name="error_details_label_last_attempt">آخر محاولة</string>
+    <string name="error_details_label_last_success">آخر تحديث ناجح</string>
     <string name="error_details_limit_per_day">%1$s يوميًا، مشتركة بين كل الأجهزة التي تستخدم هذا المفتاح</string>
     <string name="error_details_limit_per_minute">%1$s في الدقيقة</string>
     <string name="error_details_show_response">إظهار الرد الكامل</string>

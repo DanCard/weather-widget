@@ -253,7 +253,7 @@ internal fun PopupWindowHost(
     currentTempFetchError: String?,
     currentTempFetchPill: DesktopFailurePill?,
     currentTempFetchIsWarmup: Boolean,
-    onDismissCurrentTempError: () -> Unit,
+    currentTempFetchDetails: com.weatherwidget.data.remote.SourceErrorDetails.Content?,
 ) {
     val latestConfig = rememberUpdatedState(config)
     var arrowKeyHandler by remember { mutableStateOf<((left: Boolean) -> Boolean)?>(null) }
@@ -334,7 +334,7 @@ internal fun PopupWindowHost(
             currentTempFetchError = currentTempFetchError,
             currentTempFetchPill = currentTempFetchPill,
             currentTempFetchIsWarmup = currentTempFetchIsWarmup,
-            onDismissCurrentTempError = onDismissCurrentTempError,
+            currentTempFetchDetails = currentTempFetchDetails,
         )
     }
 }

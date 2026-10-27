@@ -3,6 +3,8 @@ package com.weatherwidget.desktop
 import com.weatherwidget.shared.months.MonthsZoomAction
 import com.weatherwidget.shared.months.MonthsZoomController
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -50,6 +52,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.math.roundToInt
+import com.weatherwidget.data.remote.SourceErrorDetails
 
 private const val TAG = "Main"
 
@@ -79,7 +82,7 @@ internal fun WidgetPopup(
     currentTempFetchError: String? = null,
     currentTempFetchPill: DesktopFailurePill? = null,
     currentTempFetchIsWarmup: Boolean = false,
-    onDismissCurrentTempError: () -> Unit = {},
+    currentTempFetchDetails: com.weatherwidget.data.remote.SourceErrorDetails.Content? = null,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
       // One shared scale for header + graph so everything grows together with the window.
@@ -397,7 +400,7 @@ internal fun WidgetPopup(
                                 }
                             }
 
-                            currentTempFetchError?.let { FetchFailureBanner(it, currentTempFetchPill, currentTempFetchIsWarmup, uiScale, onDismissCurrentTempError) }
+                            currentTempFetchError?.let { FetchFailureBanner(it, currentTempFetchPill, currentTempFetchDetails, currentTempFetchIsWarmup, uiScale, onOpenSettings) }
                         }
                     } else {
                         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).testTag("daily_forecast_surface")) {
@@ -633,7 +636,7 @@ internal fun WidgetPopup(
 
                             // The daily view's banner is a quota notice only (whole source, or the
                             // daily forecast's own quota); see DesktopUiApplication.updateStatus.
-                            currentTempFetchError?.let { FetchFailureBanner(it, currentTempFetchPill, currentTempFetchIsWarmup, uiScale, onDismissCurrentTempError) }
+                            currentTempFetchError?.let { FetchFailureBanner(it, currentTempFetchPill, currentTempFetchDetails, currentTempFetchIsWarmup, uiScale, onOpenSettings) }
                         }
                     }
                 }
@@ -646,16 +649,18 @@ internal fun WidgetPopup(
 /**
  * The fetch-failure banner over a graph: the widget's pill, laid out by the shared
  * [FailureBannerLayout] (wording, size, centring, stage) and only drawn here. Clicking it opens
- * [FailureDetailsCard] — [msg], whose first line is the title — as the widget's pill opens its error
- * page. The warm-up notice (post-wake offline grace window) has no pill and shows its card directly.
+ * [FailureDetailsCard] — the shared [SourceErrorDetails] content — as the widget's pill opens its error
+ * page. [msg]'s first line keys the pill's stages. The warm-up notice (post-wake offline grace
+ * window) has no pill and shows its card, [msg] alone, directly.
  */
 @Composable
 private fun BoxScope.FetchFailureBanner(
     msg: String,
     pill: DesktopFailurePill?,
+    details: SourceErrorDetails.Content?,
     isWarmup: Boolean,
     uiScale: Float,
-    onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     // The pill shrinks at 8 s and fades at 24 s (FailureBannerStage, shared with the widget). Keyed
     // on the title so a repeat of the same failure stays quiet while a new one is shown in full.
@@ -672,7 +677,7 @@ private fun BoxScope.FetchFailureBanner(
         }
     }
     if (isWarmup || pill == null || showDetails) {
-        FailureDetailsCard(msg, isWarmup, uiScale, onClose = { showDetails = false }, onDismiss = onDismiss)
+        FailureDetailsCard(msg, details, pill?.sourceLabel.orEmpty(), isWarmup, uiScale, onClose = { showDetails = false }, onOpenSettings)
         return
     }
     BoxWithConstraints(modifier = Modifier.matchParentSize()) {
@@ -741,65 +746,117 @@ private fun BoxScope.FetchFailureBanner(
 }
 
 /**
- * The failure's full text: [msg]'s first line is the title, the rest the body. Clicking the card
- * closes it back to the pill; × dismisses the failure until a newer one. Warm-up renders
- * informational blue, a real failure red.
+ * What a click on the pill shows: [details] (headline, summary, explanation, the provider's details
+ * and the full response — the shared [SourceErrorDetails], worded as Android's error page), else
+ * [msg] (the warm-up notice: first line the title). Close folds it back to the pill. There is no
+ * dismissal (user, 2026-10-27): the banner stays until the failure or quota block ends, as on
+ * Android. Warm-up renders informational blue, a real failure red.
  */
 @Composable
 private fun BoxScope.FailureDetailsCard(
     msg: String,
+    details: SourceErrorDetails.Content?,
+    sourceLabel: String,
     isWarmup: Boolean,
     uiScale: Float,
     onClose: () -> Unit,
-    onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val surfaceColor = if (isWarmup) Color(0xFF1B2A3A) else Color(0xFF3E1C1C)
     val borderColor = if (isWarmup) Color(0xFF64B5F6) else Color(0xFFE57373)
     val titleColor = if (isWarmup) Color(0xFFBBDEFB) else Color(0xFFFFCDD2)
     val bodyColor = if (isWarmup) Color(0xFF90CAF9) else Color(0xFFEF9A9A)
     Surface(
-        modifier = Modifier.align(Alignment.Center).clickable(enabled = !isWarmup) { onClose() },
+        modifier = Modifier
+            .align(Alignment.Center)
+            .padding(12.dp)
+            .widthIn(max = (560f * uiScale).dp)
+            .testTag("failure_details"),
         shape = RoundedCornerShape(12.dp),
         color = surfaceColor.copy(alpha = 0.95f),
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.Top,
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+                .verticalScroll(rememberScrollState()),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            if (details == null) {
                 val lines = msg.split("\n")
-                if (lines.isNotEmpty()) {
-                    Text(
-                        text = lines[0],
-                        color = titleColor,
-                        fontSize = (14f * uiScale).sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    lines.drop(1).forEach { line ->
+                Text(lines.first(), color = titleColor, fontSize = (14f * uiScale).sp, fontWeight = FontWeight.Bold)
+                lines.drop(1).forEach { line ->
+                    Text(line, color = bodyColor, fontSize = (12f * uiScale).sp, modifier = Modifier.padding(top = 2.dp))
+                }
+                return@Column
+            }
+            val now = System.currentTimeMillis()
+            var showResponse by remember(details) { mutableStateOf(false) }
+            Text(
+                SourceErrorDetails.English.headline(sourceLabel, details.headline),
+                color = titleColor,
+                fontSize = (14f * uiScale).sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                SourceErrorDetails.English.summary(details.summary),
+                color = titleColor,
+                fontSize = (13f * uiScale).sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                SourceErrorDetails.English.explanation(details),
+                color = bodyColor,
+                fontSize = (12f * uiScale).sp,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    details.rows.forEach { row ->
                         Text(
-                            text = line,
-                            color = bodyColor,
-                            fontSize = (12f * uiScale).sp,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            modifier = Modifier.padding(top = 2.dp)
+                            SourceErrorDetails.English.label(row.label),
+                            color = bodyColor.copy(alpha = 0.75f),
+                            fontSize = (11f * uiScale).sp,
+                            modifier = Modifier.padding(top = 6.dp),
                         )
+                        Text(
+                            SourceErrorDetails.English.value(row.value, now),
+                            color = titleColor,
+                            fontSize = (12f * uiScale).sp,
+                            modifier = Modifier.testTag("failure_details_row_${row.label.name}"),
+                        )
+                    }
+                    if (showResponse) {
+                        details.rawResponse?.let { raw ->
+                            Text(
+                                raw,
+                                color = bodyColor,
+                                fontSize = (11f * uiScale).sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                modifier = Modifier.padding(top = 8.dp).testTag("failure_details_response"),
+                            )
+                        }
                     }
                 }
             }
-            Spacer(Modifier.width(16.dp))
-            Box(
-                modifier = Modifier
-                    .size((24f * uiScale).dp)
-                    .clickable { onDismiss() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "×",
-                    color = bodyColor,
-                    fontSize = (18f * uiScale).sp,
-                    fontWeight = FontWeight.Bold
+            Row(modifier = Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                @Composable
+                fun action(text: String, tag: String, onClick: () -> Unit) = Text(
+                    text,
+                    color = titleColor,
+                    fontSize = (12f * uiScale).sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable(onClick = onClick).padding(vertical = 4.dp).testTag(tag),
                 )
+                if (details.rawResponse != null) {
+                    action(
+                        if (showResponse) SourceErrorDetails.English.HIDE_RESPONSE else SourceErrorDetails.English.SHOW_RESPONSE,
+                        "failure_details_toggle_response",
+                    ) { showResponse = !showResponse }
+                }
+                if (details.offerApiKeySettings) {
+                    action(SourceErrorDetails.English.API_KEY_SETTINGS, "failure_details_api_keys", onOpenSettings)
+                }
+                action("Close", "failure_details_close", onClose)
             }
         }
     }

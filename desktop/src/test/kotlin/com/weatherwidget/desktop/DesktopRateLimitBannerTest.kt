@@ -48,37 +48,6 @@ class DesktopRateLimitBannerTest {
     }
 
     @Test
-    fun `a per-minute 429 is a rate limit, shown with its limit`() {
-        val p = desktopFetchErrorPresentation(
-            "Google Weather", "ApiAccessException",
-            "Google Weather fetch failed (/forecast/hours:lookup): status 429. Detail: ${body("1/min/{project}/{user}", "20")}",
-            failureMs = 0L,
-        )
-        assertTrue(p.rateLimit)
-        assertFalse(p.quota)
-        assertEquals("GOOGLE WEATHER RATE LIMITED", p.title)
-        assertTrue(p.bodyLines.toString(), p.bodyLines.any { it.contains("20 per minute") })
-    }
-
-    @Test
-    fun `a daily-quota 429 stays a quota, not a rate limit`() {
-        val p = desktopFetchErrorPresentation(
-            "Google Weather", "ApiAccessException",
-            "status 429. Detail: ${body("1/d/{project}", "150")}",
-            failureMs = 0L,
-        )
-        assertTrue(p.quota)
-        assertFalse(p.rateLimit)
-    }
-
-    @Test
-    fun `the partial presentation says the hourly forecast is incomplete`() {
-        val p = desktopPartialRateLimitPresentation("Google Weather", body("1/min/{project}/{user}", "20"))
-        assertTrue(p.rateLimit)
-        assertTrue(p.bodyLines.first().startsWith("Hourly forecast incomplete"))
-    }
-
-    @Test
     fun `a refresh whose later hour pages were refused logs the partial rate limit`() = runTest {
         val today = LocalDate.now()
         val hourMs = (System.currentTimeMillis() / 3_600_000L) * 3_600_000L

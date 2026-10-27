@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">دوبارہ آغاز</string>
     <string name="error_details_label_failures">مسلسل ناکامیاں</string>
     <string name="error_details_label_last_attempt">آخری کوشش</string>
+    <string name="error_details_label_last_success">آخری کامیاب اپ ڈیٹ</string>
     <string name="error_details_limit_per_day">روزانہ %1$s، اس کلید والے تمام آلات میں مشترک</string>
     <string name="error_details_limit_per_minute">فی منٹ %1$s</string>
     <string name="error_details_show_response">مکمل جواب دکھائیں</string>

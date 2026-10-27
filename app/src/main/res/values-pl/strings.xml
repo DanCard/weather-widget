@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">Reset</string>
     <string name="error_details_label_failures">Błędy z rzędu</string>
     <string name="error_details_label_last_attempt">Ostatnia próba</string>
+    <string name="error_details_label_last_success">Ostatnia udana aktualizacja</string>
     <string name="error_details_limit_per_day">%1$s dziennie, wspólny dla wszystkich urządzeń z tym kluczem</string>
     <string name="error_details_limit_per_minute">%1$s na minutę</string>
     <string name="error_details_show_response">Pokaż pełną odpowiedź</string>

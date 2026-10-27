@@ -389,6 +389,7 @@
     <string name="error_details_label_resets">Réinitialisation</string>
     <string name="error_details_label_failures">Échecs consécutifs</string>
     <string name="error_details_label_last_attempt">Dernière tentative</string>
+    <string name="error_details_label_last_success">Dernière mise à jour réussie</string>
     <string name="error_details_limit_per_day">%1$s par jour, partagé par tous les appareils utilisant cette clé</string>
     <string name="error_details_limit_per_minute">%1$s par minute</string>
     <string name="error_details_show_response">Afficher la réponse complète</string>

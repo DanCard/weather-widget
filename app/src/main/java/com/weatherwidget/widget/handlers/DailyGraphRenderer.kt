@@ -429,6 +429,7 @@ internal object DailyGraphRenderer {
             errorCode = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).errorCode,
             bannerSinceMs = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).bannerSinceMs,
             sourceId = ctx.displaySource.id,
+            product = ForecastProduct.DAILY,
         )
 
         return RenderMetrics(prepareMs, renderMs)

@@ -419,6 +419,7 @@
     <string name="error_details_label_resets">Resets</string>
     <string name="error_details_label_failures">Failures in a row</string>
     <string name="error_details_label_last_attempt">Last attempt</string>
+    <string name="error_details_label_last_success">Last successful update</string>
     <string name="error_details_limit_per_day">%1$s per day, shared by every device using this key</string>
     <string name="error_details_limit_per_minute">%1$s per minute</string>
     <string name="error_details_show_response">Show full response</string>

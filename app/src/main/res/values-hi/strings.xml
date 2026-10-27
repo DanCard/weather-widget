@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">रीसेट</string>
     <string name="error_details_label_failures">लगातार विफलताएँ</string>
     <string name="error_details_label_last_attempt">अंतिम प्रयास</string>
+    <string name="error_details_label_last_success">अंतिम सफल अपडेट</string>
     <string name="error_details_limit_per_day">प्रति दिन %1$s, इस कुंजी वाले सभी डिवाइस में साझा</string>
     <string name="error_details_limit_per_minute">प्रति मिनट %1$s</string>
     <string name="error_details_show_response">पूरा जवाब दिखाएँ</string>

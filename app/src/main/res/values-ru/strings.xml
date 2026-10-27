@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">Сброс</string>
     <string name="error_details_label_failures">Ошибок подряд</string>
     <string name="error_details_label_last_attempt">Последняя попытка</string>
+    <string name="error_details_label_last_success">Последнее успешное обновление</string>
     <string name="error_details_limit_per_day">%1$s в день, общий для всех устройств с этим ключом</string>
     <string name="error_details_limit_per_minute">%1$s в минуту</string>
     <string name="error_details_show_response">Показать полный ответ</string>

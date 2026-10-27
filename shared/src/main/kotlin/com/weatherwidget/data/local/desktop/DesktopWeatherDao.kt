@@ -1432,6 +1432,28 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
+    /**
+     * Failed [CurrentTempStatusLog] rows for [source] since its newest `ok=true` one: the failure
+     * streak the details card shows ("Failures in a row"; Android counts the same in prefs).
+     */
+    fun getCurrentTempFailureStreak(source: String): Int {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                // By id, not timestamp: an ok row and the failures after it can share a millisecond.
+                "SELECT COUNT(*) FROM app_logs WHERE tag = ? AND message LIKE ? AND message NOT LIKE '%ok=true%' " +
+                    "AND id > COALESCE((SELECT MAX(id) FROM app_logs WHERE tag = ? AND message LIKE ? " +
+                    "AND message LIKE '%ok=true%'), 0)"
+            ).use { stmt ->
+                stmt.setString(1, CurrentTempStatusLog.TAG)
+                stmt.setString(2, "source=$source %")
+                stmt.setString(3, CurrentTempStatusLog.TAG)
+                stmt.setString(4, "source=$source %")
+                val rs = stmt.executeQuery()
+                return if (rs.next()) rs.getInt(1) else 0
+            }
+        }
+    }
+
     /** The newest [ProductQuotaLog] row for [source]'s [product]: (timestamp, message), or null. */
     fun getLatestProductQuota(source: String, product: com.weatherwidget.data.model.ForecastProduct): Pair<Long, String>? {
         db.getConnection().use { conn ->

@@ -389,6 +389,7 @@
     <string name="error_details_label_resets">Скидання</string>
     <string name="error_details_label_failures">Помилок поспіль</string>
     <string name="error_details_label_last_attempt">Остання спроба</string>
+    <string name="error_details_label_last_success">Останнє успішне оновлення</string>
     <string name="error_details_limit_per_day">%1$s на день, спільний для всіх пристроїв із цим ключем</string>
     <string name="error_details_limit_per_minute">%1$s на хвилину</string>
     <string name="error_details_show_response">Показати повну відповідь</string>

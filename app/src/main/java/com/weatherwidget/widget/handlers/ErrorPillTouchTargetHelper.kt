@@ -24,6 +24,8 @@ internal object ErrorPillTouchTargetHelper {
         errorCode: String? = null,
         bannerSinceMs: Long? = null,
         sourceId: String? = null,
+        /** The view's forecast product: the details page then names this view's quota block, as the pill does. */
+        product: com.weatherwidget.data.model.ForecastProduct? = null,
     ) {
         if (!showErrorWatermark) {
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
@@ -48,7 +50,7 @@ internal object ErrorPillTouchTargetHelper {
 
         // Every failure opens its details page; the page offers Settings or the background-data
         // screen when that is the fix (it used to jump straight there, for a 429 too).
-        val targetIntent = SourceErrorDetailsActivity.intent(context, sourceId)
+        val targetIntent = SourceErrorDetailsActivity.intent(context, sourceId, product)
 
         val pendingIntent = PendingIntent.getActivity(
             context,

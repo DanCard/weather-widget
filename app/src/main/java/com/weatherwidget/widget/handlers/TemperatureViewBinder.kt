@@ -189,6 +189,7 @@ HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVis
                 errorCode = stateManager.viewWatermark(state.displaySource, ForecastProduct.HOURLY).errorCode,
                 bannerSinceMs = stateManager.viewWatermark(state.displaySource, ForecastProduct.HOURLY).bannerSinceMs,
                 sourceId = state.displaySource.id,
+                product = ForecastProduct.HOURLY,
             )
         } else if (state.graph.showTextMode) {
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)

@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">Sıfırlanma</string>
     <string name="error_details_label_failures">Art arda hata</string>
     <string name="error_details_label_last_attempt">Son deneme</string>
+    <string name="error_details_label_last_success">Son başarılı güncelleme</string>
     <string name="error_details_limit_per_day">Günde %1$s, bu anahtarı kullanan tüm cihazlar arasında paylaşılır</string>
     <string name="error_details_limit_per_minute">Dakikada %1$s</string>
     <string name="error_details_show_response">Tam yanıtı göster</string>

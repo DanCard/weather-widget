@@ -14,15 +14,14 @@ import androidx.core.content.ContextCompat
 import com.weatherwidget.R
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.remote.GoogleQuota
-import com.weatherwidget.data.remote.QuotaNotice
-import com.weatherwidget.data.remote.RateLimitNotice
 import com.weatherwidget.data.remote.ProviderErrorDetails
+import com.weatherwidget.data.remote.QuotaState
+import com.weatherwidget.data.remote.SourceErrorDetails
+import com.weatherwidget.data.repository.FetchMetadata
+import com.weatherwidget.widget.ActiveLocationResolver
 import com.weatherwidget.widget.GraphFailureWatermarkRenderer
 import com.weatherwidget.widget.WidgetStateManager
-import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -40,7 +39,11 @@ class SourceErrorDetailsActivity : AppCompatActivity() {
         val source = intent.getStringExtra(EXTRA_SOURCE_ID)
             ?.let { id -> WeatherSource.entries.firstOrNull { it.id == id } }
             ?: WidgetStateManager(this).getPrimarySource()
-        val content = SourceErrorDetailsContent.build(this, source, WidgetStateManager(this))
+        val viewed = intent.getStringExtra(EXTRA_PRODUCT)?.let { name -> ForecastProduct.entries.firstOrNull { it.name == name } }
+        val lastSuccessMs = ActiveLocationResolver.current(this)?.let { (lat, lon) ->
+            FetchMetadata.getLastForecastSourceSuccessTime(this, source.id, lat, lon).takeIf { it > 0L }
+        }
+        val content = SourceErrorDetailsContent.build(this, source, WidgetStateManager(this), viewed = viewed, lastSuccessMs = lastSuccessMs)
 
         findViewById<View>(R.id.back_button).setOnClickListener { finish() }
         // Always shown; Back from Android's screen returns here.
@@ -117,17 +120,24 @@ class SourceErrorDetailsActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_SOURCE_ID = "source_id"
+        const val EXTRA_PRODUCT = "product"
 
-        fun intent(context: Context, sourceId: String?): Intent =
+        /** [product]: the tapped view's forecast product, so the page names that view's quota block. */
+        fun intent(context: Context, sourceId: String?, product: ForecastProduct? = null): Intent =
             Intent(context, SourceErrorDetailsActivity::class.java)
                 .putExtra(EXTRA_SOURCE_ID, sourceId)
+                .putExtra(EXTRA_PRODUCT, product?.name)
                 // CLEAR_TASK: the page is built once in onCreate; NEW_TASK alone would bring an
                 // earlier source's still-alive page to the front unchanged.
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }
 }
 
-/** Everything the details page shows, assembled without views so it can be tested directly. */
+/**
+ * Everything the details page shows, assembled without views so it can be tested directly. The rule —
+ * which failure, which rows — is `:shared` [SourceErrorDetails] (desktop's details card uses it too);
+ * this turns its values into Android's localized text.
+ */
 internal data class SourceErrorDetailsContent(
     val headline: String,
     val summary: String,
@@ -137,8 +147,6 @@ internal data class SourceErrorDetailsContent(
     val offerApiKeySettings: Boolean,
 ) {
     companion object {
-        private val AUTH_CODES = setOf("HTTP_401", "HTTP_403", "ACCESS_ERROR")
-
         /** Null when nothing is failing for [source] (the pill is gone, or was tapped as it cleared). */
         fun build(
             context: Context,
@@ -147,90 +155,79 @@ internal data class SourceErrorDetailsContent(
             nowMs: Long = System.currentTimeMillis(),
             locale: Locale = Locale.getDefault(),
             zone: ZoneId = ZoneId.systemDefault(),
+            /** The view whose pill was tapped: its own product's quota block is the one described. */
+            viewed: ForecastProduct? = null,
+            lastSuccessMs: Long? = null,
         ): SourceErrorDetailsContent? {
-            val count = state.getSourceFailureCount(source)
-            // No source-wide failure: the pill may be one product's quota block (hourly views or the
-            // daily view), recorded apart from the failure streak.
-            // Else a per-minute refusal from the last minute (its pill shows with no streak).
-            val productBlock = if (count > 0) {
-                null
-            } else {
-                ForecastProduct.entries.firstNotNullOfOrNull { product ->
-                    state.getProductQuota(source, product, nowMs)?.let { product to it }
-                }
-            }
-            val rateLimit = if (count > 0 || productBlock != null) null else state.getRateLimit(source, nowMs) ?: return null
-            val code = productBlock?.let { GoogleQuota.errorCodeFor(it.first) }
-                ?: rateLimit?.let { RateLimitNotice.errorCode(it.partial) }
-                ?: state.getSourceLastErrorCode(source)
-            val failedAt = productBlock?.second?.sinceMs ?: rateLimit?.atMs ?: state.getSourceLastFailureTime(source)
-            val detail = productBlock?.second?.detail ?: rateLimit?.detail ?: state.getSourceLastFailureDetail(source)
-            val details = ProviderErrorDetails.parse(detail)
-            val quota = productBlock
-                ?.let { (product, block) -> QuotaNotice.forProductBlock(product, block.untilMs, detail) }
-                ?: QuotaNotice.forSourceFailure(code, failedAt, detail)
-            val resetText = quota?.let { GraphFailureWatermarkRenderer.formatResetTime(it.resetAtMs, locale, zone) }
-            val codeText = code?.let { GraphFailureWatermarkRenderer.localizedErrorCodeText(context, it) }
-
-            val explanation = when {
-                resetText != null -> context.getString(R.string.error_details_explain_quota, resetText)
-                code == "HTTP_429" || RateLimitNotice.isErrorCode(code) -> context.getString(R.string.error_details_explain_rate_limit)
-                code in AUTH_CODES -> context.getString(R.string.error_details_explain_auth)
-                code == "DATA_RESTRICTED" -> context.getString(R.string.error_details_explain_data)
-                else -> context.getString(R.string.error_details_explain_generic)
-            }
-
-            val rows = buildList {
-                codeText?.let { add(context.getString(R.string.error_details_label_error) to it) }
-                details?.request?.let { add(context.getString(R.string.error_details_label_request) to it) }
-                details?.httpStatus?.let { add(context.getString(R.string.error_details_label_status) to it.toString()) }
-                details?.providerMessage?.let { add(context.getString(R.string.error_details_label_message) to it) }
-                details?.quotaName?.let { add(context.getString(R.string.error_details_label_quota) to it) }
-                details?.quotaLimit?.let { limit ->
-                    val text = when (details.quotaPeriod) {
-                        ProviderErrorDetails.QuotaPeriod.DAY -> context.getString(R.string.error_details_limit_per_day, limit)
-                        ProviderErrorDetails.QuotaPeriod.MINUTE -> context.getString(R.string.error_details_limit_per_minute, limit)
-                        null -> limit
-                    }
-                    add(context.getString(R.string.error_details_label_limit) to text)
-                }
-                details?.quotaMetric?.let { add(context.getString(R.string.error_details_label_metric) to it) }
-                details?.quotaWindowStartMs?.let {
-                    add(context.getString(R.string.error_details_label_window) to formatDateTime(it, locale, zone))
-                }
-                resetText?.let { add(context.getString(R.string.error_details_label_resets) to it) }
-                if (count > 0) add(context.getString(R.string.error_details_label_failures) to count.toString())
-                failedAt?.let {
-                    add(
-                        context.getString(R.string.error_details_label_last_attempt) to
-                            GraphFailureWatermarkRenderer.formatFailureTime(it, nowMs, locale, zone),
-                    )
-                }
-            }
-
-            val headline = "${source.displayName.uppercase(locale)} " +
-                context.getString(
-                    when {
-                        quota != null -> R.string.updates_paused
-                        RateLimitNotice.isErrorCode(code) -> R.string.updates_rate_limited
-                        else -> R.string.updates_failing
-                    },
-                )
-            return SourceErrorDetailsContent(
-                headline = headline,
-                summary = when {
-                    quota != null && resetText != null ->
-                        GraphFailureWatermarkRenderer.localizedQuotaText(context, quota.scope, resetText)
-                    else -> codeText ?: context.getString(R.string.updates_failing)
+            val facts = SourceErrorDetails.Facts(
+                failureCount = state.getSourceFailureCount(source),
+                lastErrorCode = state.getSourceLastErrorCode(source),
+                lastFailureMs = state.getSourceLastFailureTime(source),
+                lastFailureDetail = state.getSourceLastFailureDetail(source),
+                productQuota = { product ->
+                    state.getProductQuota(source, product, nowMs)?.let { QuotaState.ProductQuota(it.untilMs, it.sinceMs, it.detail) }
                 },
-                explanation = explanation,
-                rows = rows,
-                rawResponse = details?.rawBody,
-                offerApiKeySettings = code in AUTH_CODES,
+                rateLimit = state.getRateLimit(source, nowMs)?.let { SourceErrorDetails.RateLimit(it.atMs, it.partial, it.detail) },
+                lastSuccessMs = lastSuccessMs,
+            )
+            val content = SourceErrorDetails.build(facts, viewed, nowMs) ?: return null
+            fun reset(ms: Long) = GraphFailureWatermarkRenderer.formatResetTime(ms, locale, zone)
+            return SourceErrorDetailsContent(
+                headline = "${source.displayName.uppercase(locale)} " +
+                    context.getString(
+                        when (content.headline) {
+                            SourceErrorDetails.Headline.PAUSED -> R.string.updates_paused
+                            SourceErrorDetails.Headline.RATE_LIMITED -> R.string.updates_rate_limited
+                            SourceErrorDetails.Headline.FAILING -> R.string.updates_failing
+                        },
+                    ),
+                summary = when (val summary = content.summary) {
+                    is SourceErrorDetails.Summary.Quota ->
+                        GraphFailureWatermarkRenderer.localizedQuotaText(context, summary.scope, reset(summary.resetAtMs))
+                    is SourceErrorDetails.Summary.Code -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, summary.code)
+                    SourceErrorDetails.Summary.Failing -> context.getString(R.string.updates_failing)
+                },
+                explanation = when (content.explanation) {
+                    SourceErrorDetails.Explanation.QUOTA ->
+                        context.getString(R.string.error_details_explain_quota, reset(content.resetAtMs ?: 0L))
+                    SourceErrorDetails.Explanation.RATE_LIMIT -> context.getString(R.string.error_details_explain_rate_limit)
+                    SourceErrorDetails.Explanation.AUTH -> context.getString(R.string.error_details_explain_auth)
+                    SourceErrorDetails.Explanation.DATA_RESTRICTED -> context.getString(R.string.error_details_explain_data)
+                    SourceErrorDetails.Explanation.GENERIC -> context.getString(R.string.error_details_explain_generic)
+                },
+                rows = content.rows.map { row -> context.getString(labelRes(row.label)) to valueText(context, row.value, nowMs, locale, zone) },
+                rawResponse = content.rawResponse,
+                offerApiKeySettings = content.offerApiKeySettings,
             )
         }
 
-        private fun formatDateTime(epochMs: Long, locale: Locale, zone: ZoneId): String =
-            DateTimeFormatter.ofPattern("MMM d, h:mm a", locale).format(Instant.ofEpochMilli(epochMs).atZone(zone))
+        internal fun labelRes(label: SourceErrorDetails.Label): Int = when (label) {
+            SourceErrorDetails.Label.ERROR -> R.string.error_details_label_error
+            SourceErrorDetails.Label.REQUEST -> R.string.error_details_label_request
+            SourceErrorDetails.Label.STATUS -> R.string.error_details_label_status
+            SourceErrorDetails.Label.MESSAGE -> R.string.error_details_label_message
+            SourceErrorDetails.Label.QUOTA -> R.string.error_details_label_quota
+            SourceErrorDetails.Label.LIMIT -> R.string.error_details_label_limit
+            SourceErrorDetails.Label.METRIC -> R.string.error_details_label_metric
+            SourceErrorDetails.Label.WINDOW -> R.string.error_details_label_window
+            SourceErrorDetails.Label.RESETS -> R.string.error_details_label_resets
+            SourceErrorDetails.Label.FAILURES -> R.string.error_details_label_failures
+            SourceErrorDetails.Label.LAST_ATTEMPT -> R.string.error_details_label_last_attempt
+            SourceErrorDetails.Label.LAST_SUCCESS -> R.string.error_details_label_last_success
+        }
+
+        private fun valueText(context: Context, value: SourceErrorDetails.Value, nowMs: Long, locale: Locale, zone: ZoneId): String =
+            when (value) {
+                is SourceErrorDetails.Value.Plain -> value.text
+                is SourceErrorDetails.Value.ErrorCode -> GraphFailureWatermarkRenderer.localizedErrorCodeText(context, value.code)
+                is SourceErrorDetails.Value.Limit -> when (value.period) {
+                    ProviderErrorDetails.QuotaPeriod.DAY -> context.getString(R.string.error_details_limit_per_day, value.limit)
+                    ProviderErrorDetails.QuotaPeriod.MINUTE -> context.getString(R.string.error_details_limit_per_minute, value.limit)
+                    null -> value.limit
+                }
+                is SourceErrorDetails.Value.DateTime -> SourceErrorDetails.formatDateTime(value.epochMs, locale, zone)
+                is SourceErrorDetails.Value.ResetTime -> GraphFailureWatermarkRenderer.formatResetTime(value.epochMs, locale, zone)
+                is SourceErrorDetails.Value.Moment -> GraphFailureWatermarkRenderer.formatFailureTime(value.epochMs, nowMs, locale, zone)
+            }
     }
 }

@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">Reinicia</string>
     <string name="error_details_label_failures">Falhas seguidas</string>
     <string name="error_details_label_last_attempt">Última tentativa</string>
+    <string name="error_details_label_last_success">Última atualização bem-sucedida</string>
     <string name="error_details_limit_per_day">%1$s por dia, compartilhado por todos os dispositivos que usam esta chave</string>
     <string name="error_details_limit_per_minute">%1$s por minuto</string>
     <string name="error_details_show_response">Mostrar resposta completa</string>

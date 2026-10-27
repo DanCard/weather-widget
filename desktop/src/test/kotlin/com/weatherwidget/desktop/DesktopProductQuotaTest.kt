@@ -63,11 +63,21 @@ class DesktopProductQuotaTest {
             ForecastProduct.HOURLY to "Hourly forecast quota used",
             ForecastProduct.DAILY to "Daily forecast quota used",
         )) {
-            val p = desktopQuotaPresentation("Google Weather", QuotaNotice.forProductBlock(product, 1_791_442_800_000L, body))
-            assertEquals("GOOGLE WEATHER UPDATES PAUSED", p.title)
-            assertEquals("$line · resets ${QuotaNoticeText.formatResetTime(1_791_442_800_000L)}", p.bodyLines.first())
-            assertTrue(p.bodyLines.contains("Quota: ForecastHoursQueriesPerDay — 90 per day, shared by every device using this key"))
-            assertTrue(p.quota)
+            val c = com.weatherwidget.data.remote.SourceErrorDetails.build(
+                com.weatherwidget.data.remote.SourceErrorDetails.Facts(
+                    0, null, null, null,
+                    { if (it == product) com.weatherwidget.data.remote.QuotaState.ProductQuota(1_791_442_800_000L, 0L, body) else null },
+                    null, null,
+                ),
+                product,
+                nowMs = 0L,
+            )!!
+            val english = com.weatherwidget.data.remote.SourceErrorDetails.English
+            assertEquals("GOOGLE WEATHER UPDATES PAUSED", english.headline("Google Weather", c.headline))
+            assertEquals("$line · resets ${QuotaNoticeText.formatResetTime(1_791_442_800_000L)}", english.summary(c.summary))
+            val rows = c.rows.associate { english.label(it.label) to english.value(it.value, 0L) }
+            assertEquals("ForecastHoursQueriesPerDay", rows["Quota"])
+            assertEquals("90 per day, shared by every device using this key", rows["Limit"])
         }
     }
 

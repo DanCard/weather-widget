@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">Si azzera</string>
     <string name="error_details_label_failures">Errori consecutivi</string>
     <string name="error_details_label_last_attempt">Ultimo tentativo</string>
+    <string name="error_details_label_last_success">Ultimo aggiornamento riuscito</string>
     <string name="error_details_limit_per_day">%1$s al giorno, condivisa da tutti i dispositivi che usano questa chiave</string>
     <string name="error_details_limit_per_minute">%1$s al minuto</string>
     <string name="error_details_show_response">Mostra risposta completa</string>

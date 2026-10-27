@@ -200,7 +200,7 @@ object FailureBannerLayout {
             "TIMEOUT" -> "Timed Out"
             "SSL_ERROR" -> "SSL Error"
             "SOCKET_ERROR" -> "Socket Error"
-            "NO_COVERAGE" -> "Not Available In This Region"
+            "NO_COVERAGE" -> "Not available in this region"
             else ->
                 when {
                     code.startsWith("HTTP_5") -> "${code.removePrefix("HTTP_")} Server Error"

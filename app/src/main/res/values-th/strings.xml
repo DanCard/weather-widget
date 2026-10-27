@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">รีเซ็ต</string>
     <string name="error_details_label_failures">ล้มเหลวติดต่อกัน</string>
     <string name="error_details_label_last_attempt">พยายามครั้งล่าสุด</string>
+    <string name="error_details_label_last_success">อัปเดตสำเร็จล่าสุด</string>
     <string name="error_details_limit_per_day">%1$s ต่อวัน ใช้ร่วมกันทุกอุปกรณ์ที่ใช้คีย์นี้</string>
     <string name="error_details_limit_per_minute">%1$s ต่อนาที</string>
     <string name="error_details_show_response">แสดงการตอบกลับทั้งหมด</string>

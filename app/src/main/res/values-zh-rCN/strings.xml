@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">重置</string>
     <string name="error_details_label_failures">连续失败次数</string>
     <string name="error_details_label_last_attempt">最后尝试</string>
+    <string name="error_details_label_last_success">上次成功更新</string>
     <string name="error_details_limit_per_day">每天 %1$s 次,使用此密钥的所有设备共享</string>
     <string name="error_details_limit_per_minute">每分钟 %1$s 次</string>
     <string name="error_details_show_response">显示完整响应</string>

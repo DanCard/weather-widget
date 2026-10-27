@@ -404,6 +404,7 @@
     <string name="error_details_label_resets">Direset</string>
     <string name="error_details_label_failures">Gagal berturut-turut</string>
     <string name="error_details_label_last_attempt">Percobaan terakhir</string>
+    <string name="error_details_label_last_success">Pembaruan berhasil terakhir</string>
     <string name="error_details_limit_per_day">%1$s per hari, dibagi oleh semua perangkat yang memakai kunci ini</string>
     <string name="error_details_limit_per_minute">%1$s per menit</string>
     <string name="error_details_show_response">Tampilkan respons lengkap</string>

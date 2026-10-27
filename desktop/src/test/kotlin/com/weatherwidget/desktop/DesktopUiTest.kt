@@ -1109,4 +1109,57 @@ currentCondition = "Sunny"),
         )
         assertEquals(0.55f, result.zoomFactor)
     }
+
+    @Test
+    fun `clicking the failure pill shows the error details, with no dismissal`() {
+        val details = com.weatherwidget.data.remote.SourceErrorDetails.build(
+            com.weatherwidget.data.remote.SourceErrorDetails.Facts(
+                failureCount = 3,
+                lastErrorCode = "HTTP_401",
+                lastFailureMs = System.currentTimeMillis() - 60_000L,
+                lastFailureDetail = "Google Weather fetch failed (/currentConditions:lookup): status 401. Detail: " +
+                    """{"error":{"code":401,"message":"API key not valid."}}""",
+                productQuota = { null },
+                rateLimit = null,
+                lastSuccessMs = System.currentTimeMillis() - 3_600_000L,
+            ),
+            null,
+            System.currentTimeMillis(),
+        )!!
+        var settingsOpened = 0
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig,
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = {},
+                onOpenSettings = { settingsOpened++ },
+                onOpenObservations = {},
+                currentTempFetchError = "GOOGLE WEATHER UPDATES FAILING\n401 Unauthorized",
+                currentTempFetchPill = DesktopFailurePill("Google Weather", "HTTP_401", System.currentTimeMillis() - 60_000L),
+                currentTempFetchDetails = details,
+            )
+        }
+
+        composeTestRule.onNodeWithTag("failure_pill").performClick()
+        composeTestRule.onNodeWithTag("failure_details").assertExists()
+        composeTestRule.onNodeWithText("GOOGLE WEATHER UPDATES FAILING").assertExists()
+        composeTestRule.onNodeWithText("API key not valid.").assertExists()
+        composeTestRule.onNodeWithText("/currentConditions:lookup").assertExists()
+        composeTestRule.onNodeWithText("Failures in a row").assertExists()
+        composeTestRule.onNodeWithText("Last successful update").assertExists()
+        composeTestRule.onNodeWithText("×").assertDoesNotExist()
+
+        composeTestRule.onNodeWithTag("failure_details_response").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("failure_details_toggle_response").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("failure_details_response").assertExists()
+
+        composeTestRule.onNodeWithTag("failure_details_api_keys").performScrollTo().performClick()
+        assertEquals(1, settingsOpened)
+
+        composeTestRule.onNodeWithTag("failure_details_close").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("failure_details").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("failure_pill").assertExists()
+    }
 }
