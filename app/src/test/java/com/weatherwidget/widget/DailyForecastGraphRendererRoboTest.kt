@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.graph.DailyBarWidths
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Paint
@@ -244,7 +245,7 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
-    fun pastDay_triplePitchIsEightyPercentOfToday() {
+    fun pastDay_triplePitchIsPastWidthScaleOfToday() {
         // Touching bars: pitch = average width, so the past pitch scales with the past width.
         val bars = render(pastAndToday(pastSnapshot = true), widthPx = 600)
         val pastDate = LocalDate.of(2026, 2, 1)
@@ -252,7 +253,7 @@ class DailyForecastGraphRendererRoboTest {
             bars.single { it.date == pastDate && it.barType == "HISTORY" }.centerX
         val todayPitch = bars.single { it.barType == "TODAY_FORECAST" }.centerX -
             bars.single { it.barType == "TODAY" }.centerX
-        assertEquals(DailyBarRenderer.PAST_TRIPLE_WIDTH_SCALE, pastPitch / todayPitch, 0.02f)
+        assertEquals(DailyBarWidths.PAST_WIDTH_SCALE, pastPitch / todayPitch, 0.02f)
     }
 
     @Test

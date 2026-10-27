@@ -5,6 +5,7 @@ import android.graphics.Typeface
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.remote.NwsTemperaturePlausibility.isPlausibleF
+import com.weatherwidget.shared.graph.DailyBarWidths
 import com.weatherwidget.shared.graph.TodayColumnHighlight
 import com.weatherwidget.shared.graph.LargeTodayOverlayPolicy
 import com.weatherwidget.shared.graph.WeightedColumnLayout
@@ -30,6 +31,8 @@ internal data class DailyGraphLayoutInfo(
     val columnCenters: List<Float>,
     val todayColumnIndex: Int?,
     val useCompactTodayBars: Boolean,
+    /** Bar stroke widths for this layout, from the shared [DailyBarWidths] rule. */
+    val barWidths: DailyBarWidths,
     val tempLabelMaxWidthPx: Float,
     val horizontalPadding: Float,
     val tripleBarOffset: Float,
@@ -197,15 +200,14 @@ internal object DailyGraphLayoutResolver {
             )
         }
 
-        val barWidth =
-            DailyBarRenderer.dailyBarStrokeWidthPx(density, scaleFactor, bitmapScale)
-        val tripleBarWidth =
-            DailyBarRenderer.todayTripleBarStrokeWidthPx(
-                density,
-                scaleFactor,
-                bitmapScale,
-                compact = todayIsWeighted,
+        val barWidths =
+            DailyBarWidths.resolve(
+                pxPerDp = DailyBarRenderer.barPxPerDp(density, scaleFactor, bitmapScale),
+                dayWidthPx = dayWidth,
+                todayWidened = todayIsWeighted,
             )
+        val barWidth = barWidths.forecastPx
+        val tripleBarWidth = barWidths.todayPx
         val tripleBarOffset =
             TodayColumnHighlight.tripleBarSpacing(
                 centerBarWidthPx = tripleBarWidth,
@@ -214,7 +216,7 @@ internal object DailyGraphLayoutResolver {
                 columnEdgeMarginPx = COLUMN_EDGE_MARGIN_DP.dp(density),
             )
 
-        val pastTripleBarWidth = tripleBarWidth * DailyBarRenderer.PAST_TRIPLE_WIDTH_SCALE
+        val pastTripleBarWidth = barWidths.pastPx
         val pastTripleBarOffset =
             TodayColumnHighlight.tripleBarSpacing(
                 centerBarWidthPx = pastTripleBarWidth,
@@ -252,6 +254,7 @@ internal object DailyGraphLayoutResolver {
             columnCenters = columnCenters,
             todayColumnIndex = todayColumnIndex,
             useCompactTodayBars = todayIsWeighted,
+            barWidths = barWidths,
             tempLabelMaxWidthPx =
                 dayWidth + (TEMP_LABEL_OVERLAP_ALLOWANCE_DP * labelScale).dp(density),
             horizontalPadding = horizontalPadding,

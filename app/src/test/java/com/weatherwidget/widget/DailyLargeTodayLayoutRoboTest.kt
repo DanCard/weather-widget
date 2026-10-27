@@ -6,6 +6,7 @@ import android.widget.FrameLayout
 import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.graph.DailyBarWidths
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.widget.handlers.DailyClickHandlerFactory
 import com.weatherwidget.widget.WidgetActions
@@ -64,11 +65,9 @@ class DailyLargeTodayLayoutRoboTest {
         assertTrue(layout.dayWidth > 1_000f / 9.5f)
         assertTrue(layout.useCompactTodayBars)
         assertEquals(
-            6f,
-            DailyBarRenderer.todayTripleBarStrokeWidthPx(
-                density = 1f,
-                compact = layout.useCompactTodayBars,
-            ),
+            DailyBarWidths.TODAY_BAR_WIDTH_DP_WIDENED * layout.density * layout.scaleFactor *
+                layout.bitmapScale.coerceIn(0.5f, 1f),
+            layout.barWidths.todayPx,
             0.01f,
         )
     }

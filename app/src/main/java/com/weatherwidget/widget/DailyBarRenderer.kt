@@ -5,7 +5,6 @@ import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.Log
-import androidx.annotation.VisibleForTesting
 import com.weatherwidget.shared.graph.AdaptiveBarStrokes
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.StandInBarStyle
@@ -31,12 +30,7 @@ import kotlin.math.abs
 internal object DailyBarRenderer {
     private const val TAG = "DailyGraphRenderer"
 
-    internal const val FORECAST_BAR_WIDTH_DP = 9f
-    internal const val TODAY_TRIPLE_BAR_WIDTH_DP = 8f
-    internal const val TODAY_TRIPLE_BAR_WIDTH_DP_COMPACT = 6f
     internal const val CLIMATE_OVERLAY_ALPHA = 80
-
-    internal const val PAST_TRIPLE_WIDTH_SCALE = TodayColumnHighlight.PAST_TRIPLE_WIDTH_SCALE
 
     /** Offset of a non-past day's comparison overlay (none is drawn today; kept for the layout field). */
     internal const val FORECAST_BAR_OFFSET_SCALE = 0.7f
@@ -66,12 +60,7 @@ internal object DailyBarRenderer {
         paints: DailyGraphPaintSet,
     ) {
         val density = layout.density
-        val tripleBarWidth = todayTripleBarStrokeWidthPx(
-            density = density,
-            scaleFactor = layout.scaleFactor,
-            bitmapScale = layout.bitmapScale,
-            compact = layout.useCompactTodayBars,
-        )
+        val tripleBarWidth = layout.barWidths.todayPx
         val bounds = TodayColumnHighlight.panelBounds(
             centerXPx = centerX,
             tripleBarOffsetPx = layout.tripleBarOffset,
@@ -550,28 +539,15 @@ internal object DailyBarRenderer {
         )
 
 
-    @VisibleForTesting
-    internal fun dailyBarStrokeWidthPx(
+    /**
+     * Widget px per dp for [com.weatherwidget.shared.graph.DailyBarWidths]: density × scale factor ×
+     * the bitmap label scale (floored at 0.5 so a downscaled bitmap keeps legible bars).
+     */
+    internal fun barPxPerDp(
         density: Float,
         scaleFactor: Float = 1f,
         bitmapScale: Float = 1f,
-    ): Float {
-        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
-        return FORECAST_BAR_WIDTH_DP * scaleFactor * labelScale * density
-    }
-
-    @VisibleForTesting
-    internal fun todayTripleBarStrokeWidthPx(
-        density: Float,
-        scaleFactor: Float = 1f,
-        bitmapScale: Float = 1f,
-        compact: Boolean = false,
-    ): Float {
-        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
-        val widthDp =
-            if (compact) TODAY_TRIPLE_BAR_WIDTH_DP_COMPACT else TODAY_TRIPLE_BAR_WIDTH_DP
-        return widthDp * scaleFactor * labelScale * density
-    }
+    ): Float = scaleFactor * bitmapScale.coerceIn(0.5f, 1f) * density
 
     private fun clampMinBarHeight(
         highY: Float,

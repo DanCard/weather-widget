@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.shared.graph.DailyBarWidths
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -73,8 +74,13 @@ class DailyForecastGraphRendererSizingTest {
     fun `daily bar stroke uses wider baseline and bitmap scale floor`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val fullScale = DailyBarRenderer.dailyBarStrokeWidthPx(context.resources.displayMetrics.density)
-        val downscaled = DailyBarRenderer.dailyBarStrokeWidthPx(context.resources.displayMetrics.density, bitmapScale = 0.34f)
+        val density = context.resources.displayMetrics.density
+        val fullScale = DailyBarWidths.resolve(
+            DailyBarRenderer.barPxPerDp(density), dayWidthPx = 1_000f, todayWidened = false,
+        ).forecastPx
+        val downscaled = DailyBarWidths.resolve(
+            DailyBarRenderer.barPxPerDp(density, bitmapScale = 0.34f), dayWidthPx = 1_000f, todayWidened = false,
+        ).forecastPx
 
         assertEquals(9f * context.resources.displayMetrics.density, fullScale, 0.01f)
         assertEquals(4.5f * context.resources.displayMetrics.density, downscaled, 0.01f)

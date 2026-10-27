@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.graphics.Paint
 import android.graphics.Typeface
 import androidx.annotation.VisibleForTesting
+import com.weatherwidget.shared.graph.DailyBarWidths
 import com.weatherwidget.shared.graph.TodayColumnHighlight
 import com.weatherwidget.shared.graph.TodayThermostat
 import com.weatherwidget.widget.handlers.HeaderConstants
@@ -17,7 +18,7 @@ internal class DailyGraphPaintSet(
     val todayForecastBluePaint: Paint,
     val historyBarPaint: Paint,
     val forecastBarPaint: Paint,
-    /** Template for a past day's triple bar at [DailyBarRenderer.PAST_TRIPLE_WIDTH_SCALE] of today's width. */
+    /** Template for a past day's triple bar at [DailyBarWidths.PAST_WIDTH_SCALE] of today's width. */
     val pastTripleBarPaint: Paint,
     val climateOverlayBarPaint: Paint,
     val gapFallbackBarPaint: Paint,
@@ -82,7 +83,7 @@ internal object DailyGraphPaintCache {
         val tempLabelHeight: Float,
         val density: Float,
         val bitmapScale: Float,
-        val compactTodayBars: Boolean,
+        val barWidths: DailyBarWidths,
     )
 
     internal data class Entry(
@@ -101,26 +102,15 @@ internal object DailyGraphPaintCache {
                 tempLabelHeight = layout.tempLabelHeight,
                 density = layout.density,
                 bitmapScale = layout.bitmapScale,
-                compactTodayBars = layout.useCompactTodayBars,
+                barWidths = layout.barWidths,
             )
         entries.firstOrNull { it.key == key }?.let { return it.set }
 
         val labelScale = layout.bitmapScale.coerceIn(0.5f, 1f)
-        val barWidth =
-            DailyBarRenderer.dailyBarStrokeWidthPx(
-                layout.density,
-                layout.scaleFactor,
-                layout.bitmapScale,
-            )
-        val tripleBarWidth =
-            DailyBarRenderer.todayTripleBarStrokeWidthPx(
-                layout.density,
-                layout.scaleFactor,
-                layout.bitmapScale,
-                compact = layout.useCompactTodayBars,
-            )
+        val barWidth = layout.barWidths.forecastPx
+        val tripleBarWidth = layout.barWidths.todayPx
         // Past days draw the same triple bar, thinner, so today's column stays the focal one.
-        val pastTripleBarWidth = tripleBarWidth * DailyBarRenderer.PAST_TRIPLE_WIDTH_SCALE
+        val pastTripleBarWidth = layout.barWidths.pastPx
         val shadowRadius = (LABEL_SHADOW_RADIUS_DP * labelScale).dp(layout.density)
         val shadowDy = (LABEL_SHADOW_DY_DP * labelScale).dp(layout.density)
 

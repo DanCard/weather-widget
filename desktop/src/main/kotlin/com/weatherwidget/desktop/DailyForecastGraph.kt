@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.weatherwidget.shared.graph.DailyRainLabelPlanner
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.graph.AdaptiveBarStrokes
+import com.weatherwidget.shared.graph.DailyBarWidths
 import com.weatherwidget.shared.graph.TodayColumnHighlight
 import com.weatherwidget.shared.graph.TodayThermostat
 import com.weatherwidget.shared.graph.TodayColumnOverlayBlocks
@@ -155,11 +156,16 @@ fun DailyForecastGraph(
         val bottom = (size.height - bottomReserve).coerceAtLeast(size.height * 0.4f)
         val iconFloorTop = size.height - dayLabelBand - iconSize
         val graphHeight = (bottom - top).coerceAtLeast(1f)
-        val barWidth = (7.dp.toPx() * scale).coerceAtMost(dayWidth * 0.22f)
-        val compactTodayBarWidth = (6.dp.toPx() * scale).coerceAtMost(dayWidth * 0.22f)
-        // Past columns draw today's triple bar (yesterday's forecast | actual | settled forecast)
-        // thinner, touching like today's — shared width scale and spacing with Android.
-        val pastTripleWidth = compactTodayBarWidth * TodayColumnHighlight.PAST_TRIPLE_WIDTH_SCALE
+        // Shared with Android: future single bar, today's triple bar, and past days' thinner triple
+        // bar (yesterday's forecast | actual | settled forecast), touching like today's.
+        val barWidths = DailyBarWidths.resolve(
+            pxPerDp = 1.dp.toPx() * scale,
+            dayWidthPx = dayWidth,
+            todayWidened = state.largeTodayOverlayEnabled && todayColumnIndex != null,
+        )
+        val barWidth = barWidths.forecastPx
+        val todayBarWidth = barWidths.todayPx
+        val pastTripleWidth = barWidths.pastPx
         val pastTripleOffset = TodayColumnHighlight.tripleBarSpacing(
             centerBarWidthPx = pastTripleWidth,
             flankBarWidthPx = pastTripleWidth,
@@ -167,8 +173,8 @@ fun DailyForecastGraph(
             columnEdgeMarginPx = 2.dp.toPx(),
         )
         val compactTodayTripleOffset = TodayColumnHighlight.tripleBarSpacing(
-            centerBarWidthPx = compactTodayBarWidth,
-            flankBarWidthPx = compactTodayBarWidth,
+            centerBarWidthPx = todayBarWidth,
+            flankBarWidthPx = todayBarWidth,
             dayWidthPx = todayColumnIndex?.let(columns.widths::get) ?: dayWidth,
             columnEdgeMarginPx = 2.dp.toPx(),
         )
@@ -226,7 +232,7 @@ fun DailyForecastGraph(
                 val panel = TodayColumnHighlight.panelBounds(
                     centerXPx = centerX,
                     tripleBarOffsetPx = compactTodayTripleOffset,
-                    flankBarWidthPx = compactTodayBarWidth,
+                    flankBarWidthPx = todayBarWidth,
                     dayWidthPx = columnWidth,
                     graphTopPx = top,
                     canvasHeightPx = size.height,
@@ -246,24 +252,24 @@ fun DailyForecastGraph(
 
                 // Both today bars carry today's cloud-cover ratio (same day); the rain-vs-cloud
                 // bottom color follows each bar's own condition (live forecast vs 24h-prior snapshot).
-                drawAdaptiveBar(centerX + compactTodayTripleOffset, day.forecastHigh, day.forecastLow, ::yAt, compactTodayBarWidth, day.cloudCoverRatio, day.iconName, day.dayPrecipProbability)
+                drawAdaptiveBar(centerX + compactTodayTripleOffset, day.forecastHigh, day.forecastLow, ::yAt, todayBarWidth, day.cloudCoverRatio, day.iconName, day.dayPrecipProbability)
                 drawAdaptiveBar(
-                    centerX - compactTodayTripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, compactTodayBarWidth,
+                    centerX - compactTodayTripleOffset, day.snapshotHigh, day.snapshotLow, ::yAt, todayBarWidth,
                     day.cloudCoverRatio, day.snapshotIconName, day.priorBarRainPercent, clearColor = snapshotColor,
-                    pathEffect = standInDash(compactTodayBarWidth).takeIf { day.snapshotIsStale },
+                    pathEffect = standInDash(todayBarWidth).takeIf { day.snapshotIsStale },
                 )
                 // The thermostat — shared TodayThermostat decides the spans: solid mercury from
                 // barTopHigh down to the bulb, translucent ghost from today's earlier peak down to the
                 // mercury top. Drawn last so the mercury and bulb sit on top of the forecast/snapshot bars.
                 val thermostat = TodayThermostat.segments(day.barTopHigh, day.solidLow, day.ghostHigh)
                 thermostat.ghostTop?.let { ghostTop ->
-                    drawRangeLine(centerX, ghostTop, thermostat.mercuryTop, ::yAt, COLOR_MERCURY.copy(alpha = TodayThermostat.GHOST_ALPHA), compactTodayBarWidth)
+                    drawRangeLine(centerX, ghostTop, thermostat.mercuryTop, ::yAt, COLOR_MERCURY.copy(alpha = TodayThermostat.GHOST_ALPHA), todayBarWidth)
                 }
                 val barTop = thermostat.top
                 val mercuryLow = thermostat.mercuryBottom
-                drawRangeLine(centerX, thermostat.mercuryTop, mercuryLow, ::yAt, COLOR_MERCURY, compactTodayBarWidth)
+                drawRangeLine(centerX, thermostat.mercuryTop, mercuryLow, ::yAt, COLOR_MERCURY, todayBarWidth)
                 mercuryLow?.let { low ->
-                    val bulbRadius = compactTodayBarWidth * TodayThermostat.BULB_RADIUS_SCALE
+                    val bulbRadius = todayBarWidth * TodayThermostat.BULB_RADIUS_SCALE
                     drawCircle(
                         color = COLOR_MERCURY,
                         radius = bulbRadius,
@@ -274,7 +280,7 @@ fun DailyForecastGraph(
                 val todayLows = listOfNotNull(mercuryLow, day.forecastLow, day.snapshotLow)
                 todayBarTop = todayHighs.maxOrNull()?.let(::yAt) ?: (top + graphHeight * 0.35f)
                 todayBarBottom =
-                    (todayLows.minOrNull()?.let(::yAt)?.plus(compactTodayBarWidth * TodayThermostat.BULB_RADIUS_SCALE * 1.5f)
+                    (todayLows.minOrNull()?.let(::yAt)?.plus(todayBarWidth * TodayThermostat.BULB_RADIUS_SCALE * 1.5f)
                         ?: (bottom - graphHeight * 0.25f)).coerceAtMost(bottom)
             } else if (day.isPast) {
                 // Past triple bar, matching Android: left = the frozen "yesterday's forecast"
@@ -369,8 +375,8 @@ fun DailyForecastGraph(
             // Round caps extend a bar's ink half its stroke width ABOVE the geometric endpoint, so a
             // label pinned to the bare endpoint would overlap the cap. Pinned dualTop calls subtract
             // the matching bar's ink radius so the label bottom touches the visible ink top.
-            val actualInkRadiusPx = if (day.isPast) pastTripleWidth / 2f else compactTodayBarWidth / 2f
-            val forecastInkRadiusPx = if (day.isToday) compactTodayBarWidth / 2f else pastTripleWidth / 2f
+            val actualInkRadiusPx = if (day.isPast) pastTripleWidth / 2f else todayBarWidth / 2f
+            val forecastInkRadiusPx = if (day.isToday) todayBarWidth / 2f else pastTripleWidth / 2f
             val forecastPinnedInkRadiusPx =
                 if (dualOffsets != null && dualOffsets.forecastDp == 0f) forecastInkRadiusPx else 0f
             // pushPx raises the label further (Y grows downward); the header clamp still wins, so a
@@ -586,7 +592,7 @@ fun DailyForecastGraph(
                 // Past columns have the same (thinner) left bar.
                 val snapshotHigh = day.snapshotHigh
                 val snapshotBarTop = if ((day.isToday || day.isPast) && snapshotHigh != null && day.snapshotLow != null) {
-                    yAt(snapshotHigh) - (if (day.isToday) compactTodayBarWidth else pastTripleWidth) / 2f
+                    yAt(snapshotHigh) - (if (day.isToday) todayBarWidth else pastTripleWidth) / 2f
                 } else null
                 val anchorTop = DailyRainLabelPlanner.resolveDayRainAnchorTop(
                     highLabelTop = highLabelTopAtCenter,
