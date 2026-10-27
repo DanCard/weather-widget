@@ -209,10 +209,4 @@ class GhostLineLabelTest {
         assertEquals("67.4°", placed.text)
         assertTrue("above the line, rising past the plot top: ${placed.box}", placed.box.bottom <= foldPeak.ghostY && placed.box.top < foldPlotTop)
     }
-
-    @Test
-    fun `a header item over the peak keeps the label out`() {
-        val headerSourceLabel = GraphRect(400f, 0f, 470f, 22f)
-        assertTrue(placeFoldPeak(GraphLabelArea.rect(511f, 412f), listOf(foldHighLabel, headerSourceLabel)).isEmpty())
-    }
 }

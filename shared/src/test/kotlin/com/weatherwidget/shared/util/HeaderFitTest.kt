@@ -583,31 +583,4 @@ class HeaderFitTest {
             HeaderFit.floatingSeamOffset(nws, nominalDateWidth = 100f) != HeaderFit.floatingSeamOffset(meteo, nominalDateWidth = 100f),
         )
     }
-
-    /**
-     * What the header draws, as spans: Android's hourly graph maps them under its RemoteViews header
-     * as label obstacles (`plans/261027-shared-graph-label-top-limit.md`).
-     */
-    @Test
-    fun `occupied spans cover the left cluster, centred buttons, date and right cluster`() {
-        val m = full(2000f, inline = false)
-        val plan = HeaderFit.resolve(m)
-        assertEquals(
-            listOf(
-                0f to 170f, // icon 30 + temp 60 + delta 40 + rain 40
-                870f to 1020f, // 4 × 30 + 3 × 10, ending 20 right of the middle
-                1026f to 1072f, // the date, a gap after the buttons
-                1940f to 2000f, // source label
-            ),
-            HeaderFit.occupiedSpans(m, plan),
-        )
-    }
-
-    @Test
-    fun `inline buttons are part of the left cluster span`() {
-        val m = full(400f, inline = true)
-        val plan = Plan(showTemp = true, buttons = 2, placement = ButtonPlacement.INLINE)
-        // temp 60 + inline lead 4 + 2 × 30; no centred span, no date.
-        assertEquals(listOf(0f to 124f, 340f to 400f), HeaderFit.occupiedSpans(m, plan))
-    }
 }

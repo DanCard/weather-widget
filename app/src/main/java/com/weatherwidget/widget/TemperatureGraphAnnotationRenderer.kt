@@ -127,11 +127,8 @@ internal object TemperatureGraphAnnotationRenderer {
             }
         val neutralIconBounds =
             drawnIconBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
-        // The header row over the bitmap's top strip is as hard as the fetch dot: a HIGH label may
-        // rise to the bitmap top (GraphLabelArea.TOP), never under a header item.
         val hardBounds =
-            (fetchDotBounds + headerBounds(input))
-                .map { GraphRect(it.left, it.top, it.right, it.bottom) }
+            fetchDotBounds.map { GraphRect(it.left, it.top, it.right, it.bottom) }
         val placements =
             TemperatureLabelEngine.computePlacements(
                 hours = hours,
@@ -541,9 +538,6 @@ internal object TemperatureGraphAnnotationRenderer {
             )
         }
     }
-
-    private fun headerBounds(input: Input): List<RectF> =
-        input.obstacles.snapshot().filter { it.type == TemperatureGraphObstacleType.HEADER }.map { it.bounds }
 
     private fun scaledPaint(base: Paint, scale: Float): Paint =
         if (scale == 1f) base else Paint(base).apply { textSize = base.textSize * scale }

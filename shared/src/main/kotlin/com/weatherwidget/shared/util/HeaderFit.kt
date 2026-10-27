@@ -275,20 +275,6 @@ object HeaderFit {
         return maxOf(line, leftClusterWidth(m, plan) + m.gap)
     }
 
-    /**
-     * Horizontal spans, in [Measured] units, of everything [plan] draws on the header row: the left
-     * cluster (INLINE buttons included), the CENTER buttons, the date, and the right cluster. Where a
-     * graph is drawn under the header (Android's hourly widget), these are the label obstacles
-     * (`GraphLabelArea.headerObstacles`), so no label is drawn under a header item.
-     */
-    fun occupiedSpans(m: Measured, plan: Plan): List<Pair<Float, Float>> = buildList {
-        val left = leftClusterWidth(m, plan)
-        if (left > 0f) add(0f to left)
-        buttonsSpan(m, plan)?.let { add(it) }
-        dateLeft(m, plan)?.let { add(it to it + m.date) }
-        if (m.rightCluster > 0f) add(m.width - m.rightCluster to m.width)
-    }
-
     private fun leftClusterWidth(m: Measured, plan: Plan): Float =
         (if (plan.showIcon) m.icon else 0f) +
             (if (plan.showTemp) m.temp else 0f) +
