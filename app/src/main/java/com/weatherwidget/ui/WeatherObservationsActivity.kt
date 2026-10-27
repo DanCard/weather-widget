@@ -49,6 +49,7 @@ import com.weatherwidget.shared.observations.ObservationOrigin
 import com.weatherwidget.shared.observations.ObservationsTabs
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 import com.weatherwidget.shared.observations.StaleObservationFallback
+import com.weatherwidget.shared.observations.StationsList
 import com.weatherwidget.util.StationHistoryUrl
 import com.weatherwidget.widget.GpsResampler
 import com.weatherwidget.widget.StaleDisplayRefreshPolicy
@@ -744,119 +745,28 @@ class WeatherObservationsActivity : AppCompatActivity() {
         loadObservationsJob?.cancel()
         loadObservationsJob = lifecycleScope.launch(ioDispatcher) {
             try {
-                // Each observation row records the device location it was fetched under, and the 24h
-                // window can straddle a move between locations (e.g. Austin → Bay Area), so scope the
-                // list to the current location. Fall back to the unscoped query only if no location is
-                // resolvable at all.
+                // The rule — site scope, recent else newest stored, latest per station, the main-reading
+                // fallback, the subtitle — is :shared StationsList (desktop's Observations window too).
                 val location = resolveLocation()
-                val diagnostic = StringBuilder()
-
-                fun isForCurrentSource(row: ObservationEntity) =
-                    WeatherObservationsSupport.matchesStationsList(row.stationId, row.api, currentSource)
-
-                suspend fun stationsSince(sinceMs: Long): List<ObservationEntity> {
-                    val rows = if (location != null) {
-                        // The proximity box is ~7 miles wide, so it also admits rows fetched under a
-                        // *nearby* site the device visited earlier (Los Gatos stations lingering under
-                        // a Mountain View fix). Nothing refreshes those, but they stay in the 24h
-                        // window long enough to show up as extra stations beyond the MAX_RETRIES
-                        // stations actually polled, so collapse the box to the current site.
-                        //
-                        // ...but not to a site that has nothing for the displayed source: an excursion
-                        // fragment holding only `<SOURCE>_MAIN` backfill rows would otherwise win on
-                        // distance and empty the list outright. See LocationMatch.selectNearestSiteWith.
-                        val box = observationRepository.getRecentObservationsNear(sinceMs, location.first, location.second)
-                        val site = LocationMatch.selectNearestSiteWith(
-                            box,
-                            location.first,
-                            location.second,
-                            { it.locationLat },
-                            { it.locationLon },
-                            ::isForCurrentSource,
-                        )
-                        // Permanent, and load-bearing: `loc` alone would have identified the
-                        // 2026-08-15 stale-location incident in a single grep of `adb logcat`.
-                        diagnostic
-                            .append(" loc=${location.first},${location.second}")
-                            .append(" boxRows=${box.size}")
-                            .append(" sites=${box.map { "${it.locationLat}/${it.locationLon}" }.distinct()}")
-                            .append(" siteRows=${site.size}")
-                        site
-                    } else {
-                        observationRepository.getRecentObservations(sinceMs).also {
-                            diagnostic.append(" loc=none boxRows=${it.size}")
-                        }
-                    }
-                    return rows
-                        .filter(::isForCurrentSource)
-                        .groupBy { it.stationId }
-                        .map { it.value.first() }
-                        .sortedBy { it.distanceKm }
-                }
-
-                val nowMs = System.currentTimeMillis()
-                val recent = stationsSince(nowMs - StaleObservationFallback.RECENT_WINDOW_MS)
-                // Reaching further back in the DB before giving up: free, and the age of what IS
-                // stored is the diagnostic the screen exists to surface. Never a fetch trigger.
-                val fallback = StaleObservationFallback.resolve(
-                    recent = recent,
-                    older = if (recent.isEmpty()) stationsSince(0L) else emptyList(),
-                    nowMs = nowMs,
-                    timestampOf = { it.timestamp },
-                )
-                val staleAgeMs = fallback.ageMs
-
-                val observations = if (currentSource == WeatherSource.NWS) {
-                    fallback.rows
-                } else {
-                    // For other sources, show POIs if they exist, or fallback to the latest single reading
-                    val pois = fallback.rows
-
-                    if (pois.isNotEmpty()) {
-                        pois
-                    } else {
-                        val latest = forecastDao.getLatestWeatherBySource(currentSource.id)
-                        if (latest != null) {
-                            val todayStartMs = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                            val mainObs = observationRepository.getMainObservationsWithComputedNwsBlend(
-                                latest.locationLat,
-                                latest.locationLon,
-                                todayStartMs,
-                            )
-                            val sourceObs = mainObs.firstOrNull { it.api == currentSource.id }
-                            if (sourceObs != null) {
-                                listOf(sourceObs)
-                            } else {
-                                emptyList()
-                            }
-                        } else {
-                            emptyList()
-                        }
-                    }
-                }
+                val source = currentSource
+                val host = RoomStationsListHost(observationDao, location)
+                val result = StationsList.load(host, source, location, System.currentTimeMillis())
+                val observations = result.rows
 
                 withContext(Dispatchers.Main) {
-                    Log.d(
-                        TAG,
-                        "loadObservations: currentSource=${currentSource.id}$diagnostic" +
-                            " staleAgeMs=${staleAgeMs ?: "none"} items=${observations.map { it.stationId }}",
-                    )
+                    Log.d(TAG, StationsList.line(host, source, result))
                     adapter.submitList(observations)
-                    val subtitleView = findViewById<TextView>(R.id.subtitle)
-                    if (observations.isEmpty()) {
-                        subtitleView.text = getString(R.string.obs_subtitle_none_found, currentSource.displayName)
-                    } else if (staleAgeMs != null) {
+                    findViewById<TextView>(R.id.subtitle).text = when (result.subtitle) {
+                        StationsList.Subtitle.NONE_FOUND -> getString(R.string.obs_subtitle_none_found, source.displayName)
                         // Everything shown is older than the 24h window; say how old rather than
                         // letting it pass for current.
-                        subtitleView.text = getString(
+                        StationsList.Subtitle.STALE -> getString(
                             R.string.obs_subtitle_stale,
-                            currentSource.displayName,
-                            StaleObservationFallback.formatAge(staleAgeMs),
+                            source.displayName,
+                            StaleObservationFallback.formatAge(result.staleAgeMs ?: 0L),
                         )
-                    } else if (currentSource == WeatherSource.NWS) {
-                        subtitleView.text = getString(R.string.obs_subtitle_nearby_stations)
-                    } else {
-                        subtitleView.text = getString(R.string.obs_subtitle_latest_reading, currentSource.displayName)
+                        StationsList.Subtitle.NEARBY_STATIONS -> getString(R.string.obs_subtitle_nearby_stations)
+                        StationsList.Subtitle.LATEST_READING -> getString(R.string.obs_subtitle_latest_reading, source.displayName)
                     }
 
                     maybeAutoRefreshStaleDisplay(location, observations)

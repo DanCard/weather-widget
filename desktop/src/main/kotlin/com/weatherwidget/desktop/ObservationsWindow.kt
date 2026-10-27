@@ -56,6 +56,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
+import com.weatherwidget.shared.observations.StationsList
+import com.weatherwidget.shared.util.Log
 import java.time.format.DateTimeFormatter
 
 /** Shared palette for the Observations & Logs window (pure-black "OLED" look). */
@@ -167,16 +169,42 @@ internal fun visibleStationRows(
     all: List<ObservationReading>,
     source: WeatherSource,
 ): List<ObservationReading> =
-    all.asSequence()
-        // Hides synthetic rows (IDW blend + NWS history backfill) and matches the stored `api`
-        // against the feed that actually supplies this source's actuals — the same shared matcher
-        // the Android stations list uses. There used to be a separate `api == source.id` pre-filter
-        // here; that is exactly the comparison a borrowing source must NOT make, since Open-Meteo's
-        // actuals arrive filed under METAR or NWS.
-        .filter { ObservationSourceMatcher.matchesStationsList(it.stationId, it.api, source) }
-        .groupBy { it.stationId }
-        .map { (_, rows) -> rows.maxByOrNull { it.timestamp }!! }
-        .sortedBy { it.distanceKm }
+    StationsList.select(all, source, { it.stationId }, { it.api }, { it.timestamp }, { it.distanceKm })
+
+/**
+ * The Observations tab's [StationsList] reads over the desktop DB: the raw proximity box at the active
+ * location, the unscoped read, and a source's own main reading today. Android's is `RoomStationsListHost`;
+ * both pass `StationsListHostContract`.
+ */
+internal class DesktopStationsListHost(
+    private val weatherDao: DesktopWeatherDao,
+    private val latitude: Double,
+    private val longitude: Double,
+) : StationsList.Host<ObservationReading> {
+    override fun stationId(row: ObservationReading) = row.stationId
+    override fun api(row: ObservationReading) = row.api
+    override fun timestamp(row: ObservationReading) = row.timestamp
+    override fun distanceKm(row: ObservationReading) = row.distanceKm
+    override fun latitude(row: ObservationReading) = row.locationLat
+    override fun longitude(row: ObservationReading) = row.locationLon
+    override fun fetchedAt(row: ObservationReading) = row.fetchedAt
+
+    override suspend fun near(sinceMs: Long, lat: Double, lon: Double) =
+        weatherDao.getRecentObservationsNear(sinceMs, lat, lon).map { it.toReading() }
+
+    override suspend fun anywhere(sinceMs: Long) = weatherDao.getRecentObservations(sinceMs).map { it.toReading() }
+
+    /** Android's `getMainObservationsWithComputedNwsBlend` pick: today's `*_MAIN` row filed under [source]. */
+    override suspend fun latestMainReading(source: WeatherSource): ObservationReading? {
+        val todayStartMs = java.time.LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        return weatherDao.getObservationsInRange(todayStartMs, Long.MAX_VALUE, latitude, longitude)
+            .filter { it.stationId.endsWith("_MAIN") && it.api == source.id }
+            .maxByOrNull { it.timestamp }
+            ?.toReading()
+    }
+}
+
+private const val TAG = "ObservationsWindow"
 
 @Composable
 internal fun ObservationsWindow(
@@ -235,6 +263,8 @@ internal fun ObservationsWindow(
         )
         var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.displaySource)) }
         var observations by remember { mutableStateOf<List<ObservationReading>>(emptyList()) }
+        // StationsList's subtitle, as Android's: nearby stations, latest reading, or how old the rows are.
+        var stationsSubtitle by remember { mutableStateOf<String?>(null) }
         var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
         var blendTables by remember { mutableStateOf<List<BlendTable>>(emptyList()) }
         var selectedTab by remember { mutableStateOf(config.obsSelectedTab) }
@@ -249,11 +279,13 @@ internal fun ObservationsWindow(
 
         val loadData = {
             scope.launch(Dispatchers.IO) {
-                val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
-                val obs = visibleStationRows(
-                    weatherDao.getRecentObservations(sinceMs).map { it.toReading() },
-                    currentSource,
-                )
+                // :shared StationsList, as Android's Current Observations screen: scoped to the active
+                // site, else the newest stored rows (with their age), else the source's main reading.
+                val stationsHost = DesktopStationsListHost(weatherDao, config.lat, config.lon)
+                val stations = StationsList.load(stationsHost, currentSource, config.lat to config.lon, System.currentTimeMillis())
+                Log.d(TAG, StationsList.line(stationsHost, currentSource, stations))
+                val obs = stations.rows
+                val subtitle = StationsList.englishSubtitle(stations, currentSource.displayName)
 
                 // Filter by tag in SQL so the cap counts fetch rows, not the verbose current-temp
                 // tags (CurrentTempResolver etc.) that otherwise swamp app_logs.
@@ -269,6 +301,7 @@ internal fun ObservationsWindow(
 
                 withContext(Dispatchers.Main) {
                     observations = obs
+                    stationsSubtitle = subtitle
                     logs = recentLogs
                     if (selectedTab == ObservationsTabs.BLEND) blendTables = tables
                 }
@@ -456,7 +489,7 @@ internal fun ObservationsWindow(
                                         },
                                     )
                                 }
-                                ObservationList(observations, config.settings.useCelsius, nowMs)
+                                ObservationList(observations, stationsSubtitle, config.settings.useCelsius, nowMs)
                             }
                             else -> LogList(logs)
                         }
@@ -590,10 +623,21 @@ internal fun ActualsSourceRow(
 @Composable
 private fun ObservationList(
     observations: List<ObservationReading>,
+    subtitle: String?,
     useCelsius: Boolean,
     nowMs: Long,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(6.dp)) {
+        if (subtitle != null && observations.isNotEmpty()) {
+            item {
+                Text(
+                    subtitle,
+                    fontSize = 13.sp,
+                    color = ObsStyle.textSecondary,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).testTag("stations_subtitle"),
+                )
+            }
+        }
         items(observations) { obs ->
             ObservationCard(obs, useCelsius, nowMs)
         }
@@ -601,7 +645,12 @@ private fun ObservationList(
         if (observations.isEmpty()) {
             item {
                 Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No recent observations found", fontSize = 18.sp, color = ObsStyle.textSecondary)
+                    Text(
+                        subtitle ?: "No recent observations found",
+                        fontSize = 18.sp,
+                        color = ObsStyle.textSecondary,
+                        modifier = Modifier.testTag("stations_subtitle"),
+                    )
                 }
             }
         }

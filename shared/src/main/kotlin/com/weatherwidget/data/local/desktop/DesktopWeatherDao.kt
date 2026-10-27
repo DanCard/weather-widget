@@ -2079,16 +2079,30 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
-    fun getRecentObservations(sinceMs: Long): List<DesktopObservationEntity> {
+    fun getRecentObservations(sinceMs: Long): List<DesktopObservationEntity> = recentObservations(sinceMs, null)
+
+    /**
+     * Rows within the proximity box at ([lat], [lon]) since [sinceMs], newest first, **uncollapsed** —
+     * Android's `ObservationDao.getRecentObservationsNear`, for `StationsList`, which merges the sites
+     * itself after keeping the displayed source's rows ([getObservationsInRange] merges all rows first).
+     */
+    fun getRecentObservationsNear(sinceMs: Long, lat: Double, lon: Double): List<DesktopObservationEntity> =
+        recentObservations(sinceMs, lat to lon)
+
+    private fun recentObservations(sinceMs: Long, near: Pair<Double, Double>?): List<DesktopObservationEntity> {
         val result = mutableListOf<DesktopObservationEntity>()
         db.getConnection().use { conn ->
             val sql = """
                 SELECT * FROM observations 
-                WHERE timestamp >= ?
+                WHERE timestamp >= ?${if (near != null) " AND ${LocationMatch.JDBC_WHERE}" else ""}
                 ORDER BY timestamp DESC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setLong(1, sinceMs)
+                if (near != null) {
+                    stmt.setDouble(2, near.first)
+                    stmt.setDouble(3, near.second)
+                }
                 val rs = stmt.executeQuery()
                 while (rs.next()) {
                     result.add(

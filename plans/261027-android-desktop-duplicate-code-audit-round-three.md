@@ -127,3 +127,23 @@ Android resources (allowlist those as `STRING_RESOURCE`).
 6. §3 save run, then the source → request table.
 Each step: tests that fail on the old code for each divergence fixed, `scripts/staggered-tests.sh`,
 desktop restart, and a device check of the screen it touches.
+
+## Progress
+- 2026-10-27: §7 decided and done (no desktop dismissal; shared `SourceErrorDetails`), commit `9045999b`.
+- 2026-10-27: §1 done. `:shared` `StationsList`: site scope, recent else newest stored, latest per
+  station, the non-NWS main-reading fallback, the subtitle and the `loadObservations:` line.
+  Android `WeatherObservationsActivity` and desktop `ObservationsWindow` (`DesktopStationsListHost`)
+  both run it; the now-dot overlay's `visibleStationRows` calls `StationsList.select`. Desktop fixes:
+  the list is scoped to the active site (it listed every site since the cutoff); it falls back to the
+  newest stored rows with their age; it shows the main reading for a source with no stations; and it
+  has Android's subtitle.
+  - Site rule, both platforms: the displayed source's station rows, fetch-location fragments within
+    ~1 km merged (`ObservationSiteMerge`, the graph's and blends' observation rule), else the nearest
+    site with some. Android kept only the single nearest fragment (an ~800 m walk's newer readings
+    dropped); desktop's box read merged before filtering by source. Found by the new
+    `StationsListHostContract` (Room + desktop SQLite), required by `HostContractCoverageTest`.
+  - Android's main-reading fallback now reads at the active location (was the source's latest
+    forecast row's location), as desktop.
+- Correction: this audit was run in the `worktree-hourly-axis-plan` checkout, which was behind `main`.
+  On `main`, §2 (current temperature) was already shared `CurrentTempRun` (no stored delta on either
+  platform since 2026-10-24) and §3 (saving a fetch) was shared `ForecastPersistRun` + `SourceFetchTable`.
