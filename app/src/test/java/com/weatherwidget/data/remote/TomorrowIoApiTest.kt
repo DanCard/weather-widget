@@ -127,6 +127,69 @@ class TomorrowIoApiTest {
         assertEquals(0.2f * 25.4f, result.daily[0].precipAmountMm!!, 0.001f)
     }
 
+    @Test
+    fun `getForecast discounts high-altitude and mid-altitude cloud base decks`() = runBlocking {
+        val hourlyResponse = """
+            {
+              "data": {
+                "timelines": [
+                  {
+                    "timestep": "1h",
+                    "intervals": [
+                      {
+                        "startTime": "2026-10-27T18:00:00Z",
+                        "values": {
+                          "cloudCover": 99.0,
+                          "cloudBase": 9.94,
+                          "temperature": 61.0,
+                          "weatherCode": 1001
+                        }
+                      },
+                      {
+                        "startTime": "2026-10-27T19:00:00Z",
+                        "values": {
+                          "cloudCover": 78.0,
+                          "cloudBase": 3.0,
+                          "temperature": 63.0,
+                          "weatherCode": 1101
+                        }
+                      },
+                      {
+                        "startTime": "2026-10-27T20:00:00Z",
+                        "values": {
+                          "cloudCover": 90.0,
+                          "cloudBase": 1.0,
+                          "temperature": 65.0,
+                          "weatherCode": 1001
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val dailyResponse = """{"data":{"timelines":[{"timestep":"1d","intervals":[]}]}}"""
+        val mockClient = createMockClient(hourlyResponse, dailyResponse)
+        val api = TomorrowIoApi(mockClient, json) { "test-key" }
+
+        val result = api.getForecast(37.4220, -122.0841)
+
+        assertEquals(3, result.hourly.size)
+        // 9.94 miles = 15,997 meters (>= 8,000m) -> 66% discount (x0.34): 99 * 0.34 = 34%
+        assertEquals(34, result.hourly[0].cloudCover)
+        assertEquals(15_997, result.hourly[0].cloudEnvelopeBaseMeters)
+
+        // 3.0 miles = 4,828 meters (3,000–8,000m) -> 33% discount (x0.67): 78 * 0.67 = 52%
+        assertEquals(52, result.hourly[1].cloudCover)
+        assertEquals(4_828, result.hourly[1].cloudEnvelopeBaseMeters)
+
+        // 1.0 mile = 1,609 meters (< 3,000m) -> 0% discount: 90%
+        assertEquals(90, result.hourly[2].cloudCover)
+        assertEquals(1_609, result.hourly[2].cloudEnvelopeBaseMeters)
+    }
+
     /**
      * Every `precipitationProbability` Tomorrow.io has ever sent is an integer multiple of 5, so
      * this guards a provider change rather than a live defect. It matters because the old

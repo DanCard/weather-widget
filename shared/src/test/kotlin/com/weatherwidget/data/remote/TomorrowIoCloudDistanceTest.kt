@@ -44,4 +44,36 @@ class TomorrowIoCloudDistanceTest {
         assertNull(TomorrowIoApi.percentOrNull(Float.NaN))
         assertNull(TomorrowIoApi.percentOrNull(Float.POSITIVE_INFINITY))
     }
+
+    @Test
+    fun `cloud cover discount applies 66 percent for high decks at or above 8000m`() {
+        assertEquals(34, TomorrowIoApi.discountCloudCoverByHeight(100, 8_000))
+        assertEquals(34, TomorrowIoApi.discountCloudCoverByHeight(99, 15_997))
+        assertEquals(27, TomorrowIoApi.discountCloudCoverByHeight(78, 15_997))
+        assertEquals(26, TomorrowIoApi.discountCloudCoverByHeight(76, 15_933))
+        assertEquals(24, TomorrowIoApi.discountCloudCoverByHeight(70, 15_997))
+        assertEquals(0, TomorrowIoApi.discountCloudCoverByHeight(0, 15_997))
+    }
+
+    @Test
+    fun `cloud cover discount applies 33 percent for mid decks between 3000m and 7999m`() {
+        assertEquals(67, TomorrowIoApi.discountCloudCoverByHeight(100, 7_999))
+        assertEquals(67, TomorrowIoApi.discountCloudCoverByHeight(100, 3_000))
+        assertEquals(54, TomorrowIoApi.discountCloudCoverByHeight(80, 4_892))
+        assertEquals(38, TomorrowIoApi.discountCloudCoverByHeight(56, 4_828))
+    }
+
+    @Test
+    fun `cloud cover retains full weight for low decks below 3000m`() {
+        assertEquals(100, TomorrowIoApi.discountCloudCoverByHeight(100, 2_999))
+        assertEquals(90, TomorrowIoApi.discountCloudCoverByHeight(90, 800))
+        assertEquals(68, TomorrowIoApi.discountCloudCoverByHeight(68, 1_625))
+    }
+
+    @Test
+    fun `cloud cover discount preserves raw when base is missing or null`() {
+        assertEquals(99, TomorrowIoApi.discountCloudCoverByHeight(99, null))
+        assertNull(TomorrowIoApi.discountCloudCoverByHeight(null, 15_997))
+        assertNull(TomorrowIoApi.discountCloudCoverByHeight(null, null))
+    }
 }

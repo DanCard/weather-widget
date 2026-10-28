@@ -30,11 +30,31 @@ class TomorrowIoApi(
         const val FULL_ACTUALS_LOOKBACK_HOURS = 23
         const val INCREMENTAL_ACTUALS_LOOKBACK_HOURS = 1
         private const val FIVE_MINUTE_INTERVAL_MS = 5 * 60 * 1_000L
+        const val MID_CLOUD_BASE_METERS = 3_000
+        const val HIGH_CLOUD_BASE_METERS = 8_000
 
         internal fun imperialDistanceToMeters(value: Double?): Int? = value
             ?.takeIf { it.isFinite() && it >= 0.0 }
             ?.times(METERS_PER_MILE)
             ?.roundToInt()
+
+        /**
+         * Disounts cloud cover percentage when cloud base is at mid or high altitudes (i.e. no low
+         * clouds or no medium clouds).
+         * - Low deck (< 3,000 m): 0% discount (retains full weight).
+         * - Mid deck (3,000–8,000 m): 33% discount (x0.67).
+         * - High deck (>= 8,000 m): 66% discount (x0.34).
+         * When base altitude is absent/null, returns the reported raw percentage.
+         */
+        internal fun discountCloudCoverByHeight(rawPercent: Int?, baseMeters: Int?): Int? {
+            if (rawPercent == null) return null
+            if (baseMeters == null) return rawPercent
+            return when {
+                baseMeters >= HIGH_CLOUD_BASE_METERS -> (rawPercent * 0.34f).roundToInt().coerceIn(0, 100)
+                baseMeters >= MID_CLOUD_BASE_METERS -> (rawPercent * 0.67f).roundToInt().coerceIn(0, 100)
+                else -> rawPercent
+            }
+        }
 
         /**
          * Reads a 0-100 percentage that the API documents as an integer but is not obliged to send
@@ -120,6 +140,12 @@ class TomorrowIoApi(
             val code = values["weatherCode"]?.jsonPrimitive?.intOrNull ?: 1000
             val precipProb = percentOrNull(values["precipitationProbability"]?.jsonPrimitive?.floatOrNull)
             val precipAccumIn = values["precipitationAccumulation"]?.jsonPrimitive?.floatOrNull
+            val baseMeters = imperialDistanceToMeters(values["cloudBase"]?.jsonPrimitive?.doubleOrNull)
+            val ceilingMeters = imperialDistanceToMeters(values["cloudCeiling"]?.jsonPrimitive?.doubleOrNull)
+            val cloudCover = discountCloudCoverByHeight(
+                percentOrNull(values["cloudCover"]?.jsonPrimitive?.floatOrNull),
+                baseMeters,
+            )
 
             HourlyForecast(
                 dateTime = epochMs,
@@ -127,9 +153,9 @@ class TomorrowIoApi(
                 condition = weatherCodeToCondition(code),
                 precipProbability = precipProb,
                 precipAmountMm = precipAccumIn?.let { it * 25.4f },
-                cloudCover = percentOrNull(values["cloudCover"]?.jsonPrimitive?.floatOrNull),
-                cloudEnvelopeBaseMeters = imperialDistanceToMeters(values["cloudBase"]?.jsonPrimitive?.doubleOrNull),
-                cloudEnvelopeTopMeters = imperialDistanceToMeters(values["cloudCeiling"]?.jsonPrimitive?.doubleOrNull),
+                cloudCover = cloudCover,
+                cloudEnvelopeBaseMeters = baseMeters,
+                cloudEnvelopeTopMeters = ceilingMeters,
             )
         }
 
@@ -228,13 +254,19 @@ class TomorrowIoApi(
                 .getOrNull()
                 ?: return@mapNotNull null
             val code = values["weatherCode"]?.jsonPrimitive?.intOrNull
+            val baseMeters = imperialDistanceToMeters(values["cloudBase"]?.jsonPrimitive?.doubleOrNull)
+            val ceilingMeters = imperialDistanceToMeters(values["cloudCeiling"]?.jsonPrimitive?.doubleOrNull)
+            val cloudCover = discountCloudCoverByHeight(
+                percentOrNull(values["cloudCover"]?.jsonPrimitive?.floatOrNull),
+                baseMeters,
+            )
             HourlyForecast(
                 dateTime = timestamp,
                 temperature = temperature,
                 condition = code?.let(::weatherCodeToCondition) ?: "Unknown",
-                cloudCover = percentOrNull(values["cloudCover"]?.jsonPrimitive?.floatOrNull),
-                cloudEnvelopeBaseMeters = imperialDistanceToMeters(values["cloudBase"]?.jsonPrimitive?.doubleOrNull),
-                cloudEnvelopeTopMeters = imperialDistanceToMeters(values["cloudCeiling"]?.jsonPrimitive?.doubleOrNull),
+                cloudCover = cloudCover,
+                cloudEnvelopeBaseMeters = baseMeters,
+                cloudEnvelopeTopMeters = ceilingMeters,
                 source = WeatherSource.TOMORROW_IO.id,
             )
         }.sortedBy { it.dateTime }
