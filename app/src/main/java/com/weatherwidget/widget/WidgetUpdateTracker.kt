@@ -61,4 +61,42 @@ object WidgetUpdateTracker {
     fun cancelJob(appWidgetId: Int) {
         activeJobs.remove(appWidgetId)?.job?.cancel()
     }
+
+    /**
+     * Cancel active update jobs for all other widgets except [activeAppWidgetId].
+     * Defaults to cancelling background syncs and UI paints so interaction on the active widget
+     * has unobstructed access to device resources.
+     *
+     * @return List of widget IDs whose active jobs were cancelled.
+     */
+    fun cancelOtherJobs(
+        activeAppWidgetId: Int,
+        typesToCancel: Set<JobType> = setOf(JobType.UI_PAINT, JobType.BACKGROUND_SYNC),
+    ): List<Int> {
+        val cancelled = mutableListOf<Int>()
+        for ((widgetId, tracked) in activeJobs) {
+            if (widgetId != activeAppWidgetId && tracked.type in typesToCancel) {
+                if (activeJobs.remove(widgetId, tracked)) {
+                    tracked.job.cancel()
+                    cancelled.add(widgetId)
+                }
+            }
+        }
+        return cancelled
+    }
+
+    /**
+     * Query the currently active job type for a widget, if any.
+     */
+    fun getActiveJobType(appWidgetId: Int): JobType? = activeJobs[appWidgetId]?.type
+
+    /**
+     * Test helper to cancel all active jobs and reset tracker state.
+     */
+    internal fun clearForTesting() {
+        for ((_, tracked) in activeJobs) {
+            tracked.job.cancel()
+        }
+        activeJobs.clear()
+    }
 }

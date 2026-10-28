@@ -49,7 +49,13 @@ internal class WidgetPaintCoordinator(
     suspend fun renderNoLocationAndFinish(reason: String): androidx.work.ListenableWorker.Result {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
-        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        val rawAppWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        val appWidgetIds = WidgetPaintPrioritizer.prioritize(
+            context = context,
+            appWidgetIds = rawAppWidgetIds,
+            lastInteractedId = widgetStateManager.getLastInteractedWidgetId(),
+            appWidgetManager = appWidgetManager,
+        )
         appLogDao.log(
             "NO_LOCATION",
             "reason=$reason widgets=${appWidgetIds.size} action=render_error_skip_fetch",
@@ -294,7 +300,13 @@ internal class WidgetPaintCoordinator(
 
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
-        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        val rawAppWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        val appWidgetIds = WidgetPaintPrioritizer.prioritize(
+            context = context,
+            appWidgetIds = rawAppWidgetIds,
+            lastInteractedId = widgetStateManager.getLastInteractedWidgetId(),
+            appWidgetManager = appWidgetManager,
+        )
 
         // Resolve hourly first so the actuals repair below can consume the reloaded rows instead of
         // the stale list the caller loaded (both races fire together when a source toggles late).

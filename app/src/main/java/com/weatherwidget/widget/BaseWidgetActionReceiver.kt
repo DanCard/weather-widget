@@ -264,11 +264,32 @@ abstract class BaseWidgetActionReceiver : BroadcastReceiver() {
         block: suspend CoroutineScope.() -> Unit,
     ) {
         val appWidgetId = widgetId(intent)
+        val cancelled = if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            WidgetStateManager(context).setLastInteractedWidgetId(appWidgetId)
+            val list = WidgetUpdateTracker.cancelOtherJobs(appWidgetId)
+            if (list.isNotEmpty()) {
+                Log.d(tag, "Preempted other widget updates: active=$appWidgetId cancelled=$list")
+                val repo = if (::repository.isInitialized) repository else null
+                WidgetPreemptionSettler.recordPreempted(context, list, repo)
+            }
+            list
+        } else {
+            emptyList()
+        }
         val action = intent.action?.substringAfterLast('.') ?: "unknown"
         val ordinal = tapsInProcess.incrementAndGet()
         val processAgeAtReceiptMs = WeatherWidgetApp.processAgeMs(receivedAtElapsedMs)
         val trace = InteractionTrace()
         val job = launchAsync(context, CoroutineStart.LAZY) {
+            if (cancelled.isNotEmpty()) {
+                runCatching {
+                    WeatherDatabase.getDatabase(context).appLogDao().log(
+                        "WIDGET_INTERACTION_PREEMPTION",
+                        "active=$appWidgetId cancelled=${cancelled.joinToString(",")}",
+                        "INFO",
+                    )
+                }
+            }
             val startedAtMs = SystemClock.elapsedRealtime()
             Log.i(
                 "INTERACTION_E2E",

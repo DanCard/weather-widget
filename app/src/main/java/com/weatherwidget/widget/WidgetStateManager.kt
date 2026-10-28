@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.SharedPreferences
 import com.weatherwidget.BuildConfig
@@ -543,8 +544,21 @@ class WidgetStateManager internal constructor(
         }
     }
 
+    fun getLastInteractedWidgetId(): Int? {
+        val id = prefs.getInt(KEY_LAST_INTERACTED_WIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        return if (id != AppWidgetManager.INVALID_APPWIDGET_ID) id else null
+    }
+
+    fun setLastInteractedWidgetId(widgetId: Int) {
+        if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return
+        prefs.edit().putInt(KEY_LAST_INTERACTED_WIDGET_ID, widgetId).apply()
+    }
+
     fun clearWidgetState(widgetId: Int) {
         val editor = prefs.edit()
+        if (getLastInteractedWidgetId() == widgetId) {
+            editor.remove(KEY_LAST_INTERACTED_WIDGET_ID)
+        }
         presentationStore.clearWidget(widgetId, editor)
         sourcePreferences.clearWidget(widgetId, editor)
         deltaStore.clearWidget(widgetId, editor)
@@ -576,6 +590,9 @@ class WidgetStateManager internal constructor(
 
         /** Global (not per-widget) flag: a paint was skipped for screen-off and is still owed. */
         const val KEY_PAINT_OWED = "widget_paint_owed"
+
+        /** Global: ID of the most recently interacted widget for priority ordering. */
+        const val KEY_LAST_INTERACTED_WIDGET_ID = "last_interacted_widget_id"
 
         /** Global: place name of a setup-screen location change whose first fetch has not landed. */
         const val KEY_PENDING_LOCATION_FETCH = "widget_pending_location_fetch"

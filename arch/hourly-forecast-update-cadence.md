@@ -122,6 +122,14 @@ refreshes are limited across both platforms to at most once every 10 minutes via
   - Background periodic worker ticks, power connect/disconnect events, screen unlock repaints
     (`EXTRA_PASSIVE = true`), and UI-only ticks do not check, update, or get blocked by this throttle.
 
+### Multi-widget render prioritization and interaction preemption
+
+On devices with multiple home-screen widgets (or foldables like Galaxy Z Fold across cover and inner displays), widget updates avoid competing with the user's active view:
+
+- **Priority ordering (`WidgetPaintPrioritizer`)**: Batch repaints (worker sync completion, screen-on catch-up, cache refreshes) render the most-recently-interacted widget at index 0. Remaining widgets are ordered by form factor relevance (e.g. inner vs. cover display on foldables matching `smallestScreenWidthDp >= 600`) so the viewed widget receives fresh pixels first.
+- **Interaction preemption (`WidgetUpdateTracker.cancelOtherJobs`)**: When a user interaction arrives for widget $A$, background render coroutines for any widget $B \neq A$ are immediately cancelled, freeing CPU and thread resources for the user-facing interaction. Logged with `WIDGET_INTERACTION_PREEMPTION active=… cancelled=…`.
+- **Debounced preemption settlement (`WidgetPreemptionSettler`)**: Preempted widgets are tracked and repainted from memory cache 3 seconds after interactions settle (`WIDGET_PREEMPTION_SETTLE widgets=…`), guaranteeing secondary widgets do not remain stranded on stale bitmaps.
+
 Android screen-on receivers registered at runtime work only while the process is alive. Manifest
 `USER_PRESENT` delivery has measured unreliable, and manifest `ACTION_SCREEN_ON` registration is not
 a substitute for the runtime receiver.

@@ -15,6 +15,7 @@ import com.weatherwidget.widget.RefreshToast
 import com.weatherwidget.widget.SourceViewRecorder
 import com.weatherwidget.shared.sourceview.SourceViewTrigger
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetPaintPrioritizer
 import com.weatherwidget.widget.WidgetPushDispatcher
 import com.weatherwidget.widget.WidgetRenderer
 import com.weatherwidget.widget.WidgetStateManager
@@ -35,11 +36,19 @@ internal object WidgetIntentActionHandler {
         context: Context,
         repository: WeatherRepository?,
     ): RefreshNotice? {
-        val ids =
-            AppWidgetManager.getInstance(context)
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val rawIds =
+            appWidgetManager
                 .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
                 .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
                 .toIntArray()
+        val lastInteractedId = WidgetStateManager(context).getLastInteractedWidgetId()
+        val ids = WidgetPaintPrioritizer.prioritize(
+            context = context,
+            appWidgetIds = rawIds,
+            lastInteractedId = lastInteractedId,
+            appWidgetManager = appWidgetManager,
+        )
         return renderWidgetsFromCache(context, ids, repository)
     }
 
