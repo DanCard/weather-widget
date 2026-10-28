@@ -262,33 +262,7 @@ internal fun SettingsWindow(
                             }
                         }
 
-                        // Hourly Zoom -- matches Android's R.string.hourly_zoom_title, and sits
-                        // directly above Personal Weather Stations on both platforms.
-                        SettingsCard(title = SettingsSection.HOURLY_ZOOM.title) {
-                            HourlyZoomSpan(
-                                spanHours = currentConfig.settings.narrowZoomSpanHours,
-                                onChanged = { newSpan ->
-                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(narrowZoomSpanHours = newSpan)))
-                                },
-                                multiDayZoomEnabled = currentConfig.settings.multiDayZoomEnabled,
-                                onMultiDayZoomChanged = { enabled ->
-                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(multiDayZoomEnabled = enabled)))
-                                },
-                            )
-                        }
-
-                        // Notifications — the one-shot dominant-station temperature watch.
-                        //
-                        // Bound to DominantTempWatchStore, NOT to the config draft: the daemon
-                        // clears this flag when the notification fires, and this process does not
-                        // watch config.json for external edits, so a draft-backed toggle would
-                        // re-arm the spent watch on the next auto-save. See DominantTempWatchStore.
-                        SettingsCard(title = SettingsSection.NOTIFICATIONS.title) {
-                            DominantTempNotifyToggle(watchStore = watchStore)
-                        }
-
-                        // Units — Android keeps this high-use display preference directly below
-                        // the Notifications card.
+                        // Units — matches Android's R.string.units_title.
                         SettingsCard(title = SettingsSection.UNITS.title) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -349,6 +323,30 @@ internal fun SettingsWindow(
                                     }
                                 },
                             )
+                        }
+
+                        // Hourly Zoom -- matches Android's R.string.hourly_zoom_title.
+                        SettingsCard(title = SettingsSection.HOURLY_ZOOM.title) {
+                            HourlyZoomSpan(
+                                spanHours = currentConfig.settings.narrowZoomSpanHours,
+                                onChanged = { newSpan ->
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(narrowZoomSpanHours = newSpan)))
+                                },
+                                multiDayZoomEnabled = currentConfig.settings.multiDayZoomEnabled,
+                                onMultiDayZoomChanged = { enabled ->
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(multiDayZoomEnabled = enabled)))
+                                },
+                            )
+                        }
+
+                        // Notifications — the one-shot dominant-station temperature watch.
+                        //
+                        // Bound to DominantTempWatchStore, NOT to the config draft: the daemon
+                        // clears this flag when the notification fires, and this process does not
+                        // watch config.json for external edits, so a draft-backed toggle would
+                        // re-arm the spent watch on the next auto-save. See DominantTempWatchStore.
+                        SettingsCard(title = SettingsSection.NOTIFICATIONS.title) {
+                            DominantTempNotifyToggle(watchStore = watchStore)
                         }
 
                         // Daily View — Today Column overlay toggles (matches Android's

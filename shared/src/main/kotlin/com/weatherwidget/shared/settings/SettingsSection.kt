@@ -30,10 +30,10 @@ enum class SettingsSection(
     val platforms: Set<Platform> = setOf(Platform.ANDROID, Platform.DESKTOP),
 ) {
     LOCATION("Location"),
-    HOURLY_ZOOM("Hourly Zoom"),
-    NOTIFICATIONS("Notifications"),
     UNITS("Units"),
     WEATHER_SOURCES("Weather Data Sources"),
+    HOURLY_ZOOM("Hourly Zoom"),
+    NOTIFICATIONS("Notifications"),
     TODAY_COLUMN("Daily View — Today Column"),
     PERSONAL_STATIONS("Personal Weather Stations"),
     ICON_GALLERY("Icon gallery"),
