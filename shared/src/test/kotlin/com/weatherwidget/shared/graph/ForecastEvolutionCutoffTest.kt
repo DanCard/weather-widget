@@ -86,4 +86,60 @@ class ForecastEvolutionCutoffTest {
 
         assertEquals(points, apply(points, null, null))
     }
+
+    @Test
+    fun `points synthesizes a confirmation point when lastConfirmedAt is greater than fetchedAt`() {
+        val row = ForecastEvolutionCutoff.Row(
+            dateOfPredictionMs = oct8.minusDays(1).toEpochDay() * 86_400_000L,
+            fetchedAt = at(oct8.minusDays(1), 10),
+            highTemp = 80f,
+            lowTemp = 55f,
+            sourceId = WeatherSource.NWS.id,
+            lastConfirmedAt = at(oct8.minusDays(1), 18),
+        )
+
+        val points = ForecastEvolutionCutoff.points(listOf(row), oct8, null, null, zone)
+
+        assertEquals(2, points.size)
+        assertEquals(at(oct8.minusDays(1), 10), points[0].fetchedAt)
+        assertEquals(at(oct8.minusDays(1), 18), points[1].fetchedAt)
+        assertEquals(80f, points[1].highTemp)
+        assertEquals(55f, points[1].lowTemp)
+    }
+
+    @Test
+    fun `points drops confirmation point when lastConfirmedAt is after extreme cutoff`() {
+        val row = ForecastEvolutionCutoff.Row(
+            dateOfPredictionMs = oct8.toEpochDay() * 86_400_000L,
+            fetchedAt = at(oct8, 14),
+            highTemp = 80f,
+            lowTemp = null,
+            sourceId = WeatherSource.NWS.id,
+            lastConfirmedAt = at(oct8, 18), // after 16:00 high cutoff
+        )
+
+        val points = ForecastEvolutionCutoff.points(listOf(row), oct8, null, null, zone)
+
+        assertEquals(1, points.size)
+        assertEquals(at(oct8, 14), points.single().fetchedAt)
+    }
+
+    @Test
+    fun `points does not duplicate when lastConfirmedAt is null or equal to fetchedAt`() {
+        val rowNull = ForecastEvolutionCutoff.Row(
+            dateOfPredictionMs = oct8.minusDays(1).toEpochDay() * 86_400_000L,
+            fetchedAt = at(oct8.minusDays(1), 10),
+            highTemp = 80f,
+            lowTemp = 55f,
+            sourceId = WeatherSource.NWS.id,
+            lastConfirmedAt = null,
+        )
+        val rowEqual = rowNull.copy(lastConfirmedAt = at(oct8.minusDays(1), 10))
+
+        val pointsNull = ForecastEvolutionCutoff.points(listOf(rowNull), oct8, null, null, zone)
+        val pointsEqual = ForecastEvolutionCutoff.points(listOf(rowEqual), oct8, null, null, zone)
+
+        assertEquals(1, pointsNull.size)
+        assertEquals(1, pointsEqual.size)
+    }
 }

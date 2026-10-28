@@ -458,7 +458,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         // except a settled low, whose time is final (ForecastHistoryViewLogic.locationActuals).
         val evolutionPoints = ForecastEvolutionCutoff.points(
             rows = snapshots.map {
-                ForecastEvolutionCutoff.Row(it.dateOfPrediction, it.fetchedAt, it.highTemp, it.lowTemp, it.source)
+                ForecastEvolutionCutoff.Row(it.dateOfPrediction, it.fetchedAt, it.highTemp, it.lowTemp, it.source, it.lastConfirmedAt)
             },
             targetDate = date,
             highReachedAt = locationActuals.highReachedAt,

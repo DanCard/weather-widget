@@ -24,11 +24,14 @@ object ForecastEvolutionCutoff {
         val highTemp: Float?,
         val lowTemp: Float?,
         val sourceId: String,
+        val lastConfirmedAt: Long? = null,
     )
 
     /**
      * The graph points for [targetDate]: rows predicted on or before it, then [apply]. The one
      * builder Android (`ForecastHistoryActivity`) and desktop (`ForecastHistoryWindow`) share.
+     * When a forecast row was re-confirmed at [Row.lastConfirmedAt] > [Row.fetchedAt], a trailing
+     * point is included so the curve and newest-fetch indicator reach the latest confirmed fetch.
      */
     fun points(
         rows: List<Row>,
@@ -37,13 +40,13 @@ object ForecastEvolutionCutoff {
         lowReachedAt: Long?,
         zone: ZoneId = ZoneId.systemDefault(),
     ): List<EvolutionPoint> = apply(
-        points = rows.mapNotNull { row ->
+        points = rows.flatMap { row ->
             val forecastDate = LocalDate.ofEpochDay(row.dateOfPredictionMs / MS_PER_DAY)
             val daysAhead = ChronoUnit.DAYS.between(forecastDate, targetDate).toInt()
             if (daysAhead < 0) {
-                null
+                emptyList()
             } else {
-                EvolutionPoint(
+                val p1 = EvolutionPoint(
                     forecastDate = forecastDate.toString(),
                     fetchedAt = row.fetchedAt,
                     daysAhead = daysAhead,
@@ -51,6 +54,17 @@ object ForecastEvolutionCutoff {
                     lowTemp = row.lowTemp,
                     source = WeatherSource.fromId(row.sourceId),
                 )
+                val p2 = if (row.lastConfirmedAt != null && row.lastConfirmedAt > row.fetchedAt) {
+                    EvolutionPoint(
+                        forecastDate = forecastDate.toString(),
+                        fetchedAt = row.lastConfirmedAt,
+                        daysAhead = daysAhead,
+                        highTemp = row.highTemp,
+                        lowTemp = row.lowTemp,
+                        source = WeatherSource.fromId(row.sourceId),
+                    )
+                } else null
+                listOfNotNull(p1, p2)
             }
         },
         targetDate = targetDate,

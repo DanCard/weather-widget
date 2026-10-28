@@ -166,6 +166,7 @@ class DesktopWeatherDaoTest {
 
         assertEquals(3, evolution.size)
         assertTrue(evolution.all { it.targetDate == epoch })
+        assertTrue(evolution.all { it.lastConfirmedAt != null && it.lastConfirmedAt > 0L })
         assertTrue(evolution.none { it.highTemp == 70f || it.highTemp == 99f })
         assertEquals(setOf("NWS", "OPEN_METEO"), evolution.map { it.source }.toSet())
     }

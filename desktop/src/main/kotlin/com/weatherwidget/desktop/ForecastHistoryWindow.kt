@@ -587,7 +587,7 @@ private fun loadHistory(
     // a settled low, whose time is final.
     val points = ForecastEvolutionCutoff.points(
         rows = rows.map {
-            ForecastEvolutionCutoff.Row(it.dateOfPrediction, it.fetchedAt, it.highTemp, it.lowTemp, it.source)
+            ForecastEvolutionCutoff.Row(it.dateOfPrediction, it.fetchedAt, it.highTemp, it.lowTemp, it.source, it.lastConfirmedAt)
         },
         targetDate = targetDate,
         highReachedAt = locationActuals.highReachedAt,

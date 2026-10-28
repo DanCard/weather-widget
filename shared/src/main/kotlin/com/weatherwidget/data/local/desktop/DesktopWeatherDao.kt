@@ -2428,7 +2428,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<DesktopForecastRow>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT targetDate, dateOfPrediction, source, highTemp, lowTemp, fetchedAt FROM forecasts
+                SELECT targetDate, dateOfPrediction, source, highTemp, lowTemp, fetchedAt, lastConfirmedAt FROM forecasts
                 WHERE targetDate = ? AND dateOfPrediction <= ? AND ${LocationMatch.JDBC_WHERE}
                 ORDER BY dateOfPrediction ASC, lastConfirmedAt ASC, fetchedAt ASC
             """.trimIndent()
@@ -2446,6 +2446,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         highTemp = rs.getNullableFloat("highTemp").orNullIfImplausibleTempF(),
                         lowTemp = rs.getNullableFloat("lowTemp").orNullIfImplausibleTempF(),
                         fetchedAt = rs.getLong("fetchedAt"),
+                        lastConfirmedAt = rs.getLong("lastConfirmedAt"),
                     ))
                 }
             }
