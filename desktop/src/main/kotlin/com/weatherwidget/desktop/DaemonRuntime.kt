@@ -563,6 +563,8 @@ internal class DaemonRuntime(
             Log.i(TAG, "Cached data loaded. Null? ${cached == null}")
             if (cached != null) {
                 panelPublisher.publishForecastState(cached)
+                panelPublisher.triggerPanelRefresh()
+                notifyDataUpdated()
                 val lastFetch = weatherDao.getLastSuccessfulFetch(config.displaySource)
                 dataStatusState.value = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
                 Log.i(TAG, "DataStatus updated to Live (cached). lastFetch: $lastFetch")

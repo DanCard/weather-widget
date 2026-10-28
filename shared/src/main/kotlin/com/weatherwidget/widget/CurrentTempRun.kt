@@ -48,10 +48,10 @@ object CurrentTempRun {
         val displayTemp: Float?,
         val appliedDelta: Float?,
         val deltaFromYesterday: Float?,
-        val observedTemp: Float?,
-        val observedAt: Long?,
-        val windowObservations: Int,
-        val windowHourly: Int,
+        val observedTemp: Float? = null,
+        val observedAt: Long? = null,
+        val windowObservations: Int = 0,
+        val windowHourly: Int = 0,
     )
 
     /**

@@ -32,10 +32,22 @@ class PanelPublisher(
         // Serve the daemon's published current_status (a single DB read) instead of re-running the
         // ~350ms IDW blend on every panel connect, so panel and popup consume the same value.
         val status = config?.let { weatherDao.getCurrentStatus(it.lat, it.lon, it.displaySource) }
+        val now = System.currentTimeMillis()
+        val snapshot = forecastState.value
+        val effective = com.weatherwidget.widget.CurrentStatusPolicy.resolve(
+            status = status,
+            snapshot = snapshot,
+            nowMs = now,
+        )
+        val observedAt = if (effective.isFromPublishedStatus) {
+            status?.observedAtMs
+        } else {
+            snapshot?.resolved?.currentObservedAt
+        }
         generateMarkup(
-            observedAtMs = status?.observedAtMs,
-            currentTemp = status?.displayTempF,
-            deltaFromYesterday = status?.deltaFromYesterdayF,
+            observedAtMs = observedAt,
+            currentTemp = effective.currentTemp,
+            deltaFromYesterday = effective.deltaFromYesterday,
             dataStatus = dataStatus,
             config = config,
         )

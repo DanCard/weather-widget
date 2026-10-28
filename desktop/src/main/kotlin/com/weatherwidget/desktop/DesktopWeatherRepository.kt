@@ -109,17 +109,7 @@ class DesktopWeatherRepository(
     private val displaySource: WeatherSource = WeatherSource.fromDisplaySource(weatherSource)
 
     /** Result of the current-temperature resolution: display temp, forecast delta, yesterday delta. */
-    data class ResolvedCurrentTemp(
-        val displayTemp: Float?,
-        val appliedDelta: Float?,
-        val deltaFromYesterday: Float?,
-        /** The blended observation the display is anchored on, and when it was observed (diagnostics). */
-        val observedTemp: Float? = null,
-        val observedAt: Long? = null,
-        /** Inputs the resolve saw inside its window (diagnostics). */
-        val windowObservations: Int = 0,
-        val windowHourly: Int = 0,
-    )
+    typealias ResolvedCurrentTemp = com.weatherwidget.widget.CurrentTempRun.Result
 
     /** Epoch bounds + zone/nowLocal context for the current-temp resolution window. */
     private data class CurrentTempWindow(
@@ -149,7 +139,7 @@ class DesktopWeatherRepository(
         now: Long,
         resultLogLevel: String = "DEBUG",
     ): ResolvedCurrentTemp {
-        val run = com.weatherwidget.widget.CurrentTempRun.run(
+        return com.weatherwidget.widget.CurrentTempRun.run(
             hourly = hourly,
             observations = observations,
             displaySource = displaySource,
@@ -158,15 +148,6 @@ class DesktopWeatherRepository(
             nowMs = now,
             personalStationWeight = personalStationWeight,
             resultLogLevel = resultLogLevel,
-        )
-        return ResolvedCurrentTemp(
-            run.displayTemp,
-            run.appliedDelta,
-            run.deltaFromYesterday,
-            observedTemp = run.observedTemp,
-            observedAt = run.observedAt,
-            windowObservations = run.windowObservations,
-            windowHourly = run.windowHourly,
         )
     }
 

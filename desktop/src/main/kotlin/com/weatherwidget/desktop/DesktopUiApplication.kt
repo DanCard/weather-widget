@@ -712,13 +712,21 @@ internal fun runDesktopUiApplication() = application {
         }
 
         // Phase 3: consume the daemon-published snapshot; fall back to the values loadCached()
-        // already resolved when the daemon hasn't published yet (e.g. startup/preview paths).
-        val publishedStatus = remember(forecast, currentConfig, nowMs) {
+        // already resolved when the daemon hasn't published yet (e.g. startup/preview paths, or
+        // when switching sources before the daemon publishes).
+        val publishedStatus = remember(forecast, currentConfig, nowMs, dataUpdateCount) {
             val cfg = currentConfig
             if (cfg != null) weatherDao.getCurrentStatus(cfg.lat, cfg.lon, cfg.displaySource) else null
         }
-        val resolvedCurrentTemp = publishedStatus?.displayTempF ?: forecast?.resolved?.currentTemp
-        val resolvedDeltaFromYesterday = publishedStatus?.deltaFromYesterdayF ?: forecast?.resolved?.deltaFromYesterday
+        val effectiveDisplayValues = remember(publishedStatus, forecast, nowMs) {
+            com.weatherwidget.widget.CurrentStatusPolicy.resolve(
+                status = publishedStatus,
+                snapshot = forecast,
+                nowMs = nowMs,
+            )
+        }
+        val resolvedCurrentTemp = effectiveDisplayValues.currentTemp
+        val resolvedDeltaFromYesterday = effectiveDisplayValues.deltaFromYesterday
 
         // Dynamic icon showing the current temperature.
         val textMeasurer = remember { createTrayTextMeasurer() }
