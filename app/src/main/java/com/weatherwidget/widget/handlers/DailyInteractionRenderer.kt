@@ -391,7 +391,7 @@ internal object DailyInteractionRenderer {
         )
     }
 
-    private suspend fun loadData(
+    internal suspend fun loadData(
         context: Context,
         database: com.weatherwidget.data.local.WeatherDatabase,
         lat: Double,
@@ -512,7 +512,7 @@ internal object DailyInteractionRenderer {
         )
     }
 
-    private data class DailyRange(
+    internal data class DailyRange(
         val historyStart: Long,
         val forecastEnd: Long,
         val pastSnapshotEnd: Long,
@@ -539,7 +539,7 @@ internal object DailyInteractionRenderer {
             ).distinct()
     }
 
-    private fun rangeFor(today: LocalDate, window: NavigationUtils.DailyLoadWindow) =
+    internal fun rangeFor(today: LocalDate, window: NavigationUtils.DailyLoadWindow) =
         DailyRange(
             historyStart =
                 today.minusDays(window.historyDays).toEpochDay() *
