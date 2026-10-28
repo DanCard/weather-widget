@@ -40,8 +40,8 @@ import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetWorker
-import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.WidgetInteractionReceiver
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
@@ -768,7 +768,7 @@ object DailyViewHandler : WidgetViewHandler {
         toastMessage: String,
     ) {
         val pendingIntent = if (canNavigate) {
-            val intent = Intent(context, WidgetActionReceiver::class.java).apply {
+            val intent = Intent(context, WidgetInteractionReceiver::class.java).apply {
                 action = navAction
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             }
@@ -777,7 +777,7 @@ object DailyViewHandler : WidgetViewHandler {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         } else {
-            val intent = Intent(context, WidgetActionReceiver::class.java).apply {
+            val intent = Intent(context, WidgetInteractionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_SHOW_TOAST
                 putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, toastMessage)
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)

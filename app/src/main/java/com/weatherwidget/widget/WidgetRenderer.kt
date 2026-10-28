@@ -368,6 +368,9 @@ object WidgetRenderer {
         // screen may predate any number of fetches. Forces a full rebuild past GraphRepaintGate.
         paintOwed: Boolean = false,
     ) {
+        if (!uiOnly) {
+            com.weatherwidget.widget.handlers.WidgetInteractionCache.clear()
+        }
         val renderStartMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
         val viewMode = stateManager.getViewMode(appWidgetId)

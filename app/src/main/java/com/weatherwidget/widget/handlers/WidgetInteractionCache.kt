@@ -2,7 +2,10 @@ package com.weatherwidget.widget.handlers
 
 import android.os.SystemClock
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.widget.DailyActualsBySource
+import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -26,8 +29,8 @@ import kotlinx.coroutines.sync.withLock
  * path with live data regardless. Correctness never depends on invalidation; the TTL alone bounds it.
  */
 internal object WidgetInteractionCache {
-    /** Cache lifetime. Long enough to span a tap burst, short enough that staleness is invisible. */
-    const val TTL_MS = 2_000L
+    /** Cache lifetime. Reused across user tap bursts and screen-on UI updates; invalidated on fetch. */
+    const val TTL_MS = 60_000L
 
     /** Lat/lon quantization for the key — matches the 3dp coordinate quantization used elsewhere. */
     private const val COORD_QUANTIZE = 1_000.0
@@ -68,6 +71,9 @@ internal object WidgetInteractionCache {
         /** Raw forecast rows (before ClimateGapFiller) for the daily lookback+forecast range. */
         val weatherListRaw: List<ForecastEntity>,
         val dailyActuals: DailyActualsBySource,
+        val forecastSnapshots: Map<LocalDate, List<ForecastEntity>>? = null,
+        val hourlyForecasts: List<HourlyForecastEntity>? = null,
+        val currentTemps: List<ObservationEntity>? = null,
     )
 
     private class Entry(val data: Data, val storedAtElapsedMs: Long)

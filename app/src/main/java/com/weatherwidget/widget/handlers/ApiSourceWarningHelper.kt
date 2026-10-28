@@ -12,8 +12,8 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.SourceFetchLogTags
-import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.WidgetInteractionReceiver
 
 object ApiSourceWarningHelper {
     @VisibleForTesting
@@ -152,7 +152,7 @@ object ApiSourceWarningHelper {
             PendingIntent.getBroadcast(
                 context,
                 WidgetRequestCodes.apiToggle(appWidgetId) + 7000,
-                Intent(context, WidgetActionReceiver::class.java).apply {
+                Intent(context, WidgetInteractionReceiver::class.java).apply {
                     action = WidgetActions.ACTION_SHOW_TOAST
                     putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, warning.toastMessage)
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)

@@ -58,6 +58,9 @@ $ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.REFRESH \
 # Forced full sync of every enabled source (billed): SYNC_START force=true reason=debug_full_sync.
 $ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.FULL_SYNC \
   -n com.weatherwidget/com.weatherwidget.debug.DebugSyncReceiver
+# Forwarded widget API toggle tap for interaction latency tests.
+$ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.TOGGLE_API \
+  --ei appWidgetId <id> -n com.weatherwidget/com.weatherwidget.debug.DebugSyncReceiver
 # Location override for the passive background read (coordinates as strings), and its reset.
 $ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.SET_LOCATION \
   -n com.weatherwidget/com.weatherwidget.debug.DebugLocationReceiver --es lat 37.7749 --es lon -122.4194

@@ -10,8 +10,8 @@ import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.widget.HourlyTouchZoneMapper
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.WidgetInteractionReceiver
 import com.weatherwidget.widget.ZoomWindow
 import kotlin.math.roundToInt
 
@@ -166,7 +166,7 @@ object HourlyBottomZoneHelper {
 
             val pendingIntent = if (zoneAction.targetView == null) {
                 // Zoom — same offset calculation as the body zoom zones
-                val zoomIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+                val zoomIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
                     action = WidgetActions.ACTION_CYCLE_ZOOM
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                     putExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, zoneAction.zoneCenterOffset)
@@ -179,7 +179,7 @@ object HourlyBottomZoneHelper {
                 )
             } else {
                 // Navigate to the icon's home graph
-                val navIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+                val navIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
                     action = WidgetActions.ACTION_SET_VIEW
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                     putExtra(WidgetActions.EXTRA_TARGET_VIEW, zoneAction.targetView.name)

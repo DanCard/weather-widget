@@ -21,8 +21,8 @@ import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.PrecipitationGraphRenderer
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
-import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.WidgetInteractionReceiver
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.GraphRepaintGate
@@ -171,7 +171,7 @@ object PrecipViewHandler {
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
 
         // Weather icon + bottom graph zone → cloud cover view
-        val goCloudIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+        val goCloudIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             putExtra(WidgetActions.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.CLOUD_COVER.name)

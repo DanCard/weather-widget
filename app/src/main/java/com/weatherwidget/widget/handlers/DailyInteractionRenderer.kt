@@ -4,6 +4,8 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.os.SystemClock
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.getForecastsInRange
 import com.weatherwidget.data.local.getLatestForecastsInRange
 import com.weatherwidget.data.local.log
@@ -52,6 +54,9 @@ internal object DailyInteractionRenderer {
     data class DailyRenderData(
         val weatherListRaw: List<ForecastEntity>,
         val dailyActuals: DailyActualsBySource,
+        val forecastSnapshots: Map<LocalDate, List<ForecastEntity>>? = null,
+        val hourlyForecasts: List<HourlyForecastEntity>? = null,
+        val currentTemps: List<ObservationEntity>? = null,
     )
 
     internal data class TimeBounds(
@@ -204,7 +209,17 @@ internal object DailyInteractionRenderer {
         val forecastDao = database.forecastDao()
         val hourlyDao = database.hourlyForecastDao()
         val gapFiller = ClimateGapFiller(database.climateNormalDao())
-        val loaded = preloaded ?: loadData(context, database, lat, lon, today, range)
+        val loaded = preloaded ?: loadData(
+            context = context,
+            database = database,
+            lat = lat,
+            lon = lon,
+            today = today,
+            range = range,
+            timeBounds = timeBounds,
+            repository = request.repository,
+            gapFiller = gapFiller,
+        )
         val dailyDataMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
         val finalWeatherList =
@@ -217,25 +232,23 @@ internal object DailyInteractionRenderer {
             )
         val gapFillMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
-        val pastSnapshots =
-            forecastDao.getLatestForecastsInRange(
-                range.historyStart,
-                range.pastSnapshotEnd,
-                lat,
-                lon,
-            )
-        val recentSnapshots =
-            forecastDao.getAllForecastsInRange(
-                range.recentSnapshotStart,
-                range.forecastEnd,
-                lat,
-                lon,
-            )
-        // Past days' "yesterday's forecast" candidates, after the newest rows so each day's first
-        // row is still its newest.
-        val priorCandidates =
-            forecastDao.getPriorForecastCandidates(range.historyStart, range.pastSnapshotEnd, lat, lon)
-        val forecastSnapshots =
+        val forecastSnapshots = loaded.forecastSnapshots ?: run {
+            val pastSnapshots =
+                forecastDao.getLatestForecastsInRange(
+                    range.historyStart,
+                    range.pastSnapshotEnd,
+                    lat,
+                    lon,
+                )
+            val recentSnapshots =
+                forecastDao.getAllForecastsInRange(
+                    range.recentSnapshotStart,
+                    range.forecastEnd,
+                    lat,
+                    lon,
+                )
+            val priorCandidates =
+                forecastDao.getPriorForecastCandidates(range.historyStart, range.pastSnapshotEnd, lat, lon)
             gapFiller.appendGapsToSnapshots(
                 (pastSnapshots + recentSnapshots + priorCandidates).distinct()
                     .groupBy {
@@ -248,34 +261,34 @@ internal object DailyInteractionRenderer {
                 today,
                 horizonDays = NAV_FORECAST_HORIZON_DAYS,
             )
+        }
         val snapshotsMs = SystemClock.elapsedRealtime() - stageStartMs
 
         stageStartMs = SystemClock.elapsedRealtime()
-        val hourlyForecasts =
-            hourlySourceIds(context).let { sources ->
-                com.weatherwidget.widget.HourlyForecastLoader.withHistory(
-                    database = database,
-                    current = GraphDataLoader.unifyToNearestSite(
-                        hourlyDao.getHourlyForecastsForSources(
-                            timeBounds.hourlyStartMs,
-                            timeBounds.hourlyEndMs,
-                            lat,
-                            lon,
-                            sources,
-                        ),
+        val hourlyForecasts = loaded.hourlyForecasts ?: hourlySourceIds(context).let { sources ->
+            com.weatherwidget.widget.HourlyForecastLoader.withHistory(
+                database = database,
+                current = GraphDataLoader.unifyToNearestSite(
+                    hourlyDao.getHourlyForecastsForSources(
+                        timeBounds.hourlyStartMs,
+                        timeBounds.hourlyEndMs,
                         lat,
                         lon,
+                        sources,
                     ),
-                    startMs = timeBounds.hourlyStartMs,
-                    endMs = timeBounds.hourlyEndMs,
-                    lat = lat,
-                    lon = lon,
-                    sources = sources,
-                )
-            }
+                    lat,
+                    lon,
+                ),
+                startMs = timeBounds.hourlyStartMs,
+                endMs = timeBounds.hourlyEndMs,
+                lat = lat,
+                lon = lon,
+                sources = sources,
+            )
+        }
         val hourlyMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
-        val currentTemps =
+        val currentTemps = loaded.currentTemps ?: (
             request.repository?.getMainObservationsWithComputedNwsBlend(
                 lat,
                 lon,
@@ -285,6 +298,7 @@ internal object DailyInteractionRenderer {
                 lon,
                 timeBounds.todayStartMs,
             )
+        )
         val observationsMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
@@ -361,7 +375,7 @@ internal object DailyInteractionRenderer {
                 "currentResolveMs" to currentResolveMs,
                 "renderMs" to renderMs,
                 "weatherRows" to loaded.weatherListRaw.size,
-                "snapshotRows" to (pastSnapshots.size + recentSnapshots.size),
+                "snapshotRows" to forecastSnapshots.values.sumOf { it.size },
                 "hourlyRows" to hourlyForecasts.size,
                 "observationRows" to currentTemps.size,
                 "totalMs" to pipelineTotalMs,
@@ -384,6 +398,9 @@ internal object DailyInteractionRenderer {
         lon: Double,
         today: LocalDate,
         range: DailyRange,
+        timeBounds: TimeBounds? = null,
+        repository: WeatherRepository? = null,
+        gapFiller: ClimateGapFiller? = null,
     ): DailyRenderData {
         val key =
             WidgetInteractionCache.Key.of(
@@ -395,8 +412,10 @@ internal object DailyInteractionRenderer {
             )
         val loaded =
             WidgetInteractionCache.getOrLoad(key) {
+                val forecastDao = database.forecastDao()
+                val hourlyDao = database.hourlyForecastDao()
                 val weatherListRaw =
-                    database.forecastDao().getForecastsInRange(
+                    forecastDao.getForecastsInRange(
                         range.historyStart,
                         range.forecastEnd,
                         lat,
@@ -409,9 +428,88 @@ internal object DailyInteractionRenderer {
                         lon,
                         WidgetStateManager(context).getPersonalStationWeight(),
                     )
-                WidgetInteractionCache.Data(weatherListRaw, dailyActuals)
+                val forecastSnapshots = if (gapFiller != null) {
+                    val pastSnapshots =
+                        forecastDao.getLatestForecastsInRange(
+                            range.historyStart,
+                            range.pastSnapshotEnd,
+                            lat,
+                            lon,
+                        )
+                    val recentSnapshots =
+                        forecastDao.getAllForecastsInRange(
+                            range.recentSnapshotStart,
+                            range.forecastEnd,
+                            lat,
+                            lon,
+                        )
+                    val priorCandidates =
+                        forecastDao.getPriorForecastCandidates(range.historyStart, range.pastSnapshotEnd, lat, lon)
+                    gapFiller.appendGapsToSnapshots(
+                        (pastSnapshots + recentSnapshots + priorCandidates).distinct()
+                            .groupBy {
+                                LocalDate.ofEpochDay(
+                                    it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY,
+                                )
+                            },
+                        lat,
+                        lon,
+                        today,
+                        horizonDays = NAV_FORECAST_HORIZON_DAYS,
+                    )
+                } else null
+
+                val hourlyForecasts = if (timeBounds != null) {
+                    hourlySourceIds(context).let { sources ->
+                        com.weatherwidget.widget.HourlyForecastLoader.withHistory(
+                            database = database,
+                            current = GraphDataLoader.unifyToNearestSite(
+                                hourlyDao.getHourlyForecastsForSources(
+                                    timeBounds.hourlyStartMs,
+                                    timeBounds.hourlyEndMs,
+                                    lat,
+                                    lon,
+                                    sources,
+                                ),
+                                lat,
+                                lon,
+                            ),
+                            startMs = timeBounds.hourlyStartMs,
+                            endMs = timeBounds.hourlyEndMs,
+                            lat = lat,
+                            lon = lon,
+                            sources = sources,
+                        )
+                    }
+                } else null
+
+                val currentTemps = if (timeBounds != null) {
+                    repository?.getMainObservationsWithComputedNwsBlend(
+                        lat,
+                        lon,
+                        timeBounds.todayStartMs,
+                    ) ?: database.observationDao().getLatestMainObservations(
+                        lat,
+                        lon,
+                        timeBounds.todayStartMs,
+                    )
+                } else null
+
+                WidgetInteractionCache.Data(
+                    weatherListRaw = weatherListRaw,
+                    dailyActuals = dailyActuals,
+                    forecastSnapshots = forecastSnapshots,
+                    hourlyForecasts = hourlyForecasts,
+                    currentTemps = currentTemps,
+                )
             }
-        return DailyRenderData(loaded.weatherListRaw, loaded.dailyActuals)
+        return DailyRenderData(
+            weatherListRaw = loaded.weatherListRaw,
+            dailyActuals = loaded.dailyActuals,
+            forecastSnapshots = loaded.forecastSnapshots,
+            hourlyForecasts = loaded.hourlyForecasts,
+            currentTemps = loaded.currentTemps,
+        )
     }
 
     private data class DailyRange(

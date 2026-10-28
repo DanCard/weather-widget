@@ -33,6 +33,7 @@
             <intent-filter>
                 <action android:name="com.weatherwidget.debug.REFRESH" />
                 <action android:name="com.weatherwidget.debug.FULL_SYNC" />
+                <action android:name="com.weatherwidget.debug.TOGGLE_API" />
             </intent-filter>
         </receiver>
     </application>

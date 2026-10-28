@@ -162,6 +162,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".widget.WidgetInteractionReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".widget.ScreenOnReceiver"
             android:exported="true">
             <intent-filter>

@@ -15,8 +15,8 @@ import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.WidgetInteractionReceiver
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -110,7 +110,7 @@ internal object DailyClickHandlerFactory {
     ): Intent {
         val isHistory = date.isBefore(now.toLocalDate())
 
-        return Intent(context, WidgetActionReceiver::class.java).apply {
+        return Intent(context, WidgetInteractionReceiver::class.java).apply {
             action = WidgetActions.ACTION_DAY_CLICK
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             putExtra("date", date.toString())

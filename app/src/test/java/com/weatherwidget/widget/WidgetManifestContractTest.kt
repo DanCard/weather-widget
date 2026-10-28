@@ -36,6 +36,11 @@ class WidgetManifestContractTest {
                 ComponentName(context, WidgetActionReceiver::class.java),
                 PackageManager.GET_META_DATA,
             )
+        val interactions =
+            packageManager.getReceiverInfo(
+                ComponentName(context, WidgetInteractionReceiver::class.java),
+                PackageManager.GET_META_DATA,
+            )
         val packageReplaced =
             packageManager.getReceiverInfo(
                 ComponentName(context, PackageReplacedReceiver::class.java),
@@ -44,6 +49,7 @@ class WidgetManifestContractTest {
 
         assertFalse(provider.exported)
         assertFalse(actions.exported)
+        assertFalse(interactions.exported)
         assertTrue(packageReplaced.exported)
         assertNotNull(provider.metaData)
         assertTrue(provider.metaData.containsKey(AppWidgetManager.META_DATA_APPWIDGET_PROVIDER))

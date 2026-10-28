@@ -24,6 +24,7 @@ import com.weatherwidget.widget.HourlyTouchZoneMapper
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.WidgetInteractionReceiver
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomWindow
 import java.time.LocalDate
@@ -59,7 +60,7 @@ internal fun setupZoomTapZones(
 
     HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
         val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(i, hourlyOffset, zoom)
-        val zoomIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+        val zoomIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
             action = WidgetActions.ACTION_CYCLE_ZOOM
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             putExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
@@ -87,7 +88,7 @@ internal fun setupNavigationButtons(
     views.setViewVisibility(R.id.nav_left_zone, View.VISIBLE)
 
     if (canLeft) {
-        val leftIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+        val leftIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
             action = WidgetActions.ACTION_NAV_LEFT
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         }
@@ -98,7 +99,7 @@ internal fun setupNavigationButtons(
         views.setOnClickPendingIntent(R.id.nav_left, leftPendingIntent)
         views.setOnClickPendingIntent(R.id.nav_left_zone, leftPendingIntent)
     } else {
-        val toastIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+        val toastIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SHOW_TOAST
             putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, context.getString(R.string.widget_nav_no_history))
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -115,7 +116,7 @@ internal fun setupNavigationButtons(
     views.setViewVisibility(R.id.nav_right_zone, View.VISIBLE)
 
     if (canRight) {
-        val rightIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+        val rightIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
             action = WidgetActions.ACTION_NAV_RIGHT
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         }
@@ -126,7 +127,7 @@ internal fun setupNavigationButtons(
         views.setOnClickPendingIntent(R.id.nav_right, rightPendingIntent)
         views.setOnClickPendingIntent(R.id.nav_right_zone, rightPendingIntent)
     } else {
-        val toastIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+        val toastIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SHOW_TOAST
             putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, context.getString(R.string.widget_nav_no_forecast))
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -149,7 +150,7 @@ internal fun setupApiToggle(
     scale: Float = 1.0f,
 ) {
     val toggleIntent =
-        Intent(context, WidgetActionReceiver::class.java).apply {
+        Intent(context, WidgetInteractionReceiver::class.java).apply {
             action = WidgetActions.ACTION_TOGGLE_API
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         }
@@ -224,7 +225,7 @@ internal fun setupHistoryShortcutAt(
     val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
     val centerTime = date.atStartOfDay()
 
-    val historyIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+    val historyIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
         action = WidgetActions.ACTION_DAY_CLICK
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         putExtra("date", dateStr)
@@ -275,7 +276,7 @@ internal fun setupHomeShortcut(
     setVisibility: Boolean = false,
     scale: Float = 1.0f,
 ) {
-    val homeIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+    val homeIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
         action = WidgetActions.ACTION_SET_VIEW
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         putExtra(WidgetActions.EXTRA_TARGET_VIEW, ViewMode.DAILY.name)
@@ -340,7 +341,7 @@ internal fun setupDailyHomeShortcut(
         HomeAction.RECENTER_TODAY ->
             WidgetActions.ACTION_RECENTER_TODAY to WidgetRequestCodes.recenterToday(appWidgetId)
     }
-    val homeIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+    val homeIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
         this.action = action
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
     }
@@ -748,7 +749,7 @@ internal fun setupDeadZoneCatchAll(
     views: RemoteViews,
     appWidgetId: Int,
 ) {
-    val toggleIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+    val toggleIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
         action = WidgetActions.ACTION_TOGGLE_API
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
     }

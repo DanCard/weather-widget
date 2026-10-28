@@ -1,5 +1,6 @@
 package com.weatherwidget.debug
 
+import android.appwidget.AppWidgetManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -8,6 +9,7 @@ import androidx.work.ExistingWorkPolicy
 import com.weatherwidget.BuildConfig
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.WidgetInteractionReceiver
 import com.weatherwidget.widget.WidgetWorkScheduler
 
 /**
@@ -51,6 +53,19 @@ class DebugSyncReceiver : BroadcastReceiver() {
                 val enqueued = WidgetWorkScheduler.enqueueForcedSync(appContext, REASON, ExistingWorkPolicy.KEEP)
                 Log.i(TAG, "enqueued forced full sync id=${enqueued.request.id} followUp=${enqueued.followUp}")
             }
+            ACTION_TOGGLE_API -> {
+                val widgetId = intent.getIntExtra(
+                    AppWidgetManager.EXTRA_APPWIDGET_ID,
+                    AppWidgetManager.INVALID_APPWIDGET_ID,
+                )
+                appContext.sendBroadcast(
+                    Intent(appContext, WidgetInteractionReceiver::class.java).apply {
+                        action = WidgetActions.ACTION_TOGGLE_API
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                    },
+                )
+                Log.i(TAG, "forwarded TOGGLE_API to WidgetInteractionReceiver widgetId=$widgetId")
+            }
             else -> Log.w(TAG, "unhandled action ${intent.action}")
         }
     }
@@ -60,5 +75,6 @@ class DebugSyncReceiver : BroadcastReceiver() {
         private const val REASON = "debug_full_sync"
         const val ACTION_REFRESH = "com.weatherwidget.debug.REFRESH"
         const val ACTION_FULL_SYNC = "com.weatherwidget.debug.FULL_SYNC"
+        const val ACTION_TOGGLE_API = "com.weatherwidget.debug.TOGGLE_API"
     }
 }

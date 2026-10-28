@@ -27,8 +27,8 @@ import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.util.ViewingRefreshPolicy
 import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.widget.DataFreshness
-import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.WidgetInteractionReceiver
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.GraphRepaintGate
@@ -239,7 +239,7 @@ object CloudCoverViewHandler {
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
 
         // Weather icon + bottom zone → back to temperature view
-        val goTempIconIntent = Intent(context, WidgetActionReceiver::class.java).apply {
+        val goTempIconIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             putExtra(WidgetActions.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.TEMPERATURE.name)
