@@ -517,9 +517,17 @@ internal object DailyBarRenderer {
             }
         }
 
-        debug {
-            "$logPrefix bar sky: date=${day.date} centerX=$centerX topY=$topY bottomY=$bottomY" +
-                " noonCloud=${day.cloudCoverRatioOverride} sky=${plan.sky} strokes=${plan.strokes.size}"
+        if (day.isToday) {
+            Log.d(
+                TAG,
+                "$logPrefix bar sky: date=${day.date} centerX=$centerX topY=$topY bottomY=$bottomY" +
+                    " noonCloud=${day.cloudCoverRatioOverride} sky=${plan.sky} strokes=${plan.strokes.size}"
+            )
+        } else {
+            debug {
+                "$logPrefix bar sky: date=${day.date} centerX=$centerX topY=$topY bottomY=$bottomY" +
+                    " noonCloud=${day.cloudCoverRatioOverride} sky=${plan.sky} strokes=${plan.strokes.size}"
+            }
         }
     }
 

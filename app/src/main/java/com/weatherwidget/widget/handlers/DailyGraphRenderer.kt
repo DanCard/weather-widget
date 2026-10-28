@@ -20,6 +20,7 @@ import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContentResolver
+import com.weatherwidget.shared.graph.AdaptiveBarStrokes
 import com.weatherwidget.shared.graph.ForecastDeltaLabel
 import com.weatherwidget.shared.graph.TodayColumnOverlayPlanner
 import com.weatherwidget.util.WeatherIconMapper
@@ -117,13 +118,23 @@ internal object DailyGraphRenderer {
         val prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
 
         days.find { it.isToday }?.let { todayDay ->
+            val sky = AdaptiveBarStrokes.sky(
+                noonCloudRatio = todayDay.cloudCoverRatioOverride,
+                fallbackIconName = todayDay.iconRes?.let(WeatherIconMapper::iconResToName),
+                dayRainPercent = todayDay.rainData.dailyPrecipProbability,
+            )
+            val clearPct = Math.round(sky.clear * 100)
+            val cloudPct = Math.round(sky.cloud * 100)
+            val rainPct = Math.round(sky.rain * 100)
             ctx.appLogDao.log(
                 DailyViewHandler.LOG_TAG_TODAY_BAR_DEBUG,
                 "widget=${ctx.appWidgetId} mode=GRAPH obsHigh=${todayDay.solidLineHigh} obsLow=${todayDay.solidLineLow} " +
                     "fHigh=${todayDay.dashedLineHigh} fLow=${todayDay.dashedLineLow} " +
                     "trueHigh=${todayDay.ghostLineHigh} bStackLow=${todayDay.bottomStackLow} " +
                     "sHigh=${todayDay.snapshotHigh} sLow=${todayDay.snapshotLow} " +
-                    "fallback=${todayDay.isTodayForecastFallback}",
+                    "fallback=${todayDay.isTodayForecastFallback} " +
+                    "cloudRatio=${todayDay.cloudCoverRatioOverride} rainChance=${todayDay.rainData.dailyPrecipProbability} " +
+                    "sky=[clear=${clearPct}%,grey=${cloudPct}%,rain=${rainPct}%]",
                 "DEBUG"
             )
             withContext(Dispatchers.IO) {
