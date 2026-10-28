@@ -43,22 +43,26 @@ internal object WidgetRefreshCoordinator {
         )
         val syncNotice = if (userInitiated) {
             val nowMs = System.currentTimeMillis()
-            val lastUserRefreshMs = FetchMetadata.getLastUserRefreshTime(context)
+            val stateManager = WidgetStateManager(context)
+            val displaySource = requestedWidgetId?.let { stateManager.getCurrentDisplaySource(it) } ?: stateManager.getPrimarySource()
+            val sourceId = displaySource.id
+            val lastUserRefreshMs = FetchMetadata.getLastUserRefreshTime(context, sourceId)
             when (val decision = UserRefreshThrottle.check(lastUserRefreshMs, nowMs)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     WeatherDatabase.getDatabase(context).appLogDao().log(
                         "USER_REFRESH_THROTTLED",
-                        "elapsedMin=${decision.elapsedMinutes} waitMin=${decision.remainingMinutes}",
+                        "source=$sourceId elapsedMin=${decision.elapsedMinutes} waitMin=${decision.remainingMinutes}",
                         "INFO",
                     )
                     RefreshNotice.NotQueued(
                         RefreshNotice.Reason.RATE_LIMITED,
+                        sourceName = displaySource.name,
                         elapsedMinutes = decision.elapsedMinutes,
                         remainingMinutes = decision.remainingMinutes,
                     )
                 }
                 is UserRefreshThrottle.Decision.Allowed -> {
-                    FetchMetadata.setLastUserRefreshTime(context, nowMs)
+                    FetchMetadata.setLastUserRefreshTime(context, nowMs, sourceId)
                     val pending = WidgetWorkScheduler.pendingOneTimeSync(context)
                     WidgetWorkScheduler.enqueueRequiredImmediateSync(
                         context = context,

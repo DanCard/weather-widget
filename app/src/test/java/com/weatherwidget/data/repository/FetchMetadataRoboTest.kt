@@ -75,4 +75,25 @@ class FetchMetadataRoboTest : RobolectricTest() {
             ),
         )
     }
+
+    @Test
+    fun `last user refresh time is isolated by source key`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val refreshedAt = 1_800_000_000_000L
+
+        FetchMetadata.setLastUserRefreshTime(context, refreshedAt, WeatherSource.SILURIAN.id)
+
+        assertEquals(
+            refreshedAt,
+            FetchMetadata.getLastUserRefreshTime(context, WeatherSource.SILURIAN.id),
+        )
+        assertEquals(
+            0L,
+            FetchMetadata.getLastUserRefreshTime(context, WeatherSource.NWS.id),
+        )
+        assertEquals(
+            refreshedAt,
+            FetchMetadata.getLastUserRefreshTime(context),
+        )
+    }
 }

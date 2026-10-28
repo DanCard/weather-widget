@@ -384,12 +384,15 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 return@launch
             }
 
+            val source = currentSource
+            val obsKey = "${source.id}:observations"
             val nowMs = System.currentTimeMillis()
-            val lastRefresh = FetchMetadata.getLastUserRefreshTime(this@WeatherObservationsActivity)
+            val lastRefresh = FetchMetadata.getLastUserRefreshTime(this@WeatherObservationsActivity, obsKey)
             when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     val notice = com.weatherwidget.shared.util.RefreshNotice.NotQueued(
                         com.weatherwidget.shared.util.RefreshNotice.Reason.RATE_LIMITED,
+                        sourceName = source.name,
                         elapsedMinutes = decision.elapsedMinutes,
                         remainingMinutes = decision.remainingMinutes,
                     )
@@ -397,7 +400,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     return@launch
                 }
                 is UserRefreshThrottle.Decision.Allowed -> {
-                    FetchMetadata.setLastUserRefreshTime(this@WeatherObservationsActivity, nowMs)
+                    FetchMetadata.setLastUserRefreshTime(this@WeatherObservationsActivity, nowMs, obsKey)
                 }
             }
 
@@ -407,7 +410,6 @@ class WeatherObservationsActivity : AppCompatActivity() {
             
             // In the app scope, not lifecycleScope: closing this screen mid-fetch cancelled the
             // fetch and stored nothing (Fold 4, 2026-10-13). Leaving now cancels only the waiting.
-            val source = currentSource
             val (lat, lon) = location
             val repository = weatherRepository
             val stateManager = widgetStateManager

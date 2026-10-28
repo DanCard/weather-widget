@@ -152,11 +152,13 @@ class SettingsActivity : AppCompatActivity() {
         val refreshDataButton = findViewById<Button>(R.id.refresh_data_button)
         refreshDataButton.setOnClickListener {
             val nowMs = System.currentTimeMillis()
-            val lastRefresh = FetchMetadata.getLastUserRefreshTime(this)
+            val primarySource = widgetStateManager.getPrimarySource()
+            val lastRefresh = FetchMetadata.getLastUserRefreshTime(this, primarySource.id)
             when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     val notice = RefreshNotice.NotQueued(
                         RefreshNotice.Reason.RATE_LIMITED,
+                        sourceName = primarySource.name,
                         elapsedMinutes = decision.elapsedMinutes,
                         remainingMinutes = decision.remainingMinutes,
                     )
@@ -166,7 +168,7 @@ class SettingsActivity : AppCompatActivity() {
                     return@setOnClickListener
                 }
                 is UserRefreshThrottle.Decision.Allowed -> {
-                    FetchMetadata.setLastUserRefreshTime(this, nowMs)
+                    FetchMetadata.setLastUserRefreshTime(this, nowMs, primarySource.id)
                 }
             }
 

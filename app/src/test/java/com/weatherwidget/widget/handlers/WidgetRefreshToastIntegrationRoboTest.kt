@@ -266,6 +266,35 @@ class WidgetRefreshToastIntegrationRoboTest {
     }
 
     @Test
+    fun `tap to refresh throttling is isolated per display source`() = runBlocking {
+        stateManager.setCurrentDisplaySource(widgetId, WeatherSource.NWS)
+
+        val upToDate = RefreshNotice.NotQueued(RefreshNotice.Reason.UP_TO_DATE, "NWS", ageMs = 10 * 60_000L)
+        mockkObject(WidgetIntentRouter, DataFreshness)
+        coEvery { WidgetIntentRouter.renderWidgetFromCache(any(), any(), any()) } returns upToDate
+        coEvery { DataFreshness.isDataStale(any()) } returns false
+        val repository = mockk<WeatherRepository>(relaxed = true)
+
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, repository, widgetId)
+        assertEquals("Forecast refresh queued", banner())
+
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RefreshNotice.DURATION_MS))
+        RefreshToast.resetForTesting()
+
+        // Second tap on NWS is throttled
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, repository, widgetId)
+        assertEquals("Not doing because last refresh was 0 minutes ago, and wait another 10 minutes before asking for a refresh", banner())
+
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RefreshNotice.DURATION_MS))
+        RefreshToast.resetForTesting()
+
+        // Switching widget to OPEN_METEO allows refresh immediately
+        stateManager.setCurrentDisplaySource(widgetId, WeatherSource.OPEN_METEO)
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, repository, widgetId)
+        assertEquals("Forecast refresh queued", banner())
+    }
+
+    @Test
     fun `tap to refresh on stale data queues the forecast`() = runBlocking {
         mockkObject(WidgetIntentRouter, DataFreshness)
         coEvery { WidgetIntentRouter.renderWidgetFromCache(any(), any(), any()) } returns null

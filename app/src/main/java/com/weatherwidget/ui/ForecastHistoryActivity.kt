@@ -798,11 +798,12 @@ class ForecastHistoryActivity : AppCompatActivity() {
             return
         }
         val nowMs = System.currentTimeMillis()
-        val lastRefresh = FetchMetadata.getLastUserRefreshTime(this)
+        val lastRefresh = FetchMetadata.getLastUserRefreshTime(this, source.id)
         when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
             is UserRefreshThrottle.Decision.Throttled -> {
                 val notice = com.weatherwidget.shared.util.RefreshNotice.NotQueued(
                     com.weatherwidget.shared.util.RefreshNotice.Reason.RATE_LIMITED,
+                    sourceName = source.name,
                     elapsedMinutes = decision.elapsedMinutes,
                     remainingMinutes = decision.remainingMinutes,
                 )
@@ -813,7 +814,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 return
             }
             is UserRefreshThrottle.Decision.Allowed -> {
-                FetchMetadata.setLastUserRefreshTime(this, nowMs)
+                FetchMetadata.setLastUserRefreshTime(this, nowMs, source.id)
             }
         }
         refreshInFlight = true

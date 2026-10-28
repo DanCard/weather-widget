@@ -181,7 +181,7 @@ internal fun runDesktopUiApplication() = application {
         // Owned here rather than in either child window: full refresh work runs on uiScope and
         // survives closing Settings or Stations/Observations.
         var refreshInFlight by remember { mutableStateOf(false) }
-        var lastUserRefreshMs by remember { mutableStateOf<Long?>(null) }
+        val lastUserRefreshMsBySource = remember { mutableStateMapOf<String, Long>() }
         val desktopClients = remember { DesktopClients(weatherDao) }
         // Held as a top-level remember so SettingsWindow can call friendlyName() directly for the
         // reverse-geocoded location label, without going through the higher-level LocationResolver
@@ -782,17 +782,21 @@ internal fun runDesktopUiApplication() = application {
                 return
             }
 
+            val currentSource = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "")
+            val sourceId = currentSource.id
             val nowMs = System.currentTimeMillis()
-            when (val decision = UserRefreshThrottle.check(lastUserRefreshMs, nowMs)) {
+            val lastRefresh = lastUserRefreshMsBySource[sourceId]
+            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     weatherDao.log(
                         "REFRESH_CLICK",
-                        "origin=$origin suppressed=rate_limited elapsedMin=${decision.elapsedMinutes} waitMin=${decision.remainingMinutes}",
+                        "origin=$origin source=$sourceId suppressed=rate_limited elapsedMin=${decision.elapsedMinutes} waitMin=${decision.remainingMinutes}",
                         "INFO",
                     )
                     refreshNotice.show(
                         RefreshNotice.NotQueued(
                             RefreshNotice.Reason.RATE_LIMITED,
+                            sourceName = currentSource.name,
                             elapsedMinutes = decision.elapsedMinutes,
                             remainingMinutes = decision.remainingMinutes,
                         ),
@@ -802,7 +806,7 @@ internal fun runDesktopUiApplication() = application {
                     return
                 }
                 is UserRefreshThrottle.Decision.Allowed -> {
-                    lastUserRefreshMs = nowMs
+                    lastUserRefreshMsBySource[sourceId] = nowMs
                 }
             }
 
@@ -884,17 +888,21 @@ internal fun runDesktopUiApplication() = application {
                 return
             }
 
+            val currentSource = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "")
+            val obsKey = "${currentSource.id}:observations"
             val nowMs = System.currentTimeMillis()
-            when (val decision = UserRefreshThrottle.check(lastUserRefreshMs, nowMs)) {
+            val lastRefresh = lastUserRefreshMsBySource[obsKey]
+            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     weatherDao.log(
                         "REFRESH_CLICK",
-                        "origin=$origin suppressed=rate_limited elapsedMin=${decision.elapsedMinutes} waitMin=${decision.remainingMinutes}",
+                        "origin=$origin source=${currentSource.id} suppressed=rate_limited elapsedMin=${decision.elapsedMinutes} waitMin=${decision.remainingMinutes}",
                         "INFO",
                     )
                     refreshNotice.show(
                         RefreshNotice.NotQueued(
                             RefreshNotice.Reason.RATE_LIMITED,
+                            sourceName = currentSource.name,
                             elapsedMinutes = decision.elapsedMinutes,
                             remainingMinutes = decision.remainingMinutes,
                         ),
@@ -904,7 +912,7 @@ internal fun runDesktopUiApplication() = application {
                     return
                 }
                 is UserRefreshThrottle.Decision.Allowed -> {
-                    lastUserRefreshMs = nowMs
+                    lastUserRefreshMsBySource[obsKey] = nowMs
                 }
             }
 
@@ -954,7 +962,8 @@ internal fun runDesktopUiApplication() = application {
             }
 
             val nowMs = System.currentTimeMillis()
-            when (val decision = UserRefreshThrottle.check(lastUserRefreshMs, nowMs)) {
+            val lastRefresh = lastUserRefreshMsBySource[source.id]
+            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     weatherDao.log(
                         "REFRESH_CLICK",
@@ -964,6 +973,7 @@ internal fun runDesktopUiApplication() = application {
                     refreshNotice.show(
                         RefreshNotice.NotQueued(
                             RefreshNotice.Reason.RATE_LIMITED,
+                            sourceName = source.name,
                             elapsedMinutes = decision.elapsedMinutes,
                             remainingMinutes = decision.remainingMinutes,
                         ),
@@ -973,7 +983,7 @@ internal fun runDesktopUiApplication() = application {
                     return
                 }
                 is UserRefreshThrottle.Decision.Allowed -> {
-                    lastUserRefreshMs = nowMs
+                    lastUserRefreshMsBySource[source.id] = nowMs
                 }
             }
 

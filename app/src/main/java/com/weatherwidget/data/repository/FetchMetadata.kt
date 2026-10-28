@@ -35,12 +35,17 @@ object FetchMetadata {
         getPrefs(context).edit().putLong(KEY_LAST_CURRENT_TEMP_FETCH, time).apply()
     }
 
-    fun getLastUserRefreshTime(context: Context): Long {
-        return getPrefs(context).getLong(KEY_LAST_USER_REFRESH, 0L)
+    fun getLastUserRefreshTime(context: Context, key: String? = null): Long {
+        val prefKey = if (key != null) "${KEY_LAST_USER_REFRESH}_${key.lowercase()}" else KEY_LAST_USER_REFRESH
+        return getPrefs(context).getLong(prefKey, 0L)
     }
 
-    fun setLastUserRefreshTime(context: Context, time: Long) {
-        getPrefs(context).edit().putLong(KEY_LAST_USER_REFRESH, time).apply()
+    fun setLastUserRefreshTime(context: Context, time: Long, key: String? = null) {
+        val editor = getPrefs(context).edit().putLong(KEY_LAST_USER_REFRESH, time)
+        if (key != null) {
+            editor.putLong("${KEY_LAST_USER_REFRESH}_${key.lowercase()}", time)
+        }
+        editor.apply()
     }
 
     /**

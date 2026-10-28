@@ -106,16 +106,17 @@ equivalent to "fetch everything on every interaction."
 User-initiated manual refresh triggers (Android widget tap-to-refresh, Settings "Refresh data",
 Forecast History refresh, Observations refresh, and Desktop UI refresh buttons) bypass routine
 background cadence checks so that an explicit user tap can fetch immediately. However, manual user
-refreshes are limited across both platforms to at most once every 10 minutes via `UserRefreshThrottle`:
+refreshes are limited across both platforms to at most once every 10 minutes per weather source
+(and observations scope) via `UserRefreshThrottle`:
 
-- **Throttled (< 10 minutes since last user refresh)**:
-  - Network syncs and gap fills are suppressed.
+- **Throttled (< 10 minutes since last user refresh of that source)**:
+  - Network syncs and gap fills for that source are suppressed.
   - A user-visible notice is shown (Android home widget message banner, in-app `Toast.LENGTH_LONG`
     on Settings/History/Observations, or Compose `RefreshNoticePill` on Desktop):
     `"Not doing because last refresh was X minute(s) ago, and wait another Y minute(s) before asking for a refresh"`.
-  - Logged with `USER_REFRESH_THROTTLED elapsedMin=… waitMin=…` and `REFRESH_TOAST … none=RATE_LIMITED`.
-- **Allowed (≥ 10 minutes or first user refresh)**:
-  - Last user refresh timestamp is recorded (`FetchMetadata` on Android, UI state on Desktop).
+  - Logged with `USER_REFRESH_THROTTLED source=… elapsedMin=… waitMin=…` and `REFRESH_TOAST … none=RATE_LIMITED source=…`.
+- **Allowed (≥ 10 minutes or first user refresh for that source)**:
+  - Last user refresh timestamp for that source is recorded (`FetchMetadata` per source on Android, `lastUserRefreshMsBySource` on Desktop).
   - Immediate forced forecast sync and history gap fill are enqueued.
   - A user-visible notice indicates that the refresh is queued.
 - **Passive events are exempt**:

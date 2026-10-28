@@ -68,6 +68,24 @@ class RefreshNoticeStateTest {
     }
 
     @Test
+    fun `rate limited notice with sourceName logs source`() {
+        state.show(
+            NotQueued(Reason.RATE_LIMITED, sourceName = "NWS", elapsedMinutes = 0, remainingMinutes = 10),
+            RefreshNoticeSurface.HISTORY,
+            "history",
+        )
+
+        assertEquals(
+            "Not doing because last refresh was 0 minutes ago, and wait another 10 minutes before asking for a refresh",
+            state.textFor(RefreshNoticeSurface.HISTORY),
+        )
+        assertEquals(
+            listOf("origin=history none=RATE_LIMITED source=NWS elapsedMin=0 waitMin=10 shown"),
+            logged,
+        )
+    }
+
+    @Test
     fun `a second notice within four seconds is suppressed and logged`() {
         state.show(Queued(Kind.OBSERVATIONS), RefreshNoticeSurface.OBSERVATIONS, "observations")
         nowMs += 500L
