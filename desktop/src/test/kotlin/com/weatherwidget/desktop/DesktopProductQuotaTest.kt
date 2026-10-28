@@ -96,4 +96,21 @@ class DesktopProductQuotaTest {
             assertEquals("$view", untilMs, block.untilMs)
         }
     }
+
+    @Test
+    fun `an expired product quota block returns null on all views`() {
+        val untilMs = 1_791_442_800_000L
+        dao.log(ProductQuotaLog.TAG, ProductQuotaLog.blocked("GOOGLE_WEATHER", ForecastProduct.HOURLY, untilMs, body))
+        val quotas = DesktopQuotaState(dao)
+
+        assertNull(quotas.productQuota("GOOGLE_WEATHER", ForecastProduct.HOURLY, nowMs = untilMs))
+        assertNull(quotas.productQuota("GOOGLE_WEATHER", ForecastProduct.HOURLY, nowMs = untilMs + 1000L))
+
+        for (view in ViewMode.entries) {
+            val banner = QuotaNotice.bannerBlock(QuotaNotice.productOf(view)) {
+                quotas.productQuota("GOOGLE_WEATHER", it, nowMs = untilMs + 1000L)
+            }
+            assertNull("$view view still showed banner after expiry", banner)
+        }
+    }
 }

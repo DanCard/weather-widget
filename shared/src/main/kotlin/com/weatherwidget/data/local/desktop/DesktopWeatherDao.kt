@@ -1417,7 +1417,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     fun getLatestCurrentTempStatus(source: String): CurrentTempStatus? {
         db.getConnection().use { conn ->
             conn.prepareStatement(
-                "SELECT timestamp, message FROM app_logs WHERE tag = '${CurrentTempStatusLog.TAG}' AND message LIKE ? ORDER BY timestamp DESC LIMIT 1"
+                "SELECT timestamp, message FROM app_logs WHERE tag = '${CurrentTempStatusLog.TAG}' AND message LIKE ? ORDER BY timestamp DESC, id DESC LIMIT 1"
             ).use { stmt ->
                 stmt.setString(1, "source=$source %")
                 val rs = stmt.executeQuery()

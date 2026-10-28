@@ -97,6 +97,21 @@ class DesktopFetchErrorPresentationTest {
     }
 
     @Test
+    fun `a daily quota failure expires once current time passes resetAtMs`() {
+        failStatus("ApiAccessException", "Google Weather fetch failed (/forecast/hours:lookup): status 429. Detail: ${body("1/d/{project}", "60")}")
+        val status = dao.getLatestCurrentTempStatus(google)!!
+        val kind = desktopFailureKind(status)
+        assertTrue(kind.quota)
+
+        val resetAtMs = GoogleQuota.nextResetMs(status.timestamp)
+        val beforeReset = resetAtMs - 1_000L
+        val afterReset = resetAtMs + 1_000L
+
+        assertTrue("active before reset", beforeReset < resetAtMs)
+        assertFalse("expired after reset", afterReset < resetAtMs)
+    }
+
+    @Test
     fun `a rejected key offers the API key settings`() {
         failStatus("ApiAccessException", "Tomorrow.io realtime fetch failed: status 401.")
         val c = details()!!

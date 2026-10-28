@@ -145,14 +145,15 @@ class GoogleWeatherFetchIntegrationTest {
             .query("SELECT targetDate, lowTemp FROM forecasts WHERE source = ? AND lowTemp IS NOT NULL", arrayOf<Any>(source))
             .use { c -> buildList { while (c.moveToNext()) add(java.time.LocalDate.ofEpochDay(c.getLong(0) / 86_400_000L) to c.getFloat(1)) } }
 
+        val today = java.time.LocalDate.now(zone)
         var checked = 0
         lows.forEach { (date, low) ->
             val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
             val end = date.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
             val morning = hourly.filter { it.first in start until end }
             if (morning.size == 9) {
-                // Stored like every non-today forecast temperature: whole degrees.
-                val expected = ForecastTempRounding.forStorage(morning.minOf { it.second }, isToday = false)
+                // Stored like every forecast temperature: whole degrees for future days, unrounded for today.
+                val expected = ForecastTempRounding.forStorage(morning.minOf { it.second }, isToday = date == today)
                 assertEquals("$date low vs its 00:00–09:00 hourly minimum", expected!!, low, 0.01f)
                 checked++
             } else {

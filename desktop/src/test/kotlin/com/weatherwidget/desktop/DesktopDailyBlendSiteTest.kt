@@ -33,7 +33,7 @@ class DesktopDailyBlendSiteTest {
     private lateinit var dao: DesktopWeatherDao
     private val lat = LocationMatch.quantize(37.417)
     private val lon = LocationMatch.quantize(-122.089)
-    private val now = System.currentTimeMillis()
+    private val now = LocalDate.now().atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
     private val todayKey = LocalDate.now().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
 
     @Before
