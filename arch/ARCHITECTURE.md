@@ -37,6 +37,11 @@ Examples include:
 - `WeatherApiHistoryRun` and `GoogleHistoryRun`: provider-specific history workflows.
 - `SourceFetchTable`: what each source's forecast fetch requests, and (`runFollowUps`) which of the
   history runners above ride that fetch, a failed one included.
+- `SourceSwitchRunner`: a user's switch of the displayed source (API button, daily home button).
+  Persist then paint is the whole critical path; the view tally, the staleness check / refresh request
+  and the `app_logs` row follow, and `SOURCE_SWITCH_E2E` times each phase. Hosts: Android
+  `WidgetIntentActionHandler` (toggle and home reset; the deferred phase joins the receiver's job),
+  desktop `DesktopSourceSwitch` (refresh is the daemon's `source_change` check).
 
 A shared planner that leaves ordering or policy in platform glue is not equivalent; that arrangement
 previously allowed Android and desktop to drift. Host contract tests exercise the same runner against

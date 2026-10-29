@@ -274,6 +274,25 @@ internal fun resolveDesktopConfigSave(
     )
 }
 
+/**
+ * The effects of one config save, in the order a user action needs them: [save] config.json, then
+ * [signalDaemon] (`.config-changed`), and only then hand the app_logs breadcrumbs ([logRows], message to
+ * level) to [logExecutor]. An insert ahead of the save waited out the 5 s busy timeout behind another
+ * process's write lock on the UI thread, and the daemon never heard of the switch until it ended
+ * (2026-10-29, plans/261029-shared-source-switch-runner.md).
+ */
+internal fun commitDesktopConfigSave(
+    save: () -> Unit,
+    signalDaemon: () -> Unit,
+    logRows: List<Pair<String, String>>,
+    logExecutor: java.util.concurrent.Executor,
+    log: (message: String, level: String) -> Unit,
+) {
+    save()
+    signalDaemon()
+    if (logRows.isNotEmpty()) logExecutor.execute { logRows.forEach { (message, level) -> log(message, level) } }
+}
+
 /** Persists a pending Settings draft without rewinding newer popup-owned fields. */
 internal fun flushSettingsDraft(
     persistedConfig: DesktopConfig?,

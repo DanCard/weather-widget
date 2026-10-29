@@ -46,6 +46,33 @@ Use focused instrumented runs through `scripts/emulator-tests.sh -c <fully.quali
 an attached physical phone is not included accidentally. Keep emulators running unless the user asks
 otherwise. See [testing strategy](testing-strategy.md) for the full test commands.
 
+### Slow source switches and desktop SQLite lock stalls
+
+A source switch (API button, daily home button) logs `SOURCE_SWITCH_E2E` on both platforms:
+`phase=critical … persistMs= paintMs= criticalMs=` as soon as the new source is painted, then
+`phase=done … refresh=<QUEUED|FRESH|DELEGATED|SKIPPED|FAILED> deferredMs=`, also stored in `app_logs`.
+A missing `phase=done` line after a `phase=critical` line means the deferred phase is stuck. Desktop
+`paintMs` is ~0: Compose repaints from the saved config, and the daemon's reload follows
+(`LAUNCH_REFRESH_CHECK reason=source_change`).
+
+The desktop daemon and UI processes write one WAL database, so a write can wait up to the 5 s busy
+timeout on the other process's transaction. Every desktop connection is timed and reports
+`DB_WRITE_SLOW` to the console log (`~/.local/state/weather-widget/autostart-*.log`) only, never to
+`app_logs`:
+
+- `kind=autocommit caller=<Dao.method> ms=`: a single write that waited 200 ms or more (the victim).
+- `kind=txn caller= waitMs= holdMs=`: a transaction that waited 200 ms or more for the lock, or held
+  it 500 ms or more (a culprit). sqlite-jdbc re-begins the IMMEDIATE transaction inside `commit()`,
+  so `holdMs` runs until the connection closes.
+- `kind=open ms=`: opening a connection took 200 ms or more.
+
+Match `pid=`/`thread=` between a victim and the culprit that overlaps it. To reproduce a stall, hold
+the lock while switching source in the popup:
+
+```bash
+sqlite3 ~/.local/share/weather-widget/weather.db "BEGIN IMMEDIATE; SELECT 1;" ".shell sleep 8" "COMMIT;"
+```
+
 ### Debug-build adb hooks
 
 Debug APKs carry two receivers in `app/src/debug` (absent from release), exported so `adb shell` can

@@ -127,7 +127,16 @@ internal fun runDesktopUiApplication() = application {
         // Persistence layer
         val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
         val weatherDao = remember { DesktopWeatherDao(weatherDb) }
-        remember(weatherDao) { DesktopSourceViews.install(weatherDao) }
+        remember(weatherDao) {
+            DesktopSourceViews.install(weatherDao)
+            DesktopSourceSwitch.install(weatherDao)
+        }
+        // CONFIG_SAVE breadcrumbs go to app_logs on this single thread, after the save they describe:
+        // an insert on the UI thread waited out the 5 s busy timeout behind the daemon's write lock and
+        // froze a source switch (2026-10-29, plans/261029-shared-source-switch-runner.md).
+        val configLogExecutor = remember {
+            java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "config-save-log").apply { isDaemon = true } }
+        }
         // The four-second refresh toast every window shows (plans/261015-refresh-queued-toast-all-surfaces.md).
         val refreshNotice = remember { RefreshNoticeState(log = { weatherDao.log(RefreshNotice.TAG, it, "INFO") }) }
         RefreshNoticeExpiry(refreshNotice)
@@ -313,6 +322,9 @@ internal fun runDesktopUiApplication() = application {
                     )
                 }
 
+                // app_logs rows for the breadcrumbs below, written only after the save and the trigger
+                // (commitDesktopConfigSave).
+                val pendingLogRows = mutableListOf<Pair<String, String>>()
                 if (prev != null) {
                     val settingsChanges = resolution.settingsChanges
                     if (settingsChanges.isNotEmpty()) {
@@ -322,7 +334,7 @@ internal fun runDesktopUiApplication() = application {
                         if (source == "settings" || source == "settings-close") Log.i(TAG, line) else Log.w(TAG, line)
                         // Persist the same breadcrumb to the queryable app_logs DB. This bug was invisible
                         // there because CONFIG_SAVE went only to the console/autostart file.
-                        weatherDao.log("CONFIG_SAVE", "source=$source ${settingsChanges.joinToString(", ")}", level)
+                        pendingLogRows += "source=$source ${settingsChanges.joinToString(", ")}" to level
                     }
 
                     // Positive proof the merge is working: a non-settings writer carried stale settings
@@ -332,23 +344,33 @@ internal fun runDesktopUiApplication() = application {
                         val line = "CONFIG_SAVE source=$source merged-away-stale-settings: " +
                             mergedAway.joinToString(", ")
                         Log.i(TAG, line)
-                        weatherDao.log("CONFIG_SAVE", "source=$source ${mergedAway.joinToString(", ")}", "INFO")
+                        pendingLogRows += "source=$source ${mergedAway.joinToString(", ")}" to "INFO"
                     }
                 }
 
-                configStore.save(effective)
-                config = effective
-                DesktopLocationChangeFeedback.pendingPlaceName(source, prev, effective)?.let { place ->
-                    pendingLocationLabel = place
-                }
-                if (prev != null) {
-                    WeatherSourceOrdering.newlyPrimary(prev.settings.visibleSources, effective.settings.visibleSources)
-                        ?.let { pendingSourceSwitch = it }
-                }
-                runCatching {
-                    val trigger = appDataDir().resolve(CONFIG_CHANGED_TRIGGER)
-                    java.nio.file.Files.writeString(trigger, "", java.nio.charset.StandardCharsets.UTF_8)
-                }
+                commitDesktopConfigSave(
+                    save = {
+                        configStore.save(effective)
+                        config = effective
+                        DesktopLocationChangeFeedback.pendingPlaceName(source, prev, effective)?.let { place ->
+                            pendingLocationLabel = place
+                        }
+                        if (prev != null) {
+                            WeatherSourceOrdering.newlyPrimary(prev.settings.visibleSources, effective.settings.visibleSources)
+                                ?.let { pendingSourceSwitch = it }
+                        }
+                    },
+                    signalDaemon = {
+                        runCatching {
+                            val trigger = appDataDir().resolve(CONFIG_CHANGED_TRIGGER)
+                            java.nio.file.Files.writeString(trigger, "", java.nio.charset.StandardCharsets.UTF_8)
+                        }
+                    },
+                    logRows = pendingLogRows,
+                    logExecutor = configLogExecutor,
+                    // DesktopWeatherDao.log never throws; a failed insert is logged there.
+                    log = { message, level -> weatherDao.log("CONFIG_SAVE", message, level) },
+                )
                 // A source cycle shows no notice, whatever the daemon fetches for it (user, 2026-10-15).
                 Unit
             }

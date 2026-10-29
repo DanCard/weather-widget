@@ -84,27 +84,25 @@ internal object DesktopSourceViews {
 }
 
 /**
- * The API button: show the next usable source, and count the switch. The one copy — the header and
- * popup used to carry three, and a copy that skipped [DesktopSourceViews.record] would silently
- * undercount. No-op with one usable source.
- */
-/**
  * Switches straight to [sourceId] (a [com.weatherwidget.data.model.WeatherSource] id) when it is a
  * visible source — the months view's "another source has more history" line. Recorded as a toggle,
- * like [cycleDisplaySource].
+ * like [cycleDisplaySource]; switched through [DesktopSourceSwitch].
  */
 internal fun switchDisplaySource(config: DesktopConfig, sourceId: String, onUpdateConfig: (DesktopConfig) -> Unit) {
     val visibleSources = config.effectiveSources
     val target = visibleSources.find { com.weatherwidget.data.model.WeatherSource.fromDisplaySource(it).id == sourceId } ?: return
     if (target == config.displaySource) return
-    onUpdateConfig(config.copy(settings = config.settings.copy(weatherSource = target)))
-    DesktopSourceViews.record(target, visibleSources, config.viewMode, SourceViewTrigger.TOGGLE)
+    DesktopSourceSwitch.switchTo(config, target, SourceViewTrigger.TOGGLE, onUpdateConfig)
 }
 
+/**
+ * The API button: show the next usable source, and count the switch. The one copy — the header and
+ * popup used to carry three, and a copy that skipped [DesktopSourceViews.record] would silently
+ * undercount. No-op with one usable source. Switched through [DesktopSourceSwitch].
+ */
 internal fun cycleDisplaySource(config: DesktopConfig, onUpdateConfig: (DesktopConfig) -> Unit) {
     val visibleSources = config.effectiveSources
     if (visibleSources.size <= 1) return
     val next = visibleSources[(visibleSources.indexOf(config.displaySource) + 1) % visibleSources.size]
-    onUpdateConfig(config.copy(settings = config.settings.copy(weatherSource = next)))
-    DesktopSourceViews.record(next, visibleSources, config.viewMode, SourceViewTrigger.TOGGLE)
+    DesktopSourceSwitch.switchTo(config, next, SourceViewTrigger.TOGGLE, onUpdateConfig)
 }

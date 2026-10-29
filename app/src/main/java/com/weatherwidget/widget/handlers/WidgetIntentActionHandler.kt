@@ -13,6 +13,8 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.RefreshNotice
 import com.weatherwidget.widget.RefreshToast
 import com.weatherwidget.widget.SourceViewRecorder
+import com.weatherwidget.shared.sourceview.SourceSwitchRunner
+import com.weatherwidget.shared.sourceview.SourceSwitchRunner.RefreshOutcome
 import com.weatherwidget.shared.sourceview.SourceViewTrigger
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetPaintPrioritizer
@@ -21,6 +23,8 @@ import com.weatherwidget.widget.WidgetRenderer
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomStage
 import com.weatherwidget.widget.ZoomWindow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
 import java.time.LocalDateTime
 
 /** Implements action state transitions and delegates data/render work to the daily/graph pipelines. */
@@ -198,64 +202,9 @@ internal object WidgetIntentActionHandler {
     ) {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
-        val newSource = stateManager.toggleDisplaySource(appWidgetId)
-        val viewMode = stateManager.getViewMode(appWidgetId)
-        // The switch is counted after the paint, so the tap's latency doesn't pay for it, and in
-        // `finally`, so a failed paint still counts what the user chose (source_view_days).
-        try {
-            showSwitchedSource(context, appWidgetId, repository, newSource, viewMode, startMs)
-        } finally {
-            SourceViewRecorder.record(context, newSource, viewMode, SourceViewTrigger.TOGGLE)
+        switchSource(context, appWidgetId, repository, startMs, SwitchKind.TOGGLE) {
+            stateManager.toggleDisplaySource(appWidgetId)
         }
-    }
-
-    private suspend fun showSwitchedSource(
-        context: Context,
-        appWidgetId: Int,
-        repository: WeatherRepository?,
-        newSource: WeatherSource,
-        viewMode: ViewMode,
-        startMs: Long,
-    ) {
-        val refreshContext = prepareContext(context, appWidgetId, "toggle_api") ?: return
-        val now = LocalDateTime.now()
-        val forced = if (
-            GraphInteractionRenderer.selectedSourceNeedsRefresh(
-                context,
-                appWidgetId,
-                refreshContext,
-                newSource,
-                now,
-                System.currentTimeMillis(),
-            )
-        ) {
-            refreshRequester.requestForced(
-                context,
-                refreshContext.database.appLogDao(),
-                reason = "toggle_api_stale",
-                targetSourceId = newSource.id,
-            )
-        } else {
-            null
-        }
-        // A source change shows no notice, whatever it queued (user, 2026-10-15): the user is looking
-        // at another source, not asking for data. The outcome is still logged.
-        RefreshNotice.merge(refreshContext.refreshNotice, forced)
-            ?.let { RefreshToast.logSilent(context, "widget_toggle_api", it) }
-        InteractionRenderDispatcher.render(
-            viewMode,
-            request(
-                context,
-                appWidgetId,
-                refreshContext,
-                now,
-                repository,
-                startMs,
-                "TOGGLE_API",
-                "source=${newSource.id}",
-                deferActuals = true,
-            ),
-        )
     }
 
     /**
@@ -269,6 +218,7 @@ internal object WidgetIntentActionHandler {
      * under an older source order (e.g. the shown source was dragged first in Settings). The source
      * is left alone but the widget is repainted, so the button is re-decided (hidden, or recentre):
      * returning silently left a visible button that did nothing on every tap (Fold 4, 2026-10-22).
+     * That repaint is not a switch, so it does not go through [SourceSwitchRunner].
      */
     suspend fun resetSource(
         context: Context,
@@ -296,60 +246,131 @@ internal object WidgetIntentActionHandler {
             )
             return
         }
-        stateManager.setCurrentDisplaySource(appWidgetId, preferred)
-        val viewMode = stateManager.getViewMode(appWidgetId)
-        try {
-            showPreferredSource(context, appWidgetId, repository, preferred, viewMode, startMs)
-        } finally {
-            SourceViewRecorder.record(context, preferred, viewMode, SourceViewTrigger.HOME)
+        switchSource(context, appWidgetId, repository, startMs, SwitchKind.RESET) {
+            stateManager.setCurrentDisplaySource(appWidgetId, preferred)
+            preferred
         }
     }
 
-    private suspend fun showPreferredSource(
+    /** What differs between the API button and the home button's source reset. */
+    private enum class SwitchKind(
+        val trigger: SourceViewTrigger,
+        val reason: String,
+        val staleReason: String,
+        val actionTag: String,
+        val noticeOrigin: String,
+        val deferActuals: Boolean,
+    ) {
+        TOGGLE(SourceViewTrigger.TOGGLE, "toggle_api", "toggle_api_stale", "TOGGLE_API", "widget_toggle_api", true),
+        RESET(SourceViewTrigger.HOME, "reset_source", "reset_source_stale", "RESET_SOURCE", "widget_reset_source", false),
+    }
+
+    /**
+     * A user switch of the displayed source, through the shared [SourceSwitchRunner] (desktop:
+     * `DesktopSourceSwitch`). Persist and paint are the critical path; the view tally, the staleness
+     * probe / forced refresh and the app_logs row follow. They used to run before the paint: the probe
+     * reads Room and the request enqueues WorkManager work, neither of which the paint reads.
+     *
+     * The deferred phase joins this call ([coroutineScope]), so it still ends inside the receiver's
+     * goAsync lifetime, after the widget is painted. A failed paint is held until the deferred phase
+     * finishes, then rethrown: thrown inside the scope it would cancel the phase, and the persisted
+     * switch would go uncounted and a source with no data unrefreshed.
+     * plans/261029-shared-source-switch-runner.md
+     */
+    private suspend fun switchSource(
         context: Context,
         appWidgetId: Int,
         repository: WeatherRepository?,
-        preferred: WeatherSource,
-        viewMode: ViewMode,
         startMs: Long,
+        kind: SwitchKind,
+        select: () -> WeatherSource,
     ) {
-        val refreshContext = prepareContext(context, appWidgetId, "reset_source") ?: return
-        val now = LocalDateTime.now()
-        val forced = if (
-            GraphInteractionRenderer.selectedSourceNeedsRefresh(
+        val from = WidgetStateManager(context).getCurrentDisplaySource(appWidgetId)
+        val host = WidgetSourceSwitchHost(context, appWidgetId, repository, startMs, kind, select)
+        var failure: Exception? = null
+        coroutineScope {
+            try {
+                SourceSwitchRunner(host, platform = "android").run(from, kind.trigger, this)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failure = e // already logged by the runner
+            }
+        }
+        failure?.let { throw it }
+    }
+
+    private class WidgetSourceSwitchHost(
+        private val context: Context,
+        private val appWidgetId: Int,
+        private val repository: WeatherRepository?,
+        private val startMs: Long,
+        private val kind: SwitchKind,
+        private val select: () -> WeatherSource,
+    ) : SourceSwitchRunner.Host {
+        private val now = LocalDateTime.now()
+        private val viewMode = WidgetStateManager(context).getViewMode(appWidgetId)
+
+        /** Set by the paint; null when there was no location (the no-location state was painted). */
+        private var refreshContext: WidgetRefreshContextResolver.Resolved? = null
+
+        override suspend fun persistSelection(): WeatherSource = select()
+
+        override suspend fun showFromCache(source: WeatherSource) {
+            val resolved = prepareContext(context, appWidgetId, kind.reason) ?: return
+            refreshContext = resolved
+            InteractionRenderDispatcher.render(
+                viewMode,
+                request(
+                    context,
+                    appWidgetId,
+                    resolved,
+                    now,
+                    repository,
+                    startMs,
+                    kind.actionTag,
+                    "source=${source.id}",
+                    deferActuals = kind.deferActuals,
+                ),
+            )
+        }
+
+        override suspend fun refreshIfStale(source: WeatherSource): RefreshOutcome {
+            val resolved = refreshContext ?: return RefreshOutcome.SKIPPED
+            val stale = GraphInteractionRenderer.selectedSourceNeedsRefresh(
                 context,
                 appWidgetId,
-                refreshContext,
-                preferred,
+                resolved,
+                source,
                 now,
                 System.currentTimeMillis(),
             )
-        ) {
-            refreshRequester.requestForced(
-                context,
-                refreshContext.database.appLogDao(),
-                reason = "reset_source_stale",
-                targetSourceId = preferred.id,
-            )
-        } else {
-            null
+            val forced = if (stale) {
+                refreshRequester.requestForced(
+                    context,
+                    resolved.database.appLogDao(),
+                    reason = kind.staleReason,
+                    targetSourceId = source.id,
+                )
+            } else {
+                null
+            }
+            // A source change shows no notice, whatever it queued (user, 2026-10-15): the user is
+            // looking at another source, not asking for data. The outcome is still logged.
+            RefreshNotice.merge(resolved.refreshNotice, forced)
+                ?.let { RefreshToast.logSilent(context, kind.noticeOrigin, it) }
+            return when {
+                !stale -> RefreshOutcome.FRESH
+                forced != null -> RefreshOutcome.QUEUED
+                else -> RefreshOutcome.FAILED
+            }
         }
-        // A source change, like the toggle: no notice, only the log row.
-        RefreshNotice.merge(refreshContext.refreshNotice, forced)
-            ?.let { RefreshToast.logSilent(context, "widget_reset_source", it) }
-        InteractionRenderDispatcher.render(
-            viewMode,
-            request(
-                context,
-                appWidgetId,
-                refreshContext,
-                now,
-                repository,
-                startMs,
-                "RESET_SOURCE",
-                "source=${preferred.id}",
-            ),
-        )
+
+        override suspend fun recordView(source: WeatherSource) =
+            SourceViewRecorder.record(context, source, viewMode, kind.trigger)
+
+        override suspend fun persistLog(tag: String, message: String, level: String) =
+            WeatherDatabase.getDatabase(context).appLogDao().log(tag, message, level)
     }
 
     suspend fun toggleView(

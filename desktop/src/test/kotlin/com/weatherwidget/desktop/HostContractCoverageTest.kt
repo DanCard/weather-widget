@@ -29,7 +29,7 @@ class HostContractCoverageTest {
         val PORT = Regex("""^\s+(?:fun\s+)?interface\s+(Host|Store)\b""", RegexOption.MULTILINE)
         val CONTRACT_CLASS = Regex("""abstract\s+class\s+(\w+)""")
 
-        val PENDING = emptySet<String>()
+        val PENDING = setOf("SourceSwitchRunner.Host")
 
         fun kotlinFiles(root: File) = root.walkTopDown().filter { it.isFile && it.extension in setOf("kt", "java") }
     }

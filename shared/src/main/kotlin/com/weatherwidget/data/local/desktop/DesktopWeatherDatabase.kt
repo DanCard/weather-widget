@@ -9,12 +9,16 @@ import java.sql.Connection
 import java.sql.DriverManager
 import kotlin.io.path.createDirectories
 
-class DesktopWeatherDatabase(private val dbPath: Path) {
+class DesktopWeatherDatabase(
+    private val dbPath: Path,
+    private val writeTiming: DesktopWriteTiming = DesktopWriteTiming(),
+) {
 
     init {
         dbPath.parent.createDirectories()
     }
 
+    /** A new connection, timed by [DesktopWriteTiming] so slow writes name themselves (`DB_WRITE_SLOW`). */
     fun getConnection(): Connection {
         val url = "jdbc:sqlite:${dbPath.toAbsolutePath()}"
         val config = org.sqlite.SQLiteConfig().apply {
@@ -22,7 +26,7 @@ class DesktopWeatherDatabase(private val dbPath: Path) {
             setBusyTimeout(5000)
             setJournalMode(org.sqlite.SQLiteConfig.JournalMode.WAL)
         }
-        return config.createConnection(url)
+        return writeTiming.open { config.createConnection(url) }
     }
 
     fun initialize() {
