@@ -71,12 +71,16 @@ object WidgetWorkScheduler {
      * stays addressable.
      */
     const val WORK_NAME_PRE_UNPLUG = "weather_widget_pre_wake"
+
+    /** [enqueueDueWakeSync]'s own name: the one pending due-time sync. */
+    const val WORK_NAME_DUE_WAKE = "weather_widget_due_wake"
+    private const val DUE_WAKE_PREFS = "due_wake_prefs"
+    private const val KEY_DUE_WAKE_AT_MS = "planned_at_ms"
     private const val WORK_NAME_UI_DELAYED_PREFIX = "weather_widget_one_time_ui_delayed_"
     private const val WORK_NAME_FAILURE_BANNER_STAGE_PREFIX = "weather_widget_failure_banner_stage_"
 
     fun schedulePeriodicSync(context: Context) {
-        val snapshot = BatterySnapshotProvider.snapshot(context)
-        val tickMinutes = ForecastFetchPolicy.periodicTickMinutes(snapshot.isCharging, snapshot.batteryLevel)
+        val tickMinutes = ForecastFetchPolicy.BACKSTOP_TICK_MINUTES
         val request =
             PeriodicWorkRequestBuilder<WeatherWidgetWorker>(tickMinutes, TimeUnit.MINUTES)
                 .setInputData(
@@ -100,14 +104,53 @@ object WidgetWorkScheduler {
             ExistingPeriodicWorkPolicy.UPDATE,
             request,
         )
-        val nextWindowStartMs =
-            System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(tickMinutes)
-        Log.d(
-            TAG,
-            "PERIODIC_REFRESH_SCHEDULE: name=$WORK_NAME_PERIODIC intervalMinutes=$tickMinutes " +
-                "charging=${snapshot.isCharging} battery=${snapshot.batteryLevel} policy=update " +
-                "nextWindowStartMs=$nextWindowStartMs",
+        Log.d(TAG, "PERIODIC_REFRESH_SCHEDULE: name=$WORK_NAME_PERIODIC intervalMinutes=$tickMinutes policy=update (backstop)")
+    }
+
+    /**
+     * The next due-time sync: an unforced sync [delayMs] from now, when the shared
+     * [com.weatherwidget.data.remote.ForecastSchedule] says the next forecast (or pre-unplug lead) comes
+     * due — Android's form of desktop's forecast-loop sleep. Enqueued after every full sync, so it
+     * always reflects the latest plan (plans/261028-screen-off-cadence-and-due-time-wakes.md).
+     */
+    fun enqueueDueWakeSync(context: Context, delayMs: Long, onlyIfEarlier: Boolean = false): OneTimeWorkRequest? {
+        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, DUE_WAKE_PREFS)
+        val nowMs = System.currentTimeMillis()
+        val atMs = nowMs + delayMs
+        // A screen-on re-plan may only bring the wake forward: the planned one can be another source's.
+        val planned = prefs.getLong(KEY_DUE_WAKE_AT_MS, 0L).takeIf { it > nowMs }
+        if (onlyIfEarlier && planned != null && planned <= atMs) return null
+        prefs.edit().putLong(KEY_DUE_WAKE_AT_MS, atMs).apply()
+        return enqueueFullSync(
+            context = context,
+            uniqueName = WORK_NAME_DUE_WAKE,
+            policy = delayedPolicy(context, WORK_NAME_DUE_WAKE),
+            forceRefresh = false,
+            reason = "due_wake",
+            initialDelayMs = delayMs,
+            constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),
         )
+    }
+
+    /** Whether a due-time sync is planned for the future ([enqueueDueWakeSync]). */
+    fun dueWakePending(context: Context): Boolean =
+        com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, DUE_WAKE_PREFS)
+            .getLong(KEY_DUE_WAKE_AT_MS, 0L) > System.currentTimeMillis()
+
+    /**
+     * REPLACE for a pending delayed sync, so a moved due time moves it — but APPEND_OR_REPLACE when the
+     * unique work is running, because the sync that re-plans is often that very work and REPLACE would
+     * cancel a running [WeatherWidgetWorker] (AGENTS.md rule 6).
+     */
+    private fun delayedPolicy(context: Context, uniqueName: String): ExistingWorkPolicy {
+        val running = try {
+            WorkManager.getInstance(context).getWorkInfosForUniqueWork(uniqueName).get(2, TimeUnit.SECONDS)
+                .any { it.state == androidx.work.WorkInfo.State.RUNNING }
+        } catch (e: Exception) {
+            Log.w(TAG, "Work state read failed for $uniqueName; appending", e)
+            true
+        }
+        return if (running) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.REPLACE
     }
 
     fun enqueueRedundantImmediateSync(
@@ -127,14 +170,14 @@ object WidgetWorkScheduler {
 
     /**
      * An unforced sync [delayMs] from now, on a charger with a network — the cadence makes it LONG
-     * when it lands in the lead before the predicted unplug ([PreUnplugFetchScheduler]). REPLACE on
-     * delayed work: a moved prediction moves the check.
+     * when it lands in the lead before the predicted unplug ([PreUnplugFetchScheduler]). A moved
+     * prediction moves the check ([delayedPolicy]).
      */
     fun enqueuePreUnplugSync(context: Context, delayMs: Long): OneTimeWorkRequest =
         enqueueFullSync(
             context = context,
             uniqueName = WORK_NAME_PRE_UNPLUG,
-            policy = ExistingWorkPolicy.REPLACE,
+            policy = delayedPolicy(context, WORK_NAME_PRE_UNPLUG),
             forceRefresh = false,
             reason = "pre_unplug",
             initialDelayMs = delayMs,

@@ -385,7 +385,8 @@ internal class DaemonRuntime(
 
         // Charger / battery detector (interrupt-driven): UPower PropertiesChanged. Percentage arrives every
         // percent, so the forecast loop is woken only when the cadence tier changes (BatteryTier.cadenceTier).
-        // A machine with no battery never signals; the loop's 2 h cap covers it, and a dead stream too.
+        // A machine with no battery never signals. A dead stream is covered by the 5-min charge sighting
+        // below, which also wakes the loop on a tier change.
         daemonScope.launch(Dispatchers.IO) {
             try {
                 val proc = ProcessBuilder(
@@ -425,9 +426,16 @@ internal class DaemonRuntime(
         // Charge sightings for the pre-unplug rule: bound an unplug the UPower monitor missed (at most
         // CHARGE_SIGHTING_INTERVAL_MS early), re-arm, and log the learned patterns once a day.
         daemonScope.launch(Dispatchers.IO) {
+            var sightedTier: Int? = null
             while (true) {
                 try {
-                    preUnplug.observePower(PowerDetector.getPowerState().isCharging)
+                    val power = PowerDetector.getPowerState()
+                    val tier = BatteryTier.cadenceTier(power.isCharging, power.batteryLevel)
+                    // The UPower monitor's job when it is alive; this bounds a dead one to 5 min now
+                    // that the forecast loop's cap is 24 h.
+                    if (sightedTier != null && tier != sightedTier) wakeForecastLoop("power_sighting")
+                    sightedTier = tier
+                    preUnplug.observePower(power.isCharging)
                     preUnplug.arm(trigger = "tick")
                     preUnplug.dailyPatternLog()
                 } catch (e: CancellationException) {
@@ -976,10 +984,12 @@ internal class DaemonRuntime(
                 while (true) {
                     val (isCharging, level) = PowerDetector.getPowerState()
                     val screenOn = ScreenStateDetector.isScreenOn()
-                    val delayMs = DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging, level, screenOn)
+                    val delayMs = DesktopFetchStrategy.getObservationRefreshDelayMs(
+                        isCharging, level, screenOn, watchArmed = dominantTempWatchStore.load().armed,
+                    )
 
                     if (delayMs == null) {
-                        Log.i(TAG, "Observation loop: background fetch suspended due to low battery ($level%). Re-checking in 5 min.")
+                        Log.i(TAG, "Observation loop: background fetch suspended (battery $level%, screenOn=$screenOn). Re-checking in 5 min.")
                         delay(SUSPEND_RECHECK_INTERVAL_MS)
                         continue
                     }
@@ -1076,7 +1086,7 @@ internal class DaemonRuntime(
             }
 
             // 3c. Forecast fetch loop. Sleeps until the earliest due time across the
-            // sources (shared ForecastSchedule), capped at 2 h, and is woken sooner by a power-tier change
+            // sources (shared ForecastSchedule), capped at 24 h, and is woken sooner by a power-tier change
             // or the screen coming on. Every wake re-plans each source (ForecastHorizonCadence, one rule
             // for every source). performance/261025-every-forecast-fetch-long.md
             launch {

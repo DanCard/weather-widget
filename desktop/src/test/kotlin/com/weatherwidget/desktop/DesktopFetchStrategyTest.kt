@@ -20,9 +20,10 @@ class DesktopFetchStrategyTest {
     }
 
     @Test
-    fun `getObservationRefreshDelayMs returns 30 min when charging and screen off`() {
-        assertEquals(30 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 20, screenOn = false))
-        assertEquals(30 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 90, screenOn = false))
+    fun `getObservationRefreshDelayMs is hourly when charging and screen off, 30 min while the watch is armed`() {
+        assertEquals(60 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 20, screenOn = false))
+        assertEquals(60 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 90, screenOn = false))
+        assertEquals(30 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 90, screenOn = false, watchArmed = true))
     }
 
     @Test
@@ -47,9 +48,10 @@ class DesktopFetchStrategyTest {
     }
 
     @Test
-    fun `getObservationRefreshDelayMs returns 45 min on battery at 70 or more with screen off`() {
-        assertEquals(45 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 71, screenOn = false))
-        assertEquals(45 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 70, screenOn = false))
+    fun `getObservationRefreshDelayMs on battery at 70 or more with screen off is none, 45 min while the watch is armed`() {
+        assertNull(DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 71, screenOn = false))
+        assertNull(DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 70, screenOn = false))
+        assertEquals(45 * MS_PER_MINUTE, DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 70, screenOn = false, watchArmed = true))
     }
 
     @Test

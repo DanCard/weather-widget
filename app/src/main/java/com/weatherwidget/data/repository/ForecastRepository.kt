@@ -370,6 +370,30 @@ class ForecastRepository
         internal suspend fun dailyHistoryAfterFetch(latitude: Double, longitude: Double) =
             dailyHistorySnapshotter.afterFetch(latitude, longitude)
 
+        /**
+         * When an unforced sync next has something to fetch at the site: the shared
+         * [com.weatherwidget.data.remote.ForecastSchedule.next] over the same plan a sync makes (the
+         * background source gate included) — the due-time wake's target, as desktop's forecast loop
+         * sleeps on it (plans/261028-screen-off-cadence-and-due-time-wakes.md).
+         */
+        internal suspend fun nextForecastDue(
+            latitude: Double,
+            longitude: Double,
+            fetchContext: ForecastFetchContext,
+        ): com.weatherwidget.data.remote.ForecastSchedule.Due? {
+            val gate = com.weatherwidget.widget.SourceFetchGateLoader.load(context, widgetStateManager, latitude, longitude)
+            val plan = fetchCoordinator.planSync(
+                cachedForecasts = emptyList(),
+                forceRefresh = false,
+                targetSourceId = null,
+                fetchContext = fetchContext,
+                backgroundSources = gate?.forecasts,
+                latitude = latitude,
+                longitude = longitude,
+            )
+            return com.weatherwidget.data.remote.ForecastSchedule.next(plan.sources.mapNotNull { it.nextDue })
+        }
+
         internal suspend fun dailyHistoryUpkeepIfDue(latitude: Double, longitude: Double, isCharging: Boolean) =
             dailyHistorySnapshotter.upkeepIfDue(latitude, longitude, isCharging)
 

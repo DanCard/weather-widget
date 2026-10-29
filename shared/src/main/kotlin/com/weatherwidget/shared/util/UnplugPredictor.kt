@@ -163,7 +163,10 @@ object UnplugPredictor {
             .minByOrNull { it.atMs }
     }
 
-    /** `UNPLUG_PATTERNS` message: `tue=11:40-11:50 p=1.00(2/0) on; weekday=none; alarm=07:00 p=0.25(0/2) off`. */
+    /**
+     * `UNPLUG_PATTERNS` message: `tue=11:40-11:50 p=1.00(2/0) on; alarm=07:00 p=0.25(0/2) off;
+     * sessions=9 estimated=1/9` — `estimated` counts unplugs placed at a sighting, not heard.
+     */
     fun logLine(state: ChargeHistory.State, nextAlarmMs: Long?, nowMs: Long, zone: ZoneId): String {
         val patterns = patterns(state, nowMs, zone)
         val parts = patterns.map { p ->
@@ -173,7 +176,7 @@ object UnplugPredictor {
             val t = alarmTrust(state, a, nowMs, zone)
             "alarm=${hhmm(minuteOf(at(a, zone)))} p=${"%.2f".format(t.rate)}(${t.hits}/${t.misses}) ${if (t.trusted) "on" else "off"}"
         } ?: "alarm=none"
-        return (parts + alarm + "sessions=${state.sessions.size}").joinToString("; ")
+        return (parts + alarm + "sessions=${state.sessions.size} estimated=${state.sessions.count { !it.exact }}/${state.sessions.size}").joinToString("; ")
     }
 
     /**

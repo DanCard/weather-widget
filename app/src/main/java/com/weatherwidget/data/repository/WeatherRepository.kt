@@ -189,6 +189,10 @@ class WeatherRepository
         suspend fun dailyHistoryAfterFetch(latitude: Double, longitude: Double) =
             forecastRepository.dailyHistoryAfterFetch(latitude, longitude)
 
+        /** [ForecastRepository.nextForecastDue]. */
+        suspend fun nextForecastDue(latitude: Double, longitude: Double, fetchContext: com.weatherwidget.widget.ForecastFetchContext) =
+            forecastRepository.nextForecastDue(latitude, longitude, fetchContext)
+
         /** The month-wide daily-history passes, once a day on a charger (DailyHistoryRun.upkeepIfDue). */
         suspend fun dailyHistoryUpkeepIfDue(latitude: Double, longitude: Double, isCharging: Boolean) =
             forecastRepository.dailyHistoryUpkeepIfDue(latitude, longitude, isCharging)

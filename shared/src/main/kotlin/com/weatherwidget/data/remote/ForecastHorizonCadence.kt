@@ -155,6 +155,14 @@ object ForecastHorizonCadence {
     fun screenOnCatchUp(isCharging: Boolean, lastFetchMs: Long?, nowMs: Long): Boolean =
         isCharging && decide(isCharging = true, batteryLevel = 100, isScreenOn = true, lastFetchMs = lastFetchMs, nowMs = nowMs).due != null
 
+    /**
+     * When a fetch comes due now that the screen is on: on battery the screen-on interval is shorter
+     * (4 h, not 8 h), so a platform moves its next wake to this rather than fetching
+     * (plans/261028-screen-off-cadence-and-due-time-wakes.md).
+     */
+    fun screenOnDueAtMs(isCharging: Boolean, batteryLevel: Int, lastFetchMs: Long?, nowMs: Long): Long =
+        decide(isCharging, batteryLevel, isScreenOn = true, lastFetchMs = lastFetchMs, nowMs = nowMs).dueAtMs
+
     /** Hours a fetch of [sourceId] asks for: only a source billed per day honours more than its routine reach. */
     fun askHours(sourceId: String): Int {
         val reach = HourlyHorizons.of(sourceId)

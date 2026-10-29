@@ -94,7 +94,7 @@ class DesktopForecastPlannerTest {
     }
 
     @Test
-    fun `after a fetch nothing is due, the next comes due in 4 h and the loop sleeps the 2 h cap`() = runTest {
+    fun `after a fetch nothing is due, the next comes due in 4 h and the loop sleeps until then`() = runTest {
         fetch()
         val now = System.currentTimeMillis()
 
@@ -104,7 +104,7 @@ class DesktopForecastPlannerTest {
         val next = planner().next(listOf(om), now)!!
         assertEquals(om, next.sourceId)
         assertTrue("next due ≈ 4 h out", next.atMs in now + 4 * hour - grace - minute..now + 4 * hour)
-        assertEquals(ForecastSchedule.Reason.CAP, ForecastSchedule.sleep(next, now, fetchFailed = false).reason)
+        assertEquals(ForecastSchedule.Reason.DUE, ForecastSchedule.sleep(next, now, fetchFailed = false).reason)
     }
 
     @Test

@@ -229,7 +229,8 @@ class ScreenOnReceiver : BroadcastReceiver() {
         UsageHoursTracker.sight(context.applicationContext)
         resampleLocationAsync(context, trigger = "screen_on")
         startBatteryScreenOnLoop(context)
-        startChargingForecastCatchUp(context)
+        startForecastCatchUp(context)
+        sightCharger(context)
 
         if (!WidgetStateManager(context.applicationContext).isPaintOwed()) return
 
@@ -290,25 +291,57 @@ class ScreenOnReceiver : BroadcastReceiver() {
     }
 
     /**
-     * On a charger, the screen coming on fetches a displayed source's forecast when the 4 h screen-on
-     * interval makes it due ([ForecastHorizonCadence.screenOnCatchUp]) — free power and a user looking.
-     * This is what replaced the bare-alarm pre-wake guess: a phone still charging at screen-on fetches
-     * now, and only a predicted unplug fetches ahead (plans/261028-learned-unplug-prediction.md). KEEP:
-     * a running sync is never cancelled, and it already decides each source the same way.
+     * A charger sighting for the unplug history: free, and when the screen comes on just before an
+     * unplug ("wake the phone, then pull the cable") it places an unheard unplug within minutes
+     * (plans/261028-screen-off-cadence-and-due-time-wakes.md).
      */
-    private fun startChargingForecastCatchUp(context: Context) {
-        if (!getBatteryState(context).isCharging) return
-        val location = ActiveLocationResolver.current(context) ?: return
-        val nowMs = clock()
-        val due = chargingForecastCatchUpSources(WidgetStateManager(context.applicationContext), location.first, location.second, nowMs)
-        if (due.isEmpty()) return
-        WidgetWorkScheduler.enqueueRedundantImmediateSync(context, forceRefresh = false, reason = "charging_screen_on_forecast")
+    private fun sightCharger(context: Context) {
+        val charging = getBatteryState(context).isCharging
         val pendingResult = goAsync()
         CoroutineScope(ioDispatcher).launch {
             try {
-                WeatherDatabase.getDatabase(context).appLogDao().log("SCREEN_ON_FORECAST", "outcome=sync_enqueued due=${due.joinToString(",")}", "INFO")
+                PreUnplugFetchScheduler.runner(context.applicationContext).observePower(charging)
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to persist SCREEN_ON_FORECAST log", e)
+                Log.w(TAG, "Screen-on charger sighting failed", e)
+            } finally {
+                pendingResult?.finish()
+            }
+        }
+    }
+
+    /**
+     * The screen came on: the forecast interval is the screen-on one now (4 h). On a charger a displayed
+     * source past it fetches now ([ForecastHorizonCadence.screenOnCatchUp]) — free power and a user
+     * looking; this replaced the bare-alarm pre-wake guess (plans/261028-learned-unplug-prediction.md).
+     * On battery it only moves the due-time sync to when the shorter interval comes due
+     * ([ForecastHorizonCadence.screenOnDueAtMs]), as the hourly tick used to notice
+     * (plans/261028-screen-off-cadence-and-due-time-wakes.md). KEEP / the due-wake policy: a running sync
+     * is never cancelled, and it decides each source the same way.
+     */
+    private fun startForecastCatchUp(context: Context) {
+        val battery = getBatteryState(context)
+        val nowMs = clock()
+        val pendingResult = goAsync()
+        // Off the main thread: the due-wake policy reads WorkManager state.
+        CoroutineScope(ioDispatcher).launch {
+            try {
+                val location = ActiveLocationResolver.current(context) ?: return@launch
+                val stateManager = WidgetStateManager(context.applicationContext)
+                val line = if (battery.isCharging) {
+                    val due = chargingForecastCatchUpSources(stateManager, location.first, location.second, nowMs)
+                    if (due.isEmpty()) return@launch
+                    WidgetWorkScheduler.enqueueRedundantImmediateSync(context, forceRefresh = false, reason = "charging_screen_on_forecast")
+                    "outcome=sync_enqueued due=${due.joinToString(",")}"
+                } else {
+                    val dueAt = screenOnForecastDueAtMs(stateManager, location.first, location.second, nowMs, battery.batteryLevel)
+                        ?: return@launch
+                    val delayMs = (dueAt - nowMs).coerceAtLeast(0L)
+                    WidgetWorkScheduler.enqueueDueWakeSync(context, delayMs, onlyIfEarlier = true) ?: return@launch
+                    "outcome=replanned battery=${battery.batteryLevel} delayMin=${delayMs / 60_000L}"
+                }
+                WeatherDatabase.getDatabase(context).appLogDao().log("SCREEN_ON_FORECAST", line, "INFO")
+            } catch (e: Exception) {
+                Log.w(TAG, "Screen-on forecast catch-up failed", e)
             } finally {
                 pendingResult?.finish()
             }
@@ -420,16 +453,26 @@ class ScreenOnReceiver : BroadcastReceiver() {
         BatterySnapshotProvider.snapshot(context)
 
     companion object {
-        /** Displayed sources whose forecast a charging screen-on should fetch now; quota-blocked ones are skipped. */
-        @VisibleForTesting
-        internal fun chargingForecastCatchUpSources(stateManager: WidgetStateManager, lat: Double, lon: Double, nowMs: Long): List<String> {
+        /** Displayed sources a screen-on judges: visible, displayed on a widget, not quota-blocked. */
+        private fun displayedSourceIds(stateManager: WidgetStateManager, nowMs: Long): List<String> {
             val displayed = stateManager.getActiveDisplaySourceIds()
             return stateManager.getVisibleSourcesOrder()
                 .filter { it != com.weatherwidget.data.model.WeatherSource.GENERIC_GAP && it.id in displayed }
                 .filter { !com.weatherwidget.data.remote.SourceQuotaBlocks.isFullyBlocked(it.id, nowMs) }
-                .filter { com.weatherwidget.data.remote.ForecastHorizonCadence.screenOnCatchUp(true, stateManager.getLastLongFetch(it.id, lat, lon), nowMs) }
                 .map { it.id }
         }
+
+        /** Displayed sources whose forecast a charging screen-on should fetch now. */
+        @VisibleForTesting
+        internal fun chargingForecastCatchUpSources(stateManager: WidgetStateManager, lat: Double, lon: Double, nowMs: Long): List<String> =
+            displayedSourceIds(stateManager, nowMs)
+                .filter { ForecastHorizonCadence.screenOnCatchUp(true, stateManager.getLastLongFetch(it, lat, lon), nowMs) }
+
+        /** The earliest screen-on due time across displayed sources on battery; null when none is displayed. */
+        @VisibleForTesting
+        internal fun screenOnForecastDueAtMs(stateManager: WidgetStateManager, lat: Double, lon: Double, nowMs: Long, batteryLevel: Int): Long? =
+            displayedSourceIds(stateManager, nowMs)
+                .minOfOrNull { ForecastHorizonCadence.screenOnDueAtMs(false, batteryLevel, stateManager.getLastLongFetch(it, lat, lon), nowMs) }
 
 
         /**

@@ -46,6 +46,22 @@ class ChargeHistoryTest {
     }
 
     @Test
+    fun `an unheard unplug within the hourly screen-off sighting gap is still placed`() {
+        // plans/261028-screen-off-cadence-and-due-time-wakes.md: sightings are hourly with the screen off.
+        val seen = charging(charging(ChargeHistory.State(), t0), t0 + 2 * hour)
+        val within = ChargeHistory.observe(seen, false, t0 + 2 * hour + 70 * minute, exact = false)
+        assertEquals(ChargeHistory.Session(t0, t0 + 2 * hour, exact = false), within.state.sessions.single())
+        assertTrue(within.logLine!!, within.logLine!!.contains("estimate=last_seen gapMin=70"))
+        val beyond = ChargeHistory.observe(seen, false, t0 + 2 * hour + 80 * minute, exact = false)
+        assertTrue(beyond.state.sessions.isEmpty())
+        assertEquals(
+            "the bound follows the screen-off charging cadence",
+            (CurrentTempCadence.CHARGING_SCREEN_OFF_MINUTES + ChargeHistory.ESTIMATE_SLACK_MINUTES) * minute,
+            ChargeHistory.MAX_ESTIMATE_GAP_MS,
+        )
+    }
+
+    @Test
     fun `sessions older than the retention are dropped`() {
         val old = ChargeHistory.Session(t0, t0 + hour, true)
         val s = charging(ChargeHistory.State(sessions = listOf(old)), t0 + 60L * 24 * hour)

@@ -7,7 +7,9 @@ package com.weatherwidget.shared.util
  * Neither platform can be sure to hear every unplug (Android delivers no background
  * `ACTION_POWER_DISCONNECTED`; a desktop UPower monitor can die), so a session ends at the exact power
  * event when there was one, else at the last sighting while charging — at most [MAX_ESTIMATE_GAP_MS]
- * early, or the session is dropped as unbounded. Sessions shorter than [MIN_SESSION_MINUTES] (moving the
+ * early, or the session is dropped as unbounded. That bound follows the screen-off charging cadence,
+ * the slowest regular sighting (plans/261028-screen-off-cadence-and-due-time-wakes.md); screen-on
+ * sightings tighten it in between. Sessions shorter than [MIN_SESSION_MINUTES] (moving the
  * phone, a cable wiggle) are not kept. Daytime charges and top-ups are: they are the irregular habits.
  *
  * Pure state + transitions; [ChargeHistoryStore] persists [State] on each platform.
@@ -17,7 +19,9 @@ object ChargeHistory {
     const val MAX_SESSIONS = 400
     const val MAX_ALARMS = 200
     const val MIN_SESSION_MINUTES = 15
-    const val MAX_ESTIMATE_GAP_MS = 45 * 60_000L
+    /** Slack past the screen-off charging cadence before an unheard unplug counts as unbounded. */
+    const val ESTIMATE_SLACK_MINUTES = 15L
+    const val MAX_ESTIMATE_GAP_MS = (CurrentTempCadence.CHARGING_SCREEN_OFF_MINUTES + ESTIMATE_SLACK_MINUTES) * 60_000L
 
     private const val DAY_MS = 86_400_000L
 
@@ -112,7 +116,7 @@ object ChargeHistory {
         val closed = state.copy(chargingSinceMs = null, lastSeenChargingMs = null)
         val unplugAt = if (exact) nowMs else lastSeen
         val sessionMin = (unplugAt - since) / 60_000L
-        val estimate = if (exact) "exact" else "last_seen"
+        val estimate = if (exact) "exact" else "last_seen gapMin=${(nowMs - lastSeen) / 60_000L}"
         if (!exact && nowMs - lastSeen > MAX_ESTIMATE_GAP_MS) {
             return Observed(closed, "action=skipped reason=unbounded gapMin=${(nowMs - lastSeen) / 60_000L} sessionMin=$sessionMin", null)
         }

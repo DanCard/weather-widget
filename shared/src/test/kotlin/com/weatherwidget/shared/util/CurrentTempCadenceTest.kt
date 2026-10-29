@@ -14,21 +14,30 @@ class CurrentTempCadenceTest {
     private val minute = 60_000L
     private val now = 10_000 * minute
 
-    private fun interval(charging: Boolean, screenOn: Boolean, battery: Int) =
-        CurrentTempCadence.intervalMinutes(charging, screenOn, battery)
+    private fun interval(charging: Boolean, screenOn: Boolean, battery: Int, armed: Boolean = false) =
+        CurrentTempCadence.intervalMinutes(charging, screenOn, battery, armed)
 
     @Test
-    fun `charging is 10 min screen on and 30 min screen off at any battery`() {
+    fun `charging is 10 min screen on and hourly screen off at any battery`() {
         assertEquals(10L, interval(true, true, 5))
-        assertEquals(30L, interval(true, false, 5))
-        assertEquals(30L, interval(true, false, 100))
+        assertEquals(60L, interval(true, false, 5))
+        assertEquals(60L, interval(true, false, 100))
     }
 
     @Test
-    fun `battery at 70 percent or more is 20 min screen on and 45 min screen off`() {
+    fun `battery at 70 percent or more is 20 min screen on and none screen off`() {
         assertEquals(20L, interval(false, true, 70))
-        assertEquals(45L, interval(false, false, 70))
-        assertEquals(45L, interval(false, false, 100))
+        assertNull(interval(false, false, 70))
+        assertNull(interval(false, false, 100))
+    }
+
+    @Test
+    fun `an armed dominant-station watch keeps the earlier screen-off pace`() {
+        // plans/261028-screen-off-cadence-and-due-time-wakes.md
+        assertEquals(30L, interval(true, false, 50, armed = true))
+        assertEquals(45L, interval(false, false, 70, armed = true))
+        assertNull(interval(false, false, 69, armed = true))
+        assertEquals("screen on is unchanged", 10L, interval(true, true, 50, armed = true))
     }
 
     @Test
@@ -48,11 +57,19 @@ class CurrentTempCadenceTest {
 
     @Test
     fun `the loop bands exclude the 45-min band, which is the opportunistic rule`() {
-        assertNull(CurrentTempCadence.loopIntervalMinutes(false, false, 90))
-        assertTrue(CurrentTempCadence.opportunisticAllowed(66, screenOn = true))
-        assertFalse(CurrentTempCadence.opportunisticAllowed(69, screenOn = false))
-        assertTrue(CurrentTempCadence.opportunisticAllowed(70, screenOn = false))
-        assertFalse(CurrentTempCadence.opportunisticAllowed(65, screenOn = true))
+        assertNull(CurrentTempCadence.loopIntervalMinutes(false, false, 90, watchArmed = false))
+        assertTrue(CurrentTempCadence.opportunisticAllowed(false, 66, screenOn = true, watchArmed = false))
+        assertFalse(CurrentTempCadence.opportunisticAllowed(false, 69, screenOn = false, watchArmed = true))
+        assertFalse(CurrentTempCadence.opportunisticAllowed(false, 70, screenOn = false, watchArmed = false))
+        assertTrue(CurrentTempCadence.opportunisticAllowed(false, 70, screenOn = false, watchArmed = true))
+        assertFalse(CurrentTempCadence.opportunisticAllowed(false, 65, screenOn = true, watchArmed = false))
+    }
+
+    @Test
+    fun `on a charger the opportunistic band never fetches - the loop covers it`() {
+        for (screenOn in listOf(true, false)) for (armed in listOf(true, false)) {
+            assertFalse(CurrentTempCadence.opportunisticAllowed(true, 90, screenOn, armed))
+        }
     }
 
     @Test

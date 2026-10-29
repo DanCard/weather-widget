@@ -36,31 +36,15 @@ data class ForecastFetchContext(
  */
 object ForecastFetchPolicy {
     /**
-     * How often the periodic worker wakes on a charger. Not a fetch interval: each tick fetches only
-     * the sources whose horizon is due, and also resamples location.
+     * The periodic worker is a backstop, not the scheduler: every full sync enqueues one due-time sync
+     * at the shared [com.weatherwidget.data.remote.ForecastSchedule]'s wake ([WidgetWorkScheduler.enqueueDueWakeSync]),
+     * as desktop's forecast loop sleeps on it. This catches a lost due-time sync; screen-on catches it
+     * sooner (plans/261028-screen-off-cadence-and-due-time-wakes.md). Was 60 min on a charger or
+     * ≥ 80 %, 240 min ≥ 70 %, battery tiers below.
      */
-    const val CHARGING_TICK_MINUTES = 60L
-
-    /**
-     * Off a charger with a high battery: the screen-on interval, so a 4-h fetch is never held to a
-     * longer tick.
-     */
-    const val HIGH_BATTERY_TICK_MINUTES = com.weatherwidget.data.remote.ForecastHorizonCadence.SCREEN_ON_HOURS * 60L
-
-    private const val OFF_CHARGER_LOW_BATTERY_TICK_MINUTES = 24 * 60L
+    const val BACKSTOP_TICK_MINUTES = com.weatherwidget.data.remote.ForecastSchedule.MAX_SLEEP_MS / 60_000L
 
     private const val DEFAULT_GRACE_MS = 120_000L
-
-    fun periodicTickMinutes(isCharging: Boolean, batteryLevel: Int): Long {
-        if (BatteryTier.treatAsCharging(isCharging, batteryLevel)) return CHARGING_TICK_MINUTES
-        if (com.weatherwidget.data.remote.ForecastHorizonCadence.isHighBattery(isCharging, batteryLevel)) {
-            return HIGH_BATTERY_TICK_MINUTES
-        }
-        // Below the high level only the 24-h LONG fetch is scheduled, but the tick also resamples
-        // location, so it keeps its battery-tier pace.
-        return BatteryFetchStrategy.computeFetchInterval(isCharging = false, batteryLevel = batteryLevel)
-            ?: OFF_CHARGER_LOW_BATTERY_TICK_MINUTES
-    }
 
     fun isDue(
         lastFetchTimeMs: Long,

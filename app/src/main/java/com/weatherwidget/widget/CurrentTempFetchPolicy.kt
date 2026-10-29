@@ -16,15 +16,17 @@ object CurrentTempFetchPolicy {
     /**
      * Returns the appropriate charging loop interval based on screen state.
      */
-    fun chargingIntervalMinutes(isScreenInteractive: Boolean): Long =
-        CurrentTempCadence.chargingIntervalMinutes(isScreenInteractive)
+    fun chargingIntervalMinutes(isScreenInteractive: Boolean, watchArmed: Boolean = false): Long =
+        CurrentTempCadence.chargingIntervalMinutes(isScreenInteractive, watchArmed)
 
     /**
      * The one definition of the current-temp loop cadence; null means the loop does not run.
      *
-     * - charging: 10 min screen on, 16 min screen off
+     * - charging: 10 min screen on, 60 min screen off (30 while the dominant-station watch is armed)
      * - on battery, screen on, battery >= 70%: 20 min (user's decision 2026-10-03)
      * - otherwise: null — only the screen-blind 45-min opportunistic job remains
+     *
+     * [watchArmed]: [WidgetStateManager.notifyOnDominantTempChange] — every production caller passes it.
      *
      * [shouldScheduleChargingLoop], [postRunLoopAction] and the loop branch of [shouldFetchNow] all
      * derive from this. They used to each collapse to `isCharging` independently; if any one of
@@ -34,7 +36,8 @@ object CurrentTempFetchPolicy {
         isCharging: Boolean,
         isScreenInteractive: Boolean,
         batteryLevel: Int,
-    ): Long? = CurrentTempCadence.loopIntervalMinutes(isCharging, isScreenInteractive, batteryLevel)
+        watchArmed: Boolean = false,
+    ): Long? = CurrentTempCadence.loopIntervalMinutes(isCharging, isScreenInteractive, batteryLevel, watchArmed)
 
     /** Log/work reason for a loop iteration, so the trace shows which cadence ran. */
     fun loopReason(isCharging: Boolean, overdue: Boolean): String {
@@ -65,14 +68,15 @@ object CurrentTempFetchPolicy {
         isOpportunisticContext: Boolean,
         batteryLevel: Int,
         isManual: Boolean = false,
+        watchArmed: Boolean = false,
     ): Boolean {
         if (isManual) return true
 
         if (isOpportunisticContext) {
-            // Screen on > 65 %, screen off ≥ 70 % (CurrentTempCadence.opportunisticAllowed).
-            return CurrentTempCadence.opportunisticAllowed(batteryLevel, isScreenInteractive)
+            // Battery only; screen on > 65 %, screen off ≥ 70 % while the watch is armed.
+            return CurrentTempCadence.opportunisticAllowed(isCharging, batteryLevel, isScreenInteractive, watchArmed)
         }
-        return loopIntervalMinutes(isCharging, isScreenInteractive, batteryLevel) != null
+        return loopIntervalMinutes(isCharging, isScreenInteractive, batteryLevel, watchArmed) != null
     }
 
     /**
@@ -119,7 +123,8 @@ object CurrentTempFetchPolicy {
         isCharging: Boolean,
         isScreenInteractive: Boolean,
         batteryLevel: Int,
-    ): Boolean = loopIntervalMinutes(isCharging, isScreenInteractive, batteryLevel) != null
+        watchArmed: Boolean = false,
+    ): Boolean = loopIntervalMinutes(isCharging, isScreenInteractive, batteryLevel, watchArmed) != null
 
     /**
      * What a worker should do with the charging-loop heartbeat once a current-temp run finishes.
@@ -146,8 +151,9 @@ object CurrentTempFetchPolicy {
         isCharging: Boolean,
         isScreenInteractive: Boolean,
         batteryLevel: Int,
+        watchArmed: Boolean = false,
     ): PostRunLoopAction =
-        if (shouldScheduleChargingLoop(isCharging, isScreenInteractive, batteryLevel)) {
+        if (shouldScheduleChargingLoop(isCharging, isScreenInteractive, batteryLevel, watchArmed)) {
             PostRunLoopAction.SCHEDULE_NEXT
         } else {
             PostRunLoopAction.NO_RESCHEDULE

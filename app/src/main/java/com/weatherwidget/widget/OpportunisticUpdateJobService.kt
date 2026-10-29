@@ -98,6 +98,22 @@ class OpportunisticUpdateJobService : JobService() {
                     // the cooldown is what makes that affordable. A passive lastLocation read only —
                     // no GPS power-up, so the Samsung precise-location rule is untouched.
                     resampleLocation(applicationContext, "opportunistic")
+                    // The location floor and plug-in re-arm above always run; the fetch only where the
+                    // shared band allows it — never on a charger (the loop covers it), and screen off
+                    // only while the dominant-station watch is armed
+                    // (plans/261028-screen-off-cadence-and-due-time-wakes.md).
+                    val interactive = (getSystemService(POWER_SERVICE) as android.os.PowerManager).isInteractive
+                    val fetchAllowed = CurrentTempFetchPolicy.shouldFetchNow(
+                        isCharging = powerState.isCharging,
+                        isScreenInteractive = interactive,
+                        isOpportunisticContext = true,
+                        batteryLevel = powerState.batteryLevel,
+                        watchArmed = WidgetStateManager(applicationContext).notifyOnDominantTempChange(),
+                    )
+                    if (!fetchAllowed) {
+                        logJob(applicationContext, "outcome=policy_skip $state interactive=$interactive", "INFO")
+                        return@launch
+                    }
                     val hasHourly = DataFreshness.hasRecentHourlyData(applicationContext)
                     // Check if we have recent hourly data for interpolation
                     if (hasHourly && !withinStartupGrace) {

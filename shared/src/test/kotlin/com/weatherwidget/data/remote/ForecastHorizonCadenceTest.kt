@@ -40,6 +40,14 @@ class ForecastHorizonCadenceTest {
     }
 
     @Test
+    fun `battery screen-on due time is the 4 h interval, 24 h below 70 percent`() {
+        assertEquals(now - hour + 4 * hour - ForecastHorizonCadence.DUE_GRACE_MS,
+            ForecastHorizonCadence.screenOnDueAtMs(isCharging = false, batteryLevel = 85, lastFetchMs = now - hour, nowMs = now))
+        assertEquals(now - hour + 24 * hour - ForecastHorizonCadence.DUE_GRACE_MS,
+            ForecastHorizonCadence.screenOnDueAtMs(isCharging = false, batteryLevel = 60, lastFetchMs = now - hour, nowMs = now))
+    }
+
+    @Test
     fun `70 percent is high, 69 is low`() {
         assertTrue(ForecastHorizonCadence.isHighBattery(false, 70))
         assertFalse(ForecastHorizonCadence.isHighBattery(false, 69))

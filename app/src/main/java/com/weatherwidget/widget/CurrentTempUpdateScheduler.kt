@@ -147,7 +147,12 @@ object CurrentTempUpdateScheduler {
         // Callers (the ui_update_alarm heartbeat among them) ask unconditionally; scheduling a run
         // the policy will block on arrival only produces a `policy_blocked` no-op later.
         val intervalMinutes =
-            CurrentTempFetchPolicy.loopIntervalMinutes(isCharging, isScreenInteractive, battery.batteryLevel)
+            CurrentTempFetchPolicy.loopIntervalMinutes(
+                isCharging,
+                isScreenInteractive,
+                battery.batteryLevel,
+                watchArmed = WidgetStateManager(context.applicationContext).notifyOnDominantTempChange(),
+            )
         if (intervalMinutes == null) {
             Log.d(TAG, "scheduleNextChargingUpdate: loop not allowed, nothing scheduled")
             return

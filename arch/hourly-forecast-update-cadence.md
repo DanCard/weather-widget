@@ -63,33 +63,45 @@ battery; a device that stays plugged in fetches at screen-on instead.
   `action=alarm_changed` per alarm broadcast), `PRE_UNPLUG_OUTCOME` (hit with minutes early/late, miss,
   unknown). The sync reason is `pre_unplug`.
 
-## Android worker tick
+## Background wakes (both platforms)
 
-`ForecastFetchPolicy.periodicTickMinutes` controls when Android wakes to ask which sources are due
-and to resample location. It is not itself the forecast interval.
+Both platforms wake when the next fetch is due, from the shared `ForecastSchedule`: the earliest
+`ForecastHorizonCadence` due time across the background sources (including the pre-unplug lead),
+floored at 1 minute, 15 minutes after a failed fetch, and capped at 24 hours (`MAX_SLEEP_MS`, the longest
+forecast interval — a backstop for a planner bug, not a poll).
 
-| Power | Periodic tick |
-|---|---|
-| Charging or battery ≥ 80% | 60 minutes |
-| Battery 70–79% | 240 minutes |
-| Battery 50–69% | 480 minutes |
-| Battery < 50% | 24 hours |
-
-Desktop uses `ForecastSchedule` and `DesktopForecastPlanner` to sleep until the next due fetch rather
-than using the Android periodic worker. Power, presence, network restoration, and retry policy can
-wake or defer either platform's scheduler without changing the freshness rules above.
+- **Desktop:** the forecast loop sleeps on it (`FORECAST_LOOP_SLEEP`). Power-tier changes (UPower, or
+  the daemon's 5-minute charger sighting if the monitor is dead), screen wakes, resume and network
+  restore wake it sooner.
+- **Android:** every full sync enqueues one delayed `due_wake` sync at the planned wake
+  (`WidgetWorkScheduler.enqueueDueWakeSync`, logged `FORECAST_DUE_WAKE`; append rather than replace
+  while that work is running). With none pending (after an install or upgrade), a current-temp run plans
+  one (`trigger=missing`). The periodic worker is a 24-hour backstop (`periodic_1440m`). A battery
+  screen-on only brings the due-time sync forward to the 4-hour screen-on due time
+  (`SCREEN_ON_FORECAST outcome=replanned`); a charging screen-on fetches when due.
+- Duties that ride a full sync (NWS gap fill, daily-history upkeep, snapshot prune) are once-a-day or
+  idempotent and run on the next fetch; the battery location floor stays in the 45-minute
+  opportunistic job, which still runs when it no longer fetches.
 
 ## Current observations and temperature
 
 `shared/src/main/kotlin/com/weatherwidget/shared/util/CurrentTempCadence.kt` governs the displayed
 source's current-temperature/recent-observation fetches:
 
-| Power | Screen on | Screen off |
-|---|---|---|
-| Charging | 10 minutes | 30 minutes |
-| Battery ≥ 70% | 20 minutes | 45 minutes |
-| Battery 66–69% | 45 minutes | None |
-| Battery ≤ 65% | None | None |
+| Power | Screen on | Screen off | Screen off, dominant-station watch armed |
+|---|---|---|---|
+| Charging | 10 minutes | 60 minutes | 30 minutes |
+| Battery ≥ 70% | 20 minutes | None | 45 minutes |
+| Battery 66–69% | 45 minutes | None | None |
+| Battery ≤ 65% | None | None | None |
+
+Nobody sees a screen-off reading: a screen-on fetches when the last one is old enough (charging ≥ 15
+minutes, battery ≥ 20 minutes), and history is refilled (NWS gap fill; every forecast fetch takes
+Tomorrow.io's last 23 hours). The armed one-shot notification is the exception. The opportunistic
+45-minute band never fetches on a charger (the loop covers it).
+
+An unplug the app did not hear is placed at the last charging sighting if it is within the screen-off
+charging interval plus 15 minutes (`ChargeHistory.MAX_ESTIMATE_GAP_MS`); a screen-on is a sighting too.
 
 Android uses charging WorkManager, battery screen-on alarms, and an opportunistic JobScheduler band;
 desktop uses its observation loop. Screen-on catch-up fetches only when the relevant observation age
@@ -171,7 +183,8 @@ a substitute for the runtime receiver.
 ## Related code
 
 - Forecast cadence: `ForecastHorizonCadence.kt`
-- Forecast worker tick: `ForecastFetchPolicy.kt` and `BatteryTier.kt`
+- Background wakes: `ForecastSchedule.kt`; Android `WidgetWorkScheduler.enqueueDueWakeSync`,
+  `FullSyncPipeline.kt`, `ScreenOnReceiver.kt`; desktop `DaemonRuntime.kt` forecast loop
 - Pre-unplug fetch: `PreUnplugFetchRunner.kt`, `UnplugPredictor.kt`, `ChargeHistory.kt`; Android
   `PreUnplugFetchScheduler.kt`, desktop `DaemonRuntime.kt` / `DesktopChargeHistoryStore.kt`
 - Observation cadence: `CurrentTempCadence.kt` and `NonPrimaryObservationPolicy.kt`

@@ -58,6 +58,7 @@ class PreUnplugFetchSchedulerTest {
         )
         prefs(PrefsChargeHistoryStore.PREFS_NAME).edit().clear().commit()
         prefs(PrefsChargeHistoryStore.LEGACY_PRE_WAKE_PREFS).edit().clear().commit()
+        PreUnplugFetchScheduler.resetForTesting()
     }
 
     private fun pending(): WorkInfo? =
@@ -142,5 +143,25 @@ class PreUnplugFetchSchedulerTest {
         assertEquals(listOf(displayed), ScreenOnReceiver.chargingForecastCatchUpSources(manager, lat, lon, now))
         manager.markLongFetch(displayed, lat, lon, now - 2 * hour)
         assertTrue(ScreenOnReceiver.chargingForecastCatchUpSources(manager, lat, lon, now).isEmpty())
+    }
+
+    @Test
+    @Suppress("DEPRECATION")
+    fun `a screen-on on the charger records a sighting`() {
+        context.sendStickyBroadcast(
+            Intent(Intent.ACTION_BATTERY_CHANGED).apply {
+                putExtra(android.os.BatteryManager.EXTRA_STATUS, android.os.BatteryManager.BATTERY_STATUS_CHARGING)
+                putExtra(android.os.BatteryManager.EXTRA_PLUGGED, android.os.BatteryManager.BATTERY_PLUGGED_AC)
+                putExtra(android.os.BatteryManager.EXTRA_LEVEL, 90)
+                putExtra(android.os.BatteryManager.EXTRA_SCALE, 100)
+            },
+        )
+        val receiver = ScreenOnReceiver().apply {
+            ioDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher()
+            resampleLocation = { _, _ -> }
+        }
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+        val state = PrefsChargeHistoryStore(context).load()
+        assertTrue("charging session opened by the sighting", state.chargingSinceMs != null && state.lastSeenChargingMs != null)
     }
 }

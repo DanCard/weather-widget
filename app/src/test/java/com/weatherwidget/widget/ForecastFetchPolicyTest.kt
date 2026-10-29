@@ -15,34 +15,10 @@ class ForecastFetchPolicyTest {
     // is the periodic tick that asks it.
 
     @Test
-    fun `periodicTickMinutes is 60 while charging regardless of battery`() {
-        assertEquals(60L, ForecastFetchPolicy.periodicTickMinutes(isCharging = true, batteryLevel = 5))
-        assertEquals(60L, ForecastFetchPolicy.periodicTickMinutes(isCharging = true, batteryLevel = 100))
-    }
-
-    @Test
-    fun `periodicTickMinutes is 60 when battery is at or above 80 percent even off-charger`() {
-        assertEquals(60L, ForecastFetchPolicy.periodicTickMinutes(isCharging = false, batteryLevel = 80))
-        assertEquals(60L, ForecastFetchPolicy.periodicTickMinutes(isCharging = false, batteryLevel = 100))
-    }
-
-    @Test
-    fun `periodicTickMinutes off-charger at 70 to 79 percent is the 4-h SHORT interval`() {
-        assertEquals(240L, ForecastFetchPolicy.periodicTickMinutes(isCharging = false, batteryLevel = 75))
-        // 70 is high for the horizon cadence; the old battery tier made it 480.
-        assertEquals(240L, ForecastFetchPolicy.periodicTickMinutes(isCharging = false, batteryLevel = 70))
-    }
-
-    @Test
-    fun `periodicTickMinutes off-charger below 70 percent keeps the battery tier`() {
-        assertEquals(480L, ForecastFetchPolicy.periodicTickMinutes(isCharging = false, batteryLevel = 60))
-    }
-
-    @Test
-    fun `periodicTickMinutes off-charger below 50 percent falls back to 24 hours`() {
-        // BatteryFetchStrategy returns null; policy provides a safety-net daily tick.
-        val tick = ForecastFetchPolicy.periodicTickMinutes(isCharging = false, batteryLevel = 20)
-        assertEquals(24 * 60L, tick)
+    fun `the periodic worker is a 24 h backstop at every power state`() {
+        // plans/261028-screen-off-cadence-and-due-time-wakes.md: due-time syncs schedule the fetches.
+        assertEquals(24 * 60L, ForecastFetchPolicy.BACKSTOP_TICK_MINUTES)
+        assertEquals(com.weatherwidget.data.remote.ForecastSchedule.MAX_SLEEP_MS / 60_000L, ForecastFetchPolicy.BACKSTOP_TICK_MINUTES)
     }
 
     @Test

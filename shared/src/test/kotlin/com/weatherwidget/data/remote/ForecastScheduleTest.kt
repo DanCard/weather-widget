@@ -37,10 +37,11 @@ class ForecastScheduleTest {
     }
 
     @Test
-    fun `sleep until due, capped at 2 h, floored at 1 min`() {
+    fun `sleep until due, capped at 24 h, floored at 1 min`() {
         assertEquals(ForecastSchedule.Sleep(37 * minute, Reason.DUE, Due("NWS", now + 37 * minute)),
             ForecastSchedule.sleep(Due("NWS", now + 37 * minute), now, fetchFailed = false))
-        assertEquals(2 * hour, ForecastSchedule.sleep(Due("NWS", now + 5 * hour), now, false).ms)
+        assertEquals(Reason.DUE, ForecastSchedule.sleep(Due("NWS", now + 8 * hour), now, false).reason)
+        assertEquals(24 * hour, ForecastSchedule.sleep(Due("NWS", now + 30 * hour), now, false).ms)
         assertEquals(Reason.CAP, ForecastSchedule.sleep(null, now, false).reason)
         assertEquals(minute, ForecastSchedule.sleep(Due("NWS", now - hour), now, false).ms)
     }
@@ -57,7 +58,7 @@ class ForecastScheduleTest {
     fun `log line names the reason and the next source`() {
         assertEquals("sleepMin=37 reason=DUE next=NWS",
             ForecastSchedule.sleep(Due("NWS", now + 37 * minute), now, false).logLine())
-        assertEquals("sleepMin=120 reason=CAP", ForecastSchedule.sleep(null, now, false).logLine())
+        assertEquals("sleepMin=1440 reason=CAP", ForecastSchedule.sleep(null, now, false).logLine())
     }
 
     @Test

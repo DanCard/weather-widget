@@ -32,6 +32,12 @@ internal object PreUnplugFetchScheduler {
             runner ?: PreUnplugFetchRunner(AndroidHost(context.applicationContext)).also { runner = it }
         }
 
+    /** Robolectric gives each test a new Application; the singleton must not keep the last one's. */
+    @androidx.annotation.VisibleForTesting
+    internal fun resetForTesting() {
+        runner = null
+    }
+
     /** The next predicted unplug, for [ForecastFetchContext.wakeAtMs]; null when none. */
     fun nextWake(context: Context): UnplugPredictor.Prediction? = runner(context).nextWake()
 

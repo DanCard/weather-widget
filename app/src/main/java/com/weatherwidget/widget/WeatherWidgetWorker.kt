@@ -117,7 +117,11 @@ class WeatherWidgetWorker
                 return handleObservationBackfillWork(input)
             }
             if (input.currentTempOnly) {
-                return handleCurrentTempOnlyWork(input, device)
+                return handleCurrentTempOnlyWork(input, device).also {
+                    // Bootstraps the due-time sync after an install/upgrade on a charger; a no-op once one is pending.
+                    runCatching { DueWakePlanner.plan(context, weatherRepository, widgetStateManager, appLogDao, onlyIfMissing = true) }
+                        .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e else Log.w(TAG, "Due-wake planning failed", e) }
+                }
             }
             if (input.nonPrimaryCurrentTempOnly) {
                 return handleNonPrimaryCurrentTempOnlyWork(input, device)
@@ -363,6 +367,7 @@ class WeatherWidgetWorker
                         isOpportunisticContext = input.opportunisticCurrentTemp,
                         batteryLevel = device.batteryLevel,
                         isManual = isManual,
+                        watchArmed = widgetStateManager.notifyOnDominantTempChange(),
                     )
                 ) {
                     appLogDao.log(

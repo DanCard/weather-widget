@@ -169,6 +169,32 @@ class FullSyncPipelineUiOnlyGateTest {
     }
 
     /**
+     * The due-time wake (plans/261028-screen-off-cadence-and-due-time-wakes.md): a full sync enqueues
+     * the next sync at the shared ForecastSchedule's wake, so the periodic worker is only a backstop.
+     * A repaint never re-plans.
+     */
+    @Test
+    fun `a full sync enqueues the next due-time sync at the plan's wake, a repaint does not`() = runBlocking {
+        val workManager = androidx.work.WorkManager.getInstance(context)
+        workManager.cancelUniqueWork(WidgetWorkScheduler.WORK_NAME_DUE_WAKE).result.get()
+        pipeline().run(workInput(uiOnly = true), device(), stopReason = 0)
+        assertTrue(
+            "a repaint never plans",
+            workManager.getWorkInfosForUniqueWork(WidgetWorkScheduler.WORK_NAME_DUE_WAKE).get()
+                .none { it.state == androidx.work.WorkInfo.State.ENQUEUED },
+        )
+
+        val dueIn = 3 * 3_600_000L
+        coEvery { weatherRepository.nextForecastDue(any(), any(), any()) } answers {
+            com.weatherwidget.data.remote.ForecastSchedule.Due(WeatherSource.NWS.id, System.currentTimeMillis() + dueIn)
+        }
+        pipeline().run(workInput(uiOnly = false), device(), stopReason = 0)
+        val pending = workManager.getWorkInfosForUniqueWork(WidgetWorkScheduler.WORK_NAME_DUE_WAKE).get()
+            .single { it.state == androidx.work.WorkInfo.State.ENQUEUED }
+        assertTrue("delay ${pending.initialDelayMillis}", pending.initialDelayMillis in dueIn - 60_000L..dueIn + 60_000L)
+    }
+
+    /**
      * The paired positive case. Without it every `exactly = 0` above would still pass if `run()`
      * returned early and did nothing whatsoever.
      */

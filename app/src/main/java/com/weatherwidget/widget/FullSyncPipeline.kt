@@ -371,6 +371,9 @@ internal class FullSyncPipeline(
                             it.arm(trigger = "sync")
                             it.dailyPatternLog()
                         }
+                        // The next due-time sync, from the plan this sync just moved
+                        // (shared ForecastSchedule; the periodic work is only a backstop).
+                        DueWakePlanner.plan(context, weatherRepository, widgetStateManager, appLogDao, onlyIfMissing = false)
                         UsageHoursTracker.dailyLogLines(context).forEach { (tag, line) -> appLogDao.log(tag, line, "INFO") }
                     } else {
                         WidgetLoopScheduler.manageCurrentTempLoopAfterRun(context, appLogDao, device)

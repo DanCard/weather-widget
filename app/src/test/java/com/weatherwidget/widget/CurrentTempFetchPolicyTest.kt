@@ -47,7 +47,7 @@ class CurrentTempFetchPolicyTest {
     }
 
     @Test
-    fun `battery mode fetches opportunistically above 65 percent screen on, at 70 percent screen off`() {
+    fun `battery mode fetches opportunistically above 65 percent screen on, at 70 percent screen off only while the watch is armed`() {
         assertTrue(
             CurrentTempFetchPolicy.shouldFetchNow(
                 isCharging = false,
@@ -65,12 +65,22 @@ class CurrentTempFetchPolicyTest {
                 batteryLevel = 69,
             ),
         )
+        // Screen off at 70 %: nothing unless the dominant-station watch is armed (2026-10-28).
+        assertFalse(
+            CurrentTempFetchPolicy.shouldFetchNow(
+                isCharging = false,
+                isScreenInteractive = false,
+                isOpportunisticContext = true,
+                batteryLevel = 70,
+            ),
+        )
         assertTrue(
             CurrentTempFetchPolicy.shouldFetchNow(
                 isCharging = false,
                 isScreenInteractive = false,
                 isOpportunisticContext = true,
                 batteryLevel = 70,
+                watchArmed = true,
             ),
         )
         assertFalse(
@@ -100,8 +110,17 @@ class CurrentTempFetchPolicyTest {
     }
 
     @Test
-    fun `opportunistic job is gated at 65 percent while charging too`() {
+    fun `opportunistic job is gated at 65 percent while charging too, and never fetches on a charger`() {
         assertFalse(CurrentTempFetchPolicy.shouldScheduleOpportunisticJob(batteryLevel = 65))
+        assertFalse(
+            "the charging loop covers it",
+            CurrentTempFetchPolicy.shouldFetchNow(
+                isCharging = true,
+                isScreenInteractive = false,
+                isOpportunisticContext = true,
+                batteryLevel = 95,
+            ),
+        )
         assertFalse(
             CurrentTempFetchPolicy.shouldFetchNow(
                 isCharging = true,
@@ -138,7 +157,7 @@ class CurrentTempFetchPolicyTest {
     @Test
     fun `loop interval table - charging 10 or 16, battery screen-on at 70 or more 20, else none`() {
         assertEquals(10L, CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = true, isScreenInteractive = true, batteryLevel = 5))
-        assertEquals(30L, CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = true, isScreenInteractive = false, batteryLevel = 5))
+        assertEquals(60L, CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = true, isScreenInteractive = false, batteryLevel = 5))
         assertEquals(20L, CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = false, isScreenInteractive = true, batteryLevel = 70))
         assertEquals(20L, CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = false, isScreenInteractive = true, batteryLevel = 100))
         assertNull(CurrentTempFetchPolicy.loopIntervalMinutes(isCharging = false, isScreenInteractive = true, batteryLevel = 69))
@@ -231,8 +250,9 @@ class CurrentTempFetchPolicyTest {
     }
 
     @Test
-    fun `charging interval is 30 minutes when screen is off`() {
-        assertEquals(30L, CurrentTempFetchPolicy.chargingIntervalMinutes(isScreenInteractive = false))
+    fun `charging interval is hourly when screen is off, 30 minutes while the watch is armed`() {
+        assertEquals(60L, CurrentTempFetchPolicy.chargingIntervalMinutes(isScreenInteractive = false))
+        assertEquals(30L, CurrentTempFetchPolicy.chargingIntervalMinutes(isScreenInteractive = false, watchArmed = true))
     }
 
     @Test

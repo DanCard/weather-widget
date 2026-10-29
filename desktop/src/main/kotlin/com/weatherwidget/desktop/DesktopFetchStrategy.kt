@@ -19,8 +19,8 @@ object DesktopFetchStrategy {
      * The delay in MS for the next observation fetch, or null when none runs now: the shared
      * [CurrentTempCadence] table, one rule with Android (performance/261011-unify-current-temp-cadence-shared.md).
      */
-    fun getObservationRefreshDelayMs(isCharging: Boolean, batteryLevel: Int, screenOn: Boolean = true): Long? =
-        CurrentTempCadence.intervalMinutes(isCharging, screenOn, batteryLevel)?.times(MS_PER_MINUTE)
+    fun getObservationRefreshDelayMs(isCharging: Boolean, batteryLevel: Int, screenOn: Boolean = true, watchArmed: Boolean = false): Long? =
+        CurrentTempCadence.intervalMinutes(isCharging, screenOn, batteryLevel, watchArmed)?.times(MS_PER_MINUTE)
 
     /**
      * Whether a panel click should refresh observations now: the last observation fetch is at least

@@ -7,8 +7,8 @@ package com.weatherwidget.data.remote
  *
  * Each source has one due time ([ForecastHorizonCadence]); the loop sleeps until the
  * earliest, capped at [MAX_SLEEP_MS] for changes it cannot hear, and re-plans on every wake — the
- * sleep is a forecast, the fetch decision is always "is it due now?". Pure: the desktop daemon uses
- * it; Android's WorkManager tick could.
+ * sleep is a forecast, the fetch decision is always "is it due now?". Pure: the desktop daemon's
+ * forecast loop sleeps on it and Android enqueues its due-time sync from it.
  */
 object ForecastSchedule {
     private const val MINUTE_MS = 60_000L
@@ -16,8 +16,13 @@ object ForecastSchedule {
     /** Slack so a wake that lands a moment early still counts (same as [ForecastHorizonCadence.DUE_GRACE_MS]). */
     const val DUE_GRACE_MS = ForecastHorizonCadence.DUE_GRACE_MS
 
-    /** Longest sleep: bounds how late a change the loop could not hear is noticed. */
-    const val MAX_SLEEP_MS = 120 * MINUTE_MS
+    /**
+     * Longest sleep, Android and desktop: the longest forecast interval, so in normal operation it never
+     * binds. Both platforms hear what moves a due time (power, screen, resume, network, moves) and a
+     * screen-on heals a lost wake, so the cap only backstops a planner bug — it is not a poll
+     * (2 h until 2026-10-28; plans/261028-screen-off-cadence-and-due-time-wakes.md).
+     */
+    const val MAX_SLEEP_MS = ForecastHorizonCadence.LOW_BATTERY_HOURS * 60 * MINUTE_MS
 
     /** Shortest sleep, so a due time already past cannot spin the loop. */
     const val MIN_SLEEP_MS = MINUTE_MS
