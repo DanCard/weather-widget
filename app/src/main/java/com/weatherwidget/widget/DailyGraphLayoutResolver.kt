@@ -5,6 +5,7 @@ import android.graphics.Typeface
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.remote.NwsTemperaturePlausibility.isPlausibleF
+import com.weatherwidget.shared.daily.DailyAxisTemps
 import com.weatherwidget.shared.graph.DailyBarWidths
 import com.weatherwidget.shared.graph.TodayColumnHighlight
 import com.weatherwidget.shared.graph.LargeTodayOverlayPolicy
@@ -122,13 +123,17 @@ internal object DailyGraphLayoutResolver {
         }
 
         days.forEach { day ->
-            include(day.solidLineHigh)
-            include(day.solidLineLow)
-            include(day.dashedLineHigh)
-            include(day.dashedLineLow)
-            include(day.snapshotHigh)
-            include(day.snapshotLow)
-            include(day.ghostLineHigh)
+            DailyAxisTemps.drawn(
+                isPast = day.isPast,
+                isToday = day.isToday,
+                solidHigh = day.solidLineHigh,
+                solidLow = day.solidLineLow,
+                forecastHigh = day.dashedLineHigh,
+                forecastLow = day.dashedLineLow,
+                ghostHigh = day.ghostLineHigh,
+                snapshotHigh = day.snapshotHigh,
+                snapshotLow = day.snapshotLow,
+            ).forEach(::include)
         }
         if (rejected > 0) {
             Log.w(

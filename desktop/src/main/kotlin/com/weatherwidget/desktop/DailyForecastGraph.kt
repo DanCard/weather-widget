@@ -114,15 +114,7 @@ fun DailyForecastGraph(
         }
     ) {
         val allTemps = displayDays.flatMap {
-            listOfNotNull(
-                it.solidHigh,
-                it.solidLow,
-                it.forecastHigh,
-                it.forecastLow,
-                it.ghostHigh,
-                it.snapshotHigh,
-                it.snapshotLow,
-            )
+            axisTemps(it)
         }
         val rawMin = allTemps.minOrNull() ?: 0f
         val rawMax = allTemps.maxOrNull() ?: 100f
@@ -156,6 +148,13 @@ fun DailyForecastGraph(
         val bottom = (size.height - bottomReserve).coerceAtLeast(size.height * 0.4f)
         val iconFloorTop = size.height - dayLabelBand - iconSize
         val graphHeight = (bottom - top).coerceAtLeast(1f)
+        Log.v(TAG) {
+            val maxDay = displayDays.firstOrNull { d -> rawMax in axisTemps(d) }
+            "axisRange canvas=${size.width.roundToInt()}x${size.height.roundToInt()} scale=$scale top=$top " +
+                "bottom=${bottom.roundToInt()} reserve=${bottomReserve.roundToInt()} raw=$rawMin..$rawMax " +
+                "maxDay=${maxDay?.date} solid=${maxDay?.solidHigh} fcst=${maxDay?.forecastHigh} " +
+                "ghost=${maxDay?.ghostHigh} snap=${maxDay?.snapshotHigh}"
+        }
         // Shared with Android: future single bar, today's triple bar, and past days' thinner triple
         // bar (yesterday's forecast | actual | settled forecast), touching like today's.
         val barWidths = DailyBarWidths.resolve(
@@ -1040,15 +1039,7 @@ internal fun computeDailyGraphTapLayout(
         )
     }
     val allTemps = days.flatMap {
-        listOfNotNull(
-            it.solidHigh,
-            it.solidLow,
-            it.forecastHigh,
-            it.forecastLow,
-            it.ghostHigh,
-            it.snapshotHigh,
-            it.snapshotLow,
-        )
+        axisTemps(it)
     }
     val rawMin = allTemps.minOrNull() ?: 0f
     val rawMax = allTemps.maxOrNull() ?: 100f
@@ -1110,6 +1101,20 @@ internal fun classifyDailyGraphTapZone(
         else -> DayClickResolver.DayTapZone.MAIN_COLUMN
     }
 }
+
+/** The temperatures this column draws; the y-axis spans exactly these (shared with Android). */
+private fun axisTemps(day: DesktopDailyDay): List<Float> =
+    com.weatherwidget.shared.daily.DailyAxisTemps.drawn(
+        isPast = day.isPast,
+        isToday = day.isToday,
+        solidHigh = day.solidHigh,
+        solidLow = day.solidLow,
+        forecastHigh = day.forecastHigh,
+        forecastLow = day.forecastLow,
+        ghostHigh = day.ghostHigh,
+        snapshotHigh = day.snapshotHigh,
+        snapshotLow = day.snapshotLow,
+    )
 
 private fun labelSizeFor(dayWidth: Float): Float =
     when {

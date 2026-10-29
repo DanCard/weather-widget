@@ -381,4 +381,21 @@ settings = DesktopSettings(visibleSources = listOf("NWS")),
 
         assertEquals(ViewMode.TEMPERATURE, routed.viewMode)
     }
+
+    @Test
+    fun undrawnFutureSnapshot_doesNotStretchAxis() {
+        // A future column's prior-day snapshot is never drawn, so a hotter snapshot must not move
+        // the bars (Nov 3 2026: a 75° snapshot left the 71° bar well below the canvas top).
+        val start = LocalDate.of(2026, 11, 2)
+        val days = listOf(
+            futureGraphDay(start, high = 71f, low = 57f),
+            futureGraphDay(start.plusDays(1), high = 66f, low = 55f),
+        )
+        val withSnapshot = days.mapIndexed { i, d -> if (i == 0) d.copy(snapshotHigh = 75f, snapshotLow = 58f) else d }
+
+        val plain = computeDailyGraphTapLayout(days, 400f, 600f, 1f, 1f, useCelsius = false)
+        val snapped = computeDailyGraphTapLayout(withSnapshot, 400f, 600f, 1f, 1f, useCelsius = false)
+
+        assertEquals(plain.iconTops, snapped.iconTops)
+    }
 }

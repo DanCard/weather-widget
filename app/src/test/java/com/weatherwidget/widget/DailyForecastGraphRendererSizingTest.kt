@@ -171,4 +171,24 @@ class DailyForecastGraphRendererSizingTest {
             )
         }
     }
+
+    @Test
+    fun `undrawn future snapshot does not raise the axis`() {
+        // A future column never draws its prior-day snapshot (desktop Nov 3 2026: a 75° snapshot
+        // over a 71° bar left the top of the graph empty).
+        val today = LocalDate.of(2026, 10, 29)
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(today, "Today", 66f, 48f, isToday = true, columnIndex = 0),
+            DailyForecastGraphRenderer.DayData(
+                today.plusDays(1), "Fri", 71f, 57f, columnIndex = 1, snapshotHigh = 75f, snapshotLow = 58f,
+            ),
+        )
+
+        val layout = DailyGraphLayoutResolver.resolve(
+            days = days, widthPx = 400, heightPx = 300, columns = 2,
+            bitmapScale = 1f, density = 1f, useCelsius = false,
+        )
+
+        assertEquals(71f, layout.maxTemp, 0.0001f)
+    }
 }
