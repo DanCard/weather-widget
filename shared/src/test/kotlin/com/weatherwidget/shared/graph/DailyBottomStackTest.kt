@@ -10,7 +10,12 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class DailyBottomStackTest {
 
-    private fun stack(canvasHeight: Float = 600f, floor: Float = 0f) = DailyBottomStack(
+    private fun stack(
+        canvasHeight: Float = 600f,
+        floor: Float = 0f,
+        blankBelow: Float = 0f,
+        blankAbove: Float = 0f,
+    ) = DailyBottomStack(
         canvasHeightPx = canvasHeight,
         pxPerDp = 2f,
         iconSizePx = 60f,
@@ -18,6 +23,8 @@ class DailyBottomStackTest {
         dayLabelHeightPx = 30f,
         dayLabelBottomMarginPx = 10f,
         graphBottomFloorPx = floor,
+        lowLabelBlankBelowPx = blankBelow,
+        dayLabelBlankAbovePx = blankAbove,
     )
 
     @Test
@@ -53,5 +60,34 @@ class DailyBottomStackTest {
         val s = stack()
         assertEquals(306f, s.iconTop(300f, lowLabelHeightPx = 80f), 0.001f)
         assertEquals(s.dayLabelTop - s.lowDayGapPx - 80f - 60f, s.iconTop(s.graphBottom, lowLabelHeightPx = 80f), 0.001f)
+    }
+
+    @Test
+    fun `no measured blank space reclaims nothing`() {
+        // Android passes no blanks; its stack must stay exactly as before (pixel parity).
+        assertEquals(0f, stack().reclaimPx, 0.001f)
+        assertEquals(stack().graphBottom, stack(blankBelow = 0f, blankAbove = 0f).graphBottom, 0.001f)
+        // Blank space smaller than the ink-gap top-up reclaims nothing either.
+        assertEquals(0f, stack(blankBelow = 2f, blankAbove = 1f).reclaimPx, 0.001f)
+    }
+
+    @Test
+    fun `blank line-box space is reclaimed down to the ink gap`() {
+        // Desktop at 2 px/dp: 19 px blank under the digits, 8 px over the capitals.
+        val s = stack(blankBelow = 19f, blankAbove = 8f)
+        val inkGapTopUp = (DailyBottomStack.LOW_DAY_INK_GAP_DP - DailyBottomStack.LOW_DAY_GAP_DP) * 2f
+        assertEquals(19f + 8f - inkGapTopUp, s.reclaimPx, 0.001f)
+        assertEquals(stack().graphBottom + s.reclaimPx, s.graphBottom, 0.001f)
+
+        // The coldest column: digit ink bottom → capital ink top is exactly the ink gap.
+        val lowLabelBottom = s.lowLabelTop(s.iconTop(s.graphBottom)) + 40f
+        val inkGap = (s.dayLabelTop + 8f) - (lowLabelBottom - 19f)
+        assertEquals(DailyBottomStack.LOW_DAY_INK_GAP_DP * 2f, inkGap, 0.001f)
+    }
+
+    @Test
+    fun `icon clamp follows the reclaim`() {
+        val s = stack(canvasHeight = 200f, floor = 80f, blankBelow = 19f, blankAbove = 8f)
+        assertEquals(s.dayLabelTop - s.lowDayGapPx + s.reclaimPx - 40f - 60f, s.iconTop(s.graphBottom), 0.001f)
     }
 }

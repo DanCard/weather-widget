@@ -8,14 +8,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -26,8 +30,11 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.weatherwidget.shared.daily.DailyAxisRange
 import com.weatherwidget.shared.graph.DailyRainLabelLayout
 import com.weatherwidget.shared.graph.DailyRainLabelPlanner
 import com.weatherwidget.shared.graph.DualHighLabel
@@ -125,17 +132,10 @@ fun DailyForecastGraph(
         labelCeiling: Float,
         measureOnly: Boolean,
     ): DailyDrawPass {
-        val allTemps = displayDays.flatMap {
-            axisTemps(it)
-        }
-        val rawMin = allTemps.minOrNull() ?: 0f
-        val rawMax = allTemps.maxOrNull() ?: 100f
-        // Minimal range padding so the hottest bar reaches the top and the coldest reaches the
-        // bottom of the graph band — bars fill the available height (overlap with labels is fine).
-        val rangePad = ((rawMax - rawMin) * 0.04f).coerceAtLeast(1f)
-        val minTemp = rawMin - rangePad
-        val maxTemp = rawMax + rangePad
-        val range = (maxTemp - minTemp).coerceAtLeast(1f)
+        // Shared with Android, no padding: the hottest bar reaches the graph top, the coldest its bottom.
+        val axis = DailyAxisRange.of(displayDays.flatMap(::axisTemps))
+        val minTemp = axis.min
+        val range = axis.range
         val todayColumnIndex = displayDays.indexOfFirst { it.isToday }.takeIf { it >= 0 }
         val columns =
             WeightedColumnLayout.resolve(
@@ -162,6 +162,12 @@ fun DailyForecastGraph(
             measureDayLabelHeight = { text, sp ->
                 textMeasurer.measure(text, TextStyle(fontSize = sp.sp)).size.height.toFloat()
             },
+            measureLowLabelBlankBelow = { text, base ->
+                textMeasurer.measure(text, TextStyle(fontSize = tempFontSize(text, base).sp)).blankBelowInk()
+            },
+            measureDayLabelBlankAbove = { text, sp ->
+                textMeasurer.measure(text, TextStyle(fontSize = sp.sp)).blankAboveInk()
+            },
         )
         // Height of the day-name row plus its bottom margin; rain labels and the Today overlay stop above it.
         val dayLabelBand = size.height - bottomStack.dayLabelTop
@@ -169,9 +175,9 @@ fun DailyForecastGraph(
         val bottom = bottomStack.graphBottom
         val graphHeight = (bottom - top).coerceAtLeast(1f)
         Log.v(TAG) {
-            val maxDay = displayDays.firstOrNull { d -> rawMax in axisTemps(d) }
+            val maxDay = displayDays.firstOrNull { d -> axis.max in axisTemps(d) }
             "axisRange canvas=${size.width.roundToInt()}x${size.height.roundToInt()} scale=$scale top=$top " +
-                "bottom=${bottom.roundToInt()} stack=${bottomStack.stackHeightPx.roundToInt()} raw=$rawMin..$rawMax " +
+                "bottom=${bottom.roundToInt()} stack=${bottomStack.stackHeightPx.roundToInt()} axis=${axis.min}..${axis.max} " +
                 "maxDay=${maxDay?.date} solid=${maxDay?.solidHigh} fcst=${maxDay?.forecastHigh} " +
                 "ghost=${maxDay?.ghostHigh} snap=${maxDay?.snapshotHigh}"
         }
@@ -719,6 +725,12 @@ fun DailyForecastGraph(
                     measureDayLabelHeight = { text, sp ->
                         textMeasurer.measure(text, TextStyle(fontSize = sp.sp)).size.height.toFloat()
                     },
+                    measureLowLabelBlankBelow = { text, base ->
+                        textMeasurer.measure(text, TextStyle(fontSize = tempFontSize(text, base).sp)).blankBelowInk()
+                    },
+                    measureDayLabelBlankAbove = { text, sp ->
+                        textMeasurer.measure(text, TextStyle(fontSize = sp.sp)).blankAboveInk()
+                    },
                     graphTop = drawnGraphTop[0].takeUnless { it.isNaN() },
                 )
                 val index = layout.columns.indexAt(offset.x).coerceIn(0, displayDays.lastIndex)
@@ -1003,17 +1015,53 @@ internal fun desktopBottomStack(
     density: Float,
     measureLowLabelHeight: (text: String, baseSp: Float) -> Float,
     measureDayLabelHeight: (text: String, sp: Float) -> Float,
-): DailyBottomStack =
-    DailyBottomStack.resolve(
+    /** Blank line-box space under the low digits' ink ([blankBelowInk]); 0 = reserve the whole box. */
+    measureLowLabelBlankBelow: (text: String, baseSp: Float) -> Float = { _, _ -> 0f },
+    /** Blank line-box space above the day name's ink ([blankAboveInk]). */
+    measureDayLabelBlankAbove: (text: String, sp: Float) -> Float = { _, _ -> 0f },
+): DailyBottomStack {
+    val lowSp = DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale
+    val daySp = labelSizeFor(dayWidth) * scale
+    return DailyBottomStack.resolve(
         canvasHeightPx = canvasHeight,
         pxPerDp = density * scale,
         iconSizePx = iconSize,
-        lowLabelHeightPx = measureLowLabelHeight("00°", DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale),
-        dayLabelHeightPx = measureDayLabelHeight("Wed", labelSizeFor(dayWidth) * scale),
+        lowLabelHeightPx = measureLowLabelHeight("00°", lowSp),
+        dayLabelHeightPx = measureDayLabelHeight("Wed", daySp),
         dayLabelBottomMarginPx = DAY_LABEL_BOTTOM_MARGIN * scale,
         graphBottomFloorPx = canvasHeight * 0.4f,
         platform = "desktop",
+        lowLabelBlankBelowPx = measureLowLabelBlankBelow("00°", lowSp),
+        dayLabelBlankAbovePx = measureDayLabelBlankAbove("Wed", daySp),
     )
+}
+
+/** Line-box space under the glyph ink: the descent a low label's digits and ° never use. */
+internal fun TextLayoutResult.blankBelowInk(): Float = (size.height - 1 - inkRows().last).coerceAtLeast(0).toFloat()
+
+/** Line-box space above the glyph ink: the room over a day name's capitals. */
+internal fun TextLayoutResult.blankAboveInk(): Float = inkRows().first.coerceAtLeast(0).toFloat()
+
+private val inkRowsCache = java.util.concurrent.ConcurrentHashMap<String, IntRange>()
+
+/**
+ * First..last pixel rows holding ink, found by drawing the text once offscreen (cached per text and
+ * size). Compose's getPathForRange returns line boxes, not glyph outlines, so it cannot tell.
+ */
+private fun TextLayoutResult.inkRows(): IntRange {
+    val key = "${layoutInput.text}|${layoutInput.style.fontSize}|${size.width}x${size.height}"
+    return inkRowsCache.getOrPut(key) {
+        val w = size.width.coerceAtLeast(1)
+        val h = size.height.coerceAtLeast(1)
+        val bitmap = ImageBitmap(w, h)
+        CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, Canvas(bitmap), Size(w.toFloat(), h.toFloat())) {
+            drawText(this@inkRows, color = Color.Black)
+        }
+        val pixels = bitmap.toPixelMap()
+        val rows = (0 until h).filter { y -> (0 until w).any { x -> pixels[x, y].alpha > 0.1f } }
+        if (rows.isEmpty()) 0 until h else rows.first()..rows.last()
+    }
+}
 
 /**
  * Computes per-column weather-icon tops using the same geometry as the draw loop so taps on the
@@ -1030,6 +1078,8 @@ internal fun computeDailyGraphTapLayout(
     widenToday: Boolean = false,
     measureLowLabelHeight: (text: String, baseSp: Float) -> Float = { _, base -> base * 1.4f },
     measureDayLabelHeight: (text: String, sp: Float) -> Float = { _, sp -> sp * 1.4f },
+    measureLowLabelBlankBelow: (text: String, baseSp: Float) -> Float = { _, _ -> 0f },
+    measureDayLabelBlankAbove: (text: String, sp: Float) -> Float = { _, _ -> 0f },
     /** The drawn graph top (DailyTopStack solve); null = the provisional top. */
     graphTop: Float? = null,
 ): DailyGraphTapLayout {
@@ -1042,21 +1092,16 @@ internal fun computeDailyGraphTapLayout(
             canvasHeight,
         )
     }
-    val allTemps = days.flatMap {
-        axisTemps(it)
-    }
-    val rawMin = allTemps.minOrNull() ?: 0f
-    val rawMax = allTemps.maxOrNull() ?: 100f
-    val rangePad = ((rawMax - rawMin) * 0.04f).coerceAtLeast(1f)
-    val minTemp = rawMin - rangePad
-    val maxTemp = rawMax + rangePad
-    val range = (maxTemp - minTemp).coerceAtLeast(1f)
+    val axis = DailyAxisRange.of(days.flatMap(::axisTemps))
+    val minTemp = axis.min
+    val range = axis.range
     val todayIndex = days.indexOfFirst { it.isToday }.takeIf { it >= 0 }
     val columns = WeightedColumnLayout.resolve(canvasWidth, days.size, todayIndex, widenToday)
     val dayWidth = columns.normalWidth
     val iconSize = (30f * density * scale).coerceAtMost(dayWidth * 0.6f)
     val bottomStack = desktopBottomStack(
         canvasHeight, dayWidth, iconSize, scale, density, measureLowLabelHeight, measureDayLabelHeight,
+        measureLowLabelBlankBelow, measureDayLabelBlankAbove,
     )
     val top = graphTop ?: (2f * scale)
     val bottom = bottomStack.graphBottom

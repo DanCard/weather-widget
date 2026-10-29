@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.shared.util.DayClickResolver
 import com.weatherwidget.shared.util.WeatherConditionResolver
+import com.weatherwidget.shared.graph.DailyBottomStack
 import com.weatherwidget.shared.graph.WeightedColumnLayout
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
@@ -433,5 +434,37 @@ settings = DesktopSettings(visibleSources = listOf("NWS")),
         val solved = computeDailyGraphTapLayout(days, 400f, 600f, 1f, 1f, useCelsius = false, graphTop = 150f)
         // The warm column's icon hangs under its 70° low, which moves down with the graph top.
         assertTrue(solved.iconTops[0]!! > provisional.iconTops[0]!!)
+    }
+
+    @Test
+    fun coldestBar_endsAtGraphBottom() {
+        // No axis padding (shared DailyAxisRange): the coldest bar runs to the graph bottom, so its
+        // icon hangs right at the top of the measured strip. Desktop used to pad 4 % (at least 1°)
+        // below the coldest temperature, leaving ~17 px empty at the user's window.
+        val start = LocalDate.of(2026, 10, 27)
+        val days = listOf(
+            futureGraphDay(start, high = 66f, low = 48f),
+            futureGraphDay(start.plusDays(1), high = 70f, low = 44.5f),
+        )
+        val layout = computeDailyGraphTapLayout(days, 400f, 600f, scale = 1f, density = 1f, useCelsius = false)
+        val graphBottom = layout.canvasHeight - layout.bottomStripHeightPx
+        assertEquals(graphBottom + DailyBottomStack.BAR_ICON_GAP_DP, layout.iconTops[1]!!, 0.001f)
+    }
+
+    @Test
+    fun bottomStrip_reclaimsBlankSpaceAroundTheInk() {
+        // Digits sit on the baseline and day names start at their capitals: the blank parts of both
+        // line boxes are reclaimed down to a LOW_DAY_INK_GAP_DP visible gap.
+        val start = LocalDate.of(2026, 11, 2)
+        val days = (0 until 4).map { futureGraphDay(start.plusDays(it.toLong()), high = 70f - it, low = 50f - it) }
+        fun strip(blankBelow: Float, blankAbove: Float) = computeDailyGraphTapLayout(
+            days, canvasWidth = 800f, canvasHeight = 600f, scale = 1f, density = 1f, useCelsius = false,
+            measureLowLabelHeight = { _, _ -> 20f },
+            measureDayLabelHeight = { _, _ -> 15f },
+            measureLowLabelBlankBelow = { _, _ -> blankBelow },
+            measureDayLabelBlankAbove = { _, _ -> blankAbove },
+        ).bottomStripHeightPx
+        val topUp = DailyBottomStack.LOW_DAY_INK_GAP_DP - DailyBottomStack.LOW_DAY_GAP_DP
+        assertEquals(strip(0f, 0f) - (7f + 3f - topUp), strip(7f, 3f), 0.001f)
     }
 }

@@ -4,7 +4,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.util.Log
 import androidx.annotation.VisibleForTesting
-import com.weatherwidget.data.remote.NwsTemperaturePlausibility.isPlausibleF
+import com.weatherwidget.shared.daily.DailyAxisRange
 import com.weatherwidget.shared.daily.DailyAxisTemps
 import com.weatherwidget.shared.graph.DailyBarWidths
 import com.weatherwidget.shared.graph.DailyBottomStack
@@ -113,45 +113,32 @@ internal object DailyGraphLayoutResolver {
         graphTopPx: Float? = null,
         labelCeilingPx: Float? = null,
     ): DailyGraphLayoutInfo {
-        var minTemp = Float.POSITIVE_INFINITY
-        var maxTemp = Float.NEGATIVE_INFINITY
-        var rejected = 0
-        var firstRejected = Float.NaN
-
-        fun include(value: Float?) {
-            if (value == null) return
-            if (!isPlausibleF(value)) {
-                if (rejected == 0) firstRejected = value
-                rejected++
-                return
-            }
-            if (value < minTemp) minTemp = value
-            if (value > maxTemp) maxTemp = value
-        }
-
-        days.forEach { day ->
-            DailyAxisTemps.drawn(
-                isPast = day.isPast,
-                isToday = day.isToday,
-                solidHigh = day.solidLineHigh,
-                solidLow = day.solidLineLow,
-                forecastHigh = day.dashedLineHigh,
-                forecastLow = day.dashedLineLow,
-                ghostHigh = day.ghostLineHigh,
-                snapshotHigh = day.snapshotHigh,
-                snapshotLow = day.snapshotLow,
-            ).forEach(::include)
-        }
-        if (rejected > 0) {
+        val axis =
+            DailyAxisRange.of(
+                days.flatMap { day ->
+                    DailyAxisTemps.drawn(
+                        isPast = day.isPast,
+                        isToday = day.isToday,
+                        solidHigh = day.solidLineHigh,
+                        solidLow = day.solidLineLow,
+                        forecastHigh = day.dashedLineHigh,
+                        forecastLow = day.dashedLineLow,
+                        ghostHigh = day.ghostLineHigh,
+                        snapshotHigh = day.snapshotHigh,
+                        snapshotLow = day.snapshotLow,
+                    )
+                },
+            )
+        if (axis.rejected > 0) {
             Log.w(
                 TAG,
-                "resolve: excluded $rejected invalid temperature(s) from axis" +
-                    " first=$firstRejected days=${days.size}",
+                "resolve: excluded ${axis.rejected} invalid temperature(s) from axis" +
+                    " first=${axis.firstRejected} days=${days.size}",
             )
         }
-        if (!minTemp.isFinite()) minTemp = 0f
-        if (!maxTemp.isFinite()) maxTemp = 100f
-        val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
+        val minTemp = axis.min
+        val maxTemp = axis.max
+        val tempRange = axis.range
 
         val widthDp = widthPx / density
         val heightDp = heightPx / density
