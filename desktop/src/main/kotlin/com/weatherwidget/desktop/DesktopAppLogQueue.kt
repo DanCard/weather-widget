@@ -8,16 +8,20 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 /**
- * app_logs rows written in order on one background thread, each stamped when it was logged, for
- * breadcrumbs written from code that must not wait on the database.
+ * app_logs rows and usage counters written in order on one background thread, each stamped when it was
+ * logged, for writes from code that must not wait on the database.
  *
  * The daemon and UI processes write one SQLite file, so an insert can wait up to the 5 s busy timeout
  * behind the other process's transaction. A `CURR_TEMP_RESULT` row written inline held the daemon's
  * `source_change` cache reload and the UI's own reload for the full timeout, so a source switch showed
  * the new graph 5.6 s late (2026-10-29, plans/261029-shared-source-switch-runner.md).
  *
- * Each process installs its DAO. Until then (tests, early startup) rows are dropped. A full queue drops
- * the row with a console warning rather than block the caller.
+ * Fetches crowded the lock the same way: every HTTP response wrote a `network_usage` row and an
+ * `api_usage_stats` row inline, so a forecast burst queued parallel requests behind each other for up to
+ * 1.9 s (DB_WRITE_SLOW, 2026-10-29). Those go through [write] with the service's own DAO.
+ *
+ * [log] uses the DAO each process installs; until then (tests, early startup) rows are dropped. A full
+ * queue drops the write with a console warning rather than block the caller.
  */
 internal object DesktopAppLogQueue {
     private const val TAG = "DesktopAppLogQueue"
@@ -40,11 +44,30 @@ internal object DesktopAppLogQueue {
         this.dao = dao
     }
 
-    /** Queues one row; returns at once. [DesktopWeatherDao.log] reports its own failures. */
+    /** Queues one row to the installed DAO; returns at once. [DesktopWeatherDao.log] reports its own failures. */
     fun log(tag: String, message: String, level: String = "INFO") {
         val target = dao ?: return
+        log(target, tag, message, level)
+    }
+
+    /** Queues one row to [dao], stamped now. */
+    fun log(dao: DesktopWeatherDao, tag: String, message: String, level: String = "INFO") {
         val timestampMs = System.currentTimeMillis()
-        executor.execute { target.log(tag, message, level, timestampMs) }
+        executor.execute { dao.log(tag, message, level, timestampMs) }
+    }
+
+    /**
+     * Queues [what], a write that takes its time from the caller (capture it before queuing). A failure
+     * is logged with [what]'s [label] and never reaches the caller.
+     */
+    fun write(label: String, what: () -> Unit) {
+        executor.execute {
+            try {
+                what()
+            } catch (e: Exception) {
+                Log.w(TAG, "queued write failed: $label", e)
+            }
+        }
     }
 
     /** Waits until every row queued so far is written (tests). */

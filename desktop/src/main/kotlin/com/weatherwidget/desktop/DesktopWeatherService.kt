@@ -107,11 +107,15 @@ class DesktopWeatherService(
                             ?: response.bodyAsText().toByteArray(Charsets.UTF_8).size.toLong()
                     }.getOrDefault(0L)
                     val totalBytes = bodyBytes + 500L
-                    weatherDao.recordNetworkUsage(totalBytes, isForeground)
+                    // Queued: an inline insert per response crowded the lock during fetch bursts (DesktopAppLogQueue).
+                    val nowMs = System.currentTimeMillis()
+                    DesktopAppLogQueue.write("network_usage") {
+                        weatherDao.recordNetworkUsage(totalBytes, isForeground, timestamp = nowMs)
+                    }
                     val url = response.call.request.url
                     ApiUsageClassifier.classify(url.host, url.encodedPath, url.encodedQuery)?.let { key ->
                         val day = ApiUsageClassifier.usageDayMs(key.source, java.time.Instant.now(), java.time.ZoneId.systemDefault())
-                        runCatching { weatherDao.logApiCall(day, key.source, key.endpoint, response.status.value) }
+                        DesktopAppLogQueue.write("api_usage_stats") { weatherDao.logApiCall(day, key.source, key.endpoint, response.status.value) }
                     }
                 }
             }
@@ -155,7 +159,7 @@ class DesktopWeatherService(
     /** One station's latest observation + web merge: the step Android runs too (plans/261013-shared-current-conditions-fetch.md). */
     private val latestFetcher = NwsStationLatestFetcher(
         latestObservation = { stationId -> nwsApi.getLatestObservationDetailedResult(stationId) },
-        log = { tag, message, level -> weatherDao?.log(tag, message, level) },
+        log = { tag, message, level -> weatherDao?.let { DesktopAppLogQueue.log(it, tag, message, level) } },
     )
 
     /**
@@ -304,7 +308,7 @@ class DesktopWeatherService(
             DesktopSourceFetchHost(
                 calls = SourceFetchTable.Calls.of(
                     nws = { lat, lon, parts ->
-                        NwsForecastReply.fetch(nwsApi, lat, lon, parts, log = { tag, message, level -> weatherDao?.log(tag, message, level) })
+                        NwsForecastReply.fetch(nwsApi, lat, lon, parts, log = { tag, message, level -> weatherDao?.let { DesktopAppLogQueue.log(it, tag, message, level) } })
                     },
                     openMeteo = openMeteo,
                     silurian = silurian,
@@ -518,7 +522,7 @@ class DesktopWeatherService(
             ) { nwsApi.getObservations(station.id, startIso, endIso) }
                 .also { Log.i(TAG, "observations window: station=${station.id} type=${station.type} $context count=${it.size}") }
         },
-        log = { tag, message, level -> weatherDao?.log(tag, message, level) },
+        log = { tag, message, level -> weatherDao?.let { DesktopAppLogQueue.log(it, tag, message, level) } },
     )
 
     override suspend fun nwsObservationStations(): FetchOutcome<List<NwsApi.StationInfo>> =

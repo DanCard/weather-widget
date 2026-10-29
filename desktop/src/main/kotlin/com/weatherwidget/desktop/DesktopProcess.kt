@@ -347,13 +347,17 @@ class DesktopClients(private val weatherDao: com.weatherwidget.data.local.deskto
                             ?: response.bodyAsText().toByteArray(Charsets.UTF_8).size.toLong()
                     }.getOrDefault(0L)
                     val totalBytes = bodyBytes + 500L
-                    weatherDao.recordNetworkUsage(totalBytes, isForeground = true)
+                    // Queued: an inline insert per response crowded the lock during fetch bursts (DesktopAppLogQueue).
+                    val nowMs = System.currentTimeMillis()
+                    DesktopAppLogQueue.write("network_usage") {
+                        weatherDao.recordNetworkUsage(totalBytes, isForeground = true, timestamp = nowMs)
+                    }
                     // This client serves geocoding and the rain viewers; the Open-Meteo rain map grid
                     // is a provider call, so count it in Usage stats as the daemon's client does.
                     val url = response.call.request.url
                     com.weatherwidget.data.remote.ApiUsageClassifier.classify(url.host, url.encodedPath, url.encodedQuery)?.let { key ->
                         val day = com.weatherwidget.data.remote.ApiUsageClassifier.usageDayMs(key.source, java.time.Instant.now(), java.time.ZoneId.systemDefault())
-                        runCatching { weatherDao.logApiCall(day, key.source, key.endpoint, response.status.value) }
+                        DesktopAppLogQueue.write("api_usage_stats") { weatherDao.logApiCall(day, key.source, key.endpoint, response.status.value) }
                     }
                 }
             }

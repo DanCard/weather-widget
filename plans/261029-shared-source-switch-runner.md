@@ -298,3 +298,29 @@ Queued rows still fail after 5 s under an 8 s hold, but nothing waits on them.
 `DesktopWeatherDao.upsertCurrentStatus` waited 5006 ms and failed under the same hold. This happens after
 the graph data is shown, but it delays `LAUNCH_REFRESH_CHECK` and loses that `current_status` row. It is
 a data write, not a breadcrumb, so it needs its own decision.
+
+### Fetch-burst crowding (2026-10-29, after `9dd61eb6`)
+
+**Evidence.** About 2.5 h of `DB_WRITE_SLOW` (12:46–15:10, three restarts):
+
+- 48 slow writes, no failures and no `kind=txn` culprit. Nothing held the lock for 500 ms or more.
+- The waits came in bursts at fetch times (12:51, 13:21, 14:35, 14:55), up to 1876 ms.
+- The waiting writes:
+  - 25 × `recordNetworkUsage` and 3 × `logApiCall`, from the ktor `ResponseObserver`
+  - 9 × `DesktopWeatherService` `latestFetcher` `log`
+- The cause is many parallel per-request autocommit writes, plus SQLite's growing busy-handler sleeps,
+  rather than one long transaction. No 5 s event recurred.
+
+**Change.**
+
+- `DesktopAppLogQueue.write(label) { … }` runs a write on the `app-log-writer` thread and logs any
+  failure with its label.
+- The `network_usage` and `api_usage_stats` writes from both HTTP clients (daemon
+  `DesktopWeatherService`, UI `DesktopProcess`) and the service's fetch-log rows now go through it.
+- The only reader is the Usage Stats window, so a row landing a few ms late changes nothing.
+- `recordNetworkUsage` was not guarded inside the response observer before; a failure now stays
+  in the queue.
+
+**Runtime.** A forced Open-Meteo `FULL_FORECAST` at startup (4.5 s) logged one slow write: 240 ms, on
+`app-log-writer`. Before the change, bursts logged 5–12 lines of 200–1,900 ms on fetch workers. This is one
+sample, from a source with fewer requests than Google.

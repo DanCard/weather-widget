@@ -86,6 +86,44 @@ class DesktopAppLogQueueTest {
     }
 
     @Test
+    fun `usage counters from a fetch burst do not wait for a held lock, and a failed write spares the rest`() {
+        val dao = DesktopWeatherDao(db)
+        val release = CountDownLatch(1)
+        val locked = CountDownLatch(1)
+        val holder = thread(name = "other-process-writer") {
+            db.getConnection().use { conn ->
+                conn.autoCommit = false
+                locked.countDown()
+                release.await(10, TimeUnit.SECONDS)
+                conn.commit()
+            }
+        }
+        assertTrue(locked.await(5, TimeUnit.SECONDS))
+
+        val startNs = System.nanoTime()
+        repeat(5) { i ->
+            val nowMs = 1_000L + i
+            DesktopAppLogQueue.write("network_usage") { dao.recordNetworkUsage(1_500, isForeground = false, timestamp = nowMs) }
+            DesktopAppLogQueue.write("api_usage_stats") { dao.logApiCall(0L, "GOOGLE_WEATHER", "forecast/hours", 200) }
+        }
+        DesktopAppLogQueue.write("broken") { error("insert failed") }
+        DesktopAppLogQueue.write("api_usage_stats") { dao.logApiCall(0L, "GOOGLE_WEATHER", "forecast/days", 429) }
+        val burstMs = (System.nanoTime() - startNs) / 1_000_000
+        release.countDown()
+        holder.join()
+        DesktopAppLogQueue.drain()
+
+        assertTrue("a 12-write burst took ${burstMs}ms behind a held lock", burstMs < 100)
+        val usage = dao.apiUsageSince(0L).associateBy { it.endpoint }
+        assertEquals(5, usage.getValue("forecast/hours").callCount)
+        assertEquals(1, usage.getValue("forecast/days").quotaRefusedCount)
+        val bytes = db.getConnection().use { conn ->
+            conn.createStatement().use { st -> st.executeQuery("SELECT COUNT(*), MIN(timestamp) FROM network_usage").use { it.next(); it.getInt(1) to it.getLong(2) } }
+        }
+        assertEquals(5 to 1_000L, bytes)
+    }
+
+    @Test
     fun `data_ready is logged once, for the switched-to source, with the time since the switch`() {
         DesktopSourceSwitch.install(null, CoroutineScope(Dispatchers.Unconfined)) { clockMs }
         val config = DesktopConfig(
