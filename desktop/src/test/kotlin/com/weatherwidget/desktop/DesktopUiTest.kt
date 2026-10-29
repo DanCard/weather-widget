@@ -226,6 +226,32 @@ currentCondition = "Sunny"),
     }
 
     @Test
+    fun testDataScreenSourceButtonLeftClickCyclesNextRightClickCyclesPrevious() {
+        // The pill on History of Forecasts and Stations: right-click must step back, as the header does.
+        val order = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.TOMORROW_IO)
+        var source by mutableStateOf(WeatherSource.NWS)
+        composeTestRule.setContent {
+            SourceCycleButton(
+                source.shortDisplayName,
+                onClick = { source = order.cycleFrom(source, forward = true) },
+                onSecondaryClick = { source = order.cycleFrom(source, forward = false) },
+            )
+        }
+
+        composeTestRule.onNodeWithTag("source_cycle_button").performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(WeatherSource.OPEN_METEO, source)
+
+        composeTestRule.onNodeWithTag("source_cycle_button").performMouseInput { rightClick() }
+        composeTestRule.waitForIdle()
+        assertEquals(WeatherSource.NWS, source)
+
+        composeTestRule.onNodeWithTag("source_cycle_button").performMouseInput { rightClick() }
+        composeTestRule.waitForIdle()
+        assertEquals(WeatherSource.TOMORROW_IO, source)
+    }
+
+    @Test
     fun testHeaderDeadZoneLeftClickCyclesNextRightClickCyclesPrevious() {
         val order = listOf(WeatherSource.NWS.id, WeatherSource.OPEN_METEO.id, WeatherSource.TOMORROW_IO.id)
         var config by mutableStateOf(

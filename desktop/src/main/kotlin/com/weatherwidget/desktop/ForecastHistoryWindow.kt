@@ -144,66 +144,93 @@ internal fun ForecastHistoryWindow(
             windowState = state,
             showRequestId = showRequestId,
         )
-        val visibleSources = remember(config.effectiveSources) {
-            config.effectiveSources.map { WeatherSource.fromId(it) }.ifEmpty { listOf(WeatherSource.NWS) }
+        ForecastHistoryContent(
+            weatherDao = weatherDao,
+            config = config,
+            showRequestId = showRequestId,
+            initialDate = initialDate,
+            onClose = onClose,
+            dataUpdateCount = dataUpdateCount,
+            isRefreshing = isRefreshing,
+            onRefreshSource = onRefreshSource,
+            onOpenSettings = onOpenSettings,
+        )
+    }
+}
+
+/**
+ * Everything inside the History of Forecasts window, apart from the window itself, as
+ * [SettingsWindow] is to `SettingsWindowHost`: tests render it in the test's own window, where
+ * clicks land reliably (into a real [Window] they are dropped at random).
+ */
+@Composable
+internal fun ForecastHistoryContent(
+    weatherDao: DesktopWeatherDao,
+    config: DesktopConfig,
+    showRequestId: Int = 0,
+    initialDate: LocalDate = LocalDate.now(),
+    onClose: () -> Unit,
+    dataUpdateCount: Int = 0,
+    isRefreshing: Boolean = false,
+    onRefreshSource: (WeatherSource) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+) {
+    val visibleSources = remember(config.effectiveSources) {
+        config.effectiveSources.map { WeatherSource.fromId(it) }.ifEmpty { listOf(WeatherSource.NWS) }
+    }
+    // Keyed on showRequestId: each fresh open re-seeds the viewed date (e.g. the hourly
+    // graph's center day), while prev/next navigation within one showing is untouched.
+    var targetDate by remember(showRequestId) { mutableStateOf(initialDate) }
+    var source by remember {
+        mutableStateOf(
+            WeatherSource.fromId(config.displaySource).takeIf { it in visibleSources }
+                ?: visibleSources.first(),
+        )
+    }
+    var graphMode by remember { mutableStateOf(GraphMode.EVOLUTION) }
+    var loading by remember { mutableStateOf(true) }
+    var data by remember { mutableStateOf<HistoryData?>(null) }
+
+    LaunchedEffect(targetDate, source, config.lat, config.lon, dataUpdateCount) {
+        loading = true
+        data = withContext(Dispatchers.IO) {
+            loadHistory(weatherDao, config, targetDate, source, visibleSources)
         }
-        // Keyed on showRequestId: each fresh open re-seeds the viewed date (e.g. the hourly
-        // graph's center day), while prev/next navigation within one showing is untouched.
-        var targetDate by remember(showRequestId) { mutableStateOf(initialDate) }
-        var source by remember {
-            mutableStateOf(
-                WeatherSource.fromId(config.displaySource).takeIf { it in visibleSources }
-                    ?: visibleSources.first(),
+        loading = false
+    }
+
+    MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
+        Surface(color = ObsStyle.background, contentColor = Color.White) {
+            Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+            Header(
+                targetDate = targetDate,
+                source = source,
+                graphMode = graphMode,
+                canGoBack = ForecastHistoryHeader.canGoBack(targetDate),
+                onBack = onClose,
+                onPrev = { targetDate = targetDate.minusDays(1) },
+                onNext = { targetDate = targetDate.plusDays(1) },
+                onCycleSource = { forward -> source = visibleSources.cycleFrom(source, forward) },
+                isRefreshing = isRefreshing,
+                onRefresh = { onRefreshSource(source) },
+                onOpenSettings = onOpenSettings,
+                onToggleMode = {
+                    graphMode = if (graphMode == GraphMode.EVOLUTION) GraphMode.ERROR else GraphMode.EVOLUTION
+                },
             )
-        }
-        var graphMode by remember { mutableStateOf(GraphMode.EVOLUTION) }
-        var loading by remember { mutableStateOf(true) }
-        var data by remember { mutableStateOf<HistoryData?>(null) }
+            Spacer(Modifier.height(8.dp))
 
-        LaunchedEffect(targetDate, source, config.lat, config.lon, dataUpdateCount) {
-            loading = true
-            data = withContext(Dispatchers.IO) {
-                loadHistory(weatherDao, config, targetDate, source, visibleSources)
+            val d = data
+            when {
+                loading -> Text("Loading…", color = ObsStyle.textSecondary)
+                d == null -> Text("No data.", color = ObsStyle.textSecondary)
+                else -> Content(d, graphMode, source, config.settings.useCelsius)
             }
-            loading = false
-        }
-
-        MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
-            Surface(color = ObsStyle.background, contentColor = Color.White) {
-                Box(Modifier.fillMaxSize()) {
-                Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-                Header(
-                    targetDate = targetDate,
-                    source = source,
-                    graphMode = graphMode,
-                    canGoBack = ForecastHistoryHeader.canGoBack(targetDate),
-                    onBack = onClose,
-                    onPrev = { targetDate = targetDate.minusDays(1) },
-                    onNext = { targetDate = targetDate.plusDays(1) },
-                    onCycleSource = {
-                        val idx = visibleSources.indexOf(source)
-                        source = visibleSources[(idx + 1) % visibleSources.size]
-                    },
-                    isRefreshing = isRefreshing,
-                    onRefresh = { onRefreshSource(source) },
-                    onOpenSettings = onOpenSettings,
-                    onToggleMode = {
-                        graphMode = if (graphMode == GraphMode.EVOLUTION) GraphMode.ERROR else GraphMode.EVOLUTION
-                    },
-                )
-                Spacer(Modifier.height(8.dp))
-
-                val d = data
-                when {
-                    loading -> Text("Loading…", color = ObsStyle.textSecondary)
-                    d == null -> Text("No data.", color = ObsStyle.textSecondary)
-                    else -> Content(d, graphMode, source, config.settings.useCelsius)
-                }
-                }
-                RefreshNoticePill(RefreshNoticeSurface.HISTORY, Modifier.align(Alignment.BottomCenter))
             }
+            RefreshNoticePill(RefreshNoticeSurface.HISTORY, Modifier.align(Alignment.BottomCenter))
         }
-        }
+    }
     }
 }
 
@@ -221,7 +248,7 @@ private fun Header(
     onBack: () -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
-    onCycleSource: () -> Unit,
+    onCycleSource: (forward: Boolean) -> Unit,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -240,7 +267,11 @@ private fun Header(
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next day")
             }
             Spacer(Modifier.weight(1f))
-            SourceCycleButton(source.shortDisplayName, onCycleSource)
+            SourceCycleButton(
+                source.shortDisplayName,
+                onClick = { onCycleSource(true) },
+                onSecondaryClick = { onCycleSource(false) },
+            )
             ObservationRefreshButton(isRefreshing = isRefreshing, onRefreshData = onRefresh)
             IconButton(onClick = onOpenSettings) {
                 Icon(Icons.Default.Settings, contentDescription = "Settings")

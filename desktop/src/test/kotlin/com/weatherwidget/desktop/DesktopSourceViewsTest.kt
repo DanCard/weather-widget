@@ -128,6 +128,16 @@ class DesktopSourceViewsTest {
     }
 
     @Test
+    fun `cycleFrom wraps both ways and starts at the first entry for an unknown current`() {
+        val order = listOf("NWS", "OPEN_METEO", "SILURIAN")
+        assertEquals("OPEN_METEO", order.cycleFrom("NWS", forward = true))
+        assertEquals("NWS", order.cycleFrom("SILURIAN", forward = true))
+        assertEquals("SILURIAN", order.cycleFrom("NWS", forward = false))
+        assertEquals("OPEN_METEO", order.cycleFrom("SILURIAN", forward = false))
+        assertEquals("NWS", order.cycleFrom("GOOGLE", forward = false))
+    }
+
+    @Test
     fun `api button in an hourly view counts HOURLY`() {
         cycleDisplaySource(config.copy(viewMode = ViewMode.PRECIPITATION)) {}
         assertEquals(1, rows().getValue(Triple("OPEN_METEO", "TOGGLE", "HOURLY")).switches)

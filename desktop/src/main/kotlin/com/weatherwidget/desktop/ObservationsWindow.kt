@@ -2,6 +2,10 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.StationType
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.PointerMatcher
+import androidx.compose.foundation.onClick
+import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -261,257 +265,299 @@ internal fun ObservationsWindow(
             windowState = state,
             showRequestId = showRequestId,
         )
-        var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.displaySource)) }
-        var observations by remember { mutableStateOf<List<ObservationReading>>(emptyList()) }
-        // StationsList's subtitle, as Android's: nearby stations, latest reading, or how old the rows are.
-        var stationsSubtitle by remember { mutableStateOf<String?>(null) }
-        var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
-        var blendTables by remember { mutableStateOf<List<BlendTable>>(emptyList()) }
-        var selectedTab by remember { mutableStateOf(config.obsSelectedTab) }
-        val selectTab: (Int) -> Unit = { tab ->
-            selectedTab = tab
-            if (config.obsSelectedTab != tab) {
-                onConfigUpdate(config.copy(obsSelectedTab = tab))
+        ObservationsContent(
+            weatherDao = weatherDao,
+            config = config,
+            showRequestId = showRequestId,
+            dataUpdateCount = dataUpdateCount,
+            isRefreshing = isRefreshing,
+            onRefreshData = onRefreshData,
+            onClose = onClose,
+            onConfigUpdate = onConfigUpdate,
+        )
+    }
+}
+
+/**
+ * Everything inside the Observations & Logs window, apart from the window itself, as
+ * [SettingsWindow] is to `SettingsWindowHost`: tests render it in the test's own window, where
+ * clicks land reliably (into a real [Window] they are dropped at random).
+ */
+@Composable
+internal fun ObservationsContent(
+    weatherDao: DesktopWeatherDao,
+    config: DesktopConfig,
+    showRequestId: Int = 0,
+    dataUpdateCount: Int = 0,
+    isRefreshing: Boolean = false,
+    onRefreshData: () -> Unit = {},
+    onClose: () -> Unit,
+    onConfigUpdate: (DesktopConfig) -> Unit,
+) {
+    var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.displaySource)) }
+    var observations by remember { mutableStateOf<List<ObservationReading>>(emptyList()) }
+    // StationsList's subtitle, as Android's: nearby stations, latest reading, or how old the rows are.
+    var stationsSubtitle by remember { mutableStateOf<String?>(null) }
+    var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
+    var blendTables by remember { mutableStateOf<List<BlendTable>>(emptyList()) }
+    var selectedTab by remember { mutableStateOf(config.obsSelectedTab) }
+    val selectTab: (Int) -> Unit = { tab ->
+        selectedTab = tab
+        if (config.obsSelectedTab != tab) {
+            onConfigUpdate(config.copy(obsSelectedTab = tab))
+        }
+    }
+    var logFilter by remember { mutableStateOf(LogFilter.FETCHES) }
+    val scope = rememberCoroutineScope()
+
+    val loadData = {
+        scope.launch(Dispatchers.IO) {
+            // :shared StationsList, as Android's Current Observations screen: scoped to the active
+            // site, else the newest stored rows (with their age), else the source's main reading.
+            val stationsHost = DesktopStationsListHost(weatherDao, config.lat, config.lon)
+            val stations = StationsList.load(stationsHost, currentSource, config.lat to config.lon, System.currentTimeMillis())
+            Log.d(TAG, StationsList.line(stationsHost, currentSource, stations))
+            val obs = stations.rows
+            val subtitle = StationsList.englishSubtitle(stations, currentSource.displayName)
+
+            // Filter by tag in SQL so the cap counts fetch rows, not the verbose current-temp
+            // tags (CurrentTempResolver etc.) that otherwise swamp app_logs.
+            val recentLogs = weatherDao.getRecentLogsByTags(logFilter.tags, 100)
+
+            // Only when the tab is actually showing: this re-runs the blend, which the two other
+            // tabs have no use for.
+            val tables = if (selectedTab == ObservationsTabs.BLEND) {
+                loadBlendTables(weatherDao, config, currentSource)
+            } else {
+                emptyList()
+            }
+
+            withContext(Dispatchers.Main) {
+                observations = obs
+                stationsSubtitle = subtitle
+                logs = recentLogs
+                if (selectedTab == ObservationsTabs.BLEND) blendTables = tables
             }
         }
-        var logFilter by remember { mutableStateOf(LogFilter.FETCHES) }
-        val scope = rememberCoroutineScope()
+    }
 
-        val loadData = {
-            scope.launch(Dispatchers.IO) {
-                // :shared StationsList, as Android's Current Observations screen: scoped to the active
-                // site, else the newest stored rows (with their age), else the source's main reading.
-                val stationsHost = DesktopStationsListHost(weatherDao, config.lat, config.lon)
-                val stations = StationsList.load(stationsHost, currentSource, config.lat to config.lon, System.currentTimeMillis())
-                Log.d(TAG, StationsList.line(stationsHost, currentSource, stations))
-                val obs = stations.rows
-                val subtitle = StationsList.englishSubtitle(stations, currentSource.displayName)
+    // Reload on every "data changed" signal, not just on user input. dataUpdateCount is the
+    // popup's consolidated counter — socket push, `.data-updated` watch, and the resume-aware
+    // fallback tick all terminate in it (Main.kt) — so keying on it inherits all three paths.
+    // showRequestId covers raising an ALREADY-OPEN window from the tray, which previously only
+    // called toFront(); without it the user is shown the snapshot from whenever they first
+    // opened the window. (A closed window drops out of composition, so reopening always reloads.)
+    // selectedTab is a key so switching to Blend loads its table on first open, not on the next
+    // data-changed signal.
+    LaunchedEffect(currentSource, logFilter, dataUpdateCount, showRequestId, selectedTab) {
+        loadData()
+    }
 
-                // Filter by tag in SQL so the cap counts fetch rows, not the verbose current-temp
-                // tags (CurrentTempResolver etc.) that otherwise swamp app_logs.
-                val recentLogs = weatherDao.getRecentLogsByTags(logFilter.tags, 100)
-
-                // Only when the tab is actually showing: this re-runs the blend, which the two other
-                // tabs have no use for.
-                val tables = if (selectedTab == ObservationsTabs.BLEND) {
-                    loadBlendTables(weatherDao, config, currentSource)
-                } else {
-                    emptyList()
-                }
-
-                withContext(Dispatchers.Main) {
-                    observations = obs
-                    stationsSubtitle = subtitle
-                    logs = recentLogs
-                    if (selectedTab == ObservationsTabs.BLEND) blendTables = tables
-                }
-            }
+    // Reading ages must advance on their own: ObservationOrigin.of() is evaluated during
+    // composition, so with a frozen clock a station that falls past BLEND_MAX_AGE_MS (3h) while
+    // the window sits open keeps rendering as a live "(API)" contributor with a temperature —
+    // even though the blend has already decayed its weight to zero. Ticking on the minute
+    // boundary mirrors the popup's interpolation ticker and keeps the window idle-cheap.
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(AGE_TICK_MS - (System.currentTimeMillis() % AGE_TICK_MS))
+            nowMs = System.currentTimeMillis()
         }
+    }
 
-        // Reload on every "data changed" signal, not just on user input. dataUpdateCount is the
-        // popup's consolidated counter — socket push, `.data-updated` watch, and the resume-aware
-        // fallback tick all terminate in it (Main.kt) — so keying on it inherits all three paths.
-        // showRequestId covers raising an ALREADY-OPEN window from the tray, which previously only
-        // called toFront(); without it the user is shown the snapshot from whenever they first
-        // opened the window. (A closed window drops out of composition, so reopening always reloads.)
-        // selectedTab is a key so switching to Blend loads its table on first open, not on the next
-        // data-changed signal.
-        LaunchedEffect(currentSource, logFilter, dataUpdateCount, showRequestId, selectedTab) {
-            loadData()
-        }
+    MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = ObsStyle.background,
+            contentColor = Color.White
+        ) {
+            Box(Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Stations",
+                        fontSize = 24.sp,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f).padding(start = 8.dp)
+                    )
 
-        // Reading ages must advance on their own: ObservationOrigin.of() is evaluated during
-        // composition, so with a frozen clock a station that falls past BLEND_MAX_AGE_MS (3h) while
-        // the window sits open keeps rendering as a live "(API)" contributor with a temperature —
-        // even though the blend has already decayed its weight to zero. Ticking on the minute
-        // boundary mirrors the popup's interpolation ticker and keeps the window idle-cheap.
-        var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                kotlinx.coroutines.delay(AGE_TICK_MS - (System.currentTimeMillis() % AGE_TICK_MS))
-                nowMs = System.currentTimeMillis()
-            }
-        }
-
-        MaterialTheme(colorScheme = WeatherDarkColorScheme, typography = WeatherTypography) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = ObsStyle.background,
-                contentColor = Color.White
-            ) {
-                Box(Modifier.fillMaxSize()) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Header
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Stations",
-                            fontSize = 24.sp,
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.weight(1f).padding(start = 8.dp)
-                        )
-
-                        // Source Cycler
-                        val visibleSources = config.effectiveSources.map { WeatherSource.valueOf(it) }
-                        if (visibleSources.isNotEmpty()) {
-                            SourceCycleButton(currentSource.shortDisplayName) {
-                                val currentIndex = visibleSources.indexOf(currentSource)
-                                val nextIndex = (currentIndex + 1) % visibleSources.size
-                                currentSource = visibleSources[nextIndex]
-                                DesktopSourceViews.record(
-                                    currentSource.id,
-                                    config.effectiveSources,
-                                    config.viewMode,
-                                    com.weatherwidget.shared.sourceview.SourceViewTrigger.OBSERVATIONS,
-                                )
-                            }
-                        }
-
-                        // Fetch Logs tag filter — a small icon that opens a menu of LogFilter sets.
-                        if (selectedTab == ObservationsTabs.FETCH_LOGS) {
-                            var filterMenuOpen by remember { mutableStateOf(false) }
-                            Box {
-                                IconButton(onClick = { filterMenuOpen = true }) {
-                                    Icon(Icons.Default.FilterList, contentDescription = "Filter logs")
-                                }
-                                DropdownMenu(
-                                    expanded = filterMenuOpen,
-                                    onDismissRequest = { filterMenuOpen = false }
-                                ) {
-                                    LogFilter.entries.forEach { filter ->
-                                        DropdownMenuItem(
-                                            text = { Text(filter.label, fontSize = 18.sp) },
-                                            leadingIcon = {
-                                                if (filter == logFilter) {
-                                                    Icon(
-                                                        Icons.Default.Check,
-                                                        contentDescription = null,
-                                                        tint = ObsStyle.accent
-                                                    )
-                                                } else {
-                                                    Spacer(Modifier.width(24.dp))
-                                                }
-                                            },
-                                            onClick = {
-                                                logFilter = filter
-                                                filterMenuOpen = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        ObservationRefreshButton(
-                            isRefreshing = isRefreshing,
-                            onRefreshData = onRefreshData,
-                        )
-
-                        IconButton(onClick = onClose) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
-                        }
-                    }
-
-                    // Content
-                    TabRow(
-                        selectedTabIndex = selectedTab,
-                        containerColor = ObsStyle.background,
-                        contentColor = Color.White,
-                        indicator = { tabPositions ->
-                            TabRowDefaults.SecondaryIndicator(
-                                Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                                color = ObsStyle.accent
+                    // Source Cycler
+                    val visibleSources = config.effectiveSources.map { WeatherSource.valueOf(it) }
+                    if (visibleSources.isNotEmpty()) {
+                        val cycleSource = { forward: Boolean ->
+                            currentSource = visibleSources.cycleFrom(currentSource, forward)
+                            DesktopSourceViews.record(
+                                currentSource.id,
+                                config.effectiveSources,
+                                config.viewMode,
+                                com.weatherwidget.shared.sourceview.SourceViewTrigger.OBSERVATIONS,
                             )
                         }
-                    ) {
-                        Tab(
-                            selected = selectedTab == ObservationsTabs.BLEND,
-                            onClick = { selectTab(ObservationsTabs.BLEND) },
-                            selectedContentColor = ObsStyle.accent,
-                            unselectedContentColor = ObsStyle.textSecondary
-                        ) {
-                            Text("Blend", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
-                        }
-                        Tab(
-                            selected = selectedTab == ObservationsTabs.OBSERVATIONS,
-                            onClick = { selectTab(ObservationsTabs.OBSERVATIONS) },
-                            selectedContentColor = ObsStyle.accent,
-                            unselectedContentColor = ObsStyle.textSecondary
-                        ) {
-                            Text("Observations", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
-                        }
-                        Tab(
-                            selected = selectedTab == ObservationsTabs.FETCH_LOGS,
-                            onClick = { selectTab(ObservationsTabs.FETCH_LOGS) },
-                            selectedContentColor = ObsStyle.accent,
-                            unselectedContentColor = ObsStyle.textSecondary
-                        ) {
-                            Text("Fetch Logs", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
+                        SourceCycleButton(
+                            currentSource.shortDisplayName,
+                            onClick = { cycleSource(true) },
+                            onSecondaryClick = { cycleSource(false) },
+                        )
+                    }
+
+                    // Fetch Logs tag filter — a small icon that opens a menu of LogFilter sets.
+                    if (selectedTab == ObservationsTabs.FETCH_LOGS) {
+                        var filterMenuOpen by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { filterMenuOpen = true }) {
+                                Icon(Icons.Default.FilterList, contentDescription = "Filter logs")
+                            }
+                            DropdownMenu(
+                                expanded = filterMenuOpen,
+                                onDismissRequest = { filterMenuOpen = false }
+                            ) {
+                                LogFilter.entries.forEach { filter ->
+                                    DropdownMenuItem(
+                                        text = { Text(filter.label, fontSize = 18.sp) },
+                                        leadingIcon = {
+                                            if (filter == logFilter) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = ObsStyle.accent
+                                                )
+                                            } else {
+                                                Spacer(Modifier.width(24.dp))
+                                            }
+                                        },
+                                        onClick = {
+                                            logFilter = filter
+                                            filterMenuOpen = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    Box(modifier = Modifier.weight(1f)) {
-                        when (selectedTab) {
-                            ObservationsTabs.BLEND -> BlendTableView(blendTables)
-                            ObservationsTabs.OBSERVATIONS -> Column {
-                                // Only a forecast-only source gets the control. A source that ships
-                                // its own observations is not offered a choice, because borrowing
-                                // exists to fill an absence — regrading NWS against someone else's
-                                // thermometers would be a different and much larger decision.
-                                if (ActualsProviderResolver.allowsAlternativeProvider(currentSource)) {
-                                    ActualsSourceRow(
-                                        source = currentSource,
-                                        active = ActualsProviderResolver.providerIdFor(currentSource),
-                                        options = ActualsProviderResolver.candidateOptions(
-                                            defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource),
-                                            synopticConfigured = true,
-                                        ) { !needsKeyFromUser(it, config.settings.apiKeys) },
-                                        onChoose = { chosen ->
-                                            val defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource)
-                                            val updatedSettings = DesktopActualsPreference.withChoice(
-                                                config.settings,
-                                                currentSource,
-                                                // Store nothing for the default so the
-                                                // preference stays absent unless the user
-                                                // actively diverges.
-                                                chosen.takeIf { it != defaultProvider },
-                                            )
-                                            DesktopActualsPreference.update(updatedSettings)
-                                            onConfigUpdate(config.copy(settings = updatedSettings))
-                                            loadData()
-                                            val neededApi = ActualsProviderResolver.providerIdFor(currentSource)
-                                            val hasData = observations.any { it.api == neededApi }
-                                            if (!hasData) {
-                                                onRefreshData()
-                                            }
-                                        },
-                                    )
-                                }
-                                ObservationList(observations, stationsSubtitle, config.settings.useCelsius, nowMs)
-                            }
-                            else -> LogList(logs)
-                        }
+                    ObservationRefreshButton(
+                        isRefreshing = isRefreshing,
+                        onRefreshData = onRefreshData,
+                    )
+
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
                     }
                 }
-                RefreshNoticePill(RefreshNoticeSurface.OBSERVATIONS, Modifier.align(Alignment.BottomCenter))
+
+                // Content
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = ObsStyle.background,
+                    contentColor = Color.White,
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                            color = ObsStyle.accent
+                        )
+                    }
+                ) {
+                    Tab(
+                        selected = selectedTab == ObservationsTabs.BLEND,
+                        onClick = { selectTab(ObservationsTabs.BLEND) },
+                        selectedContentColor = ObsStyle.accent,
+                        unselectedContentColor = ObsStyle.textSecondary
+                    ) {
+                        Text("Blend", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
+                    }
+                    Tab(
+                        selected = selectedTab == ObservationsTabs.OBSERVATIONS,
+                        onClick = { selectTab(ObservationsTabs.OBSERVATIONS) },
+                        selectedContentColor = ObsStyle.accent,
+                        unselectedContentColor = ObsStyle.textSecondary
+                    ) {
+                        Text("Observations", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
+                    }
+                    Tab(
+                        selected = selectedTab == ObservationsTabs.FETCH_LOGS,
+                        onClick = { selectTab(ObservationsTabs.FETCH_LOGS) },
+                        selectedContentColor = ObsStyle.accent,
+                        unselectedContentColor = ObsStyle.textSecondary
+                    ) {
+                        Text("Fetch Logs", fontSize = 18.sp, modifier = Modifier.padding(12.dp))
+                    }
                 }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    when (selectedTab) {
+                        ObservationsTabs.BLEND -> BlendTableView(blendTables)
+                        ObservationsTabs.OBSERVATIONS -> Column {
+                            // Only a forecast-only source gets the control. A source that ships
+                            // its own observations is not offered a choice, because borrowing
+                            // exists to fill an absence — regrading NWS against someone else's
+                            // thermometers would be a different and much larger decision.
+                            if (ActualsProviderResolver.allowsAlternativeProvider(currentSource)) {
+                                ActualsSourceRow(
+                                    source = currentSource,
+                                    active = ActualsProviderResolver.providerIdFor(currentSource),
+                                    options = ActualsProviderResolver.candidateOptions(
+                                        defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource),
+                                        synopticConfigured = true,
+                                    ) { !needsKeyFromUser(it, config.settings.apiKeys) },
+                                    onChoose = { chosen ->
+                                        val defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource)
+                                        val updatedSettings = DesktopActualsPreference.withChoice(
+                                            config.settings,
+                                            currentSource,
+                                            // Store nothing for the default so the
+                                            // preference stays absent unless the user
+                                            // actively diverges.
+                                            chosen.takeIf { it != defaultProvider },
+                                        )
+                                        DesktopActualsPreference.update(updatedSettings)
+                                        onConfigUpdate(config.copy(settings = updatedSettings))
+                                        loadData()
+                                        val neededApi = ActualsProviderResolver.providerIdFor(currentSource)
+                                        val hasData = observations.any { it.api == neededApi }
+                                        if (!hasData) {
+                                            onRefreshData()
+                                        }
+                                    },
+                                )
+                            }
+                            ObservationList(observations, stationsSubtitle, config.settings.useCelsius, nowMs)
+                        }
+                        else -> LogList(logs)
+                    }
+                }
+            }
+            RefreshNoticePill(RefreshNoticeSurface.OBSERVATIONS, Modifier.align(Alignment.BottomCenter))
             }
         }
     }
 }
 
-/** The navy API-source pill of the data screens (Observations, History of Forecasts). */
+/**
+ * The navy API-source pill of the data screens (Observations, History of Forecasts). Left-click
+ * shows the next source; right-click, via [onSecondaryClick], the previous one.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun SourceCycleButton(label: String, onClick: () -> Unit) {
+internal fun SourceCycleButton(label: String, onClick: () -> Unit, onSecondaryClick: (() -> Unit)? = null) {
     Button(
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
             containerColor = ObsStyle.sourceButtonFill,
             contentColor = ObsStyle.accent,
         ),
-        modifier = Modifier.padding(horizontal = 4.dp),
+        modifier = Modifier
+            .padding(horizontal = 4.dp)
+            .then(
+                if (onSecondaryClick != null) {
+                    Modifier.onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary), onClick = onSecondaryClick)
+                } else Modifier
+            )
+            .testTag("source_cycle_button"),
     ) {
         Text(label, fontSize = 18.sp)
     }

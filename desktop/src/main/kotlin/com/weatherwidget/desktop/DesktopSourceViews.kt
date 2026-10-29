@@ -108,15 +108,19 @@ internal fun cycleDisplaySource(
 ) {
     val visibleSources = config.effectiveSources
     if (visibleSources.size <= 1) return
-    val currentIndex = visibleSources.indexOf(config.displaySource).coerceAtLeast(0)
-    val nextIndex = if (forward) {
-        (currentIndex + 1) % visibleSources.size
-    } else {
-        (currentIndex - 1 + visibleSources.size) % visibleSources.size
-    }
-    val next = visibleSources[nextIndex]
+    val next = visibleSources.cycleFrom(config.displaySource, forward)
     DesktopSourceSwitch.switchTo(config, next, SourceViewTrigger.TOGGLE, onUpdateConfig)
 }
 
 internal fun cycleDisplaySource(config: DesktopConfig, onUpdateConfig: (DesktopConfig) -> Unit) =
     cycleDisplaySource(config, forward = true, onUpdateConfig)
+
+/**
+ * The source after (or before, when [forward] is false) [current], wrapping at both ends: left-click
+ * and right-click on every source button. A [current] missing from the list yields the first entry.
+ */
+internal fun <T> List<T>.cycleFrom(current: T, forward: Boolean): T {
+    val index = indexOf(current)
+    if (index < 0) return first()
+    return this[if (forward) (index + 1) % size else (index - 1 + size) % size]
+}
