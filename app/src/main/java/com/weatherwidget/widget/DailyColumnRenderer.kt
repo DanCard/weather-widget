@@ -22,7 +22,6 @@ internal object DailyColumnRenderer {
 
     private val COLOR_LABEL_GRAY = 0xFFAAAAAA.toInt()
     private val COLOR_SUNNY = 0xFFFFD60A.toInt()
-    private const val ICON_BELOW_BAR_SPACING_DP = 3f
     private const val TEMP_LABEL_SPACING_DP = -1f
     internal const val DAY_LABEL_BOTTOM_MARGIN_DP = 1f
 
@@ -69,7 +68,7 @@ internal object DailyColumnRenderer {
         var iconBounds: RectF? = null
 
         if (lowY != null) {
-            val iconY = lowY + ICON_BELOW_BAR_SPACING_DP.dp(layout.density)
+            val iconY = layout.bottomStack.iconTop(lowY)
             drawWeatherIcon(canvas, context, day, centerX, iconY, layout.iconSize)
             if (day.iconRes != null) {
                 iconBounds =
@@ -83,8 +82,7 @@ internal object DailyColumnRenderer {
 
             if (displayLow != null) {
                 val lowTempY =
-                    iconY +
-                        layout.iconSize +
+                    layout.bottomStack.lowLabelTop(iconY) +
                         layout.tempLabelHeight +
                         TEMP_LABEL_SPACING_DP.dp(layout.density)
                 val forceInteger =
@@ -175,9 +173,8 @@ internal object DailyColumnRenderer {
     ): Float? {
         val lowTemp = resolveIconAnchorLow(day) ?: return null
         val lowY = layout.tempToY(lowTemp)
-        val iconY = lowY + ICON_BELOW_BAR_SPACING_DP.dp(layout.density)
-        return iconY +
-            layout.iconSize +
+        val iconY = layout.bottomStack.iconTop(lowY)
+        return layout.bottomStack.lowLabelTop(iconY) +
             layout.tempLabelHeight +
             TEMP_LABEL_SPACING_DP.dp(layout.density)
     }

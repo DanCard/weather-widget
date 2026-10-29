@@ -41,6 +41,7 @@ import com.weatherwidget.shared.graph.WeightedColumnLayout
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContent
 import com.weatherwidget.shared.util.DailyRainLabels
 import com.weatherwidget.shared.util.DayClickResolver
+import com.weatherwidget.shared.graph.DailyBottomStack
 import com.weatherwidget.shared.util.Log
 import kotlin.math.roundToInt
 
@@ -57,6 +58,7 @@ private const val DESKTOP_TEMP_LABEL_BASE_SP = 14f
 
 /** Base size of the desktop daily low temperature labels (+30%); see the `DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale` call sites. */
 private const val DESKTOP_LOW_TEMP_LABEL_BASE_SP = 14f
+private const val DAY_LABEL_BOTTOM_MARGIN = 6f
 
 @Composable
 fun DailyForecastGraph(
@@ -98,6 +100,9 @@ fun DailyForecastGraph(
                     measureLowLabelHeight = { text, base ->
                         textMeasurer.measure(text, TextStyle(fontSize = tempFontSize(text, base).sp)).size.height.toFloat()
                     },
+                    measureDayLabelHeight = { text, sp ->
+                        textMeasurer.measure(text, TextStyle(fontSize = sp.sp)).size.height.toFloat()
+                    },
                 )
                 val index = layout.columns.indexAt(offset.x).coerceIn(0, displayDays.lastIndex)
                 val zone = classifyDailyGraphTapZone(offset.x, offset.y, index, layout)
@@ -136,22 +141,33 @@ fun DailyForecastGraph(
         val iconSize = (30.dp.toPx() * scale).coerceAtMost(dayWidth * 0.6f)
         // Top: tiny reserve — the hottest bar runs to the top, and its high/rain labels ride up a
         // little past the canvas top into the header row (by design; the Canvas isn't clipped, so
-        // the overflow paints over the header). Bottom: reserve enough for the low label + icon +
-        // day name so those sit below the bars without overlapping them.
-        val lowLabelBand = DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale * 1.4f + 4f * scale
-        val dayLabelBand = labelSizeFor(dayWidth) * scale * 1.5f + 6f * scale
+        // the overflow paints over the header). Bottom: the shared DailyBottomStack reserves exactly the
+        // icon + low label + day name under the coldest bar.
+        val bottomStack = desktopBottomStack(
+            canvasHeight = size.height,
+            dayWidth = dayWidth,
+            iconSize = iconSize,
+            scale = scale,
+            density = density,
+            measureLowLabelHeight = { text, base ->
+                textMeasurer.measure(text, TextStyle(fontSize = tempFontSize(text, base).sp)).size.height.toFloat()
+            },
+            measureDayLabelHeight = { text, sp ->
+                textMeasurer.measure(text, TextStyle(fontSize = sp.sp)).size.height.toFloat()
+            },
+        )
+        // Height of the day-name row plus its bottom margin; rain labels and the Today overlay stop above it.
+        val dayLabelBand = size.height - bottomStack.dayLabelTop
         val top = 2f * scale
         // How far labels may ride above the canvas top, overlapping the header (~high-label height
         // + gap, so the hottest day's high label fully clears its bar).
         val headerBleed = DESKTOP_TEMP_LABEL_BASE_SP * scale * 1.4f + 4f * scale
-        val bottomReserve = lowLabelBand + iconSize + dayLabelBand + 6f * scale
-        val bottom = (size.height - bottomReserve).coerceAtLeast(size.height * 0.4f)
-        val iconFloorTop = size.height - dayLabelBand - iconSize
+        val bottom = bottomStack.graphBottom
         val graphHeight = (bottom - top).coerceAtLeast(1f)
         Log.v(TAG) {
             val maxDay = displayDays.firstOrNull { d -> rawMax in axisTemps(d) }
             "axisRange canvas=${size.width.roundToInt()}x${size.height.roundToInt()} scale=$scale top=$top " +
-                "bottom=${bottom.roundToInt()} reserve=${bottomReserve.roundToInt()} raw=$rawMin..$rawMax " +
+                "bottom=${bottom.roundToInt()} stack=${bottomStack.stackHeightPx.roundToInt()} raw=$rawMin..$rawMax " +
                 "maxDay=${maxDay?.date} solid=${maxDay?.solidHigh} fcst=${maxDay?.forecastHigh} " +
                 "ghost=${maxDay?.ghostHigh} snap=${maxDay?.snapshotHigh}"
         }
@@ -216,9 +232,8 @@ fun DailyForecastGraph(
                 solidHigh = d.solidHigh,
             ) ?: lowVal
 
-            val iconTopMax = size.height - dayLabelBand - lowTextLayout.size.height - 2f * scale - iconSize - 2f * scale
-            val iconTop = (yAt(anchorLow) + 4f * scale).coerceAtMost(iconTopMax)
-            return iconTop + iconSize + 2f * scale
+            val iconTop = bottomStack.iconTop(yAt(anchorLow), lowTextLayout.size.height.toFloat())
+            return bottomStack.lowLabelTop(iconTop)
         }
 
         displayDays.forEachIndexed { index, day ->
@@ -534,8 +549,7 @@ fun DailyForecastGraph(
                     snapshotLow = day.snapshotLow,
                     solidHigh = day.solidHigh,
                 ) ?: lowForLabel
-                val iconTopMax = size.height - dayLabelBand - lowText.size.height - 2f * scale - iconSize - 2f * scale
-                val iconTop = (yAt(anchorLow) + 4f * scale).coerceAtMost(iconTopMax)
+                val iconTop = bottomStack.iconTop(yAt(anchorLow), lowText.size.height.toFloat())
                 translate(centerX - iconSize / 2f, iconTop) {
                     with(painters[index]) { draw(Size(iconSize, iconSize)) }
                 }
@@ -543,7 +557,7 @@ fun DailyForecastGraph(
                 nightLabelObstacles.getOrPut(index, ::mutableListOf) +=
                     DailyRainLabelPlanner.Box(centerX - iconSize / 2f, iconTop, centerX + iconSize / 2f, iconTop + iconSize)
 
-                val lowLabelY = iconTop + iconSize + 2f * scale
+                val lowLabelY = bottomStack.lowLabelTop(iconTop)
                 val lowTopLeft = Offset(centerX - lowText.size.width / 2f, lowLabelY)
                 if (day.isPast) drawOutlinedText(textMeasurer, lowText, lowTopLeft)
                 else drawText(lowText, topLeft = lowTopLeft)
@@ -568,7 +582,7 @@ fun DailyForecastGraph(
                 day.label,
                 TextStyle(fontSize = (labelSizeFor(columnWidth) * scale).sp, color = if (day.isToday) Color.Yellow else COLOR_LABEL_GRAY)
             )
-            val dayTextTopLeft = Offset(centerX - dayText.size.width / 2f, size.height - dayText.size.height - 6f * scale)
+            val dayTextTopLeft = Offset(centerX - dayText.size.width / 2f, size.height - dayText.size.height - DAY_LABEL_BOTTOM_MARGIN * scale)
             drawText(dayText, topLeft = dayTextTopLeft)
             recordTodayObstacle(
                 dayTextTopLeft.x,
@@ -998,21 +1012,28 @@ internal data class DailyGraphTapLayout(
 }
 
 /**
- * Bottom strip height for daily graph tap routing (icon + low label + day name), mirroring Android's
- * `graph_bottom_day_zones` band.
+ * The desktop's [DailyBottomStack]: the draw pass and the tap layout both build it here, from the
+ * same measured low-label and day-name heights, so the bars and the tap zones agree.
  */
-internal fun dailyGraphBottomStripHeightPx(
-    canvasWidth: Float,
-    dayCount: Int,
+internal fun desktopBottomStack(
+    canvasHeight: Float,
+    dayWidth: Float,
+    iconSize: Float,
     scale: Float,
     density: Float,
-): Float {
-    val dayWidth = canvasWidth / dayCount.coerceAtLeast(1)
-    val iconSize = (30f * density * scale).coerceAtMost(dayWidth * 0.6f)
-    val lowLabelBand = DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale * 1.4f + 4f * scale
-    val dayLabelBand = labelSizeFor(dayWidth) * scale * 1.5f + 6f * scale
-    return lowLabelBand + iconSize + dayLabelBand + 6f * scale
-}
+    measureLowLabelHeight: (text: String, baseSp: Float) -> Float,
+    measureDayLabelHeight: (text: String, sp: Float) -> Float,
+): DailyBottomStack =
+    DailyBottomStack.resolve(
+        canvasHeightPx = canvasHeight,
+        pxPerDp = density * scale,
+        iconSizePx = iconSize,
+        lowLabelHeightPx = measureLowLabelHeight("00°", DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale),
+        dayLabelHeightPx = measureDayLabelHeight("Wed", labelSizeFor(dayWidth) * scale),
+        dayLabelBottomMarginPx = DAY_LABEL_BOTTOM_MARGIN * scale,
+        graphBottomFloorPx = canvasHeight * 0.4f,
+        platform = "desktop",
+    )
 
 /**
  * Computes per-column weather-icon tops using the same geometry as the draw loop so taps on the
@@ -1028,6 +1049,7 @@ internal fun computeDailyGraphTapLayout(
     useCelsius: Boolean,
     widenToday: Boolean = false,
     measureLowLabelHeight: (text: String, baseSp: Float) -> Float = { _, base -> base * 1.4f },
+    measureDayLabelHeight: (text: String, sp: Float) -> Float = { _, sp -> sp * 1.4f },
 ): DailyGraphTapLayout {
     if (days.isEmpty()) {
         return DailyGraphTapLayout(
@@ -1051,11 +1073,11 @@ internal fun computeDailyGraphTapLayout(
     val columns = WeightedColumnLayout.resolve(canvasWidth, days.size, todayIndex, widenToday)
     val dayWidth = columns.normalWidth
     val iconSize = (30f * density * scale).coerceAtMost(dayWidth * 0.6f)
-    val lowLabelBand = DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale * 1.4f + 4f * scale
-    val dayLabelBand = labelSizeFor(dayWidth) * scale * 1.5f + 6f * scale
+    val bottomStack = desktopBottomStack(
+        canvasHeight, dayWidth, iconSize, scale, density, measureLowLabelHeight, measureDayLabelHeight,
+    )
     val top = 2f * scale
-    val bottomReserve = lowLabelBand + iconSize + dayLabelBand + 6f * scale
-    val bottom = (canvasHeight - bottomReserve).coerceAtLeast(canvasHeight * 0.4f)
+    val bottom = bottomStack.graphBottom
     val graphHeight = (bottom - top).coerceAtLeast(1f)
 
     fun yAt(temp: Float): Float = top + graphHeight * (1f - (temp - minTemp) / range)
@@ -1070,11 +1092,9 @@ internal fun computeDailyGraphTapLayout(
             snapshotLow = day.snapshotLow,
             solidHigh = day.solidHigh,
         ) ?: lowForLabel
-        val iconTopMax = canvasHeight - dayLabelBand - lowTextHeight - 2f * scale - iconSize - 2f * scale
-        (yAt(anchorLow) + 4f * scale).coerceAtMost(iconTopMax)
+        bottomStack.iconTop(yAt(anchorLow), lowTextHeight)
     }
-    val bottomStripHeightPx = dailyGraphBottomStripHeightPx(canvasWidth, days.size, scale, density)
-    return DailyGraphTapLayout(columns, iconSize, iconTops, bottomStripHeightPx, canvasHeight)
+    return DailyGraphTapLayout(columns, iconSize, iconTops, bottomStack.tapStripHeightPx, canvasHeight)
 }
 
 internal fun classifyDailyGraphTapZone(

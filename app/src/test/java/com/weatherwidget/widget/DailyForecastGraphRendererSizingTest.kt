@@ -191,4 +191,34 @@ class DailyForecastGraphRendererSizingTest {
 
         assertEquals(71f, layout.maxTemp, 0.0001f)
     }
+
+    /**
+     * Pins Android's bottom stack (graph bottom, low-label baseline) at a phone widget and the Fold
+     * cover, so moving it onto the shared DailyBottomStack changes no pixel
+     * (plans/261029-shared-daily-bottom-stack.md).
+     */
+    @Test
+    fun `bottom stack geometry is pinned`() {
+        val today = LocalDate.of(2026, 10, 29)
+        fun pin(widthPx: Int, heightPx: Int, columns: Int, density: Float): Pair<Float, Float?> {
+            val days = (0 until columns).map { index ->
+                DailyForecastGraphRenderer.DayData(
+                    today.plusDays(index.toLong()), if (index == 0) "Today" else "D$index",
+                    70f - index, 45f + index, isToday = index == 0, columnIndex = index,
+                )
+            }
+            val layout = DailyGraphLayoutResolver.resolve(
+                days = days, widthPx = widthPx, heightPx = heightPx, columns = columns,
+                bitmapScale = 1f, density = density, useCelsius = false, todayColumnIndex = 0,
+            )
+            return layout.graphBottom to DailyColumnRenderer.resolveLowLabelBaseline(days[0], layout)
+        }
+        val phone = pin(widthPx = 1_008, heightPx = 600, columns = 7, density = 2.625f)
+        val cover = pin(widthPx = 884, heightPx = 500, columns = 6, density = 2.625f)
+        // Values captured from the pre-DailyBottomStack resolver.
+        assertEquals(358.601f, phone.first, 0.01f)
+        assertEquals(520.851f, phone.second!!, 0.01f)
+        assertEquals(258.601f, cover.first, 0.01f)
+        assertEquals(420.851f, cover.second!!, 0.01f)
+    }
 }

@@ -7,6 +7,7 @@ import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.remote.NwsTemperaturePlausibility.isPlausibleF
 import com.weatherwidget.shared.daily.DailyAxisTemps
 import com.weatherwidget.shared.graph.DailyBarWidths
+import com.weatherwidget.shared.graph.DailyBottomStack
 import com.weatherwidget.shared.graph.TodayColumnHighlight
 import com.weatherwidget.shared.graph.LargeTodayOverlayPolicy
 import com.weatherwidget.shared.graph.WeightedColumnLayout
@@ -41,6 +42,8 @@ internal data class DailyGraphLayoutInfo(
     val pastTripleBarOffset: Float,
     val forecastBarOffset: Float,
     val iconSize: Int,
+    /** Icon, low label and day-name geometry under the bars (shared with desktop). */
+    val bottomStack: DailyBottomStack,
     val dayLabelHeight: Float,
     val tempLabelHeight: Float,
     val bulbRadius: Float,
@@ -89,7 +92,6 @@ internal object DailyGraphLayoutResolver {
     private const val MIN_BAR_HEIGHT_DP = 1f
     private const val TEMP_LABEL_TEXT_SIZE_DP = 24f
     private const val TOP_PADDING_DP = 50f
-    private const val ICON_STACK_SPACING_DP = 4f
     private const val DAY_LABEL_BASE_SIZE_DP = 17f
     private const val ICON_BASE_SIZE_DP = 36f
     private const val COLUMN_EDGE_MARGIN_DP = 2f
@@ -189,11 +191,20 @@ internal object DailyGraphLayoutResolver {
         val tempLabelHeight =
             dailyForecastTempLabelSizePx(density, heightScaleFactor, bitmapScale)
         val iconSize = (ICON_BASE_SIZE_DP * labelScale).dp(density).toInt()
-        val attachedStackHeight =
-            tempLabelHeight + iconSize + (ICON_STACK_SPACING_DP * labelScale).dp(density)
         val graphTop = topPadding
-        val requestedGraphBottom = heightPx - dayLabelHeight - attachedStackHeight
-        val graphBottom = requestedGraphBottom.coerceAtLeast(graphTop + 1f)
+        val bottomStack =
+            DailyBottomStack.resolve(
+                canvasHeightPx = heightPx.toFloat(),
+                pxPerDp = labelScale.dp(density),
+                iconSizePx = iconSize.toFloat(),
+                lowLabelHeightPx = tempLabelHeight,
+                dayLabelHeightPx = dayLabelHeight,
+                dayLabelBottomMarginPx = 0f,
+                graphBottomFloorPx = graphTop + 1f,
+                platform = "android",
+            )
+        val requestedGraphBottom = bottomStack.requestedGraphBottom
+        val graphBottom = bottomStack.graphBottom
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
         if (requestedGraphBottom < graphTop + 1f) {
@@ -267,6 +278,7 @@ internal object DailyGraphLayoutResolver {
             pastTripleBarOffset = pastTripleBarOffset,
             forecastBarOffset = barWidth * DailyBarRenderer.FORECAST_BAR_OFFSET_SCALE,
             iconSize = iconSize,
+            bottomStack = bottomStack,
             dayLabelHeight = dayLabelHeight,
             tempLabelHeight = tempLabelHeight,
             bulbRadius = tripleBarWidth * com.weatherwidget.shared.graph.TodayThermostat.BULB_RADIUS_SCALE,
