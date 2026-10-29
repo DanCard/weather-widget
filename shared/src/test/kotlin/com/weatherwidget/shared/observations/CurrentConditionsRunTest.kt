@@ -153,4 +153,14 @@ class CurrentConditionsRunTest {
         assertTrue(host.logs.any { it == "CURR_FETCH_ERROR source=OPEN_METEO code=HTTP_429 detail=quota" })
         assertTrue(host.logs.any { it.startsWith("CURR_FETCH_COMPLETE reason=charging_loop successCount=1") })
     }
+
+    @Test
+    fun `each stored reading bumps the stored-data version, a failed feed does not`() = runBlocking {
+        val version = com.weatherwidget.shared.util.StoredDataVersion()
+        val host = FakeHost(listOf(NWS, TOMORROW_IO), displayed = setOf(NWS.id, TOMORROW_IO.id), failing = setOf(TOMORROW_IO))
+        CurrentConditionsRun(host, version) { now }.run(lat, lon, source = null, reason = "test", force = true)
+
+        assertEquals(setOf(NWS, TOMORROW_IO), host.fetched.toSet())
+        assertEquals(1L, version.current())
+    }
 }

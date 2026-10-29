@@ -9,6 +9,7 @@ import com.weatherwidget.shared.actuals.dayHasOfficialGap
 import com.weatherwidget.shared.actuals.pastDayLacksAfternoonCoverage
 import com.weatherwidget.shared.util.ActualsFeedPolicy
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.util.StoredDataVersion
 import kotlinx.coroutines.CancellationException
 import java.time.Instant
 import java.time.LocalDate
@@ -114,9 +115,10 @@ object NwsGapFillRun {
         reason: String,
         nowMs: Long,
         zone: ZoneId,
+        storedDataVersion: StoredDataVersion = StoredDataVersion.process,
     ): Result? {
         if (!ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, sourcesServed, latitude, longitude)) return null
-        val result = daily(host, latitude, longitude, nowMs, zone)
+        val result = daily(host, latitude, longitude, nowMs, zone, storedDataVersion)
         host.log(
             RESULT_LOG_TAG,
             "reason=$reason need=${result.needed.sorted().ifEmpty { "none" }} rows=${result.rows} " +
@@ -132,7 +134,15 @@ object NwsGapFillRun {
      * stations went quiet for over 75 min (today up to now — a wake after a night asleep). Stations are
      * tried nearest first and the pass stops as soon as every needed day is complete.
      */
-    suspend fun daily(host: Host, latitude: Double, longitude: Double, nowMs: Long, zone: ZoneId): Result {
+    suspend fun daily(
+        host: Host,
+        latitude: Double,
+        longitude: Double,
+        nowMs: Long,
+        zone: ZoneId,
+        /** Bumped after each store and extremes recompute, so cached reads of them go stale. */
+        storedDataVersion: StoredDataVersion = StoredDataVersion.process,
+    ): Result {
         val now = Instant.ofEpochMilli(nowMs).atZone(zone)
         val today = now.toLocalDate()
         val rangeStart = today.minusDays(2).dayKey()
@@ -174,7 +184,7 @@ object NwsGapFillRun {
         for ((index, station) in stations.withIndex()) {
             tried++
             val fetch = fetchAndStore(
-                host, station, index, latitude, longitude, startIso, endIso,
+                host, station, index, latitude, longitude, startIso, endIso, storedDataVersion,
                 fallbackLogTag = "NWS_DAILY_WEB_FALLBACK",
                 stationLogTag = "NWS_DAILY_BACKFILL_STATION",
             )
@@ -184,6 +194,7 @@ object NwsGapFillRun {
 
             val days = fetch.rows.map { Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate() }.toSet()
             host.recomputeExtremes(latitude, longitude, days)
+            storedDataVersion.bump("nws_gap_fill_extremes")
             val rowDates = nwsDayKeys(host, rangeStart, rangeEnd, latitude, longitude)
             val stillIncomplete = incompleteDays(host, rowDates, latitude, longitude, zone, today, nowMs)
             remaining.removeAll(rowDates - stillIncomplete)
@@ -231,6 +242,7 @@ object NwsGapFillRun {
         lookbackHours: Long,
         nowMs: Long,
         zone: ZoneId,
+        storedDataVersion: StoredDataVersion = StoredDataVersion.process,
     ): RecentResult {
         val now = Instant.ofEpochMilli(nowMs)
         val startIso = DateTimeFormatter.ISO_INSTANT.format(now.minusSeconds(lookbackHours * 3600L))
@@ -258,7 +270,7 @@ object NwsGapFillRun {
         val affected = mutableSetOf<LocalDate>()
         for ((index, station) in stations.withIndex()) {
             val fetch = fetchAndStore(
-                host, station, index, latitude, longitude, startIso, endIso,
+                host, station, index, latitude, longitude, startIso, endIso, storedDataVersion,
                 fallbackLogTag = "OBS_HOURLY_WEB_FALLBACK",
                 stationLogTag = "OBS_HOURLY_BACKFILL_STATION",
             )
@@ -271,6 +283,7 @@ object NwsGapFillRun {
             // The whole span, gaps included, as Android's range recompute did.
             val days = generateSequence(affected.min()) { it.plusDays(1) }.takeWhile { !it.isAfter(affected.max()) }.toSet()
             host.recomputeExtremes(latitude, longitude, days)
+            storedDataVersion.bump("nws_gap_fill_extremes")
         }
         host.log(
             "OBS_HOURLY_BACKFILL_DONE",
@@ -291,6 +304,7 @@ object NwsGapFillRun {
         longitude: Double,
         startIso: String,
         endIso: String,
+        storedDataVersion: StoredDataVersion,
         fallbackLogTag: String,
         stationLogTag: String,
     ): StationFetch =
@@ -305,7 +319,10 @@ object NwsGapFillRun {
                     (result.apiFailure?.let { " apiFetchFailed=$it" } ?: ""),
                 "INFO",
             )
-            if (result.rows.isNotEmpty()) host.store(result.rows, latitude, longitude)
+            if (result.rows.isNotEmpty()) {
+                host.store(result.rows, latitude, longitude)
+                storedDataVersion.bump("nws_gap_fill station=${station.id}")
+            }
             StationFetch(result.rows, failed = result.rows.isEmpty() && result.apiFailure != null)
         } catch (e: CancellationException) {
             throw e

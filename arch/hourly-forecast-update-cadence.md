@@ -146,6 +146,20 @@ town's rows in the read box must not skip a fetch. User Refresh, source switches
 location changes have their own targeted scope. These paths do not make routine forecast cadence
 equivalent to "fetch everything on every interaction."
 
+### Interaction cache and the stored-data version
+
+Android's widget interaction path (`DailyInteractionRenderer`) reads its daily rows, actuals,
+snapshots and hourly through `WidgetInteractionCache`, kept 60 s per site, day and load window. An
+entry also ends at the next stored-data write: the shared write runners (`ForecastPersistRun`,
+`CurrentConditionsRun`, `NwsGapFillRun`) bump `StoredDataVersion` after they store rows, and
+`VersionedTtlCache` (`:shared`) misses on any bump since the entry's load began. So the UI-only
+repaint a screen sends after its fetch (History, Observations) draws the fetched rows, without each
+sender having to clear the cache. Worker paints and user-initiated widget refreshes still clear it
+outright. Desktop keeps no such cache; its windows reload on `dataUpdateCount`. The trace is
+`STORED_DATA_VERSION reason=… version=…` at VERBOSE, off by default on Android
+(`adb shell setprop log.tag.STORED_DATA_VERSION VERBOSE`); a cache reload shows as a non-trivial
+`DailyInteractionRenderer … dailyDataMs=` on the repaint after a fetch.
+
 ### User-initiated refresh throttle (10-minute limit)
 
 User-initiated manual refresh triggers (Android widget tap-to-refresh, Settings "Refresh data",

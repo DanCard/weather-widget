@@ -40,6 +40,9 @@ class ForecastPersistRunTest {
         val restamped = mutableListOf<String>()
         var labelAsks = 0
         var dailyReads = 0
+        /** Read at each daily write, to show the version bump comes after the writes. */
+        var versionProbe: () -> Long = { 0L }
+        val versionAtDailyWrite = mutableListOf<Long>()
 
         override suspend fun storedHourly(startMs: Long, endMs: Long) = live.values.filter { it.dateTime in startMs..endMs }
         override suspend fun writeHourly(rows: List<HourlyForecast>) = rows.forEach { live[it.dateTime] = it }
@@ -52,6 +55,7 @@ class ForecastPersistRunTest {
         }
         override suspend fun storedDaily(from: LocalDate, to: LocalDate) = daily.filter { it.date in from..to }.also { dailyReads++ }
         override suspend fun writeDaily(write: List<DailyForecastWrite.Row>, restamp: List<String>, nowMs: Long) {
+            versionAtDailyWrite += versionProbe()
             restamped += restamp
             write.forEach { row ->
                 daily += DailyForecastWrite.Stored(row.date, row.values, today.toEpochDay() * 86_400_000L, nowMs, nowMs, "${row.date}@$nowMs")
@@ -143,5 +147,37 @@ class ForecastPersistRunTest {
         assertEquals(1, result.dailyRestamped)
         assertEquals(1, result.dailyWritten)
         assertEquals(listOf("${today.plusDays(1)}@$now"), host.restamped)
+    }
+
+    // --- stored-data version (plans/261029-stored-data-version-invalidates-interaction-cache.md) ---
+
+    @Test
+    fun `a persist that writes bumps the stored-data version once, after its writes`() {
+        val version = StoredDataVersion()
+        val host = FakeHost().apply { versionProbe = version::current }
+        runBlocking {
+            ForecastPersistRun(host, version).persist(
+                ForecastPersistRun.Fetch(hourly = hours(-5, 3), daily = (0L..7L).map { day(it) }, keep = null),
+                now,
+                zone,
+            )
+        }
+
+        assertEquals(listOf(0L), host.versionAtDailyWrite)
+        assertEquals(1L, version.current())
+    }
+
+    @Test
+    fun `an empty fetch writes nothing and leaves the version alone`() {
+        val version = StoredDataVersion()
+        runBlocking {
+            ForecastPersistRun(FakeHost(), version).persist(
+                ForecastPersistRun.Fetch(hourly = emptyList(), daily = null, keep = null),
+                now,
+                zone,
+            )
+        }
+
+        assertEquals(0L, version.current())
     }
 }

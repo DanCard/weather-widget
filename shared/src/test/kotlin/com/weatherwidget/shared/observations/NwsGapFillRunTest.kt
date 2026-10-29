@@ -405,4 +405,29 @@ class NwsGapFillRunTest {
         })
         assertFalse(recent(oneAnswers).unreachable)
     }
+
+    // --- stored-data version (plans/261029-stored-data-version-invalidates-interaction-cache.md) ---
+
+    @Test
+    fun `a stored station and its extremes recompute bump the stored-data version`() = runBlocking<Unit> {
+        val version = com.weatherwidget.shared.util.StoredDataVersion()
+        val yesterday = today.minusDays(1)
+        val host = FakeHost(windows = { id ->
+            NwsGapFillRun.StationRows(hourly(id, yesterday), false)
+        }).apply { complete(today.minusDays(2)); complete(today) }
+
+        NwsGapFillRun.daily(host, lat, lon, at(today, 10), zone, version)
+
+        assertEquals("one store, one recompute", 2L, version.current())
+    }
+
+    @Test
+    fun `complete days write nothing and leave the version alone`() = runBlocking<Unit> {
+        val version = com.weatherwidget.shared.util.StoredDataVersion()
+        val host = FakeHost().apply { (0L..2L).forEach { complete(today.minusDays(it)) } }
+
+        NwsGapFillRun.daily(host, lat, lon, at(today, 10), zone, version)
+
+        assertEquals(0L, version.current())
+    }
 }

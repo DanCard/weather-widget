@@ -21,7 +21,10 @@ import java.time.ZoneId
  *
  * Quota banners, horizon markers and observations stay with the caller; the Host reads and writes rows.
  */
-class ForecastPersistRun<K>(private val host: Host<K>) {
+class ForecastPersistRun<K>(
+    private val host: Host<K>,
+    private val version: StoredDataVersion = StoredDataVersion.process,
+) {
     /** One source at one site; every read is on the site's exact quantized key. */
     interface Host<K> {
         val sourceId: String
@@ -71,7 +74,11 @@ class ForecastPersistRun<K>(private val host: Host<K>) {
         val elapsed: ElapsedForecastBackfill.Summary?,
         val dailyWritten: Int,
         val dailyRestamped: Int,
-    )
+    ) {
+        val wroteAny: Boolean
+            get() = liveHours > 0 || snapshotHours > 0 || (elapsed?.let { it.stored > 0 } ?: false) ||
+                dailyWritten > 0 || dailyRestamped > 0
+    }
 
     suspend fun persist(fetch: Fetch, nowMs: Long, zone: ZoneId = ZoneId.systemDefault()): Result {
         val source = host.sourceId
@@ -88,7 +95,7 @@ class ForecastPersistRun<K>(private val host: Host<K>) {
         val elapsed = label?.let { backfillElapsed(history, it, nowMs) }
 
         val daily = fetch.daily?.let { persistDaily(it, history, fetch.userRefresh, nowMs, zone) }
-        return Result(
+        val result = Result(
             liveHours = hourlyPlan?.live?.size ?: 0,
             snapshotLabel = label,
             snapshotHours = if (label == null) 0 else snapshot.size,
@@ -96,6 +103,9 @@ class ForecastPersistRun<K>(private val host: Host<K>) {
             dailyWritten = daily?.write?.size ?: 0,
             dailyRestamped = daily?.restamp?.size ?: 0,
         )
+        // After every write, so a read cached mid-persist is stale too ([StoredDataVersion]).
+        if (result.wroteAny) version.bump("forecast_persist source=$source")
+        return result
     }
 
     /** Never fails the fetch: the live rows and the daily rows matter more than history for a blank site. */

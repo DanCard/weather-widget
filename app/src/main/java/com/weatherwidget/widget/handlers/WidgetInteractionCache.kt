@@ -4,11 +4,9 @@ import android.os.SystemClock
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.shared.util.VersionedTtlCache
 import com.weatherwidget.widget.DailyActualsBySource
 import java.time.LocalDate
-import java.util.concurrent.ConcurrentHashMap
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /**
  * Short-lived cache for the two heaviest, location-keyed loads on the widget interaction path:
@@ -21,15 +19,16 @@ import kotlinx.coroutines.sync.withLock
  * a ~1.4s handler under contention (see TEMP_ACTUALS_PERF / *_SLOW app_logs).
  *
  * Scope is deliberately the interaction path only ([DailyInteractionRenderer]). The
- * background/worker paint uses a different path (WidgetRenderer) and is untouched, so a stale entry
- * can never leak into a scheduled/fetch-driven repaint.
+ * background/worker paint uses a different path (WidgetRenderer), which also [clear]s it.
  *
- * A [TTL_MS] of 2s is imperceptible staleness during active tapping and self-heals immediately after
- * — the next interaction >2s later reloads fresh, and any real data fetch repaints via the worker
- * path with live data regardless. Correctness never depends on invalidation; the TTL alone bounds it.
+ * An entry lives [TTL_MS] (60 s) **or until a stored-data write**, whichever is first: the shared
+ * write runners bump [com.weatherwidget.shared.util.StoredDataVersion], and [VersionedTtlCache] treats
+ * any bump since an entry's load as a miss. The TTL alone let the UI-only repaint after a History
+ * refresh draw the pre-fetch rows (Sat rain 12% for ~60 s after 21% was stored, 2026-10-29;
+ * plans/261029-stored-data-version-invalidates-interaction-cache.md).
  */
 internal object WidgetInteractionCache {
-    /** Cache lifetime. Reused across user tap bursts and screen-on UI updates; invalidated on fetch. */
+    /** Cache lifetime. Reused across user tap bursts and screen-on UI updates; a stored write ends it early. */
     const val TTL_MS = 60_000L
 
     /** Lat/lon quantization for the key — matches the 3dp coordinate quantization used elsewhere. */
@@ -76,57 +75,22 @@ internal object WidgetInteractionCache {
         val currentTemps: List<ObservationEntity>? = null,
     )
 
-    private class Entry(val data: Data, val storedAtElapsedMs: Long)
+    private val cache = VersionedTtlCache<Key, Data>(TTL_MS)
 
-    // Neither map is actively evicted: expired entries are dropped lazily on get(), and
-    // loadMutexes only grows with distinct keys. Bounded in practice — keys are 3dp-quantized
-    // coordinates × epoch-day × load window, and the app has few locations — so correctness
-    // never depends on explicit invalidation.
-    private val entries = ConcurrentHashMap<Key, Entry>()
-    private val loadMutexes = ConcurrentHashMap<Key, Mutex>()
+    /** Cached [Data] for [key] if within [TTL_MS] of [nowElapsedMs] and no write since its load, else null. */
+    fun get(key: Key, nowElapsedMs: Long): Data? = cache.get(key, nowElapsedMs)
 
-    /** Returns cached [Data] for [key] if present and within [TTL_MS] of [nowElapsedMs], else null. */
-    fun get(key: Key, nowElapsedMs: Long): Data? {
-        val e = entries[key] ?: return null
-        if (nowElapsedMs - e.storedAtElapsedMs > TTL_MS) {
-            entries.remove(key, e)
-            return null
-        }
-        return e.data
-    }
+    fun put(key: Key, data: Data, nowElapsedMs: Long) = cache.put(key, data, nowElapsedMs)
 
-    fun put(key: Key, data: Data, nowElapsedMs: Long) {
-        entries[key] = Entry(data, nowElapsedMs)
-    }
-
-    /**
-     * Returns a fresh cached value or performs exactly one load for [key]. Concurrent callers for
-     * the same key await the same critical section; unrelated locations use unrelated mutexes.
-     *
-     * The completion clock is read after [loader] returns, so a slow database aggregation does not
-     * consume the short cache lifetime while it is still running.
-     */
+    /** A fresh cached value or exactly one load for [key]; see [VersionedTtlCache.getOrLoad]. */
     suspend fun getOrLoad(
         key: Key,
         nowElapsedMs: () -> Long = ::nowMs,
         loader: suspend () -> Data,
-    ): Data {
-        get(key, nowElapsedMs())?.let { return it }
+    ): Data = cache.getOrLoad(key, nowElapsedMs, loader)
 
-        val mutex = loadMutexes.computeIfAbsent(key) { Mutex() }
-        return mutex.withLock {
-            get(key, nowElapsedMs())?.let { return@withLock it }
-            loader().also { loaded ->
-                put(key, loaded, nowElapsedMs())
-            }
-        }
-    }
-
-    /** Drops any cached entry. Not required for correctness (TTL bounds staleness); used by tests. */
-    fun clear() {
-        entries.clear()
-        loadMutexes.clear()
-    }
+    /** Drops every entry: a non-UI-only paint and a user-initiated refresh load fresh. */
+    fun clear() = cache.clear()
 
     fun nowMs(): Long = SystemClock.elapsedRealtime()
 }

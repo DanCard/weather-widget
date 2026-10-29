@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.shared.util.ActualsFeedPolicy
+import com.weatherwidget.shared.util.StoredDataVersion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -22,6 +23,7 @@ import java.time.format.DateTimeFormatter
  */
 class CurrentConditionsRun(
     private val host: Host,
+    private val version: StoredDataVersion = StoredDataVersion.process,
     private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
     interface Host {
@@ -118,6 +120,8 @@ class CurrentConditionsRun(
                         val reading = host.fetch(feed, latitude, longitude)
                         if (reading != null) {
                             successCount++
+                            // [Host.fetch] stored it (and its day's extremes): cached reads are stale.
+                            version.bump("current_conditions feed=${feed.id}")
                             host.recordSuccess(feed)
                         }
                         logSourceResult(reason, feed, reading, null, nowMs() - feedStart)
