@@ -66,11 +66,13 @@ fun runDaemon(reopenUi: Boolean = false) {
     // diagnostics only).
     weatherDao.log(WakeEventLog.TAG, WakeEventLog.message("startup"), "INFO")
 
+    DesktopAppLogQueue.install(weatherDao)
     com.weatherwidget.widget.CurrentTemperatureResolver.dbLogger = { tag, message, level ->
         // Persistence boundary: VERBOSE = high-frequency render/poll trace — visible only in the
         // ephemeral desktop console (DesktopLogSink keeps the full trace in the autostart log), never
-        // persisted, so the queryable DB log stays sparse. DEBUG+ persist.
-        if (level != "VERBOSE") weatherDao.log(tag, message, level)
+        // persisted, so the queryable DB log stays sparse. DEBUG+ persist, queued: written inline, a row
+        // held the source_change cache reload for the 5 s busy timeout (DesktopAppLogQueue).
+        if (level != "VERBOSE") DesktopAppLogQueue.log(tag, message, level)
     }
 
 

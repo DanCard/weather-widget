@@ -55,7 +55,13 @@ class DesktopWriteTiming(
                 val enable = args!![0] as Boolean
                 if (!enable && lockedAtMs == null && target.autoCommit) {
                     val startMs = elapsedMs()
-                    call(target, method, args)
+                    try {
+                        call(target, method, args)
+                    } catch (e: Throwable) {
+                        // The BEGIN IMMEDIATE that waited out the busy timeout: the stall that matters most.
+                        report("$SLOW_TAG kind=txn outcome=failed caller=${caller()} waitMs=${elapsedMs() - startMs} ${where()}")
+                        throw e
+                    }
                     lockedAtMs = elapsedMs()
                     waitMs = lockedAtMs!! - startMs
                     null
@@ -96,9 +102,15 @@ class DesktopWriteTiming(
             val sql = args?.firstOrNull() as? String
             if (!prepared && sql != null && !isWrite(sql)) return call(target, method, args)
             val startMs = elapsedMs()
-            return call(target, method, args).also {
+            var failed = true
+            try {
+                return call(target, method, args).also { failed = false }
+            } finally {
                 val ms = elapsedMs() - startMs
-                if (ms >= waitThresholdMs) report("$SLOW_TAG kind=autocommit caller=${caller()} ms=$ms ${where()}")
+                if (failed || ms >= waitThresholdMs) {
+                    val outcome = if (failed) " outcome=failed" else ""
+                    report("$SLOW_TAG kind=autocommit$outcome caller=${caller()} ms=$ms ${where()}")
+                }
             }
         }
     }
@@ -128,15 +140,19 @@ class DesktopWriteTiming(
         private fun where() = "thread=${Thread.currentThread().name} pid=${ProcessHandle.current().pid()}"
 
         /**
-         * The first frame outside JDBC, proxies, the JDK, this class and `getConnection`: the DAO method
-         * that wrote. Walked only when a line is reported.
+         * The DAO method that wrote and the two app frames above it (`DesktopWeatherDao.log<-Caller.method<-…`):
+         * the first frames outside JDBC, proxies, the JDK, coroutines, this class and `getConnection`.
+         * `DesktopWeatherDao.log` alone does not say who was logging. Walked only when a line is reported.
          */
-        private fun caller(): String = Throwable().stackTrace.firstOrNull { frame ->
+        private fun caller(): String = Throwable().stackTrace.asSequence().filter { frame ->
             val name = frame.className
             !name.startsWith("java.") && !name.startsWith("jdk.") && !name.startsWith("kotlin.") &&
-                !name.startsWith("org.sqlite.") && !name.startsWith("com.sun.proxy") && !name.contains("\$Proxy") &&
+                !name.startsWith("kotlinx.") && !name.startsWith("org.sqlite.") && !name.startsWith("com.sun.proxy") &&
+                !name.contains("\$Proxy") &&
                 name != DesktopWriteTiming::class.java.name && !name.startsWith("${DesktopWriteTiming::class.java.name}$") &&
-                !(name == DesktopWeatherDatabase::class.java.name && frame.methodName == "getConnection")
-        }?.let { "${it.className.substringAfterLast('.')}.${it.methodName}" } ?: "unknown"
+                !(name == DesktopWeatherDatabase::class.java.name && frame.methodName == "getConnection") &&
+                !frame.methodName.endsWith("\$default") // Kotlin's default-argument bridge, not a caller
+        }.map { "${it.className.substringAfterLast('.')}.${it.methodName}" }
+            .take(3).toList().ifEmpty { listOf("unknown") }.joinToString("<-")
     }
 }

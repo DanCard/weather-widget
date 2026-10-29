@@ -53,7 +53,13 @@ A source switch (API button, daily home button) logs `SOURCE_SWITCH_E2E` on both
 `phase=done … refresh=<QUEUED|FRESH|DELEGATED|SKIPPED|FAILED> deferredMs=`, also stored in `app_logs`.
 A missing `phase=done` line after a `phase=critical` line means the deferred phase is stuck. Desktop
 `paintMs` is ~0: Compose repaints from the saved config, and the daemon's reload follows
-(`LAUNCH_REFRESH_CHECK reason=source_change`).
+(`LAUNCH_REFRESH_CHECK reason=source_change`). Desktop therefore adds
+`phase=data_ready sinceSwitchMs=` once the UI holds the new source's data, about 600 ms normally.
+
+Desktop breadcrumbs written from code that must not wait on the database (`CURR_TEMP_RESULT`,
+`CURRENT_STATUS_PUBLISH`, `CONFIG_SAVE`, refresh notices, `data_ready`) go through
+`DesktopAppLogQueue`: one `app-log-writer` thread per process, rows stamped when logged. Written inline,
+a `CURR_TEMP_RESULT` row held both processes' source-change reloads for the 5 s busy timeout.
 
 The desktop daemon and UI processes write one WAL database, so a write can wait up to the 5 s busy
 timeout on the other process's transaction. Every desktop connection is timed and reports
@@ -65,7 +71,11 @@ timeout on the other process's transaction. Every desktop connection is timed an
   it 500 ms or more (a culprit). sqlite-jdbc re-begins the IMMEDIATE transaction inside `commit()`,
   so `holdMs` runs until the connection closes.
 - `kind=open ms=`: opening a connection took 200 ms or more.
+- `outcome=failed`: the write gave up, usually `SQLITE_BUSY` after the full 5 s timeout. It is logged
+  whatever its duration.
 
+`caller=` lists the DAO method and the two app frames above it, for example
+`DesktopWeatherDao.log<-DaemonProcessKt.runDaemon$lambda$2<-CurrentTemperatureResolver.appLog`.
 Match `pid=`/`thread=` between a victim and the culprit that overlaps it. To reproduce a stall, hold
 the lock while switching source in the popup:
 

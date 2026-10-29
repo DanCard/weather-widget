@@ -253,7 +253,7 @@ internal object WidgetIntentActionHandler {
     }
 
     /** What differs between the API button and the home button's source reset. */
-    private enum class SwitchKind(
+    internal enum class SwitchKind(
         val trigger: SourceViewTrigger,
         val reason: String,
         val staleReason: String,
@@ -300,7 +300,7 @@ internal object WidgetIntentActionHandler {
         failure?.let { throw it }
     }
 
-    private class WidgetSourceSwitchHost(
+    internal class WidgetSourceSwitchHost(
         private val context: Context,
         private val appWidgetId: Int,
         private val repository: WeatherRepository?,

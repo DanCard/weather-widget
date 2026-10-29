@@ -63,7 +63,8 @@ class DesktopWriteTimingTest {
         holder.join()
 
         val victim = reports.single { "kind=autocommit" in it }
-        assertTrue(victim, victim.startsWith("DB_WRITE_SLOW kind=autocommit caller=DesktopWeatherDao.log ms="))
+        // The chain names who was logging, not just the DAO's log().
+        assertTrue(victim, victim.startsWith("DB_WRITE_SLOW kind=autocommit caller=DesktopWeatherDao.log<-DesktopWriteTimingTest."))
         assertTrue(victim, field(victim, "ms") >= 300)
         assertTrue(victim, "pid=${ProcessHandle.current().pid()}" in victim)
         val culprit = reports.single { "kind=txn" in it }
@@ -110,6 +111,20 @@ class DesktopWriteTimingTest {
             conn.createStatement().use { st -> st.executeQuery("SELECT COUNT(*) FROM app_logs").use { it.next() } }
         }
         assertTrue(reports.toString(), reports.isEmpty())
+    }
+
+    @Test
+    fun `a write that fails is reported whatever its duration`() {
+        val db = fakeClockDb()
+        val failure = runCatching {
+            db.getConnection().use { conn ->
+                conn.createStatement().use { it.executeUpdate("INSERT INTO app_logs (timestamp, level, tag, message) VALUES (1, NULL, 'T', 'm')") }
+            }
+        }.exceptionOrNull()
+
+        assertTrue("the NOT NULL insert must fail", failure != null)
+        val line = reports.single()
+        assertTrue(line, line.startsWith("DB_WRITE_SLOW kind=autocommit outcome=failed caller=DesktopWriteTimingTest."))
     }
 
     @Test

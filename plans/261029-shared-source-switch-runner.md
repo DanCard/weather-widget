@@ -238,3 +238,63 @@ Where the build differs from the design above:
 - **Desktop:** the 09:59:28 incident above, 6.3 s click-to-publish; every other switch today took
   0.4–1.3 s. No scripted repro yet: the popup has no automation hook, so the lock-hold repro is part of
   runtime verification.
+
+### Runtime verification (2026-10-29, after `12880598`)
+
+**Desktop, lock held 8 s by `sqlite3 BEGIN IMMEDIATE` while clicking the popup source label:**
+
+- The switch is fixed. `SOURCE_SWITCH_E2E criticalMs=1` (6 ms unlocked), the daemon saw
+  `.config-changed` 1 ms later, and the header showed the new source at once. Before the fix this
+  sequence froze the UI for 5.3 s.
+- **The graph data still waited about 5.6 s.** Both the daemon's `[source_change] Loading cached data`
+  and the UI's own reload write a `CURR_TEMP_RESULT` app_logs row synchronously before they finish:
+  - `DB_WRITE_SLOW kind=autocommit outcome=failed caller=DesktopWeatherDao.log<-DaemonProcessKt.runDaemon$lambda$2<-CurrentTemperatureResolver.appLog ms=5008`
+  - the same from the UI process, `ms=5005`
+  - `CurrentStatusResolver.logIfChanged`: 643 ms
+- Desktop `paintMs` is 0 by construction, so `SOURCE_SWITCH_E2E` does not show this lag. The only clue
+  today is the gap between the switch line and `Cached data loaded`.
+- With a hold longer than 5 s, the deferred phase's view tally and app_logs row fail with `SQLITE_BUSY`.
+  They are logged, and the switch is unaffected.
+- `DesktopWriteTiming` now also reports failed writes (`outcome=failed`) and a three-frame `caller=`
+  chain. Without both, the first repro could not name the reload's writer.
+
+**Android, `emulator-5554` widget 63, 10 `TOGGLE_API` taps after installing the build:**
+
+- `INTERACTION_E2E handler=`: 896 (first after install), 112, 708, 429, 160, 505, 342, 467, 497, 281 ms.
+  Median about 450 ms, against the baseline median of about 380 ms.
+- `paintMs` is almost all of it; the deferred phase is 9–32 ms.
+- Every source was fresh (`refresh=FRESH`), so the probe and enqueue moved after the paint cost little.
+  The difference from the baseline is within run-to-run noise. The ordering pays off when a refresh
+  is queued, which this run did not exercise.
+
+**Follow-ups, not yet approved:**
+1. Write desktop app_logs rows from the current-temp and current-status resolvers off the reload path.
+2. Add a desktop `phase=data_ready` line once the reloaded data for the new source lands.
+
+### Follow-ups 1 and 2 (approved and done 2026-10-29)
+
+1. **`DesktopAppLogQueue`** writes app_logs rows on one `app-log-writer` thread per process, in order.
+   - Each row is stamped when it was logged (`DesktopWeatherDao.log(timestampMs=)`).
+   - A full queue (1,000 rows) drops the row with a console warning.
+   - Routed through it: `CurrentTemperatureResolver.dbLogger` (daemon and UI), `CURRENT_STATUS_PUBLISH`,
+     refresh notices, `CONFIG_SAVE` (it replaces the `config-save-log` executor) and `data_ready`.
+2. **`DesktopSourceSwitch.onDataShown`** logs
+   `SOURCE_SWITCH_E2E phase=data_ready sinceSwitchMs=` once, when the UI's first load from the
+   rebuilt repository holds the switched-to source's data.
+3. `DesktopWriteTiming` skips Kotlin `$default` bridge frames in `caller=`.
+
+Runtime, the same 8 s `sqlite3 BEGIN IMMEDIATE` hold while clicking the popup source label:
+
+| | Before | After |
+|---|---|---|
+| `criticalMs` | 1 | 2 |
+| Daemon `source_change` reload | 5.9 s | 1.05 s |
+| UI has the new data | ~5.6 s (inferred) | `data_ready sinceSwitchMs=609` |
+| Unlocked `data_ready` | — | 604, 675 ms |
+
+Queued rows still fail after 5 s under an 8 s hold, but nothing waits on them.
+
+**Still open (not in this change):** the daemon's `PanelPublisher.publishForecastState` →
+`DesktopWeatherDao.upsertCurrentStatus` waited 5006 ms and failed under the same hold. This happens after
+the graph data is shown, but it delays `LAUNCH_REFRESH_CHECK` and loses that `current_status` row. It is
+a data write, not a breadcrumb, so it needs its own decision.

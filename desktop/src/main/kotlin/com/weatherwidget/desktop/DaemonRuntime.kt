@@ -949,7 +949,8 @@ internal class DaemonRuntime(
             longitude = config.lon,
             source = config.displaySource,
             resolveTemp = { raw, now -> newRepo.resolveCurrentTempInMemory(raw, now) },
-            logChange = { message -> weatherDao.log("CURRENT_STATUS_PUBLISH", message, "INFO") },
+            // Queued: it runs inside the status resolve that a cache reload waits on (DesktopAppLogQueue).
+            logChange = { message -> DesktopAppLogQueue.log("CURRENT_STATUS_PUBLISH", message, "INFO") },
         )
 
         fetchJob = daemonScope.launch {

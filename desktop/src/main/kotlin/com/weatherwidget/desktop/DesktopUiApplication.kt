@@ -130,22 +130,18 @@ internal fun runDesktopUiApplication() = application {
         remember(weatherDao) {
             DesktopSourceViews.install(weatherDao)
             DesktopSourceSwitch.install(weatherDao)
-        }
-        // CONFIG_SAVE breadcrumbs go to app_logs on this single thread, after the save they describe:
-        // an insert on the UI thread waited out the 5 s busy timeout behind the daemon's write lock and
-        // froze a source switch (2026-10-29, plans/261029-shared-source-switch-runner.md).
-        val configLogExecutor = remember {
-            java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "config-save-log").apply { isDaemon = true } }
+            DesktopAppLogQueue.install(weatherDao)
         }
         // The four-second refresh toast every window shows (plans/261015-refresh-queued-toast-all-surfaces.md).
-        val refreshNotice = remember { RefreshNoticeState(log = { weatherDao.log(RefreshNotice.TAG, it, "INFO") }) }
+        val refreshNotice = remember { RefreshNoticeState(log = { DesktopAppLogQueue.log(RefreshNotice.TAG, it, "INFO") }) }
         RefreshNoticeExpiry(refreshNotice)
 
         remember(weatherDao) {
             com.weatherwidget.widget.CurrentTemperatureResolver.dbLogger = { tag, message, level ->
                 // Persistence boundary: VERBOSE (high-frequency render/poll trace) stays ephemeral
-                // (console/autostart log) and is never persisted, keeping the DB log sparse. DEBUG+ persist.
-                if (level != "VERBOSE") weatherDao.log(tag, message, level)
+                // (console/autostart log) and is never persisted, keeping the DB log sparse. DEBUG+ persist,
+                // queued: written inline, a row held this process's cache reload for the 5 s busy timeout.
+                if (level != "VERBOSE") DesktopAppLogQueue.log(tag, message, level)
             }
         }
 
@@ -367,9 +363,9 @@ internal fun runDesktopUiApplication() = application {
                         }
                     },
                     logRows = pendingLogRows,
-                    logExecutor = configLogExecutor,
-                    // DesktopWeatherDao.log never throws; a failed insert is logged there.
-                    log = { message, level -> weatherDao.log("CONFIG_SAVE", message, level) },
+                    // DesktopAppLogQueue is the background writer, so hand the rows over directly.
+                    logExecutor = { it.run() },
+                    log = { message, level -> DesktopAppLogQueue.log("CONFIG_SAVE", message, level) },
                 )
                 // A source cycle shows no notice, whatever the daemon fetches for it (user, 2026-10-15).
                 Unit
@@ -488,6 +484,8 @@ internal fun runDesktopUiApplication() = application {
                 val cached = repo.loadCached()
                 if (cached != null && !holdForLocationChange(cached)) {
                     forecast = cached
+                    // The repository is rebuilt per source, so this is the switched-to source's data.
+                    DesktopSourceSwitch.onDataShown(currentConfig?.displaySource)
                     val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.settings?.weatherSource)
                     dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
                 }

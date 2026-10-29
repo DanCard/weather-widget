@@ -1203,9 +1203,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     /**
      * Appends an app-log row. Best-effort: a logging failure must never break a fetch, so any error
      * is reported to the console logger and swallowed (this is the persistence backstop, not the
-     * primary log path).
+     * primary log path). [timestampMs] is when the event happened: a queued row (`DesktopAppLogQueue`)
+     * is written later, but keeps its place in the log.
      */
-    fun log(tag: String, message: String, level: String = "INFO") {
+    fun log(tag: String, message: String, level: String = "INFO", timestampMs: Long = System.currentTimeMillis()) {
         // Redacted at the write point so no caller can leak a `token=`/`appid=`/`key=` URL from
         // exception text into app_logs. See ApiKeyRedaction.
         val safe = com.weatherwidget.data.remote.ApiKeyRedaction.redact(message)
@@ -1214,7 +1215,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 conn.prepareStatement(
                     "INSERT INTO app_logs (timestamp, level, tag, message) VALUES (?, ?, ?, ?)"
                 ).use { stmt ->
-                    stmt.setLong(1, System.currentTimeMillis())
+                    stmt.setLong(1, timestampMs)
                     stmt.setString(2, level)
                     stmt.setString(3, tag)
                     stmt.setString(4, safe)
