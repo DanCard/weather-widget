@@ -42,6 +42,7 @@ NC='\033[0m'
 EMULATOR_ARGS=()
 INSTALL_MODE=false
 SEQUENTIAL=false
+RUN_MODE="cached"
 
 show_help() {
     cat <<EOF
@@ -50,6 +51,8 @@ Usage: $(basename "$0") [OPTIONS]
 Run unit tests and emulator tests in parallel, staggered to avoid build contention.
 
 Options:
+  --fresh                   Force fresh unit and emulator test execution (bypass cache)
+  --cached                  Report cached results if inputs are unchanged (default)
   --install                 Also install debug APK to all connected devices
   --sequential              Start emulator tests only after ALL unit tests finish (the old order).
                             Default: start them during the Long bucket's tail. With no emulator
@@ -61,6 +64,14 @@ EOF
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --fresh)
+            RUN_MODE="fresh"
+            shift
+            ;;
+        --cached)
+            RUN_MODE="cached"
+            shift
+            ;;
         --emulator-args)
             if [ $# -lt 2 ]; then
                 echo -e "${RED}Error: --emulator-args requires a value${NC}"
@@ -187,6 +198,10 @@ run_emulator_tests_for_staggered() {
     adb_bin=$(resolve_adb)
     mapfile -t connected_emulators < <("$adb_bin" devices 2>/dev/null | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
     if [ "${#connected_emulators[@]}" -eq 0 ]; then
+        if [ "$RUN_MODE" = "cached" ] && "$EMULATOR_SCRIPT" --check-cache "${EMULATOR_ARGS[@]}" >/dev/null 2>&1; then
+            "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE" | to_summary
+            return ${PIPESTATUS[0]}
+        fi
         echo -e "${RED}No emulator running — boot failed? See $EMULATOR_BOOT_LOG${NC}" | to_summary
         return 1
     fi
@@ -218,6 +233,11 @@ resolve_adb() {
     echo "$adb_bin"
 }
 
+EMULATOR_CACHED=false
+if [ "$RUN_MODE" = "cached" ] && "$EMULATOR_SCRIPT" --check-cache "${EMULATOR_ARGS[@]}" >/dev/null 2>&1; then
+    EMULATOR_CACHED=true
+fi
+
 # Overlap (2026-10-13): the Long bucket runs ~30-40 s after every other bucket has finished, and
 # the emulator phase (~40 s) used to start only after it. The unit-test Gradle run also builds
 # both APKs, and emulator tests start once those exist and Short, Medium and Localization have
@@ -225,11 +245,13 @@ resolve_adb() {
 # emulator logs. Whatever the number of emulators (user, 2026-10-22: one emulator ran the old
 # order, 120 s where the overlap would have taken ~85 s). --sequential restores the old order.
 OVERLAP=false
-[ "$SEQUENTIAL" = false ] && OVERLAP=true
+[ "$SEQUENTIAL" = false ] && [ "$EMULATOR_CACHED" = false ] && OVERLAP=true
 UNIT_ARGS=(--log-file "$UNIT_LOG_FILE")
+[ "$RUN_MODE" = "fresh" ] && UNIT_ARGS+=(--fresh)
 [ "$OVERLAP" = true ] && UNIT_ARGS+=(--also-build-apks)
+[ "$RUN_MODE" = "fresh" ] && EMULATOR_ARGS+=(--fresh)
 
-phase "Unit tests started (log: $UNIT_LOG_FILE)$([ "$OVERLAP" = true ] && echo "; emulators will start during the Long bucket")"
+phase "Unit tests started (log: $UNIT_LOG_FILE)$([ "$OVERLAP" = true ] && echo "; emulators will start during the Long bucket")$([ "$EMULATOR_CACHED" = true ] && echo "; emulator tests are cached")"
 
 # Start unit tests (this will start the first Gradle build)
 # --log-file captures full output for diagnostics; concise summary goes to stdout.
@@ -285,7 +307,7 @@ next_boot_avd() {
 
 BOOT_PID=""
 boot_adb=$(resolve_adb)
-if [ -n "$boot_adb" ] && ! "$boot_adb" devices 2>/dev/null | grep -qE '^emulator-[0-9]+'$'\t''device$'; then
+if [ "$EMULATOR_CACHED" = false ] && [ -n "$boot_adb" ] && ! "$boot_adb" devices 2>/dev/null | grep -qE '^emulator-[0-9]+'$'\t''device$'; then
     BOOT_ARGS=(--boot-only)
     if boot_avd=$(next_boot_avd "$boot_adb"); then
         BOOT_ARGS+=(-e "$boot_avd")
@@ -375,14 +397,21 @@ if [ "$EMULATOR_STARTED_EARLY" = true ]; then
     EMULATOR_STATUS=$?
     phase "Emulator tests finished (exit $EMULATOR_STATUS)"
 elif [ "$UNIT_STATUS" -eq 0 ]; then
-    # Overlap planned but unit tests ended first (all cached, or quicker than the APK build):
-    # the APKs were still built by that run.
-    [ "$OVERLAP" = true ] && export EMULATOR_TESTS_PREBUILT=1
-    await_emulator_boot
-    phase "Emulator tests started (log: $EMULATOR_LOG_FILE)"
-    run_emulator_tests_for_staggered
-    EMULATOR_STATUS=$?
-    phase "Emulator tests finished (exit $EMULATOR_STATUS)"
+    if [ "$EMULATOR_CACHED" = true ]; then
+        phase "Emulator tests (cached)"
+        "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE" | to_summary
+        EMULATOR_STATUS=${PIPESTATUS[0]}
+        phase "Emulator tests finished (exit $EMULATOR_STATUS)"
+    else
+        # Overlap planned but unit tests ended first (all cached, or quicker than the APK build):
+        # the APKs were still built by that run.
+        [ "$OVERLAP" = true ] && export EMULATOR_TESTS_PREBUILT=1
+        await_emulator_boot
+        phase "Emulator tests started (log: $EMULATOR_LOG_FILE)"
+        run_emulator_tests_for_staggered
+        EMULATOR_STATUS=$?
+        phase "Emulator tests finished (exit $EMULATOR_STATUS)"
+    fi
 else
     echo -e "${YELLOW}Skipping emulator tests because unit tests failed.${NC}"
     # A boot started above is left to finish: the emulator stays up for the next run.

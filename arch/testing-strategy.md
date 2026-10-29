@@ -71,17 +71,19 @@ Run the full gate from the repository root:
 For individual layers:
 
 ```bash
-./scripts/unit-tests.sh                    # all app categories + shared + desktop
+./scripts/unit-tests.sh                    # all app categories + shared + desktop (cached by default)
 ./scripts/unit-tests.sh Short              # only this app category
 ./scripts/unit-tests.sh Localization       # only app localization tests
 ./scripts/unit-tests.sh --cached           # default: allow up-to-date test tasks
 ./scripts/unit-tests.sh --fresh            # force app category tasks to execute
-./scripts/emulator-tests.sh                # all instrumented tests on connected emulators
+./scripts/emulator-tests.sh                # all instrumented tests on connected emulators (cached by default)
+./scripts/emulator-tests.sh --fresh        # force tests to execute on emulator (bypass cache)
 ./scripts/emulator-tests.sh -c com.weatherwidget.util.RainAnalyzerIntegrationTest
 ./scripts/emulator-tests.sh -e Medium_Phone_API_36 -c com.weatherwidget.widget.SomeTest
+./scripts/staggered-tests.sh --fresh       # force fresh unit and emulator test execution
 ```
 
-With no arguments, `unit-tests.sh` includes all four app categories and runs `:shared:test` and `:desktop:test`. Selecting one or more categories runs only those app categories. Emulator logs go to `logs/emulator-tests/`; emulators remain running after the script exits.
+With no arguments, `unit-tests.sh` includes all four app categories and runs `:shared:test` and `:desktop:test`. Selecting one or more categories runs only those app categories. Both `unit-tests.sh` and `emulator-tests.sh` (and `staggered-tests.sh`) report cached results when code and test inputs are unchanged; use `--fresh` to force execution. Emulator logs go to `logs/emulator-tests/`; emulators remain running after the script exits.
 
 Always use `emulator-tests.sh` for instrumentation. **Never run `./gradlew connectedDebugAndroidTest` directly**: it targets **all** connected devices, including physical phones, and can remove their widgets.
 

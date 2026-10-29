@@ -19,6 +19,8 @@ set -e  # Exit on error
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# shellcheck source=lib/emulator-cache.sh
+source "$SCRIPT_DIR/lib/emulator-cache.sh"
 DEFAULT_EMULATOR="Generic_Foldable_API36"
 EMU_TIMEOUT=120  # Seconds to wait for emulator boot
 TEST_TIMEOUT=300 # Seconds for tests to complete
@@ -104,8 +106,10 @@ TEST_TIMEOUT_ARG=""
 LEAVE_APKS_INSTALLED=true  # Preserve app/test APKs to avoid widget removal side-effects
 NO_RETRY=false             # When true, exit 2 on ASM errors instead of retrying (for parallel orchestration)
 BOOT_ONLY=false            # Exit after boot if true
+RUN_MODE="cached"          # "cached" (default) or "fresh"
+CHECK_CACHE_ONLY=false
 
-while getopts "e:c:d:qvuhb-:" opt; do
+while getopts "e:c:d:qvuhbf-:" opt; do
     case $opt in
         e) EMULATOR_NAME="$OPTARG"; EMULATOR_NAME_EXPLICIT=true ;;
         c) TEST_CLASS="$OPTARG" ;;
@@ -114,9 +118,13 @@ while getopts "e:c:d:qvuhb-:" opt; do
         v) VERBOSE_MODE=true ;;
         u) LEAVE_APKS_INSTALLED=false ;;
         b) BOOT_ONLY=true ;;
+        f) RUN_MODE="fresh" ;;
         h) SHOW_HELP=true ;;
         -)
             case "${OPTARG}" in
+                fresh) RUN_MODE="fresh" ;;
+                cached) RUN_MODE="cached" ;;
+                check-cache) CHECK_CACHE_ONLY=true ;;
                 no-retry) NO_RETRY=true ;;
                 boot-only) BOOT_ONLY=true ;;
                 *) SHOW_HELP=true ;;
@@ -141,6 +149,9 @@ if [ "$SHOW_HELP" = true ]; then
     echo "Run instrumented tests on an Android emulator"
     echo ""
     echo "Options:"
+    echo "  -f, --fresh    Force running tests on emulator (ignore cache; default is cached)"
+    echo "  --cached       Report cached results if code and test inputs are unchanged (default)"
+    echo "  --check-cache  Exit 0 if cached results exist for current inputs, 1 otherwise"
     echo "  -q             Run headless (no GUI window, default: visible)"
     echo "  -v             Verbose output (default: condensed)"
     echo "  -u             Allow APK uninstall after tests (default: preserve installed APKs)"
@@ -152,12 +163,37 @@ if [ "$SHOW_HELP" = true ]; then
     echo "  -h             Show this help"
     echo ""
     echo "Examples:"
-    echo "  $(basename "$0")                              # Run tests, keep emulator running"
+    echo "  $(basename "$0")                              # Run tests, keep emulator running (cached if up to date)"
+    echo "  $(basename "$0") --fresh                      # Force re-running tests on emulator"
     echo "  $(basename "$0") -q                           # Headless mode (no GUI window)"
     echo "  $(basename "$0") -b                           # Boot emulator and exit"
     echo "  $(basename "$0") -e Medium_Phone_API_36      # Use phone emulator"
     echo "  $(basename "$0") -c WidgetSizeCalculatorTest # Run specific test class"
     echo "  $(basename "$0") -d 15m                       # Allow up to 15 minutes for tests"
+    exit 0
+fi
+
+# If -c specifies a Robolectric/unit test class (in src/test/ but not src/androidTest/),
+# redirect to testDebugUnitTest instead of failing on the instrumented runner.
+_is_unit_test_class() {
+    local class="$1"
+    local simple="${class##*.}"
+    if find "$PROJECT_DIR/app/src/test" -name "${simple}.kt" 2>/dev/null | grep -q .; then
+        if ! find "$PROJECT_DIR/app/src/androidTest" -name "${simple}.kt" 2>/dev/null | grep -q .; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+if [ -n "${TEST_CLASS:-}" ] && _is_unit_test_class "$TEST_CLASS"; then
+    echo -e "${YELLOW}$TEST_CLASS is a unit test (Robolectric) — running via testDebugUnitTest${NC}"
+    export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+    if ! "$PROJECT_DIR/gradlew" testDebugUnitTest --tests "$TEST_CLASS" --console=plain > "$TEST_RESULTS_LOG" 2>&1; then
+        echo -e "${RED}Unit test build/run failed${NC}"
+        cat "$TEST_RESULTS_LOG"
+        exit 1
+    fi
     exit 0
 fi
 
@@ -198,6 +234,81 @@ fi
 if [ ! -f "$ADB_BIN" ]; then
     echo -e "${RED}Error: ADB binary not found at $ADB_BIN${NC}"
     exit 1
+fi
+
+# Check connected emulators to detect cached vs uncached devices
+mapfile -t CONNECTED_EMUS < <($ADB_BIN devices 2>/dev/null | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
+CACHED_EMUS=()
+UNCACHED_EMUS=()
+
+if [ "${#CONNECTED_EMUS[@]}" -gt 0 ]; then
+    for emu in "${CONNECTED_EMUS[@]}"; do
+        emu_avd=$(get_emulator_avd "$emu" "$ADB_BIN")
+        if is_emulator_cache_valid "$TEST_CLASS" "$emu_avd" true "$PROJECT_DIR"; then
+            CACHED_EMUS+=("$emu ($emu_avd)")
+        else
+            UNCACHED_EMUS+=("$emu")
+        fi
+    done
+fi
+
+# Cache check before booting emulator or checking device status
+if [ "$CHECK_CACHE_ONLY" = true ]; then
+    if [ "${#CONNECTED_EMUS[@]}" -gt 0 ]; then
+        [ "${#UNCACHED_EMUS[@]}" -eq 0 ] && exit 0 || exit 1
+    else
+        is_emulator_cache_valid "$TEST_CLASS" "$EMULATOR_NAME" "$EMULATOR_NAME_EXPLICIT" "$PROJECT_DIR" && exit 0 || exit 1
+    fi
+fi
+
+if [ "$RUN_MODE" = "cached" ] && [ "$BOOT_ONLY" = false ]; then
+    if [ "${#CONNECTED_EMUS[@]}" -gt 0 ]; then
+        if [ "${#UNCACHED_EMUS[@]}" -eq 0 ]; then
+            cached_total=$(read_emulator_cache_field "total_tests")
+            cached_skipped=$(read_emulator_cache_field "skipped_tests")
+            label="${cached_total:-0} emulator tests"
+            [ -n "$TEST_CLASS" ] && label="$TEST_CLASS"
+            skipped_str=""
+            [ "${cached_skipped:-0}" -gt 0 ] && skipped_str=" (${cached_skipped} skipped)"
+            echo -e "${GREEN}${label}: cached${skipped_str} (up to date; verified on ${CACHED_EMUS[*]}).${NC}"
+            exit 0
+        elif [ "${#CACHED_EMUS[@]}" -gt 0 ]; then
+            echo -e "${GREEN}Already verified (cached): ${CACHED_EMUS[*]}${NC}"
+            echo -e "${YELLOW}Running tests only on uncached emulator: ${UNCACHED_EMUS[*]}${NC}"
+            if [ "${#UNCACHED_EMUS[@]}" -eq 1 ]; then
+                EMULATOR_SERIAL="${UNCACHED_EMUS[0]}"
+                ANDROID_SERIAL="$EMULATOR_SERIAL"
+            fi
+        fi
+    else
+        if is_emulator_cache_valid "$TEST_CLASS" "$EMULATOR_NAME" "$EMULATOR_NAME_EXPLICIT" "$PROJECT_DIR"; then
+            cached_total=$(read_emulator_cache_field "total_tests")
+            cached_passed=$(read_emulator_cache_field "passed_tests")
+            cached_skipped=$(read_emulator_cache_field "skipped_tests")
+            cached_avd=$(read_emulator_cache_field "avd_name")
+            cached_time=$(read_emulator_cache_field "timestamp_human")
+            cached_log=$(read_emulator_cache_field "log_file")
+
+            label="${cached_total:-0} emulator tests"
+            [ -n "$TEST_CLASS" ] && label="$TEST_CLASS"
+
+            skipped_str=""
+            [ "${cached_skipped:-0}" -gt 0 ] && skipped_str=" (${cached_skipped} skipped)"
+
+            if [ "$VERBOSE_MODE" = true ]; then
+                echo -e "${BLUE}  Test Summary:${NC} \t  ${GREEN}✓ All tests passed (cached)${NC}"
+                echo -e "  ${BLUE}Total:   ${cached_total:-0}${NC}"
+                echo -e "  ${GREEN}Passed:  ${cached_passed:-0}${NC}"
+                [ "${cached_skipped:-0}" -gt 0 ] && echo -e "  ${YELLOW}Skipped: ${cached_skipped}${NC}"
+                echo -e "  ${BLUE}Device:  ${cached_avd:-Unknown}${NC}"
+                echo -e "  ${BLUE}Cached:  last ran at ${cached_time:-?}${NC}"
+                [ -f "$cached_log" ] && echo -e "  ${BLUE}Test log: ${cached_log}${NC}"
+            else
+                echo -e "${GREEN}${label}: cached${skipped_str} (up to date; passed on ${cached_avd:-Unknown} at ${cached_time:-?}).${NC}"
+            fi
+            exit 0
+        fi
+    fi
 fi
 
 if [ "$VERBOSE_MODE" = true ]; then
@@ -427,39 +538,21 @@ fi
 
 cd "$PROJECT_DIR"
 
-# If -c specifies a Robolectric/unit test class (in src/test/ but not src/androidTest/),
-# redirect to testDebugUnitTest instead of failing on the instrumented runner.
-_is_unit_test_class() {
-    local class="$1"
-    local simple="${class##*.}"
-    if find "$PROJECT_DIR/app/src/test" -name "${simple}.kt" 2>/dev/null | grep -q .; then
-        if ! find "$PROJECT_DIR/app/src/androidTest" -name "${simple}.kt" 2>/dev/null | grep -q .; then
-            return 0
-        fi
-    fi
-    return 1
-}
-
-if [ -n "${TEST_CLASS:-}" ] && _is_unit_test_class "$TEST_CLASS"; then
-    echo -e "${YELLOW}$TEST_CLASS is a unit test (Robolectric) — running via testDebugUnitTest${NC}"
-    export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-    if ! "$PROJECT_DIR/gradlew" testDebugUnitTest --tests "$TEST_CLASS" --console=plain > "$TEST_RESULTS_LOG" 2>&1; then
-        echo -e "${RED}Unit test build/run failed${NC}"
-        cat "$TEST_RESULTS_LOG"
-        exit 1
-    fi
-    exit 0
-fi
-
 # Multi-emulator mode: when multiple emulators are connected, build APKs once then run in parallel.
 # With APKs prebuilt by staggered-tests.sh's unit run this is also the one-emulator path: the
 # Gradle path below would start a second build beside the unit run still in its Long bucket.
 if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = false ]; then
-    mapfile -t CONNECTED_EMULATORS < <($ADB_BIN devices | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
+    if [ "${#UNCACHED_EMUS[@]}" -gt 0 ]; then
+        CONNECTED_EMULATORS=("${UNCACHED_EMUS[@]}")
+    else
+        mapfile -t CONNECTED_EMULATORS < <($ADB_BIN devices | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
+    fi
     MIN_ADB_PATH_EMULATORS=2
     [ "${EMULATOR_TESTS_PREBUILT:-}" = 1 ] && MIN_ADB_PATH_EMULATORS=1
+    [ "${#CACHED_EMUS[@]}" -gt 0 ] && MIN_ADB_PATH_EMULATORS=1
     if [ "${#CONNECTED_EMULATORS[@]}" -ge "$MIN_ADB_PATH_EMULATORS" ]; then
-        echo -e "${BLUE}Detected ${#CONNECTED_EMULATORS[@]} connected emulators: ${CONNECTED_EMULATORS[*]}${NC}"
+        MULTI_TEST_START=$(date +%s)
+        echo -e "${BLUE}Running on ${#CONNECTED_EMULATORS[@]} target emulator(s): ${CONNECTED_EMULATORS[*]}${NC}"
         echo -e "${YELLOW}Building APKs once, then running tests in parallel...${NC}"
 
         export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
@@ -577,6 +670,11 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
 
             if [ "$is_failure" = false ]; then
                 echo "PASSED — Total: $total  Passed: $passed  Duration: ${run_duration}s"
+                local avd
+                avd=$(get_emulator_avd "$serial" "$ADB_BIN")
+                local skipped=$((total - passed - failed - errors))
+                [ "$skipped" -lt 0 ] && skipped=0
+                write_emulator_cache "${TEST_CLASS:-ALL}" "$avd" "$total" "$passed" "$failed" "$errors" "$skipped" "$run_duration" "$emu_log" "$PROJECT_DIR"
                 return 0
             else
                 echo "FAILED — Total: $total  Passed: $passed  Failed: $failed  Duration: ${run_duration}s"
@@ -672,8 +770,22 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
 
         if [ $OVERALL_STATUS -eq 0 ]; then
             echo -e "${GREEN}All emulators passed${NC}"
+            multi_duration=$(( $(date +%s) - ${MULTI_TEST_START:-0} ))
+            multi_total=0
+            if [ -n "${CONNECTED_EMULATORS[0]:-}" ]; then
+                newest_log=$(ls -t "$LOG_DIR/test_results_${CONNECTED_EMULATORS[0]}-"*.log 2>/dev/null | head -1)
+                if [ -n "$newest_log" ] && [ -f "$newest_log" ]; then
+                    multi_total=$(grep -oE "^OK \([0-9]+" "$newest_log" 2>/dev/null | tail -1 | sed 's/^OK (//')
+                    if [ -z "$multi_total" ]; then
+                        multi_total=$(grep -E "^Tests run:" "$newest_log" 2>/dev/null | tail -1 | sed -n 's/.*Tests run: \([0-9]*\).*/\1/p')
+                    fi
+                fi
+            fi
+            multi_total=${multi_total:-0}
+            write_emulator_cache "${TEST_CLASS:-ALL}" "${CONNECTED_EMULATORS[*]}" "$multi_total" "$multi_total" 0 0 0 "$multi_duration" "${newest_log:-$TEST_RESULTS_LOG}" "$PROJECT_DIR"
         else
             echo -e "${RED}One or more emulators failed (${FAILED_SERIALS[*]}) — check logs in $LOG_DIR${NC}"
+            clear_emulator_cache
         fi
         exit $OVERALL_STATUS
     fi
@@ -1181,8 +1293,12 @@ if ! recover_widget_ui "$EMULATOR_SERIAL"; then
 fi
 
 # Return appropriate exit code
-if [ "$TEST_SUCCESS" = true ]; then
+if [ "$TEST_SUCCESS" = true ] && [ "$TOTAL" -gt 0 ] && [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
+    target_avd=$(get_emulator_avd "$EMULATOR_SERIAL" "$ADB_BIN")
+    [ "$target_avd" = "Unknown" ] && target_avd="${EMULATOR_NAME:-${MODEL:-$ANDROID_SERIAL}}"
+    write_emulator_cache "${TEST_CLASS:-ALL}" "$target_avd" "$TOTAL" "$PASSED" "${FAILED:-0}" "${ERRORS:-0}" "${SKIPPED:-0}" "${TEST_DURATION:-0}" "$TEST_RESULTS_LOG" "$PROJECT_DIR"
     exit 0
 else
+    clear_emulator_cache
     exit 1
 fi
