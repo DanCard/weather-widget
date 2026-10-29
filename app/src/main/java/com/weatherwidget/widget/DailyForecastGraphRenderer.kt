@@ -63,6 +63,8 @@ object DailyForecastGraphRenderer {
         val bottomY: Float = Float.NaN,
         val anchorTopY: Float = Float.NaN,
         val anchorBaselineY: Float = Float.NaN,
+        /** DAY: top of the chance + peak stack before the ceiling clamp (DailyTopStack headroom). */
+        val rawTopY: Float = Float.NaN,
     )
 
     data class DailyGraphRenderResult(
@@ -307,8 +309,6 @@ object DailyForecastGraphRenderer {
 
         debug { "renderGraph: days=${normalizedDays.size}, minTemp=${layout.minTemp}, maxTemp=${layout.maxTemp}, widthPx=$widthPx, heightPx=$heightPx" }
 
-        val daysByColumn = normalized.days.associate { it.resolvedColumn to it.day }
-
         // Per-day cache of the daytime rain-label geometry populated by the typed placement
         // observer. Header collision checks reuse exactly what was drawn rather than measuring the
         // text and resolving placement a second time.
@@ -369,7 +369,6 @@ object DailyForecastGraphRenderer {
         // neighbours' low labels and icons are drawn.
         DailyForecastRainLabelRenderer.drawNightRainLabels(
             normalized.days.map { it.resolvedColumn to it.day },
-            daysByColumn,
             columnBoundsByColumn,
             layout,
             paints,
@@ -472,8 +471,10 @@ object DailyForecastGraphRenderer {
                     DailyColumnRenderer.draw(
                         canvas, context, day, centerX, layout, paints,
                         { placement ->
-                            if (placement.kind != RainLabelKind.NIGHT && !placement.topY.isNaN()) {
-                                rainTops[day.date] = minOf(rainTops[day.date] ?: placement.topY, placement.topY)
+                            // The unclamped stack top: a clamped label still needs its full headroom.
+                            val top = placement.rawTopY.takeUnless { it.isNaN() } ?: placement.topY
+                            if (placement.kind != RainLabelKind.NIGHT && !top.isNaN()) {
+                                rainTops[day.date] = minOf(rainTops[day.date] ?: top, top)
                             }
                         },
                         null,
@@ -550,7 +551,7 @@ object DailyForecastGraphRenderer {
                     centerX = centerX,
                     layout = layout,
                     paints = paints,
-                )?.debug
+                )
                 ?: return@forEach
             // The peak hour ("1pm") drawn above the % reaches higher still; either one hides the date.
             (listOf(rainLabel) + drawnPeakLabels.filter { it.date == day.date }).forEach { label ->

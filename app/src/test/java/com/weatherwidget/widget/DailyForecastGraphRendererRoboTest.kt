@@ -1549,10 +1549,16 @@ class DailyForecastGraphRendererRoboTest {
 
     @Test
     fun renderGraph_peakHourInTheRainLabelsOwnBlue() {
-        val rainPaint = Paint().apply { color = Color.rgb(90, 160, 255); textSize = 40f }
-        val peakPaint = DailyForecastRainLabelRenderer.createPeakPaint(rainPaint)
-        assertEquals(rainPaint.color, peakPaint.color)
-        assertEquals(40f * com.weatherwidget.shared.util.DailyRainLabels.RAIN_PEAK_FONT_SCALE, peakPaint.textSize, 0.01f)
+        val paints = DailyGraphPaintCache.get(
+            DailyGraphLayoutResolver.resolve(
+                days = peakDays(highOfRainyDay = 70f), widthPx = 300, heightPx = 200, columns = 2, bitmapScale = 1f,
+                density = context.resources.displayMetrics.density, useCelsius = false,
+            ),
+        )
+        val peakScale = com.weatherwidget.shared.util.DailyRainLabels.RAIN_PEAK_FONT_SCALE
+        val peakPaint = DailyForecastRainLabelRenderer.createRainPaint(paints, peakScale)
+        assertEquals(paints.rainTextPaint.color, peakPaint.color)
+        assertEquals(paints.rainTextPaint.textSize * peakScale, peakPaint.textSize, 0.01f)
     }
 
     @Test

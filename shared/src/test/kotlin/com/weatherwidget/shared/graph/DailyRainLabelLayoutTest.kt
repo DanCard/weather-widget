@@ -1,0 +1,182 @@
+package com.weatherwidget.shared.graph
+
+import com.weatherwidget.shared.graph.DailyRainLabelPlanner.Box
+import com.weatherwidget.shared.util.DailyRainLabels
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.experimental.categories.Category
+
+@Category(ShortDuration::class)
+class DailyRainLabelLayoutTest {
+
+    /** Every label measures 10 px per character × its font scale, 14 px tall, baseline 11 px down. */
+    private val host = DailyRainLabelLayout.Host { text, _, fontScale ->
+        DailyRainLabelLayout.TextSize(width = text.length * 10f * fontScale, height = 14f, baseline = 11f)
+    }
+
+    // Fold 4, history Tue 10-27 → Wed 10-28 (logcat 2026-10-29 09:33, density 2.625): Tue "48°"
+    // ends at 379.6; Wed "45.7°" starts at 383.7 and ends at 416.9, below the day-name row's top.
+    private val tueLow = Box(3.9f, 346.4f, 45.9f, 379.6f)
+    private val wedLow = Box(42.3f, 383.7f, 107.3f, 416.9f)
+    private val foldObstacles = listOf(
+        Box(7.4f, 308.8f, 42.4f, 343.8f), // Tue icon
+        Box(3.9f, 346.4f, 35.9f, 379.6f), Box(35.9f, 346.4f, 45.9f, 363.0f), // Tue "48" + °
+        Box(57.3f, 346.1f, 92.3f, 381.1f), // Wed icon
+        Box(42.3f, 383.7f, 97.3f, 416.9f), Box(97.3f, 383.7f, 107.3f, 400.3f), // Wed "45.7" + °
+    )
+
+    /** "10%" as the Fold measured it (size=20.0x14.0). */
+    private val foldHost = DailyRainLabelLayout.Host { _, _, _ ->
+        DailyRainLabelLayout.TextSize(width = 20f, height = 14f, baseline = 11f)
+    }
+
+    private fun foldNight(dayLabelTop: Float) = DailyRainLabelLayout.layoutNight(
+        foldHost,
+        DailyRainLabelLayout.NightInput(
+            date = "2026-10-27",
+            text = "10%",
+            probability = 10,
+            isPast = true,
+            daysFromToday = -2,
+            columnCenterX = 23.4f,
+            gapCenterX = 49.9f,
+            columnWidth = 53f,
+            leftLowLabel = tueLow,
+            rightLowLabel = wedLow,
+            obstacles = foldObstacles,
+            dayLabelTop = dayLabelTop,
+            canvasWidth = 560f,
+            pxPerDp = 2.625f,
+        ),
+        "test",
+    )
+
+    @Test
+    fun `fold history night label sits between the two lows`() {
+        val label = foldNight(dayLabelTop = 413.6f)
+        // The tuck may rise into the blank descent band under Tue's digits, never further.
+        val tuck = DailyRainLabels.NIGHT_TUCK_OVERLAP_BASE_DP * 2.625f
+        assertTrue("under Tue's low: top=${label.top}", label.top >= tueLow.bottom - tuck)
+        assertTrue("left where it starts, in the gap: ${label.centerX}", kotlin.math.abs(label.centerX - 49.9f) < 0.01f)
+        assertTrue("above Wed's low bottom: bottom=${label.bottom}", label.bottom <= wedLow.bottom)
+        assertTrue("clear of the day names: bottom=${label.bottom}", label.bottom <= 413.6f)
+    }
+
+    @Test
+    fun `night label never sinks below the lower low even with room to spare`() {
+        // The lower low spans the whole gap, so no sideways nudge clears it. With room below, the
+        // search used to drop the label under it (the Fold's "10%" in the day-name row); now a
+        // slight-or-least overlap between the lows wins.
+        val upperLow = Box(10f, 50f, 45f, 80f)
+        val lowerLow = Box(0f, 84f, 120f, 110f)
+        val label =
+            DailyRainLabelLayout.layoutNight(
+                foldHost,
+                DailyRainLabelLayout.NightInput(
+                    date = "d", text = "10%", probability = 10, isPast = true, daysFromToday = -2,
+                    columnCenterX = 25f, gapCenterX = 50f, columnWidth = 50f,
+                    leftLowLabel = upperLow, rightLowLabel = lowerLow,
+                    obstacles = listOf(upperLow, lowerLow), dayLabelTop = 200f, canvasWidth = 400f, pxPerDp = 2.625f,
+                ),
+                "test",
+            )
+        assertTrue("bottom=${label.bottom} must stay above the lower low's bottom ${lowerLow.bottom}", label.bottom <= lowerLow.bottom)
+    }
+
+    @Test
+    fun `night label between two lows on the day-name row rises level with them`() {
+        // The coldest days: both lows end at the day-name row, so there is no room under them.
+        val leftLow = Box(0f, 80f, 40f, 100f)
+        val rightLow = Box(110f, 80f, 150f, 100f)
+        val label = DailyRainLabelLayout.layoutNight(
+            foldHost,
+            DailyRainLabelLayout.NightInput(
+                date = "d", text = "10%", probability = 10, isPast = false, daysFromToday = 1,
+                columnCenterX = 20f, gapCenterX = 75f, columnWidth = 110f,
+                leftLowLabel = leftLow, rightLowLabel = rightLow,
+                obstacles = listOf(leftLow, rightLow), dayLabelTop = 100f, canvasWidth = 400f, pxPerDp = 1f,
+            ),
+            "test",
+        )
+        assertTrue("clear of the day names: bottom=${label.bottom}", label.bottom <= 100f)
+        assertTrue("between the lows: ${label.left}..${label.right}", label.left >= leftLow.right && label.right <= rightLow.left)
+    }
+
+    @Test
+    fun `night label at the canvas edge shrinks, then centres on its column`() {
+        fun place(gapCenterX: Float) = DailyRainLabelLayout.layoutNight(
+            host,
+            DailyRainLabelLayout.NightInput(
+                date = "d", text = "100%", probability = 100, isPast = false, daysFromToday = 0,
+                columnCenterX = 180f, gapCenterX = gapCenterX, columnWidth = 40f,
+                leftLowLabel = Box(160f, 50f, 200f, 70f), rightLowLabel = null,
+                obstacles = emptyList(), dayLabelTop = 200f, canvasWidth = 220f, pxPerDp = 1f,
+            ),
+            "test",
+        )
+        val edge = DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP
+        val fullWidth = 40f * DailyRainLabels.rainLabelFontScale(false, 100, 0) * DailyRainLabels.NIGHT_SCALE
+        val reducedWidth = fullWidth * DailyRainLabelLayout.NIGHT_REDUCED_SCALE
+        assertEquals("NIGHT_SHIFTED_LEFT", place(gapCenterX = 110f).placement)
+        assertEquals("NIGHT_SHIFTED_SCALED", place(gapCenterX = 220f - edge - reducedWidth / 2f - 0.5f).placement)
+        val centred = place(gapCenterX = 220f)
+        assertEquals("NIGHT_CENTERED", centred.placement)
+        assertTrue(centred.right <= 220f - edge)
+    }
+
+    private fun day(
+        highLabelTop: Float?,
+        ceiling: Float = 0f,
+        peakText: String? = null,
+        rawHighLabelTop: Float? = highLabelTop,
+    ) = DailyRainLabelLayout.layoutDay(
+        host,
+        DailyRainLabelLayout.DayInput(
+            date = "d", rainText = "40%", peakText = peakText, probability = 40, isPast = false,
+            daysFromToday = 0, centerX = 50f, highLabelTop = highLabelTop, snapshotBarTop = null,
+            rawHighLabelTop = rawHighLabelTop, ceiling = ceiling, pxPerDp = 1f,
+        ),
+        "test",
+    )
+
+    @Test
+    fun `day label tucks onto the high label`() {
+        val labels = day(highLabelTop = 100f)!!
+        // bottom = high top − RAIN_HIGH_TEMP_GAP_DP (−3 dp → 3 px into the high label).
+        assertEquals(100f - DailyRainLabels.RAIN_HIGH_TEMP_GAP_DP, labels.rain.bottom, 0.01f)
+        assertEquals(labels.rain.top, labels.rawTop, 0.01f)
+    }
+
+    @Test
+    fun `day label clamps to the ceiling and reports its unclamped top`() {
+        val labels = day(highLabelTop = 10f, ceiling = 5f)!!
+        assertEquals(5f, labels.rain.top, 0.01f)
+        assertTrue("rawTop=${labels.rawTop}", labels.rawTop < 5f)
+    }
+
+    @Test
+    fun `raw top follows the unclamped high label`() {
+        val labels = day(highLabelTop = 20f, rawHighLabelTop = -30f, ceiling = 0f)!!
+        assertEquals(-30f - DailyRainLabels.RAIN_HIGH_TEMP_GAP_DP - 14f, labels.rawTop, 0.01f)
+    }
+
+    @Test
+    fun `peak sits on the chance label and is dropped at the ceiling`() {
+        val fits = day(highLabelTop = 100f, peakText = "1pm")!!
+        val peak = checkNotNull(fits.peak)
+        assertEquals(fits.rain.top - DailyRainLabels.RAIN_PEAK_GAP_DP, peak.bottom, 0.01f)
+        assertTrue("rawTop includes the peak", fits.rawTop <= peak.top)
+
+        val tooHigh = day(highLabelTop = 30f, peakText = "1pm", ceiling = 10f)!!
+        assertNull(tooHigh.peak)
+        assertTrue("the chance label stays put", tooHigh.rain.top >= 10f)
+    }
+
+    @Test
+    fun `no high label means no day label`() {
+        assertNull(day(highLabelTop = null))
+    }
+}
