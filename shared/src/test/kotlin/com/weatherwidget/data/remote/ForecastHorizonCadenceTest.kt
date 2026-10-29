@@ -32,6 +32,14 @@ class ForecastHorizonCadenceTest {
     }
 
     @Test
+    fun `charging screen-on fetches a forecast past the 4 h screen-on interval, battery never`() {
+        assertTrue(ForecastHorizonCadence.screenOnCatchUp(isCharging = true, lastFetchMs = now - 5 * hour, nowMs = now))
+        assertTrue(ForecastHorizonCadence.screenOnCatchUp(isCharging = true, lastFetchMs = null, nowMs = now))
+        assertFalse(ForecastHorizonCadence.screenOnCatchUp(isCharging = true, lastFetchMs = now - 3 * hour, nowMs = now))
+        assertFalse(ForecastHorizonCadence.screenOnCatchUp(isCharging = false, lastFetchMs = now - 9 * hour, nowMs = now))
+    }
+
+    @Test
     fun `70 percent is high, 69 is low`() {
         assertTrue(ForecastHorizonCadence.isHighBattery(false, 70))
         assertFalse(ForecastHorizonCadence.isHighBattery(false, 69))

@@ -23,12 +23,16 @@ import java.time.ZoneId
  * No displayed-vs-other split, no view-age bands, no per-provider case. "Due" is measured from one
  * per-source + site marker ([Marker]), never from the rows' `fetchedAt`.
  *
- * **Pre-wake** (2026-10-19; performance/261019-pre-alarm-long-fetch-while-charging.md): on a charger,
- * the fetch also comes due in the [PRE_WAKE_LEAD_MS] before the user's next alarm ([decide]'s
- * `wakeAtMs`), so the first glance of the morning sees a forecast fetched minutes ago. The overnight
- * fetch it would overwrite before anyone looks is skipped: on a charger with the screen off, a site
- * fetched in the last 24 h waits for the pre-wake when it comes within the interval
- * (performance/261019-learned-unplug-time-and-overnight-short-skip.md).
+ * **Pre-unplug** (2026-10-28; plans/261028-learned-unplug-prediction.md): on a charger, the fetch
+ * also comes due in the [PRE_WAKE_LEAD_MS] before the device is predicted to leave the charger
+ * ([decide]'s `wakeAtMs`, from the shared [com.weatherwidget.shared.util.UnplugPredictor]: learned
+ * weekly/daily unplug habits and alarms that unplugs have followed), so the first glance off the charger
+ * sees a forecast fetched minutes ago. A bare clock alarm no longer counts: a phone still charging when
+ * the screen comes on fetches then for free ([screenOnCatchUp]). The overnight fetch a predicted unplug
+ * would overwrite is skipped: on a charger with the screen off, a site fetched in the last 24 h waits
+ * for the pre-unplug fetch when it comes within the interval
+ * (performance/261019-learned-unplug-time-and-overnight-short-skip.md). "Wake" below means that
+ * predicted unplug.
  */
 object ForecastHorizonCadence {
     /** The one horizon left (2026-10-25). A null `Horizon?` is a fetch the cadence did not judge (no context, an on-demand day). */
@@ -53,13 +57,13 @@ object ForecastHorizonCadence {
      */
     const val MAX_CARRIED_ROW_AGE_HOURS = 36
 
-    /** How long before the alarm a charging phone fetches. */
+    /** How long before the predicted unplug a charging device fetches. */
     const val PRE_WAKE_LEAD_MS = 45 * 60_000L
 
-    /** An alarm further away than this (a weekend with no alarm set) is not this night's wake. */
+    /** A predicted unplug further away than this is not this charge's. */
     const val PRE_WAKE_MAX_AHEAD_HOURS = 14
 
-    /** A fetch this close before the alarm already serves it (a snooze never fetches twice). */
+    /** A fetch this close before the predicted unplug already serves it. */
     const val PRE_WAKE_MIN_GAP_HOURS = 3
 
     /** Where inside the lead a timed check aims: 5 min in, so a check a little late still lands in it. */
@@ -87,7 +91,7 @@ object ForecastHorizonCadence {
         val dueAtMs: Long,
         /** What a scheduled check fetches now: [Horizon.LONG] when due, else null. */
         val due: Horizon?,
-        /** When the fetch comes due ahead of its interval for the alarm; null when the pre-wake rule is off. */
+        /** When the fetch comes due ahead of its interval for the predicted unplug; null when the rule is off. */
         val preWakeAtMs: Long? = null,
         /** The interval's fetch is off tonight: the pre-wake one comes first ([dueAtMs] is [preWakeAtMs]). */
         val waitsForPreWake: Boolean = false,
@@ -117,9 +121,9 @@ object ForecastHorizonCadence {
     }
 
     /**
-     * When the fetch comes due for the alarm at [wakeAtMs]: [PRE_WAKE_LEAD_MS] before it, on a charger,
-     * for an alarm within [PRE_WAKE_MAX_AHEAD_HOURS] that no fetch has served yet (none within
-     * [PRE_WAKE_MIN_GAP_HOURS] before it). Null once the alarm has passed — on battery it never applies.
+     * When the fetch comes due for the unplug predicted at [wakeAtMs]: [PRE_WAKE_LEAD_MS] before it, on a
+     * charger, within [PRE_WAKE_MAX_AHEAD_HOURS] and not yet served by a fetch (none within
+     * [PRE_WAKE_MIN_GAP_HOURS] before it). Null once it has passed — on battery it never applies.
      */
     fun preWakeAtMs(isCharging: Boolean, lastFetchMs: Long?, wakeAtMs: Long?, nowMs: Long): Long? {
         val wake = wakeAtMs ?: return null
@@ -132,16 +136,24 @@ object ForecastHorizonCadence {
         lastMs?.let { it + intervalHours * HOUR_MS - DUE_GRACE_MS } ?: nowMs
 
     /**
-     * When a platform should wake to check the pre-wake rule for the alarm at [wakeAtMs] — a timed
-     * check, because a periodic tick longer than the lead can miss it. Now when already inside the
-     * lead; null when there is no alarm, it has passed, or it is more than [PRE_WAKE_MAX_AHEAD_HOURS]
-     * away. Whether that check then fetches is [decide]'s call, not this one's.
+     * When a platform should wake to check the pre-unplug rule for the unplug predicted at [wakeAtMs] —
+     * a timed check, because a periodic tick longer than the lead can miss it. Now when already inside
+     * the lead; null when nothing is predicted, it has passed, or it is more than
+     * [PRE_WAKE_MAX_AHEAD_HOURS] away. Whether that check then fetches is [decide]'s call, not this one's.
      */
     fun preWakeCheckAtMs(wakeAtMs: Long?, nowMs: Long): Long? {
         val wake = wakeAtMs ?: return null
         if (nowMs >= wake || wake - nowMs > PRE_WAKE_MAX_AHEAD_HOURS * HOUR_MS) return null
         return maxOf(nowMs, wake - PRE_WAKE_LEAD_MS + PRE_WAKE_CHECK_SLACK_MS)
     }
+
+    /**
+     * Whether the screen coming on should fetch a forecast now: on a charger, when the screen-on interval
+     * makes it due. Free power and a user looking — the moment the pre-unplug guess was standing in for
+     * when the device stays plugged in (plans/261028-learned-unplug-prediction.md).
+     */
+    fun screenOnCatchUp(isCharging: Boolean, lastFetchMs: Long?, nowMs: Long): Boolean =
+        isCharging && decide(isCharging = true, batteryLevel = 100, isScreenOn = true, lastFetchMs = lastFetchMs, nowMs = nowMs).due != null
 
     /** Hours a fetch of [sourceId] asks for: only a source billed per day honours more than its routine reach. */
     fun askHours(sourceId: String): Int {

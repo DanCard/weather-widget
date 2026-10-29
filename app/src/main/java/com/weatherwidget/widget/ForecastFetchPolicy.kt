@@ -23,8 +23,9 @@ data class ForecastFetchContext(
      */
     val userRefresh: Boolean = false,
     /**
-     * The user's next alarm, else the learned unplug time: on a charger, a fetch comes due in the lead
-     * before it ([com.weatherwidget.data.remote.ForecastHorizonCadence.preWakeAtMs]). Null when neither.
+     * The next predicted unplug ([com.weatherwidget.shared.util.UnplugPredictor]): on a charger, a fetch
+     * comes due in the lead before it ([com.weatherwidget.data.remote.ForecastHorizonCadence.preWakeAtMs]).
+     * Null when none is predicted.
      */
     val wakeAtMs: Long? = null,
 )

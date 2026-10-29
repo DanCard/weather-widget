@@ -34,8 +34,11 @@ internal class DesktopForecastHorizon(
         weatherDao?.log(tag = LONG_TAG, message = prefix, level = "INFO")
     }
 
-    /** [ForecastHorizonCadence.decide] for this source now; null without a DB (not judged). */
-    fun decision(nowMs: Long): ForecastHorizonCadence.Decision? {
+    /**
+     * [ForecastHorizonCadence.decide] for this source now; null without a DB (not judged). [wakeAtMs]:
+     * the next predicted unplug, as Android's fetch context carries it.
+     */
+    fun decision(nowMs: Long, wakeAtMs: Long? = null): ForecastHorizonCadence.Decision? {
         weatherDao ?: return null
         val (isCharging, level) = powerState()
         return ForecastHorizonCadence.decide(
@@ -44,6 +47,7 @@ internal class DesktopForecastHorizon(
             isScreenOn = screenOn(),
             lastFetchMs = lastLongFetch(),
             nowMs = nowMs,
+            wakeAtMs = wakeAtMs,
         )
     }
 

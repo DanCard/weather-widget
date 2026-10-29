@@ -175,7 +175,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- Re-arms the pre-alarm fetch (PreWakeFetchScheduler). Implicit-broadcast exempt. -->
+        <!-- Re-arms the pre-unplug fetch and records fired alarms (PreUnplugFetchScheduler). Implicit-broadcast exempt. -->
         <receiver
             android:name=".widget.NextAlarmChangedReceiver"
             android:exported="false">

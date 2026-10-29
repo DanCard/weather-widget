@@ -22,13 +22,46 @@ for the source's full supported horizon; there is no shorter three-day forecast 
 - Freshness uses one per-source, per-site LONG marker, not a forecast row's `fetchedAt`.
 - Manual Refresh, source switches, location changes, and screen-on catch-up also use LONG when their
   own policy requests a forecast.
-- On a charger, pre-wake policy can move an overnight fetch to shortly before the next alarm instead
-  of fetching twice while nobody is looking.
+- On a charger, a forecast also comes due 45 minutes before the device is predicted to leave the
+  charger (see [pre-unplug fetch](#pre-unplug-fetch)), and the overnight fetch that would be overwritten
+  first is skipped.
+- On a charger, the screen coming on fetches a displayed source's forecast when the 4-hour screen-on
+  interval makes it due (`ForecastHorizonCadence.screenOnCatchUp`; Android `ScreenOnReceiver`,
+  `SCREEN_ON_FORECAST`). The desktop forecast loop re-plans on every screen wake, which has the same
+  effect.
 - `SourceFetchGate` excludes sources not viewed recently from routine background work. Targeted user
   actions and on-demand hourly requests are separate from this background gate.
 
 The previous LONG/SHORT design is documented only in dated performance investigations; it is not the
 current behavior.
+
+## Pre-unplug fetch
+
+`shared/src/main/kotlin/com/weatherwidget/shared/util/PreUnplugFetchRunner.kt` owns the rule on both
+platforms; each platform supplies a host (Android prefs + WorkManager + the clock app's alarm, desktop
+file + forecast-loop wake, no alarms). A fetch ahead of an unplug is the only one a charger saves the
+battery; a device that stays plugged in fetches at screen-on instead.
+
+- `ChargeHistory` records every charge session of at least 15 minutes (exact power event, else the last
+  charging sighting at most 45 minutes earlier) and every fired clock alarm, for 8 weeks.
+- `UnplugPredictor` clusters unplug times of day (30 minutes apart at most) and judges each cluster's
+  window by recency-weighted hit rate (half-life 3 weeks). A day is a hit when an unplug fell in the
+  window and a miss when the device was charging at its start and stayed so; days off the charger count
+  as neither.
+
+| Evidence | Lookback | Active when |
+|---|---|---|
+| Weekly (same weekday) | 8 weeks | ≥ 2 hits and rate ≥ 0.5 |
+| Daily (weekdays or weekend days) | 21 days | ≥ 4 hits and rate ≥ 0.5 |
+| Clock alarm (±30 min of its time) | 8 weeks | Beta(1, 1) mean of "unplugged within 90 min" > 0.5 |
+
+- The prediction is the earliest active candidate within 14 hours: a pattern's earliest observed unplug,
+  or a trusted alarm plus its earliest learned follow. A bare alarm with no history predicts nothing.
+- The check is armed 40 minutes before it (45-minute lead, 5 minutes of slack); the cadence fetches only
+  if the last fetch is at least 3 hours older than the predicted unplug.
+- Logs: `UNPLUG_RECORDED`, `UNPLUG_PATTERNS` (daily), `PRE_UNPLUG_FETCH` (armed/cancelled; Android also
+  `action=alarm_changed` per alarm broadcast), `PRE_UNPLUG_OUTCOME` (hit with minutes early/late, miss,
+  unknown). The sync reason is `pre_unplug`.
 
 ## Android worker tick
 
@@ -139,6 +172,8 @@ a substitute for the runtime receiver.
 
 - Forecast cadence: `ForecastHorizonCadence.kt`
 - Forecast worker tick: `ForecastFetchPolicy.kt` and `BatteryTier.kt`
+- Pre-unplug fetch: `PreUnplugFetchRunner.kt`, `UnplugPredictor.kt`, `ChargeHistory.kt`; Android
+  `PreUnplugFetchScheduler.kt`, desktop `DaemonRuntime.kt` / `DesktopChargeHistoryStore.kt`
 - Observation cadence: `CurrentTempCadence.kt` and `NonPrimaryObservationPolicy.kt`
 - Targeted hourly coverage: `HourlyOnDemand.kt` and `HourlyOnDemandRun.kt`
 - User-initiated refresh throttle: `UserRefreshThrottle.kt`

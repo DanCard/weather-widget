@@ -17,9 +17,11 @@ internal class DesktopForecastPlanner(
     private val longitude: Double,
     private val power: PowerDetector.PowerState,
     private val screenOn: Boolean,
+    /** The next predicted unplug (shared `PreUnplugFetchRunner`): a fetch comes due in the lead before it. */
+    private val wakeAtMs: Long? = null,
 ) {
     private fun decision(source: String, nowMs: Long): ForecastHorizonCadence.Decision = requireNotNull(
-        DesktopForecastHorizon(dao, source, latitude, longitude, { power }, { screenOn }).decision(nowMs),
+        DesktopForecastHorizon(dao, source, latitude, longitude, { power }, { screenOn }).decision(nowMs, wakeAtMs),
     )
 
     fun plan(sources: List<String>, nowMs: Long): ForecastFetchPlan.Plan =

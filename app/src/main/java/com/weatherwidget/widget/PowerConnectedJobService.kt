@@ -55,10 +55,9 @@ class PowerConnectedJobService : JobService() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     PowerConnectedRefresh.writeLog(applicationContext, outcome, source = "job")
-                    ChargeSessionTracker.observe(applicationContext, isCharging = true)
-                    PreWakeFetchScheduler.arm(applicationContext, trigger = "power_connected")?.let {
-                        WeatherDatabase.getDatabase(applicationContext).appLogDao()
-                            .log(PreWakeFetchScheduler.LOG_TAG, it, "INFO")
+                    PreUnplugFetchScheduler.runner(applicationContext).let {
+                        it.observePower(isCharging = true)
+                        it.arm(trigger = "power_connected")
                     }
                     // Independent of the current-temp debounce: putting the phone on the charger is
                     // the moment it has most likely just finished moving.

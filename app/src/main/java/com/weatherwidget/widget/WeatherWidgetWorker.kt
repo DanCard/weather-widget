@@ -91,9 +91,7 @@ class WeatherWidgetWorker
             val input = dropSatisfiedForce(requested)
             val device = measureDeviceContext()
             if (device.isScreenInteractive) UsageHoursTracker.sight(context) else UsageHoursTracker.advance(context)
-            ChargeSessionTracker.observe(context, device.isCharging)?.let {
-                appLogDao.log(ChargeSessionTracker.LOG_TAG, it, "INFO")
-            }
+            PreUnplugFetchScheduler.runner(context).observePower(device.isCharging)
             appLogDao.log(
                 "SYNC_START",
                 "uiOnly=${input.uiOnlyRefresh}, force=${input.forceRefresh}, currentOnly=${input.currentTempOnly}, " +
@@ -608,7 +606,7 @@ class WeatherWidgetWorker
                 batteryLevel = snapshot.batteryLevel,
                 isScreenInteractive = isScreenInteractive,
                 lastFullFetchAgeSeconds = lastFullFetchAge,
-                wakeAtMs = PreWakeFetchScheduler.nextWake(context)?.atMs,
+                wakeAtMs = PreUnplugFetchScheduler.nextWake(context)?.atMs,
             )
         }
 

@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.RawFetch
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.ForecastHorizonCadence
 import com.weatherwidget.data.remote.ForecastHorizonCadence.Horizon
 import com.weatherwidget.data.remote.ForecastSchedule
 import com.weatherwidget.data.remote.SourceQuotaBlocks
@@ -52,8 +53,8 @@ class DesktopForecastPlannerTest {
     )
 
     /** Battery 90 %, unplugged, screen on unless given: every 4 h. */
-    private fun planner(charging: Boolean = false, level: Int = 90, screenOn: Boolean = true) =
-        DesktopForecastPlanner(dao, lat, lon, PowerDetector.PowerState(charging, level), screenOn)
+    private fun planner(charging: Boolean = false, level: Int = 90, screenOn: Boolean = true, wakeAtMs: Long? = null) =
+        DesktopForecastPlanner(dao, lat, lon, PowerDetector.PowerState(charging, level), screenOn, wakeAtMs)
 
     private suspend fun fetch(source: String = om, horizon: Horizon = Horizon.LONG) {
         coEvery { service.fetchForecast() } returns raw
@@ -65,6 +66,22 @@ class DesktopForecastPlannerTest {
         SourceQuotaBlocks.reset()
         database.getConnection().close()
         Files.deleteIfExists(tempDbPath)
+    }
+
+    @Test
+    fun `on AC with a predicted unplug, the loop wakes in the lead before it instead of the 8 h interval`() = runTest {
+        // plans/261028-learned-unplug-prediction.md: a notebook that leaves AC at a learned time.
+        fetch()
+        val now = System.currentTimeMillis()
+        val unplugAt = now + 6 * hour
+        val ac = planner(charging = true, screenOn = false, wakeAtMs = unplugAt)
+        assertEquals(unplugAt - ForecastHorizonCadence.PRE_WAKE_LEAD_MS, ac.next(listOf(om), now)!!.atMs)
+        assertNull("not due yet", ac.plan(om, now).parts)
+        val inLead = unplugAt - ForecastHorizonCadence.PRE_WAKE_LEAD_MS + minute
+        // Past the 3 h min gap since the fetch, inside the lead: due.
+        assertEquals(ForecastParts.BOTH, ac.plan(om, inLead).parts)
+        val noPrediction = planner(charging = true, screenOn = false)
+        assertTrue(noPrediction.next(listOf(om), now)!!.atMs > now + 7 * hour)
     }
 
     @Test

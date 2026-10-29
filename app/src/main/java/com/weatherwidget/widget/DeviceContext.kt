@@ -5,6 +5,6 @@ internal data class DeviceContext(
     val batteryLevel: Int,
     val isScreenInteractive: Boolean,
     val lastFullFetchAgeSeconds: Long,
-    /** The next alarm, else the learned unplug time ([PreWakeFetchScheduler.nextWake]); null when neither. */
+    /** The next predicted unplug ([PreUnplugFetchScheduler.nextWake]); null when none. */
     val wakeAtMs: Long? = null,
 )

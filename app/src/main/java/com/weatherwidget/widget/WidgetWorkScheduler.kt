@@ -65,8 +65,12 @@ object WidgetWorkScheduler {
     const val WORK_NAME_HISTORY_GAP_FILL = "weather_widget_history_gap_fill"
     const val WORK_NAME_UI = "weather_widget_one_time_ui"
 
-    /** The sync [PreWakeFetchScheduler] arms before the user's alarm; its own name, so no other sync replaces it. */
-    const val WORK_NAME_PRE_WAKE = "weather_widget_pre_wake"
+    /**
+     * The sync [PreUnplugFetchScheduler] arms before a predicted unplug; its own name, so no other sync
+     * replaces it. The value predates the rename (alarm-driven pre-wake) so a check already enqueued
+     * stays addressable.
+     */
+    const val WORK_NAME_PRE_UNPLUG = "weather_widget_pre_wake"
     private const val WORK_NAME_UI_DELAYED_PREFIX = "weather_widget_one_time_ui_delayed_"
     private const val WORK_NAME_FAILURE_BANNER_STAGE_PREFIX = "weather_widget_failure_banner_stage_"
 
@@ -123,16 +127,16 @@ object WidgetWorkScheduler {
 
     /**
      * An unforced sync [delayMs] from now, on a charger with a network — the cadence makes it LONG
-     * when it lands in the lead before the alarm ([PreWakeFetchScheduler]). REPLACE: a moved alarm
-     * moves the check.
+     * when it lands in the lead before the predicted unplug ([PreUnplugFetchScheduler]). REPLACE on
+     * delayed work: a moved prediction moves the check.
      */
-    fun enqueuePreWakeSync(context: Context, delayMs: Long): OneTimeWorkRequest =
+    fun enqueuePreUnplugSync(context: Context, delayMs: Long): OneTimeWorkRequest =
         enqueueFullSync(
             context = context,
-            uniqueName = WORK_NAME_PRE_WAKE,
+            uniqueName = WORK_NAME_PRE_UNPLUG,
             policy = ExistingWorkPolicy.REPLACE,
             forceRefresh = false,
-            reason = "pre_wake",
+            reason = "pre_unplug",
             initialDelayMs = delayMs,
             constraints = Constraints.Builder()
                 .setRequiresCharging(true)
@@ -140,8 +144,8 @@ object WidgetWorkScheduler {
                 .build(),
         )
 
-    fun cancelPreWakeSync(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME_PRE_WAKE)
+    fun cancelPreUnplugSync(context: Context) {
+        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME_PRE_UNPLUG)
     }
 
     fun enqueueRequiredImmediateSync(

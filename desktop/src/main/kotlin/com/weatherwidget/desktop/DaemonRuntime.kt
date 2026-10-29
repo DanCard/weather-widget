@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import kotlinx.coroutines.withTimeoutOrNull
 import com.weatherwidget.shared.util.BatteryTier
+import com.weatherwidget.shared.util.PreUnplugFetchRunner
 import com.weatherwidget.data.remote.ForecastSchedule
 import com.weatherwidget.data.remote.ForecastHorizonCadence
 import com.weatherwidget.data.model.ForecastParts
@@ -32,6 +33,9 @@ import kotlin.system.exitProcess
 private const val TAG = "DaemonProcess"
 private const val DOMINANT_TEMP_WATCH_TAG = "DOMINANT_TEMP_WATCH"
 
+/** How often the daemon sights the charger for the pre-unplug rule; well inside ChargeHistory.MAX_ESTIMATE_GAP_MS. */
+private const val CHARGE_SIGHTING_INTERVAL_MS = 5 * 60_000L
+
 /**
  * Owns the desktop daemon's long-lived state and the refresh/kick/watcher coroutines that used to
  * be nested inside `runDaemon`. Extracted in Phase 2 of
@@ -56,6 +60,15 @@ internal class DaemonRuntime(
     private var logindMonitor: Process? = null
     private var networkMonitor: Process? = null
     private var upowerMonitor: Process? = null
+
+    /**
+     * The shared pre-unplug rule (plans/261028-learned-unplug-prediction.md): a notebook's AC sessions
+     * teach it when the machine leaves the charger; the forecast loop plans with the prediction as its
+     * `wakeAtMs` and is woken to re-plan when the armed check moves. No clock alarms on desktop.
+     */
+    private val preUnplug = PreUnplugFetchRunner(
+        DesktopPreUnplugHost(weatherDao, DesktopChargeHistoryStore.default(), wake = ::wakeForecastLoop),
+    )
 
     /**
      * Wakes the forecast loop (3c) before its planned sleep ends, with the reason, when something it
@@ -382,10 +395,17 @@ internal class DaemonRuntime(
                 upowerMonitor = proc
                 weatherDao.log("POWER_DETECT", "gdbus UPower monitor started (pid=${proc.pid()})", "INFO")
                 var tier = PowerDetector.getPowerState().let { BatteryTier.cadenceTier(it.isCharging, it.batteryLevel) }
+                var charging = PowerDetector.getPowerState().isCharging
                 proc.inputStream.bufferedReader().useLines { lines ->
                     for (line in lines) {
                         if (!isPowerChangeSignalLine(line)) continue
                         val power = PowerDetector.getPowerState()
+                        if (power.isCharging != charging) {
+                            // The exact plug/unplug instant for the charge history.
+                            charging = power.isCharging
+                            preUnplug.observePower(charging, exact = true)
+                            preUnplug.arm(trigger = "power_event")
+                        }
                         val now = BatteryTier.cadenceTier(power.isCharging, power.batteryLevel)
                         if (now != tier) {
                             weatherDao.log("POWER_DETECT", "cadence tier $tier → $now (charging=${power.isCharging} level=${power.batteryLevel})", "INFO")
@@ -399,6 +419,23 @@ internal class DaemonRuntime(
                 throw e
             } catch (e: Exception) {
                 weatherDao.log("POWER_DETECT", "gdbus UPower monitor unavailable (${e.message}) — forecast loop cap only", "WARN")
+            }
+        }
+
+        // Charge sightings for the pre-unplug rule: bound an unplug the UPower monitor missed (at most
+        // CHARGE_SIGHTING_INTERVAL_MS early), re-arm, and log the learned patterns once a day.
+        daemonScope.launch(Dispatchers.IO) {
+            while (true) {
+                try {
+                    preUnplug.observePower(PowerDetector.getPowerState().isCharging)
+                    preUnplug.arm(trigger = "tick")
+                    preUnplug.dailyPatternLog()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Pre-unplug tick failed: ${e.message}")
+                }
+                delay(CHARGE_SIGHTING_INTERVAL_MS)
             }
         }
 
@@ -1063,6 +1100,7 @@ internal class DaemonRuntime(
 
                     val planner = DesktopForecastPlanner(
                         weatherDao, config.lat, config.lon, PowerDetector.PowerState(isCharging, level), screenOn,
+                        wakeAtMs = preUnplug.nextWake()?.atMs,
                     )
 
                     val planNow = System.currentTimeMillis()

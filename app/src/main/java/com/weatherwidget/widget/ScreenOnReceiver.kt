@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.remote.ForecastHorizonCadence
 import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.di.RepositoryEntryPoint
 
@@ -228,6 +229,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
         UsageHoursTracker.sight(context.applicationContext)
         resampleLocationAsync(context, trigger = "screen_on")
         startBatteryScreenOnLoop(context)
+        startChargingForecastCatchUp(context)
 
         if (!WidgetStateManager(context.applicationContext).isPaintOwed()) return
 
@@ -285,6 +287,32 @@ class ScreenOnReceiver : BroadcastReceiver() {
             com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.NONE -> Unit
         }
         logScreenOnLoop(context, decision, battery.batteryLevel, ageMin, battery.isCharging)
+    }
+
+    /**
+     * On a charger, the screen coming on fetches a displayed source's forecast when the 4 h screen-on
+     * interval makes it due ([ForecastHorizonCadence.screenOnCatchUp]) — free power and a user looking.
+     * This is what replaced the bare-alarm pre-wake guess: a phone still charging at screen-on fetches
+     * now, and only a predicted unplug fetches ahead (plans/261028-learned-unplug-prediction.md). KEEP:
+     * a running sync is never cancelled, and it already decides each source the same way.
+     */
+    private fun startChargingForecastCatchUp(context: Context) {
+        if (!getBatteryState(context).isCharging) return
+        val location = ActiveLocationResolver.current(context) ?: return
+        val nowMs = clock()
+        val due = chargingForecastCatchUpSources(WidgetStateManager(context.applicationContext), location.first, location.second, nowMs)
+        if (due.isEmpty()) return
+        WidgetWorkScheduler.enqueueRedundantImmediateSync(context, forceRefresh = false, reason = "charging_screen_on_forecast")
+        val pendingResult = goAsync()
+        CoroutineScope(ioDispatcher).launch {
+            try {
+                WeatherDatabase.getDatabase(context).appLogDao().log("SCREEN_ON_FORECAST", "outcome=sync_enqueued due=${due.joinToString(",")}", "INFO")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to persist SCREEN_ON_FORECAST log", e)
+            } finally {
+                pendingResult?.finish()
+            }
+        }
     }
 
     private fun logScreenOnLoop(
@@ -392,6 +420,17 @@ class ScreenOnReceiver : BroadcastReceiver() {
         BatterySnapshotProvider.snapshot(context)
 
     companion object {
+        /** Displayed sources whose forecast a charging screen-on should fetch now; quota-blocked ones are skipped. */
+        @VisibleForTesting
+        internal fun chargingForecastCatchUpSources(stateManager: WidgetStateManager, lat: Double, lon: Double, nowMs: Long): List<String> {
+            val displayed = stateManager.getActiveDisplaySourceIds()
+            return stateManager.getVisibleSourcesOrder()
+                .filter { it != com.weatherwidget.data.model.WeatherSource.GENERIC_GAP && it.id in displayed }
+                .filter { !com.weatherwidget.data.remote.SourceQuotaBlocks.isFullyBlocked(it.id, nowMs) }
+                .filter { com.weatherwidget.data.remote.ForecastHorizonCadence.screenOnCatchUp(true, stateManager.getLastLongFetch(it.id, lat, lon), nowMs) }
+                .map { it.id }
+        }
+
 
         /**
          * Registers an instance for [Intent.ACTION_SCREEN_ON]. Call once per process, from

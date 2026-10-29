@@ -478,9 +478,12 @@ SHARED_DESKTOP_PID=""
 if [ "$DEFAULT_RUN" = true ]; then
   # Build :shared ONCE before splitting into two Gradle processes. Both need :shared:jar; when
   # :shared has changed, the two processes compiled and zipped it concurrently and one failed
-  # with ":shared:jar FAILED — Could not add file … to ZIP" (2026-10-13). Up to date, this costs
-  # about a second (configuration cache).
-  if ! (cd "$ROOT_DIR" && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" :shared:jar --console=plain) >>"$gradle_log" 2>&1; then
+  # with ":shared:jar FAILED — Could not add file … to ZIP" (2026-10-13). Both test classpaths
+  # also take :shared's testFixtures (the host contract suites): a changed fixture raced the same
+  # way, ":shared:compileTestFixturesKotlin FAILED — Failed to store cache entry … Could not get
+  # file mode for … shrunk-classpath-snapshot.bin" (2026-10-28). Up to date, this costs about a
+  # second (configuration cache).
+  if ! (cd "$ROOT_DIR" && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" :shared:jar :shared:testFixturesJar --console=plain) >>"$gradle_log" 2>&1; then
     log_and_echo "${RED}:shared failed to build — see the Gradle output below.${NC}"
     cat "$gradle_log"
     exit 1
