@@ -1,13 +1,17 @@
 package com.weatherwidget.desktop
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.PointerMatcher
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.onClick
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
@@ -92,7 +96,8 @@ internal fun WidgetHeader(
         )
     }
 
-    val toggleWeatherSource = { cycleDisplaySource(config, onUpdateConfig) }
+    val cycleSourceForward = { cycleDisplaySource(config, forward = true, onUpdateConfig = onUpdateConfig) }
+    val cycleSourceBackward = { cycleDisplaySource(config, forward = false, onUpdateConfig = onUpdateConfig) }
 
     // Daily header inputs, decided before layout so the shared fit can weigh every item.
     val iconSizeDp = CENTRE_ICON_DP * scale
@@ -203,7 +208,13 @@ internal fun WidgetHeader(
             .clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null,
-            ) { toggleWeatherSource() }
+            ) { cycleSourceForward() }
+            .then(
+                if (config.effectiveSources.size > 1) {
+                    @OptIn(ExperimentalFoundationApi::class)
+                    Modifier.onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) { cycleSourceBackward() }
+                } else Modifier
+            )
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val measuredWidth = maxWidth.value
@@ -341,16 +352,11 @@ internal fun WidgetHeader(
                             } else {
                                 val preferred = PreferredSourceHome.preferredSourceId(config.effectiveSources)
                                 if (preferred != null) {
-                                    onUpdateConfig(
-                                        config.copy(
-                                            settings = config.settings.copy(weatherSource = preferred),
-                                        ),
-                                    )
-                                    DesktopSourceViews.record(
+                                    DesktopSourceSwitch.switchTo(
+                                        config,
                                         preferred,
-                                        config.effectiveSources,
-                                        config.viewMode,
                                         com.weatherwidget.shared.sourceview.SourceViewTrigger.HOME,
+                                        onUpdateConfig,
                                     )
                                 }
                             }
@@ -435,7 +441,10 @@ internal fun WidgetHeader(
                     .offset(x = sourceLeft.dp, y = (-1.5f * scale).dp)
                     .then(
                         if (visibleSources.size > 1) {
-                            Modifier.clickable { cycleDisplaySource(config, onUpdateConfig) }
+                            @OptIn(ExperimentalFoundationApi::class)
+                            Modifier
+                                .clickable { cycleSourceForward() }
+                                .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) { cycleSourceBackward() }
                         } else Modifier
                     )
                     .testTag("header_source_label"),

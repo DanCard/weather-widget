@@ -9,6 +9,8 @@ import com.weatherwidget.shared.sourceview.SourceViewTally
 import com.weatherwidget.shared.sourceview.SourceViewTrigger
 import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.widget.ViewMode
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -49,11 +51,14 @@ class DesktopSourceViewsTest {
         dbPath = tempDir.resolve("weather.db")
         dao = DesktopWeatherDao(DesktopWeatherDatabase(dbPath).apply { initialize() })
         DesktopSourceViews.install(dao, executor = { it.run() })
+        // The switch's deferred phase (view tally, app_logs row) inline, so assertions see it at once.
+        DesktopSourceSwitch.install(dao, CoroutineScope(Dispatchers.Unconfined))
     }
 
     @After
     fun teardown() {
         DesktopSourceViews.install(null)
+        DesktopSourceSwitch.install(null)
         tempDir.toFile().deleteRecursively()
     }
 
@@ -107,6 +112,19 @@ class DesktopSourceViewsTest {
         assertFalse(meteo.wasPrimary)
         assertTrue(r.getValue(Triple("NWS", "TOGGLE", "DAILY")).wasPrimary)
         assertTrue(r.values.all { it.dateMs == today() })
+    }
+
+    @Test
+    fun `api button cycles backwards when forward is false`() {
+        var current = config
+        cycleDisplaySource(current, forward = false) { current = it }
+        assertEquals("SILURIAN", current.settings.weatherSource)
+
+        cycleDisplaySource(current, forward = false) { current = it }
+        assertEquals("OPEN_METEO", current.settings.weatherSource)
+
+        cycleDisplaySource(current, forward = false) { current = it }
+        assertEquals("NWS", current.settings.weatherSource)
     }
 
     @Test

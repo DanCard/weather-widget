@@ -12,8 +12,10 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.rightClick
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.weatherwidget.data.model.DailyForecast
@@ -182,6 +184,77 @@ currentCondition = "Sunny"),
         assertEquals(1, updates.size)
         assertEquals(WeatherSource.NWS.id, updates.single().settings.weatherSource)
         assertEquals(ViewMode.DAILY, updates.single().viewMode)
+    }
+
+    @Test
+    fun testHeaderSourceLabelLeftClickCyclesNextRightClickCyclesPrevious() {
+        val order = listOf(WeatherSource.NWS.id, WeatherSource.OPEN_METEO.id, WeatherSource.TOMORROW_IO.id)
+        var config by mutableStateOf(
+            stubConfig.copy(
+                settings = stubConfig.settings.copy(
+                    visibleSources = order,
+                    weatherSource = WeatherSource.NWS.id,
+                ),
+            ),
+        )
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = config,
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { config = it },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        // Left click advances to OPEN_METEO
+        composeTestRule.onNodeWithTag("header_source_label").performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(WeatherSource.OPEN_METEO.id, config.settings.weatherSource)
+
+        // Right click goes back to NWS
+        composeTestRule.onNodeWithTag("header_source_label").performMouseInput { rightClick() }
+        composeTestRule.waitForIdle()
+        assertEquals(WeatherSource.NWS.id, config.settings.weatherSource)
+
+        // Right click again wraps to TOMORROW_IO
+        composeTestRule.onNodeWithTag("header_source_label").performMouseInput { rightClick() }
+        composeTestRule.waitForIdle()
+        assertEquals(WeatherSource.TOMORROW_IO.id, config.settings.weatherSource)
+    }
+
+    @Test
+    fun testHeaderDeadZoneLeftClickCyclesNextRightClickCyclesPrevious() {
+        val order = listOf(WeatherSource.NWS.id, WeatherSource.OPEN_METEO.id, WeatherSource.TOMORROW_IO.id)
+        var config by mutableStateOf(
+            stubConfig.copy(
+                settings = stubConfig.settings.copy(
+                    visibleSources = order,
+                    weatherSource = WeatherSource.NWS.id,
+                ),
+            ),
+        )
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = config,
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { config = it },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithTag("daily_header_date", useUnmergedTree = true).performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(WeatherSource.OPEN_METEO.id, config.settings.weatherSource)
+
+        composeTestRule.onNodeWithTag("daily_header_date", useUnmergedTree = true).performMouseInput { rightClick() }
+        composeTestRule.waitForIdle()
+        assertEquals(WeatherSource.NWS.id, config.settings.weatherSource)
     }
 
     @Test

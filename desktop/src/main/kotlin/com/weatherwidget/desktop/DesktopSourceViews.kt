@@ -96,13 +96,27 @@ internal fun switchDisplaySource(config: DesktopConfig, sourceId: String, onUpda
 }
 
 /**
- * The API button: show the next usable source, and count the switch. The one copy — the header and
- * popup used to carry three, and a copy that skipped [DesktopSourceViews.record] would silently
- * undercount. No-op with one usable source. Switched through [DesktopSourceSwitch].
+ * The API button: show the next (or previous, when [forward] is false) usable source, and count
+ * the switch. The one copy — the header and popup used to carry three, and a copy that skipped
+ * [DesktopSourceViews.record] would silently undercount. No-op with one usable source. Switched
+ * through [DesktopSourceSwitch].
  */
-internal fun cycleDisplaySource(config: DesktopConfig, onUpdateConfig: (DesktopConfig) -> Unit) {
+internal fun cycleDisplaySource(
+    config: DesktopConfig,
+    forward: Boolean = true,
+    onUpdateConfig: (DesktopConfig) -> Unit,
+) {
     val visibleSources = config.effectiveSources
     if (visibleSources.size <= 1) return
-    val next = visibleSources[(visibleSources.indexOf(config.displaySource) + 1) % visibleSources.size]
+    val currentIndex = visibleSources.indexOf(config.displaySource).coerceAtLeast(0)
+    val nextIndex = if (forward) {
+        (currentIndex + 1) % visibleSources.size
+    } else {
+        (currentIndex - 1 + visibleSources.size) % visibleSources.size
+    }
+    val next = visibleSources[nextIndex]
     DesktopSourceSwitch.switchTo(config, next, SourceViewTrigger.TOGGLE, onUpdateConfig)
 }
+
+internal fun cycleDisplaySource(config: DesktopConfig, onUpdateConfig: (DesktopConfig) -> Unit) =
+    cycleDisplaySource(config, forward = true, onUpdateConfig)
