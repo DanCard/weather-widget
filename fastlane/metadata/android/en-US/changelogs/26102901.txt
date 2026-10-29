@@ -1,0 +1,1 @@
+Release 26102901: Refined widget tap interaction isolation and rapid render prioritization; dynamic daytime/nighttime rain labels and spacing; improved cloud cover calculations across vertical layers; battery-friendly screen-off polling and learned unplug prediction; isolated per-source refresh throttling; and general stability and performance improvements.
