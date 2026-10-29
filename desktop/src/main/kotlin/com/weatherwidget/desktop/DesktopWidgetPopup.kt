@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -56,6 +57,9 @@ import com.weatherwidget.data.remote.SourceErrorDetails
 
 private const val TAG = "Main"
 
+/** Gap between the header row and the graph below it. */
+private const val HEADER_GRAPH_SPACER_DP = 4
+
 /** Today's column solid high (the current temperature, while there is one) — lets tests compare it with the header. */
 internal val TodayColumnSolidHigh = SemanticsPropertyKey<Float?>("TodayColumnSolidHigh")
 
@@ -88,6 +92,7 @@ internal fun WidgetPopup(
       // One shared scale for header + graph so everything grows together with the window.
       // Density-independent (maxHeight and 320.dp both carry density). ~2x at a typical window.
       val uiScale = (maxHeight / 320.dp).coerceIn(1f, 3f)
+      var headerHeightPx by remember { mutableStateOf(0f) }
       Surface(modifier = Modifier.fillMaxSize()) {
         when (dataStatus) {
             is DataStatus.Error -> CenteredMessage(dataStatus.message)
@@ -110,24 +115,28 @@ internal fun WidgetPopup(
                 var dailyHomeDateOffset by remember { mutableStateOf(0) }
                 val toggleWeatherSource = { cycleDisplaySource(config, onUpdateConfig) }
                 Column(modifier = Modifier.fillMaxSize().padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 2.dp)) {
-                    WidgetHeader(
-                        config = config,
-                        forecast = snapshot,
-                        resolvedCurrentTemp = displayCurrentTemp,
-                        resolvedDeltaFromYesterday = resolvedDeltaFromYesterday,
-                        onUpdateConfig = onUpdateConfig,
-                        onOpenSettings = onOpenSettings,
-                        onOpenObservations = onOpenObservations,
-                        onOpenHistory = onOpenHistory,
-                        onUpdateLocation = onUpdateLocation,
-                        headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
-                        scale = uiScale,
-                        todayInView = dailyTodayInView,
-                        observationsInView = dailyObservationsInView,
-                        homeDateOffset = dailyHomeDateOffset,
-                    )
+                    // Measured for the daily graph's DailyTopStack: its top labels may overlap the
+                    // header by a shared fraction of this height.
+                    Box(modifier = Modifier.fillMaxWidth().onSizeChanged { headerHeightPx = it.height.toFloat() }) {
+                        WidgetHeader(
+                            config = config,
+                            forecast = snapshot,
+                            resolvedCurrentTemp = displayCurrentTemp,
+                            resolvedDeltaFromYesterday = resolvedDeltaFromYesterday,
+                            onUpdateConfig = onUpdateConfig,
+                            onOpenSettings = onOpenSettings,
+                            onOpenObservations = onOpenObservations,
+                            onOpenHistory = onOpenHistory,
+                            onUpdateLocation = onUpdateLocation,
+                            headerTime = LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
+                            scale = uiScale,
+                            todayInView = dailyTodayInView,
+                            observationsInView = dailyObservationsInView,
+                            homeDateOffset = dailyHomeDateOffset,
+                        )
+                    }
 
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(HEADER_GRAPH_SPACER_DP.dp))
 
                     // Banner for a day-tap whose hourly data is missing: "Fetching…" over the day's
                     // empty hourly graph while its on-demand fetch runs (held until it completes),
@@ -580,6 +589,8 @@ internal fun WidgetPopup(
                                     scale = uiScale,
                                     onDayClick = handleDayClick,
                                     useCelsius = config.settings.useCelsius,
+                                    headerBottomPx = -with(LocalDensity.current) { HEADER_GRAPH_SPACER_DP.dp.toPx() },
+                                    headerHeightPx = headerHeightPx,
                                 )
                             } else {
                                 DailyForecastTextMode(

@@ -271,7 +271,7 @@ object DailyForecastGraphRenderer {
                     " skippedDate=${first.skippedDate}",
             )
         }
-        val layout =
+        fun resolveLayout(graphTopPx: Float?, labelCeilingPx: Float?) =
             DailyGraphLayoutResolver.resolve(
                 days = normalizedDays,
                 widthPx = widthPx,
@@ -283,8 +283,26 @@ object DailyForecastGraphRenderer {
                 todayColumnIndex =
                     normalized.days.firstOrNull { it.day.isToday }?.resolvedColumn,
                 useLargeTodayOverlay = useLargeTodayOverlay,
+                graphTopPx = graphTopPx,
+                labelCeilingPx = labelCeilingPx,
+            )
+        // Lay the bars and top labels out once on the provisional layout, then solve the graph top
+        // so every column's labels stay below the shared DailyTopStack ceiling.
+        val provisionalLayout = resolveLayout(graphTopPx = null, labelCeilingPx = null)
+        val headerBottom =
+            headerData?.let {
+                DailyForecastHeaderRenderer.resolveHeaderInkBottom(it, widthPx, provisionalLayout, 0f, widthPx.toFloat())
+            } ?: 0f
+        val (topStack, topSolution) =
+            com.weatherwidget.shared.graph.DailyTopStack.resolve(
+                platform = "android",
+                headerBottomPx = headerBottom,
+                headerHeightPx = headerBottom,
+                graphBottom = provisionalLayout.graphBottom,
+                columns = measureTopHeadroom(context, normalized.days, provisionalLayout, widthPx, heightPx),
             )
         job?.ensureActive()
+        val layout = resolveLayout(graphTopPx = topSolution.graphTop, labelCeilingPx = topStack.labelCeiling)
         val paints = DailyGraphPaintCache.get(layout)
 
         debug { "renderGraph: days=${normalizedDays.size}, minTemp=${layout.minTemp}, maxTemp=${layout.maxTemp}, widthPx=$widthPx, heightPx=$heightPx" }
@@ -428,6 +446,77 @@ object DailyForecastGraphRenderer {
             rainLabelPlacements.toList(),
             todayOverlayPlacements,
         )
+    }
+
+    /**
+     * Each column's top-label need for the shared DailyTopStack: draws the bars and column content
+     * once onto a [MeasureOnlyCanvas] (layout runs, nothing is drawn) and measures how far the topmost
+     * high or day rain label reaches above the column's tallest drawn bar.
+     */
+    private fun measureTopHeadroom(
+        context: Context,
+        days: List<DailyGraphInputNormalizer.NormalizedDay>,
+        layout: DailyGraphLayoutInfo,
+        widthPx: Int,
+        heightPx: Int,
+    ): List<com.weatherwidget.shared.graph.DailyTopStack.ColumnHeadroom> {
+        val paints = DailyGraphPaintCache.get(layout)
+        val canvas = MeasureOnlyCanvas()
+        val rainTops = mutableMapOf<LocalDate, Float>()
+        val columns =
+            run {
+                days.mapNotNull { normalizedDay ->
+                    val day = normalizedDay.day
+                    val centerX = layout.columnCenter(normalizedDay.resolvedColumn)
+                    val highBounds = DailyBarRenderer.drawDayBars(canvas, day, centerX, layout, paints) {}
+                    DailyColumnRenderer.draw(
+                        canvas, context, day, centerX, layout, paints,
+                        { placement ->
+                            if (placement.kind != RainLabelKind.NIGHT && !placement.topY.isNaN()) {
+                                rainTops[day.date] = minOf(rainTops[day.date] ?: placement.topY, placement.topY)
+                            }
+                        },
+                        null,
+                    )
+                    val barTopTemp =
+                        com.weatherwidget.shared.daily.DailyAxisTemps.drawn(
+                            isPast = day.isPast,
+                            isToday = day.isToday,
+                            solidHigh = day.solidLineHigh,
+                            solidLow = day.solidLineLow,
+                            forecastHigh = day.dashedLineHigh,
+                            forecastLow = day.dashedLineLow,
+                            ghostHigh = day.ghostLineHigh,
+                            snapshotHigh = day.snapshotHigh,
+                            snapshotLow = day.snapshotLow,
+                        ).maxOrNull() ?: return@mapNotNull null
+                    val topmost =
+                        (highBounds.map { it.top } + listOfNotNull(rainTops[day.date])).minOrNull()
+                            ?: return@mapNotNull null
+                    com.weatherwidget.shared.graph.DailyTopStack.headroom(
+                        "${day.label}${day.date.dayOfMonth}", barTopTemp, layout.minTemp, layout.tempRange,
+                        layout.tempToY(barTopTemp), topmost,
+                    )
+                }
+            }
+        return columns
+    }
+
+    /**
+     * Unbacked canvas for the top-stack measuring pass: the renderers still lay their labels out, but
+     * the draw calls are dropped, so the pass costs only measurement and never shows up as drawing.
+     */
+    private class MeasureOnlyCanvas : Canvas() {
+        override fun drawLine(startX: Float, startY: Float, stopX: Float, stopY: Float, paint: Paint) = Unit
+        override fun drawRect(left: Float, top: Float, right: Float, bottom: Float, paint: Paint) = Unit
+        override fun drawRect(rect: RectF, paint: Paint) = Unit
+        override fun drawRoundRect(rect: RectF, rx: Float, ry: Float, paint: Paint) = Unit
+        override fun drawRoundRect(left: Float, top: Float, right: Float, bottom: Float, rx: Float, ry: Float, paint: Paint) = Unit
+        override fun drawCircle(cx: Float, cy: Float, radius: Float, paint: Paint) = Unit
+        override fun drawPath(path: Path, paint: Paint) = Unit
+        override fun drawText(text: String, x: Float, y: Float, paint: Paint) = Unit
+        override fun drawText(text: CharSequence, start: Int, end: Int, x: Float, y: Float, paint: Paint) = Unit
+        override fun drawBitmap(bitmap: Bitmap, left: Float, top: Float, paint: Paint?) = Unit
     }
 
     private fun suppressHeaderDateForRainOverlap(

@@ -81,7 +81,7 @@ internal object DailyForecastRainLabelRenderer {
 
         val rainText = placement.debug.text
         val localRainPaint = createScaledRainPaint(day, day.rainData.dailyPrecipProbability, RainLabelType.DAY, layout.density, paints)
-        val topMargin = layout.graphTop * 0.2f
+        val topMargin = layout.labelCeiling
 
         if (!placement.fitsPreferredTopMargin) {
             Log.d(
@@ -195,7 +195,7 @@ internal object DailyForecastRainLabelRenderer {
             highBaseline = highBaseline,
             highMetrics = drawnHighMetrics,
             rainMetrics = textMetrics(localRainPaint),
-            topMargin = layout.graphTop * 0.2f,
+            topMargin = layout.labelCeiling,
             gap = (RAIN_HIGH_TEMP_GAP_DP * layout.bitmapScale.coerceAtMost(1f)).toPx(layout.density),
             snapshotBarTop = snapshotBarTop,
         )

@@ -1566,4 +1566,40 @@ class DailyForecastGraphRendererRoboTest {
         }
         assertEquals("65%", rain.text)
     }
+
+    @Test
+    fun renderGraph_topLabelsStayBelowSharedHeaderCeiling() {
+        // The shared DailyTopStack solves the graph top so the hottest day's high label and rain %
+        // rise at most HEADER_OVERLAP_FRACTION of the header's height into it; the old fixed 50dp band ran them into a
+        // tall header (plans/261029-shared-daily-top-stack.md).
+        val start = LocalDate.of(2026, 2, 2)
+        val days = (0 until 4).map { i ->
+            DailyForecastGraphRenderer.DayData(
+                date = start.plusDays(i.toLong()),
+                label = "D$i",
+                solidLineHigh = if (i == 1) 80f else 60f + i,
+                solidLineLow = 45f + i,
+                rainData = DailyForecastGraphRenderer.RainLabelData(dailyRainLabelText = "65%"),
+            )
+        }
+        val header = DailyForecastGraphRenderer.HeaderRenderData(iconRes = com.weatherwidget.R.drawable.ic_weather_clear, currentTempText = "72°", dateText = "Mon", dateLeftFraction = headerDateLeft, headerScale = 2f)
+        val rain = mutableListOf<DailyForecastGraphRenderer.DailyRainLabelPlacement>()
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context, days = days, widthPx = 800, heightPx = 400, headerData = header,
+                onRainLabelDrawn = { rain.add(it) }, useCelsius = false,
+            )
+        }
+        val layout = DailyGraphLayoutResolver.resolve(
+            days = days, widthPx = 800, heightPx = 400, columns = 4, bitmapScale = 1f,
+            density = context.resources.displayMetrics.density, useCelsius = false,
+        )
+        val headerBottom = DailyForecastHeaderRenderer.resolveHeaderInkBottom(header, 800, layout, 0f, 800f)
+        val ceiling = headerBottom * (1f - com.weatherwidget.shared.graph.DailyTopStack.HEADER_OVERLAP_FRACTION)
+        val hottestRain = rain.single { it.date == start.plusDays(1) && it.kind == DailyForecastGraphRenderer.RainLabelKind.DAY }
+        assertTrue(
+            "hottest rain label top ${hottestRain.topY} must not rise above the ceiling $ceiling (header bottom $headerBottom)",
+            hottestRain.topY >= ceiling - 0.5f,
+        )
+    }
 }

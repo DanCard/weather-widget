@@ -1,0 +1,3 @@
+What do you think of moving night time or all rain labels on daily desktop view to shared code?
+Take screenshots of desktop and fold-4.  I prefer how the night time rain label is done on desktop.
+Fold-4 for history tue - wed draws it underneath, while desktop draws it in between.  I prefer in between.

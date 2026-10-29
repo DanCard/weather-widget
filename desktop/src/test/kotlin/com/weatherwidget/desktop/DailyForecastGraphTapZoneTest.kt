@@ -419,4 +419,19 @@ settings = DesktopSettings(visibleSources = listOf("NWS")),
         val gaps = 3f + 0f + 1f
         assertEquals(margin + 15f + gaps + layout.iconSize + 20f, layout.bottomStripHeightPx, 0.001f)
     }
+
+    @Test
+    fun tapLayout_usesTheDrawnGraphTop() {
+        // The draw pass solves the graph top with DailyTopStack; taps must resolve icons on that same
+        // axis, or a lowered top would leave the icon hit boxes where the icons used to be.
+        val start = LocalDate.of(2026, 11, 2)
+        val days = listOf(
+            futureGraphDay(start, high = 80f, low = 70f),
+            futureGraphDay(start.plusDays(1), high = 60f, low = 40f),
+        )
+        val provisional = computeDailyGraphTapLayout(days, 400f, 600f, 1f, 1f, useCelsius = false)
+        val solved = computeDailyGraphTapLayout(days, 400f, 600f, 1f, 1f, useCelsius = false, graphTop = 150f)
+        // The warm column's icon hangs under its 70° low, which moves down with the graph top.
+        assertTrue(solved.iconTops[0]!! > provisional.iconTops[0]!!)
+    }
 }

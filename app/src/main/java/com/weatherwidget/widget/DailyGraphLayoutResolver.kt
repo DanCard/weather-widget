@@ -26,6 +26,8 @@ internal data class DailyGraphLayoutInfo(
     val scaleFactor: Float,
     val graphTop: Float,
     val graphBottom: Float,
+    /** No top label (high, rain %, peak hour) should rise above this (shared DailyTopStack ceiling). */
+    val labelCeiling: Float,
     val graphHeight: Float,
     val dayWidth: Float,
     val columnLefts: List<Float>,
@@ -107,6 +109,9 @@ internal object DailyGraphLayoutResolver {
         useCelsius: Boolean,
         todayColumnIndex: Int? = null,
         useLargeTodayOverlay: Boolean = false,
+        /** Solved by the shared DailyTopStack from a measuring pass; null = the provisional 50dp band. */
+        graphTopPx: Float? = null,
+        labelCeilingPx: Float? = null,
     ): DailyGraphLayoutInfo {
         var minTemp = Float.POSITIVE_INFINITY
         var maxTemp = Float.NEGATIVE_INFINITY
@@ -191,7 +196,7 @@ internal object DailyGraphLayoutResolver {
         val tempLabelHeight =
             dailyForecastTempLabelSizePx(density, heightScaleFactor, bitmapScale)
         val iconSize = (ICON_BASE_SIZE_DP * labelScale).dp(density).toInt()
-        val graphTop = topPadding
+        val graphTop = graphTopPx ?: topPadding
         val bottomStack =
             DailyBottomStack.resolve(
                 canvasHeightPx = heightPx.toFloat(),
@@ -263,6 +268,7 @@ internal object DailyGraphLayoutResolver {
             scaleFactor = scaleFactor,
             graphTop = graphTop,
             graphBottom = graphBottom,
+            labelCeiling = labelCeilingPx ?: (graphTop * 0.2f),
             graphHeight = graphHeight,
             dayWidth = dayWidth,
             columnLefts = columnLefts,

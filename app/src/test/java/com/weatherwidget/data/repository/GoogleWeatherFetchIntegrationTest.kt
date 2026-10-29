@@ -151,7 +151,10 @@ class GoogleWeatherFetchIntegrationTest {
             val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
             val end = date.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
             val morning = hourly.filter { it.first in start until end }
-            if (morning.size == 9) {
+            // 00:00–09:00 is 9 hours, but 10 on a fall-back day and 8 on a spring-forward one
+            // (2026-11-01 ran with 9 of its 10 rows and took a partial morning for a covered one).
+            val morningHours = (end - start) / 3_600_000L
+            if (morning.size.toLong() == morningHours) {
                 // Stored like every forecast temperature: whole degrees for future days, unrounded for today.
                 val expected = ForecastTempRounding.forStorage(morning.minOf { it.second }, isToday = date == today)
                 assertEquals("$date low vs its 00:00–09:00 hourly minimum", expected!!, low, 0.01f)
