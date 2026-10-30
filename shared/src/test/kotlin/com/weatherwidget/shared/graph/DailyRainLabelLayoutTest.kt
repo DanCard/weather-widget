@@ -141,6 +141,76 @@ class DailyRainLabelLayoutTest {
         assertTrue("clear of the day names: bottom=${label.bottom}", label.bottom <= 650f)
     }
 
+    // Fold 4 inner screen, Sat 10-31 → Sun, "16%" (logcat 2026-10-30 09:26): touched Sun's "49".
+    private val foldSatLow = Box(153f, 326.2f, 199f, 363.1f)
+    private val foldSunLow = Box(217f, 337.1f, 263f, 374f)
+    private val foldSatObstacles = listOf(
+        Box(152.5f, 279.6f, 199.5f, 326.6f), // Sat icon
+        Box(153f, 326.2f, 187f, 363.1f), Box(187f, 326.2f, 199f, 344.7f, isDegreeSign = true), // "50" + °
+        Box(216.5f, 290.5f, 263.5f, 337.5f), // Sun icon
+        Box(217f, 337.1f, 251f, 374f), Box(251f, 337.1f, 263f, 355.6f, isDegreeSign = true), // "49" + °
+    )
+
+    private fun foldSatNight(columnWidth: Float = 68f, obstacles: List<Box> = foldSatObstacles) =
+        DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(19f, 12.4f, 10f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-10-31", text = "16%", probability = 16, isPast = false, daysFromToday = 1,
+                columnCenterX = 174f, gapCenterX = 208f, columnWidth = columnWidth,
+                leftLowLabel = foldSatLow, rightLowLabel = foldSunLow,
+                obstacles = obstacles, dayLabelTop = 392.1f, canvasWidth = 560f, pxPerDp = 2.625f,
+            ),
+            "test",
+        )
+
+    @Test
+    fun `night label hugging the next low eases left to even the gaps`() {
+        val label = foldSatNight()
+        assertEquals(202f, label.centerX, 0.01f)
+        assertEquals(label.left - 187f, 217f - label.right, 0.01f)
+    }
+
+    @Test
+    fun `night label with nothing level on its left eases only to a roomy gap`() {
+        // Fold 4 narrow layout, Fri "2%" (logcat 09:31): Fri's low ends above the label, so the left
+        // is open to the canvas edge. Evening the gaps slid it 6.6 dp, under Fri's low.
+        val label = DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(7f, 7f, 6f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-10-30", text = "2%", probability = 2, isPast = false, daysFromToday = 0,
+                columnCenterX = 161f, gapCenterX = 193.1f, columnWidth = 57.6f,
+                leftLowLabel = Box(131.7f, 291.5f, 202.7f, 328.5f), rightLowLabel = Box(196.1f, 302.3f, 242.1f, 339.2f),
+                obstacles = listOf(
+                    Box(151.7f, 260.9f, 182.7f, 291.9f),
+                    Box(131.7f, 291.5f, 190.7f, 328.5f), Box(190.7f, 291.5f, 202.7f, 310f, isDegreeSign = true),
+                    Box(203.6f, 271.6f, 234.6f, 302.6f),
+                    Box(196.1f, 302.3f, 230.1f, 339.2f), Box(230.1f, 302.3f, 242.1f, 320.7f, isDegreeSign = true),
+                ),
+                dayLabelTop = 379.4f, canvasWidth = 560f, pxPerDp = 2.625f,
+            ),
+            "test",
+        )
+        assertEquals("3 dp clear of Sat's digits", 3f * 2.625f, 196.1f - label.right, 0.01f)
+    }
+
+    @Test
+    fun `night label ease left stops at the maximum shift`() {
+        val label = foldSatNight(columnWidth = 10f) // 30 % of a column = 3 px
+        assertEquals(205f, label.centerX, 0.01f)
+    }
+
+    @Test
+    fun `night label hugging the next low stays with no room on its left`() {
+        val blocked = foldSatObstacles + Box(180f, 350f, 197f, 366f)
+        assertEquals(208f, foldSatNight(obstacles = blocked).centerX, 0.01f)
+    }
+
+    @Test
+    fun `night label clear of the next low stays home`() {
+        val noSunDigits = foldSatObstacles.filterNot { it.left == 217f }
+        assertEquals(208f, foldSatNight(obstacles = noSunDigits).centerX, 0.01f)
+    }
+
     @Test
     fun `night label at the canvas edge shrinks, then centres on its column`() {
         fun place(gapCenterX: Float) = DailyRainLabelLayout.layoutNight(

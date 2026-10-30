@@ -269,6 +269,39 @@ object DailyRainLabelPlanner {
     }
 
     /**
+     * Where a placed night label should sit when it hugs what is on its right: within
+     * [DailyRainLabels.NIGHT_HUG_DP] of it, with at least [DailyRainLabels.NIGHT_ROOMY_LEFT_DP] free on
+     * its left, it slides left to even the two gaps, but only until the right gap reaches that same
+     * roomy distance (the left may be open all the way to the edge), and no further than [maxShiftPx]
+     * from [homeCenterX].
+     * Gaps are measured at the label's own height, so anything above or below it does not count.
+     * Otherwise returns [centerX] unchanged.
+     */
+    fun easeLeftOffRightNeighbor(
+        homeCenterX: Float,
+        centerX: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        obstacles: List<Box>,
+        maxShiftPx: Float,
+        minLeft: Float,
+        density: Float,
+    ): Float {
+        val level = obstacles.filter { it.top < top + height && it.bottom > top }
+        val (right, left) = level.partition { (it.left + it.right) / 2f > centerX }
+        val rightEdge = right.minOfOrNull { it.left } ?: return centerX
+        val leftEdge = maxOf(minLeft, left.maxOfOrNull { it.right } ?: minLeft)
+        val gapRight = rightEdge - (centerX + width / 2f)
+        val gapLeft = (centerX - width / 2f) - leftEdge
+        if (gapRight > DailyRainLabels.NIGHT_HUG_DP * density) return centerX
+        val roomyPx = DailyRainLabels.NIGHT_ROOMY_LEFT_DP * density
+        if (gapLeft < roomyPx) return centerX
+        val shift = minOf((gapLeft - gapRight) / 2f, roomyPx - gapRight)
+        return (centerX - shift).coerceAtLeast(minOf(centerX, homeCenterX - maxShiftPx))
+    }
+
+    /**
      * A low-temp label as night-label obstacles: the digits at full height, and — when [text] ends in
      * ° — the degree sign over only the top [DailyRainLabels.DEGREE_SIGN_HEIGHT_FRACTION] of the box.
      * One full-height box made the blank pocket under the ° an obstacle, pushing night labels toward
