@@ -1836,6 +1836,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return stitched
     }
 
+    private data class TodayCandidate(val row: DailyForecast, val fetchedAt: Long, val lat: Double, val lon: Double)
+
     fun getDailyForecasts(locationLat: Double, locationLon: Double, source: String): List<DailyForecast> {
         val result = mutableListOf<DailyForecast>()
         db.getConnection().use { conn ->
@@ -1923,7 +1925,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 val candidatesSql = """
                     SELECT highTemp, lowTemp, condition, nativeDailyIconToken,
                            precipProbability, precipAmountMm, isClimateNormal, fetchedAt,
-                           daytimePrecipProbability, nighttimePrecipProbability
+                           daytimePrecipProbability, nighttimePrecipProbability, locationLat, locationLon
                     FROM forecasts
                     WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND targetDate = ?
                         AND (highTemp IS NOT NULL OR lowTemp IS NOT NULL)
@@ -1949,18 +1951,23 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                                 daytimePrecipProbability = rs.getNullableInt("daytimePrecipProbability"),
                                 nighttimePrecipProbability = rs.getNullableInt("nighttimePrecipProbability"),
                             )
-                            add(row to rs.getLong("fetchedAt"))
+                            add(TodayCandidate(row, rs.getLong("fetchedAt"), rs.getDouble("locationLat"), rs.getDouble("locationLon")))
                         }
                     }
                 }
                 // The newest row for today ranks newest: every other stored row for today predates it.
-                val chosen = PartialForecastDays.todayRow(
-                    batchRow?.let { it to Long.MAX_VALUE },
+                // It sits at the newest fetch's site, which anchors the same-site preference.
+                val chosen = PartialForecastDays.todayRowNearestSite(
+                    batchRow?.let { TodayCandidate(it, Long.MAX_VALUE, site.first, site.second) },
                     stored,
-                    { it.first.highTemp },
-                    { it.first.lowTemp },
-                    { it.second },
-                )?.first
+                    site.first,
+                    site.second,
+                    { it.lat },
+                    { it.lon },
+                    { it.row.highTemp },
+                    { it.row.lowTemp },
+                    { it.fetchedAt },
+                )?.row
                 when {
                     chosen == null || chosen === batchRow -> Unit
                     // As before this rule was shared: the stored row lends its temperatures and

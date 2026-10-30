@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.util
 
+import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDate
 
@@ -63,6 +64,40 @@ object PartialForecastDays {
         return completeReplacement(storedRows, high, low, fetchedAt)
             ?: batchRow
             ?: storedRows.filter { high(it) != null || low(it) != null }.maxByOrNull(fetchedAt)
+    }
+
+    /**
+     * [todayRow] at the anchor site, reaching into the nearest other site only when that leaves
+     * today with no temperature at all. A move after [SameDayExtremeCutoff.HIGH_CUTOFF] makes a
+     * site whose fetches may never carry today's values: the Fold moved ~1 km at 18:51 and drew the
+     * observed range as today's forecast bar, while the old site's 15:21 row held 67.0 / 48.2
+     * (2026-10-29). Those values were frozen before the cutoff, so they still stand for today.
+     * Same-site rows always win: a nearby town's complete row once replaced a partial one and showed
+     * its 84° high (2026-07-30). [storedRows] are the display source's rows for today in the
+     * coarse box; the other site's row is bounded by [COMPLETE_REPLACEMENT_MAX_AGE_MS] against
+     * the newest of them.
+     */
+    fun <T> todayRowNearestSite(
+        batchRow: T?,
+        storedRows: List<T>,
+        anchorLat: Double,
+        anchorLon: Double,
+        latOf: (T) -> Double,
+        lonOf: (T) -> Double,
+        high: (T) -> Float?,
+        low: (T) -> Float?,
+        fetchedAt: (T) -> Long,
+    ): T? {
+        val isAnchorSite = { row: T -> LocationMatch.sameSite(anchorLat, anchorLon, latOf(row), lonOf(row)) }
+        val chosen = todayRow(batchRow, storedRows.filter(isAnchorSite), high, low, fetchedAt)
+        if (chosen != null && (high(chosen) != null || low(chosen) != null)) return chosen
+        val newestMs = storedRows.maxOfOrNull(fetchedAt) ?: return chosen
+        val nearby = storedRows.filter {
+            !isAnchorSite(it) && high(it) != null && low(it) != null &&
+                newestMs - fetchedAt(it) <= COMPLETE_REPLACEMENT_MAX_AGE_MS
+        }
+        return LocationMatch.selectNearestSite(nearby, anchorLat, anchorLon, latOf, lonOf)
+            .maxByOrNull(fetchedAt) ?: chosen
     }
 
     /** Today's forecast range: the daily value, else the day's hourly max / min. */

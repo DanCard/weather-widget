@@ -68,4 +68,14 @@ class DailyTodayResolverTodayRowTest {
     fun `nothing of the display source - no row, so the column renders without a forecast`() {
         assertNull(DailyTodayResolver.resolveTodayRow(null, listOf(row("NWS", 92f, 68f, 20)), "SILURIAN"))
     }
+
+    @Test
+    fun `empty batch row after a move - the nearest site's complete row stands in`() {
+        // Fold, 2026-10-29: the 18:52 fetch at the new site came after the 16:00 cutoff and stored
+        // today with neither value; the right today bar fell back to the observed range.
+        val batch = row("OPEN_METEO", null, null, fetchedAt = 21, lat = 37.415, lon = -122.087)
+        val oldSite = row("OPEN_METEO", 67.0f, 48.2f, fetchedAt = 15, lat = 37.424, lon = -122.088)
+        val otherSource = row("NWS", 70f, 51f, fetchedAt = 16, lat = 37.424, lon = -122.088)
+        assertSame(oldSite, DailyTodayResolver.resolveTodayRow(batch, listOf(batch, oldSite, otherSource), "OPEN_METEO"))
+    }
 }

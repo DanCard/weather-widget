@@ -111,4 +111,41 @@ class PartialForecastDaysTest {
             PartialForecastDays.futureFromNormals(null, 58f, isTerminalLowOnlyNws = false, normal = null),
         )
     }
+
+    private data class SiteRow(val high: Float?, val low: Float?, val fetchedAt: Long, val lat: Double, val lon: Double)
+    private val hourMs = 3_600_000L
+
+    private fun nearestSiteRow(batch: SiteRow?, stored: List<SiteRow>, lat: Double = 37.415, lon: Double = -122.087) =
+        PartialForecastDays.todayRowNearestSite(
+            batch, stored, lat, lon, { it.lat }, { it.lon }, { it.high }, { it.low }, { it.fetchedAt },
+        )
+
+    @Test
+    fun `nearest site - a post-cutoff move borrows the old site's complete row`() {
+        // Fold, 2026-10-29: moved ~1 km at 18:51, after the 16:00 high cutoff, so the new site's
+        // today rows carry neither value. The old site's 15:21 row is today's real forecast.
+        val newSite18 = SiteRow(null, null, 18 * hourMs, 37.415, -122.087)
+        val newSite21 = SiteRow(null, null, 21 * hourMs, 37.415, -122.087)
+        val oldSite15 = SiteRow(67.0f, 48.2f, 15 * hourMs, 37.424, -122.088)
+        val oldSite12 = SiteRow(66.7f, 48.2f, 12 * hourMs, 37.424, -122.088)
+        val town = SiteRow(84f, 57f, 16 * hourMs, 37.377, -122.075) // newer, but farther away
+        assertEquals(oldSite15, nearestSiteRow(newSite21, listOf(newSite18, newSite21, oldSite12, oldSite15, town)))
+    }
+
+    @Test
+    fun `nearest site - the anchor site's own values always win`() {
+        val batch = SiteRow(70f, null, 21 * hourMs, 37.415, -122.087)
+        val sameSite = SiteRow(69f, 51f, 9 * hourMs, 37.415, -122.087)
+        val oldSite = SiteRow(67f, 48f, 15 * hourMs, 37.424, -122.088)
+        assertEquals(sameSite, nearestSiteRow(batch, listOf(batch, sameSite, oldSite)))
+        // One-sided at the anchor: the column fills the other side from hourly, no other site.
+        assertEquals(batch, nearestSiteRow(batch, listOf(batch, oldSite)))
+    }
+
+    @Test
+    fun `nearest site - another site's row older than the replacement bound is not borrowed`() {
+        val batch = SiteRow(null, null, 40 * hourMs, 37.415, -122.087)
+        val stale = SiteRow(67f, 48f, 15 * hourMs, 37.424, -122.088)
+        assertEquals(batch, nearestSiteRow(batch, listOf(batch, stale)))
+    }
 }
