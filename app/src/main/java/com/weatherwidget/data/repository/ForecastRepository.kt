@@ -218,8 +218,12 @@ class ForecastRepository
             try {
                 var cachedForecasts = getCachedData(latitude, longitude)
                 // Background fetches skip sources not viewed in 8 days; null = fetch everything.
-                val gate = com.weatherwidget.widget.SourceFetchGateLoader.load(
+                // Settings → Refresh data asks for every source, so it takes no gate.
+                val gate = com.weatherwidget.widget.SourceFetchGateLoader.forSync(
                     context, widgetStateManager, latitude, longitude,
+                    forceRefresh = forceRefresh,
+                    targetSourceId = targetSourceId,
+                    allSources = fetchContext?.allSources == true,
                 )
                 if (
                     !forceRefresh &&

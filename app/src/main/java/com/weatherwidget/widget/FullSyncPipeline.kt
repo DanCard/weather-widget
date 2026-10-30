@@ -111,6 +111,7 @@ internal class FullSyncPipeline(
                 batteryLevel = device.batteryLevel,
                 activeSourceIds = activeSourceList.toSet(),
                 userRefresh = input.userRefresh,
+                allSources = input.allSources,
                 wakeAtMs = device.wakeAtMs,
             )
 

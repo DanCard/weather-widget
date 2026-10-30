@@ -171,4 +171,30 @@ class SourceFetchGateRoboTest {
         val gate = SourceFetchGateLoader.load(context, stateManager(), lat, lon)!!
         assertEquals("7 days on, 8 days off", setOf(NWS, OPEN_METEO), gate.forecasts)
     }
+
+    @Test
+    fun `forSync - settings refresh fetches a source not viewed in 8 days, other syncs keep the gate`() = runBlocking {
+        track(30)
+        switchTo(SILURIAN, 9)
+        val wsm = stateManager()
+        assertEquals(
+            "Settings → Refresh data: no gate",
+            null,
+            SourceFetchGateLoader.forSync(context, wsm, lat, lon, forceRefresh = true, targetSourceId = null, allSources = true),
+        )
+        val c = coordinator()
+        assertEquals(setOf(NWS, OPEN_METEO, SILURIAN), c.visibleSourcesToFetch(emptyList(), true, null, null, null))
+        assertFalse(
+            "widget Refresh keeps the gate",
+            SILURIAN in SourceFetchGateLoader.forSync(context, wsm, lat, lon, forceRefresh = true, targetSourceId = null, allSources = false)!!.forecasts,
+        )
+        assertFalse(
+            "a targeted force keeps the gate for the other sources",
+            SILURIAN in SourceFetchGateLoader.forSync(context, wsm, lat, lon, forceRefresh = true, targetSourceId = NWS.id, allSources = true)!!.forecasts,
+        )
+        assertFalse(
+            "unforced keeps the gate",
+            SILURIAN in SourceFetchGateLoader.forSync(context, wsm, lat, lon, forceRefresh = false, targetSourceId = null, allSources = true)!!.forecasts,
+        )
+    }
 }

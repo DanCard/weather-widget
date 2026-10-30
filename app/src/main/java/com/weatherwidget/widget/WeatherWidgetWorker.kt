@@ -719,6 +719,12 @@ class WeatherWidgetWorker
              * ([com.weatherwidget.shared.util.DailyForecastWrite]).
              */
             const val KEY_USER_REFRESH = "user_refresh"
+
+            /**
+             * Settings → Refresh data: an untargeted forced sync skips the recently-viewed gate and
+             * fetches every visible source ([com.weatherwidget.shared.util.SettingsRefreshAllSources]).
+             */
+            const val KEY_ALL_SOURCES = "all_sources"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
             const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
         }

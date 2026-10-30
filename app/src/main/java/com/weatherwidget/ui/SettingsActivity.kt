@@ -177,6 +177,7 @@ class SettingsActivity : AppCompatActivity() {
                     context = this,
                     reason = "settings_manual_refresh",
                     userRefresh = true,
+                    allSources = true,
                 )
             val currentRefreshWork =
                 OneTimeWorkRequestBuilder<WeatherWidgetWorker>()

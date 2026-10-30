@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.remote.weathernext.WeatherNextDomain
 import com.weatherwidget.shared.rainmap.WeatherNextLoop
 import com.weatherwidget.shared.util.DayTap
+import com.weatherwidget.shared.util.SettingsRefreshAllSources
 import com.weatherwidget.shared.util.SourceSwitchFetchRule
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import androidx.compose.foundation.clickable
@@ -864,6 +865,36 @@ internal fun runDesktopUiApplication() = application {
                         "origin=$origin notifyRefreshRequested() sent",
                         "INFO",
                     )
+                    // Settings → Refresh data covers every usable source; the displayed one above
+                    // published first. Same app-owned runner, so closing Settings cannot cancel it.
+                    val cfg = currentConfig
+                    if (origin == "settings" && cfg != null) {
+                        val others = refreshRunner.start("user_refresh:settings_all_sources") {
+                            SettingsRefreshAllSources.refreshOthers(
+                                cfg.displaySource,
+                                cfg.effectiveSources,
+                                refresh = { sourceId ->
+                                    // As the daemon's forecast loop builds a non-active source's.
+                                    val service = DesktopWeatherService(
+                                        cfg.lat, cfg.lon, sourceId, cfg.settings.apiKeys, weatherDao,
+                                        isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store,
+                                        personalStationWeight = cfg.personalStationWeight(),
+                                    )
+                                    try {
+                                        DesktopWeatherRepository(service, weatherDao, cfg.lat, cfg.lon, sourceId, cfg.personalStationWeight(), snapshotConfig = { DesktopConfigStore().load() })
+                                            .refresh(reason = "user_refresh:settings", userRefresh = true)
+                                    } finally {
+                                        service.close()
+                                    }
+                                },
+                                log = weatherDao::log,
+                            )
+                            repo.loadCached()
+                        }
+                        others.await()?.let { forecast = it }
+                        dataUpdateCount++
+                        notifyRefreshRequested()
+                    }
                     announceHistoryRefreshDone(origin, refreshedSourceId, ok = true, startedAtMs)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     weatherDao.log("REFRESH_CLICK", "origin=$origin refresh cancelled", "WARN")

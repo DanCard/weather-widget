@@ -249,4 +249,28 @@ class WidgetWorkSchedulerCollisionTest {
 
         assertEquals(WidgetWorkScheduler.BackfillEnqueueOutcome.KEPT_PENDING, outcome)
     }
+
+    @Test
+    fun `settings refresh carries all-sources into the worker input, widget refresh does not`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val settings = WidgetWorkScheduler.enqueueRequiredImmediateSync(
+            context = context,
+            reason = "settings_manual_refresh",
+            userRefresh = true,
+            allSources = true,
+        )
+        val widget = WidgetWorkScheduler.enqueueRequiredImmediateSync(
+            context = context,
+            reason = "widget_tap_to_refresh",
+            userRefresh = true,
+        )
+        val settingsInput = WorkInput.from(settings.workSpec.input)
+        assertTrue(settingsInput.allSources)
+        assertTrue(settingsInput.userRefresh)
+        assertEquals(false, WorkInput.from(widget.workSpec.input).allSources)
+        assertTrue(
+            "a deferred settings refresh must not fold into a widget refresh",
+            WidgetWorkScheduler.deferredSignature(settings.workSpec.input) != WidgetWorkScheduler.deferredSignature(widget.workSpec.input),
+        )
+    }
 }

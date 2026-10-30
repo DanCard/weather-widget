@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.sourceview.SourceFetchGate
 import com.weatherwidget.shared.sourceview.SourceViewTally
+import com.weatherwidget.shared.util.SettingsRefreshAllSources
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -65,6 +66,25 @@ object SourceFetchGateLoader {
         Log.w(TAG, "gate unavailable, fetching every source: ${e.message}")
         null
     }
+
+    /**
+     * The gate a sync applies: none (fetch every visible source) for Settings → Refresh data, an
+     * untargeted forced all-sources sync ([SettingsRefreshAllSources.bypassesViewGate]); else [load].
+     */
+    suspend fun forSync(
+        context: Context,
+        widgetStateManager: WidgetStateManager,
+        latitude: Double,
+        longitude: Double,
+        forceRefresh: Boolean,
+        targetSourceId: String?,
+        allSources: Boolean,
+    ): SourceFetchGate.BackgroundFetch? =
+        if (forceRefresh && SettingsRefreshAllSources.bypassesViewGate(allSources, targetSourceId)) {
+            null
+        } else {
+            load(context, widgetStateManager, latitude, longitude)
+        }
 
     /** The background forecast set, or every enabled source when the gate is unavailable. */
     suspend fun backgroundSources(
