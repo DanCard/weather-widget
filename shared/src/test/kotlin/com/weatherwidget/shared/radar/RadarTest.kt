@@ -17,6 +17,7 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 import org.junit.rules.TemporaryFolder
 import java.time.Instant
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.math.cos
 
 /** Radar button on the precipitation graph — `plans/261021-radar-button-on-precip-graph.md`. */
@@ -153,7 +154,7 @@ class RadarTest {
 
     @Test
     fun `NWS - capabilities then one GetMap per kept frame over the site's box`() = runBlocking {
-        val requests = mutableListOf<String>()
+        val requests = CopyOnWriteArrayList<String>()
         val loop = repo(requests).load(mtvLat, mtvLon).getOrThrow()
         assertEquals(13, loop.frames.size)
         assertTrue(loop.hasEchoes)
@@ -166,7 +167,7 @@ class RadarTest {
 
     @Test
     fun `reopening reuses the list for 2 min and every frame from disk`() = runBlocking {
-        val requests = mutableListOf<String>()
+        val requests = CopyOnWriteArrayList<String>()
         var now = t0 + 3 * 60 * 60_000L
         val r = repo(requests, now = { now })
         r.load(mtvLat, mtvLon).getOrThrow()
@@ -181,7 +182,7 @@ class RadarTest {
 
     @Test
     fun `RainViewer - zoom 6 512-px Universal Blue tiles, every tile of every frame`() = runBlocking {
-        val requests = mutableListOf<String>()
+        val requests = CopyOnWriteArrayList<String>()
         val loop = repo(requests).load(50.45, 30.52).getOrThrow()
         assertEquals(RadarFeed.RainViewer, loop.feed)
         assertEquals(2, loop.frames.size)

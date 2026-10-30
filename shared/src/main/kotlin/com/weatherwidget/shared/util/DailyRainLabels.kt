@@ -74,10 +74,14 @@ object DailyRainLabels {
     const val NIGHT_ROOMY_BELOW_DP = 12f
     /** Sideways movement costs this many times a move down when there is lots of room below. */
     const val NIGHT_ROOMY_SIDEWAYS_COST = 3f
-    /** A night label this close to what is on its right, or overlapping it, is hugging it. */
+    /** A night label this close to a neighbour, or overlapping it, is hugging it. */
     const val NIGHT_HUG_DP = 1.5f
-    /** A hugging night label eases left only with at least this much free on its left. */
-    const val NIGHT_ROOMY_LEFT_DP = 3f
+    /** A hugging night label eases away only with at least this much free on the other side. */
+    const val NIGHT_ROOMY_SIDE_DP = 2.5f
+    /** Furthest a hugging night label drops to reach room on its left. */
+    const val NIGHT_EASE_MAX_DROP_DP = 4f
+    /** How far left a night label slides after that drop. */
+    const val NIGHT_EASE_DROP_SLIDE_DP = 0.5f
     /**
      * The raised ° of a low-temp label fills only this top fraction of the label's text box; the
      * pocket under it is blank, so a night label may sit there (DailyRainLabelPlanner.lowLabelObstacles).

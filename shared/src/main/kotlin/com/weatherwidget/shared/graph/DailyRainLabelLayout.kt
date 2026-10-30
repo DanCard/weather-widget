@@ -170,7 +170,7 @@ object DailyRainLabelLayout {
      * The night chance starts centred in the gap, tucked under the higher of the two low labels, and
      * nudges left, right or down around the neighbours' icons and low labels
      * ([DailyRainLabelPlanner.placeNightLabel]), preferring down when there is lots of room below, then
-     * eases left off anything it hugs on its right ([DailyRainLabelPlanner.easeLeftOffRightNeighbor]). It stays *between* the two lows: its bottom never goes
+     * eases off anything it hugs ([DailyRainLabelPlanner.easeOffNeighbors]). It stays *between* the two lows: its bottom never goes
      * below the lower low label's bottom, so a slight overlap wins over sinking under both. When the
      * lows sit on the day-name row (the coldest days), there is no room under them, so it rises until it
      * clears the row — level with the lows, in the gap between them.
@@ -225,7 +225,7 @@ object DailyRainLabelLayout {
             density = p,
             sidewaysCost = if (roomyBelow) DailyRainLabels.NIGHT_ROOMY_SIDEWAYS_COST else 1f,
         )
-        val centerX = DailyRainLabelPlanner.easeLeftOffRightNeighbor(
+        val eased = DailyRainLabelPlanner.easeOffNeighbors(
             homeCenterX = homeCenterX,
             centerX = placed.centerX,
             top = placed.top,
@@ -233,6 +233,8 @@ object DailyRainLabelLayout {
             height = size.height,
             obstacles = input.obstacles,
             maxShiftPx = maxShiftPx,
+            rightLowLabel = input.rightLowLabel,
+            maxBottom = maxBottom,
             minLeft = edge,
             density = p,
         )
@@ -241,15 +243,15 @@ object DailyRainLabelLayout {
             "nightRainLabel position: platform=$platform date=${input.date} text=\"${input.text}\" fit=$placement" +
                 " anchorBottom=${anchorBottom.r()} lowerLowBottom=${lowerLowBottom.r()} roomBelowDp=${roomBelowDp.r()}" +
                 " tuckTop=${tuckTop.r()} home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
-                " resolved=(${centerX.r()},${placed.top.r()}) placement=${placed.placement}" +
-                " easedLeftDp=${((placed.centerX - centerX) / p).r()}" +
+                " resolved=(${eased.centerX.r()},${eased.top.r()}) placement=${placed.placement}" +
+                " easedDp=(${((eased.centerX - placed.centerX) / p).r()},${((eased.top - placed.top) / p).r()})" +
                 " offsetDp=(${(placed.dxPx / p).r()},${(placed.dyPx / p).r()}) overlapDp=${(placed.overlapPx / p).r()}" +
                 " maxBottom=${maxBottom.r()} dayLabelTop=${input.dayLabelTop.r()}" +
                 " obstacles=${input.obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}",
         )
         return Placed(
-            Kind.NIGHT, input.text, fontScale, centerX, placed.top, size.width, size.height,
-            placed.top + size.baseline, placement, anchorBottom,
+            Kind.NIGHT, input.text, fontScale, eased.centerX, eased.top, size.width, size.height,
+            eased.top + size.baseline, placement, anchorBottom,
         )
     }
 

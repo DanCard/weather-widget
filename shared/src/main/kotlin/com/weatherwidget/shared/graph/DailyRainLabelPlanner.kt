@@ -54,6 +54,9 @@ object DailyRainLabelPlanner {
         val overlapPx: Float,
     )
 
+    /** Where [easeOffNeighbors] left a night label. */
+    data class NightLabelEase(val centerX: Float, val top: Float)
+
     /**
      * Resolves the anchor top Y in screen coordinates (where Y=0 is canvas top, growing downward).
      *
@@ -269,36 +272,71 @@ object DailyRainLabelPlanner {
     }
 
     /**
-     * Where a placed night label should sit when it hugs what is on its right: within
-     * [DailyRainLabels.NIGHT_HUG_DP] of it, with at least [DailyRainLabels.NIGHT_ROOMY_LEFT_DP] free on
-     * its left, it slides left to even the two gaps, but only until the right gap reaches that same
-     * roomy distance (the left may be open all the way to the edge), and no further than [maxShiftPx]
-     * from [homeCenterX].
-     * Gaps are measured at the label's own height, so anything above or below it does not count.
-     * Otherwise returns [centerX] unchanged.
+     * Moves a placed night label off a neighbour it hugs: within [DailyRainLabels.NIGHT_HUG_DP] of it,
+     * or overlapping it, with at least [DailyRainLabels.NIGHT_ROOMY_SIDE_DP] free on the other side.
+     *
+     * Gaps are measured at the label's own height. A digit box it only grazes vertically (up to
+     * [DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP]) is not level with it; a ° always is. Hugging the right,
+     * it slides left. With no room to, if what it hugs is [rightLowLabel], it drops instead, up to
+     * [DailyRainLabels.NIGHT_EASE_MAX_DROP_DP] (above [maxBottom]), to the first row with room on its
+     * left, and slides just [DailyRainLabels.NIGHT_EASE_DROP_SLIDE_DP]: a digit box's side padding
+     * leaves a clear gap to the ink, and sliding further would put it under the left low instead of in
+     * between. Hugging the left, it slides right only when there is something
+     * on the right too, evening the gap between them; otherwise a label already clear below a ° stays.
+     * A slide evens the two gaps, stops once the near gap is roomy (the far side may be open all the
+     * way to the edge), and stays within [maxShiftPx] of [homeCenterX].
      */
-    fun easeLeftOffRightNeighbor(
+    fun easeOffNeighbors(
         homeCenterX: Float,
         centerX: Float,
         top: Float,
         width: Float,
         height: Float,
         obstacles: List<Box>,
+        rightLowLabel: Box?,
         maxShiftPx: Float,
+        maxBottom: Float,
         minLeft: Float,
         density: Float,
-    ): Float {
-        val level = obstacles.filter { it.top < top + height && it.bottom > top }
-        val (right, left) = level.partition { (it.left + it.right) / 2f > centerX }
-        val rightEdge = right.minOfOrNull { it.left } ?: return centerX
-        val leftEdge = maxOf(minLeft, left.maxOfOrNull { it.right } ?: minLeft)
-        val gapRight = rightEdge - (centerX + width / 2f)
-        val gapLeft = (centerX - width / 2f) - leftEdge
-        if (gapRight > DailyRainLabels.NIGHT_HUG_DP * density) return centerX
-        val roomyPx = DailyRainLabels.NIGHT_ROOMY_LEFT_DP * density
-        if (gapLeft < roomyPx) return centerX
-        val shift = minOf((gapLeft - gapRight) / 2f, roomyPx - gapRight)
-        return (centerX - shift).coerceAtLeast(minOf(centerX, homeCenterX - maxShiftPx))
+    ): NightLabelEase {
+        val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
+        val hugPx = DailyRainLabels.NIGHT_HUG_DP * density
+        val roomyPx = DailyRainLabels.NIGHT_ROOMY_SIDE_DP * density
+
+        // Free space beside the label with its top at [atTop]; null right = nothing level over there.
+        fun gaps(atTop: Float): Pair<Float, Float?> {
+            val level = obstacles.filter {
+                val overlap = minOf(atTop + height, it.bottom) - maxOf(atTop, it.top)
+                overlap > 0f && (it.isDegreeSign || overlap > slightPx)
+            }
+            val (right, left) = level.partition { (it.left + it.right) / 2f > centerX }
+            val leftEdge = maxOf(minLeft, left.maxOfOrNull { it.right } ?: minLeft)
+            return (centerX - width / 2f - leftEdge) to right.minOfOrNull { it.left - (centerX + width / 2f) }
+        }
+
+        val (gapLeft, gapRight) = gaps(top)
+        if (gapRight != null && gapRight <= hugPx) {
+            if (gapLeft >= roomyPx) {
+                val shift = minOf((gapLeft - gapRight) / 2f, roomyPx - gapRight)
+                return NightLabelEase((centerX - shift).coerceAtLeast(minOf(centerX, homeCenterX - maxShiftPx)), top)
+            }
+            val hugsRightLow = rightLowLabel != null &&
+                minOf(top + height, rightLowLabel.bottom) - maxOf(top, rightLowLabel.top) > slightPx &&
+                rightLowLabel.left - (centerX + width / 2f) <= hugPx
+            if (!hugsRightLow) return NightLabelEase(centerX, top)
+            val step = (DailyRainLabels.NIGHT_NUDGE_STEP_DP * density).coerceAtLeast(0.5f)
+            val maxDropPx = (DailyRainLabels.NIGHT_EASE_MAX_DROP_DP * density).coerceAtMost(maxBottom - (top + height))
+            for (i in 1..(maxDropPx / step).toInt()) {
+                val droppedTop = top + i * step
+                if (gaps(droppedTop).first >= roomyPx) {
+                    return NightLabelEase(centerX - DailyRainLabels.NIGHT_EASE_DROP_SLIDE_DP * density, droppedTop)
+                }
+            }
+        } else if (gapRight != null && gapLeft <= hugPx && gapRight >= roomyPx) {
+            val shift = minOf((gapRight - gapLeft) / 2f, roomyPx - gapLeft)
+            return NightLabelEase((centerX + shift).coerceAtMost(maxOf(centerX, homeCenterX + maxShiftPx)), top)
+        }
+        return NightLabelEase(centerX, top)
     }
 
     /**

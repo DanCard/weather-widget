@@ -190,7 +190,7 @@ class DailyRainLabelLayoutTest {
             ),
             "test",
         )
-        assertEquals("3 dp clear of Sat's digits", 3f * 2.625f, 196.1f - label.right, 0.01f)
+        assertEquals("roomy clear of Sat's digits", DailyRainLabels.NIGHT_ROOMY_SIDE_DP * 2.625f, 196.1f - label.right, 0.01f)
     }
 
     @Test
@@ -209,6 +209,48 @@ class DailyRainLabelLayoutTest {
     fun `night label clear of the next low stays home`() {
         val noSunDigits = foldSatObstacles.filterNot { it.left == 217f }
         assertEquals(208f, foldSatNight(obstacles = noSunDigits).centerX, 0.01f)
+    }
+
+    // Generic foldable, Meteo (logcat 2026-10-30 09:36): Thu "49.3°", Today "55.1°", Sat "48°".
+    private val emuThuObstacles = listOf(
+        Box(67.5f, 275.8f, 103.5f, 311.8f), // Thu icon
+        Box(54.5f, 314f, 106.5f, 344.5f), Box(106.5f, 314f, 116.5f, 329.3f, isDegreeSign = true), // "49.3" + °
+    )
+    private val emuTodayObstacles = listOf(
+        Box(131.6f, 285.1f, 167.6f, 321.1f), // Today icon
+        Box(117.1f, 320.6f, 172.1f, 354.5f), Box(172.1f, 320.6f, 182.1f, 337.5f, isDegreeSign = true), // "55.1" + °
+    )
+    private val emuSatObstacles = listOf(
+        Box(195.7f, 275.8f, 231.7f, 311.8f), // Sat icon
+        Box(192.7f, 311.3f, 224.7f, 345.2f), Box(224.7f, 311.3f, 234.7f, 328.3f, isDegreeSign = true), // "48" + °
+    )
+
+    private fun emuNight(left: List<Box>, right: List<Box>, gapCenterX: Float, width: Float, height: Float) =
+        DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(width, height, height * 0.8f) },
+            DailyRainLabelLayout.NightInput(
+                date = "d", text = "4%", probability = 4, isPast = true, daysFromToday = -1,
+                columnCenterX = gapCenterX - 32f, gapCenterX = gapCenterX, columnWidth = 64f,
+                leftLowLabel = Box(left[1].left, left[1].top, left[2].right, left[1].bottom),
+                rightLowLabel = Box(right[1].left, right[1].top, right[2].right, right[1].bottom),
+                obstacles = left + right, dayLabelTop = 362.2f, canvasWidth = 560f, pxPerDp = 2.625f,
+            ),
+            "test",
+        )
+
+    @Test
+    fun `night label wedged between two lows drops and stays in between them`() {
+        val label = emuNight(emuThuObstacles, emuTodayObstacles, gapCenterX = 117.5f, width = 11f, height = 10f)
+        assertEquals("dropped 4 dp from the 1 dp left search result's row", 331.4f + 4f * 2.625f, label.top, 0.1f)
+        assertEquals("1.5 dp left of the middle", 117.5f - 1.5f * 2.625f, label.centerX, 0.1f)
+        assertTrue("above the lower low's bottom: bottom=${label.bottom}", label.bottom <= 354.5f)
+    }
+
+    @Test
+    fun `night label under a degree sign eases right when something sits on its right`() {
+        val label = emuNight(emuTodayObstacles, emuSatObstacles, gapCenterX = 181.6f, width = 7f, height = 7f)
+        assertEquals(187.4f, label.centerX, 0.05f)
+        assertEquals("even gaps", label.left - 182.1f, 192.7f - label.right, 0.05f)
     }
 
     @Test
