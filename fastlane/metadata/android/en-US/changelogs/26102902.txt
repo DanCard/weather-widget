@@ -1,0 +1,1 @@
+Release 26102902: Settings Refresh Data now refreshes every enabled weather source; improved daily forecast bar accuracy for location moves after evening cutoff; queued desktop usage writes; enhanced source switching navigation; and general stability and performance improvements.
