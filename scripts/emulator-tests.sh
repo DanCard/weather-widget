@@ -21,6 +21,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # shellcheck source=lib/emulator-cache.sh
 source "$SCRIPT_DIR/lib/emulator-cache.sh"
+# shellcheck source=lib/test-lock.sh
+source "$SCRIPT_DIR/lib/test-lock.sh"
 DEFAULT_EMULATOR="Generic_Foldable_API36"
 EMU_TIMEOUT=120  # Seconds to wait for emulator boot
 TEST_TIMEOUT=300 # Seconds for tests to complete
@@ -187,6 +189,7 @@ _is_unit_test_class() {
 }
 
 if [ -n "${TEST_CLASS:-}" ] && _is_unit_test_class "$TEST_CLASS"; then
+    acquire_test_lock "$SCRIPT_DIR/$(basename "$0")" "$@"
     echo -e "${YELLOW}$TEST_CLASS is a unit test (Robolectric) — running via testDebugUnitTest${NC}"
     export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
     if ! "$PROJECT_DIR/gradlew" testDebugUnitTest --tests "$TEST_CLASS" --console=plain > "$TEST_RESULTS_LOG" 2>&1; then
@@ -310,6 +313,15 @@ if [ "$RUN_MODE" = "cached" ] && [ "$BOOT_ONLY" = false ]; then
         fi
     fi
 fi
+
+# Below the cache check, so a cached result never queues behind a running test.
+if [ "$BOOT_ONLY" = false ]; then
+    # A longer -d must not be cut short by the default hold limit.
+    [ -n "$TEST_TIMEOUT_ARG" ] && export WW_TEST_TIMEOUT="${WW_TEST_TIMEOUT:-$((TEST_TIMEOUT + 120))}"
+    acquire_test_lock "$SCRIPT_DIR/$(basename "$0")" "$@"
+fi
+# Taken before any build: staggered-tests.sh passes its own, from before its unit run built the APKs.
+RUN_FINGERPRINT="${EMULATOR_RUN_FINGERPRINT:-$(compute_emulator_fingerprint "$PROJECT_DIR")}"
 
 if [ "$VERBOSE_MODE" = true ]; then
     echo -en "${BLUE}$SDK_ROOT${NC} "
@@ -674,7 +686,7 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
                 avd=$(get_emulator_avd "$serial" "$ADB_BIN")
                 local skipped=$((total - passed - failed - errors))
                 [ "$skipped" -lt 0 ] && skipped=0
-                write_emulator_cache "${TEST_CLASS:-ALL}" "$avd" "$total" "$passed" "$failed" "$errors" "$skipped" "$run_duration" "$emu_log" "$PROJECT_DIR"
+                write_emulator_cache "${TEST_CLASS:-ALL}" "$avd" "$total" "$passed" "$failed" "$errors" "$skipped" "$run_duration" "$emu_log" "$PROJECT_DIR" "$RUN_FINGERPRINT"
                 return 0
             else
                 echo "FAILED — Total: $total  Passed: $passed  Failed: $failed  Duration: ${run_duration}s"
@@ -782,7 +794,7 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
                 fi
             fi
             multi_total=${multi_total:-0}
-            write_emulator_cache "${TEST_CLASS:-ALL}" "${CONNECTED_EMULATORS[*]}" "$multi_total" "$multi_total" 0 0 0 "$multi_duration" "${newest_log:-$TEST_RESULTS_LOG}" "$PROJECT_DIR"
+            write_emulator_cache "${TEST_CLASS:-ALL}" "${CONNECTED_EMULATORS[*]}" "$multi_total" "$multi_total" 0 0 0 "$multi_duration" "${newest_log:-$TEST_RESULTS_LOG}" "$PROJECT_DIR" "$RUN_FINGERPRINT"
         else
             echo -e "${RED}One or more emulators failed (${FAILED_SERIALS[*]}) — check logs in $LOG_DIR${NC}"
             clear_emulator_cache
@@ -1296,7 +1308,7 @@ fi
 if [ "$TEST_SUCCESS" = true ] && [ "$TOTAL" -gt 0 ] && [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
     target_avd=$(get_emulator_avd "$EMULATOR_SERIAL" "$ADB_BIN")
     [ "$target_avd" = "Unknown" ] && target_avd="${EMULATOR_NAME:-${MODEL:-$ANDROID_SERIAL}}"
-    write_emulator_cache "${TEST_CLASS:-ALL}" "$target_avd" "$TOTAL" "$PASSED" "${FAILED:-0}" "${ERRORS:-0}" "${SKIPPED:-0}" "${TEST_DURATION:-0}" "$TEST_RESULTS_LOG" "$PROJECT_DIR"
+    write_emulator_cache "${TEST_CLASS:-ALL}" "$target_avd" "$TOTAL" "$PASSED" "${FAILED:-0}" "${ERRORS:-0}" "${SKIPPED:-0}" "${TEST_DURATION:-0}" "$TEST_RESULTS_LOG" "$PROJECT_DIR" "$RUN_FINGERPRINT"
     exit 0
 else
     clear_emulator_cache

@@ -85,6 +85,10 @@ For individual layers:
 
 With no arguments, `unit-tests.sh` includes all four app categories and runs `:shared:test` and `:desktop:test`. Selecting one or more categories runs only those app categories. Both `unit-tests.sh` and `emulator-tests.sh` (and `staggered-tests.sh`) report cached results when code and test inputs are unchanged; use `--fresh` to force execution. Emulator logs go to `logs/emulator-tests/`; emulators remain running after the script exits.
 
+Test runs are serialized per checkout by `scripts/lib/test-lock.sh`, because concurrent Gradle builds of one project corrupt shared `build/` outputs. A second `unit-tests.sh`, `emulator-tests.sh`, or `staggered-tests.sh` queues for up to 6 minutes (`WW_TEST_LOCK_WAIT`), then exits 75, and a run holding the lock has its process tree stopped after 5 minutes (`WW_TEST_TIMEOUT`). `emulator-tests.sh -d` raises its own limit; raise `WW_TEST_TIMEOUT` for a cold build or a long `staggered-tests.sh`. Emulator cache hits and `--boot-only` skip the lock. Direct `./gradlew` calls and other scripts do not take it.
+
+An emulator pass is cached only if the source fingerprint at the end of the run matches the one taken before the build, so editing during a run costs a rerun rather than recording a pass for untested code.
+
 Always use `emulator-tests.sh` for instrumentation. **Never run `./gradlew connectedDebugAndroidTest` directly**: it targets **all** connected devices, including physical phones, and can remove their widgets.
 
 `gradle.properties` sets `android.injected.androidTest.leaveApksInstalledAfterRun=true`, and `emulator-tests.sh` preserves APKs by default. Keep that protection: uninstalling the app removes launcher widget instances. See [operations.md](operations.md) for runtime inspection and device-safety procedures.

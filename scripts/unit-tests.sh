@@ -3,6 +3,9 @@
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# shellcheck source=lib/test-lock.sh
+source "$ROOT_DIR/scripts/lib/test-lock.sh"
+acquire_test_lock "$ROOT_DIR/scripts/$(basename "$0")" "$@"
 GRADLEW="${GRADLEW:-$ROOT_DIR/gradlew}"  # override: scripts/tests/ctrl-c-stops-children.sh
 RUN_MODE=""
 STREAM_OUTPUT=false

@@ -114,15 +114,22 @@ write_emulator_cache() {
     local duration="${8:-0}"
     local log_file="${9:-}"
     local root_dir="${10:-$PROJECT_DIR}"
+    local run_fingerprint="${11:-}"
 
     # Only cache runs with 0 failures and 0 errors, and at least 1 test
     [ "${total:-0}" -gt 0 ] 2>/dev/null || return 0
     [ "${failed:-0}" -eq 0 ] 2>/dev/null || return 0
     [ "${errors:-0}" -eq 0 ] 2>/dev/null || return 0
 
+    # run_fingerprint was taken before the APKs were built. A source edit during the run means the
+    # code on disk is not the code that passed, so the pass must not be recorded against it.
     local current_fingerprint
     current_fingerprint=$(compute_emulator_fingerprint "$root_dir")
     [ -n "$current_fingerprint" ] || return 0
+    if [ "$current_fingerprint" != "$run_fingerprint" ]; then
+        echo "Not caching this pass: source changed during the run" >&2
+        return 0
+    fi
 
     mkdir -p "$EMULATOR_CACHE_DIR"
     local tmp_file="$EMULATOR_CACHE_DIR/.last-successful-run.tmp.$$"

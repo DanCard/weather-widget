@@ -13,6 +13,11 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 UNIT_SCRIPT="$SCRIPT_DIR/unit-tests.sh"
 # shellcheck source=lib/proc-tree.sh
 source "$SCRIPT_DIR/lib/proc-tree.sh"
+# shellcheck source=lib/emulator-cache.sh
+source "$SCRIPT_DIR/lib/emulator-cache.sh"
+# shellcheck source=lib/test-lock.sh
+source "$SCRIPT_DIR/lib/test-lock.sh"
+acquire_test_lock "$SCRIPT_DIR/$(basename "$0")" "$@"
 EMULATOR_SCRIPT="$SCRIPT_DIR/emulator-tests.sh"
 LOG_DIR="$PROJECT_DIR/logs/staggered-tests"
 mkdir -p "$LOG_DIR"
@@ -103,6 +108,10 @@ while [ $# -gt 0 ]; do
 done
 
 cd "$PROJECT_DIR"
+
+# The unit run builds the APKs the emulators test, so a pass belongs to the source as of now.
+export EMULATOR_RUN_FINGERPRINT
+EMULATOR_RUN_FINGERPRINT=$(compute_emulator_fingerprint "$PROJECT_DIR")
 
 ASM_CACHE_DIRS=(
     "$PROJECT_DIR/app/build/intermediates/classes/debug/transformDebugClassesWithAsm"
