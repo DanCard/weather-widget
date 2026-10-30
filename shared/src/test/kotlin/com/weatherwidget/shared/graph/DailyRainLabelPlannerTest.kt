@@ -271,7 +271,7 @@ class DailyRainLabelPlannerTest {
         assertEquals(
             listOf(
                 DailyRainLabelPlanner.Box(60f, 30f, 90f, 50f),
-                DailyRainLabelPlanner.Box(90f, 30f, 100f, 40f),
+                DailyRainLabelPlanner.Box(90f, 30f, 100f, 40f, isDegreeSign = true),
             ),
             boxes,
         )
@@ -298,5 +298,32 @@ class DailyRainLabelPlannerTest {
         val lowLabel = DailyRainLabelPlanner.lowLabelObstacles("52°", left = 50f, top = 44f, right = 96f, bottom = 70f, degreeWidth = 10f)
         val p = place(lowLabel)
         assertTrue("moved off the °, was ${p.placement}", p.placement != "home")
+    }
+
+    private val degreeSign = DailyRainLabelPlanner.Box(85f, 40f, 103f, 54f, isDegreeSign = true)
+
+    @Test
+    fun `degree sign overlap slight only by area moves when it can`() {
+        // Label 80..120 × 50..70: 18×4 px into the °, deeper than 1.5 dp but under 15 % of its area.
+        val p = place(listOf(degreeSign), width = 40f, height = 20f)
+        assertTrue("moved off the °, was ${p.placement}", p.placement != "home")
+    }
+
+    @Test
+    fun `degree sign overlap stays when no room elsewhere`() {
+        val p = place(listOf(degreeSign), width = 40f, height = 20f, maxBottom = 70f, maxShift = 0f)
+        assertEquals("home", p.placement)
+    }
+
+    @Test
+    fun `sideways cost above one prefers down over a shorter sideways move`() {
+        val obstacle = DailyRainLabelPlanner.Box(80f, 40f, 95f, 58f)
+        val base = place(listOf(obstacle))
+        assertEquals("right", base.placement)
+        val roomy = DailyRainLabelPlanner.placeNightLabel(
+            homeCenterX = 100f, homeTop = 50f, width = 20f, height = 8f, obstacles = listOf(obstacle),
+            maxShiftPx = 15f, maxBottom = 200f, minLeft = 0f, maxRight = 1000f, density = 1f, sidewaysCost = 3f,
+        )
+        assertEquals("down", roomy.placement)
     }
 }

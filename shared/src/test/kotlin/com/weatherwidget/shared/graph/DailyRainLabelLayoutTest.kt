@@ -105,6 +105,42 @@ class DailyRainLabelLayoutTest {
         assertTrue("between the lows: ${label.left}..${label.right}", label.left >= leftLow.right && label.right <= rightLow.left)
     }
 
+    // Desktop Sat 10-31 → Sun, "30%" (autostart log 2026-10-30 09:08, scale 2.576): home touched Sat's °.
+    private val satLow = Box(297.5f, 605.6f, 354.5f, 654.6f)
+    private val sunLow = Box(384.4f, 561.7f, 441.4f, 610.7f)
+    private val desktopObstacles = listOf(
+        Box(299.9f, 553.5f, 352.1f, 605.6f), // Sat icon
+        Box(297.5f, 605.6f, 338.5f, 654.6f), Box(338.5f, 605.6f, 354.5f, 630.1f, isDegreeSign = true), // "48" + °
+        Box(386.9f, 509.6f, 439.0f, 561.7f), // Sun icon
+        Box(384.4f, 561.7f, 425.4f, 610.7f), Box(425.4f, 561.7f, 441.4f, 586.2f, isDegreeSign = true), // "50" + °
+    )
+
+    private fun desktopNight(dayLabelTop: Float) = DailyRainLabelLayout.layoutNight(
+        DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(38f, 26f, 20f) },
+        DailyRainLabelLayout.NightInput(
+            date = "2026-10-31", text = "30%", probability = 30, isPast = false, daysFromToday = 1,
+            columnCenterX = 326f, gapCenterX = 369.5f, columnWidth = 87f,
+            leftLowLabel = satLow, rightLowLabel = sunLow,
+            obstacles = desktopObstacles, dayLabelTop = dayLabelTop, canvasWidth = 1000f, pxPerDp = 2.576f,
+        ),
+        "test",
+    )
+
+    @Test
+    fun `night label on a degree sign moves down when there is lots of room`() {
+        val label = desktopNight(dayLabelTop = 691.6f)
+        assertEquals("stays in the gap", 369.5f, label.centerX, 0.01f)
+        assertTrue("below the °: top=${label.top}", label.top >= 630.1f - DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * 2.576f)
+        assertTrue("above the lower low's bottom: bottom=${label.bottom}", label.bottom <= satLow.bottom)
+    }
+
+    @Test
+    fun `night label on a degree sign moves right when there is little room below`() {
+        val label = desktopNight(dayLabelTop = 650f)
+        assertTrue("right of the °: left=${label.left}", label.left >= 354.5f)
+        assertTrue("clear of the day names: bottom=${label.bottom}", label.bottom <= 650f)
+    }
+
     @Test
     fun `night label at the canvas edge shrinks, then centres on its column`() {
         fun place(gapCenterX: Float) = DailyRainLabelLayout.layoutNight(

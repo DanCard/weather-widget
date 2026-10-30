@@ -169,7 +169,7 @@ object DailyRainLabelLayout {
     /**
      * The night chance starts centred in the gap, tucked under the higher of the two low labels, and
      * nudges left, right or down around the neighbours' icons and low labels
-     * ([DailyRainLabelPlanner.placeNightLabel]). It stays *between* the two lows: its bottom never goes
+     * ([DailyRainLabelPlanner.placeNightLabel]), preferring down when there is lots of room below. It stays *between* the two lows: its bottom never goes
      * below the lower low label's bottom, so a slight overlap wins over sinking under both. When the
      * lows sit on the day-name row (the coldest days), there is no room under them, so it rises until it
      * clears the row — level with the lows, in the gap between them.
@@ -209,6 +209,7 @@ object DailyRainLabelLayout {
         val homeTop = minOf(tuckTop, input.dayLabelTop - size.height)
         // Between the two lows: never below the lower one's bottom (home itself is always allowed).
         val maxBottom = minOf(input.dayLabelTop, maxOf(lowerLowBottom, homeTop + size.height))
+        val roomyBelow = input.dayLabelTop - (homeTop + size.height) >= DailyRainLabels.NIGHT_ROOMY_BELOW_DP * p
         val placed = DailyRainLabelPlanner.placeNightLabel(
             homeCenterX = homeCenterX,
             homeTop = homeTop,
@@ -220,6 +221,7 @@ object DailyRainLabelLayout {
             minLeft = edge,
             maxRight = input.canvasWidth - edge,
             density = p,
+            sidewaysCost = if (roomyBelow) DailyRainLabels.NIGHT_ROOMY_SIDEWAYS_COST else 1f,
         )
         Log.v(
             TAG,

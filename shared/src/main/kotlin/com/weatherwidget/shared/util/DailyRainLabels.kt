@@ -70,6 +70,10 @@ object DailyRainLabels {
     const val NIGHT_SLIGHT_OVERLAP_DP = 1.5f
     /** An intrusion covering at most this fraction of the label's area is also slight. */
     const val NIGHT_SLIGHT_OVERLAP_AREA_FRACTION = 0.15f
+    /** With at least this much room under the label, it prefers moving down to moving sideways. */
+    const val NIGHT_ROOMY_BELOW_DP = 12f
+    /** Sideways movement costs this many times a move down when there is lots of room below. */
+    const val NIGHT_ROOMY_SIDEWAYS_COST = 3f
     /**
      * The raised ° of a low-temp label fills only this top fraction of the label's text box; the
      * pocket under it is blank, so a night label may sit there (DailyRainLabelPlanner.lowLabelObstacles).

@@ -36,6 +36,8 @@ object DailyRainLabelPlanner {
         val top: Float,
         val right: Float,
         val bottom: Float,
+        /** A low label's °: a slight overlap by area alone is a last resort ([placeNightLabel]). */
+        val isDegreeSign: Boolean = false,
     )
 
     /**
@@ -172,8 +174,11 @@ object DailyRainLabelPlanner {
      * keeps the candidate that moves least. Never moves up. A slight overlap — an intrusion no
      * deeper than [DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP] on either axis, or covering at most
      * [DailyRainLabels.NIGHT_SLIGHT_OVERLAP_AREA_FRACTION] of the label — counts as clear. When
-     * nothing is clear it takes the candidate with the least overlap. Candidates outside
-     * [minLeft]..[maxRight] are skipped (home is kept if it is the only one).
+     * nothing is clear it takes the candidate with the least overlap. Text touching a ° reads as one
+     * glyph, so a ° overlap that is slight only by area is used only when no candidate avoids it.
+     * [sidewaysCost] weighs sideways movement against down: above 1 prefers down, for when there is
+     * lots of room below. Candidates outside [minLeft]..[maxRight] are skipped (home is kept if it is
+     * the only one).
      */
     fun placeNightLabel(
         homeCenterX: Float,
@@ -186,6 +191,7 @@ object DailyRainLabelPlanner {
         minLeft: Float,
         maxRight: Float,
         density: Float,
+        sidewaysCost: Float = 1f,
     ): NightLabelPlacement {
         val step = (DailyRainLabels.NIGHT_NUDGE_STEP_DP * density).coerceAtLeast(0.5f)
         val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
@@ -195,9 +201,10 @@ object DailyRainLabelPlanner {
             .coerceAtLeast(0f)
         val halfWidth = width / 2f
 
-        // Excess overlap (area beyond "slight") and the deepest intrusion, for one candidate.
-        fun score(cx: Float, top: Float): Pair<Float, Float> {
+        // Excess overlap (area beyond "slight"), last-resort ° overlap and the deepest intrusion.
+        fun score(cx: Float, top: Float): Triple<Float, Float, Float> {
             var excess = 0f
+            var degreeOverlap = 0f
             var deepest = 0f
             val l = cx - halfWidth
             val r = cx + halfWidth
@@ -209,13 +216,16 @@ object DailyRainLabelPlanner {
                 val depth = minOf(ow, oh)
                 deepest = maxOf(deepest, depth)
                 val area = ow * oh
-                if (depth > slightPx && area > slightArea) excess += area
+                // Side-on contact with a ° is what reads as one glyph; only a graze from below is slight.
+                if ((if (o.isDegreeSign) oh else depth) <= slightPx) continue
+                if (area > slightArea) excess += area else if (o.isDegreeSign) degreeOverlap += area
             }
-            return excess to deepest
+            return Triple(excess, degreeOverlap, deepest)
         }
 
         var best: NightLabelPlacement? = null
         var bestExcess = Float.MAX_VALUE
+        var bestDegreeOverlap = Float.MAX_VALUE
         var bestCost = Float.MAX_VALUE
         val xSteps = (maxShiftPx / step).toInt().coerceAtLeast(0)
         val ySteps = (maxDownPx / step).toInt()
@@ -227,16 +237,19 @@ object DailyRainLabelPlanner {
                     val cx = homeCenterX + dx
                     val inBounds = cx - halfWidth >= minLeft && cx + halfWidth <= maxRight
                     if (!inBounds && !(xi == 0 && yi == 0)) continue
-                    val (excess, deepest) = score(cx, homeTop + dy)
-                    // Least movement wins; sideways and down weigh the same.
-                    val cost = kotlin.math.abs(dx) + dy
+                    val (excess, degreeOverlap, deepest) = score(cx, homeTop + dy)
+                    // Least overlap, then least movement.
+                    val cost = kotlin.math.abs(dx) * sidewaysCost + dy
                     val better = when {
                         excess < bestExcess - 0.01f -> true
                         excess > bestExcess + 0.01f -> false
+                        degreeOverlap < bestDegreeOverlap - 0.01f -> true
+                        degreeOverlap > bestDegreeOverlap + 0.01f -> false
                         else -> cost < bestCost
                     }
                     if (better) {
                         bestExcess = excess
+                        bestDegreeOverlap = degreeOverlap
                         bestCost = cost
                         best = NightLabelPlacement(
                             centerX = cx,
@@ -250,7 +263,7 @@ object DailyRainLabelPlanner {
                 }
             }
             // Every lower row costs more than a clear candidate already found.
-            if (bestExcess == 0f && bestCost <= dy) break
+            if (bestExcess == 0f && bestDegreeOverlap == 0f && bestCost <= dy) break
         }
         return checkNotNull(best) // home (dx = 0, dy = 0) is always scored
     }
@@ -276,7 +289,7 @@ object DailyRainLabelPlanner {
         val degreeBottom = top + (bottom - top) * DailyRainLabels.DEGREE_SIGN_HEIGHT_FRACTION
         return listOf(
             Box(left, top, digitsRight, bottom),
-            Box(digitsRight, top, right, degreeBottom),
+            Box(digitsRight, top, right, degreeBottom, isDegreeSign = true),
         )
     }
 
