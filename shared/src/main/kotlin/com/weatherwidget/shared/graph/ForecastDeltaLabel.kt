@@ -6,10 +6,10 @@ import kotlin.math.round
 
 /**
  * Pure, platform-free formatting + placement for the "+0.4 from forecast" delta label drawn on the
- * zoomed-in hourly temperature graph. The number itself is the forecast delta (observed minus
- * forecast at the current hour, the same value that shifts the ghost line); this object owns how it
- * reads, what color it is, when it shows, and where it sits — so Android and desktop stay
- * pixel-consistent.
+ * zoomed-in hourly temperature graph. The number itself is the resolver's `appliedDelta` (observed
+ * minus forecast, measured on one forecast run, the same value that shifts the ghost line and fills
+ * the daily view's today column); this object owns how it reads, what color it is, when it shows, and
+ * where it sits — so Android and desktop stay pixel-consistent.
  *
  * - **Text**: signed, one decimal, e.g. `+0.4 from forecast`, `-1.2 from forecast`. A delta that
  *   rounds to zero (e.g. `+0.0 from forecast`) is never shown — see [isZero]. The number and the
@@ -46,6 +46,18 @@ object ForecastDeltaLabel {
      */
     data class Segments(val value: String, val suffix: String)
 
+    /**
+     * What a render did with the label, for tests and diagnostics: "drawn", a [hiddenReason], or
+     * "no_empty_band". [valueText] is what was or would have been drawn. [expectedTempsByHour] is the
+     * ghost line at each hour mark, where the platform reports it.
+     */
+    data class Outcome(
+        val reason: String,
+        val valueText: String?,
+        val suffixText: String?,
+        val expectedTempsByHour: Map<Long, Float> = emptyMap(),
+    )
+
     fun segments(delta: Float, useCelsius: Boolean, suffix: String = SUFFIX): Segments =
         Segments(formatValue(delta, useCelsius), suffix)
 
@@ -78,6 +90,29 @@ object ForecastDeltaLabel {
         val displayDelta = TempUtils.displayDelta(delta, useCelsius)
         return round(displayDelta * 10f).toInt() == 0
     }
+
+    /**
+     * Why the label is not drawn, or null when it should be placed. Checked in this order, so the
+     * reason reported is the first that applies. "no_empty_band" comes later, from [place].
+     */
+    fun hiddenReason(
+        delta: Float?,
+        fetchDotX: Float?,
+        graphWidthPx: Float,
+        currentTemp: Float?,
+        hourCount: Int,
+        spanHours: Long,
+        useCelsius: Boolean,
+    ): String? =
+        when {
+            delta == null -> "no_delta"
+            fetchDotX == null || fetchDotX < 0f || fetchDotX > graphWidthPx -> "fetch_dot_offscreen"
+            currentTemp == null -> "no_current_temp"
+            hourCount < 2 -> "too_few_hours"
+            isZero(delta, useCelsius) -> "zero_delta"
+            spanHours > DELTA_LABEL_MAX_HOURS_SPAN -> "span_too_wide"
+            else -> null
+        }
 
     /** Signed numeric portion, shared by the one-line hourly label and multi-line daily overlay. */
     fun formatValue(delta: Float, useCelsius: Boolean): String {

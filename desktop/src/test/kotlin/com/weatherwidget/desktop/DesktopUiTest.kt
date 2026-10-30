@@ -720,6 +720,7 @@ currentCondition = "Sunny"),
                     HourlyForecast(now + hour, 74f, "Clear", source = WeatherSource.NWS.id),
                 ),
                 currentTemp = 71f,
+                appliedDelta = null,
                 currentObservedAt = now - 30 * 60 * 1000L,
                 observations = listOf(
                     ObservationReading(

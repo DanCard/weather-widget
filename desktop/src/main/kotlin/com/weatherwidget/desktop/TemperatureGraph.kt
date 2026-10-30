@@ -169,6 +169,8 @@ fun TemperatureGraph(
     hourly: List<HourlyForecast>,
     currentTemp: Float? = null,
     currentObservedAt: Long? = null,
+    // The resolver's delta, the one the daily view shows. No default: every caller must supply it.
+    appliedDelta: Float?,
     observations: List<ObservationReading> = emptyList(),
     displaySourceId: String = "NWS",
     latitude: Double = 0.0,
@@ -183,9 +185,11 @@ fun TemperatureGraph(
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit = { _, _ -> },
     onPan: (deltaHours: Int) -> Unit = {},
     useCelsius: Boolean,
+    nowMs: Long? = null,
+    onForecastDeltaPlaced: ((ForecastDeltaLabel.Outcome) -> Unit)? = null,
 ) {
     val textMeasurer = rememberTextMeasurer()
-    val now = System.currentTimeMillis()
+    val now = nowMs ?: System.currentTimeMillis()
     // Live, uncommitted horizontal pan (hours). Whole-hour part shifts the data window; the fractional
     // part becomes a sub-hour pixel slide in xAtTime. Committed to config once, on drag release.
     val dragHours = remember { mutableStateOf(0f) }
@@ -196,6 +200,7 @@ fun TemperatureGraph(
     val lastGhostLabelDiagKey = remember { mutableStateOf("") }
     val lastDominantDiagKey = remember { mutableStateOf("") }
     val lastAnchorDiagKey = remember { mutableStateOf("") }
+    val lastDeltaDiagKey = remember { mutableStateOf("") }
 
     val backHours = DesktopGraphUtils.backHoursFor(zoomFactor)
     val forwardHours = DesktopGraphUtils.forwardHoursFor(zoomFactor)
@@ -322,14 +327,9 @@ fun TemperatureGraph(
             }
 
         val lastActualPoint = actualSeries.points.lastOrNull { it.isActual && it.actualTemp != null }
-        val rawDelta = if (lastActualPoint != null && lastActualPoint.actualTemp != null && !lastActualPoint.forecastTemp.isNaN()) {
-            lastActualPoint.actualTemp!! - lastActualPoint.forecastTemp
-        } else {
-            0f
-        }
-        val appliedDelta = if (rawDelta.isNaN()) 0f else rawDelta
+        val ghostDelta = ForecastDeltaLine.effectiveDelta(appliedDelta)
 
-        val expectedTemps = forecastTemps.map { it + appliedDelta }.filter { !it.isNaN() }
+        val expectedTemps = ForecastDeltaLine.expectedTemps(forecastTemps, appliedDelta).filter { !it.isNaN() }
         val allTemps = (forecastTemps + actualLinePoints.mapNotNull { it.actualTemp } + expectedTemps).filter { !it.isNaN() }
         val rawMin = allTemps.minOrNull() ?: 0f
         val rawMax = allTemps.maxOrNull() ?: 100f
@@ -368,7 +368,7 @@ fun TemperatureGraph(
         fun yAt(t: Float): Float = top + graphHeight * (1f - (t - minTemp) / range)
 
         val coords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(forecastTemps[i])) }
-        val expectedCoords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(forecastTemps[i] + appliedDelta)) }
+        val expectedCoords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(forecastTemps[i] + ghostDelta)) }
 
         fun getCurveYAtX(x: Float): Float {
             if (coords.isEmpty()) return 0f
@@ -419,7 +419,7 @@ fun TemperatureGraph(
         val nowInWindow = now in windowStart..windowEnd
         // Hoisted: the free-floating labels below must know whether this line is actually painted before
         // they reserve clearance from it.
-        val ghostLineDrawn = transitionX != null && abs(appliedDelta) >= 0.1f &&
+        val ghostLineDrawn = transitionX != null && ForecastDeltaLine.drawsGhost(appliedDelta) &&
             com.weatherwidget.shared.graph.GhostLineGate.shouldProcess(
                 fetchDotX = transitionX,
                 graphWidthPx = w,
@@ -623,7 +623,7 @@ fun TemperatureGraph(
             .filter { msOf(it.dateTime) in dataStart..dataEnd }
 
         val originalPointsList = hourDataList.map { hd ->
-            val actTemp = hd.actualTemperature ?: (hd.temperature + appliedDelta)
+            val actTemp = hd.actualTemperature ?: (hd.temperature + ghostDelta)
             xAtTime(msOf(hd.dateTime)) to yAt(actTemp)
         }
         val forecastPointsList = hourDataList.map { hd ->
@@ -783,14 +783,28 @@ fun TemperatureGraph(
             nowDotTarget.clear()
         }
 
-        // "+0.4 from forecast" label: the graph's ghost-line delta (last actual minus forecast), in
+        // "+0.4 from forecast" label: the resolver's delta, the same one the daily view shows, in
         // empty space, at the staleness/age font size and shadow, in thermostat color. Placement +
         // gate + format are shared with Android (ForecastDeltaLabel). Two runs, one baseline: the
         // value keeps the base size, the caption is 30% smaller so it reads as a caption.
         val deltaCurrentTemp = fetchDotPoint?.actualTemp
-        if (deltaCurrentTemp != null && fetchDotXVal != null) {
-            val deltaSpanHours = (windowEnd - windowStart) / 3_600_000L
+        val deltaSpanHours = (windowEnd - windowStart) / 3_600_000L
+        val deltaHiddenReason = ForecastDeltaLabel.hiddenReason(
+            delta = appliedDelta,
+            fetchDotX = fetchDotXVal,
+            graphWidthPx = w,
+            currentTemp = deltaCurrentTemp,
+            hourCount = points.size,
+            spanHours = deltaSpanHours,
+            useCelsius = useCelsius,
+        )
+        var deltaReason = deltaHiddenReason ?: "no_empty_band"
+        var deltaValueText: String? = null
+        var deltaSuffixText: String? = null
+        if (deltaHiddenReason == null && appliedDelta != null && deltaCurrentTemp != null) {
             val deltaSegments = ForecastDeltaLabel.segments(appliedDelta, useCelsius)
+            deltaValueText = deltaSegments.value
+            deltaSuffixText = deltaSegments.suffix
             val deltaStyle = TextStyle(
                 fontSize = (DELTA_LABEL_SP * scale).sp,
                 shadow = androidx.compose.ui.graphics.Shadow(
@@ -844,8 +858,22 @@ fun TemperatureGraph(
                 val topLeft = Offset(placement.box.left, placement.box.top)
                 drawText(layout, topLeft = topLeft)
                 drawnLabels.add(Rect(topLeft, Size(layout.size.width.toFloat(), layout.size.height.toFloat())))
+                deltaReason = "drawn"
             }
         }
+        val deltaDiagKey = "$deltaReason|$deltaValueText|$deltaSpanHours"
+        if (lastDeltaDiagKey.value != deltaDiagKey) {
+            lastDeltaDiagKey.value = deltaDiagKey
+            Log.v("ForecastDeltaDiag", "reason=$deltaReason spanH=$deltaSpanHours value=${deltaValueText ?: "null"} appliedDelta=$appliedDelta")
+        }
+        onForecastDeltaPlaced?.invoke(
+            ForecastDeltaLabel.Outcome(
+                reason = deltaReason,
+                valueText = deltaValueText,
+                suffixText = deltaSuffixText,
+                expectedTempsByHour = points.indices.associate { i -> points[i].dateTime to forecastTemps[i] + ghostDelta },
+            ),
+        )
 
         // "knuq 73.4° @ 5:15 pm": the station dominating the observation blend, what it read and when,
         // dropped wherever the plot has room. Format, span gate and placement are shared with Android
@@ -982,7 +1010,7 @@ fun TemperatureGraph(
         // hour mark on the right half so it reads against the footer hour labels ("at 6 PM → 69.4°").
         // Drawn only in the narrow view and only where there's free space. Gate, selection, and
         // placement are shared with Android (GhostLineLabel); styled ghost-like (faint italic white).
-        if (transitionX != null && abs(appliedDelta) >= 0.1f &&
+        if (transitionX != null && ForecastDeltaLine.drawsGhost(appliedDelta) &&
             com.weatherwidget.shared.graph.GhostLineGate.shouldProcess(
                 fetchDotX = transitionX,
                 graphWidthPx = w,
@@ -999,7 +1027,7 @@ fun TemperatureGraph(
             val ghostCandidates = points.indices.mapNotNull { i ->
                 val coord = expectedCoords[i]
                 if (coord.x <= transitionX) return@mapNotNull null
-                val expectedTemp = forecastTemps[i] + appliedDelta
+                val expectedTemp = forecastTemps[i] + ghostDelta
                 if (!expectedTemp.isFinite()) return@mapNotNull null
                 val displayTemp = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(expectedTemp) else expectedTemp
                 GhostLineLabel.Candidate(

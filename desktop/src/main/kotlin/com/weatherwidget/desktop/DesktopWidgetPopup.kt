@@ -63,6 +63,9 @@ private const val HEADER_GRAPH_SPACER_DP = 4
 /** Today's column solid high (the current temperature, while there is one) — lets tests compare it with the header. */
 internal val TodayColumnSolidHigh = SemanticsPropertyKey<Float?>("TodayColumnSolidHigh")
 
+/** Today's column forecast delta text — lets tests compare it with the hourly graph's label. */
+internal val TodayColumnForecastDelta = SemanticsPropertyKey<String?>("TodayColumnForecastDelta")
+
 @Composable
 internal fun WidgetPopup(
     config: DesktopConfig,
@@ -87,6 +90,8 @@ internal fun WidgetPopup(
     currentTempFetchPill: DesktopFailurePill? = null,
     currentTempFetchIsWarmup: Boolean = false,
     currentTempFetchDetails: com.weatherwidget.data.remote.SourceErrorDetails.Content? = null,
+    nowOverrideMs: Long? = null,
+    onForecastDeltaPlaced: ((com.weatherwidget.shared.graph.ForecastDeltaLabel.Outcome) -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
       // One shared scale for header + graph so everything grows together with the window.
@@ -348,6 +353,7 @@ internal fun WidgetPopup(
                                     hourly = snapshot.raw.hourly,
                                     currentTemp = snapshot.resolved.currentTemp,
                                     currentObservedAt = snapshot.resolved.currentObservedAt,
+                                    appliedDelta = snapshot.resolved.appliedDelta,
                                     observations = snapshot.raw.rawObservations,
                                     displaySourceId = config.displaySource,
                                     latitude = config.lat,
@@ -364,6 +370,8 @@ internal fun WidgetPopup(
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,
                                     useCelsius = config.settings.useCelsius,
+                                    nowMs = nowOverrideMs,
+                                    onForecastDeltaPlaced = onForecastDeltaPlaced,
                                 )
                             }
                             NavArrow(
@@ -421,6 +429,9 @@ internal fun WidgetPopup(
                                 config = config,
                                 forecast = snapshot,
                                 dimensions = dimensions,
+                                now = nowOverrideMs
+                                    ?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime() }
+                                    ?: java.time.LocalDateTime.now(),
                                 currentTemp = displayCurrentTemp,
                             )
 
@@ -571,7 +582,10 @@ internal fun WidgetPopup(
                             }
 
                             val todayBarTop = dailyState.days.firstOrNull { it.isToday }?.solidHigh
-                            val todayBarSemantics = Modifier.semantics { set(TodayColumnSolidHigh, todayBarTop) }
+                            val todayBarSemantics = Modifier.semantics {
+                                set(TodayColumnSolidHigh, todayBarTop)
+                                set(TodayColumnForecastDelta, dailyState.todayOverlay?.deltaValueText)
+                            }
                             if (monthsState != null) {
                                 MonthsGraph(
                                     state = monthsState,

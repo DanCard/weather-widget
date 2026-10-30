@@ -17,6 +17,28 @@ class ForecastDeltaLabelTest {
     private val metrics = ForecastDeltaLabel.Metrics(width = 120f, ascent = -10f, descent = 4f) // height 14
     private val plot = GraphRect(0f, 0f, 400f, 200f)
 
+    private fun hiddenReason(
+        delta: Float? = 1f,
+        fetchDotX: Float? = 100f,
+        currentTemp: Float? = 60f,
+        hourCount: Int = 5,
+        spanHours: Long = 8,
+    ) = ForecastDeltaLabel.hiddenReason(delta, fetchDotX, 400f, currentTemp, hourCount, spanHours, useCelsius = false)
+
+    @Test
+    fun `hiddenReason reports the first rule that applies, in order`() {
+        assertEquals("no_delta", hiddenReason(delta = null, fetchDotX = null, currentTemp = null))
+        assertEquals("fetch_dot_offscreen", hiddenReason(fetchDotX = null, currentTemp = null))
+        assertEquals("fetch_dot_offscreen", hiddenReason(fetchDotX = -1f))
+        assertEquals("fetch_dot_offscreen", hiddenReason(fetchDotX = 401f))
+        assertEquals("no_current_temp", hiddenReason(currentTemp = null, hourCount = 1))
+        assertEquals("too_few_hours", hiddenReason(hourCount = 1, delta = 0f))
+        assertEquals("zero_delta", hiddenReason(delta = 0.04f, spanHours = 72))
+        assertEquals("span_too_wide", hiddenReason(spanHours = 72))
+        assertNull(hiddenReason())
+        assertNull(hiddenReason(spanHours = 25))
+    }
+
     @Test
     fun `format is signed with one decimal`() {
         assertEquals("+0.4 from forecast", ForecastDeltaLabel.format(0.4f, useCelsius = false))

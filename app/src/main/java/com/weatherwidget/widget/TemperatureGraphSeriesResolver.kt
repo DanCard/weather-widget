@@ -1,6 +1,7 @@
 package com.weatherwidget.widget
 
 import android.graphics.Path
+import com.weatherwidget.shared.graph.ForecastDeltaLine
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.shared.graph.HourlyTimelineGeometry
 import kotlinx.coroutines.Job
@@ -37,8 +38,7 @@ internal object TemperatureGraphSeriesResolver {
 
     fun resolve(input: Input): TemperatureGraphSeriesGeometry {
         input.job?.ensureActive()
-        val effectiveDelta = input.appliedDelta ?: 0f
-        val points = resolvePoints(input, effectiveDelta)
+        val points = resolvePoints(input)
         val (expectedPath, expectedFillPath) =
             AndroidCurvePathBuilder.buildSmoothCurveAndFillPaths(
                 points.expected,
@@ -77,12 +77,12 @@ internal object TemperatureGraphSeriesResolver {
 
     private fun resolvePoints(
         input: Input,
-        effectiveDelta: Float,
     ): PointSets {
+        val effectiveDelta = ForecastDeltaLine.effectiveDelta(input.appliedDelta)
         val forecastTemps = input.hours.map { it.temperature }
         val actualTemps =
             input.hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
-        val expectedTemps = forecastTemps.map { it + effectiveDelta }
+        val expectedTemps = ForecastDeltaLine.expectedTemps(forecastTemps, input.appliedDelta)
         val originalPoints = mutableListOf<Pair<Float, Float>>()
         val forecastPoints = mutableListOf<Pair<Float, Float>>()
         val expectedPoints = mutableListOf<Pair<Float, Float>>()

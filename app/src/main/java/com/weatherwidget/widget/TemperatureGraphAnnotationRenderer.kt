@@ -330,14 +330,19 @@ internal object TemperatureGraphAnnotationRenderer {
             } else {
                 0L
             }
+        val hiddenReason =
+            ForecastDeltaLabel.hiddenReason(
+                delta = delta,
+                fetchDotX = fetchDotX,
+                graphWidthPx = input.widthPx.toFloat(),
+                currentTemp = currentTemp,
+                hourCount = hours.size,
+                spanHours = spanHours,
+                useCelsius = input.useCelsius,
+            )
         when {
-            delta == null -> reason = "no_delta"
-            fetchDotX == null || fetchDotX < 0f || fetchDotX > input.widthPx.toFloat() ->
-                reason = "fetch_dot_offscreen"
-            currentTemp == null -> reason = "no_current_temp"
-            hours.size < 2 -> reason = "too_few_hours"
-            ForecastDeltaLabel.isZero(delta, input.useCelsius) -> reason = "zero_delta"
-            spanHours > ForecastDeltaLabel.DELTA_LABEL_MAX_HOURS_SPAN -> reason = "span_too_wide"
+            hiddenReason != null -> reason = hiddenReason
+            delta == null || currentTemp == null -> reason = "no_delta"
             else -> {
                 val segments = ForecastDeltaLabel.segments(delta, input.useCelsius, suffix)
                 valueText = segments.value
@@ -403,10 +408,8 @@ internal object TemperatureGraphAnnotationRenderer {
 
         input.onForecastDeltaPlaced?.invoke(
             ForecastDeltaDebug(
-                reason = reason,
+                outcome = ForecastDeltaLabel.Outcome(reason, valueText, suffix),
                 text = placement?.text ?: valueText?.let { it + suffix },
-                valueText = valueText,
-                suffixText = suffix,
                 valueTextSizePx = basePaint.textSize,
                 suffixTextSizePx = suffixPaint.textSize,
                 box = placement?.box?.toRectF(),

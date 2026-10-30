@@ -5,15 +5,14 @@ import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.PathMeasure
+import com.weatherwidget.shared.graph.ForecastDeltaLine
 import com.weatherwidget.shared.graph.GhostLineGate
 import com.weatherwidget.shared.graph.HourData
 import com.weatherwidget.util.WeatherConditionColors
 import java.time.Duration
 import java.time.LocalDateTime
-import kotlin.math.abs
 
 internal object TemperatureGraphSeriesRenderer {
-    private const val MIN_GHOST_LINE_DELTA = 0.1f
     private const val TRANSITION_CLIP_EXTRA_DP = 1f
 
     data class Input(
@@ -117,8 +116,7 @@ internal object TemperatureGraphSeriesRenderer {
             nowIndicatorVisible = input.nowIndicatorVisible,
             hoursFromNowToWindowStart = hoursFromNowToWindowStart,
         ) &&
-            input.appliedDelta != null &&
-            abs(input.appliedDelta) >= MIN_GHOST_LINE_DELTA &&
+            ForecastDeltaLine.drawsGhost(input.appliedDelta) &&
             input.fetchDotX != null
     }
 

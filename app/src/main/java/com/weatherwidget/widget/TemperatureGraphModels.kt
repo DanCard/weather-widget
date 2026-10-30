@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.graphics.RectF
 import android.os.SystemClock
+import com.weatherwidget.shared.graph.ForecastDeltaLabel
 import java.time.LocalDate
 
 /**
@@ -109,21 +110,23 @@ data class ActualsSourceDebug(
  * really is drawn at `ForecastDeltaLabel.SUFFIX_FONT_SCALE` of the value, in the active locale.
  */
 data class ForecastDeltaDebug(
-    /**
-     * "drawn", "no_delta", "fetch_dot_offscreen", "no_current_temp", "too_few_hours",
-     * "zero_delta", "span_too_wide", or "no_empty_band".
-     */
-    val reason: String,
+    val outcome: ForecastDeltaLabel.Outcome,
     /** Full label, e.g. `-0.2 较预报`; null when no value was formatted. */
     val text: String?,
-    val valueText: String?,
-    val suffixText: String?,
     val valueTextSizePx: Float?,
     val suffixTextSizePx: Float?,
     val box: RectF?,
     val centerX: Float?,
     val baselineY: Float?,
-)
+) {
+    /**
+     * "drawn", "no_delta", "fetch_dot_offscreen", "no_current_temp", "too_few_hours",
+     * "zero_delta", "span_too_wide", or "no_empty_band".
+     */
+    val reason: String get() = outcome.reason
+    val valueText: String? get() = outcome.valueText
+    val suffixText: String? get() = outcome.suffixText
+}
 
 data class DayLabelPlacementDebug(
     val side: String,       // "LEFT" or "RIGHT"
