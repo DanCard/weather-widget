@@ -35,6 +35,11 @@ available emulator only if neither is available. Common installed targets are
 widget preferences, and database state before diagnosing visual/data mismatches. Do not ask for the
 location when runtime state can reveal it.
 
+When an emulator widget looks wrong but the app logged a good paint, run
+`scripts/capture-launcher-state.sh` before pressing HOME or restarting the launcher. It saves a
+screenshot, the launcher's live view tree, and a bugreport for every running emulator under
+`captures/`; use `-s SERIAL` for one target.
+
 `adb` warnings can corrupt redirected PNG output on some setups. Convert before viewing:
 
 ```bash
