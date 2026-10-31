@@ -35,6 +35,8 @@ import com.weatherwidget.data.remote.QuotaScope
 import com.weatherwidget.shared.util.RefreshOutcome
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.ButtonMode
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.GraphMode
 import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.shared.actuals.DailyActualsSource
 import com.weatherwidget.data.repository.FetchMetadata
@@ -124,32 +126,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
             return "$refreshed · $refused"
         }
 
-
-        /**
-         * Determines whether clicking the mode button should launch hourly view
-         * (true) or toggle graph mode (false).
-         */
-        fun shouldLaunchTemperature(hasDate: Boolean, showTemperatureButton: Boolean): Boolean =
-            hasDate && showTemperatureButton
-
-        /**
-         * Shows hourly button when viewing today/future without actuals.
-         */
-        fun shouldShowTemperatureButton(
-            date: LocalDate?,
-            hasActualValues: Boolean,
-            today: LocalDate = LocalDate.now(),
-        ): Boolean = date != null && !date.isBefore(today) && !hasActualValues
-
-        /**
-         * Determines the button label mode: HOURLY when hourly button is active,
-         * or the current graph mode (EVOLUTION/ERROR) otherwise.
-         */
-        fun resolveButtonMode(showTemperatureButton: Boolean, graphMode: GraphMode): ButtonMode =
-            if (showTemperatureButton) ButtonMode.TEMPERATURE
-            else if (graphMode == GraphMode.EVOLUTION) ButtonMode.EVOLUTION
-            else ButtonMode.ERROR
-
         fun hasRequiredHistoryExtras(
             targetDate: String?,
             hasLatExtra: Boolean,
@@ -161,44 +137,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
             lastFullFetchMs: Long,
         ): Long = if (sourceSuccessMs > 0L) sourceSuccessMs else lastFullFetchMs
 
-        internal fun normalizeSource(rawSource: String?): WeatherSource? =
-            WeatherSource.fromDisplaySourceOrNull(rawSource)
-
-        fun resolveActualLookupMode(
-            date: LocalDate,
-            requestedSource: WeatherSource?,
-            today: LocalDate = LocalDate.now(),
-        ): ActualLookupMode =
-            if (!date.isBefore(today)) {
-                ActualLookupMode.NONE
-            } else if (requestedSource != null) {
-                ActualLookupMode.SOURCE_SPECIFIC
-            } else {
-                ActualLookupMode.ANY_SOURCE
-            }
-
         internal fun selectLatestCompleteActualFromForecasts(forecasts: List<ForecastEntity>): ForecastEntity? =
             forecasts
                 .asSequence()
                 .filter { it.highTemp != null && it.lowTemp != null }
                 .maxByOrNull { it.fetchedAt }
-    }
-
-    enum class GraphMode {
-        EVOLUTION,
-        ERROR,
-    }
-
-    enum class ButtonMode {
-        EVOLUTION,
-        ERROR,
-        TEMPERATURE,
-    }
-
-    enum class ActualLookupMode {
-        NONE,
-        SOURCE_SPECIFIC,
-        ANY_SOURCE,
     }
 
     private var graphMode = GraphMode.EVOLUTION
@@ -220,7 +163,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val intentTargetDate = intent.getStringExtra(EXTRA_TARGET_DATE)
         val lat = intent.getDoubleExtra(EXTRA_LAT, 0.0)
         val lon = intent.getDoubleExtra(EXTRA_LON, 0.0)
-        val requestedSource = normalizeSource(intent.getStringExtra(EXTRA_SOURCE))
+        val requestedSource = ForecastHistoryViewLogic.normalizeSource(intent.getStringExtra(EXTRA_SOURCE))
 
         if (!hasRequiredHistoryExtras(intentTargetDate, intent.hasExtra(EXTRA_LAT), intent.hasExtra(EXTRA_LON))) {
             Log.e(TAG, "Missing required extras")
@@ -268,8 +211,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
         graphModeButton.setOnClickListener {
             val date = cachedDate
             val hasActualValues = cachedApiActualRow?.apiHighTemp != null && cachedApiActualRow?.apiLowTemp != null
-            val showTemperatureButton = shouldShowTemperatureButton(date, hasActualValues)
-            if (shouldLaunchTemperature(date != null, showTemperatureButton)) {
+            val showTemperatureButton = ForecastHistoryViewLogic.shouldShowTemperatureButton(date, hasActualValues)
+            if (ForecastHistoryViewLogic.shouldLaunchTemperature(date != null, showTemperatureButton)) {
                 launchWidgetTemperatureMode(date!!)
                 return@setOnClickListener
             }
@@ -351,10 +294,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 }
 
                 val appActuals = dailyHistoryDao.getExtremesInRange(targetDateEpoch, targetDateEpoch, lat, lon)
-                val sortedAppActuals = appActuals.sortedBy {
-                    com.weatherwidget.shared.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
-                }
-                val appActual = sortedAppActuals.find { it.source == requestedSource?.id }
                 val zone = java.time.ZoneId.systemDefault()
                 val todayHourly =
                     if (requestedSource != null && ForecastHistoryViewLogic.needsTodayHourly(date)) {
@@ -377,10 +316,13 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     zone = zone,
                     lat = lat,
                     lon = lon,
-                    computedHigh = appActual?.computedHighTemp,
-                    computedLow = appActual?.computedLowTemp,
-                    computedHighAt = appActual?.computedHighAt,
-                    computedLowAt = appActual?.computedLowAt,
+                    sourceId = requestedSource?.id,
+                    rows = appActuals.map {
+                        ForecastHistoryViewLogic.LocationActualRow(
+                            it.source, it.locationLat, it.locationLon,
+                            it.computedHighTemp, it.computedLowTemp, it.computedHighAt, it.computedLowAt,
+                        )
+                    },
                     todayHourly = todayHourly,
                     epochMs = { it.dateTime },
                     temperature = { it.temperature },
@@ -455,7 +397,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         // Hindcasts (fetched after the extreme was reached) are not forecasts: drop them per side.
         // Today's extreme times are only the running max/min, so today uses the fixed cutoffs alone —
-        // except a settled low, whose time is final (ForecastHistoryViewLogic.locationActuals).
+        // except a settled extreme, whose time is final (ForecastHistoryViewLogic.locationActuals).
         val evolutionPoints = ForecastEvolutionCutoff.points(
             rows = snapshots.map {
                 ForecastEvolutionCutoff.Row(it.dateOfPrediction, it.fetchedAt, it.highTemp, it.lowTemp, it.source, it.lastConfirmedAt)
@@ -487,17 +429,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
         updateFreshnessCard()
 
         val isPastDate = date.isBefore(LocalDate.now())
-        val legendActualGroup = findViewById<View>(R.id.legend_actual_group)
-        val legendAppActualGroup = findViewById<View>(R.id.legend_app_actual_group)
-
-        if (isPastDate) {
-            legendActualGroup.visibility = View.VISIBLE
-            legendAppActualGroup.visibility = View.VISIBLE
-        } else {
-            legendActualGroup.visibility = View.GONE
-            legendAppActualGroup.visibility = if (locationActuals.hasAny) View.VISIBLE else View.GONE
-        }
-
         // Single forecast legend (one color for every API), relabeled to the selected API.
         findViewById<TextView>(R.id.legend_forecast_text).text =
             requestedSource?.shortDisplayName ?: getString(R.string.forecast_history_api_fallback_label)
@@ -506,14 +437,25 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val apiLow = if (isPastDate) apiActualRow?.apiLowTemp else null
         val computedHighTemp = locationActuals.high
         val computedLowTemp = locationActuals.low
+        val actualsDisplay = ForecastHistoryViewLogic.actualsDisplay(isPastDate, apiHigh, apiLow, locationActuals)
+
+        findViewById<View>(R.id.legend_actual_group).visibility =
+            if (actualsDisplay.showApiActualLegend) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.legend_app_actual_group).visibility =
+            if (actualsDisplay.showLocationActualLegend) View.VISIBLE else View.GONE
+
+        // Single forecast legend (one color for every API), relabeled to the selected API.
+        findViewById<TextView>(R.id.legend_forecast_text).text =
+            requestedSource?.shortDisplayName ?: getString(R.string.forecast_history_api_fallback_label)
 
         val actualsLegendCard = findViewById<View>(R.id.actuals_legend_card)
-        if ((apiHigh != null && apiLow != null) || (computedHighTemp != null && computedLowTemp != null)) {
+        if (actualsDisplay.showFooterCard) {
             actualsLegendCard.visibility = View.VISIBLE
 
             val apiActualGroup = findViewById<View>(R.id.footer_api_actual_group)
             val apiActualText = findViewById<TextView>(R.id.footer_api_actual_text)
-            if (apiHigh != null && apiLow != null) {
+            val apiFooter = actualsDisplay.apiFooter
+            if (apiFooter != null) {
                 apiActualGroup.visibility = View.VISIBLE
                 val sourceLabel = requestedSource?.displayName ?: getString(R.string.forecast_history_api_fallback_label)
                 // Provenance: a station value derived from our retained observations, because the
@@ -529,8 +471,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 apiActualText.text = getString(
                     R.string.forecast_history_api_actual,
                     sourceLabel,
-                    formatTemp(apiHigh),
-                    formatTemp(apiLow),
+                    formatTemp(apiFooter.high),
+                    formatTemp(apiFooter.low),
                 ) + provenance
             } else {
                 apiActualGroup.visibility = View.GONE
@@ -538,12 +480,13 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
             val locationActualGroup = findViewById<View>(R.id.footer_location_actual_group)
             val locationActualText = findViewById<TextView>(R.id.footer_location_actual_text)
-            if (computedHighTemp != null && computedLowTemp != null) {
+            val locationFooter = actualsDisplay.locationFooter
+            if (locationFooter != null) {
                 locationActualGroup.visibility = View.VISIBLE
                 locationActualText.text = getString(
                     R.string.forecast_history_location_actual,
-                    formatTemp(computedHighTemp),
-                    formatTemp(computedLowTemp),
+                    formatTemp(locationFooter.high),
+                    formatTemp(locationFooter.low),
                 )
             } else {
                 locationActualGroup.visibility = View.GONE
@@ -569,7 +512,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         lowTitle.text = if (isErrorMode) getString(R.string.forecast_error_low_title) else getString(R.string.forecast_evolution_low_title)
 
         if (evolutionPoints.isNotEmpty()) {
-            if (isErrorMode && (apiHigh == null || apiLow == null)) {
+            if (isErrorMode && !actualsDisplay.errorGraphAvailable) {
                 noDataTextView.text = getString(R.string.forecast_error_requires_actuals)
                 noDataTextView.visibility = View.VISIBLE
                 highCard.visibility = View.GONE
@@ -716,8 +659,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val modeButton = findViewById<Button>(R.id.graph_mode_button)
         val actualLegendText = findViewById<TextView>(R.id.legend_actual_text)
         val hasActualValues = cachedApiActualRow?.apiHighTemp != null && cachedApiActualRow?.apiLowTemp != null
-        val showTemperatureButton = shouldShowTemperatureButton(cachedDate, hasActualValues)
-        when (resolveButtonMode(showTemperatureButton, graphMode)) {
+        val showTemperatureButton = ForecastHistoryViewLogic.shouldShowTemperatureButton(cachedDate, hasActualValues)
+        when (ForecastHistoryViewLogic.resolveButtonMode(showTemperatureButton, graphMode)) {
             ButtonMode.EVOLUTION -> {
                 modeButton.text = getString(R.string.forecast_mode_evolution)
                 actualLegendText.text = getString(R.string.legend_actual)

@@ -70,9 +70,8 @@ private data class HistoryData(
     val apiLow: Float?,
     val appHigh: Float?,
     val appLow: Float?,
-    val isPast: Boolean,
+    val display: ForecastHistoryViewLogic.ActualsDisplay,
     /** Some "Location actual" line is drawn (past day, or today's settled low). */
-    val hasLocationActual: Boolean,
     val snapshotCount: Int,
     val newestFetchAgeMs: Long?,
     val accuracySummary: String,
@@ -300,7 +299,7 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource,
     if (!hasPoints) {
         Text("No forecast snapshots for ${source.displayName} on this day.", color = ObsStyle.textSecondary, fontSize = 13.sp)
         Spacer(Modifier.height(12.dp))
-    } else if (isError && (d.apiHigh == null || d.apiLow == null) && (d.appHigh == null || d.appLow == null)) {
+    } else if (isError && !d.display.errorGraphAvailable) {
         Text("Error view needs actuals — pick a past day.", color = ObsStyle.textSecondary, fontSize = 13.sp)
         Spacer(Modifier.height(12.dp))
     } else {
@@ -314,18 +313,18 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource,
         Spacer(Modifier.height(12.dp))
     }
 
-    Legend(source, d.isPast, d.hasLocationActual)
+    Legend(source, d.display)
     Spacer(Modifier.height(8.dp))
 
-    if (d.isPast && ((d.apiHigh != null && d.apiLow != null) || (d.appHigh != null && d.appLow != null))) {
+    if (d.display.showFooterCard) {
         DataCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
-                if (d.apiHigh != null && d.apiLow != null) {
-                    Text("${source.displayName} actual: ${fmt(d.apiHigh, useCelsius)} / ${fmt(d.apiLow, useCelsius)}",
+                d.display.apiFooter?.let { api ->
+                    Text("${source.displayName} actual: ${fmt(api.high, useCelsius)} / ${fmt(api.low, useCelsius)}",
                         color = parseHexColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), fontSize = 13.sp)
                 }
-                if (d.appHigh != null && d.appLow != null) {
-                    Text("Location actual: ${fmt(d.appHigh, useCelsius)} / ${fmt(d.appLow, useCelsius)}",
+                d.display.locationFooter?.let { location ->
+                    Text("Location actual: ${fmt(location.high, useCelsius)} / ${fmt(location.low, useCelsius)}",
                         color = parseHexColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
@@ -359,14 +358,14 @@ private fun GraphCard(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Legend(source: WeatherSource, isPast: Boolean, hasLocationActual: Boolean) {
+private fun Legend(source: WeatherSource, display: ForecastHistoryViewLogic.ActualsDisplay) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         // One forecast color for every API; the dot is labeled with the selected source.
         LegendDot(parseHexColor(ForecastEvolutionStyle.FORECAST_COLOR), source.shortDisplayName)
-        if (isPast) {
+        if (display.showApiActualLegend) {
             LegendDot(parseHexColor(ForecastEvolutionStyle.API_ACTUAL_COLOR), "API actual")
         }
-        if (isPast || hasLocationActual) {
+        if (display.showLocationActualLegend) {
             LegendDot(parseHexColor(ForecastEvolutionStyle.APP_ACTUAL_COLOR), "Location actual")
         }
     }
@@ -583,7 +582,6 @@ private fun loadHistory(
     val needsTodayHourly = ForecastHistoryViewLogic.needsTodayHourly(targetDate)
     val historyRows =
         if (isPast || needsTodayHourly) dao.getExtremesInRange(targetEpoch, targetEpoch, lat, lon) else emptyList()
-    val sourceHistory = historyRows.firstOrNull { it.source == source.id }
     val todayHourly = if (needsTodayHourly) {
         val start = targetDate.atStartOfDay(zone).toInstant().toEpochMilli()
         val end = targetDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -598,24 +596,27 @@ private fun loadHistory(
     } else {
         emptyList()
     }
-    // Past day: both extremes; today: the low once settled (shared with Android).
+    // Past day: both extremes; today: each extreme once settled (shared with Android).
     val locationActuals = ForecastHistoryViewLogic.locationActuals(
         date = targetDate,
         now = LocalDateTime.now(zone),
         zone = zone,
         lat = lat,
         lon = lon,
-        computedHigh = sourceHistory?.computedHighTemp,
-        computedLow = sourceHistory?.computedLowTemp,
-        computedHighAt = sourceHistory?.computedHighAt,
-        computedLowAt = sourceHistory?.computedLowAt,
+        sourceId = source.id,
+        rows = historyRows.map {
+            ForecastHistoryViewLogic.LocationActualRow(
+                it.source, it.locationLat, it.locationLon,
+                it.computedHighTemp, it.computedLowTemp, it.computedHighAt, it.computedLowAt,
+            )
+        },
         todayHourly = todayHourly,
         epochMs = { it.dateTime },
         temperature = { it.temperature },
     )
     // Hindcasts (fetched after the extreme was reached) are not forecasts: dropped per side.
     // Today's extreme times are only the running max/min, so today uses the fixed cutoffs — except
-    // a settled low, whose time is final.
+    // a settled extreme, whose time is final.
     val points = ForecastEvolutionCutoff.points(
         rows = rows.map {
             ForecastEvolutionCutoff.Row(it.dateOfPrediction, it.fetchedAt, it.highTemp, it.lowTemp, it.source, it.lastConfirmedAt)
@@ -678,8 +679,7 @@ private fun loadHistory(
         points = points,
         apiHigh = apiHigh, apiLow = apiLow,
         appHigh = locationActuals.high, appLow = locationActuals.low,
-        isPast = isPast,
-        hasLocationActual = locationActuals.hasAny,
+        display = ForecastHistoryViewLogic.actualsDisplay(isPast, apiHigh, apiLow, locationActuals),
         snapshotCount = points.size,
         newestFetchAgeMs = newestAge,
         accuracySummary = summary,

@@ -12,6 +12,12 @@ object DailyDayValueResolver {
      */
     const val ACTUAL_HIGH_CUTOFF_HOUR = 17
 
+    /**
+     * Whether today's high counts as settled at local hour [nowHour]: the one 5pm rule behind the
+     * today column and the History of Forecasts high line. Null disables the cutoff.
+     */
+    fun isHighSettled(nowHour: Int?): Boolean = nowHour != null && nowHour >= ACTUAL_HIGH_CUTOFF_HOUR
+
     data class TodayLineValues(
         /** The "mercury level" high — current temp if available, otherwise observed high. */
         val solidHigh: Float?,
@@ -148,8 +154,7 @@ object DailyDayValueResolver {
     ): Float? {
         if (!isToday) return solidHigh
         val actualHigh = listOfNotNull(solidHigh, ghostHigh).maxOrNull()
-        val highSettled = nowHour != null && nowHour >= ACTUAL_HIGH_CUTOFF_HOUR
-        return if (highSettled && actualHigh != null) actualHigh
+        return if (isHighSettled(nowHour) && actualHigh != null) actualHigh
         else listOfNotNull(solidHigh, forecastHigh, ghostHigh).maxOrNull()
     }
 
@@ -173,8 +178,7 @@ object DailyDayValueResolver {
     ): Boolean {
         if (!isToday) return false
         val actualHigh = listOfNotNull(solidHigh, ghostHigh).maxOrNull()
-        val highSettled = nowHour != null && nowHour >= ACTUAL_HIGH_CUTOFF_HOUR
-        return highSettled && actualHigh != null
+        return isHighSettled(nowHour) && actualHigh != null
     }
 
     /**

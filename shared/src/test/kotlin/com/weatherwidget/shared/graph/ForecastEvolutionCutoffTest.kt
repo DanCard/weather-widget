@@ -63,6 +63,16 @@ class ForecastEvolutionCutoffTest {
     }
 
     @Test
+    fun `settled today high drops fetches after the peak but keeps earlier ones`() {
+        val beforePeak = point(at(oct8, 12), 81f, null)
+        val afterPeak = point(at(oct8, 15), 82f, null)
+
+        val result = apply(listOf(beforePeak, afterPeak), at(oct8, 14, 15), null)
+
+        assertEquals(listOf(beforePeak), result)
+    }
+
+    @Test
     fun `unknown extreme time falls back to the fixed cutoffs`() {
         val beforeLow = point(at(oct8, 5, 59), 80f, 56f)
         val midday = point(at(oct8, 12), 80f, 56f)

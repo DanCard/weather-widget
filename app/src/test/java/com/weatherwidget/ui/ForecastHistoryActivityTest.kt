@@ -10,16 +10,16 @@ import java.time.LocalDate
 
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
-import com.weatherwidget.ui.ForecastHistoryActivity.ActualLookupMode
-import com.weatherwidget.ui.ForecastHistoryActivity.ButtonMode
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.ActualLookupMode
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.ButtonMode
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.hasRequiredHistoryExtras
-import com.weatherwidget.ui.ForecastHistoryActivity.Companion.normalizeSource
-import com.weatherwidget.ui.ForecastHistoryActivity.Companion.resolveActualLookupMode
-import com.weatherwidget.ui.ForecastHistoryActivity.Companion.resolveButtonMode
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.normalizeSource
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.resolveActualLookupMode
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.resolveButtonMode
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.selectLatestCompleteActualFromForecasts
-import com.weatherwidget.ui.ForecastHistoryActivity.Companion.shouldLaunchTemperature
-import com.weatherwidget.ui.ForecastHistoryActivity.Companion.shouldShowTemperatureButton
-import com.weatherwidget.ui.ForecastHistoryActivity.GraphMode
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.shouldLaunchTemperature
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.shouldShowTemperatureButton
+import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.GraphMode
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
 
