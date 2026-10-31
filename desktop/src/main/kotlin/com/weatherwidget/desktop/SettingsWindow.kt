@@ -732,8 +732,10 @@ private fun ApiSourcesList(
 ) {
     val enabled = remember(visibleSources) { WeatherSourceOrdering.sanitizeVisibleIds(visibleSources) }
     val available = remember(visibleSources) { WeatherSourceOrdering.available(visibleSources) }
-    // The drag's working copy; reset whenever the stored list changes.
-    var order by remember(enabled) { mutableStateOf(enabled) }
+    // The drag's working copy, present only during a drag. The holder is deliberately unkeyed: a row's
+    // pointerInput(id) coroutine outlives list changes, so a keyed one strands it on a dead copy.
+    var dragOrder by remember { mutableStateOf<List<String>?>(null) }
+    val order = dragOrder ?: enabled
     var draggingId by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val rowHeights = remember { mutableStateMapOf<String, Int>() }
@@ -757,9 +759,12 @@ private fun ApiSourcesList(
     }
 
     fun endDrag() {
+        val dropped = dragOrder ?: return
+        Log.d(TAG, "SOURCE_DRAG end id=$draggingId from=$currentEnabled to=$dropped")
         draggingId = null
         dragOffset = 0f
-        if (order != currentEnabled) currentOnChanged(order)
+        dragOrder = null
+        if (dropped != currentEnabled) currentOnChanged(dropped)
     }
 
     fun Modifier.dragsRow(id: String): Modifier = pointerHoverIcon(PointerIcon.Hand).pointerInput(id) {
@@ -767,18 +772,21 @@ private fun ApiSourcesList(
             onDragStart = {
                 draggingId = id
                 dragOffset = 0f
+                dragOrder = currentEnabled
+                Log.d(TAG, "SOURCE_DRAG start id=$id order=$currentEnabled")
             },
             onDrag = { change, amount ->
                 change.consume()
                 dragOffset += amount.y
+                val working = dragOrder ?: return@detectDragGestures
                 // Swap with a neighbour once the row is past half of it.
-                val at = order.indexOf(id)
-                val below = order.getOrNull(at + 1)
-                val above = order.getOrNull(at - 1)
+                val at = working.indexOf(id)
+                val below = working.getOrNull(at + 1)
+                val above = working.getOrNull(at - 1)
                 if (below != null) {
                     val step = (rowHeights[below] ?: 0) + rowSpacingPx
                     if (dragOffset > step / 2) {
-                        order = WeatherSourceOrdering.move(order, at, at + 1)
+                        dragOrder = WeatherSourceOrdering.move(working, at, at + 1)
                         dragOffset -= step
                         return@detectDragGestures
                     }
@@ -786,7 +794,7 @@ private fun ApiSourcesList(
                 if (above != null) {
                     val step = (rowHeights[above] ?: 0) + rowSpacingPx
                     if (dragOffset < -step / 2) {
-                        order = WeatherSourceOrdering.move(order, at, at - 1)
+                        dragOrder = WeatherSourceOrdering.move(working, at, at - 1)
                         dragOffset += step
                     }
                 }

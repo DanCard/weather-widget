@@ -3,10 +3,13 @@ package com.weatherwidget.desktop
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import com.weatherwidget.shared.util.WeatherSourceOrdering
@@ -21,6 +24,7 @@ import org.junit.experimental.categories.Category
  * Settings → Weather Data Sources in two groups, matching Android: In rotation (≡ drags, ✕ removes)
  * and Available (+ adds). plans/261015-settings-sources-drag-reorder-and-two-groups.md, tests 9–11.
  */
+@OptIn(ExperimentalTestApi::class)
 @Category(LongDuration::class)
 class SettingsWindowSourceListTest {
 
@@ -112,6 +116,59 @@ class SettingsWindowSourceListTest {
 
         assertEquals(listOf("OPEN_METEO", "SILURIAN", "NWS"), draftSources())
         assertEquals("one draft per drag", draftsBefore + 1, drafts.size)
+    }
+
+    private fun hover(t: String) {
+        tag(t).performScrollTo().performMouseInput { moveTo(center) }
+        composeTestRule.waitForIdle()
+    }
+
+    private fun mouseDragAndHold(t: String, dy: Float) {
+        tag(t).performMouseInput {
+            moveTo(center)
+            press()
+            repeat(20) { moveBy(Offset(0f, dy / 20)) }
+        }
+        composeTestRule.waitForIdle()
+    }
+
+    private fun mouseRelease(t: String) {
+        tag(t).performMouseInput { release() }
+        composeTestRule.waitForIdle()
+    }
+
+    // Hovering starts the row's gesture coroutine, which outlives the list change that follows.
+    @Test
+    fun draggingAHoveredRowAfterARemove_doesNotBringTheRemovedSourceBack() {
+        launch()
+        hover("source_drag_NWS")
+        tag("source_remove_SILURIAN").performScrollTo().performClick()
+        composeTestRule.waitForIdle()
+
+        val rowHeight = tag("source_row_NWS").fetchSemanticsNode().size.height.toFloat()
+        mouseDragAndHold("source_drag_NWS", rowHeight * 1.2f)
+        mouseRelease("source_drag_NWS")
+
+        assertEquals(listOf("OPEN_METEO", "NWS"), draftSources())
+    }
+
+    @Test
+    fun secondDragOfARow_movesTheNeighbourMidDrag() {
+        launch()
+        hover("source_drag_NWS")
+        val rowHeight = tag("source_row_NWS").fetchSemanticsNode().size.height.toFloat()
+        mouseDragAndHold("source_drag_NWS", rowHeight * 1.2f)
+        mouseRelease("source_drag_NWS")
+        assertEquals(listOf("OPEN_METEO", "NWS", "SILURIAN"), draftSources())
+
+        val neighbourTop = tag("source_row_OPEN_METEO").getBoundsInRoot().top
+        mouseDragAndHold("source_drag_NWS", -rowHeight * 1.2f)
+        assertTrue(
+            "the neighbour steps aside during the drag, not on release",
+            tag("source_row_OPEN_METEO").getBoundsInRoot().top > neighbourTop,
+        )
+        mouseRelease("source_drag_NWS")
+        assertEquals(listOf("NWS", "OPEN_METEO", "SILURIAN"), draftSources())
     }
 
     // 11
