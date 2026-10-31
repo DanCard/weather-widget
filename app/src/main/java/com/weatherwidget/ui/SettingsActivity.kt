@@ -15,7 +15,6 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -413,7 +412,7 @@ class SettingsActivity : AppCompatActivity() {
                 getString(R.string.api_key_required_to_enable, source.displayName),
                 Toast.LENGTH_LONG,
             ).show()
-            val scrollView = findViewById<ScrollView>(R.id.settings_scroll_view)
+            val scrollView = findViewById<androidx.core.widget.NestedScrollView>(R.id.settings_scroll_view)
             val keysContainer = findViewById<View>(R.id.api_keys_container)
             scrollView?.post {
                 if (keysContainer != null) scrollView.smoothScrollTo(0, keysContainer.top)

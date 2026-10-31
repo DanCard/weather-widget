@@ -218,6 +218,25 @@ class SettingsSourceListRoboTest {
         }
     }
 
+    /**
+     * Foldable 2026-10-30: a ScrollView's height hint, less the sections above, stopped the list at
+     * five rows; the other enabled sources could be neither seen nor scrolled to.
+     */
+    @Test
+    fun `every enabled source gets a row however short the window`() {
+        val all = WeatherSourceOrdering.ALL_CONFIGURABLE
+        WidgetStateManager(context).setVisibleSourcesOrder(all)
+        withSettings { activity ->
+            val content = activity.findViewById<android.view.View>(android.R.id.content)
+            content.measure(
+                android.view.View.MeasureSpec.makeMeasureSpec(1080, android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(900, android.view.View.MeasureSpec.EXACTLY),
+            )
+            content.layout(0, 0, content.measuredWidth, content.measuredHeight)
+            assertEquals(all.size, activity.recycler().childCount)
+        }
+    }
+
     @Test
     fun `adding Google appends it last`() {
         assumeTrue(
