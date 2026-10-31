@@ -64,6 +64,7 @@ class DesktopMonthsModelTest {
         val daily = (0L..9L).map { n -> DailyForecast(today.plusDays(n).toString(), 72f, 52f, "Clear", source = "NWS") } +
             DailyForecast(today.plusDays(20).toString(), 65f, 45f, "Clear", isClimateNormal = true)
         return ForecastSnapshot(
+            sourceId = "NWS",
             raw = RawFetch(daily = daily, dailyActuals = actuals, climateNormals = mapOf(MonthDay.from(today) to (68f to 48f))),
             resolved = ResolvedView(currentTemp = 70f),
         )

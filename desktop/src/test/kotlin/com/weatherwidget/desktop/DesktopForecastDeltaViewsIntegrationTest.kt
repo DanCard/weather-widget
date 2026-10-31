@@ -95,6 +95,11 @@ class DesktopForecastDeltaViewsIntegrationTest {
     }
 
     @Test
+    fun `a snapshot names its source`() {
+        assertEquals(ForecastDeltaIncident.SOURCE.id, snapshot.sourceId)
+    }
+
+    @Test
     fun `the daily view and the temperature graph print the same resolved delta`() {
         assertEquals(ForecastDeltaIncident.DELTA, snapshot.resolved.appliedDelta!!, 0.01f)
 

@@ -32,6 +32,7 @@ class CurrentStatusResolverTest {
         )
 
         val forecast = ForecastSnapshot(
+            sourceId = "NWS",
             raw = RawFetch(),
             resolved = ResolvedView(
                 currentObservedAt = 1_780_000_000_000L,
@@ -64,6 +65,7 @@ class CurrentStatusResolverTest {
 
         val status = resolver.resolve(
             ForecastSnapshot(
+                sourceId = "NWS",
                 raw = RawFetch(),
                 resolved = ResolvedView(),
             ),
@@ -96,7 +98,7 @@ class CurrentStatusResolverTest {
             logChange = { logs += it },
             resolveTemp = { _, _ -> next },
         )
-        val snapshot = ForecastSnapshot(raw = RawFetch(), resolved = ResolvedView())
+        val snapshot = ForecastSnapshot(sourceId = "NWS", raw = RawFetch(), resolved = ResolvedView())
 
         resolver.resolve(snapshot, now = 1L)
         resolver.resolve(snapshot, now = 2L) // same value: quiet

@@ -136,5 +136,9 @@ class SourceSwitchRunner(
     companion object {
         private const val TAG = "SourceSwitchRunner"
         const val E2E_TAG = "SOURCE_SWITCH_E2E"
+
+        /** The [E2E_TAG] line for a platform whose data lands after the switch's critical path. */
+        fun dataReadyLine(platform: String, fromId: String, toId: String, trigger: SourceViewTrigger, sinceSwitchMs: Long): String =
+            "platform=$platform from=$fromId to=$toId trigger=$trigger phase=data_ready sinceSwitchMs=$sinceSwitchMs"
     }
 }

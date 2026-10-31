@@ -78,6 +78,7 @@ class DesktopCurrentStatusIntegrationTest {
         val nwsRead = dao.getCurrentStatus(testLat, testLon, WeatherSource.NWS.id)
         assertNotNull(nwsRead)
         val nwsSnapshot = ForecastSnapshot(
+            sourceId = "NWS",
             raw = RawFetch(),
             resolved = ResolvedView(currentTemp = 64.0f, deltaFromYesterday = 0.0f),
         )
@@ -92,6 +93,7 @@ class DesktopCurrentStatusIntegrationTest {
         assertEquals(53.0f, silurianRead!!.displayTempF!!, 0.01f)
 
         val silurianSnapshot = ForecastSnapshot(
+            sourceId = "NWS",
             raw = RawFetch(),
             resolved = ResolvedView(currentTemp = 63.19f, deltaFromYesterday = -0.47f, appliedDelta = 2.33f),
         )

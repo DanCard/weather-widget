@@ -80,10 +80,12 @@ internal fun WidgetHeader(
     val headerWidthDp = with(density) { windowInfo.containerSize.width.toDp().value.toInt() }
     // Icon, temp, delta, rain % and source label: the shared header rule Android's headers use
     // (plans/261021-header-shared-content-audit.md).
-    val content = remember(forecast.raw, displaySource, displayTemp, deltaVal, nowLocal, targetHour, config.viewMode, config.lat, config.lon, config.settings.useCelsius, headerWidthDp) {
+    val content = remember(forecast.raw, forecast.sourceId, displaySource, displayTemp, deltaVal, nowLocal, targetHour, config.viewMode, config.lat, config.lon, config.settings.useCelsius, headerWidthDp) {
         desktopHeaderContent(
             forecast = forecast,
-            displaySourceId = displaySource.id,
+            // The label moves on the click; the rest waits for that source's snapshot.
+            displaySourceId = forecast.sourceId,
+            labelSourceId = displaySource.id,
             viewMode = config.viewMode,
             currentTemp = displayTemp,
             deltaFromYesterday = deltaVal,
@@ -580,6 +582,7 @@ internal fun desktopHeaderContent(
     lon: Double,
     useCelsius: Boolean,
     widthDp: Int,
+    labelSourceId: String = displaySourceId,
 ): HeaderContent.Content {
     val view = desktopHeaderView(viewMode)
     val today = forecast.raw.daily.firstOrNull { it.date == now.toLocalDate().toString() }
@@ -602,6 +605,7 @@ internal fun desktopHeaderContent(
         lon = lon,
         useCelsius = useCelsius,
         widthDp = widthDp,
+        labelSourceId = labelSourceId,
     )
     HeaderContentLog.changed(displaySourceId, view, content)
     return content
@@ -616,15 +620,14 @@ private fun desktopHeaderView(viewMode: ViewMode): HeaderContent.View = when (vi
     else -> HeaderContent.View.TEMPERATURE
 }
 
-/** `HEADER_CONTENT` once per change (recomposition repeats the same). */
+/** [HeaderContent.LOG_TAG] once per change (recomposition repeats the same). */
 private object HeaderContentLog {
     @Volatile private var last: String? = null
 
     fun changed(sourceId: String, view: HeaderContent.View, c: HeaderContent.Content) {
-        val line = "source=$sourceId view=$view icon=${c.iconName} temp=${c.tempText} delta=${c.deltaText} " +
-            "precip=${c.precipText} label=${c.sourceLabel}"
+        val line = HeaderContent.logLine(sourceId, view, c)
         if (line == last) return
         last = line
-        Log.i("HEADER_CONTENT", line)
+        Log.i(HeaderContent.LOG_TAG, line)
     }
 }

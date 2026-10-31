@@ -16,6 +16,8 @@ import kotlin.math.abs
  * icon, `now` instead of the panned hour for the rain %, …): `plans/261021-header-shared-content-audit.md`.
  */
 object HeaderContent {
+    const val LOG_TAG = "HEADER_CONTENT"
+
 
     /** The view whose header is drawn; the hourly views differ only in the delta and 0 % rules. */
     enum class View {
@@ -75,6 +77,11 @@ object HeaderContent {
         widthDp: Int,
         /** Rows for the icon when they differ from [hourly] (Android's current-temp series). */
         iconHourly: List<HourlyForecast> = hourly,
+        /**
+         * The source to name, when it is not the one [displaySourceId]'s data came from: desktop's
+         * label moves on the click, the rest when that source's data arrives.
+         */
+        labelSourceId: String = displaySourceId,
         zone: ZoneId = ZoneId.systemDefault(),
     ): Content {
         val precip = precipitation(view, hourly, displaySourceId, fallbackDailyPrecip, now, centerTime, lat, lon)
@@ -92,9 +99,14 @@ object HeaderContent {
                 DailyRainLabels.headerPrecipFontScale(it, isDailyView = view == View.DAILY, isNightPrecip = precip.isNight)
             },
             isNightPrecip = precip.isNight,
-            sourceLabel = sourceLabel(view, displaySourceId, now, centerTime, widthDp),
+            sourceLabel = sourceLabel(view, labelSourceId, now, centerTime, widthDp),
         )
     }
+
+    /** The [LOG_TAG] line, both platforms: what the header shows, and the source its data came from. */
+    fun logLine(dataSourceId: String, view: View, content: Content): String =
+        "source=$dataSourceId view=$view icon=${content.iconName} temp=${content.tempText} " +
+            "delta=${content.deltaText} precip=${content.precipText} label=${content.sourceLabel}"
 
     /** "Meteo"; an hourly view panned off today names the day ("Thursday • Meteo"). */
     fun sourceLabel(view: View, sourceId: String, now: LocalDateTime, centerTime: LocalDateTime, widthDp: Int): String {

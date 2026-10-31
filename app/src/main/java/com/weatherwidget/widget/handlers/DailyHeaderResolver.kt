@@ -235,6 +235,7 @@ internal object DailyHeaderResolver {
             nominalDate = HeaderWidthChecker.nominalDate(today),
         )
         val fit = HeaderFit.resolve(measured)
+        Log.d(HeaderContent.LOG_TAG, "widget=$appWidgetId " + HeaderContent.logLine(displaySource.id, HeaderContent.View.DAILY, content))
         Log.d(HeaderFit.LOG_TAG, "widget=$appWidgetId " + HeaderFit.logLine("daily", dimensions.widthDp.toFloat(), headerScale, fit, measured))
 
         val headerPrecipPlacement = DailyHeaderBinder.resolveHeaderPrecipPlacement(

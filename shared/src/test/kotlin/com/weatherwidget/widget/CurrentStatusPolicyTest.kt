@@ -30,6 +30,7 @@ class CurrentStatusPolicyTest {
     )
 
     private fun sampleSnapshot(temp: Float? = 63.2f, delta: Float? = -0.8f, applied: Float? = 0.5f) = ForecastSnapshot(
+        sourceId = "NWS",
         raw = RawFetch(),
         resolved = ResolvedView(
             currentTemp = temp,

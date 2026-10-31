@@ -60,6 +60,9 @@ A missing `phase=done` line after a `phase=critical` line means the deferred pha
 `paintMs` is ~0: Compose repaints from the saved config, and the daemon's reload follows
 (`LAUNCH_REFRESH_CHECK reason=source_change`). Desktop therefore adds
 `phase=data_ready sinceSwitchMs=` once the UI holds the new source's data, about 600 ms normally.
+Until then the header updates in two parts: the source label moves on the click, and rain, icon and the
+rest stay on the snapshot's own source (`ForecastSnapshot.sourceId`). `HEADER_CONTENT` logs both on either
+platform, as `source=` (the data) and `label=`.
 
 Desktop breadcrumbs written from code that must not wait on the database (`CURR_TEMP_RESULT`,
 `CURRENT_STATUS_PUBLISH`, `CONFIG_SAVE`, refresh notices, `data_ready`) go through

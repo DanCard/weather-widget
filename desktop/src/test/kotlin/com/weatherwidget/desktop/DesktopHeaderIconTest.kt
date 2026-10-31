@@ -69,6 +69,7 @@ class DesktopHeaderIconTest {
     }
 
     private fun snapshot(hourly: List<HourlyForecast>, dailyCondition: String = "Sunny") = ForecastSnapshot(
+        sourceId = "NWS",
         raw = RawFetch(
             hourly = hourly,
             daily = listOf(DailyForecast(date = now.toLocalDate().toString(), highTemp = 67f, lowTemp = 58f, condition = dailyCondition)),

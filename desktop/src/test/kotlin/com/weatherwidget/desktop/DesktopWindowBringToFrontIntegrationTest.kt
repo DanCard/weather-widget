@@ -87,6 +87,7 @@ class DesktopWindowBringToFrontIntegrationTest {
             settings = DesktopSettings(visibleSources = listOf("NWS", "OPEN_METEO")),
         )
         val sampleForecast = ForecastSnapshot(
+            sourceId = "NWS",
             raw = RawFetch(
                 daily = listOf(DailyForecast(date = "2026-06-01", highTemp = 75f, lowTemp = 55f, condition = "Sunny", precipProbability = 0)),
                 hourly = listOf(HourlyForecast(System.currentTimeMillis(), 72f, "Sunny")),

@@ -7,6 +7,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.nowcast.NowcastSeries
 import com.weatherwidget.shared.nowcast.NowcastSlot
 import com.weatherwidget.shared.nowcast.SLOT_MS
+import com.weatherwidget.shared.util.HeaderContent
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.widget.AndroidNowcast
@@ -20,6 +21,7 @@ import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLog
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -96,6 +98,16 @@ class DailyHeaderNowcastRoboTest {
             dateOffset = 0,
             skipYesterday = false,
         ).state
+    }
+
+    @Test
+    fun `the daily header logs what it shows and whose data it is`() {
+        ShadowLog.clear()
+        val state = resolve(LocalDateTime.now(), WeatherSource.OPEN_METEO)
+
+        val line = ShadowLog.getLogsForTag(HeaderContent.LOG_TAG).last().msg
+        assertTrue(line, "widget=$appWidgetId source=OPEN_METEO view=DAILY" in line)
+        assertTrue(line, "precip=${state.precipText}" in line)
     }
 
     @Test

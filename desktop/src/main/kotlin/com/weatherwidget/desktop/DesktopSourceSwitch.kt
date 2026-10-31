@@ -81,17 +81,16 @@ internal object DesktopSourceSwitch {
     }
 
     /**
-     * The UI applied cached data for [displaySource]. The first time that is the source of the pending
+     * The UI applied a snapshot holding [sourceId]. The first time that is the source of the pending
      * switch, logs `SOURCE_SWITCH_E2E phase=data_ready sinceSwitchMs=`: the graph's wait, which desktop's
      * `paintMs` (~0, a config-state change) cannot show. That wait was 5.6 s behind a held SQLite lock
      * on 2026-10-29 while `criticalMs` read 1.
      */
-    fun onDataShown(displaySource: String?) {
+    fun onDataShown(sourceId: String) {
         val switch = pending ?: return
-        if (displaySource == null || WeatherSource.fromDisplaySource(displaySource).id != switch.to) return
+        if (sourceId != switch.to) return
         pending = null
-        val line = "platform=desktop from=${switch.from} to=${switch.to} trigger=${switch.trigger} " +
-            "phase=data_ready sinceSwitchMs=${elapsedMs() - switch.startMs}"
+        val line = SourceSwitchRunner.dataReadyLine("desktop", switch.from, switch.to, switch.trigger, elapsedMs() - switch.startMs)
         Log.i(TAG, "${SourceSwitchRunner.E2E_TAG} $line")
         DesktopAppLogQueue.log(SourceSwitchRunner.E2E_TAG, line, "INFO")
     }

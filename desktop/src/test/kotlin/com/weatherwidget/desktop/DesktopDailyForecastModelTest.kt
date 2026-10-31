@@ -73,6 +73,7 @@ settings = DesktopSettings(weatherSource = "NWS"),
         dailyActuals: Map<String, DailyHistory> = emptyMap(),
         dailySnapshots: Map<String, List<DailyForecastSnapshot>> = emptyMap(),
     ): ForecastSnapshot = ForecastSnapshot(
+        sourceId = "NWS",
         raw = RawFetch(
             hourly = hourly,
             daily = daily,

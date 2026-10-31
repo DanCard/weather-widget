@@ -477,8 +477,7 @@ internal fun runDesktopUiApplication() = application {
                 val cached = repo.loadCached()
                 if (cached != null && !holdForLocationChange(cached)) {
                     forecast = cached
-                    // The repository is rebuilt per source, so this is the switched-to source's data.
-                    DesktopSourceSwitch.onDataShown(currentConfig?.displaySource)
+                    DesktopSourceSwitch.onDataShown(cached.sourceId)
                     val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.settings?.weatherSource)
                     dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
                 }

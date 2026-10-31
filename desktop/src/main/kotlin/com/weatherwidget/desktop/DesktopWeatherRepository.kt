@@ -194,6 +194,7 @@ class DesktopWeatherRepository(
         val observations = if (displaySource.supportsTemperatureActuals) raw.rawObservations else emptyList()
         val resolved = resolveForForecastResult(raw.hourly, observations, currentTimeMillis())
         return ForecastSnapshot(
+            sourceId = displaySource.id,
             raw = raw,
             resolved = ResolvedView(
                 currentTemp = resolved.displayTemp,
@@ -273,6 +274,7 @@ class DesktopWeatherRepository(
         }
 
         ForecastSnapshot(
+            sourceId = displaySource.id,
             raw = RawFetch(
                 hourly = hourly,
                 daily = appendClimateNormalGaps(daily, now),
@@ -986,6 +988,7 @@ class DesktopWeatherRepository(
             val resolvedCached = resolveForForecastResult(cached.raw.hourly, cached.raw.rawObservations, now)
 
             ForecastSnapshot(
+                sourceId = displaySource.id,
                 raw = cached.raw,
                 resolved = ResolvedView(
                     currentTemp = resolvedCached.displayTemp,

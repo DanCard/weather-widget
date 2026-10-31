@@ -56,6 +56,38 @@ class HeaderContentTest {
     )
 
     @Test
+    fun labelSourceNamesTheLabelOnly() {
+        val now = LocalDateTime.of(2026, 6, 1, 10, 0)
+        fun content(labelSourceId: String) = HeaderContent.build(
+            view = View.DAILY,
+            hourly = listOf(10, 11, 12, 13, 14).map { row(now.withHour(it), precip = 0, source = "NWS") },
+            displaySourceId = "NWS",
+            dailyFallback = null,
+            fallbackDailyPrecip = 40,
+            currentTemp = 62.7f,
+            isStaleEstimate = false,
+            numColumns = 5,
+            deltaFromYesterday = 2.9f,
+            now = now,
+            centerTime = now,
+            lat = lat,
+            lon = lon,
+            useCelsius = false,
+            widthDp = 400,
+            labelSourceId = labelSourceId,
+        )
+
+        val same = content("NWS")
+        val other = content("OPEN_METEO")
+
+        assertEquals(same.copy(sourceLabel = "Meteo"), other)
+        assertEquals(
+            "source=NWS view=DAILY icon=${other.iconName} temp=${other.tempText} delta=${other.deltaText} precip=null label=Meteo",
+            HeaderContent.logLine("NWS", View.DAILY, other),
+        )
+    }
+
+    @Test
     fun dailyHeaderAppliesNightScale() {
         val now = LocalDateTime.of(2026, 6, 1, 22, 0)
         val c = build(View.DAILY, listOf(row(now, 90), row(now.plusHours(1), 90)), now)

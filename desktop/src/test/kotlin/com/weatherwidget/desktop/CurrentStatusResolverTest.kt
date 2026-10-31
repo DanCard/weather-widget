@@ -27,6 +27,7 @@ class CurrentStatusResolverTest {
         }
 
         val forecast = ForecastSnapshot(
+sourceId = "NWS",
 raw = RawFetch(),
 resolved = ResolvedView(currentObservedAt = 1_780_000_000_000L,
 currentCondition = "Clear"),
@@ -51,6 +52,7 @@ currentCondition = "Clear"),
         }
 
         val status = resolver.resolve(ForecastSnapshot(
+sourceId = "NWS",
 raw = RawFetch(),
 resolved = ResolvedView(),
 ), now = 42L)
@@ -67,7 +69,7 @@ resolved = ResolvedView(),
         val logs = mutableListOf<String>()
         var next = DesktopWeatherRepository.ResolvedCurrentTemp(71.76f, 1.5f, null, observedTemp = 71.5f, observedAt = 9L, windowObservations = 12, windowHourly = 4)
         val resolver = CurrentStatusResolver(1.0, 2.0, "NWS", logChange = { logs += it }) { _, _ -> next }
-        val snapshot = ForecastSnapshot(raw = RawFetch(), resolved = ResolvedView())
+        val snapshot = ForecastSnapshot(sourceId = "NWS", raw = RawFetch(), resolved = ResolvedView())
 
         resolver.resolve(snapshot, now = 1L)
         resolver.resolve(snapshot, now = 2L) // same value: quiet

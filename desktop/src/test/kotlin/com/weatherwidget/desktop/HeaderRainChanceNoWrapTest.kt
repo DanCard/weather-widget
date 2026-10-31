@@ -65,6 +65,7 @@ class HeaderRainChanceNoWrapTest {
         }
         val today = LocalDate.now()
         return ForecastSnapshot(
+            sourceId = "NWS",
             raw = RawFetch(
                 daily = listOf(
                     DailyForecast(today.toString(), 75f, 55f, "Cloudy", precipProbability = percent),

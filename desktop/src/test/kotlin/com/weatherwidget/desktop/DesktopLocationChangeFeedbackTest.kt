@@ -53,6 +53,7 @@ class DesktopLocationChangeFeedbackTest {
     private val now = today.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 
     private fun snapshot(vararg dates: String, hourlyToday: Boolean = true, hourlyFetchedAt: Long = now - 3_600_000L) = ForecastSnapshot(
+        sourceId = "NWS",
         raw = RawFetch(
             daily = dates.map { DailyForecast(date = it, highTemp = 70f, lowTemp = 55f, condition = "Clear") },
             hourly = if (hourlyToday) {

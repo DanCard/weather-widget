@@ -43,6 +43,7 @@ class DesktopUiTest {
     val composeTestRule = createComposeRule()
 
     private val stubForecast = ForecastSnapshot(
+sourceId = "NWS",
 raw = RawFetch(daily = listOf(
             DailyForecast("2026-06-01", 75f, 55f, "Sunny", precipProbability = 0),
             DailyForecast("2026-06-02", 78f, 58f, "Cloudy", precipProbability = 10)

@@ -264,6 +264,8 @@ data class ResolvedView(
 
 /** Full snapshot: raw data + resolved display values, for consumers that need both. */
 data class ForecastSnapshot(
+    /** The source this snapshot holds. Desktop's config moves first on a switch, so the two can differ. */
+    val sourceId: String,
     val raw: RawFetch,
     val resolved: ResolvedView,
     /**
