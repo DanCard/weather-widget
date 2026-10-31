@@ -434,6 +434,39 @@ object DailyRainLabelPlanner {
     }
 
     /**
+     * Drops a night label sitting just under a ° until it has [DailyRainLabels.NIGHT_DEGREE_GAP_DP] of
+     * air, for at most [DailyRainLabels.NIGHT_DEGREE_MAX_DROP_DP]. The search calls a graze of the ° clear,
+     * which leaves the two reading as one glyph. It stays put when the drop would cross [maxBottom] or
+     * run into anything else; a slight overlap (either axis) is still fine there.
+     */
+    fun dropClearOfDegree(
+        centerX: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        obstacles: List<Box>,
+        maxBottom: Float,
+        density: Float,
+    ): Float {
+        val left = centerX - width / 2f
+        val right = centerX + width / 2f
+        val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
+        val gapPx = DailyRainLabels.NIGHT_DEGREE_GAP_DP * density
+        val maxDropPx = DailyRainLabels.NIGHT_DEGREE_MAX_DROP_DP * density
+        val target = obstacles
+            .filter { it.isDegreeSign && minOf(right, it.right) > maxOf(left, it.left) && top > it.top }
+            .maxOfOrNull { it.bottom + gapPx } ?: return top
+        val drop = target - top
+        if (drop <= 0f || drop > maxDropPx || target + height > maxBottom) return top
+        val blocked = obstacles.any {
+            !it.isDegreeSign &&
+                minOf(right, it.right) - maxOf(left, it.left) > slightPx &&
+                minOf(target + height, it.bottom) - maxOf(target, it.top) > slightPx
+        }
+        return if (blocked) top else target
+    }
+
+    /**
      * A low-temp label as night-label obstacles: the digits at full height, and — when [text] ends in
      * ° — the degree sign over only the top [DailyRainLabels.DEGREE_SIGN_HEIGHT_FRACTION] of the box.
      * One full-height box made the blank pocket under the ° an obstacle, pushing night labels toward

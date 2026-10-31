@@ -267,21 +267,30 @@ object DailyRainLabelLayout {
         } else {
             eased
         }
+        val finalTop = DailyRainLabelPlanner.dropClearOfDegree(
+            centerX = final.centerX,
+            top = final.top,
+            width = size.width,
+            height = size.height,
+            obstacles = input.obstacles,
+            maxBottom = maxBottom,
+            density = p,
+        )
         Log.v(
             TAG,
             "nightRainLabel position: platform=$platform date=${input.date} text=\"${input.text}\" fit=$placement" +
                 " anchorBottom=${anchorBottom.r()} lowerLowBottom=${lowerLowBottom.r()} roomBelowDp=${roomBelowDp.r()}" +
                 " tuckTop=${tuckTop.r()} home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
-                " resolved=(${final.centerX.r()},${final.top.r()}) placement=${placed.placement} sunk=$sunk" +
-                " recentered=${final != eased}" +
+                " resolved=(${final.centerX.r()},${finalTop.r()}) placement=${placed.placement} sunk=$sunk" +
+                " recentered=${final != eased} degreeDropDp=${((finalTop - final.top) / p).r()}" +
                 " easedDp=(${((eased.centerX - placedCenterX) / p).r()},${((eased.top - placed.top) / p).r()})" +
                 " offsetDp=(${(placed.dxPx / p).r()},${(placed.dyPx / p).r()}) overlapDp=${(placed.overlapPx / p).r()}" +
                 " maxBottom=${maxBottom.r()} dayLabelTop=${input.dayLabelTop.r()}" +
                 " obstacles=${input.obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}",
         )
         return Placed(
-            Kind.NIGHT, input.text, fontScale, final.centerX, final.top, size.width, size.height,
-            final.top + size.baseline, placement, anchorBottom,
+            Kind.NIGHT, input.text, fontScale, final.centerX, finalTop, size.width, size.height,
+            finalTop + size.baseline, placement, anchorBottom,
         )
     }
 

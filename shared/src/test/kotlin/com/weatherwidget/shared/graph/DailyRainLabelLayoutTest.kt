@@ -233,6 +233,27 @@ class DailyRainLabelLayoutTest {
     }
 
     @Test
+    fun `night label grazing a degree sign drops for air when there is room`() {
+        // Silurian "15%" on the Fold, 10:05 trace: 2.3 px into the ° box of "47.9°".
+        val p = 2.625f
+        val low = DailyRainLabelPlanner.lowLabelObstacles("47.9°", 131.7f, 328.4f, 202.7f, 365.4f, degreeWidth = 12f)
+        assertEquals(
+            low[1].bottom + DailyRainLabels.NIGHT_DEGREE_GAP_DP * p,
+            DailyRainLabelPlanner.dropClearOfDegree(198.4f, 344.6f, 19f, 12.4f, low, 379.4f, p),
+            0.01f,
+        )
+    }
+
+    @Test
+    fun `night label stays under a degree sign without room or with something below`() {
+        val p = 2.625f
+        val low = DailyRainLabelPlanner.lowLabelObstacles("47.9°", 131.7f, 328.4f, 202.7f, 365.4f, degreeWidth = 12f)
+        assertEquals(344.6f, DailyRainLabelPlanner.dropClearOfDegree(198.4f, 344.6f, 19f, 12.4f, low, 358f, p), 0.01f)
+        val blocked = low + Box(190f, 350f, 215f, 372f)
+        assertEquals(344.6f, DailyRainLabelPlanner.dropClearOfDegree(198.4f, 344.6f, 19f, 12.4f, blocked, 379.4f, p), 0.01f)
+    }
+
+    @Test
     fun `night label the search moved left does not ease further left`() {
         // Sun-Mon "10%" at the same height: eased to the 30 % limit, 5.3 dp left of centre.
         val p = 2.625f
@@ -323,8 +344,7 @@ class DailyRainLabelLayoutTest {
     fun `night label on a degree sign moves down when there is lots of room`() {
         val label = desktopNight(dayLabelTop = 691.6f)
         assertEquals("stays in the gap", 369.5f, label.centerX, 0.01f)
-        assertTrue("below the °: top=${label.top}", label.top >= 630.1f - DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * 2.576f)
-        assertTrue("above the lower low's bottom: bottom=${label.bottom}", label.bottom <= satLow.bottom)
+        assertEquals("air under the °", 630.1f + DailyRainLabels.NIGHT_DEGREE_GAP_DP * 2.576f, label.top, 0.01f)
     }
 
     @Test
