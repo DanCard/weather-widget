@@ -539,14 +539,20 @@ class SettingsActivity : AppCompatActivity() {
      */
     @VisibleForTesting
     internal inner class SourceDragCallback : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
-        private var orderAtDragStart: List<String>? = null
+        // Lazy: this callback is built at field init, before Hilt injects eventLogger.
+        private val dragRun by lazy {
+            com.weatherwidget.shared.sourceview.SourceDragRun(
+                platform = "android",
+                host = SettingsSourceDragHost(eventLogger) { persistSourceOrder("Drag: new list=$it", it) },
+            )
+        }
 
         override fun isLongPressDragEnabled(): Boolean = false
 
         override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
             super.onSelectedChanged(viewHolder, actionState)
             if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && viewHolder != null) {
-                orderAtDragStart = rotationAdapter.ids
+                dragRun.start(rotationAdapter.ids[viewHolder.bindingAdapterPosition], rotationAdapter.ids)
                 viewHolder.itemView.elevation = 8f * resources.displayMetrics.density
             }
         }
@@ -565,11 +571,7 @@ class SettingsActivity : AppCompatActivity() {
         override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
             super.clearView(recyclerView, viewHolder)
             viewHolder.itemView.elevation = 0f
-            val before = orderAtDragStart ?: return
-            orderAtDragStart = null
-            val after = rotationAdapter.ids
-            if (after == before) return
-            persistSourceOrder("Drag: ${before.joinToString(",")} → new list=$after", after)
+            if (!dragRun.finish(rotationAdapter.ids)) return
             // Rebind so each row's Move up / Move down actions match its new position. Posted:
             // clearView can run inside a layout pass, where notifyDataSetChanged throws.
             recyclerView.post { rebuildSourceRows() }

@@ -48,6 +48,7 @@ import com.weatherwidget.desktop.theme.WeatherOutlinedButton
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
+import com.weatherwidget.shared.sourceview.SourceDragRun
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.settings.SettingsSection
 import com.weatherwidget.shared.util.WeatherSourceOrdering
@@ -741,6 +742,12 @@ private fun ApiSourcesList(
     val rowHeights = remember { mutableStateMapOf<String, Int>() }
     val currentEnabled by rememberUpdatedState(enabled)
     val currentOnChanged by rememberUpdatedState(onChanged)
+    val dragRun = remember {
+        SourceDragRun(
+            platform = "desktop",
+            host = DesktopSourceDragHost { currentOnChanged(it) },
+        )
+    }
     val rowSpacing = 4.dp
     val rowSpacingPx = with(LocalDensity.current) { rowSpacing.toPx() }
 
@@ -760,11 +767,10 @@ private fun ApiSourcesList(
 
     fun endDrag() {
         val dropped = dragOrder ?: return
-        Log.d(TAG, "SOURCE_DRAG end id=$draggingId from=$currentEnabled to=$dropped")
         draggingId = null
         dragOffset = 0f
         dragOrder = null
-        if (dropped != currentEnabled) currentOnChanged(dropped)
+        dragRun.finish(dropped)
     }
 
     fun Modifier.dragsRow(id: String): Modifier = pointerHoverIcon(PointerIcon.Hand).pointerInput(id) {
@@ -773,7 +779,7 @@ private fun ApiSourcesList(
                 draggingId = id
                 dragOffset = 0f
                 dragOrder = currentEnabled
-                Log.d(TAG, "SOURCE_DRAG start id=$id order=$currentEnabled")
+                dragRun.start(id, currentEnabled)
             },
             onDrag = { change, amount ->
                 change.consume()

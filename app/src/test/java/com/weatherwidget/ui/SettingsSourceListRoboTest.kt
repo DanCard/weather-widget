@@ -164,6 +164,8 @@ class SettingsSourceListRoboTest {
             val logs = sourceOrderLogs()
             assertEquals("one save per drag: $logs", 1, logs.count { it.startsWith("Order changed:") })
             assertEquals("one Drag line: $logs", 1, logs.count { it.startsWith("Drag:") })
+            val dragLogs = runBlocking { db.appLogDao().getLogsByTag("SOURCE_DRAG", 50) }.map { it.message }
+            assertEquals("start and end: $dragLogs", 2, dragLogs.count { it.startsWith("platform=android phase=") })
         }
     }
 
