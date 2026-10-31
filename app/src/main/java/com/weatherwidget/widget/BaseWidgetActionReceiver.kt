@@ -271,6 +271,8 @@ abstract class BaseWidgetActionReceiver : BroadcastReceiver() {
                 Log.d(tag, "Preempted other widget updates: active=$appWidgetId cancelled=$list")
                 val repo = if (::repository.isInitialized) repository else null
                 WidgetPreemptionSettler.recordPreempted(context, list, repo)
+            } else {
+                WidgetPreemptionSettler.extendIfPending(context, if (::repository.isInitialized) repository else null)
             }
             list
         } else {
@@ -329,6 +331,8 @@ abstract class BaseWidgetActionReceiver : BroadcastReceiver() {
             }
         }
         WidgetActionJobRegistry.track(appWidgetId, job)
+        WidgetTimedRepaintGate.gate.interactionStarted()
+        job.invokeOnCompletion { WidgetTimedRepaintGate.gate.interactionEnded() }
         job.start()
     }
 

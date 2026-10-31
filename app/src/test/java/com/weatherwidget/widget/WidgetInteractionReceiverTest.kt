@@ -12,6 +12,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -62,6 +63,27 @@ class WidgetInteractionReceiverTest {
     @After
     fun tearDown() {
         unmockkAll()
+    }
+
+    @Test
+    fun `a user refresh releases the broadcast before its repaint runs`() = testScope.runTest {
+        mockkObject(BroadcastAsyncRunner)
+        coEvery { WidgetRefreshCoordinator.refresh(any(), any(), any(), any(), any()) } returns Unit
+
+        actionReceiver.onReceive(
+            context,
+            Intent(context, WidgetActionReceiver::class.java).apply {
+                action = WidgetActions.ACTION_REFRESH
+                putExtra(WidgetActions.EXTRA_UI_ONLY, false)
+            },
+        )
+
+        // The dispatcher has not run, so the repaint has not started: a tap must not queue behind it.
+        coVerify(exactly = 0) { WidgetRefreshCoordinator.refresh(any(), any(), any(), any(), any()) }
+        verify(exactly = 1) { BroadcastAsyncRunner.finishPendingResultSafely(any(), "WidgetActionReceiver:dispatched") }
+
+        testScheduler.advanceUntilIdle()
+        coVerify(exactly = 1) { WidgetRefreshCoordinator.refresh(any(), any(), any(), any(), true) }
     }
 
     @Test

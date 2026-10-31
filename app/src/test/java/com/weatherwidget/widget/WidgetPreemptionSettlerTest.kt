@@ -66,5 +66,34 @@ class WidgetPreemptionSettlerTest : RobolectricTest() {
         assertEquals(listOf(101, 102, 103), renderedList)
         assertTrue(WidgetPreemptionSettler.pendingWidgets().isEmpty())
     }
-}
 
+    @Test
+    fun `a tap that preempted nothing still holds back a pending settlement`() = runTest {
+        val renderedList = mutableListOf<Int>()
+        WidgetPreemptionSettler.renderWidget = { _, id, _ -> renderedList.add(id) }
+        WidgetPreemptionSettler.scope = this
+        WidgetPreemptionSettler.settlementDelayMs = 1000L
+
+        WidgetPreemptionSettler.recordPreempted(context, listOf(101), repository)
+        testScheduler.advanceTimeBy(900)
+        WidgetPreemptionSettler.extendIfPending(context, repository)
+        testScheduler.advanceTimeBy(900)
+        testScheduler.runCurrent()
+        assertTrue("The tap at 900 ms moved settlement to 1900 ms", renderedList.isEmpty())
+
+        testScheduler.advanceUntilIdle()
+        assertEquals(listOf(101), renderedList)
+    }
+
+    @Test
+    fun `extending with nothing pending schedules nothing`() = runTest {
+        val renderedList = mutableListOf<Int>()
+        WidgetPreemptionSettler.renderWidget = { _, id, _ -> renderedList.add(id) }
+        WidgetPreemptionSettler.scope = this
+
+        WidgetPreemptionSettler.extendIfPending(context, repository)
+
+        testScheduler.advanceUntilIdle()
+        assertTrue(renderedList.isEmpty())
+    }
+}

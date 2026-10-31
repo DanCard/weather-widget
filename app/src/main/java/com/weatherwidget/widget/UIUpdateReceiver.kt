@@ -42,7 +42,7 @@ class UIUpdateReceiver : BroadcastReceiver() {
 
         Log.d(TAG, "UI update alarm triggered")
 
-        WidgetWorkScheduler.enqueueUiRepaint(context, reason = "ui_update_alarm")
+        WidgetWorkScheduler.enqueueUiRepaint(context, reason = WidgetTimedRepaintGate.REASON_UI_TICK)
         Log.d(TAG, "UI-only update enqueued")
 
         // Heartbeat recovery: Ensure the charging loop is running if the device is plugged in.

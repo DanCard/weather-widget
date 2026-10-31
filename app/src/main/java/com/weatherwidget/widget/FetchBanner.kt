@@ -38,6 +38,10 @@ object FetchBanner {
         ids.forEach { id ->
             stateManager.setTransientMessage(id, text, nowMs + showMs)
             push(context, appWidgetManager, id, text)
+        }
+        // One repaint, not one per id: a UI repaint carries no widget id and paints every widget, so
+        // four of them made 13 paint attempts for one banner (2026-10-31).
+        ids.firstOrNull()?.let { id ->
             WidgetWorkScheduler.enqueueDelayedUiRepaint(
                 context = context,
                 appWidgetId = id,

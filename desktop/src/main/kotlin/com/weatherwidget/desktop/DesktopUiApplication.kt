@@ -494,6 +494,7 @@ internal fun runDesktopUiApplication() = application {
                 val resumed = isSuspendJump(UI_FALLBACK_TICK_MS, gapMs, SUSPEND_JUMP_SLACK_MS)
                 expectedMs = now
                 if (!resumed && now - lastReloadMs < UI_FALLBACK_RELOAD_MS) continue
+                if (!fallbackReloadAdmitted(resumed)) continue
                 try {
                     repo.loadCached()?.takeUnless { holdForLocationChange(it) }?.let { forecast = it }
                     // Also re-evaluates the status banner (see the dataUpdateCount-keyed effect).

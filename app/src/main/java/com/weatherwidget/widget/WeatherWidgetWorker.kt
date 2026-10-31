@@ -88,6 +88,7 @@ class WeatherWidgetWorker
 
             val requested = WorkInput.from(inputData)
             deferForStartupCooldown(requested)?.let { return it }
+            deferForInteraction(requested)?.let { return it }
             val input = dropSatisfiedForce(requested)
             val device = measureDeviceContext()
             if (device.isScreenInteractive) UsageHoursTracker.sight(context) else UsageHoursTracker.advance(context)
@@ -175,6 +176,23 @@ class WeatherWidgetWorker
                     "outcome=${outcome.logValue} $detail",
                 "INFO",
             )
+            return Result.success()
+        }
+
+        /**
+         * A timed repaint yields to a user who is interacting ([WidgetTimedRepaintGate]). The widgets
+         * are left to [WidgetPreemptionSettler], which repaints them once taps settle, so this run
+         * ends normally and re-enqueues nothing.
+         *
+         * Returns the result to hand back when the run was deferred, or null to proceed.
+         */
+        private suspend fun deferForInteraction(input: WorkInput): Result? {
+            if (!input.uiOnlyRefresh) return null
+            val trigger = WidgetTimedRepaintGate.triggerFor(input.currentTempReason) ?: return null
+            if (WidgetTimedRepaintGate.admit(appLogDao, trigger)) return null
+            val ids = AppWidgetManager.getInstance(context)
+                .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
+            WidgetPreemptionSettler.recordPreempted(context, ids.toList(), weatherRepository)
             return Result.success()
         }
 

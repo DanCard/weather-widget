@@ -6,6 +6,7 @@ import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.util.TimedRepaintGate
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
@@ -24,7 +25,7 @@ import kotlinx.coroutines.launch
  */
 internal object WidgetPreemptionSettler {
     private const val TAG = "WidgetPreemptionSettler"
-    const val DEFAULT_SETTLEMENT_DELAY_MS = 3000L
+    const val DEFAULT_SETTLEMENT_DELAY_MS = TimedRepaintGate.QUIET_MS
 
     @VisibleForTesting
     internal var settlementDelayMs: Long = DEFAULT_SETTLEMENT_DELAY_MS
@@ -49,7 +50,15 @@ internal object WidgetPreemptionSettler {
         if (widgetIds.isEmpty()) return
         pendingSettlementWidgets.addAll(widgetIds)
         WidgetStateManager(context).setPaintOwed(true)
+        arm(context, repository)
+    }
 
+    /** A tap that preempted nothing still means the user is not settled, so pending repaints wait. */
+    fun extendIfPending(context: Context, repository: WeatherRepository?) {
+        if (pendingSettlementWidgets.isNotEmpty()) arm(context, repository)
+    }
+
+    private fun arm(context: Context, repository: WeatherRepository?) {
         synchronized(lock) {
             settlementJob?.cancel()
             val appContext = context.applicationContext

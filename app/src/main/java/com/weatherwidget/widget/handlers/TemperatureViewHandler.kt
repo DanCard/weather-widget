@@ -11,6 +11,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.util.TimedRepaintGate
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.FetchDotDebug
@@ -19,7 +20,9 @@ import com.weatherwidget.widget.ObservationWatermark
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
+import com.weatherwidget.widget.WidgetPreemptionSettler
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.WidgetTimedRepaintGate
 import java.time.LocalDateTime
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
@@ -450,6 +453,14 @@ object TemperatureViewHandler {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             }
+            if (!WidgetTimedRepaintGate.admit(appLogDao, TimedRepaintGate.Trigger.STARTUP_FOLLOW_UP)) {
+                WidgetPreemptionSettler.recordPreempted(appContext, listOf(appWidgetId), null)
+                return@launch
+            }
+            appLogDao.log(
+                "STARTUP_FULL_GRAPH_REFRESH",
+                "widget=$appWidgetId sentAfterMs=${SystemClock.elapsedRealtime() - phase1StartMs}",
+            )
             appContext.sendBroadcast(Intent(appContext, WidgetActionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)

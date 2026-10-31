@@ -35,6 +35,10 @@ available emulator only if neither is available. Common installed targets are
 widget preferences, and database state before diagnosing visual/data mismatches. Do not ask for the
 location when runtime state can reveal it.
 
+`INTERACTION_E2E queue=` starts at `onReceive`, so it cannot see a tap waiting for delivery. For a
+slow tap, compare logcat's `InputReader` touch-up and `ActivityManager Received BROADCAST` lines with
+`WidgetInteractionRcvr onReceive`. Repeat taps that arrive as a burst are the usual sign of a stall.
+
 When an emulator widget looks wrong but the app logged a good paint, run
 `scripts/capture-launcher-state.sh` before pressing HOME or restarting the launcher. It saves a
 screenshot, the launcher's live view tree, and a bugreport for every running emulator under

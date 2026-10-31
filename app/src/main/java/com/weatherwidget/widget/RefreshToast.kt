@@ -85,7 +85,7 @@ object RefreshToast {
         val free = widgetIds.filter { id -> stateManager.getActiveTransientMessage(id).let { it == null || it == text } }
         if (free.isEmpty()) return "suppressed busy"
         val ids = free.toIntArray()
-        FetchBanner.show(context, text, ids, reason = "clear_refresh_notice", showMs = RefreshNotice.DURATION_MS)
+        FetchBanner.show(context, text, ids, reason = WidgetTimedRepaintGate.REASON_NOTICE_EXPIRY, showMs = RefreshNotice.DURATION_MS)
         // Hidden explicitly: the delayed repaint does not hide an expired banner (visibility is sticky).
         Handler(Looper.getMainLooper()).postDelayed({ FetchBanner.expire(context, text, ids) }, RefreshNotice.DURATION_MS)
         return "shown banner=${ids.size}"

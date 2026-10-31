@@ -6,7 +6,6 @@ import android.content.Intent
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import dagger.hilt.android.AndroidEntryPoint
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,13 +26,6 @@ class WidgetActionReceiver : BaseWidgetActionReceiver() {
     override val actionHandlers: Map<String, (Context, Intent, Long) -> Unit> =
         interactionHandlers + (WidgetActions.ACTION_REFRESH to { context, intent, _ ->
             val pendingResult = goAsync()
-            val finished = AtomicBoolean(false)
-            fun finishOnce(reason: String) {
-                if (finished.compareAndSet(false, true)) {
-                    BroadcastAsyncRunner.finishPendingResultSafely(pendingResult, "$TAG:$reason")
-                }
-            }
-
             val requestedWidgetId =
                 intent.getIntExtra(
                     AppWidgetManager.EXTRA_APPWIDGET_ID,
@@ -46,6 +38,7 @@ class WidgetActionReceiver : BaseWidgetActionReceiver() {
                 com.weatherwidget.widget.handlers.WidgetInteractionCache.clear()
             }
 
+            if (userInitiated) WidgetTimedRepaintGate.gate.interactionStarted()
             scope.launch {
                 try {
                     WidgetRefreshCoordinator.refresh(
@@ -60,15 +53,14 @@ class WidgetActionReceiver : BaseWidgetActionReceiver() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Refresh failed", e)
                 } finally {
-                    finishOnce("completed")
+                    if (userInitiated) WidgetTimedRepaintGate.gate.interactionEnded()
                 }
             }
 
-            // For passive / UI-only background refreshes (e.g. from ScreenOnReceiver or Settings),
-            // release the broadcast transaction early so AMS does not queue user interaction taps.
-            if (!userInitiated) {
-                finishOnce("passive_dispatched")
-            }
+            // Released here for every refresh, never after the repaint: AMS delivers this app's
+            // manifest broadcasts one at a time, so holding this one queues every tap behind it. A
+            // four-widget refresh on a cold process held a cloud-graph tap for 12.4 s on 2026-10-31.
+            BroadcastAsyncRunner.finishPendingResultSafely(pendingResult, "$TAG:dispatched")
         })
 
     companion object {

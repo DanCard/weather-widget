@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -312,29 +313,31 @@ internal fun PopupWindowHost(
             windowState = windowState,
             showRequestId = showRequestId,
         )
-        WidgetPopup(
-            config = config,
-            forecast = forecast,
-            dataStatus = dataStatus,
-            resolvedCurrentTemp = resolvedCurrentTemp,
-            resolvedDeltaFromYesterday = resolvedDeltaFromYesterday,
-            onUpdateLocation = onUpdateLocation,
-            onUpdateConfig = onUpdateConfig,
-            onOpenSettings = onOpenSettings,
-            onOpenObservations = onOpenObservations,
-            onOpenHistory = onOpenHistory,
-            onOpenSimLoop = onOpenSimLoop,
-            onOpenRadar = onOpenRadar,
-            onRegisterArrowKeyHandler = { arrowKeyHandler = it },
-            onNeedHistory = onNeedHistory,
-            onNeedHourlyRefresh = onNeedHourlyRefresh,
-            onDayClickAudit = onDayClickAudit,
-            onHourlyAudit = onHourlyAudit,
-            transientMessage = transientMessage,
-            currentTempFetchError = currentTempFetchError,
-            currentTempFetchPill = currentTempFetchPill,
-            currentTempFetchIsWarmup = currentTempFetchIsWarmup,
-            currentTempFetchDetails = currentTempFetchDetails,
-        )
+        Box(Modifier.fillMaxSize().observeTimedRepaintInteractions()) {
+            WidgetPopup(
+                config = config,
+                forecast = forecast,
+                dataStatus = dataStatus,
+                resolvedCurrentTemp = resolvedCurrentTemp,
+                resolvedDeltaFromYesterday = resolvedDeltaFromYesterday,
+                onUpdateLocation = onUpdateLocation,
+                onUpdateConfig = onUpdateConfig,
+                onOpenSettings = onOpenSettings,
+                onOpenObservations = onOpenObservations,
+                onOpenHistory = onOpenHistory,
+                onOpenSimLoop = onOpenSimLoop,
+                onOpenRadar = onOpenRadar,
+                onRegisterArrowKeyHandler = { arrowKeyHandler = it },
+                onNeedHistory = onNeedHistory,
+                onNeedHourlyRefresh = onNeedHourlyRefresh,
+                onDayClickAudit = onDayClickAudit,
+                onHourlyAudit = onHourlyAudit,
+                transientMessage = transientMessage,
+                currentTempFetchError = currentTempFetchError,
+                currentTempFetchPill = currentTempFetchPill,
+                currentTempFetchIsWarmup = currentTempFetchIsWarmup,
+                currentTempFetchDetails = currentTempFetchDetails,
+            )
+        }
     }
 }
