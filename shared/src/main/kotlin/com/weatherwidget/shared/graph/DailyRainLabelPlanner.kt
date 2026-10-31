@@ -425,8 +425,7 @@ object DailyRainLabelPlanner {
         for (c in 0 until columns.coerceAtLeast(1)) {
             val cx = homeCenterX + (if (offset > 0f) c else -c) * step
             for (i in rows) {
-                val atTop = top + i * step
-                if (atTop + height > maxBottom) continue
+                val atTop = minOf(top + i * step, maxBottom - height)
                 if (clearOfInk(cx, atTop)) return NightLabelEase(cx, atTop)
             }
         }
@@ -437,8 +436,8 @@ object DailyRainLabelPlanner {
      * Drops a night label off a low label's digit ink, for at most
      * [DailyRainLabels.NIGHT_INK_MAX_DROP_DP] and never past [maxBottom]. The search accepts an overlap
      * up to 15 % of the label's area, which down a tall side edge is text touching text. Only an overlap
-     * wider than [DailyRainLabels.NIGHT_INK_SIDE_OVERLAP_DP] counts, and the drop must clear the ink to
-     * within [DailyRainLabels.NIGHT_RECENTER_INK_OVERLAP_DP], or as near as [maxBottom] allows.
+     * wider than [DailyRainLabels.NIGHT_INK_SIDE_OVERLAP_DP] counts, and only digits it can clear, to
+     * within twice [DailyRainLabels.NIGHT_RECENTER_INK_OVERLAP_DP], as near as [maxBottom] allows.
      */
     fun dropOffDigitInk(
         centerX: Float,
@@ -453,24 +452,71 @@ object DailyRainLabelPlanner {
         val right = centerX + width / 2f
         val sidePx = DailyRainLabels.NIGHT_INK_SIDE_OVERLAP_DP * density
         val inkOverlapPx = DailyRainLabels.NIGHT_RECENTER_INK_OVERLAP_DP * density
+        val lowest = minOf(top + DailyRainLabels.NIGHT_INK_MAX_DROP_DP * density, maxBottom - height)
+        // Digits too tall to clear are left out: dropping only slides the label down their side.
         val target = obstacles
             .filter { it.isLowDigits && minOf(right, it.right) - maxOf(left, it.left) > sidePx }
             .mapNotNull {
                 val h = it.bottom - it.top
                 val inkTop = it.top + h * DailyRainLabels.LOW_BLANK_ASCENT_FRACTION
                 val inkBottom = it.bottom - h * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION
-                if (top + height > inkTop && top < inkBottom - inkOverlapPx) inkBottom - inkOverlapPx else null
+                val level = top + height > inkTop && top < inkBottom - inkOverlapPx
+                if (level && inkBottom - lowest <= 2f * inkOverlapPx) inkBottom else null
             }
             .maxOrNull() ?: return top
-        val limited = minOf(target, top + DailyRainLabels.NIGHT_INK_MAX_DROP_DP * density, maxBottom - height)
-        return maxOf(top, limited)
+        return maxOf(top, minOf(target, lowest))
+    }
+
+    /**
+     * Slides a night label sideways off a neighbour's digit ink when it is level with that ink, leaving
+     * [DailyRainLabels.NIGHT_INK_SIDE_GAP_DP] of air, and staying within [minCenterX]..[maxCenterX]. Off
+     * the left low it needs more than [DailyRainLabels.NIGHT_INK_SIDE_OVERLAP_DP] of overlap, off the right
+     * low more than [DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP], and it stops short of the other low's ink. A label below or above the ink stays: that overlap is blank line box.
+     */
+    fun slideOffDigitInk(
+        centerX: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        leftLowLabel: Box,
+        rightLowLabel: Box?,
+        obstacles: List<Box>,
+        minCenterX: Float,
+        maxCenterX: Float,
+        density: Float,
+    ): Float {
+        val inkOverlapPx = DailyRainLabels.NIGHT_RECENTER_INK_OVERLAP_DP * density
+        val gapPx = DailyRainLabels.NIGHT_INK_SIDE_GAP_DP * density
+        fun digitsOf(low: Box?) = low?.let { l -> obstacles.firstOrNull { it.isLowDigits && it.left == l.left } }
+        fun levelWithInk(digits: Box): Boolean {
+            val h = digits.bottom - digits.top
+            val inkTop = digits.top + h * DailyRainLabels.LOW_BLANK_ASCENT_FRACTION
+            val inkBottom = digits.bottom - h * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION
+            return minOf(top + height, inkBottom) - maxOf(top, inkTop) > inkOverlapPx
+        }
+        val left = centerX - width / 2f
+        val right = centerX + width / 2f
+        val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
+        val rightDigits = digitsOf(rightLowLabel)?.takeIf(::levelWithInk)
+        val leftDigits = digitsOf(leftLowLabel)?.takeIf(::levelWithInk)
+        if (rightDigits != null && right - rightDigits.left > slightPx) {
+            val wanted = right - rightDigits.left + gapPx
+            val room = leftDigits?.let { left - it.right } ?: Float.MAX_VALUE
+            return minOf(centerX, (centerX - minOf(wanted, room)).coerceAtLeast(minCenterX))
+        }
+        if (leftDigits != null && leftDigits.right - left > DailyRainLabels.NIGHT_INK_SIDE_OVERLAP_DP * density) {
+            val wanted = leftDigits.right - left + gapPx
+            val room = (rightDigits?.left ?: Float.MAX_VALUE) - right
+            return maxOf(centerX, (centerX + minOf(wanted, room)).coerceAtMost(maxCenterX))
+        }
+        return centerX
     }
 
     /**
      * Drops a night label sitting just under a ° until it has [DailyRainLabels.NIGHT_DEGREE_GAP_DP] of
-     * air, for at most [DailyRainLabels.NIGHT_DEGREE_MAX_DROP_DP]. The search calls a graze of the ° clear,
-     * which leaves the two reading as one glyph. It stays put when the drop would cross [maxBottom] or
-     * run into anything else; a slight overlap (either axis) is still fine there.
+     * air, for at most [DailyRainLabels.NIGHT_DEGREE_MAX_DROP_DP] and as far as [maxBottom] allows. The
+     * search calls a graze of the ° clear, which leaves the two reading as one glyph. It stays put when
+     * the drop would run into anything else; a slight overlap (either axis) is still fine there.
      */
     fun dropClearOfDegree(
         centerX: Float,
@@ -489,14 +535,46 @@ object DailyRainLabelPlanner {
         val target = obstacles
             .filter { it.isDegreeSign && minOf(right, it.right) > maxOf(left, it.left) && top > it.top }
             .maxOfOrNull { it.bottom + gapPx } ?: return top
-        val drop = target - top
-        if (drop <= 0f || drop > maxDropPx || target + height > maxBottom) return top
+        if (target - top <= 0f || target - top > maxDropPx) return top
+        val landing = minOf(target, maxBottom - height)
+        if (landing <= top) return top
         val blocked = obstacles.any {
             !it.isDegreeSign &&
                 minOf(right, it.right) - maxOf(left, it.left) > slightPx &&
-                minOf(target + height, it.bottom) - maxOf(target, it.top) > slightPx
+                minOf(landing + height, it.bottom) - maxOf(landing, it.top) > slightPx
         }
-        return if (blocked) top else target
+        return if (blocked) top else landing
+    }
+
+    /**
+     * Slides a night label right off a ° it still grazes because the day-name row left no room to drop
+     * clear of it, by at most [DailyRainLabels.NIGHT_SINK_RIGHT_DP], stopping short of [maxCenterX] and
+     * of anything else level with it.
+     */
+    fun slideOffDegree(
+        centerX: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        obstacles: List<Box>,
+        maxCenterX: Float,
+        density: Float,
+    ): Float {
+        val left = centerX - width / 2f
+        val right = centerX + width / 2f
+        val degree = obstacles.firstOrNull {
+            it.isDegreeSign && top > it.top && top < it.bottom &&
+                minOf(right, it.right) - maxOf(left, it.left) > 0f && (it.left + it.right) / 2f < centerX
+        } ?: return centerX
+        val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
+        val room = obstacles
+            .filter {
+                it !== degree && it.right > right &&
+                    (minOf(top + height, it.bottom) - maxOf(top, it.top)) > slightPx
+            }
+            .minOfOrNull { it.left - right } ?: Float.MAX_VALUE
+        val wanted = minOf(degree.right - left, DailyRainLabels.NIGHT_SINK_RIGHT_DP * density, room)
+        return (centerX + wanted.coerceAtLeast(0f)).coerceAtMost(maxOf(centerX, maxCenterX))
     }
 
     /**

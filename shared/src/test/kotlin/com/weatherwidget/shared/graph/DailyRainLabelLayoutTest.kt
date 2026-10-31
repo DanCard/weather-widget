@@ -244,6 +244,95 @@ class DailyRainLabelLayoutTest {
     }
 
     @Test
+    fun `night label beside digits too tall to clear slides left instead of dropping`() {
+        // Desktop Meteo "22%", 12:21 trace: dropped 5 dp down the side of the "52" and hugged it.
+        val p = 2.88f
+        val left = DailyRainLabelPlanner.lowLabelObstacles("55°", 467.4f, 580.7f, 532.4f, 636.7f, degreeWidth = 18f)
+        val right = DailyRainLabelPlanner.lowLabelObstacles("52°", 554.3f, 645.1f, 619.3f, 701.1f, degreeWidth = 18f)
+        val label = DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(38f, 26f, 20f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-11-03", text = "22%", probability = 22, isPast = false, daysFromToday = 3,
+                columnCenterX = 500f, gapCenterX = 543.3f, columnWidth = 86f,
+                leftLowLabel = Box(467.4f, 580.7f, 532.4f, 636.7f), rightLowLabel = Box(554.3f, 645.1f, 619.3f, 701.1f),
+                obstacles = listOf(Box(473.8f, 528.5f, 525.9f, 580.7f)) + left +
+                    Box(560.7f, 592.9f, 612.9f, 645.1f) + right,
+                dayLabelTop = 795.3f, canvasWidth = 1002f, pxPerDp = p,
+            ),
+            "test",
+        )
+        assertEquals("no futile drop", 644f, label.top, 1f)
+        assertEquals("a dp clear of the digits", 554.3f - p, label.right, 0.01f)
+    }
+
+    @Test
+    fun `night label on the left low's digits slides right when it cannot drop clear`() {
+        // Desktop Meteo "39%", 12:27 trace: on the 9 of "47.9", the day names too close to drop off it.
+        val p = 2.88f
+        val left = DailyRainLabelPlanner.lowLabelObstacles("47.9°", 183.2f, 735.6f, 273.2f, 786.6f, degreeWidth = 16f)
+        val right = DailyRainLabelPlanner.lowLabelObstacles("49°", 293f, 712.2f, 359f, 768.2f, degreeWidth = 18f)
+        val label = DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(49f, 34f, 26f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-10-31", text = "39%", probability = 39, isPast = false, daysFromToday = 0,
+                columnCenterX = 234f, gapCenterX = 277.1f, columnWidth = 86f,
+                leftLowLabel = Box(183.2f, 735.6f, 273.2f, 786.6f), rightLowLabel = Box(293f, 712.2f, 359f, 768.2f),
+                obstacles = listOf(Box(202.1f, 683.4f, 254.3f, 735.6f)) + left +
+                    Box(299.9f, 660.1f, 352.1f, 712.2f) + right,
+                dayLabelTop = 798.2f, canvasWidth = 1002f, pxPerDp = p,
+            ),
+            "test",
+        )
+        assertEquals("a dp clear of the digits", 257.2f + p, label.left, 0.01f)
+        assertEquals("air under the °", 761.1f + DailyRainLabels.NIGHT_DEGREE_GAP_DP * p, label.top, 0.05f)
+    }
+
+    private fun emuNight(text: String, w: Float, h: Float, gap: Float, left: Box, right: Box, leftText: String, rightText: String) =
+        DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(w, h, h * 0.8f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-10-31", text = text, probability = 22, isPast = false, daysFromToday = 0,
+                columnCenterX = gap - 33f, gapCenterX = gap, columnWidth = 66f,
+                leftLowLabel = left, rightLowLabel = right,
+                obstacles = DailyRainLabelPlanner.lowLabelObstacles(leftText, left.left, left.top, left.right, left.bottom, 10f) +
+                    DailyRainLabelPlanner.lowLabelObstacles(rightText, right.left, right.top, right.right, right.bottom, 10f),
+                dayLabelTop = 362.2f, canvasWidth = 480f, pxPerDp = 2.625f,
+            ),
+            "test",
+        )
+
+    @Test
+    fun `night label wedged between lows never slides onto the left low and drops below it`() {
+        // Emulator "4%", 12:33 trace: the side slide ran it from "53.2" into "49.3°".
+        val label = emuNight("4%", 11f, 10f, 57f, Box(-2.5f, 326.6f, 59.5f, 357.2f), Box(54.5f, 334.4f, 116.5f, 365f), "49.3°", "53.2°")
+        assertTrue("right of where the slide left it: ${label.centerX}", label.centerX > 50f)
+        assertTrue("below the left digits' ink: top=${label.top}", label.top >= 350f)
+        assertTrue("clear of the day names: bottom=${label.bottom}", label.bottom <= 362.2f)
+    }
+
+    @Test
+    fun `night label beside a degree sign with little room goes down and right`() {
+        // Emulator "22%", 12:33 trace: 3 px short of room for the full gap, so it stayed by "48.0°".
+        val label = emuNight("22%", 23f, 14.3f, 181.6f, Box(117.1f, 331.7f, 182.1f, 365.7f), Box(192.7f, 316.1f, 234.7f, 350.1f), "48.0°", "49°")
+        assertEquals("down to the day names", 362.2f - 14.3f, label.top, 0.01f)
+        assertTrue("right of centre: ${label.centerX}", label.centerX > 181.6f)
+    }
+
+    @Test
+    fun `night label short of the bottom limit by a hair still returns to the gap`() {
+        // Fold Meteo "39%", 12:21 trace: centred needed a top 0.1 px past the day-name row.
+        val p = 2.625f
+        val done = DailyRainLabelPlanner.recenterOverBlankLineBox(
+            homeCenterX = 147f, centerX = 141.8f, top = 360.4f, width = 26f, height = 16.5f,
+            obstacles = DailyRainLabelPlanner.lowLabelObstacles("48°", 98.1f, 346.6f, 144.1f, 383.5f, degreeWidth = 12f) +
+                DailyRainLabelPlanner.lowLabelObstacles("49°", 150f, 336.6f, 196f, 373.5f, degreeWidth = 12f),
+            maxBottom = 379.4f, density = p,
+        )
+        assertEquals(147f, done.centerX, 0.01f)
+        assertEquals(379.4f - 16.5f, done.top, 0.01f)
+    }
+
+    @Test
     fun `night label only skimming the side of a digit box stays`() {
         // Fold Silurian "15%": 1.8 px into the box's side padding, 0.7 dp.
         val low = DailyRainLabelPlanner.lowLabelObstacles("47.9°", 131.7f, 328.4f, 202.7f, 365.4f, degreeWidth = 12f)
@@ -263,10 +352,10 @@ class DailyRainLabelLayoutTest {
     }
 
     @Test
-    fun `night label stays under a degree sign without room or with something below`() {
+    fun `night label under a degree sign takes the room there is and stays with something below`() {
         val p = 2.625f
         val low = DailyRainLabelPlanner.lowLabelObstacles("47.9°", 131.7f, 328.4f, 202.7f, 365.4f, degreeWidth = 12f)
-        assertEquals(344.6f, DailyRainLabelPlanner.dropClearOfDegree(198.4f, 344.6f, 19f, 12.4f, low, 358f, p), 0.01f)
+        assertEquals(358f - 12.4f, DailyRainLabelPlanner.dropClearOfDegree(198.4f, 344.6f, 19f, 12.4f, low, 358f, p), 0.01f)
         val blocked = low + Box(190f, 350f, 215f, 372f)
         assertEquals(344.6f, DailyRainLabelPlanner.dropClearOfDegree(198.4f, 344.6f, 19f, 12.4f, blocked, 379.4f, p), 0.01f)
     }

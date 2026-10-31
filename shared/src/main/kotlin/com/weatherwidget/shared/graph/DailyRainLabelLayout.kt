@@ -276,8 +276,20 @@ object DailyRainLabelLayout {
             maxBottom = maxBottom,
             density = p,
         )
-        val finalTop = DailyRainLabelPlanner.dropClearOfDegree(
+        val finalCenterX = DailyRainLabelPlanner.slideOffDigitInk(
             centerX = final.centerX,
+            top = offInkTop,
+            width = size.width,
+            height = size.height,
+            leftLowLabel = input.leftLowLabel,
+            rightLowLabel = input.rightLowLabel,
+            obstacles = input.obstacles,
+            minCenterX = homeCenterX - maxShiftPx,
+            maxCenterX = homeCenterX + maxShiftPx,
+            density = p,
+        )
+        val finalTop = DailyRainLabelPlanner.dropClearOfDegree(
+            centerX = finalCenterX,
             top = offInkTop,
             width = size.width,
             height = size.height,
@@ -285,20 +297,29 @@ object DailyRainLabelLayout {
             maxBottom = maxBottom,
             density = p,
         )
+        val placedCenterXFinal = DailyRainLabelPlanner.slideOffDegree(
+            centerX = finalCenterX,
+            top = finalTop,
+            width = size.width,
+            height = size.height,
+            obstacles = input.obstacles,
+            maxCenterX = homeCenterX + maxShiftPx,
+            density = p,
+        )
         Log.v(
             TAG,
             "nightRainLabel position: platform=$platform date=${input.date} text=\"${input.text}\" fit=$placement" +
                 " anchorBottom=${anchorBottom.r()} lowerLowBottom=${lowerLowBottom.r()} roomBelowDp=${roomBelowDp.r()}" +
                 " tuckTop=${tuckTop.r()} home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
-                " resolved=(${final.centerX.r()},${finalTop.r()}) placement=${placed.placement} sunk=$sunk" +
-                " recentered=${final != eased} inkDropDp=${((offInkTop - final.top) / p).r()} degreeDropDp=${((finalTop - offInkTop) / p).r()}" +
+                " resolved=(${placedCenterXFinal.r()},${finalTop.r()}) placement=${placed.placement} sunk=$sunk" +
+                " recentered=${final != eased} inkDropDp=${((offInkTop - final.top) / p).r()} inkSlideDp=${((finalCenterX - final.centerX) / p).r()} degreeDropDp=${((finalTop - offInkTop) / p).r()} degreeSlideDp=${((placedCenterXFinal - finalCenterX) / p).r()}" +
                 " easedDp=(${((eased.centerX - placedCenterX) / p).r()},${((eased.top - placed.top) / p).r()})" +
                 " offsetDp=(${(placed.dxPx / p).r()},${(placed.dyPx / p).r()}) overlapDp=${(placed.overlapPx / p).r()}" +
                 " maxBottom=${maxBottom.r()} dayLabelTop=${input.dayLabelTop.r()}" +
                 " obstacles=${input.obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}",
         )
         return Placed(
-            Kind.NIGHT, input.text, fontScale, final.centerX, finalTop, size.width, size.height,
+            Kind.NIGHT, input.text, fontScale, placedCenterXFinal, finalTop, size.width, size.height,
             finalTop + size.baseline, placement, anchorBottom,
         )
     }
