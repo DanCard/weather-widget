@@ -272,34 +272,37 @@ object DailyRainLabelPlanner {
     }
 
     /**
-     * Slides a night label that sank below both lows [DailyRainLabels.NIGHT_SINK_RIGHT_DP] to the right,
-     * out from under the left low, stopping short of [maxRight] and of anything level with it. A digit
-     * box it only grazes vertically (up to [DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP]) is not level.
+     * Slides a night label that sank below both lows out from under [leftLowLabel], by just enough to
+     * clear it and at most [DailyRainLabels.NIGHT_SINK_RIGHT_DP], stopping short of [maxRight] and of
+     * anything level with it. A label that only grazes the low vertically (up to
+     * [DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP]) stays put, centred in the gap.
      */
     fun slideRightAfterSinking(
         centerX: Float,
         top: Float,
         width: Float,
         height: Float,
+        leftLowLabel: Box,
         obstacles: List<Box>,
         maxRight: Float,
         density: Float,
     ): Float {
         val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
+        fun isLevel(o: Box) = (minOf(top + height, o.bottom) - maxOf(top, o.top)).let { it > 0f && (o.isDegreeSign || it > slightPx) }
+        val needed = leftLowLabel.right - (centerX - width / 2f)
+        if (!isLevel(leftLowLabel) || needed <= 0f) return centerX
         val right = centerX + width / 2f
-        val nearestLevel = obstacles
-            .filter {
-                val overlap = minOf(top + height, it.bottom) - maxOf(top, it.top)
-                overlap > 0f && (it.isDegreeSign || overlap > slightPx) && it.right > right
-            }
-            .minOfOrNull { it.left } ?: maxRight
+        val nearestLevel = obstacles.filter { isLevel(it) && it.left >= leftLowLabel.right }.minOfOrNull { it.left } ?: maxRight
         val room = minOf(nearestLevel, maxRight) - right
-        return centerX + (DailyRainLabels.NIGHT_SINK_RIGHT_DP * density).coerceAtMost(room).coerceAtLeast(0f)
+        return centerX + minOf(needed, DailyRainLabels.NIGHT_SINK_RIGHT_DP * density, room).coerceAtLeast(0f)
     }
 
     /**
      * Moves a placed night label off a neighbour it hugs: within [DailyRainLabels.NIGHT_HUG_DP] of it,
      * or overlapping it, with at least [DailyRainLabels.NIGHT_ROOMY_SIDE_DP] free on the other side.
+     *
+     * A label the search already moved left ([searchMovedLeft]) has taken the least move that clears,
+     * so it does not slide further left: that drifted labels to [maxShiftPx] from the gap's centre.
      *
      * Gaps are measured at the label's own height. A digit box it only grazes vertically (up to
      * [DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP]) is not level with it; a ° always is. Hugging the right,
@@ -324,6 +327,7 @@ object DailyRainLabelPlanner {
         maxBottom: Float,
         minLeft: Float,
         density: Float,
+        searchMovedLeft: Boolean = false,
     ): NightLabelEase {
         val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
         val hugPx = DailyRainLabels.NIGHT_HUG_DP * density
@@ -343,6 +347,7 @@ object DailyRainLabelPlanner {
         val (gapLeft, gapRight) = gaps(top)
         if (gapRight != null && gapRight <= hugPx) {
             if (gapLeft >= roomyPx) {
+                if (searchMovedLeft) return NightLabelEase(centerX, top)
                 val shift = minOf((gapLeft - gapRight) / 2f, roomyPx - gapRight)
                 return NightLabelEase((centerX - shift).coerceAtLeast(minOf(centerX, homeCenterX - maxShiftPx)), top)
             }

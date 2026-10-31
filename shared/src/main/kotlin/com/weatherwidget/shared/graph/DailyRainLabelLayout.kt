@@ -171,7 +171,7 @@ object DailyRainLabelLayout {
      * nudges left, right or down around the neighbours' icons and low labels
      * ([DailyRainLabelPlanner.placeNightLabel]), preferring down when there is lots of room below, then
      * eases off anything it hugs ([DailyRainLabelPlanner.easeOffNeighbors]). It may sink below both
-     * lows, down to the day-name row, when nothing above is clear; a label that does also slides right
+     * lows, down to the day-name row, when nothing above is clear; a label that does slides right off the left low
      * ([DailyRainLabelPlanner.slideRightAfterSinking]). When the lows sit on the day-name row (the coldest days), there is no room under them, so it rises until it
      * clears the row — level with the lows, in the gap between them.
      */
@@ -231,6 +231,7 @@ object DailyRainLabelLayout {
                 top = placed.top,
                 width = size.width,
                 height = size.height,
+                leftLowLabel = input.leftLowLabel,
                 obstacles = input.obstacles,
                 maxRight = input.canvasWidth - edge,
                 density = p,
@@ -250,6 +251,7 @@ object DailyRainLabelLayout {
             maxBottom = maxBottom,
             minLeft = edge,
             density = p,
+            searchMovedLeft = placed.dxPx < 0f,
         )
         Log.v(
             TAG,

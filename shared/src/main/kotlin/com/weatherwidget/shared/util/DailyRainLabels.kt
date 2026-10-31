@@ -60,7 +60,7 @@ object DailyRainLabels {
     const val NIGHT_TUCK_ROOMY_DOWN_DP = 2.5f
 
     // Night rain label collision nudge (DailyRainLabelPlanner.placeNightLabel).
-    /** How far right a night label slides after sinking below both lows. */
+    /** Furthest right a night label slides to clear the left low after sinking below both lows. */
     const val NIGHT_SINK_RIGHT_DP = 3f
     /** Search step, both axes. */
     const val NIGHT_NUDGE_STEP_DP = 1f
@@ -73,7 +73,7 @@ object DailyRainLabels {
     /** An intrusion covering at most this fraction of the label's area is also slight. */
     const val NIGHT_SLIGHT_OVERLAP_AREA_FRACTION = 0.15f
     /** With at least this much room under the label, it prefers moving down to moving sideways. */
-    const val NIGHT_ROOMY_BELOW_DP = 12f
+    const val NIGHT_ROOMY_BELOW_DP = 10f
     /** Sideways movement costs this many times a move down when there is lots of room below. */
     const val NIGHT_ROOMY_SIDEWAYS_COST = 3f
     /** A night label this close to a neighbour, or overlapping it, is hugging it. */

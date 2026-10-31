@@ -86,10 +86,77 @@ class DailyRainLabelLayoutTest {
     fun `sunk night label stops short of a low level with it`() {
         val wall = Box(110f, 100f, 150f, 130f)
         val cx = DailyRainLabelPlanner.slideRightAfterSinking(
-            centerX = 100f, top = 105f, width = 16f, height = 14f, obstacles = listOf(wall),
-            maxRight = 400f, density = 2f,
+            centerX = 100f, top = 105f, width = 16f, height = 14f, leftLowLabel = Box(50f, 90f, 105f, 125f),
+            obstacles = listOf(wall), maxRight = 400f, density = 2f,
         )
         assertEquals(102f, cx, 0.01f)
+    }
+
+    private val foldGoogleHost = DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(20f, 14f, 11f) }
+
+    /** Google on the Fold, 2026-10-31 09:44 trace; low labels include their °. */
+    private fun foldGoogleNight(gap: Float, leftLow: Box, rightLow: Box, obstacles: List<Box>) =
+        DailyRainLabelLayout.layoutNight(
+            foldGoogleHost,
+            DailyRainLabelLayout.NightInput(
+                date = "2026-10-30", text = "10%", probability = 10, isPast = true, daysFromToday = -1,
+                columnCenterX = gap - 23f, gapCenterX = gap, columnWidth = 46f,
+                leftLowLabel = leftLow, rightLowLabel = rightLow, obstacles = obstacles,
+                dayLabelTop = 379.4f, canvasWidth = 560f, pxPerDp = 2.625f,
+            ),
+            "test",
+        )
+
+    @Test
+    fun `sunk night label already clear of the left low stays centred`() {
+        // Fri-Today "10%": sits below Fri's low, grazing Today's; the fixed slide moved it +3 dp.
+        val fri = Box(82.8f, 306.3f, 147.8f, 339.5f)
+        val today = Box(131.7f, 314.3f, 202.7f, 351.2f)
+        val label = foldGoogleNight(
+            141.3f, fri, today,
+            listOf(
+                Box(99.8f, 272.7f, 130.8f, 303.7f), Box(82.8f, 306.3f, 137.8f, 339.5f),
+                Box(137.8f, 306.3f, 147.8f, 322.9f, isDegreeSign = true),
+                Box(151.7f, 283.7f, 182.7f, 314.7f), Box(131.7f, 314.3f, 190.7f, 351.2f),
+                Box(190.7f, 314.3f, 202.7f, 332.8f, isDegreeSign = true),
+            ),
+        )
+        assertEquals(141.3f, label.centerX, 0.01f)
+    }
+
+    @Test
+    fun `night label with room below drops under overlapping lows and stays centred`() {
+        // Thu-Fri "15%": the wide lows overlap across the gap; going right put it under Fri's column.
+        val thu = Box(36.7f, 315.9f, 101.7f, 349.1f)
+        val fri = Box(82.8f, 306.3f, 147.8f, 339.5f)
+        val label = foldGoogleNight(
+            92.2f, thu, fri,
+            listOf(
+                Box(53.7f, 282.3f, 84.7f, 313.3f), Box(36.7f, 315.9f, 91.7f, 349.1f),
+                Box(91.7f, 315.9f, 101.7f, 332.5f, isDegreeSign = true),
+                Box(99.8f, 272.7f, 130.8f, 303.7f), Box(82.8f, 306.3f, 137.8f, 339.5f),
+                Box(137.8f, 306.3f, 147.8f, 322.9f, isDegreeSign = true),
+            ),
+        )
+        assertEquals(92.2f, label.centerX, 0.01f)
+        assertTrue("under Thu's digits: top=${label.top}", label.top >= 349.1f - DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * 2.625f)
+    }
+
+    @Test
+    fun `night label the search moved left does not ease further left`() {
+        // Sun-Mon "10%" at the same height: eased to the 30 % limit, 5.3 dp left of centre.
+        val p = 2.625f
+        val eased = DailyRainLabelPlanner.easeOffNeighbors(
+            homeCenterX = 242.1f, centerX = 236.85f, top = 327.6f, width = 19f, height = 12.3f,
+            obstacles = listOf(
+                Box(196.1f, 284.1f, 230.1f, 321f), Box(230.1f, 284.1f, 242.1f, 302.6f, isDegreeSign = true),
+                Box(249.7f, 301.6f, 280.7f, 332.6f), Box(242.2f, 332.2f, 276.2f, 369.1f),
+            ),
+            rightLowLabel = Box(242.2f, 332.2f, 288.2f, 369.1f),
+            maxShiftPx = 13.8f, maxBottom = 379.4f, minLeft = 10f, density = p, searchMovedLeft = true,
+        )
+        assertEquals(236.85f, eased.centerX, 0.01f)
+        assertEquals(327.6f, eased.top, 0.01f)
     }
 
     @Test
