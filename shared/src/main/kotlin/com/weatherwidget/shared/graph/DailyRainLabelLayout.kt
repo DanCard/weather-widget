@@ -267,9 +267,18 @@ object DailyRainLabelLayout {
         } else {
             eased
         }
-        val finalTop = DailyRainLabelPlanner.dropClearOfDegree(
+        val offInkTop = DailyRainLabelPlanner.dropOffDigitInk(
             centerX = final.centerX,
             top = final.top,
+            width = size.width,
+            height = size.height,
+            obstacles = input.obstacles,
+            maxBottom = maxBottom,
+            density = p,
+        )
+        val finalTop = DailyRainLabelPlanner.dropClearOfDegree(
+            centerX = final.centerX,
+            top = offInkTop,
             width = size.width,
             height = size.height,
             obstacles = input.obstacles,
@@ -282,7 +291,7 @@ object DailyRainLabelLayout {
                 " anchorBottom=${anchorBottom.r()} lowerLowBottom=${lowerLowBottom.r()} roomBelowDp=${roomBelowDp.r()}" +
                 " tuckTop=${tuckTop.r()} home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
                 " resolved=(${final.centerX.r()},${finalTop.r()}) placement=${placed.placement} sunk=$sunk" +
-                " recentered=${final != eased} degreeDropDp=${((finalTop - final.top) / p).r()}" +
+                " recentered=${final != eased} inkDropDp=${((offInkTop - final.top) / p).r()} degreeDropDp=${((finalTop - offInkTop) / p).r()}" +
                 " easedDp=(${((eased.centerX - placedCenterX) / p).r()},${((eased.top - placed.top) / p).r()})" +
                 " offsetDp=(${(placed.dxPx / p).r()},${(placed.dyPx / p).r()}) overlapDp=${(placed.overlapPx / p).r()}" +
                 " maxBottom=${maxBottom.r()} dayLabelTop=${input.dayLabelTop.r()}" +

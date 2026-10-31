@@ -233,6 +233,24 @@ class DailyRainLabelLayoutTest {
     }
 
     @Test
+    fun `night label on a low's digit ink drops as far as the day names allow`() {
+        // Desktop "38%", 10:12 trace: its left edge sat on the 9 of "47.9", slight only by area.
+        val low = DailyRainLabelPlanner.lowLabelObstacles("47.9°", 183.2f, 724.1f, 273.2f, 774.1f, degreeWidth = 16f)
+        assertEquals(
+            791.4f - 33f,
+            DailyRainLabelPlanner.dropOffDigitInk(277.1f, 746.3f, 49f, 33f, low, 791.4f, 2.88f),
+            0.01f,
+        )
+    }
+
+    @Test
+    fun `night label only skimming the side of a digit box stays`() {
+        // Fold Silurian "15%": 1.8 px into the box's side padding, 0.7 dp.
+        val low = DailyRainLabelPlanner.lowLabelObstacles("47.9°", 131.7f, 328.4f, 202.7f, 365.4f, degreeWidth = 12f)
+        assertEquals(349.5f, DailyRainLabelPlanner.dropOffDigitInk(198.4f, 349.5f, 19f, 12.4f, low, 379.4f, 2.625f), 0.01f)
+    }
+
+    @Test
     fun `night label grazing a degree sign drops for air when there is room`() {
         // Silurian "15%" on the Fold, 10:05 trace: 2.3 px into the ° box of "47.9°".
         val p = 2.625f

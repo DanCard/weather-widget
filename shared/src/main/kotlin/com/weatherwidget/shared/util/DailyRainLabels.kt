@@ -72,6 +72,10 @@ object DailyRainLabels {
     const val NIGHT_RECENTER_MAX_RISE_DP = 2f
     /** A returning night label may reach this far into a neighbour's ink box vertically. */
     const val NIGHT_RECENTER_INK_OVERLAP_DP = 0.75f
+    /** Furthest a night label drops to get off a low label's digit ink. */
+    const val NIGHT_INK_MAX_DROP_DP = 5f
+    /** A night label overlapping digits by no more than this sideways is not touching their ink. */
+    const val NIGHT_INK_SIDE_OVERLAP_DP = 1f
     /** Air a night label keeps under a ° it would otherwise graze. */
     const val NIGHT_DEGREE_GAP_DP = 1f
     /** Furthest a night label drops for that air. */

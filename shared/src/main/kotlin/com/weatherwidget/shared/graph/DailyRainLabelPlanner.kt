@@ -434,6 +434,39 @@ object DailyRainLabelPlanner {
     }
 
     /**
+     * Drops a night label off a low label's digit ink, for at most
+     * [DailyRainLabels.NIGHT_INK_MAX_DROP_DP] and never past [maxBottom]. The search accepts an overlap
+     * up to 15 % of the label's area, which down a tall side edge is text touching text. Only an overlap
+     * wider than [DailyRainLabels.NIGHT_INK_SIDE_OVERLAP_DP] counts, and the drop must clear the ink to
+     * within [DailyRainLabels.NIGHT_RECENTER_INK_OVERLAP_DP], or as near as [maxBottom] allows.
+     */
+    fun dropOffDigitInk(
+        centerX: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        obstacles: List<Box>,
+        maxBottom: Float,
+        density: Float,
+    ): Float {
+        val left = centerX - width / 2f
+        val right = centerX + width / 2f
+        val sidePx = DailyRainLabels.NIGHT_INK_SIDE_OVERLAP_DP * density
+        val inkOverlapPx = DailyRainLabels.NIGHT_RECENTER_INK_OVERLAP_DP * density
+        val target = obstacles
+            .filter { it.isLowDigits && minOf(right, it.right) - maxOf(left, it.left) > sidePx }
+            .mapNotNull {
+                val h = it.bottom - it.top
+                val inkTop = it.top + h * DailyRainLabels.LOW_BLANK_ASCENT_FRACTION
+                val inkBottom = it.bottom - h * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION
+                if (top + height > inkTop && top < inkBottom - inkOverlapPx) inkBottom - inkOverlapPx else null
+            }
+            .maxOrNull() ?: return top
+        val limited = minOf(target, top + DailyRainLabels.NIGHT_INK_MAX_DROP_DP * density, maxBottom - height)
+        return maxOf(top, limited)
+    }
+
+    /**
      * Drops a night label sitting just under a ° until it has [DailyRainLabels.NIGHT_DEGREE_GAP_DP] of
      * air, for at most [DailyRainLabels.NIGHT_DEGREE_MAX_DROP_DP]. The search calls a graze of the ° clear,
      * which leaves the two reading as one glyph. It stays put when the drop would cross [maxBottom] or
