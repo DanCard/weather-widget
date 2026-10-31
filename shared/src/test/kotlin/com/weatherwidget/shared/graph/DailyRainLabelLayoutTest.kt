@@ -142,6 +142,96 @@ class DailyRainLabelLayoutTest {
         assertTrue("under Thu's digits: top=${label.top}", label.top >= 349.1f - DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * 2.625f)
     }
 
+    private fun lowDigits(left: Float, top: Float, right: Float, bottom: Float) =
+        DailyRainLabelPlanner.lowLabelObstacles("47.9°", left, top, right, bottom, degreeWidth = 12f)
+
+    @Test
+    fun `night label kept off centre only by blank descent returns to the gap`() {
+        // Tomorrow.io "40%" on the Fold, 09:52:46 trace: 2 dp left of centre, under the digits' ink.
+        val p = 2.6f
+        val label = DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(26f, 16.6f, 13f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-10-31", text = "40%", probability = 40, isPast = false, daysFromToday = 0,
+                columnCenterX = 167f, gapCenterX = 193.1f, columnWidth = 49f,
+                leftLowLabel = Box(131.7f, 323.4f, 202.7f, 360.3f),
+                rightLowLabel = Box(196.1f, 332.7f, 242.1f, 369.6f),
+                obstacles = listOf(Box(151.7f, 292.8f, 182.7f, 323.8f)) + lowDigits(131.7f, 323.4f, 202.7f, 360.3f) +
+                    Box(203.6f, 302f, 234.6f, 333f) + lowDigits(196.1f, 332.7f, 242.1f, 369.6f),
+                dayLabelTop = 379.4f, canvasWidth = 480f, pxPerDp = p,
+            ),
+            "test",
+        )
+        assertEquals(193.1f, label.centerX, 0.01f)
+        assertTrue("lower than the search left it: top=${label.top}", label.top > 357.7f)
+        assertTrue("clear of the day names: bottom=${label.bottom}", label.bottom <= 379.4f)
+    }
+
+    @Test
+    fun `night label level with the digits' ink stays where the search put it`() {
+        val obstacles = lowDigits(242.2f, 332.2f, 288.2f, 369.1f)
+        val done = DailyRainLabelPlanner.recenterOverBlankLineBox(
+            homeCenterX = 248f, centerX = 236.9f, top = 340f, width = 19f, height = 12.3f,
+            obstacles = obstacles, maxBottom = 379.4f, density = 2.625f,
+        )
+        assertEquals(236.9f, done.centerX, 0.01f)
+        assertEquals(340f, done.top, 0.01f)
+    }
+
+    @Test
+    fun `night label the search moved right returns when the sink slide is not needed`() {
+        // Meteo "30%" on the Fold, 09:58 trace: the ° box drew a 3 dp slide on top of a 2 dp search move.
+        val label = DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(23f, 14.5f, 11f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-10-31", text = "30%", probability = 30, isPast = false, daysFromToday = 0,
+                columnCenterX = 167f, gapCenterX = 193.1f, columnWidth = 49f,
+                leftLowLabel = Box(131.7f, 329f, 202.7f, 365.9f),
+                rightLowLabel = Box(196.1f, 319.7f, 242.1f, 356.6f),
+                obstacles = listOf(Box(151.7f, 298.4f, 182.7f, 329.4f)) + lowDigits(131.7f, 329f, 202.7f, 365.9f) +
+                    Box(203.6f, 289f, 234.6f, 320f) + lowDigits(196.1f, 319.7f, 242.1f, 356.6f),
+                dayLabelTop = 379.4f, canvasWidth = 480f, pxPerDp = 2.625f,
+            ),
+            "test",
+        )
+        assertEquals(193.1f, label.centerX, 0.01f)
+        assertTrue("clear of the day names: bottom=${label.bottom}", label.bottom <= 379.4f)
+    }
+
+    @Test
+    fun `desktop night label moved off a blank degree box top returns to the gap`() {
+        // Silurian "15%", 09:57:55 trace: 5 dp right, clearing only the empty top of the ° box.
+        val p = 2.88f
+        val left = DailyRainLabelPlanner.lowLabelObstacles("47.9°", 184.2f, 737f, 272.2f, 786f, degreeWidth = 16f)
+        val right = DailyRainLabelPlanner.lowLabelObstacles("52°", 294f, 663.5f, 358f, 718.5f, degreeWidth = 18f)
+        val label = DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(36f, 25f, 19f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-10-31", text = "15%", probability = 15, isPast = false, daysFromToday = 0,
+                columnCenterX = 234f, gapCenterX = 277.1f, columnWidth = 86f,
+                leftLowLabel = Box(184.2f, 737f, 272.2f, 786f), rightLowLabel = Box(294f, 663.5f, 358f, 718.5f),
+                obstacles = listOf(Box(202.1f, 684.9f, 254.3f, 737f)) + left + Box(299.9f, 611.3f, 352.1f, 663.5f) + right,
+                dayLabelTop = 777.7f, canvasWidth = 1002f, pxPerDp = p,
+            ),
+            "test",
+        )
+        assertEquals(277.1f, label.centerX, 0.01f)
+        assertEquals(723f, label.top, 0.5f)
+    }
+
+    @Test
+    fun `night label rises a little to return when the degree ink is below it`() {
+        // Desktop "15%" at the live 727.6 top: the ° ink stops it returning at that height.
+        val p = 2.88f
+        val left = DailyRainLabelPlanner.lowLabelObstacles("47.9°", 184.2f, 737f, 272.2f, 786f, degreeWidth = 16f)
+        val done = DailyRainLabelPlanner.recenterOverBlankLineBox(
+            homeCenterX = 277.1f, centerX = 291.6f, top = 727.6f, width = 36f, height = 25f,
+            obstacles = left, maxBottom = 777.7f, density = p,
+        )
+        assertEquals(277.1f, done.centerX, 0.01f)
+        assertTrue("risen at most 2 dp: top=${done.top}", done.top < 727.6f && done.top >= 727.6f - 2f * p)
+    }
+
     @Test
     fun `night label the search moved left does not ease further left`() {
         // Sun-Mon "10%" at the same height: eased to the 30 % limit, 5.3 dp left of centre.

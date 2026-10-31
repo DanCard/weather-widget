@@ -38,6 +38,8 @@ object DailyRainLabelPlanner {
         val bottom: Float,
         /** A low label's °: a slight overlap by area alone is a last resort ([placeNightLabel]). */
         val isDegreeSign: Boolean = false,
+        /** A low label's digits: a line box, so its bottom is blank descent ([recenterOverBlankLineBox]). */
+        val isLowDigits: Boolean = false,
     )
 
     /**
@@ -272,8 +274,8 @@ object DailyRainLabelPlanner {
     }
 
     /**
-     * Slides a night label that sank below both lows out from under [leftLowLabel], by just enough to
-     * clear it and at most [DailyRainLabels.NIGHT_SINK_RIGHT_DP], stopping short of [maxRight] and of
+     * Slides a night label that sank below both lows out from under [leftLowLabel]'s digits, by just enough
+     * to clear them and at most [DailyRainLabels.NIGHT_SINK_RIGHT_DP], stopping short of [maxRight] and of
      * anything level with it. A label that only grazes the low vertically (up to
      * [DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP]) stays put, centred in the gap.
      */
@@ -289,10 +291,11 @@ object DailyRainLabelPlanner {
     ): Float {
         val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
         fun isLevel(o: Box) = (minOf(top + height, o.bottom) - maxOf(top, o.top)).let { it > 0f && (o.isDegreeSign || it > slightPx) }
-        val needed = leftLowLabel.right - (centerX - width / 2f)
-        if (!isLevel(leftLowLabel) || needed <= 0f) return centerX
+        val digits = obstacles.firstOrNull { it.isLowDigits && it.left == leftLowLabel.left } ?: leftLowLabel
+        val needed = digits.right - (centerX - width / 2f)
+        if (!isLevel(digits) || needed <= 0f) return centerX
         val right = centerX + width / 2f
-        val nearestLevel = obstacles.filter { isLevel(it) && it.left >= leftLowLabel.right }.minOfOrNull { it.left } ?: maxRight
+        val nearestLevel = obstacles.filter { isLevel(it) && it.left >= digits.right && !(it.isDegreeSign && it.left == digits.right) }.minOfOrNull { it.left } ?: maxRight
         val room = minOf(nearestLevel, maxRight) - right
         return centerX + minOf(needed, DailyRainLabels.NIGHT_SINK_RIGHT_DP * density, room).coerceAtLeast(0f)
     }
@@ -371,6 +374,66 @@ object DailyRainLabelPlanner {
     }
 
     /**
+     * Brings a night label the search moved sideways back toward [homeCenterX] when only the blank part
+     * of a low label's line box kept it there: the top [DailyRainLabels.LOW_BLANK_ASCENT_FRACTION] of
+     * digits and °, and the bottom [DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION] of digits, hold no ink.
+     * Tries the column nearest the centre first, at the smallest vertical move: down at most
+     * [DailyRainLabels.NIGHT_RECENTER_MAX_DROP_DP], never past [maxBottom], or up at most
+     * [DailyRainLabels.NIGHT_RECENTER_MAX_RISE_DP]. It needs real clearance:
+     * within [DailyRainLabels.NIGHT_RECENTER_INK_OVERLAP_DP] of the ink. A label level with the digits'
+     * ink stays where the search put it.
+     */
+    fun recenterOverBlankLineBox(
+        homeCenterX: Float,
+        centerX: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        obstacles: List<Box>,
+        maxBottom: Float,
+        density: Float,
+    ): NightLabelEase {
+        val offset = centerX - homeCenterX
+        if (offset == 0f) return NightLabelEase(centerX, top)
+        val step = (DailyRainLabels.NIGHT_NUDGE_STEP_DP * density).coerceAtLeast(0.5f)
+        val inkOverlapPx = DailyRainLabels.NIGHT_RECENTER_INK_OVERLAP_DP * density
+        val maxDropPx = DailyRainLabels.NIGHT_RECENTER_MAX_DROP_DP * density
+        val inkBoxes = obstacles.map {
+            val h = it.bottom - it.top
+            when {
+                it.isLowDigits -> it.copy(
+                    top = it.top + h * DailyRainLabels.LOW_BLANK_ASCENT_FRACTION,
+                    bottom = it.bottom - h * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION,
+                )
+                // The ° box is already cut to the top half of the line box, so its fraction doubles.
+                it.isDegreeSign -> it.copy(
+                    top = it.top + h * DailyRainLabels.LOW_BLANK_ASCENT_FRACTION / DailyRainLabels.DEGREE_SIGN_HEIGHT_FRACTION,
+                )
+                else -> it
+            }
+        }
+        fun clearOfInk(cx: Float, atTop: Float) = inkBoxes.none {
+            val ow = minOf(cx + width / 2f, it.right) - maxOf(cx - width / 2f, it.left)
+            val oh = minOf(atTop + height, it.bottom) - maxOf(atTop, it.top)
+            ow > 0f && oh > inkOverlapPx
+        }
+        val maxRisePx = DailyRainLabels.NIGHT_RECENTER_MAX_RISE_DP * density
+        val rows = ((-(maxRisePx / step).toInt())..(maxDropPx / step).toInt()).sortedWith(
+            compareBy({ kotlin.math.abs(it) }, { -it }),
+        )
+        val columns = (kotlin.math.abs(offset) / step).toInt()
+        for (c in 0 until columns.coerceAtLeast(1)) {
+            val cx = homeCenterX + (if (offset > 0f) c else -c) * step
+            for (i in rows) {
+                val atTop = top + i * step
+                if (atTop + height > maxBottom) continue
+                if (clearOfInk(cx, atTop)) return NightLabelEase(cx, atTop)
+            }
+        }
+        return NightLabelEase(centerX, top)
+    }
+
+    /**
      * A low-temp label as night-label obstacles: the digits at full height, and — when [text] ends in
      * ° — the degree sign over only the top [DailyRainLabels.DEGREE_SIGN_HEIGHT_FRACTION] of the box.
      * One full-height box made the blank pocket under the ° an obstacle, pushing night labels toward
@@ -385,12 +448,12 @@ object DailyRainLabelPlanner {
         degreeWidth: Float,
     ): List<Box> {
         if (!text.endsWith("°") || degreeWidth <= 0f || degreeWidth >= right - left) {
-            return listOf(Box(left, top, right, bottom))
+            return listOf(Box(left, top, right, bottom, isLowDigits = true))
         }
         val digitsRight = right - degreeWidth
         val degreeBottom = top + (bottom - top) * DailyRainLabels.DEGREE_SIGN_HEIGHT_FRACTION
         return listOf(
-            Box(left, top, digitsRight, bottom),
+            Box(left, top, digitsRight, bottom, isLowDigits = true),
             Box(digitsRight, top, right, degreeBottom, isDegreeSign = true),
         )
     }

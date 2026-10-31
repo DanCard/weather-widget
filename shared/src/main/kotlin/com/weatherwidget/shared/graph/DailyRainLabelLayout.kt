@@ -253,20 +253,35 @@ object DailyRainLabelLayout {
             density = p,
             searchMovedLeft = placed.dxPx < 0f,
         )
+        val final = if (placed.dxPx != 0f) {
+            DailyRainLabelPlanner.recenterOverBlankLineBox(
+                homeCenterX = homeCenterX,
+                centerX = eased.centerX,
+                top = eased.top,
+                width = size.width,
+                height = size.height,
+                obstacles = input.obstacles,
+                maxBottom = maxBottom,
+                density = p,
+            )
+        } else {
+            eased
+        }
         Log.v(
             TAG,
             "nightRainLabel position: platform=$platform date=${input.date} text=\"${input.text}\" fit=$placement" +
                 " anchorBottom=${anchorBottom.r()} lowerLowBottom=${lowerLowBottom.r()} roomBelowDp=${roomBelowDp.r()}" +
                 " tuckTop=${tuckTop.r()} home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
-                " resolved=(${eased.centerX.r()},${eased.top.r()}) placement=${placed.placement} sunk=$sunk" +
+                " resolved=(${final.centerX.r()},${final.top.r()}) placement=${placed.placement} sunk=$sunk" +
+                " recentered=${final != eased}" +
                 " easedDp=(${((eased.centerX - placedCenterX) / p).r()},${((eased.top - placed.top) / p).r()})" +
                 " offsetDp=(${(placed.dxPx / p).r()},${(placed.dyPx / p).r()}) overlapDp=${(placed.overlapPx / p).r()}" +
                 " maxBottom=${maxBottom.r()} dayLabelTop=${input.dayLabelTop.r()}" +
                 " obstacles=${input.obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}",
         )
         return Placed(
-            Kind.NIGHT, input.text, fontScale, eased.centerX, eased.top, size.width, size.height,
-            eased.top + size.baseline, placement, anchorBottom,
+            Kind.NIGHT, input.text, fontScale, final.centerX, final.top, size.width, size.height,
+            final.top + size.baseline, placement, anchorBottom,
         )
     }
 

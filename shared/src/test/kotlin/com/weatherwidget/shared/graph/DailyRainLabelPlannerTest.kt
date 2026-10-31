@@ -270,7 +270,7 @@ class DailyRainLabelPlannerTest {
         val boxes = DailyRainLabelPlanner.lowLabelObstacles("52°", left = 60f, top = 30f, right = 100f, bottom = 50f, degreeWidth = 10f)
         assertEquals(
             listOf(
-                DailyRainLabelPlanner.Box(60f, 30f, 90f, 50f),
+                DailyRainLabelPlanner.Box(60f, 30f, 90f, 50f, isLowDigits = true),
                 DailyRainLabelPlanner.Box(90f, 30f, 100f, 40f, isDegreeSign = true),
             ),
             boxes,

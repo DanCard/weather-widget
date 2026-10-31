@@ -62,6 +62,16 @@ object DailyRainLabels {
     // Night rain label collision nudge (DailyRainLabelPlanner.placeNightLabel).
     /** Furthest right a night label slides to clear the left low after sinking below both lows. */
     const val NIGHT_SINK_RIGHT_DP = 3f
+    /** Top fraction of a low label's line box that is blank (measured on the Fold and desktop). */
+    const val LOW_BLANK_ASCENT_FRACTION = 0.2f
+    /** Bottom fraction of a low label's digit box that is blank descent (measured on the Fold and desktop). */
+    const val DIGIT_BLANK_DESCENT_FRACTION = 0.22f
+    /** Furthest a sideways-moved night label drops to return toward the gap's centre. */
+    const val NIGHT_RECENTER_MAX_DROP_DP = 2f
+    /** Furthest a sideways-moved night label rises to return toward the gap's centre. */
+    const val NIGHT_RECENTER_MAX_RISE_DP = 2f
+    /** A returning night label may reach this far into a neighbour's ink box vertically. */
+    const val NIGHT_RECENTER_INK_OVERLAP_DP = 0.75f
     /** Search step, both axes. */
     const val NIGHT_NUDGE_STEP_DP = 1f
     /** Furthest sideways move, as a fraction of the column width. */
