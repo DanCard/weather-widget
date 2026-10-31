@@ -7,7 +7,7 @@ object DefaultVisibleSources {
     /**
      * Debug builds add Tomorrow.io.
      */
-    fun forBuild(debug: Boolean, hasBakedGoogleKey: Boolean = false): List<WeatherSource> =
+    fun forBuild(debug: Boolean): List<WeatherSource> =
         if (debug) {
             listOf(
                 WeatherSource.NWS,

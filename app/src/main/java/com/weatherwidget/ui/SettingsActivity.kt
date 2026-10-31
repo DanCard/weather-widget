@@ -424,15 +424,6 @@ class SettingsActivity : AppCompatActivity() {
         val updatedIds = WeatherSourceOrdering.toggle(currentIds, source, makeVisible = true) ?: return
         if (updatedIds == currentIds) return
         persistSourceOrder("Add: ${source.name}, new list=$updatedIds", updatedIds)
-        // Enabling Google makes it primary and every widget switches to it: fetch it now and say
-        // so, rather than show its empty graph until some unrelated sync runs.
-        WeatherSourceOrdering.newlyPrimary(currentIds, updatedIds)?.let { newPrimary ->
-            val appContext = applicationContext
-            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                val started = com.weatherwidget.widget.SourceSwitchFetch.start(appContext, newPrimary, trigger = "settings_enable")
-                com.weatherwidget.widget.RefreshToast.show(appContext, "settings_enable", started.notice)
-            }
-        }
         rebuildSourceRows()
     }
 

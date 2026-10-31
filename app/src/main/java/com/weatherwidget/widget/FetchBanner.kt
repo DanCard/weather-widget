@@ -9,8 +9,8 @@ import com.weatherwidget.R
 
 /**
  * A "getting weather…" message floated over whatever the widget already shows, until the forced sync
- * that owes it ends. Used by a setup-screen location change ([LocationChangeBanner]) and by a source
- * becoming primary ([SourceSwitchFetch]); each clears only its own text.
+ * that owes it ends. Used by a setup-screen location change ([LocationChangeBanner]); each caller clears
+ * only its own text.
  *
  * It rides the widget's existing transient-message banner, so every view handler's full render
  * re-binds it until it is cleared or expires. [show] also pushes a banner-only partial update so it

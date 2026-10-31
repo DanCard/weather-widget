@@ -4,7 +4,6 @@ import com.weatherwidget.data.remote.weathernext.WeatherNextDomain
 import com.weatherwidget.shared.rainmap.WeatherNextLoop
 import com.weatherwidget.shared.util.DayTap
 import com.weatherwidget.shared.util.SettingsRefreshAllSources
-import com.weatherwidget.shared.util.SourceSwitchFetchRule
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -217,9 +216,6 @@ internal fun runDesktopUiApplication() = application {
         // "Getting weather for {place}…" over the cached graph while a picker save's fetch runs;
         // takes precedence over historyFetchToast in the popup's single banner slot.
         var locationBanner by remember { mutableStateOf<LocationBanner?>(null) }
-        // A Settings save that made a source primary (WeatherSourceOrdering.newlyPrimary); its fetch
-        // and banner run in the effect keyed on it below. Android: SourceSwitchFetch.
-        var pendingSourceSwitch by remember { mutableStateOf<WeatherSource?>(null) }
         // While a picker save's fetch runs, a cache reload for the new site that can't draw today
         // (nothing cached, or two-week-old rows) must not replace the previous site's graph under
         // the banner with an empty one. Every reload path goes through this.
@@ -351,10 +347,6 @@ internal fun runDesktopUiApplication() = application {
                         config = effective
                         DesktopLocationChangeFeedback.pendingPlaceName(source, prev, effective)?.let { place ->
                             pendingLocationLabel = place
-                        }
-                        if (prev != null) {
-                            WeatherSourceOrdering.newlyPrimary(prev.settings.visibleSources, effective.settings.visibleSources)
-                                ?.let { pendingSourceSwitch = it }
                         }
                     },
                     signalDaemon = {
@@ -599,64 +591,6 @@ internal fun runDesktopUiApplication() = application {
                 throw e
             } finally {
                 if (pendingLocationLabel == label) pendingLocationLabel = null
-            }
-        }
-
-        // A source just became primary (Settings enable). Without its own data the popup would show
-        // its empty graph until the daemon's gated refresh ran; fetch it now, and say so while it
-        // loads unless its cache is already drawable (shared rule with Android's SourceSwitchFetch).
-        LaunchedEffect(repository, pendingSourceSwitch) {
-            val switched = pendingSourceSwitch ?: return@LaunchedEffect
-            val repo = repository ?: return@LaunchedEffect
-            // Stale repository from before the rebuild for the new source; the keyed rerun handles it.
-            if (currentConfig?.displaySource != switched.id) return@LaunchedEffect
-            val token = Any()
-            fun ownsBanner() = locationBanner?.token === token
-            try {
-                val cached = runCatching { repo.loadCached() }.getOrNull()
-                val plan = SourceSwitchFetchRule.start(
-                    hasCache = DesktopSourceSwitchFeedback.hasDrawableCache(
-                        switched.id, weatherDao.getLastSuccessfulFetch(switched.id), cached, LocalDate.now(),
-                    ),
-                    hasLocation = true,
-                    hasSurface = true,
-                )
-                weatherDao.log(SourceSwitchFetchRule.TAG, SourceSwitchFetchRule.startLine(switched.id, "settings_enable", plan), "INFO")
-                // A drawable cache needs no wait; the forecast loop's cadence refreshes it when due.
-                if (!plan.forced) return@LaunchedEffect
-                locationBanner = LocationBanner(token, DesktopSourceSwitchFeedback.fetchingMessage(switched))
-                refreshInFlight = true
-                try {
-                    forecast = repo.refresh(reason = "source_enabled")
-                    dataStatus = DataStatus.Live(System.currentTimeMillis())
-                    dataUpdateCount++
-                    weatherDao.log(
-                        SourceSwitchFetchRule.TAG,
-                        SourceSwitchFetchRule.finishLine(switched.id, succeeded = true, reason = "fetched"),
-                        SourceSwitchFetchRule.finishLevel(true),
-                    )
-                    if (ownsBanner()) locationBanner = null
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    weatherDao.log(
-                        SourceSwitchFetchRule.TAG,
-                        SourceSwitchFetchRule.finishLine(
-                            switched.id, succeeded = false, reason = "error", "error=${e::class.simpleName}: ${e.message}",
-                        ),
-                        SourceSwitchFetchRule.finishLevel(false),
-                    )
-                    if (ownsBanner()) {
-                        locationBanner = LocationBanner(token, DesktopSourceSwitchFeedback.failedMessage(switched), failed = true)
-                    }
-                } finally {
-                    refreshInFlight = false
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                if (ownsBanner()) locationBanner = null
-                throw e
-            } finally {
-                if (pendingSourceSwitch == switched) pendingSourceSwitch = null
             }
         }
 

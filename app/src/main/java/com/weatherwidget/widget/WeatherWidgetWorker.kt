@@ -709,12 +709,6 @@ class WeatherWidgetWorker
             const val KEY_LOCATION_CACHE_ADOPTED = "location_cache_adopted"
 
             /**
-             * Set on the sync a source's becoming primary enqueued (see [SourceSwitchFetch]). When
-             * that showed its "Getting weather from {source}…" banner, the run clears it at every exit.
-             */
-            const val KEY_SOURCE_SWITCH_ID = "source_switch_id"
-
-            /**
              * The user's manual Refresh: the displayed source writes its daily rows even when unchanged
              * ([com.weatherwidget.shared.util.DailyForecastWrite]).
              */

@@ -3,7 +3,6 @@ package com.weatherwidget.widget
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.remote.BuiltInApiKeys
 import com.weatherwidget.ui.ConfigActivity
 import com.weatherwidget.util.SharedPreferencesUtil
 import org.junit.Assert.*
@@ -338,7 +337,7 @@ class WidgetStateManagerTest {
     fun `getVisibleSourcesOrder uses tomorrow io default order on fresh install (debug build)`() {
         // Unit tests run against the debug variant (BuildConfig.DEBUG = true), where Tomorrow.io is in
         // the default set.
-        // DefaultVisibleSourcesTest covers every debug/key combination without depending on the build.
+        // DefaultVisibleSourcesTest covers both build types without depending on the build.
         val context = ApplicationProvider.getApplicationContext<Context>()
         val freshPrefs = context.getSharedPreferences("fresh_test_prefs", Context.MODE_PRIVATE)
         freshPrefs.edit().clear().apply()

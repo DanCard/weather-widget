@@ -195,12 +195,11 @@ internal class WeatherSourcePreferences(
         if (new == old) return false
 
         val selected = widgetIds.distinct().associateWith(::storedDisplaySource)
-        val oldIds = old.map { it.id }
         val editor = prefs.edit().putString(KEY_VISIBLE_SOURCES_ORDER, newIds.joinToString(","))
         selected.forEach { (widgetId, oldSource) ->
             editor.putString(
                 displaySourceKey(widgetId),
-                WeatherSourceOrdering.selectionAfterChange(oldIds, newIds, oldSource.id),
+                WeatherSourceOrdering.selectionAfterChange(newIds, oldSource.id),
             )
         }
         editor.apply()
@@ -325,14 +324,6 @@ internal class WeatherSourcePreferences(
         eventLogger("NWS_ENABLED_MIGRATION", "outcome=$outcome")
     }
 
-
-    /** A source switch the debug migration made and nobody has fetched for yet; cleared on read. */
-    fun consumePendingSourceSwitch(): WeatherSource? {
-        val id = prefs.getString(KEY_PENDING_SOURCE_SWITCH, null) ?: return null
-        prefs.edit().remove(KEY_PENDING_SOURCE_SWITCH).apply()
-        return WeatherSource.entries.firstOrNull { it.id == id }
-    }
-
     private fun activeWidgetIds(): IntArray {
         val manager = AppWidgetManager.getInstance(context)
         return manager.getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
@@ -354,8 +345,6 @@ internal class WeatherSourcePreferences(
         const val KEY_SILURIAN_MIGRATION_DONE = "silurian_migration_done_v2"
         const val KEY_DEPRECATED_SOURCE_MIGRATION_DONE = "hide_deprecated_sources_migration_done_v6"
         const val KEY_OPEN_WEATHER_MAP_POSITION_MIGRATION_DONE = "owm_position_bottom_migration_done_v1"
-        const val KEY_GOOGLE_WEATHER_ENABLED_MIGRATION_DONE = "google_weather_debug_enabled_migration_done_v1"
-        const val KEY_PENDING_SOURCE_SWITCH = "pending_source_switch_fetch"
         const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
         const val KEY_API_KEY_PREFIX = "api_key_"
         const val KEY_ACTUALS_PROVIDER_PREFIX = "actuals_provider_"

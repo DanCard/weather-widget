@@ -7,7 +7,6 @@ import com.weatherwidget.BuildConfig
 import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.remote.BuiltInApiKeys
 import com.weatherwidget.shared.util.RecentLocationsHelper
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -187,9 +186,6 @@ class WidgetStateManager internal constructor(
     fun getPrimarySource(): WeatherSource = sourcePreferences.primarySource()
 
     fun getActiveDisplaySourceIds(): Set<String> = sourcePreferences.activeDisplaySourceIds()
-
-    /** See [WeatherSourcePreferences.consumePendingSourceSwitch]. */
-    fun consumePendingSourceSwitch(): WeatherSource? = sourcePreferences.consumePendingSourceSwitch()
 
     fun getEffectiveVisibleSourcesOrder(widgetId: Int): List<WeatherSource> =
         getVisibleSourcesOrder()
@@ -609,9 +605,7 @@ class WidgetStateManager internal constructor(
         const val HOURLY_NAV_JUMP = 6
 
         private val DEFAULT_VISIBLE_SOURCES =
-            DefaultVisibleSources.forBuild(
-                debug = BuildConfig.DEBUG,
-            )
+            DefaultVisibleSources.forBuild(debug = BuildConfig.DEBUG)
 
         @Synchronized
         fun setPrefsNameOverrideForTesting(prefsName: String?) {

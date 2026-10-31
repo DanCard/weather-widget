@@ -13,13 +13,11 @@ class DefaultVisibleSourcesTest {
 
     @Test
     fun `debug build defaults to standard sources and Tomorrow io`() {
-        assertEquals(debug, DefaultVisibleSources.forBuild(debug = true, hasBakedGoogleKey = true))
-        assertEquals(debug, DefaultVisibleSources.forBuild(debug = true, hasBakedGoogleKey = false))
+        assertEquals(debug, DefaultVisibleSources.forBuild(debug = true))
     }
 
     @Test
     fun `release build never defaults to Google, key or not`() {
-        assertEquals(release, DefaultVisibleSources.forBuild(debug = false, hasBakedGoogleKey = false))
-        assertEquals(release, DefaultVisibleSources.forBuild(debug = false, hasBakedGoogleKey = true))
+        assertEquals(release, DefaultVisibleSources.forBuild(debug = false))
     }
 }

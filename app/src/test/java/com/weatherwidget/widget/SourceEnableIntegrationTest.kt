@@ -18,18 +18,17 @@ import org.robolectric.Shadows.shadowOf
 
 /**
  * Real [WeatherSourcePreferences] + SharedPreferences + bound widgets: enabling Google appends it
- * like any other source and keeps each widget's choice; debug and release builds do not default to
- * Google or migrate it in.
+ * like any other source and keeps each widget's choice; neither build defaults to it or adds it to a
+ * stored list.
  */
 @Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
-class GoogleWeatherPrimaryIntegrationTest {
+class SourceEnableIntegrationTest {
     private lateinit var context: Context
     private val widgetA = 101
     private val widgetB = 202
-    private val debugDefaults = DefaultVisibleSources.forBuild(debug = true, hasBakedGoogleKey = true)
-    private val keylessDebugDefaults = DefaultVisibleSources.forBuild(debug = true, hasBakedGoogleKey = false)
-    private val releaseDefaults = DefaultVisibleSources.forBuild(debug = false, hasBakedGoogleKey = false)
+    private val debugDefaults = DefaultVisibleSources.forBuild(debug = true)
+    private val releaseDefaults = DefaultVisibleSources.forBuild(debug = false)
 
     @Before
     fun setup() {
@@ -42,7 +41,7 @@ class GoogleWeatherPrimaryIntegrationTest {
         shadow.addBoundWidget(widgetB, info)
     }
 
-    private fun prefsStore() = context.getSharedPreferences("google_primary_test", Context.MODE_PRIVATE)
+    private fun prefsStore() = context.getSharedPreferences("source_enable_test", Context.MODE_PRIVATE)
 
     private fun preferences(defaults: List<WeatherSource>) = WeatherSourcePreferences(
         context = context,
@@ -76,36 +75,14 @@ class GoogleWeatherPrimaryIntegrationTest {
     }
 
     @Test
-    fun `debug build does not migrate Google in`() {
-        seedExistingInstall()
-        val prefs = preferences(debugDefaults)
-
-        assertEquals(
-            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
-            prefs.enabledSources(),
-        )
-        assertEquals(WeatherSource.NWS, prefs.currentDisplaySource(widgetA))
-        assertEquals(WeatherSource.OPEN_METEO, prefs.currentDisplaySource(widgetB))
-    }
-
-    @Test
-    fun `release defaults never migrate Google in`() {
-        seedExistingInstall()
-        val prefs = preferences(releaseDefaults)
-        assertEquals(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN), prefs.enabledSources())
-        assertEquals(WeatherSource.NWS, prefs.currentDisplaySource(widgetA))
-    }
-
-    @Test
-    fun `keyless debug build neither defaults to Google nor migrates it in`() {
-        prefsStore().edit().clear().commit()
-        assertEquals(WeatherSource.NWS, preferences(keylessDebugDefaults).primarySource())
-
-        seedExistingInstall()
-        val prefs = preferences(keylessDebugDefaults)
-        assertEquals(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN), prefs.enabledSources())
-        assertEquals(WeatherSource.NWS, prefs.currentDisplaySource(widgetA))
-        assertEquals(WeatherSource.OPEN_METEO, prefs.currentDisplaySource(widgetB))
+    fun `neither build adds Google to a stored list`() {
+        listOf(debugDefaults, releaseDefaults).forEach { defaults ->
+            seedExistingInstall()
+            val prefs = preferences(defaults)
+            assertEquals(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN), prefs.enabledSources())
+            assertEquals(WeatherSource.NWS, prefs.currentDisplaySource(widgetA))
+            assertEquals(WeatherSource.OPEN_METEO, prefs.currentDisplaySource(widgetB))
+        }
     }
 
     @Test
@@ -144,5 +121,8 @@ class GoogleWeatherPrimaryIntegrationTest {
         val up = WeatherSourceOrdering.moveUp(prefs.enabledSources().map { it.id }, WeatherSource.GOOGLE_WEATHER)
         prefs.setVisibleSources(up.map(WeatherSource::fromId))
         assertEquals(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.GOOGLE_WEATHER, WeatherSource.SILURIAN), prefs.enabledSources())
+        val down = WeatherSourceOrdering.moveDown(prefs.enabledSources().map { it.id }, WeatherSource.GOOGLE_WEATHER)
+        prefs.setVisibleSources(down.map(WeatherSource::fromId))
+        assertEquals(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN, WeatherSource.GOOGLE_WEATHER), prefs.enabledSources())
     }
 }

@@ -250,27 +250,11 @@ class WeatherSourceOrderingTest {
     }
 
     @Test
-    fun `enabling a source keeps the display's own choice`() {
-        assertEquals(
-            "OPEN_METEO",
-            WeatherSourceOrdering.selectionAfterChange(listOf("NWS", "OPEN_METEO"), listOf("NWS", "OPEN_METEO", "GOOGLE_WEATHER"), "OPEN_METEO"),
-        )
-    }
-
-    @Test
-    fun `any other change keeps the display's own choice, or falls back to the new primary`() {
-        assertEquals("OPEN_METEO", WeatherSourceOrdering.selectionAfterChange(listOf("NWS", "OPEN_METEO"), listOf("NWS", "OPEN_METEO", "OPEN_WEATHER_MAP"), "OPEN_METEO"))
-        // Reordering Google back to the front is not "enabling" it.
-        assertEquals("NWS", WeatherSourceOrdering.selectionAfterChange(listOf("NWS", "GOOGLE_WEATHER"), listOf("GOOGLE_WEATHER", "NWS"), "NWS"))
-        assertEquals("NWS", WeatherSourceOrdering.selectionAfterChange(listOf("NWS", "SILURIAN"), listOf("NWS"), "SILURIAN"))
-    }
-
-    @Test
-    fun `newlyPrimary is null when PRIMARY_ON_ENABLE is empty`() {
-        assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS"), listOf("GOOGLE_WEATHER", "NWS")))
-        assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS", "GOOGLE_WEATHER"), listOf("GOOGLE_WEATHER", "NWS")))
-        assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS"), listOf("NWS", "OPEN_WEATHER_MAP")))
-        assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS", "SILURIAN"), listOf("SILURIAN")))
+    fun `a list change keeps the display's own choice, or falls back to the new primary`() {
+        assertEquals("OPEN_METEO", WeatherSourceOrdering.selectionAfterChange(listOf("NWS", "OPEN_METEO", "GOOGLE_WEATHER"), "OPEN_METEO"))
+        assertEquals("NWS", WeatherSourceOrdering.selectionAfterChange(listOf("GOOGLE_WEATHER", "NWS"), "NWS"))
+        assertEquals("NWS", WeatherSourceOrdering.selectionAfterChange(listOf("NWS"), "SILURIAN"))
+        assertEquals("NWS", WeatherSourceOrdering.selectionAfterChange(listOf("NWS"), null))
     }
 
     @Test

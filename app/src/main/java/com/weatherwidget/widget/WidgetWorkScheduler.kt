@@ -701,8 +701,6 @@ object WidgetWorkScheduler {
             // The daily gap fill and the recent pass are different work; coalescing drops one.
             data.getBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_DAILY, false),
             data.getString(WeatherWidgetWorker.KEY_TARGET_SOURCE) ?: "",
-            // A source switch's run owns its banner; folding it into another run would pin it.
-            data.getString(WeatherWidgetWorker.KEY_SOURCE_SWITCH_ID) ?: "",
             data.getBoolean(WeatherWidgetWorker.KEY_USER_REFRESH, false),
             data.getBoolean(WeatherWidgetWorker.KEY_ALL_SOURCES, false),
         ).joinToString(":")

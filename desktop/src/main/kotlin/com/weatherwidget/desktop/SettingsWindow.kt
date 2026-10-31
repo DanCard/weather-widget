@@ -296,9 +296,7 @@ internal fun SettingsWindow(
                                         currentConfig.copy(
                                             settings = settings.copy(
                                                 visibleSources = newSources,
-                                                // Enabling Google makes it primary and the popup follows (shared rule).
                                                 weatherSource = WeatherSourceOrdering.selectionAfterChange(
-                                                    settings.visibleSources,
                                                     newSources,
                                                     settings.weatherSource,
                                                 ),

@@ -32,8 +32,6 @@ internal data class WorkInput(
     val locationChangeBanner: Boolean = false,
     /** See [WeatherWidgetWorker.KEY_LOCATION_CACHE_ADOPTED]. */
     val locationCacheAdopted: Boolean = false,
-    /** See [WeatherWidgetWorker.KEY_SOURCE_SWITCH_ID]; null on every other run. */
-    val sourceSwitchId: String? = null,
     /** See [WeatherWidgetWorker.KEY_USER_REFRESH]. */
     val userRefresh: Boolean = false,
     /** See [WeatherWidgetWorker.KEY_ALL_SOURCES]. */
@@ -71,7 +69,6 @@ internal data class WorkInput(
                 locationChangePlace = data.getString(WeatherWidgetWorker.KEY_LOCATION_CHANGE_PLACE),
                 locationChangeBanner = data.getBoolean(WeatherWidgetWorker.KEY_LOCATION_CHANGE_BANNER, false),
                 locationCacheAdopted = data.getBoolean(WeatherWidgetWorker.KEY_LOCATION_CACHE_ADOPTED, false),
-                sourceSwitchId = data.getString(WeatherWidgetWorker.KEY_SOURCE_SWITCH_ID),
                 userRefresh = data.getBoolean(WeatherWidgetWorker.KEY_USER_REFRESH, false),
                 allSources = data.getBoolean(WeatherWidgetWorker.KEY_ALL_SOURCES, false),
             )

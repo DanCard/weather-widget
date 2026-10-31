@@ -300,9 +300,6 @@ internal class FullSyncPipeline(
                     if (bannerPlace != null && weatherList.isNotEmpty()) {
                         painter.finishLocationChangeBanner(bannerPlace, succeeded = true, reason = "sync_success")
                     }
-                    input.sourceSwitchId?.let {
-                        painter.finishSourceSwitchBanner(it, succeeded = weatherList.isNotEmpty(), reason = "sync_success")
-                    }
                     painter.updateAllWidgets(
                         weatherList = weatherList,
                         forecastSnapshots = forecastSnapshots,
@@ -386,7 +383,6 @@ internal class FullSyncPipeline(
                     appLogDao.log("SYNC_FAILURE", "Repository failed: ${e.message}", "ERROR")
                     painter.renderPendingLocationFetchFailure("sync_failure")
                     bannerPlace?.let { painter.finishLocationChangeBanner(it, succeeded = false, reason = "sync_failure") }
-                    input.sourceSwitchId?.let { painter.finishSourceSwitchBanner(it, succeeded = false, reason = "sync_failure") }
                     ListenableWorker.Result.retry()
                 },
             )
@@ -398,9 +394,6 @@ internal class FullSyncPipeline(
             runCatching { painter.renderPendingLocationFetchFailure("sync_exception") }
             input.locationChangePlace?.takeIf { input.locationChangeBanner }?.let { place ->
                 runCatching { painter.finishLocationChangeBanner(place, succeeded = false, reason = "sync_exception") }
-            }
-            input.sourceSwitchId?.let {
-                runCatching { painter.finishSourceSwitchBanner(it, succeeded = false, reason = "sync_exception") }
             }
             return ListenableWorker.Result.retry()
         }
