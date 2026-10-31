@@ -253,12 +253,15 @@ object WidgetWorkScheduler {
 
     /**
      * Whether a forced request for [targetSourceId] must queue behind the pending one-time syncs
-     * (their tags) rather than join them: some are pending and none is forced for this source or for all.
+     * (their tags) rather than join them: some are pending and none is forced for this source. An
+     * untargeted sync does not count: it skips gated sources (Pixel 2026-10-30: OWM, just enabled, was
+     * absorbed by one that left it out). If it did fetch the source, the follow-up coalesces under the
+     * repository's lock ([ForcedRefreshSatisfaction.isSatisfiedByCompletedFetch]).
      */
     @androidx.annotation.VisibleForTesting
     internal fun needsForcedFollowUp(unfinishedTags: List<Set<String>>, targetSourceId: String): Boolean =
         unfinishedTags.isNotEmpty() &&
-            unfinishedTags.none { forcedTargetTag(null) in it || forcedTargetTag(targetSourceId) in it }
+            unfinishedTags.none { forcedTargetTag(targetSourceId) in it }
 
     private fun unfinishedOneTimeSyncTags(context: Context): List<Set<String>>? =
         runCatching {

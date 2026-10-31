@@ -23,6 +23,29 @@ class ForecastFetchPlanTest {
     )
 
     @Test
+    fun recentTryHoldsOnlyThatSource() {
+        val plan = ForecastFetchPlan.plan(listOf("NWS", "OPEN_WEATHER_MAP"), now, decide = { decision(null) })
+        assertEquals(setOf("NWS", "OPEN_WEATHER_MAP"), plan.due.keys)
+
+        val held = plan.withoutRecentlyTried(
+            lastTriedMs = { if (it == "NWS") now - 1_000 else 0L },
+            nowMs = now,
+            minIntervalMs = 600_000L,
+        )
+
+        assertEquals(setOf("OPEN_WEATHER_MAP"), held.due.keys)
+        assertNull(held["NWS"]!!.horizon)
+        assertEquals("next due is not moved", plan["NWS"]!!.nextDue, held["NWS"]!!.nextDue)
+        assertTrue(held.line, held.line.startsWith("parts=OPEN_WEATHER_MAP:"))
+    }
+
+    @Test
+    fun tryAtTheIntervalIsNoLongerHeld() {
+        val plan = ForecastFetchPlan.plan(listOf("NWS"), now, decide = { decision(null) })
+        assertEquals(setOf("NWS"), plan.withoutRecentlyTried({ now - 600_000L }, now, 600_000L).due.keys)
+    }
+
+    @Test
     fun nothingDueStillLogsEveryCandidatesDecision() {
         val plan = ForecastFetchPlan.plan(listOf("NWS", "OPEN_METEO"), now, decide = { decision(1) })
         assertTrue(plan.due.isEmpty())

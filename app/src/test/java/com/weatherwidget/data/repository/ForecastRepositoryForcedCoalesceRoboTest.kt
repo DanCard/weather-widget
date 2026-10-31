@@ -137,5 +137,46 @@ class ForecastRepositoryForcedCoalesceRoboTest {
         assertEquals(2, starts())
     }
 
+    /** Pixel 2026-10-30: OWM due, other sources fetched 90 s ago; the global throttle held it. */
+    @Test
+    fun `an unforced sync fetches a due source although another was just fetched`() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val now = System.currentTimeMillis()
+        db.forecastDao().insertAll(listOf(staleForecastRow()))
+        FetchMetadata.setLastFullFetchTime(context, now)
+        FetchMetadata.setLastForecastSourceTryTime(context, listOf(WeatherSource.NWS.id), lat, lon, now)
+
+        repository.getWeatherData(lat, lon)
+
+        val complete = db.appLogDao().getLogsByTag("NET_FETCH_COMPLETE", 10).single().message
+        assertEquals("OPEN_METEO", complete.substringAfter("sources="))
+    }
+
+    @Test
+    fun `an unforced sync with every due source just tried does not fetch`() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        db.forecastDao().insertAll(listOf(staleForecastRow()))
+        FetchMetadata.setLastForecastSourceTryTime(
+            context, listOf(WeatherSource.NWS.id, WeatherSource.OPEN_METEO.id), lat, lon, System.currentTimeMillis(),
+        )
+
+        repository.getWeatherData(lat, lon)
+
+        assertEquals(0, starts())
+    }
+
+    private fun staleForecastRow() = com.weatherwidget.data.local.ForecastEntity(
+        targetDate = System.currentTimeMillis(),
+        dateOfPrediction = System.currentTimeMillis() - 86_400_000L,
+        locationLat = lat,
+        locationLon = lon,
+        highTemp = 70f,
+        lowTemp = 50f,
+        condition = "Clear",
+        source = WeatherSource.OPEN_METEO.id,
+        fetchedAt = System.currentTimeMillis() - 86_400_000L,
+        lastConfirmedAt = System.currentTimeMillis() - 86_400_000L,
+    )
+
     private suspend fun starts() = db.appLogDao().getLogsByTag("NET_FETCH_START", 10).size
 }

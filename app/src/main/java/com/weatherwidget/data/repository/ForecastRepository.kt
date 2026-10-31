@@ -215,6 +215,7 @@ class ForecastRepository
             requestedAtMs: Long = 0L,
         ): Result<List<ForecastEntity>> {
             val fetchStartTime = System.currentTimeMillis()
+            var triedSourceIds = emptySet<String>()
             try {
                 var cachedForecasts = getCachedData(latitude, longitude)
                 // Background fetches skip sources not viewed in 8 days; null = fetch everything.
@@ -280,15 +281,28 @@ class ForecastRepository
                         )
                         return Result.success(cachedForecasts)
                     }
-                    val timeSinceLastFetch =
-                        System.currentTimeMillis() - lastFetchTime
-                    if (
-                        !forceRefresh &&
-                        timeSinceLastFetch < MIN_NETWORK_INTERVAL_MS &&
-                        cachedForecasts.isNotEmpty()
-                    ) {
-                        return Result.success(cachedForecasts)
+                    val duePlan = fetchCoordinator.planSync(
+                        cachedForecasts = cachedForecasts,
+                        forceRefresh = forceRefresh,
+                        targetSourceId = targetSourceId,
+                        fetchContext = fetchContext,
+                        backgroundSources = gate?.forecasts,
+                        latitude = latitude,
+                        longitude = longitude,
+                    )
+                    val syncPlan = if (!forceRefresh && cachedForecasts.isNotEmpty()) {
+                        duePlan.withoutRecentlyTried(
+                            lastTriedMs = { FetchMetadata.getLastForecastSourceTryTime(context, it, latitude, longitude) },
+                            nowMs = System.currentTimeMillis(),
+                            minIntervalMs = MIN_NETWORK_INTERVAL_MS,
+                        )
+                    } else {
+                        duePlan
                     }
+                    (duePlan.due.keys - syncPlan.due.keys).takeIf { it.isNotEmpty() }?.let { held ->
+                        appLogDao.log("NET_FETCH_THROTTLED", "sources=${held.joinToString(",")}")
+                    }
+                    if (!forceRefresh && syncPlan.due.isEmpty()) return Result.success(cachedForecasts)
 
                     appLogDao.log(
                         "NET_FETCH_START",
@@ -310,17 +324,9 @@ class ForecastRepository
                         )
                         return Result.success(cachedForecasts)
                     }
-                    val syncPlan = fetchCoordinator.planSync(
-                        cachedForecasts = cachedForecasts,
-                        forceRefresh = forceRefresh,
-                        targetSourceId = targetSourceId,
-                        fetchContext = fetchContext,
-                        backgroundSources = gate?.forecasts,
-                        latitude = latitude,
-                        longitude = longitude,
-                    )
                     val fetchPlan = syncPlan.due.mapKeys { (id, _) -> WeatherSource.entries.first { it.id == id } }
                     val sourcesToFetch = fetchPlan.keys
+                    triedSourceIds = syncPlan.due.keys
                     // `FETCH_PLAN parts=… horizons=…`: one line, both platforms (:shared ForecastFetchPlan).
                     appLogDao.log(com.weatherwidget.data.model.ForecastParts.PLAN_TAG, syncPlan.line, "INFO")
                     fetchCoordinator.fetchFromAllApis(
@@ -339,6 +345,7 @@ class ForecastRepository
                     val totalFetchTime =
                         System.currentTimeMillis() - fetchStartTime
                     lastFetchTime = System.currentTimeMillis()
+                    FetchMetadata.setLastForecastSourceTryTime(context, triedSourceIds, latitude, longitude, lastFetchTime)
                     lastCompletedFetch = ForcedRefreshSatisfaction.CompletedFetch(
                         lat = latitude,
                         lon = longitude,
@@ -357,6 +364,7 @@ class ForecastRepository
                 throw cancellation
             } catch (exception: Exception) {
                 lastFetchTime = 0L
+                FetchMetadata.setLastForecastSourceTryTime(context, triedSourceIds, latitude, longitude, 0L)
                 appLogDao.logException(
                     "NET_FETCH_ERROR",
                     "Network fetch failed",

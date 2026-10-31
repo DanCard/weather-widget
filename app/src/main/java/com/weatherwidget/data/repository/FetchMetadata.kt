@@ -14,6 +14,7 @@ object FetchMetadata {
     private const val KEY_LAST_CURRENT_TEMP_FETCH = "last_current_temp_fetch_time"
     private const val KEY_LAST_USER_REFRESH = "last_user_refresh_time"
     private const val KEY_LAST_FORECAST_SOURCE_SUCCESS_PREFIX = "last_forecast_source_success"
+    private const val KEY_LAST_FORECAST_SOURCE_TRY_PREFIX = "last_forecast_source_try"
 
     private fun getPrefs(context: Context): SharedPreferences {
         return com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, PREFS_NAME)
@@ -108,10 +109,37 @@ object FetchMetadata {
         sourceId: String,
         latitude: Double,
         longitude: Double,
+    ): String = forecastSourceKey(KEY_LAST_FORECAST_SOURCE_SUCCESS_PREFIX, sourceId, latitude, longitude)
+
+    /** Last forecast fetch of one provider at one site, successful or not: its unforced-fetch throttle. */
+    fun getLastForecastSourceTryTime(
+        context: Context,
+        sourceId: String,
+        latitude: Double,
+        longitude: Double,
+    ): Long = getPrefs(context).getLong(forecastSourceKey(KEY_LAST_FORECAST_SOURCE_TRY_PREFIX, sourceId, latitude, longitude), 0L)
+
+    fun setLastForecastSourceTryTime(
+        context: Context,
+        sourceIds: Collection<String>,
+        latitude: Double,
+        longitude: Double,
+        time: Long,
+    ) {
+        val editor = getPrefs(context).edit()
+        sourceIds.forEach { editor.putLong(forecastSourceKey(KEY_LAST_FORECAST_SOURCE_TRY_PREFIX, it, latitude, longitude), time) }
+        editor.apply()
+    }
+
+    private fun forecastSourceKey(
+        prefix: String,
+        sourceId: String,
+        latitude: Double,
+        longitude: Double,
     ): String {
         val lat = LocationMatch.quantize(latitude)
         val lon = LocationMatch.quantize(longitude)
-        return "${KEY_LAST_FORECAST_SOURCE_SUCCESS_PREFIX}_${sourceId}_${lat}_$lon"
+        return "${prefix}_${sourceId}_${lat}_$lon"
     }
 
     /**

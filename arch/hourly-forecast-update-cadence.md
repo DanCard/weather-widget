@@ -160,6 +160,18 @@ outright. Desktop keeps no such cache; its windows reload on `dataUpdateCount`. 
 (`adb shell setprop log.tag.STORED_DATA_VERSION VERBOSE`); a cache reload shows as a non-trivial
 `DailyInteractionRenderer … dailyDataMs=` on the repaint after a fetch.
 
+### Unforced fetch throttle (Android, 10 minutes per source)
+
+An unforced Android sync drops from its `ForecastFetchPlan` any due source tried at that site in the
+last 10 minutes (`Plan.withoutRecentlyTried`; `FetchMetadata` stores each try, successful or not). The
+limit is per source: fetching others never holds back one that is due. Held sources log
+`NET_FETCH_THROTTLED sources=…`. Forced fetches and a site with no cached forecast skip the limit.
+
+A forced refresh for one source queues behind a pending all-sources sync unless one for that source
+is already pending, because an all-sources sync skips gated sources. If it did fetch the source, the
+follow-up coalesces under the repository lock (`ForcedRefreshSatisfaction`). Missing-actuals refreshes
+force only the displayed source.
+
 ### User-initiated refresh throttle (10-minute limit)
 
 User-initiated manual refresh triggers (Android widget tap-to-refresh, Settings "Refresh data",

@@ -32,6 +32,19 @@ object ForecastFetchPlan {
         val line: String = ForecastParts.planLogLine(due, sources.mapNotNull { it.logFragment })
 
         operator fun get(sourceId: String): Source? = sources.firstOrNull { it.sourceId == sourceId }
+
+        /**
+         * This plan less the due sources tried within [minIntervalMs] of [nowMs] ([lastTriedMs]), so a
+         * scheduled check never repeats a source too soon. Per source: another source's recent fetch
+         * must not hold back one that is due (Pixel 2026-10-30: OWM, due and 26 days old, waited on the
+         * other six). Their [Source.nextDue] stands.
+         */
+        fun withoutRecentlyTried(lastTriedMs: (String) -> Long, nowMs: Long, minIntervalMs: Long): Plan =
+            copy(
+                sources = sources.map { s ->
+                    if (s.parts != null && nowMs - lastTriedMs(s.sourceId) < minIntervalMs) s.copy(parts = null, horizon = null) else s
+                },
+            )
     }
 
     /**

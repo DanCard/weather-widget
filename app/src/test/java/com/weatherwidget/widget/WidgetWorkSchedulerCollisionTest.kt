@@ -99,11 +99,11 @@ class WidgetWorkSchedulerCollisionTest {
     }
 
     @Test
-    fun `a pending sync forced for all sources covers any target`() {
+    fun `only a sync forced for this source covers a target`() {
         val all = setOf(WidgetWorkScheduler.forcedTargetTag(null))
         val meteo = setOf(WidgetWorkScheduler.forcedTargetTag("OPEN_METEO"))
         assertEquals(false, WidgetWorkScheduler.needsForcedFollowUp(emptyList(), "NWS"))
-        assertEquals(false, WidgetWorkScheduler.needsForcedFollowUp(listOf(all), "NWS"))
+        assertEquals("an untargeted sync may skip a gated source", true, WidgetWorkScheduler.needsForcedFollowUp(listOf(all), "NWS"))
         assertEquals(true, WidgetWorkScheduler.needsForcedFollowUp(listOf(meteo), "NWS"))
         assertEquals("an unforced sync fetches nothing on demand", true, WidgetWorkScheduler.needsForcedFollowUp(listOf(emptySet()), "NWS"))
         assertEquals(false, WidgetWorkScheduler.needsForcedFollowUp(listOf(meteo), "OPEN_METEO"))

@@ -105,6 +105,8 @@ object DailyHistoryBackfillCoordinator {
             context = context,
             forceRefresh = forceRefresh,
             reason = reason,
+            // Only this source is missing data: an untargeted force refetches every metered source.
+            targetSourceId = displaySource.id.takeIf { forceRefresh },
         )
         stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, refreshType)
     }
